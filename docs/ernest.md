@@ -98,7 +98,7 @@ Two or more positional fields are not allowed. Field names are unique within a c
 
 ```
 Program     = { Declaration } .
-Declaration = TypeDecl | OpaqueDecl | FnDecl | Binding | ForeignDecl .
+Declaration = TypeDecl | OpaqueDecl | FnDecl | LetDecl | ForeignDecl .
 ForeignDecl = "foreign" ( "type" typename [ "(" typevar { "," typevar } ")" ]
             | "fn" Name "(" [ Param { "," Param } ] ")" Return "=" text ) .
 TypeDecl    = "type" typename [ "(" typevar { "," typevar } ")" ] "=" Constructor { "|" Constructor } .
@@ -109,6 +109,7 @@ Signature   = ( ident | binop ) ":" Type .
 FnDecl      = "fn" Name "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 Param       = Pattern [ ":" Type ] .
 Return      = "->" Type [ "with" Type ] .
+LetDecl     = "let" Name [ ":" Type ] "=" Expr .
 Binding     = "let" Pattern [ ":" Type ] ( "=" | "<-" ) Expr .
 Name        = { typename "." } ( ident | binop ) .
 ```
@@ -133,7 +134,7 @@ fn Stack.pop(Stack(xs)) = match xs { [] -> None | x +: rest -> Some((x, Stack(re
 
 **Functions.** `fn` declares a function of fixed arity. Annotations may be omitted where they can be inferred. The return annotation has three forms: omitted, `-> T` for a pure function, `-> T with M` for process code. A pure annotation on a function that calls process code is a type error. A function has one clause. Patterns in parameters must be irrefutable, section 5, `fn seenCount(Peer(seen = entries) : Peer) -> Int = Map.size(entries)`. `fn` may appear at top level and as a statement in a block; it sees its own name, and `fn` declarations in the same block or at top level may refer to each other mutually.
 
-**Bindings.** `let p = e` binds the pattern `p` to the value of `e`; `let p <- e` is described in section 5. The pattern must be irrefutable. A binding is monomorphic and does not see its own name. Shadowing is allowed: a later binding of the same name hides the earlier one from the next statement on, and the right-hand side sees the earlier one.
+**Bindings.** In a block, `let p = e` binds the pattern `p` to the value of `e`; `let p <- e` is described in section 5. The pattern must be irrefutable. A binding is monomorphic and does not see its own name. Shadowing is allowed: a later binding of the same name hides the earlier one from the next statement on, and the right-hand side sees the earlier one. At top level, a `let` binds a `Name` — possibly qualified — to a value, `let Stack.empty = Stack([])`; the LHS is a name, not a pattern, and `<-` is a block form only.
 
 **Foreign declarations.** `foreign type T` declares a type implemented outside the language. `foreign fn f(params) -> T = "impl"` declares a function whose body is the implementation named by the string, in the runtime's language; parameters and the return are annotated. A foreign function with a mailbox type, `-> T with m`, may do anything; a foreign function without one promises purity: the same result for the same arguments and no effect on anything. The implementation promises the declared types; a value of another shape, or an exception, is a fault, section 7. Foreign code sees values in the runtime's representation, section 10.
 
@@ -343,7 +344,7 @@ Either.map, Either.mapLeft, Either.andThen
 
 ```
 Program     = { Declaration } .
-Declaration = TypeDecl | OpaqueDecl | FnDecl | Binding | ForeignDecl .
+Declaration = TypeDecl | OpaqueDecl | FnDecl | LetDecl | ForeignDecl .
 ForeignDecl = "foreign" ( "type" typename [ "(" typevar { "," typevar } ")" ]
             | "fn" Name "(" [ Param { "," Param } ] ")" Return "=" text ) .
 
@@ -356,6 +357,7 @@ Signature   = ( ident | binop ) ":" Type .
 FnDecl      = "fn" Name "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 Param       = Pattern [ ":" Type ] .
 Return      = "->" Type [ "with" Type ] .
+LetDecl     = "let" Name [ ":" Type ] "=" Expr .
 Binding     = "let" Pattern [ ":" Type ] ( "=" | "<-" ) Expr .
 Name        = { typename "." } ( ident | binop ) .
 
