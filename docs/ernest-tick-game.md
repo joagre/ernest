@@ -13,7 +13,7 @@ type Key    = Up | Down | Left | Right | Quit
 keys : Address(KeyMsg)         // field in the runtime's Sys
 ```
 
-`type Seed = Seed(Int)` and `Random.next : (Seed) -> (Int, Seed)` are assumed in the prelude, a pure generator.
+`type Seed = Seed(Int)` and `Random.next : (Seed) -> (Int, Seed)` are assumed available (a stdlib `Random` module), a pure generator.
 
 ## The Program
 
