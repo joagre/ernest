@@ -11,7 +11,7 @@ Ernest is a functional language for concurrent programs. Two ideas run through i
 
 That's the whole vocabulary. Everything else in the language is a rule for how functions and processes show up in each other.
 
-Take a moment on that. "Functions" you probably know. "Processes" here means what Erlang calls processes: small independent units of computation, each with its own mailbox, each running concurrently with the rest. If you have used Erlang or Elixir, this is familiar. If you have not, don't worry — we'll build it up slowly.
+Take a moment on that. "Functions" you probably know. "Processes" means small independent units of computation, each with its own mailbox, each running concurrently with the rest. If that idea is new, don't worry — we'll build it up slowly.
 
 ## 1. A very small program
 
@@ -27,7 +27,7 @@ When Ernest runs this, it prints `hello, world` to standard output. Let's read i
 
 ### `fn main`
 
-`fn` starts a function definition. `main` is its name. `main` is special: it is the function Ernest calls when the program starts. Like `main` in C, Rust, Go.
+`fn` starts a function definition. `main` is its name. `main` is special: it is the function Ernest calls when the program starts.
 
 ### The parameter
 
@@ -122,7 +122,7 @@ fn opposite(d : Direction) -> Direction = match d {
 }
 ```
 
-`match` looks at `d` and picks the arm whose pattern matches. Read this as a big `switch` from other languages.
+`match` looks at `d` and picks the arm whose pattern matches. Each arm is a case: a pattern on the left of `->`, an expression on the right. The first arm whose pattern matches gets its expression evaluated, and the whole `match` expression takes that value.
 
 ### 2.1 Constructors that carry data
 
@@ -185,7 +185,7 @@ This is the `Line` we saw in the "hello world" program. `Line` (the type) is rea
 
 Why do this? Two reasons. First, type safety: the compiler will not let you send a raw `Text` where a `Line` is expected. Second, meaning: `Line("hello")` reads as "a line to print," not just "some text."
 
-Many prelude types are wrappers: `Line`, `Reply(a)` (which we'll meet later), and so on. In other languages this pattern goes by the name "newtype" (Haskell), "tuple struct" (Rust), or "record with one field."
+Many prelude types are wrappers: `Line`, `Reply(a)` (which we'll meet later), and so on.
 
 ## 3. Functions
 
@@ -330,7 +330,7 @@ Get(reply = r) -> counter(n)     // forgot to answer!
 
 That would be a type error. `r` would be bound but never used. The compiler would refuse to compile the counter.
 
-That check is Ernest's answer to the "gen_server that forgot to reply" bug that costs so many production hours in Erlang. You can't forget in Ernest — the type system remembers for you.
+That check catches a whole category of silent bugs: a caller that sends a request, waits for a reply that never comes, and eventually times out with no useful diagnostic. Ernest makes it impossible to write a receiver that forgets to answer — the type system remembers for you.
 
 ## 5. Running the counter
 
@@ -515,7 +515,7 @@ The first `()` is the return type — unit. The second `()` (after `with`) is th
 
 **Why do lambdas need `fn(x) = ...`? Why can't I just write `x -> x + 1`?**
 
-Because Ernest is n-ary — every function has a specific number of arguments, and that count is part of the type. `fn(x)` says "one argument"; `fn(x, y)` says "two." If Ernest let you write `x -> ...` and stack arrows for multiple arguments (like Haskell), the type of `f x y` wouldn't tell you whether `f` takes one argument or two — you'd have to look at the definition. Ernest keeps arity visible in the type.
+Because Ernest is n-ary — every function has a specific number of arguments, and that count is part of the type. `fn(x)` says "one argument"; `fn(x, y)` says "two." If Ernest let you write `x -> ...` and stack arrows for multiple arguments, the type of a two-argument function would look the same as the type of a one-argument function returning a function, and you'd have to look at the definition to tell them apart. Ernest keeps arity visible in the type.
 
 **Why can `let Right(x) = e` be a type error?**
 
@@ -527,7 +527,7 @@ Every top-level declaration's *qualified name* is where it lives. `fn Net.Http.p
 
 **Why is the mailbox type in the function type?**
 
-So you never have to guess. Look at any function type: `(A) -> B` is pure — no messages, no side effects. `(A) -> B with M` is process code — it uses `send`, `recv`, or `self`. This is Ernest's answer to the "colored functions" problem: colors are on the arrow, not in the syntax.
+So you never have to guess. Look at any function type: `(A) -> B` is pure — no messages, no side effects. `(A) -> B with M` is process code — it uses `send`, `recv`, or `self`. Every function's type tells you at a glance whether it can affect the world; you never have to look inside.
 
 ## 8. Reference: the roles of parens
 
@@ -559,7 +559,7 @@ Once "hello world," the counter, and ping-pong feel readable, the language's fou
 - **`ernest-tick-game.md`** — a snake game with tick-based updates. Introduces named-field records with `..` update syntax, folds over `Map`, one process per player.
 - **`ernest-repl.md`** — a small read-eval-print loop. Introduces `<-` for chaining `Either`, using `try` as a supervised child process, `monitor` for detecting child death.
 - **`ernest-filesync.md`** — file synchronization between two nodes. Introduces mutual-address setup via a `Link` message, `Sys` passed as an explicit value, one process per write.
-- **`ernest-webserver.md`** — HTTP server with sessions in an ETS table. Introduces `foreign fn` for calling Erlang, opaque types with signatures.
+- **`ernest-webserver.md`** — HTTP server with sessions in an ETS table. Introduces `foreign fn` for foreign function calls, opaque types with signatures.
 
 Read them in that order. Each introduces something the next builds on.
 
@@ -567,7 +567,7 @@ For the language rules themselves, `ernest.md` (the report) is the authority. It
 
 For "why is Ernest the way it is," `ernest-decisions.md` records dated design decisions and their evidence. If a rule seems arbitrary, that document explains what pressured it.
 
-For "how the compiler works," `ernest-implementation-plan.md` sketches the MVP 1 roadmap: about eight weeks of one-person work, hand-written parser in Erlang, targeting BEAM.
+For "how the compiler works," `ernest-implementation-plan.md` sketches the MVP 1 roadmap: about eight weeks of one-person work, with a hand-written parser.
 
 ## 10. The seven principles, once
 
