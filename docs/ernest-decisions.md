@@ -240,6 +240,24 @@ Four options weighed.
 
 Taken: the stdlib helper, deferred to Later. Writing the pattern by hand is bounded (ten to fifteen lines) and no paper program has written it three times. `Task(a)` remains available if paper programs demand richer control — cancellation, timeouts per task, interleaved arrivals rather than all-at-once — and `List.parallelRemote` is the smaller answer if what is needed is only parallel-then-join.
 
+## Tests, 2026-09-13
+
+Ernest has no test story today. Every language has to answer this eventually; the question is what shape fits.
+
+Options considered.
+
+**Tests as values.** A test is a term of a prelude type, and the toolchain discovers all top-level bindings of that type and runs them. Unison's `test>` is the reference; the specific `test>` form relied on the codebase-as-database and vanished with it, but the underlying idea is portable.
+
+**Naming convention.** Functions named `test_something` are tests. Rust and Go's shape without their attribute machinery. Rejected: naming rules are invisible in the type, principle 3, and Ernest has not leaned on them elsewhere.
+
+**A `test` keyword.** `test "adds two" = ...` as a declaration form. A seventeenth reserved word for one library-level concern. Principle 6. Rejected.
+
+**Nothing.** Tests are just functions; the user writes a `main` that runs them. No discovery, no reporting, no toolchain integration. Too weak.
+
+Taken: tests as values. A test is a top-level binding of a specific prelude type; the toolchain discovers them by scanning types. No new keyword, no naming rule, no attribute; consistent with "everything is a value" and with visibility being in the name — a top-level binding is what it is by its type, not by decoration.
+
+The concrete prelude type is deferred to MVP 1 Phase 3, when the toolchain is being written and paper programs can inform the API. Candidate shape: `type Test = Test(name : Text, run : () -> Test.Result)` with `type Test.Result = Passed | Failed(Text)`. Deciding the exact ergonomics without a paper program that writes tests would be the rule not measured in code, principle 1. Deterministic scheduling for tests, which stood briefly in the report as a runtime flag, remains a runtime feature to decide with the runtime, not a language requirement.
+
 ## Reasons Lifted Out of the Report
 
 - `recv` is Erlang's `receive`: selective receive lets a process wait for a specific reply in the middle of a protocol without losing other messages; without it every process becomes a state machine, gen_server turned inside out. `recv` therefore does not require coverage, unlike `match`: the two forms share their syntax but not their semantics, since a `match` that finds no arm is a fault and a `recv` that finds no arm leaves the message in the mailbox. Cost O(n) in the mailbox, and a growing mailbox is not visible in the code, the same cost as in Erlang; the backpressure decision above covers the same problem from the sender's side.
@@ -265,7 +283,6 @@ Planned or considered, not in the language today.
 - **`Slot(a)` for language-level credit.** One-shot capability parallel to `Reply(a)`: a consumer allocates and grants slots to a producer via message, the producer sends by consuming a slot per message through `useSlot(s, v)`, and the consumer refills after processing. Same linearity check as `Reply(a)` — a `Slot` bound in an arm is consumed exactly once on every path. The compiler enforces that a producer does not send without permission. Deferred: only helps producer-consumer patterns, and the credit protocol as convention has not been written three times yet. When it has, this is the shape to reach for; see Backpressure above.
 - **`List.parallelRemote` in the stdlib.** A helper for parallel-pure-then-join: `List.parallelRemote(fs) : List(Either(RemoteError, a)) with m` starts N remote computations in parallel and returns their results in order. Implemented as spawn plus recv gather internally, no language extension; the runtime may special-case for direct scheduling. Deferred until a paper program writes the pattern three times. See Remote Ergonomics above for the `Task(a)` alternative if richer control ever becomes essential.
 - **Idioms for the guide, not the report.** Links and supervisors: `monitor(child, Died)` and returning on `Died` is a link; a supervisor is fifteen lines of `spawn`, `monitor`, and `recv`. Parallel remote computation: `remote(f)` waits, so ten at once are ten local processes each calling `remote` and replying, which is what Unison does under `Remote.fork` and `await`, visibly.
-- **Tests as values.** Unison's `test>` is one line, run by the codebase and cached per hash. Vanished with the codebase; a tooling question, but it is missed.
 - **A measure of the specification's length.** Wirth's Oberon report is sixteen pages and shrank with every revision. If this document, without examples, grows past ten pages, one concept too many has come in.
 
 ## Open Questions
@@ -273,7 +290,6 @@ Planned or considered, not in the language today.
 Not addressed in the report. Each needs a decision before the runtime is written.
 
 - **A message whose type does not exist at the receiver.** Two nodes with different versions of the same type. Undefined before MVP 3; the type is not part of the message. See content addressing under Later.
-- **Tests.** How a test is written, run, and reported is undecided. A runtime flag for deterministic scheduling stood in the report as an inheritance from Unison's handler-swapping model and was removed; it is a runtime feature to decide with the runtime, not a language requirement.
 - **Packages and dependencies between projects.** A program is files with one `main`; nothing more.
 - **Canonical formatting**, like gofmt. Mentioned on day one, not decided.
 
