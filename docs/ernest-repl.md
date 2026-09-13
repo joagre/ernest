@@ -152,11 +152,11 @@ fn repl(stdin : Address(StdinMsg), out : Address(Text), env : Map(Text, Value)) 
     recv {
         Input(text) -> match tokenize(text) {
             Left(BadChar(c = c, at = i)) -> {
-                send(out, "illegal character " ++ Char.toText(c) ++ " at " ++ Int.toText(i) ++ "\n");
+                Io.println(out, "illegal character " ++ Char.toText(c) ++ " at " ++ Int.toText(i));
                 repl(stdin, out, env)
             }
           | Right(toks) -> match parse(toks) {
-                Left(e) -> { send(out, ParseError.toText(e) ++ "\n"); repl(stdin, out, env) }
+                Left(e) -> { Io.println(out, ParseError.toText(e)); repl(stdin, out, env) }
               | Right(e) -> {
                     let v = try(env, e);
                     match (e, v) {
@@ -182,12 +182,12 @@ fn try(env : Map(Text, Value), e : Expr) -> Either(TryError, Value) with ReplMsg
     }
 }
 
-fn show(out : Address(Text), r : Either(TryError, Value)) -> () with ReplMsg = send(out, match r {
-    Right(N(n))       -> Int.toText(n) ++ "\n"
-  | Right(Closure) -> "<fun>\n"
-  | Left(Eval(e))     -> "error: " ++ EvalError.toText(e) ++ "\n"
-  | Left(Crashed)     -> "crashed\n"
-  | Left(Timeout)     -> "aborted after 2 s\n"
+fn show(out : Address(Text), r : Either(TryError, Value)) -> () with ReplMsg = Io.println(out, match r {
+    Right(N(n))       -> Int.toText(n)
+  | Right(Closure) -> "<fun>"
+  | Left(Eval(e))     -> "error: " ++ EvalError.toText(e)
+  | Left(Crashed)     -> "crashed"
+  | Left(Timeout)     -> "aborted after 2 s"
 })
 
 fn main(Sys(stdin = stdin, stdout = out) : Sys) -> () with () = {

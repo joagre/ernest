@@ -338,11 +338,13 @@ fn main(Sys(stdout = out) : Sys) -> () with () = {
     send(c, Inc(5));
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
-        Some(n) -> send(out, "count is " ++ Int.toText(n) ++ "\n")
-      | None    -> send(out, "counter is not answering\n")
+        Some(n) -> Io.println(out, "count is " ++ Int.toText(n))
+      | None    -> Io.println(out, "counter is not answering")
     }
 }
 ```
+
+We're using `Io.println` here instead of raw `send`. `Io.println(out, "hi")` is just `send(out, "hi" ++ "\n")` — a one-line convenience from the standard library (Appendix E of the report). Both work; `Io.println` is what real Ernest code uses because it saves the newline bookkeeping.
 
 Four things happen. Let's walk through them.
 
@@ -412,7 +414,7 @@ One small thing in the success case:
 
 `Int.toText` converts an integer to its text representation. `"8"`, in this case.
 
-`++` is text concatenation. Both operands must be `Text`. Result is `Text`. So this expression is `"count is 8"`. We then append a newline to get `"count is 8\n"`, and send that to stdout.
+`++` is text concatenation. Both operands must be `Text`. Result is `Text`. So this expression is `"count is 8"`. `Io.println` then sends that to stdout with a newline appended.
 
 Take a moment. This is a complete Ernest program that uses two processes (main, plus the counter it spawned), passes messages between them, and prints the result. It's about twenty lines.
 
@@ -427,7 +429,7 @@ type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 
 fn pong(out : Address(Text)) -> () with PongMsg = recv {
     Ping(n = n, reply = r) -> {
-        send(out, "pong " ++ Int.toText(n) ++ "\n");
+        Io.println(out, "pong " ++ Int.toText(n));
         answer(r, n);
         pong(out)
     }
@@ -437,10 +439,10 @@ fn pong(out : Address(Text)) -> () with PongMsg = recv {
 fn ping(out : Address(Text), pongAddr : Address(PongMsg), n : Int) -> () with m =
     if n == 0 then send(pongAddr, Stop)
     else {
-        send(out, "ping " ++ Int.toText(n) ++ "\n");
+        Io.println(out, "ping " ++ Int.toText(n));
         match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
             Some(_) -> ping(out, pongAddr, n - 1)
-          | None    -> { send(out, "pong is not answering\n"); send(pongAddr, Stop) }
+          | None    -> { Io.println(out, "pong is not answering"); send(pongAddr, Stop) }
         }
     }
 

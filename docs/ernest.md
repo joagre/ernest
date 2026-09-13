@@ -341,7 +341,7 @@ todo             : (Text) -> a                     // section 7: faults if reach
 
 `ernc file.ern` compiles a source file to `file.erc`, a compiled file the runtime can load. A program is compiled file by file; cross-file names are resolved at load.
 
-`ern [--config-dir dir] [-pa dir ...] file.erc` loads the file and, on demand, the compiled files on the load path, found by namespace, `Net.Http.parse` in `Net/Http.erc`; starts the system processes, builds `Sys`, and calls `main`. `ern --repl` starts a read-evaluate-print loop with the same loading. `--config-dir` names the configuration directory, `./.ernest` by default.
+`ern [--config-dir dir] [-pa dir ...] file.erc` loads the file and, on demand, the compiled files on the load path, found by namespace, `Net.Http.parse` in `Net/Http.erc`; starts the system processes, builds `Sys`, and calls `main`. The standard library, Appendix E, is on the load path by default; `-pa` extends it. `ern --repl` starts a read-evaluate-print loop with the same loading. `--config-dir` names the configuration directory, `./.ernest` by default.
 
 `ern --create-config-dir dir` creates `dir/.ernest/` containing `ernest.conf` and this node's private key, readable only by its owner, and does nothing else; it fails if the directory exists. `ernest.conf` holds this node's network address and public key, and the list of peers: for each, a name, a network address, a public key, and whether it accepts remote computation. Appendix C shows one. The names are the ones `Peer(name)` refers to.
 
@@ -428,8 +428,8 @@ fn main(Sys(stdout = out) : Sys) -> () with () = {
     send(c, Inc(5));
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
-        Some(n) -> send(out, "count is " ++ Int.toText(n) ++ "\n")
-      | None    -> send(out, "counter is not answering\n")
+        Some(n) -> Io.println(out, "count is " ++ Int.toText(n))
+      | None    -> Io.println(out, "counter is not answering")
     }
 }
 ```
@@ -439,7 +439,7 @@ type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 
 fn pong(out : Address(Text)) -> () with PongMsg = recv {
     Ping(n = n, reply = r) -> {
-        send(out, "pong " ++ Int.toText(n) ++ "\n");
+        Io.println(out, "pong " ++ Int.toText(n));
         answer(r, n);
         pong(out)
     }
@@ -449,10 +449,10 @@ fn pong(out : Address(Text)) -> () with PongMsg = recv {
 fn ping(out : Address(Text), pongAddr : Address(PongMsg), n : Int) -> () with m =
     if n == 0 then send(pongAddr, Stop)
     else {
-        send(out, "ping " ++ Int.toText(n) ++ "\n");
+        Io.println(out, "ping " ++ Int.toText(n));
         match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
             Some(_) -> ping(out, pongAddr, n - 1)
-          | None    -> { send(out, "pong is not answering\n"); send(pongAddr, Stop) }
+          | None    -> { Io.println(out, "pong is not answering"); send(pongAddr, Stop) }
         }
     }
 
@@ -557,8 +557,8 @@ fn main(Sys(stdout = out) : Sys) -> () with () = {
     Ets.insert(t, "a", 1);
     Ets.insert(t, "b", 2);
     match Ets.lookup(t, "a") {
-        Some(n) -> send(out, Int.toText(n) ++ "\n")
-      | None    -> send(out, "missing\n")
+        Some(n) -> Io.println(out, Int.toText(n))
+      | None    -> Io.println(out, "missing")
     };
     Ets.drop(t)
 }
@@ -568,7 +568,7 @@ The raw names are unqualified and therefore invisible outside the file; `Ets.*` 
 
 ## Appendix E. Standard Library
 
-Informative, not normative: this appendix lists the modules that ship with the compiler as ordinary Ernest files under `stdlib/`. They are on the load path by default. A program that never references any of these names does not depend on them; a program that does depends on `stdlib/` being present. The prelude in section 9 is what the language itself requires; everything below is convenience written in Ernest on top of it.
+Informative, not normative: this appendix lists the modules that ship with the compiler as ordinary Ernest files under `stdlib/`. The standard library is on the load path by default — no `-pa` flag needed. Every program can call `Io.println`, `List.map`, and the rest without any setup. The prelude in section 9 is what the language itself requires; everything below is convenience written in Ernest on top of it.
 
 ### Appendix E.1. `Io.ern`
 

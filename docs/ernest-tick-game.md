@@ -113,7 +113,7 @@ fn game(out : Address(Text), clock : Address(ClockMsg), world : World) -> () wit
     recv {
         Tick -> {
             let world2 = step(drain(world, 64));
-            send(out, render(world2));
+            Io.print(out, render(world2));
             game(out, clock, world2)
         }
     }
