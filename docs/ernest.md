@@ -37,13 +37,13 @@ The grammar is written in EBNF. `=` defines, `|` separates alternatives, `[ ]` i
 ```
 int      = digit { digit } .
 float    = digit { digit } "." digit { digit } [ ( "e" | "E" ) [ "-" ] digit { digit } ] .
-char     = "'" character "'" .
+char     = "'" ( character | escape ) "'" .
 text     = '"' { character | escape } '"' .
 escape   = "\\" ( '"' | "\\" | "n" | "t" | "u{" hexdigit { hexdigit } "}" ) .
 bool     = "true" | "false" .
 ```
 
-`1` is `Int`, `1.0` and `1.0e-9` are `Float`. Literals carry no sign; `-` is a prefix operator. No overloaded literals and no default. The escapes are the five listed; a `character` is any code point other than `"` and `\`.
+`1` is `Int`, `1.0` and `1.0e-9` are `Float`. Literals carry no sign; `-` is a prefix operator. No overloaded literals and no default. The escapes are the five listed; a `character` is any code point other than the enclosing quote and `\`: in a `char` literal other than `'` and `\`, in a `text` literal other than `"` and `\`.
 
 **Operators and delimiters.**
 
