@@ -323,6 +323,7 @@ Either.map, Either.mapLeft, Either.andThen
 - Tail calls take constant stack space. The last expression of a block, a `match` arm, and a `recv` arm is in tail position.
 - Processes are scheduled preemptively; a process cannot prevent others from running.
 - Processes share no memory; a message is a copy or immutable.
+- Mailboxes are unbounded; a program is responsible for its own backpressure.
 - `Int` has arbitrary precision.
 - The representation of values is fixed and documented, so that foreign code can produce and consume them.
 - `Down` carries a cause distinguishable from other causes.
