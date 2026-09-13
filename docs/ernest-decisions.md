@@ -299,6 +299,7 @@ Planned or considered, not in the language today.
 - **`Slot(a)` for language-level credit.** One-shot capability parallel to `Reply(a)`: a consumer allocates and grants slots to a producer via message, the producer sends by consuming a slot per message through `useSlot(s, v)`, and the consumer refills after processing. Same linearity check as `Reply(a)` — a `Slot` bound in an arm is consumed exactly once on every path. The compiler enforces that a producer does not send without permission. Deferred: only helps producer-consumer patterns, and the credit protocol as convention has not been written three times yet. When it has, this is the shape to reach for; see Backpressure above.
 - **`List.parallelRemote` in the stdlib.** A helper for parallel-pure-then-join: `List.parallelRemote(fs) : List(Either(RemoteError, a)) with m` starts N remote computations in parallel and returns their results in order. Implemented as spawn plus recv gather internally, no language extension; the runtime may special-case for direct scheduling. Deferred until a paper program writes the pattern three times. See Remote Ergonomics above for the `Task(a)` alternative if richer control ever becomes essential.
 - **Idioms for the guide, not the report.** Links and supervisors: `monitor(child, Died)` and returning on `Died` is a link; a supervisor is fifteen lines of `spawn`, `monitor`, and `recv`. Parallel remote computation: `remote(f)` waits, so ten at once are ten local processes each calling `remote` and replying, which is what Unison does under `Remote.fork` and `await`, visibly.
+- **Canonical formatter.** A gofmt-style formatter — mechanically simple given the LL(1) grammar, one role per bracket, and no layout sensitivity. One canonical style, no configuration; killing style debates on day one is easier than after a community forms. A toolchain item, not a language item; expected as part of the `ern` binary. The guide will point at it when it lands.
 - **A measure of the specification's length.** Wirth's Oberon report is sixteen pages and shrank with every revision. If this document, without examples, grows past ten pages, one concept too many has come in.
 
 ## Open Questions
@@ -306,7 +307,6 @@ Planned or considered, not in the language today.
 Not addressed in the report. Each needs a decision before the runtime is written.
 
 - **A message whose type does not exist at the receiver.** Two nodes with different versions of the same type. Undefined before MVP 3; the type is not part of the message. See content addressing under Later.
-- **Canonical formatting**, like gofmt. Mentioned on day one, not decided.
 
 Minor: what `Address` carries (node, process). Code loading before MVP 3: Erlang's `code:load`, modules on both sides. Idiom to write down: a start message for processes that need each other's addresses (file sync, finding 1).
 
