@@ -14,7 +14,13 @@ type FsError = NotFound | Denied | Io(Text)
 type Entry   = Entry(path : Path, mtime : Mtime)
 ```
 
-`Ordering = Less | Equal | Greater` and `Mtime.compare : (Mtime, Mtime) -> Ordering` are assumed in the prelude. `ClockMsg` and `Sys` are the report's; `sys : Sys` is threaded as the first argument to every function that does IO. Three hand-written field functions, what records would have generated:
+`ClockMsg` and `Sys` are the report's; `Ordering` is in the prelude. This paper program additionally assumes:
+
+- `type Path = Path(Text)`, a filesystem path with helpers `Path.join : (Path, Path) -> Path`, `Path.toText : (Path) -> Text`, and `Path.withSuffix : (Path, Text) -> Path`.
+- `Mtime`, an opaque modification time, with `Mtime.compare : (Mtime, Mtime) -> Ordering`.
+- `FsError.toText : (FsError) -> Text` for rendering error messages.
+
+`sys : Sys` is threaded as the first argument to every function that does IO. Three hand-written field functions, what records would have generated:
 
 ```
 fn Sys.fs(Sys(fs = a) : Sys) = a
@@ -82,7 +88,7 @@ fn listing(sys : Sys, dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtim
     let tick = fn() = send(Sys.clock(sys), After(ms = 5000, to = via(fn(_) = Tick, self())));
     recv {
         Listed(Right(entries)) -> {
-            List.foreach(diff(seen, entries), fn(c) = { _ = spawn(Local, fn() = pusher(sys, dir, peer, c)); () });
+            List.foreach(diff(seen, entries), fn(c) = { let _ = spawn(Local, fn() = pusher(sys, dir, peer, c)); () });
             tick();
             syncer(sys, dir, peer, snapshot(entries))
         }
