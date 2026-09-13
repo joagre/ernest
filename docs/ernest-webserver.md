@@ -36,7 +36,7 @@ type Response = Response(status : StatusCode, headers : List((Text, Text)), body
 type ParseError = BadEncoding | BadRequestLine | BadHeader(Text)
 
 fn parse(b : Bytes) -> Either(ParseError, Request) = {
-    let t <- Either.mapLeft(fn(_) = BadEncoding, Text.fromUtf8(b));
+    let t <- Either.fromOptional(Text.fromUtf8(b), BadEncoding);
     let lines = Text.lines(t);
     let (method, path) <- requestLine(lines);
     let headers <- headerLines(lines);

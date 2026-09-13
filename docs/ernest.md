@@ -393,9 +393,10 @@ Optional and Either:
 ```
 Optional.map     : (Optional(a), (a) -> b) -> Optional(b)
 Optional.flatMap : (Optional(a), (a) -> Optional(b)) -> Optional(b)
-Either.map       : (Either(e, a), (a) -> b) -> Either(e, b)
-Either.mapLeft   : (Either(e, a), (e) -> f) -> Either(f, a)
-Either.andThen   : (Either(e, a), (a) -> Either(e, b)) -> Either(e, b)
+Either.map          : (Either(e, a), (a) -> b) -> Either(e, b)
+Either.mapLeft      : (Either(e, a), (e) -> f) -> Either(f, a)
+Either.andThen      : (Either(e, a), (a) -> Either(e, b)) -> Either(e, b)
+Either.fromOptional : (Optional(a), e) -> Either(e, a)
 ```
 
 Foreign inspection:
