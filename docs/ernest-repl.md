@@ -4,7 +4,7 @@ Written against the Ernest report, September 2026. A read-evaluate-print loop fo
 
 ## Assumptions
 
-`Sys` is assumed to have `stdin : Address(StdinMsg)` with `ReadLine(reply : Address(Text))`: one line per request. `Text.chars`, `Char.isDigit`, `Char.isAlpha`, `Char.toText`, and `Text.toInt : (Text) -> Optional(Int)` are in the prelude (report section 9). `ParseError.toText : (ParseError) -> Text` and `EvalError.toText : (EvalError) -> Text` are hand-written renderings for stdout; both are `todo("on paper")` here.
+`Sys` is assumed to have `stdin : Address(StdinMsg)` with `ReadLine(reply : Address(Text))`: one line per request. `Text.chars`, `Char.isDigit`, `Char.isAlpha`, `Char.toText`, and `Text.toInt : (Text) -> Optional(Int)` are in the standard library (report Appendix E). `ParseError.toText : (ParseError) -> Text` and `EvalError.toText : (EvalError) -> Text` are hand-written renderings for stdout; both are `todo("on paper")` here.
 
 ## The Program
 
@@ -147,16 +147,16 @@ type ReplMsg
     | Result(Either(EvalError, Value))
     | Died(Down)
 
-fn repl(stdin : Address(StdinMsg), out : Address(Line), env : Map(Text, Value)) -> () with ReplMsg = {
+fn repl(stdin : Address(StdinMsg), out : Address(Text), env : Map(Text, Value)) -> () with ReplMsg = {
     send(stdin, ReadLine(reply = via(Input, self())));
     recv {
         Input(text) -> match tokenize(text) {
             Left(BadChar(c = c, at = i)) -> {
-                send(out, Line("illegal character " ++ Char.toText(c) ++ " at " ++ Int.toText(i)));
+                send(out, "illegal character " ++ Char.toText(c) ++ " at " ++ Int.toText(i) ++ "\n");
                 repl(stdin, out, env)
             }
           | Right(toks) -> match parse(toks) {
-                Left(e) -> { send(out, Line(ParseError.toText(e))); repl(stdin, out, env) }
+                Left(e) -> { send(out, ParseError.toText(e) ++ "\n"); repl(stdin, out, env) }
               | Right(e) -> {
                     let v = try(env, e);
                     match (e, v) {
@@ -182,13 +182,13 @@ fn try(env : Map(Text, Value), e : Expr) -> Either(TryError, Value) with ReplMsg
     }
 }
 
-fn show(out : Address(Line), r : Either(TryError, Value)) -> () with ReplMsg = send(out, Line(match r {
-    Right(N(n))       -> Int.toText(n)
-  | Right(Closure) -> "<fun>"
-  | Left(Eval(e))     -> "error: " ++ EvalError.toText(e)
-  | Left(Crashed)     -> "crashed"
-  | Left(Timeout)     -> "aborted after 2 s"
-}))
+fn show(out : Address(Text), r : Either(TryError, Value)) -> () with ReplMsg = send(out, match r {
+    Right(N(n))       -> Int.toText(n) ++ "\n"
+  | Right(Closure) -> "<fun>\n"
+  | Left(Eval(e))     -> "error: " ++ EvalError.toText(e) ++ "\n"
+  | Left(Crashed)     -> "crashed\n"
+  | Left(Timeout)     -> "aborted after 2 s\n"
+})
 
 fn main(Sys(stdin = stdin, stdout = out) : Sys) -> () with () = {
     let _ = spawn(Local, fn() = repl(stdin, out, Map.empty));

@@ -265,7 +265,7 @@ The prelude is total: no built-in function faults. Partial operations return `Op
 
 **`main`.** A program is a set of source files with exactly one function `main : (Sys) -> () with m` for some `m`, unqualified, called by the runtime. Nothing sends to `main` that it has not given its address to; `m` is usually `()`.
 
-**`Sys`.** The runtime starts with its system processes and hands their addresses to `main` in a value of type `Sys`, a constructor with named fields defined by the runtime. The language requires the fields `stdout : Address(Line)` and `clock : Address(ClockMsg)`, section 9. A program that uses a field the runtime lacks is a type error. A function without a system address among its arguments and without foreign calls cannot affect anything outside its process.
+**`Sys`.** The runtime starts with its system processes and hands their addresses to `main` in a value of type `Sys`, a constructor with named fields defined by the runtime. The language requires the fields `stdout : Address(Text)` and `clock : Address(ClockMsg)`, section 9. The `stdout` process writes each received `Text` to standard output as bytes; newlines are the sender's responsibility. A program that uses a field the runtime lacks is a type error. A function without a system address among its arguments and without foreign calls cannot affect anything outside its process.
 
 **Peers.** Peers are configured outside the language, section 11; `Peer(name)` refers to them by the configured name, and nodes authenticate each other.
 
@@ -275,7 +275,7 @@ The prelude is total: no built-in function faults. Partial operations return `Op
 
 ## 9. Prelude
 
-Types and functions the language presupposes. The namespace is the type's.
+The prelude is small: only what this report names. Convenience libraries — including all container operations, text and numeric utilities, and output helpers — live in the standard library, Appendix E.
 
 Built-in parameterized types, provided by the runtime:
 
@@ -291,17 +291,17 @@ Declared types:
 type Optional(a) = None | Some(a)
 type Either(e, a) = Left(e) | Right(a)
 type Ordering = Less | Equal | Greater
-type Line = Line(Text)
 type Down = Down(reason : Reason, function : Text)
 type Reason = Returned | Killed | ProgramEnd | Fault(Text)
 type ClockMsg                                      // times in milliseconds
     = After(ms : Int, to : Address(()))
     | At(at : Int, to : Address(()))
     | Now(reply : Reply(Int))
+type RemoteError = NoRemotePeer | PeerLost
 type Foreign                                       // a value the language does not inspect
 ```
 
-Process functions (`Where`, `RemoteError`: section 6):
+Process functions:
 
 ```
 via          : ((a) -> b, Address(b)) -> Address(a)
@@ -312,108 +312,16 @@ monitor      : (Address(a), (Down) -> m) -> () with m
 kill         : (Address(a)) -> () with m
 ```
 
-Numeric:
+Operations required by the language:
 
 ```
-Int.div, Int.mod : (Int, Int) -> Optional(Int)     // None on zero; `/` and `%` fault on zero instead;
-                                                   // mod is non-negative for a positive divisor
-Int.negate       : (Int) -> Int
-Int.compare      : (Int, Int) -> Ordering
-Int.toText       : (Int) -> Text
-Int.toFloat      : (Int) -> Float
-Float.negate     : (Float) -> Float
+Int.div, Int.mod : (Int, Int) -> Optional(Int)     // section 7: / and % fault on zero;
+                                                   // Int.div and Int.mod return None instead
+Int.compare      : (Int, Int) -> Ordering          // section 3: ordering is per type
 Float.compare    : (Float, Float) -> Ordering
-Float.toText     : (Float) -> Text
-Float.round      : (Float) -> Int                  // banker's rounding, IEEE 754 default
-Float.floor      : (Float) -> Int
-```
-
-Text and Char:
-
-```
-Text.toInt       : (Text) -> Optional(Int)
-Text.chars       : (Text) -> List(Char)
-Text.fromChars   : (List(Char)) -> Text
-Text.fromUtf8    : (Bytes) -> Optional(Text)
-Text.toUtf8      : (Text) -> Bytes
-Text.lines       : (Text) -> List(Text)
-Text.all         : (Text, (Char) -> Bool) -> Bool
 Text.compare     : (Text, Text) -> Ordering
 Char.compare     : (Char, Char) -> Ordering
-Char.isDigit     : (Char) -> Bool
-Char.isAlpha     : (Char) -> Bool
-Char.toText      : (Char) -> Text
-```
-
-List (containers are taken as the first argument):
-
-```
-List.size        : (List(a)) -> Int
-List.reverse     : (List(a)) -> List(a)
-List.head        : (List(a)) -> Optional(a)
-List.at          : (List(a), Int) -> Optional(a)
-List.contains    : (List(a), a) -> Bool
-List.map         : (List(a), (a) -> b) -> List(b)
-List.filter      : (List(a), (a) -> Bool) -> List(a)
-List.filterMap   : (List(a), (a) -> Optional(b)) -> List(b)
-List.foldLeft    : (List(a), b, (b, a) -> b) -> b
-List.foreach     : (List(a), (a) -> ()) -> ()
-List.any         : (List(a), (a) -> Bool) -> Bool
-List.span        : (List(a), (a) -> Bool) -> (List(a), List(a))
-List.sort        : (List(a), (a, a) -> Ordering) -> List(a)
-List.remove      : (List(a), a) -> List(a)
-List.dropLast    : (List(a)) -> List(a)
-```
-
-Map:
-
-```
-Map.empty        : Map(k, v)
-Map.get          : (Map(k, v), k) -> Optional(v)
-Map.put          : (Map(k, v), k, v) -> Map(k, v)
-Map.delete       : (Map(k, v), k) -> Map(k, v)
-Map.size         : (Map(k, v)) -> Int
-Map.values       : (Map(k, v)) -> List(v)
-Map.map          : (Map(k, v), (k, v) -> w) -> Map(k, w)
-Map.foldLeft     : (Map(k, v), b, (b, k, v) -> b) -> b
-```
-
-Set:
-
-```
-Set.empty        : Set(a)
-Set.add          : (Set(a), a) -> Set(a)
-Set.remove       : (Set(a), a) -> Set(a)
-Set.contains     : (Set(a), a) -> Bool
-Set.size         : (Set(a)) -> Int
-Set.toList       : (Set(a)) -> List(a)
-```
-
-Optional and Either:
-
-```
-Optional.map     : (Optional(a), (a) -> b) -> Optional(b)
-Optional.flatMap : (Optional(a), (a) -> Optional(b)) -> Optional(b)
-Either.map          : (Either(e, a), (a) -> b) -> Either(e, b)
-Either.mapLeft      : (Either(e, a), (e) -> f) -> Either(f, a)
-Either.andThen      : (Either(e, a), (a) -> Either(e, b)) -> Either(e, b)
-Either.fromOptional : (Optional(a), e) -> Either(e, a)
-```
-
-Foreign inspection:
-
-```
-Foreign.toInt    : (Foreign) -> Optional(Int)
-Foreign.toFloat  : (Foreign) -> Optional(Float)
-Foreign.toText   : (Foreign) -> Optional(Text)
-Foreign.toBool   : (Foreign) -> Optional(Bool)
-Foreign.toList   : (Foreign) -> Optional(List(Foreign))
-```
-
-Other:
-
-```
-todo             : (Text) -> a                     // faults if reached; section 7
+todo             : (Text) -> a                     // section 7: faults if reached
 ```
 
 ## 10. Runtime Requirements
@@ -520,8 +428,8 @@ fn main(Sys(stdout = out) : Sys) -> () with () = {
     send(c, Inc(5));
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
-        Some(n) -> send(out, Line("count is " ++ Int.toText(n)))
-      | None    -> send(out, Line("counter is not answering"))
+        Some(n) -> send(out, "count is " ++ Int.toText(n) ++ "\n")
+      | None    -> send(out, "counter is not answering\n")
     }
 }
 ```
@@ -529,22 +437,22 @@ fn main(Sys(stdout = out) : Sys) -> () with () = {
 ```
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 
-fn pong(out : Address(Line)) -> () with PongMsg = recv {
+fn pong(out : Address(Text)) -> () with PongMsg = recv {
     Ping(n = n, reply = r) -> {
-        send(out, Line("pong " ++ Int.toText(n)));
+        send(out, "pong " ++ Int.toText(n) ++ "\n");
         answer(r, n);
         pong(out)
     }
   | Stop -> ()
 }
 
-fn ping(out : Address(Line), pongAddr : Address(PongMsg), n : Int) -> () with m =
+fn ping(out : Address(Text), pongAddr : Address(PongMsg), n : Int) -> () with m =
     if n == 0 then send(pongAddr, Stop)
     else {
-        send(out, Line("ping " ++ Int.toText(n)));
+        send(out, "ping " ++ Int.toText(n) ++ "\n");
         match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
             Some(_) -> ping(out, pongAddr, n - 1)
-          | None    -> { send(out, Line("pong is not answering")); send(pongAddr, Stop) }
+          | None    -> { send(out, "pong is not answering\n"); send(pongAddr, Stop) }
         }
     }
 
@@ -649,11 +557,140 @@ fn main(Sys(stdout = out) : Sys) -> () with () = {
     Ets.insert(t, "a", 1);
     Ets.insert(t, "b", 2);
     match Ets.lookup(t, "a") {
-        Some(n) -> send(out, Line(Int.toText(n)))
-      | None    -> send(out, Line("missing"))
+        Some(n) -> send(out, Int.toText(n) ++ "\n")
+      | None    -> send(out, "missing\n")
     };
     Ets.drop(t)
 }
 ```
 
 The raw names are unqualified and therefore invisible outside the file; `Ets.*` is the library. `Ets.Table(k, v)` has type parameters the implementation never sees: `Ets.insert(t, "a", 1)` fixes `t` to `Table(Text, Int)`, and an insert with other types on the next line is a type error. Every operation has a mailbox type, `size` and `member` included, because they read state that others write. `atom` is pure: the same text gives the same atom. An Erlang-side module is needed only to catch: a raw function that throws is a fault, and a shim that wants `Either` instead must `try` in Erlang, since Ernest cannot. What the type cannot say, the declaration's documentation must: a table lives until `Ets.drop`, or until the process that created it dies.
+
+## Appendix E. Standard Library
+
+Informative, not normative: this appendix lists the modules that ship with the compiler as ordinary Ernest files under `stdlib/`. They are on the load path by default. A program that never references any of these names does not depend on them; a program that does depends on `stdlib/` being present. The prelude in section 9 is what the language itself requires; everything below is convenience written in Ernest on top of it.
+
+### Appendix E.1. `Io.ern`
+
+Output helpers over `Address(Text)`.
+
+```
+Io.print    : (Address(Text), Text) -> () with m
+Io.println  : (Address(Text), Text) -> () with m       // appends "\n"
+Io.eprintln : (Address(Text), Text) -> () with m       // appends "\n"; for stderr
+```
+
+### Appendix E.2. `List.ern`
+
+Container-first operations over `List(a)`.
+
+```
+List.size        : (List(a)) -> Int
+List.reverse     : (List(a)) -> List(a)
+List.head        : (List(a)) -> Optional(a)
+List.at          : (List(a), Int) -> Optional(a)
+List.contains    : (List(a), a) -> Bool
+List.map         : (List(a), (a) -> b) -> List(b)
+List.filter      : (List(a), (a) -> Bool) -> List(a)
+List.filterMap   : (List(a), (a) -> Optional(b)) -> List(b)
+List.foldLeft    : (List(a), b, (b, a) -> b) -> b
+List.foreach     : (List(a), (a) -> ()) -> ()
+List.any         : (List(a), (a) -> Bool) -> Bool
+List.span        : (List(a), (a) -> Bool) -> (List(a), List(a))
+List.sort        : (List(a), (a, a) -> Ordering) -> List(a)
+List.remove      : (List(a), a) -> List(a)
+List.dropLast    : (List(a)) -> List(a)
+```
+
+### Appendix E.3. `Map.ern`
+
+Container-first operations over `Map(k, v)`.
+
+```
+Map.empty        : Map(k, v)
+Map.get          : (Map(k, v), k) -> Optional(v)
+Map.put          : (Map(k, v), k, v) -> Map(k, v)
+Map.delete       : (Map(k, v), k) -> Map(k, v)
+Map.size         : (Map(k, v)) -> Int
+Map.values       : (Map(k, v)) -> List(v)
+Map.map          : (Map(k, v), (k, v) -> w) -> Map(k, w)
+Map.foldLeft     : (Map(k, v), b, (b, k, v) -> b) -> b
+```
+
+### Appendix E.4. `Set.ern`
+
+Container-first operations over `Set(a)`.
+
+```
+Set.empty        : Set(a)
+Set.add          : (Set(a), a) -> Set(a)
+Set.remove       : (Set(a), a) -> Set(a)
+Set.contains     : (Set(a), a) -> Bool
+Set.size         : (Set(a)) -> Int
+Set.toList       : (Set(a)) -> List(a)
+```
+
+### Appendix E.5. `Text.ern`
+
+```
+Text.toInt       : (Text) -> Optional(Int)
+Text.chars       : (Text) -> List(Char)
+Text.fromChars   : (List(Char)) -> Text
+Text.fromUtf8    : (Bytes) -> Optional(Text)
+Text.toUtf8      : (Text) -> Bytes
+Text.lines       : (Text) -> List(Text)
+Text.all         : (Text, (Char) -> Bool) -> Bool
+```
+
+### Appendix E.6. `Char.ern`
+
+```
+Char.isDigit     : (Char) -> Bool
+Char.isAlpha     : (Char) -> Bool
+Char.toText      : (Char) -> Text
+```
+
+### Appendix E.7. `Int.ern`
+
+```
+Int.negate       : (Int) -> Int
+Int.toText       : (Int) -> Text
+Int.toFloat      : (Int) -> Float
+```
+
+### Appendix E.8. `Float.ern`
+
+```
+Float.negate     : (Float) -> Float
+Float.toText     : (Float) -> Text
+Float.round      : (Float) -> Int                      // banker's rounding, IEEE 754 default
+Float.floor      : (Float) -> Int
+```
+
+### Appendix E.9. `Optional.ern`
+
+```
+Optional.map     : (Optional(a), (a) -> b) -> Optional(b)
+Optional.flatMap : (Optional(a), (a) -> Optional(b)) -> Optional(b)
+```
+
+### Appendix E.10. `Either.ern`
+
+```
+Either.map          : (Either(e, a), (a) -> b) -> Either(e, b)
+Either.mapLeft      : (Either(e, a), (e) -> f) -> Either(f, a)
+Either.andThen      : (Either(e, a), (a) -> Either(e, b)) -> Either(e, b)
+Either.fromOptional : (Optional(a), e) -> Either(e, a)
+```
+
+### Appendix E.11. `Foreign.ern`
+
+```
+Foreign.toInt    : (Foreign) -> Optional(Int)
+Foreign.toFloat  : (Foreign) -> Optional(Float)
+Foreign.toText   : (Foreign) -> Optional(Text)
+Foreign.toBool   : (Foreign) -> Optional(Bool)
+Foreign.toList   : (Foreign) -> Optional(List(Foreign))
+```
+
+The standard library is expected to grow. New modules are added when a pattern shows up in three programs, matching the rule the decisions log applies to other deferred additions.

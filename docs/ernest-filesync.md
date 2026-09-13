@@ -93,7 +93,7 @@ fn listing(sys : Sys, dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtim
             syncer(sys, dir, peer, snapshot(entries))
         }
       | Listed(Left(e)) -> {
-            send(Sys.stdout(sys), Line("cannot list " ++ Path.toText(dir) ++ ": " ++ FsError.toText(e)));
+            send(Sys.stdout(sys), "cannot list " ++ Path.toText(dir) ++ ": " ++ FsError.toText(e) ++ "\n");
             tick();
             syncer(sys, dir, peer, seen)
         }
@@ -102,7 +102,7 @@ fn listing(sys : Sys, dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtim
             listing(sys, dir, peer, Map.put(seen, p, m))
         }
       | after 10000 -> {
-            send(Sys.stdout(sys), Line("fs is not answering"));
+            send(Sys.stdout(sys), "fs is not answering\n");
             tick();
             syncer(sys, dir, peer, seen)
         }
@@ -134,16 +134,16 @@ fn writer(fs : Address(FsMsg), p : Path, bytes : Bytes, ack : Reply(Ack), okAck 
 fn pusher(sys : Sys, dir : Path, peer : Address(SyncMsg), Change(path = p, mtime = m) : Change) -> () with n =
     match Address.call(Sys.fs(sys), fn(r) = Read(path = Path.join(dir, p), reply = r), 10000) {
         Some(Right(bytes)) -> push(Sys.stdout(sys), peer, p, m, bytes)
-      | Some(Left(_))      -> send(Sys.stdout(sys), Line("cannot read " ++ Path.toText(p)))
-      | None               -> send(Sys.stdout(sys), Line("fs is not answering: " ++ Path.toText(p)))
+      | Some(Left(_))      -> send(Sys.stdout(sys), "cannot read " ++ Path.toText(p) ++ "\n")
+      | None               -> send(Sys.stdout(sys), "fs is not answering: " ++ Path.toText(p) ++ "\n")
     }
 
-fn push(out : Address(Line), peer : Address(SyncMsg), p : Path, m : Mtime, bytes : Bytes) -> () with n =
+fn push(out : Address(Text), peer : Address(SyncMsg), p : Path, m : Mtime, bytes : Bytes) -> () with n =
     match Address.call(peer, fn(r) = Put(path = p, mtime = m, bytes = bytes, ack = r), 30000) {
         Some(Stored)    -> ()
-      | Some(Conflict)  -> send(out, Line("conflict: " ++ Path.toText(p)))
-      | Some(Failed(e)) -> send(out, Line("the peer failed: " ++ Path.toText(p)))
-      | None            -> send(out, Line("the peer is not answering: " ++ Path.toText(p)))
+      | Some(Conflict)  -> send(out, "conflict: " ++ Path.toText(p) ++ "\n")
+      | Some(Failed(e)) -> send(out, "the peer failed: " ++ Path.toText(p) ++ "\n")
+      | None            -> send(out, "the peer is not answering: " ++ Path.toText(p) ++ "\n")
     }
 
 // Start ----------------------------------------------------------

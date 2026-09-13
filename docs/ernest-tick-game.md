@@ -108,12 +108,12 @@ fn render(world : World) -> Text = todo("grid to text, one line per y")
 
 type GameMsg = Tick | In(Input)
 
-fn game(out : Address(Line), clock : Address(ClockMsg), world : World) -> () with GameMsg = {
+fn game(out : Address(Text), clock : Address(ClockMsg), world : World) -> () with GameMsg = {
     send(clock, After(ms = 100, to = via(fn(_) = Tick, self())));
     recv {
         Tick -> {
             let world2 = step(drain(world, 64));
-            send(out, Line(render(world2)));
+            send(out, render(world2));
             game(out, clock, world2)
         }
     }

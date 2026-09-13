@@ -19,11 +19,11 @@ Here is a complete Ernest program. Let's not try to understand it all at once.
 
 ```
 fn main(Sys(stdout = out) : Sys) -> () with () = {
-    send(out, Line("hello, world"))
+    send(out, "hello, world\n")
 }
 ```
 
-When Ernest runs this, it prints `hello, world` to standard output. Let's read it one piece at a time.
+When Ernest runs this, it prints `hello, world` followed by a newline to standard output. Let's read it one piece at a time.
 
 ### `fn main`
 
@@ -67,33 +67,27 @@ Read the whole arrow like this: "returns nothing meaningful, running in a proces
 
 ```
 = {
-    send(out, Line("hello, world"))
+    send(out, "hello, world\n")
 }
 ```
 
 The `=` marks the start of the body. What follows is a block — braces around a sequence of statements. This block has just one statement.
 
-The statement is `send(out, Line("hello, world"))`. Let's take it apart.
+The statement is `send(out, "hello, world\n")`. Let's take it apart.
 
 `send` is a built-in function. It takes two arguments: an address, and a message to put in that address's mailbox. It returns immediately — `send` is fire-and-forget.
 
 `out` is the address of the stdout process. We got it from the parameter pattern.
 
-`Line("hello, world")` is the message. `Line` is a *constructor* from Ernest's prelude. It's defined as:
+`"hello, world\n"` is the message. It is just a `Text` value ending in a newline. The stdout process writes each `Text` it receives to standard output as bytes; newlines are the sender's job. `\n` inside a text literal is a newline escape.
 
-```
-type Line = Line(Text)
-```
-
-That is: `Line` is a type with one constructor, also called `Line`, that wraps a single piece of `Text`. Constructing a `Line` value: `Line("hello, world")`. Simple as that.
-
-Why wrap it? Because the stdout process's mailbox expects `Line` values, not raw `Text`. Wrapping is Ernest's way of saying "this text is meant to be printed as a line." If we later add a `Bytes` message type for binary output, stdout can handle both without confusion.
+If typing `\n` at the end of every message is tedious, the standard library provides `Io.println` (Appendix E of the report), which is just `send` with the newline appended for you. We'll use `send` directly here to see what actually happens.
 
 ### The big idea
 
 The most important thing to notice: **`out` is an address, not a stream.**
 
-In most languages, you write to stdout by calling a function like `print` or a method like `stdout.write`. In Ernest, you *send a message* to a *process*. That process — running concurrently, elsewhere — receives the message and does the actual printing.
+You do not "print" or "write." You send a message to a process. That process — running concurrently, elsewhere — receives the message and does the actual writing.
 
 This is what "processes are the only way to affect the world" means. There is no hidden syscall inside Ernest. If you want to touch anything outside your own function, you send a message to a process that touches it for you.
 
@@ -175,17 +169,17 @@ Ernest keeps this consistent: `:` for types, `=` for values.
 
 ### 2.3 Wrapper types
 
-There is one shape that comes up a lot: a type with just one constructor that wraps just one value.
+There is one shape that comes up: a type with just one constructor that wraps just one value.
 
 ```
-type Line = Line(Text)
+type UserId = UserId(Int)
 ```
 
-This is the `Line` we saw in the "hello world" program. `Line` (the type) is really "a `Text` with a label." No extra data, no alternatives — just a Text wearing a Line jacket.
+This is a *wrapper* over `Int`. A `UserId` value is really "an `Int` with a label." No extra data, no alternatives — just an integer wearing a UserId jacket.
 
-Why do this? Two reasons. First, type safety: the compiler will not let you send a raw `Text` where a `Line` is expected. Second, meaning: `Line("hello")` reads as "a line to print," not just "some text."
+Why do it? Two reasons. First, type safety: the compiler will not let you pass a raw `Int` where a `UserId` is expected. Second, meaning: `UserId(42)` reads as "the user whose id is 42," not just "an integer."
 
-Many prelude types are wrappers: `Line`, `Reply(a)` (which we'll meet later), and so on.
+The prelude type `Reply(a)`, which we'll meet later, is another example of a wrapper. Wrapper types are a small, useful pattern.
 
 ## 3. Functions
 
@@ -225,7 +219,7 @@ A pure function's result depends only on its arguments. Nothing else. It doesn't
 Now compare with a function that uses the runtime:
 
 ```
-fn greet(out : Address(Line)) -> () with m = send(out, Line("hi"))
+fn greet(out : Address(Text)) -> () with m = send(out, "hi\n")
 ```
 
 Same shape as `double`, but with two differences: the return arrow has `with m`, and the body calls `send`.
@@ -344,8 +338,8 @@ fn main(Sys(stdout = out) : Sys) -> () with () = {
     send(c, Inc(5));
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
-        Some(n) -> send(out, Line("count is " ++ Int.toText(n)))
-      | None    -> send(out, Line("counter is not answering"))
+        Some(n) -> send(out, "count is " ++ Int.toText(n) ++ "\n")
+      | None    -> send(out, "counter is not answering\n")
     }
 }
 ```
@@ -418,9 +412,7 @@ One small thing in the success case:
 
 `Int.toText` converts an integer to its text representation. `"8"`, in this case.
 
-`++` is text concatenation. Both operands must be `Text`. Result is `Text`. So this expression is `"count is 8"`.
-
-Then we wrap it: `Line("count is 8")`. And send it to stdout: `send(out, Line("count is 8"))`.
+`++` is text concatenation. Both operands must be `Text`. Result is `Text`. So this expression is `"count is 8"`. We then append a newline to get `"count is 8\n"`, and send that to stdout.
 
 Take a moment. This is a complete Ernest program that uses two processes (main, plus the counter it spawned), passes messages between them, and prints the result. It's about twenty lines.
 
@@ -433,22 +425,22 @@ This is the ping-pong program from Appendix B of the report.
 ```
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 
-fn pong(out : Address(Line)) -> () with PongMsg = recv {
+fn pong(out : Address(Text)) -> () with PongMsg = recv {
     Ping(n = n, reply = r) -> {
-        send(out, Line("pong " ++ Int.toText(n)));
+        send(out, "pong " ++ Int.toText(n) ++ "\n");
         answer(r, n);
         pong(out)
     }
   | Stop -> ()
 }
 
-fn ping(out : Address(Line), pongAddr : Address(PongMsg), n : Int) -> () with m =
+fn ping(out : Address(Text), pongAddr : Address(PongMsg), n : Int) -> () with m =
     if n == 0 then send(pongAddr, Stop)
     else {
-        send(out, Line("ping " ++ Int.toText(n)));
+        send(out, "ping " ++ Int.toText(n) ++ "\n");
         match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
             Some(_) -> ping(out, pongAddr, n - 1)
-          | None    -> { send(out, Line("pong is not answering")); send(pongAddr, Stop) }
+          | None    -> { send(out, "pong is not answering\n"); send(pongAddr, Stop) }
         }
     }
 
@@ -563,7 +555,7 @@ Once "hello world," the counter, and ping-pong feel readable, the language's fou
 
 Read them in that order. Each introduces something the next builds on.
 
-For the language rules themselves, `ernest.md` (the report) is the authority. Its Section 3 covers types, Section 5 covers expressions, Section 6 covers processes, Section 9 lists every prelude function. It's shorter than most language reports — under ten pages of prose — and each sentence carries weight.
+For the language rules themselves, `ernest.md` (the report) is the authority. Its Section 3 covers types, Section 5 covers expressions, Section 6 covers processes, Section 9 lists the small prelude, and Appendix E documents the standard library (`Io.println`, `List.map`, and so on — the everyday helpers, written in Ernest, that ship with the compiler). It's shorter than most language reports — under ten pages of prose — and each sentence carries weight.
 
 For "why is Ernest the way it is," `ernest-decisions.md` records dated design decisions and their evidence. If a rule seems arbitrary, that document explains what pressured it.
 
