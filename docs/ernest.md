@@ -99,9 +99,9 @@ Two or more positional fields are not allowed. Field names are unique within a c
 ```
 Program     = { Declaration } .
 Declaration = TypeDecl | OpaqueDecl | FnDecl | LetDecl | ForeignDecl .
-ForeignDecl = "foreign" ( "type" typename [ "(" typevar { "," typevar } ")" ]
+ForeignDecl = "foreign" ( "type" QTypeName [ "(" typevar { "," typevar } ")" ]
             | "fn" Name "(" [ Param { "," Param } ] ")" Return "=" text ) .
-TypeDecl    = "type" typename [ "(" typevar { "," typevar } ")" ] "=" Constructor { "|" Constructor } .
+TypeDecl    = "type" QTypeName [ "(" typevar { "," typevar } ")" ] "=" Constructor { "|" Constructor } .
 Constructor = conname [ "(" ( Type | Field { "," Field } ) ")" ] .
 Field       = ident ":" Type .
 OpaqueDecl  = "opaque" TypeDecl "with" "{" Signature { ";" Signature } "}" .
@@ -112,6 +112,7 @@ Return      = "->" Type [ "with" Type ] .
 LetDecl     = "let" Name [ ":" Type ] "=" Expr .
 Binding     = "let" Pattern [ ":" Type ] ( "=" | "<-" ) Expr .
 Name        = { typename "." } ( ident | binop ) .
+QTypeName   = { typename "." } typename .
 ```
 
 **Namespaces and visibility.** The namespace is in the name, and so is the visibility. A top-level declaration with a qualified name, `fn Net.Http.parse(b) = ...`, `type Net.Http.Request = ...`, is visible throughout the program under that name; two such declarations with the same full name are an error. A top-level declaration with an unqualified name, `fn helper(x) = ...`, is visible only in its own source file. A file's path is its namespace: the qualified declarations in `Net/Http.ern` begin with `Net.Http.`, and may go deeper, `Net.Http.Header.parse`. That is the whole of a file's meaning, and there is no export list, no `pub`, and no `import`. Sub-namespaces are the dots; namespace segments are type names. An unqualified name in a body is looked up first among the file's unqualified declarations, then in the namespace of the enclosing declaration, then in the prelude; everything else must be qualified. The only other thing hidden is the constructor of an opaque type from definitions outside its signature. `main` is unqualified, section 8.
@@ -345,10 +346,10 @@ Either.map, Either.mapLeft, Either.andThen
 ```
 Program     = { Declaration } .
 Declaration = TypeDecl | OpaqueDecl | FnDecl | LetDecl | ForeignDecl .
-ForeignDecl = "foreign" ( "type" typename [ "(" typevar { "," typevar } ")" ]
+ForeignDecl = "foreign" ( "type" QTypeName [ "(" typevar { "," typevar } ")" ]
             | "fn" Name "(" [ Param { "," Param } ] ")" Return "=" text ) .
 
-TypeDecl    = "type" typename [ "(" typevar { "," typevar } ")" ] "=" Constructor { "|" Constructor } .
+TypeDecl    = "type" QTypeName [ "(" typevar { "," typevar } ")" ] "=" Constructor { "|" Constructor } .
 Constructor = conname [ "(" ( Type | Field { "," Field } ) ")" ] .
 Field       = ident ":" Type .
 OpaqueDecl  = "opaque" TypeDecl "with" "{" Signature { ";" Signature } "}" .
@@ -360,6 +361,7 @@ Return      = "->" Type [ "with" Type ] .
 LetDecl     = "let" Name [ ":" Type ] "=" Expr .
 Binding     = "let" Pattern [ ":" Type ] ( "=" | "<-" ) Expr .
 Name        = { typename "." } ( ident | binop ) .
+QTypeName   = { typename "." } typename .
 
 Type        = FnType | TypeAtom .
 TypeAtom    = { typename "." } typename [ "(" Type { "," Type } ")" ] | typevar
