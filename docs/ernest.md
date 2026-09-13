@@ -342,6 +342,7 @@ Text.compare     : (Text, Text) -> Ordering
 Char.compare     : (Char, Char) -> Ordering
 Char.isDigit     : (Char) -> Bool
 Char.isAlpha     : (Char) -> Bool
+Char.toText      : (Char) -> Text
 ```
 
 List (containers are taken as the first argument):

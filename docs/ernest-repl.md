@@ -4,7 +4,7 @@ Written against the Ernest report, September 2026. A read-evaluate-print loop fo
 
 ## Assumptions
 
-`Sys` is assumed to have `stdin : Address(StdinMsg)` with `ReadLine(reply : Address(Line))`: one line per request. The prelude is assumed to have `Text.chars`, `Char.isDigit`, `Char.isAlpha`, `Int.parse : (Text) -> Optional(Int)`.
+`Sys` is assumed to have `stdin : Address(StdinMsg)` with `ReadLine(reply : Address(Text))`: one line per request. `Text.chars`, `Char.isDigit`, `Char.isAlpha`, `Char.toText`, and `Text.toInt : (Text) -> Optional(Int)` are in the prelude (report section 9). `ParseError.toText : (ParseError) -> Text` and `EvalError.toText : (EvalError) -> Text` are hand-written renderings for stdout; both are `todo("on paper")` here.
 
 ## The Program
 
@@ -143,14 +143,14 @@ fn arith(op : Char, a : Value, b : Value) -> Either(EvalError, Value) = match (a
 type TryError = Eval(EvalError) | Crashed | Timeout
 
 type ReplMsg
-    = Line(Text)
+    = Input(Text)
     | Result(Either(EvalError, Value))
     | Died(Down)
 
 fn repl(stdin : Address(StdinMsg), out : Address(Line), env : Map(Text, Value)) -> () with ReplMsg = {
-    send(stdin, ReadLine(reply = via(Line, self())));
+    send(stdin, ReadLine(reply = via(Input, self())));
     recv {
-        Line(text) -> match tokenize(text) {
+        Input(text) -> match tokenize(text) {
             Left(BadChar(c = c, at = i)) -> {
                 send(out, Line("illegal character " ++ Char.toText(c) ++ " at " ++ Int.toText(i)));
                 repl(stdin, out, env)
@@ -176,7 +176,7 @@ fn try(env : Map(Text, Value), e : Expr) -> Either(TryError, Value) with ReplMsg
     let child = spawn(Local, fn() = send(me, Result(eval(env, e))));
     monitor(child, Died);
     recv {
-        Result(r) -> Either.mapLeft(Eval, r)
+        Result(r) -> Either.mapLeft(r, Eval)
       | Died(_)   -> Left(Crashed)                 // a fault in the child
       | after 2000 -> { kill(child); Left(Timeout) }
     }
