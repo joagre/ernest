@@ -84,7 +84,7 @@ Two or more positional fields are not allowed. Field names are unique within a c
 
 **Opaque types.** A sum type whose constructors may be mentioned only in the functions listed in the type's signature, section 4.
 
-**Built-in types.** `Address(m)`, an address of a process that receives `m`. `Never`, the type with no values. The prelude types, section 9.
+**Built-in types.** `Address(m)`, an address of a process that receives `m`. `Reply(a)`, a one-shot address for the answer to a request, section 6. `Never`, the type with no values. The prelude types, section 9.
 
 **Foreign types.** A type declared `foreign type T` has no constructors: its values are made and used only by foreign functions, section 4, and can otherwise be held, passed, and sent. Equality on a foreign type is identity.
 
@@ -208,7 +208,16 @@ type Where = Local | Peer(Text)
 
 **Ordering.** Messages from one process to another are received in sending order. Between different senders there is no ordering.
 
-**Addresses.** `Address(m)` identifies a process on a node and carries its protocol: `send(a, v)` is type-checked against `m` and is the same on every node. `via(f, a)`, section 9, is the address `a` seen through `f : (b) -> m`: sending `v` to `via(f, a)` is sending `f(v)` to `a`. A reply address is `via(Wrap, self())`. Addresses have no equality; identity is expressed in the protocol.
+**Addresses.** `Address(m)` identifies a process on a node and carries its protocol: `send(a, v)` is type-checked against `m` and is the same on every node. `via(f, a)`, section 9, is the address `a` seen through `f : (b) -> m`: sending `v` to `via(f, a)` is sending `f(v)` to `a`. A single-request answer uses `Reply(a)`, below; `via(Wrap, self())` gives a wrapper address for a process that receives replies in its own mailbox. Addresses have no equality; identity is expressed in the protocol.
+
+**Request-reply.** A `Reply(a)` is a one-shot address for the answer to a request; unlike `Address(a)`, it is answered exactly once and cannot be stored.
+
+```
+Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
+answer       : (Reply(a), a) -> () with m
+```
+
+`Address.call(addr, mk, ms)` allocates a fresh `Reply(a)`, calls `mk(r)` to build the message, sends it to `addr`, and returns `Some(v)` when the recipient answers or `None` after `ms` milliseconds. `answer(r, v)` sends `v` to the caller. A `Reply(a)` value appears as a field of a message, as a parameter of a function, or as a variable bound in a `recv` arm; it does not appear in a container, is not compared for equality, and is not returned from a top-level function. A `Reply(a)` bound in a `recv` arm is consumed exactly once on every path of the arm's expression, by `answer` or by being sent as a field of another message; a violation is a type error. The mandatory timeout on `Address.call` returns `Optional(a)` so that the caller cannot forget the failure. Under the hood the `Reply(a)` carries a fresh identifier so that `Address.call` receives only the answer to its own request; the caller's mailbox type is unaffected.
 
 **Remote computation.** A pure function can be evaluated on another node:
 
@@ -228,12 +237,12 @@ type RemoteError = NoRemotePeer | PeerLost
 ```
 type CounterMsg
     = Inc(Int)
-    | Get(reply : Address(Int))
+    | Get(reply : Reply(Int))
     | Upgrade(migrate : (Int) -> Int, next : (Int) -> () with CounterMsg)
 
 fn counter(n : Int) -> () with CounterMsg = recv {
     Inc(k) -> counter(n + k)
-  | Get(reply = r) -> { send(r, n); counter(n) }
+  | Get(reply = r) -> { answer(r, n); counter(n) }
   | Upgrade(migrate = m, next = k) -> k(m(n))
 }
 ```
@@ -278,10 +287,12 @@ type ClockMsg                                      // times in milliseconds
     | At(at : Int, to : Address(()))
     | Now(reply : Address(Int))
 
-via     : ((a) -> b, Address(b)) -> Address(a)
-remote  : (() -> a) -> Either(RemoteError, a)        // Where, RemoteError: section 6
-monitor : (Address(a), (Down) -> m) -> () with m
-kill    : (Address(a)) -> () with m
+via          : ((a) -> b, Address(b)) -> Address(a)
+Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
+answer       : (Reply(a), a) -> () with m
+remote       : (() -> a) -> Either(RemoteError, a)        // Where, RemoteError: section 6
+monitor      : (Address(a), (Down) -> m) -> () with m
+kill         : (Address(a)) -> () with m
 
 Int.div, Int.mod : (Int, Int) -> Optional(Int)    // None on zero; `/` and `%` fault on zero instead; mod is non-negative for a positive divisor
 Int.negate : (Int) -> Int                         // likewise Float
@@ -388,26 +399,24 @@ Precedence for `binop` as in section 2. Every nonterminal is decided by its firs
 ## Appendix B. Examples
 
 ```
-type PingMsg = Pong(Int)
-type PongMsg = Ping(n : Int, from : Address(PingMsg)) | Stop
+type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 
 fn pong(out : Address(Line)) -> () with PongMsg = recv {
-    Ping(n = n, from = from) -> {
+    Ping(n = n, reply = r) -> {
         send(out, Line("pong " ++ Int.toText(n)));
-        send(from, Pong(n));
+        answer(r, n);
         pong(out)
     }
   | Stop -> ()
 }
 
-fn ping(out : Address(Line), pongAddr : Address(PongMsg), n : Int) -> () with PingMsg =
+fn ping(out : Address(Line), pongAddr : Address(PongMsg), n : Int) -> () with m =
     if n == 0 then send(pongAddr, Stop)
     else {
         send(out, Line("ping " ++ Int.toText(n)));
-        send(pongAddr, Ping(n = n, from = self()));
-        recv {
-            Pong(k) when k == n -> ping(out, pongAddr, n - 1)
-          | after 5000 -> { send(out, Line("pong is not answering")); send(pongAddr, Stop) }
+        match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
+            Some(_) -> ping(out, pongAddr, n - 1)
+          | None    -> { send(out, Line("pong is not answering")); send(pongAddr, Stop) }
         }
     }
 
