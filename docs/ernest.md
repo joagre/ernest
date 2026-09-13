@@ -306,7 +306,7 @@ Text.lines : (Text) -> List(Text)              Text.all : (Text, (Char) -> Bool)
 Char.isDigit, Char.isAlpha : (Char) -> Bool
 List.size, List.reverse, List.head, List.at, List.contains, List.map, List.filter,
 List.filterMap, List.foldLeft, List.foreach, List.any, List.span, List.sort, List.remove, List.dropLast
-Map.empty, Map.get, Map.put, Map.delete, Map.size, Map.values, Map.map, Map.foldl
+Map.empty, Map.get, Map.put, Map.delete, Map.size, Map.values, Map.map, Map.foldLeft
 Set.empty, Set.add, Set.remove, Set.contains, Set.size, Set.toList
 Int.toFloat : (Int) -> Float                      Float.round, Float.floor : (Float) -> Int
 Optional.map, Optional.flatMap

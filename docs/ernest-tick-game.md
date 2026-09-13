@@ -77,7 +77,7 @@ fn step(world : World) -> World = {
         }
       | Player(body = []) -> (acc, apples)
     };
-    let (ps2, apples2) = Map.foldl(ps, (ps, apples), movePlayer);
+    let (ps2, apples2) = Map.foldLeft(ps, (ps, apples), movePlayer);
     let ps3 = Map.map(ps2, fn(p) = collide(ps2, p));
     let (apples3, seed2) = refill(w, h, Map.size(ps3), apples2, seed);
     World(..world, players = ps3, apples = apples3, seed = seed2, tick = t + 1)
