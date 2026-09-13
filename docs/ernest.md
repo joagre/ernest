@@ -174,7 +174,7 @@ FieldPats = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 
 **Calls.** `f(x, y)` supplies all arguments. A call with the wrong number of arguments is a type error on the calling line; a call never yields a partially applied function. An expression whose value is a function can be called directly: `makeAdder(3)(4)`.
 
-**Lambda.** `fn(x) = e` is an anonymous function. Its body extends to the nearest delimiter at the same nesting level: `,`, `;`, `|`, `)`, or `}`.
+**Lambda.** `fn(x) = e` is an anonymous function. Its body is the longest `Expr` at the same nesting level as the `fn`, ending at the first outer `,`, `;`, `|`, `)`, or `}`.
 
 **Blocks.** `{ s1; s2; e }` is an expression whose value is the last statement, which must be an expression. `;` separates statements and never appears last. Statements are `fn` declarations, `let` bindings, and expressions; an expression as a statement is evaluated for its effect.
 
