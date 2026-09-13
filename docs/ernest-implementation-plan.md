@@ -38,7 +38,7 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 - Hindley-Milner algorithm: W or J. Unification via a substitution register. Function types are n-ary: `(A, B) -> C` is a type with an argument list, not two arrows; unification requires the same length, and a length mismatch is reported as an arity error with a suggestion of the tuple reading. `fn` generalizes, `let` does not.
 - Typing environment: `#{var => type}`, generalization with forced parameters.
 - Pattern matching is type-checked, with exhaustiveness checking on `match`; `recv` is exempt by the report. Two days. Linearity: a variable at most once per pattern, checked in the type checker, since the grammar cannot.
-- Reply linearity. `Reply(a)` values are tracked within a `recv` arm: a `Reply` bound by a pattern must be consumed exactly once on every path of the arm's expression, by `answer` or by being sent as a field of another message. Function signatures that take `Reply(a)` propagate the obligation, and a function that binds a `Reply(a)` without consuming it is an error at its own definition. MVP 1 restriction: `Reply(a)` may not appear in a function-value type — no callback takes or returns a `Reply` — so the check does not have to follow closures. Approximately 3 days.
+- Reply linearity. `Reply(a)` values are tracked within a `recv` arm: a `Reply` bound by a pattern must be consumed exactly once on every path of the arm's expression, by `answer`, by being sent as a field of another message, or by being captured in a lambda passed directly to `spawn`. Function signatures that take `Reply(a)` propagate the obligation, and a function that binds a `Reply(a)` without consuming it is an error at its own definition. For spawn-capture the check descends into the lambda's body and verifies that the captured `Reply` is consumed on every path there. MVP 1 restriction: the spawn's second argument must be a direct `fn() = ...` expression, not a lambda stored in a `let` and passed by name, so the check does not have to follow function values around; and `Reply(a)` may not appear as a callback parameter or return type — only `spawn` sees Reply-capturing lambdas. Approximately 5 days.
 - The mailbox type as part of the function type, written `-> T with M`: an arrow is `(args, κ, result)` where κ is a type variable of its own kind, unified with `M` by `self`, `recv`, `send`, `spawn`, and foreign calls with a mailbox type, or left free. A free κ at generalization means pure, and pure means polymorphic in the mailbox type: the function can be called anywhere, and its function arguments run in the caller's κ. Two different `M` in one function is a unification error. The only kind of variable outside the textbook; see risk.
 - Only Int, Bool, Text, Bytes. `+` is `Int.+`; no name resolution for operators. Float and type-directed resolution are MVP 2. When it comes, it is one post-inference pass that serves three things: operators (`+` to `Int.+` or `Money.+`), `==` (a type error on types containing functions or addresses), and `<-` (`chain(e, fn(p) = rest)` to `Either.andThen` or `Optional.flatMap` by the type of `e`). `/` and `%` on `Int` fault on zero (`badarith` becomes a `Fault`); `Int.div` and `Int.mod` return `Optional(Int)`.
 
@@ -162,12 +162,12 @@ Nothing open.
 
 | Phase | Parts | Days | Weeks |
 |-------|-------|------|-------|
-| 1     | Parser, type check, opaque, stdlib types | 22 | 4.4 |
+| 1     | Parser, type check, opaque, stdlib types | 24 | 4.8 |
 | 2     | Compiler, processes, stdlib, codegen | 9 | 1.8 |
 | 3     | Integration, tests, docs | 7 | 1.4 |
-| **Total** | | **38** | **7.6 weeks** |
+| **Total** | | **40** | **8 weeks** |
 
-One person full-time: about seven and a half working weeks. Half-time: three to four calendar months.
+One person full-time: about eight working weeks. Half-time: three to four calendar months.
 
 ---
 

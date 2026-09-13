@@ -55,7 +55,7 @@ type SyncMsg
     = Link(Address(SyncMsg))
     | Tick
     | Listed(Either(FsError, List(Entry)))
-    | Put(path : Path, mtime : Mtime, bytes : Bytes, ack : Address(Ack))
+    | Put(path : Path, mtime : Mtime, bytes : Bytes, ack : Reply(Ack))
 
 // Waiting phase: receive the peer's address, then the loop.
 fn start(sys : Sys, dir : Path) -> () with SyncMsg = recv {
@@ -104,7 +104,7 @@ fn listing(sys : Sys, dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtim
 }
 
 // Store a file from the peer. Newer local file: conflict.
-fn store(sys : Sys, dir : Path, seen : Map(Path, Mtime), p : Path, m : Mtime, bytes : Bytes, ack : Address(Ack)) -> () with SyncMsg =
+fn store(sys : Sys, dir : Path, seen : Map(Path, Mtime), p : Path, m : Mtime, bytes : Bytes, ack : Reply(Ack)) -> () with SyncMsg =
     match Map.get(seen, p) {
         Some(local) when Mtime.compare(local, m) == Greater -> {
             let _ = spawn(Local, fn() = writer(Sys.fs(sys), Path.join(dir, conflictPath(p)), bytes, ack, Conflict));
@@ -117,32 +117,28 @@ fn store(sys : Sys, dir : Path, seen : Map(Path, Mtime), p : Path, m : Mtime, by
     }
 
 // One process per write: waits for fs and answers the peer.
-fn writer(fs : Address(FsMsg), p : Path, bytes : Bytes, ack : Address(Ack), okAck : Ack) -> () with m =
+fn writer(fs : Address(FsMsg), p : Path, bytes : Bytes, ack : Reply(Ack), okAck : Ack) -> () with n =
     match Address.call(fs, fn(r) = Write(path = p, bytes = bytes, reply = r), 10000) {
-        Some(Right(())) -> send(ack, okAck)
-      | Some(Left(e))   -> send(ack, Failed(e))
-      | None            -> send(ack, Failed(Io("timeout")))
+        Some(Right(())) -> answer(ack, okAck)
+      | Some(Left(e))   -> answer(ack, Failed(e))
+      | None            -> answer(ack, Failed(Io("timeout")))
     }
 
 // One process per changed file: reads and sends to the peer.
-type PushMsg = Acked(Ack)
-
-fn pusher(sys : Sys, dir : Path, peer : Address(SyncMsg), Change(path = p, mtime = m) : Change) -> () with PushMsg =
+fn pusher(sys : Sys, dir : Path, peer : Address(SyncMsg), Change(path = p, mtime = m) : Change) -> () with n =
     match Address.call(Sys.fs(sys), fn(r) = Read(path = Path.join(dir, p), reply = r), 10000) {
         Some(Right(bytes)) -> push(Sys.stdout(sys), peer, p, m, bytes)
       | Some(Left(_))      -> send(Sys.stdout(sys), Line("cannot read " ++ Path.toText(p)))
       | None               -> send(Sys.stdout(sys), Line("fs is not answering: " ++ Path.toText(p)))
     }
 
-fn push(out : Address(Line), peer : Address(SyncMsg), p : Path, m : Mtime, bytes : Bytes) -> () with PushMsg = {
-    send(peer, Put(path = p, mtime = m, bytes = bytes, ack = via(Acked, self())));
-    recv {
-        Acked(Stored)    -> ()
-      | Acked(Conflict)  -> send(out, Line("conflict: " ++ Path.toText(p)))
-      | Acked(Failed(e)) -> send(out, Line("the peer failed: " ++ Path.toText(p)))
-      | after 30000      -> send(out, Line("the peer is not answering: " ++ Path.toText(p)))
+fn push(out : Address(Line), peer : Address(SyncMsg), p : Path, m : Mtime, bytes : Bytes) -> () with n =
+    match Address.call(peer, fn(r) = Put(path = p, mtime = m, bytes = bytes, ack = r), 30000) {
+        Some(Stored)    -> ()
+      | Some(Conflict)  -> send(out, Line("conflict: " ++ Path.toText(p)))
+      | Some(Failed(e)) -> send(out, Line("the peer failed: " ++ Path.toText(p)))
+      | None            -> send(out, Line("the peer is not answering: " ++ Path.toText(p)))
     }
-}
 
 // Start ----------------------------------------------------------
 
@@ -197,4 +193,4 @@ It works, it is selective receive that makes it work (a Put arriving before Link
 - System addresses as values in `Sys` (finding 10). Adopted.
 - Named fields in the constructor (finding 11). Adopted; later moved from braces to parentheses in the grammar audit, and `let` returned.
 - The start message was first called `Peer`; when `Where = Local | Peer(Text)` entered the prelude, the file-local constructor would have shadowed it, and `spawn(Peer("b"), ...)` would have needed qualification. Renamed `Link`. A common word in the prelude takes a seat in every file.
-- `Reply(a)` for `FsMsg.Read` and `FsMsg.Write`; `pusher` and `writer` use `Address.call`, `PushMsg` loses `ReadDone`. `FsMsg.List` and `Put`/`Ack` remain `Address(...)` — the first because `listing` accepts other messages while waiting, the second because the receiver spawns a `writer` that closes over the reply, which MVP 1's no-higher-order-`Reply` restriction disallows. (Adopted 2026-09-13.)
+- `Reply(a)` for `FsMsg.Read`, `FsMsg.Write`, and `SyncMsg.Put`'s `ack`; `pusher`, `push`, and `writer` all use `Address.call`, `PushMsg` disappears entirely. `FsMsg.List` remains `Address(...)` because `listing` accepts other messages while waiting for `Listed`. The `store`→`writer` chain drove the spawn-capture rule: `store` receives `ack : Reply(Ack)`, spawns `writer` with `ack` captured, and the linearity check propagates through the spawned function's body. (Adopted 2026-09-13.)
