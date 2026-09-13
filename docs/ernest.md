@@ -6,7 +6,7 @@ September 2026. Rationale, rejected alternatives, and open questions are in `ern
 
 Ernest is a functional language for concurrent programs. It has two concepts: functions, with Hindley-Milner types and full inference, and processes, with typed messages, as the only way to affect the world. Everything else in this report is a rule for how the two show up in each other.
 
-Every function runs inside a process: an execution of a function, with a mailbox of its own that receives values of one type. A function either acts through its process, by sending, receiving, or asking who it is, or it does not. A function that does not is called pure: its result depends only on its arguments, and it affects nothing. A function that does names in its type the mailbox it uses, `(A) -> B with M`; `M` is the function's mailbox type, and it is the only mark a function type carries. Sections 3 and 6 make this precise. The runtime is what runs Ernest programs; section 10 states what it must provide.
+Every function runs inside a process: an execution of a function, with a mailbox of its own that receives values of one type. A function either acts through its process, by sending, receiving, or asking who it is, or it does not. A function that does not is called pure: its result depends only on its arguments, and it affects nothing. A function that acts through its process names its mailbox in its type, `(A) -> B with M`; `M` is the function's mailbox type, and it is the only mark a function type carries. Sections 3 and 6 make this precise. The runtime is what runs Ernest programs; section 10 states what it must provide.
 
 The language is built on seven principles, in order. The reader comes first.
 
