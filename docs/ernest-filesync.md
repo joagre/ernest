@@ -7,8 +7,8 @@ Written against the Ernest report, September 2026, to see where the specificatio
 ```
 type FsMsg
     = List(path : Path, reply : Address(Either(FsError, List(Entry))))
-    | Read(path : Path, reply : Address(Either(FsError, Bytes)))
-    | Write(path : Path, bytes : Bytes, reply : Address(Either(FsError, ())))
+    | Read(path : Path, reply : Reply(Either(FsError, Bytes)))
+    | Write(path : Path, bytes : Bytes, reply : Reply(Either(FsError, ())))
 
 type FsError = NotFound | Denied | Io(Text)
 type Entry   = Entry(path : Path, mtime : Mtime)
@@ -117,26 +117,22 @@ fn store(sys : Sys, dir : Path, seen : Map(Path, Mtime), p : Path, m : Mtime, by
     }
 
 // One process per write: waits for fs and answers the peer.
-fn writer(fs : Address(FsMsg), p : Path, bytes : Bytes, ack : Address(Ack), okAck : Ack) -> () with Either(FsError, ()) = {
-    send(fs, Write(path = p, bytes = bytes, reply = self()));
-    recv {
-        Right(()) -> send(ack, okAck)
-      | Left(e)   -> send(ack, Failed(e))
-      | after 10000 -> send(ack, Failed(Io("timeout")))
+fn writer(fs : Address(FsMsg), p : Path, bytes : Bytes, ack : Address(Ack), okAck : Ack) -> () with m =
+    match Address.call(fs, fn(r) = Write(path = p, bytes = bytes, reply = r), 10000) {
+        Some(Right(())) -> send(ack, okAck)
+      | Some(Left(e))   -> send(ack, Failed(e))
+      | None            -> send(ack, Failed(Io("timeout")))
     }
-}
 
 // One process per changed file: reads and sends to the peer.
-type PushMsg = ReadDone(Either(FsError, Bytes)) | Acked(Ack)
+type PushMsg = Acked(Ack)
 
-fn pusher(sys : Sys, dir : Path, peer : Address(SyncMsg), Change(path = p, mtime = m) : Change) -> () with PushMsg = {
-    send(Sys.fs(sys), Read(path = Path.join(dir, p), reply = via(ReadDone, self())));
-    recv {
-        ReadDone(Right(bytes)) -> push(Sys.stdout(sys), peer, p, m, bytes)
-      | ReadDone(Left(e))      -> send(Sys.stdout(sys), Line("cannot read " ++ Path.toText(p)))
-      | after 10000            -> send(Sys.stdout(sys), Line("fs is not answering: " ++ Path.toText(p)))
+fn pusher(sys : Sys, dir : Path, peer : Address(SyncMsg), Change(path = p, mtime = m) : Change) -> () with PushMsg =
+    match Address.call(Sys.fs(sys), fn(r) = Read(path = Path.join(dir, p), reply = r), 10000) {
+        Some(Right(bytes)) -> push(Sys.stdout(sys), peer, p, m, bytes)
+      | Some(Left(_))      -> send(Sys.stdout(sys), Line("cannot read " ++ Path.toText(p)))
+      | None               -> send(Sys.stdout(sys), Line("fs is not answering: " ++ Path.toText(p)))
     }
-}
 
 fn push(out : Address(Line), peer : Address(SyncMsg), p : Path, m : Mtime, bytes : Bytes) -> () with PushMsg = {
     send(peer, Put(path = p, mtime = m, bytes = bytes, ack = via(Acked, self())));
@@ -201,3 +197,4 @@ It works, it is selective receive that makes it work (a Put arriving before Link
 - System addresses as values in `Sys` (finding 10). Adopted.
 - Named fields in the constructor (finding 11). Adopted; later moved from braces to parentheses in the grammar audit, and `let` returned.
 - The start message was first called `Peer`; when `Where = Local | Peer(Text)` entered the prelude, the file-local constructor would have shadowed it, and `spawn(Peer("b"), ...)` would have needed qualification. Renamed `Link`. A common word in the prelude takes a seat in every file.
+- `Reply(a)` for `FsMsg.Read` and `FsMsg.Write`; `pusher` and `writer` use `Address.call`, `PushMsg` loses `ReadDone`. `FsMsg.List` and `Put`/`Ack` remain `Address(...)` — the first because `listing` accepts other messages while waiting, the second because the receiver spawns a `writer` that closes over the reply, which MVP 1's no-higher-order-`Reply` restriction disallows. (Adopted 2026-09-13.)

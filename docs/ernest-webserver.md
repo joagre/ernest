@@ -10,7 +10,7 @@ Written against the Ernest report, September 2026, to see where the specificatio
 type Port     = Port(Int)
 type NetMsg   = Listen(port : Port, acceptor : Address(ConnMsg))
 type ConnMsg  = Conn(Address(SockMsg))
-type SockMsg  = Read(reply : Address(Bytes)) | Write(Bytes) | Close
+type SockMsg  = Read(reply : Reply(Bytes)) | Write(Bytes) | Close
 type Tick     = Tick
 ```
 
@@ -72,12 +72,9 @@ fn sweeper(clock : Address(ClockMsg), sessions : Ets.Table(SessionId, Session)) 
 
 // One process per connection --------------------------------------
 
-type HandlerMsg = Data(Bytes)
-
-fn handler(sessions : Ets.Table(SessionId, Session), seq : Int, sock : Address(SockMsg)) -> () with HandlerMsg = {
-    send(sock, Read(reply = via(Data, self())));
-    recv {
-        Data(bytes) -> match parse(bytes) {
+fn handler(sessions : Ets.Table(SessionId, Session), seq : Int, sock : Address(SockMsg)) -> () with m = {
+    match Address.call(sock, fn(r) = Read(reply = r), 5000) {
+        Some(bytes) -> match parse(bytes) {
             Left(_) -> {
                 send(sock, Write(render(Response(status = StatusCode.notFound, headers = [], body = ""))));
                 send(sock, Close)
@@ -95,7 +92,7 @@ fn handler(sessions : Ets.Table(SessionId, Session), seq : Int, sock : Address(S
                 send(sock, Close)
             }
         }
-      | after 5000 -> send(sock, Close)                // the client never answered
+      | None -> send(sock, Close)                      // the client never answered
     }
 }
 
@@ -133,4 +130,4 @@ fn main(Sys(clock = clock, net = net) : Sys) -> () with () = {
 
 ## Adopted into the Report
 
-`via`; `recv` as a form with `after`; system processes monitor their clients; signature on opaque types; `let x <- e`. The code has been transferred to syntax revision 3 (n-ary functions, `fn`, parentheses in types), to the grammar audit (named fields in parentheses, `let`, single `Int`), and, on 13 September, to an ETS table for the session store.
+`via`; `recv` as a form with `after`; system processes monitor their clients; signature on opaque types; `let x <- e`. The code has been transferred to syntax revision 3 (n-ary functions, `fn`, parentheses in types), to the grammar audit (named fields in parentheses, `let`, single `Int`), and, on 13 September, to an ETS table for the session store, and to `Reply(Bytes)` on `SockMsg.Read` with `Address.call` in the handler; `HandlerMsg` and the `Data(Bytes)` wrapper are gone, and the reply obligation is now on the socket's implementation, not on discipline.
