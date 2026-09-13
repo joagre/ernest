@@ -445,18 +445,18 @@ fn submitter(worker : Address(WorkerMsg)) -> () with Never = {
 
 ```json
 {
-  "ip-address": "145.32.64.6:8654",
+  "network-address": "145.32.64.6:8654",
   "public-key": "<PEM public key>",
   "peers": [
     {
       "name": "foo",
-      "ip-address": "145.32.64.7:8654",
+      "network-address": "145.32.64.7:8654",
       "public-key": "<PEM public key>",
       "remote-peer": true
     },
     {
       "name": "bar",
-      "ip-address": "145.32.64.8:8654",
+      "network-address": "145.32.64.8:8654",
       "public-key": "<PEM public key>",
       "remote-peer": false
     }
