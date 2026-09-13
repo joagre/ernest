@@ -258,6 +258,22 @@ Taken: tests as values. A test is a top-level binding of a specific prelude type
 
 The concrete prelude type is deferred to MVP 1 Phase 3, when the toolchain is being written and paper programs can inform the API. Candidate shape: `type Test = Test(name : Text, run : () -> Test.Result)` with `type Test.Result = Passed | Failed(Text)`. Deciding the exact ergonomics without a paper program that writes tests would be the rule not measured in code, principle 1. Deterministic scheduling for tests, which stood briefly in the report as a runtime flag, remains a runtime feature to decide with the runtime, not a language requirement.
 
+## Packages, 2026-09-13
+
+A program is a set of files with one `main`; today there is no mechanism to depend on another project's code. The question is what that mechanism should be.
+
+Content addressing is already committed to in MVP 3: every definition is identified by a hash of its typed AST, and a message with a function carries the hash so peers can fetch what they lack. That commits Ernest to a Unison-shape answer to dependencies eventually — code is identified by hash, versions of the same function coexist as distinct hash-addressed values, no manual version bounds.
+
+Options for the interim.
+
+**A versioned package manager.** Cargo, Cabal, npm, Hex. Manifest with dependencies, resolver, lockfile, registry. Solves the discovery and version-management problem at real cost: semver arguments, dependency hell, tooling weight. Rejected: content addressing is coming and would supersede all of this. Building it twice would be waste.
+
+**A simple load-path model.** `-pa dir ...` locates compiled `.erc` files by namespace. This is what section 11 already describes. Users manage the load path themselves; two projects share code by pointing at each other's build outputs. Enough for MVP 1 and MVP 2, honest about what it is — not a package manager, a search path.
+
+**Nothing.** Users copy files. Rejected: the load path is a small enough concept and already in the report.
+
+Taken: the load path for MVP 1 and MVP 2, content addressing for MVP 3 and beyond. No versioned package manager, ever. The question of how to discover code someone else wrote — a registry that indexes content-addressed definitions by name — is a tooling question, not a language question. If it becomes essential, it lives in the guide and the runtime, not the report.
+
 ## Reasons Lifted Out of the Report
 
 - `recv` is Erlang's `receive`: selective receive lets a process wait for a specific reply in the middle of a protocol without losing other messages; without it every process becomes a state machine, gen_server turned inside out. `recv` therefore does not require coverage, unlike `match`: the two forms share their syntax but not their semantics, since a `match` that finds no arm is a fault and a `recv` that finds no arm leaves the message in the mailbox. Cost O(n) in the mailbox, and a growing mailbox is not visible in the code, the same cost as in Erlang; the backpressure decision above covers the same problem from the sender's side.
@@ -290,7 +306,6 @@ Planned or considered, not in the language today.
 Not addressed in the report. Each needs a decision before the runtime is written.
 
 - **A message whose type does not exist at the receiver.** Two nodes with different versions of the same type. Undefined before MVP 3; the type is not part of the message. See content addressing under Later.
-- **Packages and dependencies between projects.** A program is files with one `main`; nothing more.
 - **Canonical formatting**, like gofmt. Mentioned on day one, not decided.
 
 Minor: what `Address` carries (node, process). Code loading before MVP 3: Erlang's `code:load`, modules on both sides. Idiom to write down: a start message for processes that need each other's addresses (file sync, finding 1).
