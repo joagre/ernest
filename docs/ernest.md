@@ -501,6 +501,31 @@ Precedence for `binop` as in section 2. Every nonterminal is decided by its firs
 
 ## Appendix B. Examples
 
+The counter of section 6, with a `main` that exercises `Inc` and `Get`. `Upgrade` is not exercised here; it is covered by the fragment in section 6.
+
+```
+type CounterMsg
+    = Inc(Int)
+    | Get(reply : Reply(Int))
+    | Upgrade(migrate : (Int) -> Int, next : (Int) -> () with CounterMsg)
+
+fn counter(n : Int) -> () with CounterMsg = recv {
+    Inc(k) -> counter(n + k)
+  | Get(reply = r) -> { answer(r, n); counter(n) }
+  | Upgrade(migrate = m, next = k) -> k(m(n))
+}
+
+fn main(Sys(stdout = out) : Sys) -> () with () = {
+    let c = spawn(Local, fn() = counter(0));
+    send(c, Inc(5));
+    send(c, Inc(3));
+    match Address.call(c, fn(r) = Get(reply = r), 1000) {
+        Some(n) -> send(out, Line("count is " ++ Int.toText(n)))
+      | None    -> send(out, Line("counter is not answering"))
+    }
+}
+```
+
 ```
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 
