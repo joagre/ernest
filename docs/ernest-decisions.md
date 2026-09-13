@@ -220,6 +220,26 @@ Alternatives considered.
 
 Taken: no registry. The `Link` idiom for mutual references, threaded arguments from `main` for the rest, and observability handled by the runtime's debug facilities without a language-level name.
 
+## Remote Ergonomics, 2026-09-13
+
+Two scenarios have been raised as limitations of `remote(f)`.
+
+**Fire-and-forget: "start something on a peer, don't wait for it."** Not a gap in `remote`, because `remote(f)` is for pure computation whose value the caller uses. A fire-and-forget scenario always has side effects — write to a file, send a message, update a table — and side effects live in process code, not in `remote`. The answer is `spawn(Peer(name), f)` with the returned `Address` discarded: `let _ = spawn(Peer("worker"), fn() = doThing())`. The primitive already exists, and it types the situation correctly: impure computation runs in a process with a mailbox.
+
+**Parallel-then-join: "start N pure computations simultaneously, wait for all."** A real ergonomic gap in the current primitives. Written by hand today: spawn N local processes, each computing `remote(fi)` and sending the result to a common address, then `recv` N times, threading indices to preserve order. Ten to fifteen lines per use.
+
+Four options weighed.
+
+**A `Task(a)` type with `remoteFork` and `await`.** Unison's answer. Clean at the use site but adds a new concept and two primitives; the concept has to interact with equality, serialization, closure capture, cross-node transfer, and every other language rule. Principle 7 (small). Principle 2 (no variants): `remote(f)` and `remoteFork(f)` are two ways to start a remote computation. Rejected for now.
+
+**Change `remote` to return `Task(a)` uniformly.** Kills the current synchronous shape and forces the Task concept everywhere. Semantics change plus principle 7 tension. Rejected.
+
+**A stdlib helper, `List.parallelRemote(fs)`.** No language extension. The library implements the spawn plus recv gather internally, presenting one function that returns the ordered list of results. The runtime may special-case for direct scheduling.
+
+**Do nothing.** Rely on hand-written pattern in each program.
+
+Taken: the stdlib helper, deferred to Later. Writing the pattern by hand is bounded (ten to fifteen lines) and no paper program has written it three times. `Task(a)` remains available if paper programs demand richer control — cancellation, timeouts per task, interleaved arrivals rather than all-at-once — and `List.parallelRemote` is the smaller answer if what is needed is only parallel-then-join.
+
 ## Reasons Lifted Out of the Report
 
 - `recv` is Erlang's `receive`: selective receive lets a process wait for a specific reply in the middle of a protocol without losing other messages; without it every process becomes a state machine, gen_server turned inside out. `recv` therefore does not require coverage, unlike `match`: the two forms share their syntax but not their semantics, since a `match` that finds no arm is a fault and a `recv` that finds no arm leaves the message in the mailbox. Cost O(n) in the mailbox, and a growing mailbox is not visible in the code, the same cost as in Erlang; the backpressure decision above covers the same problem from the sender's side.
@@ -243,6 +263,7 @@ Planned or considered, not in the language today.
 - **`Erl` in the prelude.** `Erl.atom : (Text) -> Foreign` and `type Erl.Result(v, r) = Ok(v) | Error(r)`, so that shims do not redeclare them. Library, not language; in the plan under MVP 2.
 - **Byte patterns.** Erlang's bit syntax, `<<Len:16, Body:Len/binary, Rest/binary>>`, is pattern matching over `Bytes`, and the single largest reason protocol code is written in Erlang. Ernest has `Bytes` and only functions to take it apart, four lines where Erlang writes one. Not a concept but a notation for something the language can already do, one more form in `AtomPat` with a small grammar inside; the addition Erlang readers will ask for first, and the one deliberately left for after the parser exists.
 - **`Slot(a)` for language-level credit.** One-shot capability parallel to `Reply(a)`: a consumer allocates and grants slots to a producer via message, the producer sends by consuming a slot per message through `useSlot(s, v)`, and the consumer refills after processing. Same linearity check as `Reply(a)` — a `Slot` bound in an arm is consumed exactly once on every path. The compiler enforces that a producer does not send without permission. Deferred: only helps producer-consumer patterns, and the credit protocol as convention has not been written three times yet. When it has, this is the shape to reach for; see Backpressure above.
+- **`List.parallelRemote` in the stdlib.** A helper for parallel-pure-then-join: `List.parallelRemote(fs) : List(Either(RemoteError, a)) with m` starts N remote computations in parallel and returns their results in order. Implemented as spawn plus recv gather internally, no language extension; the runtime may special-case for direct scheduling. Deferred until a paper program writes the pattern three times. See Remote Ergonomics above for the `Task(a)` alternative if richer control ever becomes essential.
 - **Idioms for the guide, not the report.** Links and supervisors: `monitor(child, Died)` and returning on `Died` is a link; a supervisor is fifteen lines of `spawn`, `monitor`, and `recv`. Parallel remote computation: `remote(f)` waits, so ten at once are ten local processes each calling `remote` and replying, which is what Unison does under `Remote.fork` and `await`, visibly.
 - **Tests as values.** Unison's `test>` is one line, run by the codebase and cached per hash. Vanished with the codebase; a tooling question, but it is missed.
 - **A measure of the specification's length.** Wirth's Oberon report is sixteen pages and shrank with every revision. If this document, without examples, grows past ten pages, one concept too many has come in.
