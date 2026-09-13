@@ -28,7 +28,7 @@ The grammar is written in EBNF. `=` defines, `|` separates alternatives, `[ ]` i
 
 **Comments.** `//` to end of line, and `/* ... */`, which nests. Comments are removed by the lexer and take part in no grammar rule.
 
-**Identifiers.** `ident` begins with a lowercase letter or `_`; `conname` and `typename` begin with an uppercase letter and are lexically the same token; `typevar` is a lowercase identifier in type position. A qualified name is a sequence of uppercase segments followed by a final segment: `Net.Http.parse`, `Stack.push`, `Int.+`, `ServerMsg.Get`. The dots are namespaces, section 4.
+**Identifiers.** `ident` begins with a lowercase letter or `_` and continues with any number of letters, digits, and `_`; `conname` and `typename` begin with an uppercase letter and continue the same way, and are lexically the same token; `typevar` is a lowercase identifier in type position. A qualified name is a sequence of uppercase segments followed by a final segment: `Net.Http.parse`, `Stack.push`, `Int.+`, `ServerMsg.Get`. The dots are namespaces, section 4.
 
 **Reserved words.** Sixteen: `type`, `opaque`, `with`, `match`, `when`, `if`, `then`, `else`, `recv`, `after`, `fn`, `let`, `foreign`, `as`, `true`, `false`.
 
