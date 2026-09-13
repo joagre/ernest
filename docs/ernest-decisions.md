@@ -25,7 +25,7 @@ The goal is a language that is minimal in concepts, not in primitives: few thing
 - Exception. See Errors in the report.
 - Abilities as a mechanism: user-defined effects, handlers, row-polymorphic effect sets. With a single context there is nothing to generalize over.
 - Type classes. Equality is structural; ordering is a function per type.
-- Universal ordering across type boundaries (Erlang's term order, Unison's `Universal.<`). Ordering exists per type in its namespace, `Nat.compare`, `Text.compare`, `Money.compare`, and `<` is resolved like `+`. Functions that need an ordering take it as an argument: `List.sort(xs, Nat.compare)`. `Map(k, v)` is built on a structural hash of the key and needs only equality.
+- Universal ordering across type boundaries (Erlang's term order, Unison's `Universal.<`). Ordering exists per type in its namespace, `Int.compare`, `Text.compare`, `Money.compare`, and `<` is resolved like `+`. Functions that need an ordering take it as an argument: `List.sort(xs, Int.compare)`. `Map(k, v)` is built on a structural hash of the key and needs only equality.
 - Rank-n types, existential types.
 - Documentation and test types; those are tooling questions.
 - Content addressing and the codebase as a database. Text files and names; see Namespaces in the report and Later below.
@@ -99,7 +99,7 @@ The complete EBNF was read rule by rule for ambiguity. Two real ambiguities, thr
 
 Second pass, after the first fixes:
 
-- **`type Bool = false | true`** broke the constructor rule (uppercase). `true` and `false` are literals of `Bool`, reserved; fourteen words. Gleam's `True` lost to every other language's `true`.
+- **`type Bool = false | true`** broke the constructor rule (uppercase). `true` and `false` are literals of `Bool`, reserved; sixteen words. Gleam's `True` lost to every other language's `true`.
 - **`type Millis = Int`** was a type alias, and the grammar has none: it parsed as a sum type with a nullary constructor called `Int`. Aliases would be a concept; `Millis` was dropped, `ms : Int`.
 - **Qualified references** were missing in `TypeAtom`, `Constr`, and `AtomPat`, and `Name` and `Constr` both began with an uppercase token, so `Primary` was not LL(1). One rule, `Ref = { typename "." } ( ident | binop | conname [ payload ] )`: after each uppercase token, `.` continues, otherwise the segment is final and its case says function or constructor.
 - **`Fields` could be empty**, admitting `Peer()` and `Peer(..p)` with a prose note forbidding one of them. Rewritten so neither can be written; a pattern may still omit all fields, `Closure()`.
@@ -282,7 +282,7 @@ Taken: the load path for MVP 1 and MVP 2, content addressing for MVP 3 and beyon
 - Signature on opaque types instead of a naming rule: the interface gets a place.
 - `via`: a narrower interface is a function, not a type rule; the adapter can do more than forward.
 - The clock sends `()` because `msg : a` would be an existential type.
-- `-` is absent on `Nat` for the sake of totality; `Int` exists for counting downward.
+- One integer type, `Int`, with arbitrary precision — not `Nat` and `Int`. `Nat` promised non-negativity in the type at the price of a partial `-` returning `Optional`, which the tick game paid for and the grammar audit found also required signed literals to disappear. Totality lives in the prelude, not in a second numeric type.
 - Program termination when `main` returns is Go's rule, least surprise for everyone but Erlang readers; `Deadlock` is free on one node and the best deadlock protection there is.
 - Foreign values are node-local. A closure capturing a foreign value cannot be shipped to another node; the runtime faults at send with `Fault("foreign value cannot cross nodes")`. The alternative — silent transfer with late-failing operations on the far side, Erlang's shape — hides the error many hops from its cause and fails principle 3. Type-level tracking of "node-local" values was rejected: it would be a large mechanism for a narrow case.
 - "What does not exist," formerly a section of the report: exceptions, macros, type classes, subtyping, effect systems, currying, existential types, mutation, layout, dynamic binding, session types, shared caches (the ETS problem), runtime-driven code replacement, content addressing. FFI was on the list until 13 September; see FFI.
