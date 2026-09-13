@@ -26,7 +26,7 @@ The grammar is written in EBNF. `=` defines, `|` separates alternatives, `[ ]` i
 
 **Characters.** Source text is Unicode in UTF-8. Whitespace separates tokens and has no other meaning; line breaks mean nothing.
 
-**Comments.** `//` to end of line, and `/* ... */`, which nests. Comments are removed by the lexer and take part in no grammar rule.
+**Comments.** `//` to end of line and `/* ... */` (which nests) are removed by the lexer and take part in no grammar rule. `///` to end of line is a doc comment; consecutive `///` lines form a doc block. A doc block immediately preceding a declaration, with no blank line between, is attached to that declaration as documentation, extractable by the toolchain, section 11. Doc blocks elsewhere are ordinary comments.
 
 **Identifiers.** `ident` begins with a lowercase letter or `_` and continues with any number of letters, digits, and `_`; `conname` and `typename` begin with an uppercase letter and continue the same way, and are lexically the same token; `typevar` is a lowercase identifier in type position. A qualified name is a sequence of uppercase segments followed by a final segment: `Net.Http.parse`, `Stack.push`, `Int.+`, `ServerMsg.Get`. The dots are namespaces, section 4.
 
@@ -436,6 +436,8 @@ todo             : (Text) -> a                     // faults if reached; section
 `ern [--config-dir dir] [-pa dir ...] file.erc` loads the file and, on demand, the compiled files on the load path, found by namespace, `Net.Http.parse` in `Net/Http.erc`; starts the system processes, builds `Sys`, and calls `main`. `ern --repl` starts a read-evaluate-print loop with the same loading. `--config-dir` names the configuration directory, `./.ernest` by default.
 
 `ern --create-config-dir dir` creates `dir/.ernest/` containing `ernest.conf` and this node's private key, readable only by its owner, and does nothing else; it fails if the directory exists. `ernest.conf` holds this node's network address and public key, and the list of peers: for each, a name, a network address, a public key, and whether it accepts remote computation. Appendix C shows one. The names are the ones `Peer(name)` refers to.
+
+`ernc --doc file.ern` writes the doc comments extracted from `file.ern` to stdout as Markdown, grouped by declaration.
 
 ## Appendix A. Grammar
 

@@ -30,6 +30,7 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 - Constructors: no field, one field `T(e)`, or named fields `T(f = e)`; partial patterns `T(f = p)`, base `T(..e, f = e)`. Positional or named is decided by whether `=` or `:` follows the first identifier. Field order from the declaration; compiled to tuples. `fn` definitions allowed in blocks, recursive and generalized; `let` bindings monomorphic.
 - AST as Erlang records with line and column on every node.
 - Error message with its own text for a function written with two clauses, Haskell-style: "a function has one clause; write match". Three paper programs out of three made the mistake. Its own text also for `f x` where `f(x)` was meant, since that is the first thing a Unison or Haskell reader writes.
+- Doc comments. `///` to end of line, consecutive `///` lines form a doc block, attached to the following declaration when there is no blank line between. Lexer emits a doc-comment token; parser records the joined block as an optional field on the declaration's AST node. Approximately 0.5 days.
 
 **Output:** `ern_ast.erl`, data structures and parser functions.
 
@@ -129,10 +130,11 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 - Smoke test: every program compiles and runs, output compared against expected.
 - The web server and the file sync are MVP 2, when `net` exists.
 
-### 3.3 Documentation (2 days)
+### 3.3 Documentation (3 days)
 
 - User readme: how to write Ernest, which constructs are supported.
 - Internal architecture notes for the next phase.
+- `ernc --doc file.ern` walks the AST, groups doc comments by declaration, and writes Markdown to stdout. Approximately 1 day.
 
 ---
 
@@ -162,12 +164,12 @@ Nothing open.
 
 | Phase | Parts | Days | Weeks |
 |-------|-------|------|-------|
-| 1     | Parser, type check, opaque, stdlib types | 24 | 4.8 |
+| 1     | Parser, type check, opaque, stdlib types | 24.5 | 4.9 |
 | 2     | Compiler, processes, stdlib, codegen | 9 | 1.8 |
-| 3     | Integration, tests, docs | 7 | 1.4 |
-| **Total** | | **40** | **8 weeks** |
+| 3     | Integration, tests, docs | 8 | 1.6 |
+| **Total** | | **41.5** | **8.3 weeks** |
 
-One person full-time: about eight working weeks. Half-time: three to four calendar months.
+One person full-time: about eight and a third working weeks. Half-time: three to four calendar months.
 
 ---
 
@@ -181,4 +183,4 @@ One person full-time: about eight working weeks. Half-time: three to four calend
 
 **MVP 5 (ecosystem):** HTTP server, JSON, database connectors written in Ernest. A standard library in Ernest, not just Erlang wrappers.
 
-MVP 1 is eight working weeks and shows that the chain holds, not that the design holds. The latter is decided beforehand, on paper.
+MVP 1 is about eight and a third working weeks and shows that the chain holds, not that the design holds. The latter is decided beforehand, on paper.
