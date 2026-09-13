@@ -162,7 +162,7 @@ Gleam feature by feature. Two changes: line comments are `//`, since `/* */` was
 
 ## Reasons Lifted Out of the Report
 
-- `recv` is Erlang's `receive`: selective receive lets a process wait for a specific reply in the middle of a protocol without losing other messages; without it every process becomes a state machine, gen_server turned inside out. Cost O(n) in the mailbox, and a growing mailbox is not visible in the code.
+- `recv` is Erlang's `receive`: selective receive lets a process wait for a specific reply in the middle of a protocol without losing other messages; without it every process becomes a state machine, gen_server turned inside out. `recv` therefore does not require coverage, unlike `match`: the two forms share their syntax but not their semantics, since a `match` that finds no arm is a fault and a `recv` that finds no arm leaves the message in the mailbox. Cost O(n) in the mailbox, and a growing mailbox is not visible in the code, the same cost as in Erlang; the backpressure question below is the same problem from the sender's side.
 - Braces and `;`: Gleam is the precedent. `if` is kept because its absence surprises more than its presence (Gleam's choice tried for a day).
 - Two positional fields are forbidden because positions are invisible information and names are visible.
 - Signature on opaque types instead of a naming rule: the interface gets a place.
