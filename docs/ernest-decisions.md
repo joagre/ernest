@@ -303,13 +303,6 @@ Planned or considered, not in the language today.
 - **Canonical formatter.** A gofmt-style formatter — mechanically simple given the LL(1) grammar, one role per bracket, and no layout sensitivity. One canonical style, no configuration; killing style debates on day one is easier than after a community forms. A toolchain item, not a language item; expected as part of the `ern` binary. The guide will point at it when it lands.
 - **A measure of the specification's length.** Wirth's Oberon report is sixteen pages and shrank with every revision. If this document, without examples, grows past ten pages, one concept too many has come in.
 
-## Open Questions
-
-Not addressed in the report. Each needs a decision before the runtime is written.
-
-
-Minor: what `Address` carries (node, process). Code loading before MVP 3: Erlang's `code:load`, modules on both sides. Idiom to write down: a start message for processes that need each other's addresses (file sync, finding 1).
-
 ## Paper Programs and Measurements
 
 - `ernest-webserver.md`: web server with sessions. Gave `via`, timeout in receiving, signature on opaque types; rewritten on 13 September with an ETS table for the session store, the first program to use `foreign fn`.
