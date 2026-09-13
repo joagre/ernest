@@ -196,6 +196,28 @@ Taken: convention. The mailbox is unbounded (§10), and backpressure is applicat
 
 `Slot(a)` — a language-level answer parallel to `Reply(a)` — is sketched under Later. If a paper program writes the credit protocol three times, revisit.
 
+## No Registry, 2026-09-13
+
+Erlang has `register(atom, pid)` for local processes and `global` for cluster-wide names. Elixir has `Registry` with typed via-tuples. Akka has a receptionist. Ernest has none. The rule: a process reaches another only through an address it holds or received in a message, and possession of the address is the permission to send.
+
+This is a capability model. Every `send` in the program has a visible provenance — a reader can trace back through the chain of who gave the address to whom, ultimately to `main` or `Sys`. A registry would break that: names are strings, and any code that can construct the string can send to the process, and the type checker cannot verify at send that the name resolves to a process with the compatible mailbox type. The property is worth its cost; manual propagation is the shape principle 3 asks for.
+
+**Circular dependencies use a start message.** Two processes that must know each other cannot both be spawned with the other's address, since one is spawned first. The pattern is the `Link` message: spawn both, then send each the other's address; each waits in a `start` phase for the `Link` before entering its loop. File sync writes this in four lines and it generalizes to more processes. The idiom belongs in the guide.
+
+Alternatives considered.
+
+**Named spawn returning an ordinary `Address` with a global name (Erlang's `register`).** An implicit registry. The address's security property is broken because anyone constructing the name — a `Text` — can send. Principle 3, hard. Rejected.
+
+**`NamedPeer(name)` as a distinct address type.** The type checker cannot verify at send that the name resolves to a process with the compatible mailbox type without a global type-name registry. Two types where there was one, plus either invisibility or a much larger mechanism. Principle 2 and either principle 3 or principle 7. Rejected.
+
+**Erlang's `global` module.** Distributed quorum protocol nobody uses in practice. Not a model to copy.
+
+**Akka Typed's receptionist.** Actors register with typed service keys; consumers get notified when matching services register. Solves observability well but adds a registry-plus-notification protocol on top of the actor model. Deferred; if it appears in three programs, revisit.
+
+**Named spawn purely for observability (trace/log names, no lookup).** If the runtime chooses to expose process names as a debug hook, that is not a language mechanism — the name is invisible to code, cannot be used to send, and adds no concept to the report. Left to the runtime and the toolchain.
+
+Taken: no registry. The `Link` idiom for mutual references, threaded arguments from `main` for the rest, and observability handled by the runtime's debug facilities without a language-level name.
+
 ## Reasons Lifted Out of the Report
 
 - `recv` is Erlang's `receive`: selective receive lets a process wait for a specific reply in the middle of a protocol without losing other messages; without it every process becomes a state machine, gen_server turned inside out. `recv` therefore does not require coverage, unlike `match`: the two forms share their syntax but not their semantics, since a `match` that finds no arm is a fault and a `recv` that finds no arm leaves the message in the mailbox. Cost O(n) in the mailbox, and a growing mailbox is not visible in the code, the same cost as in Erlang; the backpressure decision above covers the same problem from the sender's side.
@@ -226,7 +248,6 @@ Planned or considered, not in the language today.
 
 Not addressed in the report. Each needs a decision before the runtime is written.
 
-- **No registry.** No global names, not even the system addresses; everything is threaded as arguments from `main`. Whoever has an address may send, no one else can find it; that is the whole security model. It decides program structure and should be stated as a principle, since someone will ask for `register` the first time two parts of a program cannot reach each other.
 - **A message whose type does not exist at the receiver.** Two nodes with different versions of the same type. Undefined before MVP 3; the type is not part of the message. See content addressing under Later.
 - **Tests.** How a test is written, run, and reported is undecided. A runtime flag for deterministic scheduling stood in the report as an inheritance from Unison's handler-swapping model and was removed; it is a runtime feature to decide with the runtime, not a language requirement.
 - **Packages and dependencies between projects.** A program is files with one `main`; nothing more.

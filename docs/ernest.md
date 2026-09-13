@@ -208,7 +208,7 @@ type Where = Local | Peer(Text)
 
 **Ordering.** Messages from one process to another are received in sending order. Between different senders there is no ordering.
 
-**Addresses.** `Address(m)` identifies a process on a node and carries its protocol: `send(a, v)` is type-checked against `m` and is the same on every node. `via(f, a)`, section 9, is the address `a` seen through `f : (b) -> m`: sending `v` to `via(f, a)` is sending `f(v)` to `a`. A single-request answer uses `Reply(a)`, below; `via(Wrap, self())` gives a wrapper address for a process that receives replies in its own mailbox. Addresses have no equality; identity is expressed in the protocol.
+**Addresses.** `Address(m)` identifies a process on a node and carries its protocol: `send(a, v)` is type-checked against `m` and is the same on every node. `via(f, a)`, section 9, is the address `a` seen through `f : (b) -> m`: sending `v` to `via(f, a)` is sending `f(v)` to `a`. A single-request answer uses `Reply(a)`, below; `via(Wrap, self())` gives a wrapper address for a process that receives replies in its own mailbox. Addresses have no equality; identity is expressed in the protocol. There is no registry: a process reaches another only through an address it holds or received in a message, and possession of the address is the permission to send.
 
 **Request-reply.** A `Reply(a)` is a one-shot address for the answer to a request; unlike `Address(a)`, it is answered exactly once and cannot be stored.
 
