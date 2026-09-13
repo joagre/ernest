@@ -285,7 +285,7 @@ type Reason = Returned | Killed | ProgramEnd | Fault(Text)
 type ClockMsg                                      // times in milliseconds
     = After(ms : Int, to : Address(()))
     | At(at : Int, to : Address(()))
-    | Now(reply : Address(Int))
+    | Now(reply : Reply(Int))
 
 via          : ((a) -> b, Address(b)) -> Address(a)
 Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
