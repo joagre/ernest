@@ -86,7 +86,7 @@ Two or more positional fields are not allowed. Field names are unique within a c
 
 **Built-in types.** `Address(m)`, an address of a process that receives `m`. `Reply(a)`, a one-shot address for the answer to a request, section 6. `Never`, the type with no values. The prelude types, section 9.
 
-**Foreign types.** A type declared `foreign type T` has no constructors: its values are made and used only by foreign functions, section 4, and can otherwise be held, passed, and sent. Equality on a foreign type is identity.
+**Foreign types.** A type declared `foreign type T` has no constructors: its values are made and used only by foreign functions, section 4, and can otherwise be held, passed, and sent. A foreign value is bound to the node that made it: `spawn(Peer(...), f)` or `send` to a remote address is a fault when the payload transitively contains a foreign value, including a closure that captures one, with cause `Fault("foreign value cannot cross nodes")`. Equality on a foreign type is identity.
 
 **Type variables and polymorphism.** Types are inferred according to Hindley-Milner. A `fn` definition is generalized over its free type variables; a binding is not. Type variables in a `fn` signature scope over the whole definition. Recursive and mutually recursive types are allowed. Polymorphic recursion is not. Every type variable in a constructor's payload must be a parameter of the type.
 
