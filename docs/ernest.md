@@ -80,7 +80,7 @@ type Optional(a) = None | Some(a)
 type Peer = Peer(dir : Path, seen : Map(Path, Mtime))
 ```
 
-Two or more positional fields are not allowed. Field names are unique within a constructor; their order carries no meaning. Positional and named payloads are distinguished by `:` after the first identifier.
+Two or more positional fields are not allowed. Field names are unique within a constructor; their order carries no meaning. Positional and named payloads are distinguished by `:` after the first identifier in declarations, and by `=` in construction and patterns.
 
 **Opaque types.** A sum type whose constructors may be mentioned only in the functions listed in the type's signature, section 4.
 
