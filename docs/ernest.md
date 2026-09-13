@@ -176,7 +176,7 @@ FieldPats = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 
 **Blocks.** `{ s1; s2; e }` is an expression whose value is the last statement, which must be an expression. `;` separates statements and never appears last. Statements are `fn` declarations, `let` bindings, and expressions; an expression as a statement is evaluated for its effect.
 
-**Binding with `<-`.** In a block, `let p <- e; rest` means that `e` is matched: on `Right(v)`, `p` is bound to `v` and `rest` is evaluated; on `Left(err)`, the block's value is `Left(err)`. If the block's type is `Optional`, `Some` and `None` apply the same way. The block's type decides which, resolved from the type of `e` as operators are; `rest` must have the block's type. The rewrite is local to the block.
+**Binding with `<-`.** In a block, `let p <- e; rest` means that `e` is matched: on `Right(v)`, `p` is bound to `v` and `rest` is evaluated; on `Left(err)`, the block's value is `Left(err)`. If the block's type is `Optional`, `Some` and `None` apply the same way. The block's type decides which, resolved from the type of `e` as operators are; `rest` must have the block's type. All `<-` bindings in the same block resolve to the same sum type — the block is either `Either` or `Optional`, not both. The rewrite is local to the block.
 
 **Construction.** `Some(e)`, `None`, `Peer(dir = d, seen = s)`. All fields must be given. `Peer(..p, seen = s)` takes unlisted fields from `p`; at least one field follows `..`. A constructor is qualified like a function, `Net.Http.Request(...)`. Nullary and single-field constructors are function values; named ones are not. Qualified operators are function values, `Int.+`.
 
