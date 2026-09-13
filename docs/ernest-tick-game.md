@@ -13,7 +13,7 @@ type Key    = Up | Down | Left | Right | Quit
 keys : Address(KeyMsg)         // field in the runtime's Sys
 ```
 
-`Random.next : (Seed) -> (Int, Seed)` is assumed in the prelude, a pure generator.
+`type Seed = Seed(Int)` and `Random.next : (Seed) -> (Int, Seed)` are assumed in the prelude, a pure generator.
 
 ## The Program
 
@@ -78,7 +78,7 @@ fn step(world : World) -> World = {
       | Player(body = []) -> (acc, apples)
     };
     let (ps2, apples2) = Map.foldLeft(ps, (ps, apples), movePlayer);
-    let ps3 = Map.map(ps2, fn(p) = collide(ps2, p));
+    let ps3 = Map.map(ps2, fn(_, p) = collide(ps2, p));
     let (apples3, seed2) = refill(w, h, Map.size(ps3), apples2, seed);
     World(..world, players = ps3, apples = apples3, seed = seed2, tick = t + 1)
 }
@@ -99,6 +99,8 @@ fn refill(w : Int, h : Int, want : Int, apples : List(Pos), seed : Seed) -> (Lis
         let (ry, s2) = Random.next(s1);
         refill(w, h, want, Pos(x = rx % w, y = ry % h) +: apples, s2)
     }
+
+fn addPlayer(world : World, id : Int) -> World = todo("add a player at a random free position")
 
 fn render(world : World) -> Text = todo("grid to text, one line per y")
 
