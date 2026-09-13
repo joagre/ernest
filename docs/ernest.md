@@ -261,7 +261,7 @@ The prelude is total: no built-in function faults. Partial operations return `Op
 
 ## 8. Programs
 
-**`main`.** A program is a set of source files with exactly one function `main : (Sys) -> () with m` for some `m`, unqualified, called by the runtime. `main` chooses its mailbox type freely.
+**`main`.** A program is a set of source files with exactly one function `main : (Sys) -> () with m` for some `m`, unqualified, called by the runtime. Nothing sends to `main` that it has not given its address to; `m` is usually `()`.
 
 **`Sys`.** The runtime starts with its system processes and hands their addresses to `main` in a value of type `Sys`, a constructor with named fields defined by the runtime. The language requires the fields `stdout : Address(Line)` and `clock : Address(ClockMsg)`, section 9. A program that uses a field the runtime lacks is a type error. A function without a system address among its arguments and without foreign calls cannot affect anything outside its process.
 
