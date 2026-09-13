@@ -277,6 +277,16 @@ The prelude is total: no built-in function faults. Partial operations return `Op
 
 Types and functions the language presupposes. The namespace is the type's.
 
+Built-in parameterized types, provided by the runtime:
+
+```
+List(a)      // an immutable linked list of elements of type a
+Map(k, v)    // an immutable dictionary from k to v; requires equality on k
+Set(a)       // an immutable set of a; requires equality on a
+```
+
+Declared types:
+
 ```
 type Optional(a) = None | Some(a)
 type Either(e, a) = Left(e) | Right(a)
@@ -288,37 +298,121 @@ type ClockMsg                                      // times in milliseconds
     = After(ms : Int, to : Address(()))
     | At(at : Int, to : Address(()))
     | Now(reply : Reply(Int))
+type Foreign                                       // a value the language does not inspect
+```
 
+Process functions (`Where`, `RemoteError`: section 6):
+
+```
 via          : ((a) -> b, Address(b)) -> Address(a)
 Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
 answer       : (Reply(a), a) -> () with m
-remote       : (() -> a) -> Either(RemoteError, a)        // Where, RemoteError: section 6
+remote       : (() -> a) -> Either(RemoteError, a)
 monitor      : (Address(a), (Down) -> m) -> () with m
 kill         : (Address(a)) -> () with m
-
-Int.div, Int.mod : (Int, Int) -> Optional(Int)    // None on zero; `/` and `%` fault on zero instead; mod is non-negative for a positive divisor
-Int.negate : (Int) -> Int                         // likewise Float
-Int.compare : (Int, Int) -> Ordering              // likewise Float, Text, Char
-Int.toText : (Int) -> Text                        // likewise Float
-Text.toInt : (Text) -> Optional(Int)
-Text.chars : (Text) -> List(Char)            Text.fromChars : (List(Char)) -> Text
-Text.fromUtf8 : (Bytes) -> Optional(Text)    Text.toUtf8 : (Text) -> Bytes
-Text.lines : (Text) -> List(Text)              Text.all : (Text, (Char) -> Bool) -> Bool
-Char.isDigit, Char.isAlpha : (Char) -> Bool
-List.size, List.reverse, List.head, List.at, List.contains, List.map, List.filter,
-List.filterMap, List.foldLeft, List.foreach, List.any, List.span, List.sort, List.remove, List.dropLast
-Map.empty, Map.get, Map.put, Map.delete, Map.size, Map.values, Map.map, Map.foldLeft
-Set.empty, Set.add, Set.remove, Set.contains, Set.size, Set.toList
-Int.toFloat : (Int) -> Float                      Float.round, Float.floor : (Float) -> Int
-Optional.map, Optional.flatMap
-todo : (Text) -> a                               // faults if reached; section 7
-type Foreign                                     // a value the language does not inspect
-Foreign.toInt, Foreign.toFloat, Foreign.toText, Foreign.toBool : (Foreign) -> Optional(...)
-Foreign.toList : (Foreign) -> Optional(List(Foreign))
-Either.map, Either.mapLeft, Either.andThen
 ```
 
-`List.head : (List(a)) -> Optional(a)`, `List.at : (List(a), Int) -> Optional(a)`, `Map.get : (Map(k, v), k) -> Optional(v)`. `List.sort : (List(a), (a, a) -> Ordering) -> List(a)`. Containers are taken as the first argument. `Map(k, v)` and `Set(a)` require equality on `k` and `a`.
+Numeric:
+
+```
+Int.div, Int.mod : (Int, Int) -> Optional(Int)     // None on zero; `/` and `%` fault on zero instead;
+                                                   // mod is non-negative for a positive divisor
+Int.negate       : (Int) -> Int
+Int.compare      : (Int, Int) -> Ordering
+Int.toText       : (Int) -> Text
+Int.toFloat      : (Int) -> Float
+Float.negate     : (Float) -> Float
+Float.compare    : (Float, Float) -> Ordering
+Float.toText     : (Float) -> Text
+Float.round      : (Float) -> Int                  // banker's rounding, IEEE 754 default
+Float.floor      : (Float) -> Int
+```
+
+Text and Char:
+
+```
+Text.toInt       : (Text) -> Optional(Int)
+Text.chars       : (Text) -> List(Char)
+Text.fromChars   : (List(Char)) -> Text
+Text.fromUtf8    : (Bytes) -> Optional(Text)
+Text.toUtf8      : (Text) -> Bytes
+Text.lines       : (Text) -> List(Text)
+Text.all         : (Text, (Char) -> Bool) -> Bool
+Text.compare     : (Text, Text) -> Ordering
+Char.compare     : (Char, Char) -> Ordering
+Char.isDigit     : (Char) -> Bool
+Char.isAlpha     : (Char) -> Bool
+```
+
+List (containers are taken as the first argument):
+
+```
+List.size        : (List(a)) -> Int
+List.reverse     : (List(a)) -> List(a)
+List.head        : (List(a)) -> Optional(a)
+List.at          : (List(a), Int) -> Optional(a)
+List.contains    : (List(a), a) -> Bool
+List.map         : (List(a), (a) -> b) -> List(b)
+List.filter      : (List(a), (a) -> Bool) -> List(a)
+List.filterMap   : (List(a), (a) -> Optional(b)) -> List(b)
+List.foldLeft    : (List(a), b, (b, a) -> b) -> b
+List.foreach     : (List(a), (a) -> ()) -> ()
+List.any         : (List(a), (a) -> Bool) -> Bool
+List.span        : (List(a), (a) -> Bool) -> (List(a), List(a))
+List.sort        : (List(a), (a, a) -> Ordering) -> List(a)
+List.remove      : (List(a), a) -> List(a)
+List.dropLast    : (List(a)) -> List(a)
+```
+
+Map:
+
+```
+Map.empty        : Map(k, v)
+Map.get          : (Map(k, v), k) -> Optional(v)
+Map.put          : (Map(k, v), k, v) -> Map(k, v)
+Map.delete       : (Map(k, v), k) -> Map(k, v)
+Map.size         : (Map(k, v)) -> Int
+Map.values       : (Map(k, v)) -> List(v)
+Map.map          : (Map(k, v), (k, v) -> w) -> Map(k, w)
+Map.foldLeft     : (Map(k, v), b, (b, k, v) -> b) -> b
+```
+
+Set:
+
+```
+Set.empty        : Set(a)
+Set.add          : (Set(a), a) -> Set(a)
+Set.remove       : (Set(a), a) -> Set(a)
+Set.contains     : (Set(a), a) -> Bool
+Set.size         : (Set(a)) -> Int
+Set.toList       : (Set(a)) -> List(a)
+```
+
+Optional and Either:
+
+```
+Optional.map     : (Optional(a), (a) -> b) -> Optional(b)
+Optional.flatMap : (Optional(a), (a) -> Optional(b)) -> Optional(b)
+Either.map       : (Either(e, a), (a) -> b) -> Either(e, b)
+Either.mapLeft   : (Either(e, a), (e) -> f) -> Either(f, a)
+Either.andThen   : (Either(e, a), (a) -> Either(e, b)) -> Either(e, b)
+```
+
+Foreign inspection:
+
+```
+Foreign.toInt    : (Foreign) -> Optional(Int)
+Foreign.toFloat  : (Foreign) -> Optional(Float)
+Foreign.toText   : (Foreign) -> Optional(Text)
+Foreign.toBool   : (Foreign) -> Optional(Bool)
+Foreign.toList   : (Foreign) -> Optional(List(Foreign))
+```
+
+Other:
+
+```
+todo             : (Text) -> a                     // faults if reached; section 7
+```
 
 ## 10. Runtime Requirements
 
