@@ -178,7 +178,7 @@ FieldPats = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 
 **Binding with `<-`.** In a block, `let p <- e; rest` means that `e` is matched: on `Right(v)`, `p` is bound to `v` and `rest` is evaluated; on `Left(err)`, the block's value is `Left(err)`. If the block's type is `Optional`, `Some` and `None` apply the same way. The block's type decides which, resolved from the type of `e` as operators are; `rest` must have the block's type. All `<-` bindings in the same block resolve to the same sum type — the block is either `Either` or `Optional`, not both. The rewrite is local to the block.
 
-**Construction.** `Some(e)`, `None`, `Peer(dir = d, seen = s)`. All fields must be given. `Peer(..p, seen = s)` takes unlisted fields from `p`; at least one field follows `..`. A constructor is qualified like a function, `Net.Http.Request(...)`. Nullary and single-field constructors are function values; named ones are not. Qualified operators are function values, `Int.+`.
+**Construction.** `Some(e)`, `None`, `Peer(dir = d, seen = s)`. All fields must be given. `Peer(..p, seen = s)` takes unlisted fields from `p`; at least one field follows `..`. A constructor is qualified like a function, `Net.Http.Request(...)`. A nullary constructor is a value, a single-positional constructor is a function value, and named constructors are neither: they only appear in construction syntax. Qualified operators are function values, `Int.+`.
 
 **Conditional.** `if c then a else b` with `c : Bool`; the branches have the same type.
 
