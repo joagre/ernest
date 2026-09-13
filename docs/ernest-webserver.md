@@ -1,6 +1,6 @@
 # Paper Program 1: Web Server with Sessions
 
-Written against the Ernest report, September 2026, to see where the specification chafes.
+Written against the Ernest report, September 2026. A web server with sessions.
 
 ## Assumptions About the Runtime's System Processes
 
@@ -109,25 +109,3 @@ fn main(Sys(clock = clock, net = net) : Sys) -> () with () = {
     send(net, Listen(port = Port(8080), acceptor = acc))
 }
 ```
-
-## What Chafed
-
-**1. Reply addresses.** `via(Data, self())` and `via(FoundSession, self())`. A `reply f` was introduced to avoid `self` and dropped again as a second spelling; `contramap` was renamed `via`.
-
-**2. Timeout and filter.** A handler waiting for a client that does not answer closes the socket after 5 s. The first version had `recv` as a function with a mandatory timeout: `sessions` and `acceptor` got a `Timeout` arm that was never reached, and the handler wrote every selective receive as a filter lambda plus a match, the same match twice. Now `recv` is a form with arms and `after`; the handler's two receives are a line shorter each, and `sessions` is three arms.
-
-**3. Opaque types with a signature.** The first version called `SessionId.parse` without defining it; with the indentation rule that went unnoticed on paper, with the signature it showed. The signature also forced the return type for invalid text: `Optional(SessionId)`, not a garbage value. Validation is declared with the type, not where it is used.
-
-**4. Errors in `parse`.** Three steps that can fail. The first version had `?`; without it, two functions with one match each; with `let x <- e` it is four lines in one function, and `Text.fromUtf8`'s error is converted to `BadEncoding` with `Either.mapLeft` on the same line. The handler then matches on `Either` once and turns the error into a 404.
-
-**5. The handler dies, the socket closes.** `net` monitors the handler per the ports model. If the handler dies, `net` closes the socket. It is not visible in the code and that is right. With a total prelude the handler dies only of a fault; a parse error is a `Left` and a 404.
-
-**6. The session store: process, then table.** The first version kept sessions in a process with `Lookup`, `Put`, and `Sweep`; every request sent two messages there, waited for one with a second timeout, and the process was the bottleneck the decision log calls the ETS problem, with sharding as the answer. That was the right first version: a process is what the language has for state with many clients. When `foreign fn` arrived and Appendix D gave `Ets.ern`, the store became a table: `Ets.lookup` and `Ets.insert` in the handler, one `recv` fewer, no `FoundSession`, no second timeout, and no bottleneck. The cost is the one the report makes visible: `handler` reads and writes what other handlers write, and its mailbox type says so. The two versions are the value-versus-process-versus-table decision in twenty lines, and the guide should show both.
-
-**7. The braces.** The handler is four levels of nested match, and with braces it shows. In layout syntax the same nesting would have been invisible, not absent. That is an argument for breaking the handler's steps into named functions, not an argument against braces. With `after` in the arm, the time limits came to stand last in every `recv`, after what they guard; it reads better than before.
-
-**8. What did not chafe.** Pure code was pure: `parse`, `render`, `cookie` without a mailbox type. In the process version, selective receive let the handler wait for `FoundSession` without caring that a `Data` might be ahead of it. Closing over `sessions` and `sock` in `spawn` was natural, and a table handle closes over as easily as an address.
-
-## Adopted into the Report
-
-`via`; `recv` as a form with `after`; system processes monitor their clients; signature on opaque types; `let x <- e`. The code has been transferred to syntax revision 3 (n-ary functions, `fn`, parentheses in types), to the grammar audit (named fields in parentheses, `let`, single `Int`), and, on 13 September, to an ETS table for the session store, and to `Reply(Bytes)` on `SockMsg.Read` with `Address.call` in the handler; `HandlerMsg` and the `Data(Bytes)` wrapper are gone, and the reply obligation is now on the socket's implementation, not on discipline.

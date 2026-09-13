@@ -1,6 +1,6 @@
 # Paper Program 2: File Sync
 
-Written against the Ernest report, September 2026, to see where the specification chafes. Two directories are kept identical; changes are sent to the peer; conflicts are saved as an extra file. The peer is an `Address`, and the code is the same whether it lives on the same node or not.
+Written against the Ernest report, September 2026. Two directories are kept identical; changes are sent to the peer; conflicts are saved as an extra file. The peer is an `Address`, and the code is the same whether it lives on the same node or not.
 
 ## Assumptions About the Runtime's System Processes
 
@@ -155,48 +155,3 @@ fn main(sys : Sys) -> () with () = {
     send(b, Link(a))
 }
 ```
-
-## What Chafed
-
-**1. Mutual addresses.** Two processes that must know each other: one is spawned first and does not know the other. Erlang solves it with `register` or with a `{peer, Pid}` message after start. Without a registry the answer is a start message, `Link(Address(SyncMsg))` in `SyncMsg`, and a waiting phase before the loop:
-
-```
-fn start(sys : Sys, dir : Path) -> () with SyncMsg = recv {
-    Link(peer) -> { send(self(), Tick); syncer(sys, dir, peer, Map.empty) }
-}
-```
-
-It works, it is selective receive that makes it work (a Put arriving before Link stays in the mailbox), and it is the same pattern as the handler in the web server. But it is the second time a program needs a "wait for my configuration" phase, and it should be recorded as an idiom, since it is the answer to "no registry."
-
-**2. Without `?`: seven matches on `Either`, no nesting.** `pusher`, `push`, `writer`, `store`, `listing`, `changed`: each has one match, none has two levels. The rule "one function, one match" held without being felt. The difference from the web server is that the errors here are messages (`Failed(e)`, `Left(e)` in `Listed`), and a match on a message is what a process does anyway. It was in pure code that `?` tempted; in process code there is no temptation.
-
-**3. The dead `Timeout` arm, third time.** First version: `syncer` and `start` waited `forever` and wrote `Timeout -> ...`, as the web server did twice. Five process loops in two programs with an arm that is never reached. That decided it, in two steps: first `recv` without a limit and `recvFor` with one, then, when the comparison with Erlang showed that the filter lambda was the only large cost, `recv` as a form with arms and `after`. The code above uses it. `listing` matches only `Listed` and `Put`; `Tick` and `Peer` stay in the mailbox, which the filter expressed in three lines.
-
-**4. The clock.** The first version had `clock : Address (After Millis (Address Tick))` and every process wrote `reply (_ -> Tick)`. A version in between let the clock take the value, `After { ms, to, msg : a }`; that was an existential type, `a` is not a parameter of `ClockMsg`, and it was dropped. Now the clock sends `()` and the receiver writes `via(fn(_) = Tick, self())`, which `listing` does once in a local `tick` lambda. The verbosity is back, for a reason that holds.
-
-**5. Ordering per type worked.** `Mtime.compare(m, m0)` with a match on `Ordering` reads well, and the guard `when Mtime.compare(local, m) == Greater` is the only place ordering was needed. Nobody missed `<` on Mtime. `Ordering` must be in the prelude.
-
-**6. Backpressure, concretely.** A thousand changed files give a thousand `pusher` processes that read via `fs` at once and send a thousand `Put` with file contents to the peer. The peer's mailbox gets a thousand messages with Bytes in them at once. Nothing in the language slows it down. The conventional solution is for `listing` to spawn N pushers at a time and wait for `Acked` before the next batch; that is a counter in `syncer`, ten lines, and nothing in the report shows it is needed. This is the answer to the open question: a credit protocol by convention, and the idiom belongs beside the start message.
-
-**7. Version mixing.** `peer : Address(SyncMsg)` is type-checked on one node. Over the network, if the peer runs an older `SyncMsg` without `Conflict`, nothing in MVP 1 and 2 detects it; `Put` is sent, the peer matches on the wrong type, and what happens is undefined. Erlang has the same problem and does not call it a problem. MVP 3 with hashes makes the type part of the message and can reject on receipt. That is the second argument for MVP 3, after code distribution, and it belongs in the plan.
-
-**8. What did not chafe.** One process per write and per read was natural and freed `syncer` from waiting on `fs`. `listing` as its own phase with a filter that shuts out `Tick` is exactly what selective receive is for, and it could not be expressed any other way without a flag in the state. Pure code (`diff`, `changed`, `snapshot`) was pure and testable without a process.
-
-**9. `Monitor` was untyped in the specification.** The peer's death is detected here only via the timeout in `push`. I wanted to write `monitor peer` in `syncer`, but the specification said `Monitor self` yields a `Down`, and `self : Address(SyncMsg)` cannot receive `Down`. The solution is the same as `via`, now adopted: `monitor : (Address(a), (Down) -> msg) -> () with msg` in the prelude, with a wrapper that turns `Down` into the process's type, and `kill : (Address(a)) -> () with msg`. Then "the runtime understands `Monitor` and `Kill`" is two functions, not two messages an address must receive without having declared them.
-
-**10. System addresses on another node.** The first version had `fs` and `clock` as global names. If `start(Path("b"))` is spawned on node b: which node's `fs`? Dynamic binding per node would be the only one in the language and was rejected. Instead the system addresses are values in `Sys`, which `main` receives and threads; the code above does so. A function that closes over a's `fs` and runs on b talks to a's disk over the network, which is well-defined, and if b's syncer wants b's disk it gets b's `Sys` from the node. The price shows: `sys` is the first argument of six functions.
-
-**11. Records.** `syncer(dir, peer, seen)` with three arguments was fine; with `store`'s six it began to chafe, and a state with five fields would have required named fields. The specification said "records" without saying how. Now: named fields in the constructor, partial patterns, base with `..st`, no generated functions. `Sys.fs` above is what it costs to want a field function: one line.
-
-## Proposals for the Report
-
-- Start message as an idiom for mutual addresses (finding 1).
-- The clock takes an address and a value (finding 4). Adopted, then revised: the clock sends `()`.
-- `Ordering` in the prelude (finding 5). Adopted.
-- Credit protocol as an idiom under backpressure (finding 6).
-- Type checking of messages on receipt over the network as an argument for MVP 3 in the plan (finding 7).
-- `monitor` and `kill` as prelude functions with a wrapper (finding 9). Adopted.
-- System addresses as values in `Sys` (finding 10). Adopted.
-- Named fields in the constructor (finding 11). Adopted; later moved from braces to parentheses in the grammar audit, and `let` returned.
-- The start message was first called `Peer`; when `Where = Local | Peer(Text)` entered the prelude, the file-local constructor would have shadowed it, and `spawn(Peer("b"), ...)` would have needed qualification. Renamed `Link`. A common word in the prelude takes a seat in every file.
-- `Reply(a)` for `FsMsg.Read`, `FsMsg.Write`, and `SyncMsg.Put`'s `ack`; `pusher`, `push`, and `writer` all use `Address.call`, `PushMsg` disappears entirely. `FsMsg.List` remains `Address(...)` because `listing` accepts other messages while waiting for `Listed`. The `store`→`writer` chain drove the spawn-capture rule: `store` receives `ack : Reply(Ack)`, spawns `writer` with `ack` captured, and the linearity check propagates through the spawned function's body. (Adopted 2026-09-13.)

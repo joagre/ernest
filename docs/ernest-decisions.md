@@ -305,12 +305,12 @@ Planned or considered, not in the language today.
 
 ## Paper Programs and Measurements
 
-- `ernest-webserver.md`: web server with sessions. Gave `via`, timeout in receiving, signature on opaque types; rewritten on 13 September with an ETS table for the session store, the first program to use `foreign fn`.
-- `ernest-filesync.md`: file sync between two nodes. Gave `monitor` and `kill` as functions, `Sys` as values, named fields, the clock with a value, backpressure as convention.
-- `ernest-tick-game.md`: snake game with ticks. Gave definitions in blocks, `At` and `Now`, `Sys` as the runtime's type, the value-versus-process criterion, the answer on local state, and the case against `Nat`.
-- `ernest-repl.md`: REPL with lexer, parser, evaluator, and `try` as a process. Gave `<-`, the warning about `self` in `spawn`, `TryError`.
+- `ernest-webserver.md`: web server with sessions. Gave `via`, timeout in receiving, signature on opaque types (which caught a call to an undefined `SessionId.parse` on paper). The process-then-table progression showed the value-versus-process-versus-table decision in twenty lines. Rewritten on 13 September with an ETS table for the session store, the first program to use `foreign fn`, and with `Reply(Bytes)` on `SockMsg.Read`, dropping the `HandlerMsg`/`Data(Bytes)` wrapper.
+- `ernest-filesync.md`: file sync between two nodes. Gave `monitor` and `kill` as functions, `Sys` as values, named fields, the clock with a value, backpressure as convention (a credit protocol in about ten lines per producer). Seven matches on `Either` across the whole program, none nested; five process loops in two programs where the earlier `recvFor` timeout arm was never reached; `sys` threaded as the first argument of six functions was the price of no dynamic binding.
+- `ernest-tick-game.md`: snake game with ticks. Gave definitions in blocks (closes `where`), `At` and `Now`, `Sys` as the runtime's type, the value-versus-process criterion (one process per player was parallelism nobody asked for), the answer on local state (three counters became a fold with a tuple accumulator; when the tuple grows, a named type with `..`), and the case against `Nat`.
+- `ernest-repl.md`: REPL with lexer, parser, evaluator, and `try` as a process. Gave `<-`, the warning about `self` in `spawn`, `TryError`. The evidence for `<-`: without it, 43 of 140 lines of pure code were `Left(e) -> Left(e)`, thirty percent that said nothing; with it, the same code is fifteen lines against twenty-four.
 - All paper programs: `spawn(Local, ...)` after placement became an argument.
-- `ernest-comparison-webserver.md`: the same web server in Erlang. Without type signatures six percent more characters, almost all in the filter function, which was subsequently dropped.
+- `ernest-comparison-webserver.md`: the same web server in Erlang. Without type signatures six percent more characters, almost all in the filter function (45 characters each time, twice), which was subsequently dropped when `recv` became a form with arms and `after`.
 
 ## Form of the Report
 

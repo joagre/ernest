@@ -144,32 +144,3 @@ fn main(Sys(stdout = out, clock = clock, keys = keys) : Sys) -> () with () = {
     send(keys, Subscribe(p1))
 }
 ```
-
-## What Chafed
-
-**1. Local state: it did not hurt, but it shows where it would have.** `step` changes three things: the players' scores, apples left, tick. Without `{State}` it became a fold with a tuple accumulator `(ps, apples)`, a `Map.map`, and a recursive `refill` that threads the seed. That is three lines more than a mutable version and it reads top to bottom. What would hurt is if `movePlayer` had to update a fourth thing: the tuple becomes a triple, and every `(acc, apples)` in the body changes. With named fields the accumulator could be a type `Step { players, apples }` and `..` would have saved it. Conclusion: `let mut` is not needed; the accumulator as a named type is the answer when the tuple grows past two.
-
-**2. `where` was needed, and did not exist.** `movePlayer` uses `w` and `h` from `step`'s arguments. The first version wrote `where` out of Haskell habit; the specification does not have it. The answer was not to add `where` but to remove the difference: a definition may stand anywhere a binding may stand, in blocks as at top level. The code above does so; `movePlayer` is the first binding in `step`'s block. The first version also wrote `tailOf` with two clauses, Haskell-style; the specification has one clause and `match`, and that is fixed.
-
-**3. `after 0` as draining is the idiom for input between ticks.** `drain` reads everything that arrived since the last tick and stops when the mailbox is empty, without blocking. It is exactly what a game needs. The limit `64` is backpressure in its simplest form: a player who sends a thousand directions per tick gets the first 64 handled and the rest next tick. That is the right behavior and it is three lines.
-
-**4. Time drift.** `After(ms = 100, to = ...)` is sent at the start of the loop, before `step` and `render`, so the next tick is 100 ms after this tick's *start*. That is right. But if `step` takes 120 ms, the next `Tick` is already in the mailbox when the loop reaches `recv`, and the game runs as fast as it can without anyone noticing. `clock` has only relative time. With an absolute time the game could compute tick = start + n × 100 and skip missed ones. Proposal: `ClockMsg` gets `At` beside `After`, and `Now`. These are not three variants of the same thing: relative, absolute, and read.
-
-**5. Randomness as state worked.** `seed` is a field in `World`, `refill` threads it. No `{Random}` was missed. The price is the field and that every function that draws randomness returns the new seed. It is also what makes the game deterministic given a seed, a property that `{Random}` with a handler provides and Ernest provides for free.
-
-**6. `Sys` is fixed.** Keys are not in the report's `Sys`, so the program assumes a field `keys`. That means `Sys` cannot be a fixed list in the report: every runtime has its system processes, and a program that needs one that does not exist should get a type error at `main`, not an empty mailbox. Proposal: `Sys` is the runtime's type, not the report's; the report requires only that `main` takes it and that `stdout` and `clock` exist.
-
-**7. Players as processes or as ids.** The players in the world are data with ids; the player processes are only translators from key to `Input`. The alternative, one process per player owning its snake, would have made `step` a protocol with one message per player per tick and a wait for all replies. That is the design the report leads toward ("state lives in processes") and it is wrong here: the world is a value updated in one step, and one process per player is parallelism nobody asked for. It should be recorded as an example of when a value is right and a process wrong.
-
-**8. What did not chafe.** Named fields with `..` carried the whole program; `Player(..p, dir = d)` is exactly what one wants to write. Positional `Pos` would have been wrong; `Pos(x = 3, y = 4)` reads. `if` was dropped for a day and brought back; the only thing left of the attempt is that the two `if`s in `movePlayer` that changed `body` and `score` on the same condition became one `if` with a tuple, which is better. `recv` as a form made `game` four lines. That `render` is sent as one `Line` per frame is crude but right for a terminal.
-
-**9. Arithmetic on the board.** With `Nat` and no `-`, `move` needed a `pred` with 0 as floor; when `Nat` was dropped for a single `Int`, subtraction came back and `pred` went. For an hour `%` on `Int` did not exist and `wrap` unwrapped `Int.mod`'s `Optional` with 0 as floor; then `/` and `%` returned as the one deliberate exception to the total prelude, faulting on zero. `move` is now four lines of arithmetic, and a board with `w = 0` kills the game process with `Fault("division by zero")`, which is the right fate for it.
-
-## Adopted into the Report
-
-- Definitions as bindings in blocks (finding 2); closes `where`. Adopted.
-- `ClockMsg`: `After`, `At`, `Now` (finding 4). Adopted.
-- `Sys` is the runtime's type; the report requires `stdout` and `clock` (finding 6). Adopted.
-- The value-versus-process criterion (finding 7), under opaque types. Adopted.
-- Under Later in the decision log, local state: the accumulator as a named type when the tuple grows (finding 1). `let mut` was not needed. Adopted.
-- The code transferred to syntax revision 3 and to the grammar audit: single `Int`, named fields in parentheses, `let`.
