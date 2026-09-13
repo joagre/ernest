@@ -1,8 +1,8 @@
 # Ernest Compiler: Implementation Plan
 
-Target architecture: an Erlang-based compiler, `ernc`, that reads `.ern` files, type-checks them, and produces `.erc` files (BEAM under the hood), and a runner, `ern`, that starts a program or a REPL. One person, about seven working weeks for MVP 1 according to the budget below. The language was called Actorson until 12 September 2026.
+Target architecture: an Erlang-based compiler, `ernc`, that reads `.ern` files, type-checks them, and produces `.erc` files (BEAM under the hood), and a runner, `ern`, that starts a program or a REPL. One person, about eight working weeks for MVP 1 according to the budget below. The language was called Actorson until 12 September 2026.
 
-**MVP 1 (this plan):** prove the chain parser, types, BEAM, with the report's language, syntax, and semantics unchanged. MVP 1 accepts a subset and checks less: only Int, no ownership rule for opaque types, no foreign code, no `net`. Exhaustiveness checking is in: it is the check that shaped `recv` and `if`, and a first user should not form habits the report forbids. Every program MVP 1 accepts is a valid Ernest program or one the report already says is wrong. One Erlang module per `.ern` file.
+**MVP 1 (this plan):** prove the chain parser, types, BEAM, with the report's language, syntax, and semantics unchanged. MVP 1 accepts a subset and checks less: only Int, no ownership rule for opaque types, no foreign code, no `net`, no distribution — `spawn(Peer, ...)` and `remote` are MVP 3. Exhaustiveness checking is in: it is the check that shaped `recv` and `if`, and a first user should not form habits the report forbids. Every program MVP 1 accepts is a valid Ernest program or one the report already says is wrong. One Erlang module per `.ern` file.
 
 Later MVPs at the end of the document.
 
@@ -24,7 +24,7 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 
 - Lexer: braces, `;` as separator, whitespace means nothing, `//` and nesting `/* */` comments dropped before parsing. Sixteen reserved words, `true` and `false` among them as literals. The grammar is LL(1): every nonterminal is decided by its first token, and the parser never re-reads. Qualified references (`Net.Http.parse`, `ServerMsg.Get`) are one loop: after an uppercase token, `.` continues, anything else ends.
 - The grammar is in Appendix A of the report. The lambda's extent, `fn(x) = e` up to the next delimiter at the same level, is expressed there; the parser tests it. If it fails, lambda bodies must be required in braces. Patterns are parsed by a second small Pratt loop with `+:` as its only infix operator, right-associative, and `as ident` as an optional postfix on the whole.
-- Hand-written Pratt parser for expressions; operator precedence is the table. Recursive descent for declarations (`type`, `opaque type ... with { }`, `fn`).
+- Hand-written Pratt parser for expressions; operator precedence is the table. Recursive descent for declarations (`type`, `opaque type ... with { }`, `fn`, `let`, `foreign`).
 - `let x <- e;` as a binding in a block: parsed as a binding form, rewritten before type inference into `match e { Left(err) -> Left(err) | Right(x) -> <rest of block> }` (or `None`/`Some`); which one is decided by the block's type, so the rewrite happens after the block's return type is inferred, or both are generated and one is chosen at unification. Simplest in MVP 1: `Either` only, `Optional` in MVP 2.
 - Block `{ ... }` is an expression form. `match e { P -> e | ... }` and `recv { P -> e | ... | after millis -> e }`, guards with `when`. `if then else`. Calls `f(x, y)`, n-ary functions, no currying: too few arguments is an arity error on the line, with a suggestion of the tuple reading.
 - Constructors: no field, one field `T(e)`, or named fields `T(f = e)`; partial patterns `T(f = p)`, base `T(..e, f = e)`. Positional or named is decided by whether `=` or `:` follows the first identifier. Field order from the declaration; compiled to tuples. `fn` definitions allowed in blocks, recursive and generalized; `let` bindings monomorphic.
@@ -54,8 +54,8 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 
 ### 1.4 Standard Types (2 days)
 
-- Built-in: `List(a)`, `Map(k, v)`, `Text`, `Int`, `Bool`, `Bytes`, `Optional(a)`, `Either(e, a)`. Structural `==` on all data values; `Int.compare` and `Text.compare`, no universal ordering.
-- Address, Never.
+- Built-in: `Int`, `Bool`, `Text`, `Bytes`, `Char`, `()`, `List(a)`, `Map(k, v)`, `Optional(a)`, `Either(e, a)`. Structural `==` on all data values; `Int.compare` and `Text.compare`, no universal ordering.
+- `Address(m)`, `Reply(a)`, `Never`.
 
 **Output:** the prelude in the type checker.
 
@@ -93,7 +93,7 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 
 ### 2.4 Standard Library (3 days)
 
-- The representation of values on BEAM, the ABI that foreign code sees: `Int` integer, `Float` float, `Text` UTF-8 binary, `Char` integer code point, `Bytes` binary, `Bool` `true | false`, `()` `{}`, tuples tuples, `List(a)` list, a nullary constructor a lowercase atom (`Stop` is `stop`), a single-field constructor `{tag, V}`, named fields `{tag, F1, F2, ...}` in declaration order (`None` is `none`, `Some(v)` is `{some, V}`, `Left`/`Right` `{left, E}`/`{right, V}`), `Address(m)` a pid or `{Node, Pid}`, a function a fun, a `foreign type` value whatever the implementation returns. Erlang functions whose conventions differ (`{ok, V} | {error, R}`) get a wrapper module, as Gleam's `gleam_stdlib.erl`. `List`, `Text`, `Int` as wrappers around Erlang's; `Map` as Erlang's `maps` (structural equality on keys, no ordering). `sort` takes `compare`. Total: `Int.div` and `Int.mod` return `{some, N}` or `none`, `List.head` and `List.at` likewise. No built-in function may let an Erlang exception reach the process, except `/` and `%` on zero, whose `badarith` the runtime turns into `Fault("division by zero")`.
+- The representation of values on BEAM, the ABI that foreign code sees: `Int` integer, `Float` float, `Text` UTF-8 binary, `Char` integer code point, `Bytes` binary, `Bool` `true | false`, `()` `{}`, tuples tuples, `List(a)` list, a nullary constructor a lowercase atom (`Stop` is `stop`), a single-field constructor `{tag, V}`, named fields `{tag, F1, F2, ...}` in declaration order (`None` is `none`, `Some(v)` is `{some, V}`, `Left`/`Right` `{left, E}`/`{right, V}`), `Address(m)` a pid or `{Node, Pid}`, `Reply(a)` a `{Ref, Pid}` pair — the ref identifies the specific call, the pid points to the caller waiting in `Address.call` — a function a fun, a `foreign type` value whatever the implementation returns. Erlang functions whose conventions differ (`{ok, V} | {error, R}`) get a wrapper module, as Gleam's `gleam_stdlib.erl`. `List`, `Text`, `Int` as wrappers around Erlang's; `Map` as Erlang's `maps` (structural equality on keys, no ordering). `sort` takes `compare`. Total: `Int.div` and `Int.mod` return `{some, N}` or `none`, `List.head` and `List.at` likewise. No built-in function may let an Erlang exception reach the process, except `/` and `%` on zero, whose `badarith` the runtime turns into `Fault("division by zero")`.
 - System processes `stdout` and `clock` are started by the launcher and given to `main` in `Sys`; no named processes. `net` and `fs` are MVP 2, as foreign processes: Erlang modules that speak an Ernest-declared type, connected in the launcher's configuration.
 - Launcher: starts the system processes, builds `Sys`, calls `main`; when `main` returns all processes are killed with `ProgramEnd` and the node stops. Deadlock detection (`Deadlock`) is MVP 2: it requires the runtime to know whether all processes are waiting without `after` and no timers are active.
 
@@ -181,4 +181,4 @@ One person full-time: about eight working weeks. Half-time: three to four calend
 
 **MVP 5 (ecosystem):** HTTP server, JSON, database connectors written in Ernest. A standard library in Ernest, not just Erlang wrappers.
 
-MVP 1 is seven working weeks and shows that the chain holds, not that the design holds. The latter is decided beforehand, on paper.
+MVP 1 is eight working weeks and shows that the chain holds, not that the design holds. The latter is decided beforehand, on paper.
