@@ -1,0 +1,17 @@
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Build artifacts (to be refined once implementation language is chosen)
+/build/
+/dist/
+/target/
+/out/
+
+# Local env
+.env
+.env.local
