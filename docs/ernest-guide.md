@@ -18,9 +18,7 @@ Take a moment on that. "Functions" you probably know. "Processes" means small in
 Here is a complete Ernest program.
 
 ```
-fn main() -> () with () = {
-    Io.println("hello, world")
-}
+fn main() -> () with () = Io.println("hello, world")
 ```
 
 When Ernest runs this, it prints `hello, world` followed by a newline to standard output. Let's read it one piece at a time.
@@ -54,14 +52,10 @@ Read the whole arrow like this: "returns nothing meaningful, running in a proces
 ### The body
 
 ```
-= {
-    Io.println("hello, world")
-}
+= Io.println("hello, world")
 ```
 
-The `=` marks the start of the body. What follows is a block — braces around a sequence of statements. This block has one statement: `Io.println("hello, world")`.
-
-`Io.println` is a function from the standard library. `Io` is its namespace — one of several that ship with the compiler and are always available (Appendix E of the report lists them). `Io.println(t)` writes `t` to standard output followed by a newline.
+The `=` marks the start of the body. Here the body is a single expression — a call to `Io.println`, a function from the standard library that writes text to standard output followed by a newline. `Io` is a namespace from the standard library (Appendix E of the report lists them all). Bodies with more than one statement need braces; single-expression bodies like this one don't.
 
 ### The big idea
 
