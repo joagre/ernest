@@ -46,7 +46,7 @@ bool     = "true" | "false" .
 **Operators and delimiters.**
 
 ```
-( ) { } [ ] , ; : = <- -> | .. _
+( ) { } [ ] << >> , ; : = <- -> | .. _
 + - * / % ++ +: == != < <= > >= && ||
 ```
 
@@ -187,6 +187,17 @@ FieldPats = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 **`match`.** The expression is matched against the arms' patterns in order; the first arm whose pattern matches and whose guard holds is evaluated. A failed guard falls through. The arms together must cover the type; guards do not count as coverage. Variables in the pattern are bound in the guard and the arm.
 
 **Patterns.** A pattern decomposes a value and binds its parts. The same patterns appear in `let`, in `match` and `recv` arms, and in function parameters. `_` matches anything and binds nothing. An identifier binds the whole value at its position to a new variable, shadowing any outer variable of that name; it never refers to an existing variable. A literal matches itself. A constructor with a pattern, `Some(p)`, or with field patterns, `Snapshot(seen = s)`, which may omit fields, matches that constructor and decomposes its payload. A tuple, a list `[p, q]`, and `p +: q` decompose those. Patterns nest to any depth: `Some((x, Snapshot(dir = d)))`. `p as c` binds `c` to the whole value that `p` matches, `Some(Snapshot(dir = d) as snap)`; `as` binds loosest, so `x +: rest as all` names the whole list. Each variable appears at most once in a pattern; a pattern does not compare, and equality is written in a guard. A pattern is irrefutable if it cannot fail: `_`, an identifier, a tuple of irrefutable patterns, or a constructor pattern of a type with exactly one constructor whose sub-patterns are all irrefutable. `let` and parameters require irrefutable patterns; `let Right(x) = e` is a type error.
+
+**Bit arrays.** `<<...>>` constructs and pattern-matches a `Bytes` value at the bit level. A bit array is a comma-separated list of segments between `<<` and `>>`; each segment is a value (in construction) or a pattern (in `match`), followed optionally by a colon and a dash-separated list of specifiers. Specifiers are: `size(N)` for segment width in units, `unit(N)` for bits per size unit (default 1), `bits` and `bytes` for nested bit arrays, `int` (default 8-bit) and `float` (default 64-bit) for numeric segments, `utf8`/`utf16`/`utf32` for text encoding, `big`/`little`/`native` for endianness, and `signed`/`unsigned` for sign. These specifier names carry that role only inside a bit array — outside, they are ordinary identifiers, and the reserved-word count remains sixteen. A bit-array pattern binds its segment variables; a segment whose length is `size(n)-bytes` and whose `n` refers to an earlier bound variable is a size-dependent match, common in protocol parsing. Constructing a bit array evaluates its segments left to right and concatenates them into a `Bytes` value; a segment whose value does not fit its specified width is a fault. An empty `<<>>` is the empty `Bytes`.
+
+```
+fn parseFrame(bytes : Bytes) -> Optional((Int, Bytes, Bytes)) = match bytes {
+    <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> -> Some((len, body, rest))
+  | _ -> None
+}
+```
+
+Reads: match a 16-bit big-endian length, then `len` bytes of body, then whatever is left. The runtime compiles bit arrays directly to BEAM's bit syntax, section 10, so the optimizer handles prefix-heavy protocol matches as it would in native BEAM code.
 
 ## 6. Processes
 
@@ -413,12 +424,14 @@ AfterArm    = "after" Expr "->" Expr .
 BinExpr     = Unary { binop Unary } .
 Unary       = [ "-" ] Primary { Call } .
 Call        = "(" [ Expr { "," Expr } ] ")" .
-Primary     = literal | QName | Tuple | "()" | ListLit | Block | "(" Expr ")" .
+Primary     = literal | QName | Tuple | "()" | ListLit | BitExpr | Block | "(" Expr ")" .
 QName       = { typename "." } ( ident | binop | conname [ "(" ( Expr | Fields ) ")" ] ) .
 Fields      = ".." Expr "," FieldSet { "," FieldSet } | FieldSet { "," FieldSet } .
 FieldSet    = ident "=" Expr .
 Tuple       = "(" Expr "," Expr { "," Expr } ")" .
 ListLit     = "[" [ Expr { "," Expr } ] "]" .
+BitExpr     = "<<" [ BitSegE { "," BitSegE } ] ">>" .
+BitSegE     = Expr [ ":" BitSpec { "-" BitSpec } ] .
 Block       = "{" Stmt { ";" Stmt } "}" .
 Stmt        = FnDecl | Binding | Expr .
 
@@ -426,7 +439,15 @@ Pattern     = ConsPat [ "as" ident ] .
 ConsPat     = AtomPat [ "+:" ConsPat ] .
 AtomPat     = "_" | ident | literal | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
             | "(" Pattern "," Pattern { "," Pattern } ")" | "()"
-            | "[" [ Pattern { "," Pattern } ] "]" .
+            | "[" [ Pattern { "," Pattern } ] "]"
+            | BitPat .
+BitPat      = "<<" [ BitSegP { "," BitSegP } ] ">>" .
+BitSegP     = Pattern [ ":" BitSpec { "-" BitSpec } ] .
+BitSpec     = "size" "(" Expr ")" | "unit" "(" int ")"
+            | "bits" | "bytes" | "int" | "float"
+            | "utf8" | "utf16" | "utf32"
+            | "big" | "little" | "native"
+            | "signed" | "unsigned" .
 FieldPats   = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 
 binop       = "*" | "/" | "%" | "+" | "-" | "++" | "+:"

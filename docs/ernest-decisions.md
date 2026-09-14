@@ -384,6 +384,33 @@ Same operation as `Address.call` without the timeout: the caller waits as long a
 
 **Growth-rule note.** No paper program has needed this yet. Added on consistency-with-`recv`-and-`remote` grounds, not on three-uses. If a paper program written after this decision doesn't reach for it, revisit.
 
+## Bit Arrays in the Report, MVP 2 in the Plan, 2026-09-14
+
+`<<...>>` for bit-array construction and pattern matching is promoted from `Later` into the report. Grammar shape lives in Appendix A; the specifier list and one worked example are in §5.
+
+**Why now.**
+
+The `Later` entry from 2026-09-13 said "the addition Erlang readers will ask for first, and the one deliberately left for after the parser exists." The intent was to defer exploration. What changed: Gleam has been through the exploration in an adjacent typed-FP-on-BEAM context — same runtime, same type system character — and settled on the shape (`<<value:specifier-specifier-size(n)>>`, dash-combined specifiers, the specifier vocabulary size/unit/bits/bytes/int/float/utf8/utf16/utf32/big/little/native/signed/unsigned). We're not exploring; we're borrowing. That flips the cost calculus.
+
+**What we adopt.**
+
+- Delimiters `<<` and `>>` as new lexer tokens; longest-match rules them apart from `<` and `>`.
+- `BitExpr` in `Primary` and `BitPat` in `AtomPat` — the same shape, one for construction, one for pattern.
+- `BitSpec` as a small internal grammar: `size(N)`, `unit(N)`, and eleven keyword-like specifiers.
+- Specifier names are role-scoped: they are ordinary identifiers outside `<<...>>`. Reserved-word count stays at sixteen.
+
+**What we don't touch.**
+
+- No new type — bit arrays construct and destructure `Bytes` values.
+- No new tokens outside `<<`, `>>`.
+- No JavaScript-target compromises: Ernest is BEAM-only, so the full specifier set is available with no lowering caveats. Gleam had to make compromises on JS output; we don't.
+
+**LL(1) impact.** `<<` is a new first-token in expression and pattern positions, dispatched at the same level as `[` and `(`. Bounded lookahead only inside the specifier list (the closed set of keyword-like idents), which is a local decision, not a grammar-wide one. The two bounded-lookahead spots documented in principle 4 — constructor payload and FnType-vs-tuple — remain the only two.
+
+**Implementation.** MVP 2, budgeted at 4 days: lexer tokens, grammar, type checking against `Bytes`, direct compilation to BEAM's bit syntax. The runtime's decades-mature bit-syntax optimizer does the heavy lifting; Ernest's compiler is a translator.
+
+**Naming.** Section 5's paragraph title is "Bit arrays" (Gleam's term, cleaner than Erlang's "bit strings" which collides with `Text`).
+
 ## `Sys.stderr`, `Io.eprint`, `Io.eprintln` Removed, 2026-09-14
 
 Same rationale as `Set(a)`. The stderr trio was inherited on "obvious symmetry with stdout" grounds. No paper program sends anything to stderr; no `Io.eprint*` call anywhere. The paper-program preambles that named `Sys.stderr` did so only because the report required it, not because they used it.
@@ -456,7 +483,6 @@ Planned or considered, not in the language today.
 - **Cross-version message types, MVP 3.** Two nodes with different versions of the same type. Undefined today because MVP 1 and MVP 2 are single-node. Two shapes considered for MVP 3: *reject at send* (each message carries the type hash, receiver refuses unknown hashes, sender gets a `Fault` or `Left` back — simpler runtime, forces version alignment) and *fetch on receipt* (receiver fetches unknown type definitions from the sender, closer to Unison — more flexible, more complex because types have transitive dependencies). Leaning reject-at-send for MVP 3, fetch-on-receipt as MVP 4+ if paper programs need it. Decision waits for MVP 3.
 - **Local state in pure code.** Unison's `{State}` is not mutation but threading that the handler does for you; `Scope.ref` is real mutation for algorithms on arrays, Haskell's `ST`. Ernest has recursion and accumulators, and state lives in processes. Two reasons to want more: convenience (three counters as arguments), where the answer is to write the argument; performance (update in place), where the answer is persistent data structures, already a requirement. `let mut` is not introduced for either; the tick game confirmed it: three counters became a fold with a tuple accumulator, and when the tuple grows the answer is a named type with `..`. Unison's only real mutation in pure code is `{Scope}` with `Ref` and mutable arrays; it can be removed without losing any capability, only a constant, and a second effect would be abilities back. If a mutable array is needed anyway, it is a process that owns it, Erlang's ETS. To be tested further in the Unison week: an algorithm with three counters without `{State}`.
 - **`Erl` in the stdlib.** `Erl.atom : (Text) -> Foreign` and `type Erl.Result(v, r) = Ok(v) | Error(r)`, so that shims do not redeclare them. A stdlib module (`stdlib/Erl.ern`), not a language addition; in the plan under MVP 2.
-- **Byte patterns.** Erlang's bit syntax, `<<Len:16, Body:Len/binary, Rest/binary>>`, is pattern matching over `Bytes`, and the single largest reason protocol code is written in Erlang. Ernest has `Bytes` and only functions to take it apart, four lines where Erlang writes one. Not a concept but a notation for something the language can already do, one more form in `AtomPat` with a small grammar inside; the addition Erlang readers will ask for first, and the one deliberately left for after the parser exists.
 - **`Slot(a)` for language-level credit.** One-shot capability parallel to `Reply(a)`: a consumer allocates and grants slots to a producer via message, the producer sends by consuming a slot per message through `useSlot(s, v)`, and the consumer refills after processing. Same linearity check as `Reply(a)` — a `Slot` bound in an arm is consumed exactly once on every path. The compiler enforces that a producer does not send without permission. Deferred: only helps producer-consumer patterns, and the credit protocol as convention has not been written three times yet. When it has, this is the shape to reach for; see Backpressure above.
 - **Idioms for the guide, not the report.** Links and supervisors: `monitor(child, Died)` and returning on `Died` is a link; a supervisor is fifteen lines of `spawn`, `monitor`, and `recv`. Parallel remote computation: `remote(f)` waits, so ten at once are ten local processes each calling `remote` and replying, which is what Unison does under `Remote.fork` and `await`, visibly.
 - **Canonical formatter.** A gofmt-style formatter — mechanically simple given the recursive-descent grammar, small bounded lookahead, and no layout sensitivity. One canonical style, no configuration; killing style debates on day one is easier than after a community forms. A toolchain item, not a language item; expected as part of the `ern` binary. The guide will point at it when it lands.
