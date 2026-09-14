@@ -215,11 +215,12 @@ type Where = Local | Peer(Text)
 **Request-reply.** A `Reply(a)` is a one-shot address for the answer to a request; unlike `Address(a)`, it is answered exactly once and cannot be stored.
 
 ```
-Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
-answer       : (Reply(a), a) -> () with m
+Address.call        : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
+Address.callForever : (Address(m), (Reply(a)) -> m) -> a with n
+answer              : (Reply(a), a) -> () with m
 ```
 
-`Address.call(addr, mk, ms)` allocates a fresh `Reply(a)`, calls `mk(r)` to build the message, sends it to `addr`, and returns `Some(v)` when the recipient answers or `None` after `ms` milliseconds. `answer(r, v)` sends `v` to the caller. A `Reply(a)` value appears only at these positions: a field of a message, a parameter of a function, a variable bound in a `recv` arm, and a value captured by a lambda passed to `spawn`. Any other position is a type error: a `Reply` in a container, in a `match` or `let` binding, in a return type not itself a message, or as an operand of equality, is rejected by the compiler. A `Reply(a)` bound in a `recv` arm is consumed exactly once on every path of the arm's expression. Consumption is `answer(r, v)`, sending `r` as a field of a message, or capturing `r` in a lambda passed to `spawn`; in the last case the captured `Reply` is consumed on every path of the spawned function's body, checked at its definition. A violation is a type error. The check is static: it ensures every path calls `answer` (or delegates or spawns) but not that execution reaches the call at runtime — non-termination, a fault, or an indefinite wait bypasses the answer. The mandatory timeout on `Address.call` returns `Optional(a)` so an answer that never arrives has somewhere to land. Under the hood the `Reply(a)` carries a fresh identifier so that `Address.call` receives only the answer to its own request; the caller's mailbox type is unaffected.
+`Address.call(addr, mk, ms)` allocates a fresh `Reply(a)`, calls `mk(r)` to build the message, sends it to `addr`, and returns `Some(v)` when the recipient answers or `None` after `ms` milliseconds. `Address.callForever(addr, mk)` is the same operation without a timeout: the caller waits as long as needed and receives `a` directly, not wrapped in `Optional`; the caller is opting out of the timeout by name, analogous to a `recv` without `after`. `answer(r, v)` sends `v` to the caller. A `Reply(a)` value appears only at these positions: a field of a message, a parameter of a function, a variable bound in a `recv` arm, and a value captured by a lambda passed to `spawn`. Any other position is a type error: a `Reply` in a container, in a `match` or `let` binding, in a return type not itself a message, or as an operand of equality, is rejected by the compiler. A `Reply(a)` bound in a `recv` arm is consumed exactly once on every path of the arm's expression. Consumption is `answer(r, v)`, sending `r` as a field of a message, or capturing `r` in a lambda passed to `spawn`; in the last case the captured `Reply` is consumed on every path of the spawned function's body, checked at its definition. A violation is a type error. The check is static: it ensures every path calls `answer` (or delegates or spawns) but not that execution reaches the call at runtime — non-termination, a fault, or an indefinite wait bypasses the answer. The mandatory timeout on `Address.call` returns `Optional(a)` so an answer that never arrives has somewhere to land; `Address.callForever` opts out of that by name, and the caller accepts that this call may hang. Under the hood the `Reply(a)` carries a fresh identifier so that `Address.call` receives only the answer to its own request; the caller's mailbox type is unaffected.
 
 **Remote computation.** A pure function can be evaluated on another node:
 
@@ -307,13 +308,14 @@ type Foreign                                       // a value the language does 
 Process functions:
 
 ```
-via            : ((a) -> b, Address(b)) -> Address(a)
-Address.call   : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
-answer         : (Reply(a), a) -> () with m
-remote         : (() -> a) -> Either(RemoteError, a)
-parallelRemote : (List(() -> a)) -> List(Either(RemoteError, a))
-monitor        : (Address(a), (Down) -> m) -> () with m
-kill           : (Address(a)) -> () with m
+via                 : ((a) -> b, Address(b)) -> Address(a)
+Address.call        : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
+Address.callForever : (Address(m), (Reply(a)) -> m) -> a with n
+answer              : (Reply(a), a) -> () with m
+remote              : (() -> a) -> Either(RemoteError, a)
+parallelRemote      : (List(() -> a)) -> List(Either(RemoteError, a))
+monitor             : (Address(a), (Down) -> m) -> () with m
+kill                : (Address(a)) -> () with m
 ```
 
 Operations required by the language:

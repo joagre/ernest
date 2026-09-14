@@ -409,6 +409,8 @@ We `match` on the result. On success, we print `"count is 8"` (or whatever the c
 
 The timeout is mandatory in `Address.call` — you can't accidentally wait forever. The `Optional` result forces you to handle the "no answer" case somehow, whether that's giving up, retrying, or reporting the error.
 
+If you genuinely want no timeout — a startup wait for a critical service, say, where nothing else can happen until this answer arrives — the prelude also has `Address.callForever(addr, mk)`. It waits as long as it takes and returns the answer directly, not wrapped in `Optional`. If the receiver never answers, the caller hangs; that's the point of the name. Use it when the caller has explicitly decided to wait, not by default.
+
 ### 5.4 Text concatenation
 
 One small thing in the success case:

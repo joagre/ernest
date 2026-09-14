@@ -366,6 +366,24 @@ parallelRemote : (List(() -> a)) -> List(Either(RemoteError, a))
 
 **Growth-rule note.** The three-uses rule applies to promoting stdlib functions; the prelude has a different bar (the report names it). `parallelRemote` earns its slot because it is the second half of the remote-computation story, not because a paper program used it three times. If a paper program written after this decision does not use it, revisit.
 
+## `Address.callForever` in the Prelude, 2026-09-14
+
+`Address.callForever` is added to the prelude alongside `Address.call`:
+
+```
+Address.callForever : (Address(m), (Reply(a)) -> m) -> a with n
+```
+
+Same operation as `Address.call` without the timeout: the caller waits as long as needed and receives `a` directly, not wrapped in `Optional`.
+
+**Why.** The original request-reply design mandated a timeout so callers couldn't forget the failure case. That property is preserved for the default — `Address.call(addr, mk, ms)` still returns `Optional(a)`. But `recv` without `after` and `remote` (which has no timeout) both allow "wait forever," and denying `Address.call` the same option was inconsistent. `Address.callForever` restores the symmetry by naming the choice at the call site: the caller has decided that hanging on a missing answer is acceptable in this context.
+
+**Not a variant of `Address.call`.** Two operations with different return types and different guarantees — `Optional(a)` vs `a`. Similar to how `remote(f)` and `parallelRemote(fs)` share a purpose but aren't variants of each other; argument shape and return type distinguish them.
+
+**Static-check relationship.** The linearity check on `Reply(a)` is static; the mandatory timeout on `Address.call` compensates for the fact that execution may not reach `answer` at runtime. `Address.callForever` accepts that risk by name — the caller has made the decision explicitly.
+
+**Growth-rule note.** No paper program has needed this yet. Added on consistency-with-`recv`-and-`remote` grounds, not on three-uses. If a paper program written after this decision doesn't reach for it, revisit.
+
 ## Reasons Lifted Out of the Report
 
 - `recv` is Erlang's `receive`: selective receive lets a process wait for a specific reply in the middle of a protocol without losing other messages; without it every process becomes a state machine, gen_server turned inside out. `recv` therefore does not require coverage, unlike `match`: the two forms share their syntax but not their semantics, since a `match` that finds no arm is a fault and a `recv` that finds no arm leaves the message in the mailbox. Cost O(n) in the mailbox, and a growing mailbox is not visible in the code, the same cost as in Erlang; the backpressure decision above covers the same problem from the sender's side.
