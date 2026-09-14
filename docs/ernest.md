@@ -10,7 +10,7 @@ Every function runs inside a process: an execution of a function, with a mailbox
 
 The language is built on five principles, in order. The reader comes first.
 
-1. Least surprise decides, measured in code, not in the rule.
+1. Least surprise decides — measured by the resulting code, not by the rule.
 2. One way, one job. No variants for the same thing, no two concepts that overlap in what they express, unless what remains surprises more.
 3. Nothing invisible. Control flow, communication, and failure are visible in the code or in the type. An ambient value is visible when its name appears at the use site; a hidden effect is not.
 4. Simple to parse: the grammar is LL(1), every construct is decided by its first token, and each bracket has one role.
