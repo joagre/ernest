@@ -321,6 +321,14 @@ That would be a type error. `r` would be bound but never used. The compiler woul
 
 That check catches a whole category of silent bugs: a caller that sends a request, waits for a reply that never comes, and eventually times out with no useful diagnostic. Ernest makes it impossible to write a receiver that forgets to answer — the type system remembers for you.
 
+The consumption doesn't have to be direct or in the same arm. There are three legal forms:
+
+1. **`answer(r, v)` directly** — what the counter does.
+2. **Delegating** — passing `r` as a field of another message. Whoever receives that message is now responsible for answering.
+3. **Spawning** — capturing `r` in a lambda passed to `spawn` (§5). A child process runs later and calls `answer` when it's ready.
+
+The exactly-once check follows `r` through all three. In the spawning case, the compiler checks the *child's* body for exactly-once consumption — a spawned child whose body forgets to answer is a type error. The `filesync` paper program uses this form: an incoming write request is handed to a `writer` process that performs the file I/O in the background and calls `answer` when it finishes, so the process handling `recv` doesn't block on disk.
+
 ## 5. Running the counter
 
 We have the counter *function*. Now we need to *run* it in a process, and send it some messages.
