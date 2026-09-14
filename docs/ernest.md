@@ -47,10 +47,10 @@ bool     = "true" | "false" .
 
 ```
 ( ) { } [ ] << >> , ; : = <- -> | .. _
-+ - * / % ++ +: == != < <= > >= && ||
++ - * / % ++ +: == != < <= > >= && || |>
 ```
 
-Prefix `-` is negation on `Int` and `Float`. Precedence of the binary operators, highest first: `* / %`, `+ - ++`, `+:` (right-associative), `== != < <= > >=`, `&&`, `||`. All but `+:` are left-associative. An operator name can be qualified, `Int.+`, section 4.
+Prefix `-` is negation on `Int` and `Float`. Precedence of the binary operators, highest first: `* / %`, `+ - ++`, `+:` (right-associative), `== != < <= > >=`, `&&`, `||`, `|>`. All but `+:` are left-associative. An operator name can be qualified, `Int.+`, section 4. `|>` is not qualifiable — it is a syntactic form (section 5), not a namespaced function.
 
 ## 3. Types
 
@@ -181,6 +181,14 @@ FieldPats = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 **Binding with `<-`.** In a block, `let p <- e; rest` means that `e` is matched: on `Right(v)`, `p` is bound to `v` and `rest` is evaluated; on `Left(err)`, the block's value is `Left(err)`. If the block's type is `Optional`, `Some` and `None` apply the same way. The block's type decides which, resolved from the type of `e` as operators are; `rest` must have the block's type. All `<-` bindings in the same block resolve to the same sum type — the block is either `Either` or `Optional`, not both. The rewrite is local to the block.
 
 **Construction.** `Some(e)`, `None`, `Snapshot(dir = d, seen = s)`. All fields must be given. `Snapshot(..p, seen = s)` takes unlisted fields from `p`; at least one field follows `..`. A constructor is qualified like a function, `Net.Http.Request(...)`. A nullary constructor is a value, a single-positional constructor is a function value, and named constructors are neither: they only appear in construction syntax. Qualified operators are function values, `Int.+`.
+
+**Pipe.** `x |> e` treats `e` as a function value or a call and applies it with `x` inserted as an additional first argument: `x |> f` is `f(x)`; `x |> f(a, b)` is `f(x, a, b)`. The pipe reads left to right, which suits stdlib call chains where each function's first argument is the value being transformed:
+
+```
+let words = input |> Text.trim |> Text.toLower |> Text.chars
+```
+
+`|>` is left-associative and lowest-precedence, below `||`: `a + b |> f` is `f(a + b)`, and `a |> b |> c` is `c(b(a))`. The right-hand side may be a name, a qualified name, a lambda, or a call whose first-argument slot the pipe fills. The type of `x` must match the target function's first argument.
 
 **Conditional.** `if c then a else b` with `c : Bool`; the branches have the same type.
 
@@ -451,7 +459,8 @@ BitSpec     = "size" "(" Expr ")" | "unit" "(" int ")"
 FieldPats   = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 
 binop       = "*" | "/" | "%" | "+" | "-" | "++" | "+:"
-            | "==" | "!=" | "<" | "<=" | ">" | ">=" | "&&" | "||" .
+            | "==" | "!=" | "<" | "<=" | ">" | ">=" | "&&" | "||"
+            | "|>" .
 literal     = int | float | char | text | bool .
 ```
 

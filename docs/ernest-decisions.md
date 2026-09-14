@@ -384,6 +384,30 @@ Same operation as `Address.call` without the timeout: the caller waits as long a
 
 **Growth-rule note.** No paper program has needed this yet. Added on consistency-with-`recv`-and-`remote` grounds, not on three-uses. If a paper program written after this decision doesn't reach for it, revisit.
 
+## Pipe Operator `|>`, 2026-09-14
+
+`|>` is added to the report as a syntactic form: `x |> f` is `f(x)`; `x |> f(a, b)` is `f(x, a, b)`. Left-associative, lowest-precedence (below `||`).
+
+**Why.**
+
+- **Reads left to right.** Stdlib call chains like `input |> Text.trim |> Text.toLower |> Text.chars` beat the equivalent nested calls `Text.chars(Text.toLower(Text.trim(input)))` on both scan direction and diff-friendliness. Every modern typed FP language on the ML/OCaml/Elm/F#/Gleam/Elixir spectrum has this operator for the same reason.
+- **Subject-first stdlib was already lined up for it.** `List.map(list, f)`, `Map.get(map, key)`, `Text.chars(text)` — the subject-first argument-order convention Ernest committed to in the stdlib audit is exactly what pipes want. `xs |> List.map(f)` = `List.map(xs, f)`. The two decisions were made independently; the pipe is the payoff.
+- **Small cost.** One operator, one grammar rule, one precedence slot. No new type-system machinery. The desugaring is syntactic and happens at parse time or in an early lowering pass.
+
+**How it desugars.**
+
+- `x |> f` → `f(x)` (f as function value or bare name).
+- `x |> f(a, b, ...)` → `f(x, a, b, ...)` (first-argument insertion).
+- `x |> (fn(y) = e)` → `(fn(y) = e)(x)` (lambda as RHS).
+
+The type checker validates that `x`'s type matches the target's first argument.
+
+**LL(1) impact.** None. `|>` is a `binop` and slots into `BinExpr`'s existing `Unary { binop Unary }` production. The desugaring is post-parse.
+
+**Not qualifiable.** `Int.|>` and similar are rejected. `|>` is a syntactic form, not a namespaced function — unlike `Int.+` or `Text.++` which are ordinary function names an operator lookup resolves to.
+
+**Not adopted from Gleam/Elm at the same time**: labeled function arguments, `use` for arbitrary callbacks, function-capture `f(_, y)`. Waiting for a paper program to write those patterns three times, per the growth rule.
+
 ## Bit Arrays in the Report, MVP 2 in the Plan, 2026-09-14
 
 `<<...>>` for bit-array construction and pattern matching is promoted from `Later` into the report. Grammar shape lives in Appendix A; the specifier list and one worked example are in §5.
