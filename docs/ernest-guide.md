@@ -63,29 +63,11 @@ The `=` marks the start of the body. What follows is a block — braces around a
 
 `Io.println` is a function from the standard library. `Io` is its namespace — one of several that ship with the compiler and are always available (Appendix E of the report lists them). `Io.println(t)` writes `t` to standard output followed by a newline.
 
-That is all you need to run this program. But there is something worth peeking at, because it is what makes Ernest different from other languages.
-
-### What Io.println actually does
-
-Ernest has no built-in "print." What `Io.println` does inside is send its argument as a message to a process — a small stdout process the runtime starts on your behalf. That process receives the text and writes it out. Here is the function's body:
-
-```
-fn Io.println(text : Text) -> () with m = send(Sys.stdout, text ++ "\n")
-```
-
-Three parts:
-
-- `send(addr, msg)` — a built-in that puts `msg` into the mailbox of the process at `addr`. Fire-and-forget: it returns immediately.
-- `Sys.stdout` — the stdout process's address. It is an *ambient reference*: a top-level name in scope everywhere in your program, alongside `Sys.stderr` (standard error) and `Sys.clock` (a timer). The runtime binds these when the program starts. You do not receive them as parameters; you refer to them by name.
-- `text ++ "\n"` — the message, the text with a newline appended. `++` is text concatenation.
-
 ### The big idea
 
-The most important thing to notice: **stdout is an address, not a stream.**
+Ernest has no built-in "print." What `Io.println` does is send its argument as a message to a small stdout process the runtime provides. That process receives the text and writes it out.
 
-You do not "print" or "write" in Ernest. You send a message to a process. That process — running concurrently, elsewhere — receives the message and does the actual writing. There is no hidden syscall inside Ernest. If you want to touch anything outside your own function, you send a message to a process that touches it for you.
-
-The ambient names are just there so you don't have to thread the addresses through every function that needs one. Sending still requires a mailbox effect (`with M` on the enclosing arrow), so pure functions can name an ambient address but cannot actually send to it. The type system keeps IO out of pure code without asking you to thread anything.
+You do not "print" or "write" in Ernest. You send a message to a process. That process — running concurrently, elsewhere — receives the message and does the actual writing. There is no hidden syscall. If you want to touch anything outside your own function, you send a message to a process that touches it for you.
 
 Take a breath. This idea is going to keep coming back. Everything else in Ernest builds on it.
 
