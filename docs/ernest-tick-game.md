@@ -4,7 +4,7 @@ Written against the Ernest report, September 2026. A multiplayer snake game in t
 
 ## Assumptions
 
-The report requires `Sys.stdout`, `Sys.stderr`, and `Sys.clock` (§8); keys are the runtime's addition. Assumed:
+The report requires `Sys.stdout` and `Sys.clock` (§8); keys are the runtime's addition. Assumed:
 
 ```
 type KeyMsg = Subscribe(Address(Key))

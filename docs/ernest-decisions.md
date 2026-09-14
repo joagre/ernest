@@ -284,7 +284,7 @@ Ernest is now organized in three layers, made explicit after the discussion prom
 
 **Prelude.** What the language requires to exist because the report references it. Section 9 lists these: `Optional`, `Either`, `Ordering`, `Down`, `Reason`, `ClockMsg`, `RemoteError`, `Foreign`; the built-in parameterized types `List`, `Map`, `Set` (plus `Address`, `Reply`, `Never` covered in section 3); the process operations `via`, `Address.call`, `answer`, `remote`, `monitor`, `kill`; and the specific operations the report calls out — `Int.div`, `Int.mod`, the four `compare` functions, `todo`. Nothing else.
 
-**Standard library.** Ernest code that ships with the compiler and lives on the load path. Section 9 lists the modules; Appendix E documents their exported signatures. `Io.print`, `Io.println`, `Io.eprintln`; every `List.*` and `Map.*` operation; text and character utilities; numeric utilities; Optional and Either helpers; Foreign inspection. All written in Ernest, using nothing but the language and prelude. A program that never references any of these names does not depend on the standard library; a program that does depends on `stdlib/` being present on the load path.
+**Standard library.** Ernest code that ships with the compiler and lives on the load path. Section 9 lists the modules; Appendix E documents their exported signatures. `Io.print`, `Io.println`, `Io.printTo`, `Io.printlnTo`; every `List.*` and `Map.*` operation; text and character utilities; numeric utilities; Optional and Either helpers; Foreign inspection. All written in Ernest, using nothing but the language and prelude. A program that never references any of these names does not depend on the standard library; a program that does depends on `stdlib/` being present on the load path.
 
 The prelude had grown to include roughly forty convenience functions on the built-in container and text types. The realization: none of these are language-required. The report doesn't say `List.map` must exist; the paper programs use it, but that is a program's choice. Moving them to the standard library makes the report smaller, gives implementers a clear boundary — "prelude is what the report needs, stdlib is what the ecosystem provides" — and lets the standard library grow at a different pace from the language.
 
@@ -294,7 +294,7 @@ Growth rule for the standard library: same as the deferrals in Later. When a pap
 
 ## Ambient Sys, Five Principles, 2026-09-14
 
-`Sys` is no longer a value threaded through the program. The runtime's system processes are exposed as top-level ambient references: `Sys.stdout : Address(Text)`, `Sys.stderr : Address(Text)`, `Sys.clock : Address(ClockMsg)` in the report's prelude; paper-program runtimes may add `Sys.fs`, `Sys.stdin`, `Sys.keys`, and the like. `main` takes no arguments: `fn main() -> () with ()`. The `Sys` type declaration is gone.
+`Sys` is no longer a value threaded through the program. The runtime's system processes are exposed as top-level ambient references: `Sys.stdout : Address(Text)` and `Sys.clock : Address(ClockMsg)` in the report's prelude; paper-program runtimes may add `Sys.fs`, `Sys.stdin`, `Sys.keys`, a stderr sink, and the like. `main` takes no arguments: `fn main() -> () with ()`. The `Sys` type declaration is gone.
 
 **Why.** Threading `sys : Sys` (or `out : Address(Text)`) through every function that prints was ugly. The counter, ping-pong, filesync, tick-game, and REPL each carried the same parameter chain to no end. The rule that forced it — "nothing invisible" read as "no ambient values" — was the wrong reading. Ernest already has `self()`, which returns per-process state without being passed; nobody calls it invisible because it has a name at the use site. `Sys.stdout` is a sibling: an ambient value with a name at the use site. What "nothing invisible" actually rules out is *hidden effects* — a call like `println("x")` that names no address. Ambient by name is fine.
 
@@ -317,7 +317,7 @@ Result:
 4. Simple to parse: recursive descent, first-token dispatch, small bounded lookahead where the grammar demands it, no backtracking.
 5. Small: few concepts, few primitives, few reserved words — but not too few.
 
-**Io.ern surface.** The stdlib pairs ambient forms with explicit-address forms. `Io.print`, `Io.println`, `Io.eprint`, `Io.eprintln` take just `Text` and send to `Sys.stdout` or `Sys.stderr`; `Io.printTo` and `Io.printlnTo` take `(Address(Text), Text)` for a specific sink (a logger, a capture buffer). Both are useful and neither is a variant of the other — the argument list distinguishes them, the same way `print` and `fprint` differ in C.
+**Io.ern surface.** The stdlib pairs an ambient form with an explicit-address form. `Io.print` and `Io.println` take just `Text` and send to `Sys.stdout`; `Io.printTo` and `Io.printlnTo` take `(Address(Text), Text)` for a specific sink (a logger, a capture buffer, an alternate stream). Both are useful and neither is a variant of the other — the argument list distinguishes them, the same way `print` and `fprint` differ in C.
 
 **What did not change.** `self()` is still `self()`, a nullary function with parens; it can't become a value because it depends on the current process. `Sys.stdout` is a value because it's node-wide, not per-process. If we ever need per-process ambient stdout (test isolation), we'll pay for it then, likely by giving `Sys.stdout` a call form or by extending `spawn` to accept a per-child ambient override.
 
@@ -383,6 +383,19 @@ Same operation as `Address.call` without the timeout: the caller waits as long a
 **Static-check relationship.** The linearity check on `Reply(a)` is static; the mandatory timeout on `Address.call` compensates for the fact that execution may not reach `answer` at runtime. `Address.callForever` accepts that risk by name — the caller has made the decision explicitly.
 
 **Growth-rule note.** No paper program has needed this yet. Added on consistency-with-`recv`-and-`remote` grounds, not on three-uses. If a paper program written after this decision doesn't reach for it, revisit.
+
+## `Sys.stderr`, `Io.eprint`, `Io.eprintln` Removed, 2026-09-14
+
+Same rationale as `Set(a)`. The stderr trio was inherited on "obvious symmetry with stdout" grounds. No paper program sends anything to stderr; no `Io.eprint*` call anywhere. The paper-program preambles that named `Sys.stderr` did so only because the report required it, not because they used it.
+
+Removed:
+- Report §9 loses `Sys.stderr` from "System references."
+- §8's "System references" paragraph updated to list only `Sys.stdout` and `Sys.clock`; a stderr sink is now named as a paper-program-supplied assumption if needed.
+- Appendix E.1 `Io.ern` loses `Io.eprint` and `Io.eprintln`.
+- Paper programs' assumption paragraphs updated.
+- README and plan updated.
+
+**When it comes back.** When a paper program needs to write a diagnostic to a distinct stream from normal output. A runtime that provides a stderr process can still expose it as `Sys.stderr` under the "paper program names extra assumptions" rule (§8); it doesn't have to be language-required.
 
 ## `Set(a)` Removed From the Prelude, 2026-09-14
 

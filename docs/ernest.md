@@ -269,7 +269,7 @@ The prelude is total: no built-in function faults. Partial operations return `Op
 
 **`main`.** A program is a set of modules with exactly one function `main : () -> () with m` for some `m`, unqualified, called by the runtime. Nothing sends to `main` that it has not given its address to; `m` is usually `()`.
 
-**System references.** The runtime starts with its system processes and exposes their addresses as ambient top-level values in the `Sys` namespace. The language requires `Sys.stdout : Address(Text)`, `Sys.stderr : Address(Text)`, and `Sys.clock : Address(ClockMsg)`, section 9; a specific runtime may provide more, and a paper program that needs additions like `Sys.fs`, `Sys.stdin`, or `Sys.keys` names them in its assumptions. These are values, not functions — like `List` and `Map` they are in scope everywhere at the top level. To do IO a function sends to one, and `send` requires a mailbox effect on the caller (section 6), so pure code cannot affect anything outside its process even though it can name the address. A reference to a `Sys.*` name the runtime does not provide is a name-resolution error at compile time. The `stdout` and `stderr` processes write each received `Text` to their stream as bytes; newlines are the sender's responsibility.
+**System references.** The runtime starts with its system processes and exposes their addresses as ambient top-level values in the `Sys` namespace. The language requires `Sys.stdout : Address(Text)` and `Sys.clock : Address(ClockMsg)`, section 9; a specific runtime may provide more, and a paper program that needs additions like `Sys.fs`, `Sys.stdin`, `Sys.keys`, or a stderr sink names them in its assumptions. These are values, not functions — like `List` and `Map` they are in scope everywhere at the top level. To do IO a function sends to one, and `send` requires a mailbox effect on the caller (section 6), so pure code cannot affect anything outside its process even though it can name the address. A reference to a `Sys.*` name the runtime does not provide is a name-resolution error at compile time. The `stdout` process writes each received `Text` to standard output as bytes; newlines are the sender's responsibility.
 
 **Peers.** Peers are configured outside the language, section 11; `Peer(name)` refers to them by the configured name, and nodes authenticate each other.
 
@@ -350,7 +350,6 @@ System references (runtime-provided, section 8):
 
 ```
 Sys.stdout       : Address(Text)                   // the stdout process
-Sys.stderr       : Address(Text)                   // the stderr process
 Sys.clock        : Address(ClockMsg)               // the clock process
 ```
 
@@ -602,13 +601,11 @@ Informative, not normative: this appendix lists the modules that ship with the c
 
 ### Appendix E.1. `Io.ern`
 
-Output helpers. The ambient forms send to `Sys.stdout` and `Sys.stderr` (section 8); the `*To` forms take an explicit `Address(Text)`, useful for logging to a mailbox that is not stdout.
+Output helpers. The ambient forms send to `Sys.stdout` (section 8); the `*To` forms take an explicit `Address(Text)`, useful for logging to a mailbox that is not stdout.
 
 ```
 Io.print      : (Text) -> () with m                    // to Sys.stdout
 Io.println    : (Text) -> () with m                    // to Sys.stdout, appends "\n"
-Io.eprint     : (Text) -> () with m                    // to Sys.stderr
-Io.eprintln   : (Text) -> () with m                    // to Sys.stderr, appends "\n"
 
 Io.printTo    : (Address(Text), Text) -> () with m
 Io.printlnTo  : (Address(Text), Text) -> () with m     // appends "\n"

@@ -14,7 +14,7 @@ type FsError = NotFound | Denied | Io(Text)
 type Entry   = Entry(path : Path, mtime : Mtime)
 ```
 
-`ClockMsg` is the report's; `Ordering` is in the prelude. `Sys.stdout`, `Sys.stderr`, and `Sys.clock` are ambient runtime references (report §8); this paper program additionally assumes the runtime provides `Sys.fs : Address(FsMsg)`. Other assumptions:
+`ClockMsg` is the report's; `Ordering` is in the prelude. `Sys.stdout` and `Sys.clock` are ambient runtime references (report §8); this paper program additionally assumes the runtime provides `Sys.fs : Address(FsMsg)`. Other assumptions:
 
 - `type Path = Path(Text)`, a filesystem path with helpers `Path.join : (Path, Path) -> Path`, `Path.toText : (Path) -> Text`, and `Path.withSuffix : (Path, Text) -> Path`.
 - `Mtime`, an opaque modification time, with `Mtime.compare : (Mtime, Mtime) -> Ordering`.
