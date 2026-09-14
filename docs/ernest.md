@@ -269,7 +269,7 @@ The prelude is total: no built-in function faults. Partial operations return `Op
 
 **`main`.** A program is a set of modules with exactly one function `main : () -> () with m` for some `m`, unqualified, called by the runtime. Nothing sends to `main` that it has not given its address to; `m` is usually `()`.
 
-**System references.** The runtime starts with its system processes and exposes their addresses as ambient top-level values in the `Sys` namespace. The language requires `Sys.stdout : Address(Text)`, `Sys.stderr : Address(Text)`, and `Sys.clock : Address(ClockMsg)`, section 9; a specific runtime may provide more, and a paper program that needs additions like `Sys.fs`, `Sys.stdin`, or `Sys.keys` names them in its assumptions. These are values, not functions — like `List`, `Map`, and `Set` they are in scope everywhere at the top level. To do IO a function sends to one, and `send` requires a mailbox effect on the caller (section 6), so pure code cannot affect anything outside its process even though it can name the address. A reference to a `Sys.*` name the runtime does not provide is a name-resolution error at compile time. The `stdout` and `stderr` processes write each received `Text` to their stream as bytes; newlines are the sender's responsibility.
+**System references.** The runtime starts with its system processes and exposes their addresses as ambient top-level values in the `Sys` namespace. The language requires `Sys.stdout : Address(Text)`, `Sys.stderr : Address(Text)`, and `Sys.clock : Address(ClockMsg)`, section 9; a specific runtime may provide more, and a paper program that needs additions like `Sys.fs`, `Sys.stdin`, or `Sys.keys` names them in its assumptions. These are values, not functions — like `List` and `Map` they are in scope everywhere at the top level. To do IO a function sends to one, and `send` requires a mailbox effect on the caller (section 6), so pure code cannot affect anything outside its process even though it can name the address. A reference to a `Sys.*` name the runtime does not provide is a name-resolution error at compile time. The `stdout` and `stderr` processes write each received `Text` to their stream as bytes; newlines are the sender's responsibility.
 
 **Peers.** Peers are configured outside the language, section 11; `Peer(name)` refers to them by the configured name, and nodes authenticate each other.
 
@@ -294,7 +294,6 @@ Built-in parameterized types, provided by the runtime:
 ```
 List(a)      // an immutable linked list of elements of type a
 Map(k, v)    // an immutable dictionary from k to v; requires equality on k
-Set(a)       // an immutable set of a; requires equality on a
 ```
 
 Declared types:
@@ -662,25 +661,7 @@ Map.map          : (Map(k, v), (k, v) -> w) -> Map(k, w)
 Map.foldLeft     : (Map(k, v), b, (b, k, v) -> b) -> b
 ```
 
-### Appendix E.4. `Set.ern`
-
-Container-first operations over `Set(a)`.
-
-```
-Set.empty        : Set(a)
-Set.size         : (Set(a)) -> Int
-Set.isEmpty      : (Set(a)) -> Bool
-Set.contains     : (Set(a), a) -> Bool
-Set.add          : (Set(a), a) -> Set(a)
-Set.remove       : (Set(a), a) -> Set(a)
-Set.union        : (Set(a), Set(a)) -> Set(a)
-Set.intersect    : (Set(a), Set(a)) -> Set(a)
-Set.difference   : (Set(a), Set(a)) -> Set(a)
-Set.fromList     : (List(a)) -> Set(a)
-Set.toList       : (Set(a)) -> List(a)
-```
-
-### Appendix E.5. `Text.ern`
+### Appendix E.4. `Text.ern`
 
 ```
 Text.size        : (Text) -> Int                       // number of code points
@@ -695,7 +676,7 @@ Text.lines       : (Text) -> List(Text)
 Text.all         : (Text, (Char) -> Bool) -> Bool
 ```
 
-### Appendix E.6. `Char.ern`
+### Appendix E.5. `Char.ern`
 
 ```
 Char.isDigit     : (Char) -> Bool
@@ -705,7 +686,7 @@ Char.toText      : (Char) -> Text
 Char.toInt       : (Char) -> Int                       // Unicode code point
 ```
 
-### Appendix E.7. `Int.ern`
+### Appendix E.6. `Int.ern`
 
 ```
 Int.abs          : (Int) -> Int
@@ -716,7 +697,7 @@ Int.toText       : (Int) -> Text
 Int.toFloat      : (Int) -> Float
 ```
 
-### Appendix E.8. `Float.ern`
+### Appendix E.7. `Float.ern`
 
 ```
 Float.abs        : (Float) -> Float
@@ -727,7 +708,7 @@ Float.floor      : (Float) -> Int
 Float.ceil       : (Float) -> Int
 ```
 
-### Appendix E.9. `Optional.ern`
+### Appendix E.8. `Optional.ern`
 
 ```
 Optional.isSome      : (Optional(a)) -> Bool
@@ -737,7 +718,7 @@ Optional.map         : (Optional(a), (a) -> b) -> Optional(b)
 Optional.andThen     : (Optional(a), (a) -> Optional(b)) -> Optional(b)
 ```
 
-### Appendix E.10. `Either.ern`
+### Appendix E.9. `Either.ern`
 
 ```
 Either.isLeft       : (Either(e, a)) -> Bool
@@ -750,7 +731,7 @@ Either.toOptional   : (Either(e, a)) -> Optional(a)
 Either.fromOptional : (Optional(a), e) -> Either(e, a)
 ```
 
-### Appendix E.11. `Foreign.ern`
+### Appendix E.10. `Foreign.ern`
 
 ```
 Foreign.toInt    : (Foreign) -> Optional(Int)

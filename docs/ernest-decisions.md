@@ -284,7 +284,7 @@ Ernest is now organized in three layers, made explicit after the discussion prom
 
 **Prelude.** What the language requires to exist because the report references it. Section 9 lists these: `Optional`, `Either`, `Ordering`, `Down`, `Reason`, `ClockMsg`, `RemoteError`, `Foreign`; the built-in parameterized types `List`, `Map`, `Set` (plus `Address`, `Reply`, `Never` covered in section 3); the process operations `via`, `Address.call`, `answer`, `remote`, `monitor`, `kill`; and the specific operations the report calls out — `Int.div`, `Int.mod`, the four `compare` functions, `todo`. Nothing else.
 
-**Standard library.** Ernest code that ships with the compiler and lives on the load path. Section 9 lists the modules; Appendix E documents their exported signatures. `Io.print`, `Io.println`, `Io.eprintln`; every `List.*`, `Map.*`, `Set.*` operation; text and character utilities; numeric utilities; Optional and Either helpers; Foreign inspection. All written in Ernest, using nothing but the language and prelude. A program that never references any of these names does not depend on the standard library; a program that does depends on `stdlib/` being present on the load path.
+**Standard library.** Ernest code that ships with the compiler and lives on the load path. Section 9 lists the modules; Appendix E documents their exported signatures. `Io.print`, `Io.println`, `Io.eprintln`; every `List.*` and `Map.*` operation; text and character utilities; numeric utilities; Optional and Either helpers; Foreign inspection. All written in Ernest, using nothing but the language and prelude. A program that never references any of these names does not depend on the standard library; a program that does depends on `stdlib/` being present on the load path.
 
 The prelude had grown to include roughly forty convenience functions on the built-in container and text types. The realization: none of these are language-required. The report doesn't say `List.map` must exist; the paper programs use it, but that is a program's choice. Moving them to the standard library makes the report smaller, gives implementers a clear boundary — "prelude is what the report needs, stdlib is what the ecosystem provides" — and lets the standard library grow at a different pace from the language.
 
@@ -344,7 +344,7 @@ Appendix E was audited for naming, argument order, and coverage. The growth rule
 - Optional: `withDefault`, `isSome`, `isNone`.
 - Either: `isLeft`, `isRight`, `toOptional`, `withDefault`.
 
-**Deferred to the growth rule.** These would round out the modules but haven't yet been written three times in a paper program: `List.zip/flatMap/concat/range/repeat/foldRight`, `Set.map/filter/foldLeft`, `Text.split/trim/replace/startsWith/endsWith/toLower/toUpper`, `Char.toUpper/toLower/isUpper/isLower/isAlphaNum`, `Int.pow`, `Float.sqrt/pow/min/max/truncate`, `Optional.orElse/toList`.
+**Deferred to the growth rule.** These would round out the modules but haven't yet been written three times in a paper program: `List.zip/flatMap/concat/range/repeat/foldRight`, `Text.split/trim/replace/startsWith/endsWith/toLower/toUpper`, `Char.toUpper/toLower/isUpper/isLower/isAlphaNum`, `Int.pow`, `Float.sqrt/pow/min/max/truncate`, `Optional.orElse/toList`. `Set` and its operations are also deferred until a paper program uses them (see next entry).
 
 **Paper programs updated.** `Map.delete` → `Map.remove` in `ernest-tick-game.md`; `Optional.flatMap` → `Optional.andThen` in `ernest-webserver.md`. The implementation plan's note on `<-` desugaring reads `Optional.andThen` now.
 
@@ -383,6 +383,21 @@ Same operation as `Address.call` without the timeout: the caller waits as long a
 **Static-check relationship.** The linearity check on `Reply(a)` is static; the mandatory timeout on `Address.call` compensates for the fact that execution may not reach `answer` at runtime. `Address.callForever` accepts that risk by name — the caller has made the decision explicitly.
 
 **Growth-rule note.** No paper program has needed this yet. Added on consistency-with-`recv`-and-`remote` grounds, not on three-uses. If a paper program written after this decision doesn't reach for it, revisit.
+
+## `Set(a)` Removed From the Prelude, 2026-09-14
+
+`Set(a)` and `stdlib/Set.ern` are removed. Neither the language grammar nor any paper program uses them. `List` earns its slot through grammar (`[]`, `+:`); `Map` earns its slot by being used in `tick-game` and `filesync`. `Set` was in the prelude only because "every stdlib has one" — the speculative-addition rationale the growth rule was written to prevent.
+
+**Consequences.**
+
+- Report §9 loses one line under "Built-in parameterized types."
+- Appendix E loses subsection E.4 `Set.ern`; downstream subsections renumber E.5–E.11 down to E.4–E.10.
+- §8's "like `List`, `Map`, and `Set` they are in scope everywhere" becomes "like `List` and `Map`."
+- README's prelude and stdlib lists updated.
+
+**When Set comes back.** When a paper program writes the pattern three times — graph work (visited-set traversal), tag membership at scale, deduplication of large streams — Set gets added back with a rationale entry. Until then it stays out. The growth rule cuts both ways: it defends against speculative addition and against retention out of habit.
+
+**A note on cost.** `Set` had cross-node serialization as a runtime-provided type. Bringing it back later means either reasserting that runtime property or accepting `foreign type Set(a)` with the node-local constraint. Neither is expensive to reverse; the removal is not painting a corner.
 
 ## Against OTP as a Language Feature, 2026-09-14
 
