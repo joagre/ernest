@@ -113,7 +113,9 @@ Name        = { typename "." } ( ident | binop ) .
 QTypeName   = { typename "." } typename .
 ```
 
-**Namespaces and visibility.** The namespace is in the name, and so is the visibility. A top-level declaration with a qualified name, `fn Net.Http.parse(b) = ...`, `type Net.Http.Request = ...`, is visible throughout the program under that name; two such declarations with the same full name are an error. A top-level declaration with an unqualified name, `fn helper(x) = ...`, is visible only in its own source file. A file's path is its namespace: the qualified declarations in `Net/Http.ern` begin with `Net.Http.`, and may go deeper, `Net.Http.Header.parse`. That is the whole of a file's meaning, and there is no export list, no `pub`, and no `import`. Sub-namespaces are the dots; namespace segments are type names. An unqualified name in a body is looked up first among the file's unqualified declarations, then in the namespace of the enclosing declaration, then in the prelude; everything else must be qualified. The only other thing hidden is the constructor of an opaque type from definitions outside its signature. `main` is unqualified, section 8.
+**Modules.** A *module* is a single Ernest source file, ending in `.ern`. It is the unit of compilation and the unit that carries a namespace; every top-level declaration belongs to exactly one module.
+
+**Namespaces and visibility.** The namespace is in the name, and so is the visibility. A top-level declaration with a qualified name, `fn Net.Http.parse(b) = ...`, `type Net.Http.Request = ...`, is visible throughout the program under that name; two such declarations with the same full name are an error. A top-level declaration with an unqualified name, `fn helper(x) = ...`, is visible only in its own module. A module's path is its namespace: the qualified declarations in `Net/Http.ern` begin with `Net.Http.`, and may go deeper, `Net.Http.Header.parse`. That is the whole of a module's meaning, and there is no export list, no `pub`, and no `import`. Sub-namespaces are the dots; namespace segments are type names. An unqualified name in a body is looked up first among the module's unqualified declarations, then in the namespace of the enclosing declaration, then in the prelude; everything else must be qualified. The only other thing hidden is the constructor of an opaque type from definitions outside its signature. `main` is unqualified, section 8.
 
 **Type declarations.** `type` declares a sum type with its constructors. A constructor has the visibility of its type.
 
@@ -261,7 +263,7 @@ The prelude is total: no built-in function faults. Partial operations return `Op
 
 ## 8. Programs
 
-**`main`.** A program is a set of source files with exactly one function `main : () -> () with m` for some `m`, unqualified, called by the runtime. Nothing sends to `main` that it has not given its address to; `m` is usually `()`.
+**`main`.** A program is a set of modules with exactly one function `main : () -> () with m` for some `m`, unqualified, called by the runtime. Nothing sends to `main` that it has not given its address to; `m` is usually `()`.
 
 **System references.** The runtime starts with its system processes and exposes their addresses as ambient top-level values in the `Sys` namespace. The language requires `Sys.stdout : Address(Text)`, `Sys.stderr : Address(Text)`, and `Sys.clock : Address(ClockMsg)`, section 9; a specific runtime may provide more, and a paper program that needs additions like `Sys.fs`, `Sys.stdin`, or `Sys.keys` names them in its assumptions. These are values, not functions — like `List`, `Map`, and `Set` they are in scope everywhere at the top level. To do IO a function sends to one, and `send` requires a mailbox effect on the caller (section 6), so pure code cannot affect anything outside its process even though it can name the address. A reference to a `Sys.*` name the runtime does not provide is a name-resolution error at compile time. The `stdout` and `stderr` processes write each received `Text` to their stream as bytes; newlines are the sender's responsibility.
 
@@ -345,9 +347,9 @@ Sys.clock        : Address(ClockMsg)               // the clock process
 
 ## 11. Toolchain
 
-`ernc file.ern` compiles a source file to `file.erc`, a compiled file the runtime can load. A program is compiled file by file; cross-file names are resolved at load.
+`ernc file.ern` compiles a module to `file.erc`, a compiled module the runtime can load. A program is compiled module by module; cross-module names are resolved at load.
 
-`ern [--config-dir dir] [-pa dir ...] file.erc` loads the file and, on demand, the compiled files on the load path, found by namespace, `Net.Http.parse` in `Net/Http.erc`; starts the system processes, binds their addresses to the `Sys.*` ambient references, and calls `main`. The standard library, Appendix E, is on the load path by default; `-pa` extends it. `ern --repl` starts a read-evaluate-print loop with the same loading. `--config-dir` names the configuration directory, `./.ernest` by default.
+`ern [--config-dir dir] [-pa dir ...] file.erc` loads the module and, on demand, the compiled modules on the load path, found by namespace, `Net.Http.parse` in `Net/Http.erc`; starts the system processes, binds their addresses to the `Sys.*` ambient references, and calls `main`. The standard library, Appendix E, is on the load path by default; `-pa` extends it. `ern --repl` starts a read-evaluate-print loop with the same loading. `--config-dir` names the configuration directory, `./.ernest` by default.
 
 `ern --create-config-dir dir` creates `dir/.ernest/` containing `ernest.conf` and this node's private key, readable only by its owner, and does nothing else; it fails if the directory exists. `ernest.conf` holds this node's network address and public key, and the list of peers: for each, a name, a network address, a public key, and whether it accepts remote computation. Appendix C shows one. The names are the ones `Peer(name)` refers to.
 
@@ -507,7 +509,7 @@ fn submitter(worker : Address(WorkerMsg)) -> () with Never = {
 
 ## Appendix D. A Foreign Library
 
-A shim over Erlang's `ets`, tables of type `set`. Raw bindings are file-local; the library is ordinary Ernest over them. No Erlang module is needed: the representation of values, section 10, already matches Erlang's conventions, `true` is `Bool`, `[{K, V}]` is `List((k, v))`, and `{ok, V} | {error, R}` is a sum type with constructors tagged `ok` and `error`.
+A shim over Erlang's `ets`, tables of type `set`. Raw bindings are module-local (unqualified); the library is ordinary Ernest over them. No Erlang module is needed: the representation of values, section 10, already matches Erlang's conventions, `true` is `Bool`, `[{K, V}]` is `List((k, v))`, and `{ok, V} | {error, R}` is a sum type with constructors tagged `ok` and `error`.
 
 ```
 // Ets.ern
@@ -570,7 +572,7 @@ fn main() -> () with () = {
 }
 ```
 
-The raw names are unqualified and therefore invisible outside the file; `Ets.*` is the library. `Ets.Table(k, v)` has type parameters the implementation never sees: `Ets.insert(t, "a", 1)` fixes `t` to `Table(Text, Int)`, and an insert with other types on the next line is a type error. Every operation has a mailbox type, `size` and `member` included, because they read state that others write. `atom` is pure: the same text gives the same atom. An Erlang-side module is needed only to catch: a raw function that throws is a fault, and a shim that wants `Either` instead must `try` in Erlang, since Ernest cannot. What the type cannot say, the declaration's documentation must: a table lives until `Ets.drop`, or until the process that created it dies.
+The raw names are unqualified and therefore invisible outside the module; `Ets.*` is the library. `Ets.Table(k, v)` has type parameters the implementation never sees: `Ets.insert(t, "a", 1)` fixes `t` to `Table(Text, Int)`, and an insert with other types on the next line is a type error. Every operation has a mailbox type, `size` and `member` included, because they read state that others write. `atom` is pure: the same text gives the same atom. An Erlang-side module is needed only to catch: a raw function that throws is a fault, and a shim that wants `Either` instead must `try` in Erlang, since Ernest cannot. What the type cannot say, the declaration's documentation must: a table lives until `Ets.drop`, or until the process that created it dies.
 
 ## Appendix E. Standard Library
 

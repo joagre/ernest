@@ -495,7 +495,7 @@ Because Ernest is n-ary — every function has a specific number of arguments, a
 
 **Why is there no `import`?**
 
-Every top-level declaration's *qualified name* is where it lives. `fn Net.Http.parse(b) = ...` lives in the file `Net/Http.ern`, and any code anywhere refers to it by that full name. Files carry their namespace in their path. Unqualified names (`fn helper(x) = ...`) are file-local. No `import`, no `pub`, no export list.
+Every top-level declaration's *qualified name* is where it lives. A **module** is a single Ernest source file (ending in `.ern`) — the unit that carries a namespace. `fn Net.Http.parse(b) = ...` lives in the module `Net/Http.ern`, and any code anywhere refers to it by that full name. A module's path is its namespace. Unqualified names (`fn helper(x) = ...`) are visible only inside their own module. No `import`, no `pub`, no export list.
 
 **Why is the mailbox type in the function type?**
 

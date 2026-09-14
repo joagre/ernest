@@ -90,7 +90,7 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 
 ### 2.3 Opaque Types (0 days)
 
-- Nothing to do in MVP 1: an opaque type compiles as an ordinary type, `Stack.push` becomes the function `'Stack.push'/2` in the file's module. Module per type with the signature as export list is MVP 2.
+- Nothing to do in MVP 1: an opaque type compiles as an ordinary type, `Stack.push` becomes the function `'Stack.push'/2` in the Erlang module compiled from the Ernest module that defines it. One Erlang module per type with the signature as export list is MVP 2.
 
 ### 2.4 Standard Library (3 days)
 
@@ -155,7 +155,7 @@ Erlang, OTP 27, Rebar3 to build the compiler itself. EUnit per module; integrati
 
 ## Decisions Before Start
 
-Decided: hand-written Pratt parser; Erlang's abstract format via `erl_syntax` and `compile:forms`; OTP 27; error format `file:line:column: text`; one module per file with the file's name.
+Decided: hand-written Pratt parser; Erlang's abstract format via `erl_syntax` and `compile:forms`; OTP 27; error format `file:line:column: text`; one Erlang module per Ernest module, named after it.
 
 Nothing open.
 
