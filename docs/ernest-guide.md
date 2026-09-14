@@ -81,13 +81,11 @@ Three parts:
 
 ### The big idea
 
-The most important thing to notice: **`Sys.stdout` is an address, not a stream.**
+The most important thing to notice: **stdout is an address, not a stream.**
 
-You do not "print" or "write" in Ernest. You send a message to a process. That process — running concurrently, elsewhere — receives the message and does the actual writing.
+You do not "print" or "write" in Ernest. You send a message to a process. That process — running concurrently, elsewhere — receives the message and does the actual writing. There is no hidden syscall inside Ernest. If you want to touch anything outside your own function, you send a message to a process that touches it for you.
 
-This is what "processes are the only way to affect the world" means. There is no hidden syscall inside Ernest. If you want to touch anything outside your own function, you send a message to a process that touches it for you.
-
-Ernest exposes the system processes as ambient names so you don't have to thread them through every function that needs to print — but they're still just addresses of processes. Sending to one requires a mailbox effect (`with M` on the enclosing arrow), so pure functions can name `Sys.stdout` but cannot actually send to it. The type system keeps IO out of pure code without asking you to thread anything.
+The ambient names are just there so you don't have to thread the addresses through every function that needs one. Sending still requires a mailbox effect (`with M` on the enclosing arrow), so pure functions can name an ambient address but cannot actually send to it. The type system keeps IO out of pure code without asking you to thread anything.
 
 Take a breath. This idea is going to keep coming back. Everything else in Ernest builds on it.
 
@@ -342,7 +340,7 @@ fn main() -> () with () = {
 }
 ```
 
-We're using `Io.println` here instead of raw `send`. `Io.println("hi")` is just `send(Sys.stdout, "hi" ++ "\n")` — a one-line convenience from the standard library (Appendix E of the report). Both work; `Io.println` is what real Ernest code uses because it saves the newline bookkeeping and doesn't need `Sys.stdout` spelled out. If you want to send to a different address (a logger, a capture buffer for testing), `Io.printlnTo(addr, "hi")` takes an explicit `Address(Text)`.
+If you want to send to a different address (a logger, a capture buffer for testing) instead of stdout, `Io.printlnTo(addr, "hi")` takes an explicit `Address(Text)`.
 
 Four things happen. Let's walk through them.
 
