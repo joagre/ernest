@@ -388,14 +388,18 @@ Same operation as `Address.call` without the timeout: the caller waits as long a
 
 Ernest does not adopt labeled parameters — Gleam's `pub fn f(name label: T)`, Swift's `f(name: T)`, Python's keyword arguments. The feature is small in isolation but attracts default values, optional parameters, variadic labels, and positional-vs-keyword-only markers by ongoing community pressure. Python, Swift, and Elixir each took the first step and then took the next several. Rust has held the line for years and pays for that discipline with every fresh RFC.
 
-**Ernest already has the ergonomics for wide signatures**: named fields on a constructor. A function that would benefit from labels wraps its parameters in a small config record:
+**Ernest's alternative for wide signatures**: named fields on a constructor. A function that would benefit from labels wraps its parameters in a small config record:
 
 ```
 type CallOptions = CallOptions(timeout : Int, retry : Bool)
 fn call(addr : Address(m), mk : (Reply(a)) -> m, opts : CallOptions) -> Optional(a) with n
 ```
 
-Call site: `call(counter, mkGet, CallOptions(timeout = 1000, retry = false))`. Labeled at the site, ordering doesn't matter, one type declaration pays for it. The design pressure to introduce that type when a signature grows past three or four parameters is arguably a *win* — it forces the shape onto the type system where readers find it.
+Call site: `call(counter, mkGet, CallOptions(timeout = 1000, retry = false))`. Labeled at the site, ordering doesn't matter, one type declaration pays for it.
+
+**Named honestly: this costs more than labeled args would.** Gleam has both named fields on constructors *and* labeled function arguments — clear evidence that the constructor pattern alone leaves an ergonomic gap. Introducing a type for every wide function is more friction than adding a label. Common cases like `List.foldLeft(list, init, folder)` or `Address.call(addr, mk, timeout)` don't reach for a wrapper type; positional works, but a label at the timeout would help readability at zero declaration cost. Labeled args also give tools something to bind against — completion, better error messages — that constructors don't offer as directly.
+
+Ernest chooses the higher-activation-cost path deliberately. The design pressure to introduce a type when a signature grows past three or four parameters is treated as a *win* — it forces the shape onto the type system, where readers find it — but that's a values-driven trade, not a claim that constructors close the ergonomic gap. Gleam's decision reflects a different weighting on adoption-friendliness. Both are defensible; Ernest picks the narrower one.
 
 **Principle alignment.**
 
