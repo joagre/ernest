@@ -11,7 +11,7 @@ Every function runs inside a process: an execution of a function, with a mailbox
 The language is built on five principles, in order. The reader comes first.
 
 1. Least surprise decides — measured by the resulting code, not by the rule.
-2. One way, one job. No variants for the same thing, no two concepts that overlap in what they express, unless what remains surprises more.
+2. One way, one job — in the language and prelude. No variants for the same thing, no two concepts that overlap in what they express, unless what remains surprises more. The standard library, being ordinary Ernest code, may pair functions for convenience.
 3. Nothing invisible. Control flow, communication, and failure are visible in the code or in the type. An ambient value is visible when its name appears at the use site; a hidden effect is not.
 4. Simple to parse: recursive descent, first-token dispatch, small bounded lookahead where the grammar demands it, no backtracking.
 5. Small: few concepts, few primitives, few reserved words — but not too few.
