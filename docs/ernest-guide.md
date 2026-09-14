@@ -962,7 +962,62 @@ Argument order, `{ok, _} | {error, _}` becoming `Either`, discarding return valu
 
 The `webserver` paper program shows the whole pattern: `Ets.ern` is a thin Ernest library over Erlang's `ets` module. The raw `foreign fn` bindings are unqualified (file-local); the exported `Ets.*` functions are Ernest code that composes and reshapes them into a small, typed API.
 
-## 13. Toolchain and configuration
+## 13. Bit arrays
+
+Working with binary formats — network protocol headers, file signatures, checksums — means picking apart `Bytes` at the bit level. Ernest's syntax for this is `<<...>>`:
+
+```
+fn parseFrame(bytes : Bytes) -> Optional((Int, Bytes, Bytes)) = match bytes {
+    <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> -> Some((len, body, rest))
+  | _ -> None
+}
+```
+
+Reads: match a 16-bit big-endian length, then `len` bytes of body, then whatever is left.
+
+A bit array is a comma-separated list of *segments* between `<<` and `>>`. Each segment names a value (or a pattern, inside `match`), followed optionally by a colon and a dash-separated list of *specifiers* that describe how that segment is laid out.
+
+### 13.1 Specifiers
+
+- **`size(N)`** — the segment's width, in units.
+- **`bits`**, **`bytes`** — the segment is a nested bit array; `bytes` implies unit(8).
+- **`int`**, **`float`** — numeric (default `int` is 8-bit, `float` is 64-bit).
+- **`utf8`**, **`utf16`**, **`utf32`** — text encoding.
+- **`big`**, **`little`**, **`native`** — endianness.
+- **`signed`**, **`unsigned`** — sign.
+
+Combine with `-`: `x:signed-big-size(16)` is a 16-bit signed big-endian integer.
+
+These specifier names carry that role only inside `<<...>>`. Outside a bit array, `size` and `int` are just ordinary identifiers.
+
+### 13.2 Construction
+
+The same syntax builds a bit array:
+
+```
+fn frame(len : Int, body : Bytes) -> Bytes =
+    <<len:size(16)-big, body:bytes>>
+```
+
+Segments are evaluated left to right and concatenated into a `Bytes` value. A segment whose value doesn't fit its specified width is a fault.
+
+### 13.3 Size-dependent matches
+
+The `parseFrame` example above uses `size(len)` where `len` was bound by the preceding segment. This is the pattern that makes bit-array pattern matching powerful for wire protocols: you match a length field, then use that length to consume the following body:
+
+```
+<<len:size(16)-big, body:size(len)-bytes, rest:bytes>>
+```
+
+The compiler tracks the dependency; segments must be laid out in the order the sizes are learned.
+
+### 13.4 When to reach for bit arrays
+
+Wire protocols, binary file formats, packet headers, checksums, extracting flag bits. For anything higher-level — plain text, structured data, records — the ordinary types (`Text`, `List`, named-fields constructors) are more natural.
+
+Bit arrays compile directly to BEAM's bit syntax, so the runtime's mature optimizer handles prefix-heavy protocol matches at native speed.
+
+## 14. Toolchain and configuration
 
 Two commands.
 
@@ -1004,7 +1059,7 @@ Peers, network addresses, and cryptographic identity are configured outside the 
 
 The private key lives beside `ernest.conf` in the same directory, `private-key.pem`, readable only by the owner.
 
-## 14. Common questions
+## 15. Common questions
 
 Some things that trip readers up on first pass.
 
@@ -1024,7 +1079,7 @@ Because Ernest is n-ary — every function has a specific number of arguments, a
 
 Every top-level declaration's *qualified name* is where it lives. A **module** is a single Ernest source file (ending in `.ern`) — the unit that carries a namespace. `fn Net.Http.parse(b) = ...` lives in the module `Net/Http.ern`, and any code anywhere refers to it by that full name. A module's path is its namespace. Unqualified names (`fn helper(x) = ...`) are visible only inside their own module. No `import`, no `pub`, no export list.
 
-## 15. Reference: the roles of parens
+## 16. Reference: the roles of parens
 
 By now you have seen `(...)` in many places. Once you have read a few programs, this feels natural. But here it is as a lookup table:
 
@@ -1047,7 +1102,7 @@ Plus tuples: `(A, B)` as a type, `(1, "hi")` as a value, `(x, y)` as a pattern.
 
 This is a lot, but you rarely have to consciously disambiguate. The context tells you.
 
-## 16. Syntactic quirks, once
+## 17. Syntactic quirks, once
 
 A short reference of syntactic patterns that don't come from other languages, or that could surprise a reader coming from most languages.
 
@@ -1100,7 +1155,7 @@ Player(..p, alive = false, score = 0)       // multiple field changes at once
 
 **Doc comments start with `///`.** Three slashes to end of line; the toolchain (`ernc --doc`) extracts them to Markdown grouped by declaration.
 
-## 17. Reading further
+## 18. Reading further
 
 Once "hello world," the counter, and ping-pong feel readable, the language's four paper programs are the next step. They're in the same repository:
 
@@ -1117,7 +1172,7 @@ For "why is Ernest the way it is," `ernest-decisions.md` records dated design de
 
 For "how the compiler works," `ernest-implementation-plan.md` sketches the MVP 1 roadmap: about eight weeks of one-person work, with a hand-written parser.
 
-## 18. The five principles, once
+## 19. The five principles, once
 
 Ernest is built on five principles, in order. They're in the report's Section 0. Almost every design decision comes back to one or two of them.
 
