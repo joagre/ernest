@@ -218,13 +218,82 @@ In practice you'll still annotate top-level functions, because a signature at th
 
 Inference is also what picks specific types for the type variables you saw earlier — the `a` in `Optional(a)`, the `m` in `with m`. At each call site the compiler works out what those stand for from the arguments passed in.
 
-## 4. A process
+### 3.4 Match and if
+
+We've been using `match` and `if` in examples without introducing them. Two expression forms.
+
+**`match`** takes a value and a list of pattern arms:
+
+```
+match e {
+    pat -> expr
+  | pat -> expr
+}
+```
+
+The first arm whose pattern matches `e` gets its expression evaluated, and the whole `match` takes that value. The compiler checks that the arms cover every possible shape of `e`; a missing case is a type error.
+
+**`if`** is an expression, not a statement:
+
+```
+if cond then a else b
+```
+
+`cond` is a `Bool`; if `true`, the whole expression takes `a`, otherwise `b`. Both branches must have the same type. There is no `if` without `else` — an if-expression always has a value.
+
+Because both are expressions, you can bind their results:
+
+```
+let x = if flag then 1 else 2;
+let name = match user { Some(u) -> u | None -> "guest" };
+```
+
+## 4. Opaque types
+
+Sometimes you want a type whose values look like a specific shape from inside your module but appear opaque to callers. Someone can hold a value of the type, pass it around, and use functions on it — but they cannot construct it directly, cannot pattern-match on its shape, and cannot see what's inside.
+
+Ernest gives you this with `opaque type`:
+
+```
+opaque type Stack(a) = Stack(List(a)) with {
+    empty : Stack(a);
+    push : (a, Stack(a)) -> Stack(a);
+    pop : (Stack(a)) -> Optional((a, Stack(a)))
+}
+```
+
+Read top-down:
+
+- `opaque type Stack(a) = Stack(List(a))` — declares a type with one constructor, `Stack`, holding a `List(a)`.
+- `with { ... }` — the signature. It lists the names allowed to see the constructor.
+
+The names in the signature (`empty`, `push`, `pop`) live in the `Stack` namespace: `Stack.empty`, `Stack.push`, `Stack.pop`. Their definitions may reference the raw `Stack(_)` constructor to build and destructure values. Anyone else who writes `Stack(...)` gets a type error.
+
+The definitions:
+
+```
+let Stack.empty : Stack(a) = Stack([])
+fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) = Stack(x +: xs)
+fn Stack.pop(Stack(xs) : Stack(a)) -> Optional((a, Stack(a))) =
+    match xs { [] -> None | x +: rest -> Some((x, Stack(rest))) }
+```
+
+`Stack(x +: xs)` and `Stack(xs)` inside these definitions name the constructor because their names appear in the signature. A caller outside `Stack` cannot do this. They must use `Stack.empty`, `Stack.push`, and `Stack.pop`.
+
+Why opaque? Two reasons.
+
+- **Abstraction.** You can change the internal representation later — a tree, a growable array, anything — without breaking callers, as long as the signature stays the same.
+- **Invariants.** If a value can only be built by your functions, your functions can enforce invariants that the constructor alone wouldn't preserve — a sorted list, a non-empty stack, whatever the type calls for.
+
+Opaque types show up in the web server paper program (opaque `StatusCode`, `SessionId`) and are the standard way to bundle a type with its allowed operations.
+
+## 5. A process
 
 Now the interesting part. Let's build a small process — a counter.
 
 We'll build it in stages: first a counter that only accepts updates (fire-and-forget), then extend it so callers can also ask for its current state (request-reply).
 
-### 4.1 The message type
+### 5.1 The message type
 
 A counter is a process that holds a number. To start, let's say it accepts one kind of message: "please add `k` to my state."
 
@@ -236,7 +305,7 @@ type CounterMsg = Inc(Int)
 
 One constructor, `Inc`, carrying an `Int` positionally. This is a *mailbox type* — the set of message shapes a process can receive.
 
-### 4.2 The counter function
+### 5.2 The counter function
 
 Now the counter itself.
 
@@ -266,7 +335,7 @@ If the incoming message is `Inc(k)`, bind `k` to the integer inside, and recursi
 
 This is Ernest's **fire-and-forget** shape: a sender calls `send(c, Inc(5))`, which returns immediately, and there is no callback path back. The counter processes the message eventually — soon, but with no ordering guarantee against the sender's next statement other than "the counter's mailbox sees my messages in the order I sent them."
 
-### 4.3 Asking questions: `Reply`
+### 5.3 Asking questions: `Reply`
 
 Fire-and-forget is fine for updates, but sometimes you want to *ask* the process something — its current value, for instance. That requires an answer, and fire-and-forget has no place to put one.
 
@@ -305,7 +374,7 @@ The block `{ answer(r, n); counter(n) }` runs both in sequence, and the block's 
 
 `answer` is another prelude function. Its job is exactly this: consume a `Reply(a)` value by sending a specific `a` back to the caller.
 
-### 4.4 The compiler checks the reply
+### 5.4 The compiler checks the reply
 
 The compiler enforces something you might miss on first read: **every `Reply(Int)` bound in a `recv` arm must be used exactly once, on every path.**
 
@@ -331,7 +400,7 @@ The exactly-once check follows `r` through all three. In the spawning case, the 
 
 **One caveat.** The check is static. It verifies that every syntactically reachable path calls `answer` (or delegates, or spawns), but it can't tell whether execution will *actually* reach that call at runtime. A path that enters an infinite loop, faults, or waits forever will bypass the answer without the compiler knowing. That's why `Address.call` requires a mandatory timeout (§5.3): the caller must plan for the case where the answer never comes — bug, fault, or a receiver that answers only on February 32.
 
-## 5. Running the counter
+## 6. Running the counter
 
 We have the counter *function*. Now we need to *run* it in a process, and send it some messages.
 
@@ -353,7 +422,7 @@ If you want to send to a different address (a logger, a capture buffer for testi
 
 Four things happen. Let's walk through them.
 
-### 5.1 Spawn
+### 6.1 Spawn
 
 ```
 let c = spawn(Local, fn() = counter(0));
@@ -368,7 +437,7 @@ Result: an *address* to the new process, bound to `c`. Its type is `Address(Coun
 
 Notice: `fn() = counter(0)` is a lambda. It looks like an ordinary function declaration but without a name. Its body just calls `counter(0)`. When the process starts, this lambda runs, which calls `counter`, which enters the `recv` loop.
 
-### 5.2 Send
+### 6.2 Send
 
 ```
 send(c, Inc(5));
@@ -381,7 +450,7 @@ Two calls to `send`, each putting one message in the counter's mailbox.
 
 By the time both `send`s return, the counter has probably not yet finished processing them — but that's fine. Its `recv` loop will get to them soon enough.
 
-### 5.3 Address.call
+### 6.3 Address.call
 
 Now for the interesting part:
 
@@ -411,7 +480,7 @@ The timeout is mandatory in `Address.call` — you can't accidentally wait forev
 
 If you genuinely want no timeout — a startup wait for a critical service, say, where nothing else can happen until this answer arrives — the prelude also has `Address.callForever(addr, mk)`. It waits as long as it takes and returns the answer directly, not wrapped in `Optional`. If the receiver never answers, the caller hangs; that's the point of the name. Use it when the caller has explicitly decided to wait, not by default.
 
-### 5.4 Text concatenation
+### 6.4 Text concatenation
 
 One small thing in the success case:
 
@@ -425,7 +494,7 @@ One small thing in the success case:
 
 Take a moment. This is a complete Ernest program that uses two processes (main, plus the counter it spawned), passes messages between them, and prints the result. It's about twenty lines.
 
-## 6. Two processes talking
+## 7. Two processes talking
 
 The counter has main talking to it. Let's look at two processes talking to each other.
 
@@ -462,21 +531,21 @@ fn main() -> () with () = {
 
 Same building blocks as the counter, but arranged for two processes.
 
-### 6.1 The message type
+### 7.1 The message type
 
 `PongMsg` has two constructors:
 
 - `Ping(n : Int, reply : Reply(Int))` — "ping me with this number and answer with an int."
 - `Stop` — "please shut down."
 
-### 6.2 The pong process
+### 7.2 The pong process
 
 `pong` is the receiver. Its mailbox type is `PongMsg`. Its `recv` has two arms:
 
 - On `Ping`, print `"pong <n>"`, answer the reply with `n`, then loop.
 - On `Stop`, return (which ends the process — its function has finished).
 
-### 6.3 The ping process
+### 7.3 The ping process
 
 `ping` is the sender. Its parameters are the pong process's address and a countdown `n`.
 
@@ -489,7 +558,7 @@ If `n` is `0`, send `Stop` and finish. Otherwise:
 
 Notice `ping`'s return type: `-> () with m`. That `m` is lowercase — a type variable — meaning ping's mailbox type is *polymorphic*, unconstrained. Ping never `recv`s on its own mailbox. It only sends and uses `Address.call`. So the type checker leaves the mailbox slot free.
 
-### 6.4 Main starts them
+### 7.4 Main starts them
 
 ```
 let pongAddr = spawn(Local, fn() = pong());
@@ -506,7 +575,7 @@ let _ = spawn(Local, fn() = ping(pongAddr, 3));
 
 Output: alternating "ping 3", "pong 3", "ping 2", "pong 2", "ping 1", "pong 1".
 
-## 7. Watching another process
+## 8. Watching another process
 
 When you spawn a child process, it runs concurrently with the parent. Sometimes the parent needs to know when the child stops — did it finish, did it crash, was it killed. Ernest's tool for this is `monitor`.
 
@@ -548,7 +617,7 @@ fn parent() -> () with ParentMsg = {
 
 `monitor(child, Died)` says: "when the child dies, wrap a `Down` in `Died(_)` and put it in my mailbox." `Died` is a constructor from the parent's own message type, which is why `Died(Down)` is one of `ParentMsg`'s cases. The runtime turns the child's death into a message *you* defined.
 
-### 7.1 `kill`
+### 8.1 `kill`
 
 ```
 kill : (Address(a)) -> () with m
@@ -558,53 +627,81 @@ kill : (Address(a)) -> () with m
 
 The REPL paper program combines `monitor` and `kill` in a supervised-child pattern: the parent spawns a child to evaluate an expression, monitors it, and either receives `Result(...)` or, after a timeout, calls `kill(child)` and gives up. Watching plus killing plus `after` is enough to build a "run this, but abort if it takes too long" primitive without any special language support.
 
-### 7.2 No cascades
+### 8.2 No cascades
 
 A fault in one process doesn't automatically bring down others. There are no links, no supervision trees baked into the language. Every process decides for itself what to do when a watched one dies. Ernest chose the explicit shape so death handling is visible in the code, not implicit in the setup.
 
-## 8. Adapting messages with `via`
+## 9. Adapting messages with `via`
 
-The processes in §6 could send messages of exactly each other's mailbox types because both agreed on the shape. But sometimes another process needs to notify you when its message type isn't yours — a clock ticking, a filesystem returning a result, a subprocess reporting done. Ernest's tool for adapting message shapes at the boundary is `via`.
+Here's a concrete puzzle. Suppose your process's mailbox speaks `GameMsg`, and you want the runtime's clock to nudge you every 100 milliseconds so that a `Tick` shows up in your `recv`. How do you set that up?
 
-```
-via : ((a) -> b, Address(b)) -> Address(a)
-```
-
-Given a function `f : (a) -> b` and a target address `Address(b)`, `via(f, addr)` returns an address that accepts `a`. Sending `v` to `via(f, addr)` is the same as sending `f(v)` to `addr`. Read in the direction of the flow: I have a mailbox that speaks `b`; I hand out a wrapped address that others can send `a` to; the wrapper applies `f` and drops the result into my `b`-shaped mailbox.
-
-### 8.1 A clock example
-
-The runtime's clock at `Sys.clock` accepts a `ClockMsg`:
+Look at the clock's request shape:
 
 ```
 After(ms : Int, to : Address(()))
 ```
 
-`After(ms, to)` says "in `ms` milliseconds, send `()` to `to`." But my process's mailbox might be `GameMsg = Tick | In(Input)`, not `()`. `via` bridges the gap:
+"After `ms` milliseconds, send `()` to `to`." The clock will send `()` — the unit value — to whatever address you hand it. But your mailbox holds `GameMsg`, not `()`. There's a shape mismatch, and neither side wants to change: the clock sends what it sends, your mailbox is what it is.
+
+You could work around this by spawning a whole extra process that receives `()` from the clock and forwards `Tick` to you. That works, but it's a lot of ceremony to translate one shape into another. Ernest has a much smaller tool for this: `via`.
+
+### 9.1 What `via` does
+
+`via` builds a *wrapper address*. You give it:
+
+- a target address (some `Address(b)` — where the message should eventually land), and
+- a converter function `(a) -> b` (how to translate the incoming shape into the target shape).
+
+It returns a wrapper of type `Address(a)`. When anyone sends a value `v : a` to the wrapper, the runtime applies the converter and the result — an `a` turned into a `b` — lands in the target mailbox.
+
+```
+via : ((a) -> b, Address(b)) -> Address(a)
+```
+
+Two type variables: `a` is the shape the wrapper accepts from the outside; `b` is the shape the mailbox holds on the inside. `via` sits between them and translates.
+
+### 9.2 The clock example, step by step
+
+Applied to the clock problem:
 
 ```
 send(Sys.clock, After(ms = 100, to = via(fn(_) = Tick, self())))
 ```
 
-- `self()` — my address; my mailbox speaks `GameMsg`.
-- `via(fn(_) = Tick, self())` — an address that, when sent anything, wraps it as `Tick` and forwards to my mailbox.
-- The clock will eventually send `()` to that wrapper; the wrapper turns it into `Tick`; my mailbox receives `Tick`.
+Read that from the inside out:
 
-### 8.2 A reply example
+- `self()` is your process's own address. Its type is `Address(GameMsg)` because your mailbox speaks `GameMsg`.
+- `fn(_) = Tick` is a lambda: takes any input, ignores it (`_`), returns `Tick`. Its type is `(a) -> GameMsg` for some `a`.
+- `via(fn(_) = Tick, self())` builds the wrapper. Its type is `Address(())` — an address that accepts `()`. Under the hood, when something sends `()` to it, the wrapper calls `fn(_) = Tick`, and `Tick` lands in your `GameMsg` mailbox.
+- The outer `After(ms = 100, to = ...)` hands that wrapper to the clock as the notification target.
 
-The filesystem process from the `filesync` paper program takes a `reply` field on its request. `fs` speaks `Either(FsError, List(Entry))`, but the caller wants to receive `Listed(...)` in its own `SyncMsg` mailbox:
+100 milliseconds later, the clock sends `()` to the wrapper. The wrapper turns it into `Tick`. Your mailbox receives `Tick`, and your `recv` arm matching on `Tick` fires.
+
+The clock never learned about `Tick`. Your process never had to accept `()`. `via` sat between them, translating each message as it passed.
+
+### 9.3 A reply example
+
+The pattern comes back whenever a service replies into a mailbox that speaks a different shape. The filesystem process in the `filesync` paper program takes a `reply` field:
+
+```
+List(path : Path, reply : Address(Either(FsError, List(Entry))))
+```
+
+`fs` sends the reply as an `Either(FsError, List(Entry))`. Your process's mailbox is `SyncMsg`, one of whose cases is `Listed(Either(FsError, List(Entry)))`. You want the reply wrapped as `Listed(...)` so it lands in your normal `recv`:
 
 ```
 send(Sys.fs, List(path = dir, reply = via(Listed, self())))
 ```
 
-Same idea. `fs` will send an `Either(...)` to the wrapper; the wrapper applies the constructor `Listed`; the caller receives `Listed(Left(...))` or `Listed(Right(...))` in its own mailbox.
+Here `Listed` is being used as a function — a constructor with one payload is itself a one-argument function from the payload type to the constructed value. `via(Listed, self())` builds a wrapper the fs can reply to; the wrapper applies `Listed`; the result lands in your mailbox.
 
-### 8.3 The pattern
+### 9.4 `monitor`'s `wrap` is a specific `via`
 
-`monitor`'s second argument, `(Down) -> m`, is the same shape as `via`'s converter — a wrapping function that turns an incoming value into your mailbox type. `via` is the general form; `monitor`'s `wrap` is a specific instance baked into the API. Whenever another process needs to speak to you but you want a specific shape in your mailbox, this is the pattern: `via` when the incoming type isn't fixed, an API-supplied wrap when it is.
+`monitor(child, wrap)` from §8 has a second argument of type `(Down) -> m`. That's the same shape as `via`'s converter — a function that turns an incoming value into your mailbox type. `monitor` is essentially `via` baked into an API that knows the incoming value is always a `Down`.
 
-## 9. Chaining with `<-`
+`via` is the general form. Any time another process is going to speak in a shape that isn't your mailbox type — the clock, the fs, a reply from a foreign service — this is the primitive that closes the gap without a translator process in the middle.
+
+## 10. Chaining with `<-`
 
 Consider a function that parses two numbers from text and adds them. Each parse can fail; failure returns `None`.
 
@@ -655,7 +752,7 @@ The compiler picks Optional or Either from the right-hand side's type. You don't
 
 `<-` isn't a general escape or exception. It is specifically for `Optional` and `Either`, the two prelude types where "no value" or "error" is an expected branch that should propagate without ceremony. Anything else you handle with `match`.
 
-## 10. Remote computation
+## 11. Remote computation
 
 So far every function has run in the process that called it. When you have peers — other machines running Ernest — you can hand off a pure computation to run on one of them.
 
@@ -681,7 +778,7 @@ Two things to notice:
 
 Peers are configured in `ernest.conf` at start-up. Which peer runs which computation, and by what criterion, the language does not say — that is the runtime's choice.
 
-### 10.1 Parallel remote
+### 11.1 Parallel remote
 
 For a batch of independent computations:
 
@@ -704,7 +801,7 @@ fn main() -> () with () = {
 
 Also pure. Each input succeeds or fails on its own, so one peer's loss doesn't take the whole batch with it.
 
-### 10.2 A different distribution: `spawn(Peer(name), ...)`
+### 11.2 A different distribution: `spawn(Peer(name), ...)`
 
 If you want a stateful *process* running on a specific peer rather than a pure computation on any peer, that is the other form of `spawn`:
 
@@ -714,7 +811,73 @@ spawn(Peer("worker-a"), fn() = counter(0))
 
 Returns an `Address` you can `send` messages to, exactly like a local process. Two ways to reach across nodes, then: `remote`/`parallelRemote` for pure computation the runtime places, and `spawn(Peer(name), ...)` for a process at a named location. They serve different purposes and the language keeps them distinct.
 
-## 11. Common questions
+## 12. Foreign types and functions
+
+Ernest runs on BEAM, the Erlang runtime. Sometimes you want to call code that lives in Erlang directly — an ETS table, a crypto library, a filesystem call. `foreign type` and `foreign fn` are the boundary.
+
+**`foreign type T`** declares a type whose values are made and used only by foreign functions. There are no constructors and no way to inspect a value; you can hold it, pass it, and send it, but not look inside.
+
+```
+foreign type Ets.Table(k, v)
+```
+
+**`foreign fn`** declares a function whose implementation is in the runtime, not in Ernest source. The body is a text reference to the implementation:
+
+```
+foreign fn Ets.member(t : Ets.Table(k, v), key : k) -> Bool with m = "ets:member/2"
+```
+
+The type is annotated in full — parameters, return, mailbox effect if any. A pure `foreign fn` (no `with M`) promises that the same arguments give the same result and nothing observable happens; if it lies, the runtime turns the surprise into a `Fault`. A `foreign fn` with `with M` may do anything a normal process function can do.
+
+Ernest treats the boundary strictly. The foreign side must produce values of the declared shape. Anything else — a wrong type, a thrown exception, a message with an unexpected payload — becomes a `Fault`, not a silent misinterpretation.
+
+**Foreign values are node-local.** Sending a foreign value across a node boundary is a fault at the boundary, with cause `Fault("foreign value cannot cross nodes")`. That includes a closure that captures a foreign value being sent via `spawn(Peer(...), f)` or via `send` to a remote address. The type system doesn't track "node-local" as a distinct kind; the runtime enforces it when it matters.
+
+The `webserver` paper program shows the pattern: `Ets.ern` is a thin Ernest library over Erlang's `ets` module. The raw `foreign fn` bindings are unqualified (file-local); the exported `Ets.*` functions are ordinary Ernest code that composes them into a small, typed API.
+
+## 13. Toolchain and configuration
+
+Two commands.
+
+**`ernc file.ern`** compiles one module to `file.erc`. Compilation is per-module; cross-module names resolve at load time.
+
+**`ern [options] file.erc`** loads the compiled module, starts the runtime, binds addresses to the `Sys.*` ambient references (§1), and calls `main()`. When `main` returns, all processes are killed with cause `ProgramEnd` and the node stops.
+
+Common `ern` options:
+
+- `-pa dir` — add a directory to the load path. The standard library is on the load path by default; use `-pa` to add your own compiled modules.
+- `--config-dir dir` — where to look for `ernest.conf` and the node's private key. Defaults to `./.ernest/`.
+- `--repl` — start a read-eval-print loop with the same loading rules.
+- `--create-config-dir dir` — create `dir/.ernest/` with a freshly generated `ernest.conf` and private key, and exit.
+
+`ernc --doc file.ern` extracts doc comments (`///`, §16) from the module and writes them to stdout as Markdown, grouped by declaration.
+
+### 13.1 `ernest.conf`
+
+Peers, network addresses, and cryptographic identity are configured outside the language, in `ernest.conf`. It's a JSON file created by `ern --create-config-dir` and then edited by hand:
+
+```json
+{
+  "network-address": "145.32.64.6:8654",
+  "public-key": "<PEM public key>",
+  "peers": [
+    {
+      "name": "foo",
+      "network-address": "145.32.64.7:8654",
+      "public-key": "<PEM public key>",
+      "remote-peer": true
+    }
+  ]
+}
+```
+
+- `network-address` and `public-key` — this node's identity. Peers authenticate each other with the configured keys.
+- `peers` — the list of known peers. Each has a name (referenced by `Peer("foo")` in `spawn`, see §11.2), a network address, a public key, and a `remote-peer` flag.
+- `remote-peer: true` — the peer accepts remote computation. `remote(f)` picks among peers flagged true.
+
+The private key lives beside `ernest.conf` in the same directory, `private-key.pem`, readable only by the owner.
+
+## 14. Common questions
 
 Some things that trip readers up on first pass.
 
@@ -738,7 +901,7 @@ Every top-level declaration's *qualified name* is where it lives. A **module** i
 
 So you never have to guess. Look at any function type: `(A) -> B` is pure — no messages, no side effects. `(A) -> B with M` is process code — it uses `send`, `recv`, or `self`. Every function's type tells you at a glance whether it can affect the world; you never have to look inside.
 
-## 12. Reference: the roles of parens
+## 15. Reference: the roles of parens
 
 By now you have seen `(...)` in many places. Once you have read a few programs, this feels natural. But here it is as a lookup table:
 
@@ -761,7 +924,7 @@ Plus tuples: `(A, B)` as a type, `(1, "hi")` as a value, `(x, y)` as a pattern.
 
 This is a lot, but you rarely have to consciously disambiguate. The context tells you.
 
-## 13. Syntactic quirks, once
+## 16. Syntactic quirks, once
 
 A short reference of syntactic patterns that don't come from other languages, or that could surprise a reader coming from most languages.
 
@@ -814,12 +977,12 @@ Player(..p, alive = false, score = 0)       // multiple field changes at once
 
 **Doc comments start with `///`.** Three slashes to end of line; the toolchain (`ernc --doc`) extracts them to Markdown grouped by declaration.
 
-## 14. Reading further
+## 17. Reading further
 
 Once "hello world," the counter, and ping-pong feel readable, the language's four paper programs are the next step. They're in the same repository:
 
 - **`ernest-tick-game.md`** — a snake game with tick-based updates. Introduces named-field records with `..` update syntax, folds over `Map`, one process per player.
-- **`ernest-repl.md`** — a small read-eval-print loop. Uses `<-` heavily (see §9 above) and combines `monitor` and `kill` (see §7) into a `try` process that aborts a slow evaluation.
+- **`ernest-repl.md`** — a small read-eval-print loop. Uses `<-` heavily (see §10) and combines `monitor` and `kill` (see §8) into a `try` process that aborts a slow evaluation.
 - **`ernest-filesync.md`** — file synchronization between two nodes. Introduces mutual-address setup via a `Link` message, ambient runtime references beyond `Sys.stdout` (a filesystem process at `Sys.fs`), one process per write.
 - **`ernest-webserver.md`** — HTTP server with sessions in an ETS table. Introduces `foreign fn` for foreign function calls, opaque types with signatures.
 
@@ -831,7 +994,7 @@ For "why is Ernest the way it is," `ernest-decisions.md` records dated design de
 
 For "how the compiler works," `ernest-implementation-plan.md` sketches the MVP 1 roadmap: about eight weeks of one-person work, with a hand-written parser.
 
-## 15. The five principles, once
+## 18. The five principles, once
 
 Ernest is built on five principles, in order. They're in the report's Section 0. Almost every design decision comes back to one or two of them.
 
