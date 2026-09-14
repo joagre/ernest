@@ -384,6 +384,28 @@ Same operation as `Address.call` without the timeout: the caller waits as long a
 
 **Growth-rule note.** No paper program has needed this yet. Added on consistency-with-`recv`-and-`remote` grounds, not on three-uses. If a paper program written after this decision doesn't reach for it, revisit.
 
+## Against OTP as a Language Feature, 2026-09-14
+
+Ernest does not adopt OTP's behaviours — `gen_server`, `gen_statem`, `supervisor`, `application` — as first-class language constructs. Supervision, request-reply servers, state machines, and restart strategies are ordinary Ernest programs written over the language primitives: `spawn`, `monitor`, `kill`, `Reply(a)`, `recv after`, and message types.
+
+**Why.**
+
+- **Small language.** OTP is a large surface with strong opinions accreted over three decades. Absorbing it into the report would double its length and force the language to have a view on restart policies, state-machine shapes, application boot order, and code loading — none of which Ernest wants to prescribe.
+- **The primitives already reach.** Twenty lines of Ernest build a one-child supervisor with a timeout; forty lines build a three-child restart-on-fault. The `REPL` paper program shows the pattern with `monitor(child, Died) ... after 2000 -> { kill(child); Left(Timeout) }`. Composition of primitives, not new machinery.
+- **Typed where OTP is not.** Ernest's supervision is written in code whose types the compiler checks — the parent's mailbox statically knows it receives `Died(Down)`, and `Reply(a)` linearity catches receivers that forget to answer. OTP's gen_server contract is convention checked by tests, not by types.
+- **No canonical restart policy is one policy too many.** OTP encodes "one for one, one for all, rest for one" as options; Ernest treats these as expressible in ordinary code and lets programs choose their own shape where it fits.
+
+**Cost, named honestly.**
+
+- No canonical supervisor. Programs by different authors will structure supervision differently. The three-uses rule will likely surface a `Supervisor.ern` in the stdlib once a few paper programs write the shape; that is fine, but it will not be baked into the language.
+- Adoption cost for experienced Erlang and Elixir developers. Familiar shapes must be re-expressed. The win — static guarantees OTP does not offer — is not obvious until the developer has written a few Ernest programs and felt the difference.
+- Erlang libraries that lean on OTP internals (Cowboy, Ranch, Broadway) are accessed through shims, per Appendix D's `foreign type` / `foreign fn` model, not through OTP compatibility. The shim boundary translates OTP conventions into typed Ernest interfaces. Thin shims like `Ets.ern` are cheap; thick shims for OTP-heavy libraries are more work.
+
+**What this is not.**
+
+- Not a claim that OTP is bad. OTP is the reason Erlang is used in production; its wisdom is real. Ernest's position is that the wisdom lives in patterns programmers can build, not in language mechanisms that constrain everyone. The pattern's shape is Ernest's, the wisdom is inherited.
+- Not a claim that Ernest replaces Erlang. On BEAM, Ernest and Erlang coexist. An Ernest program that needs an Erlang OTP library uses a shim; an Erlang program that needs an Ernest type calls it through the same runtime.
+
 ## Reasons Lifted Out of the Report
 
 - `recv` is Erlang's `receive`: selective receive lets a process wait for a specific reply in the middle of a protocol without losing other messages; without it every process becomes a state machine, gen_server turned inside out. `recv` therefore does not require coverage, unlike `match`: the two forms share their syntax but not their semantics, since a `match` that finds no arm is a fault and a `recv` that finds no arm leaves the message in the mailbox. Cost O(n) in the mailbox, and a growing mailbox is not visible in the code, the same cost as in Erlang; the backpressure decision above covers the same problem from the sender's side.
