@@ -399,7 +399,7 @@ Ernest does not adopt OTP's behaviours — `gen_server`, `gen_statem`, `supervis
 
 - No canonical supervisor. Programs by different authors will structure supervision differently. The three-uses rule will likely surface a `Supervisor.ern` in the stdlib once a few paper programs write the shape; that is fine, but it will not be baked into the language.
 - Adoption cost for experienced Erlang and Elixir developers. Familiar shapes must be re-expressed. The win — static guarantees OTP does not offer — is not obvious until the developer has written a few Ernest programs and felt the difference.
-- Erlang libraries that lean on OTP internals (Cowboy, Ranch, Broadway) are accessed through shims, per Appendix D's `foreign type` / `foreign fn` model, not through OTP compatibility. The shim boundary translates OTP conventions into typed Ernest interfaces. Thin shims like `Ets.ern` are cheap; thick shims for OTP-heavy libraries are more work.
+- The Ernest ecosystem provides shims for the libraries that ship with the Erlang/OTP distribution — `ets`, `crypto`, `base64`, `inets`, `filelib`, and similar — via the `foreign type` / `foreign fn` model of Appendix D. Third-party Erlang libraries (Cowboy, Ranch, Broadway) and the Elixir ecosystem are deliberately out of scope for the language project; a user who needs them writes their own shim, or a community writes one over time. The scope is narrow on purpose: the standard distribution is stable and small, third-party ecosystems are large and moving. Anyone can add a shim; the language project itself commits only to the standard-distribution shims.
 
 **What this is not.**
 
