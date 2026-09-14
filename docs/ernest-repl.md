@@ -4,7 +4,7 @@ Written against the Ernest report, September 2026. A read-evaluate-print loop fo
 
 ## Assumptions
 
-`Sys` is assumed to have `stdin : Address(StdinMsg)` with `ReadLine(reply : Address(Text))`: one line per request. `Text.chars`, `Char.isDigit`, `Char.isAlpha`, `Char.toText`, and `Text.toInt : (Text) -> Optional(Int)` are in the standard library (report Appendix E). `ParseError.toText : (ParseError) -> Text` and `EvalError.toText : (EvalError) -> Text` are hand-written renderings for stdout; both are `todo("on paper")` here.
+The runtime is assumed to provide `Sys.stdin : Address(StdinMsg)` as an additional ambient reference beyond the report's required `Sys.stdout`/`Sys.stderr`/`Sys.clock`, with `ReadLine(reply : Address(Text))`: one line per request. `Text.chars`, `Char.isDigit`, `Char.isAlpha`, `Char.toText`, and `Text.toInt : (Text) -> Optional(Int)` are in the standard library (report Appendix E). `ParseError.toText : (ParseError) -> Text` and `EvalError.toText : (EvalError) -> Text` are hand-written renderings for stdout; both are `todo("on paper")` here.
 
 ## The Program
 
@@ -147,21 +147,21 @@ type ReplMsg
     | Result(Either(EvalError, Value))
     | Died(Down)
 
-fn repl(stdin : Address(StdinMsg), out : Address(Text), env : Map(Text, Value)) -> () with ReplMsg = {
-    send(stdin, ReadLine(reply = via(Input, self())));
+fn repl(env : Map(Text, Value)) -> () with ReplMsg = {
+    send(Sys.stdin, ReadLine(reply = via(Input, self())));
     recv {
         Input(text) -> match tokenize(text) {
             Left(BadChar(c = c, at = i)) -> {
-                Io.println(out, "illegal character " ++ Char.toText(c) ++ " at " ++ Int.toText(i));
-                repl(stdin, out, env)
+                Io.println("illegal character " ++ Char.toText(c) ++ " at " ++ Int.toText(i));
+                repl(env)
             }
           | Right(toks) -> match parse(toks) {
-                Left(e) -> { Io.println(out, ParseError.toText(e)); repl(stdin, out, env) }
+                Left(e) -> { Io.println(ParseError.toText(e)); repl(env) }
               | Right(e) -> {
                     let v = try(env, e);
                     match (e, v) {
-                        (Let(name = x), Right(val)) -> { show(out, Right(val)); repl(stdin, out, Map.put(env, x, val)) }
-                      | (_, r)                          -> { show(out, r); repl(stdin, out, env) }
+                        (Let(name = x), Right(val)) -> { show(Right(val)); repl(Map.put(env, x, val)) }
+                      | (_, r)                          -> { show(r); repl(env) }
                     }
                 }
             }
@@ -182,7 +182,7 @@ fn try(env : Map(Text, Value), e : Expr) -> Either(TryError, Value) with ReplMsg
     }
 }
 
-fn show(out : Address(Text), r : Either(TryError, Value)) -> () with ReplMsg = Io.println(out, match r {
+fn show(r : Either(TryError, Value)) -> () with ReplMsg = Io.println(match r {
     Right(N(n))       -> Int.toText(n)
   | Right(Closure) -> "<fun>"
   | Left(Eval(e))     -> "error: " ++ EvalError.toText(e)
@@ -190,8 +190,8 @@ fn show(out : Address(Text), r : Either(TryError, Value)) -> () with ReplMsg = I
   | Left(Timeout)     -> "aborted after 2 s"
 })
 
-fn main(Sys(stdin = stdin, stdout = out) : Sys) -> () with () = {
-    let _ = spawn(Local, fn() = repl(stdin, out, Map.empty));
+fn main() -> () with () = {
+    let _ = spawn(Local, fn() = repl(Map.empty));
     ()
 }
 ```

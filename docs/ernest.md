@@ -8,15 +8,13 @@ Ernest is a functional language for concurrent programs. It has two concepts: fu
 
 Every function runs inside a process: an execution of a function, with a mailbox of its own that receives values of one type. A function either acts through its process, by sending, receiving, or asking who it is, or it does not. A function that does not is called pure: its result depends only on its arguments, and it affects nothing. A function that acts through its process names its mailbox in its type, `(A) -> B with M`; `M` is the function's mailbox type, and it is the only mark a function type carries. Sections 3 and 6 make this precise. The runtime is what runs Ernest programs; section 10 states what it must provide.
 
-The language is built on seven principles, in order. The reader comes first.
+The language is built on five principles, in order. The reader comes first.
 
 1. Least surprise decides, measured in code, not in the rule.
-2. No variants, unless what remains surprises more.
-3. Nothing invisible: control flow, communication, and failure are visible in the code or in the type.
-4. Orthogonal: concepts do not affect one another.
-5. Simple to parse: the grammar is LL(1), every construct is decided by its first token, and each bracket has one role.
-6. Few reserved words, but not too few.
-7. Small: concepts are counted, not primitives.
+2. One way, one job. No variants for the same thing, no two concepts that overlap in what they express, unless what remains surprises more.
+3. Nothing invisible. Control flow, communication, and failure are visible in the code or in the type. An ambient value is visible when its name appears at the use site; a hidden effect is not.
+4. Simple to parse: the grammar is LL(1), every construct is decided by its first token, and each bracket has one role.
+5. Small: few concepts, few primitives, few reserved words — but not too few.
 
 ## 1. Notation
 
@@ -263,13 +261,13 @@ The prelude is total: no built-in function faults. Partial operations return `Op
 
 ## 8. Programs
 
-**`main`.** A program is a set of source files with exactly one function `main : (Sys) -> () with m` for some `m`, unqualified, called by the runtime. Nothing sends to `main` that it has not given its address to; `m` is usually `()`.
+**`main`.** A program is a set of source files with exactly one function `main : () -> () with m` for some `m`, unqualified, called by the runtime. Nothing sends to `main` that it has not given its address to; `m` is usually `()`.
 
-**`Sys`.** The runtime starts with its system processes and hands their addresses to `main` in a value of type `Sys`, a constructor with named fields defined by the runtime. The language requires the fields `stdout : Address(Text)` and `clock : Address(ClockMsg)`, section 9. The `stdout` process writes each received `Text` to standard output as bytes; newlines are the sender's responsibility. A program that uses a field the runtime lacks is a type error. A function without a system address among its arguments and without foreign calls cannot affect anything outside its process.
+**System references.** The runtime starts with its system processes and exposes their addresses as ambient top-level values: `Sys.stdout : Address(Text)`, `Sys.stderr : Address(Text)`, and `Sys.clock : Address(ClockMsg)` are the ones the language requires, section 9; a specific runtime may provide more, and a paper program that needs `Sys.fs`, `Sys.stdin`, or `Sys.keys` names them in its assumptions. These are values, not functions — like `List`, `Map`, and `Set` they are in scope everywhere at the top level, referred to by their qualified name at the use site. To do IO a function sends to one, and `send` requires a mailbox effect on the caller (section 6), so pure code cannot affect anything outside its process even though it can name `Sys.stdout`. A reference to a `Sys.*` name the runtime does not provide is a name-resolution error at compile time. The `stdout` and `stderr` processes write each received `Text` to their stream as bytes; newlines are the sender's responsibility.
 
 **Peers.** Peers are configured outside the language, section 11; `Peer(name)` refers to them by the configured name, and nodes authenticate each other.
 
-**Foreign code.** The system processes are foreign processes: their message types are declared in Ernest, their implementations live outside the language, and the runtime starts them and places their addresses in `Sys`. Other foreign code enters through `foreign fn` and `foreign type`, section 4. Both boundaries carry the same promise: the foreign side delivers the declared types, and a breach is a fault.
+**Foreign code.** The system processes are foreign processes: their message types are declared in Ernest, their implementations live outside the language, and the runtime starts them and binds their addresses to the `Sys.*` ambient references. Other foreign code enters through `foreign fn` and `foreign type`, section 4. Both boundaries carry the same promise: the foreign side delivers the declared types, and a breach is a fault.
 
 **Program termination.** The program ends when `main` returns. Live processes then die with cause `ProgramEnd`; system processes release their resources. A program that is to keep running waits in `main`. If no process can run, all are waiting in `recv` without `after` and no messages are in flight, the runtime ends the program with the error `Deadlock`. A pending `after` or clock counts as a message in flight.
 
@@ -324,6 +322,14 @@ Char.compare     : (Char, Char) -> Ordering
 todo             : (Text) -> a                     // section 7: faults if reached
 ```
 
+System references (runtime-provided, section 8):
+
+```
+Sys.stdout       : Address(Text)                   // the stdout process
+Sys.stderr       : Address(Text)                   // the stderr process
+Sys.clock        : Address(ClockMsg)               // the clock process
+```
+
 ## 10. Runtime Requirements
 
 - Tail calls take constant stack space. The last expression of a block, a `match` arm, and a `recv` arm is in tail position.
@@ -341,7 +347,7 @@ todo             : (Text) -> a                     // section 7: faults if reach
 
 `ernc file.ern` compiles a source file to `file.erc`, a compiled file the runtime can load. A program is compiled file by file; cross-file names are resolved at load.
 
-`ern [--config-dir dir] [-pa dir ...] file.erc` loads the file and, on demand, the compiled files on the load path, found by namespace, `Net.Http.parse` in `Net/Http.erc`; starts the system processes, builds `Sys`, and calls `main`. The standard library, Appendix E, is on the load path by default; `-pa` extends it. `ern --repl` starts a read-evaluate-print loop with the same loading. `--config-dir` names the configuration directory, `./.ernest` by default.
+`ern [--config-dir dir] [-pa dir ...] file.erc` loads the file and, on demand, the compiled files on the load path, found by namespace, `Net.Http.parse` in `Net/Http.erc`; starts the system processes, binds their addresses to the `Sys.*` ambient references, and calls `main`. The standard library, Appendix E, is on the load path by default; `-pa` extends it. `ern --repl` starts a read-evaluate-print loop with the same loading. `--config-dir` names the configuration directory, `./.ernest` by default.
 
 `ern --create-config-dir dir` creates `dir/.ernest/` containing `ernest.conf` and this node's private key, readable only by its owner, and does nothing else; it fails if the directory exists. `ernest.conf` holds this node's network address and public key, and the list of peers: for each, a name, a network address, a public key, and whether it accepts remote computation. Appendix C shows one. The names are the ones `Peer(name)` refers to.
 
@@ -423,13 +429,13 @@ fn counter(n : Int) -> () with CounterMsg = recv {
   | Upgrade(migrate = m, next = k) -> k(m(n))
 }
 
-fn main(Sys(stdout = out) : Sys) -> () with () = {
+fn main() -> () with () = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
-        Some(n) -> Io.println(out, "count is " ++ Int.toText(n))
-      | None    -> Io.println(out, "counter is not answering")
+        Some(n) -> Io.println("count is " ++ Int.toText(n))
+      | None    -> Io.println("counter is not answering")
     }
 }
 ```
@@ -437,28 +443,28 @@ fn main(Sys(stdout = out) : Sys) -> () with () = {
 ```
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 
-fn pong(out : Address(Text)) -> () with PongMsg = recv {
+fn pong() -> () with PongMsg = recv {
     Ping(n = n, reply = r) -> {
-        Io.println(out, "pong " ++ Int.toText(n));
+        Io.println("pong " ++ Int.toText(n));
         answer(r, n);
-        pong(out)
+        pong()
     }
   | Stop -> ()
 }
 
-fn ping(out : Address(Text), pongAddr : Address(PongMsg), n : Int) -> () with m =
+fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
     if n == 0 then send(pongAddr, Stop)
     else {
-        Io.println(out, "ping " ++ Int.toText(n));
+        Io.println("ping " ++ Int.toText(n));
         match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
-            Some(_) -> ping(out, pongAddr, n - 1)
-          | None    -> { Io.println(out, "pong is not answering"); send(pongAddr, Stop) }
+            Some(_) -> ping(pongAddr, n - 1)
+          | None    -> { Io.println("pong is not answering"); send(pongAddr, Stop) }
         }
     }
 
-fn main(Sys(stdout = out) : Sys) -> () with () = {
-    let pongAddr = spawn(Local, fn() = pong(out));
-    let _ = spawn(Local, fn() = ping(out, pongAddr, 3));
+fn main() -> () with () = {
+    let pongAddr = spawn(Local, fn() = pong());
+    let _ = spawn(Local, fn() = ping(pongAddr, 3));
     ()
 }
 ```
@@ -552,13 +558,13 @@ fn Ets.clear(t : Ets.Table(k, v)) -> () with m = { let _ = rawClear(t); () }
 ```
 
 ```
-fn main(Sys(stdout = out) : Sys) -> () with () = {
+fn main() -> () with () = {
     let t = Ets.new();
     Ets.insert(t, "a", 1);
     Ets.insert(t, "b", 2);
     match Ets.lookup(t, "a") {
-        Some(n) -> Io.println(out, Int.toText(n))
-      | None    -> Io.println(out, "missing")
+        Some(n) -> Io.println(Int.toText(n))
+      | None    -> Io.println("missing")
     };
     Ets.drop(t)
 }
@@ -572,12 +578,16 @@ Informative, not normative: this appendix lists the modules that ship with the c
 
 ### Appendix E.1. `Io.ern`
 
-Output helpers over `Address(Text)`.
+Output helpers. The ambient forms send to `Sys.stdout` and `Sys.stderr` (section 8); the `*To` forms take an explicit `Address(Text)`, useful for logging to a mailbox that is not stdout.
 
 ```
-Io.print    : (Address(Text), Text) -> () with m
-Io.println  : (Address(Text), Text) -> () with m       // appends "\n"
-Io.eprintln : (Address(Text), Text) -> () with m       // appends "\n"; for stderr
+Io.print      : (Text) -> () with m                    // to Sys.stdout
+Io.println    : (Text) -> () with m                    // to Sys.stdout, appends "\n"
+Io.eprint     : (Text) -> () with m                    // to Sys.stderr
+Io.eprintln   : (Text) -> () with m                    // to Sys.stderr, appends "\n"
+
+Io.printTo    : (Address(Text), Text) -> () with m
+Io.printlnTo  : (Address(Text), Text) -> () with m     // appends "\n"
 ```
 
 ### Appendix E.2. `List.ern`

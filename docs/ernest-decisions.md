@@ -278,7 +278,7 @@ Taken: the load path for MVP 1 and MVP 2, content addressing for MVP 3 and beyon
 
 Ernest is now organized in three layers, made explicit after the discussion prompted by `send(out, Line("hello"))` reading as heavy for a simple print.
 
-**Language.** What `ernest.md` defines: syntax, types, processes, evaluation rules, the seven principles. This is the small, hard part. It doesn't change with new libraries.
+**Language.** What `ernest.md` defines: syntax, types, processes, evaluation rules, the five principles. This is the small, hard part. It doesn't change with new libraries.
 
 **Prelude.** What the language requires to exist because the report references it. Section 9 lists these: `Optional`, `Either`, `Ordering`, `Down`, `Reason`, `ClockMsg`, `RemoteError`, `Foreign`; the built-in parameterized types `List`, `Map`, `Set` (plus `Address`, `Reply`, `Never` covered in section 3); the process operations `via`, `Address.call`, `answer`, `remote`, `monitor`, `kill`; and the specific operations the report calls out — `Int.div`, `Int.mod`, the four `compare` functions, `todo`. Nothing else.
 
@@ -289,6 +289,35 @@ The prelude had grown to include roughly forty convenience functions on the buil
 `Line` is dropped. The `Line` wrapper type stopped earning its keep once `Io.println` in the standard library became the idiomatic way to print. `stdout : Address(Text)` is smaller and reads better: `send(out, "hello\n")` beats `send(out, Line("hello"))`. The runtime writes each `Text` to standard output as bytes, and newlines are the sender's responsibility. If we ever want to distinguish output classes (log levels, colors), we introduce a message type at that point, when the paper programs demand it.
 
 Growth rule for the standard library: same as the deferrals in Later. When a paper program writes the same pattern three times, promote it to a stdlib module. Do not speculatively add.
+
+## Ambient Sys, Five Principles, 2026-09-14
+
+`Sys` is no longer a value threaded through the program. The runtime's system processes are exposed as top-level ambient references: `Sys.stdout : Address(Text)`, `Sys.stderr : Address(Text)`, `Sys.clock : Address(ClockMsg)` in the report's prelude; paper-program runtimes may add `Sys.fs`, `Sys.stdin`, `Sys.keys`, and the like. `main` takes no arguments: `fn main() -> () with ()`. The `Sys` type declaration is gone.
+
+**Why.** Threading `sys : Sys` (or `out : Address(Text)`) through every function that prints was ugly. The counter, ping-pong, filesync, tick-game, and REPL each carried the same parameter chain to no end. The rule that forced it — "nothing invisible" read as "no ambient values" — was the wrong reading. Ernest already has `self()`, which returns per-process state without being passed; nobody calls it invisible because it has a name at the use site. `Sys.stdout` is a sibling: an ambient value with a name at the use site. What "nothing invisible" actually rules out is *hidden effects* — a call like `println("x")` that names no address. Ambient by name is fine.
+
+The purity boundary that used to be defended by the threading is defended by the mailbox effect on `send`. Pure functions have no mailbox slot; they cannot call `send` regardless of whether they can name `Sys.stdout`. Naming an address is not sending to it.
+
+**Cost.** Testing loses the trivial `main(testSys)` swap. A test that wants to capture stdout has to run the program with a runtime that provides a captured stdout process — configuration replaces injection. Acceptable now; if this hurts three paper programs from now, revisit with a per-process ambient rather than a node-wide constant.
+
+**Refinement of principle 3.** "Nothing invisible" is now stated as: control flow, communication, and failure are visible in the code or in the type; an ambient value is visible when its name appears at the use site; a hidden effect is not. This is what the principle should have said from the start — the earlier wording read as banning ambience, which contradicted `self`.
+
+**Consolidation of principles: seven to five.** The seven had drift:
+
+- "No variants" and "orthogonal" both said "one way to do a thing." Merged into principle 2: *one way, one job*.
+- "Few reserved words" and "small" both said "small." Merged into principle 5: *small* — concepts, primitives, reserved words.
+
+Result:
+
+1. Least surprise decides, measured in code, not in the rule.
+2. One way, one job. No variants for the same thing, no two concepts that overlap in what they express, unless what remains surprises more.
+3. Nothing invisible. Control flow, communication, and failure are visible in the code or in the type. An ambient value is visible when its name appears at the use site; a hidden effect is not.
+4. Simple to parse: the grammar is LL(1), every construct is decided by its first token, and each bracket has one role.
+5. Small: few concepts, few primitives, few reserved words — but not too few.
+
+**Io.ern surface.** The stdlib pairs ambient forms with explicit-address forms. `Io.print`, `Io.println`, `Io.eprint`, `Io.eprintln` take just `Text` and send to `Sys.stdout` or `Sys.stderr`; `Io.printTo` and `Io.printlnTo` take `(Address(Text), Text)` for a specific sink (a logger, a capture buffer). Both are useful and neither is a variant of the other — the argument list distinguishes them, the same way `print` and `fprint` differ in C.
+
+**What did not change.** `self()` is still `self()`, a nullary function with parens; it can't become a value because it depends on the current process. `Sys.stdout` is a value because it's node-wide, not per-process. If we ever need per-process ambient stdout (test isolation), we'll pay for it then, likely by giving `Sys.stdout` a call form or by extending `spawn` to accept a per-child ambient override.
 
 ## Reasons Lifted Out of the Report
 

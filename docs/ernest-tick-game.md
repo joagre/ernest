@@ -4,13 +4,13 @@ Written against the Ernest report, September 2026. A multiplayer snake game in t
 
 ## Assumptions
 
-`Sys` in the report requires `stdout` and `clock`; keys are the runtime's addition. Assumed:
+The report requires `Sys.stdout`, `Sys.stderr`, and `Sys.clock` (§8); keys are the runtime's addition. Assumed:
 
 ```
 type KeyMsg = Subscribe(Address(Key))
 type Key    = Up | Down | Left | Right | Quit
 
-keys : Address(KeyMsg)         // field in the runtime's Sys
+Sys.keys : Address(KeyMsg)     // additional runtime reference
 ```
 
 `type Seed = Seed(Int)` and `Random.next : (Seed) -> (Int, Seed)` are assumed available (a stdlib `Random` module), a pure generator.
@@ -108,13 +108,13 @@ fn render(world : World) -> Text = todo("grid to text, one line per y")
 
 type GameMsg = Tick | In(Input)
 
-fn game(out : Address(Text), clock : Address(ClockMsg), world : World) -> () with GameMsg = {
-    send(clock, After(ms = 100, to = via(fn(_) = Tick, self())));
+fn game(world : World) -> () with GameMsg = {
+    send(Sys.clock, After(ms = 100, to = via(fn(_) = Tick, self())));
     recv {
         Tick -> {
             let world2 = step(drain(world, 64));
-            Io.print(out, render(world2));
-            game(out, clock, world2)
+            Io.print(render(world2));
+            game(world2)
         }
     }
 }
@@ -137,10 +137,10 @@ fn player(id : Int, game : Address(GameMsg)) -> () with Key = recv {
   | Quit  -> send(game, In(Leave(id)))
 }
 
-fn main(Sys(stdout = out, clock = clock, keys = keys) : Sys) -> () with () = {
+fn main() -> () with () = {
     let world0 = World(w = 40, h = 20, players = Map.empty, apples = [], seed = Seed(42), tick = 0);
-    let g = spawn(Local, fn() = game(out, clock, addPlayer(world0, 1)));
+    let g = spawn(Local, fn() = game(addPlayer(world0, 1)));
     let p1 = spawn(Local, fn() = player(1, g));
-    send(keys, Subscribe(p1))
+    send(Sys.keys, Subscribe(p1))
 }
 ```

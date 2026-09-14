@@ -18,8 +18,8 @@ Take a moment on that. "Functions" you probably know. "Processes" means small in
 Here is a complete Ernest program. Let's not try to understand it all at once.
 
 ```
-fn main(Sys(stdout = out) : Sys) -> () with () = {
-    send(out, "hello, world\n")
+fn main() -> () with () = {
+    send(Sys.stdout, "hello, world\n")
 }
 ```
 
@@ -29,21 +29,9 @@ When Ernest runs this, it prints `hello, world` followed by a newline to standar
 
 `fn` starts a function definition. `main` is its name. `main` is special: it is the function Ernest calls when the program starts.
 
-### The parameter
+### No parameters
 
-Inside the parens comes `main`'s one parameter:
-
-```
-Sys(stdout = out) : Sys
-```
-
-The parameter's type is `Sys`. That's the type the runtime hands to `main` when the program starts.
-
-But we're not just naming the parameter (like `sys : Sys`). We're using a *pattern*: `Sys(stdout = out)`. This pattern says "this is a `Sys`, and I want to reach into it and pull out its `stdout` field, calling the result `out`."
-
-What is `Sys`? A type the runtime supplies. It carries the "system processes" available to a program — things like `stdout` (which prints), `clock`, and possibly others depending on the runtime. Instead of scattering them as global variables, they arrive together in one `Sys` value, and the program picks out what it needs.
-
-After this parameter is parsed, `main`'s body has one local variable in scope: `out`, the address of the stdout process.
+Inside the parens: nothing. `main` takes no arguments. Everything the program needs from the outside world — a way to print, a clock, and a few other things depending on the runtime — is already in scope as an ambient reference. More on that in a moment.
 
 ### The return annotation
 
@@ -67,29 +55,31 @@ Read the whole arrow like this: "returns nothing meaningful, running in a proces
 
 ```
 = {
-    send(out, "hello, world\n")
+    send(Sys.stdout, "hello, world\n")
 }
 ```
 
 The `=` marks the start of the body. What follows is a block — braces around a sequence of statements. This block has just one statement.
 
-The statement is `send(out, "hello, world\n")`. Let's take it apart.
+The statement is `send(Sys.stdout, "hello, world\n")`. Let's take it apart.
 
 `send` is a built-in function. It takes two arguments: an address, and a message to put in that address's mailbox. It returns immediately — `send` is fire-and-forget.
 
-`out` is the address of the stdout process. We got it from the parameter pattern.
+`Sys.stdout` is the address of the stdout process. Ernest's runtime provides it as an *ambient reference* — a top-level name that is in scope everywhere in your program, alongside `Sys.stderr` (standard error) and `Sys.clock` (the timer). You don't have to receive it as a parameter; you just refer to it by name.
 
 `"hello, world\n"` is the message. It is just a `Text` value ending in a newline. The stdout process writes each `Text` it receives to standard output as bytes; newlines are the sender's job. `\n` inside a text literal is a newline escape.
 
-If typing `\n` at the end of every message is tedious, the standard library provides `Io.println` (Appendix E of the report), which is just `send` with the newline appended for you. We'll use `send` directly here to see what actually happens.
+If typing `\n` at the end of every message is tedious, the standard library provides `Io.println` (Appendix E of the report). `Io.println("hello, world")` is just `send(Sys.stdout, "hello, world" ++ "\n")` — the same thing, less bookkeeping. We'll use `send` directly here to see what actually happens.
 
 ### The big idea
 
-The most important thing to notice: **`out` is an address, not a stream.**
+The most important thing to notice: **`Sys.stdout` is an address, not a stream.**
 
 You do not "print" or "write." You send a message to a process. That process — running concurrently, elsewhere — receives the message and does the actual writing.
 
 This is what "processes are the only way to affect the world" means. There is no hidden syscall inside Ernest. If you want to touch anything outside your own function, you send a message to a process that touches it for you.
+
+Ernest exposes the system processes as ambient names so you don't have to thread them through every function that needs to print — but they're still just addresses of processes. Sending to one requires a mailbox effect (`with M` on the enclosing arrow), so pure functions can name `Sys.stdout` but cannot actually send to it. The type system keeps IO out of pure code without asking you to thread anything.
 
 Take a breath. This idea is going to keep coming back. Everything else in Ernest builds on it.
 
@@ -219,14 +209,14 @@ A pure function's result depends only on its arguments. Nothing else. It doesn't
 Now compare with a function that uses the runtime:
 
 ```
-fn greet(out : Address(Text)) -> () with m = send(out, "hi\n")
+fn greet() -> () with m = send(Sys.stdout, "hi\n")
 ```
 
 Same shape as `double`, but with two differences: the return arrow has `with m`, and the body calls `send`.
 
 The `with m` at the end of the arrow marks: this function acts through the process it runs in. It doesn't just compute a value from its arguments; it produces observable effects (sending a message).
 
-The `m` is lowercase — a *type variable*, like `a` in `Optional(a)`. It means: this function's mailbox type isn't fixed to a specific value; it works with any mailbox. `greet` sends a message but doesn't care what messages the enclosing process itself receives.
+The `m` is lowercase — a *type variable*, like `a` in `Optional(a)`. It means: this function's mailbox type isn't fixed to a specific value; it works with any mailbox. `greet` sends a message but doesn't care what messages the enclosing process itself receives — the enclosing process is what will run this call and pay the mailbox cost.
 
 If a function receives messages (uses `recv`), its mailbox type is not free — it has to match the arm patterns. We'll see that soon.
 
@@ -333,18 +323,18 @@ We have the counter *function*. Now we need to *run* it in a process, and send i
 Here's `main` again, this time doing exactly that:
 
 ```
-fn main(Sys(stdout = out) : Sys) -> () with () = {
+fn main() -> () with () = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
-        Some(n) -> Io.println(out, "count is " ++ Int.toText(n))
-      | None    -> Io.println(out, "counter is not answering")
+        Some(n) -> Io.println("count is " ++ Int.toText(n))
+      | None    -> Io.println("counter is not answering")
     }
 }
 ```
 
-We're using `Io.println` here instead of raw `send`. `Io.println(out, "hi")` is just `send(out, "hi" ++ "\n")` — a one-line convenience from the standard library (Appendix E of the report). Both work; `Io.println` is what real Ernest code uses because it saves the newline bookkeeping.
+We're using `Io.println` here instead of raw `send`. `Io.println("hi")` is just `send(Sys.stdout, "hi" ++ "\n")` — a one-line convenience from the standard library (Appendix E of the report). Both work; `Io.println` is what real Ernest code uses because it saves the newline bookkeeping and doesn't need `Sys.stdout` spelled out. If you want to send to a different address (a logger, a capture buffer for testing), `Io.printlnTo(addr, "hi")` takes an explicit `Address(Text)`.
 
 Four things happen. Let's walk through them.
 
@@ -427,28 +417,28 @@ This is the ping-pong program from Appendix B of the report.
 ```
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 
-fn pong(out : Address(Text)) -> () with PongMsg = recv {
+fn pong() -> () with PongMsg = recv {
     Ping(n = n, reply = r) -> {
-        Io.println(out, "pong " ++ Int.toText(n));
+        Io.println("pong " ++ Int.toText(n));
         answer(r, n);
-        pong(out)
+        pong()
     }
   | Stop -> ()
 }
 
-fn ping(out : Address(Text), pongAddr : Address(PongMsg), n : Int) -> () with m =
+fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
     if n == 0 then send(pongAddr, Stop)
     else {
-        Io.println(out, "ping " ++ Int.toText(n));
+        Io.println("ping " ++ Int.toText(n));
         match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
-            Some(_) -> ping(out, pongAddr, n - 1)
-          | None    -> { Io.println(out, "pong is not answering"); send(pongAddr, Stop) }
+            Some(_) -> ping(pongAddr, n - 1)
+          | None    -> { Io.println("pong is not answering"); send(pongAddr, Stop) }
         }
     }
 
-fn main(Sys(stdout = out) : Sys) -> () with () = {
-    let pongAddr = spawn(Local, fn() = pong(out));
-    let _ = spawn(Local, fn() = ping(out, pongAddr, 3));
+fn main() -> () with () = {
+    let pongAddr = spawn(Local, fn() = pong());
+    let _ = spawn(Local, fn() = ping(pongAddr, 3));
     ()
 }
 ```
@@ -471,7 +461,7 @@ Same building blocks as the counter, but arranged for two processes.
 
 ### 6.3 The ping process
 
-`ping` is the sender. Its parameters are `out`, the pong process's address, and a countdown `n`.
+`ping` is the sender. Its parameters are the pong process's address and a countdown `n`.
 
 If `n` is `0`, send `Stop` and finish. Otherwise:
 
@@ -485,8 +475,8 @@ Notice `ping`'s return type: `-> () with m`. That `m` is lowercase — a type va
 ### 6.4 Main starts them
 
 ```
-let pongAddr = spawn(Local, fn() = pong(out));
-let _ = spawn(Local, fn() = ping(out, pongAddr, 3));
+let pongAddr = spawn(Local, fn() = pong());
+let _ = spawn(Local, fn() = ping(pongAddr, 3));
 ()
 ```
 
@@ -552,7 +542,7 @@ Once "hello world," the counter, and ping-pong feel readable, the language's fou
 
 - **`ernest-tick-game.md`** — a snake game with tick-based updates. Introduces named-field records with `..` update syntax, folds over `Map`, one process per player.
 - **`ernest-repl.md`** — a small read-eval-print loop. Introduces `<-` for chaining `Either`, using `try` as a supervised child process, `monitor` for detecting child death.
-- **`ernest-filesync.md`** — file synchronization between two nodes. Introduces mutual-address setup via a `Link` message, `Sys` passed as an explicit value, one process per write.
+- **`ernest-filesync.md`** — file synchronization between two nodes. Introduces mutual-address setup via a `Link` message, ambient runtime references beyond `Sys.stdout` (a filesystem process at `Sys.fs`), one process per write.
 - **`ernest-webserver.md`** — HTTP server with sessions in an ETS table. Introduces `foreign fn` for foreign function calls, opaque types with signatures.
 
 Read them in that order. Each introduces something the next builds on.
@@ -563,17 +553,15 @@ For "why is Ernest the way it is," `ernest-decisions.md` records dated design de
 
 For "how the compiler works," `ernest-implementation-plan.md` sketches the MVP 1 roadmap: about eight weeks of one-person work, with a hand-written parser.
 
-## 10. The seven principles, once
+## 10. The five principles, once
 
-Ernest is built on seven principles, in order. They're in the report's Section 0. Almost every design decision comes back to one or two of them.
+Ernest is built on five principles, in order. They're in the report's Section 0. Almost every design decision comes back to one or two of them.
 
 1. **Least surprise decides, measured in code, not in the rule.**
-2. **No variants, unless what remains surprises more.**
-3. **Nothing invisible: control flow, communication, and failure are visible in the code or in the type.**
-4. **Orthogonal: concepts do not affect one another.**
-5. **Simple to parse: the grammar is LL(1), every construct is decided by its first token, and each bracket has one role.**
-6. **Few reserved words, but not too few.**
-7. **Small: concepts are counted, not primitives.**
+2. **One way, one job. No variants for the same thing, no two concepts that overlap in what they express, unless what remains surprises more.**
+3. **Nothing invisible. Control flow, communication, and failure are visible in the code or in the type. An ambient value is visible when its name appears at the use site; a hidden effect is not.**
+4. **Simple to parse: the grammar is LL(1), every construct is decided by its first token, and each bracket has one role.**
+5. **Small: few concepts, few primitives, few reserved words — but not too few.**
 
 If you find yourself asking "why is Ernest like this?" — trace back to one of these. Usually one or two suffice.
 
