@@ -510,6 +510,23 @@ Ernest does not adopt OTP's behaviours — `gen_server`, `gen_statem`, `supervis
 - Not a claim that OTP is bad. OTP is the reason Erlang is used in production; its wisdom is real. Ernest's position is that the wisdom lives in patterns programmers can build, not in language mechanisms that constrain everyone. The pattern's shape is Ernest's, the wisdom is inherited.
 - Not a claim that Ernest replaces Erlang. On BEAM, Ernest and Erlang coexist. An Ernest program that needs an Erlang OTP library uses a shim; an Erlang program that needs an Ernest type calls it through the same runtime.
 
+## `Bool.ern` Added, 2026-09-14
+
+New stdlib module for boolean operations. Two functions:
+
+```
+Bool.not     : (Bool) -> Bool
+Bool.toText  : (Bool) -> Text
+```
+
+**Why.** No boolean negation existed anywhere. `&&` and `||` are language operators, and `Bool` has `true`/`false` literals, but flipping a boolean required `if cond then false else true` or a full `match`. Every real program eventually wants `not`.
+
+**Why stdlib, not operator.** Prefix `!` would work (parallel to prefix `-` for numeric negation, resolving via type-directed lookup to `Bool.not`), but a function is enough: `flag |> Bool.not` reads clearly, and function-value use cases (`List.filter(xs, Bool.not)`) benefit from having the name. Also honest: no paper program has written negation three times, so the language-surface path fails the growth rule. Stdlib is the low-cost place.
+
+**Placement.** Appendix E.6, between `Char.ern` and `Int.ern`, grouped with basic scalar-value modules. Downstream renumbered: Int→E.7, Float→E.8, Optional→E.9, Either→E.10, Foreign→E.11.
+
+**Naming.** Matches Ernest's stdlib convention: `Bool.not` (camelCase-ish since it's a single word), `Bool.toText` (matches `Int.toText`, `Float.toText`, `Char.toText`).
+
 ## Bit Operators as Stdlib Functions, 2026-09-14
 
 Bit operators are added to `Int.ern` as ordinary functions, not to the language as operators:

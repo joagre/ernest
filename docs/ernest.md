@@ -713,7 +713,14 @@ Char.toText      : (Char) -> Text
 Char.toInt       : (Char) -> Int                       // Unicode code point
 ```
 
-### Appendix E.6. `Int.ern`
+### Appendix E.6. `Bool.ern`
+
+```
+Bool.not         : (Bool) -> Bool
+Bool.toText      : (Bool) -> Text                      // "true" or "false"
+```
+
+### Appendix E.7. `Int.ern`
 
 ```
 Int.abs          : (Int) -> Int
@@ -730,7 +737,7 @@ Int.toText       : (Int) -> Text
 Int.toFloat      : (Int) -> Float
 ```
 
-### Appendix E.7. `Float.ern`
+### Appendix E.8. `Float.ern`
 
 ```
 Float.abs        : (Float) -> Float
@@ -741,7 +748,7 @@ Float.floor      : (Float) -> Int
 Float.ceil       : (Float) -> Int
 ```
 
-### Appendix E.8. `Optional.ern`
+### Appendix E.9. `Optional.ern`
 
 ```
 Optional.isSome      : (Optional(a)) -> Bool
@@ -751,7 +758,7 @@ Optional.map         : (Optional(a), (a) -> b) -> Optional(b)
 Optional.andThen     : (Optional(a), (a) -> Optional(b)) -> Optional(b)
 ```
 
-### Appendix E.9. `Either.ern`
+### Appendix E.10. `Either.ern`
 
 ```
 Either.isLeft       : (Either(e, a)) -> Bool
@@ -764,7 +771,7 @@ Either.toOptional   : (Either(e, a)) -> Optional(a)
 Either.fromOptional : (Optional(a), e) -> Either(e, a)
 ```
 
-### Appendix E.10. `Foreign.ern`
+### Appendix E.11. `Foreign.ern`
 
 ```
 Foreign.toInt    : (Foreign) -> Optional(Int)
