@@ -87,8 +87,10 @@ fn handler(sessions : Ets.Table(SessionId, Session), seq : Int, sock : Address(S
                 let visits = match Ets.lookup(sessions, id) { Some(Session(n)) -> n + 1 | None -> 1 };
                 Ets.insert(sessions, id, Session(visits));
                 let body = "Visit number " ++ Int.toText(visits);
-                send(sock, Write(render(withCookie("sid", SessionId.text(id),
-                                        Response(status = StatusCode.ok, headers = [], body = body)))));
+                let bytes = Response(status = StatusCode.ok, headers = [], body = body)
+                    |> withCookie("sid", SessionId.text(id))
+                    |> render;
+                send(sock, Write(bytes));
                 send(sock, Close)
             }
         }
