@@ -216,9 +216,7 @@ That's a legal Ernest function. The compiler sees `n * 2`, notes that `*` is def
 
 In practice you'll still annotate top-level functions, because a signature at the top of a definition is what a reader looks at first. But local `let` bindings, lambdas, and small helpers can skip annotations without loss.
 
-The lowercase `a` in `type Optional(a) = None | Some(a)` is a *type variable* — a placeholder for whatever specific type is needed at each use. `Some(5)` binds `a` to `Int`; `Some("hi")` binds it to `Text`; `Optional.map`'s type `(Optional(a), (a) -> b) -> Optional(b)` binds `a` and `b` independently at each call. That's generics — Ernest has them, they're just written with lowercase names and inferred from context.
-
-The mailbox slot `with m` on a function type is the same story: a type variable. `Io.println : (Text) -> () with m` says "runs in a process with any mailbox `m`." When called from a process whose mailbox is `CounterMsg`, `m` gets bound to `CounterMsg` at the call site; when called from `PongMsg`, `PongMsg`. Pure functions have no `with` at all, which is different from having a free `m`.
+Inference is also what picks specific types for the type variables you saw earlier — the `a` in `Optional(a)`, the `m` in `with m`. At each call site the compiler works out what those stand for from the arguments passed in.
 
 ## 4. A process
 
