@@ -562,7 +562,49 @@ The REPL paper program combines `monitor` and `kill` in a supervised-child patte
 
 A fault in one process doesn't automatically bring down others. There are no links, no supervision trees baked into the language. Every process decides for itself what to do when a watched one dies. Ernest chose the explicit shape so death handling is visible in the code, not implicit in the setup.
 
-## 8. Chaining with `<-`
+## 8. Adapting messages with `via`
+
+The processes in §6 could send messages of exactly each other's mailbox types because both agreed on the shape. But sometimes another process needs to notify you when its message type isn't yours — a clock ticking, a filesystem returning a result, a subprocess reporting done. Ernest's tool for adapting message shapes at the boundary is `via`.
+
+```
+via : ((a) -> b, Address(b)) -> Address(a)
+```
+
+Given a function `f : (a) -> b` and a target address `Address(b)`, `via(f, addr)` returns an address that accepts `a`. Sending `v` to `via(f, addr)` is the same as sending `f(v)` to `addr`. Read in the direction of the flow: I have a mailbox that speaks `b`; I hand out a wrapped address that others can send `a` to; the wrapper applies `f` and drops the result into my `b`-shaped mailbox.
+
+### 8.1 A clock example
+
+The runtime's clock at `Sys.clock` accepts a `ClockMsg`:
+
+```
+After(ms : Int, to : Address(()))
+```
+
+`After(ms, to)` says "in `ms` milliseconds, send `()` to `to`." But my process's mailbox might be `GameMsg = Tick | In(Input)`, not `()`. `via` bridges the gap:
+
+```
+send(Sys.clock, After(ms = 100, to = via(fn(_) = Tick, self())))
+```
+
+- `self()` — my address; my mailbox speaks `GameMsg`.
+- `via(fn(_) = Tick, self())` — an address that, when sent anything, wraps it as `Tick` and forwards to my mailbox.
+- The clock will eventually send `()` to that wrapper; the wrapper turns it into `Tick`; my mailbox receives `Tick`.
+
+### 8.2 A reply example
+
+The filesystem process from the `filesync` paper program takes a `reply` field on its request. `fs` speaks `Either(FsError, List(Entry))`, but the caller wants to receive `Listed(...)` in its own `SyncMsg` mailbox:
+
+```
+send(Sys.fs, List(path = dir, reply = via(Listed, self())))
+```
+
+Same idea. `fs` will send an `Either(...)` to the wrapper; the wrapper applies the constructor `Listed`; the caller receives `Listed(Left(...))` or `Listed(Right(...))` in its own mailbox.
+
+### 8.3 The pattern
+
+`monitor`'s second argument, `(Down) -> m`, is the same shape as `via`'s converter — a wrapping function that turns an incoming value into your mailbox type. `via` is the general form; `monitor`'s `wrap` is a specific instance baked into the API. Whenever another process needs to speak to you but you want a specific shape in your mailbox, this is the pattern: `via` when the incoming type isn't fixed, an API-supplied wrap when it is.
+
+## 9. Chaining with `<-`
 
 Consider a function that parses two numbers from text and adds them. Each parse can fail; failure returns `None`.
 
@@ -613,7 +655,7 @@ The compiler picks Optional or Either from the right-hand side's type. You don't
 
 `<-` isn't a general escape or exception. It is specifically for `Optional` and `Either`, the two prelude types where "no value" or "error" is an expected branch that should propagate without ceremony. Anything else you handle with `match`.
 
-## 9. Remote computation
+## 10. Remote computation
 
 So far every function has run in the process that called it. When you have peers — other machines running Ernest — you can hand off a pure computation to run on one of them.
 
@@ -639,7 +681,7 @@ Two things to notice:
 
 Peers are configured in `ernest.conf` at start-up. Which peer runs which computation, and by what criterion, the language does not say — that is the runtime's choice.
 
-### 9.1 Parallel remote
+### 10.1 Parallel remote
 
 For a batch of independent computations:
 
@@ -662,7 +704,7 @@ fn main() -> () with () = {
 
 Also pure. Each input succeeds or fails on its own, so one peer's loss doesn't take the whole batch with it.
 
-### 9.2 A different distribution: `spawn(Peer(name), ...)`
+### 10.2 A different distribution: `spawn(Peer(name), ...)`
 
 If you want a stateful *process* running on a specific peer rather than a pure computation on any peer, that is the other form of `spawn`:
 
@@ -672,7 +714,7 @@ spawn(Peer("worker-a"), fn() = counter(0))
 
 Returns an `Address` you can `send` messages to, exactly like a local process. Two ways to reach across nodes, then: `remote`/`parallelRemote` for pure computation the runtime places, and `spawn(Peer(name), ...)` for a process at a named location. They serve different purposes and the language keeps them distinct.
 
-## 10. Common questions
+## 11. Common questions
 
 Some things that trip readers up on first pass.
 
@@ -696,7 +738,7 @@ Every top-level declaration's *qualified name* is where it lives. A **module** i
 
 So you never have to guess. Look at any function type: `(A) -> B` is pure — no messages, no side effects. `(A) -> B with M` is process code — it uses `send`, `recv`, or `self`. Every function's type tells you at a glance whether it can affect the world; you never have to look inside.
 
-## 11. Reference: the roles of parens
+## 12. Reference: the roles of parens
 
 By now you have seen `(...)` in many places. Once you have read a few programs, this feels natural. But here it is as a lookup table:
 
@@ -719,7 +761,7 @@ Plus tuples: `(A, B)` as a type, `(1, "hi")` as a value, `(x, y)` as a pattern.
 
 This is a lot, but you rarely have to consciously disambiguate. The context tells you.
 
-## 12. Syntactic quirks, once
+## 13. Syntactic quirks, once
 
 A short reference of syntactic patterns that don't come from other languages, or that could surprise a reader coming from most languages.
 
@@ -772,12 +814,12 @@ Player(..p, alive = false, score = 0)       // multiple field changes at once
 
 **Doc comments start with `///`.** Three slashes to end of line; the toolchain (`ernc --doc`) extracts them to Markdown grouped by declaration.
 
-## 13. Reading further
+## 14. Reading further
 
 Once "hello world," the counter, and ping-pong feel readable, the language's four paper programs are the next step. They're in the same repository:
 
 - **`ernest-tick-game.md`** — a snake game with tick-based updates. Introduces named-field records with `..` update syntax, folds over `Map`, one process per player.
-- **`ernest-repl.md`** — a small read-eval-print loop. Uses `<-` heavily (see §8 above) and combines `monitor` and `kill` (see §7) into a `try` process that aborts a slow evaluation.
+- **`ernest-repl.md`** — a small read-eval-print loop. Uses `<-` heavily (see §9 above) and combines `monitor` and `kill` (see §7) into a `try` process that aborts a slow evaluation.
 - **`ernest-filesync.md`** — file synchronization between two nodes. Introduces mutual-address setup via a `Link` message, ambient runtime references beyond `Sys.stdout` (a filesystem process at `Sys.fs`), one process per write.
 - **`ernest-webserver.md`** — HTTP server with sessions in an ETS table. Introduces `foreign fn` for foreign function calls, opaque types with signatures.
 
@@ -789,7 +831,7 @@ For "why is Ernest the way it is," `ernest-decisions.md` records dated design de
 
 For "how the compiler works," `ernest-implementation-plan.md` sketches the MVP 1 roadmap: about eight weeks of one-person work, with a hand-written parser.
 
-## 14. The five principles, once
+## 15. The five principles, once
 
 Ernest is built on five principles, in order. They're in the report's Section 0. Almost every design decision comes back to one or two of them.
 
