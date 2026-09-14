@@ -908,10 +908,6 @@ Because Ernest is n-ary — every function has a specific number of arguments, a
 
 Every top-level declaration's *qualified name* is where it lives. A **module** is a single Ernest source file (ending in `.ern`) — the unit that carries a namespace. `fn Net.Http.parse(b) = ...` lives in the module `Net/Http.ern`, and any code anywhere refers to it by that full name. A module's path is its namespace. Unqualified names (`fn helper(x) = ...`) are visible only inside their own module. No `import`, no `pub`, no export list.
 
-**Why is the mailbox type in the function type?**
-
-So you never have to guess. Look at any function type: `(A) -> B` is pure — no messages, no side effects. `(A) -> B with M` is process code — it uses `send`, `recv`, or `self`. Every function's type tells you at a glance whether it can affect the world; you never have to look inside.
-
 ## 15. Reference: the roles of parens
 
 By now you have seen `(...)` in many places. Once you have read a few programs, this feels natural. But here it is as a lookup table:
