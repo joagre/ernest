@@ -833,7 +833,18 @@ Ernest treats the boundary strictly. The foreign side must produce values of the
 
 **Foreign values are node-local.** Sending a foreign value across a node boundary is a fault at the boundary, with cause `Fault("foreign value cannot cross nodes")`. That includes a closure that captures a foreign value being sent via `spawn(Peer(...), f)` or via `send` to a remote address. The type system doesn't track "node-local" as a distinct kind; the runtime enforces it when it matters.
 
-The `webserver` paper program shows the pattern: `Ets.ern` is a thin Ernest library over Erlang's `ets` module. The raw `foreign fn` bindings are unqualified (file-local); the exported `Ets.*` functions are ordinary Ernest code that composes them into a small, typed API.
+A shim is free to reshape everything at the boundary. Erlang's `ets:lookup(Table, Key)` returns a `List((k, v))` — a list because the key might match zero or one entry. The corresponding Ernest wrapper turns that into `Optional(v)` with a pattern match:
+
+```
+foreign fn rawLookup(t : Ets.Table(k, v), key : k) -> List((k, v)) with m = "ets:lookup/2"
+
+fn Ets.lookup(t : Ets.Table(k, v), key : k) -> Optional(v) with m =
+    match rawLookup(t, key) { [(_, v)] -> Some(v) | _ -> None }
+```
+
+Argument order, `{ok, _} | {error, _}` becoming `Either`, discarding return values you don't care about, renaming to match Ernest's conventions — all of it happens in ordinary Ernest code layered over the raw `foreign fn` bindings. Erlang stays where it fits; Ernest speaks its own vocabulary at the API.
+
+The `webserver` paper program shows the whole pattern: `Ets.ern` is a thin Ernest library over Erlang's `ets` module. The raw `foreign fn` bindings are unqualified (file-local); the exported `Ets.*` functions are Ernest code that composes and reshapes them into a small, typed API.
 
 ## 13. Toolchain and configuration
 
