@@ -199,13 +199,16 @@ let words = input |> Text.trim |> Text.toLower |> Text.chars
 **Bit arrays.** `<<...>>` constructs and pattern-matches a `Bytes` value at the bit level. A bit array is a comma-separated list of segments between `<<` and `>>`; each segment is a value (in construction) or a pattern (in `match`), followed optionally by a colon and a dash-separated list of specifiers. Specifiers are: `size(N)` for segment width in units, `unit(N)` for bits per size unit (default 1), `bits` and `bytes` for nested bit arrays, `int` (default 8-bit) and `float` (default 64-bit) for numeric segments, `utf8`/`utf16`/`utf32` for text encoding, `big`/`little`/`native` for endianness, and `signed`/`unsigned` for sign. These specifier names carry that role only inside a bit array — outside, they are ordinary identifiers, and the reserved-word count remains sixteen. A bit-array pattern binds its segment variables; a segment whose length is `size(n)-bytes` and whose `n` refers to an earlier bound variable is a size-dependent match, common in protocol parsing. Constructing a bit array evaluates its segments left to right and concatenates them into a `Bytes` value; a segment whose value does not fit its specified width is a fault. An empty `<<>>` is the empty `Bytes`.
 
 ```
+fn frame(len : Int, body : Bytes) -> Bytes =
+    <<len:size(16)-big, body:bytes>>
+
 fn parseFrame(bytes : Bytes) -> Optional((Int, Bytes, Bytes)) = match bytes {
     <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> -> Some((len, body, rest))
   | _ -> None
 }
 ```
 
-Reads: match a 16-bit big-endian length, then `len` bytes of body, then whatever is left. The runtime compiles bit arrays directly to BEAM's bit syntax, section 10, so the optimizer handles prefix-heavy protocol matches as it would in native BEAM code.
+`frame` constructs: it builds a `Bytes` value with a 16-bit big-endian length followed by the body. `parseFrame` matches the inverse: match a 16-bit big-endian length, then `len` bytes of body, then whatever is left. The runtime compiles bit arrays directly to BEAM's bit syntax, section 10, so the optimizer handles prefix-heavy protocol matches as it would in native BEAM code.
 
 ## 6. Processes
 
