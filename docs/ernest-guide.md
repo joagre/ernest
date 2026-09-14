@@ -222,33 +222,19 @@ Inference is also what picks specific types for the type variables you saw earli
 
 Now the interesting part. Let's build a small process — a counter.
 
-We'll do it in stages.
+We'll build it in stages: first a counter that only accepts updates (fire-and-forget), then extend it so callers can also ask for its current state (request-reply).
 
 ### 4.1 The message type
 
-A counter is a process that holds a number and lets people ask it questions. What kinds of messages can it receive? Let's say two, for now:
-
-- `Inc(k)` — please add `k` to my state.
-- `Get(r)` — please tell me your current state, replying to address `r`.
+A counter is a process that holds a number. To start, let's say it accepts one kind of message: "please add `k` to my state."
 
 We declare that as a type:
 
 ```
-type CounterMsg
-    = Inc(Int)
-    | Get(reply : Reply(Int))
+type CounterMsg = Inc(Int)
 ```
 
-`Inc` carries an `Int` positionally. `Get` carries one named field — `reply` of type `Reply(Int)`.
-
-`Reply(Int)` is a new type. It comes from Ernest's prelude. It represents "a one-shot address the receiver will send an `Int` back to." Think of it as a stamped return envelope: whoever gets it must fill it in exactly once with an `Int`, and only then does the caller get their answer.
-
-`Reply(a)` is very different from `Address(a)`:
-
-- `Address(a)` is a long-lived reference. You can send to it many times.
-- `Reply(a)` is one-shot. Someone gave it to you *just to answer this one question*. When you answer, it's used up.
-
-The compiler will check that every `Reply(a)` we receive gets answered exactly once. More on that when we see it in action.
+One constructor, `Inc`, carrying an `Int` positionally. This is a *mailbox type* — the set of message shapes a process can receive.
 
 ### 4.2 The counter function
 
@@ -256,8 +242,7 @@ Now the counter itself.
 
 ```
 fn counter(n : Int) -> () with CounterMsg = recv {
-    Inc(k)          -> counter(n + k)
-  | Get(reply = r)  -> { answer(r, n); counter(n) }
+    Inc(k) -> counter(n + k)
 }
 ```
 
@@ -271,9 +256,7 @@ Read it slowly.
 
 `= recv { ... }` — the body is a `recv` expression. `recv` waits for a message and dispatches on it.
 
-Two arms:
-
-**Arm one:**
+One arm:
 
 ```
 Inc(k) -> counter(n + k)
@@ -281,22 +264,48 @@ Inc(k) -> counter(n + k)
 
 If the incoming message is `Inc(k)`, bind `k` to the integer inside, and recursively call `counter(n + k)`. That "recursively" is a tail call — Ernest guarantees tail-call optimization, so this doesn't grow the stack. The counter just keeps looping forever, each iteration remembering the new state as `n`.
 
-**Arm two:**
+This is Ernest's **fire-and-forget** shape: a sender calls `send(c, Inc(5))`, which returns immediately, and there is no callback path back. The counter processes the message eventually — soon, but with no ordering guarantee against the sender's next statement other than "the counter's mailbox sees my messages in the order I sent them."
+
+### 4.3 Asking questions: `Reply`
+
+Fire-and-forget is fine for updates, but sometimes you want to *ask* the process something — its current value, for instance. That requires an answer, and fire-and-forget has no place to put one.
+
+Ernest's tool for this is `Reply(a)`, a one-shot address the receiver fills in exactly once. Think of it as a stamped return envelope: the caller hands it over with the request; the receiver puts a value in it and sends it back.
+
+Extend the counter's message type:
 
 ```
-Get(reply = r) -> { answer(r, n); counter(n) }
+type CounterMsg
+    = Inc(Int)
+    | Get(reply : Reply(Int))
 ```
 
-If the incoming message is `Get`, pull out its `reply` field into `r`. Then:
+`Get` carries one named field, `reply : Reply(Int)`. The sender allocates a fresh `Reply(Int)` when it wants to ask; the counter fills it in with the current state.
 
-- `answer(r, n)` — send `n` back through the reply address. This "uses up" the reply capability.
+Two things distinguish `Reply(a)` from `Address(a)`:
+
+- `Address(a)` is a long-lived reference; you can send to it many times.
+- `Reply(a)` is one-shot; someone gave it to you *just to answer this one question*, and once you answer, it's used up.
+
+The extended counter grows a second `recv` arm:
+
+```
+fn counter(n : Int) -> () with CounterMsg = recv {
+    Inc(k)         -> counter(n + k)
+  | Get(reply = r) -> { answer(r, n); counter(n) }
+}
+```
+
+The `Get` arm binds the `Reply(Int)` field to `r`, then:
+
+- `answer(r, n)` — sends `n` back through the reply address. This "uses up" the reply capability.
 - `counter(n)` — loop again, state unchanged.
 
 The block `{ answer(r, n); counter(n) }` runs both in sequence, and the block's value is the value of the last statement (`counter(n)`, which returns unit). That's what the arm's body evaluates to.
 
 `answer` is another prelude function. Its job is exactly this: consume a `Reply(a)` value by sending a specific `a` back to the caller.
 
-### 4.3 The compiler checks the reply
+### 4.4 The compiler checks the reply
 
 The compiler enforces something you might miss on first read: **every `Reply(Int)` bound in a `recv` arm must be used exactly once, on every path.**
 
