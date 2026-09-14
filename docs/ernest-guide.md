@@ -510,11 +510,11 @@ The consumption doesn't have to be direct or in the same arm. There are three le
 
 1. **`answer(r, v)` directly** — what the counter does.
 2. **Delegating** — passing `r` as a field of another message. Whoever receives that message is now responsible for answering.
-3. **Spawning** — capturing `r` in a lambda passed to `spawn` (§5). A child process runs later and calls `answer` when it's ready.
+3. **Spawning** — capturing `r` in a lambda passed to `spawn` (§6). A child process runs later and calls `answer` when it's ready.
 
 The exactly-once check follows `r` through all three. In the spawning case, the compiler checks the *child's* body for exactly-once consumption — a spawned child whose body forgets to answer is a type error. The `filesync` paper program uses this form: an incoming write request is handed to a `writer` process that performs the file I/O in the background and calls `answer` when it finishes, so the process handling `recv` doesn't block on disk.
 
-**One caveat.** The check is static. It verifies that every syntactically reachable path calls `answer` (or delegates, or spawns), but it can't tell whether execution will *actually* reach that call at runtime. A path that enters an infinite loop, faults, or waits forever will bypass the answer without the compiler knowing. That's why `Address.call` requires a mandatory timeout (§5.3): the caller must plan for the case where the answer never comes — bug, fault, or a receiver that answers only on February 32.
+**One caveat.** The check is static. It verifies that every syntactically reachable path calls `answer` (or delegates, or spawns), but it can't tell whether execution will *actually* reach that call at runtime. A path that enters an infinite loop, faults, or waits forever will bypass the answer without the compiler knowing. That's why `Address.call` requires a mandatory timeout (§6.3): the caller must plan for the case where the answer never comes — bug, fault, or a receiver that answers only on February 32.
 
 ## 6. Running the counter
 
@@ -982,7 +982,16 @@ The `webserver` paper program shows the whole pattern: `Ets.ern` is a thin Ernes
 
 ## 13. Bit arrays
 
-Working with binary formats — network protocol headers, file signatures, checksums — means picking apart `Bytes` at the bit level. Ernest's syntax for this is `<<...>>`:
+Working with binary formats — network protocol headers, file signatures, checksums — means both **building** outgoing bytes and **parsing** incoming ones at the bit level. Ernest's syntax for this is `<<...>>`, used symmetrically for construction and pattern matching.
+
+**Building** a length-prefixed frame:
+
+```
+fn frame(len : Int, body : Bytes) -> Bytes =
+    <<len:size(16)-big, body:bytes>>
+```
+
+**Parsing** one back apart:
 
 ```
 fn parseFrame(bytes : Bytes) -> Optional((Int, Bytes, Bytes)) = match bytes {
@@ -991,9 +1000,9 @@ fn parseFrame(bytes : Bytes) -> Optional((Int, Bytes, Bytes)) = match bytes {
 }
 ```
 
-Reads: match a 16-bit big-endian length, then `len` bytes of body, then whatever is left.
+Same shape, different role. In an expression position, each segment names a value and how to lay it out; in a pattern position, each segment names a binder and the layout it must match. Segments are evaluated (or matched) left to right.
 
-A bit array is a comma-separated list of *segments* between `<<` and `>>`. Each segment names a value (or a pattern, inside `match`), followed optionally by a colon and a dash-separated list of *specifiers* that describe how that segment is laid out.
+A bit array is a comma-separated list of *segments* between `<<` and `>>`. Each segment is followed optionally by a colon and a dash-separated list of *specifiers* that describe the segment's shape.
 
 ### 13.1 Specifiers
 
@@ -1004,24 +1013,13 @@ A bit array is a comma-separated list of *segments* between `<<` and `>>`. Each 
 - **`big`**, **`little`**, **`native`** — endianness.
 - **`signed`**, **`unsigned`** — sign.
 
-Combine with `-`: `x:signed-big-size(16)` is a 16-bit signed big-endian integer.
+Combine with `-`: `x:signed-big-size(16)` is a 16-bit signed big-endian integer. Specifier names carry that role only inside `<<...>>`. Outside a bit array, `size` and `int` are just ordinary identifiers.
 
-These specifier names carry that role only inside `<<...>>`. Outside a bit array, `size` and `int` are just ordinary identifiers.
+In construction, a segment whose value doesn't fit its specified width is a fault. In pattern matching, a segment whose layout doesn't match causes the arm to fail (the next arm is tried).
 
-### 13.2 Construction
+### 13.2 Size-dependent matches
 
-The same syntax builds a bit array:
-
-```
-fn frame(len : Int, body : Bytes) -> Bytes =
-    <<len:size(16)-big, body:bytes>>
-```
-
-Segments are evaluated left to right and concatenated into a `Bytes` value. A segment whose value doesn't fit its specified width is a fault.
-
-### 13.3 Size-dependent matches
-
-The `parseFrame` example above uses `size(len)` where `len` was bound by the preceding segment. This is the pattern that makes bit-array pattern matching powerful for wire protocols: you match a length field, then use that length to consume the following body:
+The `parseFrame` example uses `size(len)` where `len` was bound by the preceding segment. This is what makes bit-array pattern matching powerful for wire protocols: match a length field, then use that length to consume the body that follows.
 
 ```
 <<len:size(16)-big, body:size(len)-bytes, rest:bytes>>
@@ -1029,7 +1027,7 @@ The `parseFrame` example above uses `size(len)` where `len` was bound by the pre
 
 The compiler tracks the dependency; segments must be laid out in the order the sizes are learned.
 
-### 13.4 When to reach for bit arrays
+### 13.3 When to reach for bit arrays
 
 Wire protocols, binary file formats, packet headers, checksums, extracting flag bits. For anything higher-level — plain text, structured data, records — the ordinary types (`Text`, `List`, named-fields constructors) are more natural.
 
@@ -1050,9 +1048,9 @@ Common `ern` options:
 - `--repl` — start a read-eval-print loop with the same loading rules.
 - `--create-config-dir dir` — create `dir/.ernest/` with a freshly generated `ernest.conf` and private key, and exit.
 
-`ernc --doc file.ern` extracts doc comments (`///`, §16) from the module and writes them to stdout as Markdown, grouped by declaration.
+`ernc --doc file.ern` extracts doc comments (`///`, §17) from the module and writes them to stdout as Markdown, grouped by declaration.
 
-### 13.1 `ernest.conf`
+### 14.1 `ernest.conf`
 
 Peers, network addresses, and cryptographic identity are configured outside the language, in `ernest.conf`. It's a JSON file created by `ern --create-config-dir` and then edited by hand:
 
