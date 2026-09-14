@@ -326,6 +326,21 @@ let x = if flag then 1 else 2;
 let name = match user { Some(u) -> u | None -> "guest" };
 ```
 
+**Patterns everywhere, with a rule.** The same patterns you see in `match` arms also appear in `let` bindings and in function parameters. But there is a distinction: patterns in `let` and function parameters must be **irrefutable** — they must always match. Tuple patterns are irrefutable (a tuple always has the shape you spelled), and so are wrapper patterns like `Snapshot(seen = s)` when there is only one constructor:
+
+```
+let (x, y) = point;                     // fine — tuples always destructure
+fn area(Point(x, y) : Point) -> Int = x * y    // fine — Point has one constructor
+```
+
+Refutable patterns are a type error in these positions:
+
+```
+let Right(v) = e   // type error — e might be Left(...)
+```
+
+That's the "decompose versus compare" line. `let` and function parameters *decompose* a value whose shape you already know; `match` and `recv` (and `<-`, §10) *compare* a value against several shapes and let each arm handle its case. If you need to peek at a sum type, reach for `match`.
+
 ### 3.5 The pipe operator `|>`
 
 Ernest's standard library is subject-first: `List.map(list, f)`, `Text.chars(text)`, `Map.get(map, key)`. When you compose several such calls, the expression reads inside-out:
