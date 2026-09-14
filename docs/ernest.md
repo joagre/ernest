@@ -67,7 +67,7 @@ FnType    = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
 
 **Tuples.** `(A, B)` with two or more components. The tuple is the only positional product type.
 
-**Lists.** `List(a)`. `x +: xs` is the list whose first element is `x` and whose remainder is `xs`; `[a, b]` is `a +: b +: []`.
+**Lists.** `List(a)` is an immutable linked list. `[]` is the empty list. `x +: xs` prepends `x` to `xs`; `+:` is right-associative, so `[a, b]` is `a +: b +: []`.
 
 **Function types.** `(A, B) -> C` is the type of a function of two arguments. Arity is part of the type: `(A, B) -> C` and `((A, B)) -> C` are different types. `() -> C` takes no arguments. `with M` after the result is the mailbox type: the function uses the process it runs in, whose mailbox has type `M`, section 6. A function type without a mailbox type is pure. `with` binds to the nearest arrow; `(A) -> (B) -> C with M` is a pure function returning a function with mailbox type `M`.
 
