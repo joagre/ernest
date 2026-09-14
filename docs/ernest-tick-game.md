@@ -57,7 +57,7 @@ fn applyInput(world : World, input : Input) -> World = {
             Some(p) -> World(..world, players = Map.put(ps, id, turn(p, d)))
           | None    -> world
         }
-      | Leave(id) -> World(..world, players = Map.delete(ps, id))
+      | Leave(id) -> World(..world, players = Map.remove(ps, id))
     }
 }
 

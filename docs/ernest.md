@@ -598,20 +598,27 @@ Container-first operations over `List(a)`.
 
 ```
 List.size        : (List(a)) -> Int
-List.reverse     : (List(a)) -> List(a)
+List.isEmpty     : (List(a)) -> Bool
 List.head        : (List(a)) -> Optional(a)
+List.last        : (List(a)) -> Optional(a)
 List.at          : (List(a), Int) -> Optional(a)
+List.reverse     : (List(a)) -> List(a)
+List.append      : (List(a), List(a)) -> List(a)
+List.take        : (List(a), Int) -> List(a)
+List.drop        : (List(a), Int) -> List(a)
+List.dropLast    : (List(a)) -> List(a)
 List.contains    : (List(a), a) -> Bool
+List.find        : (List(a), (a) -> Bool) -> Optional(a)
+List.any         : (List(a), (a) -> Bool) -> Bool
+List.all         : (List(a), (a) -> Bool) -> Bool
 List.map         : (List(a), (a) -> b) -> List(b)
 List.filter      : (List(a), (a) -> Bool) -> List(a)
 List.filterMap   : (List(a), (a) -> Optional(b)) -> List(b)
 List.foldLeft    : (List(a), b, (b, a) -> b) -> b
 List.foreach     : (List(a), (a) -> ()) -> ()
-List.any         : (List(a), (a) -> Bool) -> Bool
 List.span        : (List(a), (a) -> Bool) -> (List(a), List(a))
 List.sort        : (List(a), (a, a) -> Ordering) -> List(a)
 List.remove      : (List(a), a) -> List(a)
-List.dropLast    : (List(a)) -> List(a)
 ```
 
 ### Appendix E.3. `Map.ern`
@@ -620,10 +627,13 @@ Container-first operations over `Map(k, v)`.
 
 ```
 Map.empty        : Map(k, v)
+Map.size         : (Map(k, v)) -> Int
+Map.isEmpty      : (Map(k, v)) -> Bool
+Map.contains     : (Map(k, v), k) -> Bool
 Map.get          : (Map(k, v), k) -> Optional(v)
 Map.put          : (Map(k, v), k, v) -> Map(k, v)
-Map.delete       : (Map(k, v), k) -> Map(k, v)
-Map.size         : (Map(k, v)) -> Int
+Map.remove       : (Map(k, v), k) -> Map(k, v)
+Map.keys         : (Map(k, v)) -> List(k)
 Map.values       : (Map(k, v)) -> List(v)
 Map.map          : (Map(k, v), (k, v) -> w) -> Map(k, w)
 Map.foldLeft     : (Map(k, v), b, (b, k, v) -> b) -> b
@@ -635,16 +645,24 @@ Container-first operations over `Set(a)`.
 
 ```
 Set.empty        : Set(a)
+Set.size         : (Set(a)) -> Int
+Set.isEmpty      : (Set(a)) -> Bool
+Set.contains     : (Set(a), a) -> Bool
 Set.add          : (Set(a), a) -> Set(a)
 Set.remove       : (Set(a), a) -> Set(a)
-Set.contains     : (Set(a), a) -> Bool
-Set.size         : (Set(a)) -> Int
+Set.union        : (Set(a), Set(a)) -> Set(a)
+Set.intersect    : (Set(a), Set(a)) -> Set(a)
+Set.difference   : (Set(a), Set(a)) -> Set(a)
+Set.fromList     : (List(a)) -> Set(a)
 Set.toList       : (Set(a)) -> List(a)
 ```
 
 ### Appendix E.5. `Text.ern`
 
 ```
+Text.size        : (Text) -> Int                       // number of code points
+Text.isEmpty     : (Text) -> Bool
+Text.contains    : (Text, Text) -> Bool                // substring test
 Text.toInt       : (Text) -> Optional(Int)
 Text.chars       : (Text) -> List(Char)
 Text.fromChars   : (List(Char)) -> Text
@@ -659,13 +677,18 @@ Text.all         : (Text, (Char) -> Bool) -> Bool
 ```
 Char.isDigit     : (Char) -> Bool
 Char.isAlpha     : (Char) -> Bool
+Char.isSpace     : (Char) -> Bool
 Char.toText      : (Char) -> Text
+Char.toInt       : (Char) -> Int                       // Unicode code point
 ```
 
 ### Appendix E.7. `Int.ern`
 
 ```
+Int.abs          : (Int) -> Int
 Int.negate       : (Int) -> Int
+Int.min          : (Int, Int) -> Int
+Int.max          : (Int, Int) -> Int
 Int.toText       : (Int) -> Text
 Int.toFloat      : (Int) -> Float
 ```
@@ -673,25 +696,34 @@ Int.toFloat      : (Int) -> Float
 ### Appendix E.8. `Float.ern`
 
 ```
+Float.abs        : (Float) -> Float
 Float.negate     : (Float) -> Float
 Float.toText     : (Float) -> Text
 Float.round      : (Float) -> Int                      // banker's rounding, IEEE 754 default
 Float.floor      : (Float) -> Int
+Float.ceil       : (Float) -> Int
 ```
 
 ### Appendix E.9. `Optional.ern`
 
 ```
-Optional.map     : (Optional(a), (a) -> b) -> Optional(b)
-Optional.flatMap : (Optional(a), (a) -> Optional(b)) -> Optional(b)
+Optional.isSome      : (Optional(a)) -> Bool
+Optional.isNone      : (Optional(a)) -> Bool
+Optional.withDefault : (Optional(a), a) -> a
+Optional.map         : (Optional(a), (a) -> b) -> Optional(b)
+Optional.andThen     : (Optional(a), (a) -> Optional(b)) -> Optional(b)
 ```
 
 ### Appendix E.10. `Either.ern`
 
 ```
+Either.isLeft       : (Either(e, a)) -> Bool
+Either.isRight      : (Either(e, a)) -> Bool
+Either.withDefault  : (Either(e, a), a) -> a
 Either.map          : (Either(e, a), (a) -> b) -> Either(e, b)
 Either.mapLeft      : (Either(e, a), (e) -> f) -> Either(f, a)
 Either.andThen      : (Either(e, a), (a) -> Either(e, b)) -> Either(e, b)
+Either.toOptional   : (Either(e, a)) -> Optional(a)
 Either.fromOptional : (Optional(a), e) -> Either(e, a)
 ```
 

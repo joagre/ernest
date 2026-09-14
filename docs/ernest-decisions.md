@@ -319,6 +319,33 @@ Result:
 
 **What did not change.** `self()` is still `self()`, a nullary function with parens; it can't become a value because it depends on the current process. `Sys.stdout` is a value because it's node-wide, not per-process. If we ever need per-process ambient stdout (test isolation), we'll pay for it then, likely by giving `Sys.stdout` a call form or by extending `spawn` to accept a per-child ambient override.
 
+## Standard Library Baseline, 2026-09-14
+
+Appendix E was audited for naming, argument order, and coverage. The growth rule ("three uses before promoting") continues to apply to further additions; this audit set the initial baseline so the appendix reads complete rather than skeletal.
+
+**Renames for consistency.**
+
+- `Optional.flatMap` → `Optional.andThen`. Same monadic-bind operation as `Either.andThen`; unifying the name kills a variant. `andThen` reads better in code than `flatMap` and matches Elm and Rust precedent (`and_then`).
+- `Map.delete` → `Map.remove`. Ernest already uses `remove` for `Set` and `List`; `delete` was the odd verb out.
+
+**Argument order.** Kept subject-first throughout — the container or subject is the first argument, callbacks last, initial values in the middle for folds. Already consistent; nothing to change.
+
+**Additions.** Each is well-established across Elm, Rust, and Haskell stdlibs and closes an obvious gap:
+
+- List: `all`, `find`, `take`, `drop`, `isEmpty`, `append`, `last`.
+- Map: `keys` (paired with `values`), `contains`, `isEmpty`.
+- Set: `isEmpty`, `fromList` (paired with `toList`), `union`, `intersect`, `difference`.
+- Text: `size`, `isEmpty`, `contains`.
+- Char: `toInt` (code point), `isSpace`.
+- Int: `abs`, `min`, `max`.
+- Float: `abs`, `ceil`.
+- Optional: `withDefault`, `isSome`, `isNone`.
+- Either: `isLeft`, `isRight`, `toOptional`, `withDefault`.
+
+**Deferred to the growth rule.** These would round out the modules but haven't yet been written three times in a paper program: `List.zip/flatMap/concat/range/repeat/foldRight`, `Set.map/filter/foldLeft`, `Text.split/trim/replace/startsWith/endsWith/toLower/toUpper`, `Char.toUpper/toLower/isUpper/isLower/isAlphaNum`, `Int.pow`, `Float.sqrt/pow/min/max/truncate`, `Optional.orElse/toList`.
+
+**Paper programs updated.** `Map.delete` → `Map.remove` in `ernest-tick-game.md`; `Optional.flatMap` → `Optional.andThen` in `ernest-webserver.md`. The implementation plan's note on `<-` desugaring reads `Optional.andThen` now.
+
 ## Reasons Lifted Out of the Report
 
 - `recv` is Erlang's `receive`: selective receive lets a process wait for a specific reply in the middle of a protocol without losing other messages; without it every process becomes a state machine, gen_server turned inside out. `recv` therefore does not require coverage, unlike `match`: the two forms share their syntax but not their semantics, since a `match` that finds no arm is a fault and a `recv` that finds no arm leaves the message in the mailbox. Cost O(n) in the mailbox, and a growing mailbox is not visible in the code, the same cost as in Erlang; the backpressure decision above covers the same problem from the sender's side.

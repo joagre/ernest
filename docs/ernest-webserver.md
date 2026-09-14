@@ -80,7 +80,7 @@ fn handler(sessions : Ets.Table(SessionId, Session), seq : Int, sock : Address(S
                 send(sock, Close)
             }
           | Right(req) -> {
-                let id = match Optional.flatMap(cookie(req, "sid"), SessionId.parse) {
+                let id = match Optional.andThen(cookie(req, "sid"), SessionId.parse) {
                     Some(sid) -> sid
                   | None      -> SessionId.fresh(seq)
                 };
