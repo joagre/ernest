@@ -610,6 +610,16 @@ One small thing in the success case:
 
 Take a moment. This is a complete Ernest program that uses two processes (main, plus the counter it spawned), passes messages between them, and prints the result. It's about twenty lines.
 
+### 6.5 What happens when `main` returns
+
+The counter's `recv` loops forever — but `main` doesn't. Once the `match` on `Address.call`'s result finishes and `main` reaches its end, the program ends.
+
+When `main` returns, the runtime kills every process still alive — the counter, any workers you spawned — with cause `ProgramEnd`. System processes release their resources. The node stops.
+
+If you want a program that keeps running, `main` must not return: it can spawn processes and then `recv` forever, or run its own loop. The counter above finishes quickly because we exit deliberately after asking a single question.
+
+There is a second termination case: **deadlock**. If every process is waiting in `recv` without an `after`, and no messages are in flight, the runtime ends the program with `Deadlock`. It's the safety net for "everyone is waiting for someone who is waiting for everyone."
+
 ## 7. Two processes talking
 
 The counter has main talking to it. Let's look at two processes talking to each other.
@@ -690,6 +700,14 @@ let _ = spawn(Local, fn() = ping(pongAddr, 3));
 `main` returns. The two spawned processes are still running. When the last of them finishes, the program ends.
 
 Output: alternating "ping 3", "pong 3", "ping 2", "pong 2", "ping 1", "pong 1".
+
+### 7.5 Message ordering
+
+Ernest guarantees one ordering property: **messages from one process to another arrive in sending order.** If ping sends `Ping(3)` then `Ping(2)` to pong, pong will see `Ping(3)` before `Ping(2)`. This is per-sender FIFO.
+
+Between *different* senders there is no ordering. If two processes both send messages to pong, pong will see both, but their relative order is whatever the runtime decides. When you have fan-in from multiple sources, this is the property to plan around — usually with a sequence number in the message payload if the order matters.
+
+The counter and ping-pong examples don't rely on cross-sender ordering; each has a single sender talking to each receiver.
 
 ## 8. Watching another process
 
@@ -1152,6 +1170,8 @@ Player(..p, alive = false, score = 0)       // multiple field changes at once
 **`{}` has two role families.** Blocks separate statements with `;` (`{ let x = 1; x + 1 }`); `match` and `recv` arm containers separate arms with `|` (`match e { pat -> expr | pat -> expr }`). Two families, two internal delimiters, decided by what appears after the opening brace.
 
 **Sixteen reserved words:** `type`, `opaque`, `with`, `match`, `when`, `if`, `then`, `else`, `recv`, `after`, `fn`, `let`, `foreign`, `as`, `true`, `false`. Everything else — `send`, `spawn`, `self`, `remote`, `Sys`, `Io`, `List`, and the rest — is an ordinary name.
+
+**Equality is structural, and not defined on functions or addresses.** `==` compares values by shape: `Some(3) == Some(3)` is `true`; `Person(name = "Alice", age = 30) == Person(name = "Alice", age = 30)` is `true`. But `==` on a value that contains a function or an `Address(m)` is a *type error* at compile time — those don't have equality in Ernest. If you need identity for processes, encode it in the protocol (a session id in the message payload, for example); the address itself is for sending, not for comparison.
 
 **Doc comments start with `///`.** Three slashes to end of line; the toolchain (`ernc --doc`) extracts them to Markdown grouped by declaration.
 
