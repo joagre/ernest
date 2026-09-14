@@ -75,7 +75,7 @@ FnType    = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
 
 ```
 type Optional(a) = None | Some(a)
-type Peer = Peer(dir : Path, seen : Map(Path, Mtime))
+type Snapshot = Snapshot(dir : Path, seen : Map(Path, Mtime))
 ```
 
 Two or more positional fields are not allowed. Field names are unique within a constructor; their order carries no meaning. Positional and named payloads are distinguished by `:` after the first identifier in declarations, and by `=` in construction and patterns.
@@ -133,7 +133,7 @@ fn Stack.push(x, Stack(xs)) = Stack(x +: xs)
 fn Stack.pop(Stack(xs)) = match xs { [] -> None | x +: rest -> Some((x, Stack(rest))) }
 ```
 
-**Functions.** `fn` declares a function of fixed arity. Annotations may be omitted where they can be inferred. The return annotation has three forms: omitted, `-> T` for a pure function, `-> T with M` for process code. A pure annotation on a function that calls process code is a type error. A function has one clause. Patterns in parameters must be irrefutable, section 5, `fn seenCount(Peer(seen = entries) : Peer) -> Int = Map.size(entries)`. `fn` may appear at top level and as a statement in a block; it sees its own name, and `fn` declarations in the same block or at top level may refer to each other mutually.
+**Functions.** `fn` declares a function of fixed arity. Annotations may be omitted where they can be inferred. The return annotation has three forms: omitted, `-> T` for a pure function, `-> T with M` for process code. A pure annotation on a function that calls process code is a type error. A function has one clause. Patterns in parameters must be irrefutable, section 5, `fn seenCount(Snapshot(seen = entries) : Snapshot) -> Int = Map.size(entries)`. `fn` may appear at top level and as a statement in a block; it sees its own name, and `fn` declarations in the same block or at top level may refer to each other mutually.
 
 **Bindings.** In a block, `let p = e` binds the pattern `p` to the value of `e`; `let p <- e` is described in section 5. The pattern must be irrefutable. A binding is monomorphic and does not see its own name. Shadowing is allowed: a later binding of the same name hides the earlier one from the next statement on, and the right-hand side sees the earlier one. At top level, a `let` binds a `Name` — possibly qualified — to a value, `let Stack.empty = Stack([])`; the LHS is a name, not a pattern, and `<-` is a block form only.
 
@@ -180,13 +180,13 @@ FieldPats = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 
 **Binding with `<-`.** In a block, `let p <- e; rest` means that `e` is matched: on `Right(v)`, `p` is bound to `v` and `rest` is evaluated; on `Left(err)`, the block's value is `Left(err)`. If the block's type is `Optional`, `Some` and `None` apply the same way. The block's type decides which, resolved from the type of `e` as operators are; `rest` must have the block's type. All `<-` bindings in the same block resolve to the same sum type — the block is either `Either` or `Optional`, not both. The rewrite is local to the block.
 
-**Construction.** `Some(e)`, `None`, `Peer(dir = d, seen = s)`. All fields must be given. `Peer(..p, seen = s)` takes unlisted fields from `p`; at least one field follows `..`. A constructor is qualified like a function, `Net.Http.Request(...)`. A nullary constructor is a value, a single-positional constructor is a function value, and named constructors are neither: they only appear in construction syntax. Qualified operators are function values, `Int.+`.
+**Construction.** `Some(e)`, `None`, `Snapshot(dir = d, seen = s)`. All fields must be given. `Snapshot(..p, seen = s)` takes unlisted fields from `p`; at least one field follows `..`. A constructor is qualified like a function, `Net.Http.Request(...)`. A nullary constructor is a value, a single-positional constructor is a function value, and named constructors are neither: they only appear in construction syntax. Qualified operators are function values, `Int.+`.
 
 **Conditional.** `if c then a else b` with `c : Bool`; the branches have the same type.
 
 **`match`.** The expression is matched against the arms' patterns in order; the first arm whose pattern matches and whose guard holds is evaluated. A failed guard falls through. The arms together must cover the type; guards do not count as coverage. Variables in the pattern are bound in the guard and the arm.
 
-**Patterns.** A pattern decomposes a value and binds its parts. The same patterns appear in `let`, in `match` and `recv` arms, and in function parameters. `_` matches anything and binds nothing. An identifier binds the whole value at its position to a new variable, shadowing any outer variable of that name; it never refers to an existing variable. A literal matches itself. A constructor with a pattern, `Some(p)`, or with field patterns, `Peer(seen = s)`, which may omit fields, matches that constructor and decomposes its payload. A tuple, a list `[p, q]`, and `p +: q` decompose those. Patterns nest to any depth: `Some((x, Peer(dir = d)))`. `p as c` binds `c` to the whole value that `p` matches, `Some(Peer(dir = d) as peer)`; `as` binds loosest, so `x +: rest as all` names the whole list. Each variable appears at most once in a pattern; a pattern does not compare, and equality is written in a guard. A pattern is irrefutable if it cannot fail: `_`, an identifier, a tuple of irrefutable patterns, or a constructor pattern of a type with exactly one constructor whose sub-patterns are all irrefutable. `let` and parameters require irrefutable patterns; `let Right(x) = e` is a type error.
+**Patterns.** A pattern decomposes a value and binds its parts. The same patterns appear in `let`, in `match` and `recv` arms, and in function parameters. `_` matches anything and binds nothing. An identifier binds the whole value at its position to a new variable, shadowing any outer variable of that name; it never refers to an existing variable. A literal matches itself. A constructor with a pattern, `Some(p)`, or with field patterns, `Snapshot(seen = s)`, which may omit fields, matches that constructor and decomposes its payload. A tuple, a list `[p, q]`, and `p +: q` decompose those. Patterns nest to any depth: `Some((x, Snapshot(dir = d)))`. `p as c` binds `c` to the whole value that `p` matches, `Some(Snapshot(dir = d) as snap)`; `as` binds loosest, so `x +: rest as all` names the whole list. Each variable appears at most once in a pattern; a pattern does not compare, and equality is written in a guard. A pattern is irrefutable if it cannot fail: `_`, an identifier, a tuple of irrefutable patterns, or a constructor pattern of a type with exactly one constructor whose sub-patterns are all irrefutable. `let` and parameters require irrefutable patterns; `let Right(x) = e` is a type error.
 
 ## 6. Processes
 
@@ -281,6 +281,14 @@ The prelude is total: no built-in function faults. Partial operations return `Op
 
 The prelude is small: only what this report names. Convenience libraries — including all container operations, text and numeric utilities, and output helpers — live in the standard library, Appendix E.
 
+Built-in types (section 3):
+
+```
+Address(m)   // an address of a process that receives m
+Reply(a)     // a one-shot address, section 6
+Never        // the type with no values
+```
+
 Built-in parameterized types, provided by the runtime:
 
 ```
@@ -303,6 +311,15 @@ type ClockMsg                                      // times in milliseconds
     | Now(reply : Reply(Int))
 type RemoteError = NoRemotePeer | PeerLost
 type Foreign                                       // a value the language does not inspect
+type Where = Local | Peer(Text)                    // spawn placement, section 6
+```
+
+Built-in functions (section 6):
+
+```
+self  : () -> Address(m) with m
+send  : (Address(a), a) -> () with m
+spawn : (Where, () -> () with n) -> Address(n) with m
 ```
 
 Process functions:

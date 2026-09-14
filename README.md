@@ -12,7 +12,7 @@ Design complete for MVP 1 (single-node subset). Implementation begins with the l
 
 - **[`docs/ernest.md`](docs/ernest.md)** — the language report. Normative. Everything else in this repo defers to it. About ten pages of prose plus a grammar appendix, a configuration appendix, a foreign-library appendix, and a standard-library appendix.
 
-- **[`docs/ernest-guide.md`](docs/ernest-guide.md)** — a tutorial for a first-time reader. Walks through hello world, types, functions, one process (a counter), two processes talking (ping-pong), the `<-` chaining idiom, and a syntactic-quirks reference. Ends with the five principles.
+- **[`docs/ernest-guide.md`](docs/ernest-guide.md)** — a tutorial for a first-time reader. Walks through hello world, types (including opaque), functions, one process (a counter), two processes talking (ping-pong), watching processes (`monitor`, `kill`), adapting messages with `via`, the `<-` chaining idiom, remote computation, foreign types and functions, and the toolchain. Ends with references (parens, syntactic quirks) and the five principles.
 
 ### Then the paper programs, in this order
 
@@ -41,5 +41,5 @@ Design complete for MVP 1 (single-node subset). Implementation begins with the l
 Three layers:
 
 - **Language.** The rules in `ernest.md`: syntax, types, processes, evaluation. Small and stable.
-- **Prelude.** What the report requires to exist. Small — a handful of sum types (Optional, Either, Ordering, Down, Reason, ClockMsg, RemoteError, Foreign), a handful of process functions (via, Address.call, answer, remote, parallelRemote, monitor, kill), a few required operations (Int.div, compare, todo), and system references (Sys.stdout, Sys.stderr, Sys.clock).
+- **Prelude.** What the report requires to exist. Small — the built-in types (Address, Reply, Never, plus List/Map/Set); a handful of declared sum types (Optional, Either, Ordering, Down, Reason, ClockMsg, RemoteError, Foreign, Where); the built-in functions (self, send, spawn); the process functions (via, Address.call, Address.callForever, answer, remote, parallelRemote, monitor, kill); the required operations (Int.div, compare, todo); and system references (Sys.stdout, Sys.stderr, Sys.clock).
 - **Standard library** (Appendix E). Ordinary Ernest code on the load path by default: Io, List, Map, Set, Text, Char, Int, Float, Optional, Either, Foreign. Grows when a paper program writes the same pattern three times.

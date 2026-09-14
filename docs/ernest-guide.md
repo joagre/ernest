@@ -923,8 +923,8 @@ The six roles:
 1. **Type application** (in type position, uppercase): `List(Int)`, `Address(CounterMsg)`.
 2. **Type parameter declaration** (in `type` declaration): `type List(a) = ...`.
 3. **Function or constructor call** (in expression position): `f(x)`, `Some(5)`.
-4. **Field declaration** (in `type` declaration, `:` after ident): `type Peer = Peer(dir : Path)`.
-5. **Named field** (in expression or pattern, `=` after ident): `Peer(dir = d)`.
+4. **Field declaration** (in `type` declaration, `:` after ident): `type Snapshot = Snapshot(dir : Path)`.
+5. **Named field** (in expression or pattern, `=` after ident): `Snapshot(dir = d)`.
 6. **Function type argument list** (in type position): `(A, B) -> C`.
 
 Plus tuples: `(A, B)` as a type, `(1, "hi")` as a value, `(x, y)` as a pattern.
@@ -948,8 +948,8 @@ Reason: positions carry no meaning; names do. A constructor with two things in i
 **`:` in declarations, `=` in construction.** Two different punctuation marks with strict roles.
 
 ```
-type Peer = Peer(dir : Path, seen : Map(Path, Mtime))   // :  declares field types
-Peer(dir = ".", seen = Map.empty)                       // =  binds field values
+type Snapshot = Snapshot(dir : Path, seen : Map(Path, Mtime))   // :  declares field types
+Snapshot(dir = ".", seen = Map.empty)                           // =  binds field values
 ```
 
 Same in function definitions and calls: `fn f(x : Int) = ...` and `f(3)`. Colons introduce types, equals bind values.
