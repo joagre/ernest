@@ -510,6 +510,27 @@ Ernest does not adopt OTP's behaviours — `gen_server`, `gen_statem`, `supervis
 - Not a claim that OTP is bad. OTP is the reason Erlang is used in production; its wisdom is real. Ernest's position is that the wisdom lives in patterns programmers can build, not in language mechanisms that constrain everyone. The pattern's shape is Ernest's, the wisdom is inherited.
 - Not a claim that Ernest replaces Erlang. On BEAM, Ernest and Erlang coexist. An Ernest program that needs an Erlang OTP library uses a shim; an Erlang program that needs an Ernest type calls it through the same runtime.
 
+## Bit Operators as Stdlib Functions, 2026-09-14
+
+Bit operators are added to `Int.ern` as ordinary functions, not to the language as operators:
+
+```
+Int.bitAnd     : (Int, Int) -> Int
+Int.bitOr      : (Int, Int) -> Int
+Int.bitXor     : (Int, Int) -> Int
+Int.bitNot     : (Int) -> Int
+Int.shiftLeft  : (Int, Int) -> Int
+Int.shiftRight : (Int, Int) -> Int    // arithmetic (sign-preserving)
+```
+
+**Why stdlib, not operators.** Symbol operators (`&`, `|`, `^`, `<<`, `>>`) are blocked: `<<` and `>>` are bit-array delimiters. Keyword operators (Erlang's `band`, `bor`, `bxor`, `bnot`, `bsl`, `bsr`) would add six reserved words and push the count from 16 to 22 — a 37% growth that principle 5 does not want. Stdlib functions cost zero language surface, and pipes make them read cleanly: `flags |> Int.bitAnd(mask) |> Int.shiftRight(4)`.
+
+**Why now.** Bit operations are the natural companion to bit arrays. A program that pattern-matches on protocol bytes will want to compute checksums, mask flag fields, and extract bit ranges — bit arrays cover pattern matching, bit operators cover the arithmetic. Added on that symmetry, not on paper-program pull. Same growth-rule exception as `parallelRemote` and `Address.callForever`: if no paper program reaches for them within a few programs, revisit.
+
+**Naming.** `Int.bitAnd`/`bitOr`/`bitXor`/`bitNot` — camelCase, matches Ernest's stdlib style (`Int.abs`, `Int.toText`). Erlang's `band`/`bor` are cryptic; Ernest chooses the readable form. `shiftLeft`/`shiftRight` for the shifts, with `shiftRight` being arithmetic (sign-preserving), consistent with BEAM's `bsr`.
+
+**No logical shift-right.** For arbitrary-precision `Int`, logical shift right is not well-defined without a bit width. Programs that need bit-width-specific operations should mask first: `x |> Int.bitAnd(0xffff) |> Int.shiftRight(4)`. If a paper program needs a proper 32-bit or 64-bit logical shift three times, we add a `Bytes`-oriented library or fixed-width Int type at that point.
+
 ## Gleam Feature Pass, 2026-09-14
 
 A systematic survey of Gleam's language features to check what Ernest is missing that its principles would embrace. Recording the conclusions so future work doesn't redo the analysis.

@@ -720,6 +720,12 @@ Int.abs          : (Int) -> Int
 Int.negate       : (Int) -> Int
 Int.min          : (Int, Int) -> Int
 Int.max          : (Int, Int) -> Int
+Int.bitAnd       : (Int, Int) -> Int
+Int.bitOr        : (Int, Int) -> Int
+Int.bitXor       : (Int, Int) -> Int
+Int.bitNot       : (Int) -> Int
+Int.shiftLeft    : (Int, Int) -> Int
+Int.shiftRight   : (Int, Int) -> Int                   // arithmetic (sign-preserving)
 Int.toText       : (Int) -> Text
 Int.toFloat      : (Int) -> Float
 ```
