@@ -15,11 +15,11 @@ Take a moment on that. "Functions" you probably know. "Processes" means small in
 
 ## 1. A very small program
 
-Here is a complete Ernest program. Let's not try to understand it all at once.
+Here is a complete Ernest program.
 
 ```
 fn main() -> () with () = {
-    send(Sys.stdout, "hello, world\n")
+    Io.println("hello, world")
 }
 ```
 
@@ -31,7 +31,7 @@ When Ernest runs this, it prints `hello, world` followed by a newline to standar
 
 ### No parameters
 
-Inside the parens: nothing. `main` takes no arguments. Everything the program needs from the outside world — a way to print, a clock, and a few other things depending on the runtime — is already in scope as an ambient reference. More on that in a moment.
+Inside the parens: nothing. `main` takes no arguments. Everything the program needs from the outside world — a way to print, a clock, and a few other things depending on the runtime — is already in scope as an ambient reference. We'll get to that in a moment.
 
 ### The return annotation
 
@@ -55,27 +55,35 @@ Read the whole arrow like this: "returns nothing meaningful, running in a proces
 
 ```
 = {
-    send(Sys.stdout, "hello, world\n")
+    Io.println("hello, world")
 }
 ```
 
-The `=` marks the start of the body. What follows is a block — braces around a sequence of statements. This block has just one statement.
+The `=` marks the start of the body. What follows is a block — braces around a sequence of statements. This block has one statement: `Io.println("hello, world")`.
 
-The statement is `send(Sys.stdout, "hello, world\n")`. Let's take it apart.
+`Io.println` is a function from the standard library. `Io` is its namespace — one of several that ship with the compiler and are always available (Appendix E of the report lists them). `Io.println(t)` writes `t` to standard output followed by a newline.
 
-`send` is a built-in function. It takes two arguments: an address, and a message to put in that address's mailbox. It returns immediately — `send` is fire-and-forget.
+That is all you need to run this program. But there is something worth peeking at, because it is what makes Ernest different from other languages.
 
-`Sys.stdout` is the address of the stdout process. Ernest's runtime provides it as an *ambient reference* — a top-level name that is in scope everywhere in your program, alongside `Sys.stderr` (standard error) and `Sys.clock` (the timer). You don't have to receive it as a parameter; you just refer to it by name.
+### What Io.println actually does
 
-`"hello, world\n"` is the message. It is just a `Text` value ending in a newline. The stdout process writes each `Text` it receives to standard output as bytes; newlines are the sender's job. `\n` inside a text literal is a newline escape.
+Ernest has no built-in "print." What `Io.println` does inside is send its argument as a message to a process — a small stdout process the runtime starts on your behalf. That process receives the text and writes it out. Here is the function's body:
 
-If typing `\n` at the end of every message is tedious, the standard library provides `Io.println` (Appendix E of the report). `Io.println("hello, world")` is just `send(Sys.stdout, "hello, world" ++ "\n")` — the same thing, less bookkeeping. We'll use `send` directly here to see what actually happens.
+```
+fn Io.println(text : Text) -> () with m = send(Sys.stdout, text ++ "\n")
+```
+
+Three parts:
+
+- `send(addr, msg)` — a built-in that puts `msg` into the mailbox of the process at `addr`. Fire-and-forget: it returns immediately.
+- `Sys.stdout` — the stdout process's address. It is an *ambient reference*: a top-level name in scope everywhere in your program, alongside `Sys.stderr` (standard error) and `Sys.clock` (a timer). The runtime binds these when the program starts. You do not receive them as parameters; you refer to them by name.
+- `text ++ "\n"` — the message, the text with a newline appended. `++` is text concatenation.
 
 ### The big idea
 
 The most important thing to notice: **`Sys.stdout` is an address, not a stream.**
 
-You do not "print" or "write." You send a message to a process. That process — running concurrently, elsewhere — receives the message and does the actual writing.
+You do not "print" or "write" in Ernest. You send a message to a process. That process — running concurrently, elsewhere — receives the message and does the actual writing.
 
 This is what "processes are the only way to affect the world" means. There is no hidden syscall inside Ernest. If you want to touch anything outside your own function, you send a message to a process that touches it for you.
 
@@ -209,10 +217,10 @@ A pure function's result depends only on its arguments. Nothing else. It doesn't
 Now compare with a function that uses the runtime:
 
 ```
-fn greet() -> () with m = send(Sys.stdout, "hi\n")
+fn greet() -> () with m = Io.println("hi")
 ```
 
-Same shape as `double`, but with two differences: the return arrow has `with m`, and the body calls `send`.
+Same shape as `double`, but with two differences: the return arrow has `with m`, and the body calls `Io.println`, which internally sends a message.
 
 The `with m` at the end of the arrow marks: this function acts through the process it runs in. It doesn't just compute a value from its arguments; it produces observable effects (sending a message).
 
