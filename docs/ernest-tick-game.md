@@ -1,6 +1,6 @@
 # Paper Program 3: Tick Game
 
-Written against the Ernest report, September 2026. A multiplayer snake game in the terminal: the world is updated ten times per second, players send directions between ticks, apples appear at random, scores are counted. The aim is to hit local state in pure code, time drift, input faster than ticks, and randomness without `{Random}`.
+Written against the Ernest report, September 2026. A multiplayer snake game in the terminal: the world is updated ten times per second, players send directions between ticks, apples appear at random, scores are counted. The aim is to hit local state in pure code, time drift, input faster than ticks, and randomness in pure code through a threaded seed rather than a hidden source.
 
 ## Assumptions
 
