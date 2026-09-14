@@ -384,6 +384,27 @@ Same operation as `Address.call` without the timeout: the caller waits as long a
 
 **Growth-rule note.** No paper program has needed this yet. Added on consistency-with-`recv`-and-`remote` grounds, not on three-uses. If a paper program written after this decision doesn't reach for it, revisit.
 
+## Against Labeled Function Arguments, 2026-09-14
+
+Ernest does not adopt labeled parameters — Gleam's `pub fn f(name label: T)`, Swift's `f(name: T)`, Python's keyword arguments. The feature is small in isolation but attracts default values, optional parameters, variadic labels, and positional-vs-keyword-only markers by ongoing community pressure. Python, Swift, and Elixir each took the first step and then took the next several. Rust has held the line for years and pays for that discipline with every fresh RFC.
+
+**Ernest already has the ergonomics for wide signatures**: named fields on a constructor. A function that would benefit from labels wraps its parameters in a small config record:
+
+```
+type CallOptions = CallOptions(timeout : Int, retry : Bool)
+fn call(addr : Address(m), mk : (Reply(a)) -> m, opts : CallOptions) -> Optional(a) with n
+```
+
+Call site: `call(counter, mkGet, CallOptions(timeout = 1000, retry = false))`. Labeled at the site, ordering doesn't matter, one type declaration pays for it. The design pressure to introduce that type when a signature grows past three or four parameters is arguably a *win* — it forces the shape onto the type system where readers find it.
+
+**Principle alignment.**
+
+- Principle 2 (one way, one job): labeled args and constructor named-fields would be two mechanisms for the same call-site labeling job.
+- Principle 5 (small): fewer language concepts and no machinery for defaults, optionals, keyword-only, etc.
+- Growth rule: no paper program has written a signature wide enough to need labels. Adding them speculatively is exactly what the rule was written to prevent.
+
+**Not adopted alongside**: default parameter values, optional parameters, variadic parameters. All rejected on the same slippery-slope grounds. If a paper program writes a five-parameter signature with two bools three times without wrapping them in a type, revisit.
+
 ## Pipe Operator `|>`, 2026-09-14
 
 `|>` is added to the report as a syntactic form: `x |> f` is `f(x)`; `x |> f(a, b)` is `f(x, a, b)`. Left-associative, lowest-precedence (below `||`).
