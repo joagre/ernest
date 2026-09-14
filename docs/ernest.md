@@ -224,11 +224,14 @@ answer       : (Reply(a), a) -> () with m
 **Remote computation.** A pure function can be evaluated on another node:
 
 ```
-remote : (() -> a) -> Either(RemoteError, a)
+remote         : (() -> a) -> Either(RemoteError, a)
+parallelRemote : (List(() -> a)) -> List(Either(RemoteError, a))
 type RemoteError = NoRemotePeer | PeerLost
 ```
 
 `remote(f)` evaluates `f()` on a peer the runtime chooses among those configured for remote computation, and returns the value. Which peer, and by what criterion, the language does not say. `f` is pure and so is `remote`: the result depends on `f` alone, and the caller waits as it would for any computation. `Left(NoRemotePeer)` if no peer is configured; `Left(PeerLost)` if the peer disappears before the value returns.
+
+`parallelRemote(fs)` runs the functions in `fs` on peers in parallel and returns the results in the input order, one `Either` per input. It is pure by the same reasoning as `remote`: the result depends on the inputs alone. The runtime picks peers and schedules the calls; a caller that needs richer control — cancellation, per-task timeouts, interleaved arrivals — spawns processes itself.
 
 **`Never`.** A function with mailbox type `Never` can send but never receive; a `recv` in it is a type error.
 
@@ -304,12 +307,13 @@ type Foreign                                       // a value the language does 
 Process functions:
 
 ```
-via          : ((a) -> b, Address(b)) -> Address(a)
-Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
-answer       : (Reply(a), a) -> () with m
-remote       : (() -> a) -> Either(RemoteError, a)
-monitor      : (Address(a), (Down) -> m) -> () with m
-kill         : (Address(a)) -> () with m
+via            : ((a) -> b, Address(b)) -> Address(a)
+Address.call   : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
+answer         : (Reply(a), a) -> () with m
+remote         : (() -> a) -> Either(RemoteError, a)
+parallelRemote : (List(() -> a)) -> List(Either(RemoteError, a))
+monitor        : (Address(a), (Down) -> m) -> () with m
+kill           : (Address(a)) -> () with m
 ```
 
 Operations required by the language:

@@ -346,6 +346,24 @@ Appendix E was audited for naming, argument order, and coverage. The growth rule
 
 **Paper programs updated.** `Map.delete` → `Map.remove` in `ernest-tick-game.md`; `Optional.flatMap` → `Optional.andThen` in `ernest-webserver.md`. The implementation plan's note on `<-` desugaring reads `Optional.andThen` now.
 
+## `parallelRemote` in the Prelude, 2026-09-14
+
+`parallelRemote` is promoted from Later (stdlib) to the report's prelude, alongside `remote`. Signature:
+
+```
+parallelRemote : (List(() -> a)) -> List(Either(RemoteError, a))
+```
+
+**Why prelude, not stdlib.**
+
+- **Symmetry with `remote`.** Concurrency and remote computation are first-order concepts in Ernest, and the prelude should show the pair, not just the singular. `remote(f)` runs one; `parallelRemote(fs)` runs many. Together they are the two ways the language reaches other nodes.
+- **Runtime-optimizable.** Written in Ernest it is spawn plus recv gather — 10–15 lines. Written by the runtime it can schedule directly to peers, skipping the local process ceremony. Placing it in the prelude signals that the runtime is expected to provide it, not that programs synthesize it.
+- **Pure like `remote`.** The type has no mailbox effect. The result depends on the inputs alone; the caller waits as it would for any computation. Pure code can call it, which matters for algorithms that fan out remote computations from pure helpers.
+
+**Why not a keyword.** Concurrency's prominence in Ernest is real, but wrapping `parallelRemote` in a reserved word costs one against principle 5's small-count. `remote` is a function; `send` is a function; `spawn` is a function. `parallelRemote` fits the same pattern. Elevation belongs in section 6's prose and the type, not in the grammar.
+
+**Growth-rule note.** The three-uses rule applies to promoting stdlib functions; the prelude has a different bar (the report names it). `parallelRemote` earns its slot because it is the second half of the remote-computation story, not because a paper program used it three times. If a paper program written after this decision does not use it, revisit.
+
 ## Reasons Lifted Out of the Report
 
 - `recv` is Erlang's `receive`: selective receive lets a process wait for a specific reply in the middle of a protocol without losing other messages; without it every process becomes a state machine, gen_server turned inside out. `recv` therefore does not require coverage, unlike `match`: the two forms share their syntax but not their semantics, since a `match` that finds no arm is a fault and a `recv` that finds no arm leaves the message in the mailbox. Cost O(n) in the mailbox, and a growing mailbox is not visible in the code, the same cost as in Erlang; the backpressure decision above covers the same problem from the sender's side.
@@ -370,7 +388,6 @@ Planned or considered, not in the language today.
 - **`Erl` in the stdlib.** `Erl.atom : (Text) -> Foreign` and `type Erl.Result(v, r) = Ok(v) | Error(r)`, so that shims do not redeclare them. A stdlib module (`stdlib/Erl.ern`), not a language addition; in the plan under MVP 2.
 - **Byte patterns.** Erlang's bit syntax, `<<Len:16, Body:Len/binary, Rest/binary>>`, is pattern matching over `Bytes`, and the single largest reason protocol code is written in Erlang. Ernest has `Bytes` and only functions to take it apart, four lines where Erlang writes one. Not a concept but a notation for something the language can already do, one more form in `AtomPat` with a small grammar inside; the addition Erlang readers will ask for first, and the one deliberately left for after the parser exists.
 - **`Slot(a)` for language-level credit.** One-shot capability parallel to `Reply(a)`: a consumer allocates and grants slots to a producer via message, the producer sends by consuming a slot per message through `useSlot(s, v)`, and the consumer refills after processing. Same linearity check as `Reply(a)` — a `Slot` bound in an arm is consumed exactly once on every path. The compiler enforces that a producer does not send without permission. Deferred: only helps producer-consumer patterns, and the credit protocol as convention has not been written three times yet. When it has, this is the shape to reach for; see Backpressure above.
-- **`List.parallelRemote` in the stdlib.** A helper for parallel-pure-then-join: `List.parallelRemote(fs) : List(Either(RemoteError, a)) with m` starts N remote computations in parallel and returns their results in order. Implemented as spawn plus recv gather internally, no language extension; the runtime may special-case for direct scheduling. Deferred until a paper program writes the pattern three times. See Remote Ergonomics above for the `Task(a)` alternative if richer control ever becomes essential.
 - **Idioms for the guide, not the report.** Links and supervisors: `monitor(child, Died)` and returning on `Died` is a link; a supervisor is fifteen lines of `spawn`, `monitor`, and `recv`. Parallel remote computation: `remote(f)` waits, so ten at once are ten local processes each calling `remote` and replying, which is what Unison does under `Remote.fork` and `await`, visibly.
 - **Canonical formatter.** A gofmt-style formatter — mechanically simple given the recursive-descent grammar, small bounded lookahead, and no layout sensitivity. One canonical style, no configuration; killing style debates on day one is easier than after a community forms. A toolchain item, not a language item; expected as part of the `ern` binary. The guide will point at it when it lands.
 - **A measure of the specification's length.** Wirth's Oberon report is sixteen pages and shrank with every revision. If this document, without examples, grows past ten pages, one concept too many has come in.
