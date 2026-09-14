@@ -510,6 +510,51 @@ Ernest does not adopt OTP's behaviours — `gen_server`, `gen_statem`, `supervis
 - Not a claim that OTP is bad. OTP is the reason Erlang is used in production; its wisdom is real. Ernest's position is that the wisdom lives in patterns programmers can build, not in language mechanisms that constrain everyone. The pattern's shape is Ernest's, the wisdom is inherited.
 - Not a claim that Ernest replaces Erlang. On BEAM, Ernest and Erlang coexist. An Ernest program that needs an Erlang OTP library uses a shim; an Erlang program that needs an Ernest type calls it through the same runtime.
 
+## Gleam Feature Pass, 2026-09-14
+
+A systematic survey of Gleam's language features to check what Ernest is missing that its principles would embrace. Recording the conclusions so future work doesn't redo the analysis.
+
+**Adopted from Gleam** (each has its own entry above):
+
+- Pipe operator `|>` — see the entry.
+- Bit arrays (`<<...>>` with the Erlang/Gleam specifier vocabulary) — see the entry.
+
+**Rejected on principle**:
+
+- **Labeled function arguments** — see the dedicated entry. Constructor named-fields are Ernest's higher-activation-cost alternative; the pressure to introduce a type when a signature widens is treated as a design win.
+- **Type aliases** (`type UserId = Int`) — banned by §3. Wrapper types (`type UserId = UserId(Int)`) do the type-safety job without opening the aliasing machinery.
+- **`panic` and `assert` as separate primitives** — Gleam has three fault-inducers (`todo`, `panic`, `assert`); Ernest has one (`todo(msg)`). Three intents collapsed to one mechanism keeps §7's "three deliberate fault exceptions" list from becoming four.
+- **`let assert Pattern = expr`** — Gleam allows bypassing irrefutable-pattern requirement in `let`. Ernest requires irrefutable patterns in `let` deliberately; the fallback to `match` or `<-` is the point.
+
+**Deferred under the growth rule**:
+
+- **`use x <- callback(args)`** — generalizes Ernest's `<-` from Optional/Either to arbitrary continuations. Useful for resource acquisition, transactions, DB queries. Alternative today is just writing the lambda, six characters longer. Wait for three paper-program uses.
+- **Function capture `f(_, y)`** — shorthand for `fn(x) = f(x, y)`. Useful for pipes when the value isn't the first argument. Ernest's subject-first stdlib reduces the need. Wait for pull.
+- **List spread in construction `[..list, x, y]`** — Ernest has `+:` for prepend and `List.append` for concatenation; the construct-with-spread middle case is missing. Small ergonomic gap. Wait for pull.
+
+**Handled differently but equivalently**:
+
+- String concatenation (Gleam `<>`, Ernest `++`).
+- Match syntax (Gleam `case ... { pat if guard -> ... }`, Ernest `match ... { pat when guard -> ... }`).
+- List patterns (Gleam `[first, ..rest]`, Ernest `first +: rest`).
+- Discard variables (both allow `_name` as unused-signaling binding).
+
+**Not needed**:
+
+- `const` declarations — Ernest has top-level `let`.
+- `echo` keyword — Ernest has `Io.println`.
+- String interpolation — neither language has it; both use concatenation.
+
+**Ernest's genuine wins over Gleam** (worth noting so we don't lose them under future pressure):
+
+- Typed mailboxes at the language level (`Address(m)`) — Gleam's `Subject(a)` is library-level.
+- `Reply(a)` linearity with three consumption forms — Gleam has no static analog.
+- Mailbox effect in the function type (`with M`) — Gleam does not track effects.
+- Content-addressed code distribution (planned MVP 3).
+- Smaller reserved-word count (16 vs Gleam's more permissive keyword set).
+
+**Conclusion.** The substantive Gleam pass is done. Future adds should pass through the growth rule (three paper-program uses) or a specific principle-driven argument. Cosmetic imitation of Gleam is not a reason.
+
 ## Reasons Lifted Out of the Report
 
 - `recv` is Erlang's `receive`: selective receive lets a process wait for a specific reply in the middle of a protocol without losing other messages; without it every process becomes a state machine, gen_server turned inside out. `recv` therefore does not require coverage, unlike `match`: the two forms share their syntax but not their semantics, since a `match` that finds no arm is a fault and a `recv` that finds no arm leaves the message in the mailbox. Cost O(n) in the mailbox, and a growing mailbox is not visible in the code, the same cost as in Erlang; the backpressure decision above covers the same problem from the sender's side.
