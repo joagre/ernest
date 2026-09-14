@@ -319,7 +319,7 @@ Get(reply = r) -> counter(n)     // forgot to answer!
 
 That would be a type error. `r` would be bound but never used. The compiler would refuse to compile the counter.
 
-That check catches a whole category of silent bugs: a caller that sends a request, waits for a reply that never comes, and eventually times out with no useful diagnostic. Ernest makes it impossible to write a receiver that forgets to answer — the type system remembers for you.
+That check catches a whole category of silent bugs: a caller that sends a request, waits for a reply that never comes, and eventually times out with no useful diagnostic. Ernest makes it impossible to *syntactically* forget to answer — the type system remembers for you.
 
 The consumption doesn't have to be direct or in the same arm. There are three legal forms:
 
@@ -328,6 +328,8 @@ The consumption doesn't have to be direct or in the same arm. There are three le
 3. **Spawning** — capturing `r` in a lambda passed to `spawn` (§5). A child process runs later and calls `answer` when it's ready.
 
 The exactly-once check follows `r` through all three. In the spawning case, the compiler checks the *child's* body for exactly-once consumption — a spawned child whose body forgets to answer is a type error. The `filesync` paper program uses this form: an incoming write request is handed to a `writer` process that performs the file I/O in the background and calls `answer` when it finishes, so the process handling `recv` doesn't block on disk.
+
+**One caveat.** The check is static. It verifies that every syntactically reachable path calls `answer` (or delegates, or spawns), but it can't tell whether execution will *actually* reach that call at runtime. A path that enters an infinite loop, faults, or waits forever will bypass the answer without the compiler knowing. That's why `Address.call` requires a mandatory timeout (§5.3): the caller must plan for the case where the answer never comes — bug, fault, or a receiver that answers only on February 32.
 
 ## 5. Running the counter
 
