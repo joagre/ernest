@@ -31,7 +31,7 @@ When Ernest runs this, it prints `hello, world` followed by a newline to standar
 
 ### No parameters
 
-Inside the parens: nothing. `main` takes no arguments. Everything the program needs from the outside world — a way to print, a clock, and a few other things depending on the runtime — is already in scope as an ambient reference. We'll get to that in a moment.
+Inside the parens: nothing. `main` takes no arguments.
 
 ### The return annotation
 
