@@ -210,6 +210,22 @@ If a function receives messages (uses `recv`), its mailbox type is not free — 
 
 Take a moment: **pure or process is a property of the function type, not of the syntax.** A reader glancing at a function type knows whether calling it can send messages, receive them, or fault. Nothing is hidden.
 
+### 3.3 Type inference
+
+Every function example you have seen so far has type annotations on its parameters and return. In truth those are optional. Ernest has Hindley-Milner type inference — the compiler figures out types from how you use values.
+
+```
+fn double(n) = n * 2
+```
+
+That's a legal Ernest function. The compiler sees `n * 2`, notes that `*` is defined on `Int`, and concludes `n : Int` and the result is `Int`. The inferred type is `(Int) -> Int`, exactly as if you had written it out.
+
+In practice you'll still annotate top-level functions, because a signature at the top of a definition is what a reader looks at first. But local `let` bindings, lambdas, and small helpers can skip annotations without loss.
+
+The lowercase `a` in `type Optional(a) = None | Some(a)` is a *type variable* — a placeholder for whatever specific type is needed at each use. `Some(5)` binds `a` to `Int`; `Some("hi")` binds it to `Text`; `Optional.map`'s type `(Optional(a), (a) -> b) -> Optional(b)` binds `a` and `b` independently at each call. That's generics — Ernest has them, they're just written with lowercase names and inferred from context.
+
+The mailbox slot `with m` on a function type is the same story: a type variable. `Io.println : (Text) -> () with m` says "runs in a process with any mailbox `m`." When called from a process whose mailbox is `CounterMsg`, `m` gets bound to `CounterMsg` at the call site; when called from `PongMsg`, `PongMsg`. Pure functions have no `with` at all, which is different from having a free `m`.
+
 ## 4. A process
 
 Now the interesting part. Let's build a small process — a counter.
@@ -477,7 +493,58 @@ let _ = spawn(Local, fn() = ping(pongAddr, 3));
 
 Output: alternating "ping 3", "pong 3", "ping 2", "pong 2", "ping 1", "pong 1".
 
-## 7. Common questions
+## 7. Chaining with `<-`
+
+Consider a function that parses two numbers from text and adds them. Each parse can fail; failure returns `None`.
+
+Written with nested `match`:
+
+```
+fn parseAndAdd(a : Text, b : Text) -> Optional(Int) =
+    match Text.toInt(a) {
+        None -> None
+      | Some(x) -> match Text.toInt(b) {
+            None -> None
+          | Some(y) -> Some(x + y)
+        }
+    }
+```
+
+Each `None` case just propagates. The nested `match` grows a diagonal for every step. Half the code says nothing.
+
+Ernest gives you `<-`, a special binding form that reads short-circuit-on-failure:
+
+```
+fn parseAndAdd(a : Text, b : Text) -> Optional(Int) = {
+    let x <- Text.toInt(a);
+    let y <- Text.toInt(b);
+    Some(x + y)
+}
+```
+
+Read it left-to-right:
+
+- `let x <- Text.toInt(a)`: if the right-hand side is `Some(v)`, bind `x` to `v` and continue. If it is `None`, the whole block evaluates to `None`; nothing after this line runs.
+- Same for `y`.
+- Reach the last line — `Some(x + y)` — which is what the block returns.
+
+`<-` also works with `Either`. On `Left(e)` it short-circuits to `Left(e)`; on `Right(v)` it binds `v` and continues.
+
+```
+fn parse(toks : List(Token)) -> Either(ParseError, Expr) = {
+    let (e, rest) <- expr(toks);
+    match rest {
+        [] -> Right(e)
+      | t +: _ -> Left(Unexpected(t))
+    }
+}
+```
+
+The compiler picks Optional or Either from the right-hand side's type. You don't have to say which — one form covers both.
+
+`<-` isn't a general escape or exception. It is specifically for `Optional` and `Either`, the two prelude types where "no value" or "error" is an expected branch that should propagate without ceremony. Anything else you handle with `match`.
+
+## 8. Common questions
 
 Some things that trip readers up on first pass.
 
@@ -501,7 +568,7 @@ Every top-level declaration's *qualified name* is where it lives. A **module** i
 
 So you never have to guess. Look at any function type: `(A) -> B` is pure — no messages, no side effects. `(A) -> B with M` is process code — it uses `send`, `recv`, or `self`. Every function's type tells you at a glance whether it can affect the world; you never have to look inside.
 
-## 8. Reference: the roles of parens
+## 9. Reference: the roles of parens
 
 By now you have seen `(...)` in many places. Once you have read a few programs, this feels natural. But here it is as a lookup table:
 
@@ -524,12 +591,65 @@ Plus tuples: `(A, B)` as a type, `(1, "hi")` as a value, `(x, y)` as a pattern.
 
 This is a lot, but you rarely have to consciously disambiguate. The context tells you.
 
-## 9. Reading further
+## 10. Syntactic quirks, once
+
+A short reference of syntactic patterns that don't come from other languages, or that could surprise a reader coming from most languages.
+
+**Two positional fields are forbidden.** A constructor may carry zero fields, one positional field, or any number of *named* fields, but exactly two positional fields is a type error.
+
+```
+type Pair = Pair(Int, Int)               // rejected
+type Pair = Pair(x : Int, y : Int)       // required
+type Pair = Pair((Int, Int))             // single positional payload, a tuple, allowed
+```
+
+Reason: positions carry no meaning; names do. A constructor with two things in it wants to say which is which.
+
+**`:` in declarations, `=` in construction.** Two different punctuation marks with strict roles.
+
+```
+type Peer = Peer(dir : Path, seen : Map(Path, Mtime))   // :  declares field types
+Peer(dir = ".", seen = Map.empty)                       // =  binds field values
+```
+
+Same in function definitions and calls: `fn f(x : Int) = ...` and `f(3)`. Colons introduce types, equals bind values.
+
+**`+:` for list cons.** Prepend one element to a list. Works in expressions and in patterns.
+
+```
+let xs = 1 +: [2, 3]        // xs is [1, 2, 3]
+
+match ys {
+    [] -> "empty"
+  | head +: rest -> "head is " ++ Int.toText(head)
+}
+```
+
+Right-associative: `a +: b +: c` is `a +: (b +: c)`. There is no in-line operator for appending two lists; use `List.append`.
+
+**`..` for record update.** Given a record value, produce a new one with some fields replaced. The old fields are copied.
+
+```
+Player(..p, dir = North)                    // copy of p with dir changed
+Player(..p, alive = false, score = 0)       // multiple field changes at once
+```
+
+**`-` is prefix negation and binary subtraction.** Both roles on the same token, decided by position. Literal `-1` is `-` applied to `1`; there is no negative literal.
+
+**Whitespace and newlines are inert.** Ernest is not layout-sensitive. Statements in a block are separated by `;`, arms of `match` and `recv` by `|`, and that's the whole of the structural punctuation.
+
+**`{}` has two role families.** Blocks separate statements with `;` (`{ let x = 1; x + 1 }`); `match` and `recv` arm containers separate arms with `|` (`match e { pat -> expr | pat -> expr }`). Two families, two internal delimiters, decided by what appears after the opening brace.
+
+**Sixteen reserved words:** `type`, `opaque`, `with`, `match`, `when`, `if`, `then`, `else`, `recv`, `after`, `fn`, `let`, `foreign`, `as`, `true`, `false`. Everything else — `send`, `spawn`, `self`, `remote`, `Sys`, `Io`, `List`, and the rest — is an ordinary name.
+
+**Doc comments start with `///`.** Three slashes to end of line; the toolchain (`ernc --doc`) extracts them to Markdown grouped by declaration.
+
+## 11. Reading further
 
 Once "hello world," the counter, and ping-pong feel readable, the language's four paper programs are the next step. They're in the same repository:
 
 - **`ernest-tick-game.md`** — a snake game with tick-based updates. Introduces named-field records with `..` update syntax, folds over `Map`, one process per player.
-- **`ernest-repl.md`** — a small read-eval-print loop. Introduces `<-` for chaining `Either`, using `try` as a supervised child process, `monitor` for detecting child death.
+- **`ernest-repl.md`** — a small read-eval-print loop. Uses `<-` heavily (see §7 above) and introduces `try` as a supervised child process, `monitor` for detecting child death.
 - **`ernest-filesync.md`** — file synchronization between two nodes. Introduces mutual-address setup via a `Link` message, ambient runtime references beyond `Sys.stdout` (a filesystem process at `Sys.fs`), one process per write.
 - **`ernest-webserver.md`** — HTTP server with sessions in an ETS table. Introduces `foreign fn` for foreign function calls, opaque types with signatures.
 
@@ -541,7 +661,7 @@ For "why is Ernest the way it is," `ernest-decisions.md` records dated design de
 
 For "how the compiler works," `ernest-implementation-plan.md` sketches the MVP 1 roadmap: about eight weeks of one-person work, with a hand-written parser.
 
-## 10. The five principles, once
+## 12. The five principles, once
 
 Ernest is built on five principles, in order. They're in the report's Section 0. Almost every design decision comes back to one or two of them.
 
