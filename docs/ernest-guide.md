@@ -544,66 +544,7 @@ The compiler picks Optional or Either from the right-hand side's type. You don't
 
 `<-` isn't a general escape or exception. It is specifically for `Optional` and `Either`, the two prelude types where "no value" or "error" is an expected branch that should propagate without ceremony. Anything else you handle with `match`.
 
-## 8. Remote computation
-
-So far every function has run in the process that called it. When you have peers — other machines running Ernest — you can hand off a pure computation to run on one of them.
-
-```
-remote : (() -> a) -> Either(RemoteError, a)
-```
-
-Give it a pure, zero-argument function. The runtime picks a peer and evaluates the function there, returning `Right(value)` on success or `Left(err)` if no peer is available or the peer is lost.
-
-```
-fn main() -> () with () = {
-    match remote(fn() = heavy(1, 2, 3)) {
-        Right(n) -> Io.println("got " ++ Int.toText(n))
-      | Left(_)  -> Io.println("no remote available")
-    }
-}
-```
-
-Two things to notice:
-
-- **`remote` is pure.** No `with M` on its type. You can call it from pure functions. From the caller's perspective, `remote(f)` is a slow function call that might fail — nothing about processes or mailboxes is involved.
-- **The function passed in must be pure.** It runs on a peer that has never seen your process; there is no way for it to send or receive messages back to you. The argument type `() -> a` — no `with M` — enforces this.
-
-Peers are configured in `ernest.conf` at start-up. Which peer runs which computation, and by what criterion, the language does not say — that is the runtime's choice.
-
-### 8.1 Parallel remote
-
-For a batch of independent computations:
-
-```
-parallelRemote : (List(() -> a)) -> List(Either(RemoteError, a))
-```
-
-Runs the functions in parallel across peers and returns the results in input order — one `Either` per input.
-
-```
-fn main() -> () with () = {
-    let jobs = [fn() = crunch(1), fn() = crunch(2), fn() = crunch(3)];
-    let results = parallelRemote(jobs);
-    List.foreach(results, fn(r) = match r {
-        Right(n) -> Io.println("ok: " ++ Int.toText(n))
-      | Left(_)  -> Io.println("failed")
-    })
-}
-```
-
-Also pure. Each input succeeds or fails on its own, so one peer's loss doesn't take the whole batch with it.
-
-### 8.2 A different distribution: `spawn(Peer(name), ...)`
-
-If you want a stateful *process* running on a specific peer rather than a pure computation on any peer, that is the other form of `spawn`:
-
-```
-spawn(Peer("worker-a"), fn() = counter(0))
-```
-
-Returns an `Address` you can `send` messages to, exactly like a local process. Two ways to reach across nodes, then: `remote`/`parallelRemote` for pure computation the runtime places, and `spawn(Peer(name), ...)` for a process at a named location. They serve different purposes and the language keeps them distinct.
-
-## 9. Common questions
+## 8. Common questions
 
 Some things that trip readers up on first pass.
 
@@ -627,7 +568,7 @@ Every top-level declaration's *qualified name* is where it lives. A **module** i
 
 So you never have to guess. Look at any function type: `(A) -> B` is pure — no messages, no side effects. `(A) -> B with M` is process code — it uses `send`, `recv`, or `self`. Every function's type tells you at a glance whether it can affect the world; you never have to look inside.
 
-## 10. Reference: the roles of parens
+## 9. Reference: the roles of parens
 
 By now you have seen `(...)` in many places. Once you have read a few programs, this feels natural. But here it is as a lookup table:
 
@@ -650,7 +591,7 @@ Plus tuples: `(A, B)` as a type, `(1, "hi")` as a value, `(x, y)` as a pattern.
 
 This is a lot, but you rarely have to consciously disambiguate. The context tells you.
 
-## 11. Syntactic quirks, once
+## 10. Syntactic quirks, once
 
 A short reference of syntactic patterns that don't come from other languages, or that could surprise a reader coming from most languages.
 
@@ -702,6 +643,65 @@ Player(..p, alive = false, score = 0)       // multiple field changes at once
 **Sixteen reserved words:** `type`, `opaque`, `with`, `match`, `when`, `if`, `then`, `else`, `recv`, `after`, `fn`, `let`, `foreign`, `as`, `true`, `false`. Everything else — `send`, `spawn`, `self`, `remote`, `Sys`, `Io`, `List`, and the rest — is an ordinary name.
 
 **Doc comments start with `///`.** Three slashes to end of line; the toolchain (`ernc --doc`) extracts them to Markdown grouped by declaration.
+
+## 11. Remote computation
+
+So far every function has run in the process that called it. When you have peers — other machines running Ernest — you can hand off a pure computation to run on one of them.
+
+```
+remote : (() -> a) -> Either(RemoteError, a)
+```
+
+Give it a pure, zero-argument function. The runtime picks a peer and evaluates the function there, returning `Right(value)` on success or `Left(err)` if no peer is available or the peer is lost.
+
+```
+fn main() -> () with () = {
+    match remote(fn() = heavy(1, 2, 3)) {
+        Right(n) -> Io.println("got " ++ Int.toText(n))
+      | Left(_)  -> Io.println("no remote available")
+    }
+}
+```
+
+Two things to notice:
+
+- **`remote` is pure.** No `with M` on its type. You can call it from pure functions. From the caller's perspective, `remote(f)` is a slow function call that might fail — nothing about processes or mailboxes is involved.
+- **The function passed in must be pure.** It runs on a peer that has never seen your process; there is no way for it to send or receive messages back to you. The argument type `() -> a` — no `with M` — enforces this.
+
+Peers are configured in `ernest.conf` at start-up. Which peer runs which computation, and by what criterion, the language does not say — that is the runtime's choice.
+
+### 11.1 Parallel remote
+
+For a batch of independent computations:
+
+```
+parallelRemote : (List(() -> a)) -> List(Either(RemoteError, a))
+```
+
+Runs the functions in parallel across peers and returns the results in input order — one `Either` per input.
+
+```
+fn main() -> () with () = {
+    let jobs = [fn() = crunch(1), fn() = crunch(2), fn() = crunch(3)];
+    let results = parallelRemote(jobs);
+    List.foreach(results, fn(r) = match r {
+        Right(n) -> Io.println("ok: " ++ Int.toText(n))
+      | Left(_)  -> Io.println("failed")
+    })
+}
+```
+
+Also pure. Each input succeeds or fails on its own, so one peer's loss doesn't take the whole batch with it.
+
+### 11.2 A different distribution: `spawn(Peer(name), ...)`
+
+If you want a stateful *process* running on a specific peer rather than a pure computation on any peer, that is the other form of `spawn`:
+
+```
+spawn(Peer("worker-a"), fn() = counter(0))
+```
+
+Returns an `Address` you can `send` messages to, exactly like a local process. Two ways to reach across nodes, then: `remote`/`parallelRemote` for pure computation the runtime places, and `spawn(Peer(name), ...)` for a process at a named location. They serve different purposes and the language keeps them distinct.
 
 ## 12. Reading further
 
