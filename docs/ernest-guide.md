@@ -67,7 +67,21 @@ Take a breath. This idea is going to keep coming back. Everything else in Ernest
 
 ## 2. Types
 
-Programs need to describe the shape of the data they work with. Ernest lets you declare types with named cases.
+Ernest starts with a small set of built-in scalar types:
+
+- **`Int`** — integers of arbitrary precision.
+- **`Float`** — IEEE 754 double precision.
+- **`Char`** — one Unicode code point.
+- **`Text`** — a Unicode string.
+- **`Bytes`** — a sequence of octets.
+- **`Bool`** — `true` or `false`.
+- **`()`** — the unit type, which has exactly one value, also written `()`.
+
+Literals look how you'd expect: `42`, `3.14`, `'a'`, `"hello"`, `true`. `()` is written as itself.
+
+You'll meet two built-in generic types shortly: `List(a)` for immutable linked lists and `Map(k, v)` for immutable dictionaries. `Address(m)`, `Reply(a)`, and `Never` are process-related built-ins we'll see in section 5.
+
+Beyond the built-ins, programs need to describe their own data shapes. Ernest lets you declare types with named cases.
 
 Here is a simple one:
 
@@ -284,6 +298,18 @@ match e {
 ```
 
 The first arm whose pattern matches `e` gets its expression evaluated, and the whole `match` takes that value. The compiler checks that the arms cover every possible shape of `e`; a missing case is a type error.
+
+An arm can also have a **guard** — a `when` clause between the pattern and `->`, giving a condition the arm's variables must satisfy:
+
+```
+match x {
+    n when n > 0 -> "positive"
+  | n when n < 0 -> "negative"
+  | _            -> "zero"
+}
+```
+
+The pattern binds first, then the guard is evaluated with those bindings in scope. If the guard is `false`, the arm fails and the next arm is tried. Guards do not count toward exhaustiveness — the compiler still requires a fall-through arm (here, `_`) that matches without a guard. Guards work the same way in `recv` arms.
 
 **`if`** is an expression, not a statement:
 
