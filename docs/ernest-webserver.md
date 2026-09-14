@@ -4,7 +4,7 @@ Written against the Ernest report, September 2026. A web server with sessions.
 
 ## Assumptions About the Runtime's System Processes
 
-`ClockMsg` and `Sys` are the report's. Assumed types for `net`:
+`ClockMsg` is the report's. `Sys.clock` is an ambient reference (report §8); this paper program additionally assumes the runtime provides `Sys.net : Address(NetMsg)`:
 
 ```
 type Port     = Port(Int)
@@ -64,10 +64,10 @@ type Session = Session(Int)            // number of visits
 // The session store: an ETS table, Appendix D of the report --------
 
 // The sweeper: clears the table every ten minutes.
-fn sweeper(clock : Address(ClockMsg), sessions : Ets.Table(SessionId, Session)) -> () with Tick = {
-    send(clock, After(ms = 600000, to = via(fn(_) = Tick, self())));
+fn sweeper(sessions : Ets.Table(SessionId, Session)) -> () with Tick = {
+    send(Sys.clock, After(ms = 600000, to = via(fn(_) = Tick, self())));
     recv { Tick -> Ets.clear(sessions) };
-    sweeper(clock, sessions)
+    sweeper(sessions)
 }
 
 // One process per connection --------------------------------------
@@ -102,10 +102,10 @@ fn acceptor(sessions : Ets.Table(SessionId, Session), seq : Int) -> () with Conn
     Conn(sock) -> { let _ = spawn(Local, fn() = handler(sessions, seq, sock)); acceptor(sessions, seq + 1) }
 }
 
-fn main(Sys(clock = clock, net = net) : Sys) -> () with () = {
+fn main() -> () with () = {
     let sessions = Ets.new();
-    let _ = spawn(Local, fn() = sweeper(clock, sessions));
+    let _ = spawn(Local, fn() = sweeper(sessions));
     let acc = spawn(Local, fn() = acceptor(sessions, 0));
-    send(net, Listen(port = Port(8080), acceptor = acc))
+    send(Sys.net, Listen(port = Port(8080), acceptor = acc))
 }
 ```
