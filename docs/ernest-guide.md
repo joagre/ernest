@@ -248,6 +248,29 @@ let x = if flag then 1 else 2;
 let name = match user { Some(u) -> u | None -> "guest" };
 ```
 
+### 3.5 The pipe operator `|>`
+
+Ernest's standard library is subject-first: `List.map(list, f)`, `Text.chars(text)`, `Map.get(map, key)`. When you compose several such calls, the expression reads inside-out:
+
+```
+Text.chars(Text.toLower(Text.trim(input)))
+```
+
+The pipe operator flips the reading direction:
+
+```
+input |> Text.trim |> Text.toLower |> Text.chars
+```
+
+Same value, read left to right. `x |> f` is exactly `f(x)`. When the right-hand side already has arguments, the pipe inserts its left-hand side as the *first* argument: `xs |> List.map(f)` is `List.map(xs, f)`.
+
+Two rules of thumb:
+
+- Use `|>` when the reading direction adds real clarity — usually three or more chained transformations, or a chain that mixes stdlib functions with your own.
+- Don't force it. `Int.toText(n)` is fine as a single call; `n |> Int.toText` is longer and no clearer.
+
+`|>` is the lowest-precedence binary operator, below `||`. So `a + b |> f` is `f(a + b)`, and `a |> b |> c` is `c(b(a))` — chains build left-associatively.
+
 ## 4. Opaque types
 
 Sometimes you want a type whose values look like a specific shape from inside your module but appear opaque to callers. Someone can hold a value of the type, pass it around, and use functions on it — but they cannot construct it directly, cannot pattern-match on its shape, and cannot see what's inside.
