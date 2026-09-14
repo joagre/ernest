@@ -506,7 +506,63 @@ let _ = spawn(Local, fn() = ping(pongAddr, 3));
 
 Output: alternating "ping 3", "pong 3", "ping 2", "pong 2", "ping 1", "pong 1".
 
-## 7. Chaining with `<-`
+## 7. Watching another process
+
+When you spawn a child process, it runs concurrently with the parent. Sometimes the parent needs to know when the child stops — did it finish, did it crash, was it killed. Ernest's tool for this is `monitor`.
+
+Processes die for one of four reasons:
+
+- **`Returned`** — the function finished normally.
+- **`Killed`** — another process called `kill` on them.
+- **`ProgramEnd`** — the whole program is shutting down.
+- **`Fault(text)`** — an unhandled error, with a description.
+
+There is no shared exception mechanism and no automatic propagation. A fault in one process does not affect another. If you want to know a process has died, you explicitly ask.
+
+```
+monitor : (Address(a), (Down) -> m) -> () with m
+```
+
+`monitor(child, wrap)` sets up a watch. When `child` dies, the runtime places `wrap(d)` in *your* mailbox, where `d : Down` carries the cause.
+
+```
+type Down = Down(reason : Reason, function : Text)
+type Reason = Returned | Killed | ProgramEnd | Fault(Text)
+```
+
+The typical pattern:
+
+```
+type ParentMsg = Died(Down) | ...
+
+fn parent() -> () with ParentMsg = {
+    let child = spawn(Local, fn() = someWork());
+    monitor(child, Died);
+    recv {
+        Died(Down(reason = r)) -> // handle the child's exit
+            ...
+      | ...
+    }
+}
+```
+
+`monitor(child, Died)` says: "when the child dies, wrap a `Down` in `Died(_)` and put it in my mailbox." `Died` is a constructor from the parent's own message type, which is why `Died(Down)` is one of `ParentMsg`'s cases. The runtime turns the child's death into a message *you* defined.
+
+### 7.1 `kill`
+
+```
+kill : (Address(a)) -> () with m
+```
+
+`kill(addr)` terminates the process at `addr` immediately. Anyone monitoring that process receives `Down(reason = Killed, ...)`.
+
+The REPL paper program combines `monitor` and `kill` in a supervised-child pattern: the parent spawns a child to evaluate an expression, monitors it, and either receives `Result(...)` or, after a timeout, calls `kill(child)` and gives up. Watching plus killing plus `after` is enough to build a "run this, but abort if it takes too long" primitive without any special language support.
+
+### 7.2 No cascades
+
+A fault in one process doesn't automatically bring down others. There are no links, no supervision trees baked into the language. Every process decides for itself what to do when a watched one dies. Ernest chose the explicit shape so death handling is visible in the code, not implicit in the setup.
+
+## 8. Chaining with `<-`
 
 Consider a function that parses two numbers from text and adds them. Each parse can fail; failure returns `None`.
 
@@ -557,7 +613,7 @@ The compiler picks Optional or Either from the right-hand side's type. You don't
 
 `<-` isn't a general escape or exception. It is specifically for `Optional` and `Either`, the two prelude types where "no value" or "error" is an expected branch that should propagate without ceremony. Anything else you handle with `match`.
 
-## 8. Common questions
+## 9. Common questions
 
 Some things that trip readers up on first pass.
 
@@ -581,7 +637,7 @@ Every top-level declaration's *qualified name* is where it lives. A **module** i
 
 So you never have to guess. Look at any function type: `(A) -> B` is pure — no messages, no side effects. `(A) -> B with M` is process code — it uses `send`, `recv`, or `self`. Every function's type tells you at a glance whether it can affect the world; you never have to look inside.
 
-## 9. Reference: the roles of parens
+## 10. Reference: the roles of parens
 
 By now you have seen `(...)` in many places. Once you have read a few programs, this feels natural. But here it is as a lookup table:
 
@@ -604,7 +660,7 @@ Plus tuples: `(A, B)` as a type, `(1, "hi")` as a value, `(x, y)` as a pattern.
 
 This is a lot, but you rarely have to consciously disambiguate. The context tells you.
 
-## 10. Syntactic quirks, once
+## 11. Syntactic quirks, once
 
 A short reference of syntactic patterns that don't come from other languages, or that could surprise a reader coming from most languages.
 
@@ -657,7 +713,7 @@ Player(..p, alive = false, score = 0)       // multiple field changes at once
 
 **Doc comments start with `///`.** Three slashes to end of line; the toolchain (`ernc --doc`) extracts them to Markdown grouped by declaration.
 
-## 11. Remote computation
+## 12. Remote computation
 
 So far every function has run in the process that called it. When you have peers — other machines running Ernest — you can hand off a pure computation to run on one of them.
 
@@ -683,7 +739,7 @@ Two things to notice:
 
 Peers are configured in `ernest.conf` at start-up. Which peer runs which computation, and by what criterion, the language does not say — that is the runtime's choice.
 
-### 11.1 Parallel remote
+### 12.1 Parallel remote
 
 For a batch of independent computations:
 
@@ -706,7 +762,7 @@ fn main() -> () with () = {
 
 Also pure. Each input succeeds or fails on its own, so one peer's loss doesn't take the whole batch with it.
 
-### 11.2 A different distribution: `spawn(Peer(name), ...)`
+### 12.2 A different distribution: `spawn(Peer(name), ...)`
 
 If you want a stateful *process* running on a specific peer rather than a pure computation on any peer, that is the other form of `spawn`:
 
@@ -716,12 +772,12 @@ spawn(Peer("worker-a"), fn() = counter(0))
 
 Returns an `Address` you can `send` messages to, exactly like a local process. Two ways to reach across nodes, then: `remote`/`parallelRemote` for pure computation the runtime places, and `spawn(Peer(name), ...)` for a process at a named location. They serve different purposes and the language keeps them distinct.
 
-## 12. Reading further
+## 13. Reading further
 
 Once "hello world," the counter, and ping-pong feel readable, the language's four paper programs are the next step. They're in the same repository:
 
 - **`ernest-tick-game.md`** — a snake game with tick-based updates. Introduces named-field records with `..` update syntax, folds over `Map`, one process per player.
-- **`ernest-repl.md`** — a small read-eval-print loop. Uses `<-` heavily (see §7 above) and introduces `try` as a supervised child process, `monitor` for detecting child death.
+- **`ernest-repl.md`** — a small read-eval-print loop. Uses `<-` heavily (see §8 above) and combines `monitor` and `kill` (see §7) into a `try` process that aborts a slow evaluation.
 - **`ernest-filesync.md`** — file synchronization between two nodes. Introduces mutual-address setup via a `Link` message, ambient runtime references beyond `Sys.stdout` (a filesystem process at `Sys.fs`), one process per write.
 - **`ernest-webserver.md`** — HTTP server with sessions in an ETS table. Introduces `foreign fn` for foreign function calls, opaque types with signatures.
 
@@ -733,7 +789,7 @@ For "why is Ernest the way it is," `ernest-decisions.md` records dated design de
 
 For "how the compiler works," `ernest-implementation-plan.md` sketches the MVP 1 roadmap: about eight weeks of one-person work, with a hand-written parser.
 
-## 13. The five principles, once
+## 14. The five principles, once
 
 Ernest is built on five principles, in order. They're in the report's Section 0. Almost every design decision comes back to one or two of them.
 
