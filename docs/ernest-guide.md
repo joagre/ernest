@@ -153,6 +153,58 @@ Why do it? Two reasons. First, type safety: the compiler will not let you pass a
 
 The prelude type `Reply(a)`, which we'll meet later, is another example of a wrapper. Wrapper types are a small, useful pattern.
 
+### 2.4 Lists
+
+Lists are Ernest's built-in linked collection: `List(a)` is a list whose elements have type `a`. `[]` is the empty list; `[1, 2, 3]` is a list of three `Int` elements.
+
+Lists build up by prepending. The operator is `+:`:
+
+```
+let xs = 1 +: [2, 3];           // xs is [1, 2, 3]
+let ys = 0 +: xs                // ys is [0, 1, 2, 3]
+```
+
+`+:` is right-associative, so `1 +: 2 +: 3 +: []` reads left-to-right as building `[1, 2, 3]` — which is exactly how `[1, 2, 3]` is defined.
+
+Lists decompose with pattern matching:
+
+```
+match xs {
+    []             -> "empty"
+  | head +: rest   -> "first is " ++ Int.toText(head)
+}
+```
+
+The first arm matches the empty list. The second arm binds `head` to the first element and `rest` to the remainder.
+
+Common list operations live in `List.ern` (Appendix E of the report): `List.map`, `List.filter`, `List.foldLeft`, `List.foreach`, and so on. Since they're subject-first (`List.map(list, f)`, not `List.map(f, list)`), they compose naturally with `|>`.
+
+### 2.5 Tuples
+
+A tuple is a fixed-size positional group of values, each with its own type:
+
+```
+let point : (Int, Int) = (3, 4);
+let entry : (Text, Int) = ("Alice", 30)
+```
+
+The type `(A, B)` is a two-tuple; `(A, B, C)` a three-tuple; and so on. A tuple must have at least two elements — `(x)` isn't a tuple, it's just parentheses around `x`.
+
+Destructure with a pattern:
+
+```
+let (x, y) = point;
+let (name, age) = entry
+```
+
+Tuples are useful when a function needs to return more than one value without introducing a named type:
+
+```
+fn divmod(a : Int, b : Int) -> (Int, Int) = todo("quotient and remainder")
+```
+
+For anything where positions carry different meanings that a reader would benefit from seeing, prefer a named-fields constructor (`Person(name : Text, age : Int)`) over a tuple. Tuples are for genuinely positional data — 2D points, key-value pairs, multi-value returns — where the position itself is the interpretation.
+
 ## 3. Functions
 
 The syntax you saw in `main` works for any function.
