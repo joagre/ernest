@@ -9,8 +9,9 @@ The runtime is assumed to provide `Sys.stdin : Address(StdinMsg)` as an addition
 ## The Program
 
 ```
-// Types ----------------------------------------------------------
-
+//
+// Types
+//
 type Token = Num(Int) | Ident(Text) | Op(Char) | LParen | RParen | KwLet | KwFun | Eq | Arrow
 type LexError = BadChar(c : Char, at : Int)
 
@@ -35,15 +36,17 @@ type ReplMsg
     | Result(Either(EvalError, Value))
     | Died(Down)
 
-// Program --------------------------------------------------------
-
+//
+// Program
+//
 fn main() -> () with () = {
     let _ = spawn(Local, fn() = repl(Map.empty));
     ()
 }
 
-// Processes ------------------------------------------------------
-
+//
+// Processes
+//
 fn repl(env : Map(Text, Value)) -> () with ReplMsg = {
     send(Sys.stdin, ReadLine(reply = via(Input, self())));
     recv {
@@ -90,8 +93,9 @@ fn show(r : Either(TryError, Value)) -> () with ReplMsg = Io.println(match r {
   | Left(Timeout) -> "aborted after 2 s"
 })
 
-// Pure code: lexer -----------------------------------------------
-
+//
+// Pure code: lexer
+//
 fn tokenize(t : Text) -> Either(LexError, List(Token)) = lex(Text.chars(t), 0, [])
 
 fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Token)) = match cs {
@@ -115,8 +119,9 @@ fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Tok
   | c +: _   -> Left(BadChar(c = c, at = i))
 }
 
-// Pure code: parser ----------------------------------------------
-// expr   := 'let' ident '=' expr | 'fun' ident '->' expr | sum
+//
+// Pure code: parser
+//// expr   := 'let' ident '=' expr | 'fun' ident '->' expr | sum
 // sum    := prod (('+'|'-') prod)*
 // prod   := app (('*'|'/') app)*
 // app    := atom atom*
@@ -182,8 +187,9 @@ fn atom(toks : List(Token)) -> Either(ParseError, Step) = match toks {
   | [] -> Left(Eof)
 }
 
-// Pure code: evaluator -------------------------------------------
-
+//
+// Pure code: evaluator
+//
 fn eval(env : Map(Text, Value), e : Expr) -> Either(EvalError, Value) = match e {
     Lit(n) -> Right(N(n))
   | Var(x) -> match Map.get(env, x) { Some(v) -> Right(v) | None -> Left(Unbound(x)) }

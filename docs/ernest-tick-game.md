@@ -18,8 +18,9 @@ Sys.keys : Address(KeyMsg) // additional runtime reference
 ## The Program
 
 ```
-// Types ----------------------------------------------------------
-
+//
+// Types
+//
 type Dir = N | S | W | E
 type Pos = Pos(x : Int, y : Int)
 
@@ -37,8 +38,9 @@ type Input = Turn(id : Int, dir : Dir) | Leave(Int)
 
 type GameMsg = Tick | In(Input)
 
-// Program --------------------------------------------------------
-
+//
+// Program
+//
 fn main() -> () with () = {
     let world0 = World(w = 40, h = 20, players = Map.empty, apples = [], seed = Seed(42), tick = 0);
     let g = spawn(Local, fn() = game(addPlayer(world0, 1)));
@@ -46,8 +48,9 @@ fn main() -> () with () = {
     send(Sys.keys, Subscribe(p1))
 }
 
-// Processes ------------------------------------------------------
-
+//
+// Processes
+//
 fn game(world : World) -> () with GameMsg = {
     send(Sys.clock, After(ms = 100, to = via(fn(_) = Tick, self())));
     recv {
@@ -76,8 +79,9 @@ fn player(id : Int, game : Address(GameMsg)) -> () with Key = recv {
   | Quit -> send(game, In(Leave(id)))
 }
 
-// Pure world logic ----------------------------------------------
-
+//
+// Pure world logic
+//
 // One tick: move everyone, eat apples, collide, refill apples.
 // Three counters change: score per player, apples left, tick.
 fn step(world : World) -> World = {
@@ -130,8 +134,9 @@ fn addPlayer(world : World, id : Int) -> World = todo("add a player at a random 
 
 fn render(world : World) -> Text = todo("grid to text, one line per y")
 
-// Small helpers -------------------------------------------------
-
+//
+// Small helpers
+//
 fn move(w : Int, h : Int, Pos(x = x, y = y) : Pos, d : Dir) -> Pos = match d {
     N -> Pos(x = x, y = (y - 1) % h)
   | S -> Pos(x = x, y = (y + 1) % h)

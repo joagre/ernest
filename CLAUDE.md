@@ -63,3 +63,19 @@ Conventions for Ernest source code. Ernest is order-independent at top level, so
     Structural indentation (blocks, arm separators, function bodies) is not alignment padding — a `|` at the start of a subsequent arm, or a `let` at the start of a block statement, is part of the syntactic form, not a padding choice.
 
 - **100-character line limit for code.** Code inside code blocks stays at or under 100 columns. Prose in markdown documents can be longer (renderers wrap it). Split long expressions or arguments across lines rather than let one line run wide.
+
+- **Section banners are three lines, not a horizontal rule.** For section headers inside a module, use a small block-comment banner rather than a comment padded with dashes:
+
+    Good:
+    ```
+    //
+    // Processes
+    //
+    ```
+
+    Bad:
+    ```
+    // Processes ------------------------------------------------
+    ```
+
+    The dash-padded form is another kind of alignment padding — it depends on a visual column that shifts if the section name is renamed. The three-line banner is stable, scans clearly, and reads as an intentional block comment rather than a decoration.

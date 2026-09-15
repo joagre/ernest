@@ -17,8 +17,9 @@ type Tick     = Tick
 ## The Program
 
 ```
-// Types ---------------------------------------------------------
-
+//
+// Types
+//
 type Request = Request(method : Text, path : Text, headers : List((Text, Text)))
 type Response = Response(status : StatusCode, headers : List((Text, Text)), body : Text)
 type ParseError = BadEncoding | BadRequestLine | BadHeader(Text)
@@ -36,8 +37,9 @@ opaque type SessionId = SessionId(Text) with {
     text : (SessionId) -> Text
 }
 
-// Program -------------------------------------------------------
-
+//
+// Program
+//
 fn main() -> () with () = {
     let sessions = Ets.new();
     let _ = spawn(Local, fn() = sweeper(sessions));
@@ -45,8 +47,9 @@ fn main() -> () with () = {
     send(Sys.net, Listen(port = Port(8080), acceptor = acc))
 }
 
-// Processes -----------------------------------------------------
-
+//
+// Processes
+//
 // The sweeper: clears the session table every ten minutes.
 fn sweeper(sessions : Ets.Table(SessionId, Session)) -> () with Tick = {
     send(Sys.clock, After(ms = 600000, to = via(fn(_) = Tick, self())));
@@ -96,8 +99,9 @@ fn handler(
     }
 }
 
-// Pure code: HTTP parsing and rendering -------------------------
-
+//
+// Pure code: HTTP parsing and rendering
+//
 fn parse(b : Bytes) -> Either(ParseError, Request) = {
     let t <- Either.fromOptional(Text.fromUtf8(b), BadEncoding);
     let lines = Text.lines(t);
@@ -112,8 +116,9 @@ fn render(r : Response) -> Bytes = todo("on paper")
 fn cookie(r : Request, name : Text) -> Optional(Text) = todo("on paper")
 fn withCookie(name : Text, value : Text, r : Response) -> Response = todo("on paper")
 
-// Opaque-type definitions ---------------------------------------
-
+//
+// Opaque-type definitions
+//
 let StatusCode.ok = StatusCode(200)
 let StatusCode.notFound = StatusCode(404)
 fn StatusCode.render(StatusCode(n)) = Int.toText(n)
