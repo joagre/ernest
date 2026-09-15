@@ -4,7 +4,7 @@ The reasoning behind the language report in [`ernest.md`](ernest.md): what was t
 
 **A note on principle numbering.** Some dated entries below reference "principle N" using the count at the time they were written. The count changed on 2026-09-14 from seven principles to five (see *Ambient Sys, Five Principles*), and one entry from 2026-09-12 renamed "principle 5" as what is now principle 4 (simple to parse). Read older references in that light; the current numbering lives in [`ernest.md`](ernest.md) §0.
 
-**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Later the same day the cons operator `+:` became `::` and the text-concat operator `++` became `<>` (see *List and Concat Operators*), and the reserved word `recv` was spelled out as `receive` (see *`recv` → `receive`*). Historical entries below use the older names; the current terms live in [`ernest.md`](ernest.md).
+**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Later the same day the cons operator `+:` became `::` and the text-concat operator `++` became `<>` (see *List and Concat Operators*), the reserved word `recv` was spelled out as `receive` (see *`recv` → `receive`*), and `opaque` became `abstract` (see *`opaque` → `abstract`*). Historical entries below use the older names; the current terms live in [`ernest.md`](ernest.md).
 
 ## Starting Point
 
@@ -598,6 +598,24 @@ External review found `recv` unnecessarily abbreviated. The saved three characte
 **Effect.** §2's reserved-word list swaps `recv` for `receive` (still sixteen words). Grammar rule `RecvExpr` becomes `ReceiveExpr`. Every use of `receive { ... }` in §6, the guide, the four paper programs, and the implementation plan is updated. Erlang's `gen_tcp:recv/3` in the Erlang comparison stays — it's a foreign function name.
 
 **Why the abbreviation existed.** Historically Ernest inherited `recv` from the pre-2026-09-12 version when it was a function taking a filter lambda. The function became a form with clauses on 2026-09-13; the abbreviation stayed by inertia. No principle argued for keeping it, and one — least surprise — argued against.
+
+## `opaque` → `abstract`, 2026-09-15
+
+External review objected: `opaque` describes the *property* (representation not visible from outside), not the *concept* (abstract data type). The mentor comes from Lisp and ML, where the standard term is *abstract type* — used in SML/OCaml module-signature literature, and in every textbook treatment of the concept back to Liskov's CLU.
+
+Considered:
+
+- **Keep `opaque`.** Precedent: Scala 3, Gleam, Racket. Modern FP-keyword lineage — three languages. But describes the effect, not the essence; the mentor's objection is real.
+- **`abstract`.** ML tradition. Names the concept directly. Downside: OOP baggage — "abstract class" in Java/C# means "must be extended". Ernest has no inheritance, no classes, no methods, so the collision is *nominal* only. Reader has to reset once, not repeatedly.
+- **`adt`.** Correct as an acronym but obscure. Principle 1 loss for first-time readers who don't know the jargon.
+- **`encapsulate` / `sealed` / `private`.** Ernest-invented or borrowed from OOP methodology, without the meaning matching. Principle 1 loss on all three.
+- **Drop the keyword entirely.** Let the presence of `with { ... }` on a type imply hiding. Fifteen keywords (principle 5). But intent becomes invisible — a reader has to know that `with` means opaque (principle 3 loss).
+
+Taken: `abstract`. Ernest's type system is ML-family (Hindley-Milner, sum types, patterns) more than Scala/Gleam-family; the mentor's vocabulary is the audience's vocabulary; and the OOP collision is nominal since Ernest has no inheritance to attach "abstract" to. Naming the concept (ADT) beats describing the property (opacity) when the concept is well-established.
+
+**Effect.** Reserved word `opaque` → `abstract` (still sixteen keywords). Grammar rule `OpaqueDecl` → `AbstractDecl`. Every `opaque type` in the report, guide, four paper programs, and implementation plan updated. §3 and §4's paragraph header "Opaque types" → "Abstract types". Prose adjective uses ("an opaque modification time") also updated to "abstract" for consistency — in context, "abstract" reads as "representation-hidden", which is the intended meaning.
+
+**Not renamed.** No collision with any other keyword, so nothing else moves.
 
 ## `Bool.ern` Added, 2026-09-14
 

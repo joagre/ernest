@@ -28,7 +28,7 @@ The grammar is written in Wirth-style EBNF (as in the Modula-2 and Oberon report
 
 **Identifiers.** `ident` begins with a lowercase letter or `_` and continues with any number of letters, digits, and `_`; `conname` and `typename` begin with an uppercase letter and continue the same way, and are lexically the same token; `typevar` is a lowercase identifier in type position. An identifier that begins with `_` must have at least one further character — the token `_` alone is the wildcard (section 5). A qualified name is a sequence of uppercase-starting segments (each is a `typename`) followed by a final segment that starts either lowercase (a function, operator, or variable) or uppercase (a constructor): `Net.Http.parse`, `Stack.push`, `Int.+`, `ServerMsg.Get`. The dots are namespaces, section 4.
 
-**Reserved words.** Sixteen: `type`, `opaque`, `with`, `match`, `when`, `if`, `then`, `else`, `receive`, `after`, `fn`, `let`, `foreign`, `as`, `true`, `false`.
+**Reserved words.** Sixteen: `type`, `abstract`, `with`, `match`, `when`, `if`, `then`, `else`, `receive`, `after`, `fn`, `let`, `foreign`, `as`, `true`, `false`.
 
 **Literals.**
 
@@ -89,7 +89,7 @@ type Snapshot = Snapshot(dir : Path, seen : Map(Path, Mtime))
 
 Positional fields cap at one — beyond that, names are required, because position alone would hide what each field means. Field names are unique within a constructor; their order carries no meaning. Positional and named fields are distinguished by `:` after the first identifier in declarations, and by `=` in construction and patterns.
 
-**Opaque types.** A sum type whose constructors may be mentioned only in the functions listed in the type's signature, section 4.
+**Abstract types.** A sum type whose constructors may be mentioned only in the functions listed in the type's signature, section 4.
 
 **Built-in types.** `Address(m)`, an address of a process that receives `m`. `Reply(a)`, a one-shot address for the answer to a request, section 6. `Never`, the type with no values. The prelude types, section 9.
 
@@ -105,14 +105,14 @@ Positional fields cap at one — beyond that, names are required, because positi
 
 ```
 Program     = { Declaration } .
-Declaration = TypeDecl | OpaqueDecl | FnDecl | LetDecl | ForeignDecl .
+Declaration = TypeDecl | AbstractDecl | FnDecl | LetDecl | ForeignDecl .
 ForeignDecl = "foreign" ( "type" QTypeName [ "(" typevar { "," typevar } ")" ]
             | "fn" Name "(" [ Param { "," Param } ] ")" Return "=" text ) .
 TypeDecl    = "type" QTypeName [ "(" typevar { "," typevar } ")" ] "="
               Constructor { "|" Constructor } .
 Constructor = conname [ "(" ( Type | Field { "," Field } ) ")" ] .
 Field       = ident ":" Type .
-OpaqueDecl  = "opaque" TypeDecl "with" "{" Signature { ";" Signature } "}" .
+AbstractDecl  = "abstract" TypeDecl "with" "{" Signature { ";" Signature } "}" .
 Signature   = ( ident | binop ) ":" Type .
 FnDecl      = "fn" Name "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 Param       = Pattern [ ":" Type ] .
@@ -125,14 +125,14 @@ QTypeName   = { typename "." } typename .
 
 **Modules.** A *module* is a single Ernest source file, ending in `.ern`. It is the unit of compilation and the unit that carries a namespace; every top-level declaration belongs to exactly one module.
 
-**Namespaces and visibility.** The namespace is in the name, and so is the visibility. A top-level declaration with a qualified name, `fn Net.Http.parse(b) = ...`, `type Net.Http.Request = ...`, is visible throughout the program under that name; two such declarations with the same full name are an error. A top-level declaration with an unqualified name, `fn helper(x) = ...`, is visible only in its own module. A module's path is its namespace: the qualified declarations in `Net/Http.ern` begin with `Net.Http.`, and may go deeper, `Net.Http.Header.parse`. That is the whole of a module's meaning, and there is no export list, no `pub`, and no `import`. Sub-namespaces are the dots; namespace segments are type names. An unqualified name in a body is looked up first among the module's unqualified declarations, then in the namespace of the enclosing declaration, then in the prelude; everything else must be qualified. The only other thing hidden is the constructor of an opaque type from definitions outside its signature. `main` is unqualified, section 8.
+**Namespaces and visibility.** The namespace is in the name, and so is the visibility. A top-level declaration with a qualified name, `fn Net.Http.parse(b) = ...`, `type Net.Http.Request = ...`, is visible throughout the program under that name; two such declarations with the same full name are an error. A top-level declaration with an unqualified name, `fn helper(x) = ...`, is visible only in its own module. A module's path is its namespace: the qualified declarations in `Net/Http.ern` begin with `Net.Http.`, and may go deeper, `Net.Http.Header.parse`. That is the whole of a module's meaning, and there is no export list, no `pub`, and no `import`. Sub-namespaces are the dots; namespace segments are type names. An unqualified name in a body is looked up first among the module's unqualified declarations, then in the namespace of the enclosing declaration, then in the prelude; everything else must be qualified. The only other thing hidden is the constructor of an abstract type from definitions outside its signature. `main` is unqualified, section 8.
 
 **Type declarations.** `type` declares a sum type with its constructors. A constructor has the visibility of its type.
 
-**Opaque types.** `opaque type T = ... with { s1; s2 }` declares a type whose constructors may appear only in the definitions of the names given by the signatures. The names live in `T`'s namespace: the signature `push : (a, Stack(a)) -> Stack(a)` refers to `Stack.push`. The definitions are checked against the signatures and do not repeat the type. The constructor outside these definitions is a type error. The signature delimits who sees the constructor, not which functions may exist for the type.
+**Abstract types.** `abstract type T = ... with { s1; s2 }` declares a type whose constructors may appear only in the definitions of the names given by the signatures. The names live in `T`'s namespace: the signature `push : (a, Stack(a)) -> Stack(a)` refers to `Stack.push`. The definitions are checked against the signatures and do not repeat the type. The constructor outside these definitions is a type error. The signature delimits who sees the constructor, not which functions may exist for the type.
 
 ```
-opaque type Stack(a) = Stack(List(a)) with {
+abstract type Stack(a) = Stack(List(a)) with {
     empty : Stack(a);
     push : (a, Stack(a)) -> Stack(a);
     pop : (Stack(a)) -> Optional((a, Stack(a)))
@@ -413,7 +413,7 @@ Sys.clock        : Address(ClockMsg) // the clock process
 
 ```
 Program     = { Declaration } .
-Declaration = TypeDecl | OpaqueDecl | FnDecl | LetDecl | ForeignDecl .
+Declaration = TypeDecl | AbstractDecl | FnDecl | LetDecl | ForeignDecl .
 ForeignDecl = "foreign" ( "type" QTypeName [ "(" typevar { "," typevar } ")" ]
             | "fn" Name "(" [ Param { "," Param } ] ")" Return "=" text ) .
 
@@ -421,7 +421,7 @@ TypeDecl    = "type" QTypeName [ "(" typevar { "," typevar } ")" ] "="
               Constructor { "|" Constructor } .
 Constructor = conname [ "(" ( Type | Field { "," Field } ) ")" ] .
 Field       = ident ":" Type .
-OpaqueDecl  = "opaque" TypeDecl "with" "{" Signature { ";" Signature } "}" .
+AbstractDecl  = "abstract" TypeDecl "with" "{" Signature { ";" Signature } "}" .
 Signature   = ( ident | binop ) ":" Type .
 
 FnDecl      = "fn" Name "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .

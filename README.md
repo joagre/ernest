@@ -12,14 +12,14 @@ Design complete for MVP 1 (single-node subset). Implementation begins with the l
 
 - **[`docs/ernest.md`](docs/ernest.md)** — the language report. Normative. Everything else in this repo defers to it. About ten pages of prose plus a grammar appendix, a configuration appendix, a foreign-library appendix, and a standard-library appendix.
 
-- **[`docs/ernest-guide.md`](docs/ernest-guide.md)** — a tutorial for a first-time reader. Walks through hello world, types (including opaque), functions, one process (a counter), two processes talking (ping-pong), watching processes (`monitor`, `kill`), adapting messages with `via`, the `<-` chaining idiom, remote computation, foreign types and functions, bitstrings, and the toolchain. Closes with a short FAQ and pointers to the paper programs.
+- **[`docs/ernest-guide.md`](docs/ernest-guide.md)** — a tutorial for a first-time reader. Walks through hello world, types (including abstract), functions, one process (a counter), two processes talking (ping-pong), watching processes (`monitor`, `kill`), adapting messages with `via`, the `<-` chaining idiom, remote computation, foreign types and functions, bitstrings, and the toolchain. Closes with a short FAQ and pointers to the paper programs.
 
 ### Then the paper programs, in this order
 
 - **[`docs/ernest-tick-game.md`](docs/ernest-tick-game.md)** — a snake game with tick-based updates. Introduces `..` record update, `Map` folds, one process per player.
 - **[`docs/ernest-repl.md`](docs/ernest-repl.md)** — a read-eval-print loop for a small expression language. Heavy use of `<-`, `try` as a supervised child process, `monitor` for detecting child death.
 - **[`docs/ernest-filesync.md`](docs/ernest-filesync.md)** — file synchronization between two nodes. Introduces mutual-address setup and additional runtime references (`Sys.fs`).
-- **[`docs/ernest-webserver.md`](docs/ernest-webserver.md)** — HTTP server with sessions. Introduces `foreign fn`, opaque types with signatures, ETS as a foreign process.
+- **[`docs/ernest-webserver.md`](docs/ernest-webserver.md)** — HTTP server with sessions. Introduces `foreign fn`, abstract types with signatures, ETS as a foreign process.
 - **[`docs/ernest-comparison-webserver.md`](docs/ernest-comparison-webserver.md)** — the same web server in idiomatic Erlang, for measurement.
 
 ### Then, as reference material

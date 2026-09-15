@@ -2,7 +2,7 @@
 
 Target architecture: an Erlang-based compiler, `ernc`, that reads `.ern` files, type-checks them, and produces `.erc` files (BEAM under the hood), and a runner, `ern`, that starts a program or a REPL. One person, about eight working weeks for MVP 1 according to the budget below. The language was called Actorson until 12 September 2026.
 
-**MVP 1 (this plan):** prove the chain parser, types, BEAM, with the report's language, syntax, and semantics unchanged. MVP 1 accepts a subset and checks less: only Int, no ownership rule for opaque types, no foreign code, no `net`, no distribution — `spawn(Peer, ...)` and `remote` are MVP 3. Exhaustiveness checking is in: it is the check that shaped `receive` and `if`, and a first user should not form habits the report forbids. Every program MVP 1 accepts is a valid Ernest program or one the report already says is wrong. One Erlang module per `.ern` file.
+**MVP 1 (this plan):** prove the chain parser, types, BEAM, with the report's language, syntax, and semantics unchanged. MVP 1 accepts a subset and checks less: only Int, no ownership rule for abstract types, no foreign code, no `net`, no distribution — `spawn(Peer, ...)` and `remote` are MVP 3. Exhaustiveness checking is in: it is the check that shaped `receive` and `if`, and a first user should not form habits the report forbids. Every program MVP 1 accepts is a valid Ernest program or one the report already says is wrong. One Erlang module per `.ern` file.
 
 Later MVPs at the end of the document.
 
@@ -24,7 +24,7 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 
 - Lexer: braces, `;` as separator, whitespace means nothing, `//` and nesting `/* */` comments dropped before parsing. Sixteen reserved words, `true` and `false` among them as literals. Every nonterminal is decided by its first token, and the parser never re-reads. Two narrow spots need bounded lookahead beyond one token: the constructor-fields peek documented in Appendix A (`T(ident =` vs `T(ident :` vs `T(expr`), and the FnType-vs-tuple decision (parse the parenthesized type list, then look at whether `->` follows). No backtracking. Qualified references (`Net.Http.parse`, `ServerMsg.Get`) are one loop: after an uppercase token, `.` continues, anything else ends.
 - The grammar is in Appendix A of the report. The lambda's extent, `fn(x) = e` up to the next delimiter at the same level, is expressed there; the parser tests it. If it fails, lambda bodies must be required in braces. Patterns are parsed by a second small Pratt loop with `::` as its only infix operator, right-associative, and `as ident` as an optional postfix on the whole.
-- Hand-written Pratt parser for expressions; operator precedence is the table. Recursive descent for declarations (`type`, `opaque type ... with { }`, `fn`, `let`, `foreign`).
+- Hand-written Pratt parser for expressions; operator precedence is the table. Recursive descent for declarations (`type`, `abstract type ... with { }`, `fn`, `let`, `foreign`).
 - `let x <- e;` as a binding in a block: parsed as a binding form, rewritten before type inference into `match e { Left(err) -> Left(err) | Right(x) -> <rest of block> }` (or `None`/`Some`); which one is decided by the block's type, so the rewrite happens after the block's return type is inferred, or both are generated and one is chosen at unification. Simplest in MVP 1: `Either` only, `Optional` in MVP 2.
 - Block `{ ... }` is an expression form. `match e { P -> e | ... }` and `receive { P -> e | ... | after millis -> e }`, guards with `when`. `if then else`. Calls `f(x, y)`, n-ary functions, no currying: too few arguments is an arity error on the line, with a suggestion of the tuple reading.
 - Constructors: no field, one field `T(e)`, or named fields `T(f = e)`; partial patterns `T(f = p)`, base `T(..e, f = e)`. Positional or named is decided by whether `=` or `:` follows the first identifier. Field order from the declaration; compiled to tuples. `fn` definitions allowed in blocks, recursive and generalized; `let` bindings monomorphic.
@@ -47,9 +47,9 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 
 **Output:** a type checker that takes an AST and returns `{ok, TypedAst, Env}` or `{error, Errors}`.
 
-### 1.3 Opaque Types (1 day)
+### 1.3 Abstract Types (1 day)
 
-- `opaque type ... with` is parsed and the signature type-checked against the definitions. The ownership rule (constructor only in the owner set) is MVP 2; in MVP 1 an opaque type is an ordinary type with a signature.
+- `abstract type ... with` is parsed and the signature type-checked against the definitions. The ownership rule (constructor only in the owner set) is MVP 2; in MVP 1 an abstract type is an ordinary type with a signature.
 
 **Output:** a type checker that checks signatures against definitions.
 
@@ -60,7 +60,7 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 
 **Output:** the prelude in the type checker.
 
-**Test:** counter, ping-pong, opaque stack, Never, a parser with three failing steps over `Either` with `let x <- e`.
+**Test:** counter, ping-pong, abstract stack, Never, a parser with three failing steps over `Either` with `let x <- e`.
 
 ---
 
@@ -88,9 +88,9 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 
 **Output:** processes as recursive Erlang functions with `receive`.
 
-### 2.3 Opaque Types (0 days)
+### 2.3 Abstract Types (0 days)
 
-- Nothing to do in MVP 1: an opaque type compiles as an ordinary type, `Stack.push` becomes the function `'Stack.push'/2` in the Erlang module compiled from the Ernest module that defines it. One Erlang module per type with the signature as export list is MVP 2.
+- Nothing to do in MVP 1: an abstract type compiles as an ordinary type, `Stack.push` becomes the function `'Stack.push'/2` in the Erlang module compiled from the Ernest module that defines it. One Erlang module per type with the signature as export list is MVP 2.
 
 ### 2.4 Standard Library (3 days)
 
@@ -149,7 +149,7 @@ Erlang, OTP 27, Rebar3 to build the compiler itself. EUnit per module; integrati
 
 **The mailbox type.** HM with a mailbox slot per arrow is a minimal extension of the textbook. The model: the arrow type constructor has three parameters (arguments, mailbox, result); the mailbox slot holds an ordinary type — a type variable if unwritten, a concrete type if written with `with`. Unification is component-wise. A free mailbox variable is generalized like any other type variable, which is what makes pure functions callable from process code and lets `List.map` run a process lambda. No new kind, no wrapping type constructor, no rows, no effect system: one type language, standard Hindley-Milner unification, one extra slot on one type constructor. Risk: `let`-bound lambdas fix their mailbox slot at first use (standard let-monomorphism, but easy to trip on if generalization gets attached to `let` by accident); and every arrow in the AST must carry a mailbox slot from day one, including arrows that look pure, so that higher-order pure functions like `List.map` accept process callbacks without a special case.
 
-**What MVP 1 does not prove.** The ownership rule for opaque types, foreign code, and everything past one node.
+**What MVP 1 does not prove.** The ownership rule for abstract types, foreign code, and everything past one node.
 
 ---
 
@@ -165,7 +165,7 @@ Nothing open.
 
 | Phase | Parts | Days | Weeks |
 |-------|-------|------|-------|
-| 1     | Parser, type check, opaque, stdlib types | 24.5 | 4.9 |
+| 1     | Parser, type check, abstract, stdlib types | 24.5 | 4.9 |
 | 2     | Compiler, processes, stdlib, codegen | 9 | 1.8 |
 | 3     | Integration, tests, docs | 8 | 1.6 |
 | **Total** | | **41.5** | **8.3 weeks** |
@@ -176,7 +176,7 @@ One person full-time: about eight and a third working weeks. Half-time: three to
 
 ## Later MVPs
 
-**MVP 2 (the whole report on one node), about four weeks:** ownership rule for opaque types with a module per type and the signature as export list (4 days); `Float` with type-directed name resolution interleaved with inference (5 days, and the piece most likely to double, since nobody has written it); `foreign fn` and `foreign type` compiled to direct calls with a catch that turns exceptions into `Fault` (3 days); bitstrings (4 days: lexer tokens `<<` and `>>`, `BitExpr` and `BitPat` in the grammar, specifier list, type checking against `Bytes`, direct compilation to BEAM's bit syntax so the runtime's mature optimizer handles prefix-heavy protocol matches); `net` and `fs` as foreign processes (4 days); `Deadlock` (2 days); the web server as test (3 days). The web server as test, and an `Ets.ern` as the first foreign library, with an `Erl` stdlib module for what every shim needs: `Erl.atom : (Text) -> Foreign` and `type Erl.Result(v, r) = Ok(v) | Error(r)`, matching `{ok, V} | {error, R}` under the ABI.
+**MVP 2 (the whole report on one node), about four weeks:** ownership rule for abstract types with a module per type and the signature as export list (4 days); `Float` with type-directed name resolution interleaved with inference (5 days, and the piece most likely to double, since nobody has written it); `foreign fn` and `foreign type` compiled to direct calls with a catch that turns exceptions into `Fault` (3 days); bitstrings (4 days: lexer tokens `<<` and `>>`, `BitExpr` and `BitPat` in the grammar, specifier list, type checking against `Bytes`, direct compilation to BEAM's bit syntax so the runtime's mature optimizer handles prefix-heavy protocol matches); `net` and `fs` as foreign processes (4 days); `Deadlock` (2 days); the web server as test (3 days). The web server as test, and an `Ets.ern` as the first foreign library, with an `Erl` stdlib module for what every shim needs: `Erl.atom : (Text) -> Foreign` and `type Erl.Result(v, r) = Ok(v) | Error(r)`, matching `{ok, V} | {error, R}` under the ABI.
 
 **MVP 3 (distribution with content addressing):** every definition gets a hash of its typed AST; modules are named by hash; a registry per node `{Hash -> Module}`. A message with a function carries the hash, and a node that lacks it fetches the code from the sender. `spawn(Peer(name), f)` and `remote(f)` over the peers in `ernest.conf`, authenticated with the configured keys; `remote` picks among peers flagged `"remote-peer": true` by load, criterion to be chosen then. Erlang's module distribution is not used.
 

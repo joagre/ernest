@@ -26,13 +26,13 @@ type Response = Response(status : StatusCode, headers : List((Text, Text)), body
 type ParseError = BadEncoding | BadRequestLine | BadHeader(Text)
 type Session = Session(Int) // number of visits
 
-opaque type StatusCode = StatusCode(Int) with {
+abstract type StatusCode = StatusCode(Int) with {
     ok : StatusCode;
     notFound : StatusCode;
     render : (StatusCode) -> Text
 }
 
-opaque type SessionId = SessionId(Text) with {
+abstract type SessionId = SessionId(Text) with {
     fresh : (Int) -> SessionId;
     parse : (Text) -> Optional(SessionId);
     text : (SessionId) -> Text
@@ -121,7 +121,7 @@ fn cookie(r : Request, name : Text) -> Optional(Text) = todo("on paper")
 fn withCookie(name : Text, value : Text, r : Response) -> Response = todo("on paper")
 
 //
-// Opaque-type definitions
+// Abstract-type definitions
 //
 
 let StatusCode.ok = StatusCode(200)

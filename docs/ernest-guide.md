@@ -383,14 +383,14 @@ Two rules of thumb:
 
 `|>` is the lowest-precedence binary operator, below `||`. So `a + b |> f` is `f(a + b)`, and `a |> b |> c` is `c(b(a))` — chains build left-associatively.
 
-## 4. Opaque types
+## 4. Abstract types
 
-Sometimes you want a type whose values look like a specific shape from inside your module but appear opaque to callers. Someone can hold a value of the type, pass it around, and use functions on it — but they cannot construct it directly, cannot pattern-match on its shape, and cannot see what's inside.
+Sometimes you want a type whose values look like a specific shape from inside your module but appear abstract to callers. Someone can hold a value of the type, pass it around, and use functions on it — but they cannot construct it directly, cannot pattern-match on its shape, and cannot see what's inside.
 
-Ernest gives you this with `opaque type`:
+Ernest gives you this with `abstract type`:
 
 ```
-opaque type Stack(a) = Stack(List(a)) with {
+abstract type Stack(a) = Stack(List(a)) with {
     empty : Stack(a);
     push : (a, Stack(a)) -> Stack(a);
     pop : (Stack(a)) -> Optional((a, Stack(a)))
@@ -399,7 +399,7 @@ opaque type Stack(a) = Stack(List(a)) with {
 
 Read top-down:
 
-- `opaque type Stack(a) = Stack(List(a))` — declares a type with one constructor, `Stack`, holding a `List(a)`.
+- `abstract type Stack(a) = Stack(List(a))` — declares a type with one constructor, `Stack`, holding a `List(a)`.
 - `with { ... }` — the signature. It lists the names allowed to see the constructor.
 
 The names in the signature (`empty`, `push`, `pop`) live in the `Stack` namespace: `Stack.empty`, `Stack.push`, `Stack.pop`. Their definitions may reference the raw `Stack(_)` constructor to build and destructure values. Anyone else who writes `Stack(...)` gets a type error.
@@ -415,12 +415,12 @@ fn Stack.pop(Stack(xs) : Stack(a)) -> Optional((a, Stack(a))) =
 
 `Stack(x :: xs)` and `Stack(xs)` inside these definitions name the constructor because their names appear in the signature. A caller outside `Stack` cannot do this. They must use `Stack.empty`, `Stack.push`, and `Stack.pop`.
 
-Why opaque? Two reasons.
+Why abstract? Two reasons.
 
 - **Abstraction.** You can change the internal representation later — a tree, a growable array, anything — without breaking callers, as long as the signature stays the same.
 - **Invariants.** If a value can only be built by your functions, your functions can enforce invariants that the constructor alone wouldn't preserve — a sorted list, a non-empty stack, whatever the type calls for.
 
-Opaque types show up in the web server paper program (opaque `StatusCode`, `SessionId`) and are the standard way to bundle a type with its allowed operations.
+Abstract types show up in the web server paper program (abstract `StatusCode`, `SessionId`) and are the standard way to bundle a type with its allowed operations.
 
 ## 5. A process
 
@@ -1117,7 +1117,7 @@ Once "hello world," the counter, and ping-pong feel readable, the language's fou
 - **[`ernest-tick-game.md`](ernest-tick-game.md)** — a snake game with tick-based updates. Introduces named-field records with `..` update syntax, folds over `Map`, one process per player.
 - **[`ernest-repl.md`](ernest-repl.md)** — a small read-eval-print loop. Uses `<-` heavily (see §10) and combines `monitor` and `kill` (see §8) into a `try` process that aborts a slow evaluation.
 - **[`ernest-filesync.md`](ernest-filesync.md)** — file synchronization between two nodes. Introduces mutual-address setup via a `Link` message, runtime references beyond `Sys.stdout` (a filesystem process at `Sys.fs`), one process per write.
-- **[`ernest-webserver.md`](ernest-webserver.md)** — HTTP server with sessions in an ETS table. Introduces `foreign fn` for foreign function calls, opaque types with signatures.
+- **[`ernest-webserver.md`](ernest-webserver.md)** — HTTP server with sessions in an ETS table. Introduces `foreign fn` for foreign function calls, abstract types with signatures.
 
 Read them in that order. Each introduces something the next builds on.
 
