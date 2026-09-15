@@ -296,6 +296,8 @@ Shadowing is allowed: a later binding of the same name hides the earlier one fro
 
 At top level, a `let` binds a `Name` — possibly qualified — to a value, `let Stack.empty = Stack([])`; the LHS is a name, not a pattern, and `<-` is a block form only. Top-level `let` may generalize its free type variables: `let Stack.empty : Stack(a) = Stack([])` declares a polymorphic value usable at every instantiation of `a`.
 
+A top-level `let`'s initializer must be pure — no mailbox effect. Effectful setup (spawning processes, opening resources, sending initial messages) belongs in `main`, not in top-level declarations. The runtime evaluates top-level `let` bindings in dependency order before `main` runs (§8.5).
+
 ### 4.7 Foreign declarations
 
 `foreign type T` declares a type implemented outside the language.
@@ -618,7 +620,13 @@ Peers are configured outside the language, §11.3; `Peer(name)` refers to them b
 
 The system processes are foreign processes: their message types are declared in Ernest, their implementations live outside the language, and the runtime starts them and binds their addresses to the `Sys.*` top-level references. Other foreign code enters through `foreign fn` and `foreign type`, §4.7. Both boundaries carry the same promise: the foreign side delivers the declared types, and a breach is a fault.
 
-### 8.5 Program termination
+### 8.5 Initialization
+
+Before `main` runs, the runtime evaluates every top-level `let` binding in the program. Evaluation follows data dependencies: a binding that references another is evaluated after the one it references. Order within an independent set is unspecified — top-level `let` initializers are pure (§4.6), so the order does not affect the result. A cycle among top-level `let` initializers is a compile-time error.
+
+Top-level `type`, `abstract type`, `fn`, and `foreign` declarations have no runtime effect; only `let` requires evaluation. The `Sys.*` references (§8.2) are available to `let` initializers — the runtime binds them before evaluating top-level bindings.
+
+### 8.6 Program termination
 
 The program ends when `main` returns. Live processes then die with cause `ProgramEnd`; system processes release their resources. A program that is to keep running waits in `main`.
 

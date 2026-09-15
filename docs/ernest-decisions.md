@@ -826,6 +826,34 @@ Taken: the third. §3.9 corrected to distinguish top-level from block `let`. §4
 
 **Consequence for paper programs.** All existing `let m = Ets.new()` and similar patterns already work: the subsequent usage (`Ets.insert`, etc.) resolves the free variables within the block. No paper-program change needed.
 
+## Top-Level Initialization Specified, 2026-09-15
+
+The reviewer's seventh finding: the report never said what happens between "the runtime loads the modules" and "the runtime calls `main`". Top-level `let` bindings need their initializers evaluated somewhere in there, but the semantics — when, in what order, in what process, with what effects allowed — was silent.
+
+**Questions the specification had to answer:**
+
+- Are top-level `let` initializers pure, or may they have mailbox effects?
+- In what order are they evaluated?
+- Are `Sys.*` references available to them?
+- What about cycles?
+
+**Alternatives:**
+
+- **Effectful top-level lets in an implicit init process.** Adds a runtime concept (the init process, its mailbox). Also raises "which effects are allowed at init? Can it receive?" — a small design space that grows.
+- **Lazy top-level lets.** Not evaluated until first access. Solves the ordering problem but shifts effect handling to the first accessor, and its effect leaks into the accessor's type. Fragile.
+- **Pure top-level lets, eager, dependency-ordered.** Every initializer must be pure. The runtime evaluates them in topological order after Sys is bound and before `main` runs. Cycles are a compile-time error.
+
+Taken: the third. It matches the paper programs (none has an effectful top-level `let` today), the stdlib (all constants), and Ernest's preference for statically-obvious semantics. Effectful setup belongs in `main` — where the reader looks for it anyway.
+
+**Effect on the report.**
+
+- §4.6 states the "must be pure" rule for top-level `let` initializers and points at §8.5.
+- §8 gains a new §8.5 *Initialization* subsection specifying evaluation order, cycle rules, and `Sys` availability. Old §8.5 *Program termination* renumbered to §8.6.
+
+**Cost.** Small. Adds one subsection, one rule. Rules out one flexibility (effectful init) that no paper program uses.
+
+**Principle 3** carried this decision: the semantics of top-level `let` was genuinely undefined; readers had to guess. Now spelled out.
+
 ## `Bool.ern` Added, 2026-09-14
 
 New stdlib module for boolean operations. Two functions:
