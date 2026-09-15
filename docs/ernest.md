@@ -1128,8 +1128,8 @@ Every technical term this report introduces, with the section that defines it. P
 - **cons operator** — `::`, list-prepend, right-associative. §3.3, §5.10.
 - **constructor** — a case of a sum type; a value, a function, or a construction form. §3.5, §5.6.
 - **doc comment** — `///` to end of line; attached to the following declaration. §2.2.
-- **fault** — a process death whose `Reason` is not `Returned`; not catchable. §7.
-- **`Fault(msg)`** — one specific `Reason`, carrying a message. §7.
+- **fault** — a process death whose `Reason` is not `Returned`; not catchable. §7.3.
+- **`Fault(msg)`** — one specific `Reason`, carrying a message. §7.3, §7.4.
 - **foreign function** — declared `foreign fn`; body is a string reference to a runtime implementation. §4.7.
 - **foreign type** — declared `foreign type T`; values are made and used only by foreign functions. §3.8, §4.7.
 - **generalization** — quantifying free type variables in a `fn` definition. §3.9.
