@@ -36,9 +36,9 @@ Source text is Unicode in UTF-8; a leading byte-order mark (U+FEFF) is stripped.
 
 `ident` begins with a lowercase letter or `_` and continues with any number of letters, digits, and `_`. `conname` and `typename` begin with an uppercase letter and continue the same way, and are lexically the same token. `typevar` is a lowercase identifier in type position.
 
-An identifier that begins with `_` must have at least one further character — the token `_` alone is the wildcard (section 5).
+An identifier that begins with `_` must have at least one further character — the token `_` alone is the wildcard (§5.10).
 
-A qualified name is a sequence of uppercase-starting segments (each is a `typename`) followed by a final segment that starts either lowercase (a function, operator, or variable) or uppercase (a constructor): `Net.Http.parse`, `Stack.push`, `Int.+`, `ServerMsg.Get`. The dots are namespaces, section 4.
+A qualified name is a sequence of uppercase-starting segments (each is a `typename`) followed by a final segment that starts either lowercase (a function, operator, or variable) or uppercase (a constructor): `Net.Http.parse`, `Stack.push`, `Int.+`, `ServerMsg.Get`. The dots are namespaces, §4.2.
 
 ### 2.4 Reserved words
 
@@ -114,7 +114,7 @@ Precedence of the binary operators, highest first:
 | 6     | `\|\|`                 | left          |
 | 7     | `\|>`                  | left          |
 
-An operator name can be qualified, `Int.+`, section 4. `|>` is not qualifiable — it is a syntactic form (section 5), not a namespaced function.
+An operator name can be qualified, `Int.+`, §4.8. `|>` is not qualifiable — it is a syntactic form (§5.7), not a namespaced function.
 
 ## 3. Types
 
@@ -154,13 +154,13 @@ There are no type aliases.
 
 `(A, B) -> C` is the type of a function of two arguments. Arity is part of the type: `(A, B) -> C` and `(#(A, B)) -> C` are different types — the first takes two arguments, the second takes one tuple. `() -> C` takes no arguments.
 
-`with M` after the result is the mailbox type: the function uses the process it runs in, whose mailbox has type `M`, section 6. A function type without a `with M` is pure.
+`with M` after the result is the mailbox type: the function uses the process it runs in, whose mailbox has type `M`, §6.1. A function type without a `with M` is pure.
 
 `with` binds to the nearest arrow; `(A) -> (B) -> C with M` is a pure function returning a function with mailbox type `M`.
 
 ### 3.5 Sum types
 
-Declared with `type`, section 4. A constructor has no fields, exactly one positional field, or named fields:
+Declared with `type`, §4.3. A constructor has no fields, exactly one positional field, or named fields:
 
 ```
 type Optional(a) = None | Some(a)
@@ -171,15 +171,15 @@ Positional fields cap at one — beyond that, names are required, because positi
 
 ### 3.6 Abstract types
 
-A sum type whose constructors may be mentioned only in the functions listed in the type's signature, section 4.
+A sum type whose constructors may be mentioned only in the functions listed in the type's signature, §4.4.
 
 ### 3.7 Built-in types
 
-`Address(m)` is an address of a process that receives `m`. `Reply(a)` is a one-shot address for the answer to a request, section 6. `Never` is the type with no values. The prelude types are listed in section 9.
+`Address(m)` is an address of a process that receives `m`. `Reply(a)` is a one-shot address for the answer to a request, §6.6. `Never` is the type with no values. The prelude types are listed in section 9.
 
 ### 3.8 Foreign types
 
-A type declared `foreign type T` has no constructors: its values are made and used only by foreign functions, section 4, and can otherwise be held, passed, and sent.
+A type declared `foreign type T` has no constructors: its values are made and used only by foreign functions, §4.7, and can otherwise be held, passed, and sent.
 
 A foreign value is bound to the node that made it: `spawn(Peer(...), f)` or `send` to a remote address is a fault when the payload transitively contains a foreign value, including a closure that captures one, with cause `Fault("foreign value cannot cross nodes")`.
 
@@ -233,7 +233,7 @@ The namespace is in the name, and so is the visibility. A top-level declaration 
 
 A module's path is its namespace: the qualified declarations in `Net/Http.ern` begin with `Net.Http.`, and may go deeper, `Net.Http.Header.parse`. That is the whole of a module's meaning: there is no export list, no `pub`, and no `import`. Sub-namespaces are the dots; namespace segments are type names.
 
-An unqualified name in a body is looked up first among the module's unqualified declarations, then in the namespace of the enclosing declaration, then in the prelude; everything else must be qualified. The only other thing hidden is the constructor of an abstract type from definitions outside its signature. `main` is unqualified, section 8.
+An unqualified name in a body is looked up first among the module's unqualified declarations, then in the namespace of the enclosing declaration, then in the prelude; everything else must be qualified. The only other thing hidden is the constructor of an abstract type from definitions outside its signature. `main` is unqualified, §8.1.
 
 ### 4.3 Type declarations
 
@@ -259,13 +259,13 @@ fn Stack.pop(Stack(xs)) = match xs { [] -> None | x :: rest -> Some(#(x, Stack(r
 
 `fn` declares a function of fixed arity. Annotations may be omitted where they can be inferred. The return annotation has three forms: omitted, `-> T` for a pure function, `-> T with M` for process code. A pure annotation on a function that calls process code is a type error.
 
-A function has one clause. Patterns in parameters must be irrefutable, section 5: `fn seenCount(Snapshot(seen = entries) : Snapshot) -> Int = Map.size(entries)`.
+A function has one clause. Patterns in parameters must be irrefutable, §5.10: `fn seenCount(Snapshot(seen = entries) : Snapshot) -> Int = Map.size(entries)`.
 
 `fn` may appear at top level and as a statement in a block; it sees its own name, and `fn` declarations in the same block or at top level may refer to each other mutually.
 
 ### 4.6 Bindings
 
-In a block, `let p = e` binds the pattern `p` to the value of `e`; `let p <- e` is described in section 5. The pattern must be irrefutable. A binding is monomorphic and does not see its own name.
+In a block, `let p = e` binds the pattern `p` to the value of `e`; `let p <- e` is described in §5.5. The pattern must be irrefutable. A binding is monomorphic and does not see its own name.
 
 Shadowing is allowed: a later binding of the same name hides the earlier one from the next statement on, and the right-hand side sees the earlier one.
 
@@ -285,7 +285,7 @@ The arithmetic operators (`+`, `-`, `*`, `/`, `%`) and concatenation (`<>`) reso
 
 Resolution happens before generalization; a function whose operands do not get their type from an annotation, a literal, a pattern, or a call in the same definition is a type error that requires an annotation.
 
-The comparison operators `==`, `!=`, `<`, `<=`, `>`, `>=` and the Boolean `&&`, `||` are built into the language, not per-namespace: equality is structural (section 3), ordering uses each type's `compare` function, `&&`/`||` short-circuit on `Bool`. `::` is the list cons (section 5); `|>` is a syntactic form (section 5).
+The comparison operators `==`, `!=`, `<`, `<=`, `>`, `>=` and the Boolean `&&`, `||` are built into the language, not per-namespace: equality is structural (§3.10), ordering uses each type's `compare` function, `&&`/`||` short-circuit on `Bool`. `::` is the list cons (§3.3); `|>` is a syntactic form (§5.7).
 
 ## 5. Expressions
 
@@ -434,7 +434,7 @@ type Where = Local | Peer(String)
 
 `spawn(w, f)` starts a new process that runs `f()` and returns its address. `self()` inside `f` is the new process's address; a parent that wants replies binds `let me = self();` before `spawn`.
 
-A node is one running instance of the runtime; a peer is another node it knows by name, section 8. `w` places the process: `Local` on the running node, `Peer(name)` on the peer with that name. An unknown or unreachable peer is a fault. The captured values of `f` are copied to the peer.
+A node is one running instance of the runtime; a peer is another node it knows by name, §8.3. `w` places the process: `Local` on the running node, `Peer(name)` on the peer with that name. An unknown or unreachable peer is a fault. The captured values of `f` are copied to the peer.
 
 ### 6.3 `receive`
 
@@ -452,7 +452,7 @@ Messages from one process to another are received in sending order. Between diff
 
 `Address(m)` identifies a process on a node and carries its protocol: `send(a, v)` is type-checked against `m` and is the same on every node.
 
-`via(f, addr)`, section 9, is the address `addr` seen through `f : (a) -> b`: sending `v` to `via(f, addr)` is sending `f(v)` to `addr`. A single-request answer uses `Reply(a)`, below; `via(Wrap, self())` gives a wrapper address for a process that receives replies in its own mailbox.
+`via(f, addr)`, §9.5, is the address `addr` seen through `f : (a) -> b`: sending `v` to `via(f, addr)` is sending `f(v)` to `addr`. A single-request answer uses `Reply(a)`, below; `via(Wrap, self())` gives a wrapper address for a process that receives replies in its own mailbox.
 
 Addresses have no equality; identity is expressed in the protocol. There is no registry: a process reaches another only through an address it holds or received in a message, and possession of the address is the permission to send.
 
@@ -496,7 +496,7 @@ A function with mailbox type `Never` can send but never receive; a `receive` in 
 
 ### 6.9 Death
 
-A process dies when its function returns, when `kill` is called on it, on a fault, section 7, or when the node it runs on is lost. `monitor(a, wrap)`, section 9, causes `wrap(d)` to be placed in the caller's mailbox when `a` dies, where `d : Down` gives the cause. There are no other links.
+A process dies when its function returns, when `kill` is called on it, on a fault, section 7, or when the node it runs on is lost. `monitor(a, wrap)`, §9.5, causes `wrap(d)` to be placed in the caller's mailbox when `a` dies, where `d : Down` gives the cause. There are no other links.
 
 ### 6.10 Code replacement
 
@@ -525,7 +525,7 @@ There are no exceptions. An error is a value, a message, or a fault.
 - **A message**, when the error crosses a process boundary. Expressed in the message: `Either` or a dedicated constructor in the reply type. A missing reply is `after` in `receive`. The error type across the boundary is its own, distinct from the function's.
 - **A fault**, when the code cannot see it. Out of memory, `kill`, a failure in the runtime, a broken promise by foreign code. The process dies with a structured cause in `Down`. Nothing is caught. "Fault" here is the category — any death whose `Reason` is not `Returned`; `Fault(String)` is one specific `Reason` alongside `Killed` and `ProgramEnd`.
 
-The prelude is total: no built-in function faults. Partial operations return `Optional` or `Either`. A fault is therefore always something that happened to the process, never something it did, with three deliberate exceptions: `/` and `%` on `Int` with a zero divisor fault, `Fault("division by zero")`; `todo("...")`, which compiles at any type and faults if reached, `Fault("todo: ...")`, so that an unfinished function can be declared before it is written; and `spawn(Peer(...), f)` or `send` to a remote address when the payload transitively contains a foreign value, `Fault("foreign value cannot cross nodes")`, section 3. `Int.div` and `Int.mod` return `Optional` for the caller who wants to handle it.
+The prelude is total: no built-in function faults. Partial operations return `Optional` or `Either`. A fault is therefore always something that happened to the process, never something it did, with three deliberate exceptions: `/` and `%` on `Int` with a zero divisor fault, `Fault("division by zero")`; `todo("...")`, which compiles at any type and faults if reached, `Fault("todo: ...")`, so that an unfinished function can be declared before it is written; and `spawn(Peer(...), f)` or `send` to a remote address when the payload transitively contains a foreign value, `Fault("foreign value cannot cross nodes")`, §3.8. `Int.div` and `Int.mod` return `Optional` for the caller who wants to handle it.
 
 ## 8. Programs
 
@@ -535,19 +535,19 @@ A program is a set of modules with exactly one function `main : () -> () with m`
 
 ### 8.2 System references
 
-The runtime starts with its system processes and exposes their addresses as top-level values in the `Sys` namespace. The language requires `Sys.stdout : Address(String)` and `Sys.clock : Address(ClockMsg)`, section 9; a specific runtime may provide more, and a paper program that needs additions like `Sys.fs`, `Sys.stdin`, `Sys.keys`, or a stderr sink names them in its assumptions.
+The runtime starts with its system processes and exposes their addresses as top-level values in the `Sys` namespace. The language requires `Sys.stdout : Address(String)` and `Sys.clock : Address(ClockMsg)`, §9.7; a specific runtime may provide more, and a paper program that needs additions like `Sys.fs`, `Sys.stdin`, `Sys.keys`, or a stderr sink names them in its assumptions.
 
-These are values, not functions — like `List`, `Map`, and `Set` they are in scope everywhere at the top level. To do IO a function sends to one, and `send` requires a mailbox effect on the caller (section 6), so pure code cannot affect anything outside its process even though it can name the address.
+These are values, not functions — like `List`, `Map`, and `Set` they are in scope everywhere at the top level. To do IO a function sends to one, and `send` requires a mailbox effect on the caller (§6.1), so pure code cannot affect anything outside its process even though it can name the address.
 
 A reference to a `Sys.*` name the runtime does not provide is a name-resolution error at compile time. The `stdout` process writes each received `String` to standard output as bytes; newlines are the sender's responsibility.
 
 ### 8.3 Peers
 
-Peers are configured outside the language, section 11; `Peer(name)` refers to them by the configured name, and nodes authenticate each other.
+Peers are configured outside the language, §11.3; `Peer(name)` refers to them by the configured name, and nodes authenticate each other.
 
 ### 8.4 Foreign code
 
-The system processes are foreign processes: their message types are declared in Ernest, their implementations live outside the language, and the runtime starts them and binds their addresses to the `Sys.*` top-level references. Other foreign code enters through `foreign fn` and `foreign type`, section 4. Both boundaries carry the same promise: the foreign side delivers the declared types, and a breach is a fault.
+The system processes are foreign processes: their message types are declared in Ernest, their implementations live outside the language, and the runtime starts them and binds their addresses to the `Sys.*` top-level references. Other foreign code enters through `foreign fn` and `foreign type`, §4.7. Both boundaries carry the same promise: the foreign side delivers the declared types, and a breach is a fault.
 
 ### 8.5 Program termination
 
