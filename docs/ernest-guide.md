@@ -18,7 +18,7 @@ That's the whole vocabulary. Everything else in the language is a rule for how f
 Here is a complete Ernest program.
 
 ```
-fn main() -> () with () = Io.println("hello, world")
+fn main() -> Void with Void = Io.println("hello, world")
 ```
 
 When Ernest runs this, it prints `hello, world` followed by a newline to standard output.
@@ -27,9 +27,9 @@ When Ernest runs this, it prints `hello, world` followed by a newline to standar
 
 `fn` starts a function definition. `main` is its name; `main` is special — it is the function Ernest calls when the program starts. The empty parens say `main` takes no arguments.
 
-The return annotation `-> () with ()` has two parts. The first `()` is the return type; the second, after `with`, is the mailbox type. `()` is a type called *unit*: it has exactly one value, also written `()`, and means "no interesting information here." So `main` returns unit — the function did its work, no result to hand back.
+The return annotation `-> Void with Void` has two parts. The first `Void` is the return type; the second, after `with`, is the mailbox type. `Void` is a type with exactly one value — also called `Void` — that means "no interesting information here." So `main` returns `Void`: the function did its work, no result to hand back.
 
-Every function in Ernest runs inside a process, and every process has a mailbox with a type — the type of messages it can receive. The `with M` at the end of a function's arrow says "this function acts through the process it runs in, whose mailbox type is `M`." `main`'s mailbox type here is `()` — nothing meaningful goes into it. That's normal for `main`: usually `main` spawns children who receive, not itself.
+Every function in Ernest runs inside a process, and every process has a mailbox with a type — the type of messages it can receive. The `with M` at the end of a function's arrow says "this function acts through the process it runs in, whose mailbox type is `M`." `main`'s mailbox type here is `Void` — nothing meaningful goes into it. That's normal for `main`: usually `main` spawns children who receive, not itself.
 
 The `=` marks the start of the body. Here the body is a single expression: a call to `Io.println`, a function from the standard library that writes text to standard output followed by a newline. `Io` is a namespace from the standard library (Appendix E of the report lists them all). Single-expression bodies don't need braces; longer bodies do.
 
@@ -51,9 +51,10 @@ Ernest starts with a small set of built-in scalar types:
 - **`String`** — a Unicode string.
 - **`Bytes`** — a sequence of octets.
 - **`Bool`** — `true` or `false`.
-- **`()`** — the unit type, which has exactly one value, also written `()`.
 
-Literals look how you'd expect: `42`, `3.14`, `'a'`, `"hello"`, `true`. `()` is written as itself.
+Literals look how you'd expect: `42`, `3.14`, `'a'`, `"hello"`, `true`.
+
+The prelude also declares `Void` — a type with exactly one value, also called `Void`. Functions that have nothing meaningful to return use it (`main` is one). It's not a base type but you'll see it from §1 onward.
 
 You'll meet three built-in generic collections shortly: `List(a)` for immutable linked lists, `Map(k, v)` for immutable dictionaries, and `Set(a)` for immutable sets. `Address(m)`, `Reply(a)`, and `Never` are process-related built-ins we'll see in section 5.
 
@@ -252,7 +253,7 @@ A pure function's result depends only on its arguments. Nothing else. It doesn't
 Now compare with a function that uses the runtime:
 
 ```
-fn greet() -> () with m = Io.println("hi")
+fn greet() -> Void with m = Io.println("hi")
 ```
 
 Same shape as `double`, but with two differences: the return arrow has `with m`, and the body calls `Io.println`, which internally sends a message.
@@ -419,14 +420,14 @@ One constructor, `Inc`, carrying an `Int` positionally. This is a *mailbox type*
 Now the counter itself.
 
 ```
-fn counter(n : Int) -> () with CounterMsg = receive {
+fn counter(n : Int) -> Void with CounterMsg = receive {
     Inc(k) -> counter(n + k)
 }
 ```
 
 `fn counter(n : Int)` — a function taking the counter's current state as an integer parameter.
 
-`-> ()` — returns nothing meaningful (unit).
+`-> Void` — returns nothing meaningful (unit).
 
 `with CounterMsg` — runs in a process whose mailbox type is `CounterMsg`. That means this function can only run in a process that expects `CounterMsg` values.
 
@@ -466,7 +467,7 @@ Two things distinguish `Reply(a)` from `Address(a)`:
 The extended counter grows a second `receive` clause:
 
 ```
-fn counter(n : Int) -> () with CounterMsg = receive {
+fn counter(n : Int) -> Void with CounterMsg = receive {
     Inc(k) -> counter(n + k)
   | Get(reply = r) -> { answer(r, n); counter(n) }
 }
@@ -514,7 +515,7 @@ We have the counter *function*. Now we need to *run* it in a process, and send i
 Here's `main` again, this time doing exactly that:
 
 ```
-fn main() -> () with () = {
+fn main() -> Void with Void = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
@@ -553,7 +554,7 @@ send(c, Inc(3));
 
 Two calls to `send`, each putting one message in the counter's mailbox.
 
-`send` is fire-and-forget. It returns immediately (with unit `()`), whether or not the counter has processed the previous message yet. The messages queue up in the mailbox in the order sent, and the counter handles them in that same order.
+`send` is fire-and-forget. It returns immediately (with `Void`), whether or not the counter has processed the previous message yet. The messages queue up in the mailbox in the order sent, and the counter handles them in that same order.
 
 By the time both `send`s return, the counter has probably not yet finished processing them — but that's fine. Its `receive` loop will get to them soon enough.
 
@@ -620,13 +621,13 @@ This is the ping-pong program from Appendix B of the report.
 ```
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 
-fn main() -> () with () = {
+fn main() -> Void with Void = {
     let pongAddr = spawn(Local, fn() = pong());
     let _ = spawn(Local, fn() = ping(pongAddr, 3));
-    ()
+    Void
 }
 
-fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
+fn ping(pongAddr : Address(PongMsg), n : Int) -> Void with m =
     if n == 0 then send(pongAddr, Stop)
     else {
         Io.println("ping " <> Int.toString(n));
@@ -636,13 +637,13 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
         }
     }
 
-fn pong() -> () with PongMsg = receive {
+fn pong() -> Void with PongMsg = receive {
     Ping(n = n, reply = r) -> {
         Io.println("pong " <> Int.toString(n));
         answer(r, n);
         pong()
     }
-  | Stop -> ()
+  | Stop -> Void
 }
 ```
 
@@ -673,20 +674,20 @@ If `n` is `0`, send `Stop` and finish. Otherwise:
 - On success, recurse with `n - 1`.
 - On timeout, print an error and tell pong to stop.
 
-Notice `ping`'s return type: `-> () with m`. That `m` is lowercase — a type variable — meaning ping's mailbox type is *polymorphic*, unconstrained. Ping never `receive`s on its own mailbox. It only sends and uses `Address.call`. So the type checker leaves the mailbox slot free.
+Notice `ping`'s return type: `-> Void with m`. That `m` is lowercase — a type variable — meaning ping's mailbox type is *polymorphic*, unconstrained. Ping never `receive`s on its own mailbox. It only sends and uses `Address.call`. So the type checker leaves the mailbox slot free.
 
 ### 7.4 Main starts them
 
 ```
 let pongAddr = spawn(Local, fn() = pong());
 let _ = spawn(Local, fn() = ping(pongAddr, 3));
-()
+Void
 ```
 
 - Spawn pong first, get its address.
 - Spawn ping, passing pong's address in.
 - Discard ping's returned address with `let _ = ...`. `main` doesn't need it.
-- Return `()`.
+- Return `Void`.
 
 `main` returns. The two spawned processes are still running. When the last of them finishes, the program ends.
 
@@ -714,7 +715,7 @@ Processes die for one of four reasons:
 There is no shared exception mechanism and no automatic propagation. A fault in one process does not affect another. If you want to know a process has died, you explicitly ask.
 
 ```
-monitor : (Address(a), (Down) -> m) -> () with m
+monitor : (Address(a), (Down) -> m) -> Void with m
 ```
 
 `monitor(child, wrap)` sets up a watch. When `child` dies, the runtime places `wrap(d)` in *your* mailbox, where `d : Down` carries the cause.
@@ -729,7 +730,7 @@ The typical pattern:
 ```
 type ParentMsg = Died(Down) | ...
 
-fn parent() -> () with ParentMsg = {
+fn parent() -> Void with ParentMsg = {
     let child = spawn(Local, fn() = someWork());
     monitor(child, Died);
     receive {
@@ -745,7 +746,7 @@ fn parent() -> () with ParentMsg = {
 ### 8.1 `kill`
 
 ```
-kill : (Address(a)) -> () with m
+kill : (Address(a)) -> Void with m
 ```
 
 `kill(addr)` terminates the process at `addr` immediately. Anyone monitoring that process receives `Down(reason = Killed, ...)`.
@@ -763,12 +764,12 @@ Here's a concrete puzzle. Suppose your process's mailbox speaks `GameMsg`, and y
 Look at the clock's request shape:
 
 ```
-After(ms : Int, to : Address(()))
+After(ms : Int, to : Address(Void))
 ```
 
-"After `ms` milliseconds, send `()` to `to`." The clock will send `()` — the unit value — to whatever address you hand it. But your mailbox holds `GameMsg`, not `()`. There's a shape mismatch, and neither side wants to change: the clock sends what it sends, your mailbox is what it is.
+"After `ms` milliseconds, send `Void` to `to`." The clock will send `Void` — the unit value — to whatever address you hand it. But your mailbox holds `GameMsg`, not `Void`. There's a shape mismatch, and neither side wants to change: the clock sends what it sends, your mailbox is what it is.
 
-You could work around this by spawning a whole extra process that receives `()` from the clock and forwards `Tick` to you. That works, but it's a lot of ceremony to translate one shape into another. Ernest has a much smaller tool for this: `via`.
+You could work around this by spawning a whole extra process that receives `Void` from the clock and forwards `Tick` to you. That works, but it's a lot of ceremony to translate one shape into another. Ernest has a much smaller tool for this: `via`.
 
 ### 9.1 What `via` does
 
@@ -797,12 +798,12 @@ Read that from the inside out:
 
 - `self()` is your process's own address. Its type is `Address(GameMsg)` because your mailbox speaks `GameMsg`.
 - `fn(_) = Tick` is a lambda: takes any input, ignores it (`_`), returns `Tick`. Its type is `(a) -> GameMsg` for some `a`.
-- `via(fn(_) = Tick, self())` builds the wrapper. Its type is `Address(())` — an address that accepts `()`. Under the hood, when something sends `()` to it, the wrapper calls `fn(_) = Tick`, and `Tick` lands in your `GameMsg` mailbox.
+- `via(fn(_) = Tick, self())` builds the wrapper. Its type is `Address(Void)` — an address that accepts `Void`. Under the hood, when something sends `Void` to it, the wrapper calls `fn(_) = Tick`, and `Tick` lands in your `GameMsg` mailbox.
 - The outer `After(ms = 100, to = ...)` hands that wrapper to the clock as the notification target.
 
-100 milliseconds later, the clock sends `()` to the wrapper. The wrapper turns it into `Tick`. Your mailbox receives `Tick`, and your `receive` clause matching on `Tick` fires.
+100 milliseconds later, the clock sends `Void` to the wrapper. The wrapper turns it into `Tick`. Your mailbox receives `Tick`, and your `receive` clause matching on `Tick` fires.
 
-The clock never learned about `Tick`. Your process never had to accept `()`. `via` sat between them, translating each message as it passed.
+The clock never learned about `Tick`. Your process never had to accept `Void`. `via` sat between them, translating each message as it passed.
 
 ### 9.3 A reply example
 
@@ -888,7 +889,7 @@ remote : (() -> a) -> Either(RemoteError, a)
 Give it a pure, zero-argument function. The runtime picks a peer and evaluates the function there, returning `Right(value)` on success or `Left(err)` if no peer is available or the peer is lost.
 
 ```
-fn main() -> () with () = {
+fn main() -> Void with Void = {
     match remote(fn() = heavy(1, 2, 3)) {
         Right(n) -> Io.println("got " <> Int.toString(n))
       | Left(_) -> Io.println("no remote available")
@@ -914,7 +915,7 @@ parallelRemote : (List(() -> a)) -> List(Either(RemoteError, a))
 Runs the functions in parallel across peers and returns the results in input order — one `Either` per input.
 
 ```
-fn main() -> () with () = {
+fn main() -> Void with Void = {
     let jobs = [fn() = crunch(1), fn() = crunch(2), fn() = crunch(3)];
     let results = parallelRemote(jobs);
     List.foreach(results, fn(r) = match r {
@@ -1105,9 +1106,9 @@ The private key lives beside `ernest.conf` in the same directory, `private-key.p
 
 Some things that trip readers up on first pass.
 
-**Why does `main` need `-> () with ()`? That's two `()` in a row.**
+**Why does `main` need `-> Void with Void`? That's `Void` twice in a row.**
 
-The first `()` is the return type — unit. The second `()` (after `with`) is the mailbox type — also unit. They're not repeating; they're two different pieces of information that both happen to be `()`. If `main`'s mailbox held `CounterMsg`, it would read `-> () with CounterMsg` — still unit return, different mailbox.
+The first `Void` is the return type. The second `Void` (after `with`) is the mailbox type. They're not repeating; they're two different pieces of information that happen to be the same type. If `main`'s mailbox held `CounterMsg`, it would read `-> Void with CounterMsg` — still unit return, different mailbox.
 
 **Why do lambdas need `fn(x) = ...`? Why can't I just write `x -> x + 1`?**
 

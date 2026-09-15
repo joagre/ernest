@@ -42,7 +42,7 @@ abstract type SessionId = SessionId(String) with {
 // Program
 //
 
-fn main() -> () with () = {
+fn main() -> Void with Void = {
     let sessions = Ets.new();
     let _ = spawn(Local, fn() = sweeper(sessions));
     let acc = spawn(Local, fn() = acceptor(sessions, 0));
@@ -54,13 +54,13 @@ fn main() -> () with () = {
 //
 
 // The sweeper: clears the session table every ten minutes.
-fn sweeper(sessions : Ets.Table(SessionId, Session)) -> () with Tick = {
+fn sweeper(sessions : Ets.Table(SessionId, Session)) -> Void with Tick = {
     send(Sys.clock, After(ms = 600000, to = via(fn(_) = Tick, self())));
     receive { Tick -> Ets.clear(sessions) };
     sweeper(sessions)
 }
 
-fn acceptor(sessions : Ets.Table(SessionId, Session), seq : Int) -> () with ConnMsg = receive {
+fn acceptor(sessions : Ets.Table(SessionId, Session), seq : Int) -> Void with ConnMsg = receive {
     Conn(sock) -> {
         let _ = spawn(Local, fn() = handler(sessions, seq, sock));
         acceptor(sessions, seq + 1)
@@ -72,7 +72,7 @@ fn handler(
     sessions : Ets.Table(SessionId, Session),
     seq : Int,
     sock : Address(SockMsg)
-) -> () with m = {
+) -> Void with m = {
     match Address.call(sock, fn(r) = Read(reply = r), 5000) {
         Some(bytes) -> match parse(bytes) {
             Left(_) -> {

@@ -122,8 +122,7 @@ An operator name can be qualified, `Int.+`, §4.8. `|>` is not qualifiable — i
 Type      = FnType | TypeAtom .
 TypeAtom  = { typename "." } typename [ "(" Type { "," Type } ")" ]
           | typevar
-          | TupleType
-          | "()" .
+          | TupleType .
 TupleType = "#(" Type { "," Type } ")" .
 FnType    = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
 ```
@@ -138,9 +137,8 @@ FnType    = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
 | `String` | a Unicode string                           |
 | `Bytes`  | a sequence of octets                       |
 | `Bool`   | `true` or `false`                          |
-| `()`     | the unit type; the only value is `()`      |
 
-There are no type aliases.
+The prelude declares `Void` as a one-value type (§9.3): a function that has nothing meaningful to return uses it, and the only value is `Void`. There are no type aliases.
 
 ### 3.2 Tuples
 
@@ -300,7 +298,7 @@ AfterClause  = "after" Expr "->" Expr .
 BinExpr   = Unary { binop Unary } .
 Unary     = [ "-" ] Primary { Call } .
 Call      = "(" [ Expr { "," Expr } ] ")" .
-Primary   = literal | QName | Tuple | "()" | ListLit | BitExpr | Block | "(" Expr ")" .
+Primary   = literal | QName | Tuple | ListLit | BitExpr | Block | "(" Expr ")" .
 QName     = { typename "." } ( ident | binop | conname [ "(" ( Expr | Fields ) ")" ] ) .
 Fields    = ".." Expr "," FieldSet { "," FieldSet } | FieldSet { "," FieldSet } .
 FieldSet  = ident "=" Expr .
@@ -313,7 +311,7 @@ Stmt      = FnDecl | Binding | Expr .
 Pattern   = ConsPat [ "as" ident ] .
 ConsPat   = AtomPat [ "::" ConsPat ] .
 AtomPat   = "_" | ident | literal | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
-          | "#(" Pattern { "," Pattern } ")" | "()"
+          | "#(" Pattern { "," Pattern } ")"
           | "[" [ Pattern { "," Pattern } ] "]"
           | BitPat .
 BitPat    = "<<" [ BitSegP { "," BitSegP } ] ">>" .
@@ -434,8 +432,8 @@ A function without a mailbox type is pure: it neither sends, receives, nor calls
 
 ```
 self  : () -> Address(m) with m
-send  : (Address(a), a) -> () with m
-spawn : (Where, () -> () with n) -> Address(n) with m
+send  : (Address(a), a) -> Void with m
+spawn : (Where, () -> Void with n) -> Address(n) with m
 
 type Where = Local | Peer(String)
 ```
@@ -473,7 +471,7 @@ A `Reply(a)` is a one-shot address for the answer to a request; unlike `Address(
 ```
 Address.call        : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
 Address.callForever : (Address(m), (Reply(a)) -> m) -> a with n
-answer              : (Reply(a), a) -> () with m
+answer              : (Reply(a), a) -> Void with m
 ```
 
 `Address.call(addr, mk, ms)` allocates a fresh `Reply(a)`, calls `mk(r)` to build the message, sends it to `addr`, and returns `Some(v)` when the recipient answers or `None` after `ms` milliseconds. `Address.callForever(addr, mk)` is the same operation without a timeout: the caller waits as long as needed and receives `a` directly, not wrapped in `Optional`; the caller is opting out of the timeout by name, analogous to a `receive` without `after`. `answer(r, v)` sends `v` to the caller.
@@ -516,9 +514,9 @@ A process replaces its code by a message in its own type that carries the new lo
 type CounterMsg
     = Inc(Int)
     | Get(reply : Reply(Int))
-    | Upgrade(migrate : (Int) -> Int, next : (Int) -> () with CounterMsg)
+    | Upgrade(migrate : (Int) -> Int, next : (Int) -> Void with CounterMsg)
 
-fn counter(n : Int) -> () with CounterMsg = receive {
+fn counter(n : Int) -> Void with CounterMsg = receive {
     Inc(k) -> counter(n + k)
   | Get(reply = r) -> { answer(r, n); counter(n) }
   | Upgrade(migrate = m, next = k) -> k(m(n))
@@ -559,7 +557,7 @@ Three deliberate exceptions:
 
 ### 8.1 `main`
 
-A program is a set of modules with exactly one function `main : () -> () with m` for some `m`, unqualified, called by the runtime. Nothing sends to `main` that it has not given its address to; `m` is usually `()`.
+A program is a set of modules with exactly one function `main : () -> Void with m` for some `m`, unqualified, called by the runtime. Nothing sends to `main` that it has not given its address to; `m` is usually `Void`.
 
 ### 8.2 System references
 
@@ -608,14 +606,15 @@ Set(a) // an immutable set of a; requires equality on a
 ### 9.3 Declared types
 
 ```
+type Void = Void // the one-value type; carries no information
 type Optional(a) = None | Some(a)
 type Either(e, a) = Left(e) | Right(a)
 type Ordering = Less | Equal | Greater
 type Down = Down(reason : Reason, function : String)
 type Reason = Returned | Killed | ProgramEnd | Fault(String)
 type ClockMsg // times in milliseconds
-    = After(ms : Int, to : Address(()))
-    | At(at : Int, to : Address(()))
+    = After(ms : Int, to : Address(Void))
+    | At(at : Int, to : Address(Void))
     | Now(reply : Reply(Int))
 type RemoteError = NoRemotePeer | PeerLost
 type Foreign // a value the language does not inspect
@@ -626,8 +625,8 @@ type Where = Local | Peer(String) // spawn placement, section 6
 
 ```
 self  : () -> Address(m) with m
-send  : (Address(a), a) -> () with m
-spawn : (Where, () -> () with n) -> Address(n) with m
+send  : (Address(a), a) -> Void with m
+spawn : (Where, () -> Void with n) -> Address(n) with m
 ```
 
 ### 9.5 Process functions
@@ -636,11 +635,11 @@ spawn : (Where, () -> () with n) -> Address(n) with m
 via                 : ((a) -> b, Address(b)) -> Address(a)
 Address.call        : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
 Address.callForever : (Address(m), (Reply(a)) -> m) -> a with n
-answer              : (Reply(a), a) -> () with m
+answer              : (Reply(a), a) -> Void with m
 remote              : (() -> a) -> Either(RemoteError, a)
 parallelRemote      : (List(() -> a)) -> List(Either(RemoteError, a))
-monitor             : (Address(a), (Down) -> m) -> () with m
-kill                : (Address(a)) -> () with m
+monitor             : (Address(a), (Down) -> m) -> Void with m
+kill                : (Address(a)) -> Void with m
 ```
 
 ### 9.6 Operations required by the language
@@ -728,7 +727,7 @@ QTypeName   = { typename "." } typename .
 
 Type        = FnType | TypeAtom .
 TypeAtom    = { typename "." } typename [ "(" Type { "," Type } ")" ] | typevar
-            | TupleType | "()" .
+            | TupleType .
 TupleType   = "#(" Type { "," Type } ")" .
 FnType      = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
 
@@ -742,7 +741,7 @@ AfterClause    = "after" Expr "->" Expr .
 BinExpr     = Unary { binop Unary } .
 Unary       = [ "-" ] Primary { Call } .
 Call        = "(" [ Expr { "," Expr } ] ")" .
-Primary     = literal | QName | Tuple | "()" | ListLit | BitExpr | Block | "(" Expr ")" .
+Primary     = literal | QName | Tuple | ListLit | BitExpr | Block | "(" Expr ")" .
 QName       = { typename "." } ( ident | binop | conname [ "(" ( Expr | Fields ) ")" ] ) .
 Fields      = ".." Expr "," FieldSet { "," FieldSet } | FieldSet { "," FieldSet } .
 FieldSet    = ident "=" Expr .
@@ -756,7 +755,7 @@ Stmt        = FnDecl | Binding | Expr .
 Pattern     = ConsPat [ "as" ident ] .
 ConsPat     = AtomPat [ "::" ConsPat ] .
 AtomPat     = "_" | ident | literal | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
-            | "#(" Pattern { "," Pattern } ")" | "()"
+            | "#(" Pattern { "," Pattern } ")"
             | "[" [ Pattern { "," Pattern } ] "]"
             | BitPat .
 BitPat      = "<<" [ BitSegP { "," BitSegP } ] ">>" .
@@ -779,9 +778,9 @@ The counter of section 6, with a `main` that exercises `Inc` and `Get`. `Upgrade
 type CounterMsg
     = Inc(Int)
     | Get(reply : Reply(Int))
-    | Upgrade(migrate : (Int) -> Int, next : (Int) -> () with CounterMsg)
+    | Upgrade(migrate : (Int) -> Int, next : (Int) -> Void with CounterMsg)
 
-fn main() -> () with () = {
+fn main() -> Void with Void = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
@@ -791,7 +790,7 @@ fn main() -> () with () = {
     }
 }
 
-fn counter(n : Int) -> () with CounterMsg = receive {
+fn counter(n : Int) -> Void with CounterMsg = receive {
     Inc(k) -> counter(n + k)
   | Get(reply = r) -> { answer(r, n); counter(n) }
   | Upgrade(migrate = m, next = k) -> k(m(n))
@@ -801,13 +800,13 @@ fn counter(n : Int) -> () with CounterMsg = receive {
 ```
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 
-fn main() -> () with () = {
+fn main() -> Void with Void = {
     let pongAddr = spawn(Local, fn() = pong());
     let _ = spawn(Local, fn() = ping(pongAddr, 3));
-    ()
+    Void
 }
 
-fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
+fn ping(pongAddr : Address(PongMsg), n : Int) -> Void with m =
     if n == 0 then send(pongAddr, Stop)
     else {
         Io.println("ping " <> Int.toString(n));
@@ -817,20 +816,20 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
         }
     }
 
-fn pong() -> () with PongMsg = receive {
+fn pong() -> Void with PongMsg = receive {
     Ping(n = n, reply = r) -> {
         Io.println("pong " <> Int.toString(n));
         answer(r, n);
         pong()
     }
-  | Stop -> ()
+  | Stop -> Void
 }
 ```
 
 ```
 type WorkerMsg = DoWork(f : (String) -> Bytes, arg : String)
 
-fn submitter(worker : Address(WorkerMsg)) -> () with Never = {
+fn submitter(worker : Address(WorkerMsg)) -> Void with Never = {
     send(worker, DoWork(f = String.toUtf8, arg = "hello"));
     send(worker, DoWork(f = String.toUtf8, arg = "world"))
 }
@@ -884,9 +883,9 @@ foreign fn rawNew(name : String, opts : List(Foreign)) -> Ets.Table(k, v) with m
 foreign fn atom(name : String) -> Foreign = "erlang:binary_to_atom/1"
 
 /// Insert or replace the entry for key.
-fn Ets.insert(t : Ets.Table(k, v), key : k, value : v) -> () with m = {
+fn Ets.insert(t : Ets.Table(k, v), key : k, value : v) -> Void with m = {
     let _ = rawInsert(t, (key, value));
-    ()
+    Void
 }
 
 foreign fn rawInsert(t : Ets.Table(k, v), row : (k, v)) -> Bool with m = "ets:insert/2"
@@ -898,7 +897,7 @@ fn Ets.lookup(t : Ets.Table(k, v), key : k) -> Optional(v) with m =
 foreign fn rawLookup(t : Ets.Table(k, v), key : k) -> List(#(k, v)) with m = "ets:lookup/2"
 
 /// Remove key. A key not present is not an error.
-fn Ets.delete(t : Ets.Table(k, v), key : k) -> () with m = { let _ = rawDelete(t, key); () }
+fn Ets.delete(t : Ets.Table(k, v), key : k) -> Void with m = { let _ = rawDelete(t, key); () }
 
 foreign fn rawDelete(t : Ets.Table(k, v), key : k) -> Bool with m = "ets:delete/2"
 
@@ -908,12 +907,12 @@ fn Ets.size(t : Ets.Table(k, v)) -> Int with m = rawInfo(t, atom("size"))
 foreign fn rawInfo(t : Ets.Table(k, v), item : Foreign) -> Int with m = "ets:info/2"
 
 /// Delete the table. All subsequent operations on it fault.
-fn Ets.drop(t : Ets.Table(k, v)) -> () with m = { let _ = rawDrop(t); () }
+fn Ets.drop(t : Ets.Table(k, v)) -> Void with m = { let _ = rawDrop(t); () }
 
 foreign fn rawDrop(t : Ets.Table(k, v)) -> Bool with m = "ets:delete/1"
 
 /// Remove all entries, leaving the table empty.
-fn Ets.clear(t : Ets.Table(k, v)) -> () with m = { let _ = rawClear(t); () }
+fn Ets.clear(t : Ets.Table(k, v)) -> Void with m = { let _ = rawClear(t); () }
 
 foreign fn rawClear(t : Ets.Table(k, v)) -> Bool with m = "ets:delete_all_objects/1"
 
@@ -925,7 +924,7 @@ foreign fn Ets.toList(t : Ets.Table(k, v)) -> List(#(k, v)) with m = "ets:tab2li
 ```
 
 ```
-fn main() -> () with () = {
+fn main() -> Void with Void = {
     let t = Ets.new();
     Ets.insert(t, "a", 1);
     Ets.insert(t, "b", 2);
@@ -948,11 +947,11 @@ Informative, not normative: this appendix lists the modules that ship with the c
 Output helpers. The plain forms send to `Sys.stdout` (section 8); the `*To` forms take an explicit `Address(String)`, useful for logging to a mailbox that is not stdout.
 
 ```
-Io.print      : (String) -> () with m // to Sys.stdout
-Io.println    : (String) -> () with m // to Sys.stdout, appends "\n"
+Io.print      : (String) -> Void with m // to Sys.stdout
+Io.println    : (String) -> Void with m // to Sys.stdout, appends "\n"
 
-Io.printTo    : (Address(String), String) -> () with m
-Io.printlnTo  : (Address(String), String) -> () with m // appends "\n"
+Io.printTo    : (Address(String), String) -> Void with m
+Io.printlnTo  : (Address(String), String) -> Void with m // appends "\n"
 ```
 
 ### Appendix E.2. `List.ern`
@@ -961,7 +960,7 @@ Container-first operations over `List(a)`.
 
 ```
 List.size        : (List(a)) -> Int
-List.isEmpty     : (List(a)) -> Bool
+List.isVoid     : (List(a)) -> Bool
 List.head        : (List(a)) -> Optional(a)
 List.last        : (List(a)) -> Optional(a)
 List.at          : (List(a), Int) -> Optional(a)
@@ -977,7 +976,7 @@ List.map         : (List(a), (a) -> b) -> List(b)
 List.filter      : (List(a), (a) -> Bool) -> List(a)
 List.filterMap   : (List(a), (a) -> Optional(b)) -> List(b)
 List.foldLeft    : (List(a), b, (b, a) -> b) -> b
-List.foreach     : (List(a), (a) -> ()) -> ()
+List.foreach     : (List(a), (a) -> Void) -> Void
 List.span        : (List(a), (a) -> Bool) -> #(List(a), List(a))
 List.sort        : (List(a), (a, a) -> Ordering) -> List(a)
 List.remove      : (List(a), a) -> List(a)
@@ -990,7 +989,7 @@ Container-first operations over `Map(k, v)`.
 ```
 Map.empty        : Map(k, v)
 Map.size         : (Map(k, v)) -> Int
-Map.isEmpty      : (Map(k, v)) -> Bool
+Map.isVoid      : (Map(k, v)) -> Bool
 Map.contains     : (Map(k, v), k) -> Bool
 Map.get          : (Map(k, v), k) -> Optional(v)
 Map.put          : (Map(k, v), k, v) -> Map(k, v)
@@ -1008,7 +1007,7 @@ Container-first operations over `Set(a)`.
 ```
 Set.empty        : Set(a)
 Set.size         : (Set(a)) -> Int
-Set.isEmpty      : (Set(a)) -> Bool
+Set.isVoid      : (Set(a)) -> Bool
 Set.contains     : (Set(a), a) -> Bool
 Set.add          : (Set(a), a) -> Set(a)
 Set.remove       : (Set(a), a) -> Set(a)
@@ -1023,7 +1022,7 @@ Set.toList       : (Set(a)) -> List(a)
 
 ```
 String.size        : (String) -> Int // number of code points
-String.isEmpty     : (String) -> Bool
+String.isVoid     : (String) -> Bool
 String.contains    : (String, String) -> Bool // substring test
 String.toInt       : (String) -> Optional(Int)
 String.chars       : (String) -> List(Char)
@@ -1171,7 +1170,7 @@ Every technical term this report introduces, with the section that defines it. P
 - **top-level binding** — a value in scope everywhere at the top level. §0, §8.2.
 - **tuple** — a positional product, `#(a, b)`, `#(a, b, c)`, `#(a)`. §3.2.
 - **type variable** — a lowercase identifier in type position; universally quantified in a `fn`. §3.9.
-- **unit** — the type `()` with the single value `()`. §3.1.
+- **`Void`** — a type with the single value `Void`; the prelude's stand-in for "no meaningful return." §3.1, §9.3.
 - **`via`** — `via(f, addr)` is the address `addr` seen through `f`. §6.5, §9.5.
 - **wildcard** — the pattern `_`; matches anything, binds nothing. §2.3, §5.10.
 - **`with M`** — the mailbox-type marker on a function type. §3.4, §6.1.

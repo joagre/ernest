@@ -41,16 +41,16 @@ type ReplMsg
 // Program
 //
 
-fn main() -> () with () = {
+fn main() -> Void with Void = {
     let _ = spawn(Local, fn() = repl(Map.empty));
-    ()
+    Void
 }
 
 //
 // Processes
 //
 
-fn repl(env : Map(String, Value)) -> () with ReplMsg = {
+fn repl(env : Map(String, Value)) -> Void with ReplMsg = {
     send(Sys.stdin, ReadLine(reply = via(Input, self())));
     receive {
         Input(text) -> match tokenize(text) {
@@ -88,7 +88,7 @@ fn try(env : Map(String, Value), e : Expr) -> Either(TryError, Value) with ReplM
     }
 }
 
-fn show(r : Either(TryError, Value)) -> () with ReplMsg = Io.println(match r {
+fn show(r : Either(TryError, Value)) -> Void with ReplMsg = Io.println(match r {
     Right(N(n)) -> Int.toString(n)
   | Right(Closure) -> "<fun>"
   | Left(Eval(e)) -> "error: " <> EvalError.toString(e)

@@ -8,7 +8,7 @@ Written against the Ernest report, September 2026. Two directories are kept iden
 type FsMsg
     = List(path : Path, reply : Address(Either(FsError, List(Entry))))
     | Read(path : Path, reply : Reply(Either(FsError, Bytes)))
-    | Write(path : Path, bytes : Bytes, reply : Reply(Either(FsError, ())))
+    | Write(path : Path, bytes : Bytes, reply : Reply(Either(FsError, Void)))
 
 type FsError = NotFound | Denied | Io(String)
 type Entry = Entry(path : Path, mtime : Mtime)
@@ -41,7 +41,7 @@ type SyncMsg
 // Program
 //
 
-fn main() -> () with () = {
+fn main() -> Void with Void = {
     let a = spawn(Local, fn() = start(Path("a")));
     let b = spawn(Local, fn() = start(Path("b")));
     send(a, Link(b));
@@ -53,12 +53,12 @@ fn main() -> () with () = {
 //
 
 // Waiting phase: receive the peer's address, then the loop.
-fn start(dir : Path) -> () with SyncMsg = receive {
+fn start(dir : Path) -> Void with SyncMsg = receive {
     Link(peer) -> { send(self(), Tick); syncer(dir, peer, Map.empty) }
 }
 
 // The sync process: one per directory.
-fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> () with SyncMsg = receive {
+fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> Void with SyncMsg = receive {
     Tick -> {
         send(Sys.fs, List(path = dir, reply = via(Listed, self())));
         listing(dir, peer, seen)
@@ -72,13 +72,13 @@ fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> () wi
 }
 
 // Between List and Listed: accept Put, but not Tick.
-fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> () with SyncMsg = {
+fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> Void with SyncMsg = {
     let tick = fn() = send(Sys.clock, After(ms = 5000, to = via(fn(_) = Tick, self())));
     receive {
         Listed(Right(entries)) -> {
             List.foreach(diff(seen, entries), fn(c) = {
                 let _ = spawn(Local, fn() = pusher(dir, peer, c));
-                ()
+                Void
             });
             tick();
             syncer(dir, peer, snapshot(entries))
@@ -108,38 +108,38 @@ fn store(
     m : Mtime,
     bytes : Bytes,
     ack : Reply(Ack)
-) -> () with SyncMsg =
+) -> Void with SyncMsg =
     match Map.get(seen, p) {
         Some(local) when Mtime.compare(local, m) == Greater -> {
             let _ = spawn(Local, fn() =
                 writer(Path.join(dir, conflictPath(p)), bytes, ack, Conflict));
-            ()
+            Void
         }
       | _ -> {
             let _ = spawn(Local, fn() = writer(Path.join(dir, p), bytes, ack, Stored));
-            ()
+            Void
         }
     }
 
 // One process per write: waits for fs and answers the peer.
-fn writer(p : Path, bytes : Bytes, ack : Reply(Ack), okAck : Ack) -> () with n =
+fn writer(p : Path, bytes : Bytes, ack : Reply(Ack), okAck : Ack) -> Void with n =
     match Address.call(Sys.fs, fn(r) = Write(path = p, bytes = bytes, reply = r), 10000) {
-        Some(Right(())) -> answer(ack, okAck)
+        Some(Right(Void)) -> answer(ack, okAck)
       | Some(Left(e)) -> answer(ack, Failed(e))
       | None -> answer(ack, Failed(Io("timeout")))
     }
 
 // One process per changed file: reads and sends to the peer.
-fn pusher(dir : Path, peer : Address(SyncMsg), Change(path = p, mtime = m) : Change) -> () with n =
+fn pusher(dir : Path, peer : Address(SyncMsg), Change(path = p, mtime = m) : Change) -> Void with n =
     match Address.call(Sys.fs, fn(r) = Read(path = Path.join(dir, p), reply = r), 10000) {
         Some(Right(bytes)) -> push(peer, p, m, bytes)
       | Some(Left(_)) -> Io.println("cannot read " <> Path.toString(p))
       | None -> Io.println("fs is not answering: " <> Path.toString(p))
     }
 
-fn push(peer : Address(SyncMsg), p : Path, m : Mtime, bytes : Bytes) -> () with n =
+fn push(peer : Address(SyncMsg), p : Path, m : Mtime, bytes : Bytes) -> Void with n =
     match Address.call(peer, fn(r) = Put(path = p, mtime = m, bytes = bytes, ack = r), 30000) {
-        Some(Stored) -> ()
+        Some(Stored) -> Void
       | Some(Conflict) -> Io.println("conflict: " <> Path.toString(p))
       | Some(Failed(e)) -> Io.println("the peer failed: " <> Path.toString(p))
       | None -> Io.println("the peer is not answering: " <> Path.toString(p))

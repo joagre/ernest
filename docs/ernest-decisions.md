@@ -4,7 +4,7 @@ The reasoning behind the language report in [`ernest.md`](ernest.md): what was t
 
 **A note on principle numbering.** Some dated entries below reference "principle N" using the count at the time they were written. The count changed on 2026-09-14 from seven principles to five (see *Ambient Sys, Five Principles*), and one entry from 2026-09-12 renamed "principle 5" as what is now principle 4 (simple to parse). Read older references in that light; the current numbering lives in [`ernest.md`](ernest.md) §0.
 
-**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Later the same day the cons operator `+:` became `::` and the string-concat operator `++` became `<>` (see *List and Concat Operators*), the reserved word `recv` was spelled out as `receive` (see *`recv` → `receive`*), `opaque` became `abstract` (see *`opaque` → `abstract`*), tuples got a `#(...)` prefix (see *Tuples: `#(...)` Prefix*), and the string type `Text` was renamed to `String` (see *`Text` → `String`*). Historical entries below use the older syntax; the current forms live in [`ernest.md`](ernest.md).
+**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Later the same day the cons operator `+:` became `::` and the string-concat operator `++` became `<>` (see *List and Concat Operators*), the reserved word `recv` was spelled out as `receive` (see *`recv` → `receive`*), `opaque` became `abstract` (see *`opaque` → `abstract`*), tuples got a `#(...)` prefix (see *Tuples: `#(...)` Prefix*), the string type `Text` was renamed to `String` (see *`Text` → `String`*), and the unit type/value `()` was renamed to `Void` (see *`()` → `Void`*). Historical entries below use the older syntax; the current forms live in [`ernest.md`](ernest.md).
 
 ## Starting Point
 
@@ -662,6 +662,26 @@ Taken: `String`. The Haskell motivation for `Text` doesn't apply — Ernest does
 **Effect.** Type `Text` → `String`. Every reference in the report, guide, four paper programs, and implementation plan updated. Module file `Text.ern` → `String.ern` (Appendix E.5). Every function name that mentioned `Text` (`Int.toText`, `Char.toText`, `Bool.toText`, `String.toUtf8`, etc.) becomes the `String`-suffixed form. Lexical category `text` → `string` in §2's literals block and in `binop`/`literal` composition. Prose "text literal" becomes "string literal"; English uses of "text" (source text, "writes text to stdout") stay as English.
 
 **Not renamed.** `SessionId.text` in the webserver paper program is a domain-specific getter on an abstract type — kept as-is (renaming it would change API meaning, not spelling).
+
+## `()` → `Void`, 2026-09-15
+
+External review continued: after the tuple `#(...)` rename removed one use of `()`, the unit type/value still overloaded parens for a third meaning (function call `f()`, empty argument list `() -> C`, and unit itself). Every process function's signature carried two of them: `-> () with () = ...`. For a non-ML reader, the pattern read as noise.
+
+**Considered:**
+
+- **Keep `()`.** ML/Haskell/OCaml/Rust tradition. Compact. Confusing for non-experts and adds a third meaning to `()`.
+- **`Unit`.** Scala/Kotlin tradition. Named type, more readable, but abstract to programmers without PLT background. Doesn't fundamentally address the "why is this thing here twice?" question — just renames it.
+- **`Empty`.** Plain English. But *type-theoretically wrong*: "empty type" in PLT literature means the uninhabited type (which Ernest already calls `Never`). Adopting `Empty` for a one-value type would collide with type-theory readers' expectations.
+- **`Nothing`.** Two collisions: Scala/Kotlin `Nothing` is the bottom type (uninhabited, = Ernest's `Never`); Haskell `Nothing` is Maybe's no-value case (= Ernest's `None`). Both meanings are more common than "unit type"; using `Nothing` for unit would surprise readers from both worlds.
+- **`Void`.** Swift/Java precedent (Swift's `Void` IS the unit type); C/C++/C#/TypeScript familiarity. "Void" reads as "no meaningful return," which is *exactly* what Ernest's unit is used for. No collision with Ernest's `Never` (which is truly uninhabited).
+
+Taken: `Void`. The name says what the value means (no meaningful return) rather than what the type contains (which is what `Empty`/`Nothing` would suggest, misleadingly). Swift's use as a typealias for the unit type is direct precedent. C-family readers get it instantly; ML-family readers pay one bit of new vocabulary.
+
+**Effect.** Prelude gains `type Void = Void` in §9.3. Grammar §3, §5, and Appendix A drop the `"()"` production from `TypeAtom`, `Primary`, and `AtomPat` — `()` no longer means unit as a type or value. Every `-> ()` becomes `-> Void`; every `with ()` becomes `with Void`; every `Address(())` becomes `Address(Void)`; every bare `()` value becomes `Void`. Guide, four paper programs, and implementation plan updated. `main`'s canonical signature is now `fn main() -> Void with Void = ...`.
+
+**Not affected.** `()` remains as *empty argument list* in `f()` (call), `fn() = ...` (lambda), `() -> C` (function type with zero args). That's universal in every language with parenthesized calls and can't be changed. But `()` now means exactly *one* thing (empty argument list) instead of three.
+
+**Compared to the tuple `#(...)` decision.** Same aesthetic — reduce parenthesis overloading. Together, the two changes turn `()` from a multi-role symbol back into a single-role one.
 
 ## `Bool.ern` Added, 2026-09-14
 

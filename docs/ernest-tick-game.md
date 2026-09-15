@@ -43,7 +43,7 @@ type GameMsg = Tick | In(Input)
 // Program
 //
 
-fn main() -> () with () = {
+fn main() -> Void with Void = {
     let world0 = World(w = 40, h = 20, players = Map.empty, apples = [], seed = Seed(42), tick = 0);
     let g = spawn(Local, fn() = game(addPlayer(world0, 1)));
     let p1 = spawn(Local, fn() = player(1, g));
@@ -54,7 +54,7 @@ fn main() -> () with () = {
 // Processes
 //
 
-fn game(world : World) -> () with GameMsg = {
+fn game(world : World) -> Void with GameMsg = {
     send(Sys.clock, After(ms = 100, to = via(fn(_) = Tick, self())));
     receive {
         Tick -> {
@@ -74,7 +74,7 @@ fn drain(world : World, n : Int) -> World with GameMsg =
     }
 
 // One process per player: translates keys into Input.
-fn player(id : Int, game : Address(GameMsg)) -> () with Key = receive {
+fn player(id : Int, game : Address(GameMsg)) -> Void with Key = receive {
     Up -> { send(game, In(Turn(id = id, dir = N))); player(id, game) }
   | Down -> { send(game, In(Turn(id = id, dir = S))); player(id, game) }
   | Left -> { send(game, In(Turn(id = id, dir = W))); player(id, game) }
