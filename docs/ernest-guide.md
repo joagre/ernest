@@ -970,10 +970,10 @@ Ernest treats the boundary strictly. The foreign side must produce values of the
 A shim is free to reshape everything at the boundary. Erlang's `ets:lookup(Table, Key)` returns a `List((k, v))` — a list because the key might match zero or one entry. The corresponding Ernest wrapper turns that into `Optional(v)` with a pattern match:
 
 ```
-foreign fn rawLookup(t : Ets.Table(k, v), key : k) -> List((k, v)) with m = "ets:lookup/2"
-
 fn Ets.lookup(t : Ets.Table(k, v), key : k) -> Optional(v) with m =
     match rawLookup(t, key) { [(_, v)] -> Some(v) | _ -> None }
+
+foreign fn rawLookup(t : Ets.Table(k, v), key : k) -> List((k, v)) with m = "ets:lookup/2"
 ```
 
 Argument order, `{ok, _} | {error, _}` becoming `Either`, discarding return values you don't care about, renaming to match Ernest's conventions — all of it happens in ordinary Ernest code layered over the raw `foreign fn` bindings. Erlang stays where it fits; Ernest speaks its own vocabulary at the API.
