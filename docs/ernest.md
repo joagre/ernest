@@ -865,11 +865,13 @@ fn counter(n : Int) -> Void with CounterMsg = receive {
 
 ```
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
+type MainMsg = PongDone(Down)
 
-fn main() -> Void with Never = {
+fn main() -> Void with MainMsg = {
     let pongAddr = spawn(Local, fn() = pong());
     let _ = spawn(Local, fn() = ping(pongAddr, 3));
-    Void
+    monitor(pongAddr, PongDone);
+    receive { PongDone(_) -> Void }
 }
 
 fn ping(pongAddr : Address(PongMsg), n : Int) -> Void with m =

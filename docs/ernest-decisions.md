@@ -932,6 +932,28 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Ping-Pong Example: Main Must Wait For Workers, 2026-09-15
+
+The reviewer's eleventh finding: Appendix B's ping-pong example spawns `pong` and `ping`, then returns from `main` — but per §8.6 the program ends when `main` returns, and any live process is killed with `ProgramEnd`. The example that is supposed to demonstrate two processes exchanging messages actually kills both before the first `send` goes out. The guide's §7.4 compounded the problem by asserting "when the last of them finishes, the program ends", which contradicts §8.6.
+
+**Options weighed:**
+
+- **`main` waits by monitoring pong.** Uses `monitor(pongAddr, PongDone)` and a `receive` in `main`. Pong dies with `Returned` when it processes `Stop`; `main` receives `PongDone(_)` and returns. Ping is on its way out at that point; if it's still alive it gets killed with `ProgramEnd`, which is correct — ping's work is done.
+- **`main` calls `ping` directly instead of spawning it.** Cleaner shape (one spawn, one call), but leaves a race: `send(pongAddr, Stop)` is fire-and-forget, so pong may not have received `Stop` when `ping` returns and `main` returns and pong is killed with `ProgramEnd`. The example would then have unpredictable output.
+- **Rely on message delivery being fast enough in practice.** Rejected — the report does not promise ordering between `send` completion and subsequent process death by `ProgramEnd`, and a tutorial example must not depend on unspecified timing.
+- **Change §8.6 so the program ends only when all live processes have died.** Rejected — that is a big semantic change (implicit linking of all processes) that shifts responsibility for termination away from `main`. Erlang got by without it; Ernest can too.
+
+Taken: monitor. Pedagogically this is a bonus — `monitor` is a real Ernest primitive that beginners will need anyway, and a "wait for a worker to finish" pattern is the most natural place to introduce it.
+
+**Effect on the report and the guide.**
+
+- Appendix B ping-pong: `main` now has mailbox `MainMsg = PongDone(Down)`. After the two spawns, `monitor(pongAddr, PongDone)` and `receive { PongDone(_) -> Void }`.
+- Guide §7.4: same code change; prose replaced. The old prose ("`main` returns. The two spawned processes are still running. When the last of them finishes, the program ends.") was factually wrong per §8.6 and is now replaced by an explanation of why `main` has to wait on a real signal, and what `monitor` does.
+
+**Cost.** Two extra lines in `main`, one new mailbox constructor, one paragraph of prose in the guide.
+
+**Principle 1 (least surprise).** The old example silently exhibited a subtle interaction between §8.6 (program termination) and the naive spawn-and-return shape that a beginner would assume works. Now the example teaches the correct pattern the first time.
+
 ## `Bool.ern` Added, 2026-09-14
 
 New stdlib module for boolean operations. Two functions:

@@ -621,11 +621,13 @@ This is the ping-pong program from Appendix B of the report.
 
 ```
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
+type MainMsg = PongDone(Down)
 
-fn main() -> Void with Never = {
+fn main() -> Void with MainMsg = {
     let pongAddr = spawn(Local, fn() = pong());
     let _ = spawn(Local, fn() = ping(pongAddr, 3));
-    Void
+    monitor(pongAddr, PongDone);
+    receive { PongDone(_) -> Void }
 }
 
 fn ping(pongAddr : Address(PongMsg), n : Int) -> Void with m =
@@ -677,20 +679,23 @@ If `n` is `0`, send `Stop` and finish. Otherwise:
 
 Notice `ping`'s return type: `-> Void with m`. That `m` is lowercase — a type variable — meaning ping's mailbox type is *polymorphic*, unconstrained. Ping never `receive`s on its own mailbox. It only sends and uses `Address.call`. So the type checker leaves the mailbox slot free.
 
-### 7.4 Main starts them
+### 7.4 Main starts them and waits
 
 ```
 let pongAddr = spawn(Local, fn() = pong());
 let _ = spawn(Local, fn() = ping(pongAddr, 3));
-Void
+monitor(pongAddr, PongDone);
+receive { PongDone(_) -> Void }
 ```
 
 - Spawn pong first, get its address.
-- Spawn ping, passing pong's address in.
-- Discard ping's returned address with `let _ = ...`. `main` doesn't need it.
-- Return `Void`.
+- Spawn ping, passing pong's address in. Discard ping's returned address with `let _ = ...`; `main` doesn't need it.
+- Call `monitor(pongAddr, PongDone)`: ask the runtime to send `PongDone(d)` to `main`'s mailbox when pong dies, where `d : Down` describes the cause.
+- Wait for that message, then return.
 
-`main` returns. The two spawned processes are still running. When the last of them finishes, the program ends.
+Why the wait? The report says the program ends when `main` returns; any live process is then killed with cause `ProgramEnd` (report §8.6). If `main` returned right after the two spawns, ping and pong would both be killed before the first message went out. `main` has to stay alive until the work is done, and that means waiting on a real signal — here, pong's death.
+
+`MainMsg = PongDone(Down)` is `main`'s mailbox type: exactly one shape of message, the monitor notification. Pong dies with reason `Returned` when it processes `Stop`, so `PongDone(_)` matches and `main` returns.
 
 Output: alternating "ping 3", "pong 3", "ping 2", "pong 2", "ping 1", "pong 1".
 
