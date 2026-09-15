@@ -644,13 +644,14 @@ The code cannot see the error. Causes include out of memory, `kill`, a failure i
 
 The prelude is total: no built-in function faults. Partial operations return `Optional` or `Either`. A fault is therefore always something that happened to the process, never something it did.
 
-Five deliberate exceptions:
+Deliberate exceptions:
 
 - `/` and `%` on `Int` with a zero divisor fault with cause `Fault("division by zero")`. `Int.div` and `Int.mod` return `Optional` for the caller who wants to handle it.
-- `Float.compare` faults on a `NaN` operand with cause `Fault("NaN in compare")` — `Ordering` has no unordered case, and `Float.isNaN` (Appendix E.9) exists so callers can guard. `==` and `!=` on `Float` do not fault; they follow IEEE 754 (§3.10). `Float`'s arithmetic operations `+`, `-`, `*`, `/` also do not fault — division by zero produces IEEE `Infinity` or `NaN` (§3.1).
+- `Float.compare` faults on a `NaN` operand with cause `Fault("NaN in compare")`, and `Float.round`, `Float.floor`, `Float.ceil` fault on `NaN` or ±`Infinity` with cause `Fault("Float to Int on non-finite value")` — `Ordering` has no unordered case and `Int` has no infinity; `Float.isNaN` (Appendix E.9) exists so callers can guard. `==` and `!=` on `Float` do not fault; they follow IEEE 754 (§3.10). `Float`'s arithmetic operations `+`, `-`, `*`, `/` also do not fault — division by zero produces IEEE `Infinity` or `NaN` (§3.1).
 - Bitstring construction faults in two cases (§5.11): a segment value that does not fit its specified width (`Fault("segment overflow")`) or a total bit count that is not a multiple of 8 with dynamic sizes (`Fault("bitstring not byte-aligned")`). The compile-time forms of both errors are rejected at compile time; the runtime fault covers the dynamic cases.
 - `todo("...")` compiles at any type and faults if reached with cause `Fault("todo: ...")`, so that an unfinished function can be declared before it is written.
 - Any cross-node transport of a value that transitively contains a foreign value, with cause `Fault("foreign value cannot cross nodes")` (§3.8).
+- `spawn(Peer(...), ...)` faults the caller when the peer is unknown or unreachable (§6.2), and when peer-side dependency resolution fails (§8.7) — a missing `Sys.x`, an incompatible foreign definition, or an unresolvable code hash. Cause is `Fault("peer unreachable")` or `Fault("peer resolution failed: ...")`.
 
 ## 8. Programs
 
@@ -679,6 +680,10 @@ The system processes are foreign processes: their message types are declared in 
 Before `main` runs, the runtime evaluates every top-level `let` binding in the program. Evaluation follows data dependencies: a binding that references another is evaluated after the one it references. Order within an independent set is unspecified — top-level `let` initializers are pure (§4.6), so the order does not affect the result. A cycle among top-level `let` initializers is a compile-time error.
 
 Top-level `type`, `abstract type`, `fn`, and `foreign` declarations have no runtime effect; only `let` requires evaluation. The `Sys.*` references (§8.2) are available to `let` initializers — the runtime binds them before evaluating top-level bindings.
+
+**Failure during initialization.** Purity does not imply totality. A top-level initializer can fault (via `todo`, `Int` zero-divisor, or the other exceptions in §7.4) or fail to terminate. An initializer that faults ends the program with that fault before `main` runs. Because order within an independent set is unspecified, which of two independent faulting initializers is reported is unspecified; a nonterminating initializer prevents unrelated initializers from being reached.
+
+**Dependency graph.** The cycle-detection graph is symbolic: binding `p` depends on binding `q` if `p`'s initializer directly or transitively references `q` by name in a resolvable position. A function called by an initializer contributes its own referenced bindings to the graph. Cross-module cycles are detected at load time, when the runtime has resolved every referenced module (§11.2).
 
 ### 8.6 Program termination
 

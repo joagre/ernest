@@ -932,6 +932,36 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Fault List and Initialization: Extend §7.4, Acknowledge Partial Init, 2026-09-15
+
+The reviewer's U09 flagged two things:
+
+1. §7.4 opens by declaring "no built-in function faults" then lists five exceptions. The recent U05 and U07 changes added Float→Int fault and `spawn(Peer, ..)` resolution-failure fault; those weren't in the §7.4 inventory.
+2. §8.5 derives order-independence of initialization from purity. But pure ≠ total: initializers can fault (`todo`, division by zero) or fail to terminate. §8.5 was silent on what happens in those cases.
+
+**Choices weighed:**
+
+- **Extend §7.4's list to include the newly-added faults; add a paragraph in §8.5 acknowledging partial initialization.** Taken.
+- **Rewrite §7.4's opening to soften "no built-in function faults".** Rejected — the "list of deliberate exceptions" reading is fine when the list is complete; softening the opening loses the design principle it states.
+- **Make initializers strict-total (reject nonterminating initializers statically).** Rejected — undecidable in general, and `todo` initializers are useful during development.
+- **Serialize initialization order deterministically.** Rejected — order-independence is a real property of pure initializers when they all terminate successfully; serialization would only affect which fault gets reported first, and the report already says "unspecified" for that case.
+
+**Effect on §7.4.** One item added, one item extended:
+
+- The Float item now covers `Float.round/floor/ceil` fault (added in U05 but not previously listed here).
+- New item: `spawn(Peer(...), ...)` fault the caller on unknown/unreachable peer (§6.2) or peer-side resolution failure (§8.7 — missing `Sys.x`, incompatible foreign, unresolvable code hash).
+
+The opening "Five deliberate exceptions" changed to just "Deliberate exceptions" — the count is no longer accurate and locking it in was accidental.
+
+**Effect on §8.5.** Two new paragraphs:
+
+- *Failure during initialization*: purity does not imply totality; an initializer that faults ends the program before `main`; a nonterminating initializer prevents other initializers from being reached; which of two independent faulting initializers is reported is unspecified.
+- *Dependency graph*: the graph is symbolic — binding `p` depends on binding `q` if `p`'s initializer references `q` by name in a resolvable position; a called function contributes its own references. Cross-module cycles caught at load time.
+
+**Cost.** One list item added, one extended, two paragraphs in §8.5. No new mechanism, no new syntax.
+
+**Principle 3 (nothing invisible).** The previously-unlisted faults are now in the report's inventory. Initialization failure was folklore; now stated.
+
 ## Bitstring `bits` Segments Must Be Byte-Aligned When Binding to `Bytes`, 2026-09-15
 
 The reviewer's U08 flagged a hole in §5.11's alignment story: the earlier fix required the *total* bit count of a construction to be a multiple of 8, but a single `bits` segment could still bind a sub-octet slice to a variable of type `Bytes`:
