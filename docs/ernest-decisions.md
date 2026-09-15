@@ -526,6 +526,24 @@ The 2026-09-14 removal applied the growth rule ("three uses before promoting to 
 
 **Rule clarification.** The growth rule applies to *stdlib convenience functions*, not to fundamental container types. Adding `List.zipWithIndex` needs three-uses justification. Adding `Set(a)` doesn't, because a reader expects it. This distinction should have been named in the growth-rule entry originally.
 
+## Section 0 Rewrite, 2026-09-15
+
+External review found §0 too vague for a normative document — "in order" undefined, "surprise" unexplained for a first-time reader, "not too few" unfalsifiable. Rewrote §0's third paragraph and principle list. Content of the principles is unchanged; wording of §1, §2, §5 changes, and the intro paragraph gains a tie-breaking rule.
+
+**Intro paragraph.** Replaced "The language is built on five principles, in order. The reader comes first." with a two-sentence statement of principle 1's role: it is the final arbiter that audits the effect of applying principles 2–5, measuring what a reader of Ernest code sees. This states operationally what "in order" was left to mean, and folds the "reader comes first" slogan into a sentence that earns its keep by explaining *why* principle 1 has the arbiter role.
+
+Why *backstop* and not *lexicographic priority*. Two reasons. First, the log shows principle 1 acting as an audit over the results of applying 2–5 (see *Grammar Audit, 2026-09-12* for `if/then/else` and `Int` division), not as a first-choice tiebreaker over 2–5 in isolation. Second, lexicographic priority does not make sense across all pairs — "least surprise" does not sensibly override "simple to parse" (§4 has its own hard constraint the parser must satisfy). The right relation is: 2–5 are constructive; 1 audits.
+
+**Principle 1.** Gains one sentence defining "surprise" — a design surprises when a reader who knows the rest of Ernest would predict different code from the same requirement. Prior wording ("measured by the resulting code, not by the rule") hinted at this but assumed the reader already knew what the contrast was with.
+
+**Principle 2.** Loses the escape clause "unless what remains surprises more". Redundant once the intro paragraph states principle 1's backstop role; §2 now reads as a strict rule with the override located in the meta-rule rather than embedded in the rule itself.
+
+**Principle 5.** Loses "but not too few". In this log the lower bound on smallness has always come from another principle — §4 stopped `let` from being dropped for four characters per line (see *Grammar Audit*); §1 stopped `Int.div(a, b)` from being the every-day form for division. §5 has never enforced its own floor. The qualifier claimed a role §5 does not play, and read as unfalsifiable in a document that otherwise names its tests.
+
+**Not changed.** Principles 3 and 4 verbatim. Numbering unchanged (still five).
+
+**Downstream.** `CLAUDE.md` line 11 updated to name the backstop framing (principles 2–5 constructive, principle 1 auditing). No change to the guide's §16 reference or to README's principle mention — both already read correctly against the new §0.
+
 ## `Bool.ern` Added, 2026-09-14
 
 New stdlib module for boolean operations. Two functions:

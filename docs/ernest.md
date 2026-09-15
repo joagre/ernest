@@ -8,13 +8,13 @@ Ernest is a functional language for concurrent programs. It has two concepts: fu
 
 Every function runs inside a process: an execution of a function, with a mailbox of its own that receives values of one type. A function either acts through its process, by sending, receiving, or asking who it is, or it does not. A function that does not is called pure: its result depends only on its arguments, and it affects nothing. A function that acts through its process names its mailbox in its type, `(A) -> B with M`; `M` is the function's mailbox type, and it is the only mark a function type carries. Sections 3 and 6 make this precise. The runtime is what runs Ernest programs; section 10 states what it must provide.
 
-The language is built on five principles, in order. The reader comes first.
+The language is built on five principles. Principle 1 is the final arbiter: it audits the effect of applying the others, measuring what a reader of Ernest code sees. Principles 2 through 5 are constructive rules; when following them yields code that surprises, principle 1 overrides.
 
-1. Least surprise decides — measured by the resulting code, not by the rule.
-2. One way, one job — in the language and prelude. No variants for the same thing, no two concepts that overlap in what they express, unless what remains surprises more. The standard library, being ordinary Ernest code, may pair functions for convenience.
+1. Least surprise decides. A design surprises when a reader who knows the rest of Ernest would predict different code from the same requirement. The rule may look clean; the resulting code decides.
+2. One way, one job — in the language and prelude. No variants for the same thing, no two concepts that overlap in what they express. The standard library, being ordinary Ernest code, may pair functions for convenience.
 3. Nothing invisible. Control flow, communication, and failure are visible in the code or in the type. An ambient value is visible when its name appears at the use site; a hidden effect is not.
 4. Simple to parse: recursive descent, first-token dispatch, small bounded lookahead where the grammar demands it, no backtracking.
-5. Small: few concepts, few primitives, few reserved words — but not too few.
+5. Small: few concepts, few primitives, few reserved words.
 
 ## 1. Notation
 
