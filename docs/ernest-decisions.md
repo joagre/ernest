@@ -932,6 +932,43 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Code Shipping: Dependency, Type-Version, and Runtime-Binding Contracts, 2026-09-15
+
+The reviewer's thirteenth finding: §10 stated "a node ships code to a peer that lacks it, identified by content" as a runtime guarantee, but the report said nothing about *how* the ship works. Three concrete questions were unanswered:
+
+1. **Dependencies.** A shipped closure `f` calls `g`, which calls `h`. Does the ship include `g` and `h`? What if the peer has some of them but not others? What if the peer has a differently-defined `h` under the same name?
+2. **Type versions.** A shipped closure has type `Address(FooMsg) -> Int`. The peer has its own `FooMsg`. If the peer's `FooMsg` differs from the sender's — extra constructor, renamed field, different field type — what happens?
+3. **Runtime bindings.** A shipped closure references `Sys.stdout` or `Sys.clock`. Do these resolve to the *sender's* system processes (as if captured) or to the *peer's* (as if late-bound)?
+
+Without answers, `spawn(Peer(...), f)` and `remote(f)` are underspecified: two implementations could reasonably differ, and a programmer cannot reason about what happens when a shipped closure runs.
+
+**Choices weighed:**
+
+- **Content addressing (Unison model).** Every function, constructor, and type has a hash of its normalized definition and its dependencies' hashes. Two nodes with structurally identical definitions share the same hash and interoperate; any change to the definition or its transitive dependencies changes the hash and breaks interoperation. Ship-time dependency resolution: peer fetches missing hashes from sender before running the closure.
+- **Named modules with versions (npm-style).** Each module has a version string; shipping requires version compatibility. Rejected — versions are a metadata layer that content addressing subsumes, and it introduces the "dependency hell" problem Unison was designed to eliminate.
+- **Whole-module baseline (Erlang release model).** Every peer runs the same compiled release; no shipping needed. Rejected — the report already commits to peers not needing to hold the same code (§10), because that assumption doesn't hold for a mixed federation of nodes.
+- **Sender-side runtime bindings.** Shipped closure captures `Sys.stdout` from the sender, and messages route back over the network. Rejected — a shipped `Io.println("hello")` sending output to the sender is bizarre and would surprise every reader. Late-bind to the peer's `Sys.*` instead.
+- **Peer-side runtime bindings (taken).** `Sys.*` resolves on the peer that runs the code. Missing `Sys.x` on peer is a fault at resolution.
+
+Taken: content addressing, peer-side `Sys.*`, ship-time dependency resolution, foreign code is per-node.
+
+**Effect on the report.**
+
+New §8.7 *Code shipping*, five paragraphs:
+
+- Scope: peer ship only. Within-node `spawn(Local, f)` and closures-in-messages ship nothing.
+- *Content addressing*: definitions carry a content hash; structurally identical → same hash; any change → different hash.
+- *Dependency resolution*: peer resolves hashes transitively before running; missing hashes fetched from sender; `spawn`/`remote` return only after success. Unreachable sender → `Left(PeerLost)` or fault.
+- *Type identity*: types identified by hash; peer's local `FooMsg` under the same source name but different structure is unrelated.
+- *Runtime bindings*: `Sys.*` resolves on the peer that runs the code; a missing `Sys.x` is a fault at resolution.
+- *Foreign code*: `foreign fn` and `foreign type` are not shipped; peer must have compatible foreign definitions.
+
+Also §10's line about code shipping now points to §8.7 for the details.
+
+**Cost.** One new subsection, five paragraphs. Two of the questions (types and runtime bindings) were already implicit in the design; §8.7 makes them explicit and consistent. Dependency resolution as a distinct concept is new but small — it is the mechanism the runtime already needed for the "no prior installation" promise in §10.
+
+**Principle 3 (nothing invisible).** The ship contract used to be one bullet in §10 that said "it just works". Now the reader can trace what happens: hashes on the wire, resolution before execution, peer-local `Sys.*` and foreign code.
+
 ## Deadlock Detection Distinguishes Idle Server From Deadlocked Program, 2026-09-15
 
 The reviewer's twelfth finding: §8.6's deadlock rule was too broad. It said "if no process can run, all are waiting in `receive` without `after`, and no messages are in flight, the runtime ends the program with the error `Deadlock`. A pending `after` or clock counts as a message in flight." An idle web server — every user process in `receive`, waiting for a TCP connection from `Sys.net` — satisfies every clause and would be spuriously killed with `Deadlock`, because only `after` and clock timers were listed as exemptions. The web-server paper program (Paper Program 1) hits this exactly.

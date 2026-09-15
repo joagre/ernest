@@ -647,6 +647,20 @@ The program ends when `main` returns. Live processes then die with cause `Progra
 
 If forward progress is impossible — every live process is waiting in `receive` without `after`, no message is in flight, and no live system process holds a subscription, timer, or pending I/O whose completion would deliver a message to a live process — the runtime ends the program with the error `Deadlock`. Pending `after`s, pending clock timers, network listeners, keyboard subscribers, and any similar registered future delivery from a system process count as messages in flight; an idle server that is waiting for such external events is not deadlocked.
 
+### 8.7 Code shipping
+
+`spawn(Peer(name), f)` (§6.2) and `remote(f)` (§6.7) ship the closure `f` and the code it depends on to the peer. Within-node `spawn(Local, f)` and sending closures in messages ship nothing — a function is a value in the local heap. This section specifies the peer-ship contract.
+
+**Content addressing.** Every function, constructor, and type is identified across nodes by a content hash: a hash of its normalized definition together with the hashes of every definition it references. Structurally identical definitions have the same hash on every node; any change — a constructor added, a field renamed, a called function's body altered — changes the hash and, transitively, the hashes of everything that depends on it.
+
+**Dependency resolution.** A shipped closure carries the hashes of the code it needs. Before it runs, the peer resolves every hash transitively: hashes it already has (from an earlier ship, or from its own compilation of an identical definition) are used directly; missing hashes are fetched from the sender and cached. `spawn` on a peer returns an `Address`, and `remote` returns a value, only after resolution succeeds. Unresolvable code is `Left(PeerLost)` for `remote` — the sender is unreachable during the fetch — or a fault on the shipped process for `spawn`.
+
+**Type identity.** Types are identified by hash. Two nodes with structurally identical `FooMsg` share the same type hash and interoperate freely. Two nodes that both declare a local type `FooMsg` but define it differently have different hashes; the peer treats them as distinct types. A shipped closure that mentions the sender's `FooMsg` uses the sender's hash on the peer; the peer's own `FooMsg` under the same source name is unrelated to it as far as the type checker on the peer is concerned.
+
+**Runtime bindings.** References to `Sys.*` (§8.2) resolve *on the peer that runs the code*, not on the sender. A shipped `Io.println` sends to the peer's `Sys.stdout`. A shipped `Sys.x` that the peer's runtime does not provide is a fault at resolution: `Fault("Sys.x not provided by peer")`.
+
+**Foreign code.** `foreign fn` and `foreign type` (§4.7) are not shipped. A shipped closure that references foreign code requires the peer to have a compatible foreign definition under the same qualified name and shape; a missing or incompatible foreign definition is a fault at resolution.
+
 ## 9. Prelude
 
 The prelude is small: only what this report names. Convenience libraries — including all container operations, string and numeric utilities, and output helpers — live in the standard library, Appendix E.
@@ -745,7 +759,7 @@ Sys.clock        : Address(ClockMsg) // the clock process
 - The representation of values is fixed and documented, so that foreign code can produce and consume them.
 - `Down` carries a cause distinguishable from other causes.
 - The runtime detects `Deadlock` as in section 8.
-- A node ships code to a peer that lacks it, identified by content, so that `spawn` on a peer and `remote` need no prior installation; peers need not hold the same code.
+- A node ships code to a peer that lacks it, identified by content, so that `spawn` on a peer and `remote` need no prior installation; peers need not hold the same code. Transitive dependencies resolve by hash before the shipped closure runs; types are content-addressed; `Sys.*` re-binds to the peer; foreign code is per-node. See §8.7.
 - The runtime detects the loss of a node: its processes die with `Fault("peer lost")` and its remote computations return `Left(PeerLost)`.
 
 ## 11. Toolchain
