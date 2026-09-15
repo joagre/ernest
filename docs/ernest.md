@@ -286,7 +286,7 @@ A *module* is a single Ernest source file, ending in `.ern`. It is the unit of c
 
 The namespace is in the name, and so is the visibility. A top-level declaration with a qualified name, `fn Net.Http.parse(b) = ...`, `type Net.Http.Request = ...`, is visible throughout the program under that name; two such declarations with the same full name are an error. A top-level declaration with an unqualified name, `fn helper(x) = ...`, is visible only in its own module.
 
-A module's path is its namespace: the qualified declarations in `Net/Http.ern` begin with `Net.Http.`, and may go deeper, `Net.Http.Header.parse`. That is the whole of a module's meaning: there is no export list, no `pub`, and no `import`. Sub-namespaces are the dots; namespace segments are type names.
+A module's path is its namespace: the qualified declarations in `Net/Http.ern` begin with `Net.Http.`, and may go deeper for names *within* that namespace, but a declaration whose qualifier extends the module's path by another typename segment belongs to the sub-module at that path. `Net.Http.parse` and `Net.Http.Request` live in `Net/Http.ern`; `Net.Http.Header.parse` lives in `Net/Http/Header.ern`, not in `Net/Http.ern`. Two declarations with the same full name anywhere in the program are an error. There is no export list, no `pub`, and no `import`. Sub-namespaces are the dots; namespace segments are type names.
 
 An unqualified name in a body is looked up first among the module's unqualified declarations, then in the namespace of the enclosing declaration, then in the prelude; everything else must be qualified. The only other thing hidden is the constructor of an abstract type from definitions outside its signature. `main` is unqualified, §8.1.
 
@@ -819,7 +819,7 @@ Sys.clock        : Address(ClockMsg) // the clock process
 
 ### 11.1 `ernc` (compiler)
 
-`ernc file.ern` compiles a module to `file.erc`, a compiled module the runtime can load. A program is compiled module by module; cross-module names are resolved at load.
+`ernc file.ern` compiles a module to `file.erc` — a compiled module the runtime can load, carrying the inferred types of the module's qualified declarations so dependent modules can be type-checked against it. A program is compiled module by module in dependency order; cross-module references link at load.
 
 ### 11.2 `ern` (runner)
 

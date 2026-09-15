@@ -932,6 +932,37 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Modules: Nested Namespace Ownership and Cross-Module Type Info, 2026-09-15
+
+The reviewer's R17 (open since earlier round): three asks — nested namespace ownership, locating compiled modules, cross-module type information.
+
+**Nested namespace ownership.** §4.2 said a module's path is its namespace and that "sub-namespaces are the dots", but didn't say whether `Net/Http.ern` could declare `Net.Http.Header.parse` (extending into a deeper namespace) or whether that must live in `Net/Http/Header.ern`.
+
+- **Strict path-based ownership**: `A.B.C.name` belongs exclusively to `A/B/C.ern`. Taken.
+- **Prefix-based**: any module whose path is a prefix of the qualified name can declare. Rejected — finding a declaration would require searching multiple candidate files.
+- **Any module can declare any qualified name**: only same-full-name is a conflict. Rejected — chaotic; principle 1 (least surprise) says the location of a declaration should be predictable from its name.
+
+Taken (strict): a declaration `A.B.C.name` where `A`, `B`, `C` are typename segments belongs to `A/B/C.ern`. Declaring into a sub-namespace deeper than the module's own path is forbidden.
+
+**Locating compiled modules.** §11.2 already spells the rule ("compiled modules on the load path, found by namespace, `Net.Http.parse` in `Net/Http.erc`"). No change needed.
+
+**Cross-module type information.** §11.1 said "a program is compiled module by module; cross-module names are resolved at load", which left compile-time type checking of dependent modules unspecified.
+
+- **Compiled `.erc` files carry inferred type information for qualified declarations.** Taken. The compiler reads type info from dependent modules' `.erc` files on the load path. Compilation is in dependency order.
+- **Require full signatures on all qualified top-level declarations.** Rejected — the grammar allows omitted signatures on `fn`; requiring them for exported names would introduce a two-tier `fn` rule.
+- **Whole-program compilation.** Rejected — §11.1 already commits to module-by-module compilation.
+
+**Effect on the report.**
+
+- *§4.2*: extended to state strict path-based ownership. `Net.Http.parse` and `Net.Http.Request` live in `Net/Http.ern`; `Net.Http.Header.parse` lives in `Net/Http/Header.ern`.
+- *§11.1*: extended to state that `.erc` carries type info for qualified declarations, and that compilation proceeds in dependency order.
+
+**Cost.** One sentence extended in §4.2, one sentence extended in §11.1.
+
+**Principle 1 (least surprise).** A reader who sees `Net.Http.Header.parse` in code can predict its source file without searching.
+
+**Principle 3 (nothing invisible).** Cross-module type information is now stated to be part of the compiled form, rather than left as implementation folklore.
+
 ## Distributed Failure: One Simple Model, Loss Is Terminal, 2026-09-15
 
 The reviewer's R14 (open since earlier round): "§10 still describes node loss as actual process death. Disconnection, delivery guarantees, reconnection, and remote process survival need distinct contracts."
