@@ -889,7 +889,7 @@ remote : (() -> a) -> Either(RemoteError, a)
 Give it a pure, zero-argument function. The runtime picks a peer and evaluates the function there, returning `Right(value)` on success or `Left(err)` if no peer is available or the peer is lost.
 
 ```
-fn main() -> Void with Never = {
+fn main() -> Void with m = {
     match remote(fn() = heavy(1, 2, 3)) {
         Right(n) -> Io.println("got " <> Int.toString(n))
       | Left(_) -> Io.println("no remote available")
@@ -899,7 +899,7 @@ fn main() -> Void with Never = {
 
 Two things to notice:
 
-- **`remote` is pure.** No `with M` on its type. You can call it from pure functions. From the caller's perspective, `remote(f)` is a slow function call that might fail — nothing about processes or mailboxes is involved.
+- **`remote` has a mailbox effect.** Its type is `(() -> a) -> Either(RemoteError, a) with m` — call it from process code, not from a pure function. The `Left(...)` cases expose runtime state (peer configuration, network) and that observability is what the `with m` captures.
 - **The function passed in must be pure.** It runs on a peer that has never seen your process; there is no way for it to send or receive messages back to you. The argument type `() -> a` — no `with M` — enforces this.
 
 Peers are configured in `ernest.conf` at start-up. Which peer runs which computation, and by what criterion, the language does not say — that is the runtime's choice.
@@ -909,13 +909,13 @@ Peers are configured in `ernest.conf` at start-up. Which peer runs which computa
 For a batch of independent computations:
 
 ```
-parallelRemote : (List(() -> a)) -> List(Either(RemoteError, a))
+parallelRemote : (List(() -> a)) -> List(Either(RemoteError, a)) with m
 ```
 
 Runs the functions in parallel across peers and returns the results in input order — one `Either` per input.
 
 ```
-fn main() -> Void with Never = {
+fn main() -> Void with m = {
     let jobs = [fn() = crunch(1), fn() = crunch(2), fn() = crunch(3)];
     let results = parallelRemote(jobs);
     List.foreach(results, fn(r) = match r {

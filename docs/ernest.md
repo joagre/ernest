@@ -489,14 +489,14 @@ answer              : (Reply(a), a) -> Void with m
 A pure function can be evaluated on another node:
 
 ```
-remote         : (() -> a) -> Either(RemoteError, a)
-parallelRemote : (List(() -> a)) -> List(Either(RemoteError, a))
+remote         : (() -> a) -> Either(RemoteError, a) with m
+parallelRemote : (List(() -> a)) -> List(Either(RemoteError, a)) with m
 type RemoteError = NoRemotePeer | PeerLost
 ```
 
-`remote(f)` evaluates `f()` on a peer the runtime chooses among those configured for remote computation, and returns the value. Which peer, and by what criterion, the language does not say. `f` is pure and so is `remote`: the result depends on `f` alone, and the caller waits as it would for any computation. `Left(NoRemotePeer)` if no peer is configured; `Left(PeerLost)` if the peer disappears before the value returns.
+`remote(f)` evaluates `f()` on a peer the runtime chooses among those configured for remote computation, and returns the value. Which peer, and by what criterion, the language does not say. `f` is pure (it must be, to be safely serialized and run on a peer with no local context) but `remote` is not: `Left(NoRemotePeer)` if no peer is configured; `Left(PeerLost)` if the peer disappears before the value returns. Those failure modes expose runtime state, so `remote` carries a mailbox effect (`with m`) — it can only be called from process code.
 
-`parallelRemote(fs)` runs the functions in `fs` on peers in parallel and returns the results in the input order, one `Either` per input. It is pure by the same reasoning as `remote`: the result depends on the inputs alone. The runtime picks peers and schedules the calls; a caller that needs richer control — cancellation, per-task timeouts, interleaved arrivals — spawns processes itself.
+`parallelRemote(fs)` runs the functions in `fs` on peers in parallel and returns the results in the input order, one `Either` per input. Same effect status as `remote`, same reasoning. The runtime picks peers and schedules the calls; a caller that needs richer control — cancellation, per-task timeouts, interleaved arrivals — spawns processes itself.
 
 ### 6.8 `Never`
 
@@ -636,8 +636,8 @@ via                 : ((a) -> b, Address(b)) -> Address(a)
 Address.call        : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
 Address.callForever : (Address(m), (Reply(a)) -> m) -> a with n
 answer              : (Reply(a), a) -> Void with m
-remote              : (() -> a) -> Either(RemoteError, a)
-parallelRemote      : (List(() -> a)) -> List(Either(RemoteError, a))
+remote              : (() -> a) -> Either(RemoteError, a) with m
+parallelRemote      : (List(() -> a)) -> List(Either(RemoteError, a)) with m
 monitor             : (Address(a), (Down) -> m) -> Void with m
 kill                : (Address(a)) -> Void with m
 ```

@@ -687,6 +687,24 @@ Taken: `Void`. The name says what the value means (no meaningful return) rather 
 
 **Compared to the tuple `#(...)` decision.** Same aesthetic — reduce parenthesis overloading. Together, the two changes turn `()` from a multi-role symbol back into a single-role one.
 
+## `remote` Is Not Pure, 2026-09-15
+
+An external reviewer caught a genuine contradiction: §0 defines *pure* as "result depends only on its arguments, and it affects nothing"; §6.7 claimed `remote` and `parallelRemote` were pure. But `remote(fn() = 42)` can return `Right(42)`, `Left(NoRemotePeer)`, or `Left(PeerLost)` depending on peer configuration and connection state — its result does *not* depend on the argument alone. Two calls at different times can return different values. The report contradicted its own purity definition.
+
+**Two clean resolutions weighed:**
+
+- **Drop the error return.** Redefine `remote : (() -> a) -> a` with the runtime falling back to local evaluation on any failure. That would make `remote` genuinely pure (an invisible evaluation strategy). Rejected: production distributed systems need to distinguish "no peer configured" from "peer disappeared mid-computation" — those are different operational problems with different responses. Hiding them behind fallback would make the API unhelpful for the reason distribution exists.
+
+- **Add a mailbox effect.** `remote : (() -> a) -> Either(RemoteError, a) with m`. Admits what `remote` really is: an observable service that exposes runtime state through its return. Only callable from process code.
+
+Taken: the second. `remote` and `parallelRemote` gain `with m`. The argument `f` stays pure (it must be, to serialize and run on a peer with no local context). §6.7 prose rewritten: `f` is pure but `remote` is not.
+
+**Corrected the earlier `parallelRemote` decision entry.** The 2026-09-14 entry that positioned `parallelRemote` in the prelude claimed "Pure like `remote`" as one justification. That claim was already wrong on 2026-09-14; the reviewer surfaced it. The other justifications (symmetry with `remote`, runtime-optimizable) stand.
+
+**Downstream.** Guide §11's two `main` functions that called `remote` and `parallelRemote` had been `with Never` after the earlier send-only sweep; both are now `with m` polymorphic. The Never sweep pattern (send-only → Never) still holds for functions that only `send` — but a function that calls `remote` is no longer send-only, so it doesn't fit that pattern.
+
+**Principle 3** carried this decision: the effect was invisible in the type. Now it's visible.
+
 ## `Bool.ern` Added, 2026-09-14
 
 New stdlib module for boolean operations. Two functions:
