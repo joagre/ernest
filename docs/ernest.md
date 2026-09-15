@@ -189,6 +189,17 @@ Types are inferred according to Hindley-Milner. A `fn` definition is generalized
 
 Recursive and mutually recursive types are allowed. Polymorphic recursion is not. Every type variable in a constructor's fields must be a parameter of the type.
 
+**Effect polymorphism.** A function type's mailbox effect can itself be a type variable. Inference generalizes it alongside other type variables in a `fn` definition. `fn apply(f, x) = f(x)` has inferred type `((a) -> b with e, a) -> b with e`, quantified over `a`, `b`, and the effect variable `e`.
+
+At a call site, an effect variable binds to one of:
+
+- **A mailbox type `M`.** The caller inherits effect `M`. `apply(fn(x) = send(a, x), 5)` binds `e` to the effect of `send`, so this call has that effect.
+- **The empty effect** (written syntactically as no `with M` at all). The caller is pure with respect to that call. `apply(fn(x) = x + 1, 5)` binds `e = empty`, so the call is pure.
+
+The empty effect has no explicit syntax — a function type without `with M` has it. During type printing an effect variable bound to empty is elided from the output. Effect variables use the same lowercase identifier syntax as other type variables (`m`, `n`, `e`); position in the type distinguishes their kind.
+
+`List.map`, `List.foreach`, `Map.map`, and other stdlib combinators that take function arguments are effect-polymorphic in the same way — no special-case in the type system; the same rule that types `apply` above types them.
+
 ### 3.10 Equality and ordering
 
 `==` and `!=` are defined for all values except those containing functions or addresses; on those, `==` is a type error. Equality is structural.
@@ -424,9 +435,14 @@ A process is an execution of a function with a mailbox type. It has a mailbox th
 
 `(A) -> B with M` is the type of a function that acts through the process it runs in, whose mailbox has type `M`. Every call runs in some process; the mailbox type marks that the function uses that process: its own `send`, `receive`, and `self`, or a foreign function with a mailbox type. It does not mark the fact of running in one.
 
-The mailbox type is inferred: a function that calls a function with mailbox type `M` gets mailbox type `M`. Two different mailbox types in the same function is a type error.
+The mailbox effect is inferred:
 
-A function without a mailbox type is pure: it neither sends, receives, nor calls foreign code with a mailbox type, and it can be called from any process. A pure higher-order function runs its function arguments in the caller's process: `List.map(xs, fn(x) = send(a, x))` has a mailbox type. Nothing else can be marked on a function type.
+- A function whose body calls another function with effect `M` gets effect `M`.
+- Two calls with different concrete effects in the same function body are a type error.
+- Calls with variable effects unify; the enclosing function has the unified effect.
+- A pure call (no `with M` on the callee) contributes no effect: the enclosing function's effect is whatever its other calls determine.
+
+A function without a mailbox effect is pure: it neither sends, receives, nor calls foreign code with a mailbox effect, and it can be called from any process. A pure higher-order function runs its function arguments in the caller's process: `List.map(xs, fn(x) = send(a, x))` has the same effect as the callback, and `List.map` is effect-polymorphic (§3.9). Nothing else can be marked on a function type.
 
 ### 6.2 Built-in functions
 

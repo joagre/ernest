@@ -705,6 +705,33 @@ Taken: the second. `remote` and `parallelRemote` gain `with m`. The argument `f`
 
 **Principle 3** carried this decision: the effect was invisible in the type. Now it's visible.
 
+## Effect Polymorphism Specified, 2026-09-15
+
+The reviewer's second finding: the report allowed `List.map` with an effectful callback but had no rule for how an ordinary higher-order function like `fn apply(f, x) = f(x)` acquires its callback's effect. §6.1 said *"a function that calls a function with mailbox type M gets mailbox type M"* — fine when M is concrete, but silent when M is a type variable (the case that makes `apply` typable at all).
+
+The report already used effect variables informally: `send : ... with m`, `Address.call : ... with n`, `ping(...) -> Void with m`. But it never said *effect variables exist as a language concept*. That's what needed spelling out.
+
+**Choice weighed:** Full row-polymorphic effects (Koka style) vs. Ernest's one-effect-per-function model.
+
+Ernest's model is single-effect. Adding effect polymorphism means promoting the effect slot to admit type variables, generalized like other type variables. Standard HM extension — comparable in complexity to record polymorphism, not to full effect systems.
+
+**Alternative representations weighed:** an explicit `Pure` effect marker on every function type (uniform but verbose), vs. keeping "pure = no `with` syntax" (compact but requires a substitution rule for empty effect). Chose the second — matches Ernest's existing compactness bias, cost is a small extra rule in the type-printer.
+
+**Effect.** §3.9 gains an *Effect polymorphism* paragraph:
+
+- Function types have an effect slot; the slot's inhabitant is either a mailbox type or *empty*.
+- Effect variables are type variables in that slot, generalized alongside other type variables in a `fn` definition.
+- Empty effect has no syntax — a function type without `with M` has it. Effect variable bound to empty is elided at print time.
+- Effect variables use the same lowercase identifier syntax; position in the type distinguishes their kind.
+
+§6.1's mailbox-inference sentence expanded from one line to four: concrete/variable/pure calls each have a rule, and multi-call unification is stated explicitly.
+
+**Consequence.** `fn apply(f, x) = f(x)` now has a specifiable inferred type: `((a) -> b with e, a) -> b with e`. `List.map`, `List.foreach`, `Map.map`, and user combinators follow the same rule. No stdlib special-casing.
+
+**Implementation cost.** Modest. Standard HM extension: unification of function types acquires a fourth check (effect slot), substitution treats empty as a nullary term, generalization applies to effect vars, pretty-printer elides empty.
+
+**Principle 3** again — an implicit inference rule made explicit in the type system.
+
 ## `Bool.ern` Added, 2026-09-14
 
 New stdlib module for boolean operations. Two functions:
