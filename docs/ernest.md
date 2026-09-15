@@ -200,6 +200,14 @@ The empty effect has no explicit syntax — a function type without `with M` has
 
 `List.map`, `List.foreach`, `Map.map`, and other stdlib combinators that take function arguments are effect-polymorphic in the same way — no special-case in the type system; the same rule that types `apply` above types them.
 
+**Annotations describe shape; some inferred properties are not written.** A type annotation gives the shape of a function — arity, argument types, return type, and mailbox effect. Three properties are inferred from the function body and not part of the annotation grammar:
+
+- The equality constraint on a type variable induced by `==` usage (§3.10). Checked at instantiation.
+- The exactly-once obligation on a `Reply(a)` parameter (§6.6). Signaled by the parameter type itself, checked compositionally.
+- The kind distinction between value and effect type variables. Determined by position — an identifier in argument or return position is a value-type variable; the same identifier after `with` is an effect variable. Same lexical form, different kind.
+
+An annotation is compatible with these; it doesn't need to state them. Constraints and obligations follow from usage in the body and from the callee's signatures.
+
 ### 3.10 Equality and ordering
 
 `==` and `!=` are defined for all values except those containing functions or addresses; on those, `==` is a type error. Equality is structural.

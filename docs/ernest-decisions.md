@@ -777,6 +777,28 @@ Appendix E signatures for `List.contains` and `List.remove` gain a `// requires 
 
 **Tension acknowledged.** Not writing the constraint in the type syntax has a principle-3 cost — the requirement is invisible in signatures. The comment mitigates it, but a reader without §3.10 in mind might miss it. Judged worth the trade against the alternative of adding typeclass-adjacent syntax (principle 5, and the earlier decision against typeclasses).
 
+## Annotations Describe Shape, 2026-09-15
+
+The reviewer's fifth finding: some types the compiler infers cannot be written using Ernest's annotation grammar. Three cases exist after today's earlier fixes:
+
+- Equality constraints on type variables induced by `==` usage (added in the equality-policy entry above).
+- Exactly-once obligations on `Reply(a)` parameters (added in the Reply-ownership entry above).
+- Kind distinction between value-type variables and effect variables — same identifier syntax, position in the type distinguishes.
+
+All three are inferred from function bodies and callee signatures, not written by the user.
+
+**Alternatives:**
+
+- **Add constraint syntax** (Haskell-style `Eq(a) =>` or similar). Adds a type-level feature. Ernest has said no to typeclasses and adding constraint syntax opens that door.
+- **Restrict inference** to only produce writable types. Would force users to monomorphize `==` and reject polymorphic Reply-taking helpers. Breaks reasonable stdlib design.
+- **Document the split.** Say explicitly: annotations describe shape, inferred constraints follow from usage. Reader knows to look at the body (or documentation) for the full picture.
+
+Taken: the third. §3.9's Effect-polymorphism block gains a closing paragraph naming the three cases where inference produces properties not in the annotation grammar. A reader who wonders "does this signature capture everything?" gets an honest answer: no, but here's what's missing and where to look for it.
+
+**Cost.** Principle-3 partial loss — the constraints are not fully visible in signatures. The report acknowledges the loss and points at the sources. Comment annotations in Appendix E (for the equality constraint) mitigate for the stdlib.
+
+**What this rules out.** A future addition of constraint syntax is not precluded. If Ernest later grows typeclass-like features, the "annotations describe shape" note becomes historical; the grammar would express more. This report simply documents the current state honestly.
+
 ## `Bool.ern` Added, 2026-09-14
 
 New stdlib module for boolean operations. Two functions:
