@@ -22,7 +22,7 @@ type Tick     = Tick
 type Request = Request(method : Text, path : Text, headers : List((Text, Text)))
 type Response = Response(status : StatusCode, headers : List((Text, Text)), body : Text)
 type ParseError = BadEncoding | BadRequestLine | BadHeader(Text)
-type Session = Session(Int)            // number of visits
+type Session = Session(Int) // number of visits
 
 opaque type StatusCode = StatusCode(Int) with {
     ok : StatusCode;
@@ -92,7 +92,7 @@ fn handler(
                 send(sock, Close)
             }
         }
-      | None -> send(sock, Close)                      // the client never answered
+      | None -> send(sock, Close) // the client never answered
     }
 }
 
@@ -118,7 +118,7 @@ let StatusCode.ok = StatusCode(200)
 let StatusCode.notFound = StatusCode(404)
 fn StatusCode.render(StatusCode(n)) = Int.toText(n)
 
-fn SessionId.fresh(n) = SessionId(Int.toText(n))   // good enough on paper
+fn SessionId.fresh(n) = SessionId(Int.toText(n)) // good enough on paper
 fn SessionId.parse(t) = if Text.all(t, Char.isDigit) then Some(SessionId(t)) else None
 fn SessionId.text(SessionId(t)) = t
 ```

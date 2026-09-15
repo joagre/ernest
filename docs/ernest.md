@@ -307,17 +307,17 @@ The prelude is small: only what this report names. Convenience libraries — inc
 Built-in types (section 3):
 
 ```
-Address(m)   // an address of a process that receives m
-Reply(a)     // a one-shot address, section 6
-Never        // the type with no values
+Address(m) // an address of a process that receives m
+Reply(a) // a one-shot address, section 6
+Never // the type with no values
 ```
 
 Built-in parameterized types, provided by the runtime:
 
 ```
-List(a)      // an immutable linked list of elements of type a
-Map(k, v)    // an immutable dictionary from k to v; requires equality on k
-Set(a)       // an immutable set of a; requires equality on a
+List(a) // an immutable linked list of elements of type a
+Map(k, v) // an immutable dictionary from k to v; requires equality on k
+Set(a) // an immutable set of a; requires equality on a
 ```
 
 Declared types:
@@ -328,13 +328,13 @@ type Either(e, a) = Left(e) | Right(a)
 type Ordering = Less | Equal | Greater
 type Down = Down(reason : Reason, function : Text)
 type Reason = Returned | Killed | ProgramEnd | Fault(Text)
-type ClockMsg                                      // times in milliseconds
+type ClockMsg // times in milliseconds
     = After(ms : Int, to : Address(()))
     | At(at : Int, to : Address(()))
     | Now(reply : Reply(Int))
 type RemoteError = NoRemotePeer | PeerLost
-type Foreign                                       // a value the language does not inspect
-type Where = Local | Peer(Text)                    // spawn placement, section 6
+type Foreign // a value the language does not inspect
+type Where = Local | Peer(Text) // spawn placement, section 6
 ```
 
 Built-in functions (section 6):
@@ -361,20 +361,20 @@ kill                : (Address(a)) -> () with m
 Operations required by the language:
 
 ```
-Int.div, Int.mod : (Int, Int) -> Optional(Int)     // section 7: / and % fault on zero;
+Int.div, Int.mod : (Int, Int) -> Optional(Int) // section 7: / and % fault on zero;
                                                    // Int.div and Int.mod return None instead
-Int.compare      : (Int, Int) -> Ordering          // section 3: ordering is per type
+Int.compare      : (Int, Int) -> Ordering // section 3: ordering is per type
 Float.compare    : (Float, Float) -> Ordering
 Text.compare     : (Text, Text) -> Ordering
 Char.compare     : (Char, Char) -> Ordering
-todo             : (Text) -> a                     // section 7: faults if reached
+todo             : (Text) -> a // section 7: faults if reached
 ```
 
 System references (runtime-provided, section 8):
 
 ```
-Sys.stdout       : Address(Text)                   // the stdout process
-Sys.clock        : Address(ClockMsg)               // the clock process
+Sys.stdout       : Address(Text) // the stdout process
+Sys.clock        : Address(ClockMsg) // the clock process
 ```
 
 ## 10. Runtime Requirements
@@ -649,11 +649,11 @@ Informative, not normative: this appendix lists the modules that ship with the c
 Output helpers. The ambient forms send to `Sys.stdout` (section 8); the `*To` forms take an explicit `Address(Text)`, useful for logging to a mailbox that is not stdout.
 
 ```
-Io.print      : (Text) -> () with m                    // to Sys.stdout
-Io.println    : (Text) -> () with m                    // to Sys.stdout, appends "\n"
+Io.print      : (Text) -> () with m // to Sys.stdout
+Io.println    : (Text) -> () with m // to Sys.stdout, appends "\n"
 
 Io.printTo    : (Address(Text), Text) -> () with m
-Io.printlnTo  : (Address(Text), Text) -> () with m     // appends "\n"
+Io.printlnTo  : (Address(Text), Text) -> () with m // appends "\n"
 ```
 
 ### Appendix E.2. `List.ern`
@@ -724,9 +724,9 @@ Set.toList       : (Set(a)) -> List(a)
 ### Appendix E.5. `Text.ern`
 
 ```
-Text.size        : (Text) -> Int                       // number of code points
+Text.size        : (Text) -> Int // number of code points
 Text.isEmpty     : (Text) -> Bool
-Text.contains    : (Text, Text) -> Bool                // substring test
+Text.contains    : (Text, Text) -> Bool // substring test
 Text.toInt       : (Text) -> Optional(Int)
 Text.chars       : (Text) -> List(Char)
 Text.fromChars   : (List(Char)) -> Text
@@ -743,14 +743,14 @@ Char.isDigit     : (Char) -> Bool
 Char.isAlpha     : (Char) -> Bool
 Char.isSpace     : (Char) -> Bool
 Char.toText      : (Char) -> Text
-Char.toInt       : (Char) -> Int                       // Unicode code point
+Char.toInt       : (Char) -> Int // Unicode code point
 ```
 
 ### Appendix E.7. `Bool.ern`
 
 ```
 Bool.not         : (Bool) -> Bool
-Bool.toText      : (Bool) -> Text                      // "true" or "false"
+Bool.toText      : (Bool) -> Text // "true" or "false"
 ```
 
 ### Appendix E.8. `Int.ern`
@@ -765,7 +765,7 @@ Int.bitOr        : (Int, Int) -> Int
 Int.bitXor       : (Int, Int) -> Int
 Int.bitNot       : (Int) -> Int
 Int.shiftLeft    : (Int, Int) -> Int
-Int.shiftRight   : (Int, Int) -> Int                   // arithmetic (sign-preserving)
+Int.shiftRight   : (Int, Int) -> Int // arithmetic (sign-preserving)
 Int.toText       : (Int) -> Text
 Int.toFloat      : (Int) -> Float
 ```
@@ -776,7 +776,7 @@ Int.toFloat      : (Int) -> Float
 Float.abs        : (Float) -> Float
 Float.negate     : (Float) -> Float
 Float.toText     : (Float) -> Text
-Float.round      : (Float) -> Int                      // banker's rounding, IEEE 754 default
+Float.round      : (Float) -> Int // banker's rounding, IEEE 754 default
 Float.floor      : (Float) -> Int
 Float.ceil       : (Float) -> Int
 ```

@@ -72,12 +72,12 @@ fn repl(env : Map(Text, Value)) -> () with ReplMsg = {
 // try as a process: evaluate in a child, wait at most two seconds,
 // kill the child if it does not answer.
 fn try(env : Map(Text, Value), e : Expr) -> Either(TryError, Value) with ReplMsg = {
-    let me = self();    // not self() inside the lambda: that is the child's
+    let me = self(); // not self() inside the lambda: that is the child's
     let child = spawn(Local, fn() = send(me, Result(eval(env, e))));
     monitor(child, Died);
     recv {
         Result(r) -> Either.mapLeft(r, Eval)
-      | Died(_) -> Left(Crashed)                 // a fault in the child
+      | Died(_) -> Left(Crashed) // a fault in the child
       | after 2000 -> { kill(child); Left(Timeout) }
     }
 }
@@ -163,7 +163,7 @@ fn prodRest(l : Expr, toks : List(Token)) -> Either(ParseError, Step) = match to
 fn app(toks : List(Token)) -> Either(ParseError, Step) = { (f, r) <- atom(toks); appRest(f, r) }
 
 fn appRest(f : Expr, toks : List(Token)) -> Either(ParseError, Step) = match atom(toks) {
-    Left(_) -> Right((f, toks))          // no atom: the application is over
+    Left(_) -> Right((f, toks)) // no atom: the application is over
   | Right((a, r)) -> appRest(App(f = f, arg = a), r)
 }
 
@@ -188,7 +188,7 @@ fn eval(env : Map(Text, Value), e : Expr) -> Either(EvalError, Value) = match e 
     Lit(n) -> Right(N(n))
   | Var(x) -> match Map.get(env, x) { Some(v) -> Right(v) | None -> Left(Unbound(x)) }
   | Fun(param = p, body = b) -> Right(Closure(param = p, body = b, env = env))
-  | Let(value = v) -> eval(env, v)             // the REPL binds the name, see repl
+  | Let(value = v) -> eval(env, v) // the REPL binds the name, see repl
   | Bin(op = op, l = l, r = r) -> {
         let lv <- eval(env, l);
         let rv <- eval(env, r);

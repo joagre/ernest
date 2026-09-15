@@ -10,7 +10,7 @@ The report requires `Sys.stdout` and `Sys.clock` (§8); keys are the runtime's a
 type KeyMsg = Subscribe(Address(Key))
 type Key    = Up | Down | Left | Right | Quit
 
-Sys.keys : Address(KeyMsg)     // additional runtime reference
+Sys.keys : Address(KeyMsg) // additional runtime reference
 ```
 
 `type Seed = Seed(Int)` and `Random.next : (Seed) -> (Int, Seed)` are assumed available (a stdlib `Random` module), a pure generator.
@@ -140,7 +140,7 @@ fn move(w : Int, h : Int, Pos(x = x, y = y) : Pos, d : Dir) -> Pos = match d {
 }
 
 fn turn(p : Player, d : Dir) -> Player = match (Player.dir(p), d) {
-    (N, S) -> p | (S, N) -> p | (W, E) -> p | (E, W) -> p    // no U-turn
+    (N, S) -> p | (S, N) -> p | (W, E) -> p | (E, W) -> p // no U-turn
   | _ -> Player(..p, dir = d)
 }
 

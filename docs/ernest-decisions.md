@@ -553,7 +553,7 @@ Int.bitOr      : (Int, Int) -> Int
 Int.bitXor     : (Int, Int) -> Int
 Int.bitNot     : (Int) -> Int
 Int.shiftLeft  : (Int, Int) -> Int
-Int.shiftRight : (Int, Int) -> Int    // arithmetic (sign-preserving)
+Int.shiftRight : (Int, Int) -> Int // arithmetic (sign-preserving)
 ```
 
 **Why stdlib, not operators.** Symbol operators (`&`, `|`, `^`, `<<`, `>>`) are blocked: `<<` and `>>` are bit-array delimiters. Keyword operators (Erlang's `band`, `bor`, `bxor`, `bnot`, `bsl`, `bsr`) would add six reserved words and push the count from 16 to 22 — a 37% growth that principle 5 does not want. Stdlib functions cost zero language surface, and pipes make them read cleanly: `flags |> Int.bitAnd(mask) |> Int.shiftRight(4)`.

@@ -44,7 +44,7 @@ Conventions for Ernest source code. Ernest is order-independent at top level, so
 
 - **Four-space indent.** No tabs. Every level of nesting is four spaces. Whitespace is inert to Ernest's lexer, so this is a readability choice, not a language requirement — but the paper programs and any Ernest code we write should follow it consistently.
 
-- **No alignment padding.** Don't add spaces to make tokens line up with the corresponding token on another line. In particular: no padding around `->` in `match`/`recv` arms; no padding before `=` in declarations; no padding across `foreign fn` bodies. Alignment reads well when written but breaks the moment an edit adds a longer identifier, forcing every neighboring line to be re-padded. Keep tokens close, one space where a space is needed.
+- **No alignment padding, anywhere.** Don't add spaces to make tokens line up with the corresponding token on another line. This applies uniformly: no padding around `->` in `match`/`recv` arms; no padding before `=` in declarations; no padding across `foreign fn` bodies; no padding before trailing `//` comments to align them. Alignment reads well when written but breaks the moment an edit adds a longer identifier, forcing every neighboring line to be re-padded. Keep tokens close: one space where a space is needed, and exactly one space before a trailing `//` comment.
 
     Good:
     ```

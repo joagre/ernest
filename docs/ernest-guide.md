@@ -174,8 +174,8 @@ Lists are Ernest's built-in linked collection: `List(a)` is a list whose element
 Lists build up by prepending. The operator is `+:`:
 
 ```
-let xs = 1 +: [2, 3];           // xs is [1, 2, 3]
-let ys = 0 +: xs                // ys is [0, 1, 2, 3]
+let xs = 1 +: [2, 3]; // xs is [1, 2, 3]
+let ys = 0 +: xs // ys is [0, 1, 2, 3]
 ```
 
 `+:` is right-associative, so `1 +: 2 +: 3 +: []` reads left-to-right as building `[1, 2, 3]` — which is exactly how `[1, 2, 3]` is defined.
@@ -329,14 +329,14 @@ let name = match user { Some(u) -> u | None -> "guest" };
 **Patterns everywhere, with a rule.** The same patterns you see in `match` arms also appear in `let` bindings and in function parameters. But there is a distinction: patterns in `let` and function parameters must be **irrefutable** — they must always match. Tuple patterns are irrefutable (a tuple always has the shape you spelled), and so are wrapper patterns like `Snapshot(seen = s)` when there is only one constructor:
 
 ```
-let (x, y) = point;                     // fine — tuples always destructure
-fn area(Point(x, y) : Point) -> Int = x * y    // fine — Point has one constructor
+let (x, y) = point; // fine — tuples always destructure
+fn area(Point(x, y) : Point) -> Int = x * y // fine — Point has one constructor
 ```
 
 Refutable patterns are a type error in these positions:
 
 ```
-let Right(v) = e   // type error — e might be Left(...)
+let Right(v) = e // type error — e might be Left(...)
 ```
 
 That's the "decompose versus compare" line. `let` and function parameters *decompose* a value whose shape you already know; `match` and `recv` (and `<-`, §10) *compare* a value against several shapes and let each arm handle its case. If you need to peek at a sum type, reach for `match`.
@@ -499,7 +499,7 @@ Look at the `Get` arm again: it binds `r` from the incoming message, then calls 
 If we had written this instead:
 
 ```
-Get(reply = r) -> counter(n)     // forgot to answer!
+Get(reply = r) -> counter(n) // forgot to answer!
 ```
 
 That would be a type error. `r` would be bound but never used. The compiler would refuse to compile the counter.
@@ -1125,9 +1125,9 @@ A short reference of syntactic patterns that don't come from other languages, or
 **Two positional fields are forbidden.** A constructor may carry zero fields, one positional field, or any number of *named* fields, but exactly two positional fields is a type error.
 
 ```
-type Pair = Pair(Int, Int)               // rejected
-type Pair = Pair(x : Int, y : Int)       // required
-type Pair = Pair((Int, Int))             // single positional payload, a tuple, allowed
+type Pair = Pair(Int, Int) // rejected
+type Pair = Pair(x : Int, y : Int) // required
+type Pair = Pair((Int, Int)) // single positional payload, a tuple, allowed
 ```
 
 Reason: positions carry no meaning; names do. A constructor with two things in it wants to say which is which.
@@ -1135,8 +1135,8 @@ Reason: positions carry no meaning; names do. A constructor with two things in i
 **`:` in declarations, `=` in construction.** Two different punctuation marks with strict roles.
 
 ```
-type Snapshot = Snapshot(dir : Path, seen : Map(Path, Mtime))   // :  declares field types
-Snapshot(dir = ".", seen = Map.empty)                           // =  binds field values
+type Snapshot = Snapshot(dir : Path, seen : Map(Path, Mtime)) // :  declares field types
+Snapshot(dir = ".", seen = Map.empty) // =  binds field values
 ```
 
 Same in function definitions and calls: `fn f(x : Int) = ...` and `f(3)`. Colons introduce types, equals bind values.
@@ -1144,7 +1144,7 @@ Same in function definitions and calls: `fn f(x : Int) = ...` and `f(3)`. Colons
 **`+:` for list cons.** Prepend one element to a list. Works in expressions and in patterns.
 
 ```
-let xs = 1 +: [2, 3]        // xs is [1, 2, 3]
+let xs = 1 +: [2, 3] // xs is [1, 2, 3]
 
 match ys {
     [] -> "empty"
@@ -1157,8 +1157,8 @@ Right-associative: `a +: b +: c` is `a +: (b +: c)`. There is no in-line operato
 **`..` for record update.** Given a record value, produce a new one with some fields replaced. The old fields are copied.
 
 ```
-Player(..p, dir = North)                    // copy of p with dir changed
-Player(..p, alive = false, score = 0)       // multiple field changes at once
+Player(..p, dir = North) // copy of p with dir changed
+Player(..p, alive = false, score = 0) // multiple field changes at once
 ```
 
 **`-` is prefix negation and binary subtraction.** Both roles on the same token, decided by position. Literal `-1` is `-` applied to `1`; there is no negative literal.

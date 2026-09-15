@@ -61,8 +61,8 @@ fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> () wi
         store(dir, seen, p, m, bytes, ack);
         syncer(dir, peer, Map.put(seen, p, m))
     }
-  | Listed(_) -> syncer(dir, peer, seen)           // late listing, ignore
-  | Link(_) -> syncer(dir, peer, seen)             // already connected
+  | Listed(_) -> syncer(dir, peer, seen) // late listing, ignore
+  | Link(_) -> syncer(dir, peer, seen) // already connected
 }
 
 // Between List and Listed: accept Put, but not Tick.
