@@ -38,50 +38,10 @@ If either test surfaces an anomaly in the report, propose an update to `docs/ern
 
 ## Ernest style guide
 
-Conventions for Ernest source code. Ernest is order-independent at top level, so these are style choices, not correctness requirements — but the paper programs and any Ernest code we write should follow them for consistency.
+Ernest is order-independent at top level; these are style choices, not correctness. Follow them consistently.
 
-- **Define functions top-down.** Types stay at the top of the module. In a program module (has `main`), `main` comes next, then the functions it calls in call order, then their helpers, and so on — each root and its subtree are laid out contiguously. In a library module (no `main`), each exported function is a root: it appears at the top level with its own helpers immediately below it, and the next exported function's subtree follows. A helper used by more than one exported function goes under whichever root uses it first (or, if it's genuinely shared infrastructure, at the bottom of the module as a small utilities section).
-
-- **Four-space indent.** No tabs. Every level of nesting is four spaces. Whitespace is inert to Ernest's lexer, so this is a readability choice, not a language requirement — but the paper programs and any Ernest code we write should follow it consistently.
-
-- **No alignment padding, anywhere.** Don't add spaces to make tokens line up with the corresponding token on another line. This applies uniformly: no padding around `->` in `match`/`recv` arms; no padding before `=` in declarations; no padding across `foreign fn` bodies; no padding before trailing `//` comments to align them. Alignment reads well when written but breaks the moment an edit adds a longer identifier, forcing every neighboring line to be re-padded. Keep tokens close: one space where a space is needed, and exactly one space before a trailing `//` comment.
-
-    Good:
-    ```
-    Some(Right(())) -> answer(ack, okAck)
-    | Some(Left(e)) -> answer(ack, Failed(e))
-    | None -> answer(ack, Failed(Io("timeout")))
-    ```
-
-    Bad (arrows aligned by padding before `->`):
-    ```
-    Some(Right(())) -> answer(ack, okAck)
-    | Some(Left(e))   -> answer(ack, Failed(e))
-    | None            -> answer(ack, Failed(Io("timeout")))
-    ```
-
-    Structural indentation (blocks, arm separators, function bodies) is not alignment padding — a `|` at the start of a subsequent arm, or a `let` at the start of a block statement, is part of the syntactic form, not a padding choice.
-
-- **100-character line limit for code.** Code inside code blocks stays at or under 100 columns. Prose in markdown documents can be longer (renderers wrap it). Split long expressions or arguments across lines rather than let one line run wide.
-
-- **Section banners are three lines, not a horizontal rule.** For section headers inside a module, use a small block-comment banner rather than a comment padded with dashes. Leave a blank line before the opening `//` and a blank line after the closing `//`, so the banner reads as a visual break between sections:
-
-    Good:
-    ```
-    ...previous section's last declaration
-
-    //
-    // Processes
-    //
-
-    fn firstFnOfNextSection(...) = ...
-    ```
-
-    Bad:
-    ```
-    ...previous section's last declaration
-    // Processes ------------------------------------------------
-    fn firstFnOfNextSection(...) = ...
-    ```
-
-    The dash-padded form is another kind of alignment padding — it depends on a visual column that shifts if the section name is renamed. The three-line banner surrounded by blank lines is stable, scans clearly, and reads as an intentional block comment rather than a decoration.
+- **Top-down layout.** Types first. Then `main` (in program modules) or exported functions (in library modules). Each root's helpers follow immediately below it, before the next root. Shared helpers go with the first user, or in a bottom utilities section if genuinely shared.
+- **Four-space indent, no tabs.**
+- **No alignment padding, anywhere.** Don't add spaces to align tokens across lines: `->`, `=`, trailing `//` comments, anything. Structural indentation (block bodies, arm separators) isn't padding — that stays. One space where a space is needed.
+- **Code lines ≤ 100 characters.** Split long expressions rather than let one line run wide. Prose in markdown can be longer.
+- **Block-comment banners for sections.** Open with `//` on its own line, one or more `// text` lines, close with `//` on its own line. Blank line before the opening, blank line after the closing. Not `// Section ----------`.
