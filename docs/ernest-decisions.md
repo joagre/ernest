@@ -4,6 +4,8 @@ The reasoning behind the language report in [`ernest.md`](ernest.md): what was t
 
 **A note on principle numbering.** Some dated entries below reference "principle N" using the count at the time they were written. The count changed on 2026-09-14 from seven principles to five (see *Ambient Sys, Five Principles*), and one entry from 2026-09-12 renamed "principle 5" as what is now principle 4 (simple to parse). Read older references in that light; the current numbering lives in [`ernest.md`](ernest.md) §0.
 
+**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Historical entries below use the older words; the current terms live in [`ernest.md`](ernest.md).
+
 ## Starting Point
 
 Erlang has the right concurrency model but is old in everything else: dynamically typed, no abstract data types, OTP turns the program inside out. Unison has the right language core (types, minimal syntax) but the wrong concurrency layer: a Haskell inheritance of threads, MVar, TVar, STM, and Promise that overlap one another and lack identity and address.
@@ -543,6 +545,22 @@ Why *backstop* and not *lexicographic priority*. Two reasons. First, the log sho
 **Not changed.** Principles 3 and 4 verbatim. Numbering unchanged (still five).
 
 **Downstream.** `CLAUDE.md` line 11 updated to name the backstop framing (principles 2–5 constructive, principle 1 auditing). No change to the guide's §16 reference or to README's principle mention — both already read correctly against the new §0.
+
+## Terminology Sweep, 2026-09-15
+
+External review flagged the report as using informal or Ernest-invented terminology where a strict PLT / BEAM convention exists. Four names changed report-wide.
+
+**arms → clauses.** `match` and `recv` branches were called *arms* (Rust and Scala 3 usage). Erlang, Haskell, and SML call them *clauses*; the same word applies to guarded alternatives, `receive` branches, and function heads. Since Ernest is on BEAM the Erlang convention wins. Grammar rules `Arm` and `AfterArm` renamed to `Clause` and `AfterClause`; every prose mention in §5, §6, §11, and the guide follows. §3's existing sentence "A function has one clause" now aligns with the new terminology (it was previously the only use of the word in the report).
+
+**bit arrays → bitstrings.** The `<<...>>` construction/pattern-match syntax is directly Erlang's bitstring syntax, and the runtime compiles to BEAM's bit syntax. Erlang and Elixir both call the values *bitstrings*; calling them *bit arrays* in prose was inconsistent with the shape and the target platform. Grammar rule names `BitExpr`, `BitPat`, `BitSpec`, `BitSegE`, `BitSegP` are unchanged — the `Bit` prefix is short and still accurate.
+
+**constructor payload → constructor field.** *Payload* was used both for what a constructor carries and for what a message carries when sent between nodes. The constructor sense is informal; standard PLT usage is *field* (Rust) or *constructor argument* (Haskell). Switched constructor uses to *field*. Message-payload uses (§3 foreign-value crossing rule; §7 fault causes) stay — that sense is standard networking terminology.
+
+**ambient → top-level (or dropped).** *Ambient* was Ernest's chosen word for values in scope everywhere at the top level (`Sys.stdout`, `List`, `Map`, `Set`). Non-standard in PLT literature; *implicit* carries Scala baggage that misleads (Ernest's ambients are named at the use site, unlike Scala implicits). Renamed to *top-level binding* (§0), *top-level values* (§8), *top-level references* (§8, §11); in Appendix E "the ambient forms" became "the plain forms"; in paper programs "ambient runtime reference" became "runtime reference". Principle 3's operative rule — *visible when its name appears at the use site* — is unchanged; only the noun.
+
+**What did not change.** `Address(m)`, `Reply(a)`, `Down`, `Peer`, `fault`, `recv`, `with M`, `+:` — these are Ernest's names for concepts the language introduces (or deliberately distinguishes from cognates in other languages). The audit found them non-standard *because they are new*; renaming would either lose meaning or copy an established name that carries different semantics. They stay.
+
+**Historical entries.** Older dated entries below use the pre-rename words. The preamble at the top of this document now covers both this and the earlier principle-numbering shift.
 
 ## `Bool.ern` Added, 2026-09-14
 

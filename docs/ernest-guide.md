@@ -102,7 +102,7 @@ fn opposite(d : Direction) -> Direction = match d {
 }
 ```
 
-`match` looks at `d` and picks the arm whose pattern matches. Each arm is a case: a pattern on the left of `->`, an expression on the right. The first arm whose pattern matches gets its expression evaluated, and the whole `match` expression takes that value.
+`match` looks at `d` and picks the clause whose pattern matches. Each clause is a case: a pattern on the left of `->`, an expression on the right. The first clause whose pattern matches gets its expression evaluated, and the whole `match` expression takes that value.
 
 ### 2.1 Constructors that carry data
 
@@ -189,7 +189,7 @@ match xs {
 }
 ```
 
-The first arm matches the empty list. The second arm binds `head` to the first element and `rest` to the remainder.
+The first clause matches the empty list. The second clause binds `head` to the first element and `rest` to the remainder.
 
 Common list operations live in `List.ern` (Appendix E of the report): `List.map`, `List.filter`, `List.foldLeft`, `List.foreach`, and so on. Since they're subject-first (`List.map(list, f)`, not `List.map(f, list)`), they compose naturally with `|>`.
 
@@ -285,7 +285,7 @@ The `with m` at the end of the arrow marks: this function acts through the proce
 
 The `m` is lowercase — a *type variable*, like `a` in `Optional(a)`. It means: this function's mailbox type isn't fixed to a specific value; it works with any mailbox. `greet` sends a message but doesn't care what messages the enclosing process itself receives — the enclosing process is what will run this call and pay the mailbox cost.
 
-If a function receives messages (uses `recv`), its mailbox type is not free — it has to match the arm patterns. We'll see that soon.
+If a function receives messages (uses `recv`), its mailbox type is not free — it has to match the clause patterns. We'll see that soon.
 
 Take a moment: **pure or process is a property of the function type, not of the syntax.** A reader glancing at a function type knows whether calling it can send messages, receive them, or fault. Nothing is hidden.
 
@@ -307,7 +307,7 @@ Inference is also what picks specific types for the type variables you saw earli
 
 We've been using `match` and `if` in examples without introducing them. Two expression forms.
 
-**`match`** takes a value and a list of pattern arms:
+**`match`** takes a value and a list of pattern clauses:
 
 ```
 match e {
@@ -316,9 +316,9 @@ match e {
 }
 ```
 
-The first arm whose pattern matches `e` gets its expression evaluated, and the whole `match` takes that value. The compiler checks that the arms cover every possible shape of `e`; a missing case is a type error.
+The first clause whose pattern matches `e` gets its expression evaluated, and the whole `match` takes that value. The compiler checks that the clauses cover every possible shape of `e`; a missing case is a type error.
 
-An arm can also have a **guard** — a `when` clause between the pattern and `->`, giving a condition the arm's variables must satisfy:
+A clause can also have a **guard** — a `when` expression between the pattern and `->`, giving a condition the clause's variables must satisfy:
 
 ```
 match x {
@@ -328,7 +328,7 @@ match x {
 }
 ```
 
-The pattern binds first, then the guard is evaluated with those bindings in scope. If the guard is `false`, the arm fails and the next arm is tried. Guards do not count toward exhaustiveness — the compiler still requires a fall-through arm (here, `_`) that matches without a guard. Guards work the same way in `recv` arms.
+The pattern binds first, then the guard is evaluated with those bindings in scope. If the guard is `false`, the clause fails and the next clause is tried. Guards do not count toward exhaustiveness — the compiler still requires a fall-through clause (here, `_`) that matches without a guard. Guards work the same way in `recv` clauses.
 
 **`if`** is an expression, not a statement:
 
@@ -345,7 +345,7 @@ let x = if flag then 1 else 2;
 let name = match user { Some(u) -> u | None -> "guest" };
 ```
 
-**Patterns everywhere, with a rule.** The same patterns you see in `match` arms also appear in `let` bindings and in function parameters. But there is a distinction: patterns in `let` and function parameters must be **irrefutable** — they must always match. Tuple patterns are irrefutable (a tuple always has the shape you spelled), and so are wrapper patterns like `Snapshot(seen = s)` when there is only one constructor:
+**Patterns everywhere, with a rule.** The same patterns you see in `match` clauses also appear in `let` bindings and in function parameters. But there is a distinction: patterns in `let` and function parameters must be **irrefutable** — they must always match. Tuple patterns are irrefutable (a tuple always has the shape you spelled), and so are wrapper patterns like `Snapshot(seen = s)` when there is only one constructor:
 
 ```
 let (x, y) = point; // fine — tuples always destructure
@@ -358,7 +358,7 @@ Refutable patterns are a type error in these positions:
 let Right(v) = e // type error — e might be Left(...)
 ```
 
-That's the "decompose versus compare" line. `let` and function parameters *decompose* a value whose shape you already know; `match` and `recv` (and `<-`, §10) *compare* a value against several shapes and let each arm handle its case. If you need to peek at a sum type, reach for `match`.
+That's the "decompose versus compare" line. `let` and function parameters *decompose* a value whose shape you already know; `match` and `recv` (and `<-`, §10) *compare* a value against several shapes and let each clause handle its case. If you need to peek at a sum type, reach for `match`.
 
 ### 3.5 The pipe operator `|>`
 
@@ -456,7 +456,7 @@ fn counter(n : Int) -> () with CounterMsg = recv {
 
 `= recv { ... }` — the body is a `recv` expression. `recv` waits for a message and dispatches on it.
 
-One arm:
+One clause:
 
 ```
 Inc(k) -> counter(n + k)
@@ -487,7 +487,7 @@ Two things distinguish `Reply(a)` from `Address(a)`:
 - `Address(a)` is a long-lived reference; you can send to it many times.
 - `Reply(a)` is one-shot; someone gave it to you *just to answer this one question*, and once you answer, it's used up.
 
-The extended counter grows a second `recv` arm:
+The extended counter grows a second `recv` clause:
 
 ```
 fn counter(n : Int) -> () with CounterMsg = recv {
@@ -496,20 +496,20 @@ fn counter(n : Int) -> () with CounterMsg = recv {
 }
 ```
 
-The `Get` arm binds the `Reply(Int)` field to `r`, then:
+The `Get` clause binds the `Reply(Int)` field to `r`, then:
 
 - `answer(r, n)` — sends `n` back through the reply address. This "uses up" the reply capability.
 - `counter(n)` — loop again, state unchanged.
 
-The block `{ answer(r, n); counter(n) }` runs both in sequence, and the block's value is the value of the last statement (`counter(n)`, which returns unit). That's what the arm's body evaluates to.
+The block `{ answer(r, n); counter(n) }` runs both in sequence, and the block's value is the value of the last statement (`counter(n)`, which returns unit). That's what the clause's body evaluates to.
 
 `answer` is another prelude function. Its job is exactly this: consume a `Reply(a)` value by sending a specific `a` back to the caller.
 
 ### 5.4 The compiler checks the reply
 
-The compiler enforces something you might miss on first read: **every `Reply(Int)` bound in a `recv` arm must be used exactly once, on every path.**
+The compiler enforces something you might miss on first read: **every `Reply(Int)` bound in a `recv` clause must be used exactly once, on every path.**
 
-Look at the `Get` arm again: it binds `r` from the incoming message, then calls `answer(r, n)`. Good — used once.
+Look at the `Get` clause again: it binds `r` from the incoming message, then calls `answer(r, n)`. Good — used once.
 
 If we had written this instead:
 
@@ -521,7 +521,7 @@ That would be a type error. `r` would be bound but never used. The compiler woul
 
 That check catches a whole category of silent bugs: a caller that sends a request, waits for a reply that never comes, and eventually times out with no useful diagnostic. Ernest makes it impossible to *syntactically* forget to answer — the type system remembers for you.
 
-The consumption doesn't have to be direct or in the same arm. There are three legal forms:
+The consumption doesn't have to be direct or in the same clause. There are three legal forms:
 
 1. **`answer(r, v)` directly** — what the counter does.
 2. **Delegating** — passing `r` as a field of another message. Whoever receives that message is now responsible for answering.
@@ -681,7 +681,7 @@ Same building blocks as the counter, but arranged for two processes.
 
 ### 7.2 The pong process
 
-`pong` is the receiver. Its mailbox type is `PongMsg`. Its `recv` has two arms:
+`pong` is the receiver. Its mailbox type is `PongMsg`. Its `recv` has two clauses:
 
 - On `Ping`, print `"pong <n>"`, answer the reply with `n`, then loop.
 - On `Stop`, return (which ends the process — its function has finished).
@@ -824,7 +824,7 @@ Read that from the inside out:
 - `via(fn(_) = Tick, self())` builds the wrapper. Its type is `Address(())` — an address that accepts `()`. Under the hood, when something sends `()` to it, the wrapper calls `fn(_) = Tick`, and `Tick` lands in your `GameMsg` mailbox.
 - The outer `After(ms = 100, to = ...)` hands that wrapper to the clock as the notification target.
 
-100 milliseconds later, the clock sends `()` to the wrapper. The wrapper turns it into `Tick`. Your mailbox receives `Tick`, and your `recv` arm matching on `Tick` fires.
+100 milliseconds later, the clock sends `()` to the wrapper. The wrapper turns it into `Tick`. Your mailbox receives `Tick`, and your `recv` clause matching on `Tick` fires.
 
 The clock never learned about `Tick`. Your process never had to accept `()`. `via` sat between them, translating each message as it passed.
 
@@ -842,7 +842,7 @@ List(path : Path, reply : Address(Either(FsError, List(Entry))))
 send(Sys.fs, List(path = dir, reply = via(Listed, self())))
 ```
 
-Here `Listed` is being used as a function — a constructor with one payload is itself a one-argument function from the payload type to the constructed value. `via(Listed, self())` builds a wrapper the fs can reply to; the wrapper applies `Listed`; the result lands in your mailbox.
+Here `Listed` is being used as a function — a constructor with one field is itself a one-argument function from the field type to the constructed value. `via(Listed, self())` builds a wrapper the fs can reply to; the wrapper applies `Listed`; the result lands in your mailbox.
 
 ### 9.4 `monitor`'s `wrap` is a specific `via`
 
@@ -995,7 +995,7 @@ Argument order, `{ok, _} | {error, _}` becoming `Either`, discarding return valu
 
 The `webserver` paper program shows the whole pattern: `Ets.ern` is a thin Ernest library over Erlang's `ets` module. The raw `foreign fn` bindings are unqualified (file-local); the exported `Ets.*` functions are Ernest code that composes and reshapes them into a small, typed API.
 
-## 13. Bit arrays
+## 13. Bitstrings
 
 Working with binary formats — network protocol headers, file signatures, checksums — means both **building** outgoing bytes and **parsing** incoming ones at the bit level. Ernest's syntax for this is `<<...>>`, used symmetrically for construction and pattern matching.
 
@@ -1017,24 +1017,24 @@ fn parseFrame(bytes : Bytes) -> Optional((Int, Bytes, Bytes)) = match bytes {
 
 Same shape, different role. In an expression position, each segment names a value and how to lay it out; in a pattern position, each segment names a binder and the layout it must match. Segments are evaluated (or matched) left to right.
 
-A bit array is a comma-separated list of *segments* between `<<` and `>>`. Each segment is followed optionally by a colon and a dash-separated list of *specifiers* that describe the segment's shape.
+A bitstring is a comma-separated list of *segments* between `<<` and `>>`. Each segment is followed optionally by a colon and a dash-separated list of *specifiers* that describe the segment's shape.
 
 ### 13.1 Specifiers
 
 - **`size(N)`** — the segment's width, in units.
-- **`bits`**, **`bytes`** — the segment is a nested bit array; `bytes` implies unit(8).
+- **`bits`**, **`bytes`** — the segment is a nested bitstring; `bytes` implies unit(8).
 - **`int`**, **`float`** — numeric (default `int` is 8-bit, `float` is 64-bit).
 - **`utf8`**, **`utf16`**, **`utf32`** — text encoding.
 - **`big`**, **`little`**, **`native`** — endianness.
 - **`signed`**, **`unsigned`** — sign.
 
-Combine with `-`: `x:signed-big-size(16)` is a 16-bit signed big-endian integer. Specifier names carry that role only inside `<<...>>`. Outside a bit array, `size` and `int` are just ordinary identifiers.
+Combine with `-`: `x:signed-big-size(16)` is a 16-bit signed big-endian integer. Specifier names carry that role only inside `<<...>>`. Outside a bitstring, `size` and `int` are just ordinary identifiers.
 
-In construction, a segment whose value doesn't fit its specified width is a fault. In pattern matching, a segment whose layout doesn't match causes the arm to fail (the next arm is tried).
+In construction, a segment whose value doesn't fit its specified width is a fault. In pattern matching, a segment whose layout doesn't match causes the clause to fail (the next clause is tried).
 
 ### 13.2 Size-dependent matches
 
-The `parseFrame` example uses `size(len)` where `len` was bound by the preceding segment. This is what makes bit-array pattern matching powerful for wire protocols: match a length field, then use that length to consume the body that follows.
+The `parseFrame` example uses `size(len)` where `len` was bound by the preceding segment. This is what makes bitstring pattern matching powerful for wire protocols: match a length field, then use that length to consume the body that follows.
 
 ```
 <<len:size(16)-big, body:size(len)-bytes, rest:bytes>>
@@ -1042,11 +1042,11 @@ The `parseFrame` example uses `size(len)` where `len` was bound by the preceding
 
 The compiler tracks the dependency; segments must be laid out in the order the sizes are learned.
 
-### 13.3 When to reach for bit arrays
+### 13.3 When to reach for bitstrings
 
 Wire protocols, binary file formats, packet headers, checksums, extracting flag bits. For anything higher-level — plain text, structured data, records — the ordinary types (`Text`, `List`, named-fields constructors) are more natural.
 
-Bit arrays compile directly to BEAM's bit syntax, so the runtime's mature optimizer handles prefix-heavy protocol matches at native speed.
+Bitstrings compile directly to BEAM's bit syntax, so the runtime's mature optimizer handles prefix-heavy protocol matches at native speed.
 
 ## 14. Toolchain and configuration
 
@@ -1054,7 +1054,7 @@ Two commands.
 
 **`ernc file.ern`** compiles one module to `file.erc`. Compilation is per-module; cross-module names resolve at load time.
 
-**`ern [options] file.erc`** loads the compiled module, starts the runtime, binds addresses to the `Sys.*` ambient references (§1), and calls `main()`. When `main` returns, all processes are killed with cause `ProgramEnd` and the node stops.
+**`ern [options] file.erc`** loads the compiled module, starts the runtime, binds addresses to the `Sys.*` top-level references (§1), and calls `main()`. When `main` returns, all processes are killed with cause `ProgramEnd` and the node stops.
 
 Common `ern` options:
 
@@ -1116,7 +1116,7 @@ Once "hello world," the counter, and ping-pong feel readable, the language's fou
 
 - **[`ernest-tick-game.md`](ernest-tick-game.md)** — a snake game with tick-based updates. Introduces named-field records with `..` update syntax, folds over `Map`, one process per player.
 - **[`ernest-repl.md`](ernest-repl.md)** — a small read-eval-print loop. Uses `<-` heavily (see §10) and combines `monitor` and `kill` (see §8) into a `try` process that aborts a slow evaluation.
-- **[`ernest-filesync.md`](ernest-filesync.md)** — file synchronization between two nodes. Introduces mutual-address setup via a `Link` message, ambient runtime references beyond `Sys.stdout` (a filesystem process at `Sys.fs`), one process per write.
+- **[`ernest-filesync.md`](ernest-filesync.md)** — file synchronization between two nodes. Introduces mutual-address setup via a `Link` message, runtime references beyond `Sys.stdout` (a filesystem process at `Sys.fs`), one process per write.
 - **[`ernest-webserver.md`](ernest-webserver.md)** — HTTP server with sessions in an ETS table. Introduces `foreign fn` for foreign function calls, opaque types with signatures.
 
 Read them in that order. Each introduces something the next builds on.

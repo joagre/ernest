@@ -4,7 +4,7 @@ Written against the Ernest report, September 2026. A read-evaluate-print loop fo
 
 ## Assumptions
 
-The runtime is assumed to provide `Sys.stdin : Address(StdinMsg)` as an additional ambient reference beyond the report's required `Sys.stdout` and `Sys.clock`, with `ReadLine(reply : Address(Text))`: one line per request. `Text.chars`, `Char.isDigit`, `Char.isAlpha`, `Char.toText`, and `Text.toInt : (Text) -> Optional(Int)` are in the standard library (report Appendix E). `ParseError.toText : (ParseError) -> Text` and `EvalError.toText : (EvalError) -> Text` are hand-written renderings for stdout; both are `todo("on paper")` here.
+The runtime is assumed to provide `Sys.stdin : Address(StdinMsg)` as an additional top-level reference beyond the report's required `Sys.stdout` and `Sys.clock`, with `ReadLine(reply : Address(Text))`: one line per request. `Text.chars`, `Char.isDigit`, `Char.isAlpha`, `Char.toText`, and `Text.toInt : (Text) -> Optional(Int)` are in the standard library (report Appendix E). `ParseError.toText : (ParseError) -> Text` and `EvalError.toText : (EvalError) -> Text` are hand-written renderings for stdout; both are `todo("on paper")` here.
 
 ## The Program
 

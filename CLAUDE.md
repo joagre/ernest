@@ -18,7 +18,7 @@ A functional language for concurrent programs, designed by the user (joagre). Tw
 Build a lexer and parser that reads Appendix A and rejects everything else.
 
 - Implementation language: **Erlang** (OTP 27). The compiler is `ernc`, the runner is `ern`. See the plan for architecture.
-- Hand-written Pratt parser for expressions; recursive descent for declarations. First-token dispatch with small bounded lookahead (the constructor-payload peek documented in Appendix A, and the FnType-vs-tuple decision after the closing paren), no backtracking.
+- Hand-written Pratt parser for expressions; recursive descent for declarations. First-token dispatch with small bounded lookahead (the constructor-fields peek documented in Appendix A, and the FnType-vs-tuple decision after the closing paren), no backtracking.
 - Sixteen reserved words. `true`/`false` are literals, not keywords in the general sense.
 - Patterns via a small Pratt loop with `+:` right-associative and postfix `as ident`.
 - AST as Erlang records with `{line, column}` on every node.
@@ -42,6 +42,6 @@ Ernest is order-independent at top level; these are style choices, not correctne
 
 - **Top-down layout.** Types first. Then `main` (in program modules) or exported functions (in library modules). Each root's helpers follow immediately below it, before the next root. Shared helpers go with the first user, or in a bottom utilities section if genuinely shared.
 - **Four-space indent, no tabs.**
-- **No alignment padding, anywhere.** Don't add spaces to align tokens across lines: `->`, `=`, trailing `//` comments, anything. Structural indentation (block bodies, arm separators) isn't padding — that stays. One space where a space is needed.
+- **No alignment padding, anywhere.** Don't add spaces to align tokens across lines: `->`, `=`, trailing `//` comments, anything. Structural indentation (block bodies, clause separators) isn't padding — that stays. One space where a space is needed.
 - **Code lines ≤ 100 characters.** Split long expressions rather than let one line run wide. Prose in markdown can be longer.
 - **Block-comment banners for sections.** Open with `//` on its own line, one or more `// text` lines, close with `//` on its own line. Blank line before the opening, blank line after the closing. Not `// Section ----------`.

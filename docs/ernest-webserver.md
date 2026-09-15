@@ -4,7 +4,7 @@ Written against the Ernest report, September 2026. A web server with sessions.
 
 ## Assumptions About the Runtime's System Processes
 
-`ClockMsg` is the report's. `Sys.clock` is an ambient reference (report §8); this paper program additionally assumes the runtime provides `Sys.net : Address(NetMsg)`:
+`ClockMsg` is the report's. `Sys.clock` is a runtime reference (report §8); this paper program additionally assumes the runtime provides `Sys.net : Address(NetMsg)`:
 
 ```
 type Port = Port(Int)

@@ -18,7 +18,7 @@ The same number of lines. More characters in Ernest, and they can be pointed out
 
 1. **Type signatures and type declarations: 473 characters.** Erlang has none. That is not verbosity, it is the language; an Erlang programmer writing `-spec` and `-type` for the same thing lands on the same figure. Without them Ernest is six percent longer than Erlang in the process part.
 2. **The filter in selective receive: about 45 characters each time, twice.** `(m -> match m { Data b -> Some b | _ -> None })` against Erlang's pattern directly in `receive`. That is the only per-use cost that is large. Data, not decision.
-3. **`Got` and `Timeout`: four lines.** Erlang's `after` is one line. The same number of arms; Ernest's carry one more word.
+3. **`Got` and `Timeout`: four lines.** Erlang's `after` is one line. The same number of clauses; Ernest's carry one more word.
 4. **`Sys { clock = clock, net = net }`: one line, 35 characters.** Erlang has `gen_tcp` as a global name.
 5. **`via X self`: twice, ten characters in total.** Erlang sends `self()`.
 6. **`StatusCode.notFound`, `SessionId.fresh seq`: longer names.** Erlang has `status_not_found()`; about equal.
@@ -27,7 +27,7 @@ What Erlang lacks and therefore does not pay for: the encapsulation of `SessionI
 
 ## Conclusion
 
-Afterwards: `recv` was made a form with arms and `after`, like Erlang's `receive`, and the syntax switched to n-ary functions with parentheses (revision 3). The table is from before both; with parentheses in types and calls the Ernest version is a few percent longer in characters than then, and the same number of lines.
+Afterwards: `recv` was made a form with clauses and `after`, like Erlang's `receive`, and the syntax switched to n-ary functions with parentheses (revision 3). The table is from before both; with parentheses in types and calls the Ernest version is a few percent longer in characters than then, and the same number of lines.
 
 ### The conclusion that led there
 
