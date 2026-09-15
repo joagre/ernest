@@ -195,22 +195,39 @@ Types are inferred according to Hindley-Milner. A `fn` definition is generalized
 
 Recursive and mutually recursive types are allowed. Polymorphic recursion is not. Every type variable in a constructor's fields must be a parameter of the type.
 
-**Effect polymorphism.** A function type's mailbox effect can itself be a type variable. Inference generalizes it alongside other type variables in a `fn` definition. `fn apply(f, x) = f(x)` has inferred type `((a) -> b with e, a) -> b with e`, quantified over `a`, `b`, and the effect variable `e`.
+**Effect polymorphism.** A function type's mailbox effect can itself be a type variable. Inference generalizes it alongside other type variables in a `fn` definition. `fn apply(f, x) = f(x)` has inferred type `((a) -> b with e, a) -> b with e`, quantified over `a`, `b`, and `e`.
 
-At a call site, an effect variable binds to one of:
+At a call site, a variable in an effect position binds to one of:
 
-- **A mailbox type `M`.** The caller inherits effect `M`. `apply(fn(x) = send(a, x), 5)` binds `e` to the effect of `send`, so this call has that effect.
-- **The empty effect** (written syntactically as no `with M` at all). The caller is pure with respect to that call. `apply(fn(x) = x + 1, 5)` binds `e = empty`, so the call is pure.
+- **A mailbox type `M`.** The caller inherits effect `M`. `apply(fn(x) = send(a, x), 5)` binds `e` to the mailbox effect of `send`, so this call has that effect.
+- **The empty effect.** A function type written without `with M` is pure; its effect slot is *empty*. `apply(fn(x) = x + 1, 5)` binds `e = empty`, so the call is pure.
 
-The empty effect has no explicit syntax — a function type without `with M` has it. During type printing an effect variable bound to empty is elided from the output. Effect variables use the same lowercase identifier syntax as other type variables (`m`, `n`, `e`); position in the type distinguishes their kind.
+**One kind of variable, one well-formedness rule.** Ernest has a single kind of type variable, in the HM sense. The role a variable plays is decided by where it appears:
 
-`List.map`, `List.foreach`, `Map.map`, and other stdlib combinators that take function arguments are effect-polymorphic in the same way — no special-case in the type system; the same rule that types `apply` above types them.
+- In a *value position* — arguments, results, tuple components, and inside `Address(_)`, `Reply(_)`, `List(_)`, and other type constructors — a variable must resolve to a value type.
+- In an *effect position* — the type after `with` — a variable is used as the caller's mailbox effect. Effect positions additionally admit *empty* (no mailbox).
 
-**Annotations describe shape; some inferred properties are not written.** A type annotation gives the shape of a function — arity, argument types, return type, and mailbox effect. Three properties are inferred from the function body and not part of the annotation grammar:
+A variable that appears *only* in effect positions (like `e` in `apply` above) can bind to either a mailbox type or empty. A variable that appears in *any* value position (like `m` in `self : () -> Address(m) with m`) must resolve to a value type: the value-position usage requires a real type, so at every use site both occurrences of `m` receive the same mailbox type, and empty is not admissible. This is the only rule that ties the two occurrences of `m` together; unification does the rest.
+
+The empty effect has no explicit syntax — its presence is the absence of a `with` clause. During type printing an effect variable bound to empty is elided from the output.
+
+**Higher-order effect polymorphism.** `List.map`, `List.foreach`, `Map.map`, and other stdlib combinators that take function arguments are effect-polymorphic — the same rule that types `apply` above types them. Their published signatures in Appendix E make the effect variable explicit; a pure callback binds it to empty, an effectful callback binds it to the caller's mailbox.
+
+**Two callbacks with independent effects.** Ernest has no effect union — a function has exactly one mailbox effect or none. A function that runs two callbacks with independent effects must declare them so:
+
+```
+fn callBoth(p : (Int) -> Int, e : (Int) -> Void with n) -> Void with n = {
+    let _ = p(1);
+    e(2)
+}
+```
+
+`p` is pure (no `with`); `e` carries effect `n`; the outer function inherits `n`. If a body calls two callbacks whose effect variables are both polymorphic, unification collapses them to one — a function calls its callees in its own single effect context. If a body calls two callbacks whose effect types are concretely different, the call sites are incompatible and the definition is a type error.
+
+**Annotations describe shape; some inferred properties are not written.** A type annotation gives the shape of a function — arity, argument types, return type, and mailbox effect. Two properties are inferred from the function body and not part of the annotation grammar:
 
 - The equality constraint on a type variable induced by `==` usage (§3.10). Checked at instantiation.
 - The exactly-once obligation on a reply-carrying parameter — bare `Reply(a)`, or a type that transitively contains it (§6.6). Signaled by the parameter type itself, checked compositionally.
-- The kind distinction between value and effect type variables. Determined by position — an identifier in argument or return position is a value-type variable; the same identifier after `with` is an effect variable. Same lexical form, different kind.
 
 An annotation is compatible with these; it doesn't need to state them. Constraints and obligations follow from usage in the body and from the callee's signatures.
 
@@ -1059,16 +1076,16 @@ List.take        : (List(a), Int) -> List(a)
 List.drop        : (List(a), Int) -> List(a)
 List.dropLast    : (List(a)) -> List(a)
 List.contains    : (List(a), a) -> Bool // requires equality on a (§3.10)
-List.find        : (List(a), (a) -> Bool) -> Optional(a)
-List.any         : (List(a), (a) -> Bool) -> Bool
-List.all         : (List(a), (a) -> Bool) -> Bool
-List.map         : (List(a), (a) -> b) -> List(b)
-List.filter      : (List(a), (a) -> Bool) -> List(a)
-List.filterMap   : (List(a), (a) -> Optional(b)) -> List(b)
-List.foldLeft    : (List(a), b, (b, a) -> b) -> b
-List.foreach     : (List(a), (a) -> Void) -> Void
-List.span        : (List(a), (a) -> Bool) -> #(List(a), List(a))
-List.sort        : (List(a), (a, a) -> Ordering) -> List(a)
+List.find        : (List(a), (a) -> Bool with e) -> Optional(a) with e
+List.any         : (List(a), (a) -> Bool with e) -> Bool with e
+List.all         : (List(a), (a) -> Bool with e) -> Bool with e
+List.map         : (List(a), (a) -> b with e) -> List(b) with e
+List.filter      : (List(a), (a) -> Bool with e) -> List(a) with e
+List.filterMap   : (List(a), (a) -> Optional(b) with e) -> List(b) with e
+List.foldLeft    : (List(a), b, (b, a) -> b with e) -> b with e
+List.foreach     : (List(a), (a) -> Void with e) -> Void with e
+List.span        : (List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e
+List.sort        : (List(a), (a, a) -> Ordering with e) -> List(a) with e
 List.remove      : (List(a), a) -> List(a) // requires equality on a (§3.10)
 ```
 
@@ -1086,8 +1103,8 @@ Map.put          : (Map(k, v), k, v) -> Map(k, v)
 Map.remove       : (Map(k, v), k) -> Map(k, v)
 Map.keys         : (Map(k, v)) -> List(k)
 Map.values       : (Map(k, v)) -> List(v)
-Map.map          : (Map(k, v), (k, v) -> w) -> Map(k, w)
-Map.foldLeft     : (Map(k, v), b, (b, k, v) -> b) -> b
+Map.map          : (Map(k, v), (k, v) -> w with e) -> Map(k, w) with e
+Map.foldLeft     : (Map(k, v), b, (b, k, v) -> b with e) -> b with e
 ```
 
 ### Appendix E.4. `Set.ern`
@@ -1120,7 +1137,7 @@ String.fromChars   : (List(Char)) -> String
 String.fromUtf8    : (Bytes) -> Optional(String)
 String.toUtf8      : (String) -> Bytes
 String.lines       : (String) -> List(String)
-String.all         : (String, (Char) -> Bool) -> Bool
+String.all         : (String, (Char) -> Bool with e) -> Bool with e
 ```
 
 ### Appendix E.6. `Char.ern`

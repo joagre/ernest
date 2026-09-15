@@ -932,6 +932,45 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Effect-Variable Kinds: One Kind, Position Controls Admissibility, 2026-09-15
+
+The reviewer's U01 flagged that the earlier §3.9 formulation "position distinguishes kind" was insufficient. Concretely:
+
+- `self : () -> Address(m) with m` requires the two occurrences of `m` to name the *same* mailbox type; if they are variables of different kinds this relationship is lost.
+- An effect variable may become empty, but `Address(empty)` is not a well-formed value type.
+- The pure-vs-effectful callback compatibility rule was implicit.
+
+**Options weighed:**
+
+- **Two syntactic kinds distinguished by position.** The status-quo phrasing. Rejected because it makes the `self` signature ill-formed: two variables of different kinds cannot refer to the same underlying value.
+- **Implicit conversion between mailbox types and effects.** A "coercion" whenever a value type appears after `with`. Adds a new concept (subtyping/coercion) for one edge case; violates *one way, one job*. Rejected.
+- **A separate row/lattice of effects with unification rules.** Row polymorphism, effect algebras. Rejected as far too much machinery for a language that has exactly one effect per function.
+- **One kind of variable; position controls admissibility.** Taken.
+
+Under the taken model:
+
+- Type variables are one kind (as HM has). Unification is standard.
+- A variable in a *value position* (arguments, results, tuple components, inside `Address(_)`, `Reply(_)`, `List(_)`, etc.) resolves to a value type.
+- A variable in an *effect position* (after `with`) is used as the caller's mailbox effect. Effect positions additionally admit *empty* (no mailbox).
+- A variable that appears in any value position cannot instantiate to empty. That's a well-formedness check at instantiation, orthogonal to unification.
+- A variable that appears only in effect positions can instantiate to a mailbox type or to empty.
+
+This resolves the reviewer's three concrete cases:
+
+- **`self : () -> Address(m) with m`.** `m` appears in `Address(m)` — value position — so at every call site `m` resolves to a value type, and the effect position after `with m` receives the same value. The two occurrences share by unification, no coercion needed.
+- **`apply : ((a) -> b with e, a) -> b with e`.** `e` appears only in effect positions, so it may be empty. Pure callback → `e = empty` → pure call. Effectful callback → `e = M` → outer effect `M`.
+- **`spawn(Local, fn() = Void)`.** `spawn : (Where, () -> Void with n) -> Address(n) with m`. `n` is in `Address(n)` — value position, so it must resolve to a value type. A pure lambda has type `() -> Void` (empty effect); unifying with `() -> Void with n` where `n` must be non-empty leaves the lambda's mailbox as a fresh variable (or requires the programmer to annotate, e.g. `fn() : Void with Never = Void`). The subsequent block-boundary rule (§4.6, still under U02) decides what happens if that fresh variable remains free.
+
+**Two callbacks with independent effects.** Ernest has no effect union — a function has exactly one mailbox effect or none. Two effectful callbacks with distinct effect variables in the same body unify their effect variables with the outer function's single effect. Two concretely different effect types in that position is a type error.
+
+**Effect on Appendix E.** Higher-order combinators were shown as pure-callback-only (`List.map : (List(a), (a) -> b) -> List(b)`) despite §3.9 promising effect polymorphism. The signatures now spell the effect variable explicitly (`List.map : (List(a), (a) -> b with e) -> List(b) with e`, similarly for `List.foreach`, `List.filter`, `List.filterMap`, `List.foldLeft`, `List.find`, `List.any`, `List.all`, `List.span`, `List.sort`, `Map.map`, `Map.foldLeft`, `String.all`). No behavior change — the type checker was going to infer them this way anyway — but a reader consulting Appendix E now sees the polymorphism the language provides.
+
+**Cost.** One paragraph added to §3.9, one bullet removed from the "annotations describe shape" list (kind distinction is no longer a hidden thing — the model has one kind), a dozen signature updates in Appendix E. No change to HM machinery.
+
+**Principle 2 (one way).** Effect variables and value type variables were being described as two things sharing one syntax. Now they are one thing with a single well-formedness rule attached — the same variable can appear in both positions, and the positions constrain admissibility.
+
+**Principle 3 (nothing invisible).** The old formulation left the two `m` in `self` implicitly linked by an unstated rule. Now the link is explicit: value-position usage constrains the whole variable.
+
 ## Reply Ownership Extends to Reply-Carrying Types, 2026-09-15
 
 The reviewer's follow-up round flagged U03 as *Critical*: the exactly-once discipline on `Reply(a)` was formulated on bare `Reply(a)` values only. A message that *contains* a `Reply(a)` could be duplicated, dropped, or aliased without any variable of type `Reply(a)` ever being in scope. The paradigm example:
