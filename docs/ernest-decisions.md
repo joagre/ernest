@@ -932,6 +932,49 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Guide Round 2: Targeted Corrections, Runnable Checkpoints, Coverage Gaps, 2026-09-15
+
+The reviewer's follow-up on the rewritten guide closed most items but flagged focused corrections still needed. Applied all in place:
+
+**High — corrections against the spec:**
+
+- **UG07 abstract-type identity.** Old wording "hashed by name and signature, *not by* private representation" was wrong. Report §8.7 says "not *just* by private representation" — the abstraction boundary is *added to* content identity, not substituted for it. Guide §6.2 rewritten: name and signature participate in identity; matching signatures do not guarantee cross-node compatibility with different representations.
+- **UG09 opaque foreign decoding.** Old wording implied `Foreign` values could be pattern-matched with ordinary tuple/atom patterns; the `Foreign` library does not expose such projections. Replaced with an Erlang-side helper example (`{'Right', V}` / `{'Left', R}`) that matches Ernest's §8.4 ABI. Also introduced correct `Left`/`Right` constructors (not the non-existent `Ok`).
+- **UG02 Address.call vs answer distinction.** Old wording said Address.call "finally discharges" the obligation, conflating consumption with answering. §4.2 now says Address.call *consumes by sending*, transferring the obligation to the recipient; only `answer` finally discharges the `Reply`. Restored static-check qualification: the ownership check does not guarantee execution reaches the answer at runtime — timeouts are the caller's safety net.
+- **UG06 counter output conditional.** Guide claimed `count is 8` was deterministic; the reachable `None` timeout branch shows it isn't. §4.5 now says "if the call succeeds, 8" and "if the deadline expires, the timeout branch prints". §5.1's shutdown wording softened from "would kill both children before either sends" to "may terminate the children before their work finishes".
+- **§6.1 qualified-name claim.** Old text said "top-level declarations use their qualified name at every reference"; too strong. Cross-module references use qualified names; within a module, unqualified lookup applies (module's own unqualified → enclosing namespace → prelude).
+- **§3.5 `receive` is syntax.** Old list treated `receive` as one of the "prelude primitives". Split into "prelude primitives (`send`, `spawn`, ...)" and "expression forms (`receive`, `after`)".
+
+**Medium — coverage additions:**
+
+- §2.1: Int/Float separate types, no implicit numeric conversion; `Int.toFloat` and Float→Int conversions with contract pointers.
+- §2.2: strict left-to-right evaluation; final expression of a block has no trailing semicolon.
+- §2.5/2.6: equality restrictions extend to any type containing functions or addresses (not just direct Map/Set parameters); guards don't count toward `match` exhaustiveness.
+- §2.7: Prelude `Optional` and `Either` definitions given; one successful/failed Either example added.
+- §3.1: strict-evaluation and no-trailing-semicolon note.
+- §3.3: top-level `let` initializers must be pure; effectful setup belongs in `main`.
+- §4.5: `self()` inside a spawn returns the child's address; capture parent's `self()` before spawning if the child needs it.
+- §5.4: new "Deadlock as a safety net" subsection (per-node detection, external event sources prevent false conclusion).
+- §7.6: dynamic segment-value-doesn't-fit-width fault stated; frame precondition extended to include length field width fitting.
+
+**Runnable checkpoints:**
+
+- §3.2 lambda example rewritten as valid block with `let` separators.
+- §4.6 Upgrade example completed with a `doublingCounter` replacement loop and a full `main` that upgrades after the first `Get`, sends `Inc(1)`, and verifies the state becomes 10.
+- §6.1 modules example: `parse` replaced with a tiny working body; compilation-in-dependency-order shown with `ernc`/`ern` invocations.
+- §7.1 added a runnable `remote(fn() = heavy(3, 4))` program with all three `Either` cases handled.
+
+**Editorial:**
+
+- §1.2 exercise reformulated to a concrete language question (can pure `main` call `Io.println`?).
+- §2.3 nullary/positional/named constructor uses split into three distinct rows.
+- §5.5 ClockMsg presented as an excerpt of the prelude type. `GameMsg`, `World`, `step` given minimal working definitions.
+- §7.3 foreign-boundary promises split into runtime-checked (three) vs not-checked (purity).
+- §9 reading-further: "ETS as a foreign process" → "ETS accessed through foreign functions".
+- §1 configuration claim: replaced "you don't need it for local programs" with the report's actual toolchain contract (directory must exist; peer list can be empty).
+
+**Cost.** Ten targeted section edits, no structural change. Guide grew slightly to accommodate the completed examples and coverage bullets but remains far shorter than the original.
+
 ## Guide Rewrite: Crash-Course Structure, All UG Corrections, Upgrade Example, 2026-09-15
 
 The reviewer's guide review flagged twelve items (UG01–UG12) plus editorial repairs. Rather than patch in place, restructured the guide as a seven-stage crash course per UG12, applying all corrections and adding UG11's `Upgrade` demonstration.
