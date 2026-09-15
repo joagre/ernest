@@ -932,6 +932,41 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Bitstring `bits` Segments Must Be Byte-Aligned When Binding to `Bytes`, 2026-09-15
+
+The reviewer's U08 flagged a hole in §5.11's alignment story: the earlier fix required the *total* bit count of a construction to be a multiple of 8, but a single `bits` segment could still bind a sub-octet slice to a variable of type `Bytes`:
+
+```
+<<part:size(3)-bits, _:size(5)>> -> Some(part)
+```
+
+The scrutinee is one aligned octet, but `part` would be a 3-bit "Bytes" — outside `Bytes`'s declared octet-only domain (§3.1).
+
+**Choices weighed:**
+
+- **Restrict `bits`/`bytes` segments binding to `Bytes` to byte-multiple sizes; sub-octet fields use `int`.** Taken. Preserves `Bytes` as strictly octet-sequence, matches the reviewer's suggestion.
+- **Remove `bits` specifier entirely, keep only `bytes`.** Rejected — grammar change; `bits` still reads naturally for known-bit-length declarations and matches Erlang's precedent.
+- **Add a new "BitString" type distinct from `Bytes` (sub-octet allowed).** Rejected — adds a new type for a use case no paper program stresses.
+- **Allow sub-octet `bits` to bind to `Bytes` with silent zero-padding.** Rejected — silent padding violates principle 3 (nothing invisible) and creates a value that can't be re-serialized round-trip.
+
+Taken: the existing byte-alignment rule extends from whole-bitstring to per-segment when the segment binds to `Bytes`.
+
+**Effect on §5.11.**
+
+One paragraph extended, one sentence added:
+
+- The "Byte alignment" paragraph now states that every `bits`/`bytes` segment binding to `Bytes` must be byte-multiple (construction or pattern).
+- Sub-octet fields must use `int` (binds to `Int`).
+- Compile-time-constant violations are compile-time errors; dynamic-size violations fault at construction or fail to match in patterns.
+
+**Cost.** Two sentences. No new type, no new specifier, no new fault (existing `bitstring not byte-aligned` covers dynamic construction; pattern match-failure covers dynamic patterns).
+
+**Effect on paper programs.** None: no paper program uses sub-octet `bits` segments binding to `Bytes`.
+
+**Principle 1 (least surprise).** A reader who trusts `Bytes` is octets can now trust that pattern extraction preserves this — no accidental sub-octet Bytes values leak through the matcher.
+
+**Principle 2 (one way).** One alignment rule covers construction and extraction uniformly.
+
 ## Code Shipping Boundaries: Transport, Failure Channels, Runtime Bindings, 2026-09-15
 
 The reviewer's U07 flagged five sub-issues in §8.7, each observable in cross-node code:

@@ -471,7 +471,7 @@ A pattern decomposes a value and binds its parts. The same patterns appear in `l
 
 These specifier names carry that role only inside a bitstring — outside, they are ordinary identifiers, and the reserved-word count remains sixteen.
 
-**Byte alignment.** `<<...>>` produces a `Bytes` value, and `Bytes` is a sequence of octets (§3.1). The total bit count of a construction must therefore be a multiple of 8. If every segment size is a compile-time constant, non-alignment is a compile-time error. If any segment size is dynamic, the check happens at construction and non-alignment faults (§7.4).
+**Byte alignment.** `<<...>>` produces a `Bytes` value, and `Bytes` is a sequence of octets (§3.1). The total bit count of a construction must therefore be a multiple of 8. Every `bits` or `bytes` segment that binds to `Bytes` — either as a construction source or a pattern binding — must itself have a byte-multiple size: `size(3)-bits` binding to `Bytes` is rejected, because a 3-bit `Bytes` value does not exist. Sub-octet fields use the `int` specifier and bind to `Int`. Compile-time-constant violations are compile-time errors; dynamic-size violations fault at construction (§7.4) or fail to match in a pattern.
 
 **Patterns and construction.** A bitstring pattern binds its segment variables; a segment whose length is `size(n)-bytes` and whose `n` refers to an earlier bound variable is a size-dependent match, common in protocol parsing. Constructing a bitstring evaluates its segments left to right and concatenates them into a `Bytes` value; a segment whose value does not fit its specified width is a fault. An empty `<<>>` is the empty `Bytes`.
 
