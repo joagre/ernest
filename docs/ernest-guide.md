@@ -1059,11 +1059,13 @@ Bitstrings compile directly to BEAM's bit syntax, so the runtime's mature optimi
 
 ## 14. Toolchain and configuration
 
-Two commands.
+### 14.1 Commands
+
+Two commands run the show: `ernc` compiles and `ern` runs.
 
 **`ernc file.ern`** compiles one module to `file.erc`. Compilation is per-module; cross-module names resolve at load time.
 
-**`ern [options] file.erc`** loads the compiled module, starts the runtime, binds addresses to the `Sys.*` top-level references (§1), and calls `main()`. When `main` returns, all processes are killed with cause `ProgramEnd` and the node stops.
+**`ern [options] file.erc`** loads the compiled module, starts the runtime, binds addresses to the `Sys.*` top-level references (report §8.2), and calls `main()`. When `main` returns, all processes are killed with cause `ProgramEnd` and the node stops.
 
 Common `ern` options:
 
@@ -1074,7 +1076,7 @@ Common `ern` options:
 
 `ernc --doc file.ern` extracts doc comments (`///`) from the module and writes them to stdout as Markdown, grouped by declaration.
 
-### 14.1 `ernest.conf`
+### 14.2 `ernest.conf`
 
 Peers, network addresses, and cryptographic identity are configured outside the language, in `ernest.conf`. It's a JSON file created by `ern --create-config-dir` and then edited by hand:
 
