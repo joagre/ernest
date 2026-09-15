@@ -932,6 +932,44 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Guards and Bitstring Size Expressions: Pure, No Fault Swallow, 2026-09-15
+
+The reviewer's R10 (open since the earlier round): §5.9 said "a failed guard falls through" but didn't define permitted effects, fault handling, or the scope and evaluation rules for guards. Same gap for bitstring pattern `size(Expr)`.
+
+**Choices weighed:**
+
+- **Guards are pure `Bool` expressions; guard faults propagate.** Taken.
+- **Guard faults treated as match failure (Erlang model).** Rejected — silently swallowing a fault would violate principle 3 (nothing invisible); Ernest's total prelude means guard faults are rare, so making them explicit costs little.
+- **Guards can carry mailbox effects (send/receive within a guard).** Rejected — matching semantics would depend on mailbox side effects, which is surprising and hard to reason about.
+- **`size(Expr)` restricted to identifier references only (no arbitrary expressions).** Rejected — grammar already allows `Expr`; restricting it would forbid natural forms like `size(len - 4)`; the "pure, no effect" rule already covers the concerning cases.
+- **Fault in `size(Expr)` treated as match failure.** Rejected — consistency with guards: pattern-embedded expressions have the same fault-propagation rule.
+
+Taken: both guards and size expressions are pure (no mailbox effect, enforced by the type checker), fault propagates the same as any faulting expression in the enclosing scope.
+
+**Effect on §5.9.**
+
+New paragraph after the existing match-clause text:
+
+- A guard is an expression of type `Bool` with no mailbox effect — the type checker rejects `send`, `receive`, `spawn`, `Address.call`, and any other effect-carrying operation in a guard.
+- The guard sees the pattern-bound variables of its clause and the enclosing scope.
+- A guard that evaluates to `false` falls through; a guard that faults faults the enclosing process — no fall-through for faults.
+- Same rules for `receive` guards.
+
+**Effect on §5.11.**
+
+The "Patterns and construction" paragraph extended:
+
+- `size(Expr)` evaluates `Expr` in the scope of earlier-bound segment variables and the enclosing scope.
+- The expression must be pure and produce a non-negative `Int`.
+- Negative or out-of-range size fails the match.
+- Fault in `Expr` faults the enclosing process.
+
+**Cost.** One new paragraph in §5.9, one extended sentence in §5.11. Both rely on existing type-checker machinery (mailbox-effect tracking).
+
+**Principle 3 (nothing invisible).** Guard and size-expression faults now visibly propagate rather than being silently swallowed.
+
+**Principle 5 (small).** No new syntax, no new operation, no new fault. Reuses the type checker's existing effect-tracking to enforce purity in guards and size expressions.
+
 ## Function-Type Grouping: `ParenType` Overrides Nearest-Arrow, 2026-09-15
 
 The reviewer's R05 (open since the earlier round): "There is no grouping rule for expressing an effectful function that returns a pure function. The nearest-arrow rule remains unchanged."
