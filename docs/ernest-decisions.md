@@ -932,6 +932,31 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Deadlock Detection Distinguishes Idle Server From Deadlocked Program, 2026-09-15
+
+The reviewer's twelfth finding: §8.6's deadlock rule was too broad. It said "if no process can run, all are waiting in `receive` without `after`, and no messages are in flight, the runtime ends the program with the error `Deadlock`. A pending `after` or clock counts as a message in flight." An idle web server — every user process in `receive`, waiting for a TCP connection from `Sys.net` — satisfies every clause and would be spuriously killed with `Deadlock`, because only `after` and clock timers were listed as exemptions. The web-server paper program (Paper Program 1) hits this exactly.
+
+**Choices weighed:**
+
+- **Extend the exemption to any registered future delivery from a system process** — pending `after`s, pending clock timers, network listeners, keyboard subscribers, pending I/O. Keeps the deadlock check useful (still catches cycles of `Address.call` on user processes with no external event source) and lets idle servers idle.
+- **Remove deadlock detection entirely.** Erlang has none, and the runtime is one primitive smaller. Rejected — deadlock is a real bug that beginners hit, and a runtime message is a better diagnostic than "the program silently does nothing forever". The value of the check is disproportionate to its cost.
+- **Narrow deadlock to a wait-for cycle among `Address.call` operations.** Precise, but harder for the runtime to build and detect, and misses the "everyone in `receive`, no one sending, no external source" case that the current rule already catches.
+- **Add a `system-process` predicate to the type system.** Rejected — too much surface for a runtime-only concern. The runtime already knows which addresses are `Sys.*`; that is where the classification belongs.
+
+Taken: the exemption is generalized. Any subscription, timer, or pending I/O held by a live system process counts as a message in flight.
+
+**Effect on §8.6.**
+
+The old sentence "A pending `after` or clock counts as a message in flight" is replaced. The new rule reads:
+
+- Forward progress must be impossible: every live process in `receive` without `after`, no message in flight, and no live system process holds a subscription/timer/pending I/O whose completion would deliver a message to a live process.
+- Pending `after`s, clock timers, network listeners, keyboard subscribers, and any similar registered future delivery from a system process count as messages in flight.
+- An idle server waiting for external events is not deadlocked.
+
+**Cost.** One sentence, some prose. The runtime already needs to know about pending `after`s and clock timers; extending to Sys.net listeners and Sys.keys subscribers is the same kind of bookkeeping.
+
+**Principle 1 (least surprise).** The web-server paper program stopped looking like it "compiles but always crashes with Deadlock the moment main goes to sleep". Now the semantic matches what the reader expects: idle is idle, deadlock is deadlock.
+
 ## Ping-Pong Example: Main Must Wait For Workers, 2026-09-15
 
 The reviewer's eleventh finding: Appendix B's ping-pong example spawns `pong` and `ping`, then returns from `main` — but per §8.6 the program ends when `main` returns, and any live process is killed with `ProgramEnd`. The example that is supposed to demonstrate two processes exchanging messages actually kills both before the first `send` goes out. The guide's §7.4 compounded the problem by asserting "when the last of them finishes, the program ends", which contradicts §8.6.

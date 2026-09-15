@@ -645,7 +645,7 @@ Top-level `type`, `abstract type`, `fn`, and `foreign` declarations have no runt
 
 The program ends when `main` returns. Live processes then die with cause `ProgramEnd`; system processes release their resources. A program that is to keep running waits in `main`.
 
-If no process can run, all are waiting in `receive` without `after`, and no messages are in flight, the runtime ends the program with the error `Deadlock`. A pending `after` or clock counts as a message in flight.
+If forward progress is impossible — every live process is waiting in `receive` without `after`, no message is in flight, and no live system process holds a subscription, timer, or pending I/O whose completion would deliver a message to a live process — the runtime ends the program with the error `Deadlock`. Pending `after`s, pending clock timers, network listeners, keyboard subscribers, and any similar registered future delivery from a system process count as messages in flight; an idle server that is waiting for such external events is not deadlocked.
 
 ## 9. Prelude
 
