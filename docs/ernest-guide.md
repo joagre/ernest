@@ -305,7 +305,7 @@ An arm can also have a **guard** — a `when` clause between the pattern and `->
 match x {
     n when n > 0 -> "positive"
   | n when n < 0 -> "negative"
-  | _            -> "zero"
+  | _ -> "zero"
 }
 ```
 
@@ -1135,8 +1135,8 @@ Reason: positions carry no meaning; names do. A constructor with two things in i
 **`:` in declarations, `=` in construction.** Two different punctuation marks with strict roles.
 
 ```
-type Snapshot = Snapshot(dir : Path, seen : Map(Path, Mtime)) // :  declares field types
-Snapshot(dir = ".", seen = Map.empty) // =  binds field values
+type Snapshot = Snapshot(dir : Path, seen : Map(Path, Mtime)) // : declares field types
+Snapshot(dir = ".", seen = Map.empty) // = binds field values
 ```
 
 Same in function definitions and calls: `fn f(x : Int) = ...` and `f(3)`. Colons introduce types, equals bind values.

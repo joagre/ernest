@@ -120,16 +120,18 @@ fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Tok
         lex(rest, i + List.size(word), tok +: acc)
     }
   | c +: r when List.contains(['+', '-', '*', '/'], c) -> lex(r, i + 1, Op(c) +: acc)
-  | c +: _   -> Left(BadChar(c = c, at = i))
+  | c +: _ -> Left(BadChar(c = c, at = i))
 }
 
 //
 // Pure code: parser
-//// expr   := 'let' ident '=' expr | 'fun' ident '->' expr | sum
-// sum    := prod (('+'|'-') prod)*
-// prod   := app (('*'|'/') app)*
-// app    := atom atom*
-// atom   := num | ident | '(' expr ')'
+//
+
+// expr := 'let' ident '=' expr | 'fun' ident '->' expr | sum
+// sum := prod (('+'|'-') prod)*
+// prod := app (('*'|'/') app)*
+// app := atom atom*
+// atom := num | ident | '(' expr ')'
 
 fn parse(toks : List(Token)) -> Either(ParseError, Expr) = {
     let (e, rest) <- expr(toks);
@@ -220,7 +222,7 @@ fn arith(op : Char, a : Value, b : Value) -> Either(EvalError, Value) = match (a
         '+' -> Right(N(x + y))
       | '-' -> Right(N(x - y))
       | '*' -> Right(N(x * y))
-      | _   -> match Int.div(x, y) { Some(q) -> Right(N(q)) | None -> Left(DivZero) }
+      | _ -> match Int.div(x, y) { Some(q) -> Right(N(q)) | None -> Left(DivZero) }
     }
   | _ -> Left(NotANumber)
 }
