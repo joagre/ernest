@@ -1,6 +1,6 @@
 # Ernest: Language Report
 
-September 2026. Rationale, rejected alternatives, and open questions are in `ernest-decisions.md`.
+September 2026. Rationale, rejected alternatives, and open questions are in [`ernest-decisions.md`](ernest-decisions.md).
 
 ## 0. Introduction
 

@@ -1,6 +1,6 @@
 # Ernest: A Reading Guide
 
-A guide for someone reading Ernest for the first time. Not the language report — the report `ernest.md` is where the rules live. This guide is meant to be read at a slow pace, one section at a time, with the code examples in front of you. Nothing is a summary; everything shows a concrete piece of Ernest and then talks about what it does.
+A guide for someone reading Ernest for the first time. Not the language report — the report [`ernest.md`](ernest.md) is where the rules live. This guide is meant to be read at a slow pace, one section at a time, with the code examples in front of you. Nothing is a summary; everything shows a concrete piece of Ernest and then talks about what it does.
 
 ## 0. Two ideas
 
@@ -1099,17 +1099,17 @@ Every top-level declaration's *qualified name* is where it lives. A **module** i
 
 Once "hello world," the counter, and ping-pong feel readable, the language's four paper programs are the next step. They're in the same repository:
 
-- **`ernest-tick-game.md`** — a snake game with tick-based updates. Introduces named-field records with `..` update syntax, folds over `Map`, one process per player.
-- **`ernest-repl.md`** — a small read-eval-print loop. Uses `<-` heavily (see §10) and combines `monitor` and `kill` (see §8) into a `try` process that aborts a slow evaluation.
-- **`ernest-filesync.md`** — file synchronization between two nodes. Introduces mutual-address setup via a `Link` message, ambient runtime references beyond `Sys.stdout` (a filesystem process at `Sys.fs`), one process per write.
-- **`ernest-webserver.md`** — HTTP server with sessions in an ETS table. Introduces `foreign fn` for foreign function calls, opaque types with signatures.
+- **[`ernest-tick-game.md`](ernest-tick-game.md)** — a snake game with tick-based updates. Introduces named-field records with `..` update syntax, folds over `Map`, one process per player.
+- **[`ernest-repl.md`](ernest-repl.md)** — a small read-eval-print loop. Uses `<-` heavily (see §10) and combines `monitor` and `kill` (see §8) into a `try` process that aborts a slow evaluation.
+- **[`ernest-filesync.md`](ernest-filesync.md)** — file synchronization between two nodes. Introduces mutual-address setup via a `Link` message, ambient runtime references beyond `Sys.stdout` (a filesystem process at `Sys.fs`), one process per write.
+- **[`ernest-webserver.md`](ernest-webserver.md)** — HTTP server with sessions in an ETS table. Introduces `foreign fn` for foreign function calls, opaque types with signatures.
 
 Read them in that order. Each introduces something the next builds on.
 
-For the language rules themselves, `ernest.md` (the report) is the authority. Section 0 states the five principles Ernest is built on; Section 3 covers types, Section 5 expressions, Section 6 processes, Section 9 the small prelude, and Appendix E the standard library (`Io.println`, `List.map`, and so on — the everyday helpers, written in Ernest, that ship with the compiler). It's shorter than most language reports — under ten pages of prose — and each sentence carries weight. If you find yourself asking "why is Ernest like this?" — the principles in §0 usually answer it.
+For the language rules themselves, [`ernest.md`](ernest.md) (the report) is the authority. Section 0 states the five principles Ernest is built on; Section 3 covers types, Section 5 expressions, Section 6 processes, Section 9 the small prelude, and Appendix E the standard library (`Io.println`, `List.map`, and so on — the everyday helpers, written in Ernest, that ship with the compiler). It's shorter than most language reports — under ten pages of prose — and each sentence carries weight. If you find yourself asking "why is Ernest like this?" — the principles in §0 usually answer it.
 
-For "why is Ernest the way it is," `ernest-decisions.md` records dated design decisions and their evidence. If a rule seems arbitrary, that document explains what pressured it.
+For "why is Ernest the way it is," [`ernest-decisions.md`](ernest-decisions.md) records dated design decisions and their evidence. If a rule seems arbitrary, that document explains what pressured it.
 
-For "how the compiler works," `ernest-implementation-plan.md` sketches the MVP 1 roadmap: about eight weeks of one-person work, with a hand-written parser.
+For "how the compiler works," [`ernest-implementation-plan.md`](ernest-implementation-plan.md) sketches the MVP 1 roadmap: about eight weeks of one-person work, with a hand-written parser.
 
 That's it for the guide. Take your time with the paper programs, and if something looks wrong, it might really be wrong — bugs in the report or the examples have been found and fixed before, and can be again.

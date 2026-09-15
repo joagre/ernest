@@ -1,6 +1,6 @@
 # Comparison: The Web Server in Ernest and in Erlang
 
-The same program, the same structure, the same error handling: a session process, a sweeper, one handler per connection, an acceptor, parsing with three failing steps, timeouts on the client and on the session lookup. The Ernest version is the process version that `ernest-webserver.md` had at the time; that document has since moved the session store to an ETS table, which the Erlang version below also could, and the comparison is of the two process versions. The Erlang version below uses `gen_tcp` directly where Ernest assumes `net`.
+The same program, the same structure, the same error handling: a session process, a sweeper, one handler per connection, an acceptor, parsing with three failing steps, timeouts on the client and on the session lookup. The Ernest version is the process version that [`ernest-webserver.md`](ernest-webserver.md) had at the time; that document has since moved the session store to an ETS table, which the Erlang version below also could, and the comparison is of the two process versions. The Erlang version below uses `gen_tcp` directly where Ernest assumes `net`.
 
 Counted: lines without blank lines and comments, and characters without indentation. Only the parts fully written in both.
 
