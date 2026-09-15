@@ -732,6 +732,28 @@ Ernest's model is single-effect. Adding effect polymorphism means promoting the 
 
 **Principle 3** again — an implicit inference rule made explicit in the type system.
 
+## `Reply` Ownership Made Compositional, 2026-09-15
+
+The reviewer's third finding: §6.6 gave a consumption rule for `Reply(a)` bound in a `receive` clause, but not for other bindings — function parameters, the `mk` callback of `Address.call`, helper calls, aliases, closures. The compiler could reject some obvious duplications but the rules were incomplete. The reviewer asked how the compiler prevents duplication through those routes while permitting delegation to a helper.
+
+The rule that closes the gap was already in the implementation plan (*"Function signatures that take Reply(a) propagate the obligation, and a function that binds a Reply(a) without consuming it is an error at its own definition"*) — but the report didn't lift it to the normative level.
+
+**Two paths weighed:**
+
+- **Compositional static check.** Every binding of a `Reply(a)` — receive clause, function parameter, spawn-lambda capture — creates a static exactly-once obligation at that binding site. Delegation to a helper is legal consumption; the helper is itself checked at its definition. No analysis crosses call boundaries.
+- **Runtime one-shot acceptance.** Compiler checks positions only. Runtime tracks answered replies; second `answer` on the same reply faults.
+
+The reviewer noted these are different guarantees. Chose the first — matches Ernest's static bias (principle 3, nothing invisible) and the impl plan already assumed it. Runtime one-shot would silently degrade Reply from a static contract to a dynamic one.
+
+**Effect.** §6.6 rewritten. Two paragraphs replace the old "Where Reply(a) may appear" and "Linearity" sections:
+
+- **Legal positions** — same set as before, but written as a single rule with the aliasing prohibition explicit.
+- **Exactly-once obligation** — every binding creates the obligation, checked at the binding site. Four consumption forms enumerated: `answer`, delegation to a helper with `Reply(a)` parameter, message-field send, spawn-lambda capture. Composition is spelled out: each function checked at its own definition. The `mk` callback of `Address.call` is a case of the same rule — its `Reply(a)` parameter obligates it to consume exactly once, which it does by embedding the reply in the built message.
+
+Guide §5.4 updated: the "three legal forms" list becomes four (delegation to a helper split out from message-field send), and the compositional nature is stated explicitly.
+
+**Principle 3** carried this decision: the missing rules made a category of Reply misuse invisible in the type system. Now the rule set is closed.
+
 ## `Bool.ern` Added, 2026-09-14
 
 New stdlib module for boolean operations. Two functions:

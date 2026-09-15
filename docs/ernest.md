@@ -492,9 +492,20 @@ answer              : (Reply(a), a) -> Void with m
 
 `Address.call(addr, mk, ms)` allocates a fresh `Reply(a)`, calls `mk(r)` to build the message, sends it to `addr`, and returns `Some(v)` when the recipient answers or `None` after `ms` milliseconds. `Address.callForever(addr, mk)` is the same operation without a timeout: the caller waits as long as needed and receives `a` directly, not wrapped in `Optional`; the caller is opting out of the timeout by name, analogous to a `receive` without `after`. `answer(r, v)` sends `v` to the caller.
 
-**Where `Reply(a)` may appear.** As a field of a message, a parameter of a function, a variable bound in a `receive` clause, and a value captured by a lambda passed to `spawn`. Any other position is a type error: a `Reply` in a container, in a `match` or `let` binding, in a return type not itself a message, or as an operand of equality, is rejected by the compiler.
+**Legal positions.** A `Reply(a)` value may appear as: a field of a message, a parameter of a function, a variable bound in a `receive` clause, or a variable captured by a lambda passed directly to `spawn`. Any other position is a type error — in particular, `Reply(a)` may not appear in a container, in a `let` binding (aliasing is forbidden), in a `match` binding, in a return type not itself a message, or as an operand of equality.
 
-**Linearity.** A `Reply(a)` bound in a `receive` clause is consumed exactly once on every path of the clause's expression. Consumption is `answer(r, v)`, sending `r` as a field of a message, or capturing `r` in a lambda passed to `spawn`; in the last case the captured `Reply` is consumed on every path of the spawned function's body, checked at its definition. A violation is a type error. The check is static: it ensures every path calls `answer` (or delegates or spawns) but not that execution reaches the call at runtime — non-termination, a fault, or an indefinite wait bypasses the answer.
+**Exactly-once obligation.** Every binding of a `Reply(a)` — in a `receive` clause, as a function parameter, or captured by a spawn-lambda — creates a consumption obligation checked statically at the binding site. On every path from the binding, the reply must be consumed exactly once.
+
+Consumption is one of:
+
+- `answer(r, v)`, which sends `v` to the caller.
+- Passing `r` as an argument where the callee has parameter type `Reply(a)`. This delegates the obligation to the callee, which is itself checked at its definition.
+- Sending `r` as a field of a message, which shifts the obligation to whichever `receive` clause eventually binds it.
+- Capturing `r` in a lambda passed directly to `spawn`, which shifts the obligation to the spawned function's body, checked at that function's definition.
+
+The check is compositional: each function is analyzed at its own definition against its Reply parameters and its receive-bound Replies. No analysis crosses call boundaries. A function that takes `Reply(a)` and correctly consumes it is a valid delegation target from any caller. The `mk` callback of `Address.call` is checked by this same rule — its `Reply(a)` parameter obligates it to consume the reply exactly once, which it does by embedding the reply in the message it builds.
+
+The check is static: it ensures every path *calls* the consumption but not that execution *reaches* it at runtime — non-termination, a fault, or an indefinite wait bypasses the call without invalidating the type check.
 
 **Timeout rationale.** The mandatory timeout on `Address.call` returns `Optional(a)` so an answer that never arrives has somewhere to land; `Address.callForever` opts out of that by name, and the caller accepts that this call may hang.
 

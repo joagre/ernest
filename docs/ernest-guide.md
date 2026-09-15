@@ -498,13 +498,14 @@ That would be a type error. `r` would be bound but never used. The compiler woul
 
 That check catches a whole category of silent bugs: a caller that sends a request, waits for a reply that never comes, and eventually times out with no useful diagnostic. Ernest makes it impossible to *syntactically* forget to answer — the type system remembers for you.
 
-The consumption doesn't have to be direct or in the same clause. There are three legal forms:
+The consumption doesn't have to be direct or in the same clause. There are four legal forms:
 
 1. **`answer(r, v)` directly** — what the counter does.
-2. **Delegating** — passing `r` as a field of another message. Whoever receives that message is now responsible for answering.
-3. **Spawning** — capturing `r` in a lambda passed to `spawn` (§6). A child process runs later and calls `answer` when it's ready.
+2. **Passing to a helper** — calling `helper(r, ...)` where `helper` has a parameter of type `Reply(Int)`. The obligation moves to the helper, which is checked at its own definition.
+3. **Message field** — sending `r` as a field of another message. Whoever's `receive` clause eventually binds it takes over the obligation.
+4. **Spawning** — capturing `r` in a lambda passed directly to `spawn` (§6). A child process runs later and calls `answer` when it's ready; the compiler checks the child's body for exactly-once consumption.
 
-The exactly-once check follows `r` through all three. In the spawning case, the compiler checks the *child's* body for exactly-once consumption — a spawned child whose body forgets to answer is a type error. The `filesync` paper program uses this form: an incoming write request is handed to a `writer` process that performs the file I/O in the background and calls `answer` when it finishes, so the process handling `receive` doesn't block on disk.
+The exactly-once check is *compositional*: it doesn't chase functions across call boundaries. Each function is checked at its own definition. A function that takes `Reply(a)` and correctly consumes it is a valid delegation target from anywhere. The `filesync` paper program uses form 4: an incoming write request is handed to a `writer` process that performs the file I/O in the background and calls `answer` when it finishes, so the process handling `receive` doesn't block on disk.
 
 **One caveat.** The check is static. It verifies that every syntactically reachable path calls `answer` (or delegates, or spawns), but it can't tell whether execution will *actually* reach that call at runtime. A path that enters an infinite loop, faults, or waits forever will bypass the answer without the compiler knowing. That's why `Address.call` requires a mandatory timeout (§6.3): the caller must plan for the case where the answer never comes — bug, fault, or a receiver that answers only on February 32.
 
