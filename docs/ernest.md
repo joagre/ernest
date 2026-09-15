@@ -245,6 +245,10 @@ Ordering is defined per type by the function `compare` in the type's namespace, 
 
 The check is at instantiation, not at generalization: `fn equal(a, b) = a == b` type-checks (its type is `(a, a) -> Bool`), and each call site is checked against the concrete type substituted for `a`.
 
+**Propagation through function values, branches, and modules.** The equality constraint on a type variable is part of the type scheme, so it travels with the function value wherever the value flows. `let f = equal` gives `f` `equal`'s type including the constraint; applying `f` to addresses at some later point is an error at that application. `if flag then equal else always` unifies the branches to `(a, a) -> Bool` and inherits the union of constraints — since `equal` is constrained and `always` is not, the result is constrained, and the returned function cannot be applied to addresses. A module exports its polymorphic values with their constraints; a compiled interface encodes them, so a call from another module receives the same treatment as an internal call. The check remains at instantiation — a call chain through several intermediate polymorphic functions, where a constrained value is eventually applied to concrete arguments, is checked at the concrete application.
+
+**Diagnostics.** The annotation grammar does not admit the equality constraint (§3.9), but the compiler surfaces it: printed types distinguish `equal : (a, a) -> Bool` (constrained) from `always : (a, a) -> Bool` (unconstrained) — the printer marks the constrained form so two functions with the same annotated shape are not indistinguishable. Error messages at rejected call sites identify which parameter's constraint failed and where the constraint came from. Generated documentation (`ernc --doc`) shows the constraint in the same form.
+
 ### 3.11 Serialization
 
 All values can be sent in messages, functions included; their code travels with them, section 10.

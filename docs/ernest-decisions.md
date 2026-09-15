@@ -932,6 +932,48 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Equality Constraints Propagate Through Values, Branches, and Modules, 2026-09-15
+
+The reviewer's U04: §3.10 said equality constraints are inferred from `==` usage and checked at each call site, but did not specify what happens when a constrained function is stored, returned, branched on, or exported.
+
+The paradigm example:
+
+```
+fn equal(x, y) = x == y      // constrained on x's type
+fn always(x, y) = true       // unconstrained
+fn choose(flag) = if flag then equal else always
+```
+
+Three questions were open:
+
+- What constraint does the result of `choose` carry? At the application of the returned function to addresses, is the error at the application site — or lost?
+- What happens at intermediate calls where the argument type is still polymorphic (e.g., a function that passes a callback through several layers)?
+- How does a compiled module's interface convey the constraint on an exported polymorphic value?
+
+**Choices weighed:**
+
+- **Constraints are part of the type scheme and travel with the value.** Taken. Branch unification takes the union; module boundaries preserve them; intermediate polymorphic calls are still checked at eventual instantiation. This is essentially Haskell-style constraint propagation with exactly one built-in constraint (equality) and no user-defined type classes.
+- **Constraints are inferred locally per call and never travel.** Rejected — `let f = equal; f(addr1, addr2)` would either type-check (loss of guarantee) or force a runtime check (not Ernest's model).
+- **A user-defined type-class layer.** Rejected — one built-in constraint doesn't justify the machinery.
+- **Widen printed function types to admit constraints as syntax.** Rejected — the annotation grammar stays simple; diagnostics carry the extra information.
+
+Taken: propagation with a single Eq constraint. No new syntax, no new mechanism beyond what the type checker already needs to represent the constraint internally.
+
+**Effect on §3.10.**
+
+Two new paragraphs after the instantiation-time explanation:
+
+- *Propagation*: constraints are part of the type scheme; `let f = equal` inherits `equal`'s constraint; `if flag then equal else always` unifies branches and takes the union of constraints (so the result of `choose` is constrained); module interfaces encode constraints; call chains through several polymorphic intermediaries are still checked at the eventual application.
+- *Diagnostics*: printed types mark the constrained form so `equal` and `always` are visibly distinguishable; error messages identify which parameter's constraint failed; `ernc --doc` shows the constraint.
+
+**What is NOT in the report.** The exact printed syntax for a constrained type is left to the toolchain — "the printer marks the constrained form" without prescribing whether that means `(a, a) -> Bool where equal(a)` or a keyword prefix or another form. The annotation grammar does not admit constraint syntax; this is deliberate to keep hand-written `fn` signatures uncluttered.
+
+**Cost.** Two paragraphs in §3.10. No change to inference machinery — the compiler already infers the constraint per §3.10's current text; the new rules describe how the constraint flows through standard HM operations (substitution, unification, generalization). Compiled interfaces gain a field for equality constraints on polymorphic exports.
+
+**Principle 1 (least surprise).** The old rule said "checked at each call site" without saying what "the type" of a stored function was. A reader would assume the constraint is lost when a function is stored — which would be a surprise once they hit `let f = equal; f(addr1, addr2)`. Now the answer is stated: constraint travels with the value, error at application.
+
+**Principle 3 (nothing invisible).** Printed types and diagnostics show the constraint even though annotations cannot. Two shapes that look the same in a written signature (`(a, a) -> Bool`) but behave differently at runtime would otherwise be indistinguishable — now the tooling makes the difference visible.
+
 ## Block Bindings: Escape Path and Wildcard Rule, 2026-09-15
 
 The reviewer's U02: §4.6's block-binding rule was too strict. It said "if any variable remains free at the block's end, the binding is a type error at its site" — but this rejects two legitimate HM cases:
