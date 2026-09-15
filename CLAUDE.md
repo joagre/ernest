@@ -41,3 +41,25 @@ If either test surfaces an anomaly in the report, propose an update to `docs/ern
 Conventions for Ernest source code. Ernest is order-independent at top level, so these are style choices, not correctness requirements — but the paper programs and any Ernest code we write should follow them for consistency.
 
 - **Define functions top-down.** Types stay at the top of the module. In a program module (has `main`), `main` comes next, then the functions it calls in call order, then their helpers, and so on — each root and its subtree are laid out contiguously. In a library module (no `main`), each exported function is a root: it appears at the top level with its own helpers immediately below it, and the next exported function's subtree follows. A helper used by more than one exported function goes under whichever root uses it first (or, if it's genuinely shared infrastructure, at the bottom of the module as a small utilities section).
+
+- **Four-space indent.** No tabs. Every level of nesting is four spaces. Whitespace is inert to Ernest's lexer, so this is a readability choice, not a language requirement — but the paper programs and any Ernest code we write should follow it consistently.
+
+- **No alignment padding.** Don't add spaces to make tokens line up with the corresponding token on another line. In particular: no padding around `->` in `match`/`recv` arms; no padding before `=` in declarations; no padding across `foreign fn` bodies. Alignment reads well when written but breaks the moment an edit adds a longer identifier, forcing every neighboring line to be re-padded. Keep tokens close, one space where a space is needed.
+
+    Good:
+    ```
+    Some(Right(())) -> answer(ack, okAck)
+    | Some(Left(e)) -> answer(ack, Failed(e))
+    | None -> answer(ack, Failed(Io("timeout")))
+    ```
+
+    Bad (arrows aligned by padding before `->`):
+    ```
+    Some(Right(())) -> answer(ack, okAck)
+    | Some(Left(e))   -> answer(ack, Failed(e))
+    | None            -> answer(ack, Failed(Io("timeout")))
+    ```
+
+    Structural indentation (blocks, arm separators, function bodies) is not alignment padding — a `|` at the start of a subsequent arm, or a `let` at the start of a block statement, is part of the syntactic form, not a padding choice.
+
+- **100-character line limit for code.** Code inside code blocks stays at or under 100 columns. Prose in markdown documents can be longer (renderers wrap it). Split long expressions or arguments across lines rather than let one line run wide.

@@ -63,17 +63,17 @@ fn game(world : World) -> () with GameMsg = {
 fn drain(world : World, n : Int) -> World with GameMsg =
     if n == 0 then world
     else recv {
-        In(i)   -> drain(applyInput(world, i), n - 1)
+        In(i) -> drain(applyInput(world, i), n - 1)
       | after 0 -> world
     }
 
 // One process per player: translates keys into Input.
 fn player(id : Int, game : Address(GameMsg)) -> () with Key = recv {
-    Up    -> { send(game, In(Turn(id = id, dir = N))); player(id, game) }
-  | Down  -> { send(game, In(Turn(id = id, dir = S))); player(id, game) }
-  | Left  -> { send(game, In(Turn(id = id, dir = W))); player(id, game) }
+    Up -> { send(game, In(Turn(id = id, dir = N))); player(id, game) }
+  | Down -> { send(game, In(Turn(id = id, dir = S))); player(id, game) }
+  | Left -> { send(game, In(Turn(id = id, dir = W))); player(id, game) }
   | Right -> { send(game, In(Turn(id = id, dir = E))); player(id, game) }
-  | Quit  -> send(game, In(Leave(id)))
+  | Quit -> send(game, In(Leave(id)))
 }
 
 // Pure world logic ----------------------------------------------
@@ -105,7 +105,7 @@ fn applyInput(world : World, input : Input) -> World = {
     match input {
         Turn(id = id, dir = d) -> match Map.get(ps, id) {
             Some(p) -> World(..world, players = Map.put(ps, id, turn(p, d)))
-          | None    -> world
+          | None -> world
         }
       | Leave(id) -> World(..world, players = Map.remove(ps, id))
     }
@@ -141,7 +141,7 @@ fn move(w : Int, h : Int, Pos(x = x, y = y) : Pos, d : Dir) -> Pos = match d {
 
 fn turn(p : Player, d : Dir) -> Player = match (Player.dir(p), d) {
     (N, S) -> p | (S, N) -> p | (W, E) -> p | (E, W) -> p    // no U-turn
-  | _      -> Player(..p, dir = d)
+  | _ -> Player(..p, dir = d)
 }
 
 fn Player.dir(Player(dir = d) : Player) -> Dir = d

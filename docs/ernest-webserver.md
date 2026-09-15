@@ -55,23 +55,34 @@ fn sweeper(sessions : Ets.Table(SessionId, Session)) -> () with Tick = {
 }
 
 fn acceptor(sessions : Ets.Table(SessionId, Session), seq : Int) -> () with ConnMsg = recv {
-    Conn(sock) -> { let _ = spawn(Local, fn() = handler(sessions, seq, sock)); acceptor(sessions, seq + 1) }
+    Conn(sock) -> {
+        let _ = spawn(Local, fn() = handler(sessions, seq, sock));
+        acceptor(sessions, seq + 1)
+    }
 }
 
 // One process per connection: reads a request, writes a response, closes.
-fn handler(sessions : Ets.Table(SessionId, Session), seq : Int, sock : Address(SockMsg)) -> () with m = {
+fn handler(
+    sessions : Ets.Table(SessionId, Session),
+    seq : Int,
+    sock : Address(SockMsg)
+) -> () with m = {
     match Address.call(sock, fn(r) = Read(reply = r), 5000) {
         Some(bytes) -> match parse(bytes) {
             Left(_) -> {
-                send(sock, Write(render(Response(status = StatusCode.notFound, headers = [], body = ""))));
+                let notFound = Response(status = StatusCode.notFound, headers = [], body = "");
+                send(sock, Write(render(notFound)));
                 send(sock, Close)
             }
           | Right(req) -> {
                 let id = match Optional.andThen(cookie(req, "sid"), SessionId.parse) {
                     Some(sid) -> sid
-                  | None      -> SessionId.fresh(seq)
+                  | None -> SessionId.fresh(seq)
                 };
-                let visits = match Ets.lookup(sessions, id) { Some(Session(n)) -> n + 1 | None -> 1 };
+                let visits = match Ets.lookup(sessions, id) {
+                    Some(Session(n)) -> n + 1
+                  | None -> 1
+                };
                 Ets.insert(sessions, id, Session(visits));
                 let body = "Visit number " ++ Int.toText(visits);
                 let bytes = Response(status = StatusCode.ok, headers = [], body = body)

@@ -57,8 +57,11 @@ fn repl(env : Map(Text, Value)) -> () with ReplMsg = {
               | Right(e) -> {
                     let v = try(env, e);
                     match (e, v) {
-                        (Let(name = x), Right(val)) -> { show(Right(val)); repl(Map.put(env, x, val)) }
-                      | (_, r)                          -> { show(r); repl(env) }
+                        (Let(name = x), Right(val)) -> {
+                            show(Right(val));
+                            repl(Map.put(env, x, val))
+                        }
+                      | (_, r) -> { show(r); repl(env) }
                     }
                 }
             }
@@ -69,22 +72,22 @@ fn repl(env : Map(Text, Value)) -> () with ReplMsg = {
 // try as a process: evaluate in a child, wait at most two seconds,
 // kill the child if it does not answer.
 fn try(env : Map(Text, Value), e : Expr) -> Either(TryError, Value) with ReplMsg = {
-    let me = self();                               // not self() inside the lambda: that is the child's
+    let me = self();    // not self() inside the lambda: that is the child's
     let child = spawn(Local, fn() = send(me, Result(eval(env, e))));
     monitor(child, Died);
     recv {
         Result(r) -> Either.mapLeft(r, Eval)
-      | Died(_)   -> Left(Crashed)                 // a fault in the child
+      | Died(_) -> Left(Crashed)                 // a fault in the child
       | after 2000 -> { kill(child); Left(Timeout) }
     }
 }
 
 fn show(r : Either(TryError, Value)) -> () with ReplMsg = Io.println(match r {
-    Right(N(n))       -> Int.toText(n)
+    Right(N(n)) -> Int.toText(n)
   | Right(Closure) -> "<fun>"
-  | Left(Eval(e))     -> "error: " ++ EvalError.toText(e)
-  | Left(Crashed)     -> "crashed"
-  | Left(Timeout)     -> "aborted after 2 s"
+  | Left(Eval(e)) -> "error: " ++ EvalError.toText(e)
+  | Left(Crashed) -> "crashed"
+  | Left(Timeout) -> "aborted after 2 s"
 })
 
 // Pure code: lexer -----------------------------------------------
@@ -92,11 +95,11 @@ fn show(r : Either(TryError, Value)) -> () with ReplMsg = Io.println(match r {
 fn tokenize(t : Text) -> Either(LexError, List(Token)) = lex(Text.chars(t), 0, [])
 
 fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Token)) = match cs {
-    []         -> Right(List.reverse(acc))
-  | ' ' +: r   -> lex(r, i + 1, acc)
-  | '(' +: r   -> lex(r, i + 1, LParen +: acc)
-  | ')' +: r   -> lex(r, i + 1, RParen +: acc)
-  | '=' +: r   -> lex(r, i + 1, Eq +: acc)
+    [] -> Right(List.reverse(acc))
+  | ' ' +: r -> lex(r, i + 1, acc)
+  | '(' +: r -> lex(r, i + 1, LParen +: acc)
+  | ')' +: r -> lex(r, i + 1, RParen +: acc)
+  | '=' +: r -> lex(r, i + 1, Eq +: acc)
   | '-' +: '>' +: r -> lex(r, i + 2, Arrow +: acc)
   | c +: r when Char.isDigit(c) -> {
         let (digits, rest) = List.span(cs, Char.isDigit);
@@ -125,45 +128,58 @@ fn parse(toks : List(Token)) -> Either(ParseError, Expr) = {
 }
 
 fn expr(toks : List(Token)) -> Either(ParseError, Step) = match toks {
-    KwLet +: Ident(x) +: Eq +: r    -> { (v, r2) <- expr(r); Right((Let(name = x, value = v), r2)) }
-  | KwFun +: Ident(x) +: Arrow +: r -> { (b, r2) <- expr(r); Right((Fun(param = x, body = b), r2)) }
+    KwLet +: Ident(x) +: Eq +: r -> {
+        (v, r2) <- expr(r);
+        Right((Let(name = x, value = v), r2))
+    }
+  | KwFun +: Ident(x) +: Arrow +: r -> {
+        (b, r2) <- expr(r);
+        Right((Fun(param = x, body = b), r2))
+    }
   | _ -> sum(toks)
 }
 
 fn sum(toks : List(Token)) -> Either(ParseError, Step) = { (l, r) <- prod(toks); sumRest(l, r) }
 
 fn sumRest(l : Expr, toks : List(Token)) -> Either(ParseError, Step) = match toks {
-    Op(c) +: r when c == '+' || c == '-' -> { (x, r2) <- prod(r); sumRest(Bin(op = c, l = l, r = x), r2) }
+    Op(c) +: r when c == '+' || c == '-' -> {
+        (x, r2) <- prod(r);
+        sumRest(Bin(op = c, l = l, r = x), r2)
+    }
   | _ -> Right((l, toks))
 }
 
-fn prod(toks : List(Token)) -> Either(ParseError, Step) = { (l, r) <- app(toks); prodRest(l, r) }
+fn prod(toks : List(Token)) -> Either(ParseError, Step) =
+    { (l, r) <- app(toks); prodRest(l, r) }
 
 fn prodRest(l : Expr, toks : List(Token)) -> Either(ParseError, Step) = match toks {
-    Op(c) +: r when c == '*' || c == '/' -> { (x, r2) <- app(r); prodRest(Bin(op = c, l = l, r = x), r2) }
+    Op(c) +: r when c == '*' || c == '/' -> {
+        (x, r2) <- app(r);
+        prodRest(Bin(op = c, l = l, r = x), r2)
+    }
   | _ -> Right((l, toks))
 }
 
 fn app(toks : List(Token)) -> Either(ParseError, Step) = { (f, r) <- atom(toks); appRest(f, r) }
 
 fn appRest(f : Expr, toks : List(Token)) -> Either(ParseError, Step) = match atom(toks) {
-    Left(_)        -> Right((f, toks))          // no atom: the application is over
-  | Right((a, r))  -> appRest(App(f = f, arg = a), r)
+    Left(_) -> Right((f, toks))          // no atom: the application is over
+  | Right((a, r)) -> appRest(App(f = f, arg = a), r)
 }
 
 fn atom(toks : List(Token)) -> Either(ParseError, Step) = match toks {
-    Num(n) +: r   -> Right((Lit(n), r))
+    Num(n) +: r -> Right((Lit(n), r))
   | Ident(x) +: r -> Right((Var(x), r))
-  | LParen +: r   -> {
+  | LParen +: r -> {
         let (e, r2) <- expr(r);
         match r2 {
             RParen +: r3 -> Right((e, r3))
-          | t +: _       -> Left(Unexpected(t))
-          | []           -> Left(Eof)
+          | t +: _ -> Left(Unexpected(t))
+          | [] -> Left(Eof)
         }
     }
-  | t +: _        -> Left(Unexpected(t))
-  | []            -> Left(Eof)
+  | t +: _ -> Left(Unexpected(t))
+  | [] -> Left(Eof)
 }
 
 // Pure code: evaluator -------------------------------------------

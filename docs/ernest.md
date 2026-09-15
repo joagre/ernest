@@ -99,7 +99,8 @@ Program     = { Declaration } .
 Declaration = TypeDecl | OpaqueDecl | FnDecl | LetDecl | ForeignDecl .
 ForeignDecl = "foreign" ( "type" QTypeName [ "(" typevar { "," typevar } ")" ]
             | "fn" Name "(" [ Param { "," Param } ] ")" Return "=" text ) .
-TypeDecl    = "type" QTypeName [ "(" typevar { "," typevar } ")" ] "=" Constructor { "|" Constructor } .
+TypeDecl    = "type" QTypeName [ "(" typevar { "," typevar } ")" ] "="
+              Constructor { "|" Constructor } .
 Constructor = conname [ "(" ( Type | Field { "," Field } ) ")" ] .
 Field       = ident ":" Type .
 OpaqueDecl  = "opaque" TypeDecl "with" "{" Signature { ";" Signature } "}" .
@@ -406,7 +407,8 @@ Declaration = TypeDecl | OpaqueDecl | FnDecl | LetDecl | ForeignDecl .
 ForeignDecl = "foreign" ( "type" QTypeName [ "(" typevar { "," typevar } ")" ]
             | "fn" Name "(" [ Param { "," Param } ] ")" Return "=" text ) .
 
-TypeDecl    = "type" QTypeName [ "(" typevar { "," typevar } ")" ] "=" Constructor { "|" Constructor } .
+TypeDecl    = "type" QTypeName [ "(" typevar { "," typevar } ")" ] "="
+              Constructor { "|" Constructor } .
 Constructor = conname [ "(" ( Type | Field { "," Field } ) ")" ] .
 Field       = ident ":" Type .
 OpaqueDecl  = "opaque" TypeDecl "with" "{" Signature { ";" Signature } "}" .
@@ -485,7 +487,7 @@ fn main() -> () with () = {
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
         Some(n) -> Io.println("count is " ++ Int.toText(n))
-      | None    -> Io.println("counter is not answering")
+      | None -> Io.println("counter is not answering")
     }
 }
 
@@ -511,7 +513,7 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
         Io.println("ping " ++ Int.toText(n));
         match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
             Some(_) -> ping(pongAddr, n - 1)
-          | None    -> { Io.println("pong is not answering"); send(pongAddr, Stop) }
+          | None -> { Io.println("pong is not answering"); send(pongAddr, Stop) }
         }
     }
 
@@ -578,45 +580,48 @@ foreign type Ets.Table(k, v)
 /// process and is destroyed when that process dies.
 fn Ets.new() -> Ets.Table(k, v) with m = rawNew("ernest", [atom("set"), atom("public")])
 
-foreign fn rawNew(name : Text, opts : List(Foreign)) -> Ets.Table(k, v) with m   = "ets:new/2"
-foreign fn atom(name : Text) -> Foreign                                           = "erlang:binary_to_atom/1"
+foreign fn rawNew(name : Text, opts : List(Foreign)) -> Ets.Table(k, v) with m = "ets:new/2"
+foreign fn atom(name : Text) -> Foreign = "erlang:binary_to_atom/1"
 
 /// Insert or replace the entry for key.
-fn Ets.insert(t : Ets.Table(k, v), key : k, value : v) -> () with m = { let _ = rawInsert(t, (key, value)); () }
+fn Ets.insert(t : Ets.Table(k, v), key : k, value : v) -> () with m = {
+    let _ = rawInsert(t, (key, value));
+    ()
+}
 
-foreign fn rawInsert(t : Ets.Table(k, v), row : (k, v)) -> Bool with m           = "ets:insert/2"
+foreign fn rawInsert(t : Ets.Table(k, v), row : (k, v)) -> Bool with m = "ets:insert/2"
 
 /// The value for key, or None if absent.
 fn Ets.lookup(t : Ets.Table(k, v), key : k) -> Optional(v) with m =
     match rawLookup(t, key) { [(_, v)] -> Some(v) | _ -> None }
 
-foreign fn rawLookup(t : Ets.Table(k, v), key : k) -> List((k, v)) with m        = "ets:lookup/2"
+foreign fn rawLookup(t : Ets.Table(k, v), key : k) -> List((k, v)) with m = "ets:lookup/2"
 
 /// Remove key. A key not present is not an error.
 fn Ets.delete(t : Ets.Table(k, v), key : k) -> () with m = { let _ = rawDelete(t, key); () }
 
-foreign fn rawDelete(t : Ets.Table(k, v), key : k) -> Bool with m                = "ets:delete/2"
+foreign fn rawDelete(t : Ets.Table(k, v), key : k) -> Bool with m = "ets:delete/2"
 
 /// The number of entries in the table.
 fn Ets.size(t : Ets.Table(k, v)) -> Int with m = rawInfo(t, atom("size"))
 
-foreign fn rawInfo(t : Ets.Table(k, v), item : Foreign) -> Int with m             = "ets:info/2"
+foreign fn rawInfo(t : Ets.Table(k, v), item : Foreign) -> Int with m = "ets:info/2"
 
 /// Delete the table. All subsequent operations on it fault.
 fn Ets.drop(t : Ets.Table(k, v)) -> () with m = { let _ = rawDrop(t); () }
 
-foreign fn rawDrop(t : Ets.Table(k, v)) -> Bool with m                            = "ets:delete/1"
+foreign fn rawDrop(t : Ets.Table(k, v)) -> Bool with m = "ets:delete/1"
 
 /// Remove all entries, leaving the table empty.
 fn Ets.clear(t : Ets.Table(k, v)) -> () with m = { let _ = rawClear(t); () }
 
-foreign fn rawClear(t : Ets.Table(k, v)) -> Bool with m                           = "ets:delete_all_objects/1"
+foreign fn rawClear(t : Ets.Table(k, v)) -> Bool with m = "ets:delete_all_objects/1"
 
 /// True if key is present in t.
-foreign fn Ets.member(t : Ets.Table(k, v), key : k) -> Bool with m                = "ets:member/2"
+foreign fn Ets.member(t : Ets.Table(k, v), key : k) -> Bool with m = "ets:member/2"
 
 /// All key-value pairs currently in the table, in unspecified order.
-foreign fn Ets.toList(t : Ets.Table(k, v)) -> List((k, v)) with m                 = "ets:tab2list/1"
+foreign fn Ets.toList(t : Ets.Table(k, v)) -> List((k, v)) with m = "ets:tab2list/1"
 ```
 
 ```
@@ -626,7 +631,7 @@ fn main() -> () with () = {
     Ets.insert(t, "b", 2);
     match Ets.lookup(t, "a") {
         Some(n) -> Io.println(Int.toText(n))
-      | None    -> Io.println("missing")
+      | None -> Io.println("missing")
     };
     Ets.drop(t)
 }

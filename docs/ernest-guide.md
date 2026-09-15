@@ -97,8 +97,8 @@ You can pick between them with `match`:
 fn opposite(d : Direction) -> Direction = match d {
     North -> South
   | South -> North
-  | East  -> West
-  | West  -> East
+  | East -> West
+  | West -> East
 }
 ```
 
@@ -184,8 +184,8 @@ Lists decompose with pattern matching:
 
 ```
 match xs {
-    []             -> "empty"
-  | head +: rest   -> "first is " ++ Int.toText(head)
+    [] -> "empty"
+  | head +: rest -> "first is " ++ Int.toText(head)
 }
 ```
 
@@ -476,7 +476,7 @@ The extended counter grows a second `recv` arm:
 
 ```
 fn counter(n : Int) -> () with CounterMsg = recv {
-    Inc(k)         -> counter(n + k)
+    Inc(k) -> counter(n + k)
   | Get(reply = r) -> { answer(r, n); counter(n) }
 }
 ```
@@ -529,7 +529,7 @@ fn main() -> () with () = {
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
         Some(n) -> Io.println("count is " ++ Int.toText(n))
-      | None    -> Io.println("counter is not answering")
+      | None -> Io.println("counter is not answering")
     }
 }
 ```
@@ -573,7 +573,7 @@ Now for the interesting part:
 ```
 match Address.call(c, fn(r) = Get(reply = r), 1000) {
     Some(n) -> ...
-  | None    -> ...
+  | None -> ...
 }
 ```
 
@@ -641,7 +641,7 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
         Io.println("ping " ++ Int.toText(n));
         match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
             Some(_) -> ping(pongAddr, n - 1)
-          | None    -> { Io.println("pong is not answering"); send(pongAddr, Stop) }
+          | None -> { Io.println("pong is not answering"); send(pongAddr, Stop) }
         }
     }
 
@@ -900,7 +900,7 @@ Give it a pure, zero-argument function. The runtime picks a peer and evaluates t
 fn main() -> () with () = {
     match remote(fn() = heavy(1, 2, 3)) {
         Right(n) -> Io.println("got " ++ Int.toText(n))
-      | Left(_)  -> Io.println("no remote available")
+      | Left(_) -> Io.println("no remote available")
     }
 }
 ```
@@ -928,7 +928,7 @@ fn main() -> () with () = {
     let results = parallelRemote(jobs);
     List.foreach(results, fn(r) = match r {
         Right(n) -> Io.println("ok: " ++ Int.toText(n))
-      | Left(_)  -> Io.println("failed")
+      | Left(_) -> Io.println("failed")
     })
 }
 ```

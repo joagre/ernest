@@ -62,7 +62,7 @@ fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> () wi
         syncer(dir, peer, Map.put(seen, p, m))
     }
   | Listed(_) -> syncer(dir, peer, seen)           // late listing, ignore
-  | Link(_)   -> syncer(dir, peer, seen)           // already connected
+  | Link(_) -> syncer(dir, peer, seen)             // already connected
 }
 
 // Between List and Listed: accept Put, but not Tick.
@@ -70,7 +70,10 @@ fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> () w
     let tick = fn() = send(Sys.clock, After(ms = 5000, to = via(fn(_) = Tick, self())));
     recv {
         Listed(Right(entries)) -> {
-            List.foreach(diff(seen, entries), fn(c) = { let _ = spawn(Local, fn() = pusher(dir, peer, c)); () });
+            List.foreach(diff(seen, entries), fn(c) = {
+                let _ = spawn(Local, fn() = pusher(dir, peer, c));
+                ()
+            });
             tick();
             syncer(dir, peer, snapshot(entries))
         }
@@ -92,10 +95,18 @@ fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> () w
 }
 
 // Store a file from the peer. Newer local file: conflict.
-fn store(dir : Path, seen : Map(Path, Mtime), p : Path, m : Mtime, bytes : Bytes, ack : Reply(Ack)) -> () with SyncMsg =
+fn store(
+    dir : Path,
+    seen : Map(Path, Mtime),
+    p : Path,
+    m : Mtime,
+    bytes : Bytes,
+    ack : Reply(Ack)
+) -> () with SyncMsg =
     match Map.get(seen, p) {
         Some(local) when Mtime.compare(local, m) == Greater -> {
-            let _ = spawn(Local, fn() = writer(Path.join(dir, conflictPath(p)), bytes, ack, Conflict));
+            let _ = spawn(Local, fn() =
+                writer(Path.join(dir, conflictPath(p)), bytes, ack, Conflict));
             ()
         }
       | _ -> {
@@ -108,24 +119,24 @@ fn store(dir : Path, seen : Map(Path, Mtime), p : Path, m : Mtime, bytes : Bytes
 fn writer(p : Path, bytes : Bytes, ack : Reply(Ack), okAck : Ack) -> () with n =
     match Address.call(Sys.fs, fn(r) = Write(path = p, bytes = bytes, reply = r), 10000) {
         Some(Right(())) -> answer(ack, okAck)
-      | Some(Left(e))   -> answer(ack, Failed(e))
-      | None            -> answer(ack, Failed(Io("timeout")))
+      | Some(Left(e)) -> answer(ack, Failed(e))
+      | None -> answer(ack, Failed(Io("timeout")))
     }
 
 // One process per changed file: reads and sends to the peer.
 fn pusher(dir : Path, peer : Address(SyncMsg), Change(path = p, mtime = m) : Change) -> () with n =
     match Address.call(Sys.fs, fn(r) = Read(path = Path.join(dir, p), reply = r), 10000) {
         Some(Right(bytes)) -> push(peer, p, m, bytes)
-      | Some(Left(_))      -> Io.println("cannot read " ++ Path.toText(p))
-      | None               -> Io.println("fs is not answering: " ++ Path.toText(p))
+      | Some(Left(_)) -> Io.println("cannot read " ++ Path.toText(p))
+      | None -> Io.println("fs is not answering: " ++ Path.toText(p))
     }
 
 fn push(peer : Address(SyncMsg), p : Path, m : Mtime, bytes : Bytes) -> () with n =
     match Address.call(peer, fn(r) = Put(path = p, mtime = m, bytes = bytes, ack = r), 30000) {
-        Some(Stored)    -> ()
-      | Some(Conflict)  -> Io.println("conflict: " ++ Path.toText(p))
+        Some(Stored) -> ()
+      | Some(Conflict) -> Io.println("conflict: " ++ Path.toText(p))
       | Some(Failed(e)) -> Io.println("the peer failed: " ++ Path.toText(p))
-      | None            -> Io.println("the peer is not answering: " ++ Path.toText(p))
+      | None -> Io.println("the peer is not answering: " ++ Path.toText(p))
     }
 
 // Pure helpers --------------------------------------------------
@@ -136,10 +147,10 @@ fn diff(old : Map(Path, Mtime), entries : List(Entry)) -> List(Change) =
 
 fn changed(old : Map(Path, Mtime), Entry(path = p, mtime = m) : Entry) -> Optional(Change) =
     match Map.get(old, p) {
-        None     -> Some(Change(path = p, mtime = m))
+        None -> Some(Change(path = p, mtime = m))
       | Some(m0) -> match Mtime.compare(m, m0) {
             Greater -> Some(Change(path = p, mtime = m))
-          | _       -> None
+          | _ -> None
         }
     }
 
