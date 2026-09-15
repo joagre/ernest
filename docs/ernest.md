@@ -300,19 +300,29 @@ AfterClause  = "after" Expr "->" Expr .
 BinExpr   = Unary { binop Unary } .
 Unary     = [ "-" ] Primary { Call } .
 Call      = "(" [ Expr { "," Expr } ] ")" .
-Primary   = literal | QName | Tuple | "()" | ListLit | Block | "(" Expr ")" .
+Primary   = literal | QName | Tuple | "()" | ListLit | BitExpr | Block | "(" Expr ")" .
 QName     = { typename "." } ( ident | binop | conname [ "(" ( Expr | Fields ) ")" ] ) .
 Fields    = ".." Expr "," FieldSet { "," FieldSet } | FieldSet { "," FieldSet } .
 FieldSet  = ident "=" Expr .
 Tuple     = "#(" Expr { "," Expr } ")" .
 ListLit   = "[" [ Expr { "," Expr } ] "]" .
+BitExpr   = "<<" [ BitSegE { "," BitSegE } ] ">>" .
+BitSegE   = Expr [ ":" BitSpec { "-" BitSpec } ] .
 Block     = "{" Stmt { ";" Stmt } "}" .
 Stmt      = FnDecl | Binding | Expr .
 Pattern   = ConsPat [ "as" ident ] .
 ConsPat   = AtomPat [ "::" ConsPat ] .
 AtomPat   = "_" | ident | literal | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
           | "#(" Pattern { "," Pattern } ")" | "()"
-          | "[" [ Pattern { "," Pattern } ] "]" .
+          | "[" [ Pattern { "," Pattern } ] "]"
+          | BitPat .
+BitPat    = "<<" [ BitSegP { "," BitSegP } ] ">>" .
+BitSegP   = Pattern [ ":" BitSpec { "-" BitSpec } ] .
+BitSpec   = "size" "(" Expr ")" | "unit" "(" int ")"
+          | "bits" | "bytes" | "int" | "float"
+          | "utf8" | "utf16" | "utf32"
+          | "big" | "little" | "native"
+          | "signed" | "unsigned" .
 FieldPats = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 ```
 
@@ -1094,7 +1104,7 @@ Every technical term this report introduces, with the section that defines it. P
 - **binding** — a `let` in a block, `let p = e` or `let p <- e`. §4.6, §5.5.
 - **bitstring** — a bit-level value or pattern `<<...>>` that produces or matches a `Bytes` value. §5.11.
 - **`Bytes`** — the type of an octet sequence. §3.1.
-- **clause** — one arm of a `match` or `receive`. §5.9, §6.3.
+- **clause** — one pattern-branch of a `match` or `receive`. §5.9, §6.3.
 - **compare** — the per-type function that produces `Ordering`. §3.10.
 - **concat operator** — `<>`, resolved per type: `String.<>`, `List.<>`, `Bytes.<>`. §4.8.
 - **cons operator** — `::`, list-prepend, right-associative. §3.3, §5.10.
