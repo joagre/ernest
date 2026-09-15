@@ -214,26 +214,26 @@ Both modules are subject-first and live in Appendix E of the report (`Map.ern`, 
 
 ### 2.6 Tuples
 
-A tuple is a fixed-size positional group of values, each with its own type:
+A tuple is a fixed-size positional group of values, each with its own type. Tuples use a `#(...)` prefix to keep them clearly distinct from expression grouping `(e)` and from function types `(A, B) -> C`:
 
 ```
-let point : (Int, Int) = (3, 4);
-let entry : (Text, Int) = ("Alice", 30)
+let point : #(Int, Int) = #(3, 4);
+let entry : #(Text, Int) = #("Alice", 30)
 ```
 
-The type `(A, B)` is a two-tuple; `(A, B, C)` a three-tuple; and so on. A tuple must have at least two elements — `(x)` isn't a tuple, it's just parentheses around `x`.
+The type `#(A, B)` is a two-tuple; `#(A, B, C)` a three-tuple; and one-tuples `#(A)` are also legal — the `#` makes the shape unambiguous.
 
 Destructure with a pattern:
 
 ```
-let (x, y) = point;
-let (name, age) = entry
+let #(x, y) = point;
+let #(name, age) = entry
 ```
 
 Tuples are useful when a function needs to return more than one value without introducing a named type:
 
 ```
-fn divmod(a : Int, b : Int) -> (Int, Int) = todo("quotient and remainder")
+fn divmod(a : Int, b : Int) -> #(Int, Int) = todo("quotient and remainder")
 ```
 
 For anything where positions carry different meanings that a reader would benefit from seeing, prefer a named-fields constructor (`Person(name : Text, age : Int)`) over a tuple. Tuples are for genuinely positional data — 2D points, key-value pairs, multi-value returns — where the position itself is the interpretation.
@@ -348,7 +348,7 @@ let name = match user { Some(u) -> u | None -> "guest" };
 **Patterns everywhere, with a rule.** The same patterns you see in `match` clauses also appear in `let` bindings and in function parameters. But there is a distinction: patterns in `let` and function parameters must be **irrefutable** — they must always match. Tuple patterns are irrefutable (a tuple always has the shape you spelled), and so are wrapper patterns like `Snapshot(seen = s)` when there is only one constructor:
 
 ```
-let (x, y) = point; // fine — tuples always destructure
+let #(x, y) = point; // fine — tuples always destructure
 fn area(Point(x, y) : Point) -> Int = x * y // fine — Point has one constructor
 ```
 
@@ -393,7 +393,7 @@ Ernest gives you this with `abstract type`:
 abstract type Stack(a) = Stack(List(a)) with {
     empty : Stack(a);
     push : (a, Stack(a)) -> Stack(a);
-    pop : (Stack(a)) -> Optional((a, Stack(a)))
+    pop : (Stack(a)) -> Optional(#(a, Stack(a)))
 }
 ```
 
@@ -409,8 +409,8 @@ The definitions:
 ```
 let Stack.empty : Stack(a) = Stack([])
 fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) = Stack(x :: xs)
-fn Stack.pop(Stack(xs) : Stack(a)) -> Optional((a, Stack(a))) =
-    match xs { [] -> None | x :: rest -> Some((x, Stack(rest))) }
+fn Stack.pop(Stack(xs) : Stack(a)) -> Optional(#(a, Stack(a))) =
+    match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
 ```
 
 `Stack(x :: xs)` and `Stack(xs)` inside these definitions name the constructor because their names appear in the signature. A caller outside `Stack` cannot do this. They must use `Stack.empty`, `Stack.push`, and `Stack.pop`.
@@ -1009,8 +1009,8 @@ fn frame(len : Int, body : Bytes) -> Bytes =
 **Parsing** one back apart:
 
 ```
-fn parseFrame(bytes : Bytes) -> Optional((Int, Bytes, Bytes)) = match bytes {
-    <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> -> Some((len, body, rest))
+fn parseFrame(bytes : Bytes) -> Optional(#(Int, Bytes, Bytes)) = match bytes {
+    <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> -> Some(#(len, body, rest))
   | _ -> None
 }
 ```

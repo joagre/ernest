@@ -13,7 +13,7 @@ type Key = Up | Down | Left | Right | Quit
 Sys.keys : Address(KeyMsg) // additional runtime reference
 ```
 
-`type Seed = Seed(Int)` and `Random.next : (Seed) -> (Int, Seed)` are assumed available (a stdlib `Random` module), a pure generator.
+`type Seed = Seed(Int)` and `Random.next : (Seed) -> #(Int, Seed)` are assumed available (a stdlib `Random` module), a pure generator.
 
 ## The Program
 
@@ -90,21 +90,21 @@ fn player(id : Int, game : Address(GameMsg)) -> () with Key = receive {
 // Three counters change: score per player, apples left, tick.
 fn step(world : World) -> World = {
     let World(w = w, h = h, players = ps, apples = apples, seed = seed, tick = t) = world;
-    fn movePlayer((acc, apples), _, p) = match p {
-        Player(alive = false) -> (acc, apples)
+    fn movePlayer(#(acc, apples), _, p) = match p {
+        Player(alive = false) -> #(acc, apples)
       | Player(body = head :: rest, dir = d, score = s) -> {
             let next = move(w, h, head, d);
             let ate = List.contains(apples, next);
-            let (body, s2) = if ate then (next :: head :: rest, s + 1)
-                             else (next :: head :: List.dropLast(rest), s);
+            let #(body, s2) = if ate then #(next :: head :: rest, s + 1)
+                             else #(next :: head :: List.dropLast(rest), s);
             let p2 = Player(..p, body = body, score = s2);
-            (Map.put(acc, Player.id(p), p2), List.remove(apples, next))
+            #(Map.put(acc, Player.id(p), p2), List.remove(apples, next))
         }
-      | Player(body = []) -> (acc, apples)
+      | Player(body = []) -> #(acc, apples)
     };
-    let (ps2, apples2) = Map.foldLeft(ps, (ps, apples), movePlayer);
+    let #(ps2, apples2) = Map.foldLeft(ps, #(ps, apples), movePlayer);
     let ps3 = Map.map(ps2, fn(_, p) = collide(ps2, p));
-    let (apples3, seed2) = refill(w, h, Map.size(ps3), apples2, seed);
+    let #(apples3, seed2) = refill(w, h, Map.size(ps3), apples2, seed);
     World(..world, players = ps3, apples = apples3, seed = seed2, tick = t + 1)
 }
 
@@ -126,11 +126,11 @@ fn collide(ps : Map(Int, Player), p : Player) -> Player = match p {
   | _ -> p
 }
 
-fn refill(w : Int, h : Int, want : Int, apples : List(Pos), seed : Seed) -> (List(Pos), Seed) =
-    if List.size(apples) >= want then (apples, seed)
+fn refill(w : Int, h : Int, want : Int, apples : List(Pos), seed : Seed) -> #(List(Pos), Seed) =
+    if List.size(apples) >= want then #(apples, seed)
     else {
-        let (rx, s1) = Random.next(seed);
-        let (ry, s2) = Random.next(s1);
+        let #(rx, s1) = Random.next(seed);
+        let #(ry, s2) = Random.next(s1);
         refill(w, h, want, Pos(x = rx % w, y = ry % h) :: apples, s2)
     }
 
@@ -149,8 +149,8 @@ fn move(w : Int, h : Int, Pos(x = x, y = y) : Pos, d : Dir) -> Pos = match d {
   | E -> Pos(x = (x + 1) % w, y = y)
 }
 
-fn turn(p : Player, d : Dir) -> Player = match (Player.dir(p), d) {
-    (N, S) -> p | (S, N) -> p | (W, E) -> p | (E, W) -> p // no U-turn
+fn turn(p : Player, d : Dir) -> Player = match #(Player.dir(p), d) {
+    #(N, S) -> p | #(S, N) -> p | #(W, E) -> p | #(E, W) -> p // no U-turn
   | _ -> Player(..p, dir = d)
 }
 

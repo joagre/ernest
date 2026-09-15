@@ -21,8 +21,8 @@ type Tick = Tick
 // Types
 //
 
-type Request = Request(method : Text, path : Text, headers : List((Text, Text)))
-type Response = Response(status : StatusCode, headers : List((Text, Text)), body : Text)
+type Request = Request(method : Text, path : Text, headers : List(#(Text, Text)))
+type Response = Response(status : StatusCode, headers : List(#(Text, Text)), body : Text)
 type ParseError = BadEncoding | BadRequestLine | BadHeader(Text)
 type Session = Session(Int) // number of visits
 
@@ -109,13 +109,13 @@ fn handler(
 fn parse(b : Bytes) -> Either(ParseError, Request) = {
     let t <- Either.fromOptional(Text.fromUtf8(b), BadEncoding);
     let lines = Text.lines(t);
-    let (method, path) <- requestLine(lines);
+    let #(method, path) <- requestLine(lines);
     let headers <- headerLines(lines);
     Right(Request(method = method, path = path, headers = headers))
 }
 
-fn requestLine(lines : List(Text)) -> Either(ParseError, (Text, Text)) = todo("on paper")
-fn headerLines(lines : List(Text)) -> Either(ParseError, List((Text, Text))) = todo("on paper")
+fn requestLine(lines : List(Text)) -> Either(ParseError, #(Text, Text)) = todo("on paper")
+fn headerLines(lines : List(Text)) -> Either(ParseError, List(#(Text, Text))) = todo("on paper")
 fn render(r : Response) -> Bytes = todo("on paper")
 fn cookie(r : Request, name : Text) -> Optional(Text) = todo("on paper")
 fn withCookie(name : Text, value : Text, r : Response) -> Response = todo("on paper")

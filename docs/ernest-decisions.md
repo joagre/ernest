@@ -4,7 +4,7 @@ The reasoning behind the language report in [`ernest.md`](ernest.md): what was t
 
 **A note on principle numbering.** Some dated entries below reference "principle N" using the count at the time they were written. The count changed on 2026-09-14 from seven principles to five (see *Ambient Sys, Five Principles*), and one entry from 2026-09-12 renamed "principle 5" as what is now principle 4 (simple to parse). Read older references in that light; the current numbering lives in [`ernest.md`](ernest.md) §0.
 
-**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Later the same day the cons operator `+:` became `::` and the text-concat operator `++` became `<>` (see *List and Concat Operators*), the reserved word `recv` was spelled out as `receive` (see *`recv` → `receive`*), and `opaque` became `abstract` (see *`opaque` → `abstract`*). Historical entries below use the older names; the current terms live in [`ernest.md`](ernest.md).
+**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Later the same day the cons operator `+:` became `::` and the text-concat operator `++` became `<>` (see *List and Concat Operators*), the reserved word `recv` was spelled out as `receive` (see *`recv` → `receive`*), `opaque` became `abstract` (see *`opaque` → `abstract`*), and tuples got a `#(...)` prefix (see *Tuples: `#(...)` Prefix*). Historical entries below use the older syntax; the current forms live in [`ernest.md`](ernest.md).
 
 ## Starting Point
 
@@ -616,6 +616,34 @@ Taken: `abstract`. Ernest's type system is ML-family (Hindley-Milner, sum types,
 **Effect.** Reserved word `opaque` → `abstract` (still sixteen keywords). Grammar rule `OpaqueDecl` → `AbstractDecl`. Every `opaque type` in the report, guide, four paper programs, and implementation plan updated. §3 and §4's paragraph header "Opaque types" → "Abstract types". Prose adjective uses ("an opaque modification time") also updated to "abstract" for consistency — in context, "abstract" reads as "representation-hidden", which is the intended meaning.
 
 **Not renamed.** No collision with any other keyword, so nothing else moves.
+
+## Tuples: `#(...)` Prefix, 2026-09-15
+
+External review flagged Ernest's parenthesis overloading. `(...)` played eight roles: grouping, function call, constructor call, tuple value, tuple type, function type argument list, type application, unit. Two real warts followed from letting `()` do both grouping and tuple formation: (a) the "tuples must have at least two elements" rule (no room for `(x)` alongside `(x)` grouping); (b) the fragile `(A, B) -> C` vs. `((A, B)) -> C` distinction (function of two args vs. function of one tuple, differ by one paren level).
+
+Considered:
+
+1. **Status quo.** Live with both warts.
+2. **`#(...)` prefix on tuples** (Gleam convention). `#(a, b)` for value, `#(A, B)` for type, `#(p, q)` for pattern. Two-element minimum goes away; the paren-fragility goes away.
+3. **Drop positional tuples entirely.** Force named-field records for every multi-value shape. Extends §3's "position hides intent" rule uniformly.
+4. **Curly braces for tuples** (Erlang/Elixir). `{a, b}`. Collides with block/clause-list use of `{}` in Ernest — rejected outright.
+
+Taken: option 2. Counted uses across the four paper programs, prelude, and report: roughly 30-40 tuple sites, most of them transient pairs (`(digits, rest)` from `List.span`, `(v, r2)` from a parser step, `(acc, apples)` in a fold accumulator). Dropping tuples (option 3) would have added about nine new named types to hold what today are transient values, plus turning every destructure and construction into multi-word constructor syntax. The cost was real and disproportionate: option 3 loses ergonomic pairs where they're useful, in exchange for a principle that §3 already applies to declared types.
+
+Option 2 fixes both warts for the price of one `#` character per tuple site and one lexer/parser change:
+
+- `#(x)`, `#(x, y)`, `#(x, y, z)`, ... — all legal; no minimum.
+- `(A, B) -> C` — unambiguously function type (two args).
+- `(#(A, B)) -> C` — unambiguously function type taking one tuple.
+- `(e)` — unambiguously grouping.
+- `()` — unit, unchanged.
+- Empty tuple `#()` is not a thing — unit `()` covers zero-value case (principle 2, one way one job).
+
+**Grammar.** `TupleType = "#(" Type { "," Type } ")" .` added; `TypeAtom`'s old `"(" Type "," Type { "," Type } ")"` removed. `Tuple = "#(" Expr { "," Expr } ")" .` (was `"(" Expr "," Expr { "," Expr } ")"`). `AtomPat`'s tuple form gets the `#` prefix.
+
+**Not affected.** Type application `List(a)`, function call `f(x, y)`, constructor call `Some(x)`, function type `(A, B) -> C`, unit `()`, grouping `(e)`. All still use plain parens — each is now unambiguous from first-token dispatch or the presence of `->`.
+
+**Bonus.** The decisions-log entry from 2026-09-12 (Grammar Audit) noted that `(A, B) -> C` vs `((A, B)) -> C` was a "remaining fragility" with a compiler suggestion on arity errors. The suggestion becomes unnecessary — the two forms are now clearly different (one uses `#`, the other doesn't).
 
 ## `Bool.ern` Added, 2026-09-14
 

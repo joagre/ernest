@@ -46,7 +46,7 @@ bool     = "true" | "false" .
 **Operators and delimiters.**
 
 ```
-( ) { } [ ] << >> , ; : = <- -> | .. _
+( ) { } [ ] << >> #( , ; : = <- -> | .. _
 + - * / % <> :: == != < <= > >= && || |>
 ```
 
@@ -67,18 +67,19 @@ Prefix `-` is negation on `Int` and `Float`, and binds tighter than any binary o
 Type      = FnType | TypeAtom .
 TypeAtom  = { typename "." } typename [ "(" Type { "," Type } ")" ]
           | typevar
-          | "(" Type "," Type { "," Type } ")"
+          | TupleType
           | "()" .
+TupleType = "#(" Type { "," Type } ")" .
 FnType    = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
 ```
 
 **Base types.** `Int`, integers of arbitrary precision. `Float`, IEEE 754 double precision. `Char`, one code point. `Text`, a Unicode string. `Bytes`, a sequence of octets. `Bool`, with the literals `true` and `false`. `()`, the unit type with the single value `()`. There are no type aliases.
 
-**Tuples.** `(A, B)` with two or more components. The tuple is the only positional product type.
+**Tuples.** `#(A, B)` is the type of a tuple; the value form is the same, `#(a, b)`. Tuples of one, two, or more components are all written this way. The tuple is the only positional product type. The `#(` prefix keeps tuples distinct from expression grouping `(e)` and from function types `(A, B) -> C`.
 
 **Lists.** `List(a)` is an immutable linked list. `[]` is the empty list. `x :: xs` prepends `x` to `xs`; `::` is right-associative, so `[a, b]` is `a :: b :: []`.
 
-**Function types.** `(A, B) -> C` is the type of a function of two arguments. Arity is part of the type: `(A, B) -> C` and `((A, B)) -> C` are different types. `() -> C` takes no arguments. `with M` after the result is the mailbox type: the function uses the process it runs in, whose mailbox has type `M`, section 6. A function type without a mailbox type is pure. `with` binds to the nearest arrow; `(A) -> (B) -> C with M` is a pure function returning a function with mailbox type `M`.
+**Function types.** `(A, B) -> C` is the type of a function of two arguments. Arity is part of the type: `(A, B) -> C` and `(#(A, B)) -> C` are different types — the first takes two arguments, the second takes one tuple. `() -> C` takes no arguments. `with M` after the result is the mailbox type: the function uses the process it runs in, whose mailbox has type `M`, section 6. A function type without a mailbox type is pure. `with` binds to the nearest arrow; `(A) -> (B) -> C with M` is a pure function returning a function with mailbox type `M`.
 
 **Sum types.** Declared with `type`, section 4. A constructor has no fields, exactly one positional field, or named fields:
 
@@ -135,12 +136,12 @@ QTypeName   = { typename "." } typename .
 abstract type Stack(a) = Stack(List(a)) with {
     empty : Stack(a);
     push : (a, Stack(a)) -> Stack(a);
-    pop : (Stack(a)) -> Optional((a, Stack(a)))
+    pop : (Stack(a)) -> Optional(#(a, Stack(a)))
 }
 
 let Stack.empty = Stack([])
 fn Stack.push(x, Stack(xs)) = Stack(x :: xs)
-fn Stack.pop(Stack(xs)) = match xs { [] -> None | x :: rest -> Some((x, Stack(rest))) }
+fn Stack.pop(Stack(xs)) = match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
 ```
 
 **Functions.** `fn` declares a function of fixed arity. Annotations may be omitted where they can be inferred. The return annotation has three forms: omitted, `-> T` for a pure function, `-> T with M` for process code. A pure annotation on a function that calls process code is a type error. A function has one clause. Patterns in parameters must be irrefutable, section 5, `fn seenCount(Snapshot(seen = entries) : Snapshot) -> Int = Map.size(entries)`. `fn` may appear at top level and as a statement in a block; it sees its own name, and `fn` declarations in the same block or at top level may refer to each other mutually.
@@ -168,14 +169,14 @@ Primary   = literal | QName | Tuple | "()" | ListLit | Block | "(" Expr ")" .
 QName     = { typename "." } ( ident | binop | conname [ "(" ( Expr | Fields ) ")" ] ) .
 Fields    = ".." Expr "," FieldSet { "," FieldSet } | FieldSet { "," FieldSet } .
 FieldSet  = ident "=" Expr .
-Tuple     = "(" Expr "," Expr { "," Expr } ")" .
+Tuple     = "#(" Expr { "," Expr } ")" .
 ListLit   = "[" [ Expr { "," Expr } ] "]" .
 Block     = "{" Stmt { ";" Stmt } "}" .
 Stmt      = FnDecl | Binding | Expr .
 Pattern   = ConsPat [ "as" ident ] .
 ConsPat   = AtomPat [ "::" ConsPat ] .
 AtomPat   = "_" | ident | literal | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
-          | "(" Pattern "," Pattern { "," Pattern } ")" | "()"
+          | "#(" Pattern { "," Pattern } ")" | "()"
           | "[" [ Pattern { "," Pattern } ] "]" .
 FieldPats = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 ```
@@ -204,7 +205,7 @@ let words = input |> Text.trim |> Text.toLower |> Text.chars
 
 **`match`.** The expression is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. A failed guard falls through. The clauses together must cover the type; guards do not count as coverage. Variables in the pattern are bound in the guard and the clause.
 
-**Patterns.** A pattern decomposes a value and binds its parts. The same patterns appear in `let`, in `match` and `receive` clauses, and in function parameters. `_` matches anything and binds nothing. An identifier binds the whole value at its position to a new variable, shadowing any outer variable of that name; it never refers to an existing variable. A literal matches itself. A constructor with a pattern, `Some(p)`, or with field patterns, `Snapshot(seen = s)`, which may omit fields, matches that constructor and decomposes its fields. A tuple, a list `[p, q]`, and `p :: q` decompose those. Patterns nest to any depth: `Some((x, Snapshot(dir = d)))`. `p as c` binds `c` to the whole value that `p` matches, `Some(Snapshot(dir = d) as snap)`; `as` binds loosest, so `x :: rest as all` names the whole list. Each variable appears at most once in a pattern; a pattern does not compare, and equality is written in a guard. A pattern is irrefutable if it cannot fail: `_`, an identifier, a tuple of irrefutable patterns, or a constructor pattern of a type with exactly one constructor whose sub-patterns are all irrefutable. `let` and parameters require irrefutable patterns; `let Right(x) = e` is a type error.
+**Patterns.** A pattern decomposes a value and binds its parts. The same patterns appear in `let`, in `match` and `receive` clauses, and in function parameters. `_` matches anything and binds nothing. An identifier binds the whole value at its position to a new variable, shadowing any outer variable of that name; it never refers to an existing variable. A literal matches itself. A constructor with a pattern, `Some(p)`, or with field patterns, `Snapshot(seen = s)`, which may omit fields, matches that constructor and decomposes its fields. A tuple, a list `[p, q]`, and `p :: q` decompose those. Patterns nest to any depth: `Some(#(x, Snapshot(dir = d)))`. `p as c` binds `c` to the whole value that `p` matches, `Some(Snapshot(dir = d) as snap)`; `as` binds loosest, so `x :: rest as all` names the whole list. Each variable appears at most once in a pattern; a pattern does not compare, and equality is written in a guard. A pattern is irrefutable if it cannot fail: `_`, an identifier, a tuple of irrefutable patterns, or a constructor pattern of a type with exactly one constructor whose sub-patterns are all irrefutable. `let` and parameters require irrefutable patterns; `let Right(x) = e` is a type error.
 
 **Bitstrings.** `<<...>>` constructs and pattern-matches a `Bytes` value at the bit level. A bitstring is a comma-separated list of segments between `<<` and `>>`; each segment is a value (in construction) or a pattern (in `match`), followed optionally by a colon and a dash-separated list of specifiers. Specifiers are: `size(N)` for segment width in units, `unit(N)` for bits per size unit (default 1), `bits` and `bytes` for nested bitstrings, `int` (default 8-bit) and `float` (default 64-bit) for numeric segments, `utf8`/`utf16`/`utf32` for text encoding, `big`/`little`/`native` for endianness, and `signed`/`unsigned` for sign. These specifier names carry that role only inside a bitstring — outside, they are ordinary identifiers, and the reserved-word count remains sixteen. A bitstring pattern binds its segment variables; a segment whose length is `size(n)-bytes` and whose `n` refers to an earlier bound variable is a size-dependent match, common in protocol parsing. Constructing a bitstring evaluates its segments left to right and concatenates them into a `Bytes` value; a segment whose value does not fit its specified width is a fault. An empty `<<>>` is the empty `Bytes`.
 
@@ -212,8 +213,8 @@ let words = input |> Text.trim |> Text.toLower |> Text.chars
 fn frame(len : Int, body : Bytes) -> Bytes =
     <<len:size(16)-big, body:bytes>>
 
-fn parseFrame(bytes : Bytes) -> Optional((Int, Bytes, Bytes)) = match bytes {
-    <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> -> Some((len, body, rest))
+fn parseFrame(bytes : Bytes) -> Optional(#(Int, Bytes, Bytes)) = match bytes {
+    <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> -> Some(#(len, body, rest))
   | _ -> None
 }
 ```
@@ -440,7 +441,8 @@ QTypeName   = { typename "." } typename .
 
 Type        = FnType | TypeAtom .
 TypeAtom    = { typename "." } typename [ "(" Type { "," Type } ")" ] | typevar
-            | "(" Type "," Type { "," Type } ")" | "()" .
+            | TupleType | "()" .
+TupleType   = "#(" Type { "," Type } ")" .
 FnType      = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
 
 Expr        = Lambda | IfExpr | MatchExpr | ReceiveExpr | BinExpr .
@@ -457,7 +459,7 @@ Primary     = literal | QName | Tuple | "()" | ListLit | BitExpr | Block | "(" E
 QName       = { typename "." } ( ident | binop | conname [ "(" ( Expr | Fields ) ")" ] ) .
 Fields      = ".." Expr "," FieldSet { "," FieldSet } | FieldSet { "," FieldSet } .
 FieldSet    = ident "=" Expr .
-Tuple       = "(" Expr "," Expr { "," Expr } ")" .
+Tuple       = "#(" Expr { "," Expr } ")" .
 ListLit     = "[" [ Expr { "," Expr } ] "]" .
 BitExpr     = "<<" [ BitSegE { "," BitSegE } ] ">>" .
 BitSegE     = Expr [ ":" BitSpec { "-" BitSpec } ] .
@@ -467,7 +469,7 @@ Stmt        = FnDecl | Binding | Expr .
 Pattern     = ConsPat [ "as" ident ] .
 ConsPat     = AtomPat [ "::" ConsPat ] .
 AtomPat     = "_" | ident | literal | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
-            | "(" Pattern "," Pattern { "," Pattern } ")" | "()"
+            | "#(" Pattern { "," Pattern } ")" | "()"
             | "[" [ Pattern { "," Pattern } ] "]"
             | BitPat .
 BitPat      = "<<" [ BitSegP { "," BitSegP } ] ">>" .
@@ -576,7 +578,7 @@ fn submitter(worker : Address(WorkerMsg)) -> () with Never = {
 
 ## Appendix D. A Foreign Library
 
-A shim over Erlang's `ets`, tables of type `set`. Raw bindings are module-local (unqualified); the library is ordinary Ernest over them. No Erlang module is needed: the representation of values, section 10, already matches Erlang's conventions, `true` is `Bool`, `[{K, V}]` is `List((k, v))`, and `{ok, V} | {error, R}` is a sum type with constructors tagged `ok` and `error`.
+A shim over Erlang's `ets`, tables of type `set`. Raw bindings are module-local (unqualified); the library is ordinary Ernest over them. No Erlang module is needed: the representation of values, section 10, already matches Erlang's conventions, `true` is `Bool`, `[{K, V}]` is `List(#(k, v))`, and `{ok, V} | {error, R}` is a sum type with constructors tagged `ok` and `error`.
 
 ```
 // Ets.ern
@@ -606,7 +608,7 @@ foreign fn rawInsert(t : Ets.Table(k, v), row : (k, v)) -> Bool with m = "ets:in
 fn Ets.lookup(t : Ets.Table(k, v), key : k) -> Optional(v) with m =
     match rawLookup(t, key) { [(_, v)] -> Some(v) | _ -> None }
 
-foreign fn rawLookup(t : Ets.Table(k, v), key : k) -> List((k, v)) with m = "ets:lookup/2"
+foreign fn rawLookup(t : Ets.Table(k, v), key : k) -> List(#(k, v)) with m = "ets:lookup/2"
 
 /// Remove key. A key not present is not an error.
 fn Ets.delete(t : Ets.Table(k, v), key : k) -> () with m = { let _ = rawDelete(t, key); () }
@@ -632,7 +634,7 @@ foreign fn rawClear(t : Ets.Table(k, v)) -> Bool with m = "ets:delete_all_object
 foreign fn Ets.member(t : Ets.Table(k, v), key : k) -> Bool with m = "ets:member/2"
 
 /// All key-value pairs currently in the table, in unspecified order.
-foreign fn Ets.toList(t : Ets.Table(k, v)) -> List((k, v)) with m = "ets:tab2list/1"
+foreign fn Ets.toList(t : Ets.Table(k, v)) -> List(#(k, v)) with m = "ets:tab2list/1"
 ```
 
 ```
@@ -689,7 +691,7 @@ List.filter      : (List(a), (a) -> Bool) -> List(a)
 List.filterMap   : (List(a), (a) -> Optional(b)) -> List(b)
 List.foldLeft    : (List(a), b, (b, a) -> b) -> b
 List.foreach     : (List(a), (a) -> ()) -> ()
-List.span        : (List(a), (a) -> Bool) -> (List(a), List(a))
+List.span        : (List(a), (a) -> Bool) -> #(List(a), List(a))
 List.sort        : (List(a), (a, a) -> Ordering) -> List(a)
 List.remove      : (List(a), a) -> List(a)
 ```
