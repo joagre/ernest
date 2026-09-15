@@ -932,6 +932,102 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Third-Round Review Response: Float Finite-Only, ABI Table, Restriction Propagation, Assorted Repairs, 2026-09-15
+
+Third-round review flagged remaining tails on U01, U03, U05, U07, U09; a concrete example for R07; new grammar corrections for R18; and asked for an ABI table (R16 narrowed). Also: pure spawn callback (U01), remote worker lifetime (R12), and connected-peer deadlock exclusion (R13). This decision groups all response edits.
+
+**Float domain: commit to finite-only.**
+
+The reviewer's core U05 concern: §3.1 promised `Infinity` and `NaN` values, but native BEAM raises `badarith` for them and Erlang's external term format encodes only finite floats. The two positions are inconsistent.
+
+- **Commit to finite-only Float.** Taken. `Float` values are IEEE 754 doubles restricted to the finite range. Arithmetic that would produce a non-finite result faults with `Fault("float arithmetic error")`. Aligns with BEAM natively; no runtime extension needed.
+- **Commit to full-IEEE with runtime extension.** Rejected — larger implementation footprint for edge cases no paper program stresses.
+
+Consequences:
+
+- §3.1 rewrites arithmetic to fault on overflow/div-by-zero/`0.0 / 0.0`.
+- §3.10 loses the "Float follows IEEE 754 as a specific exception" paragraph — equality is structural for Float, no NaN concern.
+- §3.10 loses the "`Map(Float, v)` and `Set(Float)` are rejected" clause — Float equality is reflexive without NaN, so it is a valid key.
+- §7.4's Float item now covers `Float` arithmetic faults; `Float.compare/round/floor/ceil` are total.
+- `Float.isNaN` removed from Appendix E.9 — no NaN to check.
+
+**R07 revised — early-call before initialization.**
+
+The reviewer's concrete case: a local `fn` is called before a `let` it captures has been evaluated. Under the whole-block-visibility rule adopted earlier, this typechecked; the reviewer flagged it as unsound.
+
+- **Reject early-call.** Taken. §5.4 gains a sentence: "A local `fn` may only be *called* after every `let` binding it references — directly or through calls to other local `fn`s in the same block — has been evaluated." The check follows local-function call edges to include indirect dependencies.
+
+**R18 grammar cleanups.**
+
+- `[ "-" ] literal` → `literal | "-" ( int | float )` in both grammar blocks. Prevents `-"text"` and `-true` at grammar level.
+- `ParenType` parsing prose reworded: "consume the common `(` and comma-separated content, then inspect the next token" — matches the reviewer's request for a bounded-consumption description over lookahead-through-parens.
+- Pipe/lambda edge cases added to §5.7: `x |> f(a)(b)` inserts into the outermost call — `f(a)(x, b)`. `x |> (f(a))` is `f(x, a)`.
+- Constructor-call ambiguity: the reviewer downgraded to editorial. `Some(x)` has one canonical parse via `QName`'s constructor-suffix branch, and semantics matches a call for single-positional constructors. No change needed beyond noting this.
+
+**R16 narrowed — ABI table.**
+
+The reviewer accepted the trust boundary (foreign side delivers declared types; breach is a fault) and asked instead for a normative representation table.
+
+- **Compact ABI table in §8.4.** Taken. Covers base values, nullary/positional/named constructors, tuples, lists, `Void`, addresses/replies (opaque), foreign values, function values (opaque). Same-named constructors of different types share a lowercase atom; the receiving side's declared type disambiguates. Faults for malformed foreign returns are delivered to the receiving Ernest process on first observation.
+
+**U01 pure spawn callback.**
+
+The reviewer's concrete case: `spawn(Local, work)` where `work : () -> Void` (pure). Under the non-empty rule for primitives, `spawn`'s `n` (from `Address(n)`) must be a mailbox type, so a pure callback fails to unify.
+
+- **Reject; require `with Never` annotation.** Taken. §6.2 gains a sentence explaining that the callback's mailbox effect must be a real mailbox type; a spawned process that never receives is annotated `with Never`.
+
+**U01 & U03 propagation through function values.**
+
+The reviewer's ask: non-empty and not-reply-carrying restrictions must survive wrappers, function values, and compiled module interfaces — same treatment as equality (U04).
+
+- **Consolidate all three restrictions under one propagation rule.** Taken. New §3.9 paragraph "Inferred restrictions propagate through function values, branches, and modules" naming the three restrictions (equality, non-empty effect, not-reply-carrying) and stating: they are part of the type scheme, travel with the function value, preserved across compiled interfaces, and surfaced in diagnostics. Rejected: a special user-writable constraint syntax (violates principle 5).
+
+**U03 match decomposition transfer.**
+
+The reviewer asked for explicit language: matching a reply-carrying scrutinee transfers the obligation to the pattern-bound fields; matching a nullary reply-carrying-sum constructor (like `Stop` in `PongMsg`) discharges the obligation with no new binding.
+
+- **Added to §6.6.** Taken. One sentence in the pattern-matching paragraph.
+
+**U07 three sub-issues.**
+
+- *Recomputed top-level values need not match sender's.* Fixed. §8.7 no longer claims "the per-node result matches the sender's". It now states the initializer runs in the peer's environment and results may differ; each initializer evaluated at most once per node per code version.
+- *PeerLost naming and effect on held addresses.* Kept the unified `PeerLost` (no new error constructor). Added: "`Left(PeerLost)` signals that this specific `remote` operation did not complete; it does not invalidate other `Address` values held for the same peer, which are only invalidated by actual peer-loss detection (§10)." Rejected: split into `RemoteFailed` vs `PeerLost` (adds error surface).
+- *Remote-send failure timing.* Explicit: `send` returns immediately (§6.2), so a peer-side resolution failure faults the sending process *asynchronously* after `send`'s return.
+
+**U09 three repairs.**
+
+- §7.4 opening softened to the reviewer's suggested wording: "Partial operations in the prelude generally return `Optional` or `Either`. The operations listed below deliberately fault on specified inputs or runtime conditions. Absence of a mailbox effect does not guarantee absence of faults."
+- Remote-send resolution failure added to the §7.4 fault list.
+- Bitstring fault clause updated to include per-segment alignment (U08).
+- §8.5 cycle-phase text now states both phases together: within-module compile-time; cross-module load-time.
+
+**R12 remote worker lifetime + local scope.**
+
+- §8.6 termination paragraph scopes `ProgramEnd` to *local* processes and adds: "Remotely spawned workers on peer nodes are unaffected by the initiating program's exit — they run independently under their peer's runtime."
+
+**R13 connected-peer channel prevents deadlock.**
+
+- §8.6 deadlock paragraph now includes connected peers with pending outgoing computations as "messages in flight" — a program awaiting a reply from a still-computing peer is not deadlocked.
+
+**Cost.**
+
+- Twelve section edits ranging from one sentence to a full paragraph.
+- One new inline ABI table in §8.4 (about 15 lines).
+- One new propagation paragraph in §3.9.
+- No new keyword, no new type, no new operator.
+- Grammar changes: one refinement (numeric-only `-` prefix) plus one parsing description rewrite.
+
+**Principle 5 (small).** Float finite-only is a net simplification: removes IEEE exception paragraph, removes Map/Set Float restriction, removes `Float.isNaN` from stdlib. R16 adds an ABI table but it replaces spec folklore with 15 lines.
+
+**Principle 2 (one way).** Three restrictions (equality, non-empty, not-reply-carrying) share one propagation rule rather than being separate special cases. `PeerLost` remains one signal for all remote failures.
+
+**Principle 3 (nothing invisible).** Match decomposition transfer, remote-send timing, peer-local top-level initialization, remote worker lifetime, and connected-peer deadlock exclusion are all now stated.
+
+**Still open — reviewer input requested (unchanged from previous round):**
+
+- R07 — reviewer's concrete example was addressed. The general early-call rejection rule handles it.
+- Nothing else pending.
+
 ## Four "Partly Resolved" Tails: Blocks, Reply Timing, Termination, Deadlock Scope, 2026-09-15
 
 Four remaining tails from the reviewer's "Partly Resolved" cells that we can decide ourselves. R16's tail was already covered by §8.4 + §10 (foreign side delivers declared types; representation is documented) — no change needed. R07's "local recursive functions" and R18's "constructor-call ambiguity" tails need a concrete example from the reviewer and stay open.

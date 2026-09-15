@@ -128,7 +128,7 @@ FnType    = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
 ParenType = "(" Type ")" .
 ```
 
-`FnType` and `ParenType` both begin with `(`; the parser distinguishes them by looking at the token that follows the matching `)` — `->` means `FnType`, anything else means `ParenType` (which then requires exactly one `Type` inside the parens).
+`FnType` and `ParenType` share the leading `(` and the comma-separated content up to the matching `)`. The parser consumes that common prefix, then inspects the next token: `->` completes an `FnType`; anything else finishes a `ParenType`, which requires exactly one `Type` inside the parens.
 
 ### 3.1 Base types
 
@@ -145,7 +145,7 @@ The prelude declares `Void` as a one-value type (§9.3): a function that has not
 
 **Integer arithmetic.** Integers are exact and unbounded — no overflow. Division `/` truncates toward zero: `-7 / 3 = -2`. Modulo `%` matches: `(a / b) * b + (a % b) == a`, so `-7 % 3 = -1`. `Int.div` and `Int.mod` (§9.6) use the same convention and return `Optional(Int)` in place of the zero-divisor fault; `Int.mod` is named for symmetry with `Int.div` and gives the same result as `%` (mathematical mod with always-non-negative result is not provided — write it in Ernest when needed).
 
-**Float arithmetic.** IEEE 754 double precision. Overflow yields IEEE `Infinity`, underflow yields signed zero, division by zero yields `Infinity` or `NaN` per IEEE — none of these fault. `Float.compare` (§9.6) faults if either operand is `NaN`, and `Float.round`, `Float.floor`, `Float.ceil` fault on `NaN` or ±`Infinity` — `Ordering` has no unordered case and `Int` has no infinity, so callers who may see these values guard with `Float.isNaN` (Appendix E.9) first.
+**Float arithmetic.** IEEE 754 double precision, restricted to the finite range. Arithmetic that would produce a non-finite result — overflow, underflow past the smallest subnormal, division by zero, `0.0 / 0.0`, and similar cases — faults with cause `Fault("float arithmetic error")`. There is no representation for `Infinity` or `NaN`, so `Float.compare`, `Float.round`, `Float.floor`, and `Float.ceil` are total on their input. This matches the underlying BEAM domain; a program that needs non-finite arithmetic must handle those cases explicitly before they arise.
 
 `Int` and `Float` are separate types with no implicit conversion. Mixing them in an arithmetic expression is a type error; use `Int.toFloat` or `Float.round`/`Float.floor`/`Float.ceil` at the boundary.
 
@@ -236,17 +236,23 @@ fn callBoth(p : (Int) -> Int, e : (Int) -> Void with n) -> Void with n = {
 
 An annotation is compatible with these; it doesn't need to state them. Constraints and obligations follow from usage in the body and from the callee's signatures.
 
+**Inferred restrictions propagate through function values, branches, and modules.** Three restrictions travel with a function's type wherever the function flows:
+
+- *Equality* (§3.10) — a variable used by `==` cannot be instantiated to a type containing functions or addresses.
+- *Non-empty effect* — a function whose body calls a process primitive (`send`, `spawn`, `Address.call`, etc.) inherits that primitive's non-empty-effect restriction on its own effect variable. A wrapper `fn wrap(a, v) = send(a, v)` cannot be instantiated with an empty caller effect at any use site.
+- *Not-reply-carrying* (§6.6) — a polymorphic parameter that a function duplicates, discards, or otherwise consumes twice cannot be instantiated to a reply-carrying type. `fn dup(x) = #(x, x)` and `fn discard(x) = Void` carry this restriction on their parameters; `fn id(x) = x` does not.
+
+All three propagate the same way: they are part of the type scheme, travel through function values and branches, are preserved across compiled module interfaces, and are surfaced in diagnostics (printed types and error messages). The annotation grammar does not admit them; they are inferred and enforced by the type checker.
+
 ### 3.10 Equality and ordering
 
 `==` and `!=` are defined for all values except those containing functions or addresses; on those, `==` is a type error. Equality is structural.
 
-`Float` follows IEEE 754 as a specific exception: `NaN == NaN` is `false`, `NaN != x` is `true` for any `x`, and the ordering comparisons `<`, `<=`, `>`, `>=` return `false` when either operand is `NaN`. The rule matches every mainstream language and cannot be reconciled with structural equality — the report acknowledges the exception rather than hiding it.
-
-Ordering is defined per type by the function `compare` in the type's namespace, `Int.compare : (Int, Int) -> Ordering`. `Float.compare` faults on `NaN` for the reason noted in §3.1.
+Ordering is defined per type by the function `compare` in the type's namespace, `Int.compare : (Int, Int) -> Ordering`. `Float.compare` is total on the finite domain of `Float` (§3.1).
 
 **Equality on polymorphic types.** A function that uses `==` on a value of a type variable induces an implicit *equality constraint* on that variable. The constraint is not written in the type syntax; it is inferred from usage and checked at each call site. Instantiating the variable with a type that contains a function or address is a type error at that call site — not at the function's definition. The rule matches the equality-comparable check for concrete types.
 
-`Map(k, v)` and `Set(a)` carry the same constraint on `k` and `a` respectively. Every operation on those containers implicitly asserts it, so a `Map` or `Set` parameterized by a non-comparable type is rejected at the first operation. Stdlib functions that use `==` internally on a type parameter, such as `List.contains` and `List.remove`, propagate the constraint through that parameter. `Float` fails the container-key requirement — `NaN != NaN` means the equality is not reflexive — so `Map(Float, v)` and `Set(Float)` are rejected, as is any key type whose equality transitively depends on a `Float`.
+`Map(k, v)` and `Set(a)` carry the same constraint on `k` and `a` respectively. Every operation on those containers implicitly asserts it, so a `Map` or `Set` parameterized by a non-comparable type is rejected at the first operation. Stdlib functions that use `==` internally on a type parameter, such as `List.contains` and `List.remove`, propagate the constraint through that parameter.
 
 The check is at instantiation, not at generalization: `fn equal(a, b) = a == b` type-checks (its type is `(a, a) -> Bool`), and each call site is checked against the concrete type substituted for `a`.
 
@@ -383,7 +389,8 @@ Block     = "{" Stmt { ";" Stmt } "}" .
 Stmt      = FnDecl | Binding | Expr .
 Pattern   = ConsPat [ "as" ident ] .
 ConsPat   = AtomPat [ "::" ConsPat ] .
-AtomPat   = "_" | ident | [ "-" ] literal | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
+AtomPat   = "_" | ident | literal | "-" ( int | float )
+          | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
           | "#(" Pattern { "," Pattern } ")"
           | "[" [ Pattern { "," Pattern } ] "]"
           | BitPat .
@@ -413,7 +420,7 @@ Strict, left to right, arguments before the call. No delayed computation; `fn() 
 
 `{ s1; s2; e }` is an expression whose value is the last statement, which must be an expression. `;` separates statements and never appears last. Statements are `fn` declarations, `let` bindings, and expressions; an expression as a statement is evaluated for its effect.
 
-A `fn` declared inside a block is visible throughout the block, so mutual and self-recursion between local `fn`s works the same as at the top level. `let` bindings remain sequential: `let p = e` is visible from the next statement onward, and a `fn` body that references a `let` declared later in the same block is a compile-time error.
+A `fn` declared inside a block is visible throughout the block, so mutual and self-recursion between local `fn`s works the same as at the top level. `let` bindings remain sequential: `let p = e` is visible from the next statement onward, and a `fn` body that references a `let` declared later in the same block is a compile-time error. A local `fn` may only be *called* after every `let` binding it references — directly or through calls to other local `fn`s in the same block — has been evaluated. Calling it earlier is a compile-time error; the check follows local-function call edges to include indirect dependencies.
 
 ### 5.5 Binding with `<-`
 
@@ -435,7 +442,7 @@ A nullary constructor is a value, a single-positional constructor is a function 
 let words = input |> String.trim |> String.toLower |> String.chars
 ```
 
-`|>` is left-associative and lowest-precedence, below `||`: `a + b |> f` is `f(a + b)`, and `a |> b |> c` is `c(b(a))`. The right-hand side may be a name, a qualified name, a parenthesized lambda, or a call whose first-argument slot the pipe fills. A lambda in this position must be parenthesized (`x |> (fn(y) = y + 1)`); an unparenthesized `fn(...) = ...` after `|>` would extend its body greedily into the surrounding expression. The type of `x` must match the target function's first argument.
+`|>` is left-associative and lowest-precedence, below `||`: `a + b |> f` is `f(a + b)`, and `a |> b |> c` is `c(b(a))`. The right-hand side may be a name, a qualified name, a parenthesized lambda, or a call whose first-argument slot the pipe fills. A lambda in this position must be parenthesized (`x |> (fn(y) = y + 1)`); an unparenthesized `fn(...) = ...` after `|>` would extend its body greedily into the surrounding expression. When the RHS is a chained call — `f(a)(b)` — the pipe fills the *outermost* call's first-argument slot: `x |> f(a)(b)` is `f(a)(x, b)`. A parenthesized call `(f(a))` behaves as a plain call: `x |> (f(a))` is `f(x, a)`. The type of `x` must match the target function's first argument.
 
 ### 5.8 Conditional
 
@@ -525,7 +532,7 @@ type Where = Local | Peer(String)
 
 `self()` is the process's own address. `send(a, v)` places `v` in the mailbox of `a` and returns immediately; sending to a process that has died has no effect.
 
-`spawn(w, f)` starts a new process that runs `f()` and returns its address. `self()` inside `f` is the new process's address; a parent that wants replies binds `let me = self();` before `spawn`.
+`spawn(w, f)` starts a new process that runs `f()` and returns its address. `self()` inside `f` is the new process's address; a parent that wants replies binds `let me = self();` before `spawn`. The callback's mailbox effect `n` also appears in `Address(n)`, so it must be a real mailbox type (§3.9) — a pure `f` (one with no `with M`) cannot be spawned. To spawn a process that never receives, annotate the callback with `with Never`: `spawn(Local, fn() : Void with Never = ...)`.
 
 A node is one running instance of the runtime; a peer is another node it knows by name, §8.3. `w` places the process: `Local` on the running node, `Peer(name)` on the peer with that name. An unknown or unreachable peer is a fault. The captured values of `f` are copied to the peer.
 
@@ -565,7 +572,7 @@ answer              : (Reply(a), a) -> Void with m
 
 **Legal positions.** A reply-carrying value may appear as: a field of a constructor, a component of a tuple, a parameter of a function, a variable bound in a `receive` clause, a variable captured by a lambda passed directly to `spawn`, or a value returned from a function whose declared return type is reply-carrying. Any other position is a type error — in particular, reply-carrying values may not appear as elements of `List`, `Map`, `Set`, `Optional`, or `Either`, or as an operand of equality. `as` on a reply-carrying scrutinee is a type error, because the alias would duplicate the obligation.
 
-Pattern-matching a reply-carrying value must bind every reply-carrying field of the matched constructor: a wildcard (`_`) or an omitted field for a position whose declared type is reply-carrying is a type error, because it would silently drop the value.
+Pattern-matching a reply-carrying value must bind every reply-carrying field of the matched constructor: a wildcard (`_`) or an omitted field for a position whose declared type is reply-carrying is a type error, because it would silently drop the value. The match transfers the obligation from the scrutinee to the pattern-bound reply-carrying variables — the scrutinee is fully consumed by the match and cannot be used after. If the matched constructor has no reply-carrying fields (e.g., `Stop` in a `type PongMsg = Ping(reply : Reply(Int)) | Stop`), matching that clause discharges the scrutinee's obligation with no new binding introduced.
 
 **Exactly-once obligation.** Every binding of a reply-carrying value creates a consumption obligation checked statically at the binding site. On every path from the binding, the value must be consumed exactly once. Bindings include: a variable in a `receive` clause, a function parameter, a spawn-lambda capture, a variable introduced by pattern-matching a reply-carrying scrutinee, and the result at the call site of a function whose return type is reply-carrying.
 
@@ -653,16 +660,16 @@ The code cannot see the error. Causes include out of memory, `kill`, a failure i
 
 ### 7.4 The total prelude
 
-The prelude is total: no built-in function faults. Partial operations return `Optional` or `Either`. A fault is therefore always something that happened to the process, never something it did.
-
-Deliberate exceptions:
+Partial operations in the prelude generally return `Optional` or `Either`. The operations listed below deliberately fault on specified inputs or runtime conditions. Absence of a mailbox effect does not guarantee absence of faults.
 
 - `/` and `%` on `Int` with a zero divisor fault with cause `Fault("division by zero")`. `Int.div` and `Int.mod` return `Optional` for the caller who wants to handle it.
-- `Float.compare` faults on a `NaN` operand with cause `Fault("NaN in compare")`, and `Float.round`, `Float.floor`, `Float.ceil` fault on `NaN` or ±`Infinity` with cause `Fault("Float to Int on non-finite value")` — `Ordering` has no unordered case and `Int` has no infinity; `Float.isNaN` (Appendix E.9) exists so callers can guard. `==` and `!=` on `Float` do not fault; they follow IEEE 754 (§3.10). `Float`'s arithmetic operations `+`, `-`, `*`, `/` also do not fault — division by zero produces IEEE `Infinity` or `NaN` (§3.1).
-- Bitstring construction faults in two cases (§5.11): a segment value that does not fit its specified width (`Fault("segment overflow")`) or a total bit count that is not a multiple of 8 with dynamic sizes (`Fault("bitstring not byte-aligned")`). The compile-time forms of both errors are rejected at compile time; the runtime fault covers the dynamic cases.
+- `Float` arithmetic operations `+`, `-`, `*`, `/` fault with cause `Fault("float arithmetic error")` on any result outside the finite float range — overflow, underflow past the smallest subnormal, division by zero, or invalid forms like `0.0 / 0.0` (§3.1). `Float` values are finite; there is no `Infinity` or `NaN`, so `Float.compare`, `Float.round`, `Float.floor`, and `Float.ceil` are total.
+- Bitstring construction faults in two cases (§5.11): a segment value that does not fit its specified width (`Fault("segment overflow")`), or a total or per-segment bit count that is not a multiple of 8 with dynamic sizes when binding to `Bytes` (`Fault("bitstring not byte-aligned")`). Compile-time-constant violations are rejected at compile time; the runtime fault covers the dynamic cases.
 - `todo("...")` compiles at any type and faults if reached with cause `Fault("todo: ...")`, so that an unfinished function can be declared before it is written.
 - Any cross-node transport of a value that transitively contains a foreign value, with cause `Fault("foreign value cannot cross nodes")` (§3.8).
 - `spawn(Peer(...), ...)` faults the caller when the peer is unknown or unreachable (§6.2), and when peer-side dependency resolution fails (§8.7) — a missing `Sys.x`, an incompatible foreign definition, or an unresolvable code hash. Cause is `Fault("peer unreachable")` or `Fault("peer resolution failed: ...")`.
+- `send` to a remote address (§6.5) faults the sending process asynchronously if peer-side resolution fails; the fault is delivered after `send`'s immediate return, once the recipient's runtime reports the failure. Cause matches `spawn(Peer, ..)`'s peer-resolution fault.
+- Invalid foreign returns and invalid messages received from foreign processes fault the receiving Ernest process on first observation (§8.4); the foreign side's ABI breach is reported as a fault on the process that would have consumed the malformed value.
 
 ## 8. Programs
 
@@ -684,11 +691,31 @@ Peers are configured outside the language, §11.3; `Peer(name)` refers to them b
 
 ### 8.4 Foreign code
 
-The system processes are foreign processes: their message types are declared in Ernest, their implementations live outside the language, and the runtime starts them and binds their addresses to the `Sys.*` top-level references. Other foreign code enters through `foreign fn` and `foreign type`, §4.7. Both boundaries carry the same promise: the foreign side delivers the declared types, and a breach is a fault.
+The system processes are foreign processes: their message types are declared in Ernest, their implementations live outside the language, and the runtime starts them and binds their addresses to the `Sys.*` top-level references. Other foreign code enters through `foreign fn` and `foreign type`, §4.7. Both boundaries carry the same promise: the foreign side delivers the declared types, and a breach is a fault. The fault is delivered to the *receiving* Ernest process — the process that would have consumed the malformed value — on first observation, not to the foreign side.
+
+**ABI.** The runtime maps Ernest values to host-language terms as follows (specified here for the BEAM runtime; other runtimes state their own equivalent):
+
+- `Int` → arbitrary-precision integer.
+- `Float` → IEEE double, finite (§3.1).
+- `Bool` → atom `true` or `false`.
+- `Char` → integer (Unicode code point).
+- `String` → binary (UTF-8 encoded).
+- `Bytes` → binary.
+- `Void` → atom `void`.
+- Nullary constructor `C` → atom `c` (lowercase source name).
+- Positional constructor `C(v)` → tuple `{c, v}`.
+- Named constructor `C(f1 = v1, ..., fn = vn)` → tuple `{c, v1, ..., vn}` with fields in declaration order.
+- Tuple `#(v1, ..., vn)` → tuple `{v1, ..., vn}`.
+- `List(a)` → list.
+- `Address(m)`, `Reply(a)` → opaque runtime handles; foreign code may pass them back to Ernest but cannot inspect them.
+- Foreign values → as produced by foreign code; Ernest does not inspect them.
+- Ernest function values → opaque runtime handles; foreign code may pass them back to Ernest but cannot inspect them.
+
+Same-named constructors of different types share an atom on the wire; the receiving Ernest process's declared type disambiguates. The ABI is fixed per runtime; cross-node transport uses the runtime's external term format for these representations. A foreign implementation that returns a term not matching the declared Ernest type is a fault on the Ernest side per the previous paragraph.
 
 ### 8.5 Initialization
 
-Before `main` runs, the runtime evaluates every top-level `let` binding in the program. Evaluation follows data dependencies: a binding that references another is evaluated after the one it references. Order within an independent set is unspecified — top-level `let` initializers are pure (§4.6), so the order does not affect the result. A cycle among top-level `let` initializers is a compile-time error.
+Before `main` runs, the runtime evaluates every top-level `let` binding in the program. Evaluation follows data dependencies: a binding that references another is evaluated after the one it references. Order within an independent set is unspecified — top-level `let` initializers are pure (§4.6), so the order does not affect the result. A cycle among top-level `let` initializers is an error: within a single module it is caught at compile time; across modules it is caught at load time, when the runtime has resolved every referenced module (§11.2).
 
 Top-level `type`, `abstract type`, `fn`, and `foreign` declarations have no runtime effect; only `let` requires evaluation. The `Sys.*` references (§8.2) are available to `let` initializers — the runtime binds them before evaluating top-level bindings.
 
@@ -698,9 +725,9 @@ Top-level `type`, `abstract type`, `fn`, and `foreign` declarations have no runt
 
 ### 8.6 Program termination
 
-The program ends when `main` returns. Live processes then die with cause `ProgramEnd`; system processes release their resources; the runtime flushes pending output on system processes before the program's process ends. A program that is to keep running waits in `main`. `main` faulting has the same effect as returning, except that the fault's cause is reported on the runtime's exit indicator. Peers observe the ending node's death through their own `PeerLost` channel (§10); the ending node does not send a coordinated shutdown signal.
+The program ends when `main` returns. Live *local* processes then die with cause `ProgramEnd`; system processes release their resources; the runtime flushes pending output on system processes before the program's process ends. Remotely spawned workers on peer nodes are unaffected by the initiating program's exit — they run independently under their peer's runtime, and their lifetimes follow their own return, `kill`, or peer-loss (§10). A program that is to keep running waits in `main`. `main` faulting has the same effect as returning, except that the fault's cause is reported on the runtime's exit indicator. Peers observe the ending node's death through their own `PeerLost` channel (§10); the ending node does not send a coordinated shutdown signal.
 
-If forward progress is impossible — every live process is waiting in `receive` without `after`, no message is in flight, and no live system process holds a subscription, timer, or pending I/O whose completion would deliver a message to a live process — the runtime ends the program with the error `Deadlock`. Pending `after`s, pending clock timers, network listeners, keyboard subscribers, and any similar registered future delivery from a system process count as messages in flight; an idle server that is waiting for such external events is not deadlocked. Deadlock detection is per-node — the runtime does not coordinate across peers, and a program deadlocked in a distributed sense may not be detected. `Sys.*` system processes count as external event sources by the runtime's default; a specific runtime decides whether user-provided foreign event sources are similarly registered.
+If forward progress is impossible — every live process is waiting in `receive` without `after`, no message is in flight, and no live system process or connected peer holds a subscription, timer, pending I/O, or in-progress computation whose completion would deliver a message to a live process — the runtime ends the program with the error `Deadlock`. Pending `after`s, pending clock timers, network listeners, keyboard subscribers, and any similar registered future delivery from a system process count as messages in flight; a connected peer with a pending `Address.call` reply or a running `spawn`ed worker on this node's behalf also counts, so a program awaiting a reply from a still-computing peer is not deadlocked. Deadlock detection is per-node — the runtime does not coordinate across peers, and a program deadlocked in a distributed sense may not be detected. `Sys.*` system processes count as external event sources by the runtime's default; a specific runtime decides whether user-provided foreign event sources are similarly registered.
 
 ### 8.7 Code shipping
 
@@ -710,13 +737,13 @@ If forward progress is impossible — every live process is waiting in `receive`
 
 **Recursive definitions.** A function that references itself, or a set of mutually recursive functions or types, is hashed as a group: internal references within the group use positional indices, external references use their hashes, and the group is hashed as a whole. Each member's identity is derived from the group hash. This gives a finite construction and a consistent identity across nodes. Normalization strips local variable names (α-conversion) and the ordering of named fields (§3.5); qualified names of external references are preserved.
 
-**Dependency resolution.** A shipped closure carries the hashes of the code it needs. Before it runs, the peer resolves every hash transitively: hashes it already has (from an earlier ship, or from its own compilation of an identical definition) are used directly; missing hashes are fetched from the sender and cached. Any resolution failure — a missing dependency, a missing `Sys.x` on the peer (§8.2), an incompatible foreign definition (§4.7), or a fault raised while running `remote`'s callback — surfaces as `Left(PeerLost)` for `remote` and as a caller fault for `spawn(Peer, ...)`, matching §6.2's rule that an unknown or unreachable peer faults the caller. A shipped `send` payload uses the same contract; a resolution failure at the recipient faults the sending process.
+**Dependency resolution.** A shipped closure carries the hashes of the code it needs. Before it runs, the peer resolves every hash transitively: hashes it already has (from an earlier ship, or from its own compilation of an identical definition) are used directly; missing hashes are fetched from the sender and cached. Any resolution failure — a missing dependency, a missing `Sys.x` on the peer (§8.2), an incompatible foreign definition (§4.7), or a fault raised while running `remote`'s callback — surfaces as `Left(PeerLost)` for `remote` and as a caller fault for `spawn(Peer, ...)`, matching §6.2's rule that an unknown or unreachable peer faults the caller. `Left(PeerLost)` signals that this specific `remote` operation did not complete; it does not invalidate other `Address` values held for the same peer, which are only invalidated by actual peer-loss detection (§10). A shipped `send` payload uses the same contract; because `send` returns immediately (§6.2), a resolution failure at the recipient faults the sending process *asynchronously*, after `send`'s return, once the peer runtime reports the failure.
 
 **Type identity.** Types are identified by hash. Two nodes with structurally identical `FooMsg` share the same type hash and interoperate freely. Two nodes that both declare a local type `FooMsg` but define it differently have different hashes; the peer treats them as distinct types. A shipped closure that mentions the sender's `FooMsg` uses the sender's hash on the peer; the peer's own `FooMsg` under the same source name is unrelated to it as far as the type checker on the peer is concerned.
 
 **Abstract types.** An abstract type's hash includes its qualified name and its exported signature (the `with { ... }` block), not just its private representation. Two nodes that separately declare `abstract type Stack(a) = Stack(List(a)) with { ... }` are equivalent only if their qualified name and exported operations match — the abstraction boundary is part of type identity, so independent Stacks with the same private representation do not silently interoperate across nodes.
 
-**Runtime bindings.** A `Sys.*` name referenced by shipped code resolves *on the peer that runs the code*, not on the sender; a shipped `Io.println` sends to the peer's `Sys.stdout`. A closure that captures an already-obtained address as a value ships that value: an `Address` captured from the sender's `Sys.stdout` still points to the sender after transport, because captures capture values, not names. Top-level bindings referenced by shipped code are computed on demand on the peer from the shipped initializer — since top-level initializers are pure (§4.6), the per-node result matches the sender's.
+**Runtime bindings.** A `Sys.*` name referenced by shipped code resolves *on the peer that runs the code*, not on the sender; a shipped `Io.println` sends to the peer's `Sys.stdout`. A closure that captures an already-obtained address as a value ships that value: an `Address` captured from the sender's `Sys.stdout` still points to the sender after transport, because captures capture values, not names. Top-level bindings referenced by shipped code are computed on demand on the peer from the shipped initializer, and the initializer runs in the peer's environment — a binding like `let output = Sys.stdout` evaluates to the peer's stdout on the peer and the sender's on the sender; the two results need not match. Each top-level initializer is evaluated at most once per node per code version.
 
 **Foreign code.** `foreign fn` and `foreign type` (§4.7) are not shipped. A shipped closure that references foreign code requires the peer to have a compatible foreign definition under the same qualified name and shape; a missing or incompatible foreign definition is a fault at resolution.
 
@@ -894,7 +921,8 @@ Stmt        = FnDecl | Binding | Expr .
 
 Pattern     = ConsPat [ "as" ident ] .
 ConsPat     = AtomPat [ "::" ConsPat ] .
-AtomPat     = "_" | ident | [ "-" ] literal | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
+AtomPat     = "_" | ident | literal | "-" ( int | float )
+            | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
             | "#(" Pattern { "," Pattern } ")"
             | "[" [ Pattern { "," Pattern } ] "]"
             | BitPat .
@@ -1216,7 +1244,6 @@ Float.toString   : (Float) -> String
 Float.round      : (Float) -> Int // banker's rounding, IEEE 754 default
 Float.floor      : (Float) -> Int
 Float.ceil       : (Float) -> Int
-Float.isNaN      : (Float) -> Bool // guard for Float.compare (§3.1)
 ```
 
 ### Appendix E.10. `Optional.ern`
