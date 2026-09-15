@@ -884,6 +884,30 @@ The reviewer's eighth finding: fault rules and numeric edge cases were inconsist
 
 **Principle 3** again — undefined semantics is invisible in the type system and in the runtime behavior. Every gap surfaced by the reviewer was a real inference problem where a user reading Ernest code could not predict the outcome.
 
+## `Bytes` and Bitstring Alignment, 2026-09-15
+
+The reviewer's ninth finding: `Bytes` is defined as "a sequence of octets" (§3.1), but `<<...>>` syntax allowed arbitrary bit counts and was documented as producing a `Bytes` value. `<<x:size(4)>>` produces 4 bits — not a valid octet sequence. Contradiction.
+
+The reviewer also noted the specifier defaults were conflated: the table row for `bits` and `bytes` said both "segment is a nested bitstring" — but BEAM distinguishes them by unit (1 bit for `bits`, 8 bits for `bytes`), and the difference matters for the size calculations.
+
+**Alternatives:**
+
+- **Rename `Bytes` to `Bitstring`.** Match Erlang's terminology — Erlang's `bitstring()` allows any bit count; `binary()` is the byte-aligned subset. Would follow the naming precedent we set when we renamed the notation to "bitstring" earlier. Cost: wide rename affecting Text.toUtf8, foreign fn returns, ETS entries, etc.
+- **Split into `Bytes` and `Bitstring`.** Keep `Bytes` for byte-aligned, add `Bitstring` for arbitrary. `<<...>>` produces whichever fits, chosen at compile time from segment sizes. Cost: two types where one might suffice.
+- **Restrict `<<...>>` to byte-aligned.** Keep `Bytes` = octets. Non-aligned constructions are a compile-time error (constant sizes) or a runtime fault (dynamic sizes). Simplest change; matches every paper-program use, which are all byte-aligned anyway.
+
+Taken: the third. Ernest's paper programs are byte-aligned; forbidding non-alignment is a real restriction but has no cost in current use, and keeps the type system simple. Users who need bit-level manipulation without byte alignment must fall back to `foreign fn` and Erlang's `bitstring()`.
+
+**Effect on the report.**
+
+- §5.11's specifier table separates `bits` (unit 1) from `bytes` (unit 8) — the BEAM distinction, previously conflated.
+- §5.11 gains a *Byte alignment* paragraph: total bit count must be a multiple of 8, compile-time error for constant-size violations, runtime fault for dynamic ones.
+- §7.4's deliberate exceptions expands from four to five: bitstring construction faults on segment overflow or non-alignment.
+
+**Cost.** One new fault case; a small restriction on `<<...>>` uses (all paper programs still work). Reader gets a `Bytes` type they can trust to be byte-aligned.
+
+**What this rules out.** Bit-level manipulation without byte-alignment (e.g., building a 7-bit-total value) is not expressible in Ernest. If a paper program ever needs it, revisit — either add a `Bitstring` type as sibling to `Bytes`, or lift the alignment restriction.
+
 ## `Bool.ern` Added, 2026-09-14
 
 New stdlib module for boolean operations. Two functions:

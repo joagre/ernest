@@ -429,15 +429,18 @@ A pattern decomposes a value and binds its parts. The same patterns appear in `l
 
 | Specifier                   | Meaning                                                     |
 |-----------------------------|-------------------------------------------------------------|
-| `size(N)`                   | segment width in units                                      |
+| `size(N)`                   | segment width, in units                                     |
 | `unit(N)`                   | bits per size unit (default 1)                              |
-| `bits`, `bytes`             | segment is a nested bitstring                               |
+| `bits`                      | segment is a nested `Bytes` value; unit is 1 bit            |
+| `bytes`                     | segment is a nested byte-aligned `Bytes` value; unit is 8 bits |
 | `int`, `float`              | numeric segment (defaults: 8-bit, 64-bit)                   |
 | `utf8`, `utf16`, `utf32`    | text encoding                                               |
 | `big`, `little`, `native`   | endianness                                                  |
 | `signed`, `unsigned`        | sign                                                        |
 
 These specifier names carry that role only inside a bitstring — outside, they are ordinary identifiers, and the reserved-word count remains sixteen.
+
+**Byte alignment.** `<<...>>` produces a `Bytes` value, and `Bytes` is a sequence of octets (§3.1). The total bit count of a construction must therefore be a multiple of 8. If every segment size is a compile-time constant, non-alignment is a compile-time error. If any segment size is dynamic, the check happens at construction and non-alignment faults (§7.4).
 
 **Patterns and construction.** A bitstring pattern binds its segment variables; a segment whose length is `size(n)-bytes` and whose `n` refers to an earlier bound variable is a size-dependent match, common in protocol parsing. Constructing a bitstring evaluates its segments left to right and concatenates them into a `Bytes` value; a segment whose value does not fit its specified width is a fault. An empty `<<>>` is the empty `Bytes`.
 
@@ -600,10 +603,11 @@ The code cannot see the error. Causes include out of memory, `kill`, a failure i
 
 The prelude is total: no built-in function faults. Partial operations return `Optional` or `Either`. A fault is therefore always something that happened to the process, never something it did.
 
-Four deliberate exceptions:
+Five deliberate exceptions:
 
 - `/` and `%` on `Int` with a zero divisor fault with cause `Fault("division by zero")`. `Int.div` and `Int.mod` return `Optional` for the caller who wants to handle it.
 - `Float.compare` faults on a `NaN` operand with cause `Fault("NaN in compare")` — `Ordering` has no unordered case, and `Float.isNaN` (Appendix E.9) exists so callers can guard. `==` and `!=` on `Float` do not fault; they follow IEEE 754 (§3.10). `Float`'s arithmetic operations `+`, `-`, `*`, `/` also do not fault — division by zero produces IEEE `Infinity` or `NaN` (§3.1).
+- Bitstring construction faults in two cases (§5.11): a segment value that does not fit its specified width (`Fault("segment overflow")`) or a total bit count that is not a multiple of 8 with dynamic sizes (`Fault("bitstring not byte-aligned")`). The compile-time forms of both errors are rejected at compile time; the runtime fault covers the dynamic cases.
 - `todo("...")` compiles at any type and faults if reached with cause `Fault("todo: ...")`, so that an unfinished function can be declared before it is written.
 - `spawn(Peer(...), f)` or `send` to a remote address when the payload transitively contains a foreign value, with cause `Fault("foreign value cannot cross nodes")` (§3.8).
 
