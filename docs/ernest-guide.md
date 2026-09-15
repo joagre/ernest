@@ -938,38 +938,71 @@ Returns an `Address` you can `send` messages to, exactly like a local process. T
 
 ## 12. Foreign types and functions
 
-Ernest runs on BEAM, the Erlang runtime. Sometimes you want to call code that lives in Erlang directly — an ETS table, a crypto library, a filesystem call. `foreign type` and `foreign fn` are the boundary.
+Ernest runs on BEAM, the Erlang runtime. Sometimes you want to call code that lives in Erlang directly — an ETS table, a crypto library, a filesystem call, a JSON parser. `foreign type` and `foreign fn` are the boundary between Ernest code and everything else on the node.
 
-**`foreign type T`** declares a type whose values are made and used only by foreign functions. There are no constructors and no way to inspect a value; you can hold it, pass it, and send it, but not look inside.
+### 12.1 Foreign types
+
+`foreign type T` declares a type whose values are made and used only by foreign functions. There are no constructors and no way to inspect a value; you can hold it, pass it, and send it, but not look inside. From Ernest's side, a foreign value is a black box with a type.
 
 ```
 foreign type Ets.Table(k, v)
 ```
 
-**`foreign fn`** declares a function whose implementation is in the runtime, not in Ernest source. The body is a string reference to the implementation:
+The type may take parameters (`k`, `v` here). The parameters are meaningful to Ernest — the compiler uses them for type checking — but the Erlang implementation on the other side of the boundary is unaware of them. Given `Ets.insert(t, "a", 1)`, the compiler fixes `t : Ets.Table(String, Int)`; a call with different types on the next line is a type error before the code ever runs.
+
+### 12.2 Foreign functions
+
+`foreign fn` declares a function whose implementation is in the runtime, not in Ernest source. The body is a string reference to the implementation:
 
 ```
 foreign fn Ets.member(t : Ets.Table(k, v), key : k) -> Bool with m = "ets:member/2"
 ```
 
-The type is annotated in full — parameters, return, mailbox effect if any. A pure `foreign fn` (no `with M`) promises that the same arguments give the same result and nothing observable happens; if it lies, the runtime turns the surprise into a `Fault`. A `foreign fn` with `with M` may do anything a normal process function can do.
+The type is annotated in full — parameters, return, mailbox effect if any. A `foreign fn` with `with M` may do anything a normal process function can do. A pure `foreign fn` — no `with M` — is a stronger promise, described next.
 
-Ernest treats the boundary strictly. The foreign side must produce values of the declared shape. Anything else — a wrong type, a thrown exception, a message with an unexpected payload — becomes a `Fault`, not a silent misinterpretation.
+### 12.3 The purity contract and its enforcement
 
-**Foreign values are node-local.** Sending a foreign value across a node boundary is a fault at the boundary, with cause `Fault("foreign value cannot cross nodes")`. That includes a closure that captures a foreign value being sent via `spawn(Peer(...), f)` or via `send` to a remote address. The type system doesn't track "node-local" as a distinct kind; the runtime enforces it when it matters.
+Ernest treats the foreign boundary strictly. A `foreign fn` declaration is a *promise from the foreign side*: values of the declared shape come back, effects match the mailbox annotation, and a pure declaration means genuinely pure. The foreign side can break the promise three ways, and the runtime handles all three the same — the surprise becomes a `Fault`, not a silent misinterpretation:
 
-A shim is free to reshape everything at the boundary. Erlang's `ets:lookup(Table, Key)` returns a `List((k, v))` — a list because the key might match zero or one entry. The corresponding Ernest wrapper turns that into `Optional(v)` with a pattern match:
+- **Wrong type.** A `foreign fn` declared to return `Int` actually returns something else. The runtime raises a `Fault` at the call site rather than propagating a mistyped value into Ernest code.
+- **Thrown exception.** Erlang code that throws or exits — the runtime catches and rewrites the escape into a `Fault` carrying the reason.
+- **Wrong message shape.** A foreign process sends a value that doesn't match its declared mailbox type. The receiving process gets a `Fault` on the offending message.
+
+Purity itself isn't verifiable — Ernest can't inspect an Erlang function to check for side effects. Purity is a declaration you make about foreign code, and code that lies about purity misleads its callers. Reserve `with M` for anything that touches the outside world; leave it off only when you're sure.
+
+### 12.4 Node-local values
+
+Foreign values are bound to the node that made them. Sending a foreign value across a node boundary is a fault at the boundary, with cause `Fault("foreign value cannot cross nodes")`:
+
+```
+let t = Ets.new(); // t lives on the current node
+send(remoteAddr, Payload(t)) // fault: t cannot cross
+```
+
+The rule extends transitively. A closure that captures a foreign value counts as containing one, so `spawn` to a peer or `send` to a remote address is a fault even if the foreign value never appears in the message directly:
+
+```
+let t = Ets.new();
+spawn(Peer("alice"), fn() = Ets.insert(t, "x", 1)) // fault: t is captured
+```
+
+The type system doesn't track "node-local" as a distinct kind — that would require a second type axis across the whole language, principle 5. The runtime enforces it at the boundary when it matters. Programs that need to share table-like state across nodes must serialize what the table holds (e.g. as a `List(#(k, v))`) and rebuild on the peer.
+
+### 12.5 The shim pattern
+
+A raw `foreign fn` gives you Erlang's return shape as-is. A shim is the Ernest-side wrapper that reshapes it into something Ernest reads naturally. Erlang's `ets:lookup(Table, Key)` returns a list — a list because the key might match zero or one entry:
 
 ```
 fn Ets.lookup(t : Ets.Table(k, v), key : k) -> Optional(v) with m =
-    match rawLookup(t, key) { [(_, v)] -> Some(v) | _ -> None }
+    match rawLookup(t, key) { [#(_, v)] -> Some(v) | _ -> None }
 
-foreign fn rawLookup(t : Ets.Table(k, v), key : k) -> List((k, v)) with m = "ets:lookup/2"
+foreign fn rawLookup(t : Ets.Table(k, v), key : k)
+    -> List(#(k, v)) with m = "ets:lookup/2"
 ```
 
-Argument order, `{ok, _} | {error, _}` becoming `Either`, discarding return values you don't care about, renaming to match Ernest's conventions — all of it happens in ordinary Ernest code layered over the raw `foreign fn` bindings. Erlang stays where it fits; Ernest speaks its own vocabulary at the API.
+The raw binding is unqualified (`rawLookup`) so it's file-local, invisible outside the module; the exported `Ets.lookup` is the typed API a caller uses. Argument reordering, `{ok, _} | {error, _}` becoming `Either`, discarding return values you don't care about, renaming to match Ernest's conventions — all of it happens in ordinary Ernest code layered over the raw `foreign fn` bindings. Erlang stays where it fits; Ernest speaks its own vocabulary at the API.
 
-The `webserver` paper program shows the whole pattern: `Ets.ern` is a thin Ernest library over Erlang's `ets` module. The raw `foreign fn` bindings are unqualified (file-local); the exported `Ets.*` functions are Ernest code that composes and reshapes them into a small, typed API.
+The `webserver` paper program shows the whole pattern: `Ets.ern` is a thin Ernest library over Erlang's `ets` module. Report Appendix D walks the file top-to-bottom as a reference implementation.
 
 ## 13. Bitstrings
 
