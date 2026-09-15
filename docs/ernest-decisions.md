@@ -932,6 +932,37 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Content Hashing: Recursive Groups and Abstract-Type Boundaries, 2026-09-15
+
+The reviewer's U06: §8.7's content-hash rule read `H(f) = hash(def(f), H(f))` for a recursive function, which has no finite construction. Related asks: how does normalization treat named-field order, local variable names, qualified references? What about abstract types with identical representations declared independently?
+
+**Choices weighed:**
+
+- **Hash strongly connected components as groups.** Taken. Standard scheme (Unison's approach). Internal references use positional indices; external references use hashes; group is hashed as a whole; each member derives its identity from the group hash. Finite, consistent across nodes.
+- **Skip recursion in the hash and use name-based identity for recursive definitions.** Rejected — breaks content addressing for exactly the case where it matters most (mutually recursive types often carry protocols and change together).
+- **Fixpoint iteration.** Rejected — no finite construction unless you cap iterations, and any cap is arbitrary.
+
+For abstract types:
+
+- **Hash by representation only.** Rejected — two independently declared `Stack` types with the same private representation would silently interoperate, defeating the abstraction boundary.
+- **Hash by qualified name only.** Rejected — same-named types with different signatures would collide, and the content-hash story would lose consistency for concrete types.
+- **Hash by qualified name plus exported signature.** Taken. Two nodes declaring the same-named abstract type with the same interface are equivalent; different names or different signatures mean different types.
+
+**Effect on §8.7.**
+
+Two new paragraphs, each two-to-four lines:
+
+- *Recursive definitions*: SCC-group hashing with internal indices, external hashes, group hash. Normalization strips α-conversion and named-field order (§3.5); preserves qualified names of external references.
+- *Abstract types*: hashed by qualified name plus exported signature, not by private representation. Independent `Stack` declarations with the same guts are not silently interchangeable.
+
+**Cost.** Two paragraphs, no new syntax, no new primitives. The report doesn't prescribe the hashing algorithm — just states the equivalence it establishes.
+
+**What is NOT specified.** The exact hash function, the byte-level layout of the normalized form, the string encoding — all implementation details. The report specifies the equivalence classes; the toolchain decides how to compute them.
+
+**Principle 5 (small).** The report gains one new mechanism concept (SCC-group hashing) and one clarification (abstract-type nominal identity). The alternative — leaving recursion undefined and abstract-type identity implicit — would leave two silent implementation traps.
+
+**Principle 3 (nothing invisible).** Recursive-group identity and abstract-type nominal boundary are now both visible in the report rather than implementation folklore.
+
 ## Float Semantics: Minimal Reparation, Reject the Bloat, 2026-09-15
 
 The reviewer's U05 flagged seven gaps in the Float story: `Float.floor(1.0/0.0)` and `Float.round(0.0/0.0)` returning `Int` with no defined outcome for non-finite inputs; `Int.toFloat` for integers outside the finite range; subnormal preservation; bitstring encoding of non-finite values; Map/Set semantics for NaN and -0.0 keys; recursive structural equality with Floats inside; and a `§4.8`/`§3.10` cross-reference for `<` versus `Float.compare`.
