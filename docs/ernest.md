@@ -142,7 +142,7 @@ The prelude declares `Void` as a one-value type (§9.3): a function that has not
 
 **Integer arithmetic.** Integers are exact and unbounded — no overflow. Division `/` truncates toward zero: `-7 / 3 = -2`. Modulo `%` matches: `(a / b) * b + (a % b) == a`, so `-7 % 3 = -1`. `Int.div` and `Int.mod` (§9.6) use the same convention and return `Optional(Int)` in place of the zero-divisor fault; `Int.mod` is named for symmetry with `Int.div` and gives the same result as `%` (mathematical mod with always-non-negative result is not provided — write it in Ernest when needed).
 
-**Float arithmetic.** IEEE 754 double precision. Overflow yields IEEE `Infinity`, underflow yields signed zero, division by zero yields `Infinity` or `NaN` per IEEE — none of these fault. `Float.compare` (§9.6) faults if either operand is `NaN`; `Ordering` has no unordered case, so callers who may see `NaN` guard with `Float.isNaN` (Appendix E.9) first.
+**Float arithmetic.** IEEE 754 double precision. Overflow yields IEEE `Infinity`, underflow yields signed zero, division by zero yields `Infinity` or `NaN` per IEEE — none of these fault. `Float.compare` (§9.6) faults if either operand is `NaN`, and `Float.round`, `Float.floor`, `Float.ceil` fault on `NaN` or ±`Infinity` — `Ordering` has no unordered case and `Int` has no infinity, so callers who may see these values guard with `Float.isNaN` (Appendix E.9) first.
 
 `Int` and `Float` are separate types with no implicit conversion. Mixing them in an arithmetic expression is a type error; use `Int.toFloat` or `Float.round`/`Float.floor`/`Float.ceil` at the boundary.
 
@@ -241,7 +241,7 @@ Ordering is defined per type by the function `compare` in the type's namespace, 
 
 **Equality on polymorphic types.** A function that uses `==` on a value of a type variable induces an implicit *equality constraint* on that variable. The constraint is not written in the type syntax; it is inferred from usage and checked at each call site. Instantiating the variable with a type that contains a function or address is a type error at that call site — not at the function's definition. The rule matches the equality-comparable check for concrete types.
 
-`Map(k, v)` and `Set(a)` carry the same constraint on `k` and `a` respectively. Every operation on those containers implicitly asserts it, so a `Map` or `Set` parameterized by a non-comparable type is rejected at the first operation. Stdlib functions that use `==` internally on a type parameter, such as `List.contains` and `List.remove`, propagate the constraint through that parameter.
+`Map(k, v)` and `Set(a)` carry the same constraint on `k` and `a` respectively. Every operation on those containers implicitly asserts it, so a `Map` or `Set` parameterized by a non-comparable type is rejected at the first operation. Stdlib functions that use `==` internally on a type parameter, such as `List.contains` and `List.remove`, propagate the constraint through that parameter. `Float` fails the container-key requirement — `NaN != NaN` means the equality is not reflexive — so `Map(Float, v)` and `Set(Float)` are rejected, as is any key type whose equality transitively depends on a `Float`.
 
 The check is at instantiation, not at generalization: `fn equal(a, b) = a == b` type-checks (its type is `(a, a) -> Bool`), and each call site is checked against the concrete type substituted for `a`.
 

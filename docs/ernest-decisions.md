@@ -932,6 +932,39 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Float Semantics: Minimal Reparation, Reject the Bloat, 2026-09-15
+
+The reviewer's U05 flagged seven gaps in the Float story: `Float.floor(1.0/0.0)` and `Float.round(0.0/0.0)` returning `Int` with no defined outcome for non-finite inputs; `Int.toFloat` for integers outside the finite range; subnormal preservation; bitstring encoding of non-finite values; Map/Set semantics for NaN and -0.0 keys; recursive structural equality with Floats inside; and a `§4.8`/`§3.10` cross-reference for `<` versus `Float.compare`.
+
+**Decision policy.** Closing every gap by extending the report would add: an explicit full-IEEE representation clause, subnormal/gradual-underflow prose, bit-pattern preservation for bitstrings and cross-node transport, a new `Float.isFinite` function, prose about recursive equality, and a full §4.8 cross-reference — several paragraphs and one new primitive, for a rare-in-paper-programs set of edge cases. That contradicts principles 2 (one way, one job) and 5 (small): the report already commits to "IEEE 754 double precision" and lets IEEE speak for itself where a specific rule doesn't apply.
+
+**Choices weighed:**
+
+- **Answer every gap.** Rejected. Would inflate §3.1 and §3.10 by ~30 lines and add machinery (a new function, representation prose) for edge cases no paper program stresses.
+- **Retreat to a finite-only Float.** Rejected. Changes existing spec; requires arithmetic that faults on the finite/non-finite boundary, which loses the IEEE simplicity the language currently promises.
+- **Minimal reparation: two edits, defer the rest to "IEEE per §3.1".** Taken.
+
+**Applied edits:**
+
+- *§3.1*: extend the existing fault sentence (`Float.compare` faults on NaN) to include the parallel — `Float.round`, `Float.floor`, `Float.ceil` fault on NaN or ±Infinity. Motivation is the same in both cases: `Ordering` has no unordered case, `Int` has no infinity. One sentence, no new function.
+- *§3.10*: state that Float cannot be a `Map`/`Set` key — the existing container-key equality constraint already requires reflexivity, and Float's IEEE equality is not reflexive on NaN. This makes the failure explicit rather than leaving Map with a Float key silently broken.
+
+**Deliberately not addressed:**
+
+- Subnormals: `signed zero` on underflow is a coarse summary; IEEE handles the finer detail per §3.1's "IEEE 754 double precision" commitment.
+- Bitstring `float` segments: the grammar admits them; the runtime uses IEEE — no separate prose needed.
+- Recursive equality: covered by "Float follows IEEE 754 as a specific exception" applying to Floats wherever they appear.
+- Runtime representation: an implementation detail. A platform whose native floats don't cover the domain must handle it; the report doesn't dictate how.
+- `Int.toFloat` overflow: IEEE round-to-nearest is the default behavior, no separate prose.
+- No `Float.isFinite` added — `Float.isNaN` covers the guard for the two fault points we specify; adding `isFinite` waits until a paper program needs it.
+- §4.8 cross-reference for `<` versus `Float.compare`: §3.10 already states the operator behavior; §4.8's "ordering uses each type's `compare`" is loose but reads correctly in context (Float's operators are not literally implemented through `compare`; the operator's own rule wins per §3.10). If this bites a paper program, revisit.
+
+**Cost.** One sentence extended, one sentence added. No new function, no new type-system machinery.
+
+**Principle 5 (small).** The report keeps its Float story to two paragraphs in §3.1 plus one in §3.10. IEEE 754 speaks for the rest.
+
+**Principle 2 (one way).** The two edits keep the existing pattern (Float→Int and Float ordering share the "fault on undefined output" rule; Map/Set constraint applies uniformly to any type that fails reflexivity).
+
 ## Equality Constraints Propagate Through Values, Branches, and Modules, 2026-09-15
 
 The reviewer's U04: §3.10 said equality constraints are inferred from `==` usage and checked at each call site, but did not specify what happens when a constrained function is stored, returned, branched on, or exported.
