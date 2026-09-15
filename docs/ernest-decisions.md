@@ -754,6 +754,29 @@ Guide §5.4 updated: the "three legal forms" list becomes four (delegation to a 
 
 **Principle 3** carried this decision: the missing rules made a category of Reply misuse invisible in the type system. Now the rule set is closed.
 
+## Equality Policy for Polymorphic Types, 2026-09-15
+
+The reviewer's fourth finding: equality on functions and addresses is banned (§3.10), but §3.10 didn't say what happens when a polymorphic function uses `==` on a type variable, or how container-key equality requirements propagate. `List.contains` uses `==` internally on its `a` — what does that mean for the type? `Map(k, v)` "requires equality on k" — checked when?
+
+**Considered:**
+
+- **Explicit typeclass-style constraint syntax.** `List.contains : Eq(a) => (List(a), a) -> Bool`. Adds a new type-level feature. Rejected — Ernest has consciously said no to typeclasses (decisions log entry against them earlier), and adding constraint syntax opens the door to more.
+- **Ban polymorphic equality.** Only allow `==` on concrete types. Users must monomorphize; `List.contains` becomes per-type. Rejected — makes stdlib design absurd.
+- **Runtime check.** `==` on functions faults at runtime, not compile time. Rejected — Ernest's static bias (principle 3).
+- **Instantiation-time constraint check with no new syntax.** A polymorphic function that uses `==` gains an implicit equality constraint on the relevant type variable; the constraint is checked at each call site when the variable is instantiated. No new type syntax. Documented in prose plus Appendix E comments where relevant.
+
+Taken: the fourth. §3.10 gains an *Equality on polymorphic types* paragraph specifying:
+
+- Implicit equality constraint inferred from `==` usage.
+- Constraint not in the type syntax; checked at instantiation.
+- `Map(k, v)` and `Set(a)` propagate the same constraint on `k`/`a`.
+- Stdlib functions like `List.contains` and `List.remove` propagate through their type parameter.
+- Check is at instantiation, not at generalization — a polymorphic `equal` type-checks, and each call site verifies the substituted type.
+
+Appendix E signatures for `List.contains` and `List.remove` gain a `// requires equality on a` comment pointing to §3.10. `Map` and `Set` type-header comments already carried the equivalent note.
+
+**Tension acknowledged.** Not writing the constraint in the type syntax has a principle-3 cost — the requirement is invisible in signatures. The comment mitigates it, but a reader without §3.10 in mind might miss it. Judged worth the trade against the alternative of adding typeclass-adjacent syntax (principle 5, and the earlier decision against typeclasses).
+
 ## `Bool.ern` Added, 2026-09-14
 
 New stdlib module for boolean operations. Two functions:

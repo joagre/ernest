@@ -206,6 +206,12 @@ The empty effect has no explicit syntax — a function type without `with M` has
 
 Ordering is defined per type by the function `compare` in the type's namespace, `Int.compare : (Int, Int) -> Ordering`.
 
+**Equality on polymorphic types.** A function that uses `==` on a value of a type variable induces an implicit *equality constraint* on that variable. The constraint is not written in the type syntax; it is inferred from usage and checked at each call site. Instantiating the variable with a type that contains a function or address is a type error at that call site — not at the function's definition. The rule matches the equality-comparable check for concrete types.
+
+`Map(k, v)` and `Set(a)` carry the same constraint on `k` and `a` respectively. Every operation on those containers implicitly asserts it, so a `Map` or `Set` parameterized by a non-comparable type is rejected at the first operation. Stdlib functions that use `==` internally on a type parameter, such as `List.contains` and `List.remove`, propagate the constraint through that parameter.
+
+The check is at instantiation, not at generalization: `fn equal(a, b) = a == b` type-checks (its type is `(a, a) -> Bool`), and each call site is checked against the concrete type substituted for `a`.
+
 ### 3.11 Serialization
 
 All values can be sent in messages, functions included; their code travels with them, section 10.
@@ -987,7 +993,7 @@ Container-first operations over `List(a)`.
 
 ```
 List.size        : (List(a)) -> Int
-List.isVoid     : (List(a)) -> Bool
+List.isEmpty     : (List(a)) -> Bool
 List.head        : (List(a)) -> Optional(a)
 List.last        : (List(a)) -> Optional(a)
 List.at          : (List(a), Int) -> Optional(a)
@@ -995,7 +1001,7 @@ List.reverse     : (List(a)) -> List(a)
 List.take        : (List(a), Int) -> List(a)
 List.drop        : (List(a), Int) -> List(a)
 List.dropLast    : (List(a)) -> List(a)
-List.contains    : (List(a), a) -> Bool
+List.contains    : (List(a), a) -> Bool // requires equality on a (§3.10)
 List.find        : (List(a), (a) -> Bool) -> Optional(a)
 List.any         : (List(a), (a) -> Bool) -> Bool
 List.all         : (List(a), (a) -> Bool) -> Bool
@@ -1006,7 +1012,7 @@ List.foldLeft    : (List(a), b, (b, a) -> b) -> b
 List.foreach     : (List(a), (a) -> Void) -> Void
 List.span        : (List(a), (a) -> Bool) -> #(List(a), List(a))
 List.sort        : (List(a), (a, a) -> Ordering) -> List(a)
-List.remove      : (List(a), a) -> List(a)
+List.remove      : (List(a), a) -> List(a) // requires equality on a (§3.10)
 ```
 
 ### Appendix E.3. `Map.ern`
@@ -1016,7 +1022,7 @@ Container-first operations over `Map(k, v)`.
 ```
 Map.empty        : Map(k, v)
 Map.size         : (Map(k, v)) -> Int
-Map.isVoid      : (Map(k, v)) -> Bool
+Map.isEmpty      : (Map(k, v)) -> Bool
 Map.contains     : (Map(k, v), k) -> Bool
 Map.get          : (Map(k, v), k) -> Optional(v)
 Map.put          : (Map(k, v), k, v) -> Map(k, v)
@@ -1034,7 +1040,7 @@ Container-first operations over `Set(a)`.
 ```
 Set.empty        : Set(a)
 Set.size         : (Set(a)) -> Int
-Set.isVoid      : (Set(a)) -> Bool
+Set.isEmpty      : (Set(a)) -> Bool
 Set.contains     : (Set(a), a) -> Bool
 Set.add          : (Set(a), a) -> Set(a)
 Set.remove       : (Set(a), a) -> Set(a)
@@ -1049,7 +1055,7 @@ Set.toList       : (Set(a)) -> List(a)
 
 ```
 String.size        : (String) -> Int // number of code points
-String.isVoid     : (String) -> Bool
+String.isEmpty     : (String) -> Bool
 String.contains    : (String, String) -> Bool // substring test
 String.toInt       : (String) -> Optional(Int)
 String.chars       : (String) -> List(Char)
