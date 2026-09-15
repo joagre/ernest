@@ -185,7 +185,7 @@ Equality on a foreign type is identity.
 
 ### 3.9 Type variables and polymorphism
 
-Types are inferred according to Hindley-Milner. A `fn` definition is generalized over its free type variables; a `let` binding is not. Type variables in a `fn` signature scope over the whole definition.
+Types are inferred according to Hindley-Milner. A `fn` definition is generalized over its free type variables. A `let` binding in a block is not generalized; a top-level `let` is generalized like a `fn`, so that polymorphic prelude values (`Map.empty`, `Set.empty`, and abstract-type constants like `Stack.empty`) can be used at every instantiation. Type variables in a `fn` signature scope over the whole definition.
 
 Recursive and mutually recursive types are allowed. Polymorphic recursion is not. Every type variable in a constructor's fields must be a parameter of the type.
 
@@ -292,7 +292,9 @@ In a block, `let p = e` binds the pattern `p` to the value of `e`; `let p <- e` 
 
 Shadowing is allowed: a later binding of the same name hides the earlier one from the next statement on, and the right-hand side sees the earlier one.
 
-At top level, a `let` binds a `Name` — possibly qualified — to a value, `let Stack.empty = Stack([])`; the LHS is a name, not a pattern, and `<-` is a block form only.
+**Free type variables in a binding.** The right-hand side of a `let` may have free type variables — the polymorphic empty values `[]`, `None`, `Map.empty`, `Set.empty`, and calls returning polymorphic values like `Ets.new()` all produce such types. Because the binding is monomorphic, the compiler does not generalize; instead, each free variable is a unification variable that must be pinned down by uses of `p` later in the block. If any variable remains free at the block's end, the binding is a type error at its site. The reader has two ways to fix it: add a type annotation (`let m : Map(String, Int) = Map.empty`) or use `p` in a context that determines the type (`let m = Map.empty; Map.put(m, "a", 1)`).
+
+At top level, a `let` binds a `Name` — possibly qualified — to a value, `let Stack.empty = Stack([])`; the LHS is a name, not a pattern, and `<-` is a block form only. Top-level `let` may generalize its free type variables: `let Stack.empty : Stack(a) = Stack([])` declares a polymorphic value usable at every instantiation of `a`.
 
 ### 4.7 Foreign declarations
 

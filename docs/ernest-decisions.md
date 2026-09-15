@@ -799,6 +799,33 @@ Taken: the third. §3.9's Effect-polymorphism block gains a closing paragraph na
 
 **What this rules out.** A future addition of constraint syntax is not precluded. If Ernest later grows typeclass-like features, the "annotations describe shape" note becomes historical; the grammar would express more. This report simply documents the current state honestly.
 
+## Polymorphic Empty Values and Monomorphic `let`, 2026-09-15
+
+The reviewer's sixth finding: Ernest has many polymorphic empty values (`[]`, `None`, `Map.empty`, `Set.empty`, `Ets.new()` results) that a user typically wants to bind before using. §3.9 said flatly *"a `let` binding is not [generalized]"* and §4.6 said *"A binding is monomorphic"*. Left the question open: what happens when the RHS has free type variables that no immediate context pins down?
+
+Two related sub-questions:
+
+1. **What about `let m = Map.empty` in a block?** Both `k` and `v` are free at binding time.
+2. **What about `let Map.empty = ...` at top level?** Prelude values need polymorphism to be reusable.
+
+**Alternatives:**
+
+- **Default free variables** to some type (`Never`, some placeholder). Silent, principle-3 problem.
+- **Value restriction (SML style).** `let` generalizes when RHS is syntactically a value. Adds a distinction to the language.
+- **Distinguish top-level from block `let`.** Top-level generalizes (needed for the prelude); block `let` stays monomorphic but allows free variables during inference, resolved by later use in the block. Type error if any variable remains free at block's end.
+- **Reject bindings with unresolvable free variables.** Same as the third but stated as a rule.
+
+Taken: the third. §3.9 corrected to distinguish top-level from block `let`. §4.6 gains a *Free type variables in a binding* paragraph specifying:
+
+- Block `let` is monomorphic; free variables are unification variables during the block's type check, pinned down by later uses of the binding.
+- If any variable remains free at block's end, the binding is a type error at its site.
+- Two user recourses: type annotation on the `let`, or use in a context that determines the type.
+- Top-level `let` may be generalized so polymorphic prelude values work: `let Stack.empty : Stack(a) = Stack([])` declares a polymorphic constant.
+
+**Cost.** Small but real. The report previously suggested a uniform "let is not generalized" rule; now there is a top-level/block distinction. Argued for by necessity — prelude values need to be polymorphic — and by matching HM's usual value-restriction pragmatics. Reader gains one rule to learn; loses one uniformity.
+
+**Consequence for paper programs.** All existing `let m = Ets.new()` and similar patterns already work: the subsequent usage (`Ets.insert`, etc.) resolves the free variables within the block. No paper-program change needed.
+
 ## `Bool.ern` Added, 2026-09-14
 
 New stdlib module for boolean operations. Two functions:
