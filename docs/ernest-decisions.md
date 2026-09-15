@@ -908,6 +908,30 @@ Taken: the third. Ernest's paper programs are byte-aligned; forbidding non-align
 
 **What this rules out.** Bit-level manipulation without byte-alignment (e.g., building a 7-bit-total value) is not expressible in Ernest. If a paper program ever needs it, revisit — either add a `Bitstring` type as sibling to `Bytes`, or lift the alignment restriction.
 
+## Reply Timeout Semantics: Late Answers and Mailbox Isolation, 2026-09-15
+
+The reviewer's tenth finding: §6.6 said `Address.call` has a timeout and that a `Reply(a)`'s fresh identifier isolates it from the caller's mailbox, but never said what happens *after* the timeout. If the recipient answers late — after `Address.call` has returned `None` — where does the value go? Does it land in the mailbox as a stray message? Fault? Silently vanish?
+
+Similar question about isolation: what exactly does "the caller's mailbox type is unaffected" mean? Can a reply value ever leak into the typed mailbox?
+
+**Choices weighed:**
+
+- **Silent discard.** Runtime deregisters the fresh identifier on timeout; incoming values tagged with it are dropped before reaching the mailbox. Simple, invisible to caller and callee.
+- **Late reply becomes a stray message in the mailbox.** Would violate the mailbox type; not viable.
+- **Late reply faults.** Punishes the recipient for slowness — often not their fault (network, scheduling). Not a good match for cooperative multi-process design.
+- **Late reply arrives in a hidden auxiliary queue that the caller can inspect.** New concept, more surface. Rejected — no paper program has motivated this need.
+
+Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Ernest's static isolation guarantee ("the caller's mailbox type is unaffected"), and requires no new concepts.
+
+**Effect on §6.6.**
+
+- New paragraph *Late answers* — after timeout the runtime deregisters the Reply's fresh identifier and silently discards subsequent `answer(r, v)` values. Applies to both `Address.call` (returns `None`) and `Address.callForever` (caller dies while waiting). The recipient's `answer` call itself always succeeds — the recipient cannot observe whether the caller is still waiting.
+- New paragraph *Mailbox isolation* — the fresh identifier is known only to the allocating `Address.call`. Reply values reach the waiting call via that identifier; they never appear in the caller's declared mailbox, and the caller's mailbox type does not include them. Other messages flow normally.
+
+**Cost.** Two paragraphs. No paper program change; the semantics matches what everyone was implicitly assuming. Now stated.
+
+**Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
+
 ## `Bool.ern` Added, 2026-09-14
 
 New stdlib module for boolean operations. Two functions:
