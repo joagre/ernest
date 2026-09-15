@@ -4,7 +4,7 @@ Written against the Ernest report, September 2026. A read-evaluate-print loop fo
 
 ## Assumptions
 
-The runtime is assumed to provide `Sys.stdin : Address(StdinMsg)` as an additional top-level reference beyond the report's required `Sys.stdout` and `Sys.clock`, with `ReadLine(reply : Address(Text))`: one line per request. `Text.chars`, `Char.isDigit`, `Char.isAlpha`, `Char.toText`, and `Text.toInt : (Text) -> Optional(Int)` are in the standard library (report Appendix E). `ParseError.toText : (ParseError) -> Text` and `EvalError.toText : (EvalError) -> Text` are hand-written renderings for stdout; both are `todo("on paper")` here.
+The runtime is assumed to provide `Sys.stdin : Address(StdinMsg)` as an additional top-level reference beyond the report's required `Sys.stdout` and `Sys.clock`, with `ReadLine(reply : Address(String))`: one line per request. `String.chars`, `Char.isDigit`, `Char.isAlpha`, `Char.toString`, and `String.toInt : (String) -> Optional(Int)` are in the standard library (report Appendix E). `ParseError.toString : (ParseError) -> String` and `EvalError.toString : (EvalError) -> String` are hand-written renderings for stdout; both are `todo("on paper")` here.
 
 ## The Program
 
@@ -13,27 +13,27 @@ The runtime is assumed to provide `Sys.stdin : Address(StdinMsg)` as an addition
 // Types
 //
 
-type Token = Num(Int) | Ident(Text) | Op(Char) | LParen | RParen | KwLet | KwFun | Eq | Arrow
+type Token = Num(Int) | Ident(String) | Op(Char) | LParen | RParen | KwLet | KwFun | Eq | Arrow
 type LexError = BadChar(c : Char, at : Int)
 
 type Expr
     = Lit(Int)
-    | Var(Text)
+    | Var(String)
     | Bin(op : Char, l : Expr, r : Expr)
-    | Let(name : Text, value : Expr)
-    | Fun(param : Text, body : Expr)
+    | Let(name : String, value : Expr)
+    | Fun(param : String, body : Expr)
     | App(f : Expr, arg : Expr)
 
 type ParseError = Unexpected(Token) | Eof
 type Step = #(Expr, List(Token))
 
-type Value = N(Int) | Closure(param : Text, body : Expr, env : Map(Text, Value))
-type EvalError = Unbound(Text) | DivZero | NotAFunction | NotANumber
+type Value = N(Int) | Closure(param : String, body : Expr, env : Map(String, Value))
+type EvalError = Unbound(String) | DivZero | NotAFunction | NotANumber
 
 type TryError = Eval(EvalError) | Crashed | Timeout
 
 type ReplMsg
-    = Input(Text)
+    = Input(String)
     | Result(Either(EvalError, Value))
     | Died(Down)
 
@@ -50,16 +50,16 @@ fn main() -> () with () = {
 // Processes
 //
 
-fn repl(env : Map(Text, Value)) -> () with ReplMsg = {
+fn repl(env : Map(String, Value)) -> () with ReplMsg = {
     send(Sys.stdin, ReadLine(reply = via(Input, self())));
     receive {
         Input(text) -> match tokenize(text) {
             Left(BadChar(c = c, at = i)) -> {
-                Io.println("illegal character " <> Char.toText(c) <> " at " <> Int.toText(i));
+                Io.println("illegal character " <> Char.toString(c) <> " at " <> Int.toString(i));
                 repl(env)
             }
           | Right(toks) -> match parse(toks) {
-                Left(e) -> { Io.println(ParseError.toText(e)); repl(env) }
+                Left(e) -> { Io.println(ParseError.toString(e)); repl(env) }
               | Right(e) -> {
                     let v = try(env, e);
                     match #(e, v) {
@@ -77,7 +77,7 @@ fn repl(env : Map(Text, Value)) -> () with ReplMsg = {
 
 // try as a process: evaluate in a child, wait at most two seconds,
 // kill the child if it does not answer.
-fn try(env : Map(Text, Value), e : Expr) -> Either(TryError, Value) with ReplMsg = {
+fn try(env : Map(String, Value), e : Expr) -> Either(TryError, Value) with ReplMsg = {
     let me = self(); // not self() inside the lambda: that is the child's
     let child = spawn(Local, fn() = send(me, Result(eval(env, e))));
     monitor(child, Died);
@@ -89,9 +89,9 @@ fn try(env : Map(Text, Value), e : Expr) -> Either(TryError, Value) with ReplMsg
 }
 
 fn show(r : Either(TryError, Value)) -> () with ReplMsg = Io.println(match r {
-    Right(N(n)) -> Int.toText(n)
+    Right(N(n)) -> Int.toString(n)
   | Right(Closure) -> "<fun>"
-  | Left(Eval(e)) -> "error: " <> EvalError.toText(e)
+  | Left(Eval(e)) -> "error: " <> EvalError.toString(e)
   | Left(Crashed) -> "crashed"
   | Left(Timeout) -> "aborted after 2 s"
 })
@@ -100,7 +100,7 @@ fn show(r : Either(TryError, Value)) -> () with ReplMsg = Io.println(match r {
 // Pure code: lexer
 //
 
-fn tokenize(t : Text) -> Either(LexError, List(Token)) = lex(Text.chars(t), 0, [])
+fn tokenize(t : String) -> Either(LexError, List(Token)) = lex(String.chars(t), 0, [])
 
 fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Token)) = match cs {
     [] -> Right(List.reverse(acc))
@@ -111,12 +111,12 @@ fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Tok
   | '-' :: '>' :: r -> lex(r, i + 2, Arrow :: acc)
   | c :: r when Char.isDigit(c) -> {
         let #(digits, rest) = List.span(cs, Char.isDigit);
-        let n = match Text.toInt(Text.fromChars(digits)) { Some(v) -> v | None -> 0 };
+        let n = match String.toInt(String.fromChars(digits)) { Some(v) -> v | None -> 0 };
         lex(rest, i + List.size(digits), Num(n) :: acc)
     }
   | c :: r when Char.isAlpha(c) -> {
         let #(word, rest) = List.span(cs, Char.isAlpha);
-        let tok = match Text.fromChars(word) { "let" -> KwLet | "fun" -> KwFun | w -> Ident(w) };
+        let tok = match String.fromChars(word) { "let" -> KwLet | "fun" -> KwFun | w -> Ident(w) };
         lex(rest, i + List.size(word), tok :: acc)
     }
   | c :: r when List.contains(['+', '-', '*', '/'], c) -> lex(r, i + 1, Op(c) :: acc)
@@ -197,7 +197,7 @@ fn atom(toks : List(Token)) -> Either(ParseError, Step) = match toks {
 // Pure code: evaluator
 //
 
-fn eval(env : Map(Text, Value), e : Expr) -> Either(EvalError, Value) = match e {
+fn eval(env : Map(String, Value), e : Expr) -> Either(EvalError, Value) = match e {
     Lit(n) -> Right(N(n))
   | Var(x) -> match Map.get(env, x) { Some(v) -> Right(v) | None -> Left(Unbound(x)) }
   | Fun(param = p, body = b) -> Right(Closure(param = p, body = b, env = env))

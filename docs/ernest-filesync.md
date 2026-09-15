@@ -10,15 +10,15 @@ type FsMsg
     | Read(path : Path, reply : Reply(Either(FsError, Bytes)))
     | Write(path : Path, bytes : Bytes, reply : Reply(Either(FsError, ())))
 
-type FsError = NotFound | Denied | Io(Text)
+type FsError = NotFound | Denied | Io(String)
 type Entry = Entry(path : Path, mtime : Mtime)
 ```
 
 `ClockMsg` is the report's; `Ordering` is in the prelude. `Sys.stdout` and `Sys.clock` are runtime references (report §8); this paper program additionally assumes the runtime provides `Sys.fs : Address(FsMsg)`. Other assumptions:
 
-- `type Path = Path(Text)`, a filesystem path with helpers `Path.join : (Path, Path) -> Path`, `Path.toText : (Path) -> Text`, and `Path.withSuffix : (Path, Text) -> Path`.
+- `type Path = Path(String)`, a filesystem path with helpers `Path.join : (Path, Path) -> Path`, `Path.toString : (Path) -> String`, and `Path.withSuffix : (Path, String) -> Path`.
 - `Mtime`, an abstract modification time, with `Mtime.compare : (Mtime, Mtime) -> Ordering`.
-- `FsError.toText : (FsError) -> Text` for rendering error messages.
+- `FsError.toString : (FsError) -> String` for rendering error messages.
 
 ## The Program
 
@@ -84,7 +84,7 @@ fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> () w
             syncer(dir, peer, snapshot(entries))
         }
       | Listed(Left(e)) -> {
-            Io.println("cannot list " <> Path.toText(dir) <> ": " <> FsError.toText(e));
+            Io.println("cannot list " <> Path.toString(dir) <> ": " <> FsError.toString(e));
             tick();
             syncer(dir, peer, seen)
         }
@@ -133,16 +133,16 @@ fn writer(p : Path, bytes : Bytes, ack : Reply(Ack), okAck : Ack) -> () with n =
 fn pusher(dir : Path, peer : Address(SyncMsg), Change(path = p, mtime = m) : Change) -> () with n =
     match Address.call(Sys.fs, fn(r) = Read(path = Path.join(dir, p), reply = r), 10000) {
         Some(Right(bytes)) -> push(peer, p, m, bytes)
-      | Some(Left(_)) -> Io.println("cannot read " <> Path.toText(p))
-      | None -> Io.println("fs is not answering: " <> Path.toText(p))
+      | Some(Left(_)) -> Io.println("cannot read " <> Path.toString(p))
+      | None -> Io.println("fs is not answering: " <> Path.toString(p))
     }
 
 fn push(peer : Address(SyncMsg), p : Path, m : Mtime, bytes : Bytes) -> () with n =
     match Address.call(peer, fn(r) = Put(path = p, mtime = m, bytes = bytes, ack = r), 30000) {
         Some(Stored) -> ()
-      | Some(Conflict) -> Io.println("conflict: " <> Path.toText(p))
-      | Some(Failed(e)) -> Io.println("the peer failed: " <> Path.toText(p))
-      | None -> Io.println("the peer is not answering: " <> Path.toText(p))
+      | Some(Conflict) -> Io.println("conflict: " <> Path.toString(p))
+      | Some(Failed(e)) -> Io.println("the peer failed: " <> Path.toString(p))
+      | None -> Io.println("the peer is not answering: " <> Path.toString(p))
     }
 
 //

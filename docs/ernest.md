@@ -36,12 +36,12 @@ The grammar is written in Wirth-style EBNF (as in the Modula-2 and Oberon report
 int      = digit { digit } .
 float    = digit { digit } "." digit { digit } [ ( "e" | "E" ) [ "-" ] digit { digit } ] .
 char     = "'" ( character | escape ) "'" .
-text     = '"' { character | escape } '"' .
+string   = '"' { character | escape } '"' .
 escape   = "\\" ( "'" | '"' | "\\" | "n" | "t" | "u{" hexdigit { hexdigit } "}" ) .
 bool     = "true" | "false" .
 ```
 
-`1` is `Int`, `1.0` and `1.0e-9` are `Float`. Literals carry no sign; `-` is a prefix operator. No overloaded literals and no default. Integer literals are decimal only — no hex, octal, or binary forms and no digit separators; the standard library provides parsing functions for other bases when needed. The escapes are the six listed; the `\u{...}` escape denotes a Unicode scalar value (U+0000 through U+10FFFF, excluding surrogates U+D800 through U+DFFF), one to six hex digits. A `character` inside a `char` or `text` literal is any code point other than the enclosing quote, `\`, U+000A (line feed), and U+000D (carriage return); multi-line text is built by explicit `\n` or by concatenation. `digit` is `0` through `9`; `hexdigit` is a digit or `a`-`f` or `A`-`F`; `letter` is `a`-`z` or `A`-`Z` (identifiers are ASCII, though source text is Unicode).
+`1` is `Int`, `1.0` and `1.0e-9` are `Float`. Literals carry no sign; `-` is a prefix operator. No overloaded literals and no default. Integer literals are decimal only — no hex, octal, or binary forms and no digit separators; the standard library provides parsing functions for other bases when needed. The escapes are the six listed; the `\u{...}` escape denotes a Unicode scalar value (U+0000 through U+10FFFF, excluding surrogates U+D800 through U+DFFF), one to six hex digits. A `character` inside a `char` or `string` literal is any code point other than the enclosing quote, `\`, U+000A (line feed), and U+000D (carriage return); multi-line strings are built by explicit `\n` or by concatenation. `digit` is `0` through `9`; `hexdigit` is a digit or `a`-`f` or `A`-`F`; `letter` is `a`-`z` or `A`-`Z` (identifiers are ASCII, though source text is Unicode).
 
 **Operators and delimiters.**
 
@@ -56,7 +56,7 @@ Two grammar categories built from the above:
 binop    = "*" | "/" | "%" | "+" | "-" | "<>" | "::"
          | "==" | "!=" | "<" | "<=" | ">" | ">=" | "&&" | "||"
          | "|>" .
-literal  = int | float | char | text | bool .
+literal  = int | float | char | string | bool .
 ```
 
 Prefix `-` is negation on `Int` and `Float`, and binds tighter than any binary operator. Precedence of the binary operators, highest first: `* / %`, `+ - <>`, `::` (right-associative), `== != < <= > >=`, `&&`, `||`, `|>`. All but `::` are left-associative. An operator name can be qualified, `Int.+`, section 4. `|>` is not qualifiable — it is a syntactic form (section 5), not a namespaced function.
@@ -73,7 +73,7 @@ TupleType = "#(" Type { "," Type } ")" .
 FnType    = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
 ```
 
-**Base types.** `Int`, integers of arbitrary precision. `Float`, IEEE 754 double precision. `Char`, one code point. `Text`, a Unicode string. `Bytes`, a sequence of octets. `Bool`, with the literals `true` and `false`. `()`, the unit type with the single value `()`. There are no type aliases.
+**Base types.** `Int`, integers of arbitrary precision. `Float`, IEEE 754 double precision. `Char`, one code point. `String`, a Unicode string. `Bytes`, a sequence of octets. `Bool`, with the literals `true` and `false`. `()`, the unit type with the single value `()`. There are no type aliases.
 
 **Tuples.** `#(A, B)` is the type of a tuple; the value form is the same, `#(a, b)`. Tuples of one, two, or more components are all written this way. The tuple is the only positional product type. The `#(` prefix keeps tuples distinct from expression grouping `(e)` and from function types `(A, B) -> C`.
 
@@ -108,7 +108,7 @@ Positional fields cap at one — beyond that, names are required, because positi
 Program     = { Declaration } .
 Declaration = TypeDecl | AbstractDecl | FnDecl | LetDecl | ForeignDecl .
 ForeignDecl = "foreign" ( "type" QTypeName [ "(" typevar { "," typevar } ")" ]
-            | "fn" Name "(" [ Param { "," Param } ] ")" Return "=" text ) .
+            | "fn" Name "(" [ Param { "," Param } ] ")" Return "=" string ) .
 TypeDecl    = "type" QTypeName [ "(" typevar { "," typevar } ")" ] "="
               Constructor { "|" Constructor } .
 Constructor = conname [ "(" ( Type | Field { "," Field } ) ")" ] .
@@ -196,7 +196,7 @@ FieldPats = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 **Pipe.** `x |> e` treats `e` as a function value or a call and applies it with `x` inserted as an additional first argument: `x |> f` is `f(x)`; `x |> f(a, b)` is `f(x, a, b)`. The pipe reads left to right, which suits stdlib call chains where each function's first argument is the value being transformed:
 
 ```
-let words = input |> Text.trim |> Text.toLower |> Text.chars
+let words = input |> String.trim |> String.toLower |> String.chars
 ```
 
 `|>` is left-associative and lowest-precedence, below `||`: `a + b |> f` is `f(a + b)`, and `a |> b |> c` is `c(b(a))`. The right-hand side may be a name, a qualified name, a lambda, or a call whose first-argument slot the pipe fills. The type of `x` must match the target function's first argument.
@@ -234,7 +234,7 @@ self  : () -> Address(m) with m
 send  : (Address(a), a) -> () with m
 spawn : (Where, () -> () with n) -> Address(n) with m
 
-type Where = Local | Peer(Text)
+type Where = Local | Peer(String)
 ```
 
 `self()` is the process's own address. `send(a, v)` places `v` in the mailbox of `a` and returns immediately; sending to a process that has died has no effect. `spawn(w, f)` starts a new process that runs `f()` and returns its address; `self()` inside `f` is the new process's address; a parent that wants replies binds `let me = self();` before `spawn`. A node is one running instance of the runtime; a peer is another node it knows by name, section 8. `w` places the process: `Local` on the running node, `Peer(name)` on the peer with that name. An unknown or unreachable peer is a fault. The captured values of `f` are copied to the peer.
@@ -294,7 +294,7 @@ There are no exceptions. An error is a value, a message, or a fault.
 
 - **A value**, when the error is part of the function's meaning. Expressed in the return type: `Either(e, a)` with an error type `e`, or `Optional(a)`. The caller matches, or chains with `let p <- e`.
 - **A message**, when the error crosses a process boundary. Expressed in the message: `Either` or a dedicated constructor in the reply type. A missing reply is `after` in `receive`. The error type across the boundary is its own, distinct from the function's.
-- **A fault**, when the code cannot see it. Out of memory, `kill`, a failure in the runtime, a broken promise by foreign code. The process dies with a structured cause in `Down`. Nothing is caught. "Fault" here is the category — any death whose `Reason` is not `Returned`; `Fault(Text)` is one specific `Reason` alongside `Killed` and `ProgramEnd`.
+- **A fault**, when the code cannot see it. Out of memory, `kill`, a failure in the runtime, a broken promise by foreign code. The process dies with a structured cause in `Down`. Nothing is caught. "Fault" here is the category — any death whose `Reason` is not `Returned`; `Fault(String)` is one specific `Reason` alongside `Killed` and `ProgramEnd`.
 
 The prelude is total: no built-in function faults. Partial operations return `Optional` or `Either`. A fault is therefore always something that happened to the process, never something it did, with three deliberate exceptions: `/` and `%` on `Int` with a zero divisor fault, `Fault("division by zero")`; `todo("...")`, which compiles at any type and faults if reached, `Fault("todo: ...")`, so that an unfinished function can be declared before it is written; and `spawn(Peer(...), f)` or `send` to a remote address when the payload transitively contains a foreign value, `Fault("foreign value cannot cross nodes")`, section 3. `Int.div` and `Int.mod` return `Optional` for the caller who wants to handle it.
 
@@ -302,7 +302,7 @@ The prelude is total: no built-in function faults. Partial operations return `Op
 
 **`main`.** A program is a set of modules with exactly one function `main : () -> () with m` for some `m`, unqualified, called by the runtime. Nothing sends to `main` that it has not given its address to; `m` is usually `()`.
 
-**System references.** The runtime starts with its system processes and exposes their addresses as top-level values in the `Sys` namespace. The language requires `Sys.stdout : Address(Text)` and `Sys.clock : Address(ClockMsg)`, section 9; a specific runtime may provide more, and a paper program that needs additions like `Sys.fs`, `Sys.stdin`, `Sys.keys`, or a stderr sink names them in its assumptions. These are values, not functions — like `List`, `Map`, and `Set` they are in scope everywhere at the top level. To do IO a function sends to one, and `send` requires a mailbox effect on the caller (section 6), so pure code cannot affect anything outside its process even though it can name the address. A reference to a `Sys.*` name the runtime does not provide is a name-resolution error at compile time. The `stdout` process writes each received `Text` to standard output as bytes; newlines are the sender's responsibility.
+**System references.** The runtime starts with its system processes and exposes their addresses as top-level values in the `Sys` namespace. The language requires `Sys.stdout : Address(String)` and `Sys.clock : Address(ClockMsg)`, section 9; a specific runtime may provide more, and a paper program that needs additions like `Sys.fs`, `Sys.stdin`, `Sys.keys`, or a stderr sink names them in its assumptions. These are values, not functions — like `List`, `Map`, and `Set` they are in scope everywhere at the top level. To do IO a function sends to one, and `send` requires a mailbox effect on the caller (section 6), so pure code cannot affect anything outside its process even though it can name the address. A reference to a `Sys.*` name the runtime does not provide is a name-resolution error at compile time. The `stdout` process writes each received `String` to standard output as bytes; newlines are the sender's responsibility.
 
 **Peers.** Peers are configured outside the language, section 11; `Peer(name)` refers to them by the configured name, and nodes authenticate each other.
 
@@ -312,7 +312,7 @@ The prelude is total: no built-in function faults. Partial operations return `Op
 
 ## 9. Prelude
 
-The prelude is small: only what this report names. Convenience libraries — including all container operations, text and numeric utilities, and output helpers — live in the standard library, Appendix E.
+The prelude is small: only what this report names. Convenience libraries — including all container operations, string and numeric utilities, and output helpers — live in the standard library, Appendix E.
 
 Built-in types (section 3):
 
@@ -336,15 +336,15 @@ Declared types:
 type Optional(a) = None | Some(a)
 type Either(e, a) = Left(e) | Right(a)
 type Ordering = Less | Equal | Greater
-type Down = Down(reason : Reason, function : Text)
-type Reason = Returned | Killed | ProgramEnd | Fault(Text)
+type Down = Down(reason : Reason, function : String)
+type Reason = Returned | Killed | ProgramEnd | Fault(String)
 type ClockMsg // times in milliseconds
     = After(ms : Int, to : Address(()))
     | At(at : Int, to : Address(()))
     | Now(reply : Reply(Int))
 type RemoteError = NoRemotePeer | PeerLost
 type Foreign // a value the language does not inspect
-type Where = Local | Peer(Text) // spawn placement, section 6
+type Where = Local | Peer(String) // spawn placement, section 6
 ```
 
 Built-in functions (section 6):
@@ -375,21 +375,21 @@ Int.+, Int.-, Int.*, Int./, Int.%   : (Int, Int) -> Int              // section 
 Int.negate                          : (Int) -> Int                   // section 5: prefix -
 Float.+, Float.-, Float.*, Float./  : (Float, Float) -> Float
 Float.negate                        : (Float) -> Float
-Text.<>                             : (Text, Text) -> Text           // section 4: <> resolves per type
+String.<>                             : (String, String) -> String           // section 4: <> resolves per type
 List.<>                             : (List(a), List(a)) -> List(a)
 Int.div, Int.mod                    : (Int, Int) -> Optional(Int)    // section 7: / and %
                                                                      // fault on zero; these do not
 Int.compare                         : (Int, Int) -> Ordering         // section 3: ordering is per type
 Float.compare                       : (Float, Float) -> Ordering
-Text.compare                        : (Text, Text) -> Ordering
+String.compare                        : (String, String) -> Ordering
 Char.compare                        : (Char, Char) -> Ordering
-todo                                : (Text) -> a                    // section 7: faults if reached
+todo                                : (String) -> a                    // section 7: faults if reached
 ```
 
 System references (runtime-provided, section 8):
 
 ```
-Sys.stdout       : Address(Text) // the stdout process
+Sys.stdout       : Address(String) // the stdout process
 Sys.clock        : Address(ClockMsg) // the clock process
 ```
 
@@ -422,7 +422,7 @@ Sys.clock        : Address(ClockMsg) // the clock process
 Program     = { Declaration } .
 Declaration = TypeDecl | AbstractDecl | FnDecl | LetDecl | ForeignDecl .
 ForeignDecl = "foreign" ( "type" QTypeName [ "(" typevar { "," typevar } ")" ]
-            | "fn" Name "(" [ Param { "," Param } ] ")" Return "=" text ) .
+            | "fn" Name "(" [ Param { "," Param } ] ")" Return "=" string ) .
 
 TypeDecl    = "type" QTypeName [ "(" typevar { "," typevar } ")" ] "="
               Constructor { "|" Constructor } .
@@ -499,7 +499,7 @@ fn main() -> () with () = {
     send(c, Inc(5));
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
-        Some(n) -> Io.println("count is " <> Int.toText(n))
+        Some(n) -> Io.println("count is " <> Int.toString(n))
       | None -> Io.println("counter is not answering")
     }
 }
@@ -523,7 +523,7 @@ fn main() -> () with () = {
 fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
     if n == 0 then send(pongAddr, Stop)
     else {
-        Io.println("ping " <> Int.toText(n));
+        Io.println("ping " <> Int.toString(n));
         match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
             Some(_) -> ping(pongAddr, n - 1)
           | None -> { Io.println("pong is not answering"); send(pongAddr, Stop) }
@@ -532,7 +532,7 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
 
 fn pong() -> () with PongMsg = receive {
     Ping(n = n, reply = r) -> {
-        Io.println("pong " <> Int.toText(n));
+        Io.println("pong " <> Int.toString(n));
         answer(r, n);
         pong()
     }
@@ -541,11 +541,11 @@ fn pong() -> () with PongMsg = receive {
 ```
 
 ```
-type WorkerMsg = DoWork(f : (Text) -> Bytes, arg : Text)
+type WorkerMsg = DoWork(f : (String) -> Bytes, arg : String)
 
 fn submitter(worker : Address(WorkerMsg)) -> () with Never = {
-    send(worker, DoWork(f = Text.toUtf8, arg = "hello"));
-    send(worker, DoWork(f = Text.toUtf8, arg = "world"))
+    send(worker, DoWork(f = String.toUtf8, arg = "hello"));
+    send(worker, DoWork(f = String.toUtf8, arg = "world"))
 }
 ```
 
@@ -593,8 +593,8 @@ foreign type Ets.Table(k, v)
 /// process and is destroyed when that process dies.
 fn Ets.new() -> Ets.Table(k, v) with m = rawNew("ernest", [atom("set"), atom("public")])
 
-foreign fn rawNew(name : Text, opts : List(Foreign)) -> Ets.Table(k, v) with m = "ets:new/2"
-foreign fn atom(name : Text) -> Foreign = "erlang:binary_to_atom/1"
+foreign fn rawNew(name : String, opts : List(Foreign)) -> Ets.Table(k, v) with m = "ets:new/2"
+foreign fn atom(name : String) -> Foreign = "erlang:binary_to_atom/1"
 
 /// Insert or replace the entry for key.
 fn Ets.insert(t : Ets.Table(k, v), key : k, value : v) -> () with m = {
@@ -643,14 +643,14 @@ fn main() -> () with () = {
     Ets.insert(t, "a", 1);
     Ets.insert(t, "b", 2);
     match Ets.lookup(t, "a") {
-        Some(n) -> Io.println(Int.toText(n))
+        Some(n) -> Io.println(Int.toString(n))
       | None -> Io.println("missing")
     };
     Ets.drop(t)
 }
 ```
 
-The raw names are unqualified and therefore invisible outside the module; `Ets.*` is the library. `Ets.Table(k, v)` has type parameters the implementation never sees: `Ets.insert(t, "a", 1)` fixes `t` to `Table(Text, Int)`, and an insert with other types on the next line is a type error. Every operation has a mailbox type, `size` and `member` included, because they read state that others write. `atom` is pure: the same text gives the same atom. An Erlang-side module is needed only to catch: a raw function that throws is a fault, and a shim that wants `Either` instead must `try` in Erlang, since Ernest cannot. What the type cannot say, the declaration's documentation must: a table lives until `Ets.drop`, or until the process that created it dies.
+The raw names are unqualified and therefore invisible outside the module; `Ets.*` is the library. `Ets.Table(k, v)` has type parameters the implementation never sees: `Ets.insert(t, "a", 1)` fixes `t` to `Table(String, Int)`, and an insert with other types on the next line is a type error. Every operation has a mailbox type, `size` and `member` included, because they read state that others write. `atom` is pure: the same text gives the same atom. An Erlang-side module is needed only to catch: a raw function that throws is a fault, and a shim that wants `Either` instead must `try` in Erlang, since Ernest cannot. What the type cannot say, the declaration's documentation must: a table lives until `Ets.drop`, or until the process that created it dies.
 
 ## Appendix E. Standard Library
 
@@ -658,14 +658,14 @@ Informative, not normative: this appendix lists the modules that ship with the c
 
 ### Appendix E.1. `Io.ern`
 
-Output helpers. The plain forms send to `Sys.stdout` (section 8); the `*To` forms take an explicit `Address(Text)`, useful for logging to a mailbox that is not stdout.
+Output helpers. The plain forms send to `Sys.stdout` (section 8); the `*To` forms take an explicit `Address(String)`, useful for logging to a mailbox that is not stdout.
 
 ```
-Io.print      : (Text) -> () with m // to Sys.stdout
-Io.println    : (Text) -> () with m // to Sys.stdout, appends "\n"
+Io.print      : (String) -> () with m // to Sys.stdout
+Io.println    : (String) -> () with m // to Sys.stdout, appends "\n"
 
-Io.printTo    : (Address(Text), Text) -> () with m
-Io.printlnTo  : (Address(Text), Text) -> () with m // appends "\n"
+Io.printTo    : (Address(String), String) -> () with m
+Io.printlnTo  : (Address(String), String) -> () with m // appends "\n"
 ```
 
 ### Appendix E.2. `List.ern`
@@ -732,19 +732,19 @@ Set.fromList     : (List(a)) -> Set(a)
 Set.toList       : (Set(a)) -> List(a)
 ```
 
-### Appendix E.5. `Text.ern`
+### Appendix E.5. `String.ern`
 
 ```
-Text.size        : (Text) -> Int // number of code points
-Text.isEmpty     : (Text) -> Bool
-Text.contains    : (Text, Text) -> Bool // substring test
-Text.toInt       : (Text) -> Optional(Int)
-Text.chars       : (Text) -> List(Char)
-Text.fromChars   : (List(Char)) -> Text
-Text.fromUtf8    : (Bytes) -> Optional(Text)
-Text.toUtf8      : (Text) -> Bytes
-Text.lines       : (Text) -> List(Text)
-Text.all         : (Text, (Char) -> Bool) -> Bool
+String.size        : (String) -> Int // number of code points
+String.isEmpty     : (String) -> Bool
+String.contains    : (String, String) -> Bool // substring test
+String.toInt       : (String) -> Optional(Int)
+String.chars       : (String) -> List(Char)
+String.fromChars   : (List(Char)) -> String
+String.fromUtf8    : (Bytes) -> Optional(String)
+String.toUtf8      : (String) -> Bytes
+String.lines       : (String) -> List(String)
+String.all         : (String, (Char) -> Bool) -> Bool
 ```
 
 ### Appendix E.6. `Char.ern`
@@ -753,7 +753,7 @@ Text.all         : (Text, (Char) -> Bool) -> Bool
 Char.isDigit     : (Char) -> Bool
 Char.isAlpha     : (Char) -> Bool
 Char.isSpace     : (Char) -> Bool
-Char.toText      : (Char) -> Text
+Char.toString      : (Char) -> String
 Char.toInt       : (Char) -> Int // Unicode code point
 ```
 
@@ -761,7 +761,7 @@ Char.toInt       : (Char) -> Int // Unicode code point
 
 ```
 Bool.not         : (Bool) -> Bool
-Bool.toText      : (Bool) -> Text // "true" or "false"
+Bool.toString      : (Bool) -> String // "true" or "false"
 ```
 
 ### Appendix E.8. `Int.ern`
@@ -776,7 +776,7 @@ Int.bitXor       : (Int, Int) -> Int
 Int.bitNot       : (Int) -> Int
 Int.shiftLeft    : (Int, Int) -> Int
 Int.shiftRight   : (Int, Int) -> Int // arithmetic (sign-preserving)
-Int.toText       : (Int) -> Text
+Int.toString       : (Int) -> String
 Int.toFloat      : (Int) -> Float
 ```
 
@@ -784,7 +784,7 @@ Int.toFloat      : (Int) -> Float
 
 ```
 Float.abs        : (Float) -> Float
-Float.toText     : (Float) -> Text
+Float.toString     : (Float) -> String
 Float.round      : (Float) -> Int // banker's rounding, IEEE 754 default
 Float.floor      : (Float) -> Int
 Float.ceil       : (Float) -> Int
@@ -818,7 +818,7 @@ Either.fromOptional : (Optional(a), e) -> Either(e, a)
 ```
 Foreign.toInt    : (Foreign) -> Optional(Int)
 Foreign.toFloat  : (Foreign) -> Optional(Float)
-Foreign.toText   : (Foreign) -> Optional(Text)
+Foreign.toString   : (Foreign) -> Optional(String)
 Foreign.toBool   : (Foreign) -> Optional(Bool)
 Foreign.toList   : (Foreign) -> Optional(List(Foreign))
 ```

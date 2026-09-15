@@ -21,21 +21,21 @@ type Tick = Tick
 // Types
 //
 
-type Request = Request(method : Text, path : Text, headers : List(#(Text, Text)))
-type Response = Response(status : StatusCode, headers : List(#(Text, Text)), body : Text)
-type ParseError = BadEncoding | BadRequestLine | BadHeader(Text)
+type Request = Request(method : String, path : String, headers : List(#(String, String)))
+type Response = Response(status : StatusCode, headers : List(#(String, String)), body : String)
+type ParseError = BadEncoding | BadRequestLine | BadHeader(String)
 type Session = Session(Int) // number of visits
 
 abstract type StatusCode = StatusCode(Int) with {
     ok : StatusCode;
     notFound : StatusCode;
-    render : (StatusCode) -> Text
+    render : (StatusCode) -> String
 }
 
-abstract type SessionId = SessionId(Text) with {
+abstract type SessionId = SessionId(String) with {
     fresh : (Int) -> SessionId;
-    parse : (Text) -> Optional(SessionId);
-    text : (SessionId) -> Text
+    parse : (String) -> Optional(SessionId);
+    text : (SessionId) -> String
 }
 
 //
@@ -90,7 +90,7 @@ fn handler(
                   | None -> 1
                 };
                 Ets.insert(sessions, id, Session(visits));
-                let body = "Visit number " <> Int.toText(visits);
+                let body = "Visit number " <> Int.toString(visits);
                 let bytes = Response(status = StatusCode.ok, headers = [], body = body)
                     |> withCookie("sid", SessionId.text(id))
                     |> render;
@@ -107,18 +107,18 @@ fn handler(
 //
 
 fn parse(b : Bytes) -> Either(ParseError, Request) = {
-    let t <- Either.fromOptional(Text.fromUtf8(b), BadEncoding);
-    let lines = Text.lines(t);
+    let t <- Either.fromOptional(String.fromUtf8(b), BadEncoding);
+    let lines = String.lines(t);
     let #(method, path) <- requestLine(lines);
     let headers <- headerLines(lines);
     Right(Request(method = method, path = path, headers = headers))
 }
 
-fn requestLine(lines : List(Text)) -> Either(ParseError, #(Text, Text)) = todo("on paper")
-fn headerLines(lines : List(Text)) -> Either(ParseError, List(#(Text, Text))) = todo("on paper")
+fn requestLine(lines : List(String)) -> Either(ParseError, #(String, String)) = todo("on paper")
+fn headerLines(lines : List(String)) -> Either(ParseError, List(#(String, String))) = todo("on paper")
 fn render(r : Response) -> Bytes = todo("on paper")
-fn cookie(r : Request, name : Text) -> Optional(Text) = todo("on paper")
-fn withCookie(name : Text, value : Text, r : Response) -> Response = todo("on paper")
+fn cookie(r : Request, name : String) -> Optional(String) = todo("on paper")
+fn withCookie(name : String, value : String, r : Response) -> Response = todo("on paper")
 
 //
 // Abstract-type definitions
@@ -126,9 +126,9 @@ fn withCookie(name : Text, value : Text, r : Response) -> Response = todo("on pa
 
 let StatusCode.ok = StatusCode(200)
 let StatusCode.notFound = StatusCode(404)
-fn StatusCode.render(StatusCode(n)) = Int.toText(n)
+fn StatusCode.render(StatusCode(n)) = Int.toString(n)
 
-fn SessionId.fresh(n) = SessionId(Int.toText(n)) // good enough on paper
-fn SessionId.parse(t) = if Text.all(t, Char.isDigit) then Some(SessionId(t)) else None
+fn SessionId.fresh(n) = SessionId(Int.toString(n)) // good enough on paper
+fn SessionId.parse(t) = if String.all(t, Char.isDigit) then Some(SessionId(t)) else None
 fn SessionId.text(SessionId(t)) = t
 ```

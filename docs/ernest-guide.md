@@ -72,7 +72,7 @@ Ernest starts with a small set of built-in scalar types:
 - **`Int`** — integers of arbitrary precision.
 - **`Float`** — IEEE 754 double precision.
 - **`Char`** — one Unicode code point.
-- **`Text`** — a Unicode string.
+- **`String`** — a Unicode string.
 - **`Bytes`** — a sequence of octets.
 - **`Bool`** — `true` or `false`.
 - **`()`** — the unit type, which has exactly one value, also written `()`.
@@ -123,7 +123,7 @@ Both `a`s are the same type variable. That ties the parameter of `Optional` to w
 Practical uses:
 
 - `Some(5)` is a value of type `Optional(Int)`.
-- `Some("hello")` is a value of type `Optional(Text)`.
+- `Some("hello")` is a value of type `Optional(String)`.
 - `None` is a value of type `Optional(a)` for any `a` — since `None` doesn't carry anything, `a` is free to be whatever.
 
 `Optional` shows up whenever a function might not have a value to give you — like looking up a key in a map, or parsing a number.
@@ -133,10 +133,10 @@ Practical uses:
 Sometimes a constructor carries several things, and each one deserves a name. Ernest lets you say:
 
 ```
-type Person = Person(name : Text, age : Int)
+type Person = Person(name : String, age : Int)
 ```
 
-One constructor, `Person`, with two named fields: `name` of type `Text`, and `age` of type `Int`.
+One constructor, `Person`, with two named fields: `name` of type `String`, and `age` of type `Int`.
 
 To make one:
 
@@ -146,7 +146,7 @@ Person(name = "Alice", age = 30)
 
 Notice the difference between the type declaration and the value:
 
-- **Declaration**: `Person(name : Text, age : Int)`. Colons mark field types.
+- **Declaration**: `Person(name : String, age : Int)`. Colons mark field types.
 - **Value**: `Person(name = "Alice", age = 30)`. Equals signs give field values.
 
 Same overall shape (a constructor, then a parenthesized list), different punctuation depending on whether we're describing the shape or building a value.
@@ -185,7 +185,7 @@ Lists decompose with pattern matching:
 ```
 match xs {
     [] -> "empty"
-  | head :: rest -> "first is " <> Int.toText(head)
+  | head :: rest -> "first is " <> Int.toString(head)
 }
 ```
 
@@ -218,7 +218,7 @@ A tuple is a fixed-size positional group of values, each with its own type. Tupl
 
 ```
 let point : #(Int, Int) = #(3, 4);
-let entry : #(Text, Int) = #("Alice", 30)
+let entry : #(String, Int) = #("Alice", 30)
 ```
 
 The type `#(A, B)` is a two-tuple; `#(A, B, C)` a three-tuple; and one-tuples `#(A)` are also legal — the `#` makes the shape unambiguous.
@@ -236,7 +236,7 @@ Tuples are useful when a function needs to return more than one value without in
 fn divmod(a : Int, b : Int) -> #(Int, Int) = todo("quotient and remainder")
 ```
 
-For anything where positions carry different meanings that a reader would benefit from seeing, prefer a named-fields constructor (`Person(name : Text, age : Int)`) over a tuple. Tuples are for genuinely positional data — 2D points, key-value pairs, multi-value returns — where the position itself is the interpretation.
+For anything where positions carry different meanings that a reader would benefit from seeing, prefer a named-fields constructor (`Person(name : String, age : Int)`) over a tuple. Tuples are for genuinely positional data — 2D points, key-value pairs, multi-value returns — where the position itself is the interpretation.
 
 ## 3. Functions
 
@@ -362,16 +362,16 @@ That's the "decompose versus compare" line. `let` and function parameters *decom
 
 ### 3.5 The pipe operator `|>`
 
-Ernest's standard library is subject-first: `List.map(list, f)`, `Text.chars(text)`, `Map.get(map, key)`. When you compose several such calls, the expression reads inside-out:
+Ernest's standard library is subject-first: `List.map(list, f)`, `String.chars(s)`, `Map.get(map, key)`. When you compose several such calls, the expression reads inside-out:
 
 ```
-Text.chars(Text.toLower(Text.trim(input)))
+String.chars(String.toLower(String.trim(input)))
 ```
 
 The pipe operator flips the reading direction:
 
 ```
-input |> Text.trim |> Text.toLower |> Text.chars
+input |> String.trim |> String.toLower |> String.chars
 ```
 
 Same value, read left to right. `x |> f` is exactly `f(x)`. When the right-hand side already has arguments, the pipe inserts its left-hand side as the *first* argument: `xs |> List.map(f)` is `List.map(xs, f)`.
@@ -379,7 +379,7 @@ Same value, read left to right. `x |> f` is exactly `f(x)`. When the right-hand 
 Two rules of thumb:
 
 - Use `|>` when the reading direction adds real clarity — usually three or more chained transformations, or a chain that mixes stdlib functions with your own.
-- Don't force it. `Int.toText(n)` is fine as a single call; `n |> Int.toText` is longer and no clearer.
+- Don't force it. `Int.toString(n)` is fine as a single call; `n |> Int.toString` is longer and no clearer.
 
 `|>` is the lowest-precedence binary operator, below `||`. So `a + b |> f` is `f(a + b)`, and `a |> b |> c` is `c(b(a))` — chains build left-associatively.
 
@@ -543,13 +543,13 @@ fn main() -> () with () = {
     send(c, Inc(5));
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
-        Some(n) -> Io.println("count is " <> Int.toText(n))
+        Some(n) -> Io.println("count is " <> Int.toString(n))
       | None -> Io.println("counter is not answering")
     }
 }
 ```
 
-If you want to send to a different address (a logger, a capture buffer for testing) instead of stdout, `Io.printlnTo(addr, "hi")` takes an explicit `Address(Text)`.
+If you want to send to a different address (a logger, a capture buffer for testing) instead of stdout, `Io.printlnTo(addr, "hi")` takes an explicit `Address(String)`.
 
 Four things happen. Let's walk through them.
 
@@ -611,17 +611,17 @@ The timeout is mandatory in `Address.call` — you can't accidentally wait forev
 
 If you genuinely want no timeout — a startup wait for a critical service, say, where nothing else can happen until this answer arrives — the prelude also has `Address.callForever(addr, mk)`. It waits as long as it takes and returns the answer directly, not wrapped in `Optional`. If the receiver never answers, the caller hangs; that's the point of the name. Use it when the caller has explicitly decided to wait, not by default.
 
-### 6.4 Text concatenation
+### 6.4 String concatenation
 
 One small thing in the success case:
 
 ```
-"count is " <> Int.toText(n)
+"count is " <> Int.toString(n)
 ```
 
-`Int.toText` converts an integer to its text representation. `"8"`, in this case.
+`Int.toString` converts an integer to its string representation. `"8"`, in this case.
 
-`<>` is concatenation. It works on `Text`, `List`, and `Bytes`, resolved by the operand types (`Text.<>` here, `List.<>` for lists). Both operands are `Text` here, so the result is `Text` — `"count is 8"`. `Io.println` then sends that to stdout with a newline appended.
+`<>` is concatenation. It works on `String`, `List`, and `Bytes`, resolved by the operand types (`String.<>` here, `List.<>` for lists). Both operands are `String` here, so the result is `String` — `"count is 8"`. `Io.println` then sends that to stdout with a newline appended.
 
 Take a moment. This is a complete Ernest program that uses two processes (main, plus the counter it spawned), passes messages between them, and prints the result. It's about twenty lines.
 
@@ -653,7 +653,7 @@ fn main() -> () with () = {
 fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
     if n == 0 then send(pongAddr, Stop)
     else {
-        Io.println("ping " <> Int.toText(n));
+        Io.println("ping " <> Int.toString(n));
         match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
             Some(_) -> ping(pongAddr, n - 1)
           | None -> { Io.println("pong is not answering"); send(pongAddr, Stop) }
@@ -662,7 +662,7 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
 
 fn pong() -> () with PongMsg = receive {
     Ping(n = n, reply = r) -> {
-        Io.println("pong " <> Int.toText(n));
+        Io.println("pong " <> Int.toString(n));
         answer(r, n);
         pong()
     }
@@ -733,7 +733,7 @@ Processes die for one of four reasons:
 - **`Returned`** — the function finished normally.
 - **`Killed`** — another process called `kill` on them.
 - **`ProgramEnd`** — the whole program is shutting down.
-- **`Fault(text)`** — an unhandled error, with a description.
+- **`Fault(msg)`** — an unhandled error, with a message describing what went wrong.
 
 There is no shared exception mechanism and no automatic propagation. A fault in one process does not affect another. If you want to know a process has died, you explicitly ask.
 
@@ -744,8 +744,8 @@ monitor : (Address(a), (Down) -> m) -> () with m
 `monitor(child, wrap)` sets up a watch. When `child` dies, the runtime places `wrap(d)` in *your* mailbox, where `d : Down` carries the cause.
 
 ```
-type Down = Down(reason : Reason, function : Text)
-type Reason = Returned | Killed | ProgramEnd | Fault(Text)
+type Down = Down(reason : Reason, function : String)
+type Reason = Returned | Killed | ProgramEnd | Fault(String)
 ```
 
 The typical pattern:
@@ -852,15 +852,15 @@ Here `Listed` is being used as a function — a constructor with one field is it
 
 ## 10. Chaining with `<-`
 
-Consider a function that parses two numbers from text and adds them. Each parse can fail; failure returns `None`.
+Consider a function that parses two numbers from a string and adds them. Each parse can fail; failure returns `None`.
 
 Written with nested `match`:
 
 ```
-fn parseAndAdd(a : Text, b : Text) -> Optional(Int) =
-    match Text.toInt(a) {
+fn parseAndAdd(a : String, b : String) -> Optional(Int) =
+    match String.toInt(a) {
         None -> None
-      | Some(x) -> match Text.toInt(b) {
+      | Some(x) -> match String.toInt(b) {
             None -> None
           | Some(y) -> Some(x + y)
         }
@@ -872,16 +872,16 @@ Each `None` case just propagates. The nested `match` grows a diagonal for every 
 Ernest gives you `<-`, a special binding form that reads short-circuit-on-failure:
 
 ```
-fn parseAndAdd(a : Text, b : Text) -> Optional(Int) = {
-    let x <- Text.toInt(a);
-    let y <- Text.toInt(b);
+fn parseAndAdd(a : String, b : String) -> Optional(Int) = {
+    let x <- String.toInt(a);
+    let y <- String.toInt(b);
     Some(x + y)
 }
 ```
 
 Read it left-to-right:
 
-- `let x <- Text.toInt(a)`: if the right-hand side is `Some(v)`, bind `x` to `v` and continue. If it is `None`, the whole block evaluates to `None`; nothing after this line runs.
+- `let x <- String.toInt(a)`: if the right-hand side is `Some(v)`, bind `x` to `v` and continue. If it is `None`, the whole block evaluates to `None`; nothing after this line runs.
 - Same for `y`.
 - Reach the last line — `Some(x + y)` — which is what the block returns.
 
@@ -914,7 +914,7 @@ Give it a pure, zero-argument function. The runtime picks a peer and evaluates t
 ```
 fn main() -> () with () = {
     match remote(fn() = heavy(1, 2, 3)) {
-        Right(n) -> Io.println("got " <> Int.toText(n))
+        Right(n) -> Io.println("got " <> Int.toString(n))
       | Left(_) -> Io.println("no remote available")
     }
 }
@@ -942,7 +942,7 @@ fn main() -> () with () = {
     let jobs = [fn() = crunch(1), fn() = crunch(2), fn() = crunch(3)];
     let results = parallelRemote(jobs);
     List.foreach(results, fn(r) = match r {
-        Right(n) -> Io.println("ok: " <> Int.toText(n))
+        Right(n) -> Io.println("ok: " <> Int.toString(n))
       | Left(_) -> Io.println("failed")
     })
 }
@@ -970,7 +970,7 @@ Ernest runs on BEAM, the Erlang runtime. Sometimes you want to call code that li
 foreign type Ets.Table(k, v)
 ```
 
-**`foreign fn`** declares a function whose implementation is in the runtime, not in Ernest source. The body is a text reference to the implementation:
+**`foreign fn`** declares a function whose implementation is in the runtime, not in Ernest source. The body is a string reference to the implementation:
 
 ```
 foreign fn Ets.member(t : Ets.Table(k, v), key : k) -> Bool with m = "ets:member/2"
@@ -1044,7 +1044,7 @@ The compiler tracks the dependency; segments must be laid out in the order the s
 
 ### 13.3 When to reach for bitstrings
 
-Wire protocols, binary file formats, packet headers, checksums, extracting flag bits. For anything higher-level — plain text, structured data, records — the ordinary types (`Text`, `List`, named-fields constructors) are more natural.
+Wire protocols, binary file formats, packet headers, checksums, extracting flag bits. For anything higher-level — plain text, structured data, records — the ordinary types (`String`, `List`, named-fields constructors) are more natural.
 
 Bitstrings compile directly to BEAM's bit syntax, so the runtime's mature optimizer handles prefix-heavy protocol matches at native speed.
 

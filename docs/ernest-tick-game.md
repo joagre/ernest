@@ -136,7 +136,7 @@ fn refill(w : Int, h : Int, want : Int, apples : List(Pos), seed : Seed) -> #(Li
 
 fn addPlayer(world : World, id : Int) -> World = todo("add a player at a random free position")
 
-fn render(world : World) -> Text = todo("grid to text, one line per y")
+fn render(world : World) -> String = todo("grid to text, one line per y")
 
 //
 // Small helpers

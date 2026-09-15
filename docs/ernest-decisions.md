@@ -4,7 +4,7 @@ The reasoning behind the language report in [`ernest.md`](ernest.md): what was t
 
 **A note on principle numbering.** Some dated entries below reference "principle N" using the count at the time they were written. The count changed on 2026-09-14 from seven principles to five (see *Ambient Sys, Five Principles*), and one entry from 2026-09-12 renamed "principle 5" as what is now principle 4 (simple to parse). Read older references in that light; the current numbering lives in [`ernest.md`](ernest.md) §0.
 
-**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Later the same day the cons operator `+:` became `::` and the text-concat operator `++` became `<>` (see *List and Concat Operators*), the reserved word `recv` was spelled out as `receive` (see *`recv` → `receive`*), `opaque` became `abstract` (see *`opaque` → `abstract`*), and tuples got a `#(...)` prefix (see *Tuples: `#(...)` Prefix*). Historical entries below use the older syntax; the current forms live in [`ernest.md`](ernest.md).
+**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Later the same day the cons operator `+:` became `::` and the string-concat operator `++` became `<>` (see *List and Concat Operators*), the reserved word `recv` was spelled out as `receive` (see *`recv` → `receive`*), `opaque` became `abstract` (see *`opaque` → `abstract`*), tuples got a `#(...)` prefix (see *Tuples: `#(...)` Prefix*), and the string type `Text` was renamed to `String` (see *`Text` → `String`*). Historical entries below use the older syntax; the current forms live in [`ernest.md`](ernest.md).
 
 ## Starting Point
 
@@ -644,6 +644,24 @@ Option 2 fixes both warts for the price of one `#` character per tuple site and 
 **Not affected.** Type application `List(a)`, function call `f(x, y)`, constructor call `Some(x)`, function type `(A, B) -> C`, unit `()`, grouping `(e)`. All still use plain parens — each is now unambiguous from first-token dispatch or the presence of `->`.
 
 **Bonus.** The decisions-log entry from 2026-09-12 (Grammar Audit) noted that `(A, B) -> C` vs `((A, B)) -> C` was a "remaining fragility" with a compiler suggestion on arity errors. The suggestion becomes unnecessary — the two forms are now clearly different (one uses `#`, the other doesn't).
+
+## `Text` → `String`, 2026-09-15
+
+External review pointed out that `Text` is Ernest-invented for the concept every mainstream language (Java, C#, JavaScript, Python, Rust, Go, Swift, Kotlin, Gleam, OCaml, SML, F#) calls `String`. The `Text` name comes from Haskell's `Data.Text`, which exists specifically to distinguish an efficient Unicode representation from the older, slower `String = [Char]`. Ernest has no such alternative representation to distinguish from — there is exactly one string type — so the Haskell motivation doesn't apply here.
+
+The mentor's principle-1 argument: a programmer arriving at Ernest looks for `String` and doesn't find it. The `Text` → `String` mapping is one they have to learn for no local reason.
+
+**Considered:**
+
+- **Keep `Text`.** Haskell/PureScript precedent. Distinguishes semantic "Unicode text" from the byte-oriented meaning `String` has in older-C tradition. But Ernest already has `Bytes` for that role — there's no ambiguity to prevent.
+- **`Str` (Roc's choice).** Terse. No baggage. But short abbreviations tend to read as unfriendly for the most-used type.
+- **`String` (universal).** Every mainstream language. `Bytes` disambiguates from the older byte-string sense.
+
+Taken: `String`. The Haskell motivation for `Text` doesn't apply — Ernest doesn't have two competing string representations — and universal convention beats invented distinction for Ernest's audience. Principle 1.
+
+**Effect.** Type `Text` → `String`. Every reference in the report, guide, four paper programs, and implementation plan updated. Module file `Text.ern` → `String.ern` (Appendix E.5). Every function name that mentioned `Text` (`Int.toText`, `Char.toText`, `Bool.toText`, `String.toUtf8`, etc.) becomes the `String`-suffixed form. Lexical category `text` → `string` in §2's literals block and in `binop`/`literal` composition. Prose "text literal" becomes "string literal"; English uses of "text" (source text, "writes text to stdout") stay as English.
+
+**Not renamed.** `SessionId.text` in the webserver paper program is a domain-specific getter on an abstract type — kept as-is (renaming it would change API meaning, not spelling).
 
 ## `Bool.ern` Added, 2026-09-14
 
