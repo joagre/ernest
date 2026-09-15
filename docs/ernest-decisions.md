@@ -932,6 +932,55 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Four "Partly Resolved" Tails: Blocks, Reply Timing, Termination, Deadlock Scope, 2026-09-15
+
+Four remaining tails from the reviewer's "Partly Resolved" cells that we can decide ourselves. R16's tail was already covered by §8.4 + §10 (foreign side delivers declared types; representation is documented) — no change needed. R07's "local recursive functions" and R18's "constructor-call ambiguity" tails need a concrete example from the reviewer and stay open.
+
+**R07 tail — local `fn` in a block.**
+
+- **`fn` declared inside a block is visible throughout the block; `let` remains sequential.** Taken. Matches the top-level rule; mutual and self-recursion between local `fn`s just work. A `fn` body referencing a later `let` is a compile-time error.
+- Rejected: purely sequential `fn` (visible only after declaration) — would break mutual recursion inside blocks and diverge from the top-level rule.
+
+**R11 tail — timeout deadline start and races.**
+
+- **Clock starts when `Address.call` is invoked; construction time counts against the deadline.** Taken. Most natural reading of "wait up to `ms` milliseconds".
+- **Race between reply and timeout has no deterministic tiebreak.** Taken. Runtime-scheduling-dependent; either outcome (`Some(v)` or `None`) is legal. Reviewer's concern that a spec should acknowledge the race is addressed by stating the non-guarantee.
+- Rejected: clock starts after the outgoing send. Would let arbitrarily-slow `mk` callbacks starve the timeout.
+- Rejected: deterministic tiebreak. Requires runtime coordination for no practical benefit.
+
+**R12 tail — output draining, `main` fault, peer shutdown.**
+
+- **Runtime flushes pending output on system processes before program exit.** Taken. Standard behavior; no user surprise from a buffered final `Io.println`.
+- **`main` faulting = program end, with the fault's cause reported on the exit indicator.** Taken. Same termination path as return, plus a diagnostic.
+- **No coordinated shutdown signal to peers; they see `PeerLost` per R14.** Taken. Consistent with the "loss is terminal from observer's view" policy.
+- Rejected: no output draining. Would surprise callers whose last output vanishes.
+- Rejected: cross-node coordinated shutdown. Adds a distributed protocol for a fault model that's deliberately simple.
+
+**R13 tail — deadlock scope and foreign event registration.**
+
+- **Deadlock detection is per-node.** Taken. Cross-node deadlock detection requires distributed consensus, which Ernest does not commit to. A program deadlocked in a distributed sense may not be detected.
+- **`Sys.*` system processes count as external event sources by default; user-provided foreign event sources are runtime-dependent.** Taken. Keeps the language spec neutral about specific runtimes' foreign-process discipline.
+- Rejected: cross-node deadlock detection. Machinery cost without a paper-program need.
+
+**Effect on the report.**
+
+- §5.4 (Blocks): one sentence added about `fn`-in-block visibility vs `let` sequentiality.
+- §6.6: new "Deadline start and races" paragraph after "Timeout rationale".
+- §8.6: termination paragraph extended (output draining, `main` fault, no peer shutdown). Deadlock paragraph extended (per-node scope, foreign-event registration policy).
+
+**Cost.** Four short paragraphs / paragraph extensions. No new syntax, no new operation, no new fault kind.
+
+**Still open (need reviewer input).**
+
+- R07's "local recursive functions interacting with sequential bindings" — the phrase suggests a specific example the reviewer has in mind that's not covered by the general rule we adopted. Ask.
+- R18's constructor-call ambiguity — no concrete example was given. Ask.
+
+**R16's tail** — the reviewer wanted "the complete value representation, validation rules, and trust boundary". §8.4 states: "the foreign side delivers the declared types, and a breach is a fault." §10 states: "The representation of values is fixed and documented, so that foreign code can produce and consume them." Both are already in the report; nothing to add.
+
+**Principle 3 (nothing invisible).** Four folklore behaviors (block-`fn` visibility, timeout start, output draining, deadlock scope) are now stated rather than implied.
+
+**Principle 5 (small).** No new mechanism, no new syntax.
+
 ## Effect Variables: Primitives Are Non-Empty (U01 Soundness Fix), 2026-09-15
 
 Discovered during the final audit. The U01 rule "effect-only variables can bind to empty" opens a soundness hole for prelude primitives:

@@ -413,6 +413,8 @@ Strict, left to right, arguments before the call. No delayed computation; `fn() 
 
 `{ s1; s2; e }` is an expression whose value is the last statement, which must be an expression. `;` separates statements and never appears last. Statements are `fn` declarations, `let` bindings, and expressions; an expression as a statement is evaluated for its effect.
 
+A `fn` declared inside a block is visible throughout the block, so mutual and self-recursion between local `fn`s works the same as at the top level. `let` bindings remain sequential: `let p = e` is visible from the next statement onward, and a `fn` body that references a `let` declared later in the same block is a compile-time error.
+
 ### 5.5 Binding with `<-`
 
 In a block, `let p <- e; rest` means that `e` is matched: on `Right(v)`, `p` is bound to `v` and `rest` is evaluated; on `Left(err)`, the block's value is `Left(err)`. If the block's type is `Optional`, `Some` and `None` apply the same way.
@@ -584,6 +586,8 @@ The check is static in flow, not in dynamics: it ensures every path *calls* the 
 
 **Timeout rationale.** The mandatory timeout on `Address.call` returns `Optional(a)` so an answer that never arrives has somewhere to land; `Address.callForever` opts out of that by name, and the caller accepts that this call may hang.
 
+**Deadline start and races.** The timeout clock starts when `Address.call` is invoked, so the `mk(r)` build and the outgoing send count against the deadline. A reply that arrives simultaneously with the timeout may be delivered (returning `Some(v)`) or discarded (returning `None`) — the runtime does not guarantee a tiebreak.
+
 **Late answers.** After `Address.call` returns `None` on timeout, the runtime deregisters the `Reply(a)`'s fresh identifier. Any subsequent `answer(r, v)` call by the recipient sends a value tagged with that identifier; the runtime silently discards it — it does not appear in the caller's mailbox, does not fault, does not affect other messages. `Address.callForever` behaves the same way if the caller dies while waiting: the reply value is silently discarded when it arrives at a dead process. The recipient's `answer(r, v)` call itself always succeeds — the recipient has no way to observe whether the caller is still waiting.
 
 **Mailbox isolation.** The fresh identifier attached to each `Reply(a)` is known only to the `Address.call` that allocated it. Reply values are delivered to the waiting call via that identifier; they never appear in the caller's declared mailbox, and the caller's mailbox type does not include them. Ordinary messages sent to the same process by other senders continue to flow into the mailbox typed as `m`, uninfluenced by pending or timed-out `Address.call` operations.
@@ -694,9 +698,9 @@ Top-level `type`, `abstract type`, `fn`, and `foreign` declarations have no runt
 
 ### 8.6 Program termination
 
-The program ends when `main` returns. Live processes then die with cause `ProgramEnd`; system processes release their resources. A program that is to keep running waits in `main`.
+The program ends when `main` returns. Live processes then die with cause `ProgramEnd`; system processes release their resources; the runtime flushes pending output on system processes before the program's process ends. A program that is to keep running waits in `main`. `main` faulting has the same effect as returning, except that the fault's cause is reported on the runtime's exit indicator. Peers observe the ending node's death through their own `PeerLost` channel (§10); the ending node does not send a coordinated shutdown signal.
 
-If forward progress is impossible — every live process is waiting in `receive` without `after`, no message is in flight, and no live system process holds a subscription, timer, or pending I/O whose completion would deliver a message to a live process — the runtime ends the program with the error `Deadlock`. Pending `after`s, pending clock timers, network listeners, keyboard subscribers, and any similar registered future delivery from a system process count as messages in flight; an idle server that is waiting for such external events is not deadlocked.
+If forward progress is impossible — every live process is waiting in `receive` without `after`, no message is in flight, and no live system process holds a subscription, timer, or pending I/O whose completion would deliver a message to a live process — the runtime ends the program with the error `Deadlock`. Pending `after`s, pending clock timers, network listeners, keyboard subscribers, and any similar registered future delivery from a system process count as messages in flight; an idle server that is waiting for such external events is not deadlocked. Deadlock detection is per-node — the runtime does not coordinate across peers, and a program deadlocked in a distributed sense may not be detected. `Sys.*` system processes count as external event sources by the runtime's default; a specific runtime decides whether user-provided foreign event sources are similarly registered.
 
 ### 8.7 Code shipping
 
