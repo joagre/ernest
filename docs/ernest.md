@@ -209,7 +209,7 @@ The empty effect has no explicit syntax — a function type without `with M` has
 **Annotations describe shape; some inferred properties are not written.** A type annotation gives the shape of a function — arity, argument types, return type, and mailbox effect. Three properties are inferred from the function body and not part of the annotation grammar:
 
 - The equality constraint on a type variable induced by `==` usage (§3.10). Checked at instantiation.
-- The exactly-once obligation on a `Reply(a)` parameter (§6.6). Signaled by the parameter type itself, checked compositionally.
+- The exactly-once obligation on a reply-carrying parameter — bare `Reply(a)`, or a type that transitively contains it (§6.6). Signaled by the parameter type itself, checked compositionally.
 - The kind distinction between value and effect type variables. Determined by position — an identifier in argument or return position is a value-type variable; the same identifier after `with` is an effect variable. Same lexical form, different kind.
 
 An annotation is compatible with these; it doesn't need to state them. Constraints and obligations follow from usage in the body and from the callee's signatures.
@@ -521,20 +521,28 @@ answer              : (Reply(a), a) -> Void with m
 
 `Address.call(addr, mk, ms)` allocates a fresh `Reply(a)`, calls `mk(r)` to build the message, sends it to `addr`, and returns `Some(v)` when the recipient answers or `None` after `ms` milliseconds. `Address.callForever(addr, mk)` is the same operation without a timeout: the caller waits as long as needed and receives `a` directly, not wrapped in `Optional`; the caller is opting out of the timeout by name, analogous to a `receive` without `after`. `answer(r, v)` sends `v` to the caller.
 
-**Legal positions.** A `Reply(a)` value may appear as: a field of a message, a parameter of a function, a variable bound in a `receive` clause, or a variable captured by a lambda passed directly to `spawn`. Any other position is a type error — in particular, `Reply(a)` may not appear in a container, in a `let` binding (aliasing is forbidden), in a `match` binding, in a return type not itself a message, or as an operand of equality.
+**Reply-carrying types.** A type is *reply-carrying* if it is `Reply(a)`, or if any of its constructor fields or tuple components has a reply-carrying type. The property is transitive: `type Request = Get(reply : Reply(Int))` is reply-carrying because `Get` has a reply-carrying field; `#(Request, Int)` is reply-carrying because one component is; `type Envelope = Env(msg : Request)` is reply-carrying because `Env`'s field is. The property is by type, not by constructor: `type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop` is reply-carrying, and `Stop` values are treated the same as `Ping` values for the discipline below — the checker cannot in general tell which constructor a value carries.
 
-**Exactly-once obligation.** Every binding of a `Reply(a)` — in a `receive` clause, as a function parameter, or captured by a spawn-lambda — creates a consumption obligation checked statically at the binding site. On every path from the binding, the reply must be consumed exactly once.
+**Legal positions.** A reply-carrying value may appear as: a field of a constructor, a component of a tuple, a parameter of a function, a variable bound in a `receive` clause, a variable captured by a lambda passed directly to `spawn`, or a value returned from a function whose declared return type is reply-carrying. Any other position is a type error — in particular, reply-carrying values may not appear as elements of `List`, `Map`, `Set`, `Optional`, or `Either`, or as an operand of equality. `as` on a reply-carrying scrutinee is a type error, because the alias would duplicate the obligation.
+
+Pattern-matching a reply-carrying value must bind every reply-carrying field of the matched constructor: a wildcard (`_`) or an omitted field for a position whose declared type is reply-carrying is a type error, because it would silently drop the value.
+
+**Exactly-once obligation.** Every binding of a reply-carrying value creates a consumption obligation checked statically at the binding site. On every path from the binding, the value must be consumed exactly once. Bindings include: a variable in a `receive` clause, a function parameter, a spawn-lambda capture, a variable introduced by pattern-matching a reply-carrying scrutinee, and the result at the call site of a function whose return type is reply-carrying.
 
 Consumption is one of:
 
-- `answer(r, v)`, which sends `v` to the caller.
-- Passing `r` as an argument where the callee has parameter type `Reply(a)`. This delegates the obligation to the callee, which is itself checked at its definition.
-- Sending `r` as a field of a message, which shifts the obligation to whichever `receive` clause eventually binds it.
-- Capturing `r` in a lambda passed directly to `spawn`, which shifts the obligation to the spawned function's body, checked at that function's definition.
+- `answer(r, v)` where `r : Reply(a)`. This is the only primitive that finally discharges a `Reply`.
+- Passing the value to a function whose corresponding parameter type is reply-carrying — delegates the obligation to the callee, checked at the callee's definition.
+- Sending the value with `send(a, v)` when `v` is reply-carrying — shifts the obligation to whichever `receive` clause in the recipient's process eventually binds it.
+- Placing the value into a constructor field or tuple component of reply-carrying type — the constructed value inherits the obligation and is itself subject to the discipline.
+- Returning the value from a function whose declared return type is reply-carrying — shifts the obligation to the caller's use-site binding.
+- Capturing the value in a lambda passed directly to `spawn` — shifts the obligation to the spawned function's body.
 
-The check is compositional: each function is analyzed at its own definition against its Reply parameters and its receive-bound Replies. No analysis crosses call boundaries. A function that takes `Reply(a)` and correctly consumes it is a valid delegation target from any caller. The `mk` callback of `Address.call` is checked by this same rule — its `Reply(a)` parameter obligates it to consume the reply exactly once, which it does by embedding the reply in the message it builds.
+The check is compositional: each function is analyzed at its own definition against its reply-carrying parameters, receive-bound values, and construction and return sites. No analysis crosses call boundaries. The `mk` callback of `Address.call` is checked by this rule — its `Reply(a)` parameter is consumed by placement into the reply-carrying value the lambda returns, and the returned value's obligation is discharged by `Address.call`'s runtime.
 
-The check is static: it ensures every path *calls* the consumption but not that execution *reaches* it at runtime — non-termination, a fault, or an indefinite wait bypasses the call without invalidating the type check.
+The check is static in flow, not in dynamics: it ensures every path *calls* the consumption but not that execution *reaches* it at runtime — non-termination, a fault, or an indefinite wait bypasses the call without invalidating the type check.
+
+`fn twice(dst : Address(Request), request : Request) = { send(dst, request); send(dst, request) }` is rejected: `request` is reply-carrying, consumed by the first `send`, and used again by the second. `match req { Get() -> ... }` on a `Get(reply : Reply(Int))` constructor is rejected: the omitted field would silently drop a reply-carrying value.
 
 **Timeout rationale.** The mandatory timeout on `Address.call` returns `Optional(a)` so an answer that never arrives has somewhere to land; `Address.callForever` opts out of that by name, and the caller accepts that this call may hang.
 

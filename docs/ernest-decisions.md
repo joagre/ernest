@@ -932,6 +932,54 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Reply Ownership Extends to Reply-Carrying Types, 2026-09-15
+
+The reviewer's follow-up round flagged U03 as *Critical*: the exactly-once discipline on `Reply(a)` was formulated on bare `Reply(a)` values only. A message that *contains* a `Reply(a)` could be duplicated, dropped, or aliased without any variable of type `Reply(a)` ever being in scope. The paradigm example:
+
+```
+type Request = Get(reply : Reply(Int))
+
+fn twice(dst : Address(Request), request : Request) -> Void with m = {
+    send(dst, request);
+    send(dst, request)
+}
+```
+
+No variable here has type `Reply(Int)`, so the old binding-site check saw nothing to enforce. Yet the second `send` reuses a value whose Reply has already been transferred to the recipient. Related gaps: pattern-matching `Get()` silently drops the reply; `Get(reply = r) as whole` aliases the reply through `whole`; `Address.call`'s `mk` callback returns a message containing the reply but the four listed consumption forms did not include "return through a message-building expression".
+
+**Choices weighed:**
+
+- **Extend the taint through the type (value-agnostic, per-type discipline).** A type is reply-carrying if it is `Reply(a)` or has any reply-carrying field/component transitively. Reply-carrying values are affine regardless of which constructor they carry. Simple to check (needs only the type, not the value), matches how Rust treats enums whose variants contain linear fields. Slight over-approximation: `Stop` values of a reply-carrying `PongMsg` cannot be duplicated with `let msg = Stop; send(a, msg); send(a, msg)` even though `Stop` carries no Reply — but no paper program does this, and freshly constructing `Stop` inline twice is fine. Taken.
+- **Value-based check (per-constructor).** Only actually-Reply-holding constructors' values are affine; `Write(bytes)` and `Close` of `SockMsg` are freely duplicable. More permissive, but the checker needs case analysis over constructor to know which values need tracking. Complicates the compositional check across function boundaries: `fn f(msg : SockMsg) = ...` cannot tell which constructor the caller supplied. Rejected on parsing/complexity grounds.
+- **Runtime-only exactly-once.** Rejected — the report's second bullet in §3.9 states the exactly-once check is static; a runtime guard is a weaker guarantee.
+- **Substructural annotations on types (`linear`/`affine` keyword).** Rejected — adds new syntax for a rare enough constraint that "the type transitively mentions `Reply`" already suffices as the trigger.
+
+Taken: extend the discipline to reply-carrying types (option 1). This is the minimum change that catches all the reviewer's counterexamples with no new syntax.
+
+**Consumption forms.** The list needed a form for the `mk` callback of `Address.call`, which was previously handwaved as "embedding the reply in the message it builds". Two new forms:
+
+- *Placing into a constructor/tuple*: the constructed value inherits the obligation and is itself subject to the discipline.
+- *Returning from a function whose return type is reply-carrying*: shifts the obligation to the caller's binding site.
+
+**Pattern rules.**
+
+- Matching a reply-carrying value must bind every reply-carrying field: wildcard/omitted for a `Reply`-declared field is a static error (would silently drop).
+- `as` on a reply-carrying scrutinee is a static error (alias would duplicate).
+
+**Legal-positions update.** Reply-carrying values are banned from prelude container types (`List`, `Map`, `Set`, `Optional`, `Either`). Other user-defined types can carry them because their construction and destructuring are checked by the same field-binding rule; the container ban singles out these five because their operations (map, get, put) must be able to store, look up, and duplicate freely.
+
+**Effect on Appendix B.**
+
+- Counter: `Address.call(c, fn(r) = Get(reply = r), 1000)` — mk consumes r by placing into `Get`; the returned `CounterMsg` inherits the obligation, discharged by `Address.call`. ✓
+- Ping-pong: same shape. ✓
+- All `receive` clauses in both examples bind reply fields explicitly. ✓
+
+The `twice` counterexample and the `Get()` pattern omission are now static errors, as the reviewer required.
+
+**Cost.** One paragraph added (reply-carrying types), two consumption forms added, two pattern rules added, one summary-line update on line 212. Total: about twenty lines of prose in §6.6, one word in §3.9.
+
+**Principle 3 (nothing invisible).** The exactly-once guarantee is now visible in the type — reply-carrying types are recognized by structure, not by ad-hoc "message" convention. The old phrasing had a hidden asymmetry: the discipline followed the *variable name*, so wrapping a Reply in a struct erased the discipline. Now it follows the *type*.
+
 ## Appendix D (ETS) Fixes: Syntax Sweep and Native Type, 2026-09-15
 
 The reviewer's fourteenth finding: Appendix D (the `Ets.ern` shim) still used pre-sweep syntax in several places, and one raw binding had a native argument-type mismatch that would fail at runtime on BEAM.
