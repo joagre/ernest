@@ -932,6 +932,45 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Code Shipping Boundaries: Transport, Failure Channels, Runtime Bindings, 2026-09-15
+
+The reviewer's U07 flagged five sub-issues in §8.7, each observable in cross-node code:
+
+1. §3.11 says code travels with functions in messages, but §8.7 said "sending closures in messages ship nothing" without qualifying "in local messages".
+2. `spawn(Peer, ..)`'s resolution-failure semantics were ambiguous: "fault on the shipped process" — but the process doesn't exist yet.
+3. Missing `Sys.*`, incompatible foreign, or a fault in `remote`'s callback weren't among the two `RemoteError` cases.
+4. Foreign-value transport rule named only remote `send` and `spawn`; missed thunks capturing foreign values, remote results, and cross-node replies.
+5. Top-level bindings on the peer: shipped code may reach a node where they aren't initialized.
+
+Plus: the phrase "`f` is pure (it must be, to be safely serialized and run on a peer)" in §6.7 confuses purity (about execution effects) with transportability (about values). `spawn` already ships effectful functions.
+
+**Choices weighed:**
+
+- **Consolidate all remote-transport failures into the two existing `RemoteError` cases (`NoRemotePeer`, `PeerLost`) for `remote`, and into "caller fault" for `spawn(Peer, ..)`.** Taken. Avoids expanding the error enum for edge cases; matches the existing §6.2 rule that an unreachable peer faults the caller.
+- **Add specific `RemoteError` cases (`MissingSys`, `MissingForeign`, `CallbackFault`).** Rejected — bloats the error surface; the caller mostly just wants "the peer didn't do it".
+- **Broaden the foreign-value rule to any cross-node transport, one sentence.** Taken.
+- **Peer-side top-level bindings: computed on demand from the shipped initializer.** Taken — consistent with content addressing (initializer is pure per §4.6, per-node result matches).
+- **Ship the sender's already-computed top-level values.** Rejected — introduces a separate transport channel and blurs the per-node initialization story from §8.5.
+- **Explain `Sys.*` name reference vs captured value.** Added one sentence — captures capture values (not names), so a captured `Sys.stdout` still points to the sender.
+- **Fix §6.7's "safely serialized" wording.** Replaced with the correct reason: `remote` is a one-shot compute-and-return, effectful work goes through `spawn`.
+
+**Effect on the report.**
+
+Six focused edits, no new machinery:
+
+- *§8.7 intro*: the "ship nothing" sentence now qualifies to local sends; remote sends use the same peer-ship contract.
+- *§8.7 Dependency resolution*: any resolution failure — missing dep, missing `Sys.x`, incompatible foreign, `remote`-callback fault — surfaces as `Left(PeerLost)` for `remote` and as a caller fault for `spawn(Peer, ..)`. Remote-`send` payload uses the same contract; failure faults the sending process.
+- *§8.7 Runtime bindings*: added the name-vs-captured-value distinction and the on-demand initialization rule for peer-side top-level bindings.
+- *§3.8*: extended the foreign-value cross-node rule to cover all transport paths (spawn, remote send, remote result, cross-node answer, captured closure values).
+- *§7.4*: updated the fault-list cross-reference to the extended rule.
+- *§6.7*: replaced "must be pure to be safely serialized" with "`f` is pure by `remote`'s design — the operation is a one-shot compute-and-return; effectful work goes through `spawn`".
+
+**Cost.** Six sentence-level edits. No new error constructor, no new function, no new syntax.
+
+**Principle 2 (one way).** Remote failures collapse into two error paths (`RemoteError` for `remote`, caller fault for `spawn`). Foreign-value transport is one uniform rule.
+
+**Principle 3 (nothing invisible).** Top-level bindings on peer, captured-value vs name-reference distinction, and the remote-`send` shipping path are all stated rather than left as folklore.
+
 ## Content Hashing: Recursive Groups and Abstract-Type Boundaries, 2026-09-15
 
 The reviewer's U06: §8.7's content-hash rule read `H(f) = hash(def(f), H(f))` for a recursive function, which has no finite construction. Related asks: how does normalization treat named-field order, local variable names, qualified references? What about abstract types with identical representations declared independently?

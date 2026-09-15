@@ -185,7 +185,7 @@ A sum type whose constructors may be mentioned only in the functions listed in t
 
 A type declared `foreign type T` has no constructors: its values are made and used only by foreign functions, §4.7, and can otherwise be held, passed, and sent.
 
-A foreign value is bound to the node that made it: `spawn(Peer(...), f)` or `send` to a remote address is a fault when the payload transitively contains a foreign value, including a closure that captures one, with cause `Fault("foreign value cannot cross nodes")`.
+A foreign value is bound to the node that made it: any cross-node transport of a value that transitively contains a foreign value is a fault, with cause `Fault("foreign value cannot cross nodes")`. This applies to `spawn(Peer(...), f)`, `send` to a remote address, `remote(f)` results returned to the caller, `answer(r, v)` where the caller lives on another node, and captured values in any shipped closure.
 
 Equality on a foreign type is identity.
 
@@ -591,7 +591,7 @@ parallelRemote : (List(() -> a)) -> List(Either(RemoteError, a)) with m
 type RemoteError = NoRemotePeer | PeerLost
 ```
 
-`remote(f)` evaluates `f()` on a peer the runtime chooses among those configured for remote computation, and returns the value. Which peer, and by what criterion, the language does not say. `f` is pure (it must be, to be safely serialized and run on a peer with no local context) but `remote` is not: `Left(NoRemotePeer)` if no peer is configured; `Left(PeerLost)` if the peer disappears before the value returns. Those failure modes expose runtime state, so `remote` carries a mailbox effect (`with m`) — it can only be called from process code.
+`remote(f)` evaluates `f()` on a peer the runtime chooses among those configured for remote computation, and returns the value. Which peer, and by what criterion, the language does not say. `f` is pure by `remote`'s design — the operation is a one-shot compute-and-return; effectful work on a peer goes through `spawn(Peer(...), ...)` instead. `remote` itself is not pure: `Left(NoRemotePeer)` if no peer is configured; `Left(PeerLost)` if the peer disappears before the value returns or resolution on the peer fails (§8.7). Those failure modes expose runtime state, so `remote` carries a mailbox effect (`with m`) — it can only be called from process code.
 
 `parallelRemote(fs)` runs the functions in `fs` on peers in parallel and returns the results in the input order, one `Either` per input. Same effect status as `remote`, same reasoning. The runtime picks peers and schedules the calls; a caller that needs richer control — cancellation, per-task timeouts, interleaved arrivals — spawns processes itself.
 
@@ -650,7 +650,7 @@ Five deliberate exceptions:
 - `Float.compare` faults on a `NaN` operand with cause `Fault("NaN in compare")` — `Ordering` has no unordered case, and `Float.isNaN` (Appendix E.9) exists so callers can guard. `==` and `!=` on `Float` do not fault; they follow IEEE 754 (§3.10). `Float`'s arithmetic operations `+`, `-`, `*`, `/` also do not fault — division by zero produces IEEE `Infinity` or `NaN` (§3.1).
 - Bitstring construction faults in two cases (§5.11): a segment value that does not fit its specified width (`Fault("segment overflow")`) or a total bit count that is not a multiple of 8 with dynamic sizes (`Fault("bitstring not byte-aligned")`). The compile-time forms of both errors are rejected at compile time; the runtime fault covers the dynamic cases.
 - `todo("...")` compiles at any type and faults if reached with cause `Fault("todo: ...")`, so that an unfinished function can be declared before it is written.
-- `spawn(Peer(...), f)` or `send` to a remote address when the payload transitively contains a foreign value, with cause `Fault("foreign value cannot cross nodes")` (§3.8).
+- Any cross-node transport of a value that transitively contains a foreign value, with cause `Fault("foreign value cannot cross nodes")` (§3.8).
 
 ## 8. Programs
 
@@ -688,19 +688,19 @@ If forward progress is impossible — every live process is waiting in `receive`
 
 ### 8.7 Code shipping
 
-`spawn(Peer(name), f)` (§6.2) and `remote(f)` (§6.7) ship the closure `f` and the code it depends on to the peer. Within-node `spawn(Local, f)` and sending closures in messages ship nothing — a function is a value in the local heap. This section specifies the peer-ship contract.
+`spawn(Peer(name), f)` (§6.2), `remote(f)` (§6.7), and any `send` whose destination is a remote address (§6.5) ship the closure or message payload and the code it depends on to the peer. Within-node operations ship nothing — a function is a value in the local heap. This section specifies the peer-ship contract.
 
 **Content addressing.** Every function, constructor, and type is identified across nodes by a content hash: a hash of its normalized definition together with the hashes of every definition it references. Structurally identical definitions have the same hash on every node; any change — a constructor added, a field renamed, a called function's body altered — changes the hash and, transitively, the hashes of everything that depends on it.
 
 **Recursive definitions.** A function that references itself, or a set of mutually recursive functions or types, is hashed as a group: internal references within the group use positional indices, external references use their hashes, and the group is hashed as a whole. Each member's identity is derived from the group hash. This gives a finite construction and a consistent identity across nodes. Normalization strips local variable names (α-conversion) and the ordering of named fields (§3.5); qualified names of external references are preserved.
 
-**Dependency resolution.** A shipped closure carries the hashes of the code it needs. Before it runs, the peer resolves every hash transitively: hashes it already has (from an earlier ship, or from its own compilation of an identical definition) are used directly; missing hashes are fetched from the sender and cached. `spawn` on a peer returns an `Address`, and `remote` returns a value, only after resolution succeeds. Unresolvable code is `Left(PeerLost)` for `remote` — the sender is unreachable during the fetch — or a fault on the shipped process for `spawn`.
+**Dependency resolution.** A shipped closure carries the hashes of the code it needs. Before it runs, the peer resolves every hash transitively: hashes it already has (from an earlier ship, or from its own compilation of an identical definition) are used directly; missing hashes are fetched from the sender and cached. Any resolution failure — a missing dependency, a missing `Sys.x` on the peer (§8.2), an incompatible foreign definition (§4.7), or a fault raised while running `remote`'s callback — surfaces as `Left(PeerLost)` for `remote` and as a caller fault for `spawn(Peer, ...)`, matching §6.2's rule that an unknown or unreachable peer faults the caller. A shipped `send` payload uses the same contract; a resolution failure at the recipient faults the sending process.
 
 **Type identity.** Types are identified by hash. Two nodes with structurally identical `FooMsg` share the same type hash and interoperate freely. Two nodes that both declare a local type `FooMsg` but define it differently have different hashes; the peer treats them as distinct types. A shipped closure that mentions the sender's `FooMsg` uses the sender's hash on the peer; the peer's own `FooMsg` under the same source name is unrelated to it as far as the type checker on the peer is concerned.
 
 **Abstract types.** An abstract type's hash includes its qualified name and its exported signature (the `with { ... }` block), not just its private representation. Two nodes that separately declare `abstract type Stack(a) = Stack(List(a)) with { ... }` are equivalent only if their qualified name and exported operations match — the abstraction boundary is part of type identity, so independent Stacks with the same private representation do not silently interoperate across nodes.
 
-**Runtime bindings.** References to `Sys.*` (§8.2) resolve *on the peer that runs the code*, not on the sender. A shipped `Io.println` sends to the peer's `Sys.stdout`. A shipped `Sys.x` that the peer's runtime does not provide is a fault at resolution: `Fault("Sys.x not provided by peer")`.
+**Runtime bindings.** A `Sys.*` name referenced by shipped code resolves *on the peer that runs the code*, not on the sender; a shipped `Io.println` sends to the peer's `Sys.stdout`. A closure that captures an already-obtained address as a value ships that value: an `Address` captured from the sender's `Sys.stdout` still points to the sender after transport, because captures capture values, not names. Top-level bindings referenced by shipped code are computed on demand on the peer from the shipped initializer — since top-level initializers are pure (§4.6), the per-node result matches the sender's.
 
 **Foreign code.** `foreign fn` and `foreign type` (§4.7) are not shipped. A shipped closure that references foreign code requires the peer to have a compatible foreign definition under the same qualified name and shape; a missing or incompatible foreign definition is a fault at resolution.
 
