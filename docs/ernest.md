@@ -73,15 +73,39 @@ TupleType = "#(" Type { "," Type } ")" .
 FnType    = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
 ```
 
-**Base types.** `Int`, integers of arbitrary precision. `Float`, IEEE 754 double precision. `Char`, one code point. `String`, a Unicode string. `Bytes`, a sequence of octets. `Bool`, with the literals `true` and `false`. `()`, the unit type with the single value `()`. There are no type aliases.
+### 3.1 Base types
 
-**Tuples.** `#(A, B)` is the type of a tuple; the value form is the same, `#(a, b)`. Tuples of one, two, or more components are all written this way. The tuple is the only positional product type. The `#(` prefix keeps tuples distinct from expression grouping `(e)` and from function types `(A, B) -> C`.
+| Type     | Values                                     |
+|----------|--------------------------------------------|
+| `Int`    | integers of arbitrary precision            |
+| `Float`  | IEEE 754 double precision                  |
+| `Char`   | one Unicode code point                     |
+| `String` | a Unicode string                           |
+| `Bytes`  | a sequence of octets                       |
+| `Bool`   | `true` or `false`                          |
+| `()`     | the unit type; the only value is `()`      |
 
-**Lists.** `List(a)` is an immutable linked list. `[]` is the empty list. `x :: xs` prepends `x` to `xs`; `::` is right-associative, so `[a, b]` is `a :: b :: []`.
+There are no type aliases.
 
-**Function types.** `(A, B) -> C` is the type of a function of two arguments. Arity is part of the type: `(A, B) -> C` and `(#(A, B)) -> C` are different types — the first takes two arguments, the second takes one tuple. `() -> C` takes no arguments. `with M` after the result is the mailbox type: the function uses the process it runs in, whose mailbox has type `M`, section 6. A function type without a mailbox type is pure. `with` binds to the nearest arrow; `(A) -> (B) -> C with M` is a pure function returning a function with mailbox type `M`.
+### 3.2 Tuples
 
-**Sum types.** Declared with `type`, section 4. A constructor has no fields, exactly one positional field, or named fields:
+`#(A, B)` is the type of a tuple; the value form is the same, `#(a, b)`. Tuples of one, two, or more components are all written this way. The tuple is the only positional product type. The `#(` prefix keeps tuples distinct from expression grouping `(e)` and from function types `(A, B) -> C`.
+
+### 3.3 Lists
+
+`List(a)` is an immutable linked list. `[]` is the empty list. `x :: xs` prepends `x` to `xs`; `::` is right-associative, so `[a, b]` is `a :: b :: []`.
+
+### 3.4 Function types
+
+`(A, B) -> C` is the type of a function of two arguments. Arity is part of the type: `(A, B) -> C` and `(#(A, B)) -> C` are different types — the first takes two arguments, the second takes one tuple. `() -> C` takes no arguments.
+
+`with M` after the result is the mailbox type: the function uses the process it runs in, whose mailbox has type `M`, section 6. A function type without a `with M` is pure.
+
+`with` binds to the nearest arrow; `(A) -> (B) -> C with M` is a pure function returning a function with mailbox type `M`.
+
+### 3.5 Sum types
+
+Declared with `type`, section 4. A constructor has no fields, exactly one positional field, or named fields:
 
 ```
 type Optional(a) = None | Some(a)
@@ -90,17 +114,37 @@ type Snapshot = Snapshot(dir : Path, seen : Map(Path, Mtime))
 
 Positional fields cap at one — beyond that, names are required, because position alone would hide what each field means. Field names are unique within a constructor; their order carries no meaning. Positional and named fields are distinguished by `:` after the first identifier in declarations, and by `=` in construction and patterns.
 
-**Abstract types.** A sum type whose constructors may be mentioned only in the functions listed in the type's signature, section 4.
+### 3.6 Abstract types
 
-**Built-in types.** `Address(m)`, an address of a process that receives `m`. `Reply(a)`, a one-shot address for the answer to a request, section 6. `Never`, the type with no values. The prelude types, section 9.
+A sum type whose constructors may be mentioned only in the functions listed in the type's signature, section 4.
 
-**Foreign types.** A type declared `foreign type T` has no constructors: its values are made and used only by foreign functions, section 4, and can otherwise be held, passed, and sent. A foreign value is bound to the node that made it: `spawn(Peer(...), f)` or `send` to a remote address is a fault when the payload transitively contains a foreign value, including a closure that captures one, with cause `Fault("foreign value cannot cross nodes")`. Equality on a foreign type is identity.
+### 3.7 Built-in types
 
-**Type variables and polymorphism.** Types are inferred according to Hindley-Milner. A `fn` definition is generalized over its free type variables; a binding is not. Type variables in a `fn` signature scope over the whole definition. Recursive and mutually recursive types are allowed. Polymorphic recursion is not. Every type variable in a constructor's fields must be a parameter of the type.
+`Address(m)` is an address of a process that receives `m`. `Reply(a)` is a one-shot address for the answer to a request, section 6. `Never` is the type with no values. The prelude types are listed in section 9.
 
-**Equality.** `==` and `!=` are defined for all values except those containing functions or addresses; on those, `==` is a type error. Equality is structural. Ordering is defined per type by the function `compare` in the type's namespace, `Int.compare : (Int, Int) -> Ordering`.
+### 3.8 Foreign types
 
-**Serialization.** All values can be sent in messages, functions included; their code travels with them, section 10.
+A type declared `foreign type T` has no constructors: its values are made and used only by foreign functions, section 4, and can otherwise be held, passed, and sent.
+
+A foreign value is bound to the node that made it: `spawn(Peer(...), f)` or `send` to a remote address is a fault when the payload transitively contains a foreign value, including a closure that captures one, with cause `Fault("foreign value cannot cross nodes")`.
+
+Equality on a foreign type is identity.
+
+### 3.9 Type variables and polymorphism
+
+Types are inferred according to Hindley-Milner. A `fn` definition is generalized over its free type variables; a `let` binding is not. Type variables in a `fn` signature scope over the whole definition.
+
+Recursive and mutually recursive types are allowed. Polymorphic recursion is not. Every type variable in a constructor's fields must be a parameter of the type.
+
+### 3.10 Equality and ordering
+
+`==` and `!=` are defined for all values except those containing functions or addresses; on those, `==` is a type error. Equality is structural.
+
+Ordering is defined per type by the function `compare` in the type's namespace, `Int.compare : (Int, Int) -> Ordering`.
+
+### 3.11 Serialization
+
+All values can be sent in messages, functions included; their code travels with them, section 10.
 
 ## 4. Declarations and Scope
 
