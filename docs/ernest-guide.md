@@ -1048,7 +1048,7 @@ Common `ern` options:
 - `--repl` — start a read-eval-print loop with the same loading rules.
 - `--create-config-dir dir` — create `dir/.ernest/` with a freshly generated `ernest.conf` and private key, and exit.
 
-`ernc --doc file.ern` extracts doc comments (`///`, §17) from the module and writes them to stdout as Markdown, grouped by declaration.
+`ernc --doc file.ern` extracts doc comments (`///`) from the module and writes them to stdout as Markdown, grouped by declaration.
 
 ### 14.1 `ernest.conf`
 
@@ -1095,85 +1095,7 @@ Because Ernest is n-ary — every function has a specific number of arguments, a
 
 Every top-level declaration's *qualified name* is where it lives. A **module** is a single Ernest source file (ending in `.ern`) — the unit that carries a namespace. `fn Net.Http.parse(b) = ...` lives in the module `Net/Http.ern`, and any code anywhere refers to it by that full name. A module's path is its namespace. Unqualified names (`fn helper(x) = ...`) are visible only inside their own module. No `import`, no `pub`, no export list.
 
-## 16. Reference: the roles of parens
-
-By now you have seen `(...)` in many places. Once you have read a few programs, this feels natural. But here it is as a lookup table:
-
-Given `Foo(...)`, what does the `(...)` mean? Three things decide:
-
-- **Where you are** — type position, expression position, pattern position.
-- **`Foo`'s case** — uppercase (typename or constructor) vs lowercase (variable or function).
-- **The first identifier inside the parens, followed by** — `:` (field declaration), `=` (named field), or neither (positional).
-
-The six roles:
-
-1. **Type application** (in type position, uppercase): `List(Int)`, `Address(CounterMsg)`.
-2. **Type parameter declaration** (in `type` declaration): `type List(a) = ...`.
-3. **Function or constructor call** (in expression position): `f(x)`, `Some(5)`.
-4. **Field declaration** (in `type` declaration, `:` after ident): `type Snapshot = Snapshot(dir : Path)`.
-5. **Named field** (in expression or pattern, `=` after ident): `Snapshot(dir = d)`.
-6. **Function type argument list** (in type position): `(A, B) -> C`.
-
-Plus tuples: `(A, B)` as a type, `(1, "hi")` as a value, `(x, y)` as a pattern.
-
-This is a lot, but you rarely have to consciously disambiguate. The context tells you.
-
-## 17. Syntactic quirks, once
-
-A short reference of syntactic patterns that don't come from other languages, or that could surprise a reader coming from most languages.
-
-**Two positional fields are forbidden.** A constructor may carry zero fields, one positional field, or any number of *named* fields, but exactly two positional fields is a type error.
-
-```
-type Pair = Pair(Int, Int) // rejected
-type Pair = Pair(x : Int, y : Int) // required
-type Pair = Pair((Int, Int)) // single positional payload, a tuple, allowed
-```
-
-Reason: positions carry no meaning; names do. A constructor with two things in it wants to say which is which.
-
-**`:` in declarations, `=` in construction.** Two different punctuation marks with strict roles.
-
-```
-type Snapshot = Snapshot(dir : Path, seen : Map(Path, Mtime)) // : declares field types
-Snapshot(dir = ".", seen = Map.empty) // = binds field values
-```
-
-Same in function definitions and calls: `fn f(x : Int) = ...` and `f(3)`. Colons introduce types, equals bind values.
-
-**`+:` for list cons.** Prepend one element to a list. Works in expressions and in patterns.
-
-```
-let xs = 1 +: [2, 3] // xs is [1, 2, 3]
-
-match ys {
-    [] -> "empty"
-  | head +: rest -> "head is " ++ Int.toText(head)
-}
-```
-
-Right-associative: `a +: b +: c` is `a +: (b +: c)`. There is no in-line operator for appending two lists; use `List.append`.
-
-**`..` for record update.** Given a record value, produce a new one with some fields replaced. The old fields are copied.
-
-```
-Player(..p, dir = North) // copy of p with dir changed
-Player(..p, alive = false, score = 0) // multiple field changes at once
-```
-
-**`-` is prefix negation and binary subtraction.** Both roles on the same token, decided by position. Literal `-1` is `-` applied to `1`; there is no negative literal.
-
-**Whitespace and newlines are inert.** Ernest is not layout-sensitive. Statements in a block are separated by `;`, arms of `match` and `recv` by `|`, and that's the whole of the structural punctuation.
-
-**`{}` has two role families.** Blocks separate statements with `;` (`{ let x = 1; x + 1 }`); `match` and `recv` arm containers separate arms with `|` (`match e { pat -> expr | pat -> expr }`). Two families, two internal delimiters, decided by what appears after the opening brace.
-
-**Sixteen reserved words:** `type`, `opaque`, `with`, `match`, `when`, `if`, `then`, `else`, `recv`, `after`, `fn`, `let`, `foreign`, `as`, `true`, `false`. Everything else — `send`, `spawn`, `self`, `remote`, `Sys`, `Io`, `List`, and the rest — is an ordinary name.
-
-**Equality is structural, and not defined on functions or addresses.** `==` compares values by shape: `Some(3) == Some(3)` is `true`; `Person(name = "Alice", age = 30) == Person(name = "Alice", age = 30)` is `true`. But `==` on a value that contains a function or an `Address(m)` is a *type error* at compile time — those don't have equality in Ernest. If you need identity for processes, encode it in the protocol (a session id in the message payload, for example); the address itself is for sending, not for comparison.
-
-**Doc comments start with `///`.** Three slashes to end of line; the toolchain (`ernc --doc`) extracts them to Markdown grouped by declaration.
-
-## 18. Reading further
+## 16. Reading further
 
 Once "hello world," the counter, and ping-pong feel readable, the language's four paper programs are the next step. They're in the same repository:
 
@@ -1184,22 +1106,10 @@ Once "hello world," the counter, and ping-pong feel readable, the language's fou
 
 Read them in that order. Each introduces something the next builds on.
 
-For the language rules themselves, `ernest.md` (the report) is the authority. Its Section 3 covers types, Section 5 covers expressions, Section 6 covers processes, Section 9 lists the small prelude, and Appendix E documents the standard library (`Io.println`, `List.map`, and so on — the everyday helpers, written in Ernest, that ship with the compiler). It's shorter than most language reports — under ten pages of prose — and each sentence carries weight.
+For the language rules themselves, `ernest.md` (the report) is the authority. Section 0 states the five principles Ernest is built on; Section 3 covers types, Section 5 expressions, Section 6 processes, Section 9 the small prelude, and Appendix E the standard library (`Io.println`, `List.map`, and so on — the everyday helpers, written in Ernest, that ship with the compiler). It's shorter than most language reports — under ten pages of prose — and each sentence carries weight. If you find yourself asking "why is Ernest like this?" — the principles in §0 usually answer it.
 
 For "why is Ernest the way it is," `ernest-decisions.md` records dated design decisions and their evidence. If a rule seems arbitrary, that document explains what pressured it.
 
 For "how the compiler works," `ernest-implementation-plan.md` sketches the MVP 1 roadmap: about eight weeks of one-person work, with a hand-written parser.
-
-## 19. The five principles, once
-
-Ernest is built on five principles, in order. They're in the report's Section 0. Almost every design decision comes back to one or two of them.
-
-1. **Least surprise decides — measured by the resulting code, not by the rule.**
-2. **One way, one job — in the language and prelude. No variants for the same thing, no two concepts that overlap in what they express, unless what remains surprises more. The standard library, being ordinary Ernest code, may pair functions for convenience.**
-3. **Nothing invisible. Control flow, communication, and failure are visible in the code or in the type. An ambient value is visible when its name appears at the use site; a hidden effect is not.**
-4. **Simple to parse: recursive descent, first-token dispatch, small bounded lookahead where the grammar demands it, no backtracking.**
-5. **Small: few concepts, few primitives, few reserved words — but not too few.**
-
-If you find yourself asking "why is Ernest like this?" — trace back to one of these. Usually one or two suffice.
 
 That's it for the guide. Take your time with the paper programs, and if something looks wrong, it might really be wrong — bugs in the report or the examples have been found and fixed before, and can be again.
