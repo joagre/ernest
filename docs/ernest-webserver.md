@@ -90,7 +90,7 @@ fn handler(
                   | None -> 1
                 };
                 Ets.insert(sessions, id, Session(visits));
-                let body = "Visit number " ++ Int.toText(visits);
+                let body = "Visit number " <> Int.toText(visits);
                 let bytes = Response(status = StatusCode.ok, headers = [], body = body)
                     |> withCookie("sid", SessionId.text(id))
                     |> render;

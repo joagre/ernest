@@ -55,7 +55,7 @@ fn repl(env : Map(Text, Value)) -> () with ReplMsg = {
     recv {
         Input(text) -> match tokenize(text) {
             Left(BadChar(c = c, at = i)) -> {
-                Io.println("illegal character " ++ Char.toText(c) ++ " at " ++ Int.toText(i));
+                Io.println("illegal character " <> Char.toText(c) <> " at " <> Int.toText(i));
                 repl(env)
             }
           | Right(toks) -> match parse(toks) {
@@ -91,7 +91,7 @@ fn try(env : Map(Text, Value), e : Expr) -> Either(TryError, Value) with ReplMsg
 fn show(r : Either(TryError, Value)) -> () with ReplMsg = Io.println(match r {
     Right(N(n)) -> Int.toText(n)
   | Right(Closure) -> "<fun>"
-  | Left(Eval(e)) -> "error: " ++ EvalError.toText(e)
+  | Left(Eval(e)) -> "error: " <> EvalError.toText(e)
   | Left(Crashed) -> "crashed"
   | Left(Timeout) -> "aborted after 2 s"
 })
@@ -104,23 +104,23 @@ fn tokenize(t : Text) -> Either(LexError, List(Token)) = lex(Text.chars(t), 0, [
 
 fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Token)) = match cs {
     [] -> Right(List.reverse(acc))
-  | ' ' +: r -> lex(r, i + 1, acc)
-  | '(' +: r -> lex(r, i + 1, LParen +: acc)
-  | ')' +: r -> lex(r, i + 1, RParen +: acc)
-  | '=' +: r -> lex(r, i + 1, Eq +: acc)
-  | '-' +: '>' +: r -> lex(r, i + 2, Arrow +: acc)
-  | c +: r when Char.isDigit(c) -> {
+  | ' ' :: r -> lex(r, i + 1, acc)
+  | '(' :: r -> lex(r, i + 1, LParen :: acc)
+  | ')' :: r -> lex(r, i + 1, RParen :: acc)
+  | '=' :: r -> lex(r, i + 1, Eq :: acc)
+  | '-' :: '>' :: r -> lex(r, i + 2, Arrow :: acc)
+  | c :: r when Char.isDigit(c) -> {
         let (digits, rest) = List.span(cs, Char.isDigit);
         let n = match Text.toInt(Text.fromChars(digits)) { Some(v) -> v | None -> 0 };
-        lex(rest, i + List.size(digits), Num(n) +: acc)
+        lex(rest, i + List.size(digits), Num(n) :: acc)
     }
-  | c +: r when Char.isAlpha(c) -> {
+  | c :: r when Char.isAlpha(c) -> {
         let (word, rest) = List.span(cs, Char.isAlpha);
         let tok = match Text.fromChars(word) { "let" -> KwLet | "fun" -> KwFun | w -> Ident(w) };
-        lex(rest, i + List.size(word), tok +: acc)
+        lex(rest, i + List.size(word), tok :: acc)
     }
-  | c +: r when List.contains(['+', '-', '*', '/'], c) -> lex(r, i + 1, Op(c) +: acc)
-  | c +: _ -> Left(BadChar(c = c, at = i))
+  | c :: r when List.contains(['+', '-', '*', '/'], c) -> lex(r, i + 1, Op(c) :: acc)
+  | c :: _ -> Left(BadChar(c = c, at = i))
 }
 
 //
@@ -135,15 +135,15 @@ fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Tok
 
 fn parse(toks : List(Token)) -> Either(ParseError, Expr) = {
     let (e, rest) <- expr(toks);
-    match rest { [] -> Right(e) | t +: _ -> Left(Unexpected(t)) }
+    match rest { [] -> Right(e) | t :: _ -> Left(Unexpected(t)) }
 }
 
 fn expr(toks : List(Token)) -> Either(ParseError, Step) = match toks {
-    KwLet +: Ident(x) +: Eq +: r -> {
+    KwLet :: Ident(x) :: Eq :: r -> {
         (v, r2) <- expr(r);
         Right((Let(name = x, value = v), r2))
     }
-  | KwFun +: Ident(x) +: Arrow +: r -> {
+  | KwFun :: Ident(x) :: Arrow :: r -> {
         (b, r2) <- expr(r);
         Right((Fun(param = x, body = b), r2))
     }
@@ -153,7 +153,7 @@ fn expr(toks : List(Token)) -> Either(ParseError, Step) = match toks {
 fn sum(toks : List(Token)) -> Either(ParseError, Step) = { (l, r) <- prod(toks); sumRest(l, r) }
 
 fn sumRest(l : Expr, toks : List(Token)) -> Either(ParseError, Step) = match toks {
-    Op(c) +: r when c == '+' || c == '-' -> {
+    Op(c) :: r when c == '+' || c == '-' -> {
         (x, r2) <- prod(r);
         sumRest(Bin(op = c, l = l, r = x), r2)
     }
@@ -164,7 +164,7 @@ fn prod(toks : List(Token)) -> Either(ParseError, Step) =
     { (l, r) <- app(toks); prodRest(l, r) }
 
 fn prodRest(l : Expr, toks : List(Token)) -> Either(ParseError, Step) = match toks {
-    Op(c) +: r when c == '*' || c == '/' -> {
+    Op(c) :: r when c == '*' || c == '/' -> {
         (x, r2) <- app(r);
         prodRest(Bin(op = c, l = l, r = x), r2)
     }
@@ -179,17 +179,17 @@ fn appRest(f : Expr, toks : List(Token)) -> Either(ParseError, Step) = match ato
 }
 
 fn atom(toks : List(Token)) -> Either(ParseError, Step) = match toks {
-    Num(n) +: r -> Right((Lit(n), r))
-  | Ident(x) +: r -> Right((Var(x), r))
-  | LParen +: r -> {
+    Num(n) :: r -> Right((Lit(n), r))
+  | Ident(x) :: r -> Right((Var(x), r))
+  | LParen :: r -> {
         let (e, r2) <- expr(r);
         match r2 {
-            RParen +: r3 -> Right((e, r3))
-          | t +: _ -> Left(Unexpected(t))
+            RParen :: r3 -> Right((e, r3))
+          | t :: _ -> Left(Unexpected(t))
           | [] -> Left(Eof)
         }
     }
-  | t +: _ -> Left(Unexpected(t))
+  | t :: _ -> Left(Unexpected(t))
   | [] -> Left(Eof)
 }
 

@@ -171,21 +171,21 @@ The prelude type `Reply(a)`, which we'll meet later, is another example of a wra
 
 Lists are Ernest's built-in linked collection: `List(a)` is a list whose elements have type `a`. `[]` is the empty list; `[1, 2, 3]` is a list of three `Int` elements.
 
-Lists build up by prepending. The operator is `+:`:
+Lists build up by prepending. The operator is `::`:
 
 ```
-let xs = 1 +: [2, 3]; // xs is [1, 2, 3]
-let ys = 0 +: xs // ys is [0, 1, 2, 3]
+let xs = 1 :: [2, 3]; // xs is [1, 2, 3]
+let ys = 0 :: xs // ys is [0, 1, 2, 3]
 ```
 
-`+:` is right-associative, so `1 +: 2 +: 3 +: []` reads left-to-right as building `[1, 2, 3]` — which is exactly how `[1, 2, 3]` is defined.
+`::` is right-associative, so `1 :: 2 :: 3 :: []` reads left-to-right as building `[1, 2, 3]` — which is exactly how `[1, 2, 3]` is defined.
 
 Lists decompose with pattern matching:
 
 ```
 match xs {
     [] -> "empty"
-  | head +: rest -> "first is " ++ Int.toText(head)
+  | head :: rest -> "first is " <> Int.toText(head)
 }
 ```
 
@@ -408,12 +408,12 @@ The definitions:
 
 ```
 let Stack.empty : Stack(a) = Stack([])
-fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) = Stack(x +: xs)
+fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) = Stack(x :: xs)
 fn Stack.pop(Stack(xs) : Stack(a)) -> Optional((a, Stack(a))) =
-    match xs { [] -> None | x +: rest -> Some((x, Stack(rest))) }
+    match xs { [] -> None | x :: rest -> Some((x, Stack(rest))) }
 ```
 
-`Stack(x +: xs)` and `Stack(xs)` inside these definitions name the constructor because their names appear in the signature. A caller outside `Stack` cannot do this. They must use `Stack.empty`, `Stack.push`, and `Stack.pop`.
+`Stack(x :: xs)` and `Stack(xs)` inside these definitions name the constructor because their names appear in the signature. A caller outside `Stack` cannot do this. They must use `Stack.empty`, `Stack.push`, and `Stack.pop`.
 
 Why opaque? Two reasons.
 
@@ -543,7 +543,7 @@ fn main() -> () with () = {
     send(c, Inc(5));
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
-        Some(n) -> Io.println("count is " ++ Int.toText(n))
+        Some(n) -> Io.println("count is " <> Int.toText(n))
       | None -> Io.println("counter is not answering")
     }
 }
@@ -616,12 +616,12 @@ If you genuinely want no timeout — a startup wait for a critical service, say,
 One small thing in the success case:
 
 ```
-"count is " ++ Int.toText(n)
+"count is " <> Int.toText(n)
 ```
 
 `Int.toText` converts an integer to its text representation. `"8"`, in this case.
 
-`++` is text concatenation. Both operands must be `Text`. Result is `Text`. So this expression is `"count is 8"`. `Io.println` then sends that to stdout with a newline appended.
+`<>` is concatenation. It works on `Text`, `List`, and `Bytes`, resolved by the operand types (`Text.<>` here, `List.<>` for lists). Both operands are `Text` here, so the result is `Text` — `"count is 8"`. `Io.println` then sends that to stdout with a newline appended.
 
 Take a moment. This is a complete Ernest program that uses two processes (main, plus the counter it spawned), passes messages between them, and prints the result. It's about twenty lines.
 
@@ -653,7 +653,7 @@ fn main() -> () with () = {
 fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
     if n == 0 then send(pongAddr, Stop)
     else {
-        Io.println("ping " ++ Int.toText(n));
+        Io.println("ping " <> Int.toText(n));
         match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
             Some(_) -> ping(pongAddr, n - 1)
           | None -> { Io.println("pong is not answering"); send(pongAddr, Stop) }
@@ -662,7 +662,7 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
 
 fn pong() -> () with PongMsg = recv {
     Ping(n = n, reply = r) -> {
-        Io.println("pong " ++ Int.toText(n));
+        Io.println("pong " <> Int.toText(n));
         answer(r, n);
         pong()
     }
@@ -892,7 +892,7 @@ fn parse(toks : List(Token)) -> Either(ParseError, Expr) = {
     let (e, rest) <- expr(toks);
     match rest {
         [] -> Right(e)
-      | t +: _ -> Left(Unexpected(t))
+      | t :: _ -> Left(Unexpected(t))
     }
 }
 ```
@@ -914,7 +914,7 @@ Give it a pure, zero-argument function. The runtime picks a peer and evaluates t
 ```
 fn main() -> () with () = {
     match remote(fn() = heavy(1, 2, 3)) {
-        Right(n) -> Io.println("got " ++ Int.toText(n))
+        Right(n) -> Io.println("got " <> Int.toText(n))
       | Left(_) -> Io.println("no remote available")
     }
 }
@@ -942,7 +942,7 @@ fn main() -> () with () = {
     let jobs = [fn() = crunch(1), fn() = crunch(2), fn() = crunch(3)];
     let results = parallelRemote(jobs);
     List.foreach(results, fn(r) = match r {
-        Right(n) -> Io.println("ok: " ++ Int.toText(n))
+        Right(n) -> Io.println("ok: " <> Int.toText(n))
       | Left(_) -> Io.println("failed")
     })
 }

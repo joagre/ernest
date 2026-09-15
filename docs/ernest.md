@@ -47,19 +47,19 @@ bool     = "true" | "false" .
 
 ```
 ( ) { } [ ] << >> , ; : = <- -> | .. _
-+ - * / % ++ +: == != < <= > >= && || |>
++ - * / % <> :: == != < <= > >= && || |>
 ```
 
 Two grammar categories built from the above:
 
 ```
-binop    = "*" | "/" | "%" | "+" | "-" | "++" | "+:"
+binop    = "*" | "/" | "%" | "+" | "-" | "<>" | "::"
          | "==" | "!=" | "<" | "<=" | ">" | ">=" | "&&" | "||"
          | "|>" .
 literal  = int | float | char | text | bool .
 ```
 
-Prefix `-` is negation on `Int` and `Float`. Precedence of the binary operators, highest first: `* / %`, `+ - ++`, `+:` (right-associative), `== != < <= > >=`, `&&`, `||`, `|>`. All but `+:` are left-associative. An operator name can be qualified, `Int.+`, section 4. `|>` is not qualifiable — it is a syntactic form (section 5), not a namespaced function.
+Prefix `-` is negation on `Int` and `Float`. Precedence of the binary operators, highest first: `* / %`, `+ - <>`, `::` (right-associative), `== != < <= > >=`, `&&`, `||`, `|>`. All but `::` are left-associative. An operator name can be qualified, `Int.+`, section 4. `|>` is not qualifiable — it is a syntactic form (section 5), not a namespaced function.
 
 ## 3. Types
 
@@ -76,7 +76,7 @@ FnType    = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
 
 **Tuples.** `(A, B)` with two or more components. The tuple is the only positional product type.
 
-**Lists.** `List(a)` is an immutable linked list. `[]` is the empty list. `x +: xs` prepends `x` to `xs`; `+:` is right-associative, so `[a, b]` is `a +: b +: []`.
+**Lists.** `List(a)` is an immutable linked list. `[]` is the empty list. `x :: xs` prepends `x` to `xs`; `::` is right-associative, so `[a, b]` is `a :: b :: []`.
 
 **Function types.** `(A, B) -> C` is the type of a function of two arguments. Arity is part of the type: `(A, B) -> C` and `((A, B)) -> C` are different types. `() -> C` takes no arguments. `with M` after the result is the mailbox type: the function uses the process it runs in, whose mailbox has type `M`, section 6. A function type without a mailbox type is pure. `with` binds to the nearest arrow; `(A) -> (B) -> C with M` is a pure function returning a function with mailbox type `M`.
 
@@ -139,8 +139,8 @@ opaque type Stack(a) = Stack(List(a)) with {
 }
 
 let Stack.empty = Stack([])
-fn Stack.push(x, Stack(xs)) = Stack(x +: xs)
-fn Stack.pop(Stack(xs)) = match xs { [] -> None | x +: rest -> Some((x, Stack(rest))) }
+fn Stack.push(x, Stack(xs)) = Stack(x :: xs)
+fn Stack.pop(Stack(xs)) = match xs { [] -> None | x :: rest -> Some((x, Stack(rest))) }
 ```
 
 **Functions.** `fn` declares a function of fixed arity. Annotations may be omitted where they can be inferred. The return annotation has three forms: omitted, `-> T` for a pure function, `-> T with M` for process code. A pure annotation on a function that calls process code is a type error. A function has one clause. Patterns in parameters must be irrefutable, section 5, `fn seenCount(Snapshot(seen = entries) : Snapshot) -> Int = Map.size(entries)`. `fn` may appear at top level and as a statement in a block; it sees its own name, and `fn` declarations in the same block or at top level may refer to each other mutually.
@@ -173,7 +173,7 @@ ListLit   = "[" [ Expr { "," Expr } ] "]" .
 Block     = "{" Stmt { ";" Stmt } "}" .
 Stmt      = FnDecl | Binding | Expr .
 Pattern   = ConsPat [ "as" ident ] .
-ConsPat   = AtomPat [ "+:" ConsPat ] .
+ConsPat   = AtomPat [ "::" ConsPat ] .
 AtomPat   = "_" | ident | literal | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
           | "(" Pattern "," Pattern { "," Pattern } ")" | "()"
           | "[" [ Pattern { "," Pattern } ] "]" .
@@ -204,7 +204,7 @@ let words = input |> Text.trim |> Text.toLower |> Text.chars
 
 **`match`.** The expression is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. A failed guard falls through. The clauses together must cover the type; guards do not count as coverage. Variables in the pattern are bound in the guard and the clause.
 
-**Patterns.** A pattern decomposes a value and binds its parts. The same patterns appear in `let`, in `match` and `recv` clauses, and in function parameters. `_` matches anything and binds nothing. An identifier binds the whole value at its position to a new variable, shadowing any outer variable of that name; it never refers to an existing variable. A literal matches itself. A constructor with a pattern, `Some(p)`, or with field patterns, `Snapshot(seen = s)`, which may omit fields, matches that constructor and decomposes its fields. A tuple, a list `[p, q]`, and `p +: q` decompose those. Patterns nest to any depth: `Some((x, Snapshot(dir = d)))`. `p as c` binds `c` to the whole value that `p` matches, `Some(Snapshot(dir = d) as snap)`; `as` binds loosest, so `x +: rest as all` names the whole list. Each variable appears at most once in a pattern; a pattern does not compare, and equality is written in a guard. A pattern is irrefutable if it cannot fail: `_`, an identifier, a tuple of irrefutable patterns, or a constructor pattern of a type with exactly one constructor whose sub-patterns are all irrefutable. `let` and parameters require irrefutable patterns; `let Right(x) = e` is a type error.
+**Patterns.** A pattern decomposes a value and binds its parts. The same patterns appear in `let`, in `match` and `recv` clauses, and in function parameters. `_` matches anything and binds nothing. An identifier binds the whole value at its position to a new variable, shadowing any outer variable of that name; it never refers to an existing variable. A literal matches itself. A constructor with a pattern, `Some(p)`, or with field patterns, `Snapshot(seen = s)`, which may omit fields, matches that constructor and decomposes its fields. A tuple, a list `[p, q]`, and `p :: q` decompose those. Patterns nest to any depth: `Some((x, Snapshot(dir = d)))`. `p as c` binds `c` to the whole value that `p` matches, `Some(Snapshot(dir = d) as snap)`; `as` binds loosest, so `x :: rest as all` names the whole list. Each variable appears at most once in a pattern; a pattern does not compare, and equality is written in a guard. A pattern is irrefutable if it cannot fail: `_`, an identifier, a tuple of irrefutable patterns, or a constructor pattern of a type with exactly one constructor whose sub-patterns are all irrefutable. `let` and parameters require irrefutable patterns; `let Right(x) = e` is a type error.
 
 **Bitstrings.** `<<...>>` constructs and pattern-matches a `Bytes` value at the bit level. A bitstring is a comma-separated list of segments between `<<` and `>>`; each segment is a value (in construction) or a pattern (in `match`), followed optionally by a colon and a dash-separated list of specifiers. Specifiers are: `size(N)` for segment width in units, `unit(N)` for bits per size unit (default 1), `bits` and `bytes` for nested bitstrings, `int` (default 8-bit) and `float` (default 64-bit) for numeric segments, `utf8`/`utf16`/`utf32` for text encoding, `big`/`little`/`native` for endianness, and `signed`/`unsigned` for sign. These specifier names carry that role only inside a bitstring — outside, they are ordinary identifiers, and the reserved-word count remains sixteen. A bitstring pattern binds its segment variables; a segment whose length is `size(n)-bytes` and whose `n` refers to an earlier bound variable is a size-dependent match, common in protocol parsing. Constructing a bitstring evaluates its segments left to right and concatenates them into a `Bytes` value; a segment whose value does not fit its specified width is a fault. An empty `<<>>` is the empty `Bytes`.
 
@@ -459,7 +459,7 @@ Block       = "{" Stmt { ";" Stmt } "}" .
 Stmt        = FnDecl | Binding | Expr .
 
 Pattern     = ConsPat [ "as" ident ] .
-ConsPat     = AtomPat [ "+:" ConsPat ] .
+ConsPat     = AtomPat [ "::" ConsPat ] .
 AtomPat     = "_" | ident | literal | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
             | "(" Pattern "," Pattern { "," Pattern } ")" | "()"
             | "[" [ Pattern { "," Pattern } ] "]"
@@ -491,7 +491,7 @@ fn main() -> () with () = {
     send(c, Inc(5));
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
-        Some(n) -> Io.println("count is " ++ Int.toText(n))
+        Some(n) -> Io.println("count is " <> Int.toText(n))
       | None -> Io.println("counter is not answering")
     }
 }
@@ -515,7 +515,7 @@ fn main() -> () with () = {
 fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
     if n == 0 then send(pongAddr, Stop)
     else {
-        Io.println("ping " ++ Int.toText(n));
+        Io.println("ping " <> Int.toText(n));
         match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
             Some(_) -> ping(pongAddr, n - 1)
           | None -> { Io.println("pong is not answering"); send(pongAddr, Stop) }
@@ -524,7 +524,7 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
 
 fn pong() -> () with PongMsg = recv {
     Ping(n = n, reply = r) -> {
-        Io.println("pong " ++ Int.toText(n));
+        Io.println("pong " <> Int.toText(n));
         answer(r, n);
         pong()
     }
@@ -671,7 +671,7 @@ List.head        : (List(a)) -> Optional(a)
 List.last        : (List(a)) -> Optional(a)
 List.at          : (List(a), Int) -> Optional(a)
 List.reverse     : (List(a)) -> List(a)
-List.append      : (List(a), List(a)) -> List(a)
+List.<>          : (List(a), List(a)) -> List(a)
 List.take        : (List(a), Int) -> List(a)
 List.drop        : (List(a), Int) -> List(a)
 List.dropLast    : (List(a)) -> List(a)

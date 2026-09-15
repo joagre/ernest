@@ -92,11 +92,11 @@ fn step(world : World) -> World = {
     let World(w = w, h = h, players = ps, apples = apples, seed = seed, tick = t) = world;
     fn movePlayer((acc, apples), _, p) = match p {
         Player(alive = false) -> (acc, apples)
-      | Player(body = head +: rest, dir = d, score = s) -> {
+      | Player(body = head :: rest, dir = d, score = s) -> {
             let next = move(w, h, head, d);
             let ate = List.contains(apples, next);
-            let (body, s2) = if ate then (next +: head +: rest, s + 1)
-                             else (next +: head +: List.dropLast(rest), s);
+            let (body, s2) = if ate then (next :: head :: rest, s + 1)
+                             else (next :: head :: List.dropLast(rest), s);
             let p2 = Player(..p, body = body, score = s2);
             (Map.put(acc, Player.id(p), p2), List.remove(apples, next))
         }
@@ -120,7 +120,7 @@ fn applyInput(world : World, input : Input) -> World = {
 }
 
 fn collide(ps : Map(Int, Player), p : Player) -> Player = match p {
-    Player(body = head +: _, alive = true) ->
+    Player(body = head :: _, alive = true) ->
         if List.any(Map.values(ps), fn(q) = List.contains(tailOf(q), head))
         then Player(..p, alive = false) else p
   | _ -> p
@@ -131,7 +131,7 @@ fn refill(w : Int, h : Int, want : Int, apples : List(Pos), seed : Seed) -> (Lis
     else {
         let (rx, s1) = Random.next(seed);
         let (ry, s2) = Random.next(s1);
-        refill(w, h, want, Pos(x = rx % w, y = ry % h) +: apples, s2)
+        refill(w, h, want, Pos(x = rx % w, y = ry % h) :: apples, s2)
     }
 
 fn addPlayer(world : World, id : Int) -> World = todo("add a player at a random free position")
@@ -157,5 +157,5 @@ fn turn(p : Player, d : Dir) -> Player = match (Player.dir(p), d) {
 fn Player.dir(Player(dir = d) : Player) -> Dir = d
 fn Player.id(Player(id = i) : Player) -> Int = i
 
-fn tailOf(Player(body = b) : Player) -> List(Pos) = match b { _ +: rest -> rest | [] -> [] }
+fn tailOf(Player(body = b) : Player) -> List(Pos) = match b { _ :: rest -> rest | [] -> [] }
 ```

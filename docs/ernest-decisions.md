@@ -4,7 +4,7 @@ The reasoning behind the language report in [`ernest.md`](ernest.md): what was t
 
 **A note on principle numbering.** Some dated entries below reference "principle N" using the count at the time they were written. The count changed on 2026-09-14 from seven principles to five (see *Ambient Sys, Five Principles*), and one entry from 2026-09-12 renamed "principle 5" as what is now principle 4 (simple to parse). Read older references in that light; the current numbering lives in [`ernest.md`](ernest.md) §0.
 
-**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Historical entries below use the older words; the current terms live in [`ernest.md`](ernest.md).
+**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Later the same day the cons operator `+:` became `::` and the text-concat operator `++` became `<>` (see *List and Concat Operators*). Historical entries below use the older names; the current terms live in [`ernest.md`](ernest.md).
 
 ## Starting Point
 
@@ -431,7 +431,7 @@ The type checker validates that `x`'s type matches the target's first argument.
 
 **LL(1) impact.** None. `|>` is a `binop` and slots into `BinExpr`'s existing `Unary { binop Unary }` production. The desugaring is post-parse.
 
-**Not qualifiable.** `Int.|>` and similar are rejected. `|>` is a syntactic form, not a namespaced function — unlike `Int.+` or `Text.++` which are ordinary function names an operator lookup resolves to.
+**Not qualifiable.** `Int.|>` and similar are rejected. `|>` is a syntactic form, not a namespaced function — unlike `Int.+` or `Text.<>` which are ordinary function names an operator lookup resolves to.
 
 **Not adopted from Gleam/Elm at the same time**: labeled function arguments, `use` for arbitrary callbacks, function-capture `f(_, y)`. Waiting for a paper program to write those patterns three times, per the growth rule.
 
@@ -558,9 +558,25 @@ External review flagged the report as using informal or Ernest-invented terminol
 
 **ambient → top-level (or dropped).** *Ambient* was Ernest's chosen word for values in scope everywhere at the top level (`Sys.stdout`, `List`, `Map`, `Set`). Non-standard in PLT literature; *implicit* carries Scala baggage that misleads (Ernest's ambients are named at the use site, unlike Scala implicits). Renamed to *top-level binding* (§0), *top-level values* (§8), *top-level references* (§8, §11); in Appendix E "the ambient forms" became "the plain forms"; in paper programs "ambient runtime reference" became "runtime reference". Principle 3's operative rule — *visible when its name appears at the use site* — is unchanged; only the noun.
 
-**What did not change.** `Address(m)`, `Reply(a)`, `Down`, `Peer`, `fault`, `recv`, `with M`, `+:` — these are Ernest's names for concepts the language introduces (or deliberately distinguishes from cognates in other languages). The audit found them non-standard *because they are new*; renaming would either lose meaning or copy an established name that carries different semantics. They stay.
+**What did not change.** `Address(m)`, `Reply(a)`, `Down`, `Peer`, `fault`, `recv`, `with M` — these are Ernest's names for concepts the language introduces (or deliberately distinguishes from cognates in other languages). The audit found them non-standard *because they are new*; renaming would either lose meaning or copy an established name that carries different semantics. They stay.
 
 **Historical entries.** Older dated entries below use the pre-rename words. The preamble at the top of this document now covers both this and the earlier principle-numbering shift.
+
+## List and Concat Operators, 2026-09-15
+
+External review kept pushing on `+:` (cons). The `+` character reads as arithmetic-adjacent — commutative, numeric — and cons is neither. The same objection extends to `++` (text concat). Two changes, taken together because the second falls out of the first.
+
+**`+:` → `::` for cons.** Universal in typed-FP tradition: OCaml, SML, F#, Scala, Elm, Idris, Roc, Coq, PureScript. The one language that uses `:` alone for cons is Haskell, and Haskell can only do that because it uses `::` for type annotation (Ernest uses `:` for type annotation, so `::` is available for cons — the mirror image of Haskell). Cons is a grammar-level operator, right-associative, defined by the `ConsPat` production; renaming is a lexer/parser change, no semantic change. No collision: `::` is a new token, `:` is unchanged.
+
+**`++` → `<>` for concat.** Gleam (Ernest's closest BEAM cousin) uses `<>` for text concat. Haskell uses it for any semigroup. Elixir uses it for bitstring/text. No `+` character, no arithmetic connotation. The tempting alternative was `@` (OCaml/SML/F#), but `@` in those languages means *list append* specifically — using it for text would surprise ML readers.
+
+**And `<>` is overloaded, unlike `++` was.** `++` in the old design was Text-only (`Text.++`); list append lived at `List.append` with no operator form. That was inconsistent — some operators were type-overloaded (arithmetic across `Int`/`Float`), some were type-specific (`++`), some had no operator at all (`List.append`). The new `<>` uses the same type-directed name resolution as `+`: `Text.<>` for `Text`, `List.<>` for `List(a)`, `Bytes.<>` for `Bytes` (added when a paper program needs it). `List.append` in Appendix E becomes `List.<>`.
+
+**Net result.** Operators that use `+` characters are exactly the arithmetic ones (`+`, `-`, `*`, `/`, `%`). Operators for sequence composition (`::` for cons, `<>` for concat) have neither `+` nor arithmetic connotation. Answers the mentor's objection completely, and closes the `List.append`/`Text.++` inconsistency along the way.
+
+**Downstream.** Grammar rule `ConsPat = AtomPat [ "::" ConsPat ] .` (was `"+:"`). Section 2's binop rule lists `"<>" | "::"` in place of `"++" | "+:"`. Operator table updated. Precedence table updated (`<>` sits where `++` sat; `::` where `+:` sat). §5 patterns and §3 lists updated. Appendix E line `List.append : (List(a), List(a)) -> List(a)` is now `List.<>`. Guide §2.4 (lists), §13 (bitstrings), and the four paper programs updated.
+
+**Not renamed.** Everything else in the operator table — `+ - * / % == != < <= > >= && || |>` — is unchanged. Prefix `-` is unchanged.
 
 ## `Bool.ern` Added, 2026-09-14
 
