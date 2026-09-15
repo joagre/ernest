@@ -932,6 +932,49 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Mint-Condition Audit: Grammar Notes, Main Default, Guide Sync, 2026-09-15
+
+Pre-implementation audit against the "can I write a hand-written recursive-descent + Pratt parser from Appendix A alone?" standard. Findings and their fixes:
+
+**G1: QName's constructor suffix vs Call.** `Some(x)` had two grammatically-admissible parses — QName-with-suffix or QName followed by `Unary`'s `Call`. Value semantics matches for single-positional constructors, so the reviewer accepted this as editorial. **Fix:** Appendix A epilogue now states the greedy rule explicitly: "When a `conname` is followed by `(`, the parser consumes the `(...)` as part of `QName`'s optional constructor-fields suffix, not as a subsequent `Call`."
+
+**G2/G3: Max-munch tokens and `|` not a binop.** §2.6 gained a paragraph after the operator list: max-munch tokens listed (`>>`, `<-`, `->`, `==`, `!=`, `<=`, `>=`, `&&`, `||`, `|>`, `<>`, `::`, `#(`, `<<`, `..`); `|` explicitly stated as a delimiter that terminates the Pratt loop.
+
+**P1: `main` mailbox default.** §8.1 said `m` is polymorphic when `main` uses `Address.call` without its own receive protocol, but did not say what the runtime instantiates polymorphic `m` to. **Fix:** added: "When `m` is left polymorphic in the source, the runtime instantiates it to `Never` — the main process's mailbox is send-only unless the program explicitly gives out `self()`."
+
+**Guide sync (P2).** `docs/ernest-guide.md` audit found three items:
+
+- `Float` bullet in the base-types section still said "IEEE 754 double precision" without the finite-only restriction. Updated.
+- Two spots ("When `main` returns, the runtime kills every process still alive" and the `ern [options] file.erc` description) missed the local/remote scoping from R12. Updated to say "every *local* process still alive"; noted remote workers survive.
+- No stale `NaN`/`Infinity`/`isNaN` references.
+- No stale terminology (recv, opaque, Nat, Text, Empty, +:, ++, "payload" as constructor field).
+
+**Paper programs trace (P3).**
+
+Traced Appendix B (Counter, Ping-pong, Worker) and all four paper programs (`ernest-filesync.md`, `ernest-webserver.md`, `ernest-tick-game.md`, `ernest-repl.md`) against current rules:
+
+- All `spawn(Local, fn() = worker())` cases have a non-pure callback (`worker` has some effect). U01 primitive-non-empty rule satisfied. No stale pure-spawn callbacks.
+- Reply-carrying `receive` clauses in filesync (`syncer` matching `SyncMsg`) bind reply fields (`Put(ack = ack)` binds `ack`; `Tick`, `Listed(_)`, `Link(_)` nullary or non-reply-carrying fields discharge the scrutinee's obligation).
+- The `mk` callback pattern (`fn(r) = Get(reply = r)`) works under U03: `r` consumed by placement into reply-carrying constructor; return discharges to `Address.call` runtime.
+- No Float usage in paper programs, so finite-only Float change has no downstream effect.
+- All patterns work under new reply-carrying discipline.
+- No wildcard-omitted-field cases that would be rejected by U03.
+- No `as`-on-reply-carrying patterns.
+
+**Grammar/static-check implementability summary.**
+
+- Grammar is fully first-token dispatchable with bounded lookahead (max: 2 tokens after `(` for FnType/ParenType disambiguation, and 2 tokens after `(` for Constructor field-list dispatch).
+- Type inference is HM plus three inferred restrictions (equality, non-empty, not-reply-carrying) that attach to type schemes and travel through unification.
+- Reply-ownership is a compositional per-function flow analysis over the typed AST.
+- R07 early-call check is a local-fn dependency-graph analysis in each block.
+- Guard purity is enforced by the effect checker.
+- Bitstring per-segment alignment: constant-fold at compile time; dynamic guard at runtime.
+- Content hashing uses SCC-group scheme (§8.7).
+
+**Cost of this pass.** Three sentences added to the report (§2.6, §8.1, Appendix A epilogue). Three sentences updated in the guide (`Float` bullet, two termination scopes). No new syntax, no new type-system machinery.
+
+**Report ready for Phase 1.1 implementation.**
+
 ## Third-Round Review Response: Float Finite-Only, ABI Table, Restriction Propagation, Assorted Repairs, 2026-09-15
 
 Third-round review flagged remaining tails on U01, U03, U05, U07, U09; a concrete example for R07; new grammar corrections for R18; and asked for an ABI table (R16 narrowed). Also: pure spawn callback (U01), remote worker lifetime (R12), and connected-peer deadlock exclusion (R13). This decision groups all response edits.

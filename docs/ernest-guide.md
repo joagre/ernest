@@ -46,7 +46,7 @@ This idea keeps coming back. Everything else in Ernest builds on it.
 Ernest starts with a small set of built-in scalar types:
 
 - **`Int`** — integers of arbitrary precision.
-- **`Float`** — IEEE 754 double precision.
+- **`Float`** — IEEE 754 double precision, finite values only. Arithmetic that would produce a non-finite result (overflow, division by zero, `0.0 / 0.0`) faults.
 - **`Char`** — one Unicode code point.
 - **`String`** — a Unicode string.
 - **`Bytes`** — a sequence of octets.
@@ -607,7 +607,7 @@ Take a moment. This is a complete Ernest program that uses two processes (main, 
 
 The counter's `receive` loops forever — but `main` doesn't. Once the `match` on `Address.call`'s result finishes and `main` reaches its end, the program ends.
 
-When `main` returns, the runtime kills every process still alive — the counter, any workers you spawned — with cause `ProgramEnd`. System processes release their resources. The node stops.
+When `main` returns, the runtime kills every *local* process still alive — the counter, any local workers you spawned — with cause `ProgramEnd`. System processes release their resources. The node stops. Workers you spawned on peer nodes are unaffected — they run under their own runtime.
 
 If you want a program that keeps running, `main` must not return: it can spawn processes and then `receive` forever, or run its own loop. The counter above finishes quickly because we exit deliberately after asking a single question.
 
@@ -1072,7 +1072,7 @@ Two commands run the show: `ernc` compiles and `ern` runs.
 
 **`ernc file.ern`** compiles one module to `file.erc`. Compilation is per-module; cross-module names resolve at load time.
 
-**`ern [options] file.erc`** loads the compiled module, starts the runtime, binds addresses to the `Sys.*` top-level references (report §8.2), and calls `main()`. When `main` returns, all processes are killed with cause `ProgramEnd` and the node stops.
+**`ern [options] file.erc`** loads the compiled module, starts the runtime, binds addresses to the `Sys.*` top-level references (report §8.2), and calls `main()`. When `main` returns, all *local* processes are killed with cause `ProgramEnd` and the node stops; remotely spawned workers on peer nodes continue under their own runtime.
 
 Common `ern` options:
 

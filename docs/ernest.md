@@ -100,6 +100,8 @@ binop    = "*" | "/" | "%" | "+" | "-" | "<>" | "::"
 literal  = int | float | char | string | bool .
 ```
 
+Tokens are formed by max-munch: `>>`, `<-`, `->`, `==`, `!=`, `<=`, `>=`, `&&`, `||`, `|>`, `<>`, `::`, `#(`, `<<`, and `..` are single tokens rather than sequences of shorter ones. `|` is a delimiter (`match` clauses, sum-type constructors, `receive` clauses) and never a `binop`; the Pratt loop for `binop` terminates when it sees `|`.
+
 Prefix `-` is negation on `Int` and `Float`, and binds tighter than any binary operator.
 
 Precedence of the binary operators, highest first:
@@ -675,7 +677,7 @@ Partial operations in the prelude generally return `Optional` or `Either`. The o
 
 ### 8.1 `main`
 
-A program is a set of modules with exactly one function `main : () -> Void with m` for some `m`, unqualified, called by the runtime. Nothing sends to `main` that it has not given its address to. `m` is `Never` when `main` only spawns and sends; a specific message type when `main` receives; polymorphic when `main` uses `Address.call` without its own receive protocol.
+A program is a set of modules with exactly one function `main : () -> Void with m` for some `m`, unqualified, called by the runtime. Nothing sends to `main` that it has not given its address to. `m` is `Never` when `main` only spawns and sends; a specific message type when `main` receives; polymorphic when `main` uses `Address.call` without its own receive protocol. When `m` is left polymorphic in the source, the runtime instantiates it to `Never` — the main process's mailbox is send-only unless the program explicitly gives out `self()`.
 
 ### 8.2 System references
 
@@ -936,7 +938,7 @@ BitSpec     = "size" "(" Expr ")" | "unit" "(" int ")"
 FieldPats   = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 ```
 
-`binop` and `literal` are defined in section 2, along with the other lexical categories; `binop` precedence follows the table there. Every nonterminal is decided by its first token: `let` begins a binding, `fn` a declaration or lambda, `{` a block, `[` a list, `#(` a tuple, `(` a call or parenthesized expression, `<<` a bitstring. In `QName`, after each uppercase token the next token decides: `.` continues the qualification; otherwise the segment is final, and a lowercase final is a function or operator, an uppercase final a constructor. A constructor's fields are positional or named by whether `=` or `:` follows the first identifier. `conname` and `typename` are one token class; which one a segment is follows from its position.
+`binop` and `literal` are defined in section 2, along with the other lexical categories; `binop` precedence follows the table there. Every nonterminal is decided by its first token: `let` begins a binding, `fn` a declaration or lambda, `{` a block, `[` a list, `#(` a tuple, `(` a call or parenthesized expression, `<<` a bitstring. In `QName`, after each uppercase token the next token decides: `.` continues the qualification; otherwise the segment is final, and a lowercase final is a function or operator, an uppercase final a constructor. A constructor's fields are positional or named by whether `=` or `:` follows the first identifier. When a `conname` is followed by `(`, the parser consumes the `(...)` as part of `QName`'s optional constructor-fields suffix, not as a subsequent `Call` on the constructor's function value — the two parses have identical value semantics for a single-positional constructor, so the greedy rule is canonical. `conname` and `typename` are one token class; which one a segment is follows from its position.
 
 ## Appendix B. Examples
 
