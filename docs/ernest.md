@@ -531,11 +531,29 @@ The language has no other mechanism for code replacement.
 
 There are no exceptions. An error is a value, a message, or a fault.
 
-- **A value**, when the error is part of the function's meaning. Expressed in the return type: `Either(e, a)` with an error type `e`, or `Optional(a)`. The caller matches, or chains with `let p <- e`.
-- **A message**, when the error crosses a process boundary. Expressed in the message: `Either` or a dedicated constructor in the reply type. A missing reply is `after` in `receive`. The error type across the boundary is its own, distinct from the function's.
-- **A fault**, when the code cannot see it. Out of memory, `kill`, a failure in the runtime, a broken promise by foreign code. The process dies with a structured cause in `Down`. Nothing is caught. "Fault" here is the category — any death whose `Reason` is not `Returned`; `Fault(String)` is one specific `Reason` alongside `Killed` and `ProgramEnd`.
+### 7.1 Value errors
 
-The prelude is total: no built-in function faults. Partial operations return `Optional` or `Either`. A fault is therefore always something that happened to the process, never something it did, with three deliberate exceptions: `/` and `%` on `Int` with a zero divisor fault, `Fault("division by zero")`; `todo("...")`, which compiles at any type and faults if reached, `Fault("todo: ...")`, so that an unfinished function can be declared before it is written; and `spawn(Peer(...), f)` or `send` to a remote address when the payload transitively contains a foreign value, `Fault("foreign value cannot cross nodes")`, §3.8. `Int.div` and `Int.mod` return `Optional` for the caller who wants to handle it.
+The error is part of the function's meaning. It is expressed in the return type: `Either(e, a)` with an error type `e`, or `Optional(a)`. The caller matches on the result, or chains with `let p <- e` (§5.5).
+
+### 7.2 Message errors
+
+The error crosses a process boundary. It is expressed in the message: `Either` or a dedicated constructor in the reply type. A missing reply is `after` in `receive` (§6.3). The error type across the boundary is its own, distinct from the function's.
+
+### 7.3 Faults
+
+The code cannot see the error. Causes include out of memory, `kill`, a failure in the runtime, and a broken promise by foreign code. The process dies with a structured cause in `Down` (§6.9). Nothing is caught.
+
+"Fault" here is the category — any death whose `Reason` is not `Returned`. `Fault(String)` is one specific `Reason` alongside `Killed` and `ProgramEnd`.
+
+### 7.4 The total prelude
+
+The prelude is total: no built-in function faults. Partial operations return `Optional` or `Either`. A fault is therefore always something that happened to the process, never something it did.
+
+Three deliberate exceptions:
+
+- `/` and `%` on `Int` with a zero divisor fault with cause `Fault("division by zero")`. `Int.div` and `Int.mod` return `Optional` for the caller who wants to handle it.
+- `todo("...")` compiles at any type and faults if reached with cause `Fault("todo: ...")`, so that an unfinished function can be declared before it is written.
+- `spawn(Peer(...), f)` or `send` to a remote address when the payload transitively contains a foreign value, with cause `Fault("foreign value cannot cross nodes")` (§3.8).
 
 ## 8. Programs
 
