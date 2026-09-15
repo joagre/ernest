@@ -932,6 +932,36 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Guide Round 3: Example Repairs, Setup Concreteness, Small Wording, 2026-09-15
+
+Third-round guide review closed most concerns. Three example repairs plus small edits applied:
+
+**Example repairs:**
+
+- **§4.6 Upgrade syntax error.** A semicolon appeared between a match clause's expression and the next `|`. Semicolons separate block statements; match clauses use `|`. Removed the errant semicolon.
+
+- **§5.5 game example — accessor and timer multiplication.** Two bugs:
+  - `World.score(w)` assumed an auto-generated accessor. Replaced with pattern destructuring: `fn step(World(score = n) : World) -> World = World(score = n + 1)`.
+  - The single-function `game` scheduled a new `After` timer on every entry, including the `Input(_)` branch that loops back. A burst of inputs would multiply pending timers. Split into two functions: `game` schedules exactly one timer, then hands off to `waitForTick`, which handles inputs without re-scheduling. Only a `Tick` returns control to `game`.
+
+- **§2.7 Either example — filesystem-based `readAndParse`.** Was declared pure (`-> Either(FileError, Config)`) but called `Fs.read`, which requires an effect; also referenced undefined `Fs.read`, `FileError`, `Config`, `parseConfig`, and used `|>` before its introduction in §2.8. Replaced with a self-contained pure `positiveInt : (String) -> Either(String, Int)` using only `String.toInt` and `Either.fromOptional`, with three expected outcomes stated explicitly.
+
+**Setup and command corrections:**
+
+- **§1 configuration setup.** Previous wording claimed the report requires `.ernest/` to exist. Report §11 documents the setup command but does not explicitly state the missing-directory behavior. Rewrote as a concrete procedure: `ern --create-config-dir .` before the first run; the peer list can remain empty for local examples. The setup step is placed before `ern hello.erc`.
+
+- **§6.1 command option order.** Changed `ern main.erc -pa .` to `ern -pa . main.erc` to match the option-before-positional convention documented in report §11.
+
+**Small wording:**
+
+- **§0 checkpoint promise.** Softened from "each checkpoint has a complete example" to "complete runnable program at selected checkpoints (hello, counter, modules, remote); other snippets are illustrative fragments". Matches what the guide actually delivers.
+- **§1.2 exercise.** Reformulated to distinguish `fn main() = ...` (inference gives an effect, compiles) from `fn main() -> Void = ...` (explicitly pure, rejected). Shows the exact code each answer applies to.
+- **§3.5.** `after` is a clause of `receive`, not a standalone expression form. Rewrote as "the `receive` expression form (with its optional `after` clause)".
+- **§7.3.** "Two of these are runtime-checked" (three items followed) corrected to "The following three breaches are checked at runtime; purity remains a trusted promise".
+- **§7.5.** Shim payload precondition stated: `V` must be integer-shaped, `R` a UTF-8 binary for `Either(String, Int)`. `find/1` labelled as a fragment dependency; noted that ABI-shape breaches must be converted on the Erlang side.
+
+**Cost.** Six section edits. No new content, no structural change.
+
 ## Guide Round 2: Targeted Corrections, Runnable Checkpoints, Coverage Gaps, 2026-09-15
 
 The reviewer's follow-up on the rewritten guide closed most items but flagged focused corrections still needed. Applied all in place:

@@ -11,11 +11,19 @@ Ernest is a functional language for concurrent programs. Two organizing ideas ru
 
 Everything else is a rule for how functions and processes appear in each other's code.
 
-The guide is arranged as seven checkpoints. Each checkpoint has a complete example, the tools it needs, and a short prediction exercise at the end. Read them in order; each builds on what came before.
+The guide is arranged as seven stages, with a complete runnable program at selected checkpoints (hello, the counter, the module example, the remote example). Other snippets are illustrative fragments — assembling them into files is left to the reader. Each stage ends with a short prediction exercise. Read the stages in order; each builds on what came before.
 
 ## 1. Run a program
 
-Here is a complete Ernest program, `hello.ern`:
+For these examples, first create a configuration in a fresh working directory. This step runs once; the command fails if the configuration directory already exists:
+
+```
+$ ern --create-config-dir .
+```
+
+That generates `./.ernest/` with `ernest.conf` (network address, public key, empty peer list) and the private key. Local examples like the ones below leave the peer list empty; programs that use peers or remote computation edit `ernest.conf` before running.
+
+Now the program itself, `hello.ern`:
 
 ```
 fn main() -> Void with Never = Io.println("hello, world")
@@ -31,15 +39,6 @@ hello, world
 
 `ernc` compiles one `.ern` file to a `.erc` compiled module. `ern` loads a compiled module, starts the runtime, binds addresses to the `Sys.*` top-level references (report §8.2), and calls `main()`. The standard library is on the load path by default; `-pa dir` adds more directories.
 
-`ernest.conf` and a node's private key live in `./.ernest/` by default. Peers and remote computation are configured there. For programs that use peers, `ern --create-config-dir dir` generates a fresh pair before the first run:
-
-```
-$ ern --create-config-dir .
-$ ern hello.erc
-```
-
-The report's toolchain contract (§11) requires `.ernest/` to exist when `ern` starts; programs that never invoke peer-crossing operations don't need to populate the peer list, but the directory itself must be present.
-
 ### 1.1 What the line says
 
 `fn` starts a function definition. `main` is special — it is the function the runtime calls when the program starts.
@@ -52,9 +51,16 @@ The report's toolchain contract (§11) requires `.ernest/` to exist when `ern` s
 
 ### 1.2 Prediction exercise
 
-Can hello-world's `main` omit its mailbox effect while calling `Io.println`?
+Consider two variations on hello-world:
 
-Answer: no. `Io.println` sends to `Sys.stdout`; `send` carries a mailbox effect, so the enclosing function must too. A function type without `with M` is *pure* and cannot invoke process primitives. `with Never` says "this process has a mailbox, but it will never receive."
+```
+fn main() = Io.println("hello, world")             // (a) no annotation
+fn main() -> Void = Io.println("hello, world")     // (b) declared pure
+```
+
+Which of these compile?
+
+Answer: (a) compiles — inference gives `main` a fresh mailbox effect from `Io.println`'s call. (b) does not compile — the explicit `-> Void` (without `with M`) declares the function *pure*, and a pure function cannot call `Io.println` (which sends). The `with Never` in the actual hello-world declaration says "this process has a mailbox, but it will never receive." Omitting an annotation is not the same as declaring purity.
 
 ## 2. Compute with immutable values
 
@@ -227,12 +233,15 @@ If `String.toInt(a)` returns `None`, the whole block evaluates to `None`; the re
 An Either chain uses `Left(e)` to short-circuit and `Right(v)` to bind and continue:
 
 ```
-fn readAndParse(path : String) -> Either(FileError, Config) = {
-    let bytes <- Fs.read(path);        // Left(NotFound) short-circuits here
-    let text <- String.fromUtf8(bytes) |> Either.fromOptional(BadEncoding);
-    parseConfig(text)                  // returns Either(FileError, Config)
+fn positiveInt(text : String) -> Either(String, Int) = {
+    let n <- Either.fromOptional(String.toInt(text), "not an integer");
+    if n > 0 then Right(n) else Left("not positive")
 }
 ```
+
+- `positiveInt("3")` → `Right(3)`.
+- `positiveInt("oops")` → `Left("not an integer")` — `String.toInt` returned `None`, `Either.fromOptional` turned it into `Left`, and the chain short-circuits.
+- `positiveInt("0")` → `Left("not positive")` — the parse succeeded but the explicit branch rejects.
 
 The compiler picks Optional or Either from the right-hand side's type. One block cannot mix — a block is either an Optional chain or an Either chain, not both.
 
@@ -327,7 +336,7 @@ Inferred type: `((a) -> b with e, a) -> b with e`. The callback's mailbox effect
 
 An effect variable that appears *only* in effect position (like `e` above) may bind to a mailbox type or to *empty* (pure). An effect variable that also appears in a value position (like `m` in `self : () -> Address(m) with m`) can only bind to a real mailbox type — `Address(empty)` is not a well-formed type.
 
-Process operations that require a process context — the prelude primitives `send`, `spawn`, `Address.call`, `answer`, `monitor`, `kill`, `remote`, `parallelRemote`, and the `receive` and `after` expression forms — require the enclosing function's mailbox effect to be non-empty; pure code cannot use any of them.
+Process operations that require a process context — the prelude primitives `send`, `spawn`, `Address.call`, `answer`, `monitor`, `kill`, `remote`, `parallelRemote`, and the `receive` expression form (with its optional `after` clause) — require the enclosing function's mailbox effect to be non-empty; pure code cannot use any of them.
 
 `ping`'s `m` in §5 is polymorphic but non-empty: any real mailbox is admissible, but the empty effect is not.
 
@@ -502,7 +511,7 @@ fn main() -> Void with m = {
     send(c, Inc(5));
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
-        Some(n) -> Io.println("before upgrade: " <> Int.toString(n));   // 8
+        Some(n) -> Io.println("before upgrade: " <> Int.toString(n))    // 8
       | None -> Io.println("timeout")
     };
     send(c, Upgrade(migrate = fn(n) = n, next = doublingCounter));
@@ -618,27 +627,26 @@ send(Sys.clock, After(ms = 100, to = via(fn(_) = Tick, self())))
 
 `monitor`'s second parameter has the same shape — `via` is the general form.
 
-The clock's `After` fires exactly *once*. For a periodic tick, the receiver re-arms itself on each iteration. Assume:
+The clock's `After` fires exactly *once*. For a periodic tick, the receiver schedules a new one only after handling the previous. A naive `game` that loops back on every message would create one pending timer per input, so a burst of inputs multiplies the tick rate. Two functions make the boundary explicit:
 
 ```
 type GameMsg = Tick | Input(Char)
 type World = World(score : Int)
-fn step(w : World) -> World = World(score = World.score(w) + 1)
-```
 
-Then:
+fn step(World(score = n) : World) -> World = World(score = n + 1)
 
-```
 fn game(state : World) -> Void with GameMsg = {
     send(Sys.clock, After(ms = 100, to = via(fn(_) = Tick, self())));
-    receive {
-        Tick -> game(step(state))
-      | Input(_) -> game(state)
-    }
+    waitForTick(state)
+}
+
+fn waitForTick(state : World) -> Void with GameMsg = receive {
+    Tick -> game(step(state))
+  | Input(_) -> waitForTick(state)
 }
 ```
 
-Each iteration schedules the next tick before waiting.
+`game` schedules exactly one clock request, then hands off to `waitForTick`. Inputs are handled without touching the pending timer; only a `Tick` returns to `game`, which schedules the next one. `step` destructures the world with a pattern — Ernest does not generate field-accessor functions.
 
 ### 5.6 Prediction exercise
 
@@ -676,7 +684,7 @@ Compile in dependency order and run:
 ```
 $ ernc Net/Http.ern
 $ ernc main.ern
-$ ern main.erc -pa .              # -pa adds the current directory to the load path
+$ ern -pa . main.erc              # -pa adds the current directory to the load path
 parsed
 ```
 
@@ -778,7 +786,7 @@ foreign fn Ets.member(t : Ets.Table(k, v), key : k) -> Bool with m = "ets:member
 
 `foreign type` declares a type whose values are made and used only by foreign functions — no Ernest-side constructor, no pattern match. `foreign fn` binds a name to an implementation on the other side (here, Erlang's `ets:member/2`).
 
-Ernest treats the foreign boundary as a *promise*: the declared type is what comes back, the mailbox effect is honest, a pure declaration means no effects. Two of these are runtime-checked; one is not:
+Ernest treats the foreign boundary as a *promise*: the declared type is what comes back, the mailbox effect is honest, a pure declaration means no effects. The following three breaches are checked at runtime; purity remains a trusted promise:
 
 - **Wrong return type.** *Checked at runtime.* The declared type is Ernest's contract; a value the foreign side hands over that does not match faults the *receiving* Ernest process on first observation.
 - **Thrown exception.** *Checked at runtime.* Erlang exits and throws become `Fault` on the calling process.
@@ -812,10 +820,11 @@ The raw binding is unqualified (`rawLookup`), so it is file-local. `Ets.lookup` 
 
 Erlang's `{ok, V} | {error, R}` convention does not automatically match an Ernest `Either(e, a)`. Ernest's `Either` constructors are `Left(e)` and `Right(a)`, and under §8.4's ABI they encode as `{'Left', e}` and `{'Right', a}` (quoted, source-preserving). Erlang's `{ok, V}` uses the lowercase atom `ok`, which is a different value.
 
-The cleanest fix is a small Erlang-side helper that produces the Ernest-shaped return. For a foreign call whose Ernest declaration is `Either(String, Int)`, the helper returns:
+The cleanest fix is a small Erlang-side helper that produces the Ernest-shaped return. For a foreign call whose Ernest declaration is `Either(String, Int)`, the helper's payloads must already match Ernest's ABI: `V` must be an `Int`-shaped integer, and `R` must be a UTF-8 binary (Ernest `String`). The helper is a fragment — the surrounding `find/1`, module name, and export list depend on the caller's setup:
 
 ```erlang
-%% Erlang helper, in its own .erl file
+%% Erlang helper (fragment); requires find/1 to return an integer on {ok, _}
+%% and a UTF-8 binary on {error, _}
 lookup(Key) ->
     case find(Key) of
         {ok, V}    -> {'Right', V};
@@ -823,11 +832,13 @@ lookup(Key) ->
     end.
 ```
 
-The Ernest `foreign fn` then binds to that helper — the returned term already matches Ernest's ABI, no decoder needed:
+The Ernest `foreign fn` binds to that helper — the returned term already matches Ernest's ABI, no decoder needed:
 
 ```
 foreign fn Store.lookup(key : String) -> Either(String, Int) with m = "store_helper:lookup/1"
 ```
+
+If `find/1` returns reasons of another shape (an atom, a nested tuple), the Erlang helper must convert them to the declared Ernest form before returning; the Ernest side does not paper over ABI-shape breaches.
 
 Report Appendix D walks a full `Ets.ern` reference implementation. Its foreign calls happen to already match Ernest's ABI (`[{K, V}]` maps to `List(#(k, v))`, `Bool` to `true`/`false`), so it needs no Erlang wrapper.
 
