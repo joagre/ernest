@@ -932,6 +932,45 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Distributed Failure: One Simple Model, Loss Is Terminal, 2026-09-15
+
+The reviewer's R14 (open since earlier round): "§10 still describes node loss as actual process death. Disconnection, delivery guarantees, reconnection, and remote process survival need distinct contracts."
+
+Four questions to answer:
+
+1. **Disconnection vs. loss** — is there a transient disconnection state distinct from permanent loss?
+2. **Delivery guarantees** — what does `send` promise across nodes?
+3. **Reconnection** — if a peer reappears, do addresses reactivate?
+4. **Remote process survival** — do processes on a lost node continue running?
+
+**Choices weighed:**
+
+- **Erlang model: loss is terminal from the observer's view, no reconnection, no delivery guarantee beyond best-effort.** Taken.
+- **Rich distributed model with transient-disconnection, reconnection, delivery acks.** Rejected. Adds concepts (Session, transient state, ack protocol) for a fault model that Ernest deliberately keeps simple (§6.9 has no linking beyond monitors; §10 already commits to unreliable best-effort delivery in spirit).
+- **Persistent addresses that reactivate on reconnection.** Rejected — introduces address-identity questions across time; the existing address model (§6.5) is "possession is permission to send", not "addresses have persistent identity beyond node lifetime".
+- **Guaranteed delivery via runtime buffering.** Rejected — mailboxes are unbounded per program's responsibility (§10); adding a network-level delivery guarantee would add another buffering layer and shift responsibility.
+
+Taken: one policy answers all four questions.
+
+- Loss is terminal from the observing node's view. What the lost peer's processes are actually doing is unobservable; treating loss as terminal is the honest answer.
+- A peer that reappears with the same name is a new instance; addresses held before the loss are unrelated to it.
+- `send` is best-effort while the peer is reachable. No guarantee, no ack, no retry.
+- In-flight messages at the moment of loss are dropped without notification. This matches how `send` to a dead local process behaves (§6.2: "sending to a process that has died has no effect").
+
+**Effect on §10.** The single bullet on peer loss is extended from one sentence to three, covering all four sub-questions:
+
+- Loss detected → processes treated dead with `Fault("peer lost")`, monitors deliver, pending `remote` returns `Left(PeerLost)`.
+- Reappearance is a new instance; no reconnection.
+- `send` best-effort while reachable; in-flight messages at loss are dropped.
+
+**Cost.** One bullet extended. No new mechanism. Cross-reference to §6.9 for monitor delivery.
+
+**Principle 2 (one way).** One policy for all four questions rather than four separate contracts.
+
+**Principle 3 (nothing invisible).** The four sub-questions had implicit-Erlang-behavior answers before; now stated explicitly. No hidden guarantees to invoke; no ambiguous reactivation semantics.
+
+**Principle 5 (small).** No new concept added — the simpler answer stays.
+
 ## Guards and Bitstring Size Expressions: Pure, No Fault Swallow, 2026-09-15
 
 The reviewer's R10 (open since the earlier round): §5.9 said "a failed guard falls through" but didn't define permitted effects, fault handling, or the scope and evaluation rules for guards. Same gap for bitstring pattern `size(Expr)`.

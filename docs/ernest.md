@@ -813,7 +813,7 @@ Sys.clock        : Address(ClockMsg) // the clock process
 - `Down` carries a cause distinguishable from other causes.
 - The runtime detects `Deadlock` as in section 8.
 - A node ships code to a peer that lacks it, identified by content, so that `spawn` on a peer and `remote` need no prior installation; peers need not hold the same code. Transitive dependencies resolve by hash before the shipped closure runs; types are content-addressed; `Sys.*` re-binds to the peer; foreign code is per-node. See §8.7.
-- The runtime detects the loss of a node: its processes die with `Fault("peer lost")` and its remote computations return `Left(PeerLost)`.
+- The runtime detects the loss of a peer: from the observing node's view, all processes on the lost peer are treated as dead with cause `Fault("peer lost")`, monitors deliver accordingly (§6.9), and pending `remote` calls return `Left(PeerLost)`. Loss is terminal from the observer's view — a peer that later reappears with the same name is a new instance whose addresses are unrelated to any held before the loss; the language has no reconnection concept. `send` has no delivery guarantee beyond best-effort while the peer is reachable; in-flight messages to a peer at the moment of loss are dropped without notification.
 
 ## 11. Toolchain
 
