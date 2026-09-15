@@ -18,7 +18,7 @@ The language is built on five principles. Principle 1 is the final arbiter: it a
 
 ## 1. Notation
 
-The grammar is written in Wirth-style EBNF (as in the Modula-2 and Oberon reports). `=` defines, concatenation is juxtaposition (no operator between elements), `|` separates alternatives, `[ ]` is optional, `{ }` is zero or more, `( )` groups, `.` ends a rule. Terminals are quoted. `ident`, `conname`, `typename`, `typevar`, and the literals are defined in section 2. The complete grammar is in Appendix A.
+The grammar is written in Wirth-style EBNF (as in the Modula-2 and Oberon reports). `=` defines, concatenation is juxtaposition (no operator between elements), `|` separates alternatives, `[ ]` is optional, `{ }` is zero or more, `( )` groups, `.` ends a rule. Uppercase names are grammar non-terminals; lowercase names are lexical categories. Terminals are in double or single quotes (either quote may enclose the other). `ident`, `conname`, `typename`, `typevar`, `binop`, and the literals are defined in section 2. The complete grammar is in Appendix A.
 
 ## 2. Lexical Elements
 
@@ -41,13 +41,22 @@ escape   = "\\" ( "'" | '"' | "\\" | "n" | "t" | "u{" hexdigit { hexdigit } "}" 
 bool     = "true" | "false" .
 ```
 
-`1` is `Int`, `1.0` and `1.0e-9` are `Float`. Literals carry no sign; `-` is a prefix operator. No overloaded literals and no default. The escapes are the six listed; a `character` is any code point other than the enclosing quote and `\`: in a `char` literal other than `'` and `\`, in a `text` literal other than `"` and `\`.
+`1` is `Int`, `1.0` and `1.0e-9` are `Float`. Literals carry no sign; `-` is a prefix operator. No overloaded literals and no default. The escapes are the six listed; a `character` is any code point other than the enclosing quote and `\`: in a `char` literal other than `'` and `\`, in a `text` literal other than `"` and `\`. `digit` is `0` through `9`; `hexdigit` is a digit or `a`-`f` or `A`-`F`; `letter` is `a`-`z` or `A`-`Z` (identifiers are ASCII, though source text is Unicode).
 
 **Operators and delimiters.**
 
 ```
 ( ) { } [ ] << >> , ; : = <- -> | .. _
 + - * / % ++ +: == != < <= > >= && || |>
+```
+
+Two grammar categories built from the above:
+
+```
+binop    = "*" | "/" | "%" | "+" | "-" | "++" | "+:"
+         | "==" | "!=" | "<" | "<=" | ">" | ">=" | "&&" | "||"
+         | "|>" .
+literal  = int | float | char | text | bool .
 ```
 
 Prefix `-` is negation on `Int` and `Float`. Precedence of the binary operators, highest first: `* / %`, `+ - ++`, `+:` (right-associative), `== != < <= > >=`, `&&`, `||`, `|>`. All but `+:` are left-associative. An operator name can be qualified, `Int.+`, section 4. `|>` is not qualifiable — it is a syntactic form (section 5), not a namespaced function.
@@ -463,14 +472,9 @@ BitSpec     = "size" "(" Expr ")" | "unit" "(" int ")"
             | "big" | "little" | "native"
             | "signed" | "unsigned" .
 FieldPats   = [ ident "=" Pattern { "," ident "=" Pattern } ] .
-
-binop       = "*" | "/" | "%" | "+" | "-" | "++" | "+:"
-            | "==" | "!=" | "<" | "<=" | ">" | ">=" | "&&" | "||"
-            | "|>" .
-literal     = int | float | char | text | bool .
 ```
 
-Precedence for `binop` as in section 2. Every nonterminal is decided by its first token: `let` begins a binding, `fn` a declaration or lambda, `{` a block, `[` a list, `(` a call, tuple, or parenthesized expression. In `QName`, after each uppercase token the next token decides: `.` continues the qualification; otherwise the segment is final, and a lowercase final is a function or operator, an uppercase final a constructor. A constructor's payload is positional or named by whether `=` or `:` follows the first identifier. `conname` and `typename` are one token class; which one a segment is follows from its position.
+`binop` and `literal` are defined in section 2, along with the other lexical categories; `binop` precedence follows the table there. Every nonterminal is decided by its first token: `let` begins a binding, `fn` a declaration or lambda, `{` a block, `[` a list, `(` a call, tuple, or parenthesized expression. In `QName`, after each uppercase token the next token decides: `.` continues the qualification; otherwise the segment is final, and a lowercase final is a function or operator, an uppercase final a constructor. A constructor's payload is positional or named by whether `=` or `:` follows the first identifier. `conname` and `typename` are one token class; which one a segment is follows from its position.
 
 ## Appendix B. Examples
 
