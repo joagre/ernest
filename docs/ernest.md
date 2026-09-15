@@ -1040,7 +1040,7 @@ fn submitter(worker : Address(WorkerMsg)) -> Void with Never = {
 
 ## Appendix D. A Foreign Library
 
-A shim over Erlang's `ets`, tables of type `set`. Raw bindings are module-local (unqualified); the library is ordinary Ernest over them. No Erlang module is needed: the representation of values, section 10, already matches Erlang's conventions, `true` is `Bool`, `[{K, V}]` is `List(#(k, v))`, and `{ok, V} | {error, R}` is a sum type with constructors tagged `ok` and `error`.
+A shim over Erlang's `ets`, tables of type `set`. Raw bindings are module-local (unqualified); the library is ordinary Ernest over them. The BEAM values `ets` returns line up with Ernest's ABI (§8.4) here without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and Erlang's `[{K, V}]` matches `List(#(k, v))`. Erlang's `{ok, V} | {error, R}` convention uses lowercase atoms `ok` and `error`, which under §8.4 do *not* map to Ernest's `Ok(v)` / `Error(r)` constructors (whose canonical encoding is `{'Ok', v}` / `{'Error', r}`, quoted and source-preserving). A shim that wants `Either` from a `{ok, _} | {error, _}` API therefore decodes the raw return with a `match` (or wraps the call in an Erlang helper that produces the quoted-atom form). The `ets` calls used below don't use that convention, so no adapter is needed here.
 
 ```
 // Ets.ern
