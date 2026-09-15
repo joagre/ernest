@@ -21,43 +21,19 @@ Here is a complete Ernest program.
 fn main() -> () with () = Io.println("hello, world")
 ```
 
-When Ernest runs this, it prints `hello, world` followed by a newline to standard output. Let's read it one piece at a time.
+When Ernest runs this, it prints `hello, world` followed by a newline to standard output.
 
-### `fn main`
+### 1.1 The line, piece by piece
 
-`fn` starts a function definition. `main` is its name. `main` is special: it is the function Ernest calls when the program starts.
+`fn` starts a function definition. `main` is its name; `main` is special — it is the function Ernest calls when the program starts. The empty parens say `main` takes no arguments.
 
-### No parameters
+The return annotation `-> () with ()` has two parts. The first `()` is the return type; the second, after `with`, is the mailbox type. `()` is a type called *unit*: it has exactly one value, also written `()`, and means "no interesting information here." So `main` returns unit — the function did its work, no result to hand back.
 
-Inside the parens: nothing. `main` takes no arguments.
+Every function in Ernest runs inside a process, and every process has a mailbox with a type — the type of messages it can receive. The `with M` at the end of a function's arrow says "this function acts through the process it runs in, whose mailbox type is `M`." `main`'s mailbox type here is `()` — nothing meaningful goes into it. That's normal for `main`: usually `main` spawns children who receive, not itself.
 
-### The return annotation
+The `=` marks the start of the body. Here the body is a single expression: a call to `Io.println`, a function from the standard library that writes text to standard output followed by a newline. `Io` is a namespace from the standard library (Appendix E of the report lists them all). Single-expression bodies don't need braces; longer bodies do.
 
-Now the arrow:
-
-```
--> () with ()
-```
-
-Two things. The first `()` is the return type. The second `()`, after `with`, is the mailbox type.
-
-`()` is a type — pronounced "unit." It has exactly one value, also written `()`. It's Ernest's way of saying "no interesting information here." When a function returns `()`, it means "the function did its work, no result to hand back."
-
-Every function in Ernest runs inside a process, and every process has a mailbox. That mailbox has a type — the type of messages it can receive. The `with M` at the end of a function's arrow says "this function acts through the process it runs in, whose mailbox type is `M`."
-
-`main`'s mailbox type is `()`. Nothing meaningful goes into it. That's normal — most `main` functions never receive messages themselves; they spawn children who do.
-
-Read the whole arrow like this: "returns nothing meaningful, running in a process with an uninteresting mailbox."
-
-### The body
-
-```
-= Io.println("hello, world")
-```
-
-The `=` marks the start of the body. Here the body is a single expression — a call to `Io.println`, a function from the standard library that writes text to standard output followed by a newline. `Io` is a namespace from the standard library (Appendix E of the report lists them all). Bodies with more than one statement need braces; single-expression bodies like this one don't.
-
-### The big idea
+### 1.2 The big idea
 
 Ernest has no built-in "print." What `Io.println` does is send its argument as a message to a small stdout process the runtime provides. That process receives the text and writes it out.
 
