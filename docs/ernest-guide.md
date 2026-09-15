@@ -79,7 +79,7 @@ Ernest starts with a small set of built-in scalar types:
 
 Literals look how you'd expect: `42`, `3.14`, `'a'`, `"hello"`, `true`. `()` is written as itself.
 
-You'll meet two built-in generic types shortly: `List(a)` for immutable linked lists and `Map(k, v)` for immutable dictionaries. `Address(m)`, `Reply(a)`, and `Never` are process-related built-ins we'll see in section 5.
+You'll meet three built-in generic collections shortly: `List(a)` for immutable linked lists, `Map(k, v)` for immutable dictionaries, and `Set(a)` for immutable sets. `Address(m)`, `Reply(a)`, and `Never` are process-related built-ins we'll see in section 5.
 
 Beyond the built-ins, programs need to describe their own data shapes. Ernest lets you declare types with named cases.
 
@@ -193,7 +193,26 @@ The first arm matches the empty list. The second arm binds `head` to the first e
 
 Common list operations live in `List.ern` (Appendix E of the report): `List.map`, `List.filter`, `List.foldLeft`, `List.foreach`, and so on. Since they're subject-first (`List.map(list, f)`, not `List.map(f, list)`), they compose naturally with `|>`.
 
-### 2.5 Tuples
+### 2.5 Maps and Sets
+
+Two more built-in immutable collections. Both require equality on their key/element type.
+
+- **`Map(k, v)`** — a dictionary from keys of type `k` to values of type `v`.
+- **`Set(a)`** — a set of elements of type `a`.
+
+Neither has literal syntax; you build them with functions from their modules:
+
+```
+let m = Map.empty |> Map.put("alice", 30) |> Map.put("bob", 25);
+Map.get(m, "alice") // Some(30)
+
+let s = Set.fromList([1, 2, 3]);
+Set.contains(s, 2) // true
+```
+
+Both modules are subject-first and live in Appendix E of the report (`Map.ern`, `Set.ern`).
+
+### 2.6 Tuples
 
 A tuple is a fixed-size positional group of values, each with its own type:
 
