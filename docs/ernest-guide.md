@@ -889,7 +889,7 @@ The compiler picks Optional or Either from the right-hand side's type. You don't
 So far every function has run in the process that called it. When you have peers — other machines running Ernest — you can hand off a pure computation to run on one of them.
 
 ```
-remote : (() -> a) -> Either(RemoteError, a)
+remote : (() -> a) -> Either(RemoteError, a) with m
 ```
 
 Give it a pure, zero-argument function. The runtime picks a peer and evaluates the function there, returning `Right(value)` on success or `Left(err)` if no peer is available or the peer is lost.
