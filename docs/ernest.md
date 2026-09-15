@@ -1083,3 +1083,67 @@ Foreign.toList   : (Foreign) -> Optional(List(Foreign))
 ```
 
 The standard library is expected to grow. New modules are added when a pattern shows up in three programs, matching the rule the decisions log applies to other deferred additions.
+
+## Appendix F. Glossary
+
+Every technical term this report introduces, with the section that defines it. Pointers only — the definition lives in the referenced section.
+
+- **abstract type** — a sum type whose constructors are visible only to the functions listed in its signature. §3.6, §4.4.
+- **address** — `Address(m)`, a reference to a process that receives values of type `m`. §3.7, §6.5.
+- **arity** — the number of arguments a function takes; part of its type. §4.5.
+- **binding** — a `let` in a block, `let p = e` or `let p <- e`. §4.6, §5.5.
+- **bitstring** — a bit-level value or pattern `<<...>>` that produces or matches a `Bytes` value. §5.11.
+- **`Bytes`** — the type of an octet sequence. §3.1.
+- **clause** — one arm of a `match` or `receive`. §5.9, §6.3.
+- **compare** — the per-type function that produces `Ordering`. §3.10.
+- **concat operator** — `<>`, resolved per type: `String.<>`, `List.<>`, `Bytes.<>`. §4.8.
+- **cons operator** — `::`, list-prepend, right-associative. §3.3, §5.10.
+- **constructor** — a case of a sum type; a value, a function, or a construction form. §3.5, §5.6.
+- **doc comment** — `///` to end of line; attached to the following declaration. §2.2.
+- **fault** — a process death whose `Reason` is not `Returned`; not catchable. §7.
+- **`Fault(msg)`** — one specific `Reason`, carrying a message. §7.
+- **foreign function** — declared `foreign fn`; body is a string reference to a runtime implementation. §4.7.
+- **foreign type** — declared `foreign type T`; values are made and used only by foreign functions. §3.8, §4.7.
+- **generalization** — quantifying free type variables in a `fn` definition. §3.9.
+- **guard** — a `when` expression on a `match` or `receive` clause. §5.9.
+- **Hindley-Milner** — the type system Ernest uses; full inference. §3.9.
+- **irrefutable pattern** — a pattern that cannot fail; required in `let` and function parameters. §5.10.
+- **lambda** — an anonymous function, `fn(x) = e`. §5.3.
+- **literal** — a token that stands for an `Int`, `Float`, `Char`, `String`, or `Bool` value. §2.5.
+- **mailbox** — the queue of values a process receives. §6.
+- **mailbox type** — the `M` in `(A) -> B with M`; the type of the process's mailbox. §6.1.
+- **`match`** — the pattern-matching expression form. §5.9.
+- **module** — a single Ernest source file (`.ern`); the unit of compilation and namespace. §4.1.
+- **monitor** — `monitor(a, wrap)`; sends `wrap(d)` to the caller when `a` dies. §6.9, §9.5.
+- **named field** — a field on a constructor identified by name, not position. §3.5.
+- **namespace** — the dotted prefix of a name; equal to the module's path. §4.2.
+- **`Never`** — a mailbox type that permits `send` but forbids `receive`. §3.7, §6.8.
+- **operator resolution** — per-type dispatch of arithmetic and `<>` to `Type.<op>`. §4.8.
+- **pattern** — decomposes a value and binds its parts. §5.10.
+- **peer** — another node the runtime knows by name. §6.2, §8.3.
+- **pipe** — the `|>` operator, `x |> f` = `f(x)`. §5.7.
+- **positional field** — a field on a constructor identified by position, not name. §3.5.
+- **precedence** — the binding tightness of a binary operator. §2.6.
+- **prelude** — the small set of names the language requires to exist. §9.
+- **process** — an execution of a function with a mailbox. §6.
+- **pure function** — a function without a mailbox type; result depends only on arguments. §0, §6.1.
+- **qualified name** — a name with a dotted namespace prefix, `Net.Http.parse`. §2.3, §4.2.
+- **`receive`** — a match over the mailbox. §6.3.
+- **remote computation** — `remote(f)` and `parallelRemote(fs)` evaluate pure functions on peers. §6.7.
+- **`Reply(a)`** — a one-shot address for the answer to a request; linear inside a `receive` clause. §3.7, §6.6.
+- **reserved word** — one of sixteen keywords. §2.4.
+- **runtime** — the system that runs Ernest programs; BEAM. §10.
+- **`self`** — `self()`, the current process's own address. §6.2.
+- **`send`** — `send(a, v)`, places `v` in the mailbox of `a`. §6.2.
+- **`spawn`** — `spawn(w, f)`, starts a new process. §6.2.
+- **structural equality** — the meaning of `==`; two values are equal if their shape is. §3.10.
+- **sum type** — a type with one or more constructors. §3.5.
+- **system reference** — a top-level address in `Sys.*`, wired by the runtime. §8.2.
+- **tail position** — the last expression of a block, `match` clause, or `receive` clause; guaranteed TCO. §10.
+- **top-level binding** — a value in scope everywhere at the top level. §0, §8.2.
+- **tuple** — a positional product, `#(a, b)`, `#(a, b, c)`, `#(a)`. §3.2.
+- **type variable** — a lowercase identifier in type position; universally quantified in a `fn`. §3.9.
+- **unit** — the type `()` with the single value `()`. §3.1.
+- **`via`** — `via(f, addr)` is the address `addr` seen through `f`. §6.5, §9.5.
+- **wildcard** — the pattern `_`; matches anything, binds nothing. §2.3, §5.10.
+- **`with M`** — the mailbox-type marker on a function type. §3.4, §6.1.
