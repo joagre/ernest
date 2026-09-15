@@ -381,7 +381,7 @@ Block     = "{" Stmt { ";" Stmt } "}" .
 Stmt      = FnDecl | Binding | Expr .
 Pattern   = ConsPat [ "as" ident ] .
 ConsPat   = AtomPat [ "::" ConsPat ] .
-AtomPat   = "_" | ident | literal | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
+AtomPat   = "_" | ident | [ "-" ] literal | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
           | "#(" Pattern { "," Pattern } ")"
           | "[" [ Pattern { "," Pattern } ] "]"
           | BitPat .
@@ -431,7 +431,7 @@ A nullary constructor is a value, a single-positional constructor is a function 
 let words = input |> String.trim |> String.toLower |> String.chars
 ```
 
-`|>` is left-associative and lowest-precedence, below `||`: `a + b |> f` is `f(a + b)`, and `a |> b |> c` is `c(b(a))`. The right-hand side may be a name, a qualified name, a lambda, or a call whose first-argument slot the pipe fills. The type of `x` must match the target function's first argument.
+`|>` is left-associative and lowest-precedence, below `||`: `a + b |> f` is `f(a + b)`, and `a |> b |> c` is `c(b(a))`. The right-hand side may be a name, a qualified name, a parenthesized lambda, or a call whose first-argument slot the pipe fills. A lambda in this position must be parenthesized (`x |> (fn(y) = y + 1)`); an unparenthesized `fn(...) = ...` after `|>` would extend its body greedily into the surrounding expression. The type of `x` must match the target function's first argument.
 
 ### 5.8 Conditional
 
@@ -447,7 +447,7 @@ A guard is an expression of type `Bool` with no mailbox effect — the type chec
 
 A pattern decomposes a value and binds its parts. The same patterns appear in `let`, in `match` and `receive` clauses, and in function parameters.
 
-**Atomic patterns.** `_` matches anything and binds nothing. An identifier binds the whole value at its position to a new variable, shadowing any outer variable of that name; it never refers to an existing variable. A literal matches itself.
+**Atomic patterns.** `_` matches anything and binds nothing. An identifier binds the whole value at its position to a new variable, shadowing any outer variable of that name; it never refers to an existing variable. A literal matches itself; a numeric literal may be prefixed with `-` to match a negative value, `match n { -1 -> "minus one" | _ -> "other" }`.
 
 **Compound patterns.** A constructor with a pattern, `Some(p)`, or with field patterns, `Snapshot(seen = s)`, which may omit fields, matches that constructor and decomposes its fields. A tuple `#(p, q)`, a list `[p, q]`, and `p :: q` decompose those. Patterns nest to any depth: `Some(#(x, Snapshot(dir = d)))`.
 
@@ -888,7 +888,7 @@ Stmt        = FnDecl | Binding | Expr .
 
 Pattern     = ConsPat [ "as" ident ] .
 ConsPat     = AtomPat [ "::" ConsPat ] .
-AtomPat     = "_" | ident | literal | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
+AtomPat     = "_" | ident | [ "-" ] literal | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
             | "#(" Pattern { "," Pattern } ")"
             | "[" [ Pattern { "," Pattern } ] "]"
             | BitPat .

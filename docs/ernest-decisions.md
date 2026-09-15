@@ -932,6 +932,46 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Grammar: Negative Numeric Patterns and Lambda-After-Pipe Parens, 2026-09-15
+
+The reviewer's R18 (open since earlier round): "The substantive parsing issues remain, including negative numeric patterns, an unparenthesized lambda after a pipe, and constructor-call ambiguity." Addressing the two clear ones.
+
+**Negative numeric patterns.**
+
+§2.5 states "Literals carry no sign; `-` is a prefix operator." That made `-1` an expression (`negate(1)`), not a literal. Grammar allowed `literal` in patterns but not a signed variant, so `match n { -1 -> ... }` failed to parse. Users had to fall back to a guard (`n when n == -1 -> ...`).
+
+Options weighed:
+- **Allow `[ "-" ] literal` in `AtomPat`.** Taken. One-char grammar change; scope of `-` is limited to patterns.
+- **Change §2.5 to admit signed literals globally.** Rejected — reintroduces the "should `-1 - 2` parse as `(-1) - 2` or `-(1 - 2)`?" ambiguity that motivated §2.5's rule.
+- **Require guards for negative matches.** Rejected — noisy for a natural pattern.
+
+**Unparenthesized lambda after pipe.**
+
+§5.7 said the RHS of `|>` "may be a name, a qualified name, a lambda, or a call". But grammar-wise, `Lambda` is at the `Expr` level, not the `Primary`/`Unary` level that binops consume. `x |> fn(y) = y + 1` failed to parse.
+
+Options weighed:
+- **Require the lambda to be parenthesized: `x |> (fn(y) = y + 1)`.** Taken. Parenthesized expressions already reach `Primary` via `"(" Expr ")"`; nothing new in the grammar. Fixes the prose to match the grammar.
+- **Add `Lambda` to `Primary` (allow bare lambdas in binops).** Rejected — `Lambda`'s body is a greedy `Expr`, so `x |> fn(y) = y + 1 |> f(z)` would parse ambiguously (does the lambda body extend through the second pipe or not?). Requires special termination rules; adds parser complexity for a rare shape.
+- **Special-case `|>` in the grammar.** Rejected — same greedy-body problem, and pipe-specific rules violate the "small, uniform grammar" principle.
+
+Taken: prose fixed to say "a parenthesized lambda", with a note explaining why parens are required.
+
+**Constructor-call ambiguity.**
+
+The reviewer flagged this without a concrete example. The current grammar disambiguates constructor calls with bounded lookahead — after `Foo(` in an expression, peek past the first identifier: `=` means named fields, anything else means a positional single-Expr (per Appendix A's epilogue). Nullary constructors (`Foo` bare, no parens) are unambiguous. Not addressing without a specific ambiguity to fix — the grammar's current disambiguation rule appears to cover the cases we know.
+
+**Effect on the report.**
+
+- Grammar (both copies, §5 and Appendix A): `AtomPat` gains `[ "-" ] literal` alternative.
+- §5.7 prose: "a lambda" → "a parenthesized lambda", with the reason.
+- §5.10 prose: negative-numeric-pattern example added to the atomic-patterns paragraph.
+
+**Cost.** Two grammar-character additions, two prose sentences. No new keyword, no new syntactic form.
+
+**Principle 4 (simple to parse).** The `[ "-" ] literal` addition stays under bounded lookahead — `-` followed by a numeric literal in a pattern is unambiguous. The lambda-parens rule keeps the grammar first-token-decidable at the pipe RHS.
+
+**Principle 1 (least surprise).** A reader who writes `match n { -1 -> ... }` now sees it parse. A reader who writes `x |> (fn(y) = ...)` sees it parse and understands from the prose why bare lambdas need parens.
+
 ## Modules: Nested Namespace Ownership and Cross-Module Type Info, 2026-09-15
 
 The reviewer's R17 (open since earlier round): three asks — nested namespace ownership, locating compiled modules, cross-module type information.
