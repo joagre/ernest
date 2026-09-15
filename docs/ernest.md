@@ -1144,7 +1144,7 @@ Every technical term this report introduces, with the section that defines it. P
 - **monitor** — `monitor(a, wrap)`; sends `wrap(d)` to the caller when `a` dies. §6.9, §9.5.
 - **named field** — a field on a constructor identified by name, not position. §3.5.
 - **namespace** — the dotted prefix of a name; equal to the module's path. §4.2.
-- **`Never`** — a mailbox type that permits `send` but forbids `receive`. §3.7, §6.8.
+- **`Never`** — the type with no values. As a mailbox type it is the canonical send-only marker: the process cannot receive anything, and a `receive` in it is a type error. §3.7, §6.8.
 - **operator resolution** — per-type dispatch of arithmetic and `<>` to `Type.<op>`. §4.8.
 - **pattern** — decomposes a value and binds its parts. §5.10.
 - **peer** — another node the runtime knows by name. §6.2, §8.3.
