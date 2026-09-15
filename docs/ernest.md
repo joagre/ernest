@@ -119,13 +119,16 @@ An operator name can be qualified, `Int.+`, §4.8. `|>` is not qualifiable — i
 ## 3. Types
 
 ```
-Type      = FnType | TypeAtom .
+Type      = TypeAtom | FnType | ParenType .
 TypeAtom  = { typename "." } typename [ "(" Type { "," Type } ")" ]
           | typevar
           | TupleType .
 TupleType = "#(" Type { "," Type } ")" .
 FnType    = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
+ParenType = "(" Type ")" .
 ```
+
+`FnType` and `ParenType` both begin with `(`; the parser distinguishes them by looking at the token that follows the matching `)` — `->` means `FnType`, anything else means `ParenType` (which then requires exactly one `Type` inside the parens).
 
 ### 3.1 Base types
 
@@ -160,7 +163,7 @@ The prelude declares `Void` as a one-value type (§9.3): a function that has not
 
 `with M` after the result is the mailbox type: the function uses the process it runs in, whose mailbox has type `M`, §6.1. A function type without a `with M` is pure.
 
-`with` binds to the nearest arrow; `(A) -> (B) -> C with M` is a pure function returning a function with mailbox type `M`.
+`with` binds to the nearest arrow; `(A) -> (B) -> C with M` is a pure function returning a function with mailbox type `M`. Parentheses group a type to override the default: `(A) -> ((B) -> C) with M` is a function with mailbox `M` returning a pure function.
 
 ### 3.5 Sum types
 
@@ -853,11 +856,12 @@ Binding     = "let" Pattern [ ":" Type ] ( "=" | "<-" ) Expr .
 Name        = { typename "." } ( ident | binop ) .
 QTypeName   = { typename "." } typename .
 
-Type        = FnType | TypeAtom .
+Type        = TypeAtom | FnType | ParenType .
 TypeAtom    = { typename "." } typename [ "(" Type { "," Type } ")" ] | typevar
             | TupleType .
 TupleType   = "#(" Type { "," Type } ")" .
 FnType      = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
+ParenType   = "(" Type ")" .
 
 Expr        = Lambda | IfExpr | MatchExpr | ReceiveExpr | BinExpr .
 Lambda      = "fn" "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .

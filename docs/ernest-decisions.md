@@ -932,6 +932,36 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Function-Type Grouping: `ParenType` Overrides Nearest-Arrow, 2026-09-15
+
+The reviewer's R05 (open since the earlier round): "There is no grouping rule for expressing an effectful function that returns a pure function. The nearest-arrow rule remains unchanged."
+
+§3.4 states `with` binds to the nearest arrow, so `(A) -> (B) -> C with M` is "pure function returning function with mailbox M". There was no way to write the opposite — a function with mailbox M returning a pure function — because the grammar had no parenthesized-type production.
+
+**Choices weighed:**
+
+- **Add `ParenType = "(" Type ")"` as a grammar alternative.** Taken. Parenthesizing the returned function type binds `with` to the outer arrow: `(A) -> ((B) -> C) with M`.
+- **Change the default to outermost-arrow binding.** Rejected — `List.map`'s natural signature `(List(a), (a) -> b with e) -> List(b) with e` reads intuitively under nearest-arrow (each `with e` belongs to its own arrow); flipping the default would surprise the common case to fix the rare case.
+- **Introduce a new grouping syntax (`⟨Type⟩` or similar).** Rejected — parens are the natural grouping token; introducing new syntax for a rare case violates principle 5.
+- **Leave R05 open.** Rejected — the paper programs don't yet hit this, but the language should have an answer for a straightforward question.
+
+**Grammar change.** Both grammar blocks (§3 top, Appendix A) get a new alternative:
+
+```
+Type = TypeAtom | FnType | ParenType .
+ParenType = "(" Type ")" .
+```
+
+Parsing: `FnType` and `ParenType` both start with `(`. The parser distinguishes at the matching `)` — one-token lookahead: if `->` follows, it's `FnType`; else, it's `ParenType` (which then requires exactly one `Type` inside).
+
+**Prose change.** §3.4 extended: "Parentheses group a type to override the default: `(A) -> ((B) -> C) with M` is a function with mailbox `M` returning a pure function."
+
+**Cost.** One grammar production, one sentence of prose. Bounded lookahead (matches principle 4). No effect on existing programs — the paper programs don't use return-position function types where the outer needs its own effect. No new keyword, no new type.
+
+**Principle 1 (least surprise).** A reader who wants the opposite of `with` binding can now reach for the natural fix — parens — instead of hunting for a special syntax that doesn't exist.
+
+**Principle 4 (simple to parse).** The added production keeps the parser under bounded lookahead: one token after `)`.
+
 ## Fault List and Initialization: Extend §7.4, Acknowledge Partial Init, 2026-09-15
 
 The reviewer's U09 flagged two things:
