@@ -854,6 +854,36 @@ Taken: the third. It matches the paper programs (none has an effectful top-level
 
 **Principle 3** carried this decision: the semantics of top-level `let` was genuinely undefined; readers had to guess. Now spelled out.
 
+## Numeric Semantics and Fault Rules, 2026-09-15
+
+The reviewer's eighth finding: fault rules and numeric edge cases were inconsistent or incomplete. Several genuine gaps:
+
+- Integer division convention for negative operands was unspecified (`-7 / 3` — `-2` or `-3`?).
+- `Int.mod` vs `%` — same convention? Not stated.
+- Float division by zero — fault or IEEE?
+- `NaN == NaN` — §3.10 said equality is structural; IEEE says false.
+- `Float.compare(NaN, x)` — return what?
+- Float overflow/underflow — unspecified.
+
+**Choices made:**
+
+- **Integer division: truncated toward zero.** Matches BEAM (`div`, `rem`), C, Java, Go. `-7 / 3 = -2`, `-7 % 3 = -1`. Chosen for platform consistency (BEAM) and minimum surprise for readers from C-family languages. Alternative (floored, matches Python/Haskell) rejected — less common in Ernest's audience.
+- **`Int.mod` gives rem-semantics.** Same as `%`. The name overlaps with mathematical modulo (which is always non-negative), but changing to `Int.rem` would be a rename affecting Appendix E and paper programs, and readers from most languages find the current name intuitive. Documented in §3.1.
+- **Float division by zero: IEEE 754.** Produces `Infinity` or `NaN`, does not fault. Faults are for BEAM-level catastrophes and one-of-a-kind partial operations, not for cases IEEE handles.
+- **NaN in `==`: IEEE semantics as a stated exception to structural equality.** `NaN == NaN` is `false`. §3.10 acknowledges the exception explicitly rather than hiding it — structural equality is not literally true for Float, and pretending otherwise would surprise every reader from every mainstream language.
+- **`Float.compare` on NaN: fault.** `Ordering` has no unordered case. IEEE's totalOrder was considered but rejected — it would let a program silently sort NaN into either extreme, which is worse than a fault. `Float.isNaN` (added to Appendix E.9) exists so callers can guard.
+
+**Effect on the report.**
+
+- §3.1 gains three paragraphs specifying Int arithmetic (unbounded, truncated division), Float arithmetic (IEEE, no fault on `/0`, `Float.compare` faults on NaN), and the Int/Float non-mixing rule.
+- §3.10 gains a paragraph acknowledging Float's IEEE equality as an exception to structural.
+- §7.4's "three deliberate exceptions" becomes four, with the `Float.compare`-on-NaN case added and Float arithmetic's non-fault behavior mentioned.
+- Appendix E.9 gains `Float.isNaN : (Float) -> Bool`.
+
+**Cost.** Moderate additions. The report was silent on real cases that any compiler must handle; now the answers are stated. No paper program is affected (none used negative division or NaN operations).
+
+**Principle 3** again — undefined semantics is invisible in the type system and in the runtime behavior. Every gap surfaced by the reviewer was a real inference problem where a user reading Ernest code could not predict the outcome.
+
 ## `Bool.ern` Added, 2026-09-14
 
 New stdlib module for boolean operations. Two functions:

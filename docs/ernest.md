@@ -140,6 +140,12 @@ FnType    = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
 
 The prelude declares `Void` as a one-value type (§9.3): a function that has nothing meaningful to return uses it, and the only value is `Void`. There are no type aliases.
 
+**Integer arithmetic.** Integers are exact and unbounded — no overflow. Division `/` truncates toward zero: `-7 / 3 = -2`. Modulo `%` matches: `(a / b) * b + (a % b) == a`, so `-7 % 3 = -1`. `Int.div` and `Int.mod` (§9.6) use the same convention and return `Optional(Int)` in place of the zero-divisor fault; `Int.mod` is named for symmetry with `Int.div` and gives the same result as `%` (mathematical mod with always-non-negative result is not provided — write it in Ernest when needed).
+
+**Float arithmetic.** IEEE 754 double precision. Overflow yields IEEE `Infinity`, underflow yields signed zero, division by zero yields `Infinity` or `NaN` per IEEE — none of these fault. `Float.compare` (§9.6) faults if either operand is `NaN`; `Ordering` has no unordered case, so callers who may see `NaN` guard with `Float.isNaN` (Appendix E.9) first.
+
+`Int` and `Float` are separate types with no implicit conversion. Mixing them in an arithmetic expression is a type error; use `Int.toFloat` or `Float.round`/`Float.floor`/`Float.ceil` at the boundary.
+
 ### 3.2 Tuples
 
 `#(A, B)` is the type of a tuple; the value form is the same, `#(a, b)`. Tuples of one, two, or more components are all written this way. The tuple is the only positional product type. The `#(` prefix keeps tuples distinct from expression grouping `(e)` and from function types `(A, B) -> C`.
@@ -212,7 +218,9 @@ An annotation is compatible with these; it doesn't need to state them. Constrain
 
 `==` and `!=` are defined for all values except those containing functions or addresses; on those, `==` is a type error. Equality is structural.
 
-Ordering is defined per type by the function `compare` in the type's namespace, `Int.compare : (Int, Int) -> Ordering`.
+`Float` follows IEEE 754 as a specific exception: `NaN == NaN` is `false`, `NaN != x` is `true` for any `x`, and the ordering comparisons `<`, `<=`, `>`, `>=` return `false` when either operand is `NaN`. The rule matches every mainstream language and cannot be reconciled with structural equality — the report acknowledges the exception rather than hiding it.
+
+Ordering is defined per type by the function `compare` in the type's namespace, `Int.compare : (Int, Int) -> Ordering`. `Float.compare` faults on `NaN` for the reason noted in §3.1.
 
 **Equality on polymorphic types.** A function that uses `==` on a value of a type variable induces an implicit *equality constraint* on that variable. The constraint is not written in the type syntax; it is inferred from usage and checked at each call site. Instantiating the variable with a type that contains a function or address is a type error at that call site — not at the function's definition. The rule matches the equality-comparable check for concrete types.
 
@@ -592,9 +600,10 @@ The code cannot see the error. Causes include out of memory, `kill`, a failure i
 
 The prelude is total: no built-in function faults. Partial operations return `Optional` or `Either`. A fault is therefore always something that happened to the process, never something it did.
 
-Three deliberate exceptions:
+Four deliberate exceptions:
 
 - `/` and `%` on `Int` with a zero divisor fault with cause `Fault("division by zero")`. `Int.div` and `Int.mod` return `Optional` for the caller who wants to handle it.
+- `Float.compare` faults on a `NaN` operand with cause `Fault("NaN in compare")` — `Ordering` has no unordered case, and `Float.isNaN` (Appendix E.9) exists so callers can guard. `==` and `!=` on `Float` do not fault; they follow IEEE 754 (§3.10). `Float`'s arithmetic operations `+`, `-`, `*`, `/` also do not fault — division by zero produces IEEE `Infinity` or `NaN` (§3.1).
 - `todo("...")` compiles at any type and faults if reached with cause `Fault("todo: ...")`, so that an unfinished function can be declared before it is written.
 - `spawn(Peer(...), f)` or `send` to a remote address when the payload transitively contains a foreign value, with cause `Fault("foreign value cannot cross nodes")` (§3.8).
 
@@ -1121,10 +1130,11 @@ Int.toFloat      : (Int) -> Float
 
 ```
 Float.abs        : (Float) -> Float
-Float.toString     : (Float) -> String
+Float.toString   : (Float) -> String
 Float.round      : (Float) -> Int // banker's rounding, IEEE 754 default
 Float.floor      : (Float) -> Int
 Float.ceil       : (Float) -> Int
+Float.isNaN      : (Float) -> Bool // guard for Float.compare (§3.1)
 ```
 
 ### Appendix E.10. `Optional.ern`
