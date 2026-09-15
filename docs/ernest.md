@@ -557,7 +557,7 @@ Three deliberate exceptions:
 
 ### 8.1 `main`
 
-A program is a set of modules with exactly one function `main : () -> Void with m` for some `m`, unqualified, called by the runtime. Nothing sends to `main` that it has not given its address to; `m` is usually `Void`.
+A program is a set of modules with exactly one function `main : () -> Void with m` for some `m`, unqualified, called by the runtime. Nothing sends to `main` that it has not given its address to. `m` is `Never` when `main` only spawns and sends; a specific message type when `main` receives; polymorphic when `main` uses `Address.call` without its own receive protocol.
 
 ### 8.2 System references
 
@@ -780,7 +780,7 @@ type CounterMsg
     | Get(reply : Reply(Int))
     | Upgrade(migrate : (Int) -> Int, next : (Int) -> Void with CounterMsg)
 
-fn main() -> Void with Void = {
+fn main() -> Void with m = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
@@ -800,7 +800,7 @@ fn counter(n : Int) -> Void with CounterMsg = receive {
 ```
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 
-fn main() -> Void with Void = {
+fn main() -> Void with Never = {
     let pongAddr = spawn(Local, fn() = pong());
     let _ = spawn(Local, fn() = ping(pongAddr, 3));
     Void
@@ -924,7 +924,7 @@ foreign fn Ets.toList(t : Ets.Table(k, v)) -> List(#(k, v)) with m = "ets:tab2li
 ```
 
 ```
-fn main() -> Void with Void = {
+fn main() -> Void with Never = {
     let t = Ets.new();
     Ets.insert(t, "a", 1);
     Ets.insert(t, "b", 2);

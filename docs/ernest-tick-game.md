@@ -43,7 +43,7 @@ type GameMsg = Tick | In(Input)
 // Program
 //
 
-fn main() -> Void with Void = {
+fn main() -> Void with Never = {
     let world0 = World(w = 40, h = 20, players = Map.empty, apples = [], seed = Seed(42), tick = 0);
     let g = spawn(Local, fn() = game(addPlayer(world0, 1)));
     let p1 = spawn(Local, fn() = player(1, g));

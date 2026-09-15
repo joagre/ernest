@@ -18,7 +18,7 @@ That's the whole vocabulary. Everything else in the language is a rule for how f
 Here is a complete Ernest program.
 
 ```
-fn main() -> Void with Void = Io.println("hello, world")
+fn main() -> Void with Never = Io.println("hello, world")
 ```
 
 When Ernest runs this, it prints `hello, world` followed by a newline to standard output.
@@ -27,9 +27,9 @@ When Ernest runs this, it prints `hello, world` followed by a newline to standar
 
 `fn` starts a function definition. `main` is its name; `main` is special — it is the function Ernest calls when the program starts. The empty parens say `main` takes no arguments.
 
-The return annotation `-> Void with Void` has two parts. The first `Void` is the return type; the second, after `with`, is the mailbox type. `Void` is a type with exactly one value — also called `Void` — that means "no interesting information here." So `main` returns `Void`: the function did its work, no result to hand back.
+The return annotation `-> Void with Never` has two parts. The first `Void` is the return type; the second, after `with`, is the mailbox type. `Void` is a type with exactly one value — also called `Void` — that means "no interesting information here." So `main` returns `Void`: the function did its work, no result to hand back.
 
-Every function in Ernest runs inside a process, and every process has a mailbox with a type — the type of messages it can receive. The `with M` at the end of a function's arrow says "this function acts through the process it runs in, whose mailbox type is `M`." `main`'s mailbox type here is `Void` — nothing meaningful goes into it. That's normal for `main`: usually `main` spawns children who receive, not itself.
+Every function in Ernest runs inside a process, and every process has a mailbox with a type — the type of messages it can receive. The `with M` at the end of a function's arrow says "this function acts through the process it runs in, whose mailbox type is `M`." `main`'s mailbox type here is `Never` — a type with no values, meaning the process cannot receive anything at all. That fits a `main` that only spawns children and sends: it never calls `receive`, so the type says so.
 
 The `=` marks the start of the body. Here the body is a single expression: a call to `Io.println`, a function from the standard library that writes text to standard output followed by a newline. `Io` is a namespace from the standard library (Appendix E of the report lists them all). Single-expression bodies don't need braces; longer bodies do.
 
@@ -515,7 +515,7 @@ We have the counter *function*. Now we need to *run* it in a process, and send i
 Here's `main` again, this time doing exactly that:
 
 ```
-fn main() -> Void with Void = {
+fn main() -> Void with m = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
@@ -621,7 +621,7 @@ This is the ping-pong program from Appendix B of the report.
 ```
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 
-fn main() -> Void with Void = {
+fn main() -> Void with Never = {
     let pongAddr = spawn(Local, fn() = pong());
     let _ = spawn(Local, fn() = ping(pongAddr, 3));
     Void
@@ -889,7 +889,7 @@ remote : (() -> a) -> Either(RemoteError, a)
 Give it a pure, zero-argument function. The runtime picks a peer and evaluates the function there, returning `Right(value)` on success or `Left(err)` if no peer is available or the peer is lost.
 
 ```
-fn main() -> Void with Void = {
+fn main() -> Void with Never = {
     match remote(fn() = heavy(1, 2, 3)) {
         Right(n) -> Io.println("got " <> Int.toString(n))
       | Left(_) -> Io.println("no remote available")
@@ -915,7 +915,7 @@ parallelRemote : (List(() -> a)) -> List(Either(RemoteError, a))
 Runs the functions in parallel across peers and returns the results in input order — one `Either` per input.
 
 ```
-fn main() -> Void with Void = {
+fn main() -> Void with Never = {
     let jobs = [fn() = crunch(1), fn() = crunch(2), fn() = crunch(3)];
     let results = parallelRemote(jobs);
     List.foreach(results, fn(r) = match r {
@@ -1106,9 +1106,11 @@ The private key lives beside `ernest.conf` in the same directory, `private-key.p
 
 Some things that trip readers up on first pass.
 
-**Why does `main` need `-> Void with Void`? That's `Void` twice in a row.**
+**Why is `main`'s mailbox type usually `Never`, not `Void`?**
 
-The first `Void` is the return type. The second `Void` (after `with`) is the mailbox type. They're not repeating; they're two different pieces of information that happen to be the same type. If `main`'s mailbox held `CounterMsg`, it would read `-> Void with CounterMsg` — still unit return, different mailbox.
+`Never` is the type with no values — a mailbox of type `Never` cannot receive anything. Ernest uses it in `main`'s signature to say "this function only spawns and sends, it never `receive`s." That's a static guarantee visible in the type. `Void` (the one-value type) would technically compile but wouldn't carry the same information — it would say "the mailbox holds `Void` values, which are meaningless." If `main` did receive a real message type, `with SomeMsg` would replace `with Never`.
+
+The submitter example in §6 of the report uses the same pattern for the same reason: send-only processes carry `with Never`.
 
 **Why do lambdas need `fn(x) = ...`? Why can't I just write `x -> x + 1`?**
 

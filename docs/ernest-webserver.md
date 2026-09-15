@@ -42,7 +42,7 @@ abstract type SessionId = SessionId(String) with {
 // Program
 //
 
-fn main() -> Void with Void = {
+fn main() -> Void with Never = {
     let sessions = Ets.new();
     let _ = spawn(Local, fn() = sweeper(sessions));
     let acc = spawn(Local, fn() = acceptor(sessions, 0));

@@ -41,7 +41,7 @@ type SyncMsg
 // Program
 //
 
-fn main() -> Void with Void = {
+fn main() -> Void with Never = {
     let a = spawn(Local, fn() = start(Path("a")));
     let b = spawn(Local, fn() = start(Path("b")));
     send(a, Link(b));

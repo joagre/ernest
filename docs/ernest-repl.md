@@ -41,7 +41,7 @@ type ReplMsg
 // Program
 //
 
-fn main() -> Void with Void = {
+fn main() -> Void with Never = {
     let _ = spawn(Local, fn() = repl(Map.empty));
     Void
 }
