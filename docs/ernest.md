@@ -22,11 +22,11 @@ The grammar is written in Wirth-style EBNF (as in the Modula-2 and Oberon report
 
 ## 2. Lexical Elements
 
-**Characters.** Source text is Unicode in UTF-8. Whitespace separates tokens and has no other meaning; line breaks mean nothing.
+**Characters.** Source text is Unicode in UTF-8; a leading byte-order mark (U+FEFF) is stripped. The whitespace characters are space (U+0020), tab (U+0009), line feed (U+000A), and carriage return (U+000D). Whitespace separates tokens and has no other meaning.
 
 **Comments.** `//` to end of line and `/* ... */` (which nests) are removed by the lexer and take part in no grammar rule. `///` to end of line is a doc comment; consecutive `///` lines form a doc block. A doc block immediately preceding a declaration, with no blank line between, is attached to that declaration as documentation, extractable by the toolchain, section 11. Doc blocks elsewhere are ordinary comments.
 
-**Identifiers.** `ident` begins with a lowercase letter or `_` and continues with any number of letters, digits, and `_`; `conname` and `typename` begin with an uppercase letter and continue the same way, and are lexically the same token; `typevar` is a lowercase identifier in type position. A qualified name is a sequence of uppercase-starting segments (each is a `typename`) followed by a final segment that starts either lowercase (a function, operator, or variable) or uppercase (a constructor): `Net.Http.parse`, `Stack.push`, `Int.+`, `ServerMsg.Get`. The dots are namespaces, section 4.
+**Identifiers.** `ident` begins with a lowercase letter or `_` and continues with any number of letters, digits, and `_`; `conname` and `typename` begin with an uppercase letter and continue the same way, and are lexically the same token; `typevar` is a lowercase identifier in type position. An identifier that begins with `_` must have at least one further character — the token `_` alone is the wildcard (section 5). A qualified name is a sequence of uppercase-starting segments (each is a `typename`) followed by a final segment that starts either lowercase (a function, operator, or variable) or uppercase (a constructor): `Net.Http.parse`, `Stack.push`, `Int.+`, `ServerMsg.Get`. The dots are namespaces, section 4.
 
 **Reserved words.** Sixteen: `type`, `opaque`, `with`, `match`, `when`, `if`, `then`, `else`, `recv`, `after`, `fn`, `let`, `foreign`, `as`, `true`, `false`.
 
@@ -41,7 +41,7 @@ escape   = "\\" ( "'" | '"' | "\\" | "n" | "t" | "u{" hexdigit { hexdigit } "}" 
 bool     = "true" | "false" .
 ```
 
-`1` is `Int`, `1.0` and `1.0e-9` are `Float`. Literals carry no sign; `-` is a prefix operator. No overloaded literals and no default. The escapes are the six listed; a `character` is any code point other than the enclosing quote and `\`: in a `char` literal other than `'` and `\`, in a `text` literal other than `"` and `\`. `digit` is `0` through `9`; `hexdigit` is a digit or `a`-`f` or `A`-`F`; `letter` is `a`-`z` or `A`-`Z` (identifiers are ASCII, though source text is Unicode).
+`1` is `Int`, `1.0` and `1.0e-9` are `Float`. Literals carry no sign; `-` is a prefix operator. No overloaded literals and no default. Integer literals are decimal only — no hex, octal, or binary forms and no digit separators; the standard library provides parsing functions for other bases when needed. The escapes are the six listed; the `\u{...}` escape denotes a Unicode scalar value (U+0000 through U+10FFFF, excluding surrogates U+D800 through U+DFFF), one to six hex digits. A `character` inside a `char` or `text` literal is any code point other than the enclosing quote, `\`, U+000A (line feed), and U+000D (carriage return); multi-line text is built by explicit `\n` or by concatenation. `digit` is `0` through `9`; `hexdigit` is a digit or `a`-`f` or `A`-`F`; `letter` is `a`-`z` or `A`-`Z` (identifiers are ASCII, though source text is Unicode).
 
 **Operators and delimiters.**
 
@@ -59,7 +59,7 @@ binop    = "*" | "/" | "%" | "+" | "-" | "<>" | "::"
 literal  = int | float | char | text | bool .
 ```
 
-Prefix `-` is negation on `Int` and `Float`. Precedence of the binary operators, highest first: `* / %`, `+ - <>`, `::` (right-associative), `== != < <= > >=`, `&&`, `||`, `|>`. All but `::` are left-associative. An operator name can be qualified, `Int.+`, section 4. `|>` is not qualifiable — it is a syntactic form (section 5), not a namespaced function.
+Prefix `-` is negation on `Int` and `Float`, and binds tighter than any binary operator. Precedence of the binary operators, highest first: `* / %`, `+ - <>`, `::` (right-associative), `== != < <= > >=`, `&&`, `||`, `|>`. All but `::` are left-associative. An operator name can be qualified, `Int.+`, section 4. `|>` is not qualifiable — it is a syntactic form (section 5), not a namespaced function.
 
 ## 3. Types
 

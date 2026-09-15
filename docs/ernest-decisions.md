@@ -578,6 +578,19 @@ External review kept pushing on `+:` (cons). The `+` character reads as arithmet
 
 **Not renamed.** Everything else in the operator table — `+ - * / % == != < <= > >= && || |>` — is unchanged. Prefix `-` is unchanged.
 
+## Section 2 Tightening, 2026-09-15
+
+External review found eight underspecified corners in §2. All eight closed with minimal additions; nothing changed semantically, only made explicit.
+
+1. **Whitespace is now defined.** Space (U+0020), tab (U+0009), line feed (U+000A), carriage return (U+000D). Nothing else. Matches Go's minimal set; principle 5.
+2. **BOM at file start is stripped.** One-line concession to Windows editors that add U+FEFF; without it, first-line errors would confuse users who don't know their editor added a byte. Least-surprise applied to real-world tooling.
+3. **`_` alone is the wildcard, not an identifier.** Previous rule "`ident` begins with a lowercase letter or `_`" admitted `_` alone; §5's wildcard rule also admitted `_` alone. Resolution: identifier starting with `_` needs at least one further character. Same rule Rust and Roc use.
+4. **`\u{...}` bounds stated.** Unicode scalar value: U+0000 to U+10FFFF, excluding surrogates U+D800-U+DFFF. Without this, `"\u{D800}"` would silently produce malformed UTF-8.
+5. **Newlines in string literals forbidden.** `character` inside `char`/`text` literals excludes U+000A and U+000D; use `\n` or concatenation. Multi-line strings would have required either raw-string syntax (a second literal form — principle 2) or accepting silent newline handling (principle 3, hidden effect on whitespace). The minimal choice is the strictest.
+6. **Integer literals are decimal only.** No `0x`, `0o`, `0b`. No digit separators (`1_000_000`). Principle 5. The standard library provides base parsing where needed. If bit-protocol paper programs demand hex, revisit; the growth rule applies.
+7. **Prefix `-` precedence stated.** Tighter than any binary operator. Was implicit from Appendix A's `Unary = [ "-" ] Primary { Call }`; now stated in §2's precedence sentence.
+8. **All eight follow the principles.** The additions define what was left undefined (principle 3 — nothing invisible, applied to the spec itself). None introduces new syntax (principle 5). The wildcard resolution and BOM handling reduce surprise for expected users (principle 1). No parser complication (principle 4) — every change is either a lexer constant table (whitespace set), a well-formedness check (Unicode scalar bounds), or a one-line early strip (BOM).
+
 ## `Bool.ern` Added, 2026-09-14
 
 New stdlib module for boolean operations. Two functions:
