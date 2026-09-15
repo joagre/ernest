@@ -56,7 +56,7 @@ fn main() -> () with () = {
 
 fn game(world : World) -> () with GameMsg = {
     send(Sys.clock, After(ms = 100, to = via(fn(_) = Tick, self())));
-    recv {
+    receive {
         Tick -> {
             let world2 = step(drain(world, 64));
             Io.print(render(world2));
@@ -68,13 +68,13 @@ fn game(world : World) -> () with GameMsg = {
 // Drain the mailbox of input without blocking; at most n per tick.
 fn drain(world : World, n : Int) -> World with GameMsg =
     if n == 0 then world
-    else recv {
+    else receive {
         In(i) -> drain(applyInput(world, i), n - 1)
       | after 0 -> world
     }
 
 // One process per player: translates keys into Input.
-fn player(id : Int, game : Address(GameMsg)) -> () with Key = recv {
+fn player(id : Int, game : Address(GameMsg)) -> () with Key = receive {
     Up -> { send(game, In(Turn(id = id, dir = N))); player(id, game) }
   | Down -> { send(game, In(Turn(id = id, dir = S))); player(id, game) }
   | Left -> { send(game, In(Turn(id = id, dir = W))); player(id, game) }

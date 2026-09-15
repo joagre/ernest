@@ -53,12 +53,12 @@ fn main() -> () with () = {
 //
 
 // Waiting phase: receive the peer's address, then the loop.
-fn start(dir : Path) -> () with SyncMsg = recv {
+fn start(dir : Path) -> () with SyncMsg = receive {
     Link(peer) -> { send(self(), Tick); syncer(dir, peer, Map.empty) }
 }
 
 // The sync process: one per directory.
-fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> () with SyncMsg = recv {
+fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> () with SyncMsg = receive {
     Tick -> {
         send(Sys.fs, List(path = dir, reply = via(Listed, self())));
         listing(dir, peer, seen)
@@ -74,7 +74,7 @@ fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> () wi
 // Between List and Listed: accept Put, but not Tick.
 fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> () with SyncMsg = {
     let tick = fn() = send(Sys.clock, After(ms = 5000, to = via(fn(_) = Tick, self())));
-    recv {
+    receive {
         Listed(Right(entries)) -> {
             List.foreach(diff(seen, entries), fn(c) = {
                 let _ = spawn(Local, fn() = pusher(dir, peer, c));

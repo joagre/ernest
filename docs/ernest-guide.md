@@ -285,7 +285,7 @@ The `with m` at the end of the arrow marks: this function acts through the proce
 
 The `m` is lowercase — a *type variable*, like `a` in `Optional(a)`. It means: this function's mailbox type isn't fixed to a specific value; it works with any mailbox. `greet` sends a message but doesn't care what messages the enclosing process itself receives — the enclosing process is what will run this call and pay the mailbox cost.
 
-If a function receives messages (uses `recv`), its mailbox type is not free — it has to match the clause patterns. We'll see that soon.
+If a function receives messages (uses `receive`), its mailbox type is not free — it has to match the clause patterns. We'll see that soon.
 
 Take a moment: **pure or process is a property of the function type, not of the syntax.** A reader glancing at a function type knows whether calling it can send messages, receive them, or fault. Nothing is hidden.
 
@@ -328,7 +328,7 @@ match x {
 }
 ```
 
-The pattern binds first, then the guard is evaluated with those bindings in scope. If the guard is `false`, the clause fails and the next clause is tried. Guards do not count toward exhaustiveness — the compiler still requires a fall-through clause (here, `_`) that matches without a guard. Guards work the same way in `recv` clauses.
+The pattern binds first, then the guard is evaluated with those bindings in scope. If the guard is `false`, the clause fails and the next clause is tried. Guards do not count toward exhaustiveness — the compiler still requires a fall-through clause (here, `_`) that matches without a guard. Guards work the same way in `receive` clauses.
 
 **`if`** is an expression, not a statement:
 
@@ -358,7 +358,7 @@ Refutable patterns are a type error in these positions:
 let Right(v) = e // type error — e might be Left(...)
 ```
 
-That's the "decompose versus compare" line. `let` and function parameters *decompose* a value whose shape you already know; `match` and `recv` (and `<-`, §10) *compare* a value against several shapes and let each clause handle its case. If you need to peek at a sum type, reach for `match`.
+That's the "decompose versus compare" line. `let` and function parameters *decompose* a value whose shape you already know; `match` and `receive` (and `<-`, §10) *compare* a value against several shapes and let each clause handle its case. If you need to peek at a sum type, reach for `match`.
 
 ### 3.5 The pipe operator `|>`
 
@@ -443,7 +443,7 @@ One constructor, `Inc`, carrying an `Int` positionally. This is a *mailbox type*
 Now the counter itself.
 
 ```
-fn counter(n : Int) -> () with CounterMsg = recv {
+fn counter(n : Int) -> () with CounterMsg = receive {
     Inc(k) -> counter(n + k)
 }
 ```
@@ -454,7 +454,7 @@ fn counter(n : Int) -> () with CounterMsg = recv {
 
 `with CounterMsg` — runs in a process whose mailbox type is `CounterMsg`. That means this function can only run in a process that expects `CounterMsg` values.
 
-`= recv { ... }` — the body is a `recv` expression. `recv` waits for a message and dispatches on it.
+`= receive { ... }` — the body is a `receive` expression. `receive` waits for a message and dispatches on it.
 
 One clause:
 
@@ -487,10 +487,10 @@ Two things distinguish `Reply(a)` from `Address(a)`:
 - `Address(a)` is a long-lived reference; you can send to it many times.
 - `Reply(a)` is one-shot; someone gave it to you *just to answer this one question*, and once you answer, it's used up.
 
-The extended counter grows a second `recv` clause:
+The extended counter grows a second `receive` clause:
 
 ```
-fn counter(n : Int) -> () with CounterMsg = recv {
+fn counter(n : Int) -> () with CounterMsg = receive {
     Inc(k) -> counter(n + k)
   | Get(reply = r) -> { answer(r, n); counter(n) }
 }
@@ -507,7 +507,7 @@ The block `{ answer(r, n); counter(n) }` runs both in sequence, and the block's 
 
 ### 5.4 The compiler checks the reply
 
-The compiler enforces something you might miss on first read: **every `Reply(Int)` bound in a `recv` clause must be used exactly once, on every path.**
+The compiler enforces something you might miss on first read: **every `Reply(Int)` bound in a `receive` clause must be used exactly once, on every path.**
 
 Look at the `Get` clause again: it binds `r` from the incoming message, then calls `answer(r, n)`. Good — used once.
 
@@ -527,7 +527,7 @@ The consumption doesn't have to be direct or in the same clause. There are three
 2. **Delegating** — passing `r` as a field of another message. Whoever receives that message is now responsible for answering.
 3. **Spawning** — capturing `r` in a lambda passed to `spawn` (§6). A child process runs later and calls `answer` when it's ready.
 
-The exactly-once check follows `r` through all three. In the spawning case, the compiler checks the *child's* body for exactly-once consumption — a spawned child whose body forgets to answer is a type error. The `filesync` paper program uses this form: an incoming write request is handed to a `writer` process that performs the file I/O in the background and calls `answer` when it finishes, so the process handling `recv` doesn't block on disk.
+The exactly-once check follows `r` through all three. In the spawning case, the compiler checks the *child's* body for exactly-once consumption — a spawned child whose body forgets to answer is a type error. The `filesync` paper program uses this form: an incoming write request is handed to a `writer` process that performs the file I/O in the background and calls `answer` when it finishes, so the process handling `receive` doesn't block on disk.
 
 **One caveat.** The check is static. It verifies that every syntactically reachable path calls `answer` (or delegates, or spawns), but it can't tell whether execution will *actually* reach that call at runtime. A path that enters an infinite loop, faults, or waits forever will bypass the answer without the compiler knowing. That's why `Address.call` requires a mandatory timeout (§6.3): the caller must plan for the case where the answer never comes — bug, fault, or a receiver that answers only on February 32.
 
@@ -566,7 +566,7 @@ let c = spawn(Local, fn() = counter(0));
 
 Result: an *address* to the new process, bound to `c`. Its type is `Address(CounterMsg)` — you can send `CounterMsg` values to it.
 
-Notice: `fn() = counter(0)` is a lambda. It looks like an ordinary function declaration but without a name. Its body just calls `counter(0)`. When the process starts, this lambda runs, which calls `counter`, which enters the `recv` loop.
+Notice: `fn() = counter(0)` is a lambda. It looks like an ordinary function declaration but without a name. Its body just calls `counter(0)`. When the process starts, this lambda runs, which calls `counter`, which enters the `receive` loop.
 
 ### 6.2 Send
 
@@ -579,7 +579,7 @@ Two calls to `send`, each putting one message in the counter's mailbox.
 
 `send` is fire-and-forget. It returns immediately (with unit `()`), whether or not the counter has processed the previous message yet. The messages queue up in the mailbox in the order sent, and the counter handles them in that same order.
 
-By the time both `send`s return, the counter has probably not yet finished processing them — but that's fine. Its `recv` loop will get to them soon enough.
+By the time both `send`s return, the counter has probably not yet finished processing them — but that's fine. Its `receive` loop will get to them soon enough.
 
 ### 6.3 Address.call
 
@@ -627,13 +627,13 @@ Take a moment. This is a complete Ernest program that uses two processes (main, 
 
 ### 6.5 What happens when `main` returns
 
-The counter's `recv` loops forever — but `main` doesn't. Once the `match` on `Address.call`'s result finishes and `main` reaches its end, the program ends.
+The counter's `receive` loops forever — but `main` doesn't. Once the `match` on `Address.call`'s result finishes and `main` reaches its end, the program ends.
 
 When `main` returns, the runtime kills every process still alive — the counter, any workers you spawned — with cause `ProgramEnd`. System processes release their resources. The node stops.
 
-If you want a program that keeps running, `main` must not return: it can spawn processes and then `recv` forever, or run its own loop. The counter above finishes quickly because we exit deliberately after asking a single question.
+If you want a program that keeps running, `main` must not return: it can spawn processes and then `receive` forever, or run its own loop. The counter above finishes quickly because we exit deliberately after asking a single question.
 
-There is a second termination case: **deadlock**. If every process is waiting in `recv` without an `after`, and no messages are in flight, the runtime ends the program with `Deadlock`. It's the safety net for "everyone is waiting for someone who is waiting for everyone."
+There is a second termination case: **deadlock**. If every process is waiting in `receive` without an `after`, and no messages are in flight, the runtime ends the program with `Deadlock`. It's the safety net for "everyone is waiting for someone who is waiting for everyone."
 
 ## 7. Two processes talking
 
@@ -660,7 +660,7 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
         }
     }
 
-fn pong() -> () with PongMsg = recv {
+fn pong() -> () with PongMsg = receive {
     Ping(n = n, reply = r) -> {
         Io.println("pong " <> Int.toText(n));
         answer(r, n);
@@ -681,7 +681,7 @@ Same building blocks as the counter, but arranged for two processes.
 
 ### 7.2 The pong process
 
-`pong` is the receiver. Its mailbox type is `PongMsg`. Its `recv` has two clauses:
+`pong` is the receiver. Its mailbox type is `PongMsg`. Its `receive` has two clauses:
 
 - On `Ping`, print `"pong <n>"`, answer the reply with `n`, then loop.
 - On `Stop`, return (which ends the process — its function has finished).
@@ -697,7 +697,7 @@ If `n` is `0`, send `Stop` and finish. Otherwise:
 - On success, recurse with `n - 1`.
 - On timeout, print an error and tell pong to stop.
 
-Notice `ping`'s return type: `-> () with m`. That `m` is lowercase — a type variable — meaning ping's mailbox type is *polymorphic*, unconstrained. Ping never `recv`s on its own mailbox. It only sends and uses `Address.call`. So the type checker leaves the mailbox slot free.
+Notice `ping`'s return type: `-> () with m`. That `m` is lowercase — a type variable — meaning ping's mailbox type is *polymorphic*, unconstrained. Ping never `receive`s on its own mailbox. It only sends and uses `Address.call`. So the type checker leaves the mailbox slot free.
 
 ### 7.4 Main starts them
 
@@ -756,7 +756,7 @@ type ParentMsg = Died(Down) | ...
 fn parent() -> () with ParentMsg = {
     let child = spawn(Local, fn() = someWork());
     monitor(child, Died);
-    recv {
+    receive {
         Died(Down(reason = r)) -> // handle the child's exit
             ...
       | ...
@@ -782,7 +782,7 @@ A fault in one process doesn't automatically bring down others. There are no lin
 
 ## 9. Adapting messages with `via`
 
-Here's a concrete puzzle. Suppose your process's mailbox speaks `GameMsg`, and you want the runtime's clock to nudge you every 100 milliseconds so that a `Tick` shows up in your `recv`. How do you set that up?
+Here's a concrete puzzle. Suppose your process's mailbox speaks `GameMsg`, and you want the runtime's clock to nudge you every 100 milliseconds so that a `Tick` shows up in your `receive`. How do you set that up?
 
 Look at the clock's request shape:
 
@@ -824,7 +824,7 @@ Read that from the inside out:
 - `via(fn(_) = Tick, self())` builds the wrapper. Its type is `Address(())` — an address that accepts `()`. Under the hood, when something sends `()` to it, the wrapper calls `fn(_) = Tick`, and `Tick` lands in your `GameMsg` mailbox.
 - The outer `After(ms = 100, to = ...)` hands that wrapper to the clock as the notification target.
 
-100 milliseconds later, the clock sends `()` to the wrapper. The wrapper turns it into `Tick`. Your mailbox receives `Tick`, and your `recv` clause matching on `Tick` fires.
+100 milliseconds later, the clock sends `()` to the wrapper. The wrapper turns it into `Tick`. Your mailbox receives `Tick`, and your `receive` clause matching on `Tick` fires.
 
 The clock never learned about `Tick`. Your process never had to accept `()`. `via` sat between them, translating each message as it passed.
 
@@ -836,7 +836,7 @@ The pattern comes back whenever a service replies into a mailbox that speaks a d
 List(path : Path, reply : Address(Either(FsError, List(Entry))))
 ```
 
-`fs` sends the reply as an `Either(FsError, List(Entry))`. Your process's mailbox is `SyncMsg`, one of whose cases is `Listed(Either(FsError, List(Entry)))`. You want the reply wrapped as `Listed(...)` so it lands in your normal `recv`:
+`fs` sends the reply as an `Either(FsError, List(Entry))`. Your process's mailbox is `SyncMsg`, one of whose cases is `Listed(Either(FsError, List(Entry)))`. You want the reply wrapped as `Listed(...)` so it lands in your normal `receive`:
 
 ```
 send(Sys.fs, List(path = dir, reply = via(Listed, self())))

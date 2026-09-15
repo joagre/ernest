@@ -28,7 +28,7 @@ The grammar is written in Wirth-style EBNF (as in the Modula-2 and Oberon report
 
 **Identifiers.** `ident` begins with a lowercase letter or `_` and continues with any number of letters, digits, and `_`; `conname` and `typename` begin with an uppercase letter and continue the same way, and are lexically the same token; `typevar` is a lowercase identifier in type position. An identifier that begins with `_` must have at least one further character — the token `_` alone is the wildcard (section 5). A qualified name is a sequence of uppercase-starting segments (each is a `typename`) followed by a final segment that starts either lowercase (a function, operator, or variable) or uppercase (a constructor): `Net.Http.parse`, `Stack.push`, `Int.+`, `ServerMsg.Get`. The dots are namespaces, section 4.
 
-**Reserved words.** Sixteen: `type`, `opaque`, `with`, `match`, `when`, `if`, `then`, `else`, `recv`, `after`, `fn`, `let`, `foreign`, `as`, `true`, `false`.
+**Reserved words.** Sixteen: `type`, `opaque`, `with`, `match`, `when`, `if`, `then`, `else`, `receive`, `after`, `fn`, `let`, `foreign`, `as`, `true`, `false`.
 
 **Literals.**
 
@@ -87,7 +87,7 @@ type Optional(a) = None | Some(a)
 type Snapshot = Snapshot(dir : Path, seen : Map(Path, Mtime))
 ```
 
-Two or more positional fields are not allowed. Field names are unique within a constructor; their order carries no meaning. Positional and named fields are distinguished by `:` after the first identifier in declarations, and by `=` in construction and patterns.
+Positional fields cap at one — beyond that, names are required, because position alone would hide what each field means. Field names are unique within a constructor; their order carries no meaning. Positional and named fields are distinguished by `:` after the first identifier in declarations, and by `=` in construction and patterns.
 
 **Opaque types.** A sum type whose constructors may be mentioned only in the functions listed in the type's signature, section 4.
 
@@ -154,12 +154,12 @@ fn Stack.pop(Stack(xs)) = match xs { [] -> None | x :: rest -> Some((x, Stack(re
 ## 5. Expressions
 
 ```
-Expr      = Lambda | IfExpr | MatchExpr | RecvExpr | BinExpr .
+Expr      = Lambda | IfExpr | MatchExpr | ReceiveExpr | BinExpr .
 Lambda    = "fn" "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 IfExpr    = "if" Expr "then" Expr "else" Expr .
 MatchExpr = "match" Expr "{" Clause { "|" Clause } "}" .
 Clause    = Pattern [ "when" Expr ] "->" Expr .
-RecvExpr  = "recv" "{" ( Clause { "|" Clause } [ "|" AfterClause ] | AfterClause ) "}" .
+ReceiveExpr  = "receive" "{" ( Clause { "|" Clause } [ "|" AfterClause ] | AfterClause ) "}" .
 AfterClause  = "after" Expr "->" Expr .
 BinExpr   = Unary { binop Unary } .
 Unary     = [ "-" ] Primary { Call } .
@@ -204,7 +204,7 @@ let words = input |> Text.trim |> Text.toLower |> Text.chars
 
 **`match`.** The expression is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. A failed guard falls through. The clauses together must cover the type; guards do not count as coverage. Variables in the pattern are bound in the guard and the clause.
 
-**Patterns.** A pattern decomposes a value and binds its parts. The same patterns appear in `let`, in `match` and `recv` clauses, and in function parameters. `_` matches anything and binds nothing. An identifier binds the whole value at its position to a new variable, shadowing any outer variable of that name; it never refers to an existing variable. A literal matches itself. A constructor with a pattern, `Some(p)`, or with field patterns, `Snapshot(seen = s)`, which may omit fields, matches that constructor and decomposes its fields. A tuple, a list `[p, q]`, and `p :: q` decompose those. Patterns nest to any depth: `Some((x, Snapshot(dir = d)))`. `p as c` binds `c` to the whole value that `p` matches, `Some(Snapshot(dir = d) as snap)`; `as` binds loosest, so `x :: rest as all` names the whole list. Each variable appears at most once in a pattern; a pattern does not compare, and equality is written in a guard. A pattern is irrefutable if it cannot fail: `_`, an identifier, a tuple of irrefutable patterns, or a constructor pattern of a type with exactly one constructor whose sub-patterns are all irrefutable. `let` and parameters require irrefutable patterns; `let Right(x) = e` is a type error.
+**Patterns.** A pattern decomposes a value and binds its parts. The same patterns appear in `let`, in `match` and `receive` clauses, and in function parameters. `_` matches anything and binds nothing. An identifier binds the whole value at its position to a new variable, shadowing any outer variable of that name; it never refers to an existing variable. A literal matches itself. A constructor with a pattern, `Some(p)`, or with field patterns, `Snapshot(seen = s)`, which may omit fields, matches that constructor and decomposes its fields. A tuple, a list `[p, q]`, and `p :: q` decompose those. Patterns nest to any depth: `Some((x, Snapshot(dir = d)))`. `p as c` binds `c` to the whole value that `p` matches, `Some(Snapshot(dir = d) as snap)`; `as` binds loosest, so `x :: rest as all` names the whole list. Each variable appears at most once in a pattern; a pattern does not compare, and equality is written in a guard. A pattern is irrefutable if it cannot fail: `_`, an identifier, a tuple of irrefutable patterns, or a constructor pattern of a type with exactly one constructor whose sub-patterns are all irrefutable. `let` and parameters require irrefutable patterns; `let Right(x) = e` is a type error.
 
 **Bitstrings.** `<<...>>` constructs and pattern-matches a `Bytes` value at the bit level. A bitstring is a comma-separated list of segments between `<<` and `>>`; each segment is a value (in construction) or a pattern (in `match`), followed optionally by a colon and a dash-separated list of specifiers. Specifiers are: `size(N)` for segment width in units, `unit(N)` for bits per size unit (default 1), `bits` and `bytes` for nested bitstrings, `int` (default 8-bit) and `float` (default 64-bit) for numeric segments, `utf8`/`utf16`/`utf32` for text encoding, `big`/`little`/`native` for endianness, and `signed`/`unsigned` for sign. These specifier names carry that role only inside a bitstring — outside, they are ordinary identifiers, and the reserved-word count remains sixteen. A bitstring pattern binds its segment variables; a segment whose length is `size(n)-bytes` and whose `n` refers to an earlier bound variable is a size-dependent match, common in protocol parsing. Constructing a bitstring evaluates its segments left to right and concatenates them into a `Bytes` value; a segment whose value does not fit its specified width is a fault. An empty `<<>>` is the empty `Bytes`.
 
@@ -224,7 +224,7 @@ fn parseFrame(bytes : Bytes) -> Optional((Int, Bytes, Bytes)) = match bytes {
 
 A process is an execution of a function with a mailbox type. It has a mailbox that receives values of that type, in arrival order per sender.
 
-**The mailbox type.** `(A) -> B with M` is the type of a function that acts through the process it runs in, whose mailbox has type `M`. Every call runs in some process; the mailbox type marks that the function uses that process: its own `send`, `recv`, and `self`, or a foreign function with a mailbox type. It does not mark the fact of running in one. The mailbox type is inferred: a function that calls a function with mailbox type `M` gets mailbox type `M`. Two different mailbox types in the same function is a type error. A function without a mailbox type is pure: it neither sends, receives, nor calls foreign code with a mailbox type, and it can be called from any process. A pure higher-order function runs its function arguments in the caller's process: `List.map(xs, fn(x) = send(a, x))` has a mailbox type. Nothing else can be marked on a function type.
+**The mailbox type.** `(A) -> B with M` is the type of a function that acts through the process it runs in, whose mailbox has type `M`. Every call runs in some process; the mailbox type marks that the function uses that process: its own `send`, `receive`, and `self`, or a foreign function with a mailbox type. It does not mark the fact of running in one. The mailbox type is inferred: a function that calls a function with mailbox type `M` gets mailbox type `M`. Two different mailbox types in the same function is a type error. A function without a mailbox type is pure: it neither sends, receives, nor calls foreign code with a mailbox type, and it can be called from any process. A pure higher-order function runs its function arguments in the caller's process: `List.map(xs, fn(x) = send(a, x))` has a mailbox type. Nothing else can be marked on a function type.
 
 **Built-in functions.**
 
@@ -238,7 +238,7 @@ type Where = Local | Peer(Text)
 
 `self()` is the process's own address. `send(a, v)` places `v` in the mailbox of `a` and returns immediately; sending to a process that has died has no effect. `spawn(w, f)` starts a new process that runs `f()` and returns its address; `self()` inside `f` is the new process's address; a parent that wants replies binds `let me = self();` before `spawn`. A node is one running instance of the runtime; a peer is another node it knows by name, section 8. `w` places the process: `Local` on the running node, `Peer(name)` on the peer with that name. An unknown or unreachable peer is a fault. The captured values of `f` are copied to the peer.
 
-**`recv`.** `recv { clauses }` is a match over the mailbox. The mailbox is scanned in arrival order; the first message that matches some clause is removed, the rest remain, and the clause is evaluated. If none matches, the process waits until one arrives. Patterns are typed against the mailbox type. Coverage is not required, unlike in `match`; a message no clause matches stays in the mailbox, so that a `recv` can wait for a specific reply in the middle of a protocol without losing other messages. A final clause `after t -> e` gives a time limit in milliseconds, evaluated on entry; after `t` without a matching message, `e` is evaluated. `after 0` does not wait for new messages. Without `after` there is no limit.
+**`receive`.** `receive { clauses }` is a match over the mailbox. The mailbox is scanned in arrival order; the first message that matches some clause is removed, the rest remain, and the clause is evaluated. If none matches, the process waits until one arrives. Patterns are typed against the mailbox type. Coverage is not required, unlike in `match`; a message no clause matches stays in the mailbox, so that a `receive` can wait for a specific reply in the middle of a protocol without losing other messages. A final clause `after t -> e` gives a time limit in milliseconds, evaluated on entry; after `t` without a matching message, `e` is evaluated. `after 0` does not wait for new messages. Without `after` there is no limit.
 
 **Ordering.** Messages from one process to another are received in sending order. Between different senders there is no ordering.
 
@@ -252,7 +252,7 @@ Address.callForever : (Address(m), (Reply(a)) -> m) -> a with n
 answer              : (Reply(a), a) -> () with m
 ```
 
-`Address.call(addr, mk, ms)` allocates a fresh `Reply(a)`, calls `mk(r)` to build the message, sends it to `addr`, and returns `Some(v)` when the recipient answers or `None` after `ms` milliseconds. `Address.callForever(addr, mk)` is the same operation without a timeout: the caller waits as long as needed and receives `a` directly, not wrapped in `Optional`; the caller is opting out of the timeout by name, analogous to a `recv` without `after`. `answer(r, v)` sends `v` to the caller. A `Reply(a)` value appears only at these positions: a field of a message, a parameter of a function, a variable bound in a `recv` clause, and a value captured by a lambda passed to `spawn`. Any other position is a type error: a `Reply` in a container, in a `match` or `let` binding, in a return type not itself a message, or as an operand of equality, is rejected by the compiler. A `Reply(a)` bound in a `recv` clause is consumed exactly once on every path of the clause's expression. Consumption is `answer(r, v)`, sending `r` as a field of a message, or capturing `r` in a lambda passed to `spawn`; in the last case the captured `Reply` is consumed on every path of the spawned function's body, checked at its definition. A violation is a type error. The check is static: it ensures every path calls `answer` (or delegates or spawns) but not that execution reaches the call at runtime — non-termination, a fault, or an indefinite wait bypasses the answer. The mandatory timeout on `Address.call` returns `Optional(a)` so an answer that never arrives has somewhere to land; `Address.callForever` opts out of that by name, and the caller accepts that this call may hang. Under the hood the `Reply(a)` carries a fresh identifier so that `Address.call` receives only the answer to its own request; the caller's mailbox type is unaffected.
+`Address.call(addr, mk, ms)` allocates a fresh `Reply(a)`, calls `mk(r)` to build the message, sends it to `addr`, and returns `Some(v)` when the recipient answers or `None` after `ms` milliseconds. `Address.callForever(addr, mk)` is the same operation without a timeout: the caller waits as long as needed and receives `a` directly, not wrapped in `Optional`; the caller is opting out of the timeout by name, analogous to a `receive` without `after`. `answer(r, v)` sends `v` to the caller. A `Reply(a)` value appears only at these positions: a field of a message, a parameter of a function, a variable bound in a `receive` clause, and a value captured by a lambda passed to `spawn`. Any other position is a type error: a `Reply` in a container, in a `match` or `let` binding, in a return type not itself a message, or as an operand of equality, is rejected by the compiler. A `Reply(a)` bound in a `receive` clause is consumed exactly once on every path of the clause's expression. Consumption is `answer(r, v)`, sending `r` as a field of a message, or capturing `r` in a lambda passed to `spawn`; in the last case the captured `Reply` is consumed on every path of the spawned function's body, checked at its definition. A violation is a type error. The check is static: it ensures every path calls `answer` (or delegates or spawns) but not that execution reaches the call at runtime — non-termination, a fault, or an indefinite wait bypasses the answer. The mandatory timeout on `Address.call` returns `Optional(a)` so an answer that never arrives has somewhere to land; `Address.callForever` opts out of that by name, and the caller accepts that this call may hang. Under the hood the `Reply(a)` carries a fresh identifier so that `Address.call` receives only the answer to its own request; the caller's mailbox type is unaffected.
 
 **Remote computation.** A pure function can be evaluated on another node:
 
@@ -266,7 +266,7 @@ type RemoteError = NoRemotePeer | PeerLost
 
 `parallelRemote(fs)` runs the functions in `fs` on peers in parallel and returns the results in the input order, one `Either` per input. It is pure by the same reasoning as `remote`: the result depends on the inputs alone. The runtime picks peers and schedules the calls; a caller that needs richer control — cancellation, per-task timeouts, interleaved arrivals — spawns processes itself.
 
-**`Never`.** A function with mailbox type `Never` can send but never receive; a `recv` in it is a type error.
+**`Never`.** A function with mailbox type `Never` can send but never receive; a `receive` in it is a type error.
 
 **Death.** A process dies when its function returns, when `kill` is called on it, on a fault, section 7, or when the node it runs on is lost. `monitor(a, wrap)`, section 9, causes `wrap(d)` to be placed in the caller's mailbox when `a` dies, where `d : Down` gives the cause. There are no other links.
 
@@ -278,7 +278,7 @@ type CounterMsg
     | Get(reply : Reply(Int))
     | Upgrade(migrate : (Int) -> Int, next : (Int) -> () with CounterMsg)
 
-fn counter(n : Int) -> () with CounterMsg = recv {
+fn counter(n : Int) -> () with CounterMsg = receive {
     Inc(k) -> counter(n + k)
   | Get(reply = r) -> { answer(r, n); counter(n) }
   | Upgrade(migrate = m, next = k) -> k(m(n))
@@ -292,7 +292,7 @@ The language has no other mechanism for code replacement.
 There are no exceptions. An error is a value, a message, or a fault.
 
 - **A value**, when the error is part of the function's meaning. Expressed in the return type: `Either(e, a)` with an error type `e`, or `Optional(a)`. The caller matches, or chains with `let p <- e`.
-- **A message**, when the error crosses a process boundary. Expressed in the message: `Either` or a dedicated constructor in the reply type. A missing reply is `after` in `recv`. The error type across the boundary is its own, distinct from the function's.
+- **A message**, when the error crosses a process boundary. Expressed in the message: `Either` or a dedicated constructor in the reply type. A missing reply is `after` in `receive`. The error type across the boundary is its own, distinct from the function's.
 - **A fault**, when the code cannot see it. Out of memory, `kill`, a failure in the runtime, a broken promise by foreign code. The process dies with a structured cause in `Down`. Nothing is caught. "Fault" here is the category — any death whose `Reason` is not `Returned`; `Fault(Text)` is one specific `Reason` alongside `Killed` and `ProgramEnd`.
 
 The prelude is total: no built-in function faults. Partial operations return `Optional` or `Either`. A fault is therefore always something that happened to the process, never something it did, with three deliberate exceptions: `/` and `%` on `Int` with a zero divisor fault, `Fault("division by zero")`; `todo("...")`, which compiles at any type and faults if reached, `Fault("todo: ...")`, so that an unfinished function can be declared before it is written; and `spawn(Peer(...), f)` or `send` to a remote address when the payload transitively contains a foreign value, `Fault("foreign value cannot cross nodes")`, section 3. `Int.div` and `Int.mod` return `Optional` for the caller who wants to handle it.
@@ -307,7 +307,7 @@ The prelude is total: no built-in function faults. Partial operations return `Op
 
 **Foreign code.** The system processes are foreign processes: their message types are declared in Ernest, their implementations live outside the language, and the runtime starts them and binds their addresses to the `Sys.*` top-level references. Other foreign code enters through `foreign fn` and `foreign type`, section 4. Both boundaries carry the same promise: the foreign side delivers the declared types, and a breach is a fault.
 
-**Program termination.** The program ends when `main` returns. Live processes then die with cause `ProgramEnd`; system processes release their resources. A program that is to keep running waits in `main`. If no process can run, all are waiting in `recv` without `after` and no messages are in flight, the runtime ends the program with the error `Deadlock`. A pending `after` or clock counts as a message in flight.
+**Program termination.** The program ends when `main` returns. Live processes then die with cause `ProgramEnd`; system processes release their resources. A program that is to keep running waits in `main`. If no process can run, all are waiting in `receive` without `after` and no messages are in flight, the runtime ends the program with the error `Deadlock`. A pending `after` or clock counts as a message in flight.
 
 ## 9. Prelude
 
@@ -388,7 +388,7 @@ Sys.clock        : Address(ClockMsg) // the clock process
 
 ## 10. Runtime Requirements
 
-- Tail calls take constant stack space. The last expression of a block, a `match` clause, and a `recv` clause is in tail position.
+- Tail calls take constant stack space. The last expression of a block, a `match` clause, and a `receive` clause is in tail position.
 - Processes are scheduled preemptively; a process cannot prevent others from running.
 - Processes share no memory; a message is a copy or immutable.
 - Mailboxes are unbounded; a program is responsible for its own backpressure.
@@ -437,12 +437,12 @@ TypeAtom    = { typename "." } typename [ "(" Type { "," Type } ")" ] | typevar
             | "(" Type "," Type { "," Type } ")" | "()" .
 FnType      = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
 
-Expr        = Lambda | IfExpr | MatchExpr | RecvExpr | BinExpr .
+Expr        = Lambda | IfExpr | MatchExpr | ReceiveExpr | BinExpr .
 Lambda      = "fn" "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 IfExpr      = "if" Expr "then" Expr "else" Expr .
 MatchExpr   = "match" Expr "{" Clause { "|" Clause } "}" .
 Clause      = Pattern [ "when" Expr ] "->" Expr .
-RecvExpr    = "recv" "{" ( Clause { "|" Clause } [ "|" AfterClause ] | AfterClause ) "}" .
+ReceiveExpr    = "receive" "{" ( Clause { "|" Clause } [ "|" AfterClause ] | AfterClause ) "}" .
 AfterClause    = "after" Expr "->" Expr .
 BinExpr     = Unary { binop Unary } .
 Unary       = [ "-" ] Primary { Call } .
@@ -496,7 +496,7 @@ fn main() -> () with () = {
     }
 }
 
-fn counter(n : Int) -> () with CounterMsg = recv {
+fn counter(n : Int) -> () with CounterMsg = receive {
     Inc(k) -> counter(n + k)
   | Get(reply = r) -> { answer(r, n); counter(n) }
   | Upgrade(migrate = m, next = k) -> k(m(n))
@@ -522,7 +522,7 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
         }
     }
 
-fn pong() -> () with PongMsg = recv {
+fn pong() -> () with PongMsg = receive {
     Ping(n = n, reply = r) -> {
         Io.println("pong " <> Int.toText(n));
         answer(r, n);

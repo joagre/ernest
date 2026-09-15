@@ -4,7 +4,7 @@ The reasoning behind the language report in [`ernest.md`](ernest.md): what was t
 
 **A note on principle numbering.** Some dated entries below reference "principle N" using the count at the time they were written. The count changed on 2026-09-14 from seven principles to five (see *Ambient Sys, Five Principles*), and one entry from 2026-09-12 renamed "principle 5" as what is now principle 4 (simple to parse). Read older references in that light; the current numbering lives in [`ernest.md`](ernest.md) §0.
 
-**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Later the same day the cons operator `+:` became `::` and the text-concat operator `++` became `<>` (see *List and Concat Operators*). Historical entries below use the older names; the current terms live in [`ernest.md`](ernest.md).
+**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Later the same day the cons operator `+:` became `::` and the text-concat operator `++` became `<>` (see *List and Concat Operators*), and the reserved word `recv` was spelled out as `receive` (see *`recv` → `receive`*). Historical entries below use the older names; the current terms live in [`ernest.md`](ernest.md).
 
 ## Starting Point
 
@@ -558,7 +558,7 @@ External review flagged the report as using informal or Ernest-invented terminol
 
 **ambient → top-level (or dropped).** *Ambient* was Ernest's chosen word for values in scope everywhere at the top level (`Sys.stdout`, `List`, `Map`, `Set`). Non-standard in PLT literature; *implicit* carries Scala baggage that misleads (Ernest's ambients are named at the use site, unlike Scala implicits). Renamed to *top-level binding* (§0), *top-level values* (§8), *top-level references* (§8, §11); in Appendix E "the ambient forms" became "the plain forms"; in paper programs "ambient runtime reference" became "runtime reference". Principle 3's operative rule — *visible when its name appears at the use site* — is unchanged; only the noun.
 
-**What did not change.** `Address(m)`, `Reply(a)`, `Down`, `Peer`, `fault`, `recv`, `with M` — these are Ernest's names for concepts the language introduces (or deliberately distinguishes from cognates in other languages). The audit found them non-standard *because they are new*; renaming would either lose meaning or copy an established name that carries different semantics. They stay.
+**What did not change.** `Address(m)`, `Reply(a)`, `Down`, `Peer`, `fault`, `with M` — these are Ernest's names for concepts the language introduces (or deliberately distinguishes from cognates in other languages). The audit found them non-standard *because they are new*; renaming would either lose meaning or copy an established name that carries different semantics. They stay.
 
 **Historical entries.** Older dated entries below use the pre-rename words. The preamble at the top of this document now covers both this and the earlier principle-numbering shift.
 
@@ -590,6 +590,14 @@ External review found eight underspecified corners in §2. All eight closed with
 6. **Integer literals are decimal only.** No `0x`, `0o`, `0b`. No digit separators (`1_000_000`). Principle 5. The standard library provides base parsing where needed. If bit-protocol paper programs demand hex, revisit; the growth rule applies.
 7. **Prefix `-` precedence stated.** Tighter than any binary operator. Was implicit from Appendix A's `Unary = [ "-" ] Primary { Call }`; now stated in §2's precedence sentence.
 8. **All eight follow the principles.** The additions define what was left undefined (principle 3 — nothing invisible, applied to the spec itself). None introduces new syntax (principle 5). The wildcard resolution and BOM handling reduce surprise for expected users (principle 1). No parser complication (principle 4) — every change is either a lexer constant table (whitespace set), a well-formedness check (Unicode scalar bounds), or a one-line early strip (BOM).
+
+## `recv` → `receive`, 2026-09-15
+
+External review found `recv` unnecessarily abbreviated. The saved three characters buy nothing: `receive` is Erlang's word for the same construct, and pattern-matching on a receive is not a hot inner-loop typing exercise. Renamed the reserved word.
+
+**Effect.** §2's reserved-word list swaps `recv` for `receive` (still sixteen words). Grammar rule `RecvExpr` becomes `ReceiveExpr`. Every use of `receive { ... }` in §6, the guide, the four paper programs, and the implementation plan is updated. Erlang's `gen_tcp:recv/3` in the Erlang comparison stays — it's a foreign function name.
+
+**Why the abbreviation existed.** Historically Ernest inherited `recv` from the pre-2026-09-12 version when it was a function taking a filter lambda. The function became a form with clauses on 2026-09-13; the abbreviation stayed by inertia. No principle argued for keeping it, and one — least surprise — argued against.
 
 ## `Bool.ern` Added, 2026-09-14
 

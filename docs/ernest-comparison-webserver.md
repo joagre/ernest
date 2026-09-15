@@ -27,7 +27,7 @@ What Erlang lacks and therefore does not pay for: the encapsulation of `SessionI
 
 ## Conclusion
 
-Afterwards: `recv` was made a form with clauses and `after`, like Erlang's `receive`, and the syntax switched to n-ary functions with parentheses (revision 3). The table is from before both; with parentheses in types and calls the Ernest version is a few percent longer in characters than then, and the same number of lines.
+Afterwards: `receive` was made a form with clauses and `after`, like Erlang's `receive`, and the syntax switched to n-ary functions with parentheses (revision 3). The table is from before both; with parentheses in types and calls the Ernest version is a few percent longer in characters than then, and the same number of lines.
 
 ### The conclusion that led there
 

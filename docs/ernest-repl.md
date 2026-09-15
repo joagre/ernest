@@ -52,7 +52,7 @@ fn main() -> () with () = {
 
 fn repl(env : Map(Text, Value)) -> () with ReplMsg = {
     send(Sys.stdin, ReadLine(reply = via(Input, self())));
-    recv {
+    receive {
         Input(text) -> match tokenize(text) {
             Left(BadChar(c = c, at = i)) -> {
                 Io.println("illegal character " <> Char.toText(c) <> " at " <> Int.toText(i));
@@ -81,7 +81,7 @@ fn try(env : Map(Text, Value), e : Expr) -> Either(TryError, Value) with ReplMsg
     let me = self(); // not self() inside the lambda: that is the child's
     let child = spawn(Local, fn() = send(me, Result(eval(env, e))));
     monitor(child, Died);
-    recv {
+    receive {
         Result(r) -> Either.mapLeft(r, Eval)
       | Died(_) -> Left(Crashed) // a fault in the child
       | after 2000 -> { kill(child); Left(Timeout) }

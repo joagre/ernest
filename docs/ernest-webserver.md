@@ -56,11 +56,11 @@ fn main() -> () with () = {
 // The sweeper: clears the session table every ten minutes.
 fn sweeper(sessions : Ets.Table(SessionId, Session)) -> () with Tick = {
     send(Sys.clock, After(ms = 600000, to = via(fn(_) = Tick, self())));
-    recv { Tick -> Ets.clear(sessions) };
+    receive { Tick -> Ets.clear(sessions) };
     sweeper(sessions)
 }
 
-fn acceptor(sessions : Ets.Table(SessionId, Session), seq : Int) -> () with ConnMsg = recv {
+fn acceptor(sessions : Ets.Table(SessionId, Session), seq : Int) -> () with ConnMsg = receive {
     Conn(sock) -> {
         let _ = spawn(Local, fn() = handler(sessions, seq, sock));
         acceptor(sessions, seq + 1)
