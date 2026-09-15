@@ -932,6 +932,34 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Fifth-Round Cleanup: Function Hash Preserves Eval Order, Underflow Threshold, Sqrt Removal, 2026-09-15
+
+Fifth-round review closed N01/N02/N03/N04 core issues. Three precise corrections in the changed wording:
+
+**N01 clarification — function-body normalization must preserve source evaluation order.**
+
+The previous wording said normalization "sorts named fields into canonical order" without limiting the scope. Read literally, this could reorder construction expressions inside function bodies — two versions of `make()` that differ only in the source order of `Packet(left = ..., right = ...)` vs `Packet(right = ..., left = ...)` would hash identically despite different observable fault ordering (`todo("left")` vs `todo("right")` first).
+
+- **Distinguish declarations/layouts from function bodies.** Taken. §8.7 now has a separate "Normalization" paragraph stating: declarations and layouts use lexicographic ASCII field-name order (matching §3.5 and §8.4); function bodies preserve source evaluation order of construction expressions.
+- Rejected: sort everywhere, including bodies. Would erase observable fault/effect ordering.
+
+§3.5 also updated to say "lexicographic ASCII field-name order" so both sections use identical wording.
+
+**N04 correction — subnormal rounding threshold.**
+
+The previous text said "a tiny result rounds to a subnormal, or to signed zero if smaller than the smallest subnormal". Wrong threshold: under round-to-nearest ties-to-even, `0.75 × smallest_subnormal` rounds *up* to the smallest subnormal (nearer to it than to zero). Only about half the values in the subnormal range round to zero.
+
+- **Restate as rounding rule.** Taken. §3.1 now says arithmetic uses IEEE 754 binary64 round-to-nearest ties-to-even, and gradual underflow rounds to subnormal or signed zero "according to the rounding rule". No specific threshold given; the rule itself defines the outcome.
+- Also updated `Int.toFloat` to say "round to nearest, ties to even".
+
+**Cleanup — remove `sqrt` mention.**
+
+The report declares no `sqrt` operation. §§3.1 and 7.4 mentioned it as an example fault case; removed to keep the fault list consistent with the operations actually in scope (`+`, `-`, `*`, `/`).
+
+**Cost.** Two sentence rewrites (§3.1, §8.7), two smaller edits (§3.5, §7.4). No new syntax, no new operation.
+
+**Principle 1 (least surprise).** Two definitions of `make()` that would behave differently at runtime now have different hashes, so cached-by-hash execution does not silently substitute one for the other.
+
 ## Fourth-Round Review Response: Canonical Field Order, Injective Tags, Function-Value Init, Underflow, 2026-09-15
 
 Fourth-round review closed most items. Four remaining findings plus a batch of small corrections:
