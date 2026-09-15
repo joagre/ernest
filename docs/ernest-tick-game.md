@@ -18,7 +18,7 @@ Sys.keys : Address(KeyMsg)     // additional runtime reference
 ## The Program
 
 ```
-// Pure code ------------------------------------------------------
+// Types ----------------------------------------------------------
 
 type Dir = N | S | W | E
 type Pos = Pos(x : Int, y : Int)
@@ -35,31 +35,48 @@ type World = World(
 
 type Input = Turn(id : Int, dir : Dir) | Leave(Int)
 
-fn move(w : Int, h : Int, Pos(x = x, y = y) : Pos, d : Dir) -> Pos = match d {
-    N -> Pos(x = x, y = (y - 1) % h)
-  | S -> Pos(x = x, y = (y + 1) % h)
-  | W -> Pos(x = (x - 1) % w, y = y)
-  | E -> Pos(x = (x + 1) % w, y = y)
+type GameMsg = Tick | In(Input)
+
+// Program --------------------------------------------------------
+
+fn main() -> () with () = {
+    let world0 = World(w = 40, h = 20, players = Map.empty, apples = [], seed = Seed(42), tick = 0);
+    let g = spawn(Local, fn() = game(addPlayer(world0, 1)));
+    let p1 = spawn(Local, fn() = player(1, g));
+    send(Sys.keys, Subscribe(p1))
 }
 
-fn turn(p : Player, d : Dir) -> Player = match (Player.dir(p), d) {
-    (N, S) -> p | (S, N) -> p | (W, E) -> p | (E, W) -> p    // no U-turn
-  | _      -> Player(..p, dir = d)
-}
+// Processes ------------------------------------------------------
 
-fn Player.dir(Player(dir = d) : Player) -> Dir = d
-fn Player.id(Player(id = i) : Player) -> Int = i
-
-fn applyInput(world : World, input : Input) -> World = {
-    let World(players = ps) = world;
-    match input {
-        Turn(id = id, dir = d) -> match Map.get(ps, id) {
-            Some(p) -> World(..world, players = Map.put(ps, id, turn(p, d)))
-          | None    -> world
+fn game(world : World) -> () with GameMsg = {
+    send(Sys.clock, After(ms = 100, to = via(fn(_) = Tick, self())));
+    recv {
+        Tick -> {
+            let world2 = step(drain(world, 64));
+            Io.print(render(world2));
+            game(world2)
         }
-      | Leave(id) -> World(..world, players = Map.remove(ps, id))
     }
 }
+
+// Drain the mailbox of input without blocking; at most n per tick.
+fn drain(world : World, n : Int) -> World with GameMsg =
+    if n == 0 then world
+    else recv {
+        In(i)   -> drain(applyInput(world, i), n - 1)
+      | after 0 -> world
+    }
+
+// One process per player: translates keys into Input.
+fn player(id : Int, game : Address(GameMsg)) -> () with Key = recv {
+    Up    -> { send(game, In(Turn(id = id, dir = N))); player(id, game) }
+  | Down  -> { send(game, In(Turn(id = id, dir = S))); player(id, game) }
+  | Left  -> { send(game, In(Turn(id = id, dir = W))); player(id, game) }
+  | Right -> { send(game, In(Turn(id = id, dir = E))); player(id, game) }
+  | Quit  -> send(game, In(Leave(id)))
+}
+
+// Pure world logic ----------------------------------------------
 
 // One tick: move everyone, eat apples, collide, refill apples.
 // Three counters change: score per player, apples left, tick.
@@ -83,14 +100,23 @@ fn step(world : World) -> World = {
     World(..world, players = ps3, apples = apples3, seed = seed2, tick = t + 1)
 }
 
+fn applyInput(world : World, input : Input) -> World = {
+    let World(players = ps) = world;
+    match input {
+        Turn(id = id, dir = d) -> match Map.get(ps, id) {
+            Some(p) -> World(..world, players = Map.put(ps, id, turn(p, d)))
+          | None    -> world
+        }
+      | Leave(id) -> World(..world, players = Map.remove(ps, id))
+    }
+}
+
 fn collide(ps : Map(Int, Player), p : Player) -> Player = match p {
     Player(body = head +: _, alive = true) ->
         if List.any(Map.values(ps), fn(q) = List.contains(tailOf(q), head))
         then Player(..p, alive = false) else p
   | _ -> p
 }
-
-fn tailOf(Player(body = b) : Player) -> List(Pos) = match b { _ +: rest -> rest | [] -> [] }
 
 fn refill(w : Int, h : Int, want : Int, apples : List(Pos), seed : Seed) -> (List(Pos), Seed) =
     if List.size(apples) >= want then (apples, seed)
@@ -104,43 +130,22 @@ fn addPlayer(world : World, id : Int) -> World = todo("add a player at a random 
 
 fn render(world : World) -> Text = todo("grid to text, one line per y")
 
-// The game process ------------------------------------------------
+// Small helpers -------------------------------------------------
 
-type GameMsg = Tick | In(Input)
-
-fn game(world : World) -> () with GameMsg = {
-    send(Sys.clock, After(ms = 100, to = via(fn(_) = Tick, self())));
-    recv {
-        Tick -> {
-            let world2 = step(drain(world, 64));
-            Io.print(render(world2));
-            game(world2)
-        }
-    }
+fn move(w : Int, h : Int, Pos(x = x, y = y) : Pos, d : Dir) -> Pos = match d {
+    N -> Pos(x = x, y = (y - 1) % h)
+  | S -> Pos(x = x, y = (y + 1) % h)
+  | W -> Pos(x = (x - 1) % w, y = y)
+  | E -> Pos(x = (x + 1) % w, y = y)
 }
 
-// Drain the mailbox of input without blocking; at most n per tick.
-fn drain(world : World, n : Int) -> World with GameMsg =
-    if n == 0 then world
-    else recv {
-        In(i)   -> drain(applyInput(world, i), n - 1)
-      | after 0 -> world
-    }
-
-// One process per player: translates keys into Input -------------
-
-fn player(id : Int, game : Address(GameMsg)) -> () with Key = recv {
-    Up    -> { send(game, In(Turn(id = id, dir = N))); player(id, game) }
-  | Down  -> { send(game, In(Turn(id = id, dir = S))); player(id, game) }
-  | Left  -> { send(game, In(Turn(id = id, dir = W))); player(id, game) }
-  | Right -> { send(game, In(Turn(id = id, dir = E))); player(id, game) }
-  | Quit  -> send(game, In(Leave(id)))
+fn turn(p : Player, d : Dir) -> Player = match (Player.dir(p), d) {
+    (N, S) -> p | (S, N) -> p | (W, E) -> p | (E, W) -> p    // no U-turn
+  | _      -> Player(..p, dir = d)
 }
 
-fn main() -> () with () = {
-    let world0 = World(w = 40, h = 20, players = Map.empty, apples = [], seed = Seed(42), tick = 0);
-    let g = spawn(Local, fn() = game(addPlayer(world0, 1)));
-    let p1 = spawn(Local, fn() = player(1, g));
-    send(Sys.keys, Subscribe(p1))
-}
+fn Player.dir(Player(dir = d) : Player) -> Dir = d
+fn Player.id(Player(id = i) : Player) -> Int = i
+
+fn tailOf(Player(body = b) : Player) -> List(Pos) = match b { _ +: rest -> rest | [] -> [] }
 ```

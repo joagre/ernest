@@ -9,10 +9,85 @@ The runtime is assumed to provide `Sys.stdin : Address(StdinMsg)` as an addition
 ## The Program
 
 ```
-// Pure code: lexer -----------------------------------------------
+// Types ----------------------------------------------------------
 
 type Token = Num(Int) | Ident(Text) | Op(Char) | LParen | RParen | KwLet | KwFun | Eq | Arrow
 type LexError = BadChar(c : Char, at : Int)
+
+type Expr
+    = Lit(Int)
+    | Var(Text)
+    | Bin(op : Char, l : Expr, r : Expr)
+    | Let(name : Text, value : Expr)
+    | Fun(param : Text, body : Expr)
+    | App(f : Expr, arg : Expr)
+
+type ParseError = Unexpected(Token) | Eof
+type Step = (Expr, List(Token))
+
+type Value = N(Int) | Closure(param : Text, body : Expr, env : Map(Text, Value))
+type EvalError = Unbound(Text) | DivZero | NotAFunction | NotANumber
+
+type TryError = Eval(EvalError) | Crashed | Timeout
+
+type ReplMsg
+    = Input(Text)
+    | Result(Either(EvalError, Value))
+    | Died(Down)
+
+// Program --------------------------------------------------------
+
+fn main() -> () with () = {
+    let _ = spawn(Local, fn() = repl(Map.empty));
+    ()
+}
+
+// Processes ------------------------------------------------------
+
+fn repl(env : Map(Text, Value)) -> () with ReplMsg = {
+    send(Sys.stdin, ReadLine(reply = via(Input, self())));
+    recv {
+        Input(text) -> match tokenize(text) {
+            Left(BadChar(c = c, at = i)) -> {
+                Io.println("illegal character " ++ Char.toText(c) ++ " at " ++ Int.toText(i));
+                repl(env)
+            }
+          | Right(toks) -> match parse(toks) {
+                Left(e) -> { Io.println(ParseError.toText(e)); repl(env) }
+              | Right(e) -> {
+                    let v = try(env, e);
+                    match (e, v) {
+                        (Let(name = x), Right(val)) -> { show(Right(val)); repl(Map.put(env, x, val)) }
+                      | (_, r)                          -> { show(r); repl(env) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// try as a process: evaluate in a child, wait at most two seconds,
+// kill the child if it does not answer.
+fn try(env : Map(Text, Value), e : Expr) -> Either(TryError, Value) with ReplMsg = {
+    let me = self();                               // not self() inside the lambda: that is the child's
+    let child = spawn(Local, fn() = send(me, Result(eval(env, e))));
+    monitor(child, Died);
+    recv {
+        Result(r) -> Either.mapLeft(r, Eval)
+      | Died(_)   -> Left(Crashed)                 // a fault in the child
+      | after 2000 -> { kill(child); Left(Timeout) }
+    }
+}
+
+fn show(r : Either(TryError, Value)) -> () with ReplMsg = Io.println(match r {
+    Right(N(n))       -> Int.toText(n)
+  | Right(Closure) -> "<fun>"
+  | Left(Eval(e))     -> "error: " ++ EvalError.toText(e)
+  | Left(Crashed)     -> "crashed"
+  | Left(Timeout)     -> "aborted after 2 s"
+})
+
+// Pure code: lexer -----------------------------------------------
 
 fn tokenize(t : Text) -> Either(LexError, List(Token)) = lex(Text.chars(t), 0, [])
 
@@ -43,18 +118,6 @@ fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Tok
 // prod   := app (('*'|'/') app)*
 // app    := atom atom*
 // atom   := num | ident | '(' expr ')'
-
-type Expr
-    = Lit(Int)
-    | Var(Text)
-    | Bin(op : Char, l : Expr, r : Expr)
-    | Let(name : Text, value : Expr)
-    | Fun(param : Text, body : Expr)
-    | App(f : Expr, arg : Expr)
-
-type ParseError = Unexpected(Token) | Eof
-
-type Step = (Expr, List(Token))
 
 fn parse(toks : List(Token)) -> Either(ParseError, Expr) = {
     let (e, rest) <- expr(toks);
@@ -105,9 +168,6 @@ fn atom(toks : List(Token)) -> Either(ParseError, Step) = match toks {
 
 // Pure code: evaluator -------------------------------------------
 
-type Value = N(Int) | Closure(param : Text, body : Expr, env : Map(Text, Value))
-type EvalError = Unbound(Text) | DivZero | NotAFunction | NotANumber
-
 fn eval(env : Map(Text, Value), e : Expr) -> Either(EvalError, Value) = match e {
     Lit(n) -> Right(N(n))
   | Var(x) -> match Map.get(env, x) { Some(v) -> Right(v) | None -> Left(Unbound(x)) }
@@ -136,62 +196,5 @@ fn arith(op : Char, a : Value, b : Value) -> Either(EvalError, Value) = match (a
       | _   -> match Int.div(x, y) { Some(q) -> Right(N(q)) | None -> Left(DivZero) }
     }
   | _ -> Left(NotANumber)
-}
-
-// Processes -------------------------------------------------------
-
-type TryError = Eval(EvalError) | Crashed | Timeout
-
-type ReplMsg
-    = Input(Text)
-    | Result(Either(EvalError, Value))
-    | Died(Down)
-
-fn repl(env : Map(Text, Value)) -> () with ReplMsg = {
-    send(Sys.stdin, ReadLine(reply = via(Input, self())));
-    recv {
-        Input(text) -> match tokenize(text) {
-            Left(BadChar(c = c, at = i)) -> {
-                Io.println("illegal character " ++ Char.toText(c) ++ " at " ++ Int.toText(i));
-                repl(env)
-            }
-          | Right(toks) -> match parse(toks) {
-                Left(e) -> { Io.println(ParseError.toText(e)); repl(env) }
-              | Right(e) -> {
-                    let v = try(env, e);
-                    match (e, v) {
-                        (Let(name = x), Right(val)) -> { show(Right(val)); repl(Map.put(env, x, val)) }
-                      | (_, r)                          -> { show(r); repl(env) }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// try as a process: evaluate in a child, wait at most two seconds,
-// kill the child if it does not answer.
-fn try(env : Map(Text, Value), e : Expr) -> Either(TryError, Value) with ReplMsg = {
-    let me = self();                               // not self() inside the lambda: that is the child's
-    let child = spawn(Local, fn() = send(me, Result(eval(env, e))));
-    monitor(child, Died);
-    recv {
-        Result(r) -> Either.mapLeft(r, Eval)
-      | Died(_)   -> Left(Crashed)                 // a fault in the child
-      | after 2000 -> { kill(child); Left(Timeout) }
-    }
-}
-
-fn show(r : Either(TryError, Value)) -> () with ReplMsg = Io.println(match r {
-    Right(N(n))       -> Int.toText(n)
-  | Right(Closure) -> "<fun>"
-  | Left(Eval(e))     -> "error: " ++ EvalError.toText(e)
-  | Left(Crashed)     -> "crashed"
-  | Left(Timeout)     -> "aborted after 2 s"
-})
-
-fn main() -> () with () = {
-    let _ = spawn(Local, fn() = repl(Map.empty));
-    ()
 }
 ```

@@ -23,29 +23,9 @@ type Entry   = Entry(path : Path, mtime : Mtime)
 ## The Program
 
 ```
-// Pure code ----------------------------------------------------
+// Types ---------------------------------------------------------
 
 type Change = Change(path : Path, mtime : Mtime)
-
-// What has changed since the last snapshot?
-fn diff(old : Map(Path, Mtime), entries : List(Entry)) -> List(Change) =
-    List.filterMap(entries, fn(e) = changed(old, e))
-
-fn changed(old : Map(Path, Mtime), Entry(path = p, mtime = m) : Entry) -> Optional(Change) =
-    match Map.get(old, p) {
-        None     -> Some(Change(path = p, mtime = m))
-      | Some(m0) -> match Mtime.compare(m, m0) {
-            Greater -> Some(Change(path = p, mtime = m))
-          | _       -> None
-        }
-    }
-
-fn snapshot(entries : List(Entry)) -> Map(Path, Mtime) =
-    List.foldLeft(entries, Map.empty, fn(acc, Entry(path = p, mtime = m)) = Map.put(acc, p, m))
-
-fn conflictPath(p : Path) -> Path = Path.withSuffix(p, ".conflict")
-
-// Protocol between two syncers --------------------------------
 
 type Ack = Stored | Conflict | Failed(FsError)
 
@@ -55,13 +35,23 @@ type SyncMsg
     | Listed(Either(FsError, List(Entry)))
     | Put(path : Path, mtime : Mtime, bytes : Bytes, ack : Reply(Ack))
 
+// Program -------------------------------------------------------
+
+fn main() -> () with () = {
+    let a = spawn(Local, fn() = start(Path("a")));
+    let b = spawn(Local, fn() = start(Path("b")));
+    send(a, Link(b));
+    send(b, Link(a))
+}
+
+// Processes -----------------------------------------------------
+
 // Waiting phase: receive the peer's address, then the loop.
 fn start(dir : Path) -> () with SyncMsg = recv {
     Link(peer) -> { send(self(), Tick); syncer(dir, peer, Map.empty) }
 }
 
-// The sync process: one per directory -------------------------
-
+// The sync process: one per directory.
 fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> () with SyncMsg = recv {
     Tick -> {
         send(Sys.fs, List(path = dir, reply = via(Listed, self())));
@@ -138,12 +128,23 @@ fn push(peer : Address(SyncMsg), p : Path, m : Mtime, bytes : Bytes) -> () with 
       | None            -> Io.println("the peer is not answering: " ++ Path.toText(p))
     }
 
-// Start ----------------------------------------------------------
+// Pure helpers --------------------------------------------------
 
-fn main() -> () with () = {
-    let a = spawn(Local, fn() = start(Path("a")));
-    let b = spawn(Local, fn() = start(Path("b")));
-    send(a, Link(b));
-    send(b, Link(a))
-}
+// What has changed since the last snapshot?
+fn diff(old : Map(Path, Mtime), entries : List(Entry)) -> List(Change) =
+    List.filterMap(entries, fn(e) = changed(old, e))
+
+fn changed(old : Map(Path, Mtime), Entry(path = p, mtime = m) : Entry) -> Optional(Change) =
+    match Map.get(old, p) {
+        None     -> Some(Change(path = p, mtime = m))
+      | Some(m0) -> match Mtime.compare(m, m0) {
+            Greater -> Some(Change(path = p, mtime = m))
+          | _       -> None
+        }
+    }
+
+fn snapshot(entries : List(Entry)) -> Map(Path, Mtime) =
+    List.foldLeft(entries, Map.empty, fn(acc, Entry(path = p, mtime = m)) = Map.put(acc, p, m))
+
+fn conflictPath(p : Path) -> Path = Path.withSuffix(p, ".conflict")
 ```

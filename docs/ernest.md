@@ -479,12 +479,6 @@ type CounterMsg
     | Get(reply : Reply(Int))
     | Upgrade(migrate : (Int) -> Int, next : (Int) -> () with CounterMsg)
 
-fn counter(n : Int) -> () with CounterMsg = recv {
-    Inc(k) -> counter(n + k)
-  | Get(reply = r) -> { answer(r, n); counter(n) }
-  | Upgrade(migrate = m, next = k) -> k(m(n))
-}
-
 fn main() -> () with () = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
@@ -494,18 +488,21 @@ fn main() -> () with () = {
       | None    -> Io.println("counter is not answering")
     }
 }
+
+fn counter(n : Int) -> () with CounterMsg = recv {
+    Inc(k) -> counter(n + k)
+  | Get(reply = r) -> { answer(r, n); counter(n) }
+  | Upgrade(migrate = m, next = k) -> k(m(n))
+}
 ```
 
 ```
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 
-fn pong() -> () with PongMsg = recv {
-    Ping(n = n, reply = r) -> {
-        Io.println("pong " ++ Int.toText(n));
-        answer(r, n);
-        pong()
-    }
-  | Stop -> ()
+fn main() -> () with () = {
+    let pongAddr = spawn(Local, fn() = pong());
+    let _ = spawn(Local, fn() = ping(pongAddr, 3));
+    ()
 }
 
 fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
@@ -518,10 +515,13 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
         }
     }
 
-fn main() -> () with () = {
-    let pongAddr = spawn(Local, fn() = pong());
-    let _ = spawn(Local, fn() = ping(pongAddr, 3));
-    ()
+fn pong() -> () with PongMsg = recv {
+    Ping(n = n, reply = r) -> {
+        Io.println("pong " ++ Int.toText(n));
+        answer(r, n);
+        pong()
+    }
+  | Stop -> ()
 }
 ```
 
@@ -574,43 +574,49 @@ A shim over Erlang's `ets`, tables of type `set`. Raw bindings are module-local 
 /// created it dies.
 foreign type Ets.Table(k, v)
 
+/// A fresh empty table. The table is owned by the current
+/// process and is destroyed when that process dies.
+fn Ets.new() -> Ets.Table(k, v) with m = rawNew("ernest", [atom("set"), atom("public")])
+
 foreign fn rawNew(name : Text, opts : List(Foreign)) -> Ets.Table(k, v) with m   = "ets:new/2"
-foreign fn rawInsert(t : Ets.Table(k, v), row : (k, v)) -> Bool with m           = "ets:insert/2"
-foreign fn rawLookup(t : Ets.Table(k, v), key : k) -> List((k, v)) with m        = "ets:lookup/2"
-foreign fn rawDelete(t : Ets.Table(k, v), key : k) -> Bool with m                = "ets:delete/2"
-foreign fn rawDrop(t : Ets.Table(k, v)) -> Bool with m                            = "ets:delete/1"
-foreign fn rawClear(t : Ets.Table(k, v)) -> Bool with m                           = "ets:delete_all_objects/1"
-foreign fn rawInfo(t : Ets.Table(k, v), item : Foreign) -> Int with m             = "ets:info/2"
 foreign fn atom(name : Text) -> Foreign                                           = "erlang:binary_to_atom/1"
+
+/// Insert or replace the entry for key.
+fn Ets.insert(t : Ets.Table(k, v), key : k, value : v) -> () with m = { let _ = rawInsert(t, (key, value)); () }
+
+foreign fn rawInsert(t : Ets.Table(k, v), row : (k, v)) -> Bool with m           = "ets:insert/2"
+
+/// The value for key, or None if absent.
+fn Ets.lookup(t : Ets.Table(k, v), key : k) -> Optional(v) with m =
+    match rawLookup(t, key) { [(_, v)] -> Some(v) | _ -> None }
+
+foreign fn rawLookup(t : Ets.Table(k, v), key : k) -> List((k, v)) with m        = "ets:lookup/2"
+
+/// Remove key. A key not present is not an error.
+fn Ets.delete(t : Ets.Table(k, v), key : k) -> () with m = { let _ = rawDelete(t, key); () }
+
+foreign fn rawDelete(t : Ets.Table(k, v), key : k) -> Bool with m                = "ets:delete/2"
+
+/// The number of entries in the table.
+fn Ets.size(t : Ets.Table(k, v)) -> Int with m = rawInfo(t, atom("size"))
+
+foreign fn rawInfo(t : Ets.Table(k, v), item : Foreign) -> Int with m             = "ets:info/2"
+
+/// Delete the table. All subsequent operations on it fault.
+fn Ets.drop(t : Ets.Table(k, v)) -> () with m = { let _ = rawDrop(t); () }
+
+foreign fn rawDrop(t : Ets.Table(k, v)) -> Bool with m                            = "ets:delete/1"
+
+/// Remove all entries, leaving the table empty.
+fn Ets.clear(t : Ets.Table(k, v)) -> () with m = { let _ = rawClear(t); () }
+
+foreign fn rawClear(t : Ets.Table(k, v)) -> Bool with m                           = "ets:delete_all_objects/1"
 
 /// True if key is present in t.
 foreign fn Ets.member(t : Ets.Table(k, v), key : k) -> Bool with m                = "ets:member/2"
 
 /// All key-value pairs currently in the table, in unspecified order.
 foreign fn Ets.toList(t : Ets.Table(k, v)) -> List((k, v)) with m                 = "ets:tab2list/1"
-
-/// A fresh empty table. The table is owned by the current
-/// process and is destroyed when that process dies.
-fn Ets.new() -> Ets.Table(k, v) with m = rawNew("ernest", [atom("set"), atom("public")])
-
-/// Insert or replace the entry for key.
-fn Ets.insert(t : Ets.Table(k, v), key : k, value : v) -> () with m = { let _ = rawInsert(t, (key, value)); () }
-
-/// The value for key, or None if absent.
-fn Ets.lookup(t : Ets.Table(k, v), key : k) -> Optional(v) with m =
-    match rawLookup(t, key) { [(_, v)] -> Some(v) | _ -> None }
-
-/// Remove key. A key not present is not an error.
-fn Ets.delete(t : Ets.Table(k, v), key : k) -> () with m = { let _ = rawDelete(t, key); () }
-
-/// The number of entries in the table.
-fn Ets.size(t : Ets.Table(k, v)) -> Int with m = rawInfo(t, atom("size"))
-
-/// Delete the table. All subsequent operations on it fault.
-fn Ets.drop(t : Ets.Table(k, v)) -> () with m = { let _ = rawDrop(t); () }
-
-/// Remove all entries, leaving the table empty.
-fn Ets.clear(t : Ets.Table(k, v)) -> () with m = { let _ = rawClear(t); () }
 ```
 
 ```

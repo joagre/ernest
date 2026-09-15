@@ -17,9 +17,12 @@ type Tick     = Tick
 ## The Program
 
 ```
-// Pure code: HTTP parsing and sessions ---------------------------
+// Types ---------------------------------------------------------
 
 type Request = Request(method : Text, path : Text, headers : List((Text, Text)))
+type Response = Response(status : StatusCode, headers : List((Text, Text)), body : Text)
+type ParseError = BadEncoding | BadRequestLine | BadHeader(Text)
+type Session = Session(Int)            // number of visits
 
 opaque type StatusCode = StatusCode(Int) with {
     ok : StatusCode;
@@ -27,51 +30,35 @@ opaque type StatusCode = StatusCode(Int) with {
     render : (StatusCode) -> Text
 }
 
-let StatusCode.ok = StatusCode(200)
-let StatusCode.notFound = StatusCode(404)
-fn StatusCode.render(StatusCode(n)) = Int.toText(n)
-
-type Response = Response(status : StatusCode, headers : List((Text, Text)), body : Text)
-
-type ParseError = BadEncoding | BadRequestLine | BadHeader(Text)
-
-fn parse(b : Bytes) -> Either(ParseError, Request) = {
-    let t <- Either.fromOptional(Text.fromUtf8(b), BadEncoding);
-    let lines = Text.lines(t);
-    let (method, path) <- requestLine(lines);
-    let headers <- headerLines(lines);
-    Right(Request(method = method, path = path, headers = headers))
-}
-
-fn requestLine(lines : List(Text)) -> Either(ParseError, (Text, Text)) = todo("on paper")
-fn headerLines(lines : List(Text)) -> Either(ParseError, List((Text, Text))) = todo("on paper")
-fn render(r : Response) -> Bytes = todo("on paper")
-fn cookie(r : Request, name : Text) -> Optional(Text) = todo("on paper")
-fn withCookie(name : Text, value : Text, r : Response) -> Response = todo("on paper")
-
 opaque type SessionId = SessionId(Text) with {
     fresh : (Int) -> SessionId;
     parse : (Text) -> Optional(SessionId);
     text : (SessionId) -> Text
 }
 
-fn SessionId.fresh(n) = SessionId(Int.toText(n))   // good enough on paper
-fn SessionId.parse(t) = if Text.all(t, Char.isDigit) then Some(SessionId(t)) else None
-fn SessionId.text(SessionId(t)) = t
+// Program -------------------------------------------------------
 
-type Session = Session(Int)            // number of visits
+fn main() -> () with () = {
+    let sessions = Ets.new();
+    let _ = spawn(Local, fn() = sweeper(sessions));
+    let acc = spawn(Local, fn() = acceptor(sessions, 0));
+    send(Sys.net, Listen(port = Port(8080), acceptor = acc))
+}
 
-// The session store: an ETS table, Appendix D of the report --------
+// Processes -----------------------------------------------------
 
-// The sweeper: clears the table every ten minutes.
+// The sweeper: clears the session table every ten minutes.
 fn sweeper(sessions : Ets.Table(SessionId, Session)) -> () with Tick = {
     send(Sys.clock, After(ms = 600000, to = via(fn(_) = Tick, self())));
     recv { Tick -> Ets.clear(sessions) };
     sweeper(sessions)
 }
 
-// One process per connection --------------------------------------
+fn acceptor(sessions : Ets.Table(SessionId, Session), seq : Int) -> () with ConnMsg = recv {
+    Conn(sock) -> { let _ = spawn(Local, fn() = handler(sessions, seq, sock)); acceptor(sessions, seq + 1) }
+}
 
+// One process per connection: reads a request, writes a response, closes.
 fn handler(sessions : Ets.Table(SessionId, Session), seq : Int, sock : Address(SockMsg)) -> () with m = {
     match Address.call(sock, fn(r) = Read(reply = r), 5000) {
         Some(bytes) -> match parse(bytes) {
@@ -98,16 +85,29 @@ fn handler(sessions : Ets.Table(SessionId, Session), seq : Int, sock : Address(S
     }
 }
 
-// Acceptor ------------------------------------------------------
+// Pure code: HTTP parsing and rendering -------------------------
 
-fn acceptor(sessions : Ets.Table(SessionId, Session), seq : Int) -> () with ConnMsg = recv {
-    Conn(sock) -> { let _ = spawn(Local, fn() = handler(sessions, seq, sock)); acceptor(sessions, seq + 1) }
+fn parse(b : Bytes) -> Either(ParseError, Request) = {
+    let t <- Either.fromOptional(Text.fromUtf8(b), BadEncoding);
+    let lines = Text.lines(t);
+    let (method, path) <- requestLine(lines);
+    let headers <- headerLines(lines);
+    Right(Request(method = method, path = path, headers = headers))
 }
 
-fn main() -> () with () = {
-    let sessions = Ets.new();
-    let _ = spawn(Local, fn() = sweeper(sessions));
-    let acc = spawn(Local, fn() = acceptor(sessions, 0));
-    send(Sys.net, Listen(port = Port(8080), acceptor = acc))
-}
+fn requestLine(lines : List(Text)) -> Either(ParseError, (Text, Text)) = todo("on paper")
+fn headerLines(lines : List(Text)) -> Either(ParseError, List((Text, Text))) = todo("on paper")
+fn render(r : Response) -> Bytes = todo("on paper")
+fn cookie(r : Request, name : Text) -> Optional(Text) = todo("on paper")
+fn withCookie(name : Text, value : Text, r : Response) -> Response = todo("on paper")
+
+// Opaque-type definitions ---------------------------------------
+
+let StatusCode.ok = StatusCode(200)
+let StatusCode.notFound = StatusCode(404)
+fn StatusCode.render(StatusCode(n)) = Int.toText(n)
+
+fn SessionId.fresh(n) = SessionId(Int.toText(n))   // good enough on paper
+fn SessionId.parse(t) = if Text.all(t, Char.isDigit) then Some(SessionId(t)) else None
+fn SessionId.text(SessionId(t)) = t
 ```

@@ -35,3 +35,9 @@ If either test surfaces an anomaly in the report, propose an update to `docs/ern
 - Prefer minimal, direct implementations over speculative abstraction.
 - Ask before scaffolding when a decision affects the report or the plan.
 - When touching normative material, quote the exact section or grammar rule being applied.
+
+## Ernest style guide
+
+Conventions for Ernest source code. Ernest is order-independent at top level, so these are style choices, not correctness requirements — but the paper programs and any Ernest code we write should follow them for consistency.
+
+- **Define functions top-down.** Types stay at the top of the module. In a program module (has `main`), `main` comes next, then the functions it calls in call order, then their helpers, and so on — each root and its subtree are laid out contiguously. In a library module (no `main`), each exported function is a root: it appears at the top level with its own helpers immediately below it, and the next exported function's subtree follows. A helper used by more than one exported function goes under whichever root uses it first (or, if it's genuinely shared infrastructure, at the bottom of the module as a small utilities section).

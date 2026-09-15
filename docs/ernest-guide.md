@@ -629,13 +629,10 @@ This is the ping-pong program from Appendix B of the report.
 ```
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 
-fn pong() -> () with PongMsg = recv {
-    Ping(n = n, reply = r) -> {
-        Io.println("pong " ++ Int.toText(n));
-        answer(r, n);
-        pong()
-    }
-  | Stop -> ()
+fn main() -> () with () = {
+    let pongAddr = spawn(Local, fn() = pong());
+    let _ = spawn(Local, fn() = ping(pongAddr, 3));
+    ()
 }
 
 fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
@@ -648,10 +645,13 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> () with m =
         }
     }
 
-fn main() -> () with () = {
-    let pongAddr = spawn(Local, fn() = pong());
-    let _ = spawn(Local, fn() = ping(pongAddr, 3));
-    ()
+fn pong() -> () with PongMsg = recv {
+    Ping(n = n, reply = r) -> {
+        Io.println("pong " ++ Int.toText(n));
+        answer(r, n);
+        pong()
+    }
+  | Stop -> ()
 }
 ```
 
