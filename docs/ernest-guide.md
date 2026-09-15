@@ -1132,7 +1132,7 @@ Once "hello world," the counter, and ping-pong feel readable, the language's fou
 
 Read them in that order. Each introduces something the next builds on.
 
-For the language rules themselves, [`ernest.md`](ernest.md) (the report) is the authority. Section 0 states the five principles Ernest is built on; Section 3 covers types, Section 5 expressions, Section 6 processes, Section 9 the small prelude, and Appendix E the standard library (`Io.println`, `List.map`, and so on — the everyday helpers, written in Ernest, that ship with the compiler). It's shorter than most language reports — under ten pages of prose — and each sentence carries weight. If you find yourself asking "why is Ernest like this?" — the principles in §0 usually answer it.
+For the language rules themselves, [`ernest.md`](ernest.md) (the report) is the authority. §0 states the five principles Ernest is built on; §3 covers types, §5 expressions, §6 processes, §9 the small prelude, and Appendix E the standard library (`Io.println`, `List.map`, and so on — the everyday helpers, written in Ernest, that ship with the compiler). Appendix F is a glossary of every technical term the report introduces, with a pointer to where it's defined. It's shorter than most language reports — under ten pages of prose — and each sentence carries weight. If you find yourself asking "why is Ernest like this?" — the principles in §0 usually answer it.
 
 For "why is Ernest the way it is," [`ernest-decisions.md`](ernest-decisions.md) records dated design decisions and their evidence. If a rule seems arbitrary, that document explains what pressured it.
 
