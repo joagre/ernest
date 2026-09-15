@@ -12,7 +12,7 @@ Design complete for MVP 1 (single-node subset). Implementation begins with the l
 
 - **[`docs/ernest.md`](docs/ernest.md)** — the language report. Normative. Everything else in this repo defers to it. About ten pages of prose plus a grammar appendix, a configuration appendix, a foreign-library appendix, and a standard-library appendix.
 
-- **[`docs/ernest-guide.md`](docs/ernest-guide.md)** — a tutorial for a first-time reader. Walks through hello world, types (including opaque), functions, one process (a counter), two processes talking (ping-pong), watching processes (`monitor`, `kill`), adapting messages with `via`, the `<-` chaining idiom, remote computation, foreign types and functions, and the toolchain. Ends with references (parens, syntactic quirks) and the five principles.
+- **[`docs/ernest-guide.md`](docs/ernest-guide.md)** — a tutorial for a first-time reader. Walks through hello world, types (including opaque), functions, one process (a counter), two processes talking (ping-pong), watching processes (`monitor`, `kill`), adapting messages with `via`, the `<-` chaining idiom, remote computation, foreign types and functions, bit arrays, and the toolchain. Closes with a short FAQ and pointers to the paper programs.
 
 ### Then the paper programs, in this order
 
