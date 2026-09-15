@@ -11,7 +11,7 @@ Ernest is a functional language for concurrent programs. Two ideas run through i
 
 That's the whole vocabulary. Everything else in the language is a rule for how functions and processes show up in each other.
 
-Take a moment on that. "Functions" you probably know. "Processes" means small independent units of computation, each with its own mailbox, each running concurrently with the rest. If that idea is new, don't worry — we'll build it up slowly.
+"Functions" you probably know. "Processes" means small independent units of computation, each with its own mailbox, each running concurrently with the rest.
 
 ## 1. A very small program
 
@@ -63,7 +63,7 @@ Ernest has no built-in "print." What `Io.println` does is send its argument as a
 
 You do not "print" or "write" in Ernest. You send a message to a process. That process — running concurrently, elsewhere — receives the message and does the actual writing. There is no hidden syscall. If you want to touch anything outside your own function, you send a message to a process that touches it for you.
 
-Take a breath. This idea is going to keep coming back. Everything else in Ernest builds on it.
+This idea keeps coming back. Everything else in Ernest builds on it.
 
 ## 2. Types
 
@@ -405,9 +405,7 @@ Opaque types show up in the web server paper program (opaque `StatusCode`, `Sess
 
 ## 5. A process
 
-Now the interesting part. Let's build a small process — a counter.
-
-We'll build it in stages: first a counter that only accepts updates (fire-and-forget), then extend it so callers can also ask for its current state (request-reply).
+A small process — a counter. First a version that only accepts updates (fire-and-forget), then one that also answers callers who ask for its current state (request-reply).
 
 ### 5.1 The message type
 
@@ -430,8 +428,6 @@ fn counter(n : Int) -> () with CounterMsg = recv {
     Inc(k) -> counter(n + k)
 }
 ```
-
-Read it slowly.
 
 `fn counter(n : Int)` — a function taking the counter's current state as an integer parameter.
 
