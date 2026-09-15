@@ -212,6 +212,8 @@ At a call site, a variable in an effect position binds to one of:
 
 A variable that appears *only* in effect positions (like `e` in `apply` above) can bind to either a mailbox type or empty. A variable that appears in *any* value position (like `m` in `self : () -> Address(m) with m`) must resolve to a value type: the value-position usage requires a real type, so at every use site both occurrences of `m` receive the same mailbox type, and empty is not admissible. This is the only rule that ties the two occurrences of `m` together; unification does the rest.
 
+The prelude primitives that require a process context — `send`, `spawn`, `Address.call`, `Address.callForever`, `answer`, `monitor`, `kill`, `remote`, `parallelRemote`, and any `foreign fn` declared with `with M` — carry the same non-empty restriction on their outer effect variable: the type checker treats it as if it appeared in a value position, so pure code cannot invoke them. Their signatures use effect-only variables for brevity; the constraint is a rule of the prelude, not of the annotation grammar.
+
 The empty effect has no explicit syntax — its presence is the absence of a `with` clause. During type printing an effect variable bound to empty is elided from the output.
 
 **Higher-order effect polymorphism.** `List.map`, `List.foreach`, `Map.map`, and other stdlib combinators that take function arguments are effect-polymorphic — the same rule that types `apply` above types them. Their published signatures in Appendix E make the effect variable explicit; a pure callback binds it to empty, an effectful callback binds it to the caller's mailbox.

@@ -932,6 +932,35 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Effect Variables: Primitives Are Non-Empty (U01 Soundness Fix), 2026-09-15
+
+Discovered during the final audit. The U01 rule "effect-only variables can bind to empty" opens a soundness hole for prelude primitives:
+
+```
+fn foo() = spawn(Local, fn() = worker())
+```
+
+Inference gives `foo : () -> Address(a) with m` (effect-polymorphic — `spawn`'s outer effect var flows up). Called from pure code, `m` unifies with empty, so `foo`'s call typechecks as pure — but `spawn` creates a process, which is not pure. Same for `send`, `Address.call`, `answer`, `remote`, `monitor`, `kill`.
+
+The paper programs don't hit this (their `main` is effectful, and other primitive-using functions have concrete effects), but the type system's soundness requires closing the hole.
+
+**Choices weighed:**
+
+- **State that primitives' outer effect variables cannot bind to empty — treat them as value-position variables for U01 purposes.** Taken. One sentence in §3.9. No new syntax, no new mechanism.
+- **Add a new syntactic marker for non-empty effect variables (e.g., `with m*`).** Rejected — new syntax for a rule that only applies to a fixed list of prelude primitives.
+- **Change primitive signatures to force non-empty via value position** (e.g., include a `Address(m)` argument that anchors `m`). Rejected — awkward parameters, ugly signatures.
+- **Ignore the hole because paper programs don't hit it.** Rejected — soundness matters even if unexercised; a future paper program could hit it silently.
+
+Taken: state the exception in §3.9 as prose. The type checker treats primitives' outer effect variable as if it were in a value position — pure code cannot invoke them.
+
+**Effect on §3.9.** One sentence added after the value/effect-position rule.
+
+**Cost.** One sentence. No new syntax. No effect on paper programs (they weren't invoking primitives from pure code).
+
+**Principle 3 (nothing invisible).** The soundness rule was implicit in the type checker's semantics; now stated in the report.
+
+**Principle 5 (small).** No new syntactic marker, no new kind of variable. The exception is a rule of the prelude, described in prose.
+
 ## Grammar: Negative Numeric Patterns and Lambda-After-Pipe Parens, 2026-09-15
 
 The reviewer's R18 (open since earlier round): "The substantive parsing issues remain, including negative numeric patterns, an unparenthesized lambda after a pipe, and constructor-call ambiguity." Addressing the two clear ones.
