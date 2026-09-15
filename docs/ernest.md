@@ -147,9 +147,9 @@ The prelude declares `Void` as a one-value type (§9.3): a function that has not
 
 **Integer arithmetic.** Integers are exact and unbounded — no overflow. Division `/` truncates toward zero: `-7 / 3 = -2`. Modulo `%` matches: `(a / b) * b + (a % b) == a`, so `-7 % 3 = -1`. `Int.div` and `Int.mod` (§9.6) use the same convention and return `Optional(Int)` in place of the zero-divisor fault; `Int.mod` is named for symmetry with `Int.div` and gives the same result as `%` (mathematical mod with always-non-negative result is not provided — write it in Ernest when needed).
 
-**Float arithmetic.** IEEE 754 double precision, restricted to the finite range. Arithmetic that would produce a non-finite result — overflow, underflow past the smallest subnormal, division by zero, `0.0 / 0.0`, and similar cases — faults with cause `Fault("float arithmetic error")`. There is no representation for `Infinity` or `NaN`, so `Float.compare`, `Float.round`, `Float.floor`, and `Float.ceil` are total on their input. This matches the underlying BEAM domain; a program that needs non-finite arithmetic must handle those cases explicitly before they arise.
+**Float arithmetic.** IEEE 754 double precision, restricted to the finite range. Arithmetic that would produce a non-finite result — overflow, division by zero of a non-zero numerator, `0.0 / 0.0`, `sqrt` of a negative value, and similar — faults with cause `Fault("float arithmetic error")`. Underflow follows IEEE gradual underflow: a tiny result rounds to a subnormal, or to signed zero if smaller than the smallest subnormal. Signed zero is a finite `Float` value; underflow to zero does not fault. There is no representation for `Infinity` or `NaN`, so `Float.compare`, `Float.round`, `Float.floor`, and `Float.ceil` are total on their input. This matches the underlying BEAM domain; a program that needs non-finite arithmetic must handle those cases explicitly before they arise.
 
-`Int` and `Float` are separate types with no implicit conversion. Mixing them in an arithmetic expression is a type error; use `Int.toFloat` or `Float.round`/`Float.floor`/`Float.ceil` at the boundary.
+`Int` and `Float` are separate types with no implicit conversion. Mixing them in an arithmetic expression is a type error; use `Int.toFloat` or `Float.round`/`Float.floor`/`Float.ceil` at the boundary. `Int.toFloat` on an integer whose magnitude exceeds the largest finite `Float` faults with cause `Fault("Int out of Float range")`; values within range round to the nearest `Float` per IEEE.
 
 ### 3.2 Tuples
 
@@ -176,7 +176,7 @@ type Optional(a) = None | Some(a)
 type Snapshot = Snapshot(dir : Path, seen : Map(Path, Mtime))
 ```
 
-Positional fields cap at one — beyond that, names are required, because position alone would hide what each field means. Field names are unique within a constructor; their order carries no meaning. Positional and named fields are distinguished by `:` after the first identifier in declarations, and by `=` in construction and patterns.
+Positional fields cap at one — beyond that, names are required, because position alone would hide what each field means. Field names are unique within a constructor; their declaration order carries no meaning to the type system. Positional and named fields are distinguished by `:` after the first identifier in declarations, and by `=` in construction and patterns. For storage, hashing, and transport, named fields are placed in *canonical order* — sorted by field name — so two nodes that declare the same-named type with fields in different source order agree on layout. Field expressions in a construction are still evaluated in source order (§5.1); their values are then placed into their canonical positions.
 
 ### 3.6 Abstract types
 
@@ -416,13 +416,13 @@ Strict, left to right, arguments before the call. No delayed computation; `fn() 
 
 ### 5.3 Lambda
 
-`fn(x) = e` is an anonymous function. Its body is the longest `Expr` at the same nesting level as the `fn`, ending at the first outer `,`, `;`, `|`, `)`, or `}`.
+`fn(x) = e` is an anonymous function. Its body is the longest `Expr` at the same nesting level as the `fn`, ending at the first outer delimiter of the enclosing form — `,`, `;`, `|`, `)`, `}`, `]`, or `>>`.
 
 ### 5.4 Blocks
 
 `{ s1; s2; e }` is an expression whose value is the last statement, which must be an expression. `;` separates statements and never appears last. Statements are `fn` declarations, `let` bindings, and expressions; an expression as a statement is evaluated for its effect.
 
-A `fn` declared inside a block is visible throughout the block, so mutual and self-recursion between local `fn`s works the same as at the top level. `let` bindings remain sequential: `let p = e` is visible from the next statement onward, and a `fn` body that references a `let` declared later in the same block is a compile-time error. A local `fn` may only be *called* after every `let` binding it references — directly or through calls to other local `fn`s in the same block — has been evaluated. Calling it earlier is a compile-time error; the check follows local-function call edges to include indirect dependencies.
+A `fn` declared inside a block is visible throughout the block, so mutual and self-recursion between local `fn`s works the same as at the top level. `let` bindings remain sequential: `let p = e` is visible from the next statement onward, and a `fn` body that references a `let` declared later in the same block is a compile-time error. A local `fn` may only be *used* — called, obtained as a function value, passed to another function, stored, returned, or captured by another closure — after every `let` binding it references (directly or through references to other local `fn`s in the same block) has been evaluated. Using it earlier is a compile-time error; the check follows references between local functions, so both direct calls and function-value uses count.
 
 ### 5.5 Binding with `<-`
 
@@ -534,7 +534,7 @@ type Where = Local | Peer(String)
 
 `self()` is the process's own address. `send(a, v)` places `v` in the mailbox of `a` and returns immediately; sending to a process that has died has no effect.
 
-`spawn(w, f)` starts a new process that runs `f()` and returns its address. `self()` inside `f` is the new process's address; a parent that wants replies binds `let me = self();` before `spawn`. The callback's mailbox effect `n` also appears in `Address(n)`, so it must be a real mailbox type (§3.9) — a pure `f` (one with no `with M`) cannot be spawned. To spawn a process that never receives, annotate the callback with `with Never`: `spawn(Local, fn() : Void with Never = ...)`.
+`spawn(w, f)` starts a new process that runs `f()` and returns its address. `self()` inside `f` is the new process's address; a parent that wants replies binds `let me = self();` before `spawn`. The callback's mailbox effect `n` also appears in `Address(n)`, so it must be a real mailbox type (§3.9) — a pure `f` (one with no `with M`) cannot be spawned. To spawn a process that never receives, annotate the callback with `with Never`: `spawn(Local, fn() -> Void with Never = ...)`.
 
 A node is one running instance of the runtime; a peer is another node it knows by name, §8.3. `w` places the process: `Local` on the running node, `Peer(name)` on the peer with that name. An unknown or unreachable peer is a fault. The captured values of `f` are copied to the peer.
 
@@ -597,7 +597,7 @@ The check is static in flow, not in dynamics: it ensures every path *calls* the 
 
 **Deadline start and races.** The timeout clock starts when `Address.call` is invoked, so the `mk(r)` build and the outgoing send count against the deadline. A reply that arrives simultaneously with the timeout may be delivered (returning `Some(v)`) or discarded (returning `None`) — the runtime does not guarantee a tiebreak.
 
-**Late answers.** After `Address.call` returns `None` on timeout, the runtime deregisters the `Reply(a)`'s fresh identifier. Any subsequent `answer(r, v)` call by the recipient sends a value tagged with that identifier; the runtime silently discards it — it does not appear in the caller's mailbox, does not fault, does not affect other messages. `Address.callForever` behaves the same way if the caller dies while waiting: the reply value is silently discarded when it arrives at a dead process. The recipient's `answer(r, v)` call itself always succeeds — the recipient has no way to observe whether the caller is still waiting.
+**Late answers.** After `Address.call` returns `None` on timeout, the runtime deregisters the `Reply(a)`'s fresh identifier. Any subsequent `answer(r, v)` call by the recipient sends a value tagged with that identifier; the runtime silently discards it — it does not appear in the caller's mailbox, does not fault, does not affect other messages. `Address.callForever` behaves the same way if the caller dies while waiting: the reply value is silently discarded when it arrives at a dead process. Caller timeout or death does not cause `answer` to fail on the recipient — the recipient has no way to observe whether the caller is still waiting. Cross-node transport faults (§3.8, foreign values crossing nodes) still apply to `answer` when the caller is on another node.
 
 **Mailbox isolation.** The fresh identifier attached to each `Reply(a)` is known only to the `Address.call` that allocated it. Reply values are delivered to the waiting call via that identifier; they never appear in the caller's declared mailbox, and the caller's mailbox type does not include them. Ordinary messages sent to the same process by other senders continue to flow into the mailbox typed as `m`, uninfluenced by pending or timed-out `Address.call` operations.
 
@@ -660,12 +660,12 @@ The code cannot see the error. Causes include out of memory, `kill`, a failure i
 
 "Fault" here is the category — any death whose `Reason` is not `Returned`. `Fault(String)` is one specific `Reason` alongside `Killed` and `ProgramEnd`.
 
-### 7.4 The total prelude
+### 7.4 Prelude operations and faults
 
 Partial operations in the prelude generally return `Optional` or `Either`. The operations listed below deliberately fault on specified inputs or runtime conditions. Absence of a mailbox effect does not guarantee absence of faults.
 
 - `/` and `%` on `Int` with a zero divisor fault with cause `Fault("division by zero")`. `Int.div` and `Int.mod` return `Optional` for the caller who wants to handle it.
-- `Float` arithmetic operations `+`, `-`, `*`, `/` fault with cause `Fault("float arithmetic error")` on any result outside the finite float range — overflow, underflow past the smallest subnormal, division by zero, or invalid forms like `0.0 / 0.0` (§3.1). `Float` values are finite; there is no `Infinity` or `NaN`, so `Float.compare`, `Float.round`, `Float.floor`, and `Float.ceil` are total.
+- `Float` arithmetic operations `+`, `-`, `*`, `/` fault with cause `Fault("float arithmetic error")` on any result the finite domain cannot represent — overflow, division by zero of a non-zero numerator, `0.0 / 0.0`, `sqrt` of a negative value (§3.1). Gradual underflow to signed zero is not a fault. `Float` values are finite; there is no `Infinity` or `NaN`, so `Float.compare`, `Float.round`, `Float.floor`, and `Float.ceil` are total. `Int.toFloat` faults on integers whose magnitude exceeds the largest finite `Float` (cause `Fault("Int out of Float range")`).
 - Bitstring construction faults in two cases (§5.11): a segment value that does not fit its specified width (`Fault("segment overflow")`), or a total or per-segment bit count that is not a multiple of 8 with dynamic sizes when binding to `Bytes` (`Fault("bitstring not byte-aligned")`). Compile-time-constant violations are rejected at compile time; the runtime fault covers the dynamic cases.
 - `todo("...")` compiles at any type and faults if reached with cause `Fault("todo: ...")`, so that an unfinished function can be declared before it is written.
 - Any cross-node transport of a value that transitively contains a foreign value, with cause `Fault("foreign value cannot cross nodes")` (§3.8).
@@ -704,16 +704,18 @@ The system processes are foreign processes: their message types are declared in 
 - `String` → binary (UTF-8 encoded).
 - `Bytes` → binary.
 - `Void` → atom `void`.
-- Nullary constructor `C` → atom `c` (lowercase source name).
-- Positional constructor `C(v)` → tuple `{c, v}`.
-- Named constructor `C(f1 = v1, ..., fn = vn)` → tuple `{c, v1, ..., vn}` with fields in declaration order.
+- Nullary constructor `C` → the quoted atom preserving the source spelling, e.g. `'Ready'`, `'READY'`, `'None'`. Preserving case makes the tag injective: two constructors that differ only in case (`Ready` vs `READY`) map to distinct atoms.
+- Positional constructor `C(v)` → tuple `{'C', v}` with the constructor's quoted-atom tag as the first element.
+- Named constructor `C(f1 = v1, ..., fn = vn)` → tuple `{'C', v_sorted_1, ..., v_sorted_n}` with the tag first, then the field values in *canonical order* (sorted by field name; §3.5). Field expressions are evaluated in source order per §5.1 and then placed into their canonical positions.
 - Tuple `#(v1, ..., vn)` → tuple `{v1, ..., vn}`.
 - `List(a)` → list.
+- `Map(k, v)` → opaque runtime handle backed by BEAM's `maps` (structural equality on keys, no cross-key ordering guarantee).
+- `Set(a)` → opaque runtime handle backed by the same map primitive.
 - `Address(m)`, `Reply(a)` → opaque runtime handles; foreign code may pass them back to Ernest but cannot inspect them.
 - Foreign values → as produced by foreign code; Ernest does not inspect them.
 - Ernest function values → opaque runtime handles; foreign code may pass them back to Ernest but cannot inspect them.
 
-Same-named constructors of different types share an atom on the wire; the receiving Ernest process's declared type disambiguates. The ABI is fixed per runtime; cross-node transport uses the runtime's external term format for these representations. A foreign implementation that returns a term not matching the declared Ernest type is a fault on the Ernest side per the previous paragraph.
+Same-named constructors of different types share an atom on the wire; the receiving Ernest process's declared type disambiguates. The ABI is fixed per runtime; cross-node transport uses the runtime's external term format for these representations. Canonical field ordering is what makes two nodes that declare the same-named type with reordered fields agree on layout (§3.5, §8.7). A foreign implementation that returns a term not matching the declared Ernest type is a fault on the Ernest side per the previous paragraph.
 
 ### 8.5 Initialization
 
@@ -737,7 +739,7 @@ If forward progress is impossible — every live process is waiting in `receive`
 
 **Content addressing.** Every function, constructor, and type is identified across nodes by a content hash: a hash of its normalized definition together with the hashes of every definition it references. Structurally identical definitions have the same hash on every node; any change — a constructor added, a field renamed, a called function's body altered — changes the hash and, transitively, the hashes of everything that depends on it.
 
-**Recursive definitions.** A function that references itself, or a set of mutually recursive functions or types, is hashed as a group: internal references within the group use positional indices, external references use their hashes, and the group is hashed as a whole. Each member's identity is derived from the group hash. This gives a finite construction and a consistent identity across nodes. Normalization strips local variable names (α-conversion) and the ordering of named fields (§3.5); qualified names of external references are preserved.
+**Recursive definitions.** A function that references itself, or a set of mutually recursive functions or types, is hashed as a group: internal references within the group use positional indices, external references use their hashes, and the group is hashed as a whole. Each member's identity is derived from the group hash. This gives a finite construction and a consistent identity across nodes. Normalization strips local variable names (α-conversion) and sorts named fields into canonical order by name (§3.5 — the same order the ABI uses in §8.4); qualified names of external references are preserved. Because hashing and layout use the same canonical order, two nodes whose declarations of the same-named type differ only in source field order have the same hash *and* the same on-wire layout.
 
 **Dependency resolution.** A shipped closure carries the hashes of the code it needs. Before it runs, the peer resolves every hash transitively: hashes it already has (from an earlier ship, or from its own compilation of an identical definition) are used directly; missing hashes are fetched from the sender and cached. Any resolution failure — a missing dependency, a missing `Sys.x` on the peer (§8.2), an incompatible foreign definition (§4.7), or a fault raised while running `remote`'s callback — surfaces as `Left(PeerLost)` for `remote` and as a caller fault for `spawn(Peer, ...)`, matching §6.2's rule that an unknown or unreachable peer faults the caller. `Left(PeerLost)` signals that this specific `remote` operation did not complete; it does not invalidate other `Address` values held for the same peer, which are only invalidated by actual peer-loss detection (§10). A shipped `send` payload uses the same contract; because `send` returns immediately (§6.2), a resolution failure at the recipient faults the sending process *asynchronously*, after `send`'s return, once the peer runtime reports the failure.
 
@@ -938,7 +940,7 @@ BitSpec     = "size" "(" Expr ")" | "unit" "(" int ")"
 FieldPats   = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 ```
 
-`binop` and `literal` are defined in section 2, along with the other lexical categories; `binop` precedence follows the table there. Every nonterminal is decided by its first token: `let` begins a binding, `fn` a declaration or lambda, `{` a block, `[` a list, `#(` a tuple, `(` a call or parenthesized expression, `<<` a bitstring. In `QName`, after each uppercase token the next token decides: `.` continues the qualification; otherwise the segment is final, and a lowercase final is a function or operator, an uppercase final a constructor. A constructor's fields are positional or named by whether `=` or `:` follows the first identifier. When a `conname` is followed by `(`, the parser consumes the `(...)` as part of `QName`'s optional constructor-fields suffix, not as a subsequent `Call` on the constructor's function value — the two parses have identical value semantics for a single-positional constructor, so the greedy rule is canonical. `conname` and `typename` are one token class; which one a segment is follows from its position.
+`binop` and `literal` are defined in section 2, along with the other lexical categories; `binop` precedence follows the table there. Every nonterminal is decided by its first token: `let` begins a binding, `fn` a declaration or lambda, `{` a block, `[` a list, `#(` a tuple, `(` a call or parenthesized expression, `<<` a bitstring. In `QName`, after each uppercase token the next token decides: `.` continues the qualification; otherwise the segment is final, and a lowercase final is a function or operator, an uppercase final a constructor. A constructor's fields are positional or named by whether `=` or `:` follows the first identifier. When a constructor name is immediately followed by a parenthesized constructor argument, the parser consumes that argument in the constructor branch of `QName`; a single-positional construction has the semantics of calling the constructor's function value. `conname` and `typename` are one token class; which one a segment is follows from its position.
 
 ## Appendix B. Examples
 
@@ -1254,8 +1256,8 @@ Float.ceil       : (Float) -> Int
 Optional.isSome      : (Optional(a)) -> Bool
 Optional.isNone      : (Optional(a)) -> Bool
 Optional.withDefault : (Optional(a), a) -> a
-Optional.map         : (Optional(a), (a) -> b) -> Optional(b)
-Optional.andThen     : (Optional(a), (a) -> Optional(b)) -> Optional(b)
+Optional.map         : (Optional(a), (a) -> b with e) -> Optional(b) with e
+Optional.andThen     : (Optional(a), (a) -> Optional(b) with e) -> Optional(b) with e
 ```
 
 ### Appendix E.11. `Either.ern`
@@ -1264,9 +1266,9 @@ Optional.andThen     : (Optional(a), (a) -> Optional(b)) -> Optional(b)
 Either.isLeft       : (Either(e, a)) -> Bool
 Either.isRight      : (Either(e, a)) -> Bool
 Either.withDefault  : (Either(e, a), a) -> a
-Either.map          : (Either(e, a), (a) -> b) -> Either(e, b)
-Either.mapLeft      : (Either(e, a), (e) -> f) -> Either(f, a)
-Either.andThen      : (Either(e, a), (a) -> Either(e, b)) -> Either(e, b)
+Either.map          : (Either(e, a), (a) -> b with x) -> Either(e, b) with x
+Either.mapLeft      : (Either(e, a), (e) -> f with x) -> Either(f, a) with x
+Either.andThen      : (Either(e, a), (a) -> Either(e, b) with x) -> Either(e, b) with x
 Either.toOptional   : (Either(e, a)) -> Optional(a)
 Either.fromOptional : (Optional(a), e) -> Either(e, a)
 ```

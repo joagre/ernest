@@ -932,6 +932,63 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Fourth-Round Review Response: Canonical Field Order, Injective Tags, Function-Value Init, Underflow, 2026-09-15
+
+Fourth-round review closed most items. Four remaining findings plus a batch of small corrections:
+
+**N01 (High) — Named-field layout must match content-hash normalization.**
+
+Three rules were in tension: (§3.5) named-field order carries no meaning; (§8.7) content hashing strips the ordering; (§8.4) the ABI stores fields in declaration order. Two nodes declaring the same-named type with reordered same-typed fields would agree on hash but disagree on layout — silent field swap on transport.
+
+- **Canonical order = sorted by field name.** Taken. Applies to hashing, ABI storage, cross-node transport. Source-order evaluation of field expressions preserved (§5.1); values are then placed into canonical positions.
+- Rejected: make layout part of type identity (would drop the "declaration order carries no meaning" promise).
+- Rejected: pick some other order (declaration on primary node, alphabetical elsewhere, etc.) — inconsistent.
+
+Effect: §3.5, §8.4, §8.7 all updated.
+
+**N02 (High) — Constructor tag encoding must distinguish `Ready` from `READY`.**
+
+Old rule: atom is lowercase source name. Broken: `type Status = Ready | READY` both map to atom `ready`.
+
+- **Preserve source spelling in a quoted BEAM atom** (e.g., `'Ready'` vs `'READY'`). Taken. Injective mapping; matches BEAM's quoted-atom form.
+- Rejected: hash-suffix atoms (`ready_H1234`) — ugly on wire and expensive to compare.
+- Rejected: refuse case-differing constructor names — a lexical restriction that breaks §2.3's identifier rules.
+
+Effect: §8.4 ABI updates from `c` (lowercase) to `'C'` (source-preserving quoted atom).
+
+**N03 (Medium) — Function-value use before initialization.**
+
+R07's earlier fix caught direct calls but not `invoke(read)` where `read` is passed as a function value. The eventual invocation is through `f`, not a call edge between local named functions.
+
+- **Extend the rule from "called" to "used" (called, obtained as a value, passed, stored, returned, captured).** Taken. Uses references-between-local-fns as the dependency graph — same graph as before, but for uses rather than calls only.
+
+Effect: §5.4 rule broadened.
+
+**N04 (Medium) — Underflow to signed zero is finite, not a fault.**
+
+§3.1 and §7.4 listed "underflow past the smallest subnormal" as a fault. But IEEE gradual underflow rounds tiny results to subnormals or signed zero — zero is finite. `1.0e-300 * 1.0e-300` rounds to positive zero, no fault.
+
+- **Distinguish overflow / div-by-zero of non-zero numerator / `0.0/0.0` / `sqrt(-x)` (fault) from gradual underflow to signed zero (finite, no fault).** Taken. Aligns with IEEE.
+- Rejected: fault on underflow past subnormal — contradicts the finite-only domain (which admits signed zero).
+
+Also added `Int.toFloat` overflow contract: faults on out-of-range integers with `Fault("Int out of Float range")`.
+
+**Small corrections applied:**
+
+- §6.2 spawn example: `fn() : Void with Never = Void` → `fn() -> Void with Never = Void` (grammar requires `->` for return annotation).
+- §8.4 ABI: added `Map(k, v)` and `Set(a)` as opaque runtime handles backed by BEAM's `maps`.
+- §6.6 late answers: qualifier added — cross-node foreign-value fault (§3.8) still applies to `answer`.
+- §7.4 heading: "The total prelude" → "Prelude operations and faults" (body already describes exceptions).
+- §5.3 lambda termination: `,`, `;`, `|`, `)`, `}` list extended to include `]` and `>>` for list/bitstring contexts.
+- Appendix A canonical parse: the sentence for constructor-argument consumption in QName replaced by the reviewer's suggested wording.
+- Appendix E.10/E.11 effect polymorphism: `Optional.map`, `Optional.andThen`, `Either.map`, `Either.mapLeft`, `Either.andThen` signatures now show explicit effect variables.
+
+**Cost.** Eight section edits, five signature updates in Appendix E. No new syntax, no new keyword, no new type-system machinery.
+
+**Principle 1 (least surprise).** Two nodes exchanging a value now have consistent field layout. Two case-differing constructors round-trip distinctly. A local function value used before its captures are initialized is rejected.
+
+**Principle 5 (small).** Canonical order and injective atom mapping are ABI conventions, not new language concepts. The underflow correction removes a spurious fault case.
+
 ## Mint-Condition Audit: Grammar Notes, Main Default, Guide Sync, 2026-09-15
 
 Pre-implementation audit against the "can I write a hand-written recursive-descent + Pratt parser from Appendix A alone?" standard. Findings and their fixes:
