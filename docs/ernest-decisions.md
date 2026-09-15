@@ -932,6 +932,49 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Appendix D (ETS) Fixes: Syntax Sweep and Native Type, 2026-09-15
+
+The reviewer's fourteenth finding: Appendix D (the `Ets.ern` shim) still used pre-sweep syntax in several places, and one raw binding had a native argument-type mismatch that would fail at runtime on BEAM.
+
+**Syntax problems.**
+
+The terminology sweep on 2026-09-15 renamed tuples to require the `#(...)` prefix and the unit type/value to `Void`. Appendix D was not updated at that time. Remnants:
+
+- `(key, value)` on the wire and in the row type — should be `#(key, value)` and `#(k, v)`.
+- `[(_, v)]` in the match pattern for a singleton list — should be `[#(_, v)]`.
+- Three occurrences of the old unit literal `()` at the end of block-let sequences — should be `Void`.
+
+**Native argument-type mismatch.**
+
+`rawNew` was bound to `ets:new/2`:
+
+```
+foreign fn rawNew(name : String, opts : List(Foreign)) -> Ets.Table(k, v) with m = "ets:new/2"
+```
+
+And called as `rawNew("ernest", ...)`. But `ets:new(Name, Options)` on BEAM requires `Name :: atom()` — an atom, not a binary. Since Ernest's `String` is a UTF-8 binary on the ABI (§10), the call would pass `<<"ernest">>` where an atom is expected, and `ets:new` would crash with `badarg`. The Ernest declaration typechecks but the underlying Erlang call is ill-formed.
+
+**Choices weighed:**
+
+- **Pass an atom.** Change the call site to `rawNew(atom("ernest"), ...)` and change the parameter type to `Foreign`. Matches Erlang's expectation and keeps the shim's shape (raw binding is `Foreign`-typed and opaque; the wrapper `Ets.new` presents a typed interface).
+- **Make `rawNew` accept a `String` and let the runtime convert.** Rejected — the ABI (§10) does not silently convert between binaries and atoms, and it should not: `binary_to_atom` allocates in the atom table and is a policy call, not a coercion. The programmer should say when a value crosses that boundary.
+- **Drop the name argument entirely** by wrapping `ets:new/2` under a fixed name in Erlang. Rejected — that reintroduces the Erlang wrapper module the appendix explicitly avoids ("No Erlang module is needed").
+
+Taken: pass an atom through `atom("ernest")`, and re-type the parameter as `Foreign`.
+
+**Effect on Appendix D.**
+
+Six lines changed:
+
+- `rawNew("ernest", ...)` → `rawNew(atom("ernest"), ...)` at the call site.
+- `name : String` → `name : Foreign` in the raw declaration.
+- Three `(k, v)` and `[(_, v)]` → `#(k, v)` and `[#(_, v)]` for the row tuple type/value and the pattern.
+- Three `; ()` → `; Void` at block-let tails.
+
+**Cost.** Six edits, no semantic change. The appendix now typechecks under the current grammar and runs cleanly on BEAM.
+
+**Principle 4 (small).** The shim is a worked example of the foreign story; syntax drift in it undermines that role. Fixed now, and the sweep-index preamble at the top of this document already lists the syntax renames, so future readers see why old syntax elsewhere is a bug rather than a variant.
+
 ## Code Shipping: Dependency, Type-Version, and Runtime-Binding Contracts, 2026-09-15
 
 The reviewer's thirteenth finding: §10 stated "a node ships code to a peer that lacks it, identified by content" as a runtime guarantee, but the report said nothing about *how* the ship works. Three concrete questions were unanswered:

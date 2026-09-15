@@ -959,27 +959,27 @@ foreign type Ets.Table(k, v)
 
 /// A fresh empty table. The table is owned by the current
 /// process and is destroyed when that process dies.
-fn Ets.new() -> Ets.Table(k, v) with m = rawNew("ernest", [atom("set"), atom("public")])
+fn Ets.new() -> Ets.Table(k, v) with m = rawNew(atom("ernest"), [atom("set"), atom("public")])
 
-foreign fn rawNew(name : String, opts : List(Foreign)) -> Ets.Table(k, v) with m = "ets:new/2"
+foreign fn rawNew(name : Foreign, opts : List(Foreign)) -> Ets.Table(k, v) with m = "ets:new/2"
 foreign fn atom(name : String) -> Foreign = "erlang:binary_to_atom/1"
 
 /// Insert or replace the entry for key.
 fn Ets.insert(t : Ets.Table(k, v), key : k, value : v) -> Void with m = {
-    let _ = rawInsert(t, (key, value));
+    let _ = rawInsert(t, #(key, value));
     Void
 }
 
-foreign fn rawInsert(t : Ets.Table(k, v), row : (k, v)) -> Bool with m = "ets:insert/2"
+foreign fn rawInsert(t : Ets.Table(k, v), row : #(k, v)) -> Bool with m = "ets:insert/2"
 
 /// The value for key, or None if absent.
 fn Ets.lookup(t : Ets.Table(k, v), key : k) -> Optional(v) with m =
-    match rawLookup(t, key) { [(_, v)] -> Some(v) | _ -> None }
+    match rawLookup(t, key) { [#(_, v)] -> Some(v) | _ -> None }
 
 foreign fn rawLookup(t : Ets.Table(k, v), key : k) -> List(#(k, v)) with m = "ets:lookup/2"
 
 /// Remove key. A key not present is not an error.
-fn Ets.delete(t : Ets.Table(k, v), key : k) -> Void with m = { let _ = rawDelete(t, key); () }
+fn Ets.delete(t : Ets.Table(k, v), key : k) -> Void with m = { let _ = rawDelete(t, key); Void }
 
 foreign fn rawDelete(t : Ets.Table(k, v), key : k) -> Bool with m = "ets:delete/2"
 
@@ -989,12 +989,12 @@ fn Ets.size(t : Ets.Table(k, v)) -> Int with m = rawInfo(t, atom("size"))
 foreign fn rawInfo(t : Ets.Table(k, v), item : Foreign) -> Int with m = "ets:info/2"
 
 /// Delete the table. All subsequent operations on it fault.
-fn Ets.drop(t : Ets.Table(k, v)) -> Void with m = { let _ = rawDrop(t); () }
+fn Ets.drop(t : Ets.Table(k, v)) -> Void with m = { let _ = rawDrop(t); Void }
 
 foreign fn rawDrop(t : Ets.Table(k, v)) -> Bool with m = "ets:delete/1"
 
 /// Remove all entries, leaving the table empty.
-fn Ets.clear(t : Ets.Table(k, v)) -> Void with m = { let _ = rawClear(t); () }
+fn Ets.clear(t : Ets.Table(k, v)) -> Void with m = { let _ = rawClear(t); Void }
 
 foreign fn rawClear(t : Ets.Table(k, v)) -> Bool with m = "ets:delete_all_objects/1"
 
