@@ -149,7 +149,7 @@ fn Stack.pop(Stack(xs)) = match xs { [] -> None | x :: rest -> Some((x, Stack(re
 
 **Foreign declarations.** `foreign type T` declares a type implemented outside the language. `foreign fn f(params) -> T = "impl"` declares a function whose body is the implementation named by the string, in the runtime's language; parameters and the return are annotated. A foreign function with a mailbox type, `-> T with m`, may do anything; a foreign function without one promises purity: the same result for the same arguments and no effect on anything. The implementation promises the declared types; a value of another shape, or an exception, is a fault, section 7. Foreign code sees values in the runtime's representation, section 10.
 
-**Operators.** An operator name is resolved against the operand type: `+` in `a + b` with `a : Int` means `Int.+`. Both operands must have the same type. Resolution happens before generalization; a function whose operands do not get their type from an annotation, a literal, a pattern, or a call in the same definition is a type error that requires an annotation. Every namespace may define operators for its type. There is no type "number" to generalize over.
+**Operators.** The arithmetic operators (`+`, `-`, `*`, `/`, `%`) and concatenation (`<>`) resolve against the operand type: `+` in `a + b` with `a : Int` means `Int.+`. Both operands must have the same type. Resolution happens before generalization; a function whose operands do not get their type from an annotation, a literal, a pattern, or a call in the same definition is a type error that requires an annotation. Every namespace may define operators for its type. There is no type "number" to generalize over. The comparison operators `==`, `!=`, `<`, `<=`, `>`, `>=` and the Boolean `&&`, `||` are built into the language, not per-namespace: equality is structural (section 3), ordering uses each type's `compare` function, `&&`/`||` short-circuit on `Bool`. `::` is the list cons (section 5); `|>` is a syntactic form (section 5).
 
 ## 5. Expressions
 
@@ -370,13 +370,19 @@ kill                : (Address(a)) -> () with m
 Operations required by the language:
 
 ```
-Int.div, Int.mod : (Int, Int) -> Optional(Int) // section 7: / and % fault on zero;
-                                                   // Int.div and Int.mod return None instead
-Int.compare      : (Int, Int) -> Ordering // section 3: ordering is per type
-Float.compare    : (Float, Float) -> Ordering
-Text.compare     : (Text, Text) -> Ordering
-Char.compare     : (Char, Char) -> Ordering
-todo             : (Text) -> a // section 7: faults if reached
+Int.+, Int.-, Int.*, Int./, Int.%   : (Int, Int) -> Int              // section 4
+Int.negate                          : (Int) -> Int                   // section 5: prefix -
+Float.+, Float.-, Float.*, Float./  : (Float, Float) -> Float
+Float.negate                        : (Float) -> Float
+Text.<>                             : (Text, Text) -> Text           // section 4: <> resolves per type
+List.<>                             : (List(a), List(a)) -> List(a)
+Int.div, Int.mod                    : (Int, Int) -> Optional(Int)    // section 7: / and %
+                                                                     // fault on zero; these do not
+Int.compare                         : (Int, Int) -> Ordering         // section 3: ordering is per type
+Float.compare                       : (Float, Float) -> Ordering
+Text.compare                        : (Text, Text) -> Ordering
+Char.compare                        : (Char, Char) -> Ordering
+todo                                : (Text) -> a                    // section 7: faults if reached
 ```
 
 System references (runtime-provided, section 8):
@@ -671,7 +677,6 @@ List.head        : (List(a)) -> Optional(a)
 List.last        : (List(a)) -> Optional(a)
 List.at          : (List(a), Int) -> Optional(a)
 List.reverse     : (List(a)) -> List(a)
-List.<>          : (List(a), List(a)) -> List(a)
 List.take        : (List(a), Int) -> List(a)
 List.drop        : (List(a), Int) -> List(a)
 List.dropLast    : (List(a)) -> List(a)
@@ -761,7 +766,6 @@ Bool.toText      : (Bool) -> Text // "true" or "false"
 
 ```
 Int.abs          : (Int) -> Int
-Int.negate       : (Int) -> Int
 Int.min          : (Int, Int) -> Int
 Int.max          : (Int, Int) -> Int
 Int.bitAnd       : (Int, Int) -> Int
@@ -778,7 +782,6 @@ Int.toFloat      : (Int) -> Float
 
 ```
 Float.abs        : (Float) -> Float
-Float.negate     : (Float) -> Float
 Float.toText     : (Float) -> Text
 Float.round      : (Float) -> Int // banker's rounding, IEEE 754 default
 Float.floor      : (Float) -> Int
