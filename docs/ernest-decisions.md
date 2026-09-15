@@ -932,6 +932,53 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Block Bindings: Escape Path and Wildcard Rule, 2026-09-15
+
+The reviewer's U02: §4.6's block-binding rule was too strict. It said "if any variable remains free at the block's end, the binding is a type error at its site" — but this rejects two legitimate HM cases:
+
+```
+fn empty() = []            // typechecks; fn generalizes.
+fn namedEmpty() = {
+    let xs = [];           // xs : List(a), 'a' unresolved at block's end
+    xs
+}                          // rejected by the old rule; should be identical to empty().
+```
+
+And a wildcard discard:
+
+```
+let _ = spawn(Local, fn() = ping(pongAddr, 3))
+```
+
+Here `spawn` returns `Address(m')` where `m'` is a fresh polymorphic variable (ping doesn't receive; its mailbox is polymorphic in `ping`'s signature, and the spawned lambda's mailbox inherits that). Under the old rule, `_` binds nothing but the free `m'` was still flagged as unresolved — forcing the programmer to add a fake mailbox annotation just to satisfy the check.
+
+**Choices weighed:**
+
+- **Add an escape path and a wildcard rule to the existing rule.** Taken.
+- **Generalize block `let` like Haskell's `let`.** Would let `namedEmpty`'s `xs` become a polymorphic value locally. Rejected — this is the classic *ML value restriction* problem and its cousins; it complicates the type checker and blurs the pure/effectful boundary. The current rule (`fn` generalizes, block `let` doesn't) is deliberate.
+- **Default the discarded variable to a specific type (e.g., `Never`).** Cheap trick but arbitrary. Rejected — the wildcard is the natural mechanism; making `_` discard cleanly is better than picking a default.
+
+**Effect on §4.6.** The old single-sentence rule is replaced by three explicit resolution paths and a wildcard clause:
+
+- *Resolution by later use*: standard HM, unchanged.
+- *Escape to enclosing scope via the block's result*: a variable appearing in the block's result type is carried out to the surrounding `fn` (or top-level `let`) and generalized there. This is standard HM behavior — the old rule accidentally blocked it.
+- *Explicit annotation*: unchanged.
+- *Wildcard discard*: `let _ = e` does not bind a name, so any unresolved variables in `e` never propagate anywhere and need no resolution.
+
+Also stated: type parameters of the enclosing `fn` are not "unresolved" — they are quantified at their binding site and appear in the block's environment.
+
+**Consequences for existing programs.**
+
+- `namedEmpty` and analogous shapes now typecheck. Users who write `let xs = []; xs` inside a body get the same type as `fn empty() = []`.
+- The revised ping-pong example (`let _ = spawn(Local, fn() = ping(pongAddr, 3))`) typechecks cleanly. No annotation on the spawned lambda needed.
+- Programs that write `let m = Map.empty` and then neither use `m` nor return it still error, because the unification variable is genuinely unconstrained — the rule is only more permissive for legitimate resolutions.
+
+**Cost.** Six lines of prose expanded to about fifteen. No new type-system machinery — the escape path is standard HM; the wildcard rule is one sentence.
+
+**Principle 1 (least surprise).** A reader who knows HM predicts that `fn namedEmpty() = { let xs = []; xs }` should be polymorphic just like `fn empty() = []`. The old rule surprised them. Now the two forms behave identically.
+
+**Principle 3 (nothing invisible).** The wildcard `_` was doing invisible work before — its "does not bind a variable" property was implicit. Now it is explicit in the binding rule.
+
 ## Effect-Variable Kinds: One Kind, Position Controls Admissibility, 2026-09-15
 
 The reviewer's U01 flagged that the earlier §3.9 formulation "position distinguishes kind" was insufficient. Concretely:

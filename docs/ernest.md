@@ -317,7 +317,17 @@ In a block, `let p = e` binds the pattern `p` to the value of `e`; `let p <- e` 
 
 Shadowing is allowed: a later binding of the same name hides the earlier one from the next statement on, and the right-hand side sees the earlier one.
 
-**Free type variables in a binding.** The right-hand side of a `let` may have free type variables — the polymorphic empty values `[]`, `None`, `Map.empty`, `Set.empty`, and calls returning polymorphic values like `Ets.new()` all produce such types. Because the binding is monomorphic, the compiler does not generalize; instead, each free variable is a unification variable that must be pinned down by uses of `p` later in the block. If any variable remains free at the block's end, the binding is a type error at its site. The reader has two ways to fix it: add a type annotation (`let m : Map(String, Int) = Map.empty`) or use `p` in a context that determines the type (`let m = Map.empty; Map.put(m, "a", 1)`).
+**Free type variables in a binding.** A block binding `let p = e` types `p` at `e`'s inferred type. That type may contain unification variables — the polymorphic empty values `[]`, `None`, `Map.empty`, `Set.empty`, and calls returning polymorphic values like `Ets.new()` all introduce them. Because a block binding is monomorphic, the compiler does not generalize at the binding site. Each such variable must be resolved by one of:
+
+- A subsequent use of `p` within the block that pins it. `let m = Map.empty; Map.put(m, "a", 1)` unifies `m`'s type with `Map(String, Int)`.
+- Propagation to the enclosing scope through the block's result type. A variable that appears in the block's result is carried out to the surrounding `fn` (or top-level `let`), where it is generalized by the standard rule. `fn namedEmpty() = { let xs = []; xs }` types as `() -> List(a)`; `[]`'s element type escapes through `xs` to the block's result and is generalized by `fn`.
+- An explicit annotation on the binding, `let m : Map(String, Int) = Map.empty`.
+
+A variable that none of these resolves — not pinned by later uses of `p`, not carried out through the block's result, not annotated — is genuinely unconstrained. That is a type error at the binding's site.
+
+The wildcard binding `let _ = e` is a discard, not a name binding: `_` does not bind a variable, so unification variables in `e`'s type never propagate anywhere and do not need resolution. `let _ = spawn(Local, fn() = worker())` is legal even when the spawned lambda's mailbox type is a fresh polymorphic variable — nothing downstream cares.
+
+Type parameters of the enclosing `fn` (or of any outer scope) are not "unresolved" — they are quantified at their binding site and appear in the block's environment. A binding whose inferred type mentions such a parameter typechecks without needing further resolution.
 
 At top level, a `let` binds a `Name` — possibly qualified — to a value, `let Stack.empty = Stack([])`; the LHS is a name, not a pattern, and `<-` is a block form only. Top-level `let` may generalize its free type variables: `let Stack.empty : Stack(a) = Stack([])` declares a polymorphic value usable at every instantiation of `a`.
 
