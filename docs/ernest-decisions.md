@@ -284,7 +284,7 @@ Ernest is now organized in three layers, made explicit after the discussion prom
 
 **Prelude.** What the language requires to exist because the report references it. Section 9 lists these: `Optional`, `Either`, `Ordering`, `Down`, `Reason`, `ClockMsg`, `RemoteError`, `Foreign`; the built-in parameterized types `List`, `Map`, `Set` (plus `Address`, `Reply`, `Never` covered in section 3); the process operations `via`, `Address.call`, `answer`, `remote`, `monitor`, `kill`; and the specific operations the report calls out — `Int.div`, `Int.mod`, the four `compare` functions, `todo`. Nothing else.
 
-**Standard library.** Ernest code that ships with the compiler and lives on the load path. Section 9 lists the modules; Appendix E documents their exported signatures. `Io.print`, `Io.println`, `Io.printTo`, `Io.printlnTo`; every `List.*` and `Map.*` operation; text and character utilities; numeric utilities; Optional and Either helpers; Foreign inspection. All written in Ernest, using nothing but the language and prelude. A program that never references any of these names does not depend on the standard library; a program that does depends on `stdlib/` being present on the load path.
+**Standard library.** Ernest code that ships with the compiler and lives on the load path. Section 9 lists the modules; Appendix E documents their exported signatures. `Io.print`, `Io.println`, `Io.printTo`, `Io.printlnTo`; every `List.*`, `Map.*`, and `Set.*` operation; text and character utilities; numeric utilities; Optional and Either helpers; Foreign inspection. All written in Ernest, using nothing but the language and prelude. A program that never references any of these names does not depend on the standard library; a program that does depends on `stdlib/` being present on the load path.
 
 The prelude had grown to include roughly forty convenience functions on the built-in container and text types. The realization: none of these are language-required. The report doesn't say `List.map` must exist; the paper programs use it, but that is a program's choice. Moving them to the standard library makes the report smaller, gives implementers a clear boundary — "prelude is what the report needs, stdlib is what the ecosystem provides" — and lets the standard library grow at a different pace from the language.
 
@@ -344,7 +344,7 @@ Appendix E was audited for naming, argument order, and coverage. The growth rule
 - Optional: `withDefault`, `isSome`, `isNone`.
 - Either: `isLeft`, `isRight`, `toOptional`, `withDefault`.
 
-**Deferred to the growth rule.** These would round out the modules but haven't yet been written three times in a paper program: `List.zip/flatMap/concat/range/repeat/foldRight`, `Text.split/trim/replace/startsWith/endsWith/toLower/toUpper`, `Char.toUpper/toLower/isUpper/isLower/isAlphaNum`, `Int.pow`, `Float.sqrt/pow/min/max/truncate`, `Optional.orElse/toList`. `Set` and its operations are also deferred until a paper program uses them (see next entry).
+**Deferred to the growth rule.** These would round out the modules but haven't yet been written three times in a paper program: `List.zip/flatMap/concat/range/repeat/foldRight`, `Set.map/filter/foldLeft`, `Text.split/trim/replace/startsWith/endsWith/toLower/toUpper`, `Char.toUpper/toLower/isUpper/isLower/isAlphaNum`, `Int.pow`, `Float.sqrt/pow/min/max/truncate`, `Optional.orElse/toList`.
 
 **Paper programs updated.** `Map.delete` → `Map.remove` in `ernest-tick-game.md`; `Optional.flatMap` → `Optional.andThen` in `ernest-webserver.md`. The implementation plan's note on `<-` desugaring reads `Optional.andThen` now.
 
@@ -509,6 +509,22 @@ Ernest does not adopt OTP's behaviours — `gen_server`, `gen_statem`, `supervis
 
 - Not a claim that OTP is bad. OTP is the reason Erlang is used in production; its wisdom is real. Ernest's position is that the wisdom lives in patterns programmers can build, not in language mechanisms that constrain everyone. The pattern's shape is Ernest's, the wisdom is inherited.
 - Not a claim that Ernest replaces Erlang. On BEAM, Ernest and Erlang coexist. An Ernest program that needs an Erlang OTP library uses a shim; an Erlang program that needs an Ernest type calls it through the same runtime.
+
+## `Set(a)` Restored, 2026-09-15
+
+`Set(a)` is put back into the prelude and stdlib. This reverses the 2026-09-14 removal (see the *`Set(a)` Removed From the Prelude* entry above).
+
+**Why the removal was wrong.**
+
+The 2026-09-14 removal applied the growth rule ("three uses before promoting to stdlib") to `Set(a)`. That was misuse of the rule. The growth rule is designed to prevent speculative *stdlib convenience functions* — someone adds `List.zipWithIndex` on aesthetic grounds, it accumulates. `Set(a)` is not a convenience function; it is a **fundamental container type** on par with `List(a)` and `Map(k, v)`. The right question is not "have paper programs used it three times?" but "would a reader expect this to exist in a typed FP language on BEAM?"
+
+**Least surprise argues for `Set`.** Every stdlib in every typed FP language provides one: Elm's `Set`, Rust's `HashSet`/`BTreeSet`, Haskell's `Data.Set`, OCaml's `Set`, Gleam's `set`. A reader who wants deduplication, membership testing, or graph-work visited-tracking arrives at Ernest and looks for `Set(a)`. Not finding it is a genuine surprise — exactly what principle 1 rules against. That the four current paper programs don't happen to need it is a fact about the four programs, not about the language.
+
+**The cross-node argument still applies.** `Set(a)` is runtime-provided with structural equality on `a` and cross-node serialization. That's the same standing as `List(a)` and `Map(k, v)`. Making Set a `foreign type` in stdlib would lose cross-node semantics. Keeping it as a built-in prelude type is the coherent design.
+
+**Effect.** §9 prelude regains the `Set(a)` line. §8's "System references" paragraph reads "like `List`, `Map`, and `Set`" again. Appendix E gets a restored §4 `Set.ern`; downstream sections renumber E.5–E.12. README's prelude and stdlib lists gain Set back.
+
+**Rule clarification.** The growth rule applies to *stdlib convenience functions*, not to fundamental container types. Adding `List.zipWithIndex` needs three-uses justification. Adding `Set(a)` doesn't, because a reader expects it. This distinction should have been named in the growth-rule entry originally.
 
 ## `Bool.ern` Added, 2026-09-14
 
