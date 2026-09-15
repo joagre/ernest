@@ -7,11 +7,11 @@ Written against the Ernest report, September 2026. A web server with sessions.
 `ClockMsg` is the report's. `Sys.clock` is an ambient reference (report §8); this paper program additionally assumes the runtime provides `Sys.net : Address(NetMsg)`:
 
 ```
-type Port     = Port(Int)
-type NetMsg   = Listen(port : Port, acceptor : Address(ConnMsg))
-type ConnMsg  = Conn(Address(SockMsg))
-type SockMsg  = Read(reply : Reply(Bytes)) | Write(Bytes) | Close
-type Tick     = Tick
+type Port = Port(Int)
+type NetMsg = Listen(port : Port, acceptor : Address(ConnMsg))
+type ConnMsg = Conn(Address(SockMsg))
+type SockMsg = Read(reply : Reply(Bytes)) | Write(Bytes) | Close
+type Tick = Tick
 ```
 
 ## The Program

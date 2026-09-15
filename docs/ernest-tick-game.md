@@ -8,7 +8,7 @@ The report requires `Sys.stdout` and `Sys.clock` (§8); keys are the runtime's a
 
 ```
 type KeyMsg = Subscribe(Address(Key))
-type Key    = Up | Down | Left | Right | Quit
+type Key = Up | Down | Left | Right | Quit
 
 Sys.keys : Address(KeyMsg) // additional runtime reference
 ```

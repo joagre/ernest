@@ -11,7 +11,7 @@ type FsMsg
     | Write(path : Path, bytes : Bytes, reply : Reply(Either(FsError, ())))
 
 type FsError = NotFound | Denied | Io(Text)
-type Entry   = Entry(path : Path, mtime : Mtime)
+type Entry = Entry(path : Path, mtime : Mtime)
 ```
 
 `ClockMsg` is the report's; `Ordering` is in the prelude. `Sys.stdout` and `Sys.clock` are ambient runtime references (report §8); this paper program additionally assumes the runtime provides `Sys.fs : Address(FsMsg)`. Other assumptions:
