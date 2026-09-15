@@ -18,7 +18,7 @@ The language is built on five principles. Principle 1 is the final arbiter: it a
 
 ## 1. Notation
 
-The grammar is written in EBNF. `=` defines, `|` separates alternatives, `[ ]` is optional, `{ }` is zero or more, `( )` groups, `.` ends a rule. Terminals are quoted. `ident`, `conname`, `typename`, `typevar`, and the literals are defined in section 2. The complete grammar is in Appendix A.
+The grammar is written in Wirth-style EBNF (as in the Modula-2 and Oberon reports). `=` defines, concatenation is juxtaposition (no operator between elements), `|` separates alternatives, `[ ]` is optional, `{ }` is zero or more, `( )` groups, `.` ends a rule. Terminals are quoted. `ident`, `conname`, `typename`, `typevar`, and the literals are defined in section 2. The complete grammar is in Appendix A.
 
 ## 2. Lexical Elements
 
