@@ -64,18 +64,24 @@ Conventions for Ernest source code. Ernest is order-independent at top level, so
 
 - **100-character line limit for code.** Code inside code blocks stays at or under 100 columns. Prose in markdown documents can be longer (renderers wrap it). Split long expressions or arguments across lines rather than let one line run wide.
 
-- **Section banners are three lines, not a horizontal rule.** For section headers inside a module, use a small block-comment banner rather than a comment padded with dashes:
+- **Section banners are three lines, not a horizontal rule.** For section headers inside a module, use a small block-comment banner rather than a comment padded with dashes. Leave a blank line before the opening `//` and a blank line after the closing `//`, so the banner reads as a visual break between sections:
 
     Good:
     ```
+    ...previous section's last declaration
+
     //
     // Processes
     //
+
+    fn firstFnOfNextSection(...) = ...
     ```
 
     Bad:
     ```
+    ...previous section's last declaration
     // Processes ------------------------------------------------
+    fn firstFnOfNextSection(...) = ...
     ```
 
-    The dash-padded form is another kind of alignment padding — it depends on a visual column that shifts if the section name is renamed. The three-line banner is stable, scans clearly, and reads as an intentional block comment rather than a decoration.
+    The dash-padded form is another kind of alignment padding — it depends on a visual column that shifts if the section name is renamed. The three-line banner surrounded by blank lines is stable, scans clearly, and reads as an intentional block comment rather than a decoration.

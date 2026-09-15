@@ -26,6 +26,7 @@ type Entry = Entry(path : Path, mtime : Mtime)
 //
 // Types
 //
+
 type Change = Change(path : Path, mtime : Mtime)
 
 type Ack = Stored | Conflict | Failed(FsError)
@@ -39,6 +40,7 @@ type SyncMsg
 //
 // Program
 //
+
 fn main() -> () with () = {
     let a = spawn(Local, fn() = start(Path("a")));
     let b = spawn(Local, fn() = start(Path("b")));
@@ -49,6 +51,7 @@ fn main() -> () with () = {
 //
 // Processes
 //
+
 // Waiting phase: receive the peer's address, then the loop.
 fn start(dir : Path) -> () with SyncMsg = recv {
     Link(peer) -> { send(self(), Tick); syncer(dir, peer, Map.empty) }
@@ -145,6 +148,7 @@ fn push(peer : Address(SyncMsg), p : Path, m : Mtime, bytes : Bytes) -> () with 
 //
 // Pure helpers
 //
+
 // What has changed since the last snapshot?
 fn diff(old : Map(Path, Mtime), entries : List(Entry)) -> List(Change) =
     List.filterMap(entries, fn(e) = changed(old, e))

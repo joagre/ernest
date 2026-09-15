@@ -20,6 +20,7 @@ type Tick = Tick
 //
 // Types
 //
+
 type Request = Request(method : Text, path : Text, headers : List((Text, Text)))
 type Response = Response(status : StatusCode, headers : List((Text, Text)), body : Text)
 type ParseError = BadEncoding | BadRequestLine | BadHeader(Text)
@@ -40,6 +41,7 @@ opaque type SessionId = SessionId(Text) with {
 //
 // Program
 //
+
 fn main() -> () with () = {
     let sessions = Ets.new();
     let _ = spawn(Local, fn() = sweeper(sessions));
@@ -50,6 +52,7 @@ fn main() -> () with () = {
 //
 // Processes
 //
+
 // The sweeper: clears the session table every ten minutes.
 fn sweeper(sessions : Ets.Table(SessionId, Session)) -> () with Tick = {
     send(Sys.clock, After(ms = 600000, to = via(fn(_) = Tick, self())));
@@ -102,6 +105,7 @@ fn handler(
 //
 // Pure code: HTTP parsing and rendering
 //
+
 fn parse(b : Bytes) -> Either(ParseError, Request) = {
     let t <- Either.fromOptional(Text.fromUtf8(b), BadEncoding);
     let lines = Text.lines(t);
@@ -119,6 +123,7 @@ fn withCookie(name : Text, value : Text, r : Response) -> Response = todo("on pa
 //
 // Opaque-type definitions
 //
+
 let StatusCode.ok = StatusCode(200)
 let StatusCode.notFound = StatusCode(404)
 fn StatusCode.render(StatusCode(n)) = Int.toText(n)
