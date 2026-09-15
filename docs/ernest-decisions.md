@@ -932,6 +932,52 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Guide Rewrite: Crash-Course Structure, All UG Corrections, Upgrade Example, 2026-09-15
+
+The reviewer's guide review flagged twelve items (UG01–UG12) plus editorial repairs. Rather than patch in place, restructured the guide as a seven-stage crash course per UG12, applying all corrections and adding UG11's `Upgrade` demonstration.
+
+**Structural change (UG12).** Old ordering: 0 intro → 1 hello → 2 types → 3 functions → 4 abstract types → 5–7 counter and ping-pong → 8 monitor → 9 via → 10 <- → 11 remote → 12 foreign → 13 bitstrings → 14 toolchain → 15 FAQ. New ordering: 0 orientation → 1 run a program (with `ernc`/`ern` right beside hello-world) → 2 compute with immutable values → 3 pass behavior → 4 run a protocol → 5 manage process lifetime → 6 organize code (modules + abstract types moved here) → 7 cross boundaries (peers, foreign, bitstrings together) → 8 FAQ → 9 reading further. Each stage ends with a prediction exercise.
+
+**Correctness fixes applied:**
+
+- **UG01** — Removed "reveals whether a call can send/receive/fault". §3.4 now says pure functions cannot perform process operations, but can fault or fail to terminate. Error model paragraph added distinguishing values-as-failure (Optional, Either), protocol-message failure, and process-fault + monitoring. §5.2 notes `main`-fault exception to "one process's fault doesn't affect another". §1.2 no longer claims all external effect requires messaging — `foreign fn` is the other explicit boundary.
+
+- **UG02** — Removed `Reply(a)` from wrapper examples (§2.3 mentions it separately as a built-in with special rules, not comparable to `UserId`). §2.3 restated constructor-as-function rule: only single-positional constructors are function values; nullary and named-fields are not. §4.2 lists all six consumption forms (constructor placement, function return added), extends discipline to reply-carrying types, states pattern-match ownership transfer and nullary-case discharge, adds the `twice` counter-example.
+
+- **UG03** — `hypotenuse` → `hypotenuseSquared`. `area(Point(x, y) : Point)` → `Rectangle(width = w, height = h)` with named fields. `let (e, rest) <-` → `let #(e, rest) <-`. Tuple/single-constructor irrefutability made recursive. Pattern rules added: identifiers are fresh bindings, no repeated names within one pattern, guards pure/faulting.
+
+- **UG04** — §3.3 gained inference boundaries: `twice(n)` needs annotation; block `let` monomorphic; arity strictness; local-fn init rule; equality restrictions on Map/Set keys. §3.5 covers effect polymorphism with the `apply` example; distinguishes empty-capable `e` from process-constrained `m` (like `ping`'s). §3.6 states the spawn pure-callback restriction. §2.8 added the parenthesized-lambda-after-pipe rule.
+
+- **UG05** — §4.3 introduces selective receive with `after` syntax, contrasts with exhaustive `match`. §4.4 states four Address.call rules: deadline start, no cancel of recipient work, silent late-answer discard with no tiebreak, private reply mechanism separate from declared mailbox.
+
+- **UG06** — Softened scheduling claims. Counter output stated deterministically as `count is 8` (per-sender FIFO with one sender). Ping-pong stdout output labelled as *one possible successful trace*, with cross-sender scheduling explained. Clock example fixed as one-shot with re-arming shown explicitly. `kill` described through termination reason + monitor notification, no "immediately" implication.
+
+- **UG07** — §6.2 abstract-type access centered on signature. Rejected `Stack.size` (unlisted, mentions constructor) and accepted `Stack.isEmpty` (uses public operations) examples added. Representation-change note qualified to require preserving observable contracts.
+
+- **UG08** — §7.1 restated `remote`'s pure-callback reason as "compute-and-return by design", not "no communication back". "Also pure" removed. §7.2 adds NoRemotePeer vs PeerLost distinction (latter covers resolution failure and callback fault). Code-shipping consequences: `Sys.*` peer resolution, captured-address value preserved, top-level bindings peer-local, remote-send async fault, foreign compat requirement.
+
+- **UG09** — §7.3 "wrong message from a foreign process" clarified as destination's mailbox type. Foreign fault delivered to receiving Ernest process on first observation. §7.5 shim pattern shows why `{ok, V}` doesn't auto-adapt to `Either` under the new §8.4 ABI: raw return declared as `Foreign` and decoded, or Erlang-side helper produces quoted-atom form. Also fixed inherited report inconsistency in Appendix D.
+
+- **UG10** — §7.6 specifiers now include `unit(N)`. Alignment rules stated: total 8-bit alignment for the bitstring; `bits`/`bytes` segments binding `Bytes` must be byte-multiple; sub-octet fields use `int` binding to `Int`. Compile-time vs runtime alignment violation distinguished. `size(Expr)` purity stated; fault propagates. Frame/parseFrame precondition (`len` = body byte count) explained with the example of what `parseFrame(frame(1, <<65, 66>>))` actually returns. "Native speed" replaced with "compiles to BEAM's bit syntax".
+
+- **UG11** — §4.6 explicit code replacement: `Upgrade` constructor with `migrate` and `next` fields, receive clause `k(m(n))`. Stated the extension replaces the earlier declaration.
+
+**Editorial repairs:**
+
+- "That's the whole vocabulary" → "these are the two organizing ideas".
+- §2.4 qualifies `:`/`=` distinction: function result types use `->`.
+- FAQ's n-ary/currying claim replaced with concrete "makes arity visible" reasoning.
+- "under ten pages" and "eight weeks" claims removed.
+- `via` argument order in §5.4 matches signature: converter first, target second.
+- `todo` explained at first use (§6.1).
+- Remote-spawning pointer added instead of "we won't cover here".
+
+**Cost.** Guide dropped from 1150 lines / ~9800 words to 793 lines / ~5600 words — down about 40% in word count while adding selective receive, Address.call rules, higher-order effect example, `Upgrade` demonstration, and the coverage gaps the reviewer flagged.
+
+**What is not in the guide.** Detailed report semantics (content-hash SCC grouping, exact ABI table, `Address.callForever` corner cases) — the guide points to the report for them. Paper-program depth beyond the introduction — the paper programs cover that themselves.
+
+**Related report edit (Appendix D).** Reviewer's UG09 flagged an inherited report inconsistency: Appendix D's intro claimed `{ok, V}` auto-maps to an Ernest sum, contradicting §8.4's quoted-atom rule. Fixed in the same round.
+
 ## Fifth-Round Cleanup: Function Hash Preserves Eval Order, Underflow Threshold, Sqrt Removal, 2026-09-15
 
 Fifth-round review closed N01/N02/N03/N04 core issues. Three precise corrections in the changed wording:
