@@ -332,7 +332,7 @@ export fn Stack.push(x, Stack(xs)) = Stack(x :: xs)
 export fn Stack.pop(Stack(xs)) = match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
 ```
 
-Inside `main.ern` the accessors are written unqualified (`Stack.empty`, `Stack.push`, `Stack.pop`) using the type-name prefix — that is the one qualified-declaration form. External callers see `Main.Stack` for the type and `Main.Stack.push` for the operation, because the file's namespace `Main` prefixes everything the module exports. A module can co-locate multiple abstract types by declaring each alongside the others; each type carries its own nested namespace.
+Inside `main.ern` the accessors are declared with the type-name prefix (`Stack.empty`, `Stack.push`, `Stack.pop`) — the file-namespace prefix `Main.` is still implicit and never written. External callers see `Main.Stack` for the type and `Main.Stack.push` for the operation, because the file's namespace `Main` prefixes everything the module exports. A module can co-locate multiple abstract types by declaring each alongside the others; each type carries its own nested namespace.
 
 ### 4.5 Functions
 
