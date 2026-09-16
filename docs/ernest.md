@@ -858,11 +858,13 @@ Sys.clock        : Address(ClockMsg) // the clock process
 
 ### 11.1 `ernc` (compiler)
 
-`ernc file.ern` compiles a module to `file.erc` — a compiled module the runtime can load, carrying the inferred types of the module's qualified declarations so dependent modules can be type-checked against it. A program is compiled module by module in dependency order; cross-module references link at load.
+`ernc [-o build-dir] file.ern` compiles a module to `file.erc` — a compiled module the runtime can load, carrying the inferred types of the module's qualified declarations so dependent modules can be type-checked against it. `ernc [-o build-dir] src-dir` compiles every `.ern` file under `src-dir` in dependency order, mirroring the source tree into `build-dir`. The output directory (and any missing intermediate subdirectories under it) is created if absent. A program is compiled module by module in dependency order; cross-module references link at load.
+
+**Path shape.** Below any source or build root, every directory component and every `.ern`/`.erc` filename stem must exactly match the lowercase of a valid Ernest typename — a lowercase letter followed by lowercase letters, digits, and underscores. Extensions are exactly `.ern` and `.erc`. `ernc` rejects a source path whose components fail this rule (`lib/Net/http.ern` errors: "path component `Net` must be lowercase"). The rule applies below the root, not to the root itself; `Lib/net/http.ern` is fine.
 
 ### 11.2 `ern` (runner)
 
-`ern [--config-dir dir] [-pa dir ...] file.erc` loads the module and, on demand, the compiled modules on the load path, found by namespace: the compiled module for namespace `A.B.C` is `a/b/c.erc` on the load path, where each path segment is the lowercase of the corresponding namespace segment. `Net.Http.parse` is looked up at `net/http.erc`. The runner starts the system processes, binds their addresses to the `Sys.*` top-level references, and calls `main`. The standard library, Appendix E, is on the load path by default; `-pa` extends it.
+`ern [--config-dir dir] [-pa dir ...] file.erc` loads the module and, on demand, the compiled modules on the load path, found by namespace: the compiled module for namespace `A.B.C` is `a/b/c.erc` on the load path, where each path segment is the lowercase of the corresponding namespace segment. `Net.Http.parse` is looked up at `net/http.erc`. The runner starts the system processes, binds their addresses to the `Sys.*` top-level references, and calls `main`. The standard library, Appendix E, is on the load path by default; `-pa` extends it. The runner enforces the same path-shape rule as `ernc` (§11.1) on load-path directories: any `.erc` file or directory component below a load-path root whose name is not the exact lowercase of a valid Ernest typename is rejected.
 
 `ern --repl` starts a read-evaluate-print loop with the same loading. `--config-dir` names the configuration directory, `./.ernest` by default.
 

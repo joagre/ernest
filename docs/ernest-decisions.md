@@ -932,6 +932,36 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## `ernc` Directory Mode; Output Dir Auto-Creation; Path-Shape Rejection, 2026-09-16
+
+Three toolchain decisions to complete the lowercase-paths story:
+
+**Choices weighed:**
+
+- **`ernc` compiles a whole tree.** Taken. `ernc [-o build-dir] src-dir` walks the source, compiles in dependency order, mirrors the tree under `build-dir`. This avoids recursive-make and keeps dependency tracking in the compiler that already knows the graph.
+- **Auto-create output directories.** Taken. `ernc` runs `mkdir -p` for `build-dir` and any missing intermediates. Matches standard compiler behavior (Rust, Go, etc.); saves users from "output directory does not exist" papercuts.
+- **Rejected: leave directory creation to the user.** Bad ergonomics for a common case; the rare wrong-place-creation is caught by a wrong `-o` argument, not by the OS.
+- **Reject non-lowercase source paths at compile time.** Taken. Consistent with the case-fold-collision compile-time error from the previous entry. `ernc` errors on `lib/Net/http.ern` with a specific message naming the failing component.
+- **Rejected: silently lowercase source paths.** Would leave the on-disk convention wrong and cause confusion in editors and shell tools.
+- **Rejected: warn but accept.** Warnings are ignored; the whole point of the lowercase rule is portability, and portability is not a soft requirement.
+- **Boundary: apply the rule below the source/load root, not to the root itself.** Taken. `Lib/net/http.ern` is fine; `lib/Net/http.ern` is not. The root is the user's choice of packaging location; below the root, the compiler is authoritative.
+
+**Effect on §11.1:**
+
+- Added `-o build-dir` flag and directory-mode: `ernc [-o build-dir] src-dir` compiles the tree.
+- Auto-create output directory and intermediates.
+- New "Path shape" paragraph: each `.ern`/`.erc` filename stem and each intermediate directory component below the root must match `[a-z][a-z0-9_]*`. Extensions are exactly `.ern` and `.erc`. Violation is a compile-time error with a specific message.
+
+**Effect on §11.2:**
+
+- Runner enforces the same path-shape rule on load-path directories. `.erc` files or directories whose names fail the rule are rejected at load.
+
+**Cost.** Two paragraphs (one new in §11.1, one clause added to §11.2). No new mechanism beyond the compiler's existing dependency-graph work.
+
+**Principle 1 (least surprise).** A macOS or Windows developer opening an Ernest project sees `lib/net/http.ern` consistently. The compiler stops silent variants from creeping in.
+
+**Principle 3 (nothing invisible).** Path shape rejection happens loudly at compile time; no hidden lowercasing, no runtime path-search that might succeed for one filesystem and fail for another.
+
 ## Lowercase Load-Path Segments, 2026-09-16
 
 Author noticed that the guide's §6.1 example (`net/Http.ern` under the previously written mirror rule) implied a filesystem convention that would silently break on case-insensitive filesystems (macOS default, Windows). Two Ernest typenames differing only in case (`Http` vs `HTTP`) sit as distinct files on Linux but collide on macOS — a portability trap the language spec should not enable.
