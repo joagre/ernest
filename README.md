@@ -1,6 +1,6 @@
 # Ernest
 
-A functional language for concurrent programs. Two concepts: pure functions with Hindley-Milner types, and processes with typed mailboxes. On BEAM (Erlang OTP 27).
+A functional language for explicit process protocols. Mailbox effects and reply ownership are part of the type system. Two organizing ideas: pure functions with Hindley-Milner types, and processes with typed mailboxes. On BEAM (Erlang OTP 27).
 
 ## Status
 
@@ -25,6 +25,10 @@ Design complete for MVP 1 (single-node subset). Implementation begins with the l
 ### Then, as reference material
 
 - **[`docs/ernest-decisions.md`](docs/ernest-decisions.md)** — dated design decisions and their rationale. What was tried, what was rejected, why the report says what it says. Not normative — the report wins any conflict. Browse as needed; not intended to be read straight through.
+
+- **[`docs/ernest-changelog.md`](docs/ernest-changelog.md)** — consolidated summary of report changes across review rounds. The "what changed since I last looked" entry point for a returning reviewer.
+
+- **[`docs/review-response-r3.md`](docs/review-response-r3.md), [`r4`](docs/review-response-r4.md), [`r5`](docs/review-response-r5.md), [`r6`](docs/review-response-r6.md)** — per-round reviewer responses. Each cover letter acknowledges findings and cites the report sections where the fixes live.
 
 - **[`docs/ernest-implementation-plan.md`](docs/ernest-implementation-plan.md)** — MVP 1 roadmap. About eight weeks of one-person work in Erlang, with a hand-written parser.
 
