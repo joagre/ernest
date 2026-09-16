@@ -118,7 +118,7 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 
 ### 3.1 Integration (3 days)
 
-- Two escripts. `ernc foo.ern` reads, parses, type-checks, compiles, writes `foo.erc`. `ern [--config-dir <dir>] [-pa <dir> ...] foo.erc` starts the system processes, binds their addresses to the `Sys.*` top-level references, calls `main()`; `ern --repl` starts a REPL; `ern --create-config-dir <dir>` creates `<dir>/.ernest/` with `ernest.conf` (JSON: this node's address and public key, an empty peer list) and a private key readable only by the owner, and does nothing else. `--config-dir` defaults to `./.ernest`.
+- Two escripts. `ernc foo.ern` reads, parses, type-checks, compiles, writes `foo.erc`. `ern [--config-dir <dir>] [--load-path <dir> ...] foo.erc` starts the system processes, binds their addresses to the `Sys.*` top-level references, calls `main()`; `ern --repl` starts a REPL; `ern --create-config-dir <dir>` creates `<dir>/.ernest/` with `ernest.conf` (JSON: this node's address and public key, an empty peer list) and a private key readable only by the owner, and does nothing else. `--config-dir` defaults to `./.ernest`.
 - Error format `file:line:column: text`, one line per error.
 - A main module `ern_cli.erl` that orchestrates everything.
 

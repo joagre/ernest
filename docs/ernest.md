@@ -884,7 +884,7 @@ Sys.clock        : Address(ClockMsg) // the clock process
 
 ### 11.2 `ern` (runner)
 
-`ern [--config-dir dir] [-pa dir ...] [--main Qualified.Name] file.erc` loads the module and, on demand, the compiled modules on the load path, found by namespace: the compiled module for namespace `A.B.C` is `a/b/c.erc` on the load path, where each path segment is the lowercase of the corresponding namespace segment. `Net.Http.parse` is looked up at `net/http.erc`. The runner starts the system processes, binds their addresses to the `Sys.*` top-level references, and calls the program's entry point (§8.1). By default the entry point is `export fn main` in the loaded module; `--main Qualified.Name` picks an alternative exported function from anywhere on the load path. The standard library, Appendix E, is on the load path by default; `-pa` extends it. The runner enforces the same path-shape rule as `ernc` (§11.1) on load-path directories: any `.erc` file or directory component below a load-path root whose name is not the exact lowercase of a valid Ernest typename is rejected.
+`ern [--config-dir dir] [--load-path dir ...] [--main Qualified.Name] file.erc` loads the module and, on demand, the compiled modules on the load path, found by namespace: the compiled module for namespace `A.B.C` is `a/b/c.erc` on the load path, where each path segment is the lowercase of the corresponding namespace segment. `Net.Http.parse` is looked up at `net/http.erc`. The runner starts the system processes, binds their addresses to the `Sys.*` top-level references, and calls the program's entry point (§8.1). By default the entry point is `export fn main` in the loaded module; `--main Qualified.Name` picks an alternative exported function from anywhere on the load path. The standard library, Appendix E, is on the load path by default; `--load-path` extends it. The runner enforces the same path-shape rule as `ernc` (§11.1) on load-path directories: any `.erc` file or directory component below a load-path root whose name is not the exact lowercase of a valid Ernest typename is rejected.
 
 `ern --repl` starts a read-evaluate-print loop with the same loading. `--config-dir` names the configuration directory, `./.ernest` by default.
 
@@ -1137,7 +1137,7 @@ The `raw` names have no `export` and are therefore invisible outside the module;
 
 ## Appendix E. Standard Library
 
-Informative, not normative: this appendix lists the modules that ship with the compiler as ordinary Ernest files under `stdlib/`. The standard library is on the load path by default — no `-pa` flag needed. Every program can call `Io.println`, `List.map`, and the rest without any setup. The prelude in section 9 is what the language itself requires; everything below is convenience written in Ernest on top of it.
+Informative, not normative: this appendix lists the modules that ship with the compiler as ordinary Ernest files under `stdlib/`. The standard library is on the load path by default — no `--load-path` flag needed. Every program can call `Io.println`, `List.map`, and the rest without any setup. The prelude in section 9 is what the language itself requires; everything below is convenience written in Ernest on top of it.
 
 ### Appendix E.1. `Io.ern`
 

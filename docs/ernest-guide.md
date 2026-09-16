@@ -37,7 +37,7 @@ $ ern hello.erc          # runs main()
 hello, world
 ```
 
-`ernc` compiles one `.ern` file to a `.erc` compiled module. `ern` loads a compiled module, starts the runtime, binds addresses to the `Sys.*` top-level references (report §8.2), and calls `main()`. The standard library is on the load path by default; `-pa dir` adds more directories.
+`ernc` compiles one `.ern` file to a `.erc` compiled module. `ern` loads a compiled module, starts the runtime, binds addresses to the `Sys.*` top-level references (report §8.2), and calls `main()`. The standard library is on the load path by default; `--load-path dir` adds more directories.
 
 ### 1.1 What the line says
 
@@ -684,7 +684,7 @@ Compile file-by-file and run:
 ```
 $ ernc net/http.ern              # produces net/http.erc
 $ ernc main.ern                  # produces main.erc
-$ ern -pa . main.erc             # -pa adds the current directory to the load path
+$ ern --load-path . main.erc             # --load-path adds the current directory to the load path
 parsed
 ```
 
@@ -692,7 +692,7 @@ Or in directory mode — compile the whole tree and put outputs under `build/`:
 
 ```
 $ ernc -o build .                # walks the source tree, writes build/net/http.erc and build/main.erc
-$ ern -pa build build/main.erc
+$ ern --load-path build build/main.erc
 parsed
 ```
 
