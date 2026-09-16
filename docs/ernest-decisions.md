@@ -932,6 +932,53 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Sixth-Round Review Response: Type-Member Ownership, Concrete Operators, Path Rules, 2026-09-16
+
+Sixth round flagged six items (NR01–NR06) plus small consistency edits.
+
+**NR01 — Type-member namespace ownership.** Under the new module system, `abstract type Stack` in `main.ern` produces the qualified name `Main.Stack.push`, but §11.2's lowercase-path-mirror rule would look for it at `main/stack.erc`. Ambiguous: the operation is compiled into `main.erc`, not a separate file.
+
+- **State ownership in the compiled interface.** Taken. §4.2 now says: "A type-member namespace belongs to the file that declares the type. `abstract type Stack` in `main.ern` (namespace `Main`) means the type `Main.Stack` and every member `Main.Stack.*` is defined by `main.erc`; the compiled interface records that ownership so `Main.Stack.push` loads from `main.erc`, not from a hypothetical `main/stack.erc`." §11.2 mirrors: "For a type-member reference `A.B.C.T.member`, the loader consults the compiled interface of `a/b/c.erc` (which owns type `T`); the loader does not look for `a/b/c/t.erc`."
+- **Collision rule.** Also taken: if `main/stack.ern` declares any `Main.Stack.*` symbol, the two files collide on the same qualified name — compile-time error at load.
+
+**NR02 — Concrete-type operators.** Previous wording said the single-typename declaration prefix was "for abstract-type accessors". §4.8 promises per-type arithmetic operators, but concrete types couldn't declare them under any legal form.
+
+- **Extend the type-name-prefix rule to any locally declared type.** Taken. §4.2 rewritten: "Type-member declarations carry the type's prefix. A locally declared type `T` — whether concrete (§4.3) or abstract (§4.4) — creates a nested namespace `T` inside its module. Members of `T` are declared with `T.` as a single-typename prefix (`fn Distance.+`, `let Stack.empty`, `fn Stack.push`)." §4.4 reworded to make the abstract-type-specific rule an *additional* restriction (signature-listed constructor access), not the whole rule.
+- **§4.8 updated** to cite the concrete example: `export fn Distance.+(Distance(a), Distance(b)) -> Distance = Distance(a + b)`.
+
+**NR03 — Canonical namespace capitalization.** Previous "case-preserving typename form" was under-specified.
+
+- **First-letter-cap, one-to-one with lowercase paths.** Taken. §4.2: "each namespace segment is the *canonical typename form* of the corresponding path segment — the segment with its first ASCII letter uppercased and the rest preserved. `http.ern` → `Http`; `http_server.ern` → `Http_server`; `httpv2.ern` → `Httpv2`."
+- **Case-collision scope clarified.** Applies to path-derived module segments (trivially satisfied under canonical form). Type-member namespace segments are the programmer's choice and may differ in case at their author's discretion.
+
+**NR04 — Output paths and cleanup with an explicit source root.** Reviewer's counterexample: `ernc -I src -o build src/net` should write `build/net/http.erc` (mirroring the source root), not `build/http.erc` (mirroring the argument). Cleanup should not treat `build/main.erc` as orphaned when `src/main.ern` still exists.
+
+- **Explicit formula: `output = build-dir / relpath(source-file, source-root)`.** Taken.
+- **Default `build-dir` = source root when `-o` omitted.** Taken.
+- **Cleanup scope = the build subtree mirroring the compiled source subtree.** Taken. `ernc -I src -o build src/net` sweeps `build/net/`, not `build/`.
+
+**NR05 — Path validation scope.** Reading the previous wording literally, `--load-path .` with `.ernest/` under `.` would reject `.ernest/` as an invalid namespace segment.
+
+- **Apply path shape to files considered as modules only.** Taken. §11.1: "For each `.ern` file the compiler considers as a module, and each intermediate directory component between it and the source root, the name must match [the shape rule]. ... Files outside module consideration (`.ernest/` configuration, README files, editor artifacts) are ignored — the shape rule does not scan a tree looking for offenders, it validates each path that is being compiled or loaded." §11.2 parallel.
+
+**NR06 — Appendix D decoding claim.** Previous text said a shim could decode `{ok, V}` from a raw return via an Ernest `match`. `Foreign` is opaque; ordinary `match` cannot destructure raw atoms.
+
+- **Retract the raw-decode claim.** Taken. Rewrote the paragraph: "An API returning that shape needs a foreign adapter that returns the declared Ernest representation — either an Erlang helper module that rewrites `{ok, V}` to `{'Right', V}` before it crosses the boundary, or explicitly declared foreign decoding functions on the Ernest side. An ordinary Ernest `match` cannot destructure the raw `{ok, _}` term directly."
+- **Rephrased the "An Erlang-side module is needed only to catch" sentence** to apply specifically to this ETS example.
+
+**Small consistency edits:**
+
+- §4.2: local declaration wording now says "the compiler exports it as `Net.Http.parse` *when the declaration is marked `export`*".
+- §4.4: signature-listed constructor access separated from `export` visibility. A signature entry can be private (no `export`) if used only inside the module.
+- Appendix E headings: `Io.ern` → `io.ern` (namespace `Io`), same for `List.ern`, `Map.ern`, `Set.ern`, `String.ern`, `Char.ern`, `Bool.ern`, `Int.ern`, `Float.ern`, `Optional.ern`, `Either.ern`, `Foreign.ern`. File names in lowercase per §11.1; namespace spelling remains capitalized.
+- Appendix F glossary: `Reply(a)` entry expanded to list all six consumption forms and note the reply-carrying-types extension. `top-level binding` entry distinguishes user-declared (module-scoped, with `export` for external visibility) from runtime-provided (`Sys.*`, prelude, in scope everywhere).
+
+**Cost.** Six paragraph-level edits plus Appendix E heading sweep plus two glossary rewrites. No new grammar production; the type-member-prefix rule was already in `DeclName` (single-typename prefix), the change is that concrete types can use it too.
+
+**Principle 1 (least surprise).** A reader can now predict, from a qualified name like `Main.Stack.push`, which file compiles it and where the loader finds it — from a rule the report states rather than by filesystem probing.
+
+**Principle 2 (one way).** The type-member-prefix rule applies uniformly to concrete and abstract types; §4.4 adds a restriction (signature-listed constructor access) on top of the general rule instead of being a separate rule.
+
 ## `ernc` Directory-Mode Cleans Stale `.erc` Outputs, 2026-09-16
 
 Author asked whether `ernc` should delete `.erc` outputs in `build/` whose source `.ern` no longer exists under `src/`. Real risk: `ern` finds `.erc` files by namespace-to-path mapping on the load path, so a stale `.erc` for a deleted source silently gets loaded and linked against current sources — silent version skew, mysterious runtime errors.

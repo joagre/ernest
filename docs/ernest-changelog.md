@@ -105,10 +105,12 @@ Preserved from the earliest rounds:
 ### Modules, namespaces, and `main` (§4.2, §4.4, §8.1) — most recent round
 
 - **Files are namespaces.** A file at `a/b/c.ern` under the source root provides declarations at namespace `A.B.C`.
+- **Canonical typename form.** Each namespace segment is the first-letter-cap of the corresponding path segment (`http.ern` → `Http`, `http_server.ern` → `Http_server`). One-to-one with the lowercase path.
 - **Declarations use local names.** `export fn parse(...)` in `net/http.ern` exports as `Net.Http.parse`. The file-namespace prefix is never written at declaration sites.
 - **`export` marks cross-module visibility.** Applies to `fn`, `type`, `abstract type`, `let`, `foreign fn`, `foreign type`. Constructor visibility follows the enclosing type.
-- **Abstract-type accessors** carry the type-name prefix (`fn Stack.push(...)`) — the one qualified-declaration form; file-namespace prefix is still implicit.
-- **Case rules:** path segments are lowercase; two typenames whose lowercase forms coincide is a compile-time error. Portable across case-insensitive filesystems.
+- **Type-member declarations** — any locally declared type `T`, concrete or abstract, creates a nested namespace `T`. Members are declared with `T.` prefix (`fn Distance.+`, `fn Stack.push`). The file-namespace prefix is still implicit.
+- **Module ownership of type-member namespaces.** `Main.Stack.push` is compiled into the same `.erc` as `Main.Stack` (the enclosing module's), not a hypothetical `main/stack.erc`. The compiled interface records ownership so the loader routes qualified references correctly.
+- **Case rules:** path segments are lowercase; the canonical typename form is the source of truth. Two path segments whose lowercase forms coincide is a compile-time error. Portable across case-insensitive filesystems.
 - **`main` is a naming convention.** Any file's `export fn main() -> Void with m` is an entry-point candidate. `ern module.erc` looks up `main` in the loaded module; `--main Qualified.Name` overrides. Multiple entry-point modules per project.
 - **No "root namespace" concept.** The prelude occupies the unnamed top; every user file is at some namespace.
 
@@ -116,9 +118,11 @@ Preserved from the earliest rounds:
 
 - `ernc [-I src-root] [-o build-dir] file.ern` — single-file compile with explicit source root and output directory.
 - `ernc [-I src-root] [-o build-dir] src-dir` — directory mode: walks the tree in dependency order, mirrors outputs, creates missing directories.
-- Build-directory cleanup after successful directory-mode build: `.erc` files whose mirror source is gone are removed, along with directories that become empty. `--no-clean` disables.
-- Path-shape rejection below any source or load-path root: filename stems and directory components must be lowercase typename form.
+- **Output path formula:** `output = build-dir / relpath(source-file, source-root)`. When `-o` is omitted, `build-dir` defaults to the source root.
+- **Cleanup scope:** the sweep is confined to the subtree mirroring the compiled source subtree. `ernc -I src -o build src/net` sweeps `build/net/`, not `build/`. `--no-clean` disables.
+- Path-shape rejection applies only to `.ern` files the compiler considers as modules (and their intermediate directories to the source root). Unrelated content under the tree (`.ernest/`, `README.md`, editor artifacts) is ignored.
 - `ern [--config-dir dir] [--load-path dir ...] [--main Qualified.Name] file.erc` — runner. `--load-path` replaces the previous `-pa`.
+- **Type-member loading:** `A.B.C.T.member` uses the compiled interface of `a/b/c.erc` (which owns type `T`), not `a/b/c/t.erc`.
 
 ## Where to look for specific things
 

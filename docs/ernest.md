@@ -294,9 +294,11 @@ A *module* is a single Ernest source file, ending in `.ern`. It is the unit of c
 
 ### 4.2 Namespaces and visibility
 
-**Files are namespaces.** A module's file path determines its namespace: a source file at `a/b/c.ern` under the source root provides declarations at namespace `A.B.C`, where each namespace segment is the case-preserving typename form of the corresponding path segment. Path segments are lowercase (§11.1); two namespace segments in the same program whose lowercase forms coincide (`Http` and `HTTP`) is a compile-time error. A file at the source root (no directory prefix) is at a single-segment namespace: `main.ern` provides declarations at namespace `Main`, `net.ern` at namespace `Net`, and so on. Every user declaration lives at *some* namespace; the top of the hierarchy — where `List`, `Optional`, `send`, and the other prelude names live — is provided by the runtime, not by user code.
+**Files are namespaces.** A module's file path determines its namespace: a source file at `a/b/c.ern` under the source root provides declarations at namespace `A.B.C`. Each namespace segment is the *canonical typename form* of the corresponding path segment — the segment with its first ASCII letter uppercased and the rest preserved. `http.ern` → `Http`; `main.ern` → `Main`; `http_server.ern` → `Http_server`; `httpv2.ern` → `Httpv2`. Path segments are lowercase (§11.1), so the canonical form is deterministic and one-to-one: the compiler and the loader agree on the same spelling for any given file. Every user declaration lives at some namespace determined by its file's path; the top of the hierarchy — where `List`, `Optional`, `send`, and the other prelude names live — is provided by the runtime, not by user code.
 
-**Declarations are local; `export` marks the boundary.** A top-level declaration in a module is written with its *local* name — no file-namespace prefix. `fn parse(...)` inside `net/http.ern` is one declaration; the compiler exports it as `Net.Http.parse`. The reserved word `export` marks a declaration as visible from other modules; without `export`, the declaration is private to its module.
+The case-collision rule of §11.1 applies to path segments; because canonicalization is one-to-one with lowercase paths, distinct files always yield distinct module-namespace segments. Type-member namespaces (§4.4) are declared by their type name inside a module and are not derived from paths; their case is the programmer's choice, and two type names that differ only in case within one program are permitted at their author's discretion.
+
+**Declarations are local; `export` marks the boundary.** A top-level declaration in a module is written with its *local* name — no file-namespace prefix. `fn parse(...)` inside `net/http.ern` is one declaration; the compiler exports it as `Net.Http.parse` *when the declaration is marked `export`*. Without `export`, the declaration is private to its module. The reserved word `export` is the only visibility marker.
 
 ```
 // net/http.ern
@@ -307,7 +309,9 @@ fn helper(x) = ...        // private to net/http.ern
 
 External callers write `Net.Http.parse` and `Net.Http.Request`; the file-namespace prefix appears at *use* sites, never at declarations. Two exported declarations with the same qualified name anywhere in the program are an error. There is no export list, no `pub`, and no `import`.
 
-**Abstract-type accessors carry the type's prefix.** An abstract type `T` declared in a module creates a nested namespace `T` inside that module; the signature-listed accessor functions are declared with `T.` as prefix and exported at that nested namespace. This is the one case where `fn` and `let` declarations carry a typename prefix on their name — the prefix is always a single abstract-type name declared in the same module, never the file-namespace path. §4.4 gives the full rule.
+**Type-member declarations carry the type's prefix.** A locally declared type `T` — whether concrete (§4.3) or abstract (§4.4) — creates a nested namespace `T` inside its module. Members of `T` are declared with `T.` as a single-typename prefix (`fn Distance.+`, `let Stack.empty`, `fn Stack.push`). This is the one case where `fn` and `let` declarations carry a typename prefix on their name; the prefix is always a single locally-declared type name, never the file-namespace path. Abstract types add a constructor-access restriction to this rule (§4.4): only the definitions listed in the `with { ... }` signature may name the constructor.
+
+**Module ownership of type-member namespaces.** A type-member namespace belongs to the file that declares the type. `abstract type Stack` in `main.ern` (namespace `Main`) means the type `Main.Stack` and every member `Main.Stack.*` is defined by `main.erc`; the compiled interface records that ownership so `Main.Stack.push` loads from `main.erc`, not from a hypothetical `main/stack.erc`. Another file cannot contribute members to a type-member namespace it does not own: `main/stack.ern` would provide the module namespace `Main.Stack`, and any declaration `Main.Stack.push` from that file conflicts with the one owned by `main.ern` — a compile-time error at load, reported as a duplicate export.
 
 **Unqualified lookup inside a body.** A name written unqualified in a function body is looked up in this order: the module's local declarations (whether or not `export`ed); the abstract-type namespace of the enclosing declaration, if any; and the prelude. Anything not found there must be qualified. The constructor of an abstract type is hidden from definitions outside its signature.
 
@@ -317,7 +321,9 @@ External callers write `Net.Http.parse` and `Net.Http.Request`; the file-namespa
 
 ### 4.4 Abstract types
 
-`abstract type T = ... with { s1; s2 }` declares a type whose constructors may appear only in the definitions of the names given by the signatures. The type creates a nested namespace `T` inside its module: the signature `push : (a, Stack(a)) -> Stack(a)` refers to a definition of `Stack.push` in the same module. Accessor definitions carry the type name as a single-segment prefix (`fn Stack.push(...)`) — the one case where declarations use a qualified name; the file-namespace prefix (§4.2) is still implicit. The definitions are checked against the signatures and do not repeat the type. The constructor outside these definitions is a type error. The signature delimits who sees the constructor, not which functions may exist for the type.
+`abstract type T = ... with { s1; s2 }` declares a type whose constructors may appear only in the definitions of the names listed in the signature. The type creates a nested namespace `T` inside its module, following the general rule of §4.2: members of `T` are declared with `T.` as prefix (`fn Stack.push(...)`, `let Stack.empty`), and the compiler exports each member at `Module.T.member` when the declaration is marked `export`. Abstract types add one restriction on top of that general rule: only the definitions named in the `with { ... }` signature may mention the constructor. Concrete types (§4.3) can have members too — `fn Distance.+`, `fn Distance.compare` — without the constructor-access restriction, because a concrete type's constructor is always visible.
+
+The definitions are checked against the signatures and do not repeat the type. The signature `with { push : (a, Stack(a)) -> Stack(a); ... }` grants signature access to definitions of `Stack.push`; each such definition is separately marked `export` (or left private) at declaration. A helper listed in the signature can be private to the module (no `export`) if it is used only inside the module; a helper not listed cannot mention the constructor at all.
 
 ```
 // main.ern  (namespace Main)
@@ -374,7 +380,7 @@ Both `foreign type` and `foreign fn` may be prefixed with `export` to make them 
 
 ### 4.8 Operators
 
-The arithmetic operators (`+`, `-`, `*`, `/`, `%`) and concatenation (`<>`) resolve against the operand type: `+` in `a + b` with `a : Int` means `Int.+`. Both operands must have the same type. Every namespace may define operators for its type. There is no type "number" to generalize over.
+The arithmetic operators (`+`, `-`, `*`, `/`, `%`) and concatenation (`<>`) resolve against the operand type by looking up the operator in the type's type-member namespace: `+` in `a + b` with `a : Int` means `Int.+`; with `a : Distance` (a concrete user type) means `Distance.+`. Both operands must have the same type. A user type gets its own operators by declaring them under the type's prefix in the module that declares the type, `export fn Distance.+(Distance(a), Distance(b)) -> Distance = Distance(a + b)`. There is no type "number" to generalize over.
 
 Resolution happens before generalization; a function whose operands do not get their type from an annotation, a literal, a pattern, or a call in the same definition is a type error that requires an annotation.
 
@@ -874,17 +880,17 @@ Sys.clock        : Address(ClockMsg) // the clock process
 
 ### 11.1 `ernc` (compiler)
 
-`ernc [-I src-root] [-o build-dir] file.ern` compiles a module to `file.erc` — a compiled module the runtime can load, carrying the inferred types of the module's exported declarations so dependent modules can be type-checked against it. `ernc [-I src-root] [-o build-dir] src-dir` compiles every `.ern` file under `src-dir` in dependency order, mirroring the source tree into `build-dir`. The output directory (and any missing intermediate subdirectories under it) is created if absent. A program is compiled module by module in dependency order; cross-module references link at load.
+`ernc [-I src-root] [-o build-dir] file.ern` compiles a module to `file.erc` — a compiled module the runtime can load, carrying the inferred types of the module's exported declarations so dependent modules can be type-checked against it. `ernc [-I src-root] [-o build-dir] src-dir` compiles every `.ern` file under `src-dir` in dependency order, mirroring the source tree into `build-dir`. Missing intermediate directories under `build-dir` are created; `build-dir` defaults to the source root when `-o` is omitted. A program is compiled module by module in dependency order; cross-module references link at load, resolved against `.erc` files at the corresponding paths under `build-dir` and any `--load-path` roots.
 
-**Source root.** The compiler needs a base directory from which each file's path yields its namespace (§4.2). `-I src-root` names it explicitly; without `-I`, single-file mode uses the current directory, and directory mode uses the directory passed to `ernc`. A file at `src-root/a/b/c.ern` produces namespace `A.B.C`; a file directly at `src-root/x.ern` produces the single-segment namespace `X`.
+**Source root and output path.** The compiler needs a base directory from which each file's path yields its namespace (§4.2). `-I src-root` names it explicitly; without `-I`, single-file mode uses the current directory, and directory mode uses the directory passed to `ernc`. Compilation output always mirrors the *source root*, not the directory argument: for a file at path `p` under `src-root`, the output is `build-dir/relpath(p, src-root)` with `.ern` replaced by `.erc`. `ernc -I src -o build src/net` compiles the `src/net` subtree, but writes `src/net/http.ern` → `build/net/http.erc` (relative to `src`), not `build/http.erc`.
 
-**Path shape.** Below any source or build root, every directory component and every `.ern`/`.erc` filename stem must exactly match the lowercase of a valid Ernest typename — a lowercase letter followed by lowercase letters, digits, and underscores. Extensions are exactly `.ern` and `.erc`. `ernc` rejects a source path whose components fail this rule (`lib/Net/http.ern` errors: "path component `Net` must be lowercase"). The rule applies below the root, not to the root itself; `Lib/net/http.ern` is fine.
+**Path shape (Ernest modules only).** For each `.ern` file the compiler considers as a module, and each intermediate directory component between it and the source root, the name must match the lowercase of a valid Ernest typename — a lowercase letter followed by lowercase letters, digits, and underscores. Extensions are exactly `.ern` and `.erc`. `ernc` rejects a source path whose components fail this rule (`lib/Net/http.ern` errors: "path component `Net` must be lowercase"). The rule applies below the root, not to the root itself; `Lib/net/http.ern` is fine. Files outside module consideration (`.ernest/` configuration, README files, editor artifacts) are ignored — the shape rule does not scan a tree looking for offenders, it validates each path that is being compiled or loaded.
 
-**Build-directory cleanup.** After a successful directory-mode compilation, `ernc` walks the build directory and removes any `.erc` file whose mirror-path `.ern` no longer exists under the source directory, together with any directory that becomes empty as a result. Only `.erc` files and empty directories are removed; any other file in the build directory (documentation, tarballs, editor artifacts) is left alone. This keeps the load path free of stale `.erc` outputs that would otherwise be found by `ern` and linked against current sources. `--no-clean` disables the sweep for the rare case where stale outputs must be retained. Single-file mode does not sweep.
+**Build-directory cleanup.** After a successful directory-mode compilation, `ernc` walks the build subtree that mirrors the compiled source subtree and removes any `.erc` file whose mirror `.ern` no longer exists under `src-root`, together with any directory that becomes empty as a result. `ernc -I src -o build src/net` sweeps `build/net/`, not `build/` as a whole — `build/main.erc` is left alone because it does not lie under `build/net/`. When the compiled subtree *is* the source root, the sweep is project-wide. Only `.erc` files and empty directories are removed; any other file in the build directory (documentation, tarballs, editor artifacts) is left alone. `--no-clean` disables the sweep. Single-file mode does not sweep.
 
 ### 11.2 `ern` (runner)
 
-`ern [--config-dir dir] [--load-path dir ...] [--main Qualified.Name] file.erc` loads the module and, on demand, the compiled modules on the load path, found by namespace: the compiled module for namespace `A.B.C` is `a/b/c.erc` on the load path, where each path segment is the lowercase of the corresponding namespace segment. `Net.Http.parse` is looked up at `net/http.erc`. The runner starts the system processes, binds their addresses to the `Sys.*` top-level references, and calls the program's entry point (§8.1). By default the entry point is `export fn main` in the loaded module; `--main Qualified.Name` picks an alternative exported function from anywhere on the load path. The standard library, Appendix E, is on the load path by default; `--load-path` extends it. The runner enforces the same path-shape rule as `ernc` (§11.1) on load-path directories: any `.erc` file or directory component below a load-path root whose name is not the exact lowercase of a valid Ernest typename is rejected.
+`ern [--config-dir dir] [--load-path dir ...] [--main Qualified.Name] file.erc` loads the module and, on demand, the compiled modules on the load path, found by namespace: the compiled module for namespace `A.B.C` is `a/b/c.erc` on the load path, where each path segment is the lowercase of the corresponding namespace segment. `Net.Http.parse` is looked up at `net/http.erc`. For a type-member reference `A.B.C.T.member`, the loader consults the compiled interface of `a/b/c.erc` (which owns type `T`); the loader does *not* look for `a/b/c/t.erc`. The runner starts the system processes, binds their addresses to the `Sys.*` top-level references, and calls the program's entry point (§8.1). By default the entry point is `export fn main` in the loaded module; `--main Qualified.Name` picks an alternative exported function from anywhere on the load path. The standard library, Appendix E, is on the load path by default; `--load-path` extends it. The runner applies the same path-shape rule as `ernc` (§11.1): each `.erc` file it opens as a module, and each directory component along the module path from a load-path root to that file, must match the shape rule. Files and directories the loader does not consider as modules (configuration, non-module artifacts) are unaffected — `--create-config-dir .` producing `.ernest/` under the current directory does not conflict with `--load-path .`.
 
 `ern --repl` starts a read-evaluate-print loop with the same loading. `--config-dir` names the configuration directory, `./.ernest` by default.
 
@@ -1061,7 +1067,7 @@ fn submitter(worker : Address(WorkerMsg)) -> Void with Never = {
 
 ## Appendix D. A Foreign Library
 
-A shim over Erlang's `ets`, tables of type `set`. Raw bindings are module-local (unqualified); the library is ordinary Ernest over them. The BEAM values `ets` returns line up with Ernest's ABI (§8.4) here without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and Erlang's `[{K, V}]` matches `List(#(k, v))`. Erlang's `{ok, V} | {error, R}` convention uses lowercase atoms `ok` and `error`, which under §8.4 do *not* map to Ernest's `Ok(v)` / `Error(r)` constructors (whose canonical encoding is `{'Ok', v}` / `{'Error', r}`, quoted and source-preserving). A shim that wants `Either` from a `{ok, _} | {error, _}` API therefore decodes the raw return with a `match` (or wraps the call in an Erlang helper that produces the quoted-atom form). The `ets` calls used below don't use that convention, so no adapter is needed here.
+A shim over Erlang's `ets`, tables of type `set`. Raw bindings are module-local (unqualified); the library is ordinary Ernest over them. The BEAM values `ets` returns line up with Ernest's ABI (§8.4) here without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and Erlang's `[{K, V}]` matches `List(#(k, v))`. Erlang's `{ok, V} | {error, R}` convention uses lowercase atoms `ok` and `error`, which under §8.4 do *not* map to Ernest's `Ok(v)` / `Error(r)` constructors (whose canonical encoding is `{'Ok', v}` / `{'Error', r}`, quoted and source-preserving). An API returning that shape needs a foreign adapter that returns the declared Ernest representation — either an Erlang helper module that rewrites `{ok, V}` to `{'Right', V}` before it crosses the boundary, or explicitly declared foreign decoding functions on the Ernest side. An ordinary Ernest `match` cannot destructure the raw `{ok, _}` term directly: `Foreign` is opaque (Appendix E.12) and Ernest has no atom-decomposition pattern. The `ets` calls used below don't use that convention, so no adapter is needed here.
 
 ```
 // ets.ern  (namespace Ets)
@@ -1133,13 +1139,13 @@ export fn main() -> Void with Never = {
 }
 ```
 
-The `raw` names have no `export` and are therefore invisible outside the module; the exported `Ets.*` interface is what callers see. `Ets.Table(k, v)` has type parameters the implementation never sees: `Ets.insert(t, "a", 1)` fixes `t` to `Ets.Table(String, Int)`, and an insert with other types on the next line is a type error. Every operation has a mailbox type, `size` and `member` included, because they read state that others write. `atom` is pure: the same text gives the same atom. An Erlang-side module is needed only to catch: a raw function that throws is a fault, and a shim that wants `Either` instead must `try` in Erlang, since Ernest cannot. What the type cannot say, the declaration's documentation must: a table lives until `Ets.drop`, or until the process that created it dies.
+The `raw` names have no `export` and are therefore invisible outside the module; the exported `Ets.*` interface is what callers see. `Ets.Table(k, v)` has type parameters the implementation never sees: `Ets.insert(t, "a", 1)` fixes `t` to `Ets.Table(String, Int)`, and an insert with other types on the next line is a type error. Every operation has a mailbox type, `size` and `member` included, because they read state that others write. `atom` is pure: the same text gives the same atom. No Erlang wrapper module is needed for this particular `ets` API because its raw returns already have Ernest-compatible shapes; an API using the `{ok, _} | {error, _}` convention would need one, as the introduction to this appendix notes. What the type cannot say, the declaration's documentation must: a table lives until `Ets.drop`, or until the process that created it dies.
 
 ## Appendix E. Standard Library
 
 Informative, not normative: this appendix lists the modules that ship with the compiler as ordinary Ernest files under `stdlib/`. The standard library is on the load path by default — no `--load-path` flag needed. Every program can call `Io.println`, `List.map`, and the rest without any setup. The prelude in section 9 is what the language itself requires; everything below is convenience written in Ernest on top of it.
 
-### Appendix E.1. `Io.ern`
+### Appendix E.1. `io.ern` (namespace `Io`)
 
 Output helpers. The plain forms send to `Sys.stdout` (section 8); the `*To` forms take an explicit `Address(String)`, useful for logging to a mailbox that is not stdout.
 
@@ -1151,7 +1157,7 @@ Io.printTo    : (Address(String), String) -> Void with m
 Io.printlnTo  : (Address(String), String) -> Void with m // appends "\n"
 ```
 
-### Appendix E.2. `List.ern`
+### Appendix E.2. `list.ern` (namespace `List`)
 
 Container-first operations over `List(a)`.
 
@@ -1179,7 +1185,7 @@ List.sort        : (List(a), (a, a) -> Ordering with e) -> List(a) with e
 List.remove      : (List(a), a) -> List(a) // requires equality on a (§3.10)
 ```
 
-### Appendix E.3. `Map.ern`
+### Appendix E.3. `map.ern` (namespace `Map`)
 
 Container-first operations over `Map(k, v)`.
 
@@ -1197,7 +1203,7 @@ Map.map          : (Map(k, v), (k, v) -> w with e) -> Map(k, w) with e
 Map.foldLeft     : (Map(k, v), b, (b, k, v) -> b with e) -> b with e
 ```
 
-### Appendix E.4. `Set.ern`
+### Appendix E.4. `set.ern` (namespace `Set`)
 
 Container-first operations over `Set(a)`.
 
@@ -1215,7 +1221,7 @@ Set.fromList     : (List(a)) -> Set(a)
 Set.toList       : (Set(a)) -> List(a)
 ```
 
-### Appendix E.5. `String.ern`
+### Appendix E.5. `string.ern` (namespace `String`)
 
 ```
 String.size        : (String) -> Int // number of code points
@@ -1230,7 +1236,7 @@ String.lines       : (String) -> List(String)
 String.all         : (String, (Char) -> Bool with e) -> Bool with e
 ```
 
-### Appendix E.6. `Char.ern`
+### Appendix E.6. `char.ern` (namespace `Char`)
 
 ```
 Char.isDigit     : (Char) -> Bool
@@ -1240,14 +1246,14 @@ Char.toString      : (Char) -> String
 Char.toInt       : (Char) -> Int // Unicode code point
 ```
 
-### Appendix E.7. `Bool.ern`
+### Appendix E.7. `bool.ern` (namespace `Bool`)
 
 ```
 Bool.not         : (Bool) -> Bool
 Bool.toString      : (Bool) -> String // "true" or "false"
 ```
 
-### Appendix E.8. `Int.ern`
+### Appendix E.8. `int.ern` (namespace `Int`)
 
 ```
 Int.abs          : (Int) -> Int
@@ -1263,7 +1269,7 @@ Int.toString       : (Int) -> String
 Int.toFloat      : (Int) -> Float
 ```
 
-### Appendix E.9. `Float.ern`
+### Appendix E.9. `float.ern` (namespace `Float`)
 
 ```
 Float.abs        : (Float) -> Float
@@ -1273,7 +1279,7 @@ Float.floor      : (Float) -> Int
 Float.ceil       : (Float) -> Int
 ```
 
-### Appendix E.10. `Optional.ern`
+### Appendix E.10. `optional.ern` (namespace `Optional`)
 
 ```
 Optional.isSome      : (Optional(a)) -> Bool
@@ -1283,7 +1289,7 @@ Optional.map         : (Optional(a), (a) -> b with e) -> Optional(b) with e
 Optional.andThen     : (Optional(a), (a) -> Optional(b) with e) -> Optional(b) with e
 ```
 
-### Appendix E.11. `Either.ern`
+### Appendix E.11. `either.ern` (namespace `Either`)
 
 ```
 Either.isLeft       : (Either(e, a)) -> Bool
@@ -1296,7 +1302,7 @@ Either.toOptional   : (Either(e, a)) -> Optional(a)
 Either.fromOptional : (Optional(a), e) -> Either(e, a)
 ```
 
-### Appendix E.12. `Foreign.ern`
+### Appendix E.12. `foreign.ern` (namespace `Foreign`)
 
 ```
 Foreign.toInt    : (Foreign) -> Optional(Int)
@@ -1354,7 +1360,7 @@ Every technical term this report introduces, with the section that defines it. P
 - **qualified name** — a name with a dotted namespace prefix, `Net.Http.parse`. §2.3, §4.2.
 - **`receive`** — a match over the mailbox. §6.3.
 - **remote computation** — `remote(f)` and `parallelRemote(fs)` evaluate pure functions on peers. §6.7.
-- **`Reply(a)`** — a one-shot address for the answer to a request; linear inside a `receive` clause. §3.7, §6.6.
+- **`Reply(a)`** — a one-shot address for the answer to a request. Reply-carrying: consumed exactly once by `answer`, delegation to a reply-carrying parameter, `send`, placement into a constructor or tuple, return from a reply-carrying return type, or capture in a `spawn`-lambda. The discipline propagates to any type transitively containing a `Reply`. §3.7, §6.6.
 - **reserved word** — one of seventeen keywords. §2.4.
 - **runtime** — the system that runs Ernest programs; BEAM. §10.
 - **`self`** — `self()`, the current process's own address. §6.2.
@@ -1364,7 +1370,7 @@ Every technical term this report introduces, with the section that defines it. P
 - **sum type** — a type with one or more constructors. §3.5.
 - **system reference** — a top-level address in `Sys.*`, wired by the runtime. §8.2.
 - **tail position** — the last expression of a block, `match` clause, or `receive` clause; guaranteed TCO. §10.
-- **top-level binding** — a value in scope everywhere at the top level. §0, §8.2.
+- **top-level binding** — a value bound at file scope by a `let` (§4.6) or provided by the runtime (§8.2). A user-declared top-level binding is visible in its own module under its local name; external modules see it at the file's qualified name when marked `export`. Runtime-provided top-level bindings (`Sys.stdout`, prelude values) are in scope everywhere. §0, §8.2.
 - **tuple** — a positional product, `#(a, b)`, `#(a, b, c)`, `#(a)`. §3.2.
 - **type variable** — a lowercase identifier in type position; universally quantified in a `fn`. §3.9.
 - **`Void`** — a type with the single value `Void`; the prelude's stand-in for "no meaningful return." §3.1, §9.3.
