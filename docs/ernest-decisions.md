@@ -932,6 +932,27 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## `ernc` Directory-Mode Cleans Stale `.erc` Outputs, 2026-09-16
+
+Author asked whether `ernc` should delete `.erc` outputs in `build/` whose source `.ern` no longer exists under `src/`. Real risk: `ern` finds `.erc` files by namespace-to-path mapping on the load path, so a stale `.erc` for a deleted source silently gets loaded and linked against current sources — silent version skew, mysterious runtime errors.
+
+**Choices weighed:**
+
+- **Clean sweep of stale `.erc` after successful directory-mode build.** Taken. Only `.erc` files and directories that become empty are removed. Extension-scoped so the user's non-Ernest files in `build/` are safe.
+- **Leave stale outputs; require `rm -rf build/` manually.** Rejected. Silent version skew is worse than automatic cleanup for a tool that owns its output extension.
+- **Manifest file listing produced outputs.** Rejected. Adds hidden state; a wrong or missing manifest fails silently. The source-tree + build-tree + extension rule is self-explanatory.
+- **Delete any file not currently produced.** Rejected. Would nuke user files (READMEs, tarballs, editor backups) placed under `build/`.
+
+Taken: extension-scoped cleanup. `--no-clean` for the rare "keep stale outputs" case.
+
+**Effect on §11.1:** one new paragraph ("Build-directory cleanup"). Cleanup applies only in directory mode (`ernc [-o build] src-dir`), not single-file mode. Only `.erc` files and directories that become empty after removing them are touched; any other file is left alone.
+
+**Cost.** One paragraph in the report. Implementation: one walk over `build/` after compilation.
+
+**Principle 1 (least surprise).** A user who removes a source file and rebuilds gets a `build/` that mirrors the source. No detective work to figure out why an obsolete function is still being called.
+
+**Principle 3 (nothing invisible).** The compiler's ownership of `.erc` is stated. The user knows exactly what will be removed and what won't.
+
 ## `main` De-Specialization; Source Root; No More "Root Namespace", 2026-09-16
 
 Author noticed that "root namespace" appeared in several places (guide §6.1, report §4.2) without being defined. The term was overloaded:
