@@ -932,6 +932,32 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## Lowercase Load-Path Segments, 2026-09-16
+
+Author noticed that the guide's §6.1 example (`net/Http.ern` under the previously written mirror rule) implied a filesystem convention that would silently break on case-insensitive filesystems (macOS default, Windows). Two Ernest typenames differing only in case (`Http` vs `HTTP`) sit as distinct files on Linux but collide on macOS — a portability trap the language spec should not enable.
+
+**Choices weighed:**
+
+- **Case-preserved paths (`Net/Http.erc`).** Direct mirror of qualified names, zero mental translation. Rejected — silent portability failure across filesystems.
+- **Lowercase paths (`net/http.erc`) with compile-time case-fold-collision error.** Portable across all mainstream filesystems; `Http` and `HTTP` in the same program produce a compile-time error regardless of OS. Aligns with BEAM's own lowercase-atom module names. Small mental translation between code and paths, comparable to Java's package-vs-class case rule.
+- **Some case-preserved, some lowercased.** Rejected — a partial rule needs its own conventions and would surprise readers more than either uniform rule.
+
+Taken: lowercase paths, with case-fold collision as a compile-time error.
+
+**Effect on the report:**
+
+- §4.2: `Net/Http.ern` → `net/http.ern`; `Net/Http/Header.ern` → `net/http/header.ern`. Added: "namespace segments are typenames in the source, and path segments on the load path are their lowercase forms; two namespace segments in the same program whose lowercase forms coincide is a compile-time error."
+- §11.2: replaced the example-only mention with a rule: "the compiled module for namespace `A.B.C` is `a/b/c.erc` on the load path, where each path segment is the lowercase of the corresponding namespace segment."
+- Guide §6.1 updated to match (paths lowercased; the compile-time collision noted).
+
+**Why this preserves the file-beside-directory (Java-style) layout (§A of the earlier discussion):** the change is purely path-casing. `Net.foo` still lives in `net.ern` at the top level, `Net.Http.foo` still lives in `net/http.ern`. Only the casing of the path components changed.
+
+**Cost.** Two sentence rewrites in the report, two in the guide. No new mechanism.
+
+**Principle 1 (least surprise).** A macOS developer trying an example a Linux developer wrote no longer hits a filesystem mystery; the case-fold rule is caught at compile time on every OS.
+
+**Principle 5 (small).** The one-sentence rule replaces implicit convention.
+
 ## Guide Round 3: Example Repairs, Setup Concreteness, Small Wording, 2026-09-15
 
 Third-round guide review closed most concerns. Three example repairs plus small edits applied:

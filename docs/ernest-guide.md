@@ -663,7 +663,7 @@ An Ernest program is one or more modules. A module is a `.ern` source file; its 
 Two modules:
 
 ```
-// Net/Http.ern
+// net/http.ern
 type Net.Http.Request = Request(method : String, path : String)
 
 fn Net.Http.parse(s : String) -> Optional(Net.Http.Request) =
@@ -682,15 +682,15 @@ fn main() -> Void with Never = match Net.Http.parse("GET /") {
 Compile in dependency order and run:
 
 ```
-$ ernc Net/Http.ern
+$ ernc net/http.ern
 $ ernc main.ern
 $ ern -pa . main.erc              # -pa adds the current directory to the load path
 parsed
 ```
 
-References *across* modules use the qualified name — no `import`, no export list, no `pub`. A declaration `A.B.C.name` belongs exclusively to `A/B/C.ern`; `Net.Http.Header.parse` would live in `Net/Http/Header.ern`, not in `Net/Http.ern`.
+References *across* modules use the qualified name — no `import`, no export list, no `pub`. A declaration `A.B.C.name` belongs exclusively to `a/b/c.ern`, where each path segment is the lowercase of the corresponding namespace segment. So `Net.Http.parse` lives in `net/http.ern`; `Net.Http.Header.parse` would live in `net/http/header.ern`, not in `net/http.ern`. Two typenames whose lowercase forms coincide (`Http` and `HTTP`, say) is a compile-time error.
 
-Inside a module, unqualified names look up first among the module's own unqualified declarations, then in the enclosing namespace, then in the prelude. So `parse` written unqualified inside `Net/Http.ern` finds a local helper `fn parse(...)` if one exists, and only qualified names cross module boundaries. `fn helper(x) = ...` is visible only inside its own module.
+Inside a module, unqualified names look up first among the module's own unqualified declarations, then in the enclosing namespace, then in the prelude. So `parse` written unqualified inside `net/http.ern` finds a local helper `fn parse(...)` if one exists, and only qualified names cross module boundaries. `fn helper(x) = ...` is visible only inside its own module.
 
 ### 6.2 Abstract types
 
@@ -898,7 +898,7 @@ Answer: the runtime faults the sending process asynchronously, after `send` has 
 
 **Why is there no `import`?**
 
-Every top-level declaration's *qualified name* is where it lives. A declaration `A.B.C.name` is in `A/B/C.ern`; code anywhere refers to it by that full name. Unqualified names are private to their module. No `import`, no `pub`, no export list.
+Every top-level declaration's *qualified name* is where it lives. A declaration `A.B.C.name` is in `a/b/c.ern` — each path segment is the lowercase of the corresponding namespace segment. Code anywhere refers to the declaration by its full name (`A.B.C.name`), not its path. Unqualified names are private to their module. No `import`, no `pub`, no export list.
 
 **Why parenthesized lambdas after `|>`?**
 
