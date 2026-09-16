@@ -679,14 +679,24 @@ export fn main() -> Void with Never = match Net.Http.parse("GET /") {
 }
 ```
 
-Compile in dependency order and run:
+Compile file-by-file and run:
 
 ```
-$ ernc net/http.ern
-$ ernc main.ern
-$ ern -pa . main.erc              # -pa adds the current directory to the load path
+$ ernc net/http.ern              # produces net/http.erc
+$ ernc main.ern                  # produces main.erc
+$ ern -pa . main.erc             # -pa adds the current directory to the load path
 parsed
 ```
+
+Or in directory mode — compile the whole tree and put outputs under `build/`:
+
+```
+$ ernc -o build .                # walks the source tree, writes build/net/http.erc and build/main.erc
+$ ern -pa build build/main.erc
+parsed
+```
+
+Directory mode compiles in dependency order automatically, creates missing subdirectories under `build/`, and removes stale `.erc` outputs whose source is gone (`--no-clean` disables the sweep). It's the recommended pattern once a project has more than one file.
 
 **The file's path is its namespace.** A file at `a/b/c.ern` provides declarations at namespace `A.B.C`; each path segment lowercases the corresponding namespace segment. `net/http.ern` is namespace `Net.Http`; `main.ern` at the source root is namespace `Main`. Every user declaration lives at some namespace determined by its file's path. Two typenames whose lowercase forms coincide (`Http` and `HTTP`, say) is a compile-time error.
 
