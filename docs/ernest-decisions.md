@@ -932,6 +932,42 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## `main` De-Specialization; Source Root; No More "Root Namespace", 2026-09-16
+
+Author noticed that "root namespace" appeared in several places (guide §6.1, report §4.2) without being defined. The term was overloaded:
+
+1. The **prelude and built-ins** (`List`, `Optional`, `send`, ...) — unnamed top of the hierarchy provided by the runtime.
+2. **`main.ern`** — where I had claimed the file's declarations weren't nested under any typename.
+
+Under strict file-mirrors-namespace (§4.2), `main.ern` at the source root should map to namespace `Main` (typename form of the filename stem), same as any other file. The claim that `main.ern` was at "root" was a special case that predated the file-mirrors-namespace rule.
+
+**Choices weighed:**
+
+- **Keep `main.ern` as a special-case root file.** Rejected. Adds an ad-hoc rule to the module system; §8.1 already contradicted §4.2 on this point.
+- **De-specialize `main`.** Taken. `main` is a naming convention; any file can declare `export fn main`. Runtime picks via `ern module.erc` (defaults to the loaded module's `main`) or `ern --main Qualified.Name` override.
+- **Require `--main` at every run.** Rejected. More explicit but verbose for the common case; the default-plus-override pattern matches Java, Node, Rust binaries.
+
+**What changes.**
+
+- **§8.1 rewritten.** Entry point is a `fn () -> Void with m` in any module. Runtime resolves it as `export fn main` in the loaded module, or via `--main Qualified.Name`. Multiple entry-point modules per project are legal (a service main, a migration main, a bench main).
+- **§4.2 clarified.** Every user declaration lives at some namespace determined by its file's path. A file at the source root has a single-segment namespace (`main.ern` at namespace `Main`, `net.ern` at `Net`). The prelude occupies the unnamed top of the hierarchy — provided by the runtime, not by user code.
+- **§11.1 gains an `-I src-root` flag** explicitly. Namespace is derived from path relative to the source root; default is the current directory (single-file mode) or the directory passed to directory mode.
+- **§11.2 gains `--main Qualified.Name` flag.** Default entry is `export fn main` in the loaded module.
+
+**Ripple effects:**
+
+- Every existing `fn main() = ...` in paper programs, guide checkpoints, and Appendix B examples now needs `export` — otherwise `ern` can't find it. `sed` handled the mechanical rename.
+- Guide §1.1: "`main` is special" → "`main` is the conventional entry-point name".
+- Guide §6.1 example: comments changed from `// main.ern  (root namespace)` to `// main.ern  (namespace Main)`. Added an "Entry point" paragraph explaining `ern` lookup and `--main`.
+- Guide §6.2 Stack example: acknowledged that external names would be `Main.Stack.push` because `main.ern`'s namespace `Main` prefixes everything. Internal use is unchanged.
+- §4.4 abstract types example updated to reflect the namespace.
+
+**Cost.** ~30 lines edited across the report and guide, sed pass on paper programs. No new mechanism; a simplification of an inconsistency.
+
+**Principle 2 (one way).** File-mirrors-namespace is the single rule. `main.ern` is no longer an exception.
+
+**Principle 1 (least surprise).** A reader looking at `main.ern` no longer wonders why its rules differ from every other file. `main` is just a function name that the runtime looks up.
+
 ## `export` Keyword; Declarations Use Local Names, 2026-09-16
 
 Under strict file-mirrors-namespace (R17), every qualified declaration repeated its file's path prefix — `fn Net.Http.parse` in `net/http.ern`. Redundant with the path enforcement itself.

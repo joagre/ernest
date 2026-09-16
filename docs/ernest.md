@@ -294,7 +294,7 @@ A *module* is a single Ernest source file, ending in `.ern`. It is the unit of c
 
 ### 4.2 Namespaces and visibility
 
-**Files are namespaces.** A module's file path determines its namespace: a source file at `a/b/c.ern` provides declarations at namespace `A.B.C`, where each namespace segment is the case-preserving typename form of the corresponding path segment. Path segments are lowercase (§11.1); two namespace segments in the same program whose lowercase forms coincide (`Http` and `HTTP`) is a compile-time error. `main.ern` is a special file at the root — its declarations are in the root namespace, and its `main` function is the runtime entry point (§8.1).
+**Files are namespaces.** A module's file path determines its namespace: a source file at `a/b/c.ern` under the source root provides declarations at namespace `A.B.C`, where each namespace segment is the case-preserving typename form of the corresponding path segment. Path segments are lowercase (§11.1); two namespace segments in the same program whose lowercase forms coincide (`Http` and `HTTP`) is a compile-time error. A file at the source root (no directory prefix) is at a single-segment namespace: `main.ern` provides declarations at namespace `Main`, `net.ern` at namespace `Net`, and so on. Every user declaration lives at *some* namespace; the top of the hierarchy — where `List`, `Optional`, `send`, and the other prelude names live — is provided by the runtime, not by user code.
 
 **Declarations are local; `export` marks the boundary.** A top-level declaration in a module is written with its *local* name — no file-namespace prefix. `fn parse(...)` inside `net/http.ern` is one declaration; the compiler exports it as `Net.Http.parse`. The reserved word `export` marks a declaration as visible from other modules; without `export`, the declaration is private to its module.
 
@@ -320,7 +320,7 @@ External callers write `Net.Http.parse` and `Net.Http.Request`; the file-namespa
 `abstract type T = ... with { s1; s2 }` declares a type whose constructors may appear only in the definitions of the names given by the signatures. The type creates a nested namespace `T` inside its module: the signature `push : (a, Stack(a)) -> Stack(a)` refers to a definition of `Stack.push` in the same module. Accessor definitions carry the type name as a single-segment prefix (`fn Stack.push(...)`) — the one case where declarations use a qualified name; the file-namespace prefix (§4.2) is still implicit. The definitions are checked against the signatures and do not repeat the type. The constructor outside these definitions is a type error. The signature delimits who sees the constructor, not which functions may exist for the type.
 
 ```
-// main.ern (root namespace)
+// main.ern  (namespace Main)
 export abstract type Stack(a) = Stack(List(a)) with {
     empty : Stack(a);
     push : (a, Stack(a)) -> Stack(a);
@@ -332,7 +332,7 @@ export fn Stack.push(x, Stack(xs)) = Stack(x :: xs)
 export fn Stack.pop(Stack(xs)) = match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
 ```
 
-Placed in `main.ern` at the root, the type is externally `Stack` and its operations are `Stack.empty`, `Stack.push`, `Stack.pop`. A module can co-locate multiple abstract types by declaring them alongside each other; each type carries its own nested namespace. When an abstract type is packaged in a namespaced file, its external name inherits the file's namespace — a `Foo` type in `bar.ern` (namespace `Bar`) is externally `Bar.Foo` and its operations are `Bar.Foo.*`.
+Inside `main.ern` the accessors are written unqualified (`Stack.empty`, `Stack.push`, `Stack.pop`) using the type-name prefix — that is the one qualified-declaration form. External callers see `Main.Stack` for the type and `Main.Stack.push` for the operation, because the file's namespace `Main` prefixes everything the module exports. A module can co-locate multiple abstract types by declaring each alongside the others; each type carries its own nested namespace.
 
 ### 4.5 Functions
 
@@ -691,7 +691,9 @@ Partial operations in the prelude generally return `Optional` or `Either`. The o
 
 ### 8.1 `main`
 
-A program is a set of modules with exactly one function `main : () -> Void with m` for some `m`, unqualified, called by the runtime. Nothing sends to `main` that it has not given its address to. `m` is `Never` when `main` only spawns and sends; a specific message type when `main` receives; polymorphic when `main` uses `Address.call` without its own receive protocol. When `m` is left polymorphic in the source, the runtime instantiates it to `Never` — the main process's mailbox is send-only unless the program explicitly gives out `self()`.
+A program's entry point is a `fn () -> Void with m` for some `m`. Nothing sends to the entry point that it has not given its address to. `m` is `Never` when the entry only spawns and sends; a specific message type when it receives; polymorphic when it uses `Address.call` without its own receive protocol. When `m` is left polymorphic in the source, the runtime instantiates it to `Never` — the main process's mailbox is send-only unless the program explicitly gives out `self()`.
+
+The runtime resolves the entry point at launch: `ern module.erc` looks up `export fn main` in the module compiled from that `.erc`; `ern --main Qualified.Name module.erc` picks an alternative exported name from the load path. The function's local name and its qualified name are ordinary. `main` is a naming convention, not a reserved specialness — any file can declare its own `export fn main` and be run as an entry point. A project can have multiple entry-point modules (a service main, a migration main, a bench main) each in its own file.
 
 ### 8.2 System references
 
@@ -872,13 +874,15 @@ Sys.clock        : Address(ClockMsg) // the clock process
 
 ### 11.1 `ernc` (compiler)
 
-`ernc [-o build-dir] file.ern` compiles a module to `file.erc` — a compiled module the runtime can load, carrying the inferred types of the module's qualified declarations so dependent modules can be type-checked against it. `ernc [-o build-dir] src-dir` compiles every `.ern` file under `src-dir` in dependency order, mirroring the source tree into `build-dir`. The output directory (and any missing intermediate subdirectories under it) is created if absent. A program is compiled module by module in dependency order; cross-module references link at load.
+`ernc [-I src-root] [-o build-dir] file.ern` compiles a module to `file.erc` — a compiled module the runtime can load, carrying the inferred types of the module's exported declarations so dependent modules can be type-checked against it. `ernc [-I src-root] [-o build-dir] src-dir` compiles every `.ern` file under `src-dir` in dependency order, mirroring the source tree into `build-dir`. The output directory (and any missing intermediate subdirectories under it) is created if absent. A program is compiled module by module in dependency order; cross-module references link at load.
+
+**Source root.** The compiler needs a base directory from which each file's path yields its namespace (§4.2). `-I src-root` names it explicitly; without `-I`, single-file mode uses the current directory, and directory mode uses the directory passed to `ernc`. A file at `src-root/a/b/c.ern` produces namespace `A.B.C`; a file directly at `src-root/x.ern` produces the single-segment namespace `X`.
 
 **Path shape.** Below any source or build root, every directory component and every `.ern`/`.erc` filename stem must exactly match the lowercase of a valid Ernest typename — a lowercase letter followed by lowercase letters, digits, and underscores. Extensions are exactly `.ern` and `.erc`. `ernc` rejects a source path whose components fail this rule (`lib/Net/http.ern` errors: "path component `Net` must be lowercase"). The rule applies below the root, not to the root itself; `Lib/net/http.ern` is fine.
 
 ### 11.2 `ern` (runner)
 
-`ern [--config-dir dir] [-pa dir ...] file.erc` loads the module and, on demand, the compiled modules on the load path, found by namespace: the compiled module for namespace `A.B.C` is `a/b/c.erc` on the load path, where each path segment is the lowercase of the corresponding namespace segment. `Net.Http.parse` is looked up at `net/http.erc`. The runner starts the system processes, binds their addresses to the `Sys.*` top-level references, and calls `main`. The standard library, Appendix E, is on the load path by default; `-pa` extends it. The runner enforces the same path-shape rule as `ernc` (§11.1) on load-path directories: any `.erc` file or directory component below a load-path root whose name is not the exact lowercase of a valid Ernest typename is rejected.
+`ern [--config-dir dir] [-pa dir ...] [--main Qualified.Name] file.erc` loads the module and, on demand, the compiled modules on the load path, found by namespace: the compiled module for namespace `A.B.C` is `a/b/c.erc` on the load path, where each path segment is the lowercase of the corresponding namespace segment. `Net.Http.parse` is looked up at `net/http.erc`. The runner starts the system processes, binds their addresses to the `Sys.*` top-level references, and calls the program's entry point (§8.1). By default the entry point is `export fn main` in the loaded module; `--main Qualified.Name` picks an alternative exported function from anywhere on the load path. The standard library, Appendix E, is on the load path by default; `-pa` extends it. The runner enforces the same path-shape rule as `ernc` (§11.1) on load-path directories: any `.erc` file or directory component below a load-path root whose name is not the exact lowercase of a valid Ernest typename is rejected.
 
 `ern --repl` starts a read-evaluate-print loop with the same loading. `--config-dir` names the configuration directory, `./.ernest` by default.
 
@@ -969,7 +973,7 @@ type CounterMsg
     | Get(reply : Reply(Int))
     | Upgrade(migrate : (Int) -> Int, next : (Int) -> Void with CounterMsg)
 
-fn main() -> Void with m = {
+export fn main() -> Void with m = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
@@ -990,7 +994,7 @@ fn counter(n : Int) -> Void with CounterMsg = receive {
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 type MainMsg = PongDone(Down)
 
-fn main() -> Void with MainMsg = {
+export fn main() -> Void with MainMsg = {
     let pongAddr = spawn(Local, fn() = pong());
     let _ = spawn(Local, fn() = ping(pongAddr, 3));
     monitor(pongAddr, PongDone);
@@ -1115,7 +1119,7 @@ export foreign fn toList(t : Table(k, v)) -> List(#(k, v)) with m = "ets:tab2lis
 ```
 
 ```
-fn main() -> Void with Never = {
+export fn main() -> Void with Never = {
     let t = Ets.new();
     Ets.insert(t, "a", 1);
     Ets.insert(t, "b", 2);

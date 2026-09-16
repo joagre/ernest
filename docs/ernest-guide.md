@@ -26,7 +26,7 @@ That generates `./.ernest/` with `ernest.conf` (network address, public key, emp
 Now the program itself, `hello.ern`:
 
 ```
-fn main() -> Void with Never = Io.println("hello, world")
+export fn main() -> Void with Never = Io.println("hello, world")
 ```
 
 Compile and run:
@@ -41,7 +41,7 @@ hello, world
 
 ### 1.1 What the line says
 
-`fn` starts a function definition. `main` is special — it is the function the runtime calls when the program starts.
+`fn` starts a function definition. `main` is the conventional entry-point name — `ern module.erc` looks for `export fn main` in the loaded module and invokes it. The hello-world program declares one; larger projects can pick alternatives with `ern --main Foo.Bar` (see §6).
 
 `-> Void` is the return type. `Void` is a type with one value, also called `Void`; it means "no interesting result." `main` in this program does its work, then returns `Void`.
 
@@ -54,8 +54,8 @@ hello, world
 Consider two variations on hello-world:
 
 ```
-fn main() = Io.println("hello, world")             // (a) no annotation
-fn main() -> Void = Io.println("hello, world")     // (b) declared pure
+export fn main() = Io.println("hello, world")             // (a) no annotation
+export fn main() -> Void = Io.println("hello, world")     // (b) declared pure
 ```
 
 Which of these compile?
@@ -455,7 +455,7 @@ For no-timeout callers, `Address.callForever(addr, mk)` waits as long as needed 
 ### 4.5 Running the counter
 
 ```
-fn main() -> Void with m = {
+export fn main() -> Void with m = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
@@ -506,7 +506,7 @@ fn doublingCounter(n : Int) -> Void with CounterMsg = receive {
 And a `main` that upgrades after the first `Get`:
 
 ```
-fn main() -> Void with m = {
+export fn main() -> Void with m = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
@@ -541,7 +541,7 @@ The counter is enough for one process. Two processes need coordination.
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 type MainMsg = PongDone(Down)
 
-fn main() -> Void with MainMsg = {
+export fn main() -> Void with MainMsg = {
     let pongAddr = spawn(Local, fn() = pong());
     let _ = spawn(Local, fn() = ping(pongAddr, 3));
     monitor(pongAddr, PongDone);
@@ -672,8 +672,8 @@ export fn parse(s : String) -> Optional(Request) =
 ```
 
 ```
-// main.ern  (root namespace)
-fn main() -> Void with Never = match Net.Http.parse("GET /") {
+// main.ern  (namespace Main)
+export fn main() -> Void with Never = match Net.Http.parse("GET /") {
     Some(req) -> Io.println("parsed")
   | None -> Io.println("bad request")
 }
@@ -688,20 +688,22 @@ $ ern -pa . main.erc              # -pa adds the current directory to the load p
 parsed
 ```
 
-**The file's path is its namespace.** A file at `a/b/c.ern` provides declarations at namespace `A.B.C`; each path segment lowercases the corresponding namespace segment. `net/http.ern` is namespace `Net.Http`. Two typenames whose lowercase forms coincide (`Http` and `HTTP`, say) is a compile-time error.
+**The file's path is its namespace.** A file at `a/b/c.ern` provides declarations at namespace `A.B.C`; each path segment lowercases the corresponding namespace segment. `net/http.ern` is namespace `Net.Http`; `main.ern` at the source root is namespace `Main`. Every user declaration lives at some namespace determined by its file's path. Two typenames whose lowercase forms coincide (`Http` and `HTTP`, say) is a compile-time error.
 
 **Declarations use local names.** Inside `net/http.ern`, `export fn parse(...)` declares the function at its local name `parse`; the compiler exports it as `Net.Http.parse`. There is no file-namespace prefix on the declaration itself — repeating `Net.Http.` on every line would just restate the file's path.
 
 **`export` marks the boundary.** A declaration prefixed with `export` is visible from other modules; a declaration without `export` is private to its own file. No `import`, no export list, no `pub`.
 
-**External references use the qualified name.** A caller outside `net/http.ern` writes `Net.Http.parse`. Inside `net/http.ern`, unqualified `parse` refers to the local declaration. `main.ern` is a root-namespace file, so its `main` and any other declarations there are at the top level.
+**External references use the qualified name.** A caller outside `net/http.ern` writes `Net.Http.parse`. Inside `net/http.ern`, unqualified `parse` refers to the local declaration.
+
+**Entry point.** `ern main.erc` looks up `export fn main` in the loaded module and invokes it. `main` is a naming convention, not a reserved specialness — any file's `export fn main` can be an entry point. `ern --main Foo.Bar module.erc` picks an alternative exported name from the load path, useful for a project with multiple entry points (a service main, a migration main, a bench main) each in its own module.
 
 ### 6.2 Abstract types
 
 Abstract types have a private representation and a public signature. Only definitions named in the signature can mention the constructor. An abstract type creates a nested namespace inside its module — the accessor definitions carry the type name as a single-segment prefix. This is the one place a declaration uses a qualified name; everything else is unqualified in-file:
 
 ```
-// main.ern  (root namespace)
+// main.ern  (namespace Main)
 export abstract type Stack(a) = Stack(List(a)) with {
     empty : Stack(a);
     push : (a, Stack(a)) -> Stack(a);
@@ -713,6 +715,8 @@ export fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) = Stack(x :: xs)
 export fn Stack.pop(Stack(xs) : Stack(a)) -> Optional(#(a, Stack(a))) =
     match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
 ```
+
+Inside `main.ern` the accessors are written and used with the `Stack.` prefix (`Stack.push(x, s)`) — the type-name prefix is the one qualified-declaration form. External callers, if any, would see `Main.Stack` for the type and `Main.Stack.push` for the operation, because `main.ern`'s namespace `Main` prefixes everything the module exports.
 
 `Stack.empty`, `Stack.push`, `Stack.pop` are listed in the `with { ... }` signature, so their bodies may name the `Stack` constructor. Anyone else — including an unlisted helper in the same module — cannot:
 
@@ -760,7 +764,7 @@ A minimal program that submits a computation:
 ```
 fn heavy(a : Int, b : Int) -> Int = a * a + b * b
 
-fn main() -> Void with m = match remote(fn() = heavy(3, 4)) {
+export fn main() -> Void with m = match remote(fn() = heavy(3, 4)) {
     Right(n) -> Io.println("remote returned " <> Int.toString(n))
   | Left(NoRemotePeer) -> Io.println("no remote peer configured")
   | Left(PeerLost) -> Io.println("peer lost or callback failed")
