@@ -98,6 +98,16 @@ let area = {
 
 Shadowing is allowed: a later `let` with the same name hides the earlier one from the next statement on. The original value is unchanged where it was already used; there is no mutation.
 
+**Constants.** A `let` declaration at the top level (outside any `fn`) is Ernest's constant form. It is evaluated once at program startup and its value is in scope thereafter. Top-level `let` names are lowercase like any other value binding — no `PI`, no `MAX_CONNECTIONS`; case has one job in Ernest, and uppercase is for types and constructors. Add `export` to make a constant visible from other modules.
+
+```
+let pi : Float = 3.14159265358979
+let defaultPort : Int = 8080
+export let helloBanner : String = "hello, world"
+```
+
+Top-level initializers must be pure — no `send`, no `spawn`, no other process effects. Effectful setup belongs in `main`. Initializers run in dependency order before `main` starts: a top-level `let` that references another is evaluated after the one it references, and a cycle among top-level `let`s is a compile-time error.
+
 ### 2.3 Sum types and pattern matching
 
 Declare a type with named cases:
