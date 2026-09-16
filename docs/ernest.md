@@ -42,7 +42,7 @@ A qualified name is a sequence of uppercase-starting segments (each is a `typena
 
 ### 2.4 Reserved words
 
-Sixteen, grouped by role:
+Seventeen, grouped by role:
 
 | Role                 | Words                                                  |
 |----------------------|--------------------------------------------------------|
@@ -50,6 +50,7 @@ Sixteen, grouped by role:
 | Pattern matching     | `match`, `when`, `receive`, `after`, `as`              |
 | Control flow         | `if`, `then`, `else`                                   |
 | Bindings             | `fn`, `let`                                            |
+| Visibility           | `export`                                               |
 | Literals             | `true`, `false`                                        |
 
 ### 2.5 Literals
@@ -270,22 +271,21 @@ All values can be sent in messages, functions included; their code travels with 
 
 ```
 Program     = { Declaration } .
-Declaration = TypeDecl | AbstractDecl | FnDecl | LetDecl | ForeignDecl .
-ForeignDecl = "foreign" ( "type" QTypeName [ "(" typevar { "," typevar } ")" ]
-            | "fn" Name "(" [ Param { "," Param } ] ")" Return "=" string ) .
-TypeDecl    = "type" QTypeName [ "(" typevar { "," typevar } ")" ] "="
+Declaration = [ "export" ] ( TypeDecl | AbstractDecl | FnDecl | LetDecl | ForeignDecl ) .
+ForeignDecl = "foreign" ( "type" typename [ "(" typevar { "," typevar } ")" ]
+            | "fn" DeclName "(" [ Param { "," Param } ] ")" Return "=" string ) .
+TypeDecl    = "type" typename [ "(" typevar { "," typevar } ")" ] "="
               Constructor { "|" Constructor } .
 Constructor = conname [ "(" ( Type | Field { "," Field } ) ")" ] .
 Field       = ident ":" Type .
 AbstractDecl  = "abstract" TypeDecl "with" "{" Signature { ";" Signature } "}" .
 Signature   = ( ident | binop ) ":" Type .
-FnDecl      = "fn" Name "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
+FnDecl      = "fn" DeclName "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 Param       = Pattern [ ":" Type ] .
 Return      = "->" Type [ "with" Type ] .
-LetDecl     = "let" Name [ ":" Type ] "=" Expr .
+LetDecl     = "let" DeclName [ ":" Type ] "=" Expr .
 Binding     = "let" Pattern [ ":" Type ] ( "=" | "<-" ) Expr .
-Name        = { typename "." } ( ident | binop ) .
-QTypeName   = { typename "." } typename .
+DeclName    = [ typename "." ] ( ident | binop ) .
 ```
 
 ### 4.1 Modules
@@ -294,11 +294,22 @@ A *module* is a single Ernest source file, ending in `.ern`. It is the unit of c
 
 ### 4.2 Namespaces and visibility
 
-The namespace is in the name, and so is the visibility. A top-level declaration with a qualified name, `fn Net.Http.parse(b) = ...`, `type Net.Http.Request = ...`, is visible throughout the program under that name; two such declarations with the same full name are an error. A top-level declaration with an unqualified name, `fn helper(x) = ...`, is visible only in its own module.
+**Files are namespaces.** A module's file path determines its namespace: a source file at `a/b/c.ern` provides declarations at namespace `A.B.C`, where each namespace segment is the case-preserving typename form of the corresponding path segment. Path segments are lowercase (§11.1); two namespace segments in the same program whose lowercase forms coincide (`Http` and `HTTP`) is a compile-time error. `main.ern` is a special file at the root — its declarations are in the root namespace, and its `main` function is the runtime entry point (§8.1).
 
-A module's path is its namespace: the qualified declarations in `net/http.ern` begin with `Net.Http.`, and may go deeper for names *within* that namespace, but a declaration whose qualifier extends the module's path by another typename segment belongs to the sub-module at that path. `Net.Http.parse` and `Net.Http.Request` live in `net/http.ern`; `Net.Http.Header.parse` lives in `net/http/header.ern`, not in `net/http.ern`. Two declarations with the same full name anywhere in the program are an error. Namespace segments are typenames in the source, and path segments on the load path are their lowercase forms; two namespace segments in the same program whose lowercase forms coincide (`Http` and `HTTP`) is a compile-time error. There is no export list, no `pub`, and no `import`. Sub-namespaces are the dots; namespace segments are type names.
+**Declarations are local; `export` marks the boundary.** A top-level declaration in a module is written with its *local* name — no file-namespace prefix. `fn parse(...)` inside `net/http.ern` is one declaration; the compiler exports it as `Net.Http.parse`. The reserved word `export` marks a declaration as visible from other modules; without `export`, the declaration is private to its module.
 
-An unqualified name in a body is looked up first among the module's unqualified declarations, then in the namespace of the enclosing declaration, then in the prelude; everything else must be qualified. The only other thing hidden is the constructor of an abstract type from definitions outside its signature. `main` is unqualified, §8.1.
+```
+// net/http.ern
+export type Request = Request(method : String, path : String)
+export fn parse(s : String) -> Optional(Request) = ...
+fn helper(x) = ...        // private to net/http.ern
+```
+
+External callers write `Net.Http.parse` and `Net.Http.Request`; the file-namespace prefix appears at *use* sites, never at declarations. Two exported declarations with the same qualified name anywhere in the program are an error. There is no export list, no `pub`, and no `import`.
+
+**Abstract-type accessors carry the type's prefix.** An abstract type `T` declared in a module creates a nested namespace `T` inside that module; the signature-listed accessor functions are declared with `T.` as prefix and exported at that nested namespace. This is the one case where `fn` and `let` declarations carry a typename prefix on their name — the prefix is always a single abstract-type name declared in the same module, never the file-namespace path. §4.4 gives the full rule.
+
+**Unqualified lookup inside a body.** A name written unqualified in a function body is looked up in this order: the module's local declarations (whether or not `export`ed); the abstract-type namespace of the enclosing declaration, if any; and the prelude. Anything not found there must be qualified. The constructor of an abstract type is hidden from definitions outside its signature.
 
 ### 4.3 Type declarations
 
@@ -306,19 +317,22 @@ An unqualified name in a body is looked up first among the module's unqualified 
 
 ### 4.4 Abstract types
 
-`abstract type T = ... with { s1; s2 }` declares a type whose constructors may appear only in the definitions of the names given by the signatures. The names live in `T`'s namespace: the signature `push : (a, Stack(a)) -> Stack(a)` refers to `Stack.push`. The definitions are checked against the signatures and do not repeat the type. The constructor outside these definitions is a type error. The signature delimits who sees the constructor, not which functions may exist for the type.
+`abstract type T = ... with { s1; s2 }` declares a type whose constructors may appear only in the definitions of the names given by the signatures. The type creates a nested namespace `T` inside its module: the signature `push : (a, Stack(a)) -> Stack(a)` refers to a definition of `Stack.push` in the same module. Accessor definitions carry the type name as a single-segment prefix (`fn Stack.push(...)`) — the one case where declarations use a qualified name; the file-namespace prefix (§4.2) is still implicit. The definitions are checked against the signatures and do not repeat the type. The constructor outside these definitions is a type error. The signature delimits who sees the constructor, not which functions may exist for the type.
 
 ```
-abstract type Stack(a) = Stack(List(a)) with {
+// main.ern (root namespace)
+export abstract type Stack(a) = Stack(List(a)) with {
     empty : Stack(a);
     push : (a, Stack(a)) -> Stack(a);
     pop : (Stack(a)) -> Optional(#(a, Stack(a)))
 }
 
-let Stack.empty = Stack([])
-fn Stack.push(x, Stack(xs)) = Stack(x :: xs)
-fn Stack.pop(Stack(xs)) = match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
+export let Stack.empty = Stack([])
+export fn Stack.push(x, Stack(xs)) = Stack(x :: xs)
+export fn Stack.pop(Stack(xs)) = match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
 ```
+
+Placed in `main.ern` at the root, the type is externally `Stack` and its operations are `Stack.empty`, `Stack.push`, `Stack.pop`. A module can co-locate multiple abstract types by declaring them alongside each other; each type carries its own nested namespace. When an abstract type is packaged in a namespaced file, its external name inherits the file's namespace — a `Foo` type in `bar.ern` (namespace `Bar`) is externally `Bar.Foo` and its operations are `Bar.Foo.*`.
 
 ### 4.5 Functions
 
@@ -346,7 +360,7 @@ The wildcard binding `let _ = e` is a discard, not a name binding: `_` does not 
 
 Type parameters of the enclosing `fn` (or of any outer scope) are not "unresolved" — they are quantified at their binding site and appear in the block's environment. A binding whose inferred type mentions such a parameter typechecks without needing further resolution.
 
-At top level, a `let` binds a `Name` — possibly qualified — to a value, `let Stack.empty = Stack([])`; the LHS is a name, not a pattern, and `<-` is a block form only. Top-level `let` may generalize its free type variables: `let Stack.empty : Stack(a) = Stack([])` declares a polymorphic value usable at every instantiation of `a`.
+At top level, a `let` binds a `DeclName` — an unqualified `ident` (`binop` on operator definitions), optionally prefixed with a single typename that names an abstract type declared in the same module — to a value. `let empty : Stack(a) = Stack([])` inside `main.ern` under `abstract type Stack` becomes `let Stack.empty : Stack(a) = Stack([])` for the accessor form. The LHS is a name, not a pattern, and `<-` is a block form only. Top-level `let` may generalize its free type variables: `let Stack.empty : Stack(a) = Stack([])` declares a polymorphic value usable at every instantiation of `a`. `export` marks the declaration visible outside its module (§4.2).
 
 A top-level `let`'s initializer must be pure — no mailbox effect. Effectful setup (spawning processes, opening resources, sending initial messages) belongs in `main`, not in top-level declarations. The runtime evaluates top-level `let` bindings in dependency order before `main` runs (§8.5).
 
@@ -356,7 +370,7 @@ A top-level `let`'s initializer must be pure — no mailbox effect. Effectful se
 
 `foreign fn f(params) -> T = "impl"` declares a function whose body is the implementation named by the string, in the runtime's language; parameters and the return are annotated. A foreign function with a mailbox type, `-> T with m`, may do anything; a foreign function without one promises purity: the same result for the same arguments and no effect on anything.
 
-The implementation promises the declared types; a value of another shape, or an exception, is a fault, section 7. Foreign code sees values in the runtime's representation, section 10.
+Both `foreign type` and `foreign fn` may be prefixed with `export` to make them visible from other modules (§4.2), following the same rule as ordinary declarations. The implementation promises the declared types; a value of another shape, or an exception, is a fault, section 7. Foreign code sees values in the runtime's representation, section 10.
 
 ### 4.8 Operators
 
@@ -487,7 +501,7 @@ A pattern decomposes a value and binds its parts. The same patterns appear in `l
 | `big`, `little`, `native`   | endianness                                                  |
 | `signed`, `unsigned`        | sign                                                        |
 
-These specifier names carry that role only inside a bitstring — outside, they are ordinary identifiers, and the reserved-word count remains sixteen.
+These specifier names carry that role only inside a bitstring — outside, they are ordinary identifiers, and the reserved-word count remains seventeen.
 
 **Byte alignment.** `<<...>>` produces a `Bytes` value, and `Bytes` is a sequence of octets (§3.1). The total bit count of a construction must therefore be a multiple of 8. Every `bits` or `bytes` segment that binds to `Bytes` — either as a construction source or a pattern binding — must itself have a byte-multiple size: `size(3)-bits` binding to `Bytes` is rejected, because a 3-bit `Bytes` value does not exist. Sub-octet fields use the `int` specifier and bind to `Int`. Compile-time-constant violations are compile-time errors; dynamic-size violations fault at construction (§7.4) or fail to match in a pattern.
 
@@ -880,24 +894,23 @@ Sys.clock        : Address(ClockMsg) // the clock process
 
 ```
 Program     = { Declaration } .
-Declaration = TypeDecl | AbstractDecl | FnDecl | LetDecl | ForeignDecl .
-ForeignDecl = "foreign" ( "type" QTypeName [ "(" typevar { "," typevar } ")" ]
-            | "fn" Name "(" [ Param { "," Param } ] ")" Return "=" string ) .
+Declaration = [ "export" ] ( TypeDecl | AbstractDecl | FnDecl | LetDecl | ForeignDecl ) .
+ForeignDecl = "foreign" ( "type" typename [ "(" typevar { "," typevar } ")" ]
+            | "fn" DeclName "(" [ Param { "," Param } ] ")" Return "=" string ) .
 
-TypeDecl    = "type" QTypeName [ "(" typevar { "," typevar } ")" ] "="
+TypeDecl    = "type" typename [ "(" typevar { "," typevar } ")" ] "="
               Constructor { "|" Constructor } .
 Constructor = conname [ "(" ( Type | Field { "," Field } ) ")" ] .
 Field       = ident ":" Type .
 AbstractDecl  = "abstract" TypeDecl "with" "{" Signature { ";" Signature } "}" .
 Signature   = ( ident | binop ) ":" Type .
 
-FnDecl      = "fn" Name "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
+FnDecl      = "fn" DeclName "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 Param       = Pattern [ ":" Type ] .
 Return      = "->" Type [ "with" Type ] .
-LetDecl     = "let" Name [ ":" Type ] "=" Expr .
+LetDecl     = "let" DeclName [ ":" Type ] "=" Expr .
 Binding     = "let" Pattern [ ":" Type ] ( "=" | "<-" ) Expr .
-Name        = { typename "." } ( ident | binop ) .
-QTypeName   = { typename "." } typename .
+DeclName    = [ typename "." ] ( ident | binop ) .
 
 Type        = TypeAtom | FnType | ParenType .
 TypeAtom    = { typename "." } typename [ "(" Type { "," Type } ")" ] | typevar
@@ -1045,60 +1058,60 @@ fn submitter(worker : Address(WorkerMsg)) -> Void with Never = {
 A shim over Erlang's `ets`, tables of type `set`. Raw bindings are module-local (unqualified); the library is ordinary Ernest over them. The BEAM values `ets` returns line up with Ernest's ABI (§8.4) here without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and Erlang's `[{K, V}]` matches `List(#(k, v))`. Erlang's `{ok, V} | {error, R}` convention uses lowercase atoms `ok` and `error`, which under §8.4 do *not* map to Ernest's `Ok(v)` / `Error(r)` constructors (whose canonical encoding is `{'Ok', v}` / `{'Error', r}`, quoted and source-preserving). A shim that wants `Either` from a `{ok, _} | {error, _}` API therefore decodes the raw return with a `match` (or wraps the call in an Erlang helper that produces the quoted-atom form). The `ets` calls used below don't use that convention, so no adapter is needed here.
 
 ```
-// Ets.ern
+// ets.ern  (namespace Ets)
 
 /// A key-value table stored in the runtime's ETS backend, keyed
 /// by a value of type k with values of type v. A table lives
 /// until Ets.drop is called on it, or until the process that
 /// created it dies.
-foreign type Ets.Table(k, v)
+export foreign type Table(k, v)
 
 /// A fresh empty table. The table is owned by the current
 /// process and is destroyed when that process dies.
-fn Ets.new() -> Ets.Table(k, v) with m = rawNew(atom("ernest"), [atom("set"), atom("public")])
+export fn new() -> Table(k, v) with m = rawNew(atom("ernest"), [atom("set"), atom("public")])
 
-foreign fn rawNew(name : Foreign, opts : List(Foreign)) -> Ets.Table(k, v) with m = "ets:new/2"
+foreign fn rawNew(name : Foreign, opts : List(Foreign)) -> Table(k, v) with m = "ets:new/2"
 foreign fn atom(name : String) -> Foreign = "erlang:binary_to_atom/1"
 
 /// Insert or replace the entry for key.
-fn Ets.insert(t : Ets.Table(k, v), key : k, value : v) -> Void with m = {
+export fn insert(t : Table(k, v), key : k, value : v) -> Void with m = {
     let _ = rawInsert(t, #(key, value));
     Void
 }
 
-foreign fn rawInsert(t : Ets.Table(k, v), row : #(k, v)) -> Bool with m = "ets:insert/2"
+foreign fn rawInsert(t : Table(k, v), row : #(k, v)) -> Bool with m = "ets:insert/2"
 
 /// The value for key, or None if absent.
-fn Ets.lookup(t : Ets.Table(k, v), key : k) -> Optional(v) with m =
+export fn lookup(t : Table(k, v), key : k) -> Optional(v) with m =
     match rawLookup(t, key) { [#(_, v)] -> Some(v) | _ -> None }
 
-foreign fn rawLookup(t : Ets.Table(k, v), key : k) -> List(#(k, v)) with m = "ets:lookup/2"
+foreign fn rawLookup(t : Table(k, v), key : k) -> List(#(k, v)) with m = "ets:lookup/2"
 
 /// Remove key. A key not present is not an error.
-fn Ets.delete(t : Ets.Table(k, v), key : k) -> Void with m = { let _ = rawDelete(t, key); Void }
+export fn delete(t : Table(k, v), key : k) -> Void with m = { let _ = rawDelete(t, key); Void }
 
-foreign fn rawDelete(t : Ets.Table(k, v), key : k) -> Bool with m = "ets:delete/2"
+foreign fn rawDelete(t : Table(k, v), key : k) -> Bool with m = "ets:delete/2"
 
 /// The number of entries in the table.
-fn Ets.size(t : Ets.Table(k, v)) -> Int with m = rawInfo(t, atom("size"))
+export fn size(t : Table(k, v)) -> Int with m = rawInfo(t, atom("size"))
 
-foreign fn rawInfo(t : Ets.Table(k, v), item : Foreign) -> Int with m = "ets:info/2"
+foreign fn rawInfo(t : Table(k, v), item : Foreign) -> Int with m = "ets:info/2"
 
 /// Delete the table. All subsequent operations on it fault.
-fn Ets.drop(t : Ets.Table(k, v)) -> Void with m = { let _ = rawDrop(t); Void }
+export fn drop(t : Table(k, v)) -> Void with m = { let _ = rawDrop(t); Void }
 
-foreign fn rawDrop(t : Ets.Table(k, v)) -> Bool with m = "ets:delete/1"
+foreign fn rawDrop(t : Table(k, v)) -> Bool with m = "ets:delete/1"
 
 /// Remove all entries, leaving the table empty.
-fn Ets.clear(t : Ets.Table(k, v)) -> Void with m = { let _ = rawClear(t); Void }
+export fn clear(t : Table(k, v)) -> Void with m = { let _ = rawClear(t); Void }
 
-foreign fn rawClear(t : Ets.Table(k, v)) -> Bool with m = "ets:delete_all_objects/1"
+foreign fn rawClear(t : Table(k, v)) -> Bool with m = "ets:delete_all_objects/1"
 
 /// True if key is present in t.
-foreign fn Ets.member(t : Ets.Table(k, v), key : k) -> Bool with m = "ets:member/2"
+export foreign fn member(t : Table(k, v), key : k) -> Bool with m = "ets:member/2"
 
 /// All key-value pairs currently in the table, in unspecified order.
-foreign fn Ets.toList(t : Ets.Table(k, v)) -> List(#(k, v)) with m = "ets:tab2list/1"
+export foreign fn toList(t : Table(k, v)) -> List(#(k, v)) with m = "ets:tab2list/1"
 ```
 
 ```
@@ -1114,7 +1127,7 @@ fn main() -> Void with Never = {
 }
 ```
 
-The raw names are unqualified and therefore invisible outside the module; `Ets.*` is the library. `Ets.Table(k, v)` has type parameters the implementation never sees: `Ets.insert(t, "a", 1)` fixes `t` to `Table(String, Int)`, and an insert with other types on the next line is a type error. Every operation has a mailbox type, `size` and `member` included, because they read state that others write. `atom` is pure: the same text gives the same atom. An Erlang-side module is needed only to catch: a raw function that throws is a fault, and a shim that wants `Either` instead must `try` in Erlang, since Ernest cannot. What the type cannot say, the declaration's documentation must: a table lives until `Ets.drop`, or until the process that created it dies.
+The `raw` names have no `export` and are therefore invisible outside the module; the exported `Ets.*` interface is what callers see. `Ets.Table(k, v)` has type parameters the implementation never sees: `Ets.insert(t, "a", 1)` fixes `t` to `Ets.Table(String, Int)`, and an insert with other types on the next line is a type error. Every operation has a mailbox type, `size` and `member` included, because they read state that others write. `atom` is pure: the same text gives the same atom. An Erlang-side module is needed only to catch: a raw function that throws is a fault, and a shim that wants `Either` instead must `try` in Erlang, since Ernest cannot. What the type cannot say, the declaration's documentation must: a table lives until `Ets.drop`, or until the process that created it dies.
 
 ## Appendix E. Standard Library
 
@@ -1336,7 +1349,7 @@ Every technical term this report introduces, with the section that defines it. P
 - **`receive`** — a match over the mailbox. §6.3.
 - **remote computation** — `remote(f)` and `parallelRemote(fs)` evaluate pure functions on peers. §6.7.
 - **`Reply(a)`** — a one-shot address for the answer to a request; linear inside a `receive` clause. §3.7, §6.6.
-- **reserved word** — one of sixteen keywords. §2.4.
+- **reserved word** — one of seventeen keywords. §2.4.
 - **runtime** — the system that runs Ernest programs; BEAM. §10.
 - **`self`** — `self()`, the current process's own address. §6.2.
 - **`send`** — `send(a, v)`, places `v` in the mailbox of `a`. §6.2.

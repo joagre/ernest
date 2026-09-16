@@ -663,16 +663,16 @@ An Ernest program is one or more modules. A module is a `.ern` source file; its 
 Two modules:
 
 ```
-// net/http.ern
-type Net.Http.Request = Request(method : String, path : String)
+// net/http.ern  (namespace Net.Http)
+export type Request = Request(method : String, path : String)
 
-fn Net.Http.parse(s : String) -> Optional(Net.Http.Request) =
+export fn parse(s : String) -> Optional(Request) =
     if s == "GET /" then Some(Request(method = "GET", path = "/"))
     else None
 ```
 
 ```
-// main.ern
+// main.ern  (root namespace)
 fn main() -> Void with Never = match Net.Http.parse("GET /") {
     Some(req) -> Io.println("parsed")
   | None -> Io.println("bad request")
@@ -688,32 +688,37 @@ $ ern -pa . main.erc              # -pa adds the current directory to the load p
 parsed
 ```
 
-References *across* modules use the qualified name — no `import`, no export list, no `pub`. A declaration `A.B.C.name` belongs exclusively to `a/b/c.ern`, where each path segment is the lowercase of the corresponding namespace segment. So `Net.Http.parse` lives in `net/http.ern`; `Net.Http.Header.parse` would live in `net/http/header.ern`, not in `net/http.ern`. Two typenames whose lowercase forms coincide (`Http` and `HTTP`, say) is a compile-time error.
+**The file's path is its namespace.** A file at `a/b/c.ern` provides declarations at namespace `A.B.C`; each path segment lowercases the corresponding namespace segment. `net/http.ern` is namespace `Net.Http`. Two typenames whose lowercase forms coincide (`Http` and `HTTP`, say) is a compile-time error.
 
-Inside a module, unqualified names look up first among the module's own unqualified declarations, then in the enclosing namespace, then in the prelude. So `parse` written unqualified inside `net/http.ern` finds a local helper `fn parse(...)` if one exists, and only qualified names cross module boundaries. `fn helper(x) = ...` is visible only inside its own module.
+**Declarations use local names.** Inside `net/http.ern`, `export fn parse(...)` declares the function at its local name `parse`; the compiler exports it as `Net.Http.parse`. There is no file-namespace prefix on the declaration itself — repeating `Net.Http.` on every line would just restate the file's path.
+
+**`export` marks the boundary.** A declaration prefixed with `export` is visible from other modules; a declaration without `export` is private to its own file. No `import`, no export list, no `pub`.
+
+**External references use the qualified name.** A caller outside `net/http.ern` writes `Net.Http.parse`. Inside `net/http.ern`, unqualified `parse` refers to the local declaration. `main.ern` is a root-namespace file, so its `main` and any other declarations there are at the top level.
 
 ### 6.2 Abstract types
 
-Abstract types have a private representation and a public signature. Only definitions named in the signature can mention the constructor:
+Abstract types have a private representation and a public signature. Only definitions named in the signature can mention the constructor. An abstract type creates a nested namespace inside its module — the accessor definitions carry the type name as a single-segment prefix. This is the one place a declaration uses a qualified name; everything else is unqualified in-file:
 
 ```
-abstract type Stack(a) = Stack(List(a)) with {
+// main.ern  (root namespace)
+export abstract type Stack(a) = Stack(List(a)) with {
     empty : Stack(a);
     push : (a, Stack(a)) -> Stack(a);
     pop : (Stack(a)) -> Optional(#(a, Stack(a)))
 }
 
-let Stack.empty : Stack(a) = Stack([])
-fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) = Stack(x :: xs)
-fn Stack.pop(Stack(xs) : Stack(a)) -> Optional(#(a, Stack(a))) =
+export let Stack.empty : Stack(a) = Stack([])
+export fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) = Stack(x :: xs)
+export fn Stack.pop(Stack(xs) : Stack(a)) -> Optional(#(a, Stack(a))) =
     match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
 ```
 
 `Stack.empty`, `Stack.push`, `Stack.pop` are listed in the `with { ... }` signature, so their bodies may name the `Stack` constructor. Anyone else — including an unlisted helper in the same module — cannot:
 
 ```
-fn Stack.size(Stack(xs) : Stack(a)) -> Int = List.size(xs)   // rejected: Stack.size is not in the signature
-fn Stack.isEmpty(s : Stack(a)) -> Bool = match Stack.pop(s) { // accepted: uses public operations
+export fn Stack.size(Stack(xs) : Stack(a)) -> Int = List.size(xs)   // rejected: Stack.size is not in the signature
+export fn Stack.isEmpty(s : Stack(a)) -> Bool = match Stack.pop(s) { // accepted: uses public operations
     None -> true
   | Some(_) -> false
 }
@@ -779,12 +784,13 @@ Some consequences the code sees:
 ### 7.3 Foreign types and functions
 
 ```
-foreign type Ets.Table(k, v)
+// ets.ern
+export foreign type Table(k, v)
 
-foreign fn Ets.member(t : Ets.Table(k, v), key : k) -> Bool with m = "ets:member/2"
+export foreign fn member(t : Table(k, v), key : k) -> Bool with m = "ets:member/2"
 ```
 
-`foreign type` declares a type whose values are made and used only by foreign functions — no Ernest-side constructor, no pattern match. `foreign fn` binds a name to an implementation on the other side (here, Erlang's `ets:member/2`).
+External callers write `Ets.Table` and `Ets.member`. `foreign type` declares a type whose values are made and used only by foreign functions — no Ernest-side constructor, no pattern match. `foreign fn` binds a name to an implementation on the other side (here, Erlang's `ets:member/2`).
 
 Ernest treats the foreign boundary as a *promise*: the declared type is what comes back, the mailbox effect is honest, a pure declaration means no effects. The following three breaches are checked at runtime; purity remains a trusted promise:
 
@@ -806,17 +812,18 @@ Programs that need to share table-like state across nodes serialize the contents
 
 ### 7.5 The shim pattern
 
-Erlang's `ets:lookup` returns a list because the key might match zero or one entry:
+Erlang's `ets:lookup` returns a list because the key might match zero or one entry. Both declarations below live in `ets.ern` (namespace `Ets`):
 
 ```
-fn Ets.lookup(t : Ets.Table(k, v), key : k) -> Optional(v) with m =
+// ets.ern
+export fn lookup(t : Table(k, v), key : k) -> Optional(v) with m =
     match rawLookup(t, key) { [#(_, v)] -> Some(v) | _ -> None }
 
-foreign fn rawLookup(t : Ets.Table(k, v), key : k)
+foreign fn rawLookup(t : Table(k, v), key : k)
     -> List(#(k, v)) with m = "ets:lookup/2"
 ```
 
-The raw binding is unqualified (`rawLookup`), so it is file-local. `Ets.lookup` is the typed API a caller uses.
+`rawLookup` has no `export`, so it is file-local. `Ets.lookup` is the typed API callers use (imported by qualified name `Ets.lookup`).
 
 Erlang's `{ok, V} | {error, R}` convention does not automatically match an Ernest `Either(e, a)`. Ernest's `Either` constructors are `Left(e)` and `Right(a)`, and under §8.4's ABI they encode as `{'Left', e}` and `{'Right', a}` (quoted, source-preserving). Erlang's `{ok, V}` uses the lowercase atom `ok`, which is a different value.
 
@@ -835,7 +842,8 @@ lookup(Key) ->
 The Ernest `foreign fn` binds to that helper — the returned term already matches Ernest's ABI, no decoder needed:
 
 ```
-foreign fn Store.lookup(key : String) -> Either(String, Int) with m = "store_helper:lookup/1"
+// store.ern (namespace Store)
+export foreign fn lookup(key : String) -> Either(String, Int) with m = "store_helper:lookup/1"
 ```
 
 If `find/1` returns reasons of another shape (an atom, a nested tuple), the Erlang helper must convert them to the declared Ernest form before returning; the Ernest side does not paper over ABI-shape breaches.
@@ -898,7 +906,7 @@ Answer: the runtime faults the sending process asynchronously, after `send` has 
 
 **Why is there no `import`?**
 
-Every top-level declaration's *qualified name* is where it lives. A declaration `A.B.C.name` is in `a/b/c.ern` — each path segment is the lowercase of the corresponding namespace segment. Code anywhere refers to the declaration by its full name (`A.B.C.name`), not its path. Unqualified names are private to their module. No `import`, no `pub`, no export list.
+Every top-level declaration lives at a namespace determined by its file's path. A file at `a/b/c.ern` provides declarations at namespace `A.B.C`; the declaration itself is written with a local name, and the compiler exports it (if marked `export`) as `A.B.C.name`. Code anywhere refers to the declaration by its full name. `export` marks visibility outside the module; without it, a declaration is private. No `import`, no export list — the qualified name IS the reference.
 
 **Why parenthesized lambdas after `|>`?**
 

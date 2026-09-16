@@ -932,6 +932,68 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
 
+## `export` Keyword; Declarations Use Local Names, 2026-09-16
+
+Under strict file-mirrors-namespace (R17), every qualified declaration repeated its file's path prefix — `fn Net.Http.parse` in `net/http.ern`. Redundant with the path enforcement itself.
+
+**Choices weighed:**
+
+- **Keep the qualified declaration form.** Rejected. High redundancy scales badly with namespace depth; refactoring a namespace touches every declaration in every file.
+- **Drop the qualified form; use a visibility keyword.** Taken. Reserved word 16 → 17: `export`. Declarations in a file use local names; the compiler exports `export`-marked ones at the file's namespace.
+- **Rely on naming convention (uppercase leading char) for visibility.** Rejected. Ernest's identifier rules already use uppercase for typenames and lowercase for `ident`, so a leading-case convention isn't free. A dedicated word (`export`) is clearer and language-enforced.
+- **Underscore-prefix for private (`_helper`).** Rejected. Convention-only, not language-enforced; `_ident` is already a valid identifier that isn't a wildcard.
+
+**What changes.**
+
+Grammar:
+
+```
+Declaration = [ "export" ] ( TypeDecl | AbstractDecl | FnDecl | LetDecl | ForeignDecl ) .
+FnDecl      = "fn" DeclName "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
+LetDecl     = "let" DeclName [ ":" Type ] "=" Expr .
+DeclName    = [ typename "." ] ( ident | binop ) .
+```
+
+`DeclName` allows an *optional single* typename prefix — for abstract-type accessors only. The file-namespace path prefix is never written in a declaration.
+
+Semantics:
+
+- A file at `a/b/c.ern` provides declarations at namespace `A.B.C`.
+- Declarations without `export` are private to the module.
+- `export fn foo(...) = ...` in `net/http.ern` is exported as `Net.Http.foo`.
+- Abstract-type accessors carry the type name as prefix: `fn Stack.push(...)` — this remains the one qualified-declaration form, needed because an abstract type creates a nested namespace inside its module.
+- Constructor visibility follows the declaring type.
+- Cross-module references use `Net.Http.foo` unchanged.
+
+**Effect on the report.**
+
+- §2.4: reserved words 16 → 17, `export` added.
+- §3 top grammar block and Appendix A: `Declaration` gains optional `export`; declaration-name productions use `DeclName` (single-typename prefix maximum). `QTypeName` production removed as no longer referenced by declarations.
+- §4.2 rewritten around "files are namespaces; declarations are local; `export` marks the boundary".
+- §4.4 abstract types clarified: the type creates a nested namespace, accessor definitions use the type-name prefix.
+- §4.6 top-level `let` reworded to reference `DeclName`.
+- §4.7 foreign declarations note `export` support.
+- Appendix D (Ets.ern) rewritten with `export` on the interface and local names throughout; `raw` bindings unqualified without `export`.
+
+**Effect on the guide.**
+
+- §6.1 Net.Http example rewritten with `export type Request`, `export fn parse` and no file-namespace prefix. New paragraphs: "files are namespaces; declarations are local; `export` marks the boundary; external references use the qualified name".
+- §6.2 Stack example uses `export abstract type Stack(a) = ...` with `export fn Stack.push(...)` accessors — the single-typename prefix pattern.
+- §7.3 foreign example: `export foreign type Table(k, v)`, `export foreign fn member(...)` in `ets.ern`.
+- §7.5 shim: `foreign fn rawLookup(...)` unqualified (private), `export foreign fn lookup(...)` for Store.
+- FAQ "no import" answer rewritten to reference `export`.
+
+**Effect elsewhere.**
+
+- Paper programs (Appendix B in report, ernest-repl/filesync/webserver/tick-game/comparison-webserver): no change needed. These are single-file programs at the root namespace; their `fn StatusCode.render(...)` etc. are abstract-type accessors, which keep the type-name-prefix form. `export` is optional in a single-file program (nothing else references them).
+- Implementation plan: reserved words count updated 16 → 17.
+
+**Cost.** ~40 lines of edits in the report, ~30 in the guide, one new reserved word. No new type-system mechanism.
+
+**Principle 2 (one way).** The file's namespace is stated once — by the file's path — instead of repeated on every qualified declaration.
+
+**Principle 5 (small).** Reserved word count +1. In exchange, the report loses a whole failure mode (mismatched declaration prefix vs file path) and refactoring becomes proportional to the change.
+
 ## `ernc` Directory Mode; Output Dir Auto-Creation; Path-Shape Rejection, 2026-09-16
 
 Three toolchain decisions to complete the lowercase-paths story:
