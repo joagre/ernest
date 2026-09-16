@@ -41,7 +41,7 @@ hello, world
 
 ### 1.1 What the line says
 
-`fn` starts a function definition. `main` is the conventional entry-point name — `ern module.erc` looks for `export fn main` in the loaded module and invokes it. The hello-world program declares one; larger projects can pick alternatives with `ern --main Foo.Bar` (see §6).
+`fn` starts a function definition. `main` is the conventional entry-point name — `ern module.erc` looks for `export fn main` in the loaded module and invokes it. The hello-world program declares one; larger projects can select a different exported entry point with `ern --main Qualified.name module.erc` (see §6.1).
 
 `-> Void` is the return type. `Void` is a type with one value, also called `Void`; it means "no interesting result." `main` in this program does its work, then returns `Void`.
 
@@ -106,7 +106,7 @@ let defaultPort : Int = 8080
 export let helloBanner : String = "hello, world"
 ```
 
-Top-level initializers must be pure — no `send`, no `spawn`, no other process effects. Effectful setup belongs in `main`. Initializers run in dependency order before `main` starts: a top-level `let` that references another is evaluated after the one it references, and a cycle among top-level `let`s is a compile-time error.
+Top-level initializers must be pure — no `send`, no `spawn`, no other process effects. Effectful setup belongs in `main`. Initializers run in dependency order before `main` starts: a top-level `let` that references another is evaluated after the one it references. Cycles among top-level `let`s within one module are rejected at compile time; cycles across modules are rejected at load time. A pure initializer can still fault or fail to terminate, in which case `main` never starts — a fault at startup is observed the same way as one during execution (§3.4).
 
 ### 2.3 Sum types and pattern matching
 
@@ -214,6 +214,8 @@ match m {
 
 Each variable appears at most once in a pattern. Repeated names within one pattern are a type error.
 
+A postfix `as ident` binds the whole match alongside its destructured parts: `Some(x) as present` binds `x` to the payload *and* `present` to the whole Optional. Useful when both the interior and the aggregate matter. `as` is not allowed on reply-carrying scrutinees (§4.2).
+
 Guards are pure `Bool` expressions — no mailbox effect. A guard that evaluates to `false` falls through to the next clause; a guard that *faults* faults the enclosing process. Guards do not count toward `match` exhaustiveness — a clause with a guard still needs an unguarded fallback (a wildcard `_` clause, typically) so the compiler can prove coverage.
 
 ### 2.7 `if` and `<-`
@@ -260,7 +262,7 @@ The compiler picks Optional or Either from the right-hand side's type. One block
 Ernest's stdlib is subject-first. `|>` reads left-to-right:
 
 ```
-input |> String.trim |> String.toLower |> String.chars
+"abc" |> String.chars |> List.reverse |> String.fromChars      // "cba"
 ```
 
 `x |> f` is `f(x)`. `x |> f(a, b)` is `f(x, a, b)` — pipe inserts as the first argument. `x |> f(a)(b)` is `f(a)(x, b)`, inserted into the *outermost* call.
@@ -464,6 +466,8 @@ For no-timeout callers, `Address.callForever(addr, mk)` waits as long as needed 
 
 ### 4.5 Running the counter
 
+Save the `CounterMsg` type and the `counter` loop from §4.1 together with the following `main` in a single file `counter.ern`. Compile with `ernc counter.ern` and run with `ern counter.erc`.
+
 ```
 export fn main() -> Void with m = {
     let c = spawn(Local, fn() = counter(0));
@@ -513,7 +517,7 @@ fn doublingCounter(n : Int) -> Void with CounterMsg = receive {
 }
 ```
 
-And a `main` that upgrades after the first `Get`:
+And a `main` that upgrades after the first `Get`. This `main` replaces the one from §4.5, just as the `CounterMsg` and `counter` above replace the ones from §4.1. Put the whole file together, recompile, and rerun.
 
 ```
 export fn main() -> Void with m = {
@@ -684,18 +688,21 @@ export fn parse(s : String) -> Optional(Request) =
 ```
 // main.ern  (namespace Main)
 export fn main() -> Void with Never = match Net.Http.parse("GET /") {
-    Some(req) -> Io.println("parsed")
+    Some(Net.Http.Request(method = method, path = path)) ->
+        Io.println(method <> " " <> path)
   | None -> Io.println("bad request")
 }
 ```
+
+The `Net.Http.Request` in the pattern is a fully qualified constructor reference — same shape as the one that appears in `Net.Http.parse`'s definition, seen from outside the module.
 
 Compile file-by-file and run:
 
 ```
 $ ernc net/http.ern              # produces net/http.erc
 $ ernc main.ern                  # produces main.erc
-$ ern --load-path . main.erc             # --load-path adds the current directory to the load path
-parsed
+$ ern --load-path . main.erc     # --load-path adds the current directory to the load path
+GET /
 ```
 
 Or in directory mode — compile the whole tree and put outputs under `build/`:
@@ -703,12 +710,12 @@ Or in directory mode — compile the whole tree and put outputs under `build/`:
 ```
 $ ernc -o build .                # walks the source tree, writes build/net/http.erc and build/main.erc
 $ ern --load-path build build/main.erc
-parsed
+GET /
 ```
 
 Directory mode compiles in dependency order automatically, creates missing subdirectories under `build/`, and removes stale `.erc` outputs whose source is gone (`--no-clean` disables the sweep). It's the recommended pattern once a project has more than one file.
 
-**The file's path is its namespace.** A file at `a/b/c.ern` provides declarations at namespace `A.B.C`; each path segment lowercases the corresponding namespace segment. `net/http.ern` is namespace `Net.Http`; `main.ern` at the source root is namespace `Main`. Every user declaration lives at some namespace determined by its file's path. Two typenames whose lowercase forms coincide (`Http` and `HTTP`, say) is a compile-time error.
+**The file's path is its namespace.** A file at `a/b/c.ern` provides declarations at namespace `A.B.C`. Each path segment is lowercase; each namespace segment is the *canonical typename form* — the path segment with its first ASCII letter uppercased and the rest preserved (`http.ern` → `Http`, `http_server.ern` → `Http_server`). The mapping is one-to-one, and the report scopes the collision rule to namespace segments: two path segments whose lowercase forms coincide is a compile-time error (report §4.2).
 
 **Declarations use local names.** Inside `net/http.ern`, `export fn parse(...)` declares the function at its local name `parse`; the compiler exports it as `Net.Http.parse`. There is no file-namespace prefix on the declaration itself — repeating `Net.Http.` on every line would just restate the file's path.
 
@@ -716,11 +723,17 @@ Directory mode compiles in dependency order automatically, creates missing subdi
 
 **External references use the qualified name.** A caller outside `net/http.ern` writes `Net.Http.parse`. Inside `net/http.ern`, unqualified `parse` refers to the local declaration.
 
-**Entry point.** `ern main.erc` looks up `export fn main` in the loaded module and invokes it. `main` is a naming convention, not a reserved specialness — any file's `export fn main` can be an entry point. `ern --main Foo.Bar module.erc` picks an alternative exported name from the load path, useful for a project with multiple entry points (a service main, a migration main, a bench main) each in its own module.
+**Entry point.** `ern main.erc` looks up `export fn main` in the loaded module and invokes it. `main` is a naming convention, not a reserved specialness — any exported function with the entry-point shape `() -> Void with M` can be selected. If `tools.ern` exports a `check` function of that shape, run it as:
+
+```
+$ ern --load-path build --main Tools.check build/main.erc
+```
+
+`--main` takes a fully qualified name whose final segment is a lowercase function name (`Tools.check`, not `Tools.Check`). This is how a project with multiple entry points — a service main, a migration main, a bench main — keeps each in its own module.
 
 ### 6.2 Abstract types
 
-Abstract types have a private representation and a public signature. Only definitions named in the signature can mention the constructor. An abstract type creates a nested namespace inside its module — the accessor definitions carry the type name as a single-segment prefix. This is the one place a declaration uses a qualified name; everything else is unqualified in-file:
+Abstract types have a private representation and a public signature. Only definitions listed in the `with { ... }` signature can mention the constructor. Any locally declared type — abstract or concrete — creates a nested namespace inside its module, and its members are declared with a single-typename prefix (`fn Stack.push`). Report §4.8 shows the concrete-type variant used for per-type operator overloading (`fn Distance.+`, and so on).
 
 ```
 // main.ern  (namespace Main)
@@ -736,7 +749,7 @@ export fn Stack.pop(Stack(xs) : Stack(a)) -> Optional(#(a, Stack(a))) =
     match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
 ```
 
-Inside `main.ern` the accessors are written and used with the `Stack.` prefix (`Stack.push(x, s)`) — the type-name prefix is the one qualified-declaration form. External callers, if any, would see `Main.Stack` for the type and `Main.Stack.push` for the operation, because `main.ern`'s namespace `Main` prefixes everything the module exports.
+Inside `main.ern` the accessors are written and used with the `Stack.` prefix (`Stack.push(x, s)`). External callers see `Main.Stack` for the type and `Main.Stack.push` for the operation, because `main.ern`'s namespace `Main` prefixes everything the module exports. The type-member namespace is *owned* by the file that declares the type: `Main.Stack.push` is compiled into `main.erc`, not a hypothetical `main/stack.erc`, and the loader consults `main.erc`'s compiled interface to find it.
 
 `Stack.empty`, `Stack.push`, `Stack.pop` are listed in the `with { ... }` signature, so their bodies may name the `Stack` constructor. Anyone else — including an unlisted helper in the same module — cannot:
 
@@ -805,6 +818,8 @@ Some consequences the code sees:
 - `send` to a remote address returns immediately; a peer-side resolution failure faults the sender *asynchronously*, after `send` has already returned.
 - Foreign definitions must be available and compatible on the peer.
 
+Peer loss is *terminal from this node's view*. Once this node declares a peer lost, it treats the processes on that peer as dead. Their existing addresses do not become usable again if the same peer name reappears — a re-appearing peer is a new node instance. Monitors on remote addresses report `Down(reason = Fault("peer lost"), ...)`, and pending `remote` calls return `Left(PeerLost)`. Remote sends are best-effort: in-flight messages can be dropped at peer loss without a delivery notification, and returning from `send` is not evidence that the recipient processed the message. A callback or resolution failure that returned `PeerLost` does not, on its own, invalidate unrelated addresses for the same peer — only *actual* peer-loss detection has that effect.
+
 ### 7.3 Foreign types and functions
 
 ```
@@ -872,7 +887,7 @@ export foreign fn lookup(key : String) -> Either(String, Int) with m = "store_he
 
 If `find/1` returns reasons of another shape (an atom, a nested tuple), the Erlang helper must convert them to the declared Ernest form before returning; the Ernest side does not paper over ABI-shape breaches.
 
-Report Appendix D walks a full `Ets.ern` reference implementation. Its foreign calls happen to already match Ernest's ABI (`[{K, V}]` maps to `List(#(k, v))`, `Bool` to `true`/`false`), so it needs no Erlang wrapper.
+Report Appendix D walks a full `ets.ern` reference implementation (namespace `Ets`). Its foreign calls happen to already match Ernest's ABI (`[{K, V}]` maps to `List(#(k, v))`, `Bool` to `true`/`false`), so it needs no Erlang wrapper.
 
 ### 7.6 Bitstrings
 
