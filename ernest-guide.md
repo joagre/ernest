@@ -1,6 +1,6 @@
 # Ernest: A Reading Guide
 
-A crash course for a programmer who wants to read Ernest and predict what a fragment does. It is not the language report — [`ernest.md`](ernest.md) is where the rules live. This guide surveys the central mechanisms with runnable checkpoints; where a rule has subtlety, it points into the report.
+A crash course for a programmer who wants to read Ernest and predict what a fragment does. It is not the language report — [`ernest-report.md`](ernest-report.md) is where the rules live. This guide surveys the central mechanisms with runnable checkpoints; where a rule has subtlety, it points into the report.
 
 ## 0. Orientation
 
@@ -959,13 +959,13 @@ Ernest is n-ary: every function has a specific number of arguments recorded in i
 
 The four paper programs, in ascending complexity:
 
-- [`ernest-tick-game.md`](ernest-tick-game.md) — snake game with tick-based updates; `..` record updates, one process per player.
-- [`ernest-repl.md`](ernest-repl.md) — small read-eval-print loop; `<-` for chained parsing, `monitor` + `kill` for aborting slow evaluation.
-- [`ernest-filesync.md`](ernest-filesync.md) — file sync between two nodes; mutual-address setup, one process per write, `Sys.fs`.
-- [`ernest-webserver.md`](ernest-webserver.md) — HTTP server with sessions in ETS; `foreign fn`, abstract types, ETS accessed through foreign functions.
+- [`ernest-tick-game.md`](docs/ernest-tick-game.md) — snake game with tick-based updates; `..` record updates, one process per player.
+- [`ernest-repl.md`](docs/ernest-repl.md) — small read-eval-print loop; `<-` for chained parsing, `monitor` + `kill` for aborting slow evaluation.
+- [`ernest-filesync.md`](docs/ernest-filesync.md) — file sync between two nodes; mutual-address setup, one process per write, `Sys.fs`.
+- [`ernest-webserver.md`](docs/ernest-webserver.md) — HTTP server with sessions in ETS; `foreign fn`, abstract types, ETS accessed through foreign functions.
 
 The paper programs assume runtime references beyond the required `Sys.stdout` and `Sys.clock` — `Sys.fs`, `Sys.keys`, `Sys.net`, and an ETS backend are program-specific dependencies that each program names in its own assumptions.
 
-For the language rules themselves, [`ernest.md`](ernest.md) is the authority. Appendix F glosses every technical term.
+For the language rules themselves, [`ernest-report.md`](ernest-report.md) is the authority. Appendix F glosses every technical term.
 
-For why Ernest looks the way it does — what was tried and rejected — [`ernest-decisions.md`](ernest-decisions.md) records dated design decisions.
+For why Ernest looks the way it does — what was tried and rejected — [`ernest-decisions.md`](docs/ernest-decisions.md) records dated design decisions.

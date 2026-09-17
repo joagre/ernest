@@ -1,6 +1,6 @@
 # Ernest report — consolidated change summary
 
-For the next reviewer pass on [`ernest.md`](ernest.md). Groups the changes made across all review rounds by area, so a reader who last saw an earlier revision can locate the differences without walking `ernest-decisions.md` end-to-end. Report sections are cited so the current wording is one lookup away.
+For the next reviewer pass on [`ernest-report.md`](../ernest-report.md). Groups the changes made across all review rounds by area, so a reader who last saw an earlier revision can locate the differences without walking `ernest-decisions.md` end-to-end. Report sections are cited so the current wording is one lookup away.
 
 ## Reading order for a re-review
 
@@ -146,8 +146,8 @@ Each of the choices above is expanded in [`ernest-decisions.md`](ernest-decision
 
 ## Companion documents in this repository
 
-- [`ernest.md`](ernest.md) — the report; normative.
-- [`ernest-guide.md`](ernest-guide.md) — tutorial guide; not normative. The recent module-system changes are reflected there too.
+- [`ernest-report.md`](../ernest-report.md) — the report; normative.
+- [`ernest-guide.md`](../ernest-guide.md) — tutorial guide; not normative. The recent module-system changes are reflected there too.
 - [`ernest-decisions.md`](ernest-decisions.md) — dated decisions log.
 - Paper programs: [`ernest-tick-game.md`](ernest-tick-game.md), [`ernest-repl.md`](ernest-repl.md), [`ernest-filesync.md`](ernest-filesync.md), [`ernest-webserver.md`](ernest-webserver.md).
 - [`ernest-implementation-plan.md`](ernest-implementation-plan.md) — MVP roadmap.

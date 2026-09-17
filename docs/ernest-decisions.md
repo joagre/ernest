@@ -1,10 +1,10 @@
 # Ernest: Decision Log
 
-The reasoning behind the language report in [`ernest.md`](ernest.md): what was taken from Unison and Erlang, what was tried and rejected, what is deferred, and what is undecided. The report says what holds; this document says why. The language was called Actorson until 12 September 2026.
+The reasoning behind the language report in [`ernest-report.md`](../ernest-report.md): what was taken from Unison and Erlang, what was tried and rejected, what is deferred, and what is undecided. The report says what holds; this document says why. The language was called Actorson until 12 September 2026.
 
-**A note on principle numbering.** Some dated entries below reference "principle N" using the count at the time they were written. The count changed on 2026-09-14 from seven principles to five (see *Ambient Sys, Five Principles*), and one entry from 2026-09-12 renamed "principle 5" as what is now principle 4 (simple to parse). Read older references in that light; the current numbering lives in [`ernest.md`](ernest.md) §0.
+**A note on principle numbering.** Some dated entries below reference "principle N" using the count at the time they were written. The count changed on 2026-09-14 from seven principles to five (see *Ambient Sys, Five Principles*), and one entry from 2026-09-12 renamed "principle 5" as what is now principle 4 (simple to parse). Read older references in that light; the current numbering lives in [`ernest-report.md`](../ernest-report.md) §0.
 
-**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Later the same day the cons operator `+:` became `::` and the string-concat operator `++` became `<>` (see *List and Concat Operators*), the reserved word `recv` was spelled out as `receive` (see *`recv` → `receive`*), `opaque` became `abstract` (see *`opaque` → `abstract`*), tuples got a `#(...)` prefix (see *Tuples: `#(...)` Prefix*), the string type `Text` was renamed to `String` (see *`Text` → `String`*), and the unit type/value `()` was renamed to `Void` (see *`()` → `Void`*). Historical entries below use the older syntax; the current forms live in [`ernest.md`](ernest.md).
+**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Later the same day the cons operator `+:` became `::` and the string-concat operator `++` became `<>` (see *List and Concat Operators*), the reserved word `recv` was spelled out as `receive` (see *`recv` → `receive`*), `opaque` became `abstract` (see *`opaque` → `abstract`*), tuples got a `#(...)` prefix (see *Tuples: `#(...)` Prefix*), the string type `Text` was renamed to `String` (see *`Text` → `String`*), and the unit type/value `()` was renamed to `Void` (see *`()` → `Void`*). Historical entries below use the older syntax; the current forms live in [`ernest-report.md`](../ernest-report.md).
 
 ## Starting Point
 
@@ -125,7 +125,7 @@ The day-two decision, "this is Erlang, where you say which node," was revised in
 
 ## Toolchain and Guide
 
-The toolchain went into the report as section 11, as a contract rather than a manual: the commands, their arguments, the files they read and write, and nothing about output, exit codes, or the REPL's appearance; it defines what a program is in practice, and section 8's `Sys` and peers need an address. Distributed programming does not go into the report: a report says what holds, and how to build is another genre. It becomes a third document, [`ernest-guide.md`](ernest-guide.md), with distributed programming as one chapter beside error handling and process design, written from the paper programs once the compiler runs them.
+The toolchain went into the report as section 11, as a contract rather than a manual: the commands, their arguments, the files they read and write, and nothing about output, exit codes, or the REPL's appearance; it defines what a program is in practice, and section 8's `Sys` and peers need an address. Distributed programming does not go into the report: a report says what holds, and how to build is another genre. It becomes a third document, [`ernest-guide.md`](../ernest-guide.md), with distributed programming as one chapter beside error handling and process design, written from the paper programs once the compiler runs them.
 
 ## FFI, 2026-09-13
 
@@ -282,7 +282,7 @@ Taken: the load path for MVP 1 and MVP 2, content addressing for MVP 3 and beyon
 
 Ernest is now organized in three layers, made explicit after the discussion prompted by `send(out, Line("hello"))` reading as heavy for a simple print.
 
-**Language.** What [`ernest.md`](ernest.md) defines: syntax, types, processes, evaluation rules, the five principles. This is the small, hard part. It doesn't change with new libraries.
+**Language.** What [`ernest-report.md`](../ernest-report.md) defines: syntax, types, processes, evaluation rules, the five principles. This is the small, hard part. It doesn't change with new libraries.
 
 **Prelude.** What the language requires to exist because the report references it. Section 9 lists these: `Optional`, `Either`, `Ordering`, `Down`, `Reason`, `ClockMsg`, `RemoteError`, `Foreign`; the built-in parameterized types `List`, `Map`, `Set` (plus `Address`, `Reply`, `Never` covered in section 3); the process operations `via`, `Address.call`, `answer`, `remote`, `monitor`, `kill`; and the specific operations the report calls out — `Int.div`, `Int.mod`, the four `compare` functions, `todo`. Nothing else.
 
@@ -1368,7 +1368,7 @@ Pre-implementation audit against the "can I write a hand-written recursive-desce
 
 **P1: `main` mailbox default.** §8.1 said `m` is polymorphic when `main` uses `Address.call` without its own receive protocol, but did not say what the runtime instantiates polymorphic `m` to. **Fix:** added: "When `m` is left polymorphic in the source, the runtime instantiates it to `Never` — the main process's mailbox is send-only unless the program explicitly gives out `self()`."
 
-**Guide sync (P2).** `docs/ernest-guide.md` audit found three items:
+**Guide sync (P2).** `ernest-guide.md` audit found three items:
 
 - `Float` bullet in the base-types section still said "IEEE 754 double precision" without the finite-only restriction. Updated.
 - Two spots ("When `main` returns, the runtime kills every process still alive" and the `ern [options] file.erc` description) missed the local/remote scoping from R12. Updated to say "every *local* process still alive"; noted remote workers survive.

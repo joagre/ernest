@@ -10,9 +10,9 @@ Design complete for MVP 1 (single-node subset). Implementation begins with the l
 
 ### Start here
 
-- **[`docs/ernest.md`](docs/ernest.md)** — the language report. Normative. Everything else in this repo defers to it. Prose in eleven numbered sections plus six appendices: grammar (A), examples (B), configuration (C), a foreign-library walk-through (D), the standard library (E), and a glossary (F).
+- **[`ernest-report.md`](ernest-report.md)** — the language report. Normative. Everything else in this repo defers to it. Prose in eleven numbered sections plus six appendices: grammar (A), examples (B), configuration (C), a foreign-library walk-through (D), the standard library (E), and a glossary (F).
 
-- **[`docs/ernest-guide.md`](docs/ernest-guide.md)** — a tutorial for a first-time reader. Walks through hello world, types (including abstract), functions, one process (a counter), two processes talking (ping-pong), watching processes (`monitor`, `kill`), adapting messages with `via`, the `<-` chaining idiom, remote computation, foreign types and functions, bitstrings, and the toolchain. Closes with a short FAQ and pointers to the paper programs.
+- **[`ernest-guide.md`](ernest-guide.md)** — a reading guide for a first-time reader. Walks through hello world, types (including abstract), functions, one process (a counter), two processes talking (ping-pong), watching processes (`monitor`, `kill`), adapting messages with `via`, the `<-` chaining idiom, remote computation, foreign types and functions, bitstrings, and the toolchain. Closes with a short FAQ and pointers to the paper programs.
 
 ### Then the paper programs, in this order
 
@@ -34,7 +34,7 @@ Design complete for MVP 1 (single-node subset). Implementation begins with the l
 
 ## Ground rules
 
-- **`docs/ernest.md` is the single normative document.** Nothing else in this repo overrides it.
+- **`ernest-report.md` is the single normative document.** Nothing else in this repo overrides it.
 - **Appendix A of the report is the grammar.** Any conflict between prose and Appendix A is resolved in favor of Appendix A.
 - **Section 0 of the report is the five principles.** They break ties when the design admits options.
 - **The decisions log is rationale only.** It's updated when the report is updated. Historical entries are dated and reflect their point in time.
@@ -44,6 +44,6 @@ Design complete for MVP 1 (single-node subset). Implementation begins with the l
 
 Three layers:
 
-- **Language.** The rules in `ernest.md`: syntax, types, processes, evaluation. Small and stable.
+- **Language.** The rules in `ernest-report.md`: syntax, types, processes, evaluation. Small and stable.
 - **Prelude.** What the report requires to exist. Small — the built-in types (Address, Reply, Never, plus List, Map, and Set); a handful of declared sum types (Void, Optional, Either, Ordering, Down, Reason, ClockMsg, RemoteError, Foreign, Where); the built-in functions (self, send, spawn); the process functions (via, Address.call, Address.callForever, answer, remote, parallelRemote, monitor, kill); the operations Ernest's operators resolve to (`Int.+` through `Int.%`, `Float.+` through `Float./`, negation, `String.<>`, `List.<>`, `Int.div`/`Int.mod`, the `.compare` functions, `todo`); and system references (Sys.stdout, Sys.clock).
 - **Standard library** (Appendix E). Ordinary Ernest code on the load path by default: Io, List, Map, Set, String, Char, Bool, Int, Float, Optional, Either, Foreign. Grows when a paper program writes the same pattern three times.
