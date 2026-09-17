@@ -140,7 +140,7 @@ Local `fn`s in a block are generalized only once every later local `fn` they ref
 ### 2.2 Processes (3 days)
 
 - `spawn(Local, f)` becomes `erlang:spawn(fun() -> F() end)`; `spawn(Peer(name), f)` and `remote` are MVP 3; `self()` becomes `self()`. Functions with n arguments become Erlang functions of arity n, directly.
-- `receive { P -> e | ... }` becomes `receive P -> E; ... end`, and `receive { ... | after T -> e }` becomes `receive ... after T -> E end`; an `after`-only receive becomes `receive after T -> E end`. `monitor` is `erlang:monitor/2`, which already delivers at once for a dead target (§6.9); `kill` is `exit/2`, asynchronous as §6.9 says. Clauses are translated like `match` clauses; patterns and guards are Erlang's. No mailbox scanning; what was MVP 2 vanished with the filter function.
+- `receive { P -> e | ... }` becomes `receive P -> E; ... end`, and `receive { ... | after T -> e }` becomes `receive ... after T -> E end`; an `after`-only receive becomes `receive after T -> E end`. `monitor` is `erlang:monitor/2`, which already delivers at once for a dead target (§6.9); `kill` is `exit/2`, asynchronous as §6.9 says. Clauses are translated like `match` clauses. **Omission, 2026-09-17:** report §5.9 allows any pure `Bool` expression as a guard, but BEAM tests a receive guard before taking the message and so admits only Erlang guard expressions. In MVP 1 a `receive` guard must be a comparison, or `&&`/`||` of comparisons, over pattern variables, enclosing variables, and literals; anything else is a compile-time error naming §5.9 and MVP 4, which lifts the restriction. `match` guards are general from the start, by the continuation in 2.1. No mailbox scanning in MVP 1.
 
 **Code:** translation of patterns and guards into Erlang patterns and guards, shared with `match`.
 
@@ -244,7 +244,7 @@ One person full-time: about eight and two thirds working weeks. Half-time: three
 
 **MVP 3 (distribution with content addressing):** every definition gets a hash of its typed AST; modules are named by hash; a registry per node `{Hash -> Module}`. A message with a function carries the hash, and a node that lacks it fetches the code from the sender. `spawn(Peer(name), f)` and `remote(f)` over the peers in `ernest.conf`, authenticated with the configured keys; `remote` picks among peers flagged `"remote-peer": true` by load, criterion to be chosen then. Erlang's module distribution is not used.
 
-**MVP 4 (optimizations):** selective receive with a ring buffer instead of list scanning. Erlang side: `process_flag(priority, ...)` and scheduling hints.
+**MVP 4 (optimizations and general receive guards):** a runtime-managed mailbox, a ring buffer the runtime fills from the BEAM mailbox and scans with compiled clause functions in arrival order, which lifts the MVP 1 restriction on `receive` guards (2.2) and makes selective receive independent of BEAM's; every `receive` pays for it, which is the price of §5.9's general guards. Erlang side: `process_flag(priority, ...)` and scheduling hints.
 
 **MVP 5 (ecosystem):** HTTP server, JSON, database connectors written in Ernest. A standard library in Ernest, not just Erlang wrappers.
 
