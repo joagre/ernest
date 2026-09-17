@@ -1089,7 +1089,7 @@ Semantics:
 
 **Effect elsewhere.**
 
-- Paper programs (Appendix B in report, examples/repl, filesync, webserver, tick_game; docs/webserver_comparison): no change needed. These are single-file programs at the root namespace; their `fn StatusCode.render(...)` etc. are abstract-type accessors, which keep the type-name-prefix form. `export` is optional in a single-file program (nothing else references them).
+- Paper programs (Appendix B in report, examples/repl, filesync, webserver, tick_game; the Erlang comparison, since removed): no change needed. These are single-file programs at the root namespace; their `fn StatusCode.render(...)` etc. are abstract-type accessors, which keep the type-name-prefix form. `export` is optional in a single-file program (nothing else references them).
 - Implementation plan: reserved words count updated 16 → 17.
 
 **Cost.** ~40 lines of edits in the report, ~30 in the guide, one new reserved word. No new type-system mechanism.
@@ -2407,7 +2407,7 @@ Planned or considered, not in the language today.
 - [`examples/tick_game.ern`](../examples/tick_game.ern): snake game with ticks. Gave definitions in blocks (closes `where`), `At` and `Now`, `Sys` as the runtime's type, the value-versus-process criterion (one process per player was parallelism nobody asked for), the answer on local state (three counters became a fold with a tuple accumulator; when the tuple grows, a named type with `..`), and the case against `Nat`.
 - [`examples/repl.ern`](../examples/repl.ern): REPL with lexer, parser, evaluator, and `try` as a process. Gave `<-`, the warning about `self` in `spawn`, `TryError`. The evidence for `<-`: without it, 43 of 140 lines of pure code were `Left(e) -> Left(e)`, thirty percent that said nothing; with it, the same code is fifteen lines against twenty-four.
 - All paper programs: `spawn(Local, ...)` after placement became an argument.
-- [`webserver_comparison.md`](webserver_comparison.md): the same web server in Erlang. Without type signatures six percent more characters, almost all in the filter function (45 characters each time, twice), which was subsequently dropped when `recv` became a form with arms and `after`.
+- The web server comparison (an Erlang version of the same program, removed 2026-09-17): the same web server in Erlang. Without type signatures six percent more characters, almost all in the filter function (45 characters each time, twice), which was subsequently dropped when `recv` became a form with arms and `after`.
 
 ## Form of the Report
 

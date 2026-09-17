@@ -2,8 +2,7 @@
 // Paper program 1: web server with sessions
 //
 // Written against the Ernest report, September 2026. A web server with
-// sessions. The same program in idiomatic Erlang is in webserver.erl; the
-// measured comparison of the two is in docs/webserver_comparison.md.
+// sessions.
 //
 // Assumptions. ClockMsg is the report's. Sys.clock is a runtime reference
 // (report §8); this program additionally assumes the runtime provides

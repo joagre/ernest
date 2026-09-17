@@ -24,7 +24,6 @@ The complete programs from the report's Appendix B and the guide's checkpoints a
 - **[`examples/repl.ern`](examples/repl.ern)** — a read-eval-print loop for a small expression language. Heavy use of `<-`, `try` as a supervised child process, `monitor` for detecting child death.
 - **[`examples/filesync.ern`](examples/filesync.ern)** — file synchronization between two nodes. Introduces mutual-address setup and additional runtime references (`Sys.fs`).
 - **[`examples/webserver.ern`](examples/webserver.ern)** — HTTP server with sessions. Introduces `foreign fn`, abstract types with signatures, ETS as a foreign process.
-- **[`docs/webserver_comparison.md`](docs/webserver_comparison.md)** — the same web server in idiomatic Erlang, for measurement.
 
 ### Then, as reference material
 
@@ -53,7 +52,7 @@ Three layers:
 ```
 ernest_report.md   the language report (normative)
 ernest_guide.md    the reading guide
-docs/              decisions log, implementation plan, web server comparison
+docs/              decisions log, implementation plan
 examples/          Ernest programs: the paper programs and the small ones
 stdlib/            the Ernest standard library (Appendix E), a source root
 lib/               the compiler, as Erlang applications: lexer, parser,
