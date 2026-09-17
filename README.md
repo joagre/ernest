@@ -47,7 +47,7 @@ Three layers:
 
 - **Language.** The rules in `ernest_report.md`: syntax, types, processes, evaluation. Small and stable.
 - **Prelude.** What the report requires to exist. Small — the built-in types (Address, Reply, Never, Foreign, plus List, Map, and Set); a handful of declared sum types (Unit, Optional, Either, Ordering, Down, Reason, ClockMsg, RemoteError, Where); the built-in functions (self, send, spawn); the process functions (via, Address.call, Address.callForever, answer, remote, parallelRemote, monitor, kill); the operations Ernest's operators resolve to (`Int.+` through `Int.%`, `Float.+` through `Float./`, negation, `String.<>`, `List.<>`, `Bytes.<>`, `Int.div`/`Int.mod`, the `.compare` functions, `todo`); and system references (Sys.stdout, Sys.clock).
-- **Standard library** (Appendix E). On the load path by default, as Erlang modules under `lib/runtime/src` until `foreign fn` arrives in MVP 2: Io, List, Map, Set, String, Char, Bool, Int, Float, Optional, Either, Foreign. Grows when a paper program writes the same pattern three times.
+- **Standard library** (Appendix E). On the load path by default, as Erlang modules under `lib/runtime/src` until `foreign fn` arrives in MVP 2: Io, List, Map, Set, String, Char, Bool, Int, Float, Optional, Either, Foreign, all of Appendix E. Grows when a paper program writes the same pattern three times.
 
 ## Layout of the repository
 
@@ -97,7 +97,7 @@ MVP 1 is the report on one node. Everything the report describes type-checks, an
 | Construct | Until | What you see today |
 |---|---|---|
 | `Float` arithmetic and negation (§3.1); `Float` values and the `Float` functions work | MVP 2 | `Float arithmetic is not in MVP 1` |
-| `foreign fn`, `foreign type` (§4.7), the `Foreign` namespace (E.12) | MVP 2 | type-checks; `ernc` says `foreign functions are not in MVP 1` |
+| `foreign fn`, `foreign type` (§4.7) | MVP 2 | type-checks; `ernc` says `foreign functions are not in MVP 1` |
 | Bitstrings (§5.11) | MVP 2 | `bitstrings are not in MVP 1` |
 | The ownership rule of abstract types (§4.4) | MVP 2 | not checked; a constructor is usable anywhere in its module |
 | A `Reply` captured by a lambda that reaches `spawn` through a `let` rather than as its direct argument (§6.6) | MVP 2 | `in MVP 1 the reply-carrying value r is captured by a lambda that is not passed directly to spawn` |

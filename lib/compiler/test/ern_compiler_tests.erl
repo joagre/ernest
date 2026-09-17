@@ -3,6 +3,7 @@
 -export([write_golden/0]).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("parser/include/ern_ast.hrl").
 -include_lib("type_system/include/ern_types.hrl").
 
 %%
@@ -512,6 +513,43 @@ sys_in_let_test() ->
     {ok, Out} = run("let out = Sys.stdout\n"
                     "export fn main() -> Unit with Never = Io.printlnTo(out, \"via let\")\n"),
     ?assertEqual(<<"via let\n">>, Out).
+
+%% report §9, Appendix E; plan 2.1 table two: every prelude value the
+%% checker knows is emitted as a call to a function that exists, with the
+%% arity of its type, so no accepted name can reach the runtime as undef
+prelude_targets_test() ->
+    Missing = [Q || {Q, Text} <- ern_prelude:values(),
+                    {M, F, A} <- [prelude_target(Q, Text)],
+                    code:ensure_loaded(M) =/= {module, M} orelse
+                        not erlang:function_exported(M, F, A)],
+    ?assertEqual([], Missing).
+
+%% The emission of a prelude name, as ern_compiler makes it; inline
+%% operators have no target.
+prelude_target(Q, Text) ->
+    {ok, Syntax} = ern_parser:parse_type(Text),
+    Arity = case Syntax of
+                #t_fn{params = Ps} -> length(Ps);
+                _ -> 0
+            end,
+    case Q of
+        [self] -> {ern_rt, self, 0};
+        [send] -> {ern_rt, send, 2};
+        [spawn] -> {ern_rt, spawn, 3};
+        [via] -> {ern_rt, via, 2};
+        [answer] -> {ern_rt, answer, 2};
+        [monitor] -> {ern_rt, monitor, 2};
+        [kill] -> {ern_rt, kill, 1};
+        [remote] -> {ern_rt, remote, 1};
+        [parallelRemote] -> {ern_rt, parallel_remote, 1};
+        [todo] -> {ern_rt, todo, 1};
+        ['Address', call] -> {ern_rt, call, 3};
+        ['Address', callForever] -> {ern_rt, call_forever, 2};
+        ['Sys', _] -> {ern_rt, sys, 1};
+        [_, Op] when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/'; Op =:= '%'; Op =:= '<>';
+                     Op =:= negate -> {erlang, is_atom, 1};
+        [Ns, F] -> {ern_compiler:module_atom([Ns]), F, Arity}
+    end.
 
 %% report §8.2, §9.7: Sys.stdout is a value
 sys_stdout_test() ->

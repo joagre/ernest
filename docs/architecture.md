@@ -65,7 +65,7 @@ Module atoms are `ernest@` and the path with `@` for `/`: `ernest@net@http`. Typ
 
 `run_main(Main, Site, Opts)` is the launcher: it starts the reaper and the `stdout` and `clock` processes, binds them under `persistent_term` for `Sys.stdout` and `Sys.clock`, runs `Main` as a process, waits for it, ends every live local process with `ProgramEnd`, flushes stdout, and returns `ok` or `{fault, Msg}`. `Opts` can replace stdout with a function, which the tests use.
 
-The standard library, Appendix E, is hand-written Erlang under `lib/runtime/src/`: `ernest@list`, `ernest@map`, `ernest@set`, `ernest@string`, `ernest@char`, `ernest@bool`, `ernest@int`, `ernest@float`, `ernest@optional`, `ernest@either`, `ernest@io`, each exporting Appendix E under the ABI. Where Appendix E leaves a definition open the module header states the choice. `ernest@float` holds the `Float` operators because a compiled `badarith` carries no operands, so the runtime cannot tell the Float fault from the Int one.
+The standard library, Appendix E, is hand-written Erlang under `lib/runtime/src/`: `ernest@list`, `ernest@map`, `ernest@set`, `ernest@string`, `ernest@char`, `ernest@bool`, `ernest@int`, `ernest@float`, `ernest@optional`, `ernest@either`, `ernest@foreign`, `ernest@io`, each exporting Appendix E under the ABI. Where Appendix E leaves a definition open the module header states the choice. `ernest@float` holds the `Float` operators because a compiled `badarith` carries no operands, so the runtime cannot tell the Float fault from the Int one.
 
 ## The tools
 
@@ -83,7 +83,7 @@ Four kinds, all run by `make test`:
 ## Where MVP 2 hooks in
 
 - **`Float`**: the checker refuses Float arithmetic in `resolve_operators`; lift the refusal and let `binop` in the compiler call `'ernest@float'` for the four operators. The stdlib module and its fault mapping exist.
-- **`foreign fn`, `foreign type`**: the checker accepts them; `ern_compiler:decl/2` refuses `#foreign_fn_decl{}`. Emit a call to the named Erlang function wrapped in a catch that turns an exception into a fault (§8.4); the `Foreign.*` conversions become `ernest@foreign`. `stdlib/*.ern` can then replace the Erlang modules one by one, since generated code calls `ernest@list:map/2` either way.
+- **`foreign fn`, `foreign type`**: the checker accepts them; `ern_compiler:decl/2` refuses `#foreign_fn_decl{}`. Emit a call to the named Erlang function wrapped in a catch that turns an exception into a fault (§8.4); the `Foreign.*` conversions already exist as `ernest@foreign`. `stdlib/*.ern` can then replace the Erlang modules one by one, since generated code calls `ernest@list:map/2` either way.
 - **Bitstrings**: the lexer has no `<<` and `>>` tokens; `#e_bits{}` and `#p_bits{}` exist in the AST and the checker and compiler refuse them. Type against `Bytes` and emit BEAM's bit syntax directly.
 - **Abstract type ownership** (§4.4): the checker has the signature; add the constructor-visibility check in `check_values`. One Erlang module per type with the signature as export list is a compiler change in `decl/2` and `module_atom/1`.
 - **`Deadlock`** (§8.6): the reaper knows every live process; add the waiting state and the timers to what it tracks.

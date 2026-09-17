@@ -171,6 +171,21 @@ either_test() ->
     ?assertEqual({'Some', 1}, E:toOptional({'Right', 1})),
     ?assertEqual({'Left', e}, E:fromOptional('None', e)).
 
+%% report Appendix E.12, §3.8, §8.4
+foreign_test() ->
+    F = 'ernest@foreign',
+    ?assertEqual({'Some', 3}, F:toInt(3)),
+    ?assertEqual('None', F:toInt(3.0)),
+    ?assertEqual({'Some', 1.5}, F:toFloat(1.5)),
+    ?assertEqual('None', F:toFloat(1)),
+    ?assertEqual({'Some', <<"s">>}, F:toString(<<"s">>)),
+    ?assertEqual('None', F:toString(<<255>>)),
+    ?assertEqual('None', F:toString("s")),
+    ?assertEqual({'Some', true}, F:toBool(true)),
+    ?assertEqual('None', F:toBool(1)),
+    ?assertEqual({'Some', [1, x]}, F:toList([1, x])),
+    ?assertEqual('None', F:toList(<<>>)).
+
 %% report §6.7: no peer is configured in MVP 1
 remote_test() ->
     ?assertEqual({'Left', 'NoRemotePeer'}, ern_rt:remote(fun() -> 1 end)),
