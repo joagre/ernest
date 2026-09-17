@@ -399,8 +399,8 @@ warts_audit_test() ->
                  " discards its argument",
                  err(Msg ++ "fn fst(#(x, y)) = x\nfn f(r : Reply(Int)) = fst(#(1, r))")),
     %% a member less general than its signature
-    ?assertEqual("Stack.push is (Int, M.Stack(Int)) -> M.Stack(Int), not the signature's"
-                 " (a, M.Stack(a)) -> M.Stack(a)",
+    ?assertEqual("Stack.push is (Int, Stack(Int)) -> Stack(Int), not the signature's"
+                 " (a, Stack(a)) -> Stack(a)",
                  err("abstract type Stack(a) = Stack(List(a)) with {"
                      " push : (a, Stack(a)) -> Stack(a) }\n"
                      "fn Stack.push(x : Int, Stack(xs)) = Stack(x :: xs)")),
