@@ -9,11 +9,14 @@
 .DS_Store
 Thumbs.db
 
-# Build artifacts (to be refined once implementation language is chosen)
+# Erlang build artifacts
+*.beam
+*.Pbeam
+erl_crash.dump
+
+# Ernest build output and per-node configuration (holds a private key)
 /build/
-/dist/
-/target/
-/out/
+.ernest/
 
 # Local env
 .env
