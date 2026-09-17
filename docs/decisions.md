@@ -2378,6 +2378,8 @@ A full read of the report against its own principles, Wirth-report practice, and
 - The header carries a full revision date, "Revision of 17 September 2026", instead of a month.
 - Alignment padding in the code blocks of §9.6 and Appendix E collapsed to single spaces, per the style guide.
 
+**Guide synced the same day.** `ernest_guide.md` was read against the revised report. Fixed: a stale sentence claiming a lowercase-collision rule between path segments (§11.1 requires lowercase, so none can collide); "cannot be stored" for `Reply`, now "linear"; "imported by qualified name" where there is no import. Added for sync: string escapes, ordering through `compare`, non-operand forms, the complete process-only list, `let` passing a reply obligation, `after`-only `receive` under `Never`, `monitor` on a dead process, bitstring defaults, and a FAQ entry on `with Never` versus `with m`. Two things the guide stated that the report did not were added to the report: `kill` is asynchronous (§6.9), and §6.8's send-only example is now `Io.println`, since `ping` is a spawn root rather than a helper.
+
 **Decided the same day, after asking:**
 
 - *`Never` and `after`.* §6.8 banned every `receive` under `Never`, and an `after`-only `receive` is the language's only sleep, so a `Never` process could not pause. Now a `receive` with only an `after` clause is legal under `Never`; a pattern clause is still a type error. It matches nothing, so nothing invisible is admitted.

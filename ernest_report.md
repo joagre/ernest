@@ -668,11 +668,11 @@ type RemoteError = NoRemotePeer | PeerLost
 
 A function with mailbox type `Never` can send but never receive: a `receive` with a pattern clause in it is a type error. A `receive` with only an `after` clause matches nothing and is legal; it is how a `Never` process waits.
 
-`with Never` annotates a process root that never receives: `main`, or the function a spawn lambda calls. It can only be called where the mailbox is `Never`, so a send-only helper called from process code is polymorphic instead, `with m`, as `ping` in Appendix B.
+`with Never` annotates a process root that never receives: `main`, or the function a spawn lambda calls. It can only be called where the mailbox is `Never`, so a send-only helper called from process code is polymorphic instead, `with m`, as `Io.println` in Appendix E.
 
 ### 6.9 Death
 
-A process dies when its function returns, when `kill` is called on it, on a fault, section 7, or when the node it runs on is lost. `monitor(a, wrap)`, §9.5, causes `wrap(d)` to be placed in the caller's mailbox when `a` dies, where `d : Down` gives the cause. If `a` is already dead, the message is placed at once. Each `monitor` call produces one message. There are no other links.
+A process dies when its function returns, when `kill` is called on it, on a fault, section 7, or when the node it runs on is lost. `kill` is asynchronous: the target may run until the runtime interrupts it. `monitor(a, wrap)`, §9.5, causes `wrap(d)` to be placed in the caller's mailbox when `a` dies, where `d : Down` gives the cause. If `a` is already dead, the message is placed at once. Each `monitor` call produces one message. There are no other links.
 
 ### 6.10 Code replacement
 

@@ -11,7 +11,7 @@ Ernest is a functional language for concurrent programs. Two organizing ideas ru
 
 Everything else is a rule for how functions and processes appear in each other's code.
 
-The guide is arranged as seven stages, with a complete runnable program at selected checkpoints (hello, the counter, the module example, the remote example). The complete programs are collected as files under [`examples/`](examples/). Other snippets are illustrative fragments — assembling them into files is left to the reader. Each stage ends with a short prediction exercise. Read the stages in order; each builds on what came before.
+The guide is arranged as seven stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, organize code, cross boundaries. A complete runnable program appears at selected checkpoints (hello, the counter, the module example, the remote example). The complete programs are collected as files under [`examples/`](examples/). Other snippets are illustrative fragments — assembling them into files is left to the reader. Each stage ends with a short prediction exercise. Read the stages in order; each builds on what came before.
 
 ## 1. Run a program
 
@@ -71,8 +71,8 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 - **`Int`** — arbitrary precision. Literal: `42`.
 - **`Float`** — IEEE 754 binary64, finite range only. Literal: `3.14`.
 - **`Char`** — one Unicode code point. Literal: `'a'`.
-- **`String`** — a Unicode string. Literal: `"hello"`.
-- **`Bytes`** — sequence of octets. Literal: `<<0, 1, 2>>`.
+- **`String`** — a Unicode string. Literal: `"hello"`. Escapes: `\n`, `\r`, `\t`, `\\`, `\"`, `\'`, `\u{1F600}`.
+- **`Bytes`** — sequence of octets. Literal: `<<0, 1, 2>>` (a bitstring, §7.6).
 - **`Bool`** — `true` or `false`.
 - **`Unit`** — one value, also called `Unit`.
 
@@ -81,6 +81,8 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 `Int` and `Float` are separate types with no implicit conversion — mixing them in an arithmetic expression is a type error. Cross the boundary explicitly with `Int.toFloat`, `Float.round`, `Float.floor`, or `Float.ceil`; each has a contract in Appendix E of the report (`Int.toFloat` faults on integers outside the finite float range, for instance).
 
 ### 2.2 Bindings and blocks
+
+Inside a block:
 
 ```
 let x = 5;
@@ -189,6 +191,8 @@ let s = Set.fromList([1, 2, 3])
 
 Map keys and set elements require equality. Ernest's `==` is defined for every type *except* those containing functions or addresses (report §3.10) — that includes tuples, sums, and constructor fields that transitively contain either. `Map(Address(m), v)` is a type error at instantiation; so is `xs == ys` when `xs` is `List(Address(m))` or any type containing one.
 
+Ordering is separate from equality: `a < b` goes through the type's `compare` function, and only `Int`, `Float`, `String`, and `Char` have one in the prelude. `<` on a type without `compare` is a type error (report §3.10).
+
 ### 2.6 Patterns and irrefutability
 
 The same patterns appear in `match` clauses, `let` bindings, and function parameters. Bindings and parameters need *irrefutable* patterns — patterns that always match:
@@ -220,7 +224,7 @@ Guards are pure `Bool` expressions — no mailbox effect. A guard that evaluates
 
 ### 2.7 `if` and `<-`
 
-`if cond then a else b` is an expression. Both branches must have the same type. There is no `if` without `else`.
+`if cond then a else b` is an expression. Both branches must have the same type. There is no `if` without `else`. Like `match`, `receive`, and `fn`, it is not an operand: write `1 + (if c then a else b)`, not `1 + if c then a else b`.
 
 `<-` short-circuits on `Optional` or `Either`. The prelude defines them as:
 
@@ -336,7 +340,7 @@ A function type without `with M` is *pure*: it cannot perform process operations
 
 Both kinds of function can fault or fail to terminate. `a / b` with `b = 0` faults despite the type being `(Int, Int) -> Int`. `todo("...")` compiles at any type and faults if reached. Ernest has no local exception handler: expected failures are values (`Optional`, `Either`) or protocol messages; a fault terminates the process and is observed by other processes through monitoring (§5).
 
-The mailbox effect is *not* a purity-vs-effect flag decoupled from sending and receiving: it says the function acts through a process, distinguishing pure computation from process-mediated behavior. It does not itself label a call as fallible.
+The mailbox effect says one thing: the function acts through a process. It says nothing about faults.
 
 ### 3.5 Higher-order and effect polymorphism
 
@@ -348,7 +352,7 @@ Inferred type: `((a) -> b with e, a) -> b with e`. The callback's mailbox effect
 
 An effect variable that appears *only* in effect position (like `e` above) may bind to a mailbox type or to *pure*. An effect variable that also appears in a value position (like `m` in `self : () -> Address(m) with m`) can only bind to a real mailbox type — pure is not a type, so it cannot appear inside `Address(_)`.
 
-Process operations that require a process context — the prelude primitives `send`, `spawn`, `Address.call`, `answer`, `monitor`, `kill`, `remote`, `parallelRemote`, and the `receive` expression form (with its optional `after` clause) — are *process-only*: they require the enclosing function's mailbox effect to be a real mailbox type, so pure code cannot use any of them.
+Process operations that require a process context — `self`, `send`, `spawn`, `Address.call`, `Address.callForever`, `answer`, `monitor`, `kill`, `remote`, `parallelRemote`, a `foreign fn` declared `with M`, and the `receive` expression form — are *process-only*: they require the enclosing function's mailbox effect to be a real mailbox type, so pure code cannot use any of them.
 
 `ping`'s `m` in §5 is polymorphic but process-only: any real mailbox is admissible, but pure is not.
 
@@ -391,9 +395,9 @@ fn counter(n : Int) -> Unit with CounterMsg = receive {
 
 `counter` takes its state as the parameter `n`. Its mailbox type is `CounterMsg`. `receive` waits for a matching message and evaluates the clause's expression. Both clauses tail-call `counter` with the new state; Ernest guarantees tail-call optimization.
 
-`Reply(a)` is a built-in one-shot address: someone hands it over with a request; the receiver puts one value in it, exactly once. Unlike `Address(a)`, a `Reply(a)` cannot be stored.
+`Reply(a)` is a built-in one-shot address: someone hands it over with a request; the receiver puts one value in it, exactly once. Unlike `Address(a)`, a `Reply(a)` is *linear*: the compiler checks that every one is consumed exactly once.
 
-### 4.2 Reply ownership
+### 4.2 Reply is linear
 
 The compiler enforces: **a `Reply(a)` bound in a `receive` clause must be consumed exactly once on every path.** The rule generalizes to *reply-carrying types* — any type that transitively contains a `Reply`. `CounterMsg` above is reply-carrying because `Get` has a `Reply` field.
 
@@ -410,7 +414,7 @@ Form 4+5 together justify `Address.call`'s builder callback (§4.4): `fn(r) = Ge
 
 The ownership check is static: it verifies that every syntactically reachable path calls `answer` (or delegates, or shifts). It does not guarantee that execution *reaches* that call at runtime — a path that faults, loops, or waits forever bypasses the answer without invalidating the type check. That is why `Address.call` requires a mandatory timeout (§4.4): the caller must plan for the case where the answer never comes.
 
-Pattern-matching a reply-carrying scrutinee transfers the obligation to the pattern-bound reply-carrying fields; matching a nullary case (like `Stop` in `PongMsg`, §5) discharges the aggregate obligation with no new binding.
+Pattern-matching a reply-carrying scrutinee transfers the obligation to the pattern-bound reply-carrying fields; matching a nullary case (like `Stop` in `PongMsg`, §5) discharges the aggregate obligation with no new binding. A `let` passes the obligation along the same way: after `let r2 = r`, it is `r2` that must be consumed.
 
 A wildcard or omitted reply field, and an `as` alias on a reply-carrying scrutinee, are type errors. Reply-carrying values may not appear as elements of `List`, `Map`, `Set`, `Optional`, or `Either`, or as operands of equality.
 
@@ -438,7 +442,7 @@ fn waitForData() -> Optional(Int) with Inbox = receive {
 }
 ```
 
-`after N` gives a millisecond timeout that fires if no clause matches within that window. `after 0` scans without waiting for new messages. Without `after`, the process waits indefinitely.
+`after N` gives a millisecond timeout that fires if no clause matches within that window. `after 0` scans without waiting for new messages. Without `after`, the process waits indefinitely. A `receive` with only an `after` clause is a timed wait, and is the one `receive` a `Never` process may use.
 
 If a `Wake` is already in the mailbox, `waitForData` skips it — leaves it queued — and waits for a `Data`. Some later `receive` can handle `Wake`.
 
@@ -597,7 +601,7 @@ type Down = Down(reason : Reason, function : String)
 type Reason = Returned | Killed | ProgramEnd | Fault(String)
 ```
 
-`monitor(child, wrap)` asks the runtime to place `wrap(d)` in *your* mailbox when `child` dies. `wrap` adapts the runtime's `Down` into your mailbox type — in ping-pong, `PongDone` is a constructor of `MainMsg` that carries a `Down`. `PongDone(_)` accepts any death reason; it signals *termination*, not *success* — a faulting pong would still deliver `PongDone(Down(reason = Fault(_), ...))`.
+`monitor(child, wrap)` asks the runtime to place `wrap(d)` in *your* mailbox when `child` dies, or at once if it is already dead. `wrap` adapts the runtime's `Down` into your mailbox type — in ping-pong, `PongDone` is a constructor of `MainMsg` that carries a `Down`. `PongDone(_)` accepts any death reason; it signals *termination*, not *success* — a faulting pong would still deliver `PongDone(Down(reason = Fault(_), ...))`.
 
 A fault in one process does not affect another (no automatic supervision), except that a fault in `main` ends the program and terminates its local processes with `ProgramEnd`.
 
@@ -615,7 +619,7 @@ The runtime ends a program with the error `Deadlock` when forward progress is im
 
 ### 5.5 Adapting messages with `via`
 
-Suppose the runtime's clock accepts an `After` request that fires once:
+The prelude's clock accepts an `After` request that fires once:
 
 ```
 // excerpt from the prelude's ClockMsg — the full type has more variants
@@ -715,7 +719,7 @@ GET /
 
 Directory mode compiles in dependency order automatically, creates missing subdirectories under `build/`, and removes stale `.erc` outputs whose source is gone (`--no-clean` disables the sweep). It's the recommended pattern once a project has more than one file.
 
-**The file's path is its namespace.** A file at `a/b/c.ern` provides declarations at namespace `A.B.C`. Each path segment is lowercase; each namespace segment is the *canonical typename form* — the path segment with its first ASCII letter uppercased and the rest preserved (`http.ern` → `Http`, `http_server.ern` → `Http_server`). The mapping is one-to-one, and the report scopes the collision rule to namespace segments: two path segments whose lowercase forms coincide is a compile-time error (report §4.2).
+**The file's path is its namespace.** A file at `a/b/c.ern` provides declarations at namespace `A.B.C`. Each path segment is lowercase; each namespace segment is the *canonical typename form* — the path segment with its first ASCII letter uppercased and the rest preserved (`http.ern` → `Http`, `http_server.ern` → `Http_server`). Path components must be lowercase (report §11.1), so the mapping is one-to-one.
 
 **Declarations use local names.** Inside `net/http.ern`, `export fn parse(...)` declares the function at its local name `parse`; the compiler exports it as `Net.Http.parse`. There is no file-namespace prefix on the declaration itself — repeating `Net.Http.` on every line would just restate the file's path.
 
@@ -862,7 +866,7 @@ foreign fn rawLookup(t : Table(k, v), key : k)
     -> List(#(k, v)) with m = "ets:lookup/2"
 ```
 
-`rawLookup` has no `export`, so it is file-local. `Ets.lookup` is the typed API callers use (imported by qualified name `Ets.lookup`).
+`rawLookup` has no `export`, so it is file-local. `Ets.lookup` is the typed API callers use, by its qualified name.
 
 Erlang's `{ok, V} | {error, R}` convention does not automatically match an Ernest `Either(e, a)`. Ernest's `Either` constructors are `Left(e)` and `Right(a)`, and under §8.4's ABI they encode as `{'Left', e}` and `{'Right', a}` (quoted, source-preserving). Erlang's `{ok, V}` uses the lowercase atom `ok`, which is a different value.
 
@@ -914,6 +918,8 @@ Specifiers, joined with `-`:
 - **`big`**, **`little`**, **`native`** — endianness.
 - **`signed`**, **`unsigned`** — sign.
 
+A segment without specifiers is `int` of size 8, which is why `<<0, 1, 2>>` is three bytes. `int` binds to `Int`, `float` to `Float`, the `utf` forms to `Char`, `bits` and `bytes` to `Bytes`.
+
 **Alignment and range rules:**
 
 - A bitstring produces a `Bytes` value; the total bit count must be a multiple of 8.
@@ -938,6 +944,10 @@ Answer: the runtime faults the sending process asynchronously, after `send` has 
 **Why is `main`'s mailbox usually `Never`?**
 
 `Never` is the type with no values; a mailbox typed `Never` cannot receive. `main` that only spawns and sends carries `with Never` to say so. If `main` is written with a polymorphic `with m`, the runtime instantiates `m` to `Never`.
+
+**When do I write `with Never` and when `with m`?**
+
+`with Never` is for a process root that never receives: `main`, or the function a spawn lambda calls. A function with mailbox `Never` can only be called where the mailbox is `Never`, so a send-only helper that other process code calls, like `Io.println`, stays polymorphic with `with m` and takes the caller's mailbox type.
 
 **Why can `let Right(x) = e` be a type error?**
 
