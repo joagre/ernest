@@ -573,7 +573,7 @@ modules_example_test() ->
 examples_test_() ->
     Files = filelib:wildcard("../../../examples/*.ern"),
     Mvp1 = ["counter", "counter_upgrade", "hello", "ping_pong", "remote", "stack", "patterns",
-            "ets"],
+            "kv_parser", "ets"],
     [{F, fun() ->
               {ok, Bin} = file:read_file(F),
               Base = filename:basename(F, ".ern"),

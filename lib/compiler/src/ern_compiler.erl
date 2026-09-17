@@ -345,11 +345,7 @@ var_ref(Pos, Path, Name, T, #cx{tops = Tops, env = Env} = Cx) ->
                        false ->
                            {M, F} = remote_name(Path, Name, Env),
                            case T of
-                               {tfn, Ps, _, _} ->
-                                   erl_syntax:implicit_fun(
-                                     erl_syntax:module_qualifier(erl_syntax:atom(M),
-                                                                 erl_syntax:atom(F)),
-                                     erl_syntax:integer(length(Ps)));
+                               {tfn, Ps, _, _} -> remote_fun(M, F, length(Ps));
                                _ -> call_remote(M, F, [])
                            end
                    end
@@ -432,6 +428,10 @@ call(Pos, Callee, Args, Cx) ->
     {ArgForms, Cx2} = exprs(Args, Cx1),
     {at(Pos, erl_syntax:application(CalleeForm, ArgForms)), Cx2}.
 
+%% fun M:F/A
+remote_fun(M, F, Arity) ->
+    erl_syntax:implicit_fun(erl_syntax:atom(M), erl_syntax:atom(F), erl_syntax:integer(Arity)).
+
 call_remote(M, F, Args) ->
     erl_syntax:application(erl_syntax:module_qualifier(erl_syntax:atom(M), erl_syntax:atom(F)),
                            Args).
@@ -512,22 +512,14 @@ prelude_value(Pos, [Name], T) ->
                  todo -> {ern_rt, todo};
                  _ -> fail(Pos, "no emission for " ++ atom_to_list(Name))
              end,
-    erl_syntax:implicit_fun(erl_syntax:module_qualifier(erl_syntax:atom(M), erl_syntax:atom(F)),
-                            erl_syntax:integer(arity_of(T, Pos)));
+    remote_fun(M, F, arity_of(T, Pos));
 prelude_value(Pos, ['Address', call], T) ->
-    erl_syntax:implicit_fun(erl_syntax:module_qualifier(erl_syntax:atom(ern_rt),
-                                                        erl_syntax:atom(call)),
-                            erl_syntax:integer(arity_of(T, Pos)));
+    remote_fun(ern_rt, call, arity_of(T, Pos));
 prelude_value(Pos, ['Address', callForever], T) ->
-    erl_syntax:implicit_fun(erl_syntax:module_qualifier(erl_syntax:atom(ern_rt),
-                                                        erl_syntax:atom(call_forever)),
-                            erl_syntax:integer(arity_of(T, Pos)));
+    remote_fun(ern_rt, call_forever, arity_of(T, Pos));
 prelude_value(_Pos, [Ns | Rest], T) when Rest =/= [] ->
     case T of
-        {tfn, Ps, _, _} ->
-            erl_syntax:implicit_fun(erl_syntax:module_qualifier(erl_syntax:atom(module_atom([Ns])),
-                                                                erl_syntax:atom(lists:last(Rest))),
-                                    erl_syntax:integer(length(Ps)));
+        {tfn, Ps, _, _} -> remote_fun(module_atom([Ns]), lists:last(Rest), length(Ps));
         _ ->
             %% a stdlib value: Map.empty, Set.empty
             call_remote(module_atom([Ns]), lists:last(Rest), [])

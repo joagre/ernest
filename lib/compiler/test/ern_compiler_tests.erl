@@ -119,8 +119,8 @@ counter_golden_test() ->
 -define(GOLDEN, "../../../test/golden/").
 
 golden_names() ->
-    ["hello", "counter", "counter_upgrade", "ping_pong", "stack", "patterns", "remote",
-     "modules/net/http", "modules/main"].
+    ["hello", "counter", "counter_upgrade", "ping_pong", "stack", "patterns", "kv_parser",
+     "remote", "modules/net/http", "modules/main"].
 
 %% The source the compiler emits for an example; the modules pair is
 %% checked in dependency order, main against http's interface.
@@ -182,6 +182,7 @@ examples_test_() ->
                 {"ping_pong", <<"ping 3\npong 3\nping 2\npong 2\nping 1\npong 1\n">>},
                 {"stack", <<"top is 2\n">>},
                 {"patterns", <<"minus one\nzero\nother\na 2\nnothing\n-3\n3\n">>},
+                {"kv_parser", <<"a 12\nbad key: =1\nexpected =: a\nbad number: a=x\n">>},
                 {"remote", <<"no remote peer configured\n">>}],
     [{Base, fun() ->
                  {Ns, Bin} = example(Base),
@@ -454,6 +455,24 @@ prelude_values_test() ->
         "    Unit\n"
         "}\n"),
     ?assertEqual(<<"5\n3\n1\n5\nab\n">>, Out).
+
+%% report Appendix E, §5.2: a stdlib function and an Address function
+%% passed as values
+stdlib_values_test() ->
+    {ok, Out} = run(
+        "fn call(f : (Address(m), (Reply(Int)) -> m, Int) -> Optional(Int) with n,"
+        " a : Address(m), mk : (Reply(Int)) -> m) -> Optional(Int) with n = f(a, mk, 100)\n"
+        "type Msg = Ask(reply : Reply(Int))\n"
+        "fn answerer() -> Unit with Msg = receive { Ask(reply = r) -> answer(r, 7) }\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    Io.println(Bool.toString(String.all(\"123\", Char.isDigit)));\n"
+        "    let a = spawn(Local, fn() = answerer());\n"
+        "    match call(Address.call, a, Ask) {\n"
+        "        Some(n) -> Io.println(Int.toString(n))\n"
+        "      | None -> Io.println(\"none\")\n"
+        "    }\n"
+        "}\n"),
+    ?assertEqual(<<"true\n7\n">>, Out).
 
 %% report §8.2, §9.7: Sys.stdout is a value
 sys_stdout_test() ->

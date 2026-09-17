@@ -16,7 +16,7 @@ Design complete for MVP 1 (single-node subset). The toolchain is done in Erlang:
 
 ### Then the small programs
 
-The complete programs from the report's Appendix B and D and the guide's checkpoints are collected under [`examples/`](examples/): `hello`, `counter`, `counter_upgrade`, `ping_pong`, `stack`, `patterns`, the two-module pair under `modules/`, `remote`, and the foreign library `ets`. The first six are the MVP 1 test programs. Each file's header says where it comes from and which MVP it needs. Together the examples exercise every construct of the grammar except bitstrings, and a test keeps it so.
+The complete programs from the report's Appendix B and D and the guide's checkpoints are collected under [`examples/`](examples/): `hello`, `counter`, `counter_upgrade`, `ping_pong`, `stack`, `patterns`, `kv_parser`, the two-module pair under `modules/`, `remote`, and the foreign library `ets`. All but `ets` are the MVP 1 test programs, compiled and run by `make test`. Each file's header says where it comes from and which MVP it needs. Together the examples exercise every construct of the grammar except bitstrings, and a test keeps it so.
 
 ### Then the paper programs, in this order
 

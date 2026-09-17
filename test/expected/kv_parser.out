@@ -1,0 +1,4 @@
+a 12
+bad key: =1
+expected =: a
+bad number: a=x
