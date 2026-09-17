@@ -170,7 +170,7 @@ uses(#e_lambda{pos = Pos, params = Params, body = Body}, Linear, Env) ->
     lists:foreach(fun(N) -> exactly_once(N, BodyUses, Pos, Env) end, Inner),
     case [N || {N, _} <- BodyUses, lists:member(N, Linear)] of
         [] -> [];
-        [N | _] -> throw({type_error, Pos, "the reply-carrying value " ++ atom_to_list(N)
+        [N | _] -> throw({type_error, Pos, "in MVP 1 the reply-carrying value " ++ atom_to_list(N)
                                            ++ " is captured by a lambda that is not passed"
                                            " directly to spawn"})
     end;

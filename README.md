@@ -100,14 +100,14 @@ MVP 1 is the report on one node. Everything the report describes type-checks, an
 | `foreign fn`, `foreign type` (§4.7), the `Foreign` namespace (E.12) | MVP 2 | type-checks; `ernc` says `foreign functions are not in MVP 1` |
 | Bitstrings (§5.11) | MVP 2 | `bitstrings are not in MVP 1` |
 | The ownership rule of abstract types (§4.4) | MVP 2 | not checked; a constructor is usable anywhere in its module |
-| A `Reply` captured by a lambda that reaches `spawn` through a `let` rather than as its direct argument (§6.6) | MVP 2 | `the reply-carrying value r is captured by a lambda that is not passed directly to spawn` |
+| A `Reply` captured by a lambda that reaches `spawn` through a `let` rather than as its direct argument (§6.6) | MVP 2 | `in MVP 1 the reply-carrying value r is captured by a lambda that is not passed directly to spawn` |
 | `Deadlock` (§8.6) | MVP 2 | a deadlocked program waits |
 | `ern --shell` (§11.2) | MVP 2 | `the shell is not in MVP 1` |
 | `spawn(Peer(...))`, peers, `--config-dir` (§6.2, §8.3) | MVP 3 | `spawn` faults with `peer unreachable`; the configuration is not read |
 | `remote`, `parallelRemote` (§6.7) | MVP 3 | `Left(NoRemotePeer)` |
 | `receive` guards beyond comparisons joined by `&&` and `\|\|` (§5.9) | MVP 4 | `in MVP 1 a receive guard is a comparison, ...` |
 
-`make sections` lists the report sections no test cites; the six it prints are definitions with nothing to run or MVP 3 material.
+Every refusal the toolchain makes for MVP 1's sake says "MVP 1" in its error text, and a test in `lib/cli/test` fails when such a text is missing from this table. Runtime behaviour that stands in for a later MVP, the peer fault and `Left(NoRemotePeer)`, is listed by hand. `make sections` lists the report sections no test cites; the six it prints are definitions with nothing to run or MVP 3 material.
 
 ## License
 

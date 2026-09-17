@@ -369,7 +369,7 @@ reply_test() ->
                  err(Msg ++ "fn f(r : Reply(Int), b : Bool) = if b then answer(r, 1) else Unit")),
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int), b : Bool) = if b then answer(r, 1)"
                         " else answer(r, 2)")),
-    ?assertEqual("the reply-carrying value r is captured by a lambda that is not passed"
+    ?assertEqual("in MVP 1 the reply-carrying value r is captured by a lambda that is not passed"
                  " directly to spawn",
                  err(Msg ++ "fn f(r : Reply(Int)) = List.map([1], fn(x) = answer(r, x))")),
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never ="
