@@ -1,22 +1,29 @@
-# Paper Program 1: Web Server with Sessions
+//
+// Paper program 1: web server with sessions
+//
+// Written against the Ernest report, September 2026. A web server with
+// sessions. The same program in idiomatic Erlang is in webserver.erl; the
+// measured comparison of the two is in docs/webserver_comparison.md.
+//
+// Assumptions. ClockMsg is the report's. Sys.clock is a runtime reference
+// (report §8); this program additionally assumes the runtime provides
+// Sys.net : Address(NetMsg), with NetMsg, ConnMsg, SockMsg, and Port as
+// declared below. The Ets module is the foreign library of report Appendix D.
+//
+// Needs MVP 2 or later (Sys.net, foreign fn, abstract types). Not compiled by
+// MVP 1.
+//
 
-Written against the Ernest report, September 2026. A web server with sessions.
+//
+// Assumed runtime types
+//
 
-## Assumptions About the Runtime's System Processes
-
-`ClockMsg` is the report's. `Sys.clock` is a runtime reference (report §8); this paper program additionally assumes the runtime provides `Sys.net : Address(NetMsg)`:
-
-```
 type Port = Port(Int)
 type NetMsg = Listen(port : Port, acceptor : Address(ConnMsg))
 type ConnMsg = Conn(Address(SockMsg))
 type SockMsg = Read(reply : Reply(Bytes)) | Write(Bytes) | Close
 type Tick = Tick
-```
 
-## The Program
-
-```
 //
 // Types
 //
@@ -115,7 +122,8 @@ fn parse(b : Bytes) -> Either(ParseError, Request) = {
 }
 
 fn requestLine(lines : List(String)) -> Either(ParseError, #(String, String)) = todo("on paper")
-fn headerLines(lines : List(String)) -> Either(ParseError, List(#(String, String))) = todo("on paper")
+fn headerLines(lines : List(String)) -> Either(ParseError, List(#(String, String))) =
+    todo("on paper")
 fn render(r : Response) -> Bytes = todo("on paper")
 fn cookie(r : Request, name : String) -> Optional(String) = todo("on paper")
 fn withCookie(name : String, value : String, r : Response) -> Response = todo("on paper")
@@ -131,4 +139,3 @@ fn StatusCode.render(StatusCode(n)) = Int.toString(n)
 fn SessionId.fresh(n) = SessionId(Int.toString(n)) // good enough on paper
 fn SessionId.parse(t) = if String.all(t, Char.isDigit) then Some(SessionId(t)) else None
 fn SessionId.text(SessionId(t)) = t
-```

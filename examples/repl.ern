@@ -1,14 +1,29 @@
-# Paper Program 4: REPL
+//
+// Paper program 4: REPL
+//
+// Written against the Ernest report, September 2026. A read-evaluate-print
+// loop for a small expression language with numbers, let, functions of one
+// argument, and recursion. The aim is to hit deep error handling in pure code
+// (lexer, parser, evaluator) and try as a process (an expression that never
+// terminates must be abortable).
+//
+// Assumptions. The runtime is assumed to provide Sys.stdin : Address(StdinMsg)
+// as an additional top-level reference beyond the report's required Sys.stdout
+// and Sys.clock, with ReadLine(reply : Address(String)): one line per request.
+// String.chars, Char.isDigit, Char.isAlpha, Char.toString, and
+// String.toInt : (String) -> Optional(Int) are in the standard library (report
+// Appendix E). ParseError.toString and EvalError.toString are hand-written
+// renderings for stdout; both are todo("on paper") here.
+//
+// Needs MVP 2 or later (Sys.stdin, Map, <- on Either). Not compiled by MVP 1.
+//
 
-Written against the Ernest report, September 2026. A read-evaluate-print loop for a small expression language with numbers, `let`, functions of one argument, and recursion. The aim is to hit deep error handling in pure code (lexer, parser, evaluator) and `try` as a process (an expression that never terminates must be abortable).
+//
+// Assumed runtime types
+//
 
-## Assumptions
+type StdinMsg = ReadLine(reply : Address(String))
 
-The runtime is assumed to provide `Sys.stdin : Address(StdinMsg)` as an additional top-level reference beyond the report's required `Sys.stdout` and `Sys.clock`, with `ReadLine(reply : Address(String))`: one line per request. `String.chars`, `Char.isDigit`, `Char.isAlpha`, `Char.toString`, and `String.toInt : (String) -> Optional(Int)` are in the standard library (report Appendix E). `ParseError.toString : (ParseError) -> String` and `EvalError.toString : (EvalError) -> String` are hand-written renderings for stdout; both are `todo("on paper")` here.
-
-## The Program
-
-```
 //
 // Types
 //
@@ -55,7 +70,8 @@ fn repl(env : Map(String, Value)) -> Void with ReplMsg = {
     receive {
         Input(text) -> match tokenize(text) {
             Left(BadChar(c = c, at = i)) -> {
-                Io.println("illegal character " <> Char.toString(c) <> " at " <> Int.toString(i));
+                Io.println(
+                    "illegal character " <> Char.toString(c) <> " at " <> Int.toString(i));
                 repl(env)
             }
           | Right(toks) -> match parse(toks) {
@@ -95,6 +111,9 @@ fn show(r : Either(TryError, Value)) -> Void with ReplMsg = Io.println(match r {
   | Left(Crashed) -> "crashed"
   | Left(Timeout) -> "aborted after 2 s"
 })
+
+fn ParseError.toString(e : ParseError) -> String = todo("on paper")
+fn EvalError.toString(e : EvalError) -> String = todo("on paper")
 
 //
 // Pure code: lexer
@@ -140,38 +159,40 @@ fn parse(toks : List(Token)) -> Either(ParseError, Expr) = {
 
 fn expr(toks : List(Token)) -> Either(ParseError, Step) = match toks {
     KwLet :: Ident(x) :: Eq :: r -> {
-        #(v, r2) <- expr(r);
+        let #(v, r2) <- expr(r);
         Right(#(Let(name = x, value = v), r2))
     }
   | KwFun :: Ident(x) :: Arrow :: r -> {
-        #(b, r2) <- expr(r);
+        let #(b, r2) <- expr(r);
         Right(#(Fun(param = x, body = b), r2))
     }
   | _ -> sum(toks)
 }
 
-fn sum(toks : List(Token)) -> Either(ParseError, Step) = { #(l, r) <- prod(toks); sumRest(l, r) }
+fn sum(toks : List(Token)) -> Either(ParseError, Step) =
+    { let #(l, r) <- prod(toks); sumRest(l, r) }
 
 fn sumRest(l : Expr, toks : List(Token)) -> Either(ParseError, Step) = match toks {
     Op(c) :: r when c == '+' || c == '-' -> {
-        #(x, r2) <- prod(r);
+        let #(x, r2) <- prod(r);
         sumRest(Bin(op = c, l = l, r = x), r2)
     }
   | _ -> Right(#(l, toks))
 }
 
 fn prod(toks : List(Token)) -> Either(ParseError, Step) =
-    { #(l, r) <- app(toks); prodRest(l, r) }
+    { let #(l, r) <- app(toks); prodRest(l, r) }
 
 fn prodRest(l : Expr, toks : List(Token)) -> Either(ParseError, Step) = match toks {
     Op(c) :: r when c == '*' || c == '/' -> {
-        #(x, r2) <- app(r);
+        let #(x, r2) <- app(r);
         prodRest(Bin(op = c, l = l, r = x), r2)
     }
   | _ -> Right(#(l, toks))
 }
 
-fn app(toks : List(Token)) -> Either(ParseError, Step) = { #(f, r) <- atom(toks); appRest(f, r) }
+fn app(toks : List(Token)) -> Either(ParseError, Step) =
+    { let #(f, r) <- atom(toks); appRest(f, r) }
 
 fn appRest(f : Expr, toks : List(Token)) -> Either(ParseError, Step) = match atom(toks) {
     Left(_) -> Right(#(f, toks)) // no atom: the application is over
@@ -226,4 +247,3 @@ fn arith(op : Char, a : Value, b : Value) -> Either(EvalError, Value) = match #(
     }
   | _ -> Left(NotANumber)
 }
-```

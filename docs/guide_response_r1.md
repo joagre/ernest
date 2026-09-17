@@ -74,4 +74,4 @@ Every row of the coverage table you listed now has a concrete example or an expl
 
 Guide dropped 40 % in word count while adding selective receive, higher-order effects, the `Upgrade` example, and every coverage-table row you flagged. No new keyword, syntax, or language mechanism. One paragraph in the report (Appendix D intro).
 
-Full rationale, rejected alternatives, and reorganization decisions: `ernest-decisions.md` (entry dated 2026-09-15 titled "Guide Rewrite: Crash-Course Structure").
+Full rationale, rejected alternatives, and reorganization decisions: `decisions.md` (entry dated 2026-09-15 titled "Guide Rewrite: Crash-Course Structure").

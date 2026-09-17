@@ -1,10 +1,30 @@
-# Paper Program 2: File Sync
+//
+// Paper program 2: file sync
+//
+// Written against the Ernest report, September 2026. Two directories are kept
+// identical; changes are sent to the peer; conflicts are saved as an extra
+// file. The peer is an Address, and the code is the same whether it lives on
+// the same node or not.
+//
+// Assumptions. ClockMsg is the report's; Ordering is in the prelude.
+// Sys.stdout and Sys.clock are runtime references (report §8); this program
+// additionally assumes the runtime provides Sys.fs : Address(FsMsg), with
+// FsMsg, FsError, and Entry as declared below. Other assumptions:
+//
+// - type Path = Path(String), a filesystem path with helpers
+//   Path.join : (Path, Path) -> Path, Path.toString : (Path) -> String, and
+//   Path.withSuffix : (Path, String) -> Path.
+// - Mtime, an abstract modification time, with
+//   Mtime.compare : (Mtime, Mtime) -> Ordering.
+// - FsError.toString : (FsError) -> String for rendering error messages.
+//
+// Needs MVP 2 or later (Sys.fs, Map). Not compiled by MVP 1.
+//
 
-Written against the Ernest report, September 2026. Two directories are kept identical; changes are sent to the peer; conflicts are saved as an extra file. The peer is an `Address`, and the code is the same whether it lives on the same node or not.
+//
+// Assumed runtime types
+//
 
-## Assumptions About the Runtime's System Processes
-
-```
 type FsMsg
     = List(path : Path, reply : Address(Either(FsError, List(Entry))))
     | Read(path : Path, reply : Reply(Either(FsError, Bytes)))
@@ -12,17 +32,7 @@ type FsMsg
 
 type FsError = NotFound | Denied | Io(String)
 type Entry = Entry(path : Path, mtime : Mtime)
-```
 
-`ClockMsg` is the report's; `Ordering` is in the prelude. `Sys.stdout` and `Sys.clock` are runtime references (report §8); this paper program additionally assumes the runtime provides `Sys.fs : Address(FsMsg)`. Other assumptions:
-
-- `type Path = Path(String)`, a filesystem path with helpers `Path.join : (Path, Path) -> Path`, `Path.toString : (Path) -> String`, and `Path.withSuffix : (Path, String) -> Path`.
-- `Mtime`, an abstract modification time, with `Mtime.compare : (Mtime, Mtime) -> Ordering`.
-- `FsError.toString : (FsError) -> String` for rendering error messages.
-
-## The Program
-
-```
 //
 // Types
 //
@@ -58,18 +68,19 @@ fn start(dir : Path) -> Void with SyncMsg = receive {
 }
 
 // The sync process: one per directory.
-fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> Void with SyncMsg = receive {
-    Tick -> {
-        send(Sys.fs, List(path = dir, reply = via(Listed, self())));
-        listing(dir, peer, seen)
+fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> Void with SyncMsg =
+    receive {
+        Tick -> {
+            send(Sys.fs, List(path = dir, reply = via(Listed, self())));
+            listing(dir, peer, seen)
+        }
+      | Put(path = p, mtime = m, bytes = bytes, ack = ack) -> {
+            store(dir, seen, p, m, bytes, ack);
+            syncer(dir, peer, Map.put(seen, p, m))
+        }
+      | Listed(_) -> syncer(dir, peer, seen) // late listing, ignore
+      | Link(_) -> syncer(dir, peer, seen) // already connected
     }
-  | Put(path = p, mtime = m, bytes = bytes, ack = ack) -> {
-        store(dir, seen, p, m, bytes, ack);
-        syncer(dir, peer, Map.put(seen, p, m))
-    }
-  | Listed(_) -> syncer(dir, peer, seen) // late listing, ignore
-  | Link(_) -> syncer(dir, peer, seen) // already connected
-}
 
 // Between List and Listed: accept Put, but not Tick.
 fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> Void with SyncMsg = {
@@ -130,7 +141,11 @@ fn writer(p : Path, bytes : Bytes, ack : Reply(Ack), okAck : Ack) -> Void with n
     }
 
 // One process per changed file: reads and sends to the peer.
-fn pusher(dir : Path, peer : Address(SyncMsg), Change(path = p, mtime = m) : Change) -> Void with n =
+fn pusher(
+    dir : Path,
+    peer : Address(SyncMsg),
+    Change(path = p, mtime = m) : Change
+) -> Void with n =
     match Address.call(Sys.fs, fn(r) = Read(path = Path.join(dir, p), reply = r), 10000) {
         Some(Right(bytes)) -> push(peer, p, m, bytes)
       | Some(Left(_)) -> Io.println("cannot read " <> Path.toString(p))
@@ -166,4 +181,3 @@ fn snapshot(entries : List(Entry)) -> Map(Path, Mtime) =
     List.foldLeft(entries, Map.empty, fn(acc, Entry(path = p, mtime = m)) = Map.put(acc, p, m))
 
 fn conflictPath(p : Path) -> Path = Path.withSuffix(p, ".conflict")
-```

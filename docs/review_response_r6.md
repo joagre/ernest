@@ -83,6 +83,6 @@ Six paragraph-level edits, an Appendix E heading sweep, two glossary rewrites. N
 
 ## Where to look
 
-- Report: `ernest-report.md` §4.2 (canonical typenames + ownership), §4.4 (concrete/abstract split), §4.8 (operators), §11.1 and §11.2 (paths), Appendix D, Appendix E headings, Appendix F.
-- Decisions log entry: `ernest-decisions.md`, entry dated 2026-09-16, *Sixth-Round Review Response*.
-- Consolidated changelog: `ernest-changelog.md`, refreshed under "Modules, namespaces, and `main`" and "Toolchain".
+- Report: `ernest_report.md` §4.2 (canonical typenames + ownership), §4.4 (concrete/abstract split), §4.8 (operators), §11.1 and §11.2 (paths), Appendix D, Appendix E headings, Appendix F.
+- Decisions log entry: `decisions.md`, entry dated 2026-09-16, *Sixth-Round Review Response*.
+- Consolidated changelog: `changelog.md`, refreshed under "Modules, namespaces, and `main`" and "Toolchain".

@@ -1,23 +1,30 @@
-# Paper Program 3: Tick Game
+//
+// Paper program 3: tick game
+//
+// Written against the Ernest report, September 2026. A multiplayer snake game
+// in the terminal: the world is updated ten times per second, players send
+// directions between ticks, apples appear at random, scores are counted. The
+// aim is to hit local state in pure code, time drift, input faster than ticks,
+// and randomness in pure code through a threaded seed rather than a hidden
+// source.
+//
+// Assumptions. The report requires Sys.stdout and Sys.clock (§8); keys are the
+// runtime's addition. This program assumes an additional runtime reference
+// Sys.keys : Address(KeyMsg), with KeyMsg and Key as declared below, and a
+// stdlib Random module providing a pure generator
+// Random.next : (Seed) -> #(Int, Seed).
+//
+// Needs MVP 2 or later (Sys.keys, Map, Random). Not compiled by MVP 1.
+//
 
-Written against the Ernest report, September 2026. A multiplayer snake game in the terminal: the world is updated ten times per second, players send directions between ticks, apples appear at random, scores are counted. The aim is to hit local state in pure code, time drift, input faster than ticks, and randomness in pure code through a threaded seed rather than a hidden source.
+//
+// Assumed runtime types
+//
 
-## Assumptions
-
-The report requires `Sys.stdout` and `Sys.clock` (§8); keys are the runtime's addition. Assumed:
-
-```
 type KeyMsg = Subscribe(Address(Key))
 type Key = Up | Down | Left | Right | Quit
+type Seed = Seed(Int)
 
-Sys.keys : Address(KeyMsg) // additional runtime reference
-```
-
-`type Seed = Seed(Int)` and `Random.next : (Seed) -> #(Int, Seed)` are assumed available (a stdlib `Random` module), a pure generator.
-
-## The Program
-
-```
 //
 // Types
 //
@@ -44,7 +51,8 @@ type GameMsg = Tick | In(Input)
 //
 
 export fn main() -> Void with Never = {
-    let world0 = World(w = 40, h = 20, players = Map.empty, apples = [], seed = Seed(42), tick = 0);
+    let world0 =
+        World(w = 40, h = 20, players = Map.empty, apples = [], seed = Seed(42), tick = 0);
     let g = spawn(Local, fn() = game(addPlayer(world0, 1)));
     let p1 = spawn(Local, fn() = player(1, g));
     send(Sys.keys, Subscribe(p1))
@@ -158,4 +166,3 @@ fn Player.dir(Player(dir = d) : Player) -> Dir = d
 fn Player.id(Player(id = i) : Player) -> Int = i
 
 fn tailOf(Player(body = b) : Player) -> List(Pos) = match b { _ :: rest -> rest | [] -> [] }
-```

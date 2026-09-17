@@ -28,4 +28,4 @@ Eight section edits, five stdlib signature updates. No new keyword, no new type,
 
 The reviewer's suggested wording — "When a constructor name is immediately followed by a parenthesized constructor argument, the parser consumes that argument in the constructor branch of QName; a single-positional construction has the semantics of calling the constructor's function value." — is now in the Appendix A epilogue.
 
-Full rationale and rejected alternatives: `ernest-decisions.md` (entry dated 2026-09-15 titled "Fourth-Round Review Response").
+Full rationale and rejected alternatives: `decisions.md` (entry dated 2026-09-15 titled "Fourth-Round Review Response").

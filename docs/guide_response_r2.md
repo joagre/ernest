@@ -53,4 +53,4 @@ The advertised checkpoints now compile to complete files:
 
 Ten targeted section edits. No structural change. Guide grew ~15 % to accommodate the completed checkpoints and coverage bullets; still much shorter than the pre-rewrite version.
 
-Full rationale, rejected alternatives, and per-edit details: `ernest-decisions.md` (entry dated 2026-09-15 titled "Guide Round 2: Targeted Corrections").
+Full rationale, rejected alternatives, and per-edit details: `decisions.md` (entry dated 2026-09-15 titled "Guide Round 2: Targeted Corrections").

@@ -68,4 +68,4 @@ External callers write `Net.Http.parse` and `Net.Http.Request`; the file-namespa
 
 Reserved words +1. About 200 lines edited across the report and guide, plus a `sed` pass over paper programs to add `export` to their `main` functions. Grammar block simplified: `Name` and `QTypeName` productions removed from declaration sites; `DeclName` is the new declaration-side name form with an optional single-typename prefix for abstract-type accessors.
 
-Full rationale, alternatives weighed, and per-edit details: `ernest-decisions.md`, entries dated 2026-09-15 and 2026-09-16.
+Full rationale, alternatives weighed, and per-edit details: `decisions.md`, entries dated 2026-09-15 and 2026-09-16.

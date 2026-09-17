@@ -1,6 +1,6 @@
 # Ernest report — consolidated change summary
 
-For the next reviewer pass on [`ernest-report.md`](../ernest-report.md). Groups the changes made across all review rounds by area, so a reader who last saw an earlier revision can locate the differences without walking `ernest-decisions.md` end-to-end. Report sections are cited so the current wording is one lookup away.
+For the next reviewer pass on [`ernest_report.md`](../ernest_report.md). Groups the changes made across all review rounds by area, so a reader who last saw an earlier revision can locate the differences without walking `decisions.md` end-to-end. Report sections are cited so the current wording is one lookup away.
 
 ## Reading order for a re-review
 
@@ -142,14 +142,14 @@ Preserved from the earliest rounds:
 
 ## Rationale and rejected alternatives
 
-Each of the choices above is expanded in [`ernest-decisions.md`](ernest-decisions.md) — one dated entry per change, with the alternatives weighed and the reason for the pick. That document is not intended for reviewer consumption in one sitting; use it as a lookup when a specific decision needs deeper background.
+Each of the choices above is expanded in [`decisions.md`](decisions.md) — one dated entry per change, with the alternatives weighed and the reason for the pick. That document is not intended for reviewer consumption in one sitting; use it as a lookup when a specific decision needs deeper background.
 
 ## Companion documents in this repository
 
-- [`ernest-report.md`](../ernest-report.md) — the report; normative.
-- [`ernest-guide.md`](../ernest-guide.md) — tutorial guide; not normative. The recent module-system changes are reflected there too.
-- [`ernest-decisions.md`](ernest-decisions.md) — dated decisions log.
-- Paper programs: [`ernest-tick-game.md`](ernest-tick-game.md), [`ernest-repl.md`](ernest-repl.md), [`ernest-filesync.md`](ernest-filesync.md), [`ernest-webserver.md`](ernest-webserver.md).
-- [`ernest-implementation-plan.md`](ernest-implementation-plan.md) — MVP roadmap.
+- [`ernest_report.md`](../ernest_report.md) — the report; normative.
+- [`ernest_guide.md`](../ernest_guide.md) — tutorial guide; not normative. The recent module-system changes are reflected there too.
+- [`decisions.md`](decisions.md) — dated decisions log.
+- Paper programs: [`examples/tick_game.ern`](../examples/tick_game.ern), [`examples/repl.ern`](../examples/repl.ern), [`examples/filesync.ern`](../examples/filesync.ern), [`examples/webserver.ern`](../examples/webserver.ern).
+- [`implementation_plan.md`](implementation_plan.md) — MVP roadmap.
 
 The report and the guide are the two documents intended for review; the rest is supporting material.

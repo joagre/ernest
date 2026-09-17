@@ -1,10 +1,10 @@
 # Ernest: Decision Log
 
-The reasoning behind the language report in [`ernest-report.md`](../ernest-report.md): what was taken from Unison and Erlang, what was tried and rejected, what is deferred, and what is undecided. The report says what holds; this document says why. The language was called Actorson until 12 September 2026.
+The reasoning behind the language report in [`ernest_report.md`](../ernest_report.md): what was taken from Unison and Erlang, what was tried and rejected, what is deferred, and what is undecided. The report says what holds; this document says why. The language was called Actorson until 12 September 2026.
 
-**A note on principle numbering.** Some dated entries below reference "principle N" using the count at the time they were written. The count changed on 2026-09-14 from seven principles to five (see *Ambient Sys, Five Principles*), and one entry from 2026-09-12 renamed "principle 5" as what is now principle 4 (simple to parse). Read older references in that light; the current numbering lives in [`ernest-report.md`](../ernest-report.md) §0.
+**A note on principle numbering.** Some dated entries below reference "principle N" using the count at the time they were written. The count changed on 2026-09-14 from seven principles to five (see *Ambient Sys, Five Principles*), and one entry from 2026-09-12 renamed "principle 5" as what is now principle 4 (simple to parse). Read older references in that light; the current numbering lives in [`ernest_report.md`](../ernest_report.md) §0.
 
-**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Later the same day the cons operator `+:` became `::` and the string-concat operator `++` became `<>` (see *List and Concat Operators*), the reserved word `recv` was spelled out as `receive` (see *`recv` → `receive`*), `opaque` became `abstract` (see *`opaque` → `abstract`*), tuples got a `#(...)` prefix (see *Tuples: `#(...)` Prefix*), the string type `Text` was renamed to `String` (see *`Text` → `String`*), and the unit type/value `()` was renamed to `Void` (see *`()` → `Void`*). Historical entries below use the older syntax; the current forms live in [`ernest-report.md`](../ernest-report.md).
+**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Later the same day the cons operator `+:` became `::` and the string-concat operator `++` became `<>` (see *List and Concat Operators*), the reserved word `recv` was spelled out as `receive` (see *`recv` → `receive`*), `opaque` became `abstract` (see *`opaque` → `abstract`*), tuples got a `#(...)` prefix (see *Tuples: `#(...)` Prefix*), the string type `Text` was renamed to `String` (see *`Text` → `String`*), and the unit type/value `()` was renamed to `Void` (see *`()` → `Void`*). Historical entries below use the older syntax; the current forms live in [`ernest_report.md`](../ernest_report.md).
 
 ## Starting Point
 
@@ -125,7 +125,7 @@ The day-two decision, "this is Erlang, where you say which node," was revised in
 
 ## Toolchain and Guide
 
-The toolchain went into the report as section 11, as a contract rather than a manual: the commands, their arguments, the files they read and write, and nothing about output, exit codes, or the REPL's appearance; it defines what a program is in practice, and section 8's `Sys` and peers need an address. Distributed programming does not go into the report: a report says what holds, and how to build is another genre. It becomes a third document, [`ernest-guide.md`](../ernest-guide.md), with distributed programming as one chapter beside error handling and process design, written from the paper programs once the compiler runs them.
+The toolchain went into the report as section 11, as a contract rather than a manual: the commands, their arguments, the files they read and write, and nothing about output, exit codes, or the REPL's appearance; it defines what a program is in practice, and section 8's `Sys` and peers need an address. Distributed programming does not go into the report: a report says what holds, and how to build is another genre. It becomes a third document, [`ernest_guide.md`](../ernest_guide.md), with distributed programming as one chapter beside error handling and process design, written from the paper programs once the compiler runs them.
 
 ## FFI, 2026-09-13
 
@@ -282,7 +282,7 @@ Taken: the load path for MVP 1 and MVP 2, content addressing for MVP 3 and beyon
 
 Ernest is now organized in three layers, made explicit after the discussion prompted by `send(out, Line("hello"))` reading as heavy for a simple print.
 
-**Language.** What [`ernest-report.md`](../ernest-report.md) defines: syntax, types, processes, evaluation rules, the five principles. This is the small, hard part. It doesn't change with new libraries.
+**Language.** What [`ernest_report.md`](../ernest_report.md) defines: syntax, types, processes, evaluation rules, the five principles. This is the small, hard part. It doesn't change with new libraries.
 
 **Prelude.** What the language requires to exist because the report references it. Section 9 lists these: `Optional`, `Either`, `Ordering`, `Down`, `Reason`, `ClockMsg`, `RemoteError`, `Foreign`; the built-in parameterized types `List`, `Map`, `Set` (plus `Address`, `Reply`, `Never` covered in section 3); the process operations `via`, `Address.call`, `answer`, `remote`, `monitor`, `kill`; and the specific operations the report calls out — `Int.div`, `Int.mod`, the four `compare` functions, `todo`. Nothing else.
 
@@ -348,7 +348,7 @@ Appendix E was audited for naming, argument order, and coverage. The growth rule
 
 **Deferred to the growth rule.** These would round out the modules but haven't yet been written three times in a paper program: `List.zip/flatMap/concat/range/repeat/foldRight`, `Set.map/filter/foldLeft`, `Text.split/trim/replace/startsWith/endsWith/toLower/toUpper`, `Char.toUpper/toLower/isUpper/isLower/isAlphaNum`, `Int.pow`, `Float.sqrt/pow/min/max/truncate`, `Optional.orElse/toList`.
 
-**Paper programs updated.** `Map.delete` → `Map.remove` in [`ernest-tick-game.md`](ernest-tick-game.md); `Optional.flatMap` → `Optional.andThen` in [`ernest-webserver.md`](ernest-webserver.md). The implementation plan's note on `<-` desugaring reads `Optional.andThen` now.
+**Paper programs updated.** `Map.delete` → `Map.remove` in [`examples/tick_game.ern`](../examples/tick_game.ern); `Optional.flatMap` → `Optional.andThen` in [`examples/webserver.ern`](../examples/webserver.ern). The implementation plan's note on `<-` desugaring reads `Optional.andThen` now.
 
 ## `parallelRemote` in the Prelude, 2026-09-14
 
@@ -1089,7 +1089,7 @@ Semantics:
 
 **Effect elsewhere.**
 
-- Paper programs (Appendix B in report, ernest-repl/filesync/webserver/tick-game/comparison-webserver): no change needed. These are single-file programs at the root namespace; their `fn StatusCode.render(...)` etc. are abstract-type accessors, which keep the type-name-prefix form. `export` is optional in a single-file program (nothing else references them).
+- Paper programs (Appendix B in report, examples/repl, filesync, webserver, tick_game; docs/webserver_comparison): no change needed. These are single-file programs at the root namespace; their `fn StatusCode.render(...)` etc. are abstract-type accessors, which keep the type-name-prefix form. `export` is optional in a single-file program (nothing else references them).
 - Implementation plan: reserved words count updated 16 → 17.
 
 **Cost.** ~40 lines of edits in the report, ~30 in the guide, one new reserved word. No new type-system mechanism.
@@ -1368,7 +1368,7 @@ Pre-implementation audit against the "can I write a hand-written recursive-desce
 
 **P1: `main` mailbox default.** §8.1 said `m` is polymorphic when `main` uses `Address.call` without its own receive protocol, but did not say what the runtime instantiates polymorphic `m` to. **Fix:** added: "When `m` is left polymorphic in the source, the runtime instantiates it to `Never` — the main process's mailbox is send-only unless the program explicitly gives out `self()`."
 
-**Guide sync (P2).** `ernest-guide.md` audit found three items:
+**Guide sync (P2).** `ernest_guide.md` audit found three items:
 
 - `Float` bullet in the base-types section still said "IEEE 754 double precision" without the finite-only restriction. Updated.
 - Two spots ("When `main` returns, the runtime kills every process still alive" and the `ern [options] file.erc` description) missed the local/remote scoping from R12. Updated to say "every *local* process still alive"; noted remote workers survive.
@@ -1377,7 +1377,7 @@ Pre-implementation audit against the "can I write a hand-written recursive-desce
 
 **Paper programs trace (P3).**
 
-Traced Appendix B (Counter, Ping-pong, Worker) and all four paper programs (`ernest-filesync.md`, `ernest-webserver.md`, `ernest-tick-game.md`, `ernest-repl.md`) against current rules:
+Traced Appendix B (Counter, Ping-pong, Worker) and all four paper programs (`examples/filesync.ern`, `examples/webserver.ern`, `examples/tick_game.ern`, `examples/repl.ern`) against current rules:
 
 - All `spawn(Local, fn() = worker())` cases have a non-pure callback (`worker` has some effect). U01 primitive-non-empty rule satisfied. No stale pure-spawn callbacks.
 - Reply-carrying `receive` clauses in filesync (`syncer` matching `SyncMsg`) bind reply fields (`Put(ack = ack)` binds `ack`; `Tick`, `Listed(_)`, `Link(_)` nullary or non-reply-carrying fields discharge the scrutinee's obligation).
@@ -2336,12 +2336,12 @@ Planned or considered, not in the language today.
 
 ## Paper Programs and Measurements
 
-- [`ernest-webserver.md`](ernest-webserver.md): web server with sessions. Gave `via`, timeout in receiving, signature on opaque types (which caught a call to an undefined `SessionId.parse` on paper). The process-then-table progression showed the value-versus-process-versus-table decision in twenty lines. Rewritten on 13 September with an ETS table for the session store, the first program to use `foreign fn`, and with `Reply(Bytes)` on `SockMsg.Read`, dropping the `HandlerMsg`/`Data(Bytes)` wrapper.
-- [`ernest-filesync.md`](ernest-filesync.md): file sync between two nodes. Gave `monitor` and `kill` as functions, `Sys` as values, named fields, the clock with a value, backpressure as convention (a credit protocol in about ten lines per producer). Seven matches on `Either` across the whole program, none nested; five process loops in two programs where the earlier `recvFor` timeout arm was never reached; `sys` threaded as the first argument of six functions was the price of no dynamic binding.
-- [`ernest-tick-game.md`](ernest-tick-game.md): snake game with ticks. Gave definitions in blocks (closes `where`), `At` and `Now`, `Sys` as the runtime's type, the value-versus-process criterion (one process per player was parallelism nobody asked for), the answer on local state (three counters became a fold with a tuple accumulator; when the tuple grows, a named type with `..`), and the case against `Nat`.
-- [`ernest-repl.md`](ernest-repl.md): REPL with lexer, parser, evaluator, and `try` as a process. Gave `<-`, the warning about `self` in `spawn`, `TryError`. The evidence for `<-`: without it, 43 of 140 lines of pure code were `Left(e) -> Left(e)`, thirty percent that said nothing; with it, the same code is fifteen lines against twenty-four.
+- [`examples/webserver.ern`](../examples/webserver.ern): web server with sessions. Gave `via`, timeout in receiving, signature on opaque types (which caught a call to an undefined `SessionId.parse` on paper). The process-then-table progression showed the value-versus-process-versus-table decision in twenty lines. Rewritten on 13 September with an ETS table for the session store, the first program to use `foreign fn`, and with `Reply(Bytes)` on `SockMsg.Read`, dropping the `HandlerMsg`/`Data(Bytes)` wrapper.
+- [`examples/filesync.ern`](../examples/filesync.ern): file sync between two nodes. Gave `monitor` and `kill` as functions, `Sys` as values, named fields, the clock with a value, backpressure as convention (a credit protocol in about ten lines per producer). Seven matches on `Either` across the whole program, none nested; five process loops in two programs where the earlier `recvFor` timeout arm was never reached; `sys` threaded as the first argument of six functions was the price of no dynamic binding.
+- [`examples/tick_game.ern`](../examples/tick_game.ern): snake game with ticks. Gave definitions in blocks (closes `where`), `At` and `Now`, `Sys` as the runtime's type, the value-versus-process criterion (one process per player was parallelism nobody asked for), the answer on local state (three counters became a fold with a tuple accumulator; when the tuple grows, a named type with `..`), and the case against `Nat`.
+- [`examples/repl.ern`](../examples/repl.ern): REPL with lexer, parser, evaluator, and `try` as a process. Gave `<-`, the warning about `self` in `spawn`, `TryError`. The evidence for `<-`: without it, 43 of 140 lines of pure code were `Left(e) -> Left(e)`, thirty percent that said nothing; with it, the same code is fifteen lines against twenty-four.
 - All paper programs: `spawn(Local, ...)` after placement became an argument.
-- [`ernest-comparison-webserver.md`](ernest-comparison-webserver.md): the same web server in Erlang. Without type signatures six percent more characters, almost all in the filter function (45 characters each time, twice), which was subsequently dropped when `recv` became a form with arms and `after`.
+- [`webserver_comparison.md`](webserver_comparison.md): the same web server in Erlang. Without type signatures six percent more characters, almost all in the filter function (45 characters each time, twice), which was subsequently dropped when `recv` became a form with arms and `after`.
 
 ## Form of the Report
 

@@ -36,4 +36,4 @@ Your R18 note that `Some(x)` has one canonical parse via `QName`'s constructor-s
 
 Twelve section edits, one new ~15-line ABI table, one new propagation paragraph. No new keyword, no new type, no new operator. Float finite-only is a net simplification.
 
-Full rationale and rejected alternatives: `ernest-decisions.md` (entry dated 2026-09-15 titled "Third-Round Review Response").
+Full rationale and rejected alternatives: `decisions.md` (entry dated 2026-09-15 titled "Third-Round Review Response").
