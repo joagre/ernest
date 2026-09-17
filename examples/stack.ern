@@ -15,7 +15,7 @@ export abstract type Stack(a) = Stack(List(a)) with {
     pop : (Stack(a)) -> Optional(#(a, Stack(a)))
 }
 
-export fn main() -> Void with Never = {
+export fn main() -> Unit with Never = {
     let s = Stack.push(2, Stack.push(1, Stack.empty));
     match Stack.pop(s) {
         Some(#(top, _)) -> Io.println("top is " <> Int.toString(top))

@@ -11,9 +11,9 @@
 type CounterMsg
     = Inc(Int)
     | Get(reply : Reply(Int))
-    | Upgrade(migrate : (Int) -> Int, next : (Int) -> Void with CounterMsg)
+    | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
-export fn main() -> Void with m = {
+export fn main() -> Unit with m = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
@@ -29,13 +29,13 @@ export fn main() -> Void with m = {
     }
 }
 
-fn counter(n : Int) -> Void with CounterMsg = receive {
+fn counter(n : Int) -> Unit with CounterMsg = receive {
     Inc(k) -> counter(n + k)
   | Get(reply = r) -> { answer(r, n); counter(n) }
   | Upgrade(migrate = m, next = k) -> k(m(n))
 }
 
-fn doublingCounter(n : Int) -> Void with CounterMsg = receive {
+fn doublingCounter(n : Int) -> Unit with CounterMsg = receive {
     Inc(k) -> doublingCounter(n + 2 * k)
   | Get(reply = r) -> { answer(r, n); doublingCounter(n) }
   | Upgrade(migrate = m, next = k) -> k(m(n))

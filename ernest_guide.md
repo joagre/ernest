@@ -26,7 +26,7 @@ That generates `./.ernest/` with `ernest.conf` (network address, public key, emp
 Now the program itself, `hello.ern`:
 
 ```
-export fn main() -> Void with Never = Io.println("hello, world")
+export fn main() -> Unit with Never = Io.println("hello, world")
 ```
 
 Compile and run:
@@ -43,7 +43,7 @@ hello, world
 
 `fn` starts a function definition. `main` is the conventional entry-point name — `ern module.erc` looks for `export fn main` in the loaded module and invokes it. The hello-world program declares one; larger projects can select a different exported entry point with `ern --main Qualified.name module.erc` (see §6.1).
 
-`-> Void` is the return type. `Void` is a type with one value, also called `Void`; it means "no interesting result." `main` in this program does its work, then returns `Void`.
+`-> Unit` is the return type. `Unit` is a type with one value, also called `Unit`; it means "no interesting result." `main` in this program does its work, then returns `Unit`.
 
 `with Never` is the mailbox effect. Every process has a mailbox with a fixed message type; `Never` is the type with no values — a mailbox typed `Never` cannot receive anything. `main` here only sends (through `Io.println`), so `Never` fits.
 
@@ -55,18 +55,18 @@ Consider two variations on hello-world:
 
 ```
 export fn main() = Io.println("hello, world")             // (a) no annotation
-export fn main() -> Void = Io.println("hello, world")     // (b) declared pure
+export fn main() -> Unit = Io.println("hello, world")     // (b) declared pure
 ```
 
 Which of these compile?
 
-Answer: (a) compiles — inference gives `main` a fresh mailbox effect from `Io.println`'s call. (b) does not compile — the explicit `-> Void` (without `with M`) declares the function *pure*, and a pure function cannot call `Io.println` (which sends). The `with Never` in the actual hello-world declaration says "this process has a mailbox, but it will never receive." Omitting an annotation is not the same as declaring purity.
+Answer: (a) compiles — inference gives `main` a fresh mailbox effect from `Io.println`'s call. (b) does not compile — the explicit `-> Unit` (without `with M`) declares the function *pure*, and a pure function cannot call `Io.println` (which sends). The `with Never` in the actual hello-world declaration says "this process has a mailbox, but it will never receive." Omitting an annotation is not the same as declaring purity.
 
 ## 2. Compute with immutable values
 
 Everything in Ernest is immutable. Bindings introduce names; there is no assignment.
 
-### 2.1 Scalars, Void, and literals
+### 2.1 Scalars, Unit, and literals
 
 - **`Int`** — arbitrary precision. Literal: `42`.
 - **`Float`** — IEEE 754 binary64, finite range only. Literal: `3.14`.
@@ -74,7 +74,7 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 - **`String`** — a Unicode string. Literal: `"hello"`.
 - **`Bytes`** — sequence of octets. Literal: `<<0, 1, 2>>`.
 - **`Bool`** — `true` or `false`.
-- **`Void`** — one value, also called `Void`.
+- **`Unit`** — one value, also called `Unit`.
 
 `Float` arithmetic that would produce a non-finite result (overflow, division by zero of a non-zero numerator, `0.0 / 0.0`) *faults*. `Int` division `/` or modulo `%` by zero also faults. `Int.div` and `Int.mod` are the total alternatives that return `Optional(Int)`.
 
@@ -354,10 +354,10 @@ Process operations that require a process context — the prelude primitives `se
 
 ### 3.6 One spawn corner: pure callbacks
 
-`spawn`'s callback has type `() -> Void with n` where `n` also appears in the returned `Address(n)`. A pure callback (no `with`) cannot be spawned — the callback's mailbox must be a real type. To spawn a process that never receives, annotate:
+`spawn`'s callback has type `() -> Unit with n` where `n` also appears in the returned `Address(n)`. A pure callback (no `with`) cannot be spawned — the callback's mailbox must be a real type. To spawn a process that never receives, annotate:
 
 ```
-spawn(Local, fn() -> Void with Never = Void)
+spawn(Local, fn() -> Unit with Never = Unit)
 ```
 
 ### 3.7 Prediction exercise
@@ -370,7 +370,7 @@ fn map2(f, x, y) = #(f(x), f(y))
 
 What does the compiler infer for `map2` when called as `map2(fn(n) = send(addr, n), 1, 2)`?
 
-Answer: `map2`'s inferred type is `((a) -> b with e, a, a) -> #(b, b) with e`. The call binds `a = Int`, `b = Void`, and `e` to the mailbox effect of `send` — the same as the enclosing function's.
+Answer: `map2`'s inferred type is `((a) -> b with e, a, a) -> #(b, b) with e`. The call binds `a = Int`, `b = Unit`, and `e` to the mailbox effect of `send` — the same as the enclosing function's.
 
 ## 4. Run a protocol
 
@@ -383,7 +383,7 @@ type CounterMsg
     = Inc(Int)
     | Get(reply : Reply(Int))
 
-fn counter(n : Int) -> Void with CounterMsg = receive {
+fn counter(n : Int) -> Unit with CounterMsg = receive {
     Inc(k) -> counter(n + k)
   | Get(reply = r) -> { answer(r, n); counter(n) }
 }
@@ -414,12 +414,12 @@ Pattern-matching a reply-carrying scrutinee transfers the obligation to the patt
 
 A wildcard or omitted reply field, and an `as` alias on a reply-carrying scrutinee, are type errors. Reply-carrying values may not appear as elements of `List`, `Map`, `Set`, `Optional`, or `Either`, or as operands of equality.
 
-A generic helper that duplicates or discards its parameter (`fn dup(x) = #(x, x)`, `fn discard(x) = Void`) infers a *not-reply-carrying* restriction — the parameter cannot be instantiated to a reply-carrying type. `fn identity(x) = x` passes through without duplication and carries no such restriction.
+A generic helper that duplicates or discards its parameter (`fn dup(x) = #(x, x)`, `fn discard(x) = Unit`) infers a *not-reply-carrying* restriction — the parameter cannot be instantiated to a reply-carrying type. `fn identity(x) = x` passes through without duplication and carries no such restriction.
 
 An intentional error:
 
 ```
-fn twice(dst : Address(CounterMsg), msg : CounterMsg) -> Void with m = {
+fn twice(dst : Address(CounterMsg), msg : CounterMsg) -> Unit with m = {
     send(dst, msg);
     send(dst, msg)      // rejected: msg is reply-carrying, already consumed
 }
@@ -469,7 +469,7 @@ For no-timeout callers, `Address.callForever(addr, mk)` waits as long as needed 
 Save the `CounterMsg` type and the `counter` loop from §4.1 together with the following `main` in a single file `counter.ern`. Compile with `ernc counter.ern` and run with `ern counter.erc`.
 
 ```
-export fn main() -> Void with m = {
+export fn main() -> Unit with m = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
@@ -496,9 +496,9 @@ Extend the counter declared in §4.1 with an `Upgrade` constructor (this replace
 type CounterMsg
     = Inc(Int)
     | Get(reply : Reply(Int))
-    | Upgrade(migrate : (Int) -> Int, next : (Int) -> Void with CounterMsg)
+    | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
-fn counter(n : Int) -> Void with CounterMsg = receive {
+fn counter(n : Int) -> Unit with CounterMsg = receive {
     Inc(k) -> counter(n + k)
   | Get(reply = r) -> { answer(r, n); counter(n) }
   | Upgrade(migrate = m, next = k) -> k(m(n))
@@ -510,7 +510,7 @@ fn counter(n : Int) -> Void with CounterMsg = receive {
 A replacement loop that doubles each increment:
 
 ```
-fn doublingCounter(n : Int) -> Void with CounterMsg = receive {
+fn doublingCounter(n : Int) -> Unit with CounterMsg = receive {
     Inc(k) -> doublingCounter(n + 2 * k)
   | Get(reply = r) -> { answer(r, n); doublingCounter(n) }
   | Upgrade(migrate = m, next = k) -> k(m(n))
@@ -520,7 +520,7 @@ fn doublingCounter(n : Int) -> Void with CounterMsg = receive {
 And a `main` that upgrades after the first `Get`. This `main` replaces the one from §4.5, just as the `CounterMsg` and `counter` above replace the ones from §4.1. Put the whole file together, recompile, and rerun.
 
 ```
-export fn main() -> Void with m = {
+export fn main() -> Unit with m = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
@@ -555,14 +555,14 @@ The counter is enough for one process. Two processes need coordination.
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 type MainMsg = PongDone(Down)
 
-export fn main() -> Void with MainMsg = {
+export fn main() -> Unit with MainMsg = {
     let pongAddr = spawn(Local, fn() = pong());
     let _ = spawn(Local, fn() = ping(pongAddr, 3));
     monitor(pongAddr, PongDone);
-    receive { PongDone(_) -> Void }
+    receive { PongDone(_) -> Unit }
 }
 
-fn ping(pongAddr : Address(PongMsg), n : Int) -> Void with m =
+fn ping(pongAddr : Address(PongMsg), n : Int) -> Unit with m =
     if n == 0 then send(pongAddr, Stop)
     else {
         Io.println("ping " <> Int.toString(n));
@@ -572,13 +572,13 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> Void with m =
         }
     }
 
-fn pong() -> Void with PongMsg = receive {
+fn pong() -> Unit with PongMsg = receive {
     Ping(n = n, reply = r) -> {
         Io.println("pong " <> Int.toString(n));
         answer(r, n);
         pong()
     }
-  | Stop -> Void
+  | Stop -> Unit
 }
 ```
 
@@ -591,7 +591,7 @@ One possible successful trace of the stdout is: `ping 3`, `pong 3`, `ping 2`, `p
 ### 5.2 `monitor` and `Down`
 
 ```
-monitor : (Address(a), (Down) -> m) -> Void with m
+monitor : (Address(a), (Down) -> m) -> Unit with m
 
 type Down = Down(reason : Reason, function : String)
 type Reason = Returned | Killed | ProgramEnd | Fault(String)
@@ -604,7 +604,7 @@ A fault in one process does not affect another (no automatic supervision), excep
 ### 5.3 `kill`
 
 ```
-kill : (Address(a)) -> Void with m
+kill : (Address(a)) -> Unit with m
 ```
 
 `kill(addr)` requests termination of the process at `addr`; anyone monitoring receives `Down(reason = Killed, ...)`. It is a scheduling event, not an instantaneous halt — the target may run briefly before the runtime interrupts it. The REPL paper program combines `monitor` and `kill` into a supervised-child pattern that gives up after a timeout.
@@ -619,10 +619,10 @@ Suppose the runtime's clock accepts an `After` request that fires once:
 
 ```
 // excerpt from the prelude's ClockMsg — the full type has more variants
-After(ms : Int, to : Address(Void))
+After(ms : Int, to : Address(Unit))
 ```
 
-The clock will send `Void` to `to` after `ms` milliseconds. If your process's mailbox holds `GameMsg`, not `Void`, `via` bridges the shapes:
+The clock will send `Unit` to `to` after `ms` milliseconds. If your process's mailbox holds `GameMsg`, not `Unit`, `via` bridges the shapes:
 
 ```
 via : ((a) -> b, Address(b)) -> Address(a)
@@ -635,9 +635,9 @@ send(Sys.clock, After(ms = 100, to = via(fn(_) = Tick, self())))
 ```
 
 - `self()` is the current process's `Address(GameMsg)`.
-- `fn(_) = Tick` is `(Void) -> GameMsg`.
-- `via(...)` builds `Address(Void)`.
-- The clock, 100 ms later, sends `Void` to the wrapper, which produces `Tick`, which arrives at your mailbox.
+- `fn(_) = Tick` is `(Unit) -> GameMsg`.
+- `via(...)` builds `Address(Unit)`.
+- The clock, 100 ms later, sends `Unit` to the wrapper, which produces `Tick`, which arrives at your mailbox.
 
 `monitor`'s second parameter has the same shape — `via` is the general form.
 
@@ -649,12 +649,12 @@ type World = World(score : Int)
 
 fn step(World(score = n) : World) -> World = World(score = n + 1)
 
-fn game(state : World) -> Void with GameMsg = {
+fn game(state : World) -> Unit with GameMsg = {
     send(Sys.clock, After(ms = 100, to = via(fn(_) = Tick, self())));
     waitForTick(state)
 }
 
-fn waitForTick(state : World) -> Void with GameMsg = receive {
+fn waitForTick(state : World) -> Unit with GameMsg = receive {
     Tick -> game(step(state))
   | Input(_) -> waitForTick(state)
 }
@@ -687,7 +687,7 @@ export fn parse(s : String) -> Optional(Request) =
 
 ```
 // main.ern  (namespace Main)
-export fn main() -> Void with Never = match Net.Http.parse("GET /") {
+export fn main() -> Unit with Never = match Net.Http.parse("GET /") {
     Some(Net.Http.Request(method = method, path = path)) ->
         Io.println(method <> " " <> path)
   | None -> Io.println("bad request")
@@ -723,7 +723,7 @@ Directory mode compiles in dependency order automatically, creates missing subdi
 
 **External references use the qualified name.** A caller outside `net/http.ern` writes `Net.Http.parse`. Inside `net/http.ern`, unqualified `parse` refers to the local declaration.
 
-**Entry point.** `ern main.erc` looks up `export fn main` in the loaded module and invokes it. `main` is a naming convention, not a reserved specialness — any exported function with the entry-point shape `() -> Void with M` can be selected. If `tools.ern` exports a `check` function of that shape, run it as:
+**Entry point.** `ern main.erc` looks up `export fn main` in the loaded module and invokes it. `main` is a naming convention, not a reserved specialness — any exported function with the entry-point shape `() -> Unit with M` can be selected. If `tools.ern` exports a `check` function of that shape, run it as:
 
 ```
 $ ern --load-path build --main Tools.check build/main.erc
@@ -797,7 +797,7 @@ A minimal program that submits a computation:
 ```
 fn heavy(a : Int, b : Int) -> Int = a * a + b * b
 
-export fn main() -> Void with m = match remote(fn() = heavy(3, 4)) {
+export fn main() -> Unit with m = match remote(fn() = heavy(3, 4)) {
     Right(n) -> Io.println("remote returned " <> Int.toString(n))
   | Left(NoRemotePeer) -> Io.println("no remote peer configured")
   | Left(PeerLost) -> Io.println("peer lost or callback failed")

@@ -7,7 +7,7 @@
 // Needs multi-module compilation (ernc directory mode).
 //
 
-export fn main() -> Void with Never = match Net.Http.parse("GET /") {
+export fn main() -> Unit with Never = match Net.Http.parse("GET /") {
     Some(Net.Http.Request(method = method, path = path)) ->
         Io.println(method <> " " <> path)
   | None -> Io.println("bad request")

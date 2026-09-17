@@ -56,16 +56,16 @@ type ReplMsg
 // Program
 //
 
-export fn main() -> Void with Never = {
+export fn main() -> Unit with Never = {
     let _ = spawn(Local, fn() = repl(Map.empty));
-    Void
+    Unit
 }
 
 //
 // Processes
 //
 
-fn repl(env : Map(String, Value)) -> Void with ReplMsg = {
+fn repl(env : Map(String, Value)) -> Unit with ReplMsg = {
     send(Sys.stdin, ReadLine(reply = via(Input, self())));
     receive {
         Input(text) -> match tokenize(text) {
@@ -104,7 +104,7 @@ fn try(env : Map(String, Value), e : Expr) -> Either(TryError, Value) with ReplM
     }
 }
 
-fn show(r : Either(TryError, Value)) -> Void with ReplMsg = Io.println(match r {
+fn show(r : Either(TryError, Value)) -> Unit with ReplMsg = Io.println(match r {
     Right(N(n)) -> Int.toString(n)
   | Right(Closure) -> "<fun>"
   | Left(Eval(e)) -> "error: " <> EvalError.toString(e)

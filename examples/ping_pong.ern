@@ -11,14 +11,14 @@
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 type MainMsg = PongDone(Down)
 
-export fn main() -> Void with MainMsg = {
+export fn main() -> Unit with MainMsg = {
     let pongAddr = spawn(Local, fn() = pong());
     let _ = spawn(Local, fn() = ping(pongAddr, 3));
     monitor(pongAddr, PongDone);
-    receive { PongDone(_) -> Void }
+    receive { PongDone(_) -> Unit }
 }
 
-fn ping(pongAddr : Address(PongMsg), n : Int) -> Void with m =
+fn ping(pongAddr : Address(PongMsg), n : Int) -> Unit with m =
     if n == 0 then send(pongAddr, Stop)
     else {
         Io.println("ping " <> Int.toString(n));
@@ -28,11 +28,11 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> Void with m =
         }
     }
 
-fn pong() -> Void with PongMsg = receive {
+fn pong() -> Unit with PongMsg = receive {
     Ping(n = n, reply = r) -> {
         Io.println("pong " <> Int.toString(n));
         answer(r, n);
         pong()
     }
-  | Stop -> Void
+  | Stop -> Unit
 }

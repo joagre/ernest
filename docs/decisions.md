@@ -4,7 +4,7 @@ The reasoning behind the language report in [`ernest_report.md`](../ernest_repor
 
 **A note on principle numbering.** Some dated entries below reference "principle N" using the count at the time they were written. The count changed on 2026-09-14 from seven principles to five (see *Ambient Sys, Five Principles*), and one entry from 2026-09-12 renamed "principle 5" as what is now principle 4 (simple to parse). Read older references in that light; the current numbering lives in [`ernest_report.md`](../ernest_report.md) §0.
 
-**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Later the same day the cons operator `+:` became `::` and the string-concat operator `++` became `<>` (see *List and Concat Operators*), the reserved word `recv` was spelled out as `receive` (see *`recv` → `receive`*), `opaque` became `abstract` (see *`opaque` → `abstract`*), tuples got a `#(...)` prefix (see *Tuples: `#(...)` Prefix*), the string type `Text` was renamed to `String` (see *`Text` → `String`*), and the unit type/value `()` was renamed to `Void` (see *`()` → `Void`*). Historical entries below use the older syntax; the current forms live in [`ernest_report.md`](../ernest_report.md).
+**A note on terminology.** On 2026-09-15 four names changed report-wide: match/recv "arms" became "clauses" (matching Erlang/Haskell/SML tradition); "bit arrays" became "bitstrings" (matching Erlang's name for the same `<<...>>` syntax); constructor "payloads" became "fields" (except message-payload uses); top-level values in `Sys.*` and elsewhere lost the "ambient" adjective, becoming "top-level bindings" / "top-level references". Later the same day the cons operator `+:` became `::` and the string-concat operator `++` became `<>` (see *List and Concat Operators*), the reserved word `recv` was spelled out as `receive` (see *`recv` → `receive`*), `opaque` became `abstract` (see *`opaque` → `abstract`*), tuples got a `#(...)` prefix (see *Tuples: `#(...)` Prefix*), the string type `Text` was renamed to `String` (see *`Text` → `String`*), and the unit type/value `()` was renamed to `Void` (see *`()` → `Void`*). Historical entries below use the older syntax; the current forms live in [`ernest_report.md`](../ernest_report.md). On 2026-09-17 the unit type/value `Void` became `Unit` (see *`Void` → `Unit`*); entries dated before that keep `Void`.
 
 ## Starting Point
 
@@ -2319,6 +2319,22 @@ A systematic survey of Gleam's language features to check what Ernest is missing
 - Program termination when `main` returns is Go's rule, least surprise for everyone but Erlang readers; `Deadlock` is free on one node and the best deadlock protection there is.
 - Foreign values are node-local. A closure capturing a foreign value cannot be shipped to another node; the runtime faults at send with `Fault("foreign value cannot cross nodes")`. The alternative — silent transfer with late-failing operations on the far side, Erlang's shape — hides the error many hops from its cause and fails principle 3. Type-level tracking of "node-local" values was rejected: it would be a large mechanism for a narrow case.
 - "What does not exist," formerly a section of the report: exceptions, macros, type classes, subtyping, effect systems, currying, existential types, mutation, layout, dynamic binding, session types, shared caches (the ETS problem), runtime-driven code replacement, content addressing. FFI was on the list until 13 September; see FFI.
+
+## `Void` → `Unit`, 2026-09-17
+
+A read-through of the whole report applied principle 1 to the report's own vocabulary. `Never` is the type with no values; `Void`, which means "nothing" in plain English, named the type with exactly one value. A reader who knows `Never` predicts that `Void` is its cousin; it is the opposite. The mismatch shows most in message types: `After(ms : Int, to : Address(Void))` is an address that receives a signal, but reads as an address that receives nothing, which is what `Address(Never)` means. The Haskell collision (`Void` is the empty type there) was the trigger; the within-Ernest reading was the argument.
+
+**Considered:** the list from *`()` → `Void`* again. `Unit` was set aside then as "abstract to programmers without PLT background". Re-weighed:
+
+- `Unit` is the standard name for the concept in every typed functional language, so it is the one name a reader can look up and be sure of.
+- Kotlin uses exactly Ernest's shape: a type `Unit` whose single value is also written `Unit`.
+- It is descriptive in the one way that matters, a type with one (unit) element. `Void` describes the wrong thing.
+- Counting the audience an HM language on BEAM draws (Gleam, Elixir, OCaml, Rust, Kotlin, Scala, Haskell): `Unit` has three friends and no enemy; `Void` has one friend (Swift) and one active enemy (Haskell).
+- `Nil` stays out because Elixir readers hear absence, which is `None`. `()` stays out for the parenthesis overload recorded in the earlier entry.
+
+**Taken:** `Unit`.
+
+**Effect.** `type Unit = Unit` in §9.3; every `Void` in the report, the guide, and `examples/` became `Unit`. §3.1 now says in one sentence that `Unit` is not the empty type. §8.4 lost its special ABI line for the unit value: `Unit` is an ordinary nullary constructor and maps to the quoted atom `'Unit'` like every other, which also removes the contradiction between the old lowercase `void` atom and the constructor rule in the same section. The implementation plan's ABI paragraph was brought in line with §8.4 at the same time.
 
 ## Later
 

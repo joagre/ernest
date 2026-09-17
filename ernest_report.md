@@ -144,7 +144,7 @@ ParenType = "(" Type ")" .
 | `Bytes`  | a sequence of octets                       |
 | `Bool`   | `true` or `false`                          |
 
-The prelude declares `Void` as a one-value type (§9.3): a function that has nothing meaningful to return uses it, and the only value is `Void`. There are no type aliases.
+The prelude declares `Unit` as a one-value type (§9.3): a function that has nothing meaningful to return uses it, and the only value is `Unit`. It is not the empty type; that is `Never` (§3.7). There are no type aliases.
 
 **Integer arithmetic.** Integers are exact and unbounded — no overflow. Division `/` truncates toward zero: `-7 / 3 = -2`. Modulo `%` matches: `(a / b) * b + (a % b) == a`, so `-7 % 3 = -1`. `Int.div` and `Int.mod` (§9.6) use the same convention and return `Optional(Int)` in place of the zero-divisor fault; `Int.mod` is named for symmetry with `Int.div` and gives the same result as `%` (mathematical mod with always-non-negative result is not provided — write it in Ernest when needed).
 
@@ -224,7 +224,7 @@ The empty effect has no explicit syntax — its presence is the absence of a `wi
 **Two callbacks with independent effects.** Ernest has no effect union — a function has exactly one mailbox effect or none. A function that runs two callbacks with independent effects must declare them so:
 
 ```
-fn callBoth(p : (Int) -> Int, e : (Int) -> Void with n) -> Void with n = {
+fn callBoth(p : (Int) -> Int, e : (Int) -> Unit with n) -> Unit with n = {
     let _ = p(1);
     e(2)
 }
@@ -243,7 +243,7 @@ An annotation is compatible with these; it doesn't need to state them. Constrain
 
 - *Equality* (§3.10) — a variable used by `==` cannot be instantiated to a type containing functions or addresses.
 - *Non-empty effect* — a function whose body calls a process primitive (`send`, `spawn`, `Address.call`, etc.) inherits that primitive's non-empty-effect restriction on its own effect variable. A wrapper `fn wrap(a, v) = send(a, v)` cannot be instantiated with an empty caller effect at any use site.
-- *Not-reply-carrying* (§6.6) — a polymorphic parameter that a function duplicates, discards, or otherwise consumes twice cannot be instantiated to a reply-carrying type. `fn dup(x) = #(x, x)` and `fn discard(x) = Void` carry this restriction on their parameters; `fn id(x) = x` does not.
+- *Not-reply-carrying* (§6.6) — a polymorphic parameter that a function duplicates, discards, or otherwise consumes twice cannot be instantiated to a reply-carrying type. `fn dup(x) = #(x, x)` and `fn discard(x) = Unit` carry this restriction on their parameters; `fn id(x) = x` does not.
 
 All three propagate the same way: they are part of the type scheme, travel through function values and branches, are preserved across compiled module interfaces, and are surfaced in diagnostics (printed types and error messages). The annotation grammar does not admit them; they are inferred and enforced by the type checker.
 
@@ -546,15 +546,15 @@ A function without a mailbox effect is pure: it neither sends, receives, nor cal
 
 ```
 self  : () -> Address(m) with m
-send  : (Address(a), a) -> Void with m
-spawn : (Where, () -> Void with n) -> Address(n) with m
+send  : (Address(a), a) -> Unit with m
+spawn : (Where, () -> Unit with n) -> Address(n) with m
 
 type Where = Local | Peer(String)
 ```
 
 `self()` is the process's own address. `send(a, v)` places `v` in the mailbox of `a` and returns immediately; sending to a process that has died has no effect.
 
-`spawn(w, f)` starts a new process that runs `f()` and returns its address. `self()` inside `f` is the new process's address; a parent that wants replies binds `let me = self();` before `spawn`. The callback's mailbox effect `n` also appears in `Address(n)`, so it must be a real mailbox type (§3.9) — a pure `f` (one with no `with M`) cannot be spawned. To spawn a process that never receives, annotate the callback with `with Never`: `spawn(Local, fn() -> Void with Never = ...)`.
+`spawn(w, f)` starts a new process that runs `f()` and returns its address. `self()` inside `f` is the new process's address; a parent that wants replies binds `let me = self();` before `spawn`. The callback's mailbox effect `n` also appears in `Address(n)`, so it must be a real mailbox type (§3.9) — a pure `f` (one with no `with M`) cannot be spawned. To spawn a process that never receives, annotate the callback with `with Never`: `spawn(Local, fn() -> Unit with Never = ...)`.
 
 A node is one running instance of the runtime; a peer is another node it knows by name, §8.3. `w` places the process: `Local` on the running node, `Peer(name)` on the peer with that name. An unknown or unreachable peer is a fault. The captured values of `f` are copied to the peer.
 
@@ -585,7 +585,7 @@ A `Reply(a)` is a one-shot address for the answer to a request; unlike `Address(
 ```
 Address.call        : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
 Address.callForever : (Address(m), (Reply(a)) -> m) -> a with n
-answer              : (Reply(a), a) -> Void with m
+answer              : (Reply(a), a) -> Unit with m
 ```
 
 `Address.call(addr, mk, ms)` allocates a fresh `Reply(a)`, calls `mk(r)` to build the message, sends it to `addr`, and returns `Some(v)` when the recipient answers or `None` after `ms` milliseconds. `Address.callForever(addr, mk)` is the same operation without a timeout: the caller waits as long as needed and receives `a` directly, not wrapped in `Optional`; the caller is opting out of the timeout by name, analogous to a `receive` without `after`. `answer(r, v)` sends `v` to the caller.
@@ -651,9 +651,9 @@ A process replaces its code by a message in its own type that carries the new lo
 type CounterMsg
     = Inc(Int)
     | Get(reply : Reply(Int))
-    | Upgrade(migrate : (Int) -> Int, next : (Int) -> Void with CounterMsg)
+    | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
-fn counter(n : Int) -> Void with CounterMsg = receive {
+fn counter(n : Int) -> Unit with CounterMsg = receive {
     Inc(k) -> counter(n + k)
   | Get(reply = r) -> { answer(r, n); counter(n) }
   | Upgrade(migrate = m, next = k) -> k(m(n))
@@ -697,7 +697,7 @@ Partial operations in the prelude generally return `Optional` or `Either`. The o
 
 ### 8.1 `main`
 
-A program's entry point is a `fn () -> Void with m` for some `m`. Nothing sends to the entry point that it has not given its address to. `m` is `Never` when the entry only spawns and sends; a specific message type when it receives; polymorphic when it uses `Address.call` without its own receive protocol. When `m` is left polymorphic in the source, the runtime instantiates it to `Never` — the main process's mailbox is send-only unless the program explicitly gives out `self()`.
+A program's entry point is a `fn () -> Unit with m` for some `m`. Nothing sends to the entry point that it has not given its address to. `m` is `Never` when the entry only spawns and sends; a specific message type when it receives; polymorphic when it uses `Address.call` without its own receive protocol. When `m` is left polymorphic in the source, the runtime instantiates it to `Never` — the main process's mailbox is send-only unless the program explicitly gives out `self()`.
 
 The runtime resolves the entry point at launch: `ern module.erc` looks up `export fn main` in the module compiled from that `.erc`; `ern --main Qualified.Name module.erc` picks an alternative exported name from the load path. The function's local name and its qualified name are ordinary. `main` is a naming convention, not a reserved specialness — any file can declare its own `export fn main` and be run as an entry point. A project can have multiple entry-point modules (a service main, a migration main, a bench main) each in its own file.
 
@@ -725,7 +725,6 @@ The system processes are foreign processes: their message types are declared in 
 - `Char` → integer (Unicode code point).
 - `String` → binary (UTF-8 encoded).
 - `Bytes` → binary.
-- `Void` → atom `void`.
 - Nullary constructor `C` → the quoted atom preserving the source spelling, e.g. `'Ready'`, `'READY'`, `'None'`. Preserving case makes the tag injective: two constructors that differ only in case (`Ready` vs `READY`) map to distinct atoms.
 - Positional constructor `C(v)` → tuple `{'C', v}` with the constructor's quoted-atom tag as the first element.
 - Named constructor `C(f1 = v1, ..., fn = vn)` → tuple `{'C', v_sorted_1, ..., v_sorted_n}` with the tag first, then the field values in *canonical order* (sorted by field name; §3.5). Field expressions are evaluated in source order per §5.1 and then placed into their canonical positions.
@@ -800,15 +799,15 @@ Set(a) // an immutable set of a; requires equality on a
 ### 9.3 Declared types
 
 ```
-type Void = Void // the one-value type; carries no information
+type Unit = Unit // the one-value type; carries no information
 type Optional(a) = None | Some(a)
 type Either(e, a) = Left(e) | Right(a)
 type Ordering = Less | Equal | Greater
 type Down = Down(reason : Reason, function : String)
 type Reason = Returned | Killed | ProgramEnd | Fault(String)
 type ClockMsg // times in milliseconds
-    = After(ms : Int, to : Address(Void))
-    | At(at : Int, to : Address(Void))
+    = After(ms : Int, to : Address(Unit))
+    | At(at : Int, to : Address(Unit))
     | Now(reply : Reply(Int))
 type RemoteError = NoRemotePeer | PeerLost
 type Foreign // a value the language does not inspect
@@ -819,8 +818,8 @@ type Where = Local | Peer(String) // spawn placement, section 6
 
 ```
 self  : () -> Address(m) with m
-send  : (Address(a), a) -> Void with m
-spawn : (Where, () -> Void with n) -> Address(n) with m
+send  : (Address(a), a) -> Unit with m
+spawn : (Where, () -> Unit with n) -> Address(n) with m
 ```
 
 ### 9.5 Process functions
@@ -829,11 +828,11 @@ spawn : (Where, () -> Void with n) -> Address(n) with m
 via                 : ((a) -> b, Address(b)) -> Address(a)
 Address.call        : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
 Address.callForever : (Address(m), (Reply(a)) -> m) -> a with n
-answer              : (Reply(a), a) -> Void with m
+answer              : (Reply(a), a) -> Unit with m
 remote              : (() -> a) -> Either(RemoteError, a) with m
 parallelRemote      : (List(() -> a)) -> List(Either(RemoteError, a)) with m
-monitor             : (Address(a), (Down) -> m) -> Void with m
-kill                : (Address(a)) -> Void with m
+monitor             : (Address(a), (Down) -> m) -> Unit with m
+kill                : (Address(a)) -> Unit with m
 ```
 
 ### 9.6 Operations required by the language
@@ -979,9 +978,9 @@ The counter of section 6, with a `main` that exercises `Inc` and `Get`. `Upgrade
 type CounterMsg
     = Inc(Int)
     | Get(reply : Reply(Int))
-    | Upgrade(migrate : (Int) -> Int, next : (Int) -> Void with CounterMsg)
+    | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
-export fn main() -> Void with m = {
+export fn main() -> Unit with m = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
@@ -991,7 +990,7 @@ export fn main() -> Void with m = {
     }
 }
 
-fn counter(n : Int) -> Void with CounterMsg = receive {
+fn counter(n : Int) -> Unit with CounterMsg = receive {
     Inc(k) -> counter(n + k)
   | Get(reply = r) -> { answer(r, n); counter(n) }
   | Upgrade(migrate = m, next = k) -> k(m(n))
@@ -1002,14 +1001,14 @@ fn counter(n : Int) -> Void with CounterMsg = receive {
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 type MainMsg = PongDone(Down)
 
-export fn main() -> Void with MainMsg = {
+export fn main() -> Unit with MainMsg = {
     let pongAddr = spawn(Local, fn() = pong());
     let _ = spawn(Local, fn() = ping(pongAddr, 3));
     monitor(pongAddr, PongDone);
-    receive { PongDone(_) -> Void }
+    receive { PongDone(_) -> Unit }
 }
 
-fn ping(pongAddr : Address(PongMsg), n : Int) -> Void with m =
+fn ping(pongAddr : Address(PongMsg), n : Int) -> Unit with m =
     if n == 0 then send(pongAddr, Stop)
     else {
         Io.println("ping " <> Int.toString(n));
@@ -1019,20 +1018,20 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> Void with m =
         }
     }
 
-fn pong() -> Void with PongMsg = receive {
+fn pong() -> Unit with PongMsg = receive {
     Ping(n = n, reply = r) -> {
         Io.println("pong " <> Int.toString(n));
         answer(r, n);
         pong()
     }
-  | Stop -> Void
+  | Stop -> Unit
 }
 ```
 
 ```
 type WorkerMsg = DoWork(f : (String) -> Bytes, arg : String)
 
-fn submitter(worker : Address(WorkerMsg)) -> Void with Never = {
+fn submitter(worker : Address(WorkerMsg)) -> Unit with Never = {
     send(worker, DoWork(f = String.toUtf8, arg = "hello"));
     send(worker, DoWork(f = String.toUtf8, arg = "world"))
 }
@@ -1086,9 +1085,9 @@ foreign fn rawNew(name : Foreign, opts : List(Foreign)) -> Table(k, v) with m = 
 foreign fn atom(name : String) -> Foreign = "erlang:binary_to_atom/1"
 
 /// Insert or replace the entry for key.
-export fn insert(t : Table(k, v), key : k, value : v) -> Void with m = {
+export fn insert(t : Table(k, v), key : k, value : v) -> Unit with m = {
     let _ = rawInsert(t, #(key, value));
-    Void
+    Unit
 }
 
 foreign fn rawInsert(t : Table(k, v), row : #(k, v)) -> Bool with m = "ets:insert/2"
@@ -1100,7 +1099,7 @@ export fn lookup(t : Table(k, v), key : k) -> Optional(v) with m =
 foreign fn rawLookup(t : Table(k, v), key : k) -> List(#(k, v)) with m = "ets:lookup/2"
 
 /// Remove key. A key not present is not an error.
-export fn delete(t : Table(k, v), key : k) -> Void with m = { let _ = rawDelete(t, key); Void }
+export fn delete(t : Table(k, v), key : k) -> Unit with m = { let _ = rawDelete(t, key); Unit }
 
 foreign fn rawDelete(t : Table(k, v), key : k) -> Bool with m = "ets:delete/2"
 
@@ -1110,12 +1109,12 @@ export fn size(t : Table(k, v)) -> Int with m = rawInfo(t, atom("size"))
 foreign fn rawInfo(t : Table(k, v), item : Foreign) -> Int with m = "ets:info/2"
 
 /// Delete the table. All subsequent operations on it fault.
-export fn drop(t : Table(k, v)) -> Void with m = { let _ = rawDrop(t); Void }
+export fn drop(t : Table(k, v)) -> Unit with m = { let _ = rawDrop(t); Unit }
 
 foreign fn rawDrop(t : Table(k, v)) -> Bool with m = "ets:delete/1"
 
 /// Remove all entries, leaving the table empty.
-export fn clear(t : Table(k, v)) -> Void with m = { let _ = rawClear(t); Void }
+export fn clear(t : Table(k, v)) -> Unit with m = { let _ = rawClear(t); Unit }
 
 foreign fn rawClear(t : Table(k, v)) -> Bool with m = "ets:delete_all_objects/1"
 
@@ -1127,7 +1126,7 @@ export foreign fn toList(t : Table(k, v)) -> List(#(k, v)) with m = "ets:tab2lis
 ```
 
 ```
-export fn main() -> Void with Never = {
+export fn main() -> Unit with Never = {
     let t = Ets.new();
     Ets.insert(t, "a", 1);
     Ets.insert(t, "b", 2);
@@ -1150,11 +1149,11 @@ Informative, not normative: this appendix lists the modules that ship with the c
 Output helpers. The plain forms send to `Sys.stdout` (section 8); the `*To` forms take an explicit `Address(String)`, useful for logging to a mailbox that is not stdout.
 
 ```
-Io.print      : (String) -> Void with m // to Sys.stdout
-Io.println    : (String) -> Void with m // to Sys.stdout, appends "\n"
+Io.print      : (String) -> Unit with m // to Sys.stdout
+Io.println    : (String) -> Unit with m // to Sys.stdout, appends "\n"
 
-Io.printTo    : (Address(String), String) -> Void with m
-Io.printlnTo  : (Address(String), String) -> Void with m // appends "\n"
+Io.printTo    : (Address(String), String) -> Unit with m
+Io.printlnTo  : (Address(String), String) -> Unit with m // appends "\n"
 ```
 
 ### Appendix E.2. `list.ern` (namespace `List`)
@@ -1179,7 +1178,7 @@ List.map         : (List(a), (a) -> b with e) -> List(b) with e
 List.filter      : (List(a), (a) -> Bool with e) -> List(a) with e
 List.filterMap   : (List(a), (a) -> Optional(b) with e) -> List(b) with e
 List.foldLeft    : (List(a), b, (b, a) -> b with e) -> b with e
-List.foreach     : (List(a), (a) -> Void with e) -> Void with e
+List.foreach     : (List(a), (a) -> Unit with e) -> Unit with e
 List.span        : (List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e
 List.sort        : (List(a), (a, a) -> Ordering with e) -> List(a) with e
 List.remove      : (List(a), a) -> List(a) // requires equality on a (§3.10)
@@ -1373,7 +1372,7 @@ Every technical term this report introduces, with the section that defines it. P
 - **top-level binding** — a value bound at file scope by a `let` (§4.6) or provided by the runtime (§8.2). A user-declared top-level binding is visible in its own module under its local name; external modules see it at the file's qualified name when marked `export`. Runtime-provided top-level bindings (`Sys.stdout`, prelude values) are in scope everywhere. §0, §8.2.
 - **tuple** — a positional product, `#(a, b)`, `#(a, b, c)`, `#(a)`. §3.2.
 - **type variable** — a lowercase identifier in type position; universally quantified in a `fn`. §3.9.
-- **`Void`** — a type with the single value `Void`; the prelude's stand-in for "no meaningful return." §3.1, §9.3.
+- **`Unit`** — a type with the single value `Unit`; the prelude's stand-in for "no meaningful return." §3.1, §9.3.
 - **`via`** — `via(f, addr)` is the address `addr` seen through `f`. §6.5, §9.5.
 - **wildcard** — the pattern `_`; matches anything, binds nothing. §2.3, §5.10.
 - **`with M`** — the mailbox-type marker on a function type. §3.4, §6.1.
