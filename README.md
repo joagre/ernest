@@ -107,7 +107,7 @@ MVP 1 is the report on one node. Everything the report describes type-checks, an
 | `remote`, `parallelRemote` (§6.7) | MVP 3 | `Left(NoRemotePeer)` |
 | `receive` guards beyond comparisons joined by `&&` and `\|\|` (§5.9) | MVP 4 | `in MVP 1 a receive guard is a comparison, ...` |
 
-Every refusal the toolchain makes for MVP 1's sake says "MVP 1" in its error text, and a test in `lib/cli/test` fails when such a text is missing from this table. Runtime behaviour that stands in for a later MVP, the peer fault and `Left(NoRemotePeer)`, is listed by hand. `make sections` lists the report sections no test cites; the six it prints are definitions with nothing to run or MVP 3 material.
+Every refusal the toolchain makes for MVP 1's sake says "MVP 1" in its error text, and a test in `lib/cli/test` fails when such a text is missing from this table. Runtime behaviour that stands in for a later MVP, the peer fault and `Left(NoRemotePeer)`, is listed by hand. `make sections` lists the report sections no test cites; the six it prints are definitions with nothing to run or MVP 3 material. `make coverage` lists every section with how many tests cite it and its length, thinnest first: a long section with one citation is where a rule can hide untested.
 
 ## License
 
