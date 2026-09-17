@@ -47,6 +47,18 @@ If either test surfaces an anomaly in the report, propose an update to [`ernest_
 - When touching normative material, quote the exact section or grammar rule being applied.
 - Prose in the report and the guide is tight, in the register of a Wirth language report: state the rule, no rationale, no restating. Rationale goes to `docs/decisions.md`, compiler behaviour to §11.
 
+## Erlang style guide
+
+For the compiler's own code under `lib/`.
+
+- **Four-space indent, no tabs. Lines ≤ 100 characters.**
+- **Module names carry the `ern_` prefix.** One `-export` list at the top, in the order the functions appear.
+- **`-spec` on every exported function.** Types shared between modules are `-type`s in the owning module.
+- **Records live in `include/*.hrl`** when shared, else in the module. No macros beyond record definitions and the few constants that need a name.
+- **Tests are EUnit, in `test/<module>_tests.erl`**, one test function per behaviour, named after the behaviour.
+- **No OTP behaviours, no rebar3.** `make` builds with `+debug_info -Werror`; a warning is an error.
+- **Tokens and AST nodes are plain tuples and records**, never closures or ETS state.
+
 ## Ernest style guide
 
 Ernest is order-independent at top level; these are style choices, not correctness. Follow them consistently.

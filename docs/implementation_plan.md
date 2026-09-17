@@ -33,7 +33,7 @@ Standard Erlang application layout under `lib/`, one application per compiler st
 - Block `{ ... }` is an expression form. `match e { P -> e | ... }` and `receive { P -> e | ... | after millis -> e }`, guards with `when`. `if then else`. Calls `f(x, y)`, n-ary functions, no currying: too few arguments is an arity error on the line, with a suggestion of the tuple reading.
 - Constructors: no field, one field `T(e)`, or named fields `T(f = e)`; partial patterns `T(f = p)`, base `T(..e, f = e)`. Positional or named is decided by whether `=` or `:` follows the first identifier. Named fields in canonical (field-name) order, report §3.5; compiled to tuples. `fn` definitions allowed in blocks, recursive and generalized; `let` bindings monomorphic.
 - AST as Erlang records with line and column on every node.
-- Error message with its own text for a function written with two clauses, Haskell-style: "a function has one clause; write match". Three paper programs out of three made the mistake. Its own text also for `f x` where `f(x)` was meant, since that is the first thing a Unison or Haskell reader writes.
+- Error message with its own text for a function written with two clauses, Haskell-style: "a function has one clause; write match". Three paper programs out of three made the mistake. Its own text also for `f x` where `f(x)` was meant, since that is the first thing a Unison or Haskell reader writes; for a trailing `;` before `}` ("a block ends with an expression"); for `if` without `else`; and for `let p <- e` at top level ("`<-` is a block form").
 - Doc comments. `///` to end of line, consecutive `///` lines form a doc block, attached to the following declaration when there is no blank line between. Lexer emits a doc-comment token; parser records the joined block as an optional field on the declaration's AST node. Approximately 0.5 days.
 
 **Output:** `lib/lexer/src/ern_lexer.erl`, `lib/parser/src/ern_parser.erl`, AST records in `lib/parser/include/ern_ast.hrl`.
@@ -132,7 +132,7 @@ Standard Erlang application layout under `lib/`, one application per compiler st
 
 - The MVP 1 programs under `examples/`: `hello`, `counter`, `counter_upgrade`, `ping_pong`, `stack`, plus a pure parser with `Either`. The list is explicit in the Makefile; the other examples need later MVPs and are not built.
 - Compile: `ernc program.ern`. Run: `ern program.erc`.
-- Smoke test in a top-level `test/`: every listed program compiles and runs, output compared against an expected-output file of the same name.
+- Smoke test in a top-level `test/`: every listed program compiles and runs, output compared against an expected-output file of the same name. The comparison treats output as a multiset of lines, since the interleaving of prints from different processes (ping-pong) is scheduling-dependent.
 - The web server and the file sync are MVP 2, when `net` exists.
 
 ### 3.3 Documentation (3 days)
