@@ -2431,6 +2431,10 @@ Running the toolchain against small programs found three places where the report
 
 §11.1's path shape rule loses underscores: a segment is a lowercase letter followed by lowercase letters and digits. Under the old rule `net/http_server.ern` gave `Net.Http_server`, a namespace segment that reads neither as a word nor as a typename. The alternative, converting `http_server` to `HttpServer`, is a hidden rewrite of the name the user typed, against "nothing invisible", and not one-to-one without a second rule about digits (`x_1` and `x1` would both give `X1`). Forbidding the underscore is the smaller rule: nothing is rewritten, the mapping stays trivially one-to-one, and a multi-word module is written as the nesting it usually is, `http/parser.ern` for `Http.Parser`, with the one-word spelling as the visible fallback. Go's package convention, made a rule. The four examples with underscores in their names were renamed: `pingpong`, `upgrade`, `snake`, `kvparser`.
 
+## `--doc` Prints Types, 2026-09-17
+
+§11.5 already said that `ernc --doc` shows the inferred restrictions "the same way" as error messages, which presumes it prints types; §11.4 said only that it extracts doc comments. §11.4 now says what is listed and that each entry carries its type: every exported declaration, documented or not, since a module's documentation is its interface, and every documented private one. The tool type-checks the file, so it takes the source root and build directory of a compilation and fails on a type error like one.
+
 ## Later
 
 Planned or considered, not in the language today.

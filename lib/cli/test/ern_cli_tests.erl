@@ -200,12 +200,39 @@ compile_error_test() ->
     ?assertEqual(1, ern_cli:ernc(["--source-root", Dir, File])),
     ?assertNot(filelib:is_regular(filename:join(Dir, "bad.erc"))).
 
-%% report §11.4: doc comments to stdout as Markdown, by declaration
+%% report §11.4, §11.5: every exported and every documented declaration,
+%% with its type and its doc comment, as Markdown
 doc_test() ->
-    ?assertEqual(0, ern_cli:ernc(["--doc", example("ets.ern")])),
+    Dir = tmp(),
+    File = write(Dir, "shapes.ern",
+                 "/// A shape.\n"
+                 "export type Shape = Dot | At(x : Int, y : Int)\n"
+                 "export abstract type Box(a) = Box(List(a)) with {\n"
+                 "    empty : Box(a);\n"
+                 "    put : (a, Box(a)) -> Box(a)\n"
+                 "}\n"
+                 "export let Box.empty : Box(a) = Box([])\n"
+                 "/// Put x in the box.\n"
+                 "export fn Box.put(x : a, Box(xs) : Box(a)) -> Box(a) = Box(x :: xs)\n"
+                 "export fn same(a, b) = a == b\n"
+                 "/// Documented but private.\n"
+                 "fn twice(n : Int) -> Int = 2 * n\n"
+                 "fn hidden(n : Int) -> Int = n\n"),
+    ?assertEqual(0, ern_cli:ernc(["--doc", "--source-root", Dir, File])),
     Out = iolist_to_binary(?capturedOutput),
-    ?assertMatch({_, _}, binary:match(Out, <<"### foreign type Table\n\nA key-value table">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"### fn insert\n\nInsert or replace">>)).
+    Expect = fun(Text) -> ?assertMatch({_, _}, binary:match(Out, Text)) end,
+    Expect(<<"### type Shape\n\n    type Shape = Dot | At(x : Int, y : Int)\n\nA shape.\n">>),
+    Expect(<<"### abstract type Box\n\n    abstract type Box(a) = Box(List(a)) with {\n"
+             "        empty : Box(a);\n        put : (a, Box(a)) -> Box(a)\n    }\n">>),
+    Expect(<<"### let Box.empty\n\n    Box.empty : Shapes.Box(a)\n">>),
+    Expect(<<"### fn Box.put\n\n    Box.put : (a, Shapes.Box(a)) -> Shapes.Box(a)\n\n"
+             "Put x in the box.\n">>),
+    Expect(<<"### fn same\n\n    same : (a=, a=) -> Bool\n">>),
+    Expect(<<"### fn twice\n\n    twice : (Int) -> Int\n\nDocumented but private.\n">>),
+    ?assertEqual(nomatch, binary:match(Out, <<"hidden">>)),
+    %% a type error is reported as for a compilation
+    ?assertEqual(1, ern_cli:ernc(["--doc", "--source-root", Dir,
+                                  write(Dir, "bad.ern", "export fn f() -> Int = \"s\"\n")])).
 
 %% report §11: options are long; --help and --version stop with status 0
 options_test() ->

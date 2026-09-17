@@ -198,7 +198,7 @@ Local `fn`s in a block are generalized only once every later local `fn` they ref
 
 - User readme: how to write Ernest, which constructs are supported.
 - Internal architecture notes for the next phase.
-- `ernc --doc file.ern` walks the AST, groups doc comments by declaration, and writes Markdown to stdout. Done 2026-09-17.
+- `ernc --doc file.ern` type-checks the module and writes Markdown to stdout: every exported and every documented declaration with its type, printed by the checker's printer so the §11.5 marks appear, and its doc comment. Done 2026-09-17.
 
 ### 3.4 Type error placement (2 days)
 

@@ -934,7 +934,7 @@ Options are long: `--name`, or `--name value` for one that takes a value.
 
 ### 11.4 Documentation extraction
 
-`ernc --doc file.ern` writes the doc comments extracted from `file.ern` to stdout as Markdown, grouped by declaration.
+`ernc --doc file.ern` writes the documentation of the module in `file.ern` to stdout as Markdown: every exported declaration and every declaration with a doc comment, each with its type (§11.5) and its doc comment, in source order.
 
 ### 11.5 Diagnostics
 

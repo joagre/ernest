@@ -65,7 +65,7 @@ ernc(Args) ->
 
 ernc_main(Opts, Rest) ->
     case {Rest, lists:member(doc, Opts)} of
-        {[File], true} -> doc(File);
+        {[File], true} -> doc(Opts, File);
         {[Path], false} -> ernc_compile(Opts, Path);
         _ -> usage_fail("one file or directory argument is required")
     end.
@@ -95,11 +95,15 @@ ernc_compile(Opts, Path) ->
         end,
         0
     catch
-        throw:{errors, File, Errors} ->
-            lists:foreach(fun({L, C, Msg}) -> io:format(standard_error, "~s:~B:~B: ~s~n",
-                                                        [File, L, C, Msg]) end, Errors),
-            1
+        throw:{errors, File, Errors} -> report_errors(File, Errors)
     end.
+
+%% Report §11.5: file:line:column: text, one line per error, status 1.
+report_errors(File, Errors) ->
+    lists:foreach(fun({L, C, Msg}) ->
+                      io:format(standard_error, "~s:~B:~B: ~s~n", [File, L, C, Msg])
+                  end, Errors),
+    1.
 
 %% A source file as a module: its namespace from its path under the root,
 %% with the path shape rule of §11.1.
@@ -299,22 +303,46 @@ remove_empty(Dir, Top) ->
         _ -> ok
     end.
 
-%% Report §11.4: doc comments as Markdown, grouped by declaration.
-doc(File) ->
-    {ok, Bin} = file:read_file(File),
-    case ern_parser:parse_string(Bin) of
-        {ok, Decls} ->
-            lists:foreach(fun(D) ->
-                              case doc_of(D) of
-                                  undefined -> ok;
-                                  Doc -> io:format("### ~s~n~n~s~n~n", [decl_name(D), Doc])
-                              end
-                          end, Decls),
-            0;
-        {error, {L, C, Msg}} ->
-            io:format(standard_error, "~s:~B:~B: ~s~n", [File, L, C, Msg]),
-            1
+%% Report §11.4: the module's documentation as Markdown: every exported
+%% and every documented declaration, with its type (§11.5) and its doc
+%% comment. The file is type-checked as for a compilation.
+doc(Opts, File) ->
+    filelib:is_regular(File) orelse fail("no such file " ++ File),
+    Root = absolute(proplists:get_value(source_root, Opts, ".")),
+    OutDir = absolute(proplists:get_value(out_dir, Opts, Root)),
+    try
+        Mod = module_of(absolute(File), Root),
+        [#mod{ns = Ns, decls = Decls, deps = Deps}] = compile_order([Mod], Root),
+        DepIfaces = [I || D <- Deps, {_, I} <- [dep_iface(D, #{}, OutDir)]],
+        case ern_typecheck:check(Ns, Decls, DepIfaces) of
+            {ok, Typed, _, Env} ->
+                lists:foreach(fun(D) -> doc_decl(D, Env) end, Typed),
+                0;
+            {error, Errors} ->
+                throw({errors, File, Errors})
+        end
+    catch
+        throw:{errors, F, Errors1} -> report_errors(F, Errors1)
     end.
+
+doc_decl(D, Env) ->
+    case exported(D) orelse doc_of(D) =/= undefined of
+        true ->
+            io:format("### ~s~n~n~s~n", [decl_name(D), signature(D, Env)]),
+            case doc_of(D) of
+                undefined -> ok;
+                Doc -> io:format("~s~n~n", [Doc])
+            end;
+        false ->
+            ok
+    end.
+
+exported(#type_decl{export = E}) -> E;
+exported(#abstract_decl{export = E}) -> E;
+exported(#fn_decl{export = E}) -> E;
+exported(#let_decl{export = E}) -> E;
+exported(#foreign_type_decl{export = E}) -> E;
+exported(#foreign_fn_decl{export = E}) -> E.
 
 doc_of(#type_decl{doc = D}) -> D;
 doc_of(#abstract_decl{doc = D}) -> D;
@@ -332,6 +360,56 @@ decl_name(#foreign_fn_decl{owner = O, name = N}) -> "foreign fn " ++ owned(O, N)
 
 owned(undefined, N) -> atom_to_list(N);
 owned(O, N) -> atom_to_list(O) ++ "." ++ atom_to_list(N).
+
+%% The declaration's type as an indented code block: inferred schemes for
+%% fn and let, the declaration itself for the type forms.
+signature(#fn_decl{owner = O, name = N, type = Scheme}, Env) ->
+    code([owned(O, N), " : ", ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
+signature(#let_decl{owner = O, name = N, type = Scheme}, Env) ->
+    code([owned(O, N), " : ", ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
+signature(#foreign_fn_decl{owner = O, name = N, params = Ps, ret = R, effect = E}, _) ->
+    code([owned(O, N), " : ", syn(#t_fn{params = [T || #param{type = T} <- Ps], ret = R,
+                                        effect = E})]);
+signature(#type_decl{} = D, _) ->
+    code(type_text(D));
+signature(#abstract_decl{type = D, signatures = Sigs}, _) ->
+    code([["abstract ", type_text(D), " with {\n"],
+          lists:join(";\n", [["    ", atom_to_list(N), " : ", syn(T)]
+                              || #signature{name = N, type = T} <- Sigs]),
+          "\n}"]);
+signature(#foreign_type_decl{name = N, params = Ps}, _) ->
+    code(["foreign type ", atom_to_list(N), params_text(Ps)]).
+
+type_text(#type_decl{name = N, params = Ps, constructors = Cs}) ->
+    ["type ", atom_to_list(N), params_text(Ps), " = ",
+     lists:join(" | ", [constructor_text(C) || C <- Cs])].
+
+params_text([]) -> "";
+params_text(Ps) -> ["(", lists:join(", ", [atom_to_list(P) || P <- Ps]), ")"].
+
+constructor_text(#constructor{name = N, fields = none}) ->
+    atom_to_list(N);
+constructor_text(#constructor{name = N, fields = {positional, T}}) ->
+    [atom_to_list(N), "(", syn(T), ")"];
+constructor_text(#constructor{name = N, fields = {named, Fs}}) ->
+    [atom_to_list(N), "(",
+     lists:join(", ", [[atom_to_list(F), " : ", syn(T)] || #field{name = F, type = T} <- Fs]),
+     ")"].
+
+%% A syntactic type as written.
+syn(#t_con{path = P, name = N, args = []}) -> qname(P ++ [N]);
+syn(#t_con{path = P, name = N, args = As}) ->
+    [qname(P ++ [N]), "(", lists:join(", ", [syn(A) || A <- As]), ")"];
+syn(#t_var{name = N}) -> atom_to_list(N);
+syn(#t_tuple{elems = Es}) -> ["#(", lists:join(", ", [syn(E) || E <- Es]), ")"];
+syn(#t_fn{params = Ps, ret = R, effect = E}) ->
+    ["(", lists:join(", ", [syn(P) || P <- Ps]), ") -> ", syn(R),
+     case E of undefined -> ""; _ -> [" with ", syn(E)] end].
+
+%% Every line indented four spaces: a Markdown code block.
+code(Text) ->
+    Lines = string:split(unicode:characters_to_list(Text), "\n", all),
+    [["    ", L, "\n"] || L <- Lines].
 
 %%
 %% ern, report §11.2 and §11.3
