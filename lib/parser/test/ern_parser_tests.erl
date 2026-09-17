@@ -479,6 +479,27 @@ format_error_test() ->
 %% The example programs
 %%
 
+%% report Appendix A, plan 2.1: the examples exercise every AST record the
+%% emitter must handle; bitstrings are MVP 2
+ast_coverage_test() ->
+    {ok, Hrl} = file:read_file("../include/ern_ast.hrl"),
+    {match, M} = re:run(Hrl, "-record\\(([a-z_]+),", [global, {capture, all_but_first, list}]),
+    Declared = lists:usort([list_to_atom(N) || [N] <- M]),
+    Files = filelib:wildcard("../../../examples/**/*.ern"),
+    Used = lists:usort(lists:foldl(fun(F, Acc) ->
+                                       {ok, Bin} = file:read_file(F),
+                                       {ok, Ds} = ern_parser:parse_string(Bin),
+                                       tags(Ds, Acc)
+                                   end, [], Files)),
+    ?assertEqual([bit_seg, e_bits, p_bits], Declared -- Used).
+
+tags(T, Acc) when is_tuple(T), is_atom(element(1, T)) ->
+    lists:foldl(fun tags/2, [element(1, T) | Acc], tl(tuple_to_list(T)));
+tags(L, Acc) when is_list(L) ->
+    lists:foldl(fun tags/2, Acc, L);
+tags(_, Acc) ->
+    Acc.
+
 %% report Appendix B, examples/
 examples_parse_test_() ->
     Files = filelib:wildcard("../../../examples/**/*.ern"),

@@ -1,0 +1,43 @@
+//
+// Patterns
+//
+// The pattern forms of the report, §5.10, as a program: negative literal
+// patterns, `as` bindings, wildcards, list and constructor patterns, and
+// prefix negation. Expected output: "minus one", "zero", "other", "a 2",
+// "nothing", "-3", "3".
+//
+// Needs MVP 1.
+//
+
+type Snapshot = Snapshot(dir : String, seen : Int)
+
+export fn main() -> Unit with Never = {
+    Io.println(sign(-1));
+    Io.println(sign(0));
+    Io.println(sign(7));
+    Io.println(describe(Some(Snapshot(dir = "a", seen = 2))));
+    Io.println(describe(None));
+    Io.println(Int.toString(negate(3)));
+    Io.println(Int.toString(List.size(whole([1, 2, 3]))))
+}
+
+fn sign(n : Int) -> String = match n {
+    -1 -> "minus one"
+  | 0 -> "zero"
+  | _ -> "other"
+}
+
+fn describe(o : Optional(Snapshot)) -> String = match o {
+    Some(Snapshot(dir = d) as snap) -> d <> " " <> Int.toString(seen(snap))
+  | None -> "nothing"
+}
+
+fn seen(Snapshot(seen = n) : Snapshot) -> Int = n
+
+fn negate(n : Int) -> Int = -n
+
+// `as` binds loosest: `x :: rest as all` names the whole list.
+fn whole(xs : List(Int)) -> List(Int) = match xs {
+    x :: rest as all -> all
+  | [] -> []
+}

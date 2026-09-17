@@ -78,7 +78,55 @@ Local `fn`s in a block are generalized only once every later local `fn` they ref
 
 ### 2.1 Compiler Architecture (2 days)
 
-- Two tables, filled in before the emitter is written. The first maps each AST record to its Erlang shape and to whether that shape is an inline form, an `ern_rt` call, or a call into a stdlib module: `#e_con{}` with named fields to a tuple in canonical order, `#e_block{}` to a sequence with `let` as `=`, `#e_lambda{}` to a `fun`, a local `#fn_decl{}` to a lifted function, `#e_match{}` to `case`, `#e_receive{}` to `receive` with `after` kept, `#binding{op = '<-'}` to a `case` on the sum type, and so on for all 37 records. The second maps each prelude name: `send` to `ern_rt:send/2`, `Int.+` to inline `+`, `String.<>` to binary append, `Int.toString` to `ernest@int:toString/1`, and so on for §9.4 to §9.6. Both tables live here once filled.
+- Two tables, decided before the emitter was written and kept as its specification. Values follow report §8.4 throughout.
+
+  **AST record to Erlang.** Types are erased: `type_decl`, `abstract_decl`, `foreign_type_decl`, `signature`, `field`, and the `t_*` records produce no code; the interface chunk carries them.
+
+  | Record | Erlang |
+  |---|---|
+  | `constructor` | nullary: the quoted atom; positional: `{'C', V}`; named: `{'C', V1, ..., Vn}` in canonical field order |
+  | `fn_decl`, top level | a function clause; exported if `export`; a type member is `'Stack.push'` |
+  | `fn_decl`, in a block | lifted to a module function with its free variables as leading parameters; the name is bound to a closure over them |
+  | `let_decl` | `name/0`, reading a value the module's `'$init'/0` computed once in dependency order before `main` (§8.5) |
+  | `foreign_fn_decl` | MVP 2: a clause calling the named `M:F/A` |
+  | `param` | the pattern in the clause head |
+  | `e_lit` | integer, float, or char literal; string as a binary; bool as an atom |
+  | `e_var` | a local: the Erlang variable; a top-level fn as a value: `fun f/N`; a top-level let: `name()`; a prelude name: table below |
+  | `e_con` | as `constructor`; a single-positional constructor as a value: `fun(V) -> {'C', V} end` |
+  | `field_set` | its value at its canonical position |
+  | `e_tuple`, `e_list` | tuple, list |
+  | `e_bits`, `bit_seg` | MVP 2: bit syntax |
+  | `e_block` | a sequence; `binding` with `=` as `Pat = Expr`; `binding` with `<-` as a `case` on `Left`/`Right` or `None`/`Some` with the rest of the block in the second clause (§5.5) |
+  | `e_call` | `F(Args)` for a local; `f(Args)` or `'ernest@m':f(Args)` for a known function; a prelude name: table below |
+  | `e_neg` | `-E` |
+  | `e_binop` | `Int`: `+ - * div rem` (`/` is `div`, `%` is `rem`; a zero divisor's `badarith` becomes `Fault("division by zero")` in the runtime); `<>`: binary append for `String` and `Bytes`, `++` for `List`; `==`, `!=`: `=:=`, `=/=`; `<`, `<=`, `>`, `>=` on `Int`, `Float`, `Char`, `String`: the native operators, since binaries compare by code point; `&&`, `||`: `andalso`, `orelse`; `::`: `[H \| T]` |
+  | `e_lambda` | `fun(Pats) -> Body end` |
+  | `e_if` | `case C of true -> T; false -> E end` |
+  | `e_match`, `clause` | `case`; a clause whose guard is not an Erlang guard expression falls through by a continuation: `Rest = fun() -> <remaining clauses> end` and `case G of true -> B; false -> Rest() end`, so no code is duplicated |
+  | `e_receive`, `after_clause` | `receive ... after T -> B end`; guards: see 2.2 |
+  | `p_wild`, `p_var`, `p_lit` | `_`, a variable, a literal (a string as a binary) |
+  | `p_con`, `field_pat` | as `constructor`, an omitted named field as `_` |
+  | `p_tuple`, `p_list`, `p_cons` | tuple, list, `[H \| T]` |
+  | `p_as` | `Var = Pat` |
+  | `p_bits` | MVP 2 |
+
+  **Prelude name to Erlang** (report §9.4 to §9.7, Appendix E). Called, or taken as a value with `fun M:F/A`.
+
+  | Name | Erlang |
+  |---|---|
+  | `self` | `ern_rt:self/0` |
+  | `send`, `answer`, `via`, `monitor`, `kill` | `ern_rt:send/2`, `answer/2`, `via/2`, `monitor/2`, `kill/1` |
+  | `spawn` | `ern_rt:spawn/3`, the third argument the spawn site for `Down` (§6.9) |
+  | `Address.call`, `Address.callForever` | `ern_rt:call/3`, `call_forever/2` |
+  | `remote`, `parallelRemote` | MVP 3; until then `ern_rt:remote/1` answers `Left(NoRemotePeer)` |
+  | `Int.+` and the other `userop`s on `Int`, `Int.negate` | the inline operators above |
+  | `Float.*` | MVP 2, inline |
+  | `String.<>`, `List.<>`, `Bytes.<>` | inline as above |
+  | `Int.div`, `Int.mod`, `*.compare`, `Int.toString`, ... | `'ernest@int':'div'/2` and so on: the namespace's module |
+  | `todo` | `ern_rt:fault(<<"todo: ...">>)` |
+  | `Sys.stdout`, `Sys.clock` | `ern_rt:sys(stdout)`, `ern_rt:sys(clock)` |
+  | `Io.*`, `List.*`, ... | `'ernest@io':println/1` and so on |
+
 - Typed AST → Erlang's abstract format with `erl_syntax`, `erl_syntax:revert`, `compile:forms`.
 - Three passes on the typed AST first: unique variable names, since Ernest shadows and Erlang does not; lambda lifting of local `fn`s to module-level functions with their free variables as leading parameters, which handles self- and mutual recursion uniformly; and the `<-` desugaring of report §5.5, choosing Either or Optional from the type the checker left on the node. The checker returns its environment so the compiler has the layouts of private types.
 - Functions become Erlang functions. Blocks become sequences in a function clause; bindings become `=`.
