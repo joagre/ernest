@@ -22,11 +22,11 @@
 %% through ern_rt (plan 2.4). spawn gets a third argument naming the spawn
 %% site for Down (report §6.9). Int arithmetic is emitted inline; String.<>
 %% is binary concatenation; stdlib calls go to the namespace's module,
-%% 'Ernest.Int' for Int.
+%% 'ernest@int' for Int.
 %%
 %% The compiler also adds the module's interface as the BEAM chunk "ErnI".
 
--module('Ernest.Counter').
+-module('ernest@counter').
 
 -export([main/0]).
 
@@ -45,9 +45,9 @@ main() ->
     ern_rt:send(C, {'Inc', 3}),
     case ern_rt:call(C, fun(R) -> {'Get', R} end, 1000) of
         {'Some', N} ->
-            'Ernest.Io':println(<<"count is ", ('Ernest.Int':toString(N))/binary>>);
+            'ernest@io':println(<<"count is ", ('ernest@int':toString(N))/binary>>);
         'None' ->
-            'Ernest.Io':println(<<"counter is not answering">>)
+            'ernest@io':println(<<"counter is not answering">>)
     end.
 
 %% fn counter(n : Int) -> Unit with CounterMsg = receive {

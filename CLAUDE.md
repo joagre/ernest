@@ -37,7 +37,7 @@ If either test surfaces an anomaly in the report, propose an update to [`ernest_
 - `lib/<app>/{src,include,ebin,test}` per compiler stage: `lexer`, `parser`, `type_system`, `utils` (vendored `getopt`). Later: `compiler`, `runtime`, `cli`. Module names carry the `ern_` prefix.
 - `stdlib/` is the Ernest standard library, a source root. `examples/` holds the example programs. `bin/` will hold `ernc` and `ern` as committed escript sources.
 - Build with `make` (per-app `src/Makefile` compiling into `../ebin` with `erlc -MMD`; top-level `Makefile` runs them), `make test` for EUnit, `make clean`. No rebar3, no OTP behaviours.
-- File and directory names use underscores everywhere (report §11.1 forbids hyphens in module paths). An Erlang module implementing an Ernest namespace, `'Ernest.Io'`, lives in `ernest_io.erl`; since `erlc` would refuse the mismatch, the Makefile compiles such files from forms with `lib/compile_ns.escript`, and only the beam is named after the atom.
+- File and directory names use underscores everywhere (report §11.1 forbids hyphens in module paths). The one `@` is Erlang's: a module implementing an Ernest namespace is `ernest@io` in `ernest@io.erl`, the path with `@` for `/`, as Gleam does.
 - Third-party code is listed in `THIRD_PARTY_LICENSES`; keep the upstream header on any borrowed file.
 
 ## Working style

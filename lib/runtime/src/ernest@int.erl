@@ -1,7 +1,7 @@
 %% Appendix E.8 and the Int operations of report §9.6 that are not emitted
 %% inline, namespace Int, as an Erlang module for MVP 1. Division and modulo
 %% truncate toward zero (report §3.1), which is Erlang's div and rem.
--module('Ernest.Int').
+-module('ernest@int').
 
 -export([abs/1, min/2, max/2, bitAnd/2, bitOr/2, bitXor/2, bitNot/1, shiftLeft/2,
          shiftRight/2, toString/1, toFloat/1, 'div'/2, 'mod'/2, compare/2, negate/1]).

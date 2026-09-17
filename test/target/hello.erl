@@ -8,9 +8,9 @@
 %%
 %% The compiler also adds the module's interface as the BEAM chunk "ErnI".
 
--module('Ernest.Hello').
+-module('ernest@hello').
 
 -export([main/0]).
 
 main() ->
-    'Ernest.Io':println(<<"hello, world">>).
+    'ernest@io':println(<<"hello, world">>).
