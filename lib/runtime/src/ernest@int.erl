@@ -16,7 +16,10 @@ bitNot(A) -> bnot A.
 shiftLeft(A, B) -> A bsl B.
 shiftRight(A, B) -> A bsr B.
 toString(N) -> integer_to_binary(N).
-toFloat(N) -> float(N).
+toFloat(N) ->
+    try float(N)
+    catch error:badarg -> ern_rt:fault(<<"Int out of Float range">>)
+    end.
 'div'(_, 0) -> 'None';
 'div'(A, B) -> {'Some', A div B}.
 'mod'(_, 0) -> 'None';

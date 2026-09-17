@@ -17,7 +17,8 @@
 -module(ern_rt).
 
 -export([send/2, spawn/3, self/0, via/2, call/3, call_forever/2, answer/2, monitor/2,
-         kill/1, sys/1, run_main/2, run_main/3, fault/1]).
+         kill/1, sys/1, run_main/2, run_main/3, fault/1, remote/1, parallel_remote/1,
+         todo/1]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -165,6 +166,26 @@ reaper_loop(Waiters) ->
             end,
             reaper_loop(maps:remove(Pid, Waiters))
     end.
+
+%%
+%% Report §6.7: no peer is configured in MVP 1
+%%
+
+-spec remote(fun(() -> term())) -> {'Left', 'NoRemotePeer'}.
+remote(_F) ->
+    {'Left', 'NoRemotePeer'}.
+
+-spec parallel_remote([fun(() -> term())]) -> [{'Left', 'NoRemotePeer'}].
+parallel_remote(Fs) ->
+    [remote(F) || F <- Fs].
+
+%%
+%% Report §7.4: todo faults if reached
+%%
+
+-spec todo(binary()) -> no_return().
+todo(Msg) ->
+    fault(<<"todo: ", Msg/binary>>).
 
 %%
 %% Report §7: a process body; an exception is a fault

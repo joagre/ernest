@@ -1,0 +1,353 @@
+-module(ern_compiler_tests).
+
+-include_lib("eunit/include/eunit.hrl").
+
+%%
+%% Helpers
+%%
+
+%% Type-check, compile, load, initialize, and run a program's main under
+%% the launcher, collecting what reaches stdout.
+run(Text) ->
+    run(['M'], Text).
+
+run(Ns, Text) ->
+    {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Text),
+    {ok, Mod, Bin} = ern_compiler:compile(Ns, Typed, Iface, Env),
+    {module, Mod} = code:load_binary(Mod, "test", Bin),
+    Me = self(),
+    Result = ern_rt:run_main(fun() -> init(Mod), Mod:main() end, <<"main">>,
+                             #{stdout => fun(B) -> Me ! {out, B} end}),
+    {Result, collect([])}.
+
+%% The launcher's job (report §8.5, plan 2.4): top-level lets before main.
+init(Mod) ->
+    case erlang:function_exported(Mod, '$init', 0) of
+        true -> Mod:'$init'();
+        false -> ok
+    end.
+
+collect(Acc) ->
+    receive
+        {out, B} -> collect([B | Acc])
+    after 0 ->
+        iolist_to_binary(lists:reverse(Acc))
+    end.
+
+compile_error(Text) ->
+    {ok, Typed, Iface, Env} = ern_typecheck:check_string(['M'], Text),
+    {error, [{_, _, Msg}]} = ern_compiler:compile(['M'], Typed, Iface, Env),
+    Msg.
+
+example(Base) ->
+    {ok, Bin} = file:read_file("../../../examples/" ++ Base ++ ".ern"),
+    {[list_to_atom(string:titlecase(Base))], Bin}.
+
+%% The forms of an example and of a target file, made comparable: no
+%% annotations, and variables renamed in order of first occurrence, each
+%% clause's pattern variables fresh in that clause, so that a hand-written
+%% target may reuse a name across clauses where the emitter does not.
+example_forms(Base) ->
+    {Ns, Bin} = example(Base),
+    {ok, Typed, _, Env} = ern_typecheck:check_string(Ns, Bin),
+    normalize(ern_compiler:forms(Ns, Typed, Env)).
+
+target_forms(File) ->
+    {ok, Forms} = epp:parse_file("../../../test/target/" ++ File, []),
+    normalize([F || F <- Forms, element(1, F) =/= eof, not is_file_attr(F)]).
+
+is_file_attr({attribute, _, file, _}) -> true;
+is_file_attr(_) -> false.
+
+normalize(Forms) ->
+    [erl_parse:map_anno(fun(_) -> 0 end, erl_syntax:revert(element(1, rename(F, {#{}, 0}))))
+     || F <- Forms].
+
+%% State: {Name => New, Counter}.
+rename(Node, {Map, N} = St) ->
+    case erl_syntax:type(Node) of
+        variable ->
+            Name = erl_syntax:variable_name(Node),
+            case Map of
+                #{Name := New} -> {erl_syntax:variable(New), St};
+                _ ->
+                    New = list_to_atom("V" ++ integer_to_list(N)),
+                    {erl_syntax:variable(New), {Map#{Name => New}, N + 1}}
+            end;
+        clause ->
+            Pats = erl_syntax:clause_patterns(Node),
+            PatVars = lists:append([sets:to_list(erl_syntax_lib:variables(P)) || P <- Pats]),
+            Inner = {maps:without(PatVars, Map), N},
+            {Pats1, St1} = lists:mapfoldl(fun rename/2, Inner, Pats),
+            {Guard, St2} = case erl_syntax:clause_guard(Node) of
+                               none -> {none, St1};
+                               G -> rename(G, St1)
+                           end,
+            {Body, {_, N3}} = lists:mapfoldl(fun rename/2, St2, erl_syntax:clause_body(Node)),
+            {erl_syntax:clause(Pats1, Guard, Body), {Map, N3}};
+        _ ->
+            case erl_syntax:subtrees(Node) of
+                [] -> {Node, St};
+                Groups ->
+                    {Groups1, St1} = lists:mapfoldl(
+                                       fun(Group, S) -> lists:mapfoldl(fun rename/2, S, Group) end,
+                                       St, Groups),
+                    {erl_syntax:update_tree(Node, Groups1), St1}
+            end
+    end.
+
+%%
+%% Golden tests: the emitter reproduces the hand-written targets
+%%
+
+%% report §8.1, §8.4, Appendix B; plan 2.1
+hello_golden_test() ->
+    ?assertEqual(target_forms("hello.erl"), example_forms("hello")).
+
+%% report §6.2, §6.3, §6.6, §8.4, Appendix B; plan 2.1
+counter_golden_test() ->
+    ?assertEqual(target_forms("counter.erl"), example_forms("counter")).
+
+%%
+%% The MVP 1 examples run and print what their headers promise
+%%
+
+%% report Appendix B; plan 2, step 6
+examples_test_() ->
+    Expected = [{"hello", <<"hello, world\n">>},
+                {"counter", <<"count is 8\n">>},
+                {"counter_upgrade", <<"before upgrade: 8\nafter upgrade: 10\n">>},
+                {"ping_pong", <<"ping 3\npong 3\nping 2\npong 2\nping 1\npong 1\n">>},
+                {"stack", <<"top is 2\n">>},
+                {"patterns", <<"minus one\nzero\nother\na 2\nnothing\n-3\n3\n">>},
+                {"remote", <<"no remote peer configured\n">>}],
+    [{Base, fun() ->
+                 {Ns, Bin} = example(Base),
+                 ?assertEqual({ok, Out}, run(Ns, Bin))
+             end} || {Base, Out} <- Expected].
+
+%% report §11.1, plan 2.4: the interface travels in the BEAM chunk ErnI
+iface_chunk_test() ->
+    {Ns, Bin} = example("stack"),
+    {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Bin),
+    {ok, 'ernest@stack', Beam} = ern_compiler:compile(Ns, Typed, Iface, Env),
+    {ok, {_, [{"ErnI", Chunk}]}} = beam_lib:chunks(Beam, ["ErnI"]),
+    {iface, ['Stack'], _Types, Values} = binary_to_term(Chunk),
+    ?assert(lists:keymember(['Stack', 'Stack', push], 1, Values)).
+
+%% plan 2.4: the module atom is ernest@ and the path with @ for /
+module_atom_test() ->
+    ?assertEqual('ernest@counter', ern_compiler:module_atom(['Counter'])),
+    ?assertEqual('ernest@net@http', ern_compiler:module_atom(['Net', 'Http'])).
+
+%%
+%% Blocks, bindings, and local functions
+%%
+
+%% report §4.6, §5.4: a local fn closes over earlier bindings and calls
+%% itself; used as a value it becomes a closure
+local_fn_test() ->
+    {ok, Out} = run(
+        "export fn main() -> Unit with Never = {\n"
+        "    let base = 10;\n"
+        "    fn add(x : Int) -> Int = base + x;\n"
+        "    fn count(n : Int) -> Int = if n == 0 then 0 else 1 + count(n - 1);\n"
+        "    let ys = List.map([1, 2], add);\n"
+        "    Io.println(Int.toString(List.foldLeft(ys, 0, fn(a, b) = a + b)));\n"
+        "    Io.println(Int.toString(count(3)))\n"
+        "}\n"),
+    ?assertEqual(<<"23\n3\n">>, Out).
+
+%% report §4.6, §5.4: a local fn that uses a name bound more than once
+%% in its scope is rejected, since the report does not say which binding
+%% is meant
+local_fn_rebound_name_test() ->
+    Msg = compile_error(
+        "export fn main() -> Unit with Never = {\n"
+        "    let x = 1;\n"
+        "    let x = 2;\n"
+        "    fn f() -> Int = x;\n"
+        "    Io.println(Int.toString(f()))\n"
+        "}\n"),
+    ?assertMatch("x is bound more than once" ++ _, Msg).
+
+%% report §4.6: shadowing rebinds; each binding is its own variable
+shadowing_test() ->
+    {ok, Out} = run(
+        "export fn main() -> Unit with Never = {\n"
+        "    let x = 1;\n"
+        "    let x = x + 1;\n"
+        "    let #(x, y) = #(x * 10, x);\n"
+        "    Io.println(Int.toString(x + y))\n"
+        "}\n"),
+    ?assertEqual(<<"22\n">>, Out).
+
+%% report §5.5: `<-` on Either returns the Left, on Optional the None
+bind_arrow_test() ->
+    {ok, Out} = run(
+        "fn half(n : Int) -> Either(String, Int) =\n"
+        "    if n % 2 == 0 then Right(n / 2) else Left(\"odd\")\n"
+        "fn quarter(n : Int) -> Either(String, Int) = {\n"
+        "    let h <- half(n);\n"
+        "    let q <- half(h);\n"
+        "    Right(q)\n"
+        "}\n"
+        "fn both(a : Optional(Int), b : Optional(Int)) -> Optional(Int) = {\n"
+        "    let x <- a;\n"
+        "    let y <- b;\n"
+        "    Some(x + y)\n"
+        "}\n"
+        "fn show(e : Either(String, Int)) -> String = match e {\n"
+        "    Right(n) -> Int.toString(n)\n"
+        "  | Left(s) -> s\n"
+        "}\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    Io.println(show(quarter(8)));\n"
+        "    Io.println(show(quarter(6)));\n"
+        "    Io.println(Int.toString(Optional.withDefault(both(Some(1), Some(2)), -1)));\n"
+        "    Io.println(Int.toString(Optional.withDefault(both(Some(1), None), -1)))\n"
+        "}\n"),
+    ?assertEqual(<<"2\nodd\n3\n-1\n">>, Out).
+
+%% report §4.6, §8.5: top-level lets are evaluated before main, in
+%% dependency order whatever their textual order, a dependency through a
+%% called function included
+top_level_let_test() ->
+    {ok, Out} = run(
+        "let total = base * 2\n"
+        "let base = count()\n"
+        "fn count() -> Int = List.size(items)\n"
+        "let items = [1, 2, 3]\n"
+        "export fn main() -> Unit with Never = Io.println(Int.toString(total))\n"),
+    ?assertEqual(<<"6\n">>, Out).
+
+%%
+%% Expressions
+%%
+
+%% report §5.9, §5.10: a guard that is not an Erlang guard falls through
+%% to the next clause
+match_general_guard_test() ->
+    {ok, Out} = run(
+        "fn small(n : Int) -> Bool = n < 3\n"
+        "fn name(n : Int) -> String = match n {\n"
+        "    k when small(k) -> \"small\"\n"
+        "  | k when k % 2 == 0 -> \"even\"\n"
+        "  | _ -> \"odd\"\n"
+        "}\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    Io.println(name(1));\n"
+        "    Io.println(name(4));\n"
+        "    Io.println(name(5))\n"
+        "}\n"),
+    ?assertEqual(<<"small\neven\nodd\n">>, Out).
+
+%% report §5.9, plan 2.2: a receive guard is an Erlang guard in MVP 1
+receive_guard_test() ->
+    {ok, Out} = run(
+        "type Msg = N(Int)\n"
+        "fn loop(acc : Int) -> Unit with Msg = receive {\n"
+        "    N(k) when k > 0 -> loop(acc + k)\n"
+        "  | N(_) -> Io.println(Int.toString(acc))\n"
+        "}\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    let p = spawn(Local, fn() = loop(0));\n"
+        "    send(p, N(2));\n"
+        "    send(p, N(3));\n"
+        "    send(p, N(0));\n"
+        "    receive { after 100 -> Unit }\n"
+        "}\n"),
+    ?assertEqual(<<"5\n">>, Out).
+
+%% report §5.9, plan 2.2: a general receive guard is refused in MVP 1
+receive_guard_general_test() ->
+    Msg = compile_error(
+        "type Msg = N(Int)\n"
+        "fn big(k : Int) -> Bool = k > 100\n"
+        "fn loop() -> Unit with Msg = receive {\n"
+        "    N(k) when big(k) -> Unit\n"
+        "  | N(_) -> loop()\n"
+        "}\n"
+        "export fn main() -> Unit with Msg = loop()\n"),
+    ?assertMatch("in MVP 1 a receive guard" ++ _, Msg),
+    ?assert(string:find(Msg, "§5.9") =/= nomatch).
+
+%% report §3.1, §4.8, §9.6: Int arithmetic, comparison, and the Boolean
+%% operators; Float arithmetic is MVP 2 (plan, MVP 1 scope)
+operators_test() ->
+    {ok, Out} = run(
+        "export fn main() -> Unit with Never = {\n"
+        "    Io.println(Int.toString(-7 / 3));\n"
+        "    Io.println(Int.toString(-7 % 3));\n"
+        "    Io.println(Int.toString(2 + 3 * 4 - 1));\n"
+        "    Io.println(Bool.toString(1 < 2 && 2 <= 2 && 3 > 2 && 3 >= 3));\n"
+        "    Io.println(Bool.toString(1 == 2 || 1 != 2));\n"
+        "    Io.println(Bool.toString(\"a\" < \"b\"));\n"
+        "    Io.println(Int.toString(List.size(1 :: [2] <> [3])))\n"
+        "}\n"),
+    ?assertEqual(<<"-2\n-1\n13\ntrue\ntrue\ntrue\n3\n">>, Out).
+
+%% report §7.4: a zero divisor faults main with its cause
+division_fault_test() ->
+    {Result, _} = run("export fn main() -> Unit with Never = {\n"
+                      "    let z = List.size([]);\n"
+                      "    Io.println(Int.toString(1 / z))\n"
+                      "}\n"),
+    ?assertEqual({fault, <<"division by zero">>}, Result).
+
+%% report §7.4: todo compiles at any type and faults if reached
+todo_test() ->
+    {Result, _} = run("fn later() -> Int = todo(\"later\")\n"
+                      "export fn main() -> Unit with Never = Io.println(Int.toString(later()))\n"),
+    ?assertEqual({fault, <<"todo: later">>}, Result).
+
+%% report §5.6, §8.4: named fields in canonical order, and update from a
+%% base value
+constructors_test() ->
+    {ok, Out} = run(
+        "type Point = Point(y : Int, x : Int)\n"
+        "type Shape = Dot | At(Point)\n"
+        "fn show(s : Shape) -> String = match s {\n"
+        "    Dot -> \"dot\"\n"
+        "  | At(Point(x = x, y = y)) -> Int.toString(x) <> \",\" <> Int.toString(y)\n"
+        "}\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    let p = Point(x = 1, y = 2);\n"
+        "    Io.println(show(At(Point(..p, x = 5))));\n"
+        "    Io.println(show(Dot));\n"
+        "    let wrapped = List.map([p], At);\n"
+        "    Io.println(Int.toString(List.size(wrapped)))\n"
+        "}\n"),
+    ?assertEqual(<<"5,2\ndot\n1\n">>, Out).
+
+%% report §5.3, §5.8: lambdas capture, if is an expression
+lambda_if_test() ->
+    {ok, Out} = run(
+        "export fn main() -> Unit with Never = {\n"
+        "    let k = 3;\n"
+        "    let f = fn(x : Int) = if x > k then \"big\" else \"small\";\n"
+        "    Io.println(f(5));\n"
+        "    Io.println(f(1))\n"
+        "}\n"),
+    ?assertEqual(<<"big\nsmall\n">>, Out).
+
+%% report §6.9: a monitored process that faults reports its spawn site
+monitor_site_test() ->
+    {ok, Out} = run(
+        "type Msg = Died(Down)\n"
+        "export fn main() -> Unit with Msg = {\n"
+        "    let z = List.size([]);\n"
+        "    let w = spawn(Local, fn() -> Unit with Never = { let _ = 1 / z; Unit });\n"
+        "    monitor(w, Died);\n"
+        "    receive {\n"
+        "        Died(Down(function = f, reason = Fault(msg))) -> Io.println(f <> \" \" <> msg)\n"
+        "      | Died(_) -> Io.println(\"other\")\n"
+        "    }\n"
+        "}\n"),
+    ?assertEqual(<<"M.main:4 division by zero\n">>, Out).
+
+%% report §8.2, §9.7: Sys.stdout is a value
+sys_stdout_test() ->
+    {ok, Out} = run("export fn main() -> Unit with Never = Io.printlnTo(Sys.stdout, \"hi\")\n"),
+    ?assertEqual(<<"hi\n">>, Out).
+

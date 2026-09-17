@@ -1,0 +1,181 @@
+%% The stdlib modules of Appendix E, one test per module, and the
+%% operations of report §9.6 that live in them.
+-module(ernest_stdlib_tests).
+
+-include_lib("eunit/include/eunit.hrl").
+
+%% report Appendix E.2
+list_test() ->
+    L = 'ernest@list',
+    ?assertEqual(3, L:size([1, 2, 3])),
+    ?assertEqual(true, L:isEmpty([])),
+    ?assertEqual({'Some', 1}, L:head([1, 2])),
+    ?assertEqual('None', L:head([])),
+    ?assertEqual({'Some', 2}, L:last([1, 2])),
+    ?assertEqual({'Some', 2}, L:at([1, 2, 3], 1)),
+    ?assertEqual('None', L:at([1, 2, 3], 3)),
+    ?assertEqual('None', L:at([1, 2, 3], -1)),
+    ?assertEqual([2, 1], L:reverse([1, 2])),
+    ?assertEqual([1, 2], L:take([1, 2, 3], 2)),
+    ?assertEqual([1, 2, 3], L:take([1, 2, 3], 5)),
+    ?assertEqual([3], L:drop([1, 2, 3], 2)),
+    ?assertEqual([], L:drop([1, 2, 3], 5)),
+    ?assertEqual([1, 2], L:dropLast([1, 2, 3])),
+    ?assertEqual([], L:dropLast([])),
+    ?assertEqual(true, L:contains([1, 2], 2)),
+    ?assertEqual({'Some', 2}, L:find([1, 2, 3], fun(X) -> X > 1 end)),
+    ?assertEqual('None', L:find([1], fun(X) -> X > 1 end)),
+    ?assertEqual(true, L:any([1, 2], fun(X) -> X > 1 end)),
+    ?assertEqual(false, L:all([1, 2], fun(X) -> X > 1 end)),
+    ?assertEqual([2, 4], L:map([1, 2], fun(X) -> X * 2 end)),
+    ?assertEqual([2], L:filter([1, 2], fun(X) -> X > 1 end)),
+    ?assertEqual([20], L:filterMap([1, 2], fun(1) -> 'None'; (X) -> {'Some', X * 10} end)),
+    ?assertEqual(6, L:foldLeft([1, 2, 3], 0, fun(A, X) -> A + X end)),
+    ?assertEqual('Unit', L:foreach([1], fun(_) -> 'Unit' end)),
+    ?assertEqual({[1, 2], [3, 1]}, L:span([1, 2, 3, 1], fun(X) -> X < 3 end)),
+    ?assertEqual([1, 2, 3], L:sort([3, 1, 2], fun 'ernest@int':compare/2)),
+    ?assertEqual([1, 3, 2], L:remove([1, 2, 3, 2], 2)).
+
+%% report Appendix E.3, §3.10
+map_test() ->
+    M = 'ernest@map',
+    E = M:empty(),
+    ?assertEqual(true, M:isEmpty(E)),
+    M1 = M:put(M:put(E, a, 1), b, 2),
+    ?assertEqual(2, M:size(M1)),
+    ?assertEqual(true, M:contains(M1, a)),
+    ?assertEqual({'Some', 2}, M:get(M1, b)),
+    ?assertEqual('None', M:get(M1, c)),
+    ?assertEqual(1, M:size(M:remove(M1, a))),
+    ?assertEqual([a, b], lists:sort(M:keys(M1))),
+    ?assertEqual([1, 2], lists:sort(M:values(M1))),
+    ?assertEqual({'Some', 20}, M:get(M:map(M1, fun(_, V) -> V * 10 end), b)),
+    ?assertEqual(3, M:foldLeft(M1, 0, fun(A, _, V) -> A + V end)),
+    ?assert(M:put(M:put(E, a, 1), b, 2) =:= M:put(M:put(E, b, 2), a, 1)).
+
+%% report Appendix E.4, §3.10
+set_test() ->
+    S = 'ernest@set',
+    ?assertEqual(true, S:isEmpty(S:empty())),
+    S1 = S:add(S:add(S:empty(), 1), 2),
+    ?assertEqual(2, S:size(S1)),
+    ?assertEqual(true, S:contains(S1, 2)),
+    ?assertEqual(false, S:contains(S:remove(S1, 2), 2)),
+    ?assertEqual([1, 2, 3], lists:sort(S:toList(S:union(S1, S:fromList([3]))))),
+    ?assertEqual([2], S:toList(S:intersect(S1, S:fromList([2, 3])))),
+    ?assertEqual([1], S:toList(S:difference(S1, S:fromList([2, 3])))),
+    ?assert(S:fromList([1, 2]) =:= S:fromList([2, 1])).
+
+%% report Appendix E.5, §9.6
+string_test() ->
+    S = 'ernest@string',
+    ?assertEqual(2, S:size(<<"hé"/utf8>>)),
+    ?assertEqual(true, S:isEmpty(<<>>)),
+    ?assertEqual(true, S:contains(<<"hello">>, <<"ell">>)),
+    ?assertEqual(<<"a b">>, S:trim(<<" \ta b\n">>)),
+    ?assertEqual(<<"abc">>, S:toLower(<<"AbC">>)),
+    ?assertEqual({'Some', -12}, S:toInt(<<"-12">>)),
+    ?assertEqual('None', S:toInt(<<"1a">>)),
+    ?assertEqual('None', S:toInt(<<"-">>)),
+    ?assertEqual('None', S:toInt(<<>>)),
+    ?assertEqual([$a, $b], S:chars(<<"ab">>)),
+    ?assertEqual(<<"ab">>, S:fromChars([$a, $b])),
+    ?assertEqual({'Some', <<"ab">>}, S:fromUtf8(<<"ab">>)),
+    ?assertEqual('None', S:fromUtf8(<<255>>)),
+    ?assertEqual(<<"ab">>, S:toUtf8(<<"ab">>)),
+    ?assertEqual([<<"a">>, <<"b">>], S:lines(<<"a\nb\n">>)),
+    ?assertEqual([<<"a">>, <<>>, <<"b">>], S:lines(<<"a\n\nb">>)),
+    ?assertEqual([], S:lines(<<>>)),
+    ?assertEqual(true, S:all(<<"123">>, fun 'ernest@char':isDigit/1)),
+    ?assertEqual('Less', S:compare(<<"a">>, <<"b">>)),
+    ?assertEqual('Equal', S:compare(<<"a">>, <<"a">>)).
+
+%% report Appendix E.6, §9.6
+char_test() ->
+    C = 'ernest@char',
+    ?assertEqual(true, C:isDigit($7)),
+    ?assertEqual(false, C:isDigit($a)),
+    ?assertEqual(true, C:isAlpha($z)),
+    ?assertEqual(false, C:isAlpha($1)),
+    ?assertEqual(true, C:isSpace($\n)),
+    ?assertEqual(<<"é"/utf8>>, C:toString(16#E9)),
+    ?assertEqual(16#E9, C:toInt(16#E9)),
+    ?assertEqual('Greater', C:compare($b, $a)).
+
+%% report Appendix E.7
+bool_test() ->
+    ?assertEqual(false, 'ernest@bool':'not'(true)),
+    ?assertEqual(<<"true">>, 'ernest@bool':toString(true)).
+
+%% report Appendix E.8, §3.1, §7.4, §9.6
+int_test() ->
+    I = 'ernest@int',
+    ?assertEqual(3, I:abs(-3)),
+    ?assertEqual(1, I:min(1, 2)),
+    ?assertEqual(2, I:max(1, 2)),
+    ?assertEqual(2, I:bitAnd(6, 3)),
+    ?assertEqual(7, I:bitOr(6, 3)),
+    ?assertEqual(5, I:bitXor(6, 3)),
+    ?assertEqual(-7, I:bitNot(6)),
+    ?assertEqual(12, I:shiftLeft(3, 2)),
+    ?assertEqual(-2, I:shiftRight(-7, 2)),
+    ?assertEqual(<<"-7">>, I:toString(-7)),
+    ?assertEqual(7.0, I:toFloat(7)),
+    ?assertThrow({ernest, fault, <<"Int out of Float range">>}, I:toFloat(1 bsl 2000)),
+    ?assertEqual({'Some', -2}, I:'div'(-7, 3)),
+    ?assertEqual({'Some', -1}, I:'mod'(-7, 3)),
+    ?assertEqual('None', I:'div'(1, 0)),
+    ?assertEqual('Less', I:compare(1, 2)),
+    ?assertEqual(-1, I:negate(1)).
+
+%% report Appendix E.9, §3.1, §7.4, §9.6
+float_test() ->
+    F = 'ernest@float',
+    ?assertEqual(3.5, F:'+'(F:'*'(1.5, 2.0), 0.5)),
+    ?assertEqual(-1.0, F:'-'(1.0, 2.0)),
+    ?assertEqual(0.5, F:'/'(1.0, 2.0)),
+    ?assertThrow({ernest, fault, <<"float arithmetic error">>}, F:'/'(1.0, 0.0)),
+    ?assertThrow({ernest, fault, <<"float arithmetic error">>}, F:'*'(1.0e308, 10.0)),
+    ?assertEqual(1.5, F:abs(-1.5)),
+    ?assertEqual(<<"0.1">>, F:toString(0.1)),
+    ?assertEqual(<<"100.0">>, F:toString(100.0)),
+    ?assertEqual(2, F:round(2.5)),
+    ?assertEqual(4, F:round(3.5)),
+    ?assertEqual(-2, F:round(-2.5)),
+    ?assertEqual(3, F:round(2.7)),
+    ?assertEqual(-3, F:floor(-2.5)),
+    ?assertEqual(-2, F:ceil(-2.5)),
+    ?assertEqual('Greater', F:compare(2.0, 1.0)),
+    ?assertEqual(-1.0, F:negate(1.0)).
+
+%% report Appendix E.10
+optional_test() ->
+    O = 'ernest@optional',
+    ?assertEqual(true, O:isSome({'Some', 1})),
+    ?assertEqual(true, O:isNone('None')),
+    ?assertEqual(1, O:withDefault({'Some', 1}, 0)),
+    ?assertEqual(0, O:withDefault('None', 0)),
+    ?assertEqual({'Some', 2}, O:map({'Some', 1}, fun(X) -> X + 1 end)),
+    ?assertEqual('None', O:andThen({'Some', 1}, fun(_) -> 'None' end)).
+
+%% report Appendix E.11
+either_test() ->
+    E = 'ernest@either',
+    ?assertEqual(true, E:isLeft({'Left', e})),
+    ?assertEqual(true, E:isRight({'Right', 1})),
+    ?assertEqual(1, E:withDefault({'Right', 1}, 0)),
+    ?assertEqual(0, E:withDefault({'Left', e}, 0)),
+    ?assertEqual({'Right', 2}, E:map({'Right', 1}, fun(X) -> X + 1 end)),
+    ?assertEqual({'Left', f}, E:mapLeft({'Left', e}, fun(e) -> f end)),
+    ?assertEqual({'Left', e}, E:andThen({'Left', e}, fun(X) -> {'Right', X} end)),
+    ?assertEqual({'Some', 1}, E:toOptional({'Right', 1})),
+    ?assertEqual({'Left', e}, E:fromOptional('None', e)).
+
+%% report §6.7: no peer is configured in MVP 1
+remote_test() ->
+    ?assertEqual({'Left', 'NoRemotePeer'}, ern_rt:remote(fun() -> 1 end)),
+    ?assertEqual([{'Left', 'NoRemotePeer'}], ern_rt:parallel_remote([fun() -> 1 end])).
+
+%% report §7.4
+todo_test() ->
+    ?assertThrow({ernest, fault, <<"todo: x">>}, ern_rt:todo(<<"x">>)).

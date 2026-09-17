@@ -269,6 +269,15 @@ with_binds_to_the_nearest_arrow_test() ->
                  type_of("export fn f(a : Int) -> ((Int) -> Int) with Never = fn(b) = a + b",
                          f)).
 
+%% report §8.5
+let_cycle_test() ->
+    ?assertEqual("the initializer of a depends on itself, through b",
+                 err("let a : Int = b\nlet b : Int = a")),
+    ?assertEqual("the initializer of a depends on itself, through f",
+                 err("let a : Int = f()\nfn f() -> Int = a")),
+    ?assertEqual("the initializer of a depends on itself", err("let a : Int = a")),
+    ?assertEqual(ok, ok("let a : Int = b + 1\nlet b : Int = 1")).
+
 %% report §4.6
 toplevel_let_test() ->
     ?assertEqual("Int", type_of("export let port : Int = 8080", port)),

@@ -4,7 +4,7 @@ A functional language for explicit process protocols. Mailbox effects and linear
 
 ## Status
 
-Design complete for MVP 1 (single-node subset). The front end is done in Erlang: lexer, parser, and type checker, with every example program under `examples/` as a test. Next is the compiler to BEAM. The compiler is `ernc`; the runner is `ern`.
+Design complete for MVP 1 (single-node subset). The chain is done in Erlang: lexer, parser, type checker, runtime, and the compiler to BEAM, with every MVP 1 example program under `examples/` compiled and run as a test. Next are the `ernc` and `ern` programs. The compiler is `ernc`; the runner is `ern`.
 
 ## Reading order
 
@@ -56,7 +56,8 @@ docs/              decisions log, implementation plan
 examples/          Ernest programs: the paper programs and the small ones
 stdlib/            the Ernest standard library (Appendix E), a source root
 lib/               the compiler, as Erlang applications: lexer, parser,
-                   type_system, utils; each has src/, include/, ebin/, test/
+                   type_system, runtime, compiler, utils; each has src/,
+                   include/, ebin/, test/
 bin/               ernc and ern
 ```
 

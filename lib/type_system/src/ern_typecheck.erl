@@ -444,6 +444,7 @@ placeholder_group(Group, Env) ->
                 end, Env, Group).
 
 check_group(Group, Env0) ->
+    let_cycle(Group, Env0),
     St0 = ern_types:enter(Env0#env.st),
     %% a monomorphic placeholder per member for recursion
     {Placeholders, St1} = lists:mapfoldl(fun(D, S) ->
@@ -487,6 +488,26 @@ zonk_ast({tfn, _, _, _} = T, St) -> ern_types:zonk(T, St);
 zonk_ast(T, St) when is_tuple(T) -> list_to_tuple([zonk_ast(X, St) || X <- tuple_to_list(T)]);
 zonk_ast(L, St) when is_list(L) -> [zonk_ast(X, St) || X <- L];
 zonk_ast(X, _) -> X.
+
+%% Report §8.5: a cycle among top-level let initializers, directly or through
+%% functions they call, is a compile-time error. A group is a strongly
+%% connected component, so a let in a group of two or more, or one that
+%% references itself, is on a cycle.
+let_cycle(Group, Env) ->
+    case lists:keysort(2, [D || #let_decl{} = D <- Group]) of
+        [] -> ok;
+        [#let_decl{pos = Pos, name = Name} = D | _] ->
+            Others = [local_name(O, N) || {O, N} <- [decl_key(G) || G <- Group],
+                                          {O, N} =/= decl_key(D)],
+            Cyclic = Others =/= [] orelse lists:member(decl_key(D), references(D, Env)),
+            Through = case Others of
+                          [] -> "";
+                          _ -> ", through " ++ lists:join(", ", Others)
+                      end,
+            Cyclic andalso fail(Pos, "the initializer of " ++ atom_to_list(Name)
+                                     ++ " depends on itself" ++ Through),
+            ok
+    end.
 
 %% Unify a placeholder with what the annotations say, before any body.
 signature_shape(#fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect}, V, Env) ->

@@ -1,7 +1,7 @@
 # Top-level build. Each application under lib/ has its own src/Makefile;
 # this one just runs them in order.
 
-APPS = utils lexer parser type_system runtime
+APPS = utils lexer parser type_system runtime compiler
 
 all test clean:
 	@for app in $(APPS); do $(MAKE) -C lib/$$app/src $@ || exit 1; done
