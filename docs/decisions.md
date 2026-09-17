@@ -2409,6 +2409,10 @@ Five were bugs against the report as written: the not-reply-carrying flag was in
 
 Writing the runtime needed two things §6.9 had not said. `Down(reason, function)` never defined `function`: the runtime cannot name the function a process ran, since `spawn` takes an arbitrary lambda, but it does know where the lambda was spawned, so `function` is the qualified name of the spawning function with the line of the `spawn` call, `Counter.main:19`, and the entry point's name for the entry process. And a process that died before `monitor` was called reports the cause of its death: the runtime remembers how every process it started ended. The first draft said `Fault("died before monitor")` instead; the first test showed why not: a worker that returns at once is already dead when the next line monitors it, and a fault for a normal return is the surprise principle 1 forbids. Remembering costs one monitor per process and one table row for the program's lifetime.
 
+## Acyclic Modules and Interface-Based Recompilation, 2026-09-17
+
+Two sentences in §11.1, prompted by a reviewer's question about compile times. The module dependency graph is acyclic, and a cycle is a compile-time error: dependency-order compilation presumed it, and §8.5's load-time cycle check is thereby confined to initializers. And `ernc` recompiles a module when its source or the interface of a dependency changed, not when a dependency's file is newer, so a body-only edit does not cascade through dependents; this is OCaml's `.cmi` fingerprint and Rust's, and it is what makes separate compilation worth having. The mechanism, hashes stored in the `.erc` beside the interface and a canonical form for interfaces, is in the plan, not the report.
+
 ## Later
 
 Planned or considered, not in the language today.
