@@ -196,8 +196,8 @@ Local `fn`s in a block are generalized only once every later local `fn` they ref
 
 ### 3.3 Documentation (3 days)
 
-- User readme: how to write Ernest, which constructs are supported.
-- Internal architecture notes for the next phase.
+- User readme: how to write Ernest, which constructs are supported. Done 2026-09-17: the guide is the first half; the README's "What MVP 1 accepts" table is the second; the guide's code blocks were run through the checker and agree with it.
+- Internal architecture notes for the next phase. Done 2026-09-17: `docs/architecture.md`.
 - `ernc --doc file.ern` type-checks the module and writes Markdown to stdout: every exported and every documented declaration with its type, printed by the checker's printer so the §11.5 marks appear, and its doc comment. Done 2026-09-17.
 
 ### 3.4 Type error placement (2 days)

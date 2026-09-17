@@ -31,6 +31,8 @@ The complete programs from the report's Appendix B and D and the guide's checkpo
 
 - **[`docs/implementation_plan.md`](docs/implementation_plan.md)** — MVP 1 roadmap. About eight weeks of one-person work in Erlang, with a hand-written parser.
 
+- **[`docs/architecture.md`](docs/architecture.md)** — how the toolchain is built: the stages, what flows between them, the checker's passes, the compiler's one traversal, the runtime, the tests, and where MVP 2 hooks in.
+
 ## Ground rules
 
 - **`ernest_report.md` is the single normative document.** Nothing else in this repo overrides it.
