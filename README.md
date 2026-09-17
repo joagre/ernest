@@ -30,8 +30,6 @@ The complete programs from the report's Appendix B and the guide's checkpoints a
 
 - **[`docs/decisions.md`](docs/decisions.md)** — dated design decisions and their rationale. What was tried, what was rejected, why the report says what it says. Not normative — the report wins any conflict. Browse as needed; not intended to be read straight through.
 
-- **[`docs/review_response_r3.md`](docs/review_response_r3.md), [`r4`](docs/review_response_r4.md), [`r5`](docs/review_response_r5.md), [`r6`](docs/review_response_r6.md)** — per-round reviewer responses. Each cover letter acknowledges findings and cites the report sections where the fixes live.
-
 - **[`docs/implementation_plan.md`](docs/implementation_plan.md)** — MVP 1 roadmap. About eight weeks of one-person work in Erlang, with a hand-written parser.
 
 ## Ground rules
