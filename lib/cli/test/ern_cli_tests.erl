@@ -118,6 +118,14 @@ type_member_across_modules_test() ->
     ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"1\n">>, iolist_to_binary(?capturedOutput)).
 
+%% report §4.2: a module may not take a prelude namespace
+prelude_namespace_test() ->
+    Dir = tmp(),
+    write(Dir, "src/io.ern", "export fn println(s : String) -> Unit with m = Unit\n"),
+    write(Dir, "src/main.ern", hello()),
+    ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertNot(filelib:is_regular(Dir ++ "/build/main.erc")).
+
 %% report §11.1: a module cycle is an error naming the modules
 module_cycle_test() ->
     Dir = tmp(),

@@ -723,34 +723,46 @@ local_fn_order(Node) ->
 block_order(Stmts) ->
     Fns = [D || #fn_decl{} = D <- Stmts],
     FnNames = [N || #fn_decl{name = N} <- Fns],
-    Lets = lists:usort(lists:append([[N || {N, _} <- typed_pattern_bindings(P)]
-                                     || #binding{pattern = P} <- Stmts])),
-    %% direct references of each local fn to this block's lets and fns
-    Direct = maps:from_list([{N, names_in(B, Lets ++ FnNames)}
-                             || #fn_decl{name = N, body = B} <- Fns]),
-    Needs = fun(N) -> needed_lets(N, Direct, Lets, [], []) end,
-    lists:foldl(fun(#binding{pattern = P, expr = X}, Bound) ->
+    Indexed = lists:zip(lists:seq(1, length(Stmts)), Stmts),
+    %% every let binding of the block as an instance {Name, Index}
+    Lets = lists:append([[{N, I} || {N, _} <- typed_pattern_bindings(P)]
+                         || {I, #binding{pattern = P}} <- Indexed]),
+    LetNames = lists:usort([N || {N, _} <- Lets]),
+    %% what each local fn references: its siblings, and the binding of each
+    %% let name in force at its declaration (report §5.4, §4.6)
+    Direct = maps:from_list(
+               [{N, [R || R <- free_refs(B, Params, LetNames ++ FnNames), lists:member(R, FnNames)]
+                     ++ [{R, I} || R <- free_refs(B, Params, LetNames),
+                                   I <- [in_force(R, D, Lets)], I =/= none]}
+                || {D, #fn_decl{name = N, params = Params, body = B}} <- Indexed]),
+    Needs = fun(N) -> needed_lets(N, Direct, [], []) end,
+    lists:foldl(fun({I, #binding{pattern = P, expr = X}}, Bound) ->
                     check_uses(X, FnNames, Needs, Bound),
-                    Bound ++ [N || {N, _} <- typed_pattern_bindings(P)];
-                   (#fn_decl{}, Bound) ->
+                    Bound ++ [{N, I} || {N, _} <- typed_pattern_bindings(P)];
+                   ({_, #fn_decl{}}, Bound) ->
                     Bound;
-                   (X, Bound) ->
+                   ({_, X}, Bound) ->
                     check_uses(X, FnNames, Needs, Bound),
                     Bound
-                end, [], Stmts).
+                end, [], Indexed).
 
-%% The lets a local fn needs, following references between local fns.
-needed_lets(N, Direct, Lets, Seen, Acc) ->
+%% The latest binding of Name before statement D, or none.
+in_force(Name, D, Lets) ->
+    case [I || {N, I} <- Lets, N =:= Name, I < D] of
+        [] -> none;
+        Is -> lists:max(Is)
+    end.
+
+%% The let instances a local fn needs, following references between local
+%% fns.
+needed_lets(N, Direct, Seen, Acc) ->
     case lists:member(N, Seen) of
         true -> Acc;
         false ->
             Refs = maps:get(N, Direct, []),
-            Acc1 = lists:usort(Acc ++ [R || R <- Refs, lists:member(R, Lets)]),
-            lists:foldl(fun(R, A) ->
-                            case maps:is_key(R, Direct) of
-                                true -> needed_lets(R, Direct, Lets, [N | Seen], A);
-                                false -> A
-                            end
+            Acc1 = lists:usort(Acc ++ [R || R <- Refs, is_tuple(R)]),
+            lists:foldl(fun(R, A) when is_atom(R) -> needed_lets(R, Direct, [N | Seen], A);
+                           (_, A) -> A
                         end, Acc1, Refs)
     end.
 
@@ -760,27 +772,49 @@ check_uses(Expr, FnNames, Needs, Bound) ->
                      true ->
                          case Needs(N) -- Bound of
                              [] -> E;
-                             [L | _] -> fail(Pos, "local function " ++ atom_to_list(N)
-                                                  ++ " is used before `let " ++ atom_to_list(L)
-                                                  ++ "`, which it references")
+                             [{L, _} | _] -> fail(Pos, "local function " ++ atom_to_list(N)
+                                                       ++ " is used before `let "
+                                                       ++ atom_to_list(L)
+                                                       ++ "`, which it references")
                          end;
                      false -> E
                  end;
             (_, E) -> E
          end, Expr, ok).
 
-%% Unqualified names of the given set occurring in Node.
-names_in(Node, Names) ->
-    lists:usort(refs_of(Node, Names, [])).
+%% Unqualified names of the given set free in a local fn's body: outside
+%% its parameters and the bindings inside the body.
+free_refs(Body, Params, Names) ->
+    Bound = lists:append([[N || {N, _} <- typed_pattern_bindings(P)]
+                          || #param{pattern = P} <- Params]),
+    lists:usort([N || N <- free_in(Body, Bound), lists:member(N, Names)]).
 
-refs_of(#e_var{path = [], name = N}, Names, Acc) ->
-    case lists:member(N, Names) of true -> [N | Acc]; false -> Acc end;
-refs_of(T, Names, Acc) when is_tuple(T) ->
-    lists:foldl(fun(X, A) -> refs_of(X, Names, A) end, Acc, tl(tuple_to_list(T)));
-refs_of(L, Names, Acc) when is_list(L) ->
-    lists:foldl(fun(X, A) -> refs_of(X, Names, A) end, Acc, L);
-refs_of(_, _, Acc) ->
-    Acc.
+free_in(#e_var{path = [], name = N}, Bound) ->
+    case lists:member(N, Bound) of true -> []; false -> [N] end;
+free_in(#e_lambda{params = Ps, body = B}, Bound) ->
+    free_in(B, Bound ++ lists:append([[N || {N, _} <- typed_pattern_bindings(P)]
+                                      || #param{pattern = P} <- Ps]));
+free_in(#e_block{stmts = Stmts}, Bound) ->
+    {_, Acc} = lists:foldl(
+                 fun(#binding{pattern = P, expr = X}, {Bd, A}) ->
+                         {Bd ++ [N || {N, _} <- typed_pattern_bindings(P)], A ++ free_in(X, Bd)};
+                    (#fn_decl{name = N, params = Ps, body = B}, {Bd, A}) ->
+                         ParamNames = [[V || {V, _} <- typed_pattern_bindings(P)]
+                                       || #param{pattern = P} <- Ps],
+                         Inner = Bd ++ [N] ++ lists:append(ParamNames),
+                         {Bd ++ [N], A ++ free_in(B, Inner)};
+                    (S, {Bd, A}) -> {Bd, A ++ free_in(S, Bd)}
+                 end, {Bound, []}, Stmts),
+    Acc;
+free_in(#clause{pattern = P, guard = G, body = B}, Bound) ->
+    Bd = Bound ++ [N || {N, _} <- typed_pattern_bindings(P)],
+    free_in(G, Bd) ++ free_in(B, Bd);
+free_in(T, Bound) when is_tuple(T) ->
+    lists:append([free_in(X, Bound) || X <- tl(tuple_to_list(T))]);
+free_in(L, Bound) when is_list(L) ->
+    lists:append([free_in(X, Bound) || X <- L]);
+free_in(_, _) ->
+    [].
 
 %% Report §4.8: arithmetic, <>, and ordering resolve on the operand type.
 resolve_operators(Node, Env) ->
@@ -1163,12 +1197,17 @@ infer_block(Stmts, Pos, Env) ->
                                          end, St0, Fns),
     Env1 = lists:foldl(fun({N, V}, E) ->
                            E#env{vars = maps:put(N, ern_types:mono(V), E#env.vars)}
-                       end, Env#env{st = ern_types:leave(St1)}, Placeholders),
-    Deps = maps:from_list([{N, names_in(B, FnNames) -- [N]}
-                           || #fn_decl{name = N, body = B} <- Fns]),
+                       end, Env#env{st = St1}, Placeholders),
+    %% the annotations shape the placeholder before any use, as at top
+    %% level, at the block's level so that the fn still generalizes
+    Env1s = lists:foldl(fun({D, {_, V}}, E) -> signature_shape(D, V, E) end, Env1,
+                        lists:zip(Fns, Placeholders)),
+    Env1a = Env1s#env{st = ern_types:leave(Env1s#env.st)},
+    Deps = maps:from_list([{N, free_refs(B, Params, FnNames) -- [N]}
+                           || #fn_decl{name = N, params = Params, body = B} <- Fns]),
     Local = #{placeholders => maps:from_list(Placeholders), deps => Deps,
               checked => [], waiting => []},
-    {Typed, T, Env2} = infer_stmts(Stmts, Pos, Env1, Local, []),
+    {Typed, T, Env2} = infer_stmts(Stmts, Pos, Env1a, Local, []),
     %% every fn is generalized by now; put the schemes on the nodes
     Typed1 = [case S of
                   #fn_decl{name = N} -> S#fn_decl{type = maps:get(N, Env2#env.vars)};

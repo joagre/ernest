@@ -173,18 +173,31 @@ local_fn_test() ->
         "}\n"),
     ?assertEqual(<<"23\n3\n">>, Out).
 
-%% report §4.6, §5.4: a local fn that uses a name bound more than once
-%% in its scope is rejected, since the report does not say which binding
-%% is meant
-local_fn_rebound_name_test() ->
-    Msg = compile_error(
+%% report §4.6, §5.4: a local fn sees the bindings in force at its
+%% declaration, whatever is rebound after it, and through the local fns it
+%% references, theirs; it may be used before its declaration
+local_fn_bindings_test() ->
+    {ok, Out} = run(
         "export fn main() -> Unit with Never = {\n"
         "    let x = 1;\n"
-        "    let x = 2;\n"
         "    fn f() -> Int = x;\n"
-        "    Io.println(Int.toString(f()))\n"
+        "    let x = 2;\n"
+        "    Io.println(Int.toString(f() * 10 + x));\n"
+        "    let a = 1;\n"
+        "    fn g() -> Int = h();\n"
+        "    let a = 2;\n"
+        "    fn h() -> Int = a;\n"
+        "    Io.println(Int.toString(g()));\n"
+        "    let b = 5;\n"
+        "    let early = k();\n"
+        "    fn k() -> Int = b + 1;\n"
+        "    Io.println(Int.toString(early));\n"
+        "    let k2 = 10;\n"
+        "    fn add(n : Int) -> Int = n + k2;\n"
+        "    let r = { fn twice(n : Int) -> Int = add(add(n)); twice(1) };\n"
+        "    Io.println(Int.toString(r))\n"
         "}\n"),
-    ?assertMatch("x is bound more than once" ++ _, Msg).
+    ?assertEqual(<<"12\n2\n6\n21\n">>, Out).
 
 %% report §4.6: shadowing rebinds; each binding is its own variable
 shadowing_test() ->

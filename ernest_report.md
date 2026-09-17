@@ -323,7 +323,7 @@ export fn parse(s : String) -> Optional(Request) = ...
 fn helper(x) = ...        // private to net/http.ern
 ```
 
-External callers write `Net.Http.parse` and `Net.Http.Request`; the file-namespace prefix appears at *use* sites, never at declarations. Two exported declarations with the same qualified name anywhere in the program are an error. There is no export list, no `pub`, and no `import`.
+External callers write `Net.Http.parse` and `Net.Http.Request`; the file-namespace prefix appears at *use* sites, never at declarations. Two exported declarations with the same qualified name anywhere in the program are an error. A module namespace may not coincide with a prelude namespace (§9); `io.ern` at the source root is a compile-time error. There is no export list, no `pub`, and no `import`.
 
 **Type-member declarations carry the type's prefix.** A locally declared type `T` — whether concrete (§4.3) or abstract (§4.4) — creates a nested namespace `T` inside its module. Members of `T` are declared with `T.` as a single-typename prefix (`fn Distance.+`, `let Stack.empty`, `fn Stack.push`). This is the one case where `fn` and `let` declarations carry a typename prefix on their name; the prefix is always a single locally-declared type name, never the file-namespace path. Abstract types add a constructor-access restriction to this rule (§4.4): only the definitions listed in the `with { ... }` signature may name the constructor.
 
@@ -463,7 +463,7 @@ Strict, left to right, arguments before the call. No delayed computation; `fn() 
 
 `{ s1; s2; e }` is an expression whose value is the last statement, which must be an expression. `;` separates statements and never appears last. Statements are `fn` declarations, `let` bindings, and expressions; an expression as a statement is evaluated for its effect.
 
-A `fn` declared inside a block is visible throughout the block, so mutual and self-recursion between local `fn`s works the same as at the top level. `let` bindings remain sequential: `let p = e` is visible from the next statement onward, and a `fn` body that references a `let` declared later in the same block is a compile-time error. A local `fn` may only be *used* — called, obtained as a function value, passed to another function, stored, returned, or captured by another closure — after every `let` binding it references (directly or through references to other local `fn`s in the same block) has been evaluated. Using it earlier is a compile-time error; the check follows references between local functions, so both direct calls and function-value uses count.
+A `fn` declared inside a block is visible throughout the block, so mutual and self-recursion between local `fn`s works the same as at the top level; its body sees the bindings in force at its declaration (§4.6). `let` bindings remain sequential: `let p = e` is visible from the next statement onward, and a `fn` body that references a `let` declared later in the same block is a compile-time error. A local `fn` may only be *used* — called, obtained as a function value, passed to another function, stored, returned, or captured by another closure — after every `let` binding it references (directly or through references to other local `fn`s in the same block) has been evaluated. Using it earlier is a compile-time error; the check follows references between local functions, so both direct calls and function-value uses count.
 
 ### 5.5 Binding with `<-`
 
@@ -773,13 +773,13 @@ Same-named constructors of different types share an atom on the wire; the receiv
 
 ### 8.5 Initialization
 
-Before `main` runs, the runtime evaluates every top-level `let` binding in the program. Evaluation follows data dependencies: a binding that references another is evaluated after the one it references. Order within an independent set is unspecified — top-level `let` initializers are pure (§4.6), so the order does not affect the result. A cycle among top-level `let` initializers is an error: within a single module it is caught at compile time; across modules it is caught at load time, when the runtime has resolved every referenced module (§11.2).
+Before `main` runs, the runtime evaluates every top-level `let` binding in the program. Evaluation follows data dependencies: a binding that references another is evaluated after the one it references. Order within an independent set is unspecified — top-level `let` initializers are pure (§4.6), so the order does not affect the result. A cycle among top-level `let` initializers is a compile-time error.
 
 Top-level `type`, `abstract type`, `fn`, and `foreign` declarations have no runtime effect; only `let` requires evaluation. The `Sys.*` references (§8.2) are available to `let` initializers — the runtime binds them before evaluating top-level bindings.
 
 **Failure during initialization.** Purity does not imply totality. A top-level initializer can fault (via `todo`, `Int` zero-divisor, or the other exceptions in §7.4) or fail to terminate. An initializer that faults ends the program with that fault before `main` runs. Because order within an independent set is unspecified, which of two independent faulting initializers is reported is unspecified; a nonterminating initializer prevents unrelated initializers from being reached.
 
-**Dependency graph.** The cycle-detection graph is symbolic: binding `p` depends on binding `q` if `p`'s initializer directly or transitively references `q` by name in a resolvable position. A function called by an initializer contributes its own referenced bindings to the graph. Cross-module cycles are detected at load time, when the runtime has resolved every referenced module (§11.2).
+**Dependency graph.** The cycle-detection graph is symbolic: binding `p` depends on binding `q` if `p`'s initializer directly or transitively references `q` by name in a resolvable position. A function called by an initializer contributes its own referenced bindings to the graph.
 
 ### 8.6 Program termination
 

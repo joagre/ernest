@@ -22,8 +22,9 @@
 %% Emission context, threaded through everything.
 -record(cx, {ns, mod, env, fname, vars = #{}, counter = 0, locals = #{}, lifted = [],
              tops = #{}}).
+-record(local, {lifted, own, extra, refs, snap = pending}).
 %% vars: Ernest name => Erlang variable name; locals: local fn name =>
-%% {LiftedName, FreeVars}; tops: top-level names => arity | value;
+%% #local{} (see Blocks); tops: top-level names => arity | value;
 %% lifted: module functions produced by lifting, reversed
 
 -type error() :: {pos_integer(), pos_integer(), string()}.
@@ -317,7 +318,8 @@ var_ref(Pos, [], Name, T, #cx{vars = Vars, locals = Locals, tops = Tops} = Cx) -
         #{Name := V} -> {erl_syntax:variable(V), Cx};
         _ ->
             case Locals of
-                #{Name := {Lifted, Free}} -> closure(Lifted, Free, arity_of(T, Pos), Cx);
+                #{Name := #local{lifted = Lifted}} ->
+                    closure(Lifted, instances(Name, Cx), arity_of(T, Pos), Cx);
                 _ ->
                     case Tops of
                         #{{undefined, Name} := value} ->
@@ -373,10 +375,9 @@ remote_name(Path, Name, Env) ->
             {module_atom(Path), Name}
     end.
 
-closure(Lifted, Free, Arity, #cx{vars = Vars} = Cx) ->
+closure(Lifted, Insts, Arity, Cx) ->
     {Params, Cx1} = fresh_vars(Arity, "A", Cx),
-    FreeForms = [erl_syntax:variable(maps:get(F, Vars)) || F <- Free],
-    Args = FreeForms ++ [erl_syntax:variable(P) || P <- Params],
+    Args = [erl_syntax:variable(V) || V <- Insts ++ Params],
     Body = erl_syntax:application(erl_syntax:atom(Lifted), Args),
     {erl_syntax:fun_expr([erl_syntax:clause([erl_syntax:variable(P) || P <- Params], none,
                                             [Body])]),
@@ -394,9 +395,9 @@ call(Pos, #e_var{path = [], name = Name} = Callee, Args, Cx) ->
             {at(Pos, erl_syntax:application(erl_syntax:variable(V), ArgForms)), Cx1};
         _ ->
             case Locals of
-                #{Name := {Lifted, Free}} ->
-                    FreeForms = [erl_syntax:variable(maps:get(F, Vars)) || F <- Free],
-                    App = erl_syntax:application(erl_syntax:atom(Lifted), FreeForms ++ ArgForms),
+                #{Name := #local{lifted = Lifted}} ->
+                    Insts = [erl_syntax:variable(V) || V <- instances(Name, Cx)],
+                    App = erl_syntax:application(erl_syntax:atom(Lifted), Insts ++ ArgForms),
                     {at(Pos, App), Cx1};
                 _ ->
                     case Tops of
@@ -625,21 +626,32 @@ con_expr(Pos, Path, Name, Args, _T, Cx) ->
 %% Blocks, report §5.4 and §5.5, with local fns lifted
 %%
 
+%% A local fn becomes a module function whose leading parameters are the
+%% Erlang variables it closes over: for each free name of its body, the
+%% variable in force at its declaration (report §5.4, §4.6), and, through
+%% the local fns it references, theirs. A use before the declaration
+%% resolves against the variables in force at the use, which §5.4 makes
+%% the same ones. Bodies are emitted when the block ends, every
+%% declaration passed.
+%% own: free names bound by the enclosing scopes or this block's lets;
+%% extra: variables of enclosing blocks' local fns it references; refs:
+%% local fns of this block it references; snap: the variables in force at
+%% the declaration, once passed
+
 block(Stmts, Cx) ->
     Fns = [D || #fn_decl{} = D <- Stmts],
-    Cx1 = case Fns of
-              [] -> Cx;
-              _ -> lift(Fns, Stmts, Cx)
-          end,
-    stmts(Stmts, Cx1, []).
+    Cx1 = declare_locals(Fns, Stmts, Cx),
+    {Forms, Cx2} = stmts(Stmts, Cx1, []),
+    {Forms, emit_locals(Fns, Cx2)}.
 
 stmts([#binding{pos = Pos, op = '='}], _Cx, _Acc) ->
     fail(Pos, "a block ends with an expression");
 stmts([Last], Cx, Acc) ->
     {Form, Cx1} = expr(Last, Cx),
     {lists:reverse([Form | Acc]), Cx1};
-stmts([#fn_decl{} | Rest], Cx, Acc) ->
-    stmts(Rest, Cx, Acc);
+stmts([#fn_decl{name = N} | Rest], #cx{locals = Locals, vars = Vars} = Cx, Acc) ->
+    Local = maps:get(N, Locals),
+    stmts(Rest, Cx#cx{locals = Locals#{N => Local#local{snap = Vars}}}, Acc);
 stmts([#binding{pos = Pos, pattern = P, op = '=', expr = X} | Rest], Cx, Acc) ->
     {XF, Cx1} = expr(X, Cx),
     {PF, Cx2} = pattern(P, Cx1),
@@ -670,52 +682,63 @@ stmts([X | Rest], Cx, Acc) ->
     {Form, Cx1} = expr(X, Cx),
     stmts(Rest, Cx1, [Form | Acc]).
 
-%% Local fns become module functions taking the block's free variables,
-%% the union over all fns of the block, as leading parameters. A name a
-%% local fn refers to must be bound exactly once in the enclosing scopes,
-%% since which binding a local fn sees is not stated by the report (§4.6,
-%% §5.4); anything else is an error rather than a guess.
-lift(Fns, Stmts, #cx{vars = Vars, locals = Locals, tops = Tops} = Cx) ->
+declare_locals([], _Stmts, Cx) ->
+    Cx;
+declare_locals(Fns, Stmts, #cx{vars = Vars, locals = Locals, tops = Tops} = Cx) ->
     Names = [N || #fn_decl{name = N} <- Fns],
     BlockLets = lists:append([pattern_names(P) || #binding{pattern = P} <- Stmts]),
-    Free = lists:usort(lists:append(
-                         [[N || N <- free_names(B, Params, Names, Tops, Locals),
-                                is_map_key(N, Vars) orelse lists:member(N, BlockLets)]
-                          || #fn_decl{params = Params, body = B} <- Fns])),
-    lists:foreach(fun(N) ->
-                      Count = length([x || x <- BlockLets, x =:= N])
-                              + case is_map_key(N, Vars) of true -> 1; false -> 0 end,
-                      Count =< 1 orelse
-                          fail((hd(Fns))#fn_decl.pos,
-                               atom_to_list(N) ++ " is bound more than once in the scope of a local"
-                               " function that uses it; report §4.6 and §5.4 do not say which"
-                               " binding is meant")
-                  end, Free),
-    {Lifteds, Cx1} = lists:mapfoldl(fun(#fn_decl{name = N}, C) ->
-                                        {L, C1} = fresh_name(N, C),
-                                        {{N, {L, Free}}, C1}
-                                    end, Cx, Fns),
-    Locals1 = maps:merge(Locals, maps:from_list(Lifteds)),
-    %% emit each lifted function with the free variables as parameters
-    lists:foldl(fun(#fn_decl{pos = Pos, name = N, params = Params, body = Body}, C) ->
-                    {Lifted, _} = maps:get(N, Locals1),
-                    {FreeVars, C1} = fresh_vars_named(Free, C#cx{vars = #{}, locals = Locals1}),
-                    {Pats, C2} = lists:mapfoldl(fun(#param{pattern = P}, Cc) -> pattern(P, Cc) end,
-                                                C1, Params),
-                    {BodyForms, C3} = body(Body, C2),
-                    Head = [erl_syntax:variable(V) || V <- FreeVars] ++ Pats,
-                    Fun = at(Pos, erl_syntax:function(erl_syntax:atom(Lifted),
-                                                      [at(Pos, erl_syntax:clause(Head, none,
-                                                                                 BodyForms))])),
-                    C3#cx{vars = C#cx.vars, locals = Locals1, lifted = [Fun | C3#cx.lifted]}
-                end, Cx1#cx{locals = Locals1}, Fns).
+    {Declared, Cx1} =
+        lists:mapfoldl(
+          fun(#fn_decl{name = N, params = Params, body = Body}, C) ->
+                  Bound = lists:append([pattern_names(P) || #param{pattern = P} <- Params]),
+                  Free = [F || F <- lists:usort(names(Body, Bound)),
+                               not is_map_key({undefined, F}, Tops)],
+                  Refs = [F || F <- Free, lists:member(F, Names)],
+                  Own = [F || F <- Free, not lists:member(F, Names),
+                              is_map_key(F, Vars) orelse lists:member(F, BlockLets)],
+                  Extra = lists:append([instances(F, Cx) || F <- Free, not lists:member(F, Names),
+                                                            not lists:member(F, Own),
+                                                            is_map_key(F, Locals)]),
+                  {Lifted, C1} = fresh_name(N, C),
+                  {{N, #local{lifted = Lifted, own = Own, extra = lists:usort(Extra), refs = Refs}},
+                   C1}
+          end, Cx, Fns),
+    Cx1#cx{locals = maps:merge(Locals, maps:from_list(Declared))}.
 
-%% Unqualified names in Body not bound within it, not local fns, not top-level.
-free_names(Body, Params, LocalFns, Tops, Locals) ->
-    Bound = lists:append([pattern_names(P) || #param{pattern = P} <- Params]),
-    lists:usort([N || N <- names(Body, Bound), not lists:member(N, LocalFns),
-                      not is_map_key({undefined, N}, Tops), not is_map_key(N, Locals)]).
+%% The variables a local fn closes over, in order, each once.
+instances(Name, #cx{locals = Locals, vars = Vars}) ->
+    lists:usort(instances([Name], Locals, Vars, [], [])).
 
+instances([], _Locals, _Vars, _Seen, Acc) ->
+    Acc;
+instances([N | Rest], Locals, Vars, Seen, Acc) ->
+    case lists:member(N, Seen) of
+        true ->
+            instances(Rest, Locals, Vars, Seen, Acc);
+        false ->
+            #local{own = Own, extra = Extra, refs = Refs, snap = Snap} = maps:get(N, Locals),
+            Scope = case Snap of pending -> Vars; _ -> Snap end,
+            Vs = [maps:get(O, Scope) || O <- Own] ++ Extra,
+            instances(Refs ++ Rest, Locals, Vars, [N | Seen], Vs ++ Acc)
+    end.
+
+%% The lifted functions of a block, once every declaration has passed.
+emit_locals(Fns, Cx) ->
+    lists:foldl(
+      fun(#fn_decl{pos = Pos, name = N, params = Params, body = Body}, C) ->
+              #local{lifted = Lifted, own = Own, snap = Snap} = maps:get(N, C#cx.locals),
+              Insts = instances(N, C),
+              OwnVars = maps:from_list([{O, maps:get(O, Snap)} || O <- Own]),
+              {Pats, C1} = lists:mapfoldl(fun(#param{pattern = P}, Cc) -> pattern(P, Cc) end,
+                                          C#cx{vars = OwnVars}, Params),
+              {BodyForms, C2} = body(Body, C1),
+              Head = [erl_syntax:variable(V) || V <- Insts] ++ Pats,
+              Clause = at(Pos, erl_syntax:clause(Head, none, BodyForms)),
+              Fun = at(Pos, erl_syntax:function(erl_syntax:atom(Lifted), [Clause])),
+              C2#cx{vars = C#cx.vars, lifted = [Fun | C2#cx.lifted]}
+      end, Cx, Fns).
+
+%% Unqualified names free in Node, given the names bound around it.
 names(#e_var{path = [], name = N}, Bound) ->
     case lists:member(N, Bound) of true -> []; false -> [N] end;
 names(#e_lambda{params = Ps, body = B}, Bound) ->
@@ -900,10 +923,6 @@ erlang_var(Name, N) ->
 fresh_vars(Count, Prefix, #cx{counter = N} = Cx) ->
     Vars = [list_to_atom(Prefix ++ "_" ++ integer_to_list(N + I)) || I <- lists:seq(1, Count)],
     {Vars, Cx#cx{counter = N + Count}}.
-
-%% Fresh variables for the given Ernest names, bound in vars.
-fresh_vars_named(Names, Cx) ->
-    lists:mapfoldl(fun bind/2, Cx, Names).
 
 fresh_name(Name, #cx{counter = N} = Cx) ->
     {list_to_atom(atom_to_list(Name) ++ "$" ++ integer_to_list(N + 1)), Cx#cx{counter = N + 1}}.

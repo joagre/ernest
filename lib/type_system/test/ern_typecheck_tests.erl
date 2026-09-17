@@ -589,3 +589,28 @@ examples_test_() ->
                                     end, Errs)
               end
           end} || F <- Files].
+
+%% report §5.4, §4.6: a local fn sees the bindings in force at its
+%% declaration, so a use before the binding it sees is an error even when
+%% an earlier binding of the same name exists
+local_fn_shadowed_binding_test() ->
+    ?assertMatch({error, [{_, _, "local function f is used before `let x`" ++ _}]},
+                 check("fn m() -> Int = { let x = 1; let y = f(); let x = 2;"
+                       " fn f() -> Int = x; y }\n")),
+    ?assertMatch({error, [{_, _, "local function f is used before `let x`" ++ _}]},
+                 check("fn m() -> Int = { let x = 1; let y = f(); fn f() -> Int = g();"
+                       " let x = 2; fn g() -> Int = x; y }\n")),
+    ?assertMatch({ok, _, _, _},
+                 check("fn m() -> Int = { let x = 1; fn f() -> Int = x; let x = 2; f() + x }\n")),
+    %% a parameter or inner binding of the same name is not a reference
+    ?assertMatch({ok, _, _, _},
+                 check("fn m() -> Int = { let y = f(3); let x = 2; fn f(x : Int) -> Int = x;"
+                       " y + x }\n")).
+
+%% report §5.4, §3.4: a local fn's annotation shapes its type before any
+%% use, so a pure local fn may be used before its declaration in a process
+%% body
+local_fn_annotation_before_use_test() ->
+    ?assertMatch({ok, _, _, _},
+                 check("fn m() -> Int with Never = { let b = 5; let early = k();"
+                       " fn k() -> Int = b + 1; early }\n")).

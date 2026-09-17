@@ -2419,6 +2419,14 @@ Two sentences in §11.1, prompted by a reviewer's question about compile times. 
 
 `--repl` became `--shell` the same day: it is one more option of `ern`, given with any of the others, and what it adds is a shell process in the running program, as the Erlang shell is a process in a running node, not a loop that replaces the program. A bare `ern --shell` is the special case with nothing loaded.
 
+## Three Sentences From the Toolchain Audit, 2026-09-17
+
+Running the toolchain against small programs found three places where the report was silent or said too much.
+
+- §4.2: a module namespace may not coincide with a prelude namespace. A file `io.ern` compiled without complaint and was unreachable, since `Io.println` resolved to the prelude; the least surprising reading is that the file is an error, not that the prelude loses.
+- §5.4: a local `fn` body sees the bindings in force at its declaration. §4.6's shadowing rule already implied it, but the checker had been reading "the `let` bindings it references" by name, which accepted `let x = 1; let y = f(); let x = 2; fn f() = x; y` although `f` uses the second `x` before it exists. One sentence removes the doubt; the checker follows binding instances, and so does the compiler, which had been rejecting any local `fn` over a rebound name rather than guess.
+- §8.5: the load-time clause for cross-module `let` cycles is gone. With §11.1's acyclic module graph such a cycle cannot exist, so the sentence described a check that could never fire.
+
 ## Later
 
 Planned or considered, not in the language today.

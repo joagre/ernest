@@ -111,7 +111,15 @@ module_of(File, Root) ->
     filename:extension(Rel) =:= ".ern" orelse fail(Rel ++ " does not end in .ern"),
     Components = filename:split(filename:rootname(Rel)),
     lists:foreach(fun shape/1, Components),
-    #mod{ns = namespace(Components), file = File, rel = Rel}.
+    Ns = namespace(Components),
+    %% report §4.2: a module namespace is never a prelude namespace
+    case Ns of
+        [Single] ->
+            lists:member(Single, prelude_namespaces()) andalso
+                fail(Rel ++ " takes the prelude namespace " ++ atom_to_list(Single));
+        _ -> ok
+    end,
+    #mod{ns = Ns, file = File, rel = Rel}.
 
 %% Report §11.1: each component is a lowercase letter, then lowercase
 %% letters, digits, and underscores.
