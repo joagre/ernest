@@ -18,11 +18,26 @@
 main(Tool, Args) ->
     halt(?MODULE:Tool(Args)).
 
-%% Run a tool; a usage error is one line on stderr and status 1.
-tool(Tool, Fun) ->
-    try Fun()
+%% Run a tool with its options parsed by getopt. --help and --version
+%% print and stop with status 0; a usage error prints the message and the
+%% usage on stderr, any other error one line, both with status 1.
+tool(Tool, Spec, Positional, Args, Fun) ->
+    try
+        {Opts, Rest} = case getopt:parse(Spec, Args) of
+                           {ok, Parsed} -> Parsed;
+                           {error, {Reason, Data}} ->
+                               usage_fail(getopt:format_error(Spec, {Reason, Data}))
+                       end,
+        case {lists:member(help, Opts), lists:member(version, Opts)} of
+            {true, _} -> getopt:usage(Spec, atom_to_list(Tool), Positional, standard_io), 0;
+            {_, true} -> io:format("~s ~s~n", [Tool, ?VERSION]), 0;
+            _ -> Fun(Opts, Rest)
+        end
     catch
-        throw:{cli_exit, Status} -> Status;
+        throw:{cli_usage, Msg} ->
+            io:format(standard_error, "~s: ~s~n", [Tool, Msg]),
+            getopt:usage(Spec, atom_to_list(Tool), Positional, standard_error),
+            1;
         throw:{cli_error, Msg} ->
             io:format(standard_error, "~s: ~s~n", [Tool, Msg]),
             1
@@ -46,21 +61,20 @@ ernc_options() ->
 
 -spec ernc([string()]) -> 0 | 1.
 ernc(Args) ->
-    tool(ernc, fun() -> ernc_main(Args) end).
+    tool(ernc, ernc_options(), "file.ern | src-dir", Args, fun ernc_main/2).
 
-ernc_main(Args) ->
-    {Opts, Rest} = options(ernc, ernc_options(), Args, "file.ern | src-dir"),
+ernc_main(Opts, Rest) ->
     case {Rest, lists:member(doc, Opts)} of
         {[File], true} -> doc(File);
         {[Path], false} -> ernc_compile(Opts, Path);
-        _ -> fail("one file or directory argument is required")
+        _ -> usage_fail("one file or directory argument is required")
     end.
 
 ernc_compile(Opts, Path) ->
     Emit = case proplists:get_value(emit, Opts) of
                undefined -> erc;
                "erl" -> erl;
-               Other -> fail("unknown --emit kind " ++ Other ++ "; erl is the only kind")
+               Other -> usage_fail("unknown --emit kind " ++ Other ++ "; erl is the only kind")
            end,
     filelib:is_file(Path) orelse fail("no such file or directory " ++ Path),
     DirMode = filelib:is_dir(Path),
@@ -327,15 +341,14 @@ ern_options() ->
 
 -spec ern([string()]) -> 0 | 1.
 ern(Args) ->
-    tool(ern, fun() -> ern_main(Args) end).
+    tool(ern, ern_options(), "file.erc", Args, fun ern_main/2).
 
-ern_main(Args) ->
-    {Opts, Rest} = options(ern, ern_options(), Args, "file.erc"),
+ern_main(Opts, Rest) ->
     case {proplists:get_value(create_config_dir, Opts), lists:member(shell, Opts), Rest} of
         {Dir, _, []} when Dir =/= undefined -> create_config_dir(Dir);
         {undefined, true, _} -> fail("the shell is not in MVP 1");
         {undefined, false, [File]} -> run(Opts, File);
-        _ -> fail("one .erc file argument is required")
+        _ -> usage_fail("one .erc file argument is required")
     end.
 
 run(Opts, File) ->
@@ -359,7 +372,8 @@ run(Opts, File) ->
             undefined -> {ern_compiler:module_atom(Ns), main, Loaded};
             Q ->
                 Parts = [list_to_atom(P) || P <- string:split(Q, ".", all)],
-                length(Parts) >= 2 orelse fail("--main takes a qualified name, Module.function"),
+                length(Parts) >= 2 orelse
+                    usage_fail("--main takes a qualified name, Module.function"),
                 MainNs = lists:droplast(Parts),
                 {ern_compiler:module_atom(MainNs), lists:last(Parts), load(MainNs, Roots, Loaded)}
         end,
@@ -431,23 +445,6 @@ create_config_dir(Dir) ->
 %% Options and paths
 %%
 
-%% Parse; --help and --version print and stop with status 0.
-options(Tool, Spec, Args, Positional) ->
-    case getopt:parse(Spec, Args) of
-        {ok, {Opts, Rest}} ->
-            case {lists:member(help, Opts), lists:member(version, Opts)} of
-                {true, _} ->
-                    getopt:usage(Spec, atom_to_list(Tool), Positional, standard_io),
-                    throw({cli_exit, 0});
-                {_, true} ->
-                    io:format("~s ~s~n", [Tool, ?VERSION]),
-                    throw({cli_exit, 0});
-                _ -> {Opts, Rest}
-            end;
-        {error, {Reason, Data}} ->
-            fail(getopt:format_error(Spec, {Reason, Data}))
-    end.
-
 absolute(Path) ->
     filename:absname(Path).
 
@@ -469,3 +466,6 @@ qname(Ns) ->
 
 fail(Msg) ->
     throw({cli_error, lists:flatten(Msg)}).
+
+usage_fail(Msg) ->
+    throw({cli_usage, lists:flatten(Msg)}).
