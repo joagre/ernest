@@ -412,6 +412,83 @@ warts_audit_test() ->
     ?assertEqual("(Int) -> Int", type_of("export fn f(x : Int) = (fn(y : b) -> b = 1)(x)", f)),
     ?assertEqual("(Int) -> Int", type_of("export fn f(x : Int) = (fn(y : b) -> b = y)(x)", f)).
 
+%% report §3.1
+base_types_test() ->
+    ?assertEqual("() -> #(Int, Float, Char, String, Bool)",
+                 type_of("export fn f() = #(1, 1.5, 'c', \"s\", true)", f)),
+    ?assertEqual("() -> Unit", type_of("export fn f() = Unit", f)).
+
+%% report §3.6
+abstract_types_as_types_test() ->
+    Stack = "export abstract type Stack(a) = Stack(List(a)) with {\n"
+            "    empty : Stack(a);\n    push : (a, Stack(a)) -> Stack(a)\n}\n"
+            "export let Stack.empty = Stack([])\n"
+            "export fn Stack.push(x, Stack(xs)) = Stack(x :: xs)\n",
+    ?assertEqual("(M.Stack(Int)) -> M.Stack(Int)",
+                 type_of(Stack ++ "export fn f(s : Stack(Int)) = Stack.push(1, s)", f)),
+    ?assertEqual("() -> M.Stack(String)",
+                 type_of(Stack ++ "export fn f() = Stack.push(\"a\", Stack.empty)", f)),
+    ?assertMatch("the arguments do not fit Stack.push: " ++ _,
+                 err(Stack ++ "fn f(s : Stack(Int)) = Stack.push(\"a\", s)")),
+    %% a sum type like any other: structural equality applies
+    ?assertEqual("(M.Stack(Int), M.Stack(Int)) -> Bool",
+                 type_of(Stack ++ "export fn same(a : Stack(Int), b) = a == b", same)).
+
+%% report §3.8
+foreign_types_test() ->
+    Table = "export foreign type Table(k, v)\n"
+            "foreign fn rawNew(name : String) -> Table(k, v) with m = \"ets:new/2\"\n",
+    ?assertEqual("(M.Table(Int, String)) -> M.Table(Int, String)",
+                 type_of(Table ++ "export fn id(t : Table(Int, String)) = t", id)),
+    ?assertEqual("() -> M.Table(a, b) with e",
+                 type_of(Table ++ "export fn new() = rawNew(\"t\")", new)),
+    %% no constructors: nothing to construct or match on
+    ?assertEqual("unknown constructor Table", err(Table ++ "fn f() = Table(1)")),
+    ?assertEqual("unknown constructor Table",
+                 err(Table ++ "fn f(t : Table(Int, Int)) = match t { Table(x) -> x }")),
+    %% equality is identity, so it is allowed
+    ?assertEqual("(M.Table(Int, Int), M.Table(Int, Int)) -> Bool",
+                 type_of(Table ++ "export fn same(a : Table(Int, Int), b) = a == b", same)),
+    %% held, passed, and sent
+    ?assertEqual(ok, ok(Table ++ "fn send1(a : Address(Table(Int, Int)), t) = send(a, t)")).
+
+%% report §3.7, §9.1, §9.2, §9.3: every built-in and declared type is usable
+%% as a type, and every declared type's constructors cover it
+prelude_types_test() ->
+    ?assertEqual(ok, ok("fn f(a : Address(Int), n : Never, x : Foreign, l : List(Int),"
+                        " m : Map(String, Int), s : Set(Char)) = Unit")),
+    %% a Reply parameter must be consumed (§6.6), so it gets its own line
+    ?assertEqual(ok, ok("fn f(r : Reply(Int)) -> Unit with Never = answer(r, 1)")),
+    ?assertEqual(ok, ok("fn f(x : Unit) = match x { Unit -> 1 }")),
+    ?assertEqual(ok, ok("fn f(x : Optional(Int)) = match x { None -> 0 | Some(v) -> v }")),
+    ?assertEqual(ok, ok("fn f(x : Either(String, Int)) = match x { Left(_) -> 0"
+                        " | Right(v) -> v }")),
+    ?assertEqual(ok, ok("fn f(x : Ordering) = match x { Less -> 0 | Equal -> 1 | Greater -> 2 }")),
+    ?assertEqual(ok, ok("fn f(x : Down) = match x { Down(reason = r, function = _) -> r }")),
+    ?assertEqual(ok, ok("fn f(x : Reason) = match x { Returned -> 0 | Killed -> 1 | ProgramEnd -> 2"
+                        " | Fault(_) -> 3 }")),
+    ?assertEqual(ok, ok("fn f(x : ClockMsg) -> Unit with Never = match x {"
+                        " After(ms = _, to = _) -> Unit | At(at = _, to = _) -> Unit"
+                        " | Now(reply = r) -> answer(r, 0) }")),
+    ?assertEqual(ok, ok("fn f(x : RemoteError) = match x { NoRemotePeer -> 0 | PeerLost -> 1 }")),
+    ?assertEqual(ok, ok("fn f(x : Where) = match x { Local -> 0 | Peer(_) -> 1 }")).
+
+%% report §9.4, §9.5, §9.6, §9.7 and Appendix E: every prelude and stdlib
+%% signature parses, and every name resolves to a value
+prelude_values_test() ->
+    lists:foreach(fun({QName, Text}) ->
+                      ?assertMatch({ok, _}, ern_parser:parse_type(Text)),
+                      Name = lists:flatten(lists:join(".", [atom_to_list(P) || P <- QName])),
+                      ?assertEqual(ok, ok("export let v = " ++ Name))
+                  end, ern_prelude:values()),
+    %% the process primitives are process-only, the stdlib combinators are not
+    ?assertEqual("this call needs a process: process code called from a pure function",
+                 err("fn f(a : Address(Int)) -> Unit = send(a, 1)")),
+    ?assertEqual("(List(Int)) -> List(Int)",
+                 type_of("export fn f(xs) = List.map(xs, fn(x : Int) = x)", f)),
+    ?assertEqual("Address(String)", type_of("export let out = Sys.stdout", out)),
+    ?assertEqual("Address(ClockMsg)", type_of("export let clk = Sys.clock", clk)).
+
 %%
 %% Abstract types and interfaces
 %%
