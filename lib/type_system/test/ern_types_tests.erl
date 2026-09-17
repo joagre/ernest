@@ -11,6 +11,7 @@ unify_ok(A, B, St) ->
     {ok, St1} = ern_types:unify(A, B, St),
     St1.
 
+%% report §3.4, §3.9
 unify_concrete_test() ->
     St = ern_types:new(),
     ?assertMatch({ok, _}, ern_types:unify(int(), int(), St)),
@@ -19,6 +20,7 @@ unify_concrete_test() ->
                  ern_types:unify({tfn, [int()], pure, int()}, {tfn, [int(), int()], pure, int()},
                                  St)).
 
+%% report §3.9
 unify_variable_test() ->
     St0 = ern_types:new(),
     {A, St1} = ern_types:fresh(St0),
@@ -30,10 +32,12 @@ unify_variable_test() ->
     St6 = unify_ok(C, bool(), St5),
     ?assertEqual(bool(), ern_types:zonk(B, St6)).
 
+%% report §3.9
 occurs_check_test() ->
     {A, St} = ern_types:fresh(ern_types:new()),
     ?assertMatch({error, {occurs, _, _}}, ern_types:unify(A, list(A), St)).
 
+%% report §3.9
 effect_rules_test() ->
     St0 = ern_types:new(),
     {E, St1} = ern_types:fresh(St0),
@@ -51,6 +55,7 @@ effect_rules_test() ->
     St4 = unify_ok(F, E, St3),
     ?assertEqual({error, process_only_vs_pure}, ern_types:unify(F, pure, St4)).
 
+%% report §3.9
 generalize_by_level_test() ->
     St0 = ern_types:enter(ern_types:new()),
     {A, St1} = ern_types:fresh(St0),
@@ -60,6 +65,7 @@ generalize_by_level_test() ->
     ?assertEqual(2, length(Vars)),
     ?assertMatch({tfn, [{tvar, _}], pure, {tvar, _}}, T).
 
+%% report §3.9, §4.6
 no_generalize_outer_variable_test() ->
     St0 = ern_types:new(),
     {Outer, St1} = ern_types:fresh(St0),
@@ -70,6 +76,7 @@ no_generalize_outer_variable_test() ->
     {#scheme{vars = Vars}, _} = ern_types:generalize({tfn, [Inner], pure, Inner}, St5),
     ?assertEqual([], Vars).
 
+%% report §3.9
 instantiate_copies_flags_test() ->
     St0 = ern_types:enter(ern_types:new()),
     {A, St1} = ern_types:fresh(St0, [eq]),
@@ -79,6 +86,7 @@ instantiate_copies_flags_test() ->
     ?assertEqual(Id1, Id2),
     ?assertEqual([eq], ern_types:flags(Id1, St4)).
 
+%% report §6.1
 elide_unused_effect_test() ->
     St0 = ern_types:enter(ern_types:new()),
     {E, St1} = ern_types:fresh_effect(St0),
@@ -95,6 +103,7 @@ elide_unused_effect_test() ->
     {#scheme{type = T3}, _} = ern_types:generalize({tfn, [int()], E, int()}, St3),
     ?assertMatch({tfn, [_], {tvar, _}, _}, T3).
 
+%% report §11.5
 format_test() ->
     St0 = ern_types:new(),
     {A, St1} = ern_types:fresh(St0),
@@ -120,6 +129,7 @@ format_test() ->
     St5 = ern_types:add_flag(B, no_reply, St4),
     ?assertEqual("(a!) -> #(a!, a!)", ern_types:format({tfn, [B], pure, {ttuple, [B, B]}}, St5)).
 
+%% report §11.5
 format_error_test() ->
     ?assertEqual("a function of 1 argument where one of 2 was expected",
                  ern_types:format_error({arity, 1, 2})),

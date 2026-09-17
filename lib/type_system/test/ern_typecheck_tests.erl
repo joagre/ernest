@@ -30,6 +30,7 @@ errs(Text) ->
 %% Inference
 %%
 
+%% report §3.9
 basic_inference_test() ->
     ?assertEqual("(Int) -> Int", type_of("export fn double(n) = n * 2", double)),
     ?assertEqual("(a) -> a", type_of("export fn id(x) = x", id)),
@@ -45,12 +46,14 @@ basic_inference_test() ->
                                           namedEmpty)),
     ?assertEqual("(List(a)) -> Int", type_of("export fn len(xs) = List.size(xs)", len)).
 
+%% report §3.9, §11.5
 constraints_are_inferred_and_printed_test() ->
     ?assertEqual("(a=, a=) -> Bool", type_of("export fn equal(a, b) = a == b", equal)),
     ?assertEqual("(a!) -> #(a!, a!)", type_of("export fn dup(x) = #(x, x)", dup)),
     ?assertEqual("(a!) -> Unit", type_of("export fn discard(x) = Unit", discard)),
     ?assertEqual("(a) -> a", type_of("export fn identity(x) = x", identity)).
 
+%% report §4.8
 operators_need_a_determined_operand_type_test() ->
     ?assertEqual("the operand type of `+` is not determined; annotate it",
                  err("fn twice(n) = n + n")),
@@ -63,6 +66,7 @@ operators_need_a_determined_operand_type_test() ->
     ?assertEqual("(Int, Int) -> Bool", type_of("export fn lt(a : Int, b) = a < b", lt)),
     ?assertEqual("`<` is not defined on Bool", err("fn f(a : Bool, b) = a < b")).
 
+%% report §3.10
 equality_test() ->
     ?assertEqual("`==` is not defined on (Int) -> Int: it contains a function or an address",
                  err("fn f(g : (Int) -> Int) = g == g")),
@@ -78,6 +82,7 @@ equality_test() ->
 %% Effects (report §3.9, §6.1)
 %%
 
+%% report §3.9, §6.1
 effects_test() ->
     ?assertEqual("() -> Unit with e", type_of("export fn main() = Io.println(\"x\")", main)),
     ?assertEqual("() -> Unit with Never",
@@ -98,6 +103,7 @@ effects_test() ->
                                   "fn gb() -> Unit with B = Unit\n"
                                   "fn both() = { ga(); gb() }")).
 
+%% report §6.3, §6.8
 receive_and_mailboxes_test() ->
     Counter = "type CounterMsg = Inc(Int) | Get(reply : Reply(Int))\n"
               "export fn counter(n : Int) -> Unit with CounterMsg = receive {\n"
@@ -113,6 +119,7 @@ receive_and_mailboxes_test() ->
     ?assertEqual("(a!) -> Unit with e",
                  type_of("export fn tick(n) = { let m = receive { k -> k }; Unit }", tick)).
 
+%% report §6.2, §4.6
 spawn_test() ->
     ?assertEqual(ok, ok("fn work() -> Unit with Never = Unit\n"
                         "fn main() -> Unit with Never = { let _ = spawn(Local, fn() = work());"
@@ -125,6 +132,7 @@ spawn_test() ->
                      "fn main() -> Unit with Never = { let a = spawn(Local, fn() = work());"
                      " Unit }")).
 
+%% report §5.9
 guards_are_pure_test() ->
     ?assertEqual(ok, ok("fn f(n : Int) = match n { k when k > 0 -> 1 | _ -> 0 }")),
     ?assertMatch("a guard is a Bool: " ++ _,
@@ -137,6 +145,7 @@ guards_are_pure_test() ->
 %% Patterns and blocks
 %%
 
+%% report §5.10
 patterns_test() ->
     ?assertEqual("variable x appears twice in the pattern",
                  err("fn f(p) = match p { #(x, x) -> x }")),
@@ -149,6 +158,7 @@ patterns_test() ->
     ?assertEqual("Get has no field bogus",
                  err("type R = Get(reply : Int)\nfn f(r) = match r { Get(bogus = b) -> b }")).
 
+%% report §4.6, §5.4
 blocks_test() ->
     ?assertEqual("the type of xs is not determined (List(a)); use it, or annotate it",
                  err("fn f() = { let xs = []; 1 }")),
@@ -168,11 +178,13 @@ blocks_test() ->
     ?assertEqual("unknown name k",
                  err("fn f(n : Int) = { fn g(x) = x * k; let k = 2; g(n) }")).
 
+%% report §4.5
 local_fn_names_are_plain_test() ->
     ?assertEqual("a type-member name, `fn T.name`, is a top-level form; a local function has a"
                  " plain name",
                  err("type T = T\nfn f() = { fn T.g() = 1; 2 }")).
 
+%% report §5.4
 local_fn_forward_reference_test() ->
     %% a is generalized only after b, which it references, is checked
     ?assertEqual("the arguments do not fit a: expected (Int) -> Int, found (String) -> a",
@@ -189,6 +201,7 @@ local_fn_forward_reference_test() ->
                          " else odd(k - 1); fn odd(k) = if k == 0 then false else even(k - 1);"
                          " even(n) }", f)).
 
+%% report §5.4
 local_fn_used_before_let_test() ->
     %% report §5.4: a local fn is visible throughout the block but usable
     %% only after the lets it references
@@ -203,6 +216,7 @@ local_fn_used_before_let_test() ->
     ?assertEqual(ok, ok("fn f(n : Int) = { let k = 2; let a = g(n); fn g(x) = x * k; a }")),
     ?assertEqual(ok, ok("fn f(n : Int) = { fn g(x) = x * 2; let a = g(n); let k = 2; a + k }")).
 
+%% report §5.5
 bind_arrow_test() ->
     Opt = "export fn parseAndAdd(a : String, b : String) -> Optional(Int) = {\n"
           "    let x <- String.toInt(a);\n    let y <- String.toInt(b);\n    Some(x + y)\n}",
@@ -223,6 +237,7 @@ bind_arrow_test() ->
 %% Types and declarations
 %%
 
+%% report §3.5, §3.9, §4.2, §4.3
 type_declarations_test() ->
     ?assertEqual("type T is declared twice", err("type T = A\ntype T = B")),
     ?assertEqual("constructor A is declared twice", err("type T = A\ntype U = A")),
@@ -237,6 +252,7 @@ type_declarations_test() ->
     ?assertEqual("field names must be unique within a constructor",
                  err("type T = T(a : Int, a : Int)")).
 
+%% report §3.9
 annotations_are_rigid_test() ->
     ?assertEqual("type variable a in the annotation is used as Int", err("fn f(x : a) -> a = 1")),
     ?assertEqual("two type variables in the annotation are used as one type",
@@ -245,6 +261,7 @@ annotations_are_rigid_test() ->
     ?assertMatch("the body does not have the declared return type: " ++ _,
                  err("fn f(x : Int) -> String = x")).
 
+%% report §3.4
 with_binds_to_the_nearest_arrow_test() ->
     ?assertEqual("(Int) -> ((Int) -> Int with Never)",
                  type_of("export fn f(a : Int) -> (Int) -> Int with Never = fn(b) = a + b", f)),
@@ -252,6 +269,7 @@ with_binds_to_the_nearest_arrow_test() ->
                  type_of("export fn f(a : Int) -> ((Int) -> Int) with Never = fn(b) = a + b",
                          f)).
 
+%% report §4.6
 toplevel_let_test() ->
     ?assertEqual("Int", type_of("export let port : Int = 8080", port)),
     ?assertEqual("List(a)", type_of("export let empty = []", empty)),
@@ -260,6 +278,7 @@ toplevel_let_test() ->
     ?assertEqual("this call needs a process: process code called from a pure function",
                  err("let x = Io.println(\"a\")")).
 
+%% report §5.6
 constructors_test() ->
     ?assertEqual("(Int) -> List(Optional(Int))",
                  type_of("export fn f(x : Int) = List.map([x], Some)", f)),
@@ -272,6 +291,7 @@ constructors_test() ->
     ?assertEqual("None takes no fields", err("fn f() = None(1)")),
     ?assertEqual("unknown constructor Nope", err("fn f() = Nope")).
 
+%% report §5.2
 calls_test() ->
     ?assertEqual("f takes 2 arguments, not 1; a call supplies them all",
                  err("fn f(a, b) = a\nfn g() = f(1)")),
@@ -284,6 +304,7 @@ calls_test() ->
 %% Exhaustiveness (report §5.9)
 %%
 
+%% report §5.9
 exhaustiveness_test() ->
     ?assertEqual("match on Optional(a) is not exhaustive; missing None",
                  err("fn f(o) = match o { Some(x) -> x }")),
@@ -311,6 +332,7 @@ exhaustiveness_test() ->
 %% Reply discipline (report §6.6)
 %%
 
+%% report §6.6
 reply_test() ->
     Msg = "type Req = Get(reply : Reply(Int)) | Stop\n",
     ?assertEqual(ok, ok(Msg ++ "fn serve(n : Int) -> Unit with Req = receive {\n"
@@ -352,6 +374,7 @@ reply_test() ->
     ?assertEqual(ok, ok(Msg ++ "fn ask(a : Address(Req)) = Address.call(a, fn(r) = Get(reply = r),"
                         " 1000)")).
 
+%% report §6.6, §3.9, §4.4, §4.7
 warts_audit_test() ->
     Msg = "type Req = Get(reply : Reply(Int)) | Stop\n",
     %% a reply-carrying expression neither bound nor consumed
@@ -393,6 +416,7 @@ warts_audit_test() ->
 %% Abstract types and interfaces
 %%
 
+%% report §4.4
 abstract_type_test() ->
     Stack = "export abstract type Stack(a) = Stack(List(a)) with {\n"
             "    empty : Stack(a);\n    push : (a, Stack(a)) -> Stack(a);\n"
@@ -411,6 +435,7 @@ abstract_type_test() ->
                      "fn Stack.size(s) = true")),
     ?assertEqual("Nope is not a type declared in this module", err("fn Nope.f() = 1")).
 
+%% report §4.2, §11.1
 interface_test() ->
     Http = "export type Request = Request(method : String, path : String)\n"
            "export fn parse(s : String) -> Optional(Request) =\n"
@@ -433,10 +458,12 @@ interface_test() ->
     ?assertMatch({error, [{1, 10, "unknown name Net.Http.private"}]},
                  ern_typecheck:check(['Main'], P1, [Iface])).
 
+%% report §11.1
 errors_are_collected_test() ->
     ?assertEqual(["unknown name a", "unknown name b"],
                  errs("fn f() = a\nfn g() = b")).
 
+%% report plan 1.2
 typed_ast_test() ->
     {ok, [#fn_decl{body = #e_binop{type = T, left = #e_var{type = LT}}}], _, _} =
         check("fn double(n : Int) = n * 2"),
@@ -447,6 +474,7 @@ typed_ast_test() ->
 %% The example programs
 %%
 
+%% report §4.2
 modules_example_test() ->
     Dir = "../../../examples/modules/",
     {ok, Http} = file:read_file(Dir ++ "net/http.ern"),
@@ -455,6 +483,7 @@ modules_example_test() ->
     {ok, Decls} = ern_parser:parse_string(Main),
     ?assertMatch({ok, _, _, _}, ern_typecheck:check(['Main'], Decls, [Iface])).
 
+%% report Appendix B, examples/
 examples_test_() ->
     Files = filelib:wildcard("../../../examples/*.ern"),
     Mvp1 = ["counter", "counter_upgrade", "hello", "ping_pong", "remote", "stack"],
