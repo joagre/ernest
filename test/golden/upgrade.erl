@@ -1,11 +1,11 @@
--module(ernest@counter_upgrade).
+-module(ernest@upgrade).
 
 -export([main/0]).
 
 main() ->
     C_1 = ern_rt:spawn('Local',
                        fun () -> counter(0) end,
-                       <<"Counter_upgrade.main:17">>),
+                       <<"Upgrade.main:17">>),
     ern_rt:send(C_1, {'Inc', 5}),
     ern_rt:send(C_1, {'Inc', 3}),
     case ern_rt:call(C_1,

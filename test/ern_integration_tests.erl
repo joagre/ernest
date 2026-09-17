@@ -6,12 +6,12 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--define(PROGRAMS, ["hello", "counter", "counter_upgrade", "ping_pong", "stack", "patterns",
-                   "kv_parser", "remote"]).
+-define(PROGRAMS, ["hello", "counter", "upgrade", "pingpong", "stack", "patterns",
+                   "kvparser", "remote"]).
 
-%% report §8.1, §8.6, §11.1, §11.2, and per program: §6.4 (ping_pong),
-%% §6.6 (counter), §6.7 (remote), §6.10 (counter_upgrade), §5.10 (patterns),
-%% §5.5 (kv_parser), §4.4 (stack)
+%% report §8.1, §8.6, §11.1, §11.2, and per program: §6.4 (pingpong),
+%% §6.6 (counter), §6.7 (remote), §6.10 (upgrade), §5.10 (patterns),
+%% §5.5 (kvparser), §4.4 (stack)
 programs_test_() ->
     [{Name, fun() -> program(Name) end} || Name <- ?PROGRAMS].
 

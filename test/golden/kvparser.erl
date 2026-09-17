@@ -1,4 +1,4 @@
--module(ernest@kv_parser).
+-module(ernest@kvparser).
 
 -export([main/0]).
 

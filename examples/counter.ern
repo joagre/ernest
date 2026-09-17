@@ -2,7 +2,7 @@
 // Counter
 //
 // From the report, Appendix B: the counter of §6.10 with a main that exercises
-// Inc and Get. Upgrade is declared but not exercised here; counter_upgrade.ern
+// Inc and Get. Upgrade is declared but not exercised here; upgrade.ern
 // exercises it. The report is normative; this file is a copy.
 //
 // Needs MVP 1. This is one of the first test programs.

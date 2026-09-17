@@ -1,14 +1,14 @@
--module(ernest@ping_pong).
+-module(ernest@pingpong).
 
 -export([main/0]).
 
 main() ->
     PongAddr_1 = ern_rt:spawn('Local',
                               fun () -> pong() end,
-                              <<"Ping_pong.main:15">>),
+                              <<"Pingpong.main:15">>),
     _ = ern_rt:spawn('Local',
                      fun () -> ping(PongAddr_1, 3) end,
-                     <<"Ping_pong.main:16">>),
+                     <<"Pingpong.main:16">>),
     ern_rt:monitor(PongAddr_1,
                    fun (V_2) -> {'PongDone', V_2} end),
     receive {'PongDone', _} -> 'Unit' end.

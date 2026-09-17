@@ -121,16 +121,17 @@ module_of(File, Root) ->
     end,
     #mod{ns = Ns, file = File, rel = Rel}.
 
-%% Report §11.1: each component is a lowercase letter, then lowercase
-%% letters, digits, and underscores.
+%% Report §11.1: each component is one word, a lowercase letter, then
+%% lowercase letters and digits.
 shape(Component) ->
-    case re:run(Component, "^[a-z][a-z0-9_]*$") of
+    case re:run(Component, "^[a-z][a-z0-9]*$") of
         {match, _} -> ok;
         nomatch ->
             case re:run(Component, "[A-Z]") of
                 {match, _} -> fail("path component `" ++ Component ++ "` must be lowercase");
-                nomatch -> fail("path component `" ++ Component
-                                ++ "` must start with a lowercase letter")
+                nomatch -> fail("path component `" ++ Component ++ "` must be one word: a"
+                                " lowercase letter, then lowercase letters and digits;"
+                                " a multi-word module is a directory")
             end
     end.
 

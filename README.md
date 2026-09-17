@@ -16,11 +16,11 @@ Design complete for MVP 1 (single-node subset). The toolchain is done in Erlang:
 
 ### Then the small programs
 
-The complete programs from the report's Appendix B and D and the guide's checkpoints are collected under [`examples/`](examples/): `hello`, `counter`, `counter_upgrade`, `ping_pong`, `stack`, `patterns`, `kv_parser`, the two-module pair under `modules/`, `remote`, and the foreign library `ets`. All but `ets` are the MVP 1 test programs, compiled and run by `make test`. Each file's header says where it comes from and which MVP it needs. Together the examples exercise every construct of the grammar except bitstrings, and a test keeps it so.
+The complete programs from the report's Appendix B and D and the guide's checkpoints are collected under [`examples/`](examples/): `hello`, `counter`, `upgrade`, `pingpong`, `stack`, `patterns`, `kvparser`, the two-module pair under `modules/`, `remote`, and the foreign library `ets`. All but `ets` are the MVP 1 test programs, compiled and run by `make test`. Each file's header says where it comes from and which MVP it needs. Together the examples exercise every construct of the grammar except bitstrings, and a test keeps it so.
 
 ### Then the paper programs, in this order
 
-- **[`examples/tick_game.ern`](examples/tick_game.ern)** — a snake game with tick-based updates. Introduces `..` record update, `Map` folds, one process per player.
+- **[`examples/snake.ern`](examples/snake.ern)** — a snake game with tick-based updates. Introduces `..` record update, `Map` folds, one process per player.
 - **[`examples/repl.ern`](examples/repl.ern)** — a read-eval-print loop for a small expression language. Heavy use of `<-`, `try` as a supervised child process, `monitor` for detecting child death.
 - **[`examples/filesync.ern`](examples/filesync.ern)** — file synchronization between two nodes. Introduces mutual-address setup and additional runtime references (`Sys.fs`).
 - **[`examples/webserver.ern`](examples/webserver.ern)** — HTTP server with sessions. Introduces `foreign fn`, abstract types with signatures, ETS as a foreign process.
@@ -60,7 +60,7 @@ lib/               the compiler, as Erlang applications: lexer, parser,
 bin/               ernc and ern
 ```
 
-File and directory names use underscores; report §11.1 forbids hyphens in module paths, and the repository follows one rule.
+A module path segment is one lowercase word (report §11.1); a multi-word module is a nested directory. Files that are not modules use underscores.
 
 ## Building
 

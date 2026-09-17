@@ -719,7 +719,7 @@ GET /
 
 Directory mode compiles in dependency order automatically, creates missing subdirectories under `build/`, and removes stale `.erc` outputs whose source is gone (`--no-clean` disables the sweep). It's the recommended pattern once a project has more than one file.
 
-**The file's path is its namespace.** A file at `a/b/c.ern` provides declarations at namespace `A.B.C`. Each path segment is lowercase; each namespace segment is the *canonical typename form* — the path segment with its first ASCII letter uppercased and the rest preserved (`http.ern` → `Http`, `http_server.ern` → `Http_server`). Path components must be lowercase (report §11.1), so the mapping is one-to-one.
+**The file's path is its namespace.** A file at `a/b/c.ern` provides declarations at namespace `A.B.C`. Each path segment is one lowercase word; each namespace segment is the *canonical typename form* — the path segment with its first ASCII letter uppercased and the rest preserved (`http.ern` → `Http`, `httpv2.ern` → `Httpv2`). A multi-word module is a nested directory, `http/parser.ern` for `Http.Parser` (report §11.1), so the mapping is one-to-one.
 
 **Declarations use local names.** Inside `net/http.ern`, `export fn parse(...)` declares the function at its local name `parse`; the compiler exports it as `Net.Http.parse`. There is no file-namespace prefix on the declaration itself — repeating `Net.Http.` on every line would just restate the file's path.
 
@@ -969,7 +969,7 @@ Ernest is n-ary: every function has a specific number of arguments recorded in i
 
 The four paper programs, in ascending complexity:
 
-- [`examples/tick_game.ern`](examples/tick_game.ern) — snake game with tick-based updates; `..` record updates, one process per player.
+- [`examples/snake.ern`](examples/snake.ern) — snake game with tick-based updates; `..` record updates, one process per player.
 - [`examples/repl.ern`](examples/repl.ern) — small read-eval-print loop; `<-` for chained parsing, `monitor` + `kill` for aborting slow evaluation.
 - [`examples/filesync.ern`](examples/filesync.ern) — file sync between two nodes; mutual-address setup, one process per write, `Sys.fs`.
 - [`examples/webserver.ern`](examples/webserver.ern) — HTTP server with sessions in ETS; `foreign fn`, abstract types, ETS accessed through foreign functions.

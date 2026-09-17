@@ -2427,6 +2427,10 @@ Running the toolchain against small programs found three places where the report
 - §5.4: a local `fn` body sees the bindings in force at its declaration. §4.6's shadowing rule already implied it, but the checker had been reading "the `let` bindings it references" by name, which accepted `let x = 1; let y = f(); let x = 2; fn f() = x; y` although `f` uses the second `x` before it exists. One sentence removes the doubt; the checker follows binding instances, and so does the compiler, which had been rejecting any local `fn` over a rebound name rather than guess.
 - §8.5: the load-time clause for cross-module `let` cycles is gone. With §11.1's acyclic module graph such a cycle cannot exist, so the sentence described a check that could never fire.
 
+## One-Word Module Names, 2026-09-17
+
+§11.1's path shape rule loses underscores: a segment is a lowercase letter followed by lowercase letters and digits. Under the old rule `net/http_server.ern` gave `Net.Http_server`, a namespace segment that reads neither as a word nor as a typename. The alternative, converting `http_server` to `HttpServer`, is a hidden rewrite of the name the user typed, against "nothing invisible", and not one-to-one without a second rule about digits (`x_1` and `x1` would both give `X1`). Forbidding the underscore is the smaller rule: nothing is rewritten, the mapping stays trivially one-to-one, and a multi-word module is written as the nesting it usually is, `http/parser.ern` for `Http.Parser`, with the one-word spelling as the visible fallback. Go's package convention, made a rule. The four examples with underscores in their names were renamed: `pingpong`, `upgrade`, `snake`, `kvparser`.
+
 ## Later
 
 Planned or considered, not in the language today.

@@ -66,7 +66,7 @@ Local `fn`s in a block are generalized only once every later local `fn` they ref
 
 **Output:** the prelude in the type checker.
 
-**Test:** `examples/counter.ern`, `examples/counter_upgrade.ern`, `examples/ping_pong.ern`, `examples/stack.ern`, `examples/hello.ern`, and `examples/kv_parser.ern`, a parser with three failing steps over `Either` with `let x <- e`.
+**Test:** `examples/counter.ern`, `examples/upgrade.ern`, `examples/pingpong.ern`, `examples/stack.ern`, `examples/hello.ern`, and `examples/kvparser.ern`, a parser with three failing steps over `Either` with `let x <- e`.
 
 ---
 
@@ -167,7 +167,7 @@ Local `fn`s in a block are generalized only once every later local `fn` they ref
 
 **Code:** part of `ern_compiler.erl`.
 
-**Test:** `examples/ping_pong.ern`, `examples/counter_upgrade.ern`, and `examples/kv_parser.ern` run on BEAM.
+**Test:** `examples/pingpong.ern`, `examples/upgrade.ern`, and `examples/kvparser.ern` run on BEAM.
 
 ---
 
@@ -185,7 +185,7 @@ Local `fn`s in a block are generalized only once every later local `fn` they ref
 
 ### 3.2 Testing (2 days)
 
-- The MVP 1 programs under `examples/`: `hello`, `counter`, `counter_upgrade`, `ping_pong`, `stack`, `patterns`, `kv_parser` (a pure parser with `Either`), `remote`, and the pair under `modules/`. The list is explicit in `test/ern_integration_tests.erl`; `ets` needs MVP 2 and is only type-checked.
+- The MVP 1 programs under `examples/`: `hello`, `counter`, `upgrade`, `pingpong`, `stack`, `patterns`, `kvparser` (a pure parser with `Either`), `remote`, and the pair under `modules/`. The list is explicit in `test/ern_integration_tests.erl`; `ets` needs MVP 2 and is only type-checked.
 - Compile: `ernc program.ern`. Run: `ern program.erc`.
 - These are the tests for the runtime sections of the report, §6.4, §6.5, §6.9, §6.10, §7, §8, §11.2, §11.3, which no unit test cites; `make sections` lists the sections still without a citing test.
 - Smoke test in a top-level `test/`: every listed program compiles and runs, output compared against an expected-output file of the same name. The comparison treats output as a multiset of lines, since the interleaving of prints from different processes (ping-pong) is scheduling-dependent.

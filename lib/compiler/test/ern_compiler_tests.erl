@@ -119,7 +119,7 @@ counter_golden_test() ->
 -define(GOLDEN, "../../../test/golden/").
 
 golden_names() ->
-    ["hello", "counter", "counter_upgrade", "ping_pong", "stack", "patterns", "kv_parser",
+    ["hello", "counter", "upgrade", "pingpong", "stack", "patterns", "kvparser",
      "remote", "modules/net/http", "modules/main"].
 
 %% The source the compiler emits for an example; the modules pair is
@@ -178,11 +178,11 @@ write_golden() ->
 examples_test_() ->
     Expected = [{"hello", <<"hello, world\n">>},
                 {"counter", <<"count is 8\n">>},
-                {"counter_upgrade", <<"before upgrade: 8\nafter upgrade: 10\n">>},
-                {"ping_pong", <<"ping 3\npong 3\nping 2\npong 2\nping 1\npong 1\n">>},
+                {"upgrade", <<"before upgrade: 8\nafter upgrade: 10\n">>},
+                {"pingpong", <<"ping 3\npong 3\nping 2\npong 2\nping 1\npong 1\n">>},
                 {"stack", <<"top is 2\n">>},
                 {"patterns", <<"minus one\nzero\nother\na 2\nnothing\n-3\n3\n">>},
-                {"kv_parser", <<"a 12\nbad key: =1\nexpected =: a\nbad number: a=x\n">>},
+                {"kvparser", <<"a 12\nbad key: =1\nexpected =: a\nbad number: a=x\n">>},
                 {"remote", <<"no remote peer configured\n">>}],
     [{Base, fun() ->
                  {Ns, Bin} = example(Base),

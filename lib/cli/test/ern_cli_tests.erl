@@ -80,14 +80,17 @@ dependency_not_built_test() ->
     ?assertEqual(0, ern_cli:ernc(["--source-root", Dir ++ "/src", "--out-dir", Dir ++ "/build",
                                   Dir ++ "/src/main.ern"])).
 
-%% report §11.1: path components below the root are lowercase names
+%% report §11.1: path components below the root are one lowercase word each
 path_shape_test() ->
     Dir = tmp(),
     File = write(Dir, "Net/http.ern", hello()),
     ?assertEqual(1, ern_cli:ernc(["--source-root", Dir, File])),
     ?assertNot(filelib:is_regular(filename:join(Dir, "Net/http.erc"))),
     Dir2 = tmp(),
-    ?assertEqual(1, ern_cli:ernc(["--source-root", Dir2, write(Dir2, "9x.ern", hello())])).
+    ?assertEqual(1, ern_cli:ernc(["--source-root", Dir2, write(Dir2, "9x.ern", hello())])),
+    Dir3 = tmp(),
+    ?assertEqual(1, ern_cli:ernc(["--source-root", Dir3, write(Dir3, "http_server.ern", hello())])),
+    ?assertNot(filelib:is_regular(filename:join(Dir3, "http_server.erc"))).
 
 %% report §11.1, §11.5: a parse error in directory mode is reported as
 %% file:line:column: text, status 1
