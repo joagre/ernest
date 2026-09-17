@@ -15,8 +15,8 @@
 %%   Upgrade(migrate = m, next = k)  {'Upgrade', M, K}     fields in canonical
 %%                                                         (sorted) order
 %%
-%% The module atom is the namespace with the 'Ernest.' prefix, as Elixir
-%% does with 'Elixir.', so Ernest never claims a bare name on the BEAM.
+%% The module atom is the module's path with @ for / and the prefix ernest@,
+%% as Gleam names gleam@list, so Ernest never claims a bare name on the BEAM.
 %% Functions keep their local names; only exported ones are exported. Every
 %% Address is a pid, a Reply is an alias, and the process primitives go
 %% through ern_rt (plan 2.4). spawn gets a third argument naming the spawn
