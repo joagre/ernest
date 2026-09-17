@@ -1,0 +1,14 @@
+//
+// Two modules: the program half
+//
+// From the guide, §6.1. Calls Net.Http.parse from net/http.ern by its
+// qualified name; there is no import. See net/http.ern for how to build.
+//
+// Needs multi-module compilation (ernc directory mode).
+//
+
+export fn main() -> Void with Never = match Net.Http.parse("GET /") {
+    Some(Net.Http.Request(method = method, path = path)) ->
+        Io.println(method <> " " <> path)
+  | None -> Io.println("bad request")
+}

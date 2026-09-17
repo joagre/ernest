@@ -1,0 +1,30 @@
+//
+// Counter
+//
+// From the report, Appendix B: the counter of §6.10 with a main that exercises
+// Inc and Get. Upgrade is declared but not exercised here; counter_upgrade.ern
+// exercises it. The report is normative; this file is a copy.
+//
+// Needs MVP 1. This is one of the first test programs.
+//
+
+type CounterMsg
+    = Inc(Int)
+    | Get(reply : Reply(Int))
+    | Upgrade(migrate : (Int) -> Int, next : (Int) -> Void with CounterMsg)
+
+export fn main() -> Void with m = {
+    let c = spawn(Local, fn() = counter(0));
+    send(c, Inc(5));
+    send(c, Inc(3));
+    match Address.call(c, fn(r) = Get(reply = r), 1000) {
+        Some(n) -> Io.println("count is " <> Int.toString(n))
+      | None -> Io.println("counter is not answering")
+    }
+}
+
+fn counter(n : Int) -> Void with CounterMsg = receive {
+    Inc(k) -> counter(n + k)
+  | Get(reply = r) -> { answer(r, n); counter(n) }
+  | Upgrade(migrate = m, next = k) -> k(m(n))
+}

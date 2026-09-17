@@ -11,7 +11,7 @@ Ernest is a functional language for concurrent programs. Two organizing ideas ru
 
 Everything else is a rule for how functions and processes appear in each other's code.
 
-The guide is arranged as seven stages, with a complete runnable program at selected checkpoints (hello, the counter, the module example, the remote example). Other snippets are illustrative fragments — assembling them into files is left to the reader. Each stage ends with a short prediction exercise. Read the stages in order; each builds on what came before.
+The guide is arranged as seven stages, with a complete runnable program at selected checkpoints (hello, the counter, the module example, the remote example). The complete programs are collected as files under [`examples/`](examples/). Other snippets are illustrative fragments — assembling them into files is left to the reader. Each stage ends with a short prediction exercise. Read the stages in order; each builds on what came before.
 
 ## 1. Run a program
 

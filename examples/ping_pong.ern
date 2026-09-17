@@ -1,0 +1,38 @@
+//
+// Ping-pong
+//
+// From the report, Appendix B (also the guide, §5.1). Two processes exchange
+// three request-reply rounds; main monitors pong and waits for it to end.
+// The report is normative; this file is a copy.
+//
+// Needs MVP 1. This is one of the first test programs.
+//
+
+type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
+type MainMsg = PongDone(Down)
+
+export fn main() -> Void with MainMsg = {
+    let pongAddr = spawn(Local, fn() = pong());
+    let _ = spawn(Local, fn() = ping(pongAddr, 3));
+    monitor(pongAddr, PongDone);
+    receive { PongDone(_) -> Void }
+}
+
+fn ping(pongAddr : Address(PongMsg), n : Int) -> Void with m =
+    if n == 0 then send(pongAddr, Stop)
+    else {
+        Io.println("ping " <> Int.toString(n));
+        match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
+            Some(_) -> ping(pongAddr, n - 1)
+          | None -> { Io.println("pong is not answering"); send(pongAddr, Stop) }
+        }
+    }
+
+fn pong() -> Void with PongMsg = receive {
+    Ping(n = n, reply = r) -> {
+        Io.println("pong " <> Int.toString(n));
+        answer(r, n);
+        pong()
+    }
+  | Stop -> Void
+}

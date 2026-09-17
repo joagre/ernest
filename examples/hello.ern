@@ -1,0 +1,9 @@
+//
+// Hello world
+//
+// From the guide, §1. Compile with ernc hello.ern and run with ern hello.erc.
+//
+// Needs MVP 1.
+//
+
+export fn main() -> Void with Never = Io.println("hello, world")

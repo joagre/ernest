@@ -1,0 +1,42 @@
+//
+// Counter with code replacement
+//
+// From the guide, §4.6. The counter of counter.ern, a replacement loop that
+// doubles each increment, and a main that upgrades the running process after
+// the first Get. Expected output: "before upgrade: 8" then "after upgrade: 10".
+//
+// Needs MVP 1. This is one of the first test programs.
+//
+
+type CounterMsg
+    = Inc(Int)
+    | Get(reply : Reply(Int))
+    | Upgrade(migrate : (Int) -> Int, next : (Int) -> Void with CounterMsg)
+
+export fn main() -> Void with m = {
+    let c = spawn(Local, fn() = counter(0));
+    send(c, Inc(5));
+    send(c, Inc(3));
+    match Address.call(c, fn(r) = Get(reply = r), 1000) {
+        Some(n) -> Io.println("before upgrade: " <> Int.toString(n))
+      | None -> Io.println("timeout")
+    };
+    send(c, Upgrade(migrate = fn(n) = n, next = doublingCounter));
+    send(c, Inc(1));
+    match Address.call(c, fn(r) = Get(reply = r), 1000) {
+        Some(n) -> Io.println("after upgrade: " <> Int.toString(n))
+      | None -> Io.println("timeout")
+    }
+}
+
+fn counter(n : Int) -> Void with CounterMsg = receive {
+    Inc(k) -> counter(n + k)
+  | Get(reply = r) -> { answer(r, n); counter(n) }
+  | Upgrade(migrate = m, next = k) -> k(m(n))
+}
+
+fn doublingCounter(n : Int) -> Void with CounterMsg = receive {
+    Inc(k) -> doublingCounter(n + 2 * k)
+  | Get(reply = r) -> { answer(r, n); doublingCounter(n) }
+  | Upgrade(migrate = m, next = k) -> k(m(n))
+}

@@ -14,6 +14,10 @@ Design complete for MVP 1 (single-node subset). Implementation begins with the l
 
 - **[`ernest_guide.md`](ernest_guide.md)** — a reading guide for a first-time reader. Walks through hello world, types (including abstract), functions, one process (a counter), two processes talking (ping-pong), watching processes (`monitor`, `kill`), adapting messages with `via`, the `<-` chaining idiom, remote computation, foreign types and functions, bitstrings, and the toolchain. Closes with a short FAQ and pointers to the paper programs.
 
+### Then the small programs
+
+The complete programs from the report's Appendix B and the guide's checkpoints are collected under [`examples/`](examples/): `hello`, `counter`, `counter_upgrade`, `ping_pong`, `stack`, the two-module pair under `modules/`, and `remote`. The first four and `stack` are the MVP 1 test programs. Each file's header says where it comes from and which MVP it needs.
+
 ### Then the paper programs, in this order
 
 - **[`examples/tick_game.ern`](examples/tick_game.ern)** — a snake game with tick-based updates. Introduces `..` record update, `Map` folds, one process per player.

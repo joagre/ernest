@@ -1,0 +1,17 @@
+//
+// Remote computation
+//
+// From the guide, §7.1. Submits a pure computation to a peer. ernest.conf must
+// list at least one peer with "remote-peer": true before Right(...) is
+// possible; without one the program prints "no remote peer configured".
+//
+// Needs MVP 3 (peers, remote). Not compiled by MVP 1.
+//
+
+fn heavy(a : Int, b : Int) -> Int = a * a + b * b
+
+export fn main() -> Void with m = match remote(fn() = heavy(3, 4)) {
+    Right(n) -> Io.println("remote returned " <> Int.toString(n))
+  | Left(NoRemotePeer) -> Io.println("no remote peer configured")
+  | Left(PeerLost) -> Io.println("peer lost or callback failed")
+}
