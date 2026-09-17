@@ -143,6 +143,10 @@ Standard Erlang application layout under `lib/`, one application per compiler st
 - Internal architecture notes for the next phase.
 - `ernc --doc file.ern` walks the AST, groups doc comments by declaration, and writes Markdown to stdout. Approximately 1 day.
 
+### 3.4 Type error placement (2 days)
+
+Hindley-Milner reports a mismatch where unification fails, which is the second use of a variable, not necessarily the wrong one, and shows two whole types where the reader wants the difference. The checker already anchors every unification to a node with a context sentence, unifies annotated shapes before bodies, and resolves operators, `<-`, exhaustiveness, and replies with their own messages. The remaining fix is bidirectional checking at annotated boundaries: wherever an expected type is known, push it down into the expression instead of inferring up. A function body against its declared return type, each argument against the parameter type of a known callee, branches after the first, annotated `let`s, constructor fields. The mismatch then surfaces at the leaf, naming the expectation: "expected Int here, because `f` is declared to return Int". An optional expected-type argument to `infer`, not a rewrite. With it: effect errors name the primitive and the annotation that made the caller pure, and messages print only the differing part of two large types. Done after the first programs run end to end, since real mistakes are the only good test of messages; the checker's tests pin current positions and wording.
+
 ---
 
 ## Tools and Environment
@@ -173,10 +177,10 @@ Nothing open.
 |-------|-------|------|-------|
 | 1     | Parser, type check, abstract, stdlib types | 24.5 | 4.9 |
 | 2     | Compiler, processes, stdlib, codegen | 9 | 1.8 |
-| 3     | Integration, tests, docs | 8 | 1.6 |
-| **Total** | | **41.5** | **8.3 weeks** |
+| 3     | Integration, tests, docs, error placement | 10 | 2.0 |
+| **Total** | | **43.5** | **8.7 weeks** |
 
-One person full-time: about eight and a third working weeks. Half-time: three to four calendar months.
+One person full-time: about eight and two thirds working weeks. Half-time: three to four calendar months.
 
 ---
 
@@ -190,4 +194,4 @@ One person full-time: about eight and a third working weeks. Half-time: three to
 
 **MVP 5 (ecosystem):** HTTP server, JSON, database connectors written in Ernest. A standard library in Ernest, not just Erlang wrappers.
 
-MVP 1 is about eight and a third working weeks and shows that the chain holds, not that the design holds. The latter is decided beforehand, on paper.
+MVP 1 is about eight and two thirds working weeks and shows that the chain holds, not that the design holds. The latter is decided beforehand, on paper.
