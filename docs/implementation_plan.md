@@ -2,7 +2,7 @@
 
 Target architecture: an Erlang-based compiler, `ernc`, that reads `.ern` files, type-checks them, and produces `.erc` files (BEAM under the hood), and a runner, `ern`, that starts a program or a REPL. One person, about eight working weeks for MVP 1 according to the budget below. The language was called Actorson until 12 September 2026.
 
-**MVP 1 (this plan):** prove the chain parser, types, BEAM, with the report's language, syntax, and semantics unchanged. MVP 1 accepts a subset and checks less: only Int, no ownership rule for abstract types, no foreign code, no `net`, no distribution — `spawn(Peer, ...)` and `remote` are MVP 3. Exhaustiveness checking is in: it is the check that shaped `receive` and `if`, and a first user should not form habits the report forbids. Every program MVP 1 accepts is a valid Ernest program or one the report already says is wrong. One Erlang module per `.ern` file.
+**MVP 1 (this plan):** prove the chain parser, types, BEAM, with the report's language, syntax, and semantics unchanged. MVP 1 accepts a subset and checks less: `Int` but no `Float`, no ownership rule for abstract types, no foreign code, no `net`, no distribution — `spawn(Peer, ...)` and `remote` are MVP 3. Exhaustiveness checking is in: it is the check that shaped `receive` and `if`, and a first user should not form habits the report forbids. Every program MVP 1 accepts is a valid Ernest program or one the report already says is wrong. One Erlang module per `.ern` file.
 
 Later MVPs at the end of the document.
 
@@ -16,32 +16,36 @@ The compiler is written in Erlang and runs on BEAM. The type checker is the sour
 
 All `.ern` files are read; definitions have full names (`Net.Http.parse`) and the compiler builds a global table. One Erlang module per file, functions with the full name as atom (`'Net.Http.parse'/1`); cross-file calls go through the table to the right module. Tail position is preserved: the last expression of a block, a `match` clause, and a `receive` clause becomes the last expression of the emitted Erlang clause.
 
+## Repository Layout
+
+Standard Erlang application layout under `lib/`, one application per compiler stage: `lib/lexer`, `lib/parser`, `lib/type_system`, `lib/utils` (vendored `getopt`), each with `src/`, `include/`, `ebin/`, `test/`. Phases 2 and 3 add `lib/compiler`, `lib/runtime`, and `lib/cli`. Module names carry the `ern_` prefix, since Erlang's module namespace is flat. `stdlib/` holds the Ernest standard library as a source root, so `stdlib/io.ern` is `Io`. `examples/` holds the paper programs and the small programs from the report and the guide; `bin/` holds `ernc` and `ern`. Build: a generic `src/Makefile` per application compiling into `../ebin` with `erlc -MMD` header tracking, and a top-level `Makefile` that runs them; `make test` runs EUnit. No rebar3, no OTP behaviours.
+
 ## Phase 1: Type Checker (4 weeks)
 
 **Goal:** read `.ern` files, infer types, output a typed AST.
 
 ### 1.1 Parser (3 days)
 
-- Lexer: braces, `;` as separator, whitespace means nothing, `//` and nesting `/* */` comments dropped before parsing. Seventeen reserved words, `true` and `false` among them as literals; `export` marks cross-module visibility on top-level declarations. Every nonterminal is decided by its first token, and the parser never re-reads. Two narrow spots need bounded lookahead beyond one token: the constructor-fields peek documented in Appendix A (`T(ident =` vs `T(ident :` vs `T(expr`), and the FnType-vs-tuple decision (parse the parenthesized type list, then look at whether `->` follows). No backtracking. Qualified references (`Net.Http.parse`, `ServerMsg.Get`) are one loop: after an uppercase token, `.` continues, anything else ends.
+- Lexer, hand-written (not leex: `/* */` nests and `///` blocks must be joined). Braces, `;` as separator, whitespace means nothing, `//` and `/* */` dropped. Seventeen reserved words, `true` and `false` among them as literals; `export` marks cross-module visibility. Tokens are plain tuples in yecc's shape, `{Category, {Line, Col}, Value}` and `{Symbol, {Line, Col}}`, with no parser fields. Every nonterminal is decided by its first token, and the parser never re-reads. Three spots need one more token: the constructor-fields peek documented in Appendix A (`T(ident =` vs `T(ident :` vs `T(expr`), the FnType-vs-ParenType decision (parse the parenthesized type list, then look for `->`), and `fn` followed by an identifier (declaration) or `(` (lambda). No backtracking. Qualified references (`Net.Http.parse`, `ServerMsg.Get`, `Int.+`) are one loop: after an uppercase token, `.` continues, anything else ends; an operator as the final segment must be a `userop` and must be qualified.
 - The grammar is in Appendix A of the report. The lambda's extent, `fn(x) = e` up to the next delimiter at the same level, is expressed there; the parser tests it. If it fails, lambda bodies must be required in braces. Patterns are parsed by a second small Pratt loop with `::` as its only infix operator, right-associative, and `as ident` as an optional postfix on the whole.
-- Hand-written Pratt parser for expressions; operator precedence is the table. Recursive descent for declarations (`type`, `abstract type ... with { }`, `fn`, `let`, `foreign`).
+- Expressions: a direct precedence-climbing loop over the token list, threading `{Node, RestTokens}`; the operator table is §2.6's. No generic Pratt engine and no yecc: the hand parser is the executable test of principle 4, and the two mandated diagnostics below need it. Recursive descent for declarations (`type`, `abstract type ... with { }`, `fn`, `let`, `foreign`). Error messages in the `Expected 'a', 'b' or 'c' instead of X` style, prefixed `file:line:column:`.
 - `let x <- e;` as a binding in a block: parsed as a binding form, rewritten before type inference into `match e { Left(err) -> Left(err) | Right(x) -> <rest of block> }` (or `None`/`Some`); which one is decided by the block's type, so the rewrite happens after the block's return type is inferred, or both are generated and one is chosen at unification. Simplest in MVP 1: `Either` only, `Optional` in MVP 2.
 - Block `{ ... }` is an expression form. `match e { P -> e | ... }` and `receive { P -> e | ... | after millis -> e }`, guards with `when`. `if then else`. Calls `f(x, y)`, n-ary functions, no currying: too few arguments is an arity error on the line, with a suggestion of the tuple reading.
-- Constructors: no field, one field `T(e)`, or named fields `T(f = e)`; partial patterns `T(f = p)`, base `T(..e, f = e)`. Positional or named is decided by whether `=` or `:` follows the first identifier. Field order from the declaration; compiled to tuples. `fn` definitions allowed in blocks, recursive and generalized; `let` bindings monomorphic.
+- Constructors: no field, one field `T(e)`, or named fields `T(f = e)`; partial patterns `T(f = p)`, base `T(..e, f = e)`. Positional or named is decided by whether `=` or `:` follows the first identifier. Named fields in canonical (field-name) order, report §3.5; compiled to tuples. `fn` definitions allowed in blocks, recursive and generalized; `let` bindings monomorphic.
 - AST as Erlang records with line and column on every node.
 - Error message with its own text for a function written with two clauses, Haskell-style: "a function has one clause; write match". Three paper programs out of three made the mistake. Its own text also for `f x` where `f(x)` was meant, since that is the first thing a Unison or Haskell reader writes.
 - Doc comments. `///` to end of line, consecutive `///` lines form a doc block, attached to the following declaration when there is no blank line between. Lexer emits a doc-comment token; parser records the joined block as an optional field on the declaration's AST node. Approximately 0.5 days.
 
-**Output:** `ern_ast.erl`, data structures and parser functions.
+**Output:** `lib/lexer/src/ern_lexer.erl`, `lib/parser/src/ern_parser.erl`, AST records in `lib/parser/include/ern_ast.hrl`.
 
 ### 1.2 Type Inference (13 days)
 
 - Hindley-Milner algorithm: W or J. Unification via a substitution register. Function types are n-ary: `(A, B) -> C` is a type with an argument list, not two arrows; unification requires the same length, and a length mismatch is reported as an arity error with a suggestion of the tuple reading. `fn` generalizes, `let` does not.
 - Typing environment: `#{var => type}`, generalization with forced parameters.
-- Pattern matching is type-checked, with exhaustiveness checking on `match`; `receive` is exempt by the report. Two days. Linearity: a variable at most once per pattern, checked in the type checker, since the grammar cannot.
-- Reply-carrying types (report §6.6). A type is reply-carrying if it is `Reply(a)` or transitively contains one. Reply-carrying values obey an exactly-once discipline: at each binding site (function parameter, receive-bound variable, spawn-lambda capture, pattern-bound field, or the result of a call whose return type is reply-carrying), every path from the binding must consume the value exactly once, by one of: `answer`, passing to a function whose parameter is reply-carrying, sending with `send`, placing into a constructor or tuple of reply-carrying type, returning from a function whose declared return type is reply-carrying, or capturing in a spawn-lambda. Pattern-match on a reply-carrying scrutinee transfers the obligation to its pattern-bound reply-carrying fields; a nullary case discharges the obligation. The check is compositional per function definition; compiled interfaces carry the obligation. `Address.call`'s `mk` callback is the canonical case: its `Reply` parameter is consumed by placement into the reply-carrying message it returns, and the returned value's obligation is discharged by `Address.call`'s runtime. MVP 1 restriction: when a spawn-lambda captures a reply-carrying value, the spawn's second argument must be a direct `fn() = ...` at the call site (no `let`-bound intermediate), so the checker does not have to follow function values around. Approximately 5 days.
-- The mailbox type as part of the function type, written `-> T with M`: the arrow constructor has three parameters — arguments, mailbox, result — represented `Arrow(args, M, result)`. The mailbox slot holds an ordinary type: a concrete mailbox type when written with `with`, a fresh type variable when omitted. Standard Hindley-Milner unification applies component-wise: two arrows unify by unifying their argument types, their mailbox types, and their result types. `self`, `receive`, `send`, `spawn`, `Address.call`, `answer`, and foreign calls with a mailbox type unify the enclosing function's mailbox slot with a specific type; anything else leaves it free. A free mailbox slot at generalization means pure, and pure means polymorphic in the mailbox type: the function can be called anywhere, and its function arguments run in the caller's mailbox context. Two different mailbox types unified in one function is a unification error. No new kind, no wrapping type constructor, no row types; the only extension over textbook HM is the extra slot on the arrow.
-- Only Int, Bool, String, Bytes. `+` is `Int.+`; no name resolution for operators. Float and type-directed resolution are MVP 2. When it comes, it is one post-inference pass that serves three things: operators (`+` to `Int.+` or `Money.+`), `==` (a type error on types containing functions or addresses), and `<-` (`chain(e, fn(p) = rest)` to `Either.andThen` or `Optional.andThen` by the type of `e`). `/` and `%` on `Int` fault on zero (`badarith` becomes a `Fault`); `Int.div` and `Int.mod` return `Optional(Int)`.
+- Pattern matching is type-checked, with exhaustiveness checking on `match`; `receive` is exempt by the report. Two days. Uniqueness: a variable at most once per pattern, checked in the type checker, since the grammar cannot. Also checked there: type and constructor names unique within a module (a module may shadow prelude names, §4.2); under `Never`, a `receive` with only an `after` clause is legal and any pattern clause is a type error (§6.8).
+- Reply-carrying types (report §6.6). A type is reply-carrying if it is `Reply(a)` or transitively contains one. Reply-carrying values are linear: at each binding site (function parameter, receive-bound variable, spawn-lambda capture, pattern-bound field, or the result of a call whose return type is reply-carrying), every path from the binding must consume the value exactly once, by one of: `answer`, passing to a function whose parameter is reply-carrying, sending with `send`, placing into a constructor or tuple of reply-carrying type, returning from a function whose declared return type is reply-carrying, or capturing in a spawn-lambda. Pattern-match on a reply-carrying scrutinee transfers the obligation to its pattern-bound reply-carrying fields; a nullary case discharges the obligation; a `let` transfers it to the variables it binds; an `if`, `match`, `receive`, or block with a reply-carrying value carries the obligation to where that value is bound or consumed. The check is compositional per function definition; compiled interfaces carry the obligation. `Address.call`'s `mk` callback is the canonical case: its `Reply` parameter is consumed by placement into the reply-carrying message it returns, and the returned value's obligation is discharged by `Address.call`'s runtime. MVP 1 restriction: when a spawn-lambda captures a reply-carrying value, the spawn's second argument must be a direct `fn() = ...` at the call site (no `let`-bound intermediate), so the checker does not have to follow function values around. Approximately 5 days.
+- The mailbox effect as part of the function type, report §3.9: the arrow constructor has three parameters — arguments, effect, result — represented `Arrow(args, E, result)`. The effect slot holds one of three things: the distinguished value `pure`, a mailbox type, or an effect variable. An annotation without `with` puts `pure` in the slot; an annotation `with M` puts `M`; an unannotated function gets a fresh effect variable. Unification is component-wise. An effect variable unifies with anything; `pure` unifies only with `pure` or an unrestricted variable; two different mailbox types, or a mailbox type against `pure`, is a type error. An effect variable is *process-only* when it also occurs in a value position (`self : () -> Address(m) with m`) or belongs to a process primitive (`send`, `spawn`, `Address.call`, `answer`, `monitor`, `kill`, `remote`, and foreign functions declared `with M`); a process-only variable does not unify with `pure`, and the flag is part of the type scheme. A free effect variable at generalization is generalized like any other, which is effect polymorphism: `List.map` runs a pure or a process callback in the caller's process. The only departure from textbook HM is `pure` as a non-type value in the slot and the process-only flag.
+- Base types `Int`, `Bool`, `Char`, `String`, `Bytes`, `Unit`; no `Float`. `+` is `Int.+`; no name resolution for operators. Float and type-directed resolution are MVP 2. When it comes, it is one post-inference pass that serves four things: the `userop` operators (`+` to `Int.+` or `Money.+`), `==` (a type error on types containing functions or addresses), `<`, `<=`, `>`, `>=` (to the operand type's `compare`, a type error without one), and `<-` (`chain(e, fn(p) = rest)` to `Either.andThen` or `Optional.andThen` by the type of `e`). `/` and `%` on `Int` fault on zero (`badarith` becomes a `Fault`); `Int.div` and `Int.mod` return `Optional(Int)`.
 
 **Code:** `ern_types.erl` for the type representation, `ern_typecheck.erl` for inference.
 
@@ -60,7 +64,7 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 
 **Output:** the prelude in the type checker.
 
-**Test:** counter, ping-pong, abstract stack, Never, a parser with three failing steps over `Either` with `let x <- e`.
+**Test:** `examples/counter.ern`, `examples/counter_upgrade.ern`, `examples/ping_pong.ern`, `examples/stack.ern`, `examples/hello.ern`, and a parser with three failing steps over `Either` with `let x <- e`.
 
 ---
 
@@ -82,7 +86,7 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 ### 2.2 Processes (3 days)
 
 - `spawn(Local, f)` becomes `erlang:spawn(fun() -> F() end)`; `spawn(Peer(name), f)` and `remote` are MVP 3; `self()` becomes `self()`. Functions with n arguments become Erlang functions of arity n, directly.
-- `receive { P -> e | ... }` becomes `receive P -> E; ... end`, and `receive { ... | after T -> e }` becomes `receive ... after T -> E end`. Clauses are translated like `match` clauses; patterns and guards are Erlang's. No mailbox scanning; what was MVP 2 vanished with the filter function.
+- `receive { P -> e | ... }` becomes `receive P -> E; ... end`, and `receive { ... | after T -> e }` becomes `receive ... after T -> E end`; an `after`-only receive becomes `receive after T -> E end`. `monitor` is `erlang:monitor/2`, which already delivers at once for a dead target (§6.9); `kill` is `exit/2`, asynchronous as §6.9 says. Clauses are translated like `match` clauses; patterns and guards are Erlang's. No mailbox scanning; what was MVP 2 vanished with the filter function.
 
 **Code:** translation of patterns and guards into Erlang patterns and guards, shared with `match`.
 
@@ -108,7 +112,7 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 
 **Code:** part of `ern_compiler.erl`.
 
-**Test:** ping-pong, counter with Upgrade, and a pure parser run on BEAM.
+**Test:** `examples/ping_pong.ern`, `examples/counter_upgrade.ern`, and a pure parser run on BEAM.
 
 ---
 
@@ -118,17 +122,17 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 
 ### 3.1 Integration (3 days)
 
-- Two escripts. `ernc foo.ern` reads, parses, type-checks, compiles, writes `foo.erc`. `ern [--config-dir <dir>] [--load-path <dir> ...] foo.erc` starts the system processes, binds their addresses to the `Sys.*` top-level references, calls `main()`; `ern --repl` starts a REPL; `ern --create-config-dir <dir>` creates `<dir>/.ernest/` with `ernest.conf` (JSON: this node's address and public key, an empty peer list) and a private key readable only by the owner, and does nothing else. `--config-dir` defaults to `./.ernest`.
+- Two escripts, `bin/ernc` and `bin/ern`, committed as escript source files whose `%%!` line puts `lib/*/ebin` on the code path; no escriptize step and no build product under `bin/`. `ernc foo.ern` reads, parses, type-checks, compiles, writes `foo.erc`. `ern [--config-dir <dir>] [--load-path <dir> ...] foo.erc` starts the system processes, binds their addresses to the `Sys.*` top-level references, calls `main()`; `ern --repl` starts a REPL; `ern --create-config-dir <dir>` creates `<dir>/.ernest/` with `ernest.conf` (JSON: this node's address and public key, an empty peer list) and a private key readable only by the owner, and does nothing else. `--config-dir` defaults to `./.ernest`.
 - Error format `file:line:column: text`, one line per error.
-- A main module `ern_cli.erl` that orchestrates everything.
+- `lib/cli/src/ern_cli.erl` orchestrates everything; the escripts are thin.
 
-**Output:** `ernc` as an escript.
+**Output:** `bin/ernc` and `bin/ern`.
 
 ### 3.2 Testing (2 days)
 
-- Three programs in Ernest: ping-pong, counter with Upgrade, a pure parser with Either.
+- The MVP 1 programs under `examples/`: `hello`, `counter`, `counter_upgrade`, `ping_pong`, `stack`, plus a pure parser with `Either`. The list is explicit in the Makefile; the other examples need later MVPs and are not built.
 - Compile: `ernc program.ern`. Run: `ern program.erc`.
-- Smoke test: every program compiles and runs, output compared against expected.
+- Smoke test in a top-level `test/`: every listed program compiles and runs, output compared against an expected-output file of the same name.
 - The web server and the file sync are MVP 2, when `net` exists.
 
 ### 3.3 Documentation (3 days)
@@ -141,13 +145,13 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 
 ## Tools and Environment
 
-Erlang, OTP 27, Rebar3 to build the compiler itself. EUnit per module; integration tests that run `ernc` on the test programs and compare output against expected. The compiler is distributed as an escript.
+Erlang, OTP 27, Makefiles (see Repository Layout); no rebar3, no OTP behaviours. EUnit per module under `lib/*/test`; integration tests under `test/` run `ernc` on the example programs and compare output against expected. The compiler is distributed as the escript sources in `bin/`.
 
 ---
 
 ## Risk and Uncertainty
 
-**The mailbox type.** HM with a mailbox slot per arrow is a minimal extension of the textbook. The model: the arrow type constructor has three parameters (arguments, mailbox, result); the mailbox slot holds an ordinary type — a type variable if unwritten, a concrete type if written with `with`. Unification is component-wise. A free mailbox variable is generalized like any other type variable, which is what makes pure functions callable from process code and lets `List.map` run a process lambda. No new kind, no wrapping type constructor, no rows, no effect system: one type language, standard Hindley-Milner unification, one extra slot on one type constructor. Risk: `let`-bound lambdas fix their mailbox slot at first use (standard let-monomorphism, but easy to trip on if generalization gets attached to `let` by accident); and every arrow in the AST must carry a mailbox slot from day one, including arrows that look pure, so that higher-order pure functions like `List.map` accept process callbacks without a special case.
+**The mailbox effect.** HM with an effect slot per arrow is a small extension of the textbook, but not zero: the slot admits `pure`, which is not a type, and effect variables carry a process-only flag (§1.2, report §3.9). Unification is component-wise; a free effect variable is generalized like any other, which lets `List.map` run a process lambda. No wrapping type constructor, no rows, no effect system beyond the slot. Risk: `let`-bound lambdas fix their mailbox slot at first use (standard let-monomorphism, but easy to trip on if generalization gets attached to `let` by accident); and every arrow in the AST must carry a mailbox slot from day one, including arrows that look pure, so that higher-order pure functions like `List.map` accept process callbacks without a special case.
 
 **What MVP 1 does not prove.** The ownership rule for abstract types, foreign code, and everything past one node.
 
@@ -155,7 +159,7 @@ Erlang, OTP 27, Rebar3 to build the compiler itself. EUnit per module; integrati
 
 ## Decisions Before Start
 
-Decided: hand-written Pratt parser; Erlang's abstract format via `erl_syntax` and `compile:forms`; OTP 27; error format `file:line:column: text`; one Erlang module per Ernest module, named after it.
+Decided: hand-written lexer and a direct precedence-climbing parser over a token list (no yecc, no generic Pratt engine, decided 2026-09-17); yecc-shaped tokens; Erlang's abstract format via `erl_syntax` and `compile:forms`; OTP 27; Makefiles, no rebar3, no OTP behaviours; the `lib/` layout above; error format `file:line:column: text`; one Erlang module per Ernest module, named after it.
 
 Nothing open.
 
@@ -176,7 +180,7 @@ One person full-time: about eight and a third working weeks. Half-time: three to
 
 ## Later MVPs
 
-**MVP 2 (the whole report on one node), about four weeks:** ownership rule for abstract types with a module per type and the signature as export list (4 days); `Float` (finite IEEE 754 doubles per §3.1; arithmetic that would produce a non-finite result faults) with type-directed name resolution interleaved with inference (5 days, and the piece most likely to double, since nobody has written it); `foreign fn` and `foreign type` compiled to direct calls with a catch that turns exceptions into `Fault` (3 days); bitstrings (4 days: lexer tokens `<<` and `>>`, `BitExpr` and `BitPat` in the grammar, specifier list, type checking against `Bytes`, direct compilation to BEAM's bit syntax so the runtime's mature optimizer handles prefix-heavy protocol matches); `net` and `fs` as foreign processes (4 days); `Deadlock` (2 days); the web server as test (3 days). The web server as test, and an `Ets.ern` as the first foreign library, with an `Erl` stdlib module for what every shim needs: `Erl.atom : (String) -> Foreign` and `type Erl.Result(v, r) = Ok(v) | Error(r)`, matching `{ok, V} | {error, R}` under the ABI.
+**MVP 2 (the whole report on one node), about four weeks:** ownership rule for abstract types with a module per type and the signature as export list (4 days); `Float` (finite IEEE 754 doubles per §3.1; arithmetic that would produce a non-finite result faults) with type-directed name resolution interleaved with inference (5 days, and the piece most likely to double, since nobody has written it); `foreign fn` and `foreign type` compiled to direct calls with a catch that turns exceptions into `Fault` (3 days); bitstrings (4 days: lexer tokens `<<` and `>>`, `BitExpr` and `BitPat` in the grammar, specifier list, type checking against `Bytes`, direct compilation to BEAM's bit syntax so the runtime's mature optimizer handles prefix-heavy protocol matches); `net` and `fs` as foreign processes (4 days); `Deadlock` (2 days); the web server as test (3 days). The web server as test, and an `Ets.ern` as the first foreign library, with an `Erl` stdlib module for what every shim needs: `Erl.atom : (String) -> Foreign` and `type Erl.Result(v, r) = Ok(v) | Error(r)`. Under the ABI `Ok(v)` is `{'Ok', v}`, not `{ok, V}`, so an Erlang-side helper rewrites `{ok, V} | {error, R}` into the declared shape, as report Appendix D and guide §7.5 describe.
 
 **MVP 3 (distribution with content addressing):** every definition gets a hash of its typed AST; modules are named by hash; a registry per node `{Hash -> Module}`. A message with a function carries the hash, and a node that lacks it fetches the code from the sender. `spawn(Peer(name), f)` and `remote(f)` over the peers in `ernest.conf`, authenticated with the configured keys; `remote` picks among peers flagged `"remote-peer": true` by load, criterion to be chosen then. Erlang's module distribution is not used.
 
