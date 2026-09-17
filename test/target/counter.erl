@@ -15,15 +15,18 @@
 %%   Upgrade(migrate = m, next = k)  {'Upgrade', M, K}     fields in canonical
 %%                                                         (sorted) order
 %%
+%% The module atom is the namespace with the 'Ernest.' prefix, as Elixir
+%% does with 'Elixir.', so Ernest never claims a bare name on the BEAM.
 %% Functions keep their local names; only exported ones are exported. Every
 %% Address is a pid, a Reply is an alias, and the process primitives go
 %% through ern_rt (plan 2.4). spawn gets a third argument naming the spawn
 %% site for Down (report §6.9). Int arithmetic is emitted inline; String.<>
-%% is binary concatenation; stdlib calls go to the namespace's module.
+%% is binary concatenation; stdlib calls go to the namespace's module,
+%% 'Ernest.Int' for Int.
 %%
 %% The compiler also adds the module's interface as the BEAM chunk "ErnI".
 
--module('Counter').
+-module('Ernest.Counter').
 
 -export([main/0]).
 
@@ -42,9 +45,9 @@ main() ->
     ern_rt:send(C, {'Inc', 3}),
     case ern_rt:call(C, fun(R) -> {'Get', R} end, 1000) of
         {'Some', N} ->
-            'Io':println(<<"count is ", ('Int':toString(N))/binary>>);
+            'Ernest.Io':println(<<"count is ", ('Ernest.Int':toString(N))/binary>>);
         'None' ->
-            'Io':println(<<"counter is not answering">>)
+            'Ernest.Io':println(<<"counter is not answering">>)
     end.
 
 %% fn counter(n : Int) -> Unit with CounterMsg = receive {

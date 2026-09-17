@@ -1,6 +1,7 @@
 %% Appendix E.1, namespace Io, as an Erlang module for MVP 1 (implementation
-%% plan, Phase 2.4). Strings are UTF-8 binaries (report §8.4).
--module('Io').
+%% plan, Phase 2.4). Strings are UTF-8 binaries (report §8.4). The file is
+%% named by Erlang's rule, after the module atom.
+-module('Ernest.Io').
 
 -export([print/1, println/1, printTo/2, printlnTo/2]).
 
