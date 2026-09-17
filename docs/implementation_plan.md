@@ -49,7 +49,9 @@ Standard Erlang application layout under `lib/`, one application per compiler st
 
 **Code:** `ern_types.erl` for the type representation, `ern_typecheck.erl` for inference.
 
-**Output:** a type checker that takes an AST and returns `{ok, TypedAst, Env}` or `{error, Errors}`.
+**Output:** a type checker that takes an AST and returns `{ok, TypedAst, Iface, Env}` or `{error, Errors}`.
+
+**Known approximation (2026-09-17):** local `fn`s in a block are generalized where they stand, so a local `fn` that refers to one defined later in the same block can be generalized before the later one's type is pinned, and come out too polymorphic about it. Mutual recursion still works; revisit when the compiler runs real code.
 
 ### 1.3 Abstract Types (1 day)
 

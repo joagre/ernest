@@ -4,7 +4,7 @@ A functional language for explicit process protocols. Mailbox effects and linear
 
 ## Status
 
-Design complete for MVP 1 (single-node subset). The build skeleton is in place; implementation begins with the lexer and parser, in Erlang. The compiler is `ernc`; the runner is `ern`.
+Design complete for MVP 1 (single-node subset). The front end is done in Erlang: lexer, parser, and type checker, with every example program under `examples/` as a test. Next is the compiler to BEAM. The compiler is `ernc`; the runner is `ern`.
 
 ## Reading order
 

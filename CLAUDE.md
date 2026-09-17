@@ -13,9 +13,9 @@ A functional language for concurrent programs, designed by the user (joagre). Tw
 - **The programs under `examples/` and the plan in `docs/implementation_plan.md` are illustrative**, not normative. Use them as motivating examples and roadmap, not as sources of truth.
 - **The report can be updated if we find anomalies** while implementing the example programs (counter, ping-pong). When that happens, update [`ernest_report.md`](ernest_report.md) first, then reflect the reason in [`docs/decisions.md`](docs/decisions.md), then adjust code.
 
-## Current task (from [`docs/implementation_plan.md`](docs/implementation_plan.md), Phase 1.1)
+## Current task (from [`docs/implementation_plan.md`](docs/implementation_plan.md), Phase 2)
 
-Build a lexer and parser that reads Appendix A and rejects everything else.
+Phase 1 is done: `lib/lexer`, `lib/parser`, `lib/type_system`, all tested; `make test` is green. Phase 2 turns the typed AST into BEAM. Next step: the runtime API `lib/runtime/src/ern_rt.erl` as a stub with specs, then `lib/compiler`. The decisions for Phase 2 are in the plan's 2.1 and 2.4. What follows describes the front end as built.
 
 - Implementation language: **Erlang** (OTP 27). The compiler is `ernc`, the runner is `ern`. See the plan for architecture.
 - Hand-written parser: a direct precedence-climbing loop over a plain token list for expressions (no generic Pratt engine, no yecc), recursive descent for declarations. Hand-written lexer emitting yecc-shaped tokens. First-token dispatch with small bounded lookahead (the constructor-fields peek documented in Appendix A, the FnType-vs-ParenType decision after the closing paren, and `fn` followed by an identifier versus `(`), no backtracking.
