@@ -1117,8 +1117,13 @@ infer_clauses(Clauses, ScrutT, ResultT, _Pos, Env) ->
 %% Report §5.4: local fn names are visible throughout the block, so each
 %% gets a placeholder type up front; its body is checked where it stands,
 %% with the earlier `let`s in scope, and generalized there.
+%% A local fn is generalized only once every later local fn it references,
+%% transitively, has been checked; until then it is monomorphic, as any
+%% recursive reference is. Generalizing earlier would close its scheme over
+%% variables the later fn still has to pin.
 infer_block(Stmts, Pos, Env) ->
     Fns = [S || #fn_decl{} = S <- Stmts],
+    FnNames = [N || #fn_decl{name = N} <- Fns],
     St0 = ern_types:enter(Env#env.st),
     {Placeholders, St1} = lists:mapfoldl(fun(#fn_decl{name = N}, S) ->
                                              {V, S1} = ern_types:fresh(S),
@@ -1127,7 +1132,38 @@ infer_block(Stmts, Pos, Env) ->
     Env1 = lists:foldl(fun({N, V}, E) ->
                            E#env{vars = maps:put(N, ern_types:mono(V), E#env.vars)}
                        end, Env#env{st = ern_types:leave(St1)}, Placeholders),
-    infer_stmts(Stmts, Pos, Env1, maps:from_list(Placeholders), []).
+    Deps = maps:from_list([{N, names_in(B, FnNames) -- [N]}
+                           || #fn_decl{name = N, body = B} <- Fns]),
+    Local = #{placeholders => maps:from_list(Placeholders), deps => Deps,
+              checked => [], waiting => []},
+    {Typed, T, Env2} = infer_stmts(Stmts, Pos, Env1, Local, []),
+    %% every fn is generalized by now; put the schemes on the nodes
+    Typed1 = [case S of
+                  #fn_decl{name = N} -> S#fn_decl{type = maps:get(N, Env2#env.vars)};
+                  _ -> S
+              end || S <- Typed],
+    {Typed1, T, Env2}.
+
+%% Local fns not yet checked that N depends on, transitively.
+pending(N, #{deps := Deps, checked := Checked}) ->
+    pending([N], Deps, Checked, []) -- [N].
+
+pending([], _Deps, _Checked, Acc) ->
+    Acc;
+pending([N | Ns], Deps, Checked, Acc) ->
+    case lists:member(N, Acc) of
+        true -> pending(Ns, Deps, Checked, Acc);
+        false -> pending(maps:get(N, Deps, []) ++ Ns, Deps, Checked, [N | Acc])
+    end.
+
+%% Generalize every waiting fn whose dependencies are all checked.
+release(Env, #{waiting := Waiting, placeholders := Ps, checked := Checked} = Local) ->
+    Ready = [N || N <- Waiting, (pending(N, Local) -- Checked) =:= []],
+    Env1 = lists:foldl(fun(N, E) ->
+                           {Scheme, St} = ern_types:generalize(maps:get(N, Ps), E#env.st),
+                           E#env{st = St, vars = maps:put(N, Scheme, E#env.vars)}
+                       end, Env, Ready),
+    {Env1, Local#{waiting => Waiting -- Ready}}.
 
 infer_stmts([Last], _Pos, Env, _Fns, Acc) ->
     case Last of
@@ -1141,15 +1177,16 @@ infer_stmts([#fn_decl{pos = FPos, owner = Owner} | _], _Pos, _Env, _Fns, _Acc)
   when Owner =/= undefined ->
     fail(FPos, "a type-member name, `fn " ++ atom_to_list(Owner) ++ ".name`, is a top-level"
                " form; a local function has a plain name");
-infer_stmts([#fn_decl{name = N} = D | Rest], Pos, Env, Fns, Acc) ->
-    V = maps:get(N, Fns),
+infer_stmts([#fn_decl{name = N} = D | Rest], Pos, Env, Local, Acc) ->
+    V = maps:get(N, maps:get(placeholders, Local)),
     Env1 = Env#env{st = ern_types:enter(Env#env.st)},
     {TypedD, Post, Env2a} = check_value(D, V, Env1),
     Env2 = post_checks(Post, Env2a),
     Env3 = Env2#env{st = ern_types:leave(Env2#env.st)},
-    {Scheme, St} = ern_types:generalize(V, Env3#env.st),
-    Env4 = Env3#env{st = St, vars = maps:put(N, Scheme, Env3#env.vars)},
-    infer_stmts(Rest, Pos, Env4, Fns, [TypedD#fn_decl{type = Scheme} | Acc]);
+    Local1 = Local#{checked => [N | maps:get(checked, Local)],
+                    waiting => maps:get(waiting, Local) ++ [N]},
+    {Env4, Local2} = release(Env3, Local1),
+    infer_stmts(Rest, Pos, Env4, Local2, [TypedD | Acc]);
 infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '=', expr = X} = B | Rest],
             Pos, Env, Fns, Acc) ->
     {TypedX, XT, Env1} = infer(X, Env),

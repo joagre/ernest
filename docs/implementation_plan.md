@@ -51,7 +51,7 @@ Standard Erlang application layout under `lib/`, one application per compiler st
 
 **Output:** a type checker that takes an AST and returns `{ok, TypedAst, Iface, Env}` or `{error, Errors}`.
 
-**Known approximation (2026-09-17):** local `fn`s in a block are generalized where they stand, so a local `fn` that refers to one defined later in the same block can be generalized before the later one's type is pinned, and come out too polymorphic about it. Mutual recursion still works; revisit when the compiler runs real code.
+Local `fn`s in a block are generalized only once every later local `fn` they reference, transitively, is checked; until then they are monomorphic, as any recursive reference is. Generalizing at the definition would close the scheme over variables a later `fn` still pins, and accept `a("s")` for `fn a(x) = b(x); fn b(x) = x + 1`.
 
 ### 1.3 Abstract Types (1 day)
 

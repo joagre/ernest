@@ -173,6 +173,22 @@ local_fn_names_are_plain_test() ->
                  " plain name",
                  err("type T = T\nfn f() = { fn T.g() = 1; 2 }")).
 
+local_fn_forward_reference_test() ->
+    %% a is generalized only after b, which it references, is checked
+    ?assertEqual("the arguments do not fit a: expected (Int) -> Int, found (String) -> a",
+                 err("fn f() = { fn a(x) = b(x); fn b(x) = x + 1; a(\"s\") }")),
+    ?assertEqual("() -> Int", type_of("export fn f() = { fn a(x) = b(x); fn b(x) = x + 1; a(1) }",
+                                      f)),
+    %% and is polymorphic afterwards when b is
+    ?assertEqual("() -> Int",
+                 type_of("export fn f() = { fn a(x) = b(x); fn b(x) = x; let s = a(\"s\");"
+                         " a(1) }", f)),
+    %% mutual recursion between local fns
+    ?assertEqual("(Int) -> Bool",
+                 type_of("export fn f(n : Int) = { fn even(k) = if k == 0 then true"
+                         " else odd(k - 1); fn odd(k) = if k == 0 then false else even(k - 1);"
+                         " even(n) }", f)).
+
 local_fn_used_before_let_test() ->
     %% report §5.4: a local fn is visible throughout the block but usable
     %% only after the lets it references
