@@ -8,13 +8,13 @@ check(Text) -> ern_typecheck:check_string(['M'], Text).
 
 ok(Text) ->
     case check(Text) of
-        {ok, _, _} -> ok;
+        {ok, _, _, _} -> ok;
         {error, Errs} -> {error, [ern_typecheck:format_error(E) || E <- Errs]}
     end.
 
 %% The printed type of the declaration named Name.
 type_of(Text, Name) ->
-    {ok, _, #iface{values = Vs}} = check(Text),
+    {ok, _, #iface{values = Vs}, _} = check(Text),
     Scheme = maps:get(['M', Name], Vs),
     ern_types:format_scheme(Scheme, ern_typecheck:type_state(ern_typecheck:prelude_env())).
 
@@ -358,7 +358,7 @@ interface_test() ->
            "export fn parse(s : String) -> Optional(Request) =\n"
            "    if s == \"GET /\" then Some(Request(method = \"GET\", path = \"/\")) else None\n"
            "fn private() = 1",
-    {ok, _, Iface} = ern_typecheck:check_string(['Net', 'Http'], Http),
+    {ok, _, Iface, _} = ern_typecheck:check_string(['Net', 'Http'], Http),
     ?assertMatch(#iface{namespace = ['Net', 'Http']}, Iface),
     ?assertEqual([['Net', 'Http', parse]], maps:keys(Iface#iface.values)),
     ?assertEqual([['Net', 'Http', 'Request']], maps:keys(Iface#iface.types)),
@@ -367,7 +367,7 @@ interface_test() ->
            " Io.println(method <> \" \" <> path)\n"
            "  | None -> Io.println(\"bad request\")\n}",
     {ok, Main1} = ern_parser:parse_string(Main),
-    ?assertMatch({ok, _, _}, ern_typecheck:check(['Main'], Main1, [Iface])),
+    ?assertMatch({ok, _, _, _}, ern_typecheck:check(['Main'], Main1, [Iface])),
     ?assertEqual({error, [{1, 45, "unknown name Net.Http.parse"}]},
                  ern_typecheck:check(['Main'], Main1, [])),
     Private = "fn f() = Net.Http.private()",
@@ -380,7 +380,7 @@ errors_are_collected_test() ->
                  errs("fn f() = a\nfn g() = b")).
 
 typed_ast_test() ->
-    {ok, [#fn_decl{body = #e_binop{type = T, left = #e_var{type = LT}}}], _} =
+    {ok, [#fn_decl{body = #e_binop{type = T, left = #e_var{type = LT}}}], _, _} =
         check("fn double(n : Int) = n * 2"),
     ?assertEqual({tcon, ['Int'], []}, T),
     ?assertEqual({tcon, ['Int'], []}, LT).
@@ -392,10 +392,10 @@ typed_ast_test() ->
 modules_example_test() ->
     Dir = "../../../examples/modules/",
     {ok, Http} = file:read_file(Dir ++ "net/http.ern"),
-    {ok, _, Iface} = ern_typecheck:check_string(['Net', 'Http'], Http),
+    {ok, _, Iface, _} = ern_typecheck:check_string(['Net', 'Http'], Http),
     {ok, Main} = file:read_file(Dir ++ "main.ern"),
     {ok, Decls} = ern_parser:parse_string(Main),
-    ?assertMatch({ok, _, _}, ern_typecheck:check(['Main'], Decls, [Iface])).
+    ?assertMatch({ok, _, _, _}, ern_typecheck:check(['Main'], Decls, [Iface])).
 
 examples_test_() ->
     Files = filelib:wildcard("../../../examples/*.ern"),
@@ -406,7 +406,7 @@ examples_test_() ->
               Ns = [list_to_atom(string:titlecase(Base))],
               Result = ern_typecheck:check_string(Ns, Bin),
               case lists:member(Base, Mvp1) of
-                  true -> ?assertMatch({ok, _, _}, Result);
+                  true -> ?assertMatch({ok, _, _, _}, Result);
                   false ->
                       %% MVP 2 programs fail only on runtime names they assume
                       {error, Errs} = Result,

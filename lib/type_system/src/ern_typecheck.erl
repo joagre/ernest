@@ -45,8 +45,10 @@
 %% Entry points
 %%
 
+%% On success: the typed declarations, the module's interface, and the
+%% environment, which the compiler needs for the layouts of private types.
 -spec check([atom()], [tuple()], [#iface{}]) ->
-          {ok, [tuple()], #iface{}} | {error, [error()]}.
+          {ok, [tuple()], #iface{}, env()} | {error, [error()]}.
 check(Ns, Decls, Ifaces) ->
     Env0 = lists:foldl(fun add_iface/2, (prelude_env())#env{ns = Ns}, Ifaces),
     try
@@ -54,7 +56,7 @@ check(Ns, Decls, Ifaces) ->
         {Typed, Env2, Errs2} = check_values(Decls, Env1),
         Errs3 = check_signatures(Decls, Env2),
         case lists:sort(Errs1 ++ Errs2 ++ Errs3) of
-            [] -> {ok, Typed, make_iface(Decls, Env2)};
+            [] -> {ok, Typed, make_iface(Decls, Env2), Env2};
             Errs -> {error, Errs}
         end
     catch
@@ -62,7 +64,7 @@ check(Ns, Decls, Ifaces) ->
     end.
 
 -spec check_string([atom()], unicode:chardata()) ->
-          {ok, [tuple()], #iface{}} | {error, [error()]}.
+          {ok, [tuple()], #iface{}, env()} | {error, [error()]}.
 check_string(Ns, Text) ->
     case ern_parser:parse_string(Text) of
         {ok, Decls} -> check(Ns, Decls, []);
