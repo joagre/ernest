@@ -325,7 +325,7 @@ var_ref(Pos, [], Name, T, #cx{vars = Vars, locals = Locals, tops = Tops} = Cx) -
                         #{{undefined, Name} := Arity} ->
                             {erl_syntax:implicit_fun(erl_syntax:atom(Name),
                                                      erl_syntax:integer(Arity)), Cx};
-                        _ -> {prelude_value(Pos, [Name], T), Cx}
+                        _ -> {prelude_value(Pos, [Name], T, Cx), Cx}
                     end
             end
     end;
@@ -339,7 +339,7 @@ var_ref(Pos, Path, Name, T, #cx{tops = Tops, env = Env} = Cx) ->
                    end;
                _ ->
                    case is_prelude(Path ++ [Name], Env) of
-                       true -> prelude_value(Pos, Path ++ [Name], T);
+                       true -> prelude_value(Pos, Path ++ [Name], T, Cx);
                        false ->
                            {M, F} = remote_name(Path, Name, Env),
                            case T of
@@ -471,6 +471,31 @@ prelude_call(Pos, QName, _, _, _, _) ->
     fail(Pos, "no emission for " ++ qname(QName)).
 
 %% A prelude name taken as a value.
+prelude_value(Pos, [spawn], T, Cx) ->
+    %% a closure, since spawn takes the site as a third argument
+    {[W, F], _} = fresh_vars(2, "A", Cx),
+    Args = [erl_syntax:variable(W), erl_syntax:variable(F), site(Pos, Cx)],
+    lambda([W, F], call_remote(ern_rt, spawn, Args), arity_of(T, Pos), 2);
+prelude_value(Pos, ['Int', Op], T, Cx) when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/';
+                                             Op =:= '%' ->
+    {[A, B], _} = fresh_vars(2, "A", Cx),
+    Body = binop(Op, {tcon, ['Int'], []}, erl_syntax:variable(A), erl_syntax:variable(B)),
+    lambda([A, B], Body, arity_of(T, Pos), 2);
+prelude_value(Pos, ['Int', negate], T, Cx) ->
+    {[A], _} = fresh_vars(1, "A", Cx),
+    Body = erl_syntax:prefix_expr(erl_syntax:operator('-'), erl_syntax:variable(A)),
+    lambda([A], Body, arity_of(T, Pos), 1);
+prelude_value(Pos, [_, '<>'], {tfn, [P | _], _, _} = T, Cx) ->
+    {[A, B], _} = fresh_vars(2, "A", Cx),
+    Body = binop('<>', resolved(P, Cx), erl_syntax:variable(A), erl_syntax:variable(B)),
+    lambda([A, B], Body, arity_of(T, Pos), 2);
+prelude_value(Pos, QName, T, _Cx) ->
+    prelude_value(Pos, QName, T).
+
+lambda(Vars, Body, Arity, Arity) ->
+    erl_syntax:fun_expr([erl_syntax:clause([erl_syntax:variable(V) || V <- Vars], none, [Body])]).
+
+%% Without a closure over the context.
 prelude_value(_Pos, ['Sys', stdout], _) -> call_remote(ern_rt, sys, [erl_syntax:atom(stdout)]);
 prelude_value(_Pos, ['Sys', clock], _) -> call_remote(ern_rt, sys, [erl_syntax:atom(clock)]);
 prelude_value(Pos, [Name], T) ->
@@ -484,7 +509,6 @@ prelude_value(Pos, [Name], T) ->
                  remote -> {ern_rt, remote};
                  parallelRemote -> {ern_rt, parallel_remote};
                  todo -> {ern_rt, todo};
-                 spawn -> fail(Pos, "spawn as a value is not in MVP 1; call it directly");
                  _ -> fail(Pos, "no emission for " ++ atom_to_list(Name))
              end,
     erl_syntax:implicit_fun(erl_syntax:module_qualifier(erl_syntax:atom(M), erl_syntax:atom(F)),
@@ -497,11 +521,6 @@ prelude_value(Pos, ['Address', callForever], T) ->
     erl_syntax:implicit_fun(erl_syntax:module_qualifier(erl_syntax:atom(ern_rt),
                                                         erl_syntax:atom(call_forever)),
                             erl_syntax:integer(arity_of(T, Pos)));
-prelude_value(Pos, ['Int', Op], _T) when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/';
-                                        Op =:= '%'; Op =:= negate ->
-    fail(Pos, "an Int operator as a value is not in MVP 1; wrap it in a lambda");
-prelude_value(Pos, [_, '<>'], _T) ->
-    fail(Pos, "<> as a value is not in MVP 1; wrap it in a lambda");
 prelude_value(_Pos, [Ns | Rest], T) when Rest =/= [] ->
     case T of
         {tfn, Ps, _, _} ->

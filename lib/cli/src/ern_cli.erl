@@ -86,8 +86,8 @@ ernc_compile(Opts, Path) ->
                 false -> [Path]
             end,
     Modules = [module_of(absolute(F), Root) || F <- Files],
-    Order = compile_order(Modules, Root),
     try
+        Order = compile_order(Modules, Root),
         lists:foldl(fun(M, Ifaces) -> build(M, Ifaces, OutDir, Emit) end, #{}, Order),
         case DirMode andalso Emit =:= erc andalso not lists:member(no_clean, Opts) of
             true -> sweep(absolute(Path), Root, OutDir);

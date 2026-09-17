@@ -361,6 +361,26 @@ monitor_site_test() ->
         "}\n"),
     ?assertEqual(<<"M.main:4 division by zero\n">>, Out).
 
+%% report §9.4, §9.6: spawn, the Int operators, and <> are functions and
+%% may be passed as values
+prelude_values_test() ->
+    {ok, Out} = run(
+        "fn apply2(f : (Int, Int) -> Int, a : Int, b : Int) -> Int = f(a, b)\n"
+        "fn twice(f : (Int) -> Int, a : Int) -> Int = f(f(a))\n"
+        "fn join(f : (String, String) -> String) -> String = f(\"a\", \"b\")\n"
+        "fn start(s : (Where, () -> Unit with Never) -> Address(Never) with Never)\n"
+        "        -> Address(Never) with Never = s(Local, fn() = Unit)\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    Io.println(Int.toString(apply2(Int.+, 2, 3)));\n"
+        "    Io.println(Int.toString(apply2(Int./, 7, 2)));\n"
+        "    Io.println(Int.toString(apply2(Int.%, 7, 2)));\n"
+        "    Io.println(Int.toString(twice(Int.negate, 5)));\n"
+        "    Io.println(join(String.<>));\n"
+        "    let _ = start(spawn);\n"
+        "    Unit\n"
+        "}\n"),
+    ?assertEqual(<<"5\n3\n1\n5\nab\n">>, Out).
+
 %% report §8.2, §9.7: Sys.stdout is a value
 sys_stdout_test() ->
     {ok, Out} = run("export fn main() -> Unit with Never = Io.printlnTo(Sys.stdout, \"hi\")\n"),

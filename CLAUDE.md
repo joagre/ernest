@@ -20,7 +20,7 @@ The current phase and its decisions are in [`docs/implementation_plan.md`](docs/
 ## Repository layout and build
 
 - `lib/<app>/{src,include,ebin,test}` per compiler stage: `lexer`, `parser`, `type_system`, `runtime`, `compiler`, `cli`, `utils` (vendored `getopt`).
-- `stdlib/` is the Ernest standard library, a source root. `examples/` holds the example programs. `test/` holds what spans applications: the hand-written target modules and the integration tests. `bin/` holds `ernc` and `ern` as committed escript sources.
+- The standard library is Erlang under `lib/runtime/src` (`ernest@list` and so on) until MVP 2, when `stdlib/` becomes its Ernest source root. `examples/` holds the example programs. `test/` holds what spans applications: the hand-written target modules and the integration tests. `bin/` holds `ernc` and `ern` as committed escript sources.
 - Build with `make` (per-app `src/Makefile` compiling into `../ebin` with `erlc -MMD`; top-level `Makefile` runs them), `make test` for EUnit, `make clean`.
 - File and directory names use underscores everywhere (report §11.1 forbids hyphens in module paths). The one `@` is Erlang's: a module implementing an Ernest namespace is `ernest@io` in `ernest@io.erl`, the path with `@` for `/`, as Gleam does.
 - Third-party code is listed in `THIRD_PARTY_LICENSES`; keep the upstream header on any borrowed file.

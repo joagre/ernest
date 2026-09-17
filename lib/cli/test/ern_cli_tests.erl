@@ -89,6 +89,35 @@ path_shape_test() ->
     Dir2 = tmp(),
     ?assertEqual(1, ern_cli:ernc(["--source-root", Dir2, write(Dir2, "9x.ern", hello())])).
 
+%% report §11.1, §11.5: a parse error in directory mode is reported as
+%% file:line:column: text, status 1
+parse_error_test() ->
+    Dir = tmp(),
+    write(Dir, "a.ern", "export fn f() -> Int = \n"),
+    ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir])).
+
+%% report §4.2, §11.2: a type member of another module is called by its
+%% module path, type, and member, and loads from the module that owns it
+type_member_across_modules_test() ->
+    Dir = tmp(),
+    write(Dir, "src/lib/stack.ern",
+          "export abstract type Stack(a) = Stack(List(a)) with {\n"
+          "    empty : Stack(a);\n"
+          "    push : (a, Stack(a)) -> Stack(a);\n"
+          "    size : (Stack(a)) -> Int\n"
+          "}\n"
+          "export let Stack.empty : Stack(a) = Stack([])\n"
+          "export fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) = Stack(x :: xs)\n"
+          "export fn Stack.size(Stack(xs) : Stack(a)) -> Int = List.size(xs)\n"),
+    write(Dir, "src/main.ern",
+          "export fn main() -> Unit with Never = {\n"
+          "    let s = Lib.Stack.Stack.push(1, Lib.Stack.Stack.empty);\n"
+          "    Io.println(Int.toString(Lib.Stack.Stack.size(s)))\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"1\n">>, iolist_to_binary(?capturedOutput)).
+
 %% report §11.1: a module cycle is an error naming the modules
 module_cycle_test() ->
     Dir = tmp(),
