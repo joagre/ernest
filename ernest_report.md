@@ -674,7 +674,7 @@ A function with mailbox type `Never` can send but never receive: a `receive` wit
 
 ### 6.9 Death
 
-A process dies when its function returns, when `kill` is called on it, on a fault, section 7, or when the node it runs on is lost. `kill` is asynchronous: the target may run until the runtime interrupts it. `monitor(a, wrap)`, §9.5, causes `wrap(d)` to be placed in the caller's mailbox when `a` dies, where `d : Down` gives the cause. If `a` is already dead, the message is placed at once. Each `monitor` call produces one message. There are no other links.
+A process dies when its function returns, when `kill` is called on it, on a fault, section 7, or when the node it runs on is lost. `kill` is asynchronous: the target may run until the runtime interrupts it. `monitor(a, wrap)`, §9.5, causes `wrap(d)` to be placed in the caller's mailbox when `a` dies, where `d : Down` gives the cause. If `a` is already dead, the message is placed at once with the cause of its death; the runtime remembers how every process it started ended. Each `monitor` call produces one message. `function` in `Down` is the qualified name of the function that called `spawn` for the dead process, with the line of the call, `Counter.main:19`; for the entry process it is the entry point's name. There are no other links.
 
 ### 6.10 Code replacement
 

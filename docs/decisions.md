@@ -2405,6 +2405,10 @@ After the first implementation, the checker was read again for approximations an
 
 Five were bugs against the report as written: the not-reply-carrying flag was inferred only for bare-variable parameters, so a discarded variable inside a tuple pattern escaped it; an abstract type's signature accepted a member less general than declared, because the signature's variables were not rigid; duplicate field names in a constructor pattern were not rejected; `foreign fn ... with m` did not get the process-only flag of §3.9; and the lexer treated `////` as a plain comment, which the report does not say.
 
+## `Down`'s `function` Field and the Already-Dead Reason, 2026-09-17
+
+Writing the runtime needed two things §6.9 had not said. `Down(reason, function)` never defined `function`: the runtime cannot name the function a process ran, since `spawn` takes an arbitrary lambda, but it does know where the lambda was spawned, so `function` is the qualified name of the spawning function with the line of the `spawn` call, `Counter.main:19`, and the entry point's name for the entry process. And a process that died before `monitor` was called reports the cause of its death: the runtime remembers how every process it started ended. The first draft said `Fault("died before monitor")` instead; the first test showed why not: a worker that returns at once is already dead when the next line monitors it, and a fault for a normal return is the surprise principle 1 forbids. Remembering costs one monitor per process and one table row for the program's lifetime.
+
 ## Later
 
 Planned or considered, not in the language today.
