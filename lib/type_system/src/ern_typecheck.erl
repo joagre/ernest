@@ -600,6 +600,7 @@ post_checks({Pos, TypedParams, TypedBody, FnT, AnnVars, Pending, Deferred}, Env0
     Env = solve_deferred(Env0#env{deferred = Deferred}),
     Env1 = resolve_operators(TypedBody, Env),
     rigid_annotation_vars(Pos, AnnVars, Env1),
+    local_fn_order(TypedBody),
     undetermined_bindings(TypedBody, FnT, Env1),
     ern_exhaust:check(TypedBody, Env1),
     Env2 = ern_reply:check(TypedParams, TypedBody, Env1),
@@ -678,6 +679,77 @@ no_reply_instantiations(#env{pending = Pending} = Env) ->
                               false -> ok
                           end
                   end, Pending).
+
+%% Report §5.4: a local fn may be used only after every `let` of its block
+%% that it references, directly or through other local fns, has been
+%% evaluated. Uses are calls and value references alike.
+local_fn_order(Node) ->
+    walk(fun(#e_block{stmts = Stmts}, E) -> block_order(Stmts), E;
+            (_, E) -> E
+         end, Node, ok),
+    ok.
+
+block_order(Stmts) ->
+    Fns = [D || #fn_decl{} = D <- Stmts],
+    FnNames = [N || #fn_decl{name = N} <- Fns],
+    Lets = lists:usort(lists:append([[N || {N, _} <- typed_pattern_bindings(P)]
+                                     || #binding{pattern = P} <- Stmts])),
+    %% direct references of each local fn to this block's lets and fns
+    Direct = maps:from_list([{N, names_in(B, Lets ++ FnNames)}
+                             || #fn_decl{name = N, body = B} <- Fns]),
+    Needs = fun(N) -> needed_lets(N, Direct, Lets, [], []) end,
+    lists:foldl(fun(#binding{pattern = P, expr = X}, Bound) ->
+                    check_uses(X, FnNames, Needs, Bound),
+                    Bound ++ [N || {N, _} <- typed_pattern_bindings(P)];
+                   (#fn_decl{}, Bound) ->
+                    Bound;
+                   (X, Bound) ->
+                    check_uses(X, FnNames, Needs, Bound),
+                    Bound
+                end, [], Stmts).
+
+%% The lets a local fn needs, following references between local fns.
+needed_lets(N, Direct, Lets, Seen, Acc) ->
+    case lists:member(N, Seen) of
+        true -> Acc;
+        false ->
+            Refs = maps:get(N, Direct, []),
+            Acc1 = lists:usort(Acc ++ [R || R <- Refs, lists:member(R, Lets)]),
+            lists:foldl(fun(R, A) ->
+                            case maps:is_key(R, Direct) of
+                                true -> needed_lets(R, Direct, Lets, [N | Seen], A);
+                                false -> A
+                            end
+                        end, Acc1, Refs)
+    end.
+
+check_uses(Expr, FnNames, Needs, Bound) ->
+    walk(fun(#e_var{pos = Pos, path = [], name = N}, E) ->
+                 case lists:member(N, FnNames) of
+                     true ->
+                         case Needs(N) -- Bound of
+                             [] -> E;
+                             [L | _] -> fail(Pos, "local function " ++ atom_to_list(N)
+                                                  ++ " is used before `let " ++ atom_to_list(L)
+                                                  ++ "`, which it references")
+                         end;
+                     false -> E
+                 end;
+            (_, E) -> E
+         end, Expr, ok).
+
+%% Unqualified names of the given set occurring in Node.
+names_in(Node, Names) ->
+    lists:usort(refs_of(Node, Names, [])).
+
+refs_of(#e_var{path = [], name = N}, Names, Acc) ->
+    case lists:member(N, Names) of true -> [N | Acc]; false -> Acc end;
+refs_of(T, Names, Acc) when is_tuple(T) ->
+    lists:foldl(fun(X, A) -> refs_of(X, Names, A) end, Acc, tl(tuple_to_list(T)));
+refs_of(L, Names, Acc) when is_list(L) ->
+    lists:foldl(fun(X, A) -> refs_of(X, Names, A) end, Acc, L);
+refs_of(_, _, Acc) ->
+    Acc.
 
 %% Report §4.8: arithmetic, <>, and ordering resolve on the operand type.
 resolve_operators(Node, Env) ->

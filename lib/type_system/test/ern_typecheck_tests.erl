@@ -168,6 +168,20 @@ blocks_test() ->
     ?assertEqual("unknown name k",
                  err("fn f(n : Int) = { fn g(x) = x * k; let k = 2; g(n) }")).
 
+local_fn_used_before_let_test() ->
+    %% report §5.4: a local fn is visible throughout the block but usable
+    %% only after the lets it references
+    ?assertEqual("local function g is used before `let k`, which it references",
+                 err("fn f(n : Int) = { let a = g(n); let k = 2; fn g(x) = x * k; a }")),
+    ?assertEqual("local function h is used before `let k`, which it references",
+                 err("fn f(n : Int) = { fn h(x) = g(x); let a = h(n); let k = 2;"
+                     " fn g(x) = x * k; a }")),
+    ?assertEqual("local function g is used before `let k`, which it references",
+                 err("fn f(n : Int) = { let a = List.map([n], g); let k = 2; fn g(x) = x * k;"
+                     " a }")),
+    ?assertEqual(ok, ok("fn f(n : Int) = { let k = 2; let a = g(n); fn g(x) = x * k; a }")),
+    ?assertEqual(ok, ok("fn f(n : Int) = { fn g(x) = x * 2; let a = g(n); let k = 2; a + k }")).
+
 bind_arrow_test() ->
     Opt = "export fn parseAndAdd(a : String, b : String) -> Optional(Int) = {\n"
           "    let x <- String.toInt(a);\n    let y <- String.toInt(b);\n    Some(x + y)\n}",
@@ -374,6 +388,14 @@ typed_ast_test() ->
 %%
 %% The example programs
 %%
+
+modules_example_test() ->
+    Dir = "../../../examples/modules/",
+    {ok, Http} = file:read_file(Dir ++ "net/http.ern"),
+    {ok, _, Iface} = ern_typecheck:check_string(['Net', 'Http'], Http),
+    {ok, Main} = file:read_file(Dir ++ "main.ern"),
+    {ok, Decls} = ern_parser:parse_string(Main),
+    ?assertMatch({ok, _, _}, ern_typecheck:check(['Main'], Decls, [Iface])).
 
 examples_test_() ->
     Files = filelib:wildcard("../../../examples/*.ern"),
