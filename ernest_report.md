@@ -212,7 +212,7 @@ Equality on a foreign type is identity.
 
 ### 3.9 Type variables and polymorphism
 
-Types are inferred according to Hindley-Milner. A `fn` definition is generalized over its free type variables. A `let` binding in a block is not generalized; a top-level `let` is generalized like a `fn`, so that polymorphic prelude values (`Map.empty`, `Set.empty`, and abstract-type constants like `Stack.empty`) can be used at every instantiation. Type variables in a `fn` signature scope over the whole definition.
+Types are inferred according to Hindley-Milner. A `fn` definition is generalized over its free type variables. A `let` binding in a block is not generalized; a top-level `let` is generalized like a `fn`, so that polymorphic prelude values (`Map.empty`, `Set.empty`, and abstract-type constants like `Stack.empty`) can be used at every instantiation. Type variables in a `fn` signature scope over the whole definition, including the annotations of lambdas within it. A variable named only in a lambda's annotation is that lambda's own and is not rigid, since a lambda is not generalized.
 
 Recursive and mutually recursive types are allowed. Polymorphic recursion is not. Every type variable in a constructor's fields must be a parameter of the type.
 
@@ -639,6 +639,8 @@ Consumption is one of:
 - Capturing the value in a lambda passed directly to `spawn` — shifts the obligation to the spawned function's body.
 
 The check is compositional: each function is analyzed at its own definition against its reply-carrying parameters, receive-bound values, and construction and return sites. No analysis crosses call boundaries. The `mk` callback of `Address.call` is checked by this rule — its `Reply(a)` parameter is consumed by placement into the reply-carrying value the lambda returns, and the returned value's obligation is discharged by `Address.call`'s runtime.
+
+A reply-carrying expression whose value is neither bound nor consumed is a type error: `Get(reply = r); Unit` consumes `r` into a message and then drops the message.
 
 The check is static in flow, not in dynamics: it ensures every path *calls* the consumption but not that execution *reaches* it at runtime — non-termination, a fault, or an indefinite wait bypasses the call without invalidating the type check.
 

@@ -2396,6 +2396,15 @@ The lexer, parser, and type checker were written against the report the same day
 - *§6.6, passing a reply to a polymorphic parameter.* It is consumption, at that instantiation; the callee's not-reply-carrying restriction (§3.9) rejects a callee that would duplicate or discard it. This is what makes `identity` usable on a reply and `first` not.
 - *§4.5, a type-member name on a block-local fn.* The grammar admits it through `DeclName`; it is now an error, since a local function has no type to be a member of.
 
+## Warts Audit, 2026-09-17
+
+After the first implementation, the checker was read again for approximations and unstated choices, with the rule now in CLAUDE.md: none may remain. Seven were found. Two needed the report:
+
+- *§6.6, a reply-carrying expression neither bound nor consumed.* `Get(reply = r); Unit` consumed `r` into a message and dropped the message. The discipline spoke of binding sites only; it now covers unbound expressions, and `_` over a reply-carrying value anywhere.
+- *§3.9, type variables in lambda annotations.* Signature variables scope over the whole definition, lambdas included, and stay rigid there; a name new in a lambda's annotation is that lambda's own and is not rigid, since a lambda is not generalized and so cannot be as polymorphic as an annotation would claim. The checker had given lambdas fresh variables for every name, so a definition's `a` used in a lambda was a different type.
+
+Five were bugs against the report as written: the not-reply-carrying flag was inferred only for bare-variable parameters, so a discarded variable inside a tuple pattern escaped it; an abstract type's signature accepted a member less general than declared, because the signature's variables were not rigid; duplicate field names in a constructor pattern were not rejected; `foreign fn ... with m` did not get the process-only flag of §3.9; and the lexer treated `////` as a plain comment, which the report does not say.
+
 ## Later
 
 Planned or considered, not in the language today.

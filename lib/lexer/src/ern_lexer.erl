@@ -64,8 +64,6 @@ lex([$\n | R], L, _C, Acc) ->
     lex(R, L + 1, 1, Acc);
 lex([Ch | R], L, C, Acc) when Ch =:= $\s; Ch =:= $\t; Ch =:= $\r ->
     lex(R, L, C + 1, Acc);
-lex("////" ++ R, L, C, Acc) ->
-    lex(skip_line(R), L, C, Acc);
 lex("///" ++ R, L, C, Acc) ->
     {Text, Rest, L1} = doc_block(R, L, []),
     lex(Rest, L1, 1, [{doc, {L, C}, Text} | Acc]);
@@ -138,7 +136,6 @@ next_doc_line(_) -> no.
 
 next_doc_line_start([Ch | R]) when Ch =:= $\s; Ch =:= $\t; Ch =:= $\r ->
     next_doc_line_start(R);
-next_doc_line_start("////" ++ _) -> no;
 next_doc_line_start("///" ++ R) -> {yes, R};
 next_doc_line_start(_) -> no.
 

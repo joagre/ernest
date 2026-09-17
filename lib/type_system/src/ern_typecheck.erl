@@ -24,7 +24,8 @@
 
 -record(env, {ns = [], types = #{}, cons = #{}, globals = #{},
               local_types = #{}, local_cons = #{}, local_values = #{},
-              vars = #{}, effect = pure, st, pending = [], deferred = []}).
+              vars = #{}, effect = pure, st, pending = [], deferred = [],
+              ann_vars = #{}, rigid = []}).
 -opaque env() :: #env{}.
 
 -type error() :: {pos_integer(), pos_integer(), string()}.
@@ -507,7 +508,7 @@ signature_shape(#foreign_fn_decl{pos = Pos, params = Params, ret = Ret, effect =
     Syntax = #t_fn{pos = Pos, params = [T || #param{type = T} <- Params], ret = Ret,
                    effect = Effect},
     {T, _, St} = ann(Syntax, #{}, Env),
-    unify_at(Pos, V, T, Env#env{st = St}, "foreign signature");
+    unify_at(Pos, V, T, Env#env{st = foreign_effect(T, St)}, "foreign signature");
 signature_shape(_, _, Env) ->
     Env.
 
@@ -520,14 +521,16 @@ check_value(#fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect, bod
     {TypedParams, ParamTypes, Env1, AnnVars} = bind_params(Params, Env, #{}),
     {RetT, EffT, AnnVars1, St} = return_annotation(Ret, Effect, AnnVars, Env1),
     FnT = {tfn, ParamTypes, EffT, RetT},
-    Env2 = Env1#env{st = mark_process_only(FnT, St), effect = EffT, pending = [], deferred = []},
+    Env2 = Env1#env{st = mark_process_only(FnT, St), effect = EffT, pending = [], deferred = [],
+                    ann_vars = AnnVars1, rigid = maps:to_list(AnnVars1)},
     {TypedBody, BodyT, Env3} = infer(Body, Env2),
     Env4 = unify_at(Pos, RetT, BodyT, Env3, "the body does not have the declared return type"),
     Env5 = unify_at(Pos, Placeholder, FnT, Env4, "recursive use does not match the definition"),
-    Post = {Pos, TypedParams, TypedBody, FnT, AnnVars1, Env5#env.pending, Env5#env.deferred},
+    Post = {Pos, TypedParams, TypedBody, FnT, Env5#env.rigid, Env5#env.pending,
+            Env5#env.deferred},
     {D#fn_decl{params = TypedParams, body = TypedBody}, Post,
      Env5#env{vars = Env#env.vars, effect = Env#env.effect, pending = Env#env.pending,
-              deferred = Env#env.deferred}};
+              deferred = Env#env.deferred, ann_vars = Env#env.ann_vars, rigid = Env#env.rigid}};
 check_value(#let_decl{pos = Pos, ann = Ann, body = Body} = D, Placeholder, Env) ->
     {AnnT, AnnVars, St} = case Ann of
                               undefined -> {undefined, #{}, Env#env.st};
@@ -535,23 +538,28 @@ check_value(#let_decl{pos = Pos, ann = Ann, body = Body} = D, Placeholder, Env) 
                           end,
     %% a top-level initializer is pure (report §4.6)
     {TypedBody, BodyT, Env1} = infer(Body, Env#env{st = St, effect = pure, pending = [],
-                                                deferred = []}),
+                                                deferred = [], ann_vars = AnnVars,
+                                                rigid = maps:to_list(AnnVars)}),
     Env2 = case AnnT of
                undefined -> Env1;
                _ -> unify_at(Pos, AnnT, BodyT, Env1, "the value does not have the declared type")
            end,
     Env3 = unify_at(Pos, Placeholder, BodyT, Env2, "recursive use does not match the definition"),
-    Post = {Pos, [], TypedBody, BodyT, AnnVars, Env3#env.pending, Env3#env.deferred},
+    Post = {Pos, [], TypedBody, BodyT, Env3#env.rigid, Env3#env.pending, Env3#env.deferred},
     {D#let_decl{body = TypedBody}, Post,
      Env3#env{vars = Env#env.vars, effect = Env#env.effect, pending = Env#env.pending,
-              deferred = Env#env.deferred}};
+              deferred = Env#env.deferred, ann_vars = Env#env.ann_vars, rigid = Env#env.rigid}};
 check_value(#foreign_fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect} = D,
             Placeholder, Env) ->
     Syntax = #t_fn{pos = Pos, params = [T || #param{type = T} <- Params], ret = Ret,
                    effect = Effect},
     {T, _, St} = ann(Syntax, #{}, Env),
-    Env1 = unify_at(Pos, Placeholder, T, Env#env{st = St}, "foreign signature"),
+    Env1 = unify_at(Pos, Placeholder, T, Env#env{st = foreign_effect(T, St)}, "foreign signature"),
     {D, none, Env1}.
+
+%% A foreign fn declared `with m` is process-only (report §3.9).
+foreign_effect({tfn, _, {tvar, _} = E, _}, St) -> ern_types:add_flag(E, process_only, St);
+foreign_effect(_, St) -> St.
 
 %% Parameters bind pattern variables monomorphically; annotation variables
 %% are shared across the parameters and the return annotation.
@@ -598,10 +606,10 @@ bind_vars(Bindings, #env{vars = Vs} = Env) ->
 
 post_checks(none, Env) ->
     Env;
-post_checks({Pos, TypedParams, TypedBody, FnT, AnnVars, Pending, Deferred}, Env0) ->
+post_checks({Pos, TypedParams, TypedBody, FnT, Rigid, Pending, Deferred}, Env0) ->
     Env = solve_deferred(Env0#env{deferred = Deferred}),
     Env1 = resolve_operators(TypedBody, Env),
-    rigid_annotation_vars(Pos, AnnVars, Env1),
+    rigid_annotation_vars(Pos, Rigid, Env1),
     local_fn_order(TypedBody),
     undetermined_bindings(TypedBody, FnT, Env1),
     ern_exhaust:check(TypedBody, Env1),
@@ -790,8 +798,8 @@ check_operand(Pos, Op, T, Env) ->
 
 %% Annotation variables scope over the definition and must stay distinct
 %% and unbound: `fn id(x : a) -> a = 1` is an error.
-rigid_annotation_vars(Pos, AnnVars, #env{st = St}) ->
-    Resolved = [{Name, ern_types:resolve(V, St)} || {Name, V} <- maps:to_list(AnnVars)],
+rigid_annotation_vars(Pos, Rigid, #env{st = St}) ->
+    Resolved = [{Name, ern_types:resolve(V, St)} || {Name, V} <- Rigid],
     lists:foreach(fun({_Name, {tvar, _}}) ->
                           ok;
                      ({Name, T}) ->
@@ -938,13 +946,16 @@ infer(#e_binop{pos = Pos, op = Op, left = L, right = R} = E, Env) ->
     {E#e_binop{left = TypedL, right = TypedR, type = T}, T, Env3};
 infer(#e_lambda{pos = Pos, params = Params, ret = Ret, effect = Effect, body = Body} = E,
       Env) ->
-    {TypedParams, ParamTypes, Env1, AnnVars} = bind_params(Params, Env, #{}),
-    {RetT, EffT, _AnnVars1, St} = return_annotation(Ret, Effect, AnnVars, Env1),
+    {TypedParams, ParamTypes, Env1, AnnVars} = bind_params(Params, Env, Env#env.ann_vars),
+    {RetT, EffT, AnnVars1, St} = return_annotation(Ret, Effect, AnnVars, Env1),
     T = {tfn, ParamTypes, EffT, RetT},
-    {TypedBody, BodyT, Env2} = infer(Body, Env1#env{st = mark_process_only(T, St), effect = EffT}),
-    Env3 = unify_at(Pos, RetT, BodyT, Env2, "the lambda body does not have the declared type"),
+    %% the definition's annotation variables are in scope and rigid; a
+    %% name new here is the lambda's own and not rigid (report §3.9)
+    Env2 = Env1#env{st = mark_process_only(T, St), effect = EffT, ann_vars = AnnVars1},
+    {TypedBody, BodyT, Env3} = infer(Body, Env2),
+    Env4 = unify_at(Pos, RetT, BodyT, Env3, "the lambda body does not have the declared type"),
     {E#e_lambda{params = TypedParams, body = TypedBody, type = T}, T,
-     Env3#env{vars = Env#env.vars, effect = Env#env.effect}};
+     Env4#env{vars = Env#env.vars, effect = Env#env.effect, ann_vars = Env#env.ann_vars}};
 infer(#e_if{pos = Pos, condition = C, then_branch = Th, else_branch = El} = E, Env) ->
     {TypedC, CT, Env1} = infer(C, Env),
     Env2 = unify_at(Pos, ?BOOL, CT, Env1, "the condition of `if`"),
@@ -1268,6 +1279,9 @@ pat(#p_con{pos = Pos, path = Path, name = Name, args = Args} = P, Env) ->
                       ++ atom_to_list(Name) ++ "(p)");
         {{named, Names}, {named, FieldPats}} ->
             {tfn, FTs, pure, RT} = CT,
+            FieldNames = [N || #field_pat{name = N} <- FieldPats],
+            length(lists:usort(FieldNames)) =:= length(FieldNames) orelse
+                fail(Pos, "a field is matched twice"),
             {TypedFPs, {Bs, Env2}} =
                 lists:mapfoldl(
                   fun(#field_pat{pos = FPos, name = N, pattern = Sub} = FP, {BAcc, En}) ->
@@ -1396,15 +1410,27 @@ check_signature_list(#abstract_decl{type = #type_decl{name = TName}, signatures 
                error -> fail(Pos, atom_to_list(TName) ++ "." ++ atom_to_list(Name)
                                   ++ " is in the signature but not defined");
                {ok, Scheme} ->
-                   {Declared, _, St} = ann(Syntax, #{}, Env),
+                   {Declared, VarMap, St} = ann(Syntax, #{}, Env),
                    {Actual, St1} = ern_types:instantiate(Scheme, St),
+                   %% the signature is printed before unification, the member after
+                   Mismatch = fun(S) ->
+                                  fail(Pos, atom_to_list(TName) ++ "." ++ atom_to_list(Name)
+                                            ++ " is " ++ ern_types:format_scheme(Scheme, S)
+                                            ++ ", not the signature's "
+                                            ++ ern_types:format(Declared, St1))
+                              end,
                    case ern_types:unify(Declared, Actual, St1) of
-                       {ok, _} -> [];
+                       {ok, St2} ->
+                           %% the signature's variables must stay distinct and
+                           %% unbound: the member is at least as general
+                           Ids = [ern_types:resolve(V, St2) || V <- maps:values(VarMap)],
+                           case lists:all(fun({tvar, _}) -> true; (_) -> false end, Ids)
+                                andalso length(lists:usort(Ids)) =:= length(Ids) of
+                               true -> [];
+                               false -> Mismatch(St2)
+                           end;
                        {error, _} ->
-                           fail(Pos, atom_to_list(TName) ++ "." ++ atom_to_list(Name) ++ " is "
-                                     ++ ern_types:format_scheme(Scheme, St1)
-                                     ++ ", not the signature's "
-                                     ++ ern_types:format(Declared, St1))
+                           Mismatch(St1)
                    end
            end
        catch

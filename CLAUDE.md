@@ -44,6 +44,7 @@ If either test surfaces an anomaly in the report, propose an update to [`ernest_
 
 - Prefer minimal, direct implementations over speculative abstraction.
 - Ask before scaffolding when a decision affects the report or the plan.
+- **No warts.** Never leave an approximation, a silent deviation from the report, or an unstated semantic choice in the code. When the report is silent, either add the sentence to the report (report, then decisions log, then code) or reject the input with an error; never accept it silently. State every such choice to the user when it is made. A known gap goes in the plan with a date, not in a comment.
 - When touching normative material, quote the exact section or grammar rule being applied.
 - Prose in the report and the guide is tight, in the register of a Wirth language report: state the rule, no rationale, no restating. Rationale goes to `docs/decisions.md`, compiler behaviour to §11.
 

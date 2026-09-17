@@ -352,6 +352,43 @@ reply_test() ->
     ?assertEqual(ok, ok(Msg ++ "fn ask(a : Address(Req)) = Address.call(a, fn(r) = Get(reply = r),"
                         " 1000)")).
 
+warts_audit_test() ->
+    Msg = "type Req = Get(reply : Reply(Int)) | Stop\n",
+    %% a reply-carrying expression neither bound nor consumed
+    ?assertEqual("a reply-carrying value is discarded; it must be consumed",
+                 err(Msg ++ "fn f(r : Reply(Int)) = { Get(reply = r); Unit }")),
+    ?assertEqual("`_` would discard a reply-carrying value",
+                 err(Msg ++ "fn f(r : Reply(Int)) = { let _ = Get(reply = r); Unit }")),
+    ?assertEqual("`_` would discard a reply-carrying value",
+                 err(Msg ++ "fn f(_ : Reply(Int)) = Unit")),
+    %% the flag reaches variables inside a tuple parameter
+    ?assertEqual("(#(a, b!)) -> a", type_of("export fn fst(#(x, y)) = x", fst)),
+    ?assertEqual("a reply-carrying value, Reply(Int), passed where the function duplicates or"
+                 " discards its argument",
+                 err(Msg ++ "fn fst(#(x, y)) = x\nfn f(r : Reply(Int)) = fst(#(1, r))")),
+    %% a member less general than its signature
+    ?assertEqual("Stack.push is (Int, M.Stack(Int)) -> M.Stack(Int), not the signature's"
+                 " (a, M.Stack(a)) -> M.Stack(a)",
+                 err("abstract type Stack(a) = Stack(List(a)) with {"
+                     " push : (a, Stack(a)) -> Stack(a) }\n"
+                     "fn Stack.push(x : Int, Stack(xs)) = Stack(x :: xs)")),
+    %% duplicate field in a pattern
+    ?assertEqual("a field is matched twice",
+                 err(Msg ++ "fn f(r) = match r { Get(reply = a, reply = b) -> Unit"
+                     " | Stop -> Unit }")),
+    %% foreign fn with an effect is process-only
+    ?assertEqual("this call needs a process: process code called from a pure function",
+                 err("foreign fn tick() -> Unit with m = \"m:tick/0\"\nfn f() -> Unit = tick()")),
+    ?assertEqual(ok, ok("foreign fn tick() -> Unit with m = \"m:tick/0\"\n"
+                        "fn f() -> Unit with Never = tick()")),
+    %% lambda annotation variables: the definition's are in scope and rigid,
+    %% a new one belongs to the lambda and is not rigid
+    ?assertEqual("(a) -> a", type_of("export fn f(x : a) -> a = (fn(y : a) -> a = y)(x)", f)),
+    ?assertEqual("type variable a in the annotation is used as Int",
+                 err("fn f(x : a) -> a = { let g = fn(y : a) -> a = 1; g(x) }")),
+    ?assertEqual("(Int) -> Int", type_of("export fn f(x : Int) = (fn(y : b) -> b = 1)(x)", f)),
+    ?assertEqual("(Int) -> Int", type_of("export fn f(x : Int) = (fn(y : b) -> b = y)(x)", f)).
+
 %%
 %% Abstract types and interfaces
 %%

@@ -19,12 +19,13 @@
 
 -spec check([#param{}], tuple(), ern_typecheck:env()) -> ern_typecheck:env().
 check(Params, Body, Env) ->
+    positions(Params, Env),
     positions(Body, Env),
     Linear = [N || P <- Params, N <- linear_bindings(P#param.pattern, Env)],
     Uses = uses(Body, Linear, Env),
     lists:foreach(fun(N) -> exactly_once(N, Uses, element(2, Body), Env) end, Linear),
-    %% polymorphic parameters used other than once
-    lists:foldl(fun(#param{pattern = #p_var{name = N, type = T}}, E) ->
+    %% polymorphic parameter variables used other than once
+    lists:foldl(fun({N, T}, E) ->
                     St = ern_typecheck:type_state(E),
                     case ern_types:resolve(T, St) of
                         {tvar, _} = V ->
@@ -34,9 +35,18 @@ check(Params, Body, Env) ->
                                            ern_types:add_flag(V, no_reply, St), E)
                             end;
                         _ -> E
-                    end;
-                   (_, E) -> E
-                end, Env, Params).
+                    end
+                end, Env, [B || P <- Params, B <- var_bindings(P#param.pattern)]).
+
+var_bindings(#p_var{name = N, type = T}) -> [{N, T}];
+var_bindings(#p_as{name = N, type = T, pattern = P}) -> [{N, T} | var_bindings(P)];
+var_bindings(#p_con{args = {positional, P}}) -> var_bindings(P);
+var_bindings(#p_con{args = {named, FPs}}) ->
+    lists:append([var_bindings(P) || #field_pat{pattern = P} <- FPs]);
+var_bindings(#p_tuple{elems = Es}) -> lists:append([var_bindings(E) || E <- Es]);
+var_bindings(#p_list{elems = Es}) -> lists:append([var_bindings(E) || E <- Es]);
+var_bindings(#p_cons{head = H, tail = T}) -> var_bindings(H) ++ var_bindings(T);
+var_bindings(_) -> [].
 
 %% Would N pass the discipline if it were linear? A second use or a
 %% path mismatch throws; both mean no.
@@ -58,6 +68,24 @@ position(#e_list{pos = Pos, type = T}, Env) -> container(Pos, T, Env);
 position(#e_call{pos = Pos, type = T}, Env) -> container(Pos, T, Env);
 position(#e_var{pos = Pos, type = T}, Env) -> container(Pos, T, Env);
 position(#e_con{pos = Pos, type = T}, Env) -> container(Pos, T, Env);
+position(#p_wild{pos = Pos, type = T}, Env) ->
+    case ern_typecheck:is_reply_carrying(T, Env) of
+        true -> throw({type_error, Pos, "`_` would discard a reply-carrying value"});
+        false -> ok
+    end;
+position(#e_block{stmts = Stmts}, Env) ->
+    %% every statement but the last is discarded
+    lists:foreach(fun(#binding{}) -> ok;
+                     (#fn_decl{}) -> ok;
+                     (X) ->
+                          T = ern_typecheck:node_type(X),
+                          case ern_typecheck:is_reply_carrying(T, Env) of
+                              true -> throw({type_error, element(2, X),
+                                             "a reply-carrying value is discarded; it must be"
+                                             " consumed"});
+                              false -> ok
+                          end
+                  end, lists:droplast(Stmts));
 position(#p_as{pos = Pos, type = T}, Env) ->
     case ern_typecheck:is_reply_carrying(T, Env) of
         true -> throw({type_error, Pos, "`as` on a reply-carrying value would duplicate it"});
