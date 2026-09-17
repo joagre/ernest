@@ -2435,6 +2435,10 @@ Running the toolchain against small programs found three places where the report
 
 §11.5 already said that `ernc --doc` shows the inferred restrictions "the same way" as error messages, which presumes it prints types; §11.4 said only that it extracts doc comments. §11.4 now says what is listed and that each entry carries its type: every exported declaration, documented or not, since a module's documentation is its interface, and every documented private one. The tool type-checks the file, so it takes the source root and build directory of a compilation and fails on a type error like one.
 
+## Types Print as the Module Writes Them, 2026-09-17
+
+The printer behind error messages and `--doc` qualified a module's own types with the module's namespace, `Stack.Stack(a)` inside `stack.ern`. §11.5 now says a type name is printed as the module would write it, which is §4.2's naming rule applied to output rather than a printing convention of its own: local and prelude names bare, other modules' names qualified, and a local type that shadows a prelude name qualified, since that is the one case where the bare name would be ambiguous in a message that can mention both.
+
 ## Later
 
 Planned or considered, not in the language today.

@@ -8,7 +8,7 @@
          resolve/2, zonk/2, unify/3, occurs_free/2,
          generalize/2, generalize/3, instantiate/2, mono/1, free_vars/2,
          value_vars/1, effect_vars/1,
-         format/2, format_scheme/2, format_error/1]).
+         format/2, format_scheme/2, format_error/1, set_scope/3]).
 
 -export_type([st/0, type/0, effect/0, qname/0, id/0, flags/0]).
 
@@ -21,7 +21,9 @@
 -type type() :: {tvar, id()} | {tcon, qname(), [type()]} | {ttuple, [type()]}
               | {tfn, [type()], effect(), type()}.
 
--record(st, {next = 1, level = 0, subst = #{}, vars = #{}}).
+-record(st, {next = 1, level = 0, subst = #{}, vars = #{}, ns = [], shadows = []}).
+%% ns, shadows: the module being checked and its type names that shadow
+%% prelude names, for printing (report §11.5)
 -opaque st() :: #st{}.
 
 %%
@@ -305,6 +307,22 @@ value_positions({ttuple, Es}, Acc) -> lists:foldl(fun value_positions/2, Acc, Es
 value_positions({tfn, Ps, _E, R}, Acc) -> lists:foldl(fun value_positions/2, Acc, Ps ++ [R]);
 value_positions(pure, Acc) -> Acc.
 
+%% The module whose types print unqualified, and its type names that
+%% shadow prelude names, which print qualified (report §11.5).
+-spec set_scope(st(), qname(), [atom()]) -> st().
+set_scope(St, Ns, Shadows) ->
+    St#st{ns = Ns, shadows = Shadows}.
+
+%% Report §11.5: a type name as the module would write it.
+type_name([Name], _St) ->
+    atom_to_list(Name);
+type_name(QName, #st{ns = Ns, shadows = Shadows}) ->
+    Name = lists:last(QName),
+    case lists:droplast(QName) =:= Ns andalso not lists:member(Name, Shadows) of
+        true -> atom_to_list(Name);
+        false -> qname(QName)
+    end.
+
 %% The scheme's own flags apply, whatever state it is printed under.
 -spec format_scheme(#scheme{}, st()) -> string().
 format_scheme(#scheme{vars = Vars, type = T}, #st{vars = Vs} = St) ->
@@ -327,11 +345,11 @@ fmt({tvar, Id}, St, Names) ->
             N = Base ++ Marks,
             {N, Names1#{Id => N}}
     end;
-fmt({tcon, QName, []}, _St, Names) ->
-    {qname(QName), Names};
+fmt({tcon, QName, []}, St, Names) ->
+    {type_name(QName, St), Names};
 fmt({tcon, QName, Args}, St, Names) ->
     {Ss, Names1} = fmt_list(Args, St, Names),
-    {[qname(QName), "(", Ss, ")"], Names1};
+    {[type_name(QName, St), "(", Ss, ")"], Names1};
 fmt({ttuple, Es}, St, Names) ->
     {Ss, Names1} = fmt_list(Es, St, Names),
     {["#(", Ss, ")"], Names1};

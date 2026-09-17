@@ -938,7 +938,7 @@ Options are long: `--name`, or `--name value` for one that takes a value.
 
 ### 11.5 Diagnostics
 
-The compiler shows the three inferred restrictions of §3.9 that the annotation grammar cannot. In a printed type, a variable with the equality constraint is written `a=`, one that is not reply-carrying `a!`: `equal : (a=, a=) -> Bool`, `discard : (a!) -> Unit`. A process-only effect variable prints unchanged; its restriction is stated in the message that rejects a pure instantiation. An error at a rejected call site names the parameter and the origin of its restriction; `ernc --doc` shows restrictions the same way.
+The compiler shows the three inferred restrictions of §3.9 that the annotation grammar cannot. In a printed type, a variable with the equality constraint is written `a=`, one that is not reply-carrying `a!`: `equal : (a=, a=) -> Bool`, `discard : (a!) -> Unit`. A process-only effect variable prints unchanged; its restriction is stated in the message that rejects a pure instantiation. A type name is printed as the module would write it (§4.2): the module's own types and the prelude's unqualified, other modules' qualified, and a local type that shadows a prelude name qualified. An error at a rejected call site names the parameter and the origin of its restriction; `ernc --doc` shows restrictions the same way.
 
 ## Appendix A. Grammar
 

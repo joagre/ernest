@@ -334,7 +334,7 @@ exhaustiveness_test() ->
     ?assertEqual(ok, ok("fn f(xs) = match xs { [] -> 0 | _ :: _ -> 1 }")),
     ?assertEqual(ok, ok("type R = Get(reply : Int) | Stop\n"
                         "fn f(r) = match r { Get(reply = n) -> n | Stop -> 0 }")),
-    ?assertEqual("match on M.R is not exhaustive; missing Get",
+    ?assertEqual("match on R is not exhaustive; missing Get",
                  err("type R = Get(reply : Int) | Stop\nfn f(r) = match r { Stop -> 0 }")).
 
 %%
@@ -516,7 +516,7 @@ abstract_type_test() ->
                  type_of(Stack ++ "export fn use(x, s) = Stack.push(x, s)", use)),
     ?assertEqual("Stack.size is in the signature but not defined",
                  err("abstract type Stack(a) = Stack(List(a)) with { size : (Stack(a)) -> Int }")),
-    ?assertMatch("Stack.size is (a!) -> Bool, not the signature's (M.Stack(a)) -> Int",
+    ?assertMatch("Stack.size is (a!) -> Bool, not the signature's (Stack(a)) -> Int",
                  err("abstract type Stack(a) = Stack(List(a)) with { size : (Stack(a)) -> Int }\n"
                      "fn Stack.size(s) = true")),
     ?assertEqual("Nope is not a type declared in this module", err("fn Nope.f() = 1")).
@@ -614,3 +614,23 @@ local_fn_annotation_before_use_test() ->
     ?assertMatch({ok, _, _, _},
                  check("fn m() -> Int with Never = { let b = 5; let early = k();"
                        " fn k() -> Int = b + 1; early }\n")).
+
+%% report §11.5, §4.2: a type prints as the module writes it: its own and
+%% the prelude's types bare, another module's qualified, a local type
+%% that shadows a prelude name qualified
+type_names_in_messages_test() ->
+    ?assertMatch({error, [{_, _, "the arguments do not fit f: expected (Shape) -> Int, found"
+                           " (Optional(Shape)) -> a"}]},
+                 check("type Shape = Dot\nfn f(s : Shape) -> Int = 1\n"
+                       "fn g() -> Int = f(Some(Dot))\n")),
+    ?assertMatch({error, [{_, _, "the arguments do not fit f: expected (M.Optional) -> Int,"
+                           " found (Optional(Int)) -> a"}]},
+                 check("type Optional = Nothing\nfn f(o : Optional) -> Int = 1\n"
+                       "fn g() -> Int = f(List.head([1]))\n")),
+    {ok, Http} = file:read_file("../../../examples/modules/net/http.ern"),
+    {ok, _, Iface, _} = ern_typecheck:check_string(['Net', 'Http'], Http),
+    {ok, Decls} = ern_parser:parse_string("fn f(r : Net.Http.Request) -> Int = 1\n"
+                                          "fn g() -> Int = f(1)\n"),
+    ?assertMatch({error, [{_, _, "the arguments do not fit f: expected (Net.Http.Request) -> Int,"
+                           " found (Int) -> a"}]},
+                 ern_typecheck:check(['Main'], Decls, [Iface])).

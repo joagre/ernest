@@ -53,7 +53,11 @@
 check(Ns, Decls, Ifaces) ->
     Env0 = lists:foldl(fun add_iface/2, (prelude_env())#env{ns = Ns}, Ifaces),
     try
-        {Env1, Errs1} = declare_types(Decls, Env0),
+        {Env1a, Errs1} = declare_types(Decls, Env0),
+        %% report §11.5: the module's types print unqualified, except those
+        %% that shadow a prelude name
+        Shadows = [N || N <- maps:keys(Env1a#env.local_types), is_map_key([N], Env1a#env.types)],
+        Env1 = Env1a#env{st = ern_types:set_scope(Env1a#env.st, Ns, Shadows)},
         {Typed, Env2, Errs2} = check_values(Decls, Env1),
         Errs3 = check_signatures(Decls, Env2),
         case lists:sort(Errs1 ++ Errs2 ++ Errs3) of

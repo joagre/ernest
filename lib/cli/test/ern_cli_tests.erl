@@ -224,8 +224,8 @@ doc_test() ->
     Expect(<<"### type Shape\n\n    type Shape = Dot | At(x : Int, y : Int)\n\nA shape.\n">>),
     Expect(<<"### abstract type Box\n\n    abstract type Box(a) = Box(List(a)) with {\n"
              "        empty : Box(a);\n        put : (a, Box(a)) -> Box(a)\n    }\n">>),
-    Expect(<<"### let Box.empty\n\n    Box.empty : Shapes.Box(a)\n">>),
-    Expect(<<"### fn Box.put\n\n    Box.put : (a, Shapes.Box(a)) -> Shapes.Box(a)\n\n"
+    Expect(<<"### let Box.empty\n\n    Box.empty : Box(a)\n">>),
+    Expect(<<"### fn Box.put\n\n    Box.put : (a, Box(a)) -> Box(a)\n\n"
              "Put x in the box.\n">>),
     Expect(<<"### fn same\n\n    same : (a=, a=) -> Bool\n">>),
     Expect(<<"### fn twice\n\n    twice : (Int) -> Int\n\nDocumented but private.\n">>),
