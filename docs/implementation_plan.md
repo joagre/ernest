@@ -177,11 +177,11 @@ Local `fn`s in a block are generalized only once every later local `fn` they ref
 
 ### 3.1 Integration (3 days)
 
-- Two escripts, `bin/ernc` and `bin/ern`, committed as escript source files whose `%%!` line puts `lib/*/ebin` on the code path; no escriptize step and no build product under `bin/`. `ernc foo.ern` reads, parses, type-checks, compiles, writes `foo.erc`. `ern [--config-dir <dir>] [--load-path <dir> ...] foo.erc` starts the system processes, binds their addresses to the `Sys.*` top-level references, calls `main()`; `ern --repl` starts a REPL; `ern --create-config-dir <dir>` creates `<dir>/.ernest/` with `ernest.conf` (JSON: this node's address and public key, an empty peer list) and a private key readable only by the owner, and does nothing else. `--config-dir` defaults to `./.ernest`.
+- Two escripts, `bin/ernc` and `bin/ern`, committed as escript source files that put `lib/*/ebin`, found relative to the script, on the code path; no escriptize step and no build product under `bin/`. Options are long only, report §11; short aliases come later as additions. `ernc [--source-root dir] [--out-dir dir] [--emit erl] [--no-clean] foo.ern` reads, parses, type-checks, compiles, writes `foo.erc`; `--emit erl` writes the pretty-printed Erlang source instead. `ern [--config-dir <dir>] [--load-path <dir> ...] [--main Q.name] foo.erc` loads the module and its dependencies by namespace, calls each module's `'$init'/0` dependencies first, starts the system processes, binds their addresses to the `Sys.*` top-level references, calls `main()`; `ern --create-config-dir <dir>` creates `<dir>/.ernest/` with `ernest.conf` (JSON: this node's address and public key, an empty peer list) and a private key readable only by the owner, and does nothing else. `--config-dir` defaults to `./.ernest`. **Deferred, 2026-09-17:** `ern --repl` needs an incremental checker and is MVP 2; until then it errors with "the REPL is not in MVP 1".
 - Error format `file:line:column: text`, one line per error.
 - `lib/cli/src/ern_cli.erl` orchestrates everything; the escripts are thin.
 
-**Output:** `bin/ernc` and `bin/ern`.
+**Output:** `bin/ernc` and `bin/ern`. Done 2026-09-17, with the REPL deferred as above.
 
 ### 3.2 Testing (2 days)
 
@@ -190,6 +190,7 @@ Local `fn`s in a block are generalized only once every later local `fn` they ref
 - These are the tests for the runtime sections of the report, §6.4, §6.5, §6.9, §6.10, §7, §8, §11.2, §11.3, which no unit test cites; `make sections` lists the sections still without a citing test.
 - Smoke test in a top-level `test/`: every listed program compiles and runs, output compared against an expected-output file of the same name. The comparison treats output as a multiset of lines, since the interleaving of prints from different processes (ping-pong) is scheduling-dependent.
 - The web server and the file sync are MVP 2, when `net` exists.
+- Done 2026-09-17: `test/ern_integration_tests.erl`, run by `make test` after the unit tests, with `test/expected/<name>.out`; the program list is in the test module.
 
 ### 3.3 Documentation (3 days)
 

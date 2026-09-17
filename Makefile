@@ -1,15 +1,20 @@
 # Top-level build. Each application under lib/ has its own src/Makefile;
 # this one just runs them in order.
 
-APPS = utils lexer parser type_system runtime compiler
+APPS = utils lexer parser type_system runtime compiler cli
 
-all test clean:
+all:
 	@for app in $(APPS); do $(MAKE) -C lib/$$app/src $@ || exit 1; done
+
+# The unit tests of every application, then the integration tests in test/.
+test clean:
+	@for app in $(APPS); do $(MAKE) -C lib/$$app/src $@ || exit 1; done
+	@$(MAKE) -C test $@
 
 # Report sections no test cites (every test function carries a `%% report §x.y` line).
 sections:
 	@grep -oE '^#{2,3} [0-9]+\.[0-9]+' ernest_report.md | sed 's/^#* //' | \
-	  while read s; do grep -q "§$$s\b" lib/*/test/*.erl || echo "§$$s"; done
+	  while read s; do grep -q "§$$s\b" lib/*/test/*.erl test/*.erl || echo "§$$s"; done
 
 # Emacs backup (foo~), auto-save (#foo#), and lock (.#foo) files, anywhere.
 clean-emacs:

@@ -1,6 +1,7 @@
 -module(ern_compiler_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("type_system/include/ern_types.hrl").
 
 %%
 %% Helpers
@@ -127,13 +128,27 @@ examples_test_() ->
              end} || {Base, Out} <- Expected].
 
 %% report §11.1, plan 2.4: the interface travels in the BEAM chunk ErnI
+%% with the source hash and the dependencies' interface hashes, and its
+%% hash does not depend on the numbering of type variables
 iface_chunk_test() ->
     {Ns, Bin} = example("stack"),
     {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Bin),
-    {ok, 'ernest@stack', Beam} = ern_compiler:compile(Ns, Typed, Iface, Env),
-    {ok, {_, [{"ErnI", Chunk}]}} = beam_lib:chunks(Beam, ["ErnI"]),
-    {iface, ['Stack'], _Types, Values} = binary_to_term(Chunk),
-    ?assert(lists:keymember(['Stack', 'Stack', push], 1, Values)).
+    Build = #{source_hash => <<"s">>, deps => [{['Net', 'Http'], <<"h">>}]},
+    {ok, 'ernest@stack', Beam} = ern_compiler:compile(Ns, Typed, Iface, Env, Build),
+    {ok, #{iface := Read, source_hash := <<"s">>, deps := [{['Net', 'Http'], <<"h">>}]}} =
+        ern_compiler:read_interface(Beam),
+    ?assertEqual(['Stack'], Read#iface.namespace),
+    ?assert(is_map_key(['Stack', 'Stack', push], Read#iface.values)),
+    ?assertEqual(ern_compiler:iface_hash(Iface), ern_compiler:iface_hash(Read)),
+    {ok, _, Iface2, _} = ern_typecheck:check_string(Ns, <<"fn f(x) = x\n", Bin/binary>>),
+    ?assertEqual(ern_compiler:iface_hash(Iface), ern_compiler:iface_hash(Iface2)).
+
+%% report §11.1: --emit erl gives the module as Erlang source
+erl_source_test() ->
+    {Ns, Bin} = example("hello"),
+    {ok, Typed, _, Env} = ern_typecheck:check_string(Ns, Bin),
+    Src = unicode:characters_to_binary(ern_compiler:erl_source(Ns, Typed, Env)),
+    ?assertMatch({_, _}, binary:match(Src, <<"-module(ernest@hello).">>)).
 
 %% plan 2.4: the module atom is ernest@ and the path with @ for /
 module_atom_test() ->

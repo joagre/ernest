@@ -1,0 +1,9 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%% The Ernest runner, report §11.2. Thin: puts lib/*/ebin, found relative
+%% to this script, on the code path and calls ern_cli.
+
+main(Args) ->
+    Lib = filename:join([filename:dirname(filename:absname(escript:script_name())), "..", "lib"]),
+    code:add_pathsa(filelib:wildcard(filename:join([Lib, "*", "ebin"]))),
+    ern_cli:main(ern, Args).

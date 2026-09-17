@@ -1,5 +1,7 @@
 %% The compiler: typed AST to Erlang abstract format, then to a BEAM module
-%% with the interface as the chunk "ErnI". The two tables of the
+%% with the interface as the chunk "ErnI" (report §11.1, plan 2.4): the
+%% canonical interface, a hash of the source, and per dependency the hash
+%% of the interface compiled against. The two tables of the
 %% implementation plan, Phase 2.1, are its specification; values follow
 %% report §8.4.
 %%
@@ -9,7 +11,8 @@
 %% and `let p <- e` becomes a case (report §5.5).
 -module(ern_compiler).
 
--export([compile/4, forms/3, module_atom/1, format_error/1]).
+-export([compile/4, compile/5, forms/3, erl_source/3, read_interface/1, iface_hash/1,
+         module_atom/1, format_error/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("type_system/include/ern_types.hrl").
@@ -29,12 +32,22 @@
 %% Entry points
 %%
 
+-type chunk() :: #{iface := #iface{}, source_hash := binary(), deps := [{[atom()], binary()}]}.
+
 -spec compile([atom()], [tuple()], #iface{}, ern_typecheck:env()) ->
           {ok, atom(), binary()} | {error, [error()]}.
 compile(Ns, Decls, Iface, Env) ->
+    compile(Ns, Decls, Iface, Env, #{source_hash => <<>>, deps => []}).
+
+%% Build: the source hash and the dependencies' interface hashes go into
+%% the chunk beside the interface.
+-spec compile([atom()], [tuple()], #iface{}, ern_typecheck:env(),
+              #{source_hash := binary(), deps := [{[atom()], binary()}]}) ->
+          {ok, atom(), binary()} | {error, [error()]}.
+compile(Ns, Decls, Iface, Env, Build) ->
     try
         Forms = forms(Ns, Decls, Env),
-        Chunk = term_to_binary(canonical_iface(Iface)),
+        Chunk = term_to_binary(Build#{iface => canonical_iface(Iface)}),
         case compile:forms(Forms, [return_errors, debug_info, {extra_chunks, [{?CHUNK, Chunk}]}]) of
             {ok, Mod, Bin} -> {ok, Mod, Bin};
             {ok, Mod, Bin, _Warnings} -> {ok, Mod, Bin};
@@ -60,6 +73,28 @@ forms(Ns, Decls, Env) ->
                                                     || {F, A} <- Exports])])],
     Functions = lists:append(Funs) ++ Init ++ lists:reverse(Cx2#cx.lifted),
     erl_syntax:revert_forms(Attrs ++ Functions).
+
+%% The module as Erlang source, for --emit erl (report §11.1).
+-spec erl_source([atom()], [tuple()], ern_typecheck:env()) -> iolist().
+erl_source(Ns, Decls, Env) ->
+    Forms = forms(Ns, Decls, Env),
+    [erl_prettypr:format(erl_syntax:form_list(Forms)), "\n"].
+
+%% The chunk of a compiled module, the interface as the checker takes it.
+-spec read_interface(binary() | file:filename()) -> {ok, chunk()} | {error, string()}.
+read_interface(Beam) ->
+    case beam_lib:chunks(Beam, [binary_to_list(?CHUNK)]) of
+        {ok, {_, [{_, Chunk}]}} ->
+            #{iface := {iface, Ns, Types, Values}} = Map = binary_to_term(Chunk),
+            {ok, Map#{iface => #iface{namespace = Ns, types = maps:from_list(Types),
+                                      values = maps:from_list(Values)}}};
+        {error, beam_lib, Reason} ->
+            {error, lists:flatten(beam_lib:format_error(Reason))}
+    end.
+
+-spec iface_hash(#iface{}) -> binary().
+iface_hash(Iface) ->
+    crypto:hash(sha256, term_to_binary(canonical_iface(Iface))).
 
 %% Report §4.2, plan 2.4: the path with @ for / and the prefix ernest@.
 -spec module_atom([atom()]) -> atom().

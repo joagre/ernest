@@ -21,3 +21,5 @@ erl_crash.dump
 # Local env
 .env
 .env.local
+*.erc
+/test/build/

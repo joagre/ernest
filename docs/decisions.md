@@ -2413,6 +2413,10 @@ Writing the runtime needed two things §6.9 had not said. `Down(reason, function
 
 Two sentences in §11.1, prompted by a reviewer's question about compile times. The module dependency graph is acyclic, and a cycle is a compile-time error: dependency-order compilation presumed it, and §8.5's load-time cycle check is thereby confined to initializers. And `ernc` recompiles a module when its source or the interface of a dependency changed, not when a dependency's file is newer, so a body-only edit does not cascade through dependents; this is OCaml's `.cmi` fingerprint and Rust's, and it is what makes separate compilation worth having. The mechanism, hashes stored in the `.erc` beside the interface and a canonical form for interfaces, is in the plan, not the report.
 
+## Long Options and `--emit erl`, 2026-09-17
+
+§11 gets one sentence: options are long, `--name value`. The report had `-I` and `-o` on `ernc` and long names everywhere else; `-I` means "add an include path" in every C-family compiler, which the source root is not, so the least surprising spelling is `--source-root`, and `--out-dir` is what rustc and the TypeScript compiler call the mirrored output directory, matching the report's own "build-dir". Short aliases can be added later without changing anything. `--emit erl` writes the module's Erlang source instead of the `.erc`, in rustc's `--emit` shape, for reading the compiler's output; `--doc` stays its own mode because it writes to stdout, not into the build tree.
+
 ## Later
 
 Planned or considered, not in the language today.

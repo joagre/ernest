@@ -4,7 +4,7 @@ A functional language for explicit process protocols. Mailbox effects and linear
 
 ## Status
 
-Design complete for MVP 1 (single-node subset). The chain is done in Erlang: lexer, parser, type checker, runtime, and the compiler to BEAM, with every MVP 1 example program under `examples/` compiled and run as a test. Next are the `ernc` and `ern` programs. The compiler is `ernc`; the runner is `ern`.
+Design complete for MVP 1 (single-node subset). The toolchain is done in Erlang: lexer, parser, type checker, runtime, the compiler to BEAM, and the two programs `ernc` and `ern` under `bin/`, with every MVP 1 example program under `examples/` compiled and run as a test.
 
 ## Reading order
 
@@ -69,9 +69,23 @@ Erlang/OTP 27 and GNU make. No rebar3, no OTP behaviours.
 
 ```
 make              compile every application into its ebin/
-make test         run the EUnit tests
+make test         run the EUnit tests, then the integration tests in test/
 make clean        remove build products
 make clean-emacs  remove Emacs backup, auto-save, and lock files
+```
+
+## Using
+
+`bin/ernc` compiles, `bin/ern` runs; both take long options only (report §11).
+
+```
+bin/ernc examples/hello.ern                  # writes examples/hello.erc
+bin/ern examples/hello.erc                   # hello, world
+bin/ernc --out-dir build examples/modules    # a source tree, in dependency order
+bin/ern build/main.erc                       # loads net/http.erc by namespace
+bin/ernc --emit erl examples/hello.ern       # the Erlang source, for reading
+bin/ernc --doc examples/ets.ern              # doc comments as Markdown
+bin/ern --create-config-dir .                # .ernest/ with a key pair
 ```
 
 ## License

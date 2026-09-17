@@ -712,7 +712,7 @@ GET /
 Or in directory mode — compile the whole tree and put outputs under `build/`:
 
 ```
-$ ernc -o build .                # walks the source tree, writes build/net/http.erc and build/main.erc
+$ ernc --out-dir build .         # walks the source tree, writes build/net/http.erc and build/main.erc
 $ ern --load-path build build/main.erc
 GET /
 ```
