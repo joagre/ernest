@@ -193,6 +193,7 @@ Local `fn`s in a block are generalized only once every later local `fn` they ref
 - Done 2026-09-17: `test/ern_integration_tests.erl`, run by `make test` after the unit tests, with `test/expected/<name>.out`; the program list is in the test module.
 - Golden files, 2026-09-17: `test/golden/*.erl` holds the Erlang source the compiler emits for every MVP 1 example, as `--emit erl` writes it; the compiler's tests compare against them and write a `.new` beside a differing file; `make golden` rewrites them after an intended emitter change. The hand-written targets under `test/target/` remain the two tests that are not self-referential.
 - Sections `make sections` lists by nature, 2026-09-17: §4.1, §7.1, §7.2 define terms and have nothing to run; §3.11, §8.3, §8.7 are MVP 3.
+- Thin sections, 2026-09-17: `make coverage` lists §5.7, §6.5, §6.10, §6.8, §9.5, and §7.3 with one citing test each. Before 3.4, read each against its tests and add what is missing.
 
 ### 3.3 Documentation (3 days)
 
