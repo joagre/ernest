@@ -9,14 +9,9 @@
 // Assumptions. ClockMsg is the report's; Ordering is in the prelude.
 // Sys.stdout and Sys.clock are runtime references (report §8); this program
 // additionally assumes the runtime provides Sys.fs : Address(FsMsg), with
-// FsMsg, FsError, and Entry as declared below. Other assumptions:
-//
-// - type Path = Path(String), a filesystem path with helpers
-//   Path.join : (Path, Path) -> Path, Path.toString : (Path) -> String, and
-//   Path.withSuffix : (Path, String) -> Path.
-// - Mtime, an abstract modification time, with
-//   Mtime.compare : (Mtime, Mtime) -> Ordering.
-// - FsError.toString : (FsError) -> String for rendering error messages.
+// FsMsg, FsError, and Entry as declared below. Path, Mtime, and their helpers
+// are declared below with todo bodies; a runtime would provide them. main runs
+// syncer a itself so the program keeps running (report §8.6).
 //
 // Needs MVP 2 or later (Sys.fs, Map). Not compiled by MVP 1.
 //
@@ -26,12 +21,20 @@
 //
 
 type FsMsg
-    = List(path : Path, reply : Address(Either(FsError, List(Entry))))
+    = ListDir(path : Path, reply : Address(Either(FsError, List(Entry))))
     | Read(path : Path, reply : Reply(Either(FsError, Bytes)))
     | Write(path : Path, bytes : Bytes, reply : Reply(Either(FsError, Unit)))
 
 type FsError = NotFound | Denied | Io(String)
 type Entry = Entry(path : Path, mtime : Mtime)
+type Path = Path(String)
+type Mtime = Mtime(Int)
+
+fn Path.join(dir : Path, p : Path) -> Path = todo("on paper")
+fn Path.toString(p : Path) -> String = todo("on paper")
+fn Path.withSuffix(p : Path, suffix : String) -> Path = todo("on paper")
+fn Mtime.compare(a : Mtime, b : Mtime) -> Ordering = todo("on paper")
+fn FsError.toString(e : FsError) -> String = todo("on paper")
 
 //
 // Types
@@ -51,11 +54,12 @@ type SyncMsg
 // Program
 //
 
-export fn main() -> Unit with Never = {
-    let a = spawn(Local, fn() = start(Path("a")));
+export fn main() -> Unit with SyncMsg = {
+    let me = self();
     let b = spawn(Local, fn() = start(Path("b")));
-    send(a, Link(b));
-    send(b, Link(a))
+    send(b, Link(me));
+    send(me, Link(b));
+    start(Path("a"))
 }
 
 //
@@ -71,7 +75,7 @@ fn start(dir : Path) -> Unit with SyncMsg = receive {
 fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> Unit with SyncMsg =
     receive {
         Tick -> {
-            send(Sys.fs, List(path = dir, reply = via(Listed, self())));
+            send(Sys.fs, ListDir(path = dir, reply = via(Listed, self())));
             listing(dir, peer, seen)
         }
       | Put(path = p, mtime = m, bytes = bytes, ack = ack) -> {
@@ -82,7 +86,7 @@ fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> Unit 
       | Link(_) -> syncer(dir, peer, seen) // already connected
     }
 
-// Between List and Listed: accept Put, but not Tick.
+// Between ListDir and Listed: accept Put, but not Tick.
 fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> Unit with SyncMsg = {
     let tick = fn() = send(Sys.clock, After(ms = 5000, to = via(fn(_) = Tick, self())));
     receive {
@@ -156,7 +160,7 @@ fn push(peer : Address(SyncMsg), p : Path, m : Mtime, bytes : Bytes) -> Unit wit
     match Address.call(peer, fn(r) = Put(path = p, mtime = m, bytes = bytes, ack = r), 30000) {
         Some(Stored) -> Unit
       | Some(Conflict) -> Io.println("conflict: " <> Path.toString(p))
-      | Some(Failed(e)) -> Io.println("the peer failed: " <> Path.toString(p))
+      | Some(Failed(_)) -> Io.println("the peer failed: " <> Path.toString(p))
       | None -> Io.println("the peer is not answering: " <> Path.toString(p))
     }
 

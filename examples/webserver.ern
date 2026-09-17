@@ -8,6 +8,7 @@
 // (report §8); this program additionally assumes the runtime provides
 // Sys.net : Address(NetMsg), with NetMsg, ConnMsg, SockMsg, and Port as
 // declared below. The Ets module is the foreign library of report Appendix D.
+// main runs the acceptor itself so the program keeps running (report §8.6).
 //
 // Needs MVP 2 or later (Sys.net, foreign fn, abstract types). Not compiled by
 // MVP 1.
@@ -21,7 +22,6 @@ type Port = Port(Int)
 type NetMsg = Listen(port : Port, acceptor : Address(ConnMsg))
 type ConnMsg = Conn(Address(SockMsg))
 type SockMsg = Read(reply : Reply(Bytes)) | Write(Bytes) | Close
-type Tick = Tick
 
 //
 // Types
@@ -31,6 +31,7 @@ type Request = Request(method : String, path : String, headers : List(#(String, 
 type Response = Response(status : StatusCode, headers : List(#(String, String)), body : String)
 type ParseError = BadEncoding | BadRequestLine | BadHeader(String)
 type Session = Session(Int) // number of visits
+type Tick = Tick
 
 abstract type StatusCode = StatusCode(Int) with {
     ok : StatusCode;
@@ -48,11 +49,11 @@ abstract type SessionId = SessionId(String) with {
 // Program
 //
 
-export fn main() -> Unit with Never = {
+export fn main() -> Unit with ConnMsg = {
     let sessions = Ets.new();
     let _ = spawn(Local, fn() = sweeper(sessions));
-    let acc = spawn(Local, fn() = acceptor(sessions, 0));
-    send(Sys.net, Listen(port = Port(8080), acceptor = acc))
+    send(Sys.net, Listen(port = Port(8080), acceptor = self()));
+    acceptor(sessions, 0)
 }
 
 //
@@ -125,7 +126,7 @@ fn headerLines(lines : List(String)) -> Either(ParseError, List(#(String, String
     todo("on paper")
 fn render(r : Response) -> Bytes = todo("on paper")
 fn cookie(r : Request, name : String) -> Optional(String) = todo("on paper")
-fn withCookie(name : String, value : String, r : Response) -> Response = todo("on paper")
+fn withCookie(r : Response, name : String, value : String) -> Response = todo("on paper")
 
 //
 // Abstract-type definitions

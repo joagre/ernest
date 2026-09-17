@@ -12,7 +12,8 @@
 // runtime's addition. This program assumes an additional runtime reference
 // Sys.keys : Address(KeyMsg), with KeyMsg and Key as declared below, and a
 // stdlib Random module providing a pure generator
-// Random.next : (Seed) -> #(Int, Seed).
+// Random.next : (Seed) -> #(Int, Seed). main runs the game loop itself so the
+// program keeps running (report §8.6).
 //
 // Needs MVP 2 or later (Sys.keys, Map, Random). Not compiled by MVP 1.
 //
@@ -22,7 +23,7 @@
 //
 
 type KeyMsg = Subscribe(Address(Key))
-type Key = Up | Down | Left | Right | Quit
+type Key = KeyUp | KeyDown | KeyLeft | KeyRight | KeyQuit
 type Seed = Seed(Int)
 
 //
@@ -35,7 +36,8 @@ type Pos = Pos(x : Int, y : Int)
 type Player = Player(id : Int, body : List(Pos), dir : Dir, score : Int, alive : Bool)
 
 type World = World(
-    w : Int, h : Int,
+    w : Int,
+    h : Int,
     players : Map(Int, Player),
     apples : List(Pos),
     seed : Seed,
@@ -50,12 +52,13 @@ type GameMsg = Tick | In(Input)
 // Program
 //
 
-export fn main() -> Unit with Never = {
+export fn main() -> Unit with GameMsg = {
     let world0 =
         World(w = 40, h = 20, players = Map.empty, apples = [], seed = Seed(42), tick = 0);
-    let g = spawn(Local, fn() = game(addPlayer(world0, 1)));
-    let p1 = spawn(Local, fn() = player(1, g));
-    send(Sys.keys, Subscribe(p1))
+    let me = self();
+    let p1 = spawn(Local, fn() = player(1, me));
+    send(Sys.keys, Subscribe(p1));
+    game(addPlayer(world0, 1))
 }
 
 //
@@ -83,11 +86,11 @@ fn drain(world : World, n : Int) -> World with GameMsg =
 
 // One process per player: translates keys into Input.
 fn player(id : Int, game : Address(GameMsg)) -> Unit with Key = receive {
-    Up -> { send(game, In(Turn(id = id, dir = N))); player(id, game) }
-  | Down -> { send(game, In(Turn(id = id, dir = S))); player(id, game) }
-  | Left -> { send(game, In(Turn(id = id, dir = W))); player(id, game) }
-  | Right -> { send(game, In(Turn(id = id, dir = E))); player(id, game) }
-  | Quit -> send(game, In(Leave(id)))
+    KeyUp -> { send(game, In(Turn(id = id, dir = N))); player(id, game) }
+  | KeyDown -> { send(game, In(Turn(id = id, dir = S))); player(id, game) }
+  | KeyLeft -> { send(game, In(Turn(id = id, dir = W))); player(id, game) }
+  | KeyRight -> { send(game, In(Turn(id = id, dir = E))); player(id, game) }
+  | KeyQuit -> send(game, In(Leave(id)))
 }
 
 //
@@ -103,8 +106,9 @@ fn step(world : World) -> World = {
       | Player(body = head :: rest, dir = d, score = s) -> {
             let next = move(w, h, head, d);
             let ate = List.contains(apples, next);
-            let #(body, s2) = if ate then #(next :: head :: rest, s + 1)
-                             else #(next :: head :: List.dropLast(rest), s);
+            let #(body, s2) =
+                if ate then #(next :: head :: rest, s + 1)
+                else #(next :: head :: List.dropLast(rest), s);
             let p2 = Player(..p, body = body, score = s2);
             #(Map.put(acc, Player.id(p), p2), List.remove(apples, next))
         }
@@ -151,9 +155,9 @@ fn render(world : World) -> String = todo("grid to text, one line per y")
 //
 
 fn move(w : Int, h : Int, Pos(x = x, y = y) : Pos, d : Dir) -> Pos = match d {
-    N -> Pos(x = x, y = (y - 1) % h)
+    N -> Pos(x = x, y = (y + h - 1) % h)
   | S -> Pos(x = x, y = (y + 1) % h)
-  | W -> Pos(x = (x - 1) % w, y = y)
+  | W -> Pos(x = (x + w - 1) % w, y = y)
   | E -> Pos(x = (x + 1) % w, y = y)
 }
 
