@@ -1,0 +1,146 @@
+-module(ern_lexer_tests).
+
+-include_lib("eunit/include/eunit.hrl").
+
+%% Token list without positions and without the trailing eof.
+toks(Text) ->
+    {ok, Tokens} = ern_lexer:tokenize(Text),
+    [strip(T) || T <- Tokens, element(1, T) =/= eof].
+
+strip({Cat, _Pos, Value}) -> {Cat, Value};
+strip({Sym, _Pos}) -> Sym.
+
+err(Text) ->
+    {error, Error} = ern_lexer:tokenize(Text),
+    Error.
+
+reserved_words_test() ->
+    ?assertEqual([type, abstract, with, foreign, match, 'when', 'receive', 'after', as,
+                  'if', then, 'else', fn, 'let', export],
+                 toks("type abstract with foreign match when receive after as "
+                      "if then else fn let export")).
+
+literals_true_false_test() ->
+    ?assertEqual([{bool, true}, {bool, false}], toks("true false")).
+
+identifiers_test() ->
+    ?assertEqual([{ident, x}, {ident, foo_bar1}, {ident, '_x'}, '_', {ident, tryIt}],
+                 toks("x foo_bar1 _x _ tryIt")).
+
+typenames_test() ->
+    ?assertEqual([{typename, 'Int'}, {typename, 'Http_server'}, {typename, 'T1'}],
+                 toks("Int Http_server T1")).
+
+qualified_name_test() ->
+    ?assertEqual([{typename, 'Net'}, '.', {typename, 'Http'}, '.', {ident, parse}],
+                 toks("Net.Http.parse")),
+    ?assertEqual([{typename, 'Int'}, '.', '+'], toks("Int.+")).
+
+integers_test() ->
+    ?assertEqual([{int, 0}, {int, 42}, {int, 123456789012345678901234567890}],
+                 toks("0 42 123456789012345678901234567890")).
+
+floats_test() ->
+    ?assertEqual([{float, 1.0}, {float, 3.25}, {float, 1.0e-9}, {float, 2.5e3},
+                  {float, 1.0e9}],
+                 toks("1.0 3.25 1.0e-9 2.5E+3 1.0e9")).
+
+int_then_dots_test() ->
+    ?assertEqual([{int, 1}, '..', {int, 2}], toks("1..2")),
+    ?assertEqual([{int, 1}, '.', {ident, x}], toks("1.x")).
+
+negative_is_prefix_operator_test() ->
+    ?assertEqual(['-', {int, 1}], toks("-1")).
+
+chars_test() ->
+    ?assertEqual([{char, $a}, {char, $\n}, {char, $'}, {char, $\\}, {char, 16#1F600},
+                  {char, $"}],
+                 toks("'a' '\\n' '\\'' '\\\\' '\\u{1F600}' '\"'")).
+
+strings_test() ->
+    ?assertEqual([{string, <<"hello, world">>}], toks("\"hello, world\"")),
+    ?assertEqual([{string, <<"a\nb\r\tc\"'\\">>}], toks("\"a\\nb\\r\\tc\\\"'\\\\\"")),
+    ?assertEqual([{string, <<"é"/utf8>>}], toks("\"\\u{e9}\"")),
+    ?assertEqual([{string, <<"ö"/utf8>>}], toks(<<"\"ö\""/utf8>>)),
+    ?assertEqual([{string, <<>>}], toks("\"\"")).
+
+symbols_max_munch_test() ->
+    ?assertEqual(['#(', '<<', '>>', '<-', '->', '==', '!=', '<=', '>=', '&&', '||',
+                  '|>', '<>', '::', '..'],
+                 toks("#( << >> <- -> == != <= >= && || |> <> :: ..")),
+    ?assertEqual(['(', ')', '{', '}', '[', ']', ',', ';', ':', '=', '|', '.',
+                  '+', '-', '*', '/', '%', '<', '>'],
+                 toks("( ) { } [ ] , ; : = | . + - * / % < >")),
+    ?assertEqual([{ident, x}, '<-', {ident, y}], toks("x<-y")),
+    ?assertEqual([{ident, x}, '<', '-', {ident, y}], toks("x< -y")),
+    ?assertEqual([{ident, a}, '||', {ident, b}], toks("a||b")),
+    ?assertEqual([{ident, a}, '|', {ident, b}], toks("a|b")).
+
+line_comment_test() ->
+    ?assertEqual([{ident, a}, {ident, b}], toks("a // comment\nb")),
+    ?assertEqual([{ident, a}], toks("a // comment at eof")).
+
+four_slashes_is_a_plain_comment_test() ->
+    ?assertEqual([{ident, a}], toks("//// ruler\na")).
+
+block_comment_test() ->
+    ?assertEqual([{ident, a}, {ident, b}], toks("a /* x */ b")),
+    ?assertEqual([{ident, a}, {ident, b}], toks("a /* x /* nested */ still */ b")),
+    ?assertEqual([{ident, a}, {ident, b}], toks("a /* multi\nline\n*/ b")),
+    ?assertEqual({1, 3, "unterminated block comment"}, err("a /* x /* y */")).
+
+doc_block_test() ->
+    ?assertEqual([{doc, <<"one\ntwo">>}, {ident, a}], toks("/// one\n/// two\na")),
+    ?assertEqual([{doc, <<"one">>}, {doc, <<"two">>}, {ident, a}],
+                 toks("/// one\n\n/// two\na")),
+    ?assertEqual([{doc, <<"x">>}, {ident, a}], toks("  /// x\r\n  a")),
+    ?assertEqual([{doc, <<"no space">>}], toks("///no space")),
+    ?assertEqual([{doc, <<"">>}], toks("///")).
+
+positions_test() ->
+    {ok, Tokens} = ern_lexer:tokenize("fn main() =\n    x"),
+    ?assertEqual([{fn, {1, 1}}, {ident, {1, 4}, main}, {'(', {1, 8}}, {')', {1, 9}},
+                  {'=', {1, 11}}, {ident, {2, 5}, x}, {eof, {2, 6}}],
+                 Tokens).
+
+position_after_multiline_things_test() ->
+    {ok, [_, {ident, {3, 4}, b} | _]} = ern_lexer:tokenize("a /* x\ny\n*/ b"),
+    {ok, [{string, {1, 1}, _}, {ident, {1, 11}, b} | _]} = ern_lexer:tokenize("\"a\\u{e9}\" b"),
+    {ok, [{doc, {1, 1}, _}, {ident, {3, 1}, a} | _]} = ern_lexer:tokenize("/// x\n/// y\na"),
+    {ok, [{char, {1, 1}, _}, {ident, {1, 6}, b} | _]} = ern_lexer:tokenize("'\\n' b").
+
+bom_is_stripped_test() ->
+    ?assertEqual([{ident, a}], toks([16#FEFF | "a"])).
+
+errors_test() ->
+    ?assertEqual({1, 1, "unterminated string literal"}, err("\"abc")),
+    ?assertEqual({1, 5, "newline in string literal; use \\n"}, err("\"abc\ndef\"")),
+    ?assertEqual({1, 2, "unknown escape \\q"}, err("\"\\q\"")),
+    ?assertEqual({1, 2, "\\u{D800} is not a Unicode scalar value"}, err("\"\\u{D800}\"")),
+    ?assertEqual({1, 2, "\\u{110000} is not a Unicode scalar value"}, err("\"\\u{110000}\"")),
+    ?assertEqual({1, 2, "\\u{ needs one to six hex digits followed by }"},
+                 err("\"\\u{1234567}\"")),
+    ?assertEqual({1, 2, "\\u{ needs one to six hex digits"}, err("\"\\u{}\"")),
+    ?assertEqual({1, 1, "empty char literal"}, err("''")),
+    ?assertEqual({1, 1, "unterminated char literal"}, err("'ab'")),
+    ?assertEqual({1, 1, "unterminated char literal"}, err("'a")),
+    ?assertEqual({2, 3, "illegal character '@'"}, err("a\n  @")),
+    ?assertEqual({1, 1, "illegal character 'é'"}, err(<<"é"/utf8>>)).
+
+format_error_test() ->
+    ?assertEqual("3:7: illegal character '@'",
+                 ern_lexer:format_error({3, 7, "illegal character '@'"})).
+
+hello_program_test() ->
+    Src = "export fn main() -> Unit with Never = Io.println(\"hello, world\")",
+    ?assertEqual([export, fn, {ident, main}, '(', ')', '->', {typename, 'Unit'}, with,
+                  {typename, 'Never'}, '=', {typename, 'Io'}, '.', {ident, println}, '(',
+                  {string, <<"hello, world">>}, ')'],
+                 toks(Src)).
+
+receive_clause_test() ->
+    Src = "receive {\n    Inc(k) -> counter(n + k)\n  | after 0 -> world\n}",
+    ?assertEqual(['receive', '{', {typename, 'Inc'}, '(', {ident, k}, ')', '->',
+                  {ident, counter}, '(', {ident, n}, '+', {ident, k}, ')', '|', 'after',
+                  {int, 0}, '->', {ident, world}, '}'],
+                 toks(Src)).
