@@ -5,7 +5,7 @@
 %% backtracking. Errors are thrown and returned as {error, {Line, Col, Msg}}.
 -module(ern_parser).
 
--export([parse/1, parse_string/1, parse_expr/1, format_error/1]).
+-export([parse/1, parse_string/1, parse_expr/1, parse_type/1, format_error/1]).
 
 -export_type([error/0]).
 
@@ -42,6 +42,25 @@ parse_expr(Text) ->
                 case Rest of
                     [{eof, _}] -> {ok, E};
                     [T | _] -> fail(pos(T), "expected end of input instead of " ++ describe(T))
+                end
+            catch
+                throw:{parse_error, {L, C}, Msg} -> {error, {L, C, Msg}}
+            end;
+        {error, _} = E ->
+            E
+    end.
+
+%% One type, for the prelude tables and tests.
+-spec parse_type(unicode:chardata()) -> {ok, tuple()} | {error, error()}.
+parse_type(Text) ->
+    case ern_lexer:tokenize(Text) of
+        {ok, Tokens} ->
+            try
+                {T, Rest} = type(Tokens),
+                case Rest of
+                    [{eof, _}] -> {ok, T};
+                    [Tok | _] -> fail(pos(Tok), "expected end of input instead of "
+                                                ++ describe(Tok))
                 end
             catch
                 throw:{parse_error, {L, C}, Msg} -> {error, {L, C, Msg}}
