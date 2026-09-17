@@ -233,9 +233,10 @@ misplaced_module_test() ->
     ?assertEqual(1, ern_cli:ern([Dir ++ "/build/http.erc"])),
     ?assertEqual(1, ern_cli:ern([Dir ++ "/build/nothing.erc"])).
 
-%% report §11.2, plan 3.1: the REPL is not in MVP 1
-repl_test() ->
-    ?assertEqual(1, ern_cli:ern(["--repl"])).
+%% report §11.2, plan 3.1: the shell is not in MVP 1, with or without a file
+shell_test() ->
+    ?assertEqual(1, ern_cli:ern(["--shell"])),
+    ?assertEqual(1, ern_cli:ern(["--shell", "--load-path", ".", example("hello.ern")])).
 
 %% report §11.3, Appendix C: the configuration directory with an empty
 %% peer list and a private key readable only by its owner; a second

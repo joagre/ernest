@@ -319,7 +319,7 @@ ern_options() ->
       "the configuration directory; default ./.ernest"},
      {load_path, undefined, "load-path", string, "a root of compiled modules; may be repeated"},
      {main, undefined, "main", string, "the entry point, a qualified exported function"},
-     {repl, undefined, "repl", undefined, "start a read-evaluate-print loop"},
+     {shell, undefined, "shell", undefined, "add an interactive shell to the running program"},
      {create_config_dir, undefined, "create-config-dir", string,
       "create dir/.ernest with a configuration and a private key, and stop"},
      {help, undefined, "help", undefined, "print this text"},
@@ -331,9 +331,9 @@ ern(Args) ->
 
 ern_main(Args) ->
     {Opts, Rest} = options(ern, ern_options(), Args, "file.erc"),
-    case {proplists:get_value(create_config_dir, Opts), lists:member(repl, Opts), Rest} of
+    case {proplists:get_value(create_config_dir, Opts), lists:member(shell, Opts), Rest} of
         {Dir, _, []} when Dir =/= undefined -> create_config_dir(Dir);
-        {undefined, true, []} -> fail("the REPL is not in MVP 1");
+        {undefined, true, _} -> fail("the shell is not in MVP 1");
         {undefined, false, [File]} -> run(Opts, File);
         _ -> fail("one .erc file argument is required")
     end.

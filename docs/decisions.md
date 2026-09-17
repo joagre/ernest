@@ -2417,6 +2417,8 @@ Two sentences in §11.1, prompted by a reviewer's question about compile times. 
 
 §11 gets one sentence: options are long, `--name value`. The report had `-I` and `-o` on `ernc` and long names everywhere else; `-I` means "add an include path" in every C-family compiler, which the source root is not, so the least surprising spelling is `--source-root`, and `--out-dir` is what rustc and the TypeScript compiler call the mirrored output directory, matching the report's own "build-dir". Short aliases can be added later without changing anything. `--emit erl` writes the module's Erlang source instead of the `.erc`, in rustc's `--emit` shape, for reading the compiler's output; `--doc` stays its own mode because it writes to stdout, not into the build tree.
 
+`--repl` became `--shell` the same day: it is one more option of `ern`, given with any of the others, and what it adds is a shell process in the running program, as the Erlang shell is a process in a running node, not a loop that replaces the program. A bare `ern --shell` is the special case with nothing loaded.
+
 ## Later
 
 Planned or considered, not in the language today.

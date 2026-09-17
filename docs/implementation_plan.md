@@ -1,6 +1,6 @@
 # Ernest Compiler: Implementation Plan
 
-Target architecture: an Erlang-based compiler, `ernc`, that reads `.ern` files, type-checks them, and produces `.erc` files (BEAM under the hood), and a runner, `ern`, that starts a program or a REPL. One person, about eight working weeks for MVP 1 according to the budget below. The language was called Actorson until 12 September 2026.
+Target architecture: an Erlang-based compiler, `ernc`, that reads `.ern` files, type-checks them, and produces `.erc` files (BEAM under the hood), and a runner, `ern`, that starts a program, with a shell on request. One person, about eight working weeks for MVP 1 according to the budget below. The language was called Actorson until 12 September 2026.
 
 **MVP 1 (this plan):** prove the chain parser, types, BEAM, with the report's language, syntax, and semantics unchanged. MVP 1 accepts a subset and checks less: `Int` but no `Float`, no ownership rule for abstract types, no foreign code, no `net`, no distribution — `spawn(Peer, ...)` and `remote` are MVP 3. Exhaustiveness checking is in: it is the check that shaped `receive` and `if`, and a first user should not form habits the report forbids. Every program MVP 1 accepts is a valid Ernest program or one the report already says is wrong. One Erlang module per `.ern` file.
 
@@ -177,11 +177,11 @@ Local `fn`s in a block are generalized only once every later local `fn` they ref
 
 ### 3.1 Integration (3 days)
 
-- Two escripts, `bin/ernc` and `bin/ern`, committed as escript source files that put `lib/*/ebin`, found relative to the script, on the code path; no escriptize step and no build product under `bin/`. Options are long only, report §11; short aliases come later as additions. `ernc [--source-root dir] [--out-dir dir] [--emit erl] [--no-clean] foo.ern` reads, parses, type-checks, compiles, writes `foo.erc`; `--emit erl` writes the pretty-printed Erlang source instead. `ern [--config-dir <dir>] [--load-path <dir> ...] [--main Q.name] foo.erc` loads the module and its dependencies by namespace, calls each module's `'$init'/0` dependencies first, starts the system processes, binds their addresses to the `Sys.*` top-level references, calls `main()`; `ern --create-config-dir <dir>` creates `<dir>/.ernest/` with `ernest.conf` (JSON: this node's address and public key, an empty peer list) and a private key readable only by the owner, and does nothing else. `--config-dir` defaults to `./.ernest`. **Deferred, 2026-09-17:** `ern --repl` needs an incremental checker and is MVP 2; until then it errors with "the REPL is not in MVP 1".
+- Two escripts, `bin/ernc` and `bin/ern`, committed as escript source files that put `lib/*/ebin`, found relative to the script, on the code path; no escriptize step and no build product under `bin/`. Options are long only, report §11; short aliases come later as additions. `ernc [--source-root dir] [--out-dir dir] [--emit erl] [--no-clean] foo.ern` reads, parses, type-checks, compiles, writes `foo.erc`; `--emit erl` writes the pretty-printed Erlang source instead. `ern [--config-dir <dir>] [--load-path <dir> ...] [--main Q.name] foo.erc` loads the module and its dependencies by namespace, calls each module's `'$init'/0` dependencies first, starts the system processes, binds their addresses to the `Sys.*` top-level references, calls `main()`; `ern --create-config-dir <dir>` creates `<dir>/.ernest/` with `ernest.conf` (JSON: this node's address and public key, an empty peer list) and a private key readable only by the owner, and does nothing else. `--config-dir` defaults to `./.ernest`. **Deferred, 2026-09-17:** `--shell` needs an incremental checker and is MVP 2; until then it errors with "the shell is not in MVP 1".
 - Error format `file:line:column: text`, one line per error.
 - `lib/cli/src/ern_cli.erl` orchestrates everything; the escripts are thin.
 
-**Output:** `bin/ernc` and `bin/ern`. Done 2026-09-17, with the REPL deferred as above.
+**Output:** `bin/ernc` and `bin/ern`. Done 2026-09-17, with the shell deferred as above.
 
 ### 3.2 Testing (2 days)
 
