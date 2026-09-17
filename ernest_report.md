@@ -132,7 +132,7 @@ Precedence of the binary operators, highest first:
 | 6     | `\|\|`                 | left          |
 | 7     | `\|>`                  | left          |
 
-The operators in `userop` are the ones a type can define for itself (§4.8); only they appear qualified, `Int.+`, or as a declaration name, `fn Distance.+`. The others are built into the language: `::` is cons (§3.3), the comparisons and `&&`, `||` are §4.8's, and `|>` is a syntactic form (§5.7).
+Only a `userop` can be qualified, `Int.+`, or declared, `fn Distance.+` (§4.8). `::` is cons (§3.3); the comparisons, `&&`, and `||` are built in (§4.8); `|>` is a syntactic form (§5.7).
 
 ## 3. Types
 
@@ -181,7 +181,7 @@ The prelude declares `Unit` as a one-value type (§9.3): a function that has not
 
 `with M` after the result is the mailbox type: the function uses the process it runs in, whose mailbox has type `M`, §6.1. A function type without a `with M` is pure.
 
-`with` binds to the nearest arrow; `(A) -> (B) -> C with M` is a pure function returning a function with mailbox type `M`. Parentheses group a type to override the default: `(A) -> ((B) -> C) with M` is a function with mailbox `M` returning a pure function. The same rule applies to a declaration's return annotation: `fn f() -> (A) -> B with M` returns a function with mailbox `M`; a function with mailbox `M` that returns a pure function is written `fn f() -> ((A) -> B) with M`.
+`with` binds to the nearest arrow; `(A) -> (B) -> C with M` is a pure function returning a function with mailbox type `M`. Parentheses group a type to override the default: `(A) -> ((B) -> C) with M` is a function with mailbox `M` returning a pure function. The same holds in a return annotation: `fn f() -> (A) -> B with M` returns a function with mailbox `M`; `fn f() -> ((A) -> B) with M` has mailbox `M` itself.
 
 ### 3.5 Sum types
 
@@ -228,7 +228,7 @@ At a call site, a variable in an effect position binds to one of:
 - In a *value position* — arguments, results, tuple components, and inside `Address(_)`, `Reply(_)`, `List(_)`, and other type constructors — a variable must resolve to a value type.
 - In an *effect position* — the type after `with` — a variable is used as the caller's mailbox effect. Effect positions additionally admit *pure* (no mailbox).
 
-*Pure* is not a type. An effect-only variable ranges over the mailbox types and pure; a variable with any value-position occurrence ranges over types alone. This is the one place the type language departs from plain Hindley-Milner, and the rule that follows is the whole of the departure.
+*Pure* is not a type. An effect-only variable ranges over the mailbox types and pure; a variable with a value-position occurrence ranges over types alone. This is the only departure from plain Hindley-Milner.
 
 A variable that appears *only* in effect positions (like `e` in `apply` above) can bind to either a mailbox type or pure. A variable that appears in *any* value position (like `m` in `self : () -> Address(m) with m`) must resolve to a value type: the value-position usage requires a real type, so at every use site both occurrences of `m` receive the same mailbox type, and pure is not admissible. This is the only rule that ties the two occurrences of `m` together; unification does the rest.
 
@@ -262,19 +262,19 @@ An annotation is compatible with these; it doesn't need to state them. Constrain
 - *Process-only* — a function whose body calls a process primitive (`send`, `spawn`, `Address.call`, etc.) inherits that primitive's process-only restriction on its own effect variable. A wrapper `fn wrap(a, v) = send(a, v)` cannot be instantiated with a pure caller effect at any use site.
 - *Not-reply-carrying* (§6.6) — a polymorphic parameter that a function duplicates, discards, or otherwise consumes twice cannot be instantiated to a reply-carrying type. `fn dup(x) = #(x, x)` and `fn discard(x) = Unit` carry this restriction on their parameters; `fn id(x) = x` does not.
 
-All three propagate the same way: they are part of the type scheme, travel through function values and branches, are preserved across compiled module interfaces, and are shown by the compiler (§11.5). The annotation grammar does not admit them; they are inferred and enforced by the type checker. This is a deliberate exception to principle 3: the three restrictions are visible in the checker's output rather than in the source, in exchange for signatures that describe shape only.
+All three propagate the same way: they are part of the type scheme, travel through function values and branches, are preserved across compiled module interfaces, and are shown by the compiler (§11.5). The annotation grammar does not admit them; they are inferred and enforced by the type checker. This is a deliberate exception to principle 3: the restrictions are visible in the checker's output, not in the source, so that signatures describe shape only.
 
 ### 3.10 Equality and ordering
 
 `==` and `!=` are defined for all values except those containing functions or addresses; on those, `==` is a type error. Equality is structural.
 
-Ordering is defined per type by the function `compare` in the type's namespace, `Int.compare : (Int, Int) -> Ordering`. `a < b` is `T.compare(a, b) == Less`, where `T` is the type of both operands; `<=`, `>`, and `>=` likewise. A type with no `compare` in its namespace has no ordering, and `<` on it is a type error. The prelude provides `compare` for `Int`, `Float`, `String`, and `Char` (§9.6); a user type provides its own (§4.8). `Float.compare` is total on the finite domain of `Float` (§3.1).
+Ordering is defined per type by the function `compare` in the type's namespace, `Int.compare : (Int, Int) -> Ordering`. `a < b` is `T.compare(a, b) == Less` for the operand type `T`; `<=`, `>`, `>=` likewise. A type without `compare` has no ordering, and `<` on it is a type error. The prelude defines `compare` for `Int`, `Float`, `String`, and `Char` (§9.6). `Float.compare` is total on the finite domain of `Float` (§3.1).
 
 **Equality on polymorphic types.** A function that uses `==` on a value of a type variable induces an implicit *equality constraint* on that variable. The constraint is not written in the type syntax; it is inferred from usage and checked at each call site. Instantiating the variable with a type that contains a function or address is a type error at that call site — not at the function's definition. The rule matches the equality-comparable check for concrete types.
 
 `Map(k, v)` and `Set(a)` carry the same constraint on `k` and `a` respectively. Every operation on those containers implicitly asserts it, so a `Map` or `Set` parameterized by a non-comparable type is rejected at the first operation. Stdlib functions that use `==` internally on a type parameter, such as `List.contains` and `List.remove`, propagate the constraint through that parameter.
 
-The check is at instantiation, not at generalization: `fn equal(a, b) = a == b` type-checks (its type is `(a, a) -> Bool`), and each call site is checked against the concrete type substituted for `a`. In the vocabulary of type classes this is a qualified type: `equal` has the type Haskell would write `Eq a => (a, a) -> Bool`. Ernest infers the qualifier and never writes it.
+The check is at instantiation, not at generalization: `fn equal(a, b) = a == b` type-checks (its type is `(a, a) -> Bool`), and each call site is checked against the concrete type substituted for `a`. This is a qualified type, `Eq a => (a, a) -> Bool` in Haskell's spelling; Ernest infers the qualifier and never writes it.
 
 **Propagation through function values, branches, and modules.** The equality constraint on a type variable is part of the type scheme, so it travels with the function value wherever the value flows. `let f = equal` gives `f` `equal`'s type including the constraint; applying `f` to addresses at some later point is an error at that application. `if flag then equal else always` unifies the branches to `(a, a) -> Bool` and inherits the union of constraints — since `equal` is constrained and `always` is not, the result is constrained, and the returned function cannot be applied to addresses. A module exports its polymorphic values with their constraints; a compiled interface encodes them, so a call from another module receives the same treatment as an internal call. The check remains at instantiation — a call chain through several intermediate polymorphic functions, where a constrained value is eventually applied to concrete arguments, is checked at the concrete application.
 
@@ -331,7 +331,7 @@ External callers write `Net.Http.parse` and `Net.Http.Request`; the file-namespa
 
 **Unqualified lookup inside a body.** A name written unqualified in a function body is looked up in this order: the module's local declarations (whether or not `export`ed); the abstract-type namespace of the enclosing declaration, if any; and the prelude. Anything not found there must be qualified. The constructor of an abstract type is hidden from definitions outside its signature.
 
-Because local declarations are found first, a module may declare a type or constructor with the same name as one in the prelude; the local one is meant wherever the name appears unqualified in that module, and the prelude's is unreachable there. Within one module, type names must be unique and constructor names must be unique across all of the module's types; a duplicate is a compile-time error, since nothing but the name identifies a constructor.
+A module may declare a type or constructor with a prelude name; unqualified, the name then means the local one throughout the module. Within a module, type names are unique and constructor names are unique across all its types; a duplicate is a compile-time error.
 
 ### 4.3 Type declarations
 
@@ -445,7 +445,7 @@ BitSpec   = "size" "(" Expr ")" | "unit" "(" int ")"
 FieldPats = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 ```
 
-`fn`, `if`, `match`, and `receive` are alternatives of `Expr`, not of `Primary`, so they are not operands: `1 + if c then a else b` and `match e { ... } |> f` are syntax errors. Parenthesize the form to use it as an operand.
+`fn`, `if`, `match`, and `receive` are not operands: `1 + if c then a else b` is a syntax error; write `1 + (if c then a else b)`.
 
 ### 5.1 Evaluation
 
@@ -528,7 +528,7 @@ A pattern decomposes a value and binds its parts. The same patterns appear in `l
 | `big`, `little`, `native`   | endianness                                                  |
 | `signed`, `unsigned`        | sign                                                        |
 
-A segment with no specifier is `int` of size 8. A segment's value type follows its specifier: `int` binds to `Int`; `float` to `Float`; `utf8`, `utf16`, and `utf32` to `Char`; `bits` and `bytes` to `Bytes`.
+A segment without specifiers is `int` of size 8. `int` binds to `Int`; `float` to `Float`; `utf8`, `utf16`, `utf32` to `Char`; `bits` and `bytes` to `Bytes`.
 
 These specifier names carry that role only inside a bitstring — outside, they are ordinary identifiers, and the reserved-word count remains seventeen.
 
@@ -563,13 +563,13 @@ The mailbox effect is inferred:
 - Calls with variable effects unify; the enclosing function has the unified effect.
 - A pure call (no `with M` on the callee) contributes no effect: the enclosing function's effect is whatever its other calls determine.
 
-The three forms a function type can take:
+A function type has three forms:
 
 | Written | Meaning |
 |---|---|
-| `(A) -> B` | pure: no `send`, `receive`, `self`, or effectful foreign call; callable from any process |
-| `(A) -> B with M` | uses its process, whose mailbox holds `M`; callable only where the mailbox type is `M` |
-| `(A) -> B with m`, `m` a variable | uses its process, whatever its mailbox; the caller's mailbox type is substituted for `m` |
+| `(A) -> B` | pure; callable from any process |
+| `(A) -> B with M` | uses its process; callable only where the mailbox type is `M` |
+| `(A) -> B with m`, `m` a variable | uses its process; `m` takes the caller's mailbox type |
 
 A function without a mailbox effect is pure: it neither sends, receives, nor calls foreign code with a mailbox effect, and it can be called from any process. A pure higher-order function runs its function arguments in the caller's process: `List.map(xs, fn(x) = send(a, x))` has the same effect as the callback, and `List.map` is effect-polymorphic (§3.9). Nothing else can be marked on a function type.
 
@@ -611,7 +611,7 @@ Addresses have no equality; identity is expressed in the protocol. There is no r
 
 ### 6.6 Request-reply
 
-A `Reply(a)` is a one-shot address for the answer to a request; unlike `Address(a)`, it is answered exactly once. `Reply(a)` is a *linear* type: every value of it, and of any type that contains it, is consumed exactly once. The rest of this section spells out what consumption means.
+A `Reply(a)` is a one-shot address for the answer to a request; unlike `Address(a)`, it is answered exactly once. `Reply(a)` is a *linear* type: a value of it, or of any type containing it, is consumed exactly once. This section defines consumption.
 
 ```
 Address.call        : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
@@ -627,7 +627,7 @@ answer              : (Reply(a), a) -> Unit with m
 
 Pattern-matching a reply-carrying value must bind every reply-carrying field of the matched constructor: a wildcard (`_`) or an omitted field for a position whose declared type is reply-carrying is a type error, because it would silently drop the value. The match transfers the obligation from the scrutinee to the pattern-bound reply-carrying variables — the scrutinee is fully consumed by the match and cannot be used after. If the matched constructor has no reply-carrying fields (e.g., `Stop` in a `type PongMsg = Ping(reply : Reply(Int)) | Stop`), matching that clause discharges the scrutinee's obligation with no new binding introduced.
 
-**Exactly-once obligation.** Every binding of a reply-carrying value creates a consumption obligation checked statically at the binding site. On every path from the binding, the value must be consumed exactly once. Bindings include: a variable in a `receive` clause, a function parameter, a spawn-lambda capture, a variable introduced by pattern-matching a reply-carrying scrutinee, a variable bound by `let` to a reply-carrying expression, and the result at the call site of a function whose return type is reply-carrying. A `let` transfers the obligation from the expression to the variables its pattern binds, as a `match` does. An `if`, `match`, `receive`, or block whose value is reply-carrying is itself a reply-carrying expression: each branch must produce its value by one of the consuming forms below or by passing a bound value through, and the obligation attaches to wherever the whole expression's value is bound or consumed.
+**Exactly-once obligation.** Every binding of a reply-carrying value creates a consumption obligation checked statically at the binding site. On every path from the binding, the value must be consumed exactly once. Bindings include: a variable in a `receive` clause, a function parameter, a spawn-lambda capture, a variable introduced by pattern-matching a reply-carrying scrutinee, a variable bound by `let` to a reply-carrying expression, and the result at the call site of a function whose return type is reply-carrying. A `let` transfers the obligation to the variables its pattern binds, as a `match` does. An `if`, `match`, `receive`, or block with a reply-carrying value is a reply-carrying expression: every branch consumes or passes through, and the obligation attaches where the whole value is bound or consumed.
 
 Consumption is one of:
 
@@ -666,13 +666,13 @@ type RemoteError = NoRemotePeer | PeerLost
 
 ### 6.8 `Never`
 
-A function with mailbox type `Never` can send but never receive: a `receive` with a pattern clause in it is a type error. A `receive` with only an `after` clause is legal, since it matches nothing and only waits; it is the way a `Never` process pauses.
+A function with mailbox type `Never` can send but never receive: a `receive` with a pattern clause in it is a type error. A `receive` with only an `after` clause matches nothing and is legal; it is how a `Never` process waits.
 
-`with Never` is the annotation for a process root that never receives: `main`, or the function a spawn lambda calls. It is not the annotation for a send-only helper, because a function with mailbox `Never` can only be called where the mailbox is `Never`; a helper that only sends and is meant to be called from other process code leaves its mailbox polymorphic, `with m`, as `ping` in Appendix B does.
+`with Never` annotates a process root that never receives: `main`, or the function a spawn lambda calls. It can only be called where the mailbox is `Never`, so a send-only helper called from process code is polymorphic instead, `with m`, as `ping` in Appendix B.
 
 ### 6.9 Death
 
-A process dies when its function returns, when `kill` is called on it, on a fault, section 7, or when the node it runs on is lost. `monitor(a, wrap)`, §9.5, causes `wrap(d)` to be placed in the caller's mailbox when `a` dies, where `d : Down` gives the cause. If `a` is already dead when `monitor` is called, the message is placed immediately. Each call to `monitor` produces one message; monitoring the same address twice produces two. There are no other links.
+A process dies when its function returns, when `kill` is called on it, on a fault, section 7, or when the node it runs on is lost. `monitor(a, wrap)`, §9.5, causes `wrap(d)` to be placed in the caller's mailbox when `a` dies, where `d : Down` gives the cause. If `a` is already dead, the message is placed at once. Each `monitor` call produces one message. There are no other links.
 
 ### 6.10 Code replacement
 
@@ -934,7 +934,7 @@ Sys.clock        : Address(ClockMsg) // the clock process
 
 ### 11.5 Diagnostics
 
-The annotation grammar does not admit the three inferred restrictions of §3.9 (the equality constraint, process-only, and not-reply-carrying), so the compiler shows them. Printed types distinguish `equal : (a, a) -> Bool` (constrained) from `always : (a, a) -> Bool` (unconstrained): the printer marks the constrained form so two functions with the same annotated shape are not indistinguishable. An error at a rejected call site names the parameter whose restriction failed and where the restriction came from. Generated documentation (`ernc --doc`) shows the restrictions in the same form.
+The compiler shows the three inferred restrictions of §3.9 that the annotation grammar cannot: printed types mark a constrained `equal : (a, a) -> Bool` apart from an unconstrained `always : (a, a) -> Bool`; an error at a rejected call site names the parameter and the origin of its restriction; `ernc --doc` shows restrictions the same way.
 
 ## Appendix A. Grammar
 
