@@ -85,6 +85,15 @@ calls_test() ->
     ?assertMatch(#e_call{callee = #e_var{path = ['Address'], name = call}},
                  e("Address.call(c, fn(r) = Get(reply = r), 1000)")).
 
+%% report §5.7: the pipe binds loosest, below ||, and takes a
+%% parenthesized lambda
+pipe_precedence_test() ->
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_binop{op = '+'}]}, e("a + b |> f")),
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_binop{op = '||'}]},
+                 e("a || b |> f")),
+    ?assertMatch(#e_call{callee = #e_lambda{}, args = [#e_var{name = x}]},
+                 e("x |> (fn(y) = y + 1)")).
+
 %% report §5.7
 pipe_rewrite_test() ->
     ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}]}, e("x |> f")),

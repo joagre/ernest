@@ -650,3 +650,22 @@ variable_names_test() ->
     ?assertEqual("((a) -> a with e, a) -> a with e",
                  type_of("export fn twice(f : (a) -> a with e, x : a) -> a with e = f(f(x))",
                          twice)).
+
+%% report §5.7: the piped value must fit the target's first argument
+pipe_type_test() ->
+    ?assertEqual("(String) -> Int",
+                 type_of("export fn n(s : String) = s |> String.trim |> String.size", n)),
+    ?assertMatch("the arguments do not fit String.size: expected (String) -> Int, found (Int)" ++ _,
+                 err("fn n() = 1 |> String.size")).
+
+%% report §6.8: a `with Never` root is called only where the mailbox is
+%% Never; a polymorphic helper is called from either
+never_root_test() ->
+    Root = "fn root() -> Unit with Never = Io.println(\"x\")\n",
+    ?assertEqual("this call needs a process: expected Msg, found Never",
+                 err("type Msg = Go\n" ++ Root ++ "fn p() -> Unit with Msg = root()")),
+    ?assertEqual(ok, ok(Root ++ "fn q() -> Unit with Never = root()")),
+    ?assertEqual("() -> Unit with Never", type_of(Root ++ "export fn r() = root()", r)),
+    ?assertEqual(ok, ok("type Msg = Go\nfn helper() -> Unit with m = Io.println(\"x\")\n"
+                        "fn p() -> Unit with Msg = helper()\n"
+                        "fn q() -> Unit with Never = helper()")).
