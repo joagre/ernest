@@ -191,6 +191,7 @@ Local `fn`s in a block are generalized only once every later local `fn` they ref
 - Smoke test in a top-level `test/`: every listed program compiles and runs, output compared against an expected-output file of the same name. The comparison treats output as a multiset of lines, since the interleaving of prints from different processes (ping-pong) is scheduling-dependent.
 - The web server and the file sync are MVP 2, when `net` exists.
 - Done 2026-09-17: `test/ern_integration_tests.erl`, run by `make test` after the unit tests, with `test/expected/<name>.out`; the program list is in the test module.
+- Golden files, 2026-09-17: `test/golden/*.erl` holds the Erlang source the compiler emits for every MVP 1 example, as `--emit erl` writes it; the compiler's tests compare against them and write a `.new` beside a differing file; `make golden` rewrites them after an intended emitter change. The hand-written targets under `test/target/` remain the two tests that are not self-referential.
 - Sections `make sections` lists by nature, 2026-09-17: §4.1, §7.1, §7.2 define terms and have nothing to run; §3.11, §8.3, §8.7 are MVP 3.
 
 ### 3.3 Documentation (3 days)

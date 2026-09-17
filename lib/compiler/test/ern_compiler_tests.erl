@@ -1,5 +1,7 @@
 -module(ern_compiler_tests).
 
+-export([write_golden/0]).
+
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("type_system/include/ern_types.hrl").
 
@@ -108,6 +110,65 @@ hello_golden_test() ->
 %% report §6.2, §6.3, §6.6, §8.4, Appendix B; plan 2.1
 counter_golden_test() ->
     ?assertEqual(target_forms("counter.erl"), example_forms("counter")).
+
+%%
+%% Golden files: the Erlang source of every MVP 1 example, as --emit erl
+%% writes it, kept under test/golden and regenerated with make golden
+%%
+
+-define(GOLDEN, "../../../test/golden/").
+
+golden_names() ->
+    ["hello", "counter", "counter_upgrade", "ping_pong", "stack", "patterns", "remote",
+     "modules/net/http", "modules/main"].
+
+%% The source the compiler emits for an example; the modules pair is
+%% checked in dependency order, main against http's interface.
+golden_source("modules/" ++ _ = Name) ->
+    {ok, HttpBin} = file:read_file("../../../examples/modules/net/http.ern"),
+    {ok, HttpTyped, HttpIface, HttpEnv} = ern_typecheck:check_string(['Net', 'Http'], HttpBin),
+    case Name of
+        "modules/net/http" ->
+            emitted(['Net', 'Http'], HttpTyped, HttpEnv);
+        "modules/main" ->
+            {ok, MainBin} = file:read_file("../../../examples/modules/main.ern"),
+            {ok, Decls} = ern_parser:parse_string(MainBin),
+            {ok, Typed, _, Env} = ern_typecheck:check(['Main'], Decls, [HttpIface]),
+            emitted(['Main'], Typed, Env)
+    end;
+golden_source(Name) ->
+    {Ns, Bin} = example(Name),
+    {ok, Typed, _, Env} = ern_typecheck:check_string(Ns, Bin),
+    emitted(Ns, Typed, Env).
+
+emitted(Ns, Typed, Env) ->
+    unicode:characters_to_binary(ern_compiler:erl_source(Ns, Typed, Env)).
+
+%% report §11.1, plan 2: the emitted source of every example is what the
+%% golden file holds; a difference is written beside it as .new
+golden_test_() ->
+    [{Name, fun() ->
+                 File = ?GOLDEN ++ Name ++ ".erl",
+                 Actual = golden_source(Name),
+                 case file:read_file(File) of
+                     {ok, Actual} ->
+                         ok;
+                     _ ->
+                         ok = file:write_file(File ++ ".new", Actual),
+                         ?assert(false, "golden file differs; see " ++ File ++ ".new,"
+                                        " or run make golden")
+                 end
+             end} || Name <- golden_names()].
+
+%% make golden: rewrite the golden files from the current emitter.
+write_golden() ->
+    lists:foreach(fun(Name) ->
+                      File = ?GOLDEN ++ Name ++ ".erl",
+                      ok = filelib:ensure_dir(File),
+                      ok = file:write_file(File, golden_source(Name)),
+                      file:delete(File ++ ".new"),
+                      io:format("~s~n", [File])
+                  end, golden_names()).
 
 %%
 %% The MVP 1 examples run and print what their headers promise

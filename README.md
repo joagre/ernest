@@ -69,6 +69,7 @@ Erlang/OTP 27 and GNU make. No rebar3, no OTP behaviours.
 ```
 make              compile every application into its ebin/
 make test         run the EUnit tests, then the integration tests in test/
+make golden       rewrite test/golden/, the Erlang the compiler emits per example
 make clean        remove build products
 make clean-emacs  remove Emacs backup, auto-save, and lock files
 ```

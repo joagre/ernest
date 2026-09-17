@@ -23,3 +23,5 @@ erl_crash.dump
 .env.local
 *.erc
 /test/build/
+/test/golden/*.new
+/test/golden/**/*.new
