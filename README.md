@@ -88,6 +88,24 @@ bin/ernc --doc examples/ets.ern              # doc comments as Markdown
 bin/ern --create-config-dir .                # .ernest/ with a key pair
 ```
 
+## What MVP 1 accepts
+
+MVP 1 is the report on one node. Everything the report describes type-checks, and what the table leaves out compiles and runs: pure functions with inference, sum and abstract types, processes with typed mailboxes, `receive` with `after`, `Address.call`, `monitor` and `kill`, `<-`, `match` with any guard, top-level `let`, and modules in directories. The table is what the toolchain refuses or does not yet check, each with the MVP that lifts it in [`docs/implementation_plan.md`](docs/implementation_plan.md).
+
+| Construct | Until | What you see today |
+|---|---|---|
+| `Float` arithmetic (§3.1) | MVP 2 | `Float arithmetic is not in MVP 1` |
+| `foreign fn`, `foreign type` (§4.7), the `Foreign` namespace (E.12) | MVP 2 | type-checks; `ernc` says `foreign functions are not in MVP 1` |
+| Bitstrings (§5.11) | MVP 2 | `bitstrings are not in MVP 1` |
+| The ownership rule of abstract types (§4.4) | MVP 2 | not checked; a constructor is usable anywhere in its module |
+| `Deadlock` (§8.6) | MVP 2 | a deadlocked program waits |
+| `ern --shell` (§11.2) | MVP 2 | `the shell is not in MVP 1` |
+| `spawn(Peer(...))`, peers, `--config-dir` (§6.2, §8.3) | MVP 3 | `spawn` faults with `peer unreachable`; the configuration is not read |
+| `remote`, `parallelRemote` (§6.7) | MVP 3 | `Left(NoRemotePeer)` |
+| `receive` guards beyond comparisons joined by `&&` and `\|\|` (§5.9) | MVP 4 | `in MVP 1 a receive guard is a comparison, ...` |
+
+`make sections` lists the report sections no test cites; the six it prints are definitions with nothing to run or MVP 3 material.
+
 ## License
 
 Ernest is released under the terms in [`LICENSE`](LICENSE). Third-party components are listed, with their licenses, in [`THIRD_PARTY_LICENSES`](THIRD_PARTY_LICENSES).
