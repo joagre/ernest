@@ -462,8 +462,8 @@ stdlib_values_test() ->
     {ok, Out} = run(
         "fn call(f : (Address(m), (Reply(Int)) -> m, Int) -> Optional(Int) with n,"
         " a : Address(m), mk : (Reply(Int)) -> m) -> Optional(Int) with n = f(a, mk, 100)\n"
-        "type Msg = Ask(reply : Reply(Int))\n"
-        "fn answerer() -> Unit with Msg = receive { Ask(reply = r) -> answer(r, 7) }\n"
+        "type Msg = Ask(Reply(Int))\n"
+        "fn answerer() -> Unit with Msg = receive { Ask(r) -> answer(r, 7) }\n"
         "export fn main() -> Unit with Never = {\n"
         "    Io.println(Bool.toString(String.all(\"123\", Char.isDigit)));\n"
         "    let a = spawn(Local, fn() = answerer());\n"
