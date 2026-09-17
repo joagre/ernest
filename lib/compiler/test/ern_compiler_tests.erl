@@ -19,8 +19,9 @@ run(Ns, Text) ->
     {ok, Mod, Bin} = ern_compiler:compile(Ns, Typed, Iface, Env),
     {module, Mod} = code:load_binary(Mod, "test", Bin),
     Me = self(),
-    Result = ern_rt:run_main(fun() -> init(Mod), Mod:main() end, <<"main">>,
-                             #{stdout => fun(B) -> Me ! {out, B} end}),
+    Result = ern_rt:run_main(fun() -> Mod:main() end, <<"main">>,
+                             #{init => fun() -> init(Mod) end,
+                               stdout => fun(B) -> Me ! {out, B} end}),
     {Result, collect([])}.
 
 %% The launcher's job (report §8.5, plan 2.4): top-level lets before main.
@@ -489,6 +490,28 @@ stdlib_values_test() ->
         "    }\n"
         "}\n"),
     ?assertEqual(<<"true\n7\n">>, Out).
+
+%% report Appendix E.3, E.4, §3.10: Map and Set end to end, with
+%% structural equality
+maps_sets_test() ->
+    {ok, Out} = run(
+        "export fn main() -> Unit with Never = {\n"
+        "    let m = Map.put(Map.put(Map.empty, \"a\", 1), \"b\", 2);\n"
+        "    let s = Set.add(Set.fromList([1, 2]), 3);\n"
+        "    Io.println(Int.toString(Optional.withDefault(Map.get(m, \"b\"), 0)));\n"
+        "    Io.println(Int.toString(Map.foldLeft(m, 0, fn(acc, _, v) = acc + v)));\n"
+        "    Io.println(Bool.toString(Set.contains(s, 3)));\n"
+        "    Io.println(Int.toString(Set.size(Set.union(s, Set.fromList([3, 4])))));\n"
+        "    Io.println(Bool.toString(Set.fromList([1, 2]) == Set.fromList([2, 1])))\n"
+        "}\n"),
+    ?assertEqual(<<"2\n3\ntrue\n4\ntrue\n">>, Out).
+
+%% report §8.5, §8.2: the Sys.* references are bound before the top-level
+%% lets are evaluated
+sys_in_let_test() ->
+    {ok, Out} = run("let out = Sys.stdout\n"
+                    "export fn main() -> Unit with Never = Io.printlnTo(out, \"via let\")\n"),
+    ?assertEqual(<<"via let\n">>, Out).
 
 %% report §8.2, §9.7: Sys.stdout is a value
 sys_stdout_test() ->

@@ -242,7 +242,9 @@ clock_loop() ->
 
 %% Runs Main as the entry process and returns ok, or {fault, Message} if it
 %% faulted. Every local process is then ended with ProgramEnd and stdout
-%% is flushed. Opts: #{stdout => fun((binary()) -> any())} for tests.
+%% is flushed. Opts: init => a function run in main's process before Main,
+%% after the Sys.* references are bound, for the top-level lets (report
+%% §8.5); stdout => fun((binary()) -> any()) for tests.
 -spec run_main(fun(() -> term()), binary()) -> ok | {fault, binary()}.
 run_main(Main, Site) ->
     run_main(Main, Site, #{}).
@@ -257,7 +259,8 @@ run_main(Main, Site, Opts) ->
     Clock = erlang:spawn(fun() -> clock_loop() end),
     persistent_term:put({?MODULE, stdout}, Stdout),
     persistent_term:put({?MODULE, clock}, Clock),
-    MainPid = spawn('Local', Main, Site),
+    Init = maps:get(init, Opts, fun() -> ok end),
+    MainPid = spawn('Local', fun() -> Init(), Main() end, Site),
     Reaper ! {await, MainPid, erlang:self(), fun(Down) -> {main_down, Down} end},
     Result = receive
                  {main_down, {'Down', _, Reason}} -> Reason

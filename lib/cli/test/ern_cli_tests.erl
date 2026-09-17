@@ -269,14 +269,15 @@ main_option_test() ->
     ?assertEqual(1, ern_cli:ern(["--main", "Tools.twice", Dir ++ "/build/main.erc"])),
     ?assertEqual(1, ern_cli:ern(["--main", "check", Dir ++ "/build/main.erc"])).
 
-%% report §8.5, §11.2: top-level lets of every loaded module are evaluated
-%% before main, dependencies first
+%% report §8.5, §8.2, §11.2: top-level lets of every loaded module are
+%% evaluated before main, dependencies first, with Sys.* bound
 init_order_test() ->
     Dir = tmp(),
-    write(Dir, "src/lib/values.ern", "export let base = 40\n"),
+    write(Dir, "src/lib/values.ern", "export let base = 40\nexport let out = Sys.stdout\n"),
     write(Dir, "src/main.ern",
           "let total = Lib.Values.base + 2\n"
-          "export fn main() -> Unit with Never = Io.println(Int.toString(total))\n"),
+          "export fn main() -> Unit with Never =\n"
+          "    Io.printlnTo(Lib.Values.out, Int.toString(total))\n"),
     ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"42\n">>, iolist_to_binary(?capturedOutput)).

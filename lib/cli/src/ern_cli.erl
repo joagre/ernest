@@ -467,12 +467,15 @@ run(Opts, File) ->
     erlang:function_exported(EntryMod, EntryFn, 0) orelse
         fail("no exported entry point " ++ atom_to_list(EntryFn) ++ " in "
              ++ qname(entry_ns(EntryMod)) ++ "; an entry point takes no arguments (report §8.1)"),
-    %% report §8.5: every top-level let, dependencies first
-    lists:foreach(fun(Mod) ->
-                      erlang:function_exported(Mod, '$init', 0) andalso Mod:'$init'()
-                  end, lists:reverse(Loaded1)),
+    %% report §8.5: every top-level let, dependencies first, once the
+    %% runtime has bound the Sys.* references
+    Init = fun() ->
+               lists:foreach(fun(Mod) ->
+                                 erlang:function_exported(Mod, '$init', 0) andalso Mod:'$init'()
+                             end, lists:reverse(Loaded1))
+           end,
     Site = unicode:characters_to_binary(qname(entry_ns(EntryMod)) ++ "." ++ atom_to_list(EntryFn)),
-    case ern_rt:run_main(fun() -> EntryMod:EntryFn() end, Site) of
+    case ern_rt:run_main(fun() -> EntryMod:EntryFn() end, Site, #{init => Init}) of
         ok -> 0;
         {fault, Msg} ->
             io:format(standard_error, "fault: ~s~n", [Msg]),

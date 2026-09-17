@@ -96,10 +96,11 @@ MVP 1 is the report on one node. Everything the report describes type-checks, an
 
 | Construct | Until | What you see today |
 |---|---|---|
-| `Float` arithmetic (§3.1) | MVP 2 | `Float arithmetic is not in MVP 1` |
+| `Float` arithmetic and negation (§3.1); `Float` values and the `Float` functions work | MVP 2 | `Float arithmetic is not in MVP 1` |
 | `foreign fn`, `foreign type` (§4.7), the `Foreign` namespace (E.12) | MVP 2 | type-checks; `ernc` says `foreign functions are not in MVP 1` |
 | Bitstrings (§5.11) | MVP 2 | `bitstrings are not in MVP 1` |
 | The ownership rule of abstract types (§4.4) | MVP 2 | not checked; a constructor is usable anywhere in its module |
+| A `Reply` captured by a lambda that reaches `spawn` through a `let` rather than as its direct argument (§6.6) | MVP 2 | `the reply-carrying value r is captured by a lambda that is not passed directly to spawn` |
 | `Deadlock` (§8.6) | MVP 2 | a deadlocked program waits |
 | `ern --shell` (§11.2) | MVP 2 | `the shell is not in MVP 1` |
 | `spawn(Peer(...))`, peers, `--config-dir` (§6.2, §8.3) | MVP 3 | `spawn` faults with `peer unreachable`; the configuration is not read |
