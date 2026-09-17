@@ -103,7 +103,7 @@ effects_test() ->
                                   "fn gb() -> Unit with B = Unit\n"
                                   "fn both() = { ga(); gb() }")).
 
-%% report §6.3, §6.8
+%% report §6.3, §6.8, §7.2: a missing reply is `after` in receive
 receive_and_mailboxes_test() ->
     Counter = "type CounterMsg = Inc(Int) | Get(reply : Reply(Int))\n"
               "export fn counter(n : Int) -> Unit with CounterMsg = receive {\n"

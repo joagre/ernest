@@ -51,7 +51,8 @@ single_file_test() ->
     ?assertEqual(0, ern_cli:ern([filename:join(Dir, "hello.erc")])),
     ?assertEqual(<<"hello, world\n">>, iolist_to_binary(?capturedOutput)).
 
-%% report §11.1, §4.2: directory mode compiles in dependency order into a
+%% report §4.1, §4.2, §11.1: a module is one file carrying a namespace;
+%% directory mode compiles in dependency order into a
 %% mirrored build tree; §11.2 loads the dependency by namespace
 directory_mode_test() ->
     Dir = pair(tmp()),

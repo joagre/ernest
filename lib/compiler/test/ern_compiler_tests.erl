@@ -290,7 +290,8 @@ shadowing_test() ->
         "}\n"),
     ?assertEqual(<<"22\n">>, Out).
 
-%% report §5.5: `<-` on Either returns the Left, on Optional the None
+%% report §5.5, §7.1: a value error is an Either or Optional; `<-` on Either
+%% returns the Left, on Optional the None
 bind_arrow_test() ->
     {ok, Out} = run(
         "fn half(n : Int) -> Either(String, Int) =\n"
