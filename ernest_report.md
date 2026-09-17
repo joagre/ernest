@@ -934,7 +934,7 @@ Sys.clock        : Address(ClockMsg) // the clock process
 
 ### 11.5 Diagnostics
 
-The compiler shows the three inferred restrictions of §3.9 that the annotation grammar cannot: printed types mark a constrained `equal : (a, a) -> Bool` apart from an unconstrained `always : (a, a) -> Bool`; an error at a rejected call site names the parameter and the origin of its restriction; `ernc --doc` shows restrictions the same way.
+The compiler shows the three inferred restrictions of §3.9 that the annotation grammar cannot. In a printed type, a variable with the equality constraint is written `a=`, one that is not reply-carrying `a!`: `equal : (a=, a=) -> Bool`, `discard : (a!) -> Unit`. A process-only effect variable prints unchanged; its restriction is stated in the message that rejects a pure instantiation. An error at a rejected call site names the parameter and the origin of its restriction; `ernc --doc` shows restrictions the same way.
 
 ## Appendix A. Grammar
 

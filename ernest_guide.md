@@ -418,7 +418,7 @@ Pattern-matching a reply-carrying scrutinee transfers the obligation to the patt
 
 A wildcard or omitted reply field, and an `as` alias on a reply-carrying scrutinee, are type errors. Reply-carrying values may not appear as elements of `List`, `Map`, `Set`, `Optional`, or `Either`, or as operands of equality.
 
-A generic helper that duplicates or discards its parameter (`fn dup(x) = #(x, x)`, `fn discard(x) = Unit`) infers a *not-reply-carrying* restriction — the parameter cannot be instantiated to a reply-carrying type. `fn identity(x) = x` passes through without duplication and carries no such restriction.
+A generic helper that duplicates or discards its parameter (`fn dup(x) = #(x, x)`, `fn discard(x) = Unit`) infers a *not-reply-carrying* restriction — the parameter cannot be instantiated to a reply-carrying type. `fn identity(x) = x` passes through without duplication and carries no such restriction. The compiler prints the restriction as a mark on the variable: `dup : (a!) -> #(a!, a!)`, and likewise `equal : (a=, a=) -> Bool` for the equality constraint of §2.5. You never write the marks; you see them in error messages and generated documentation, and `first : (a, b!) -> a` tells you at a glance that `first` cannot be handed a reply as its second argument.
 
 An intentional error:
 
