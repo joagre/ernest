@@ -168,6 +168,11 @@ blocks_test() ->
     ?assertEqual("unknown name k",
                  err("fn f(n : Int) = { fn g(x) = x * k; let k = 2; g(n) }")).
 
+local_fn_names_are_plain_test() ->
+    ?assertEqual("a type-member name, `fn T.name`, is a top-level form; a local function has a"
+                 " plain name",
+                 err("type T = T\nfn f() = { fn T.g() = 1; 2 }")).
+
 local_fn_used_before_let_test() ->
     %% report §5.4: a local fn is visible throughout the block but usable
     %% only after the lets it references

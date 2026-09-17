@@ -2386,6 +2386,16 @@ A full read of the report against its own principles, Wirth-report practice, and
 - *Shadowing and uniqueness.* §4.2's lookup order already made local declarations win over the prelude but never said shadowing was legal; the tick game's `type Key = Up | Down | Left | Right` shadows three prelude constructors. §4.2 now says a module may shadow prelude names, that the local one is meant wherever the name is unqualified in that module, and that within a module type names and constructor names must each be unique, because nothing but the name identifies a constructor. Type-directed disambiguation was rejected: it is not first-token, and it costs the checker a case analysis for a convenience nobody asked for.
 - *"empty" → "pure", "non-empty" → "process-only".* The distinguished value an effect variable may take when a function has no mailbox was called *empty*, and the restriction on the process primitives *non-empty*. "Empty" evokes the empty type, which is `Never`. The value is now called *pure*, and the restriction *process-only*, in §3.9, §11.5, and the guide. Entries dated before 2026-09-17 keep the old words.
 
+## Five Sentences From the First Implementation, 2026-09-17
+
+The lexer, parser, and type checker were written against the report the same day as the read-through. No rule failed; the grammar's lookahead claims held on every example. Five places were silent and the checker had to choose; the report now says what it chose.
+
+- *§6.6, reply-carrying through parameters.* A declared type is reply-carrying at any instantiation whose argument is (`Box(Reply(Int))`); a built-in type never is through its arguments (`Address(PongMsg)` is an address). The first implementation propagated through built-in arguments too and flagged every counter's address as a reply.
+- *§5.5, when `<-` is resolved.* After inference of the enclosing definition, from `e`'s type or, failing that, the block's type. Inside a recursive group `e`'s type can be a placeholder when the binding is met.
+- *§6.1, a function none of whose calls determines an effect.* It is pure. The guide's `fn double(n) = n * 2 // inferred (Int) -> Int` assumed it; the report had not said it.
+- *§6.6, passing a reply to a polymorphic parameter.* It is consumption, at that instantiation; the callee's not-reply-carrying restriction (§3.9) rejects a callee that would duplicate or discard it. This is what makes `identity` usable on a reply and `first` not.
+- *§4.5, a type-member name on a block-local fn.* The grammar admits it through `DeclName`; it is now an error, since a local function has no type to be a member of.
+
 ## Later
 
 Planned or considered, not in the language today.

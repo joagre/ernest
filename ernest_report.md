@@ -364,7 +364,7 @@ Inside `main.ern` the accessors are declared with the type-name prefix (`Stack.e
 
 A function has one clause. Patterns in parameters must be irrefutable, §5.10: `fn seenCount(Snapshot(seen = entries) : Snapshot) -> Int = Map.size(entries)`.
 
-`fn` may appear at top level and as a statement in a block; it sees its own name, and `fn` declarations in the same block or at top level may refer to each other mutually.
+`fn` may appear at top level and as a statement in a block; it sees its own name, and `fn` declarations in the same block or at top level may refer to each other mutually. A type-member name (`fn T.f`) is a top-level form; in a block it is an error.
 
 ### 4.6 Bindings
 
@@ -469,7 +469,7 @@ A `fn` declared inside a block is visible throughout the block, so mutual and se
 
 In a block, `let p <- e; rest` means that `e` is matched: on `Right(v)`, `p` is bound to `v` and `rest` is evaluated; on `Left(err)`, the block's value is `Left(err)`. If the block's type is `Optional`, `Some` and `None` apply the same way.
 
-The block's type decides which, resolved from the type of `e` as operators are; `rest` must have the block's type. All `<-` bindings in the same block resolve to the same sum type — the block is either `Either` or `Optional`, not both. The rewrite is local to the block.
+Which sum type is decided after inference of the enclosing definition, from the type of `e` or, if that is still open, from the block's type; `rest` must have the block's type. All `<-` bindings in the same block resolve to the same sum type — the block is either `Either` or `Optional`, not both. The rewrite is local to the block.
 
 ### 5.6 Construction
 
@@ -561,7 +561,7 @@ The mailbox effect is inferred:
 - A function whose body calls another function with effect `M` gets effect `M`.
 - Two calls with different concrete effects in the same function body are a type error.
 - Calls with variable effects unify; the enclosing function has the unified effect.
-- A pure call (no `with M` on the callee) contributes no effect: the enclosing function's effect is whatever its other calls determine.
+- A pure call (no `with M` on the callee) contributes no effect: the enclosing function's effect is whatever its other calls determine. A function none of whose calls determines an effect is pure.
 
 A function type has three forms:
 
@@ -621,7 +621,7 @@ answer              : (Reply(a), a) -> Unit with m
 
 `Address.call(addr, mk, ms)` allocates a fresh `Reply(a)`, calls `mk(r)` to build the message, sends it to `addr`, and returns `Some(v)` when the recipient answers or `None` after `ms` milliseconds. `Address.callForever(addr, mk)` is the same operation without a timeout: the caller waits as long as needed and receives `a` directly, not wrapped in `Optional`; the caller is opting out of the timeout by name, analogous to a `receive` without `after`. `answer(r, v)` sends `v` to the caller.
 
-**Reply-carrying types.** A type is *reply-carrying* if it is `Reply(a)`, or if any of its constructor fields or tuple components has a reply-carrying type. The property is transitive: `type Request = Get(reply : Reply(Int))` is reply-carrying because `Get` has a reply-carrying field; `#(Request, Int)` is reply-carrying because one component is; `type Envelope = Env(msg : Request)` is reply-carrying because `Env`'s field is. The property is by type, not by constructor: `type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop` is reply-carrying, and `Stop` values are treated the same as `Ping` values for the discipline below — the checker cannot in general tell which constructor a value carries.
+**Reply-carrying types.** A type is *reply-carrying* if it is `Reply(a)`, or if any of its constructor fields or tuple components has a reply-carrying type. The property is transitive: `type Request = Get(reply : Reply(Int))` is reply-carrying because `Get` has a reply-carrying field; `#(Request, Int)` is reply-carrying because one component is; `type Envelope = Env(msg : Request)` is reply-carrying because `Env`'s field is. The property is by type, not by constructor: `type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop` is reply-carrying, and `Stop` values are treated the same as `Ping` values for the discipline below — the checker cannot in general tell which constructor a value carries. A declared type is also reply-carrying at any instantiation whose type argument is: `Box(Reply(Int))` for `type Box(a) = Box(a)`. A built-in type is never reply-carrying through its arguments: `Address(PongMsg)` is an address, not a reply.
 
 **Legal positions.** A reply-carrying value may appear as: a field of a constructor, a component of a tuple, a parameter of a function, a variable bound in a `receive` clause, a variable captured by a lambda passed directly to `spawn`, or a value returned from a function whose declared return type is reply-carrying. Any other position is a type error — in particular, reply-carrying values may not appear as elements of `List`, `Map`, `Set`, `Optional`, or `Either`, or as an operand of equality. `as` on a reply-carrying scrutinee is a type error, because the alias would duplicate the obligation.
 
@@ -632,7 +632,7 @@ Pattern-matching a reply-carrying value must bind every reply-carrying field of 
 Consumption is one of:
 
 - `answer(r, v)` where `r : Reply(a)`. This is the only primitive that finally discharges a `Reply`.
-- Passing the value to a function whose corresponding parameter type is reply-carrying — delegates the obligation to the callee, checked at the callee's definition.
+- Passing the value to a function whose corresponding parameter type is reply-carrying, at that instantiation — delegates the obligation to the callee, checked at the callee's definition. A polymorphic parameter instantiated to a reply-carrying type counts; the callee's not-reply-carrying restriction (§3.9) rejects the call if the callee would duplicate or discard it.
 - Sending the value with `send(a, v)` when `v` is reply-carrying — shifts the obligation to whichever `receive` clause in the recipient's process eventually binds it.
 - Placing the value into a constructor field or tuple component of reply-carrying type — the constructed value inherits the obligation and is itself subject to the discipline.
 - Returning the value from a function whose declared return type is reply-carrying — shifts the obligation to the caller's use-site binding.

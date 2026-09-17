@@ -1137,6 +1137,10 @@ infer_stmts([Last], _Pos, Env, _Fns, Acc) ->
             {Typed, T, Env1} = infer(Last, Env),
             {lists:reverse([Typed | Acc]), T, Env1}
     end;
+infer_stmts([#fn_decl{pos = FPos, owner = Owner} | _], _Pos, _Env, _Fns, _Acc)
+  when Owner =/= undefined ->
+    fail(FPos, "a type-member name, `fn " ++ atom_to_list(Owner) ++ ".name`, is a top-level"
+               " form; a local function has a plain name");
 infer_stmts([#fn_decl{name = N} = D | Rest], Pos, Env, Fns, Acc) ->
     V = maps:get(N, Fns),
     Env1 = Env#env{st = ern_types:enter(Env#env.st)},
