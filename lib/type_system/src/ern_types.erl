@@ -3,7 +3,7 @@
 %% is in #st{} and threaded; nothing is mutated.
 -module(ern_types).
 
--export([new/0, fresh/1, fresh/2, fresh_effect/1, flags/2, var_level/2, add_flag/3,
+-export([new/0, fresh/1, fresh/2, fresh_named/2, fresh_effect/1, flags/2, var_level/2, add_flag/3,
          enter/1, leave/1, level/1,
          resolve/2, zonk/2, unify/3, occurs_free/2,
          generalize/2, generalize/3, instantiate/2, mono/1, free_vars/2,
@@ -39,6 +39,13 @@ fresh(St) -> fresh(St, []).
 -spec fresh(st(), flags()) -> {type(), st()}.
 fresh(#st{next = Id, level = L, vars = Vs} = St, Flags) ->
     {{tvar, Id}, St#st{next = Id + 1, vars = Vs#{Id => #tv{id = Id, level = L, flags = Flags}}}}.
+
+%% A variable an annotation names (report §3.9, §11.5).
+-spec fresh_named(atom(), st()) -> {type(), st()}.
+fresh_named(Name, St) ->
+    {{tvar, Id} = V, #st{vars = Vs} = St1} = fresh(St),
+    TV = maps:get(Id, Vs),
+    {V, St1#st{vars = Vs#{Id => TV#tv{name = Name}}}}.
 
 %% An effect variable for a function whose effect is inferred.
 -spec fresh_effect(st()) -> {type(), st()}.
@@ -150,9 +157,11 @@ bind_var(Id, _V, pure, St) ->
 bind_var(Id, _V, {tvar, Id2}, St) ->
     %% two variables: merge flags into the survivor, keep the lower level
     #st{vars = Vs} = St,
-    #tv{level = L1, flags = F1} = maps:get(Id, Vs),
-    #tv{level = L2, flags = F2} = TV2 = maps:get(Id2, Vs),
-    TV2a = TV2#tv{level = min(L1, L2), flags = lists:usort(F1 ++ F2)},
+    %% and the annotation's name, if only the bound one has it (§11.5)
+    #tv{level = L1, flags = F1, name = N1} = maps:get(Id, Vs),
+    #tv{level = L2, flags = F2, name = N2} = TV2 = maps:get(Id2, Vs),
+    Name = case N2 of undefined -> N1; _ -> N2 end,
+    TV2a = TV2#tv{level = min(L1, L2), flags = lists:usort(F1 ++ F2), name = Name},
     bind(Id, {tvar, Id2}, St#st{vars = Vs#{Id2 => TV2a}});
 bind_var(Id, V, T, St) ->
     case occurs(Id, T, St) of
@@ -223,7 +232,10 @@ generalize(T, Keep, #st{level = Level, vars = Vs} = St) ->
     T2 = elide_pure_effects(T1, Keep, St),
     Ids = [Id || Id <- free_vars(T2, St),
                  (maps:get(Id, Vs))#tv.level > Level orelse lists:member(Id, Keep)],
-    {#scheme{vars = [{Id, (maps:get(Id, Vs))#tv.flags} || Id <- Ids], type = T2}, St}.
+    Names = maps:from_list([{Id, N} || Id <- Ids, N <- [(maps:get(Id, Vs))#tv.name],
+                                       N =/= undefined]),
+    {#scheme{vars = [{Id, (maps:get(Id, Vs))#tv.flags} || Id <- Ids], type = T2, names = Names},
+     St}.
 
 elide_pure_effects(T, Keep, St) ->
     Counts = count_vars(T, #{}),
@@ -261,6 +273,8 @@ replace_effects(T, _) -> T.
 -spec instantiate(#scheme{}, st()) -> {type(), st()}.
 instantiate(#scheme{vars = [], type = T}, St) ->
     {T, St};
+%% An instance's variables carry no names: a name belongs to the
+%% annotation that wrote it, not to a use of the value (report §11.5).
 instantiate(#scheme{vars = Vars, type = T}, St) ->
     {Map, St1} = lists:foldl(fun({Id, Flags}, {M, S}) ->
                                  {V, S1} = fresh(S, Flags),
@@ -286,7 +300,7 @@ subst_vars(pure, _) -> pure.
 format(T, St) ->
     T1 = zonk(T, St),
     EffectOnly = effect_only_vars(T1),
-    {S, _} = fmt(T1, St, #{effect_only => EffectOnly, values => 0, effects => 0}),
+    {S, _} = fmt(T1, St, #{effect_only => EffectOnly, values => 0, effects => 0, taken => []}),
     lists:flatten(S).
 
 %% Variables that occur only in effect positions are named e, e1, ...; the
@@ -325,25 +339,31 @@ type_name(QName, #st{ns = Ns, shadows = Shadows}) ->
 
 %% The scheme's own flags apply, whatever state it is printed under.
 -spec format_scheme(#scheme{}, st()) -> string().
-format_scheme(#scheme{vars = Vars, type = T}, #st{vars = Vs} = St) ->
+format_scheme(#scheme{vars = Vars, type = T, names = Names}, #st{vars = Vs} = St) ->
     Vs1 = lists:foldl(fun({Id, Flags}, Acc) ->
                           TV = maps:get(Id, Acc, #tv{id = Id, level = 0}),
-                          Acc#{Id => TV#tv{flags = Flags}}
+                          Acc#{Id => TV#tv{flags = Flags, name = maps:get(Id, Names, undefined)}}
                       end, Vs, Vars),
     format(T, St#st{vars = Vs1}).
 
+%% Report §11.5: the annotation's name if the variable has one and it is
+%% not in use for another, else a fresh name that is not in use.
 fmt({tvar, Id}, St, Names) ->
     case Names of
         #{Id := N} -> {N, Names};
-        #{effect_only := EffectOnly, values := NV, effects := NE} ->
-            {Base, Names1} = case lists:member(Id, EffectOnly) of
-                                 true -> {effect_name(NE), Names#{effects => NE + 1}};
-                                 false -> {var_name(NV), Names#{values => NV + 1}}
+        #{effect_only := EffectOnly, taken := Taken} ->
+            {Base, Names1} = case safe_name(Id, St) of
+                                 undefined -> fresh_name(Id, EffectOnly, Names);
+                                 Given ->
+                                     case lists:member(Given, Taken) of
+                                         true -> fresh_name(Id, EffectOnly, Names);
+                                         false -> {Given, Names}
+                                     end
                              end,
             Marks = [$= || lists:member(eq, safe_flags(Id, St))]
                  ++ [$! || lists:member(no_reply, safe_flags(Id, St))],
             N = Base ++ Marks,
-            {N, Names1#{Id => N}}
+            {N, Names1#{Id => N, taken => [Base | Taken]}}
     end;
 fmt({tcon, QName, []}, St, Names) ->
     {type_name(QName, St), Names};
@@ -376,6 +396,28 @@ fmt_ret(T, St, Names) ->
 fmt_list(Ts, St, Names) ->
     {Ss, Names1} = lists:mapfoldl(fun(T, N) -> fmt(T, St, N) end, Names, Ts),
     {lists:join(", ", Ss), Names1}.
+
+%% a, b, c, ... or e, e1, ..., skipping names in use.
+fresh_name(Id, EffectOnly, #{values := NV, effects := NE, taken := Taken} = Names) ->
+    case lists:member(Id, EffectOnly) of
+        true ->
+            case lists:member(effect_name(NE), Taken) of
+                true -> fresh_name(Id, EffectOnly, Names#{effects => NE + 1});
+                false -> {effect_name(NE), Names#{effects => NE + 1}}
+            end;
+        false ->
+            case lists:member(var_name(NV), Taken) of
+                true -> fresh_name(Id, EffectOnly, Names#{values => NV + 1});
+                false -> {var_name(NV), Names#{values => NV + 1}}
+            end
+    end.
+
+safe_name(Id, #st{vars = Vs}) ->
+    case Vs of
+        #{Id := #tv{name = undefined}} -> undefined;
+        #{Id := #tv{name = Name}} -> atom_to_list(Name);
+        _ -> undefined
+    end.
 
 safe_flags(Id, #st{vars = Vs}) ->
     case Vs of

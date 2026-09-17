@@ -26,11 +26,13 @@
 -ifndef(ERN_TYPES_HRL).
 -define(ERN_TYPES_HRL, true).
 
--record(tv, {id, level, flags = []}).
-%% level: the let-nesting depth at creation, for generalization
+-record(tv, {id, level, flags = [], name}).
+%% level: the let-nesting depth at creation, for generalization; name: the
+%% annotation's name for the variable, if any (report §11.5)
 
--record(scheme, {vars = [], type}).
-%% vars: [{id(), flags()}]; a monomorphic type is a scheme with vars = []
+-record(scheme, {vars = [], type, names = #{}}).
+%% vars: [{id(), flags()}]; a monomorphic type is a scheme with vars = [];
+%% names: #{id() => atom()}, the annotation's names of quantified variables
 
 %% What the checker knows about a declared type, from this module or a
 %% compiled interface.

@@ -255,7 +255,7 @@ dep_iface(D, Ifaces, OutDir) ->
             Erc = filename:join(OutDir, module_path(D) ++ ".erc"),
             case read_erc(Erc) of
                 {ok, #{iface := I}} -> {D, I};
-                {error, _} -> fail("compile " ++ qname(D) ++ " first: no " ++ Erc)
+                {error, Why} -> fail("compile " ++ qname(D) ++ " first: " ++ Erc ++ ": " ++ Why)
             end
     end.
 

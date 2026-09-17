@@ -149,7 +149,7 @@ ann(#t_var{name = Name}, VarMap, Env) ->
     case VarMap of
         #{Name := V} -> {V, VarMap, Env#env.st};
         _ ->
-            {V, St} = ern_types:fresh(Env#env.st),
+            {V, St} = ern_types:fresh_named(Name, Env#env.st),
             {V, VarMap#{Name => V}, St}
     end;
 ann(#t_con{pos = Pos, path = Path, name = Name, args = Args}, VarMap, Env) ->

@@ -205,6 +205,22 @@ iface_chunk_test() ->
     {ok, _, Iface2, _} = ern_typecheck:check_string(Ns, <<"fn f(x) = x\n", Bin/binary>>),
     ?assertEqual(ern_compiler:iface_hash(Iface), ern_compiler:iface_hash(Iface2)).
 
+%% report §11.1: a chunk of another compiler version reads as an error,
+%% so the module counts as stale; and the interface hash ignores the names
+%% of type variables
+stale_chunk_test() ->
+    {Ns, Bin} = example("stack"),
+    {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Bin),
+    {ok, _, Beam} = ern_compiler:compile(Ns, Typed, Iface, Env),
+    {ok, {_, [{"ErnI", Chunk}]}} = beam_lib:chunks(Beam, ["ErnI"]),
+    Old = term_to_binary((binary_to_term(Chunk))#{format => 0}),
+    {ok, _, Stale} = compile:forms([{attribute, 1, module, x}],
+                                   [binary, {extra_chunks, [{<<"ErnI">>, Old}]}]),
+    ?assertMatch({error, _}, ern_compiler:read_interface(Stale)),
+    {ok, _, IfaceA, _} = ern_typecheck:check_string(['M'], "export fn id(x : a) -> a = x\n"),
+    {ok, _, IfaceT, _} = ern_typecheck:check_string(['M'], "export fn id(x : t) -> t = x\n"),
+    ?assertEqual(ern_compiler:iface_hash(IfaceA), ern_compiler:iface_hash(IfaceT)).
+
 %% report §11.1: --emit erl gives the module as Erlang source
 erl_source_test() ->
     {Ns, Bin} = example("hello"),

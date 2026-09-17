@@ -2439,6 +2439,10 @@ Running the toolchain against small programs found three places where the report
 
 The printer behind error messages and `--doc` qualified a module's own types with the module's namespace, `Stack.Stack(a)` inside `stack.ern`. §11.5 now says a type name is printed as the module would write it, which is §4.2's naming rule applied to output rather than a printing convention of its own: local and prelude names bare, other modules' names qualified, and a local type that shadows a prelude name qualified, since that is the one case where the bare name would be ambiguous in a message that can mention both.
 
+## Type Variables Keep Their Names, 2026-09-17
+
+The printer named every variable afresh, `a`, `b`, `e`, so `--doc` showed `new : () -> Table(a, b) with e` for a function declared `-> Table(k, v) with m`. That is a rewrite of the source with no information in it, and in documentation the author's names are the information. §11.5 now says a variable prints under its annotation's name, with the fresh names for the rest. The checker already holds the names, since §3.9's rigid variables come from the annotation; they now stay on the variable, travel in the scheme into the interface, and are left out of the interface hash, since renaming `k` to `key` is not a change a dependent should recompile for.
+
 ## Later
 
 Planned or considered, not in the language today.

@@ -634,3 +634,19 @@ type_names_in_messages_test() ->
     ?assertMatch({error, [{_, _, "the arguments do not fit f: expected (Net.Http.Request) -> Int,"
                            " found (Int) -> a"}]},
                  ern_typecheck:check(['Main'], Decls, [Iface])).
+
+%% report §11.5, §3.9: a type variable prints under its annotation's name;
+%% an unnamed one gets a fresh name that avoids the names in use; a use
+%% of a value does not inherit the names of its declaration
+variable_names_test() ->
+    ?assertEqual("(Map(k=, v), k=) -> Optional(v)",
+                 type_of("export fn get(m : Map(k, v), key : k) -> Optional(v) = Map.get(m, key)",
+                         get)),
+    ?assertEqual("(a=, a=) -> Bool",
+                 type_of("export fn eq(x : a, y : a) -> Bool with m = x == y", eq)),
+    ?assertEqual("() -> Map(a=, b)", type_of("export fn empty() = Map.empty", empty)),
+    ?assertEqual("(b, (b) -> a with e) -> a with e",
+                 type_of("export fn ap(x : b, f) = f(x)", ap)),
+    ?assertEqual("((a) -> a with e, a) -> a with e",
+                 type_of("export fn twice(f : (a) -> a with e, x : a) -> a with e = f(f(x))",
+                         twice)).
