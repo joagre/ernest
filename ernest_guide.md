@@ -346,11 +346,11 @@ fn apply(f, x) = f(x)
 
 Inferred type: `((a) -> b with e, a) -> b with e`. The callback's mailbox effect `e` flows through — if `f` is pure, so is `apply(f, x)`; if `f` has effect `M`, `apply(f, x)` has effect `M`. `List.map`, `List.foreach`, and the other combinators in Appendix E work the same way.
 
-An effect variable that appears *only* in effect position (like `e` above) may bind to a mailbox type or to *empty* (pure). An effect variable that also appears in a value position (like `m` in `self : () -> Address(m) with m`) can only bind to a real mailbox type — `Address(empty)` is not a well-formed type.
+An effect variable that appears *only* in effect position (like `e` above) may bind to a mailbox type or to *pure*. An effect variable that also appears in a value position (like `m` in `self : () -> Address(m) with m`) can only bind to a real mailbox type — pure is not a type, so it cannot appear inside `Address(_)`.
 
-Process operations that require a process context — the prelude primitives `send`, `spawn`, `Address.call`, `answer`, `monitor`, `kill`, `remote`, `parallelRemote`, and the `receive` expression form (with its optional `after` clause) — require the enclosing function's mailbox effect to be non-empty; pure code cannot use any of them.
+Process operations that require a process context — the prelude primitives `send`, `spawn`, `Address.call`, `answer`, `monitor`, `kill`, `remote`, `parallelRemote`, and the `receive` expression form (with its optional `after` clause) — are *process-only*: they require the enclosing function's mailbox effect to be a real mailbox type, so pure code cannot use any of them.
 
-`ping`'s `m` in §5 is polymorphic but non-empty: any real mailbox is admissible, but the empty effect is not.
+`ping`'s `m` in §5 is polymorphic but process-only: any real mailbox is admissible, but pure is not.
 
 ### 3.6 One spawn corner: pure callbacks
 
@@ -582,7 +582,7 @@ fn pong() -> Unit with PongMsg = receive {
 }
 ```
 
-`ping`'s mailbox `m` is polymorphic — ping never `receive`s. It is polymorphic but non-empty: `ping` uses `Address.call`, which requires a real mailbox effect. Any concrete `m` works; the empty effect does not.
+`ping`'s mailbox `m` is polymorphic — ping never `receive`s. It is polymorphic but process-only: `ping` uses `Address.call`, which requires a real mailbox effect. Any concrete `m` works; pure does not.
 
 The `main` process monitors `pongAddr` and waits for its termination. Returning from `main` immediately after the two spawns *may* terminate the children before their work finishes — the runtime does not order `main`'s return against the children's first send. Waiting for a monitor notification keeps `main` alive until the monitored process ends, whether it returned normally, faulted, or was killed. `PongDone(_)` accepts every death reason.
 

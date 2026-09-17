@@ -2336,6 +2336,54 @@ A read-through of the whole report applied principle 1 to the report's own vocab
 
 **Effect.** `type Unit = Unit` in §9.3; every `Void` in the report, the guide, and `examples/` became `Unit`. §3.1 now says in one sentence that `Unit` is not the empty type. §8.4 lost its special ABI line for the unit value: `Unit` is an ordinary nullary constructor and maps to the quoted atom `'Unit'` like every other, which also removes the contradiction between the old lowercase `void` atom and the constructor rule in the same section. The implementation plan's ABI paragraph was brought in line with §8.4 at the same time.
 
+## Report Read-Through Fixes, 2026-09-17
+
+A full read of the report against its own principles, Wirth-report practice, and the vocabulary of readers from other typed languages. Each fix below names the section it changed. Design questions the read raised but did not settle are listed at the end.
+
+**Grammar and lexical.**
+
+- §2.3 gives `letter`, `digit`, `hexdigit`, `ident`, `typename`, `conname`, and `typevar` as EBNF productions, as Oberon does, instead of prose. §2.5's `\u{...}` bound of one to six hex digits moved into the production.
+- §2.5 adds the `\r` escape. Raw U+000D was already excluded from literals, so `"\r\n"` had no spelling except `\u{d}`; the web server needs it. The float exponent admits `+` as well as `-`.
+- §2.6 adds `.` to the delimiter list; `QName`, `TypeAtom`, and `DeclName` all use it.
+- §2.6 introduces `userop = "+" | "-" | "*" | "/" | "%" | "<>"`, the operators a type may define for itself (§4.8). `Signature`, `DeclName`, and `QName` use it instead of `binop`, and `DeclName` and `QName` require a typename prefix on an operator. Before, a bare `+` parsed as a primary expression and `fn +(a, b)` as a declaration, neither with a meaning; and `Int.|>` or `Int.==` were grammatical though §2.6 and §4.8 forbade them. This also removes a hazard for the Pratt loop, which would otherwise meet a binop token in operand position.
+- `ForeignParam = ident ":" Type` replaces `Param` in `ForeignDecl`. §4.7 said foreign parameters are annotated; the grammar had them optional and admitted patterns.
+- Appendix A's commentary names the third lookahead spot: after `fn`, an identifier means a declaration and `(` a lambda.
+
+**Semantics stated where they were implied.**
+
+- §3.4: `with` binds to the nearest arrow in a declaration's return annotation too, with the two spellings shown.
+- §3.10: `a < b` is `T.compare(a, b) == Less`; a type without `compare` has no ordering and `<` on it is a type error; the prelude's four `compare` functions are named. §4.8's "built into the language, not per-namespace" for the comparisons was contradicted by "uses each type's `compare`" in the same sentence; it now says they cannot be defined per type and resolve through `compare`.
+- §4.6's top-level `let` paragraph limited type-member prefixes to abstract types, contradicting §4.2 and §4.8, and read as if `let empty` silently became `let Stack.empty`. Rewritten.
+- §5: `fn`, `if`, `match`, and `receive` are alternatives of `Expr`, not `Primary`, so `1 + if ...` is a syntax error. Stated, since OCaml, Haskell, and Rust accept the unparenthesized form.
+- §5.11: a segment with no specifier is `int` of size 8; the value type of each specifier is listed.
+- §6.6: `let` transfers a reply obligation as `match` does, and an `if`, `match`, `receive`, or block whose value is reply-carrying is subject to the discipline at the site where its value is bound or consumed. Neither case was covered.
+- §6.9: `monitor` on an already-dead process delivers immediately, and each call produces one message. Erlang's rule; least surprise on BEAM.
+- §9.1 lists `Foreign` with the built-in types. §9.3 had `type Foreign` with no constructors, which `TypeDecl` does not admit.
+- §9.6 adds `Bytes.<>`, which the glossary already named. Appendix E.5 adds `String.trim` and `String.toLower`, which §5.7 already used.
+- Appendix D no longer mentions `Ok(v)` and `Error(r)`, constructors that exist nowhere in the report.
+- §8.1 and §11.2 write `--main Qualified.name`; §11.2's own rule requires a lowercase final segment.
+
+**Terminology for readers from other languages.**
+
+- §6.6 says in its first paragraph that `Reply(a)` is a linear type and that the section spells out consumption. The rules were all there; the word was not.
+- §3.10 says the equality constraint is a qualified type, `Eq a =>` in Haskell's spelling, inferred and never written.
+- §3.9 says plainly that *empty* is not a type, that an effect-only variable ranges over mailbox types plus empty, and that this is the one departure from plain Hindley-Milner. The "one kind of variable" heading stays, but the text no longer claims more than it delivers.
+- §3.9 states that the three inferred, unwritable restrictions are a deliberate exception to principle 3, in exchange for shape-only signatures.
+- §6.1 gains a three-row table contrasting `(A) -> B`, `(A) -> B with M`, and `(A) -> B with m`. §6.8 says `with Never` is for process roots and that a send-only helper meant to be called from process code stays polymorphic, because a `Never` function can only be called where the mailbox is `Never`. The guide hinted at this under `ping`; the report never said it.
+
+**Structure.**
+
+- The "Diagnostics" paragraph of §3.10 and the diagnostics clause of §3.9 moved to a new §11.5. They described compiler output, not the language.
+- The "Timeout rationale" paragraph of §6.6 moved here: the mandatory timeout on `Address.call` returns `Optional(a)` so an answer that never arrives has somewhere to land; `Address.callForever` opts out of that by name, and the caller accepts that the call may hang.
+- The header carries a full revision date, "Revision of 17 September 2026", instead of a month.
+- Alignment padding in the code blocks of §9.6 and Appendix E collapsed to single spaces, per the style guide.
+
+**Decided the same day, after asking:**
+
+- *`Never` and `after`.* §6.8 banned every `receive` under `Never`, and an `after`-only `receive` is the language's only sleep, so a `Never` process could not pause. Now a `receive` with only an `after` clause is legal under `Never`; a pattern clause is still a type error. It matches nothing, so nothing invisible is admitted.
+- *Shadowing and uniqueness.* §4.2's lookup order already made local declarations win over the prelude but never said shadowing was legal; the tick game's `type Key = Up | Down | Left | Right` shadows three prelude constructors. §4.2 now says a module may shadow prelude names, that the local one is meant wherever the name is unqualified in that module, and that within a module type names and constructor names must each be unique, because nothing but the name identifies a constructor. Type-directed disambiguation was rejected: it is not first-token, and it costs the checker a case analysis for a convenience nobody asked for.
+- *"empty" → "pure", "non-empty" → "process-only".* The distinguished value an effect variable may take when a function has no mailbox was called *empty*, and the restriction on the process primitives *non-empty*. "Empty" evokes the empty type, which is `Never`. The value is now called *pure*, and the restriction *process-only*, in §3.9, §11.5, and the guide. Entries dated before 2026-09-17 keep the old words.
+
 ## Later
 
 Planned or considered, not in the language today.

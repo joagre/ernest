@@ -1,6 +1,6 @@
 # Ernest: Language Report
 
-September 2026. Rationale, rejected alternatives, and open questions are in [`decisions.md`](docs/decisions.md).
+Revision of 17 September 2026. Rationale, rejected alternatives, and open questions are in [`decisions.md`](docs/decisions.md).
 
 ## 0. Introduction
 
@@ -34,7 +34,19 @@ Source text is Unicode in UTF-8; a leading byte-order mark (U+FEFF) is stripped.
 
 ### 2.3 Identifiers
 
-`ident` begins with a lowercase letter or `_` and continues with any number of letters, digits, and `_`. `conname` and `typename` begin with an uppercase letter and continue the same way, and are lexically the same token. `typevar` is a lowercase identifier in type position.
+```
+letter   = "a" | ... | "z" | "A" | ... | "Z" .
+digit    = "0" | ... | "9" .
+hexdigit = digit | "a" | ... | "f" | "A" | ... | "F" .
+lower    = "a" | ... | "z" .
+upper    = "A" | ... | "Z" .
+ident    = ( lower | "_" ) { letter | digit | "_" } .
+typename = upper { letter | digit | "_" } .
+conname  = typename .
+typevar  = ident .
+```
+
+`ident` begins with a lowercase letter or `_` and continues with any number of letters, digits, and `_`. `conname` and `typename` begin with an uppercase letter and continue the same way, and are lexically the same token. `typevar` is a lowercase identifier in type position. A reserved word (§2.4) is never an `ident`.
 
 An identifier that begins with `_` must have at least one further character — the token `_` alone is the wildcard (§5.10).
 
@@ -57,10 +69,11 @@ Seventeen, grouped by role:
 
 ```
 int      = digit { digit } .
-float    = digit { digit } "." digit { digit } [ ( "e" | "E" ) [ "-" ] digit { digit } ] .
+float    = digit { digit } "." digit { digit } [ ( "e" | "E" ) [ "+" | "-" ] digit { digit } ] .
 char     = "'" ( character | escape ) "'" .
 string   = '"' { character | escape } '"' .
-escape   = "\\" ( "'" | '"' | "\\" | "n" | "t" | "u{" hexdigit { hexdigit } "}" ) .
+escape   = "\\" ( "'" | '"' | "\\" | "n" | "r" | "t"
+           | "u{" hexdigit [ hexdigit ] [ hexdigit ] [ hexdigit ] [ hexdigit ] [ hexdigit ] "}" ) .
 bool     = "true" | "false" .
 ```
 
@@ -68,7 +81,7 @@ bool     = "true" | "false" .
 
 **Integer form.** Decimal only — no hex, octal, or binary forms and no digit separators. The standard library provides parsing functions for other bases when needed.
 
-**Escapes.** The six listed above:
+**Escapes.** The seven listed above:
 
 | Escape       | Meaning                                        |
 |--------------|------------------------------------------------|
@@ -76,6 +89,7 @@ bool     = "true" | "false" .
 | `\"`         | double quote                                   |
 | `\\`         | backslash                                      |
 | `\n`         | line feed (U+000A)                             |
+| `\r`         | carriage return (U+000D)                       |
 | `\t`         | tab (U+0009)                                   |
 | `\u{...}`    | Unicode scalar; one to six hex digits          |
 
@@ -83,21 +97,22 @@ bool     = "true" | "false" .
 
 **Character content.** A `character` inside a `char` or `string` literal is any code point other than the enclosing quote, `\`, U+000A (line feed), and U+000D (carriage return). Multi-line strings are built by explicit `\n` or by concatenation.
 
-**Lexical primitives.** `digit` is `0` through `9`; `hexdigit` is a digit or `a`-`f` or `A`-`F`; `letter` is `a`-`z` or `A`-`Z`. Identifiers are ASCII, though source text is Unicode.
+**Lexical primitives.** `digit`, `hexdigit`, and `letter` are defined in §2.3. Identifiers are ASCII, though source text is Unicode.
 
 ### 2.6 Operators and delimiters
 
 ```
-( ) { } [ ] << >> #( , ; : = <- -> | .. _
+( ) { } [ ] << >> #( , ; : = <- -> | . .. _
 + - * / % <> :: == != < <= > >= && || |>
 ```
 
-Two grammar categories built from the above:
+Three grammar categories built from the above:
 
 ```
 binop    = "*" | "/" | "%" | "+" | "-" | "<>" | "::"
          | "==" | "!=" | "<" | "<=" | ">" | ">=" | "&&" | "||"
          | "|>" .
+userop   = "+" | "-" | "*" | "/" | "%" | "<>" .
 literal  = int | float | char | string | bool .
 ```
 
@@ -117,7 +132,7 @@ Precedence of the binary operators, highest first:
 | 6     | `\|\|`                 | left          |
 | 7     | `\|>`                  | left          |
 
-An operator name can be qualified, `Int.+`, §4.8. `|>` is not qualifiable — it is a syntactic form (§5.7), not a namespaced function.
+The operators in `userop` are the ones a type can define for itself (§4.8); only they appear qualified, `Int.+`, or as a declaration name, `fn Distance.+`. The others are built into the language: `::` is cons (§3.3), the comparisons and `&&`, `||` are §4.8's, and `|>` is a syntactic form (§5.7).
 
 ## 3. Types
 
@@ -166,7 +181,7 @@ The prelude declares `Unit` as a one-value type (§9.3): a function that has not
 
 `with M` after the result is the mailbox type: the function uses the process it runs in, whose mailbox has type `M`, §6.1. A function type without a `with M` is pure.
 
-`with` binds to the nearest arrow; `(A) -> (B) -> C with M` is a pure function returning a function with mailbox type `M`. Parentheses group a type to override the default: `(A) -> ((B) -> C) with M` is a function with mailbox `M` returning a pure function.
+`with` binds to the nearest arrow; `(A) -> (B) -> C with M` is a pure function returning a function with mailbox type `M`. Parentheses group a type to override the default: `(A) -> ((B) -> C) with M` is a function with mailbox `M` returning a pure function. The same rule applies to a declaration's return annotation: `fn f() -> (A) -> B with M` returns a function with mailbox `M`; a function with mailbox `M` that returns a pure function is written `fn f() -> ((A) -> B) with M`.
 
 ### 3.5 Sum types
 
@@ -206,18 +221,20 @@ Recursive and mutually recursive types are allowed. Polymorphic recursion is not
 At a call site, a variable in an effect position binds to one of:
 
 - **A mailbox type `M`.** The caller inherits effect `M`. `apply(fn(x) = send(a, x), 5)` binds `e` to the mailbox effect of `send`, so this call has that effect.
-- **The empty effect.** A function type written without `with M` is pure; its effect slot is *empty*. `apply(fn(x) = x + 1, 5)` binds `e = empty`, so the call is pure.
+- **Pure.** A function type written without `with M` is pure; its effect slot holds no mailbox type. `apply(fn(x) = x + 1, 5)` binds `e` to pure, so the call is pure.
 
 **One kind of variable, one well-formedness rule.** Ernest has a single kind of type variable, in the HM sense. The role a variable plays is decided by where it appears:
 
 - In a *value position* — arguments, results, tuple components, and inside `Address(_)`, `Reply(_)`, `List(_)`, and other type constructors — a variable must resolve to a value type.
-- In an *effect position* — the type after `with` — a variable is used as the caller's mailbox effect. Effect positions additionally admit *empty* (no mailbox).
+- In an *effect position* — the type after `with` — a variable is used as the caller's mailbox effect. Effect positions additionally admit *pure* (no mailbox).
 
-A variable that appears *only* in effect positions (like `e` in `apply` above) can bind to either a mailbox type or empty. A variable that appears in *any* value position (like `m` in `self : () -> Address(m) with m`) must resolve to a value type: the value-position usage requires a real type, so at every use site both occurrences of `m` receive the same mailbox type, and empty is not admissible. This is the only rule that ties the two occurrences of `m` together; unification does the rest.
+*Pure* is not a type. An effect-only variable ranges over the mailbox types and pure; a variable with any value-position occurrence ranges over types alone. This is the one place the type language departs from plain Hindley-Milner, and the rule that follows is the whole of the departure.
 
-The prelude primitives that require a process context — `send`, `spawn`, `Address.call`, `Address.callForever`, `answer`, `monitor`, `kill`, `remote`, `parallelRemote`, and any `foreign fn` declared with `with M` — carry the same non-empty restriction on their outer effect variable: the type checker treats it as if it appeared in a value position, so pure code cannot invoke them. Their signatures use effect-only variables for brevity; the constraint is a rule of the prelude, not of the annotation grammar.
+A variable that appears *only* in effect positions (like `e` in `apply` above) can bind to either a mailbox type or pure. A variable that appears in *any* value position (like `m` in `self : () -> Address(m) with m`) must resolve to a value type: the value-position usage requires a real type, so at every use site both occurrences of `m` receive the same mailbox type, and pure is not admissible. This is the only rule that ties the two occurrences of `m` together; unification does the rest.
 
-The empty effect has no explicit syntax — its presence is the absence of a `with` clause. During type printing an effect variable bound to empty is elided from the output.
+The prelude primitives that require a process context — `send`, `spawn`, `Address.call`, `Address.callForever`, `answer`, `monitor`, `kill`, `remote`, `parallelRemote`, and any `foreign fn` declared with `with M` — carry the same *process-only* restriction on their outer effect variable: the type checker treats it as if it appeared in a value position, so pure code cannot invoke them. Their signatures use effect-only variables for brevity; the constraint is a rule of the prelude, not of the annotation grammar.
+
+Pure has no explicit syntax — its presence is the absence of a `with` clause. During type printing an effect variable bound to pure is elided from the output.
 
 **Higher-order effect polymorphism.** `List.map`, `List.foreach`, `Map.map`, and other stdlib combinators that take function arguments are effect-polymorphic — the same rule that types `apply` above types them. Their published signatures in Appendix E make the effect variable explicit; a pure callback binds it to empty, an effectful callback binds it to the caller's mailbox.
 
@@ -242,26 +259,24 @@ An annotation is compatible with these; it doesn't need to state them. Constrain
 **Inferred restrictions propagate through function values, branches, and modules.** Three restrictions travel with a function's type wherever the function flows:
 
 - *Equality* (§3.10) — a variable used by `==` cannot be instantiated to a type containing functions or addresses.
-- *Non-empty effect* — a function whose body calls a process primitive (`send`, `spawn`, `Address.call`, etc.) inherits that primitive's non-empty-effect restriction on its own effect variable. A wrapper `fn wrap(a, v) = send(a, v)` cannot be instantiated with an empty caller effect at any use site.
+- *Process-only* — a function whose body calls a process primitive (`send`, `spawn`, `Address.call`, etc.) inherits that primitive's process-only restriction on its own effect variable. A wrapper `fn wrap(a, v) = send(a, v)` cannot be instantiated with a pure caller effect at any use site.
 - *Not-reply-carrying* (§6.6) — a polymorphic parameter that a function duplicates, discards, or otherwise consumes twice cannot be instantiated to a reply-carrying type. `fn dup(x) = #(x, x)` and `fn discard(x) = Unit` carry this restriction on their parameters; `fn id(x) = x` does not.
 
-All three propagate the same way: they are part of the type scheme, travel through function values and branches, are preserved across compiled module interfaces, and are surfaced in diagnostics (printed types and error messages). The annotation grammar does not admit them; they are inferred and enforced by the type checker.
+All three propagate the same way: they are part of the type scheme, travel through function values and branches, are preserved across compiled module interfaces, and are shown by the compiler (§11.5). The annotation grammar does not admit them; they are inferred and enforced by the type checker. This is a deliberate exception to principle 3: the three restrictions are visible in the checker's output rather than in the source, in exchange for signatures that describe shape only.
 
 ### 3.10 Equality and ordering
 
 `==` and `!=` are defined for all values except those containing functions or addresses; on those, `==` is a type error. Equality is structural.
 
-Ordering is defined per type by the function `compare` in the type's namespace, `Int.compare : (Int, Int) -> Ordering`. `Float.compare` is total on the finite domain of `Float` (§3.1).
+Ordering is defined per type by the function `compare` in the type's namespace, `Int.compare : (Int, Int) -> Ordering`. `a < b` is `T.compare(a, b) == Less`, where `T` is the type of both operands; `<=`, `>`, and `>=` likewise. A type with no `compare` in its namespace has no ordering, and `<` on it is a type error. The prelude provides `compare` for `Int`, `Float`, `String`, and `Char` (§9.6); a user type provides its own (§4.8). `Float.compare` is total on the finite domain of `Float` (§3.1).
 
 **Equality on polymorphic types.** A function that uses `==` on a value of a type variable induces an implicit *equality constraint* on that variable. The constraint is not written in the type syntax; it is inferred from usage and checked at each call site. Instantiating the variable with a type that contains a function or address is a type error at that call site — not at the function's definition. The rule matches the equality-comparable check for concrete types.
 
 `Map(k, v)` and `Set(a)` carry the same constraint on `k` and `a` respectively. Every operation on those containers implicitly asserts it, so a `Map` or `Set` parameterized by a non-comparable type is rejected at the first operation. Stdlib functions that use `==` internally on a type parameter, such as `List.contains` and `List.remove`, propagate the constraint through that parameter.
 
-The check is at instantiation, not at generalization: `fn equal(a, b) = a == b` type-checks (its type is `(a, a) -> Bool`), and each call site is checked against the concrete type substituted for `a`.
+The check is at instantiation, not at generalization: `fn equal(a, b) = a == b` type-checks (its type is `(a, a) -> Bool`), and each call site is checked against the concrete type substituted for `a`. In the vocabulary of type classes this is a qualified type: `equal` has the type Haskell would write `Eq a => (a, a) -> Bool`. Ernest infers the qualifier and never writes it.
 
 **Propagation through function values, branches, and modules.** The equality constraint on a type variable is part of the type scheme, so it travels with the function value wherever the value flows. `let f = equal` gives `f` `equal`'s type including the constraint; applying `f` to addresses at some later point is an error at that application. `if flag then equal else always` unifies the branches to `(a, a) -> Bool` and inherits the union of constraints — since `equal` is constrained and `always` is not, the result is constrained, and the returned function cannot be applied to addresses. A module exports its polymorphic values with their constraints; a compiled interface encodes them, so a call from another module receives the same treatment as an internal call. The check remains at instantiation — a call chain through several intermediate polymorphic functions, where a constrained value is eventually applied to concrete arguments, is checked at the concrete application.
-
-**Diagnostics.** The annotation grammar does not admit the equality constraint (§3.9), but the compiler surfaces it: printed types distinguish `equal : (a, a) -> Bool` (constrained) from `always : (a, a) -> Bool` (unconstrained) — the printer marks the constrained form so two functions with the same annotated shape are not indistinguishable. Error messages at rejected call sites identify which parameter's constraint failed and where the constraint came from. Generated documentation (`ernc --doc`) shows the constraint in the same form.
 
 ### 3.11 Serialization
 
@@ -273,19 +288,20 @@ All values can be sent in messages, functions included; their code travels with 
 Program     = { Declaration } .
 Declaration = [ "export" ] ( TypeDecl | AbstractDecl | FnDecl | LetDecl | ForeignDecl ) .
 ForeignDecl = "foreign" ( "type" typename [ "(" typevar { "," typevar } ")" ]
-            | "fn" DeclName "(" [ Param { "," Param } ] ")" Return "=" string ) .
+            | "fn" DeclName "(" [ ForeignParam { "," ForeignParam } ] ")" Return "=" string ) .
+ForeignParam = ident ":" Type .
 TypeDecl    = "type" typename [ "(" typevar { "," typevar } ")" ] "="
               Constructor { "|" Constructor } .
 Constructor = conname [ "(" ( Type | Field { "," Field } ) ")" ] .
 Field       = ident ":" Type .
 AbstractDecl  = "abstract" TypeDecl "with" "{" Signature { ";" Signature } "}" .
-Signature   = ( ident | binop ) ":" Type .
+Signature   = ( ident | userop ) ":" Type .
 FnDecl      = "fn" DeclName "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 Param       = Pattern [ ":" Type ] .
 Return      = "->" Type [ "with" Type ] .
 LetDecl     = "let" DeclName [ ":" Type ] "=" Expr .
 Binding     = "let" Pattern [ ":" Type ] ( "=" | "<-" ) Expr .
-DeclName    = [ typename "." ] ( ident | binop ) .
+DeclName    = ident | typename "." ( ident | userop ) .
 ```
 
 ### 4.1 Modules
@@ -314,6 +330,8 @@ External callers write `Net.Http.parse` and `Net.Http.Request`; the file-namespa
 **Module ownership of type-member namespaces.** A type-member namespace belongs to the file that declares the type. `abstract type Stack` in `main.ern` (namespace `Main`) means the type `Main.Stack` and every member `Main.Stack.*` is defined by `main.erc`; the compiled interface records that ownership so `Main.Stack.push` loads from `main.erc`, not from a hypothetical `main/stack.erc`. Another file cannot contribute members to a type-member namespace it does not own: `main/stack.ern` would provide the module namespace `Main.Stack`, and any declaration `Main.Stack.push` from that file conflicts with the one owned by `main.ern` — a compile-time error at load, reported as a duplicate export.
 
 **Unqualified lookup inside a body.** A name written unqualified in a function body is looked up in this order: the module's local declarations (whether or not `export`ed); the abstract-type namespace of the enclosing declaration, if any; and the prelude. Anything not found there must be qualified. The constructor of an abstract type is hidden from definitions outside its signature.
+
+Because local declarations are found first, a module may declare a type or constructor with the same name as one in the prelude; the local one is meant wherever the name appears unqualified in that module, and the prelude's is unreachable there. Within one module, type names must be unique and constructor names must be unique across all of the module's types; a duplicate is a compile-time error, since nothing but the name identifies a constructor.
 
 ### 4.3 Type declarations
 
@@ -366,7 +384,7 @@ The wildcard binding `let _ = e` is a discard, not a name binding: `_` does not 
 
 Type parameters of the enclosing `fn` (or of any outer scope) are not "unresolved" — they are quantified at their binding site and appear in the block's environment. A binding whose inferred type mentions such a parameter typechecks without needing further resolution.
 
-At top level, a `let` binds a `DeclName` — an unqualified `ident` (`binop` on operator definitions), optionally prefixed with a single typename that names an abstract type declared in the same module — to a value. `let empty : Stack(a) = Stack([])` inside `main.ern` under `abstract type Stack` becomes `let Stack.empty : Stack(a) = Stack([])` for the accessor form. The LHS is a name, not a pattern, and `<-` is a block form only. Top-level `let` may generalize its free type variables: `let Stack.empty : Stack(a) = Stack([])` declares a polymorphic value usable at every instantiation of `a`. `export` marks the declaration visible outside its module (§4.2).
+At top level, a `let` binds a `DeclName` to a value: an `ident`, optionally prefixed with the name of a type declared in the same module (§4.2), as in `let Stack.empty : Stack(a) = Stack([])`. The left-hand side is a name, not a pattern, and `<-` is a block form only. Top-level `let` may generalize its free type variables: `let Stack.empty : Stack(a) = Stack([])` declares a polymorphic value usable at every instantiation of `a`. `export` marks the declaration visible outside its module (§4.2).
 
 A top-level `let`'s initializer must be pure — no mailbox effect. Effectful setup (spawning processes, opening resources, sending initial messages) belongs in `main`, not in top-level declarations. The runtime evaluates top-level `let` bindings in dependency order before `main` runs (§8.5).
 
@@ -384,7 +402,7 @@ The arithmetic operators (`+`, `-`, `*`, `/`, `%`) and concatenation (`<>`) reso
 
 Resolution happens before generalization; a function whose operands do not get their type from an annotation, a literal, a pattern, or a call in the same definition is a type error that requires an annotation.
 
-The comparison operators `==`, `!=`, `<`, `<=`, `>`, `>=` and the Boolean `&&`, `||` are built into the language, not per-namespace: equality is structural (§3.10), ordering uses each type's `compare` function, `&&`/`||` short-circuit on `Bool`. `::` is the list cons (§3.3); `|>` is a syntactic form (§5.7).
+The comparison operators `==`, `!=`, `<`, `<=`, `>`, `>=` and the Boolean `&&`, `||` cannot be defined per type: equality is structural (§3.10); `<`, `<=`, `>`, `>=` resolve through the operand type's `compare` function (§3.10); `&&`/`||` short-circuit on `Bool`. `::` is the list cons (§3.3); `|>` is a syntactic form (§5.7).
 
 ## 5. Expressions
 
@@ -400,7 +418,8 @@ BinExpr   = Unary { binop Unary } .
 Unary     = [ "-" ] Primary { Call } .
 Call      = "(" [ Expr { "," Expr } ] ")" .
 Primary   = literal | QName | Tuple | ListLit | BitExpr | Block | "(" Expr ")" .
-QName     = { typename "." } ( ident | binop | conname [ "(" ( Expr | Fields ) ")" ] ) .
+QName     = { typename "." } ( ident | conname [ "(" ( Expr | Fields ) ")" ] )
+          | typename "." { typename "." } userop .
 Fields    = ".." Expr "," FieldSet { "," FieldSet } | FieldSet { "," FieldSet } .
 FieldSet  = ident "=" Expr .
 Tuple     = "#(" Expr { "," Expr } ")" .
@@ -425,6 +444,8 @@ BitSpec   = "size" "(" Expr ")" | "unit" "(" int ")"
           | "signed" | "unsigned" .
 FieldPats = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 ```
+
+`fn`, `if`, `match`, and `receive` are alternatives of `Expr`, not of `Primary`, so they are not operands: `1 + if c then a else b` and `match e { ... } |> f` are syntax errors. Parenthesize the form to use it as an operand.
 
 ### 5.1 Evaluation
 
@@ -507,6 +528,8 @@ A pattern decomposes a value and binds its parts. The same patterns appear in `l
 | `big`, `little`, `native`   | endianness                                                  |
 | `signed`, `unsigned`        | sign                                                        |
 
+A segment with no specifier is `int` of size 8. A segment's value type follows its specifier: `int` binds to `Int`; `float` to `Float`; `utf8`, `utf16`, and `utf32` to `Char`; `bits` and `bytes` to `Bytes`.
+
 These specifier names carry that role only inside a bitstring — outside, they are ordinary identifiers, and the reserved-word count remains seventeen.
 
 **Byte alignment.** `<<...>>` produces a `Bytes` value, and `Bytes` is a sequence of octets (§3.1). The total bit count of a construction must therefore be a multiple of 8. Every `bits` or `bytes` segment that binds to `Bytes` — either as a construction source or a pattern binding — must itself have a byte-multiple size: `size(3)-bits` binding to `Bytes` is rejected, because a 3-bit `Bytes` value does not exist. Sub-octet fields use the `int` specifier and bind to `Int`. Compile-time-constant violations are compile-time errors; dynamic-size violations fault at construction (§7.4) or fail to match in a pattern.
@@ -539,6 +562,14 @@ The mailbox effect is inferred:
 - Two calls with different concrete effects in the same function body are a type error.
 - Calls with variable effects unify; the enclosing function has the unified effect.
 - A pure call (no `with M` on the callee) contributes no effect: the enclosing function's effect is whatever its other calls determine.
+
+The three forms a function type can take:
+
+| Written | Meaning |
+|---|---|
+| `(A) -> B` | pure: no `send`, `receive`, `self`, or effectful foreign call; callable from any process |
+| `(A) -> B with M` | uses its process, whose mailbox holds `M`; callable only where the mailbox type is `M` |
+| `(A) -> B with m`, `m` a variable | uses its process, whatever its mailbox; the caller's mailbox type is substituted for `m` |
 
 A function without a mailbox effect is pure: it neither sends, receives, nor calls foreign code with a mailbox effect, and it can be called from any process. A pure higher-order function runs its function arguments in the caller's process: `List.map(xs, fn(x) = send(a, x))` has the same effect as the callback, and `List.map` is effect-polymorphic (§3.9). Nothing else can be marked on a function type.
 
@@ -580,7 +611,7 @@ Addresses have no equality; identity is expressed in the protocol. There is no r
 
 ### 6.6 Request-reply
 
-A `Reply(a)` is a one-shot address for the answer to a request; unlike `Address(a)`, it is answered exactly once and cannot be stored.
+A `Reply(a)` is a one-shot address for the answer to a request; unlike `Address(a)`, it is answered exactly once. `Reply(a)` is a *linear* type: every value of it, and of any type that contains it, is consumed exactly once. The rest of this section spells out what consumption means.
 
 ```
 Address.call        : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
@@ -596,7 +627,7 @@ answer              : (Reply(a), a) -> Unit with m
 
 Pattern-matching a reply-carrying value must bind every reply-carrying field of the matched constructor: a wildcard (`_`) or an omitted field for a position whose declared type is reply-carrying is a type error, because it would silently drop the value. The match transfers the obligation from the scrutinee to the pattern-bound reply-carrying variables — the scrutinee is fully consumed by the match and cannot be used after. If the matched constructor has no reply-carrying fields (e.g., `Stop` in a `type PongMsg = Ping(reply : Reply(Int)) | Stop`), matching that clause discharges the scrutinee's obligation with no new binding introduced.
 
-**Exactly-once obligation.** Every binding of a reply-carrying value creates a consumption obligation checked statically at the binding site. On every path from the binding, the value must be consumed exactly once. Bindings include: a variable in a `receive` clause, a function parameter, a spawn-lambda capture, a variable introduced by pattern-matching a reply-carrying scrutinee, and the result at the call site of a function whose return type is reply-carrying.
+**Exactly-once obligation.** Every binding of a reply-carrying value creates a consumption obligation checked statically at the binding site. On every path from the binding, the value must be consumed exactly once. Bindings include: a variable in a `receive` clause, a function parameter, a spawn-lambda capture, a variable introduced by pattern-matching a reply-carrying scrutinee, a variable bound by `let` to a reply-carrying expression, and the result at the call site of a function whose return type is reply-carrying. A `let` transfers the obligation from the expression to the variables its pattern binds, as a `match` does. An `if`, `match`, `receive`, or block whose value is reply-carrying is itself a reply-carrying expression: each branch must produce its value by one of the consuming forms below or by passing a bound value through, and the obligation attaches to wherever the whole expression's value is bound or consumed.
 
 Consumption is one of:
 
@@ -612,8 +643,6 @@ The check is compositional: each function is analyzed at its own definition agai
 The check is static in flow, not in dynamics: it ensures every path *calls* the consumption but not that execution *reaches* it at runtime — non-termination, a fault, or an indefinite wait bypasses the call without invalidating the type check.
 
 `fn twice(dst : Address(Request), request : Request) = { send(dst, request); send(dst, request) }` is rejected: `request` is reply-carrying, consumed by the first `send`, and used again by the second. `match req { Get() -> ... }` on a `Get(reply : Reply(Int))` constructor is rejected: the omitted field would silently drop a reply-carrying value.
-
-**Timeout rationale.** The mandatory timeout on `Address.call` returns `Optional(a)` so an answer that never arrives has somewhere to land; `Address.callForever` opts out of that by name, and the caller accepts that this call may hang.
 
 **Deadline start and races.** The timeout clock starts when `Address.call` is invoked, so the `mk(r)` build and the outgoing send count against the deadline. A reply that arrives simultaneously with the timeout may be delivered (returning `Some(v)`) or discarded (returning `None`) — the runtime does not guarantee a tiebreak.
 
@@ -637,11 +666,13 @@ type RemoteError = NoRemotePeer | PeerLost
 
 ### 6.8 `Never`
 
-A function with mailbox type `Never` can send but never receive; a `receive` in it is a type error.
+A function with mailbox type `Never` can send but never receive: a `receive` with a pattern clause in it is a type error. A `receive` with only an `after` clause is legal, since it matches nothing and only waits; it is the way a `Never` process pauses.
+
+`with Never` is the annotation for a process root that never receives: `main`, or the function a spawn lambda calls. It is not the annotation for a send-only helper, because a function with mailbox `Never` can only be called where the mailbox is `Never`; a helper that only sends and is meant to be called from other process code leaves its mailbox polymorphic, `with m`, as `ping` in Appendix B does.
 
 ### 6.9 Death
 
-A process dies when its function returns, when `kill` is called on it, on a fault, section 7, or when the node it runs on is lost. `monitor(a, wrap)`, §9.5, causes `wrap(d)` to be placed in the caller's mailbox when `a` dies, where `d : Down` gives the cause. There are no other links.
+A process dies when its function returns, when `kill` is called on it, on a fault, section 7, or when the node it runs on is lost. `monitor(a, wrap)`, §9.5, causes `wrap(d)` to be placed in the caller's mailbox when `a` dies, where `d : Down` gives the cause. If `a` is already dead when `monitor` is called, the message is placed immediately. Each call to `monitor` produces one message; monitoring the same address twice produces two. There are no other links.
 
 ### 6.10 Code replacement
 
@@ -699,7 +730,7 @@ Partial operations in the prelude generally return `Optional` or `Either`. The o
 
 A program's entry point is a `fn () -> Unit with m` for some `m`. Nothing sends to the entry point that it has not given its address to. `m` is `Never` when the entry only spawns and sends; a specific message type when it receives; polymorphic when it uses `Address.call` without its own receive protocol. When `m` is left polymorphic in the source, the runtime instantiates it to `Never` — the main process's mailbox is send-only unless the program explicitly gives out `self()`.
 
-The runtime resolves the entry point at launch: `ern module.erc` looks up `export fn main` in the module compiled from that `.erc`; `ern --main Qualified.Name module.erc` picks an alternative exported name from the load path. The function's local name and its qualified name are ordinary. `main` is a naming convention, not a reserved specialness — any file can declare its own `export fn main` and be run as an entry point. A project can have multiple entry-point modules (a service main, a migration main, a bench main) each in its own file.
+The runtime resolves the entry point at launch: `ern module.erc` looks up `export fn main` in the module compiled from that `.erc`; `ern --main Qualified.name module.erc` picks an alternative exported name from the load path. The function's local name and its qualified name are ordinary. `main` is a naming convention, not a reserved specialness — any file can declare its own `export fn main` and be run as an entry point. A project can have multiple entry-point modules (a service main, a migration main, a bench main) each in its own file.
 
 ### 8.2 System references
 
@@ -784,6 +815,7 @@ The prelude is small: only what this report names. Convenience libraries — inc
 Address(m) // an address of a process that receives m
 Reply(a) // a one-shot address, section 6
 Never // the type with no values
+Foreign // a value the language does not inspect, section 4
 ```
 
 ### 9.2 Built-in parameterized types
@@ -810,7 +842,6 @@ type ClockMsg // times in milliseconds
     | At(at : Int, to : Address(Unit))
     | Now(reply : Reply(Int))
 type RemoteError = NoRemotePeer | PeerLost
-type Foreign // a value the language does not inspect
 type Where = Local | Peer(String) // spawn placement, section 6
 ```
 
@@ -838,19 +869,19 @@ kill                : (Address(a)) -> Unit with m
 ### 9.6 Operations required by the language
 
 ```
-Int.+, Int.-, Int.*, Int./, Int.%   : (Int, Int) -> Int              // section 4
-Int.negate                          : (Int) -> Int                   // section 5: prefix -
-Float.+, Float.-, Float.*, Float./  : (Float, Float) -> Float
-Float.negate                        : (Float) -> Float
-String.<>                             : (String, String) -> String           // section 4: <> resolves per type
-List.<>                             : (List(a), List(a)) -> List(a)
-Int.div, Int.mod                    : (Int, Int) -> Optional(Int)    // section 7: / and %
-                                                                     // fault on zero; these do not
-Int.compare                         : (Int, Int) -> Ordering         // section 3: ordering is per type
-Float.compare                       : (Float, Float) -> Ordering
-String.compare                        : (String, String) -> Ordering
-Char.compare                        : (Char, Char) -> Ordering
-todo                                : (String) -> a                    // section 7: faults if reached
+Int.+, Int.-, Int.*, Int./, Int.% : (Int, Int) -> Int // section 4
+Int.negate : (Int) -> Int // section 5: prefix -
+Float.+, Float.-, Float.*, Float./ : (Float, Float) -> Float
+Float.negate : (Float) -> Float
+String.<> : (String, String) -> String // section 4: <> resolves per type
+List.<> : (List(a), List(a)) -> List(a)
+Bytes.<> : (Bytes, Bytes) -> Bytes
+Int.div, Int.mod : (Int, Int) -> Optional(Int) // section 7: / and % fault on zero; these do not
+Int.compare : (Int, Int) -> Ordering // section 3: ordering is per type
+Float.compare : (Float, Float) -> Ordering
+String.compare : (String, String) -> Ordering
+Char.compare : (Char, Char) -> Ordering
+todo : (String) -> a // section 7: faults if reached
 ```
 
 ### 9.7 System references
@@ -889,7 +920,7 @@ Sys.clock        : Address(ClockMsg) // the clock process
 
 ### 11.2 `ern` (runner)
 
-`ern [--config-dir dir] [--load-path dir ...] [--main Qualified.Name] file.erc` loads the module and, on demand, the compiled modules on the load path, found by namespace: the compiled module for namespace `A.B.C` is `a/b/c.erc` on the load path, where each path segment is the lowercase of the corresponding namespace segment. `Net.Http.parse` is looked up at `net/http.erc`. For a type-member reference `A.B.C.T.member`, the loader consults the compiled interface of `a/b/c.erc` (which owns type `T`); the loader does *not* look for `a/b/c/t.erc`. The runner starts the system processes, binds their addresses to the `Sys.*` top-level references, and calls the program's entry point (§8.1). By default the entry point is `export fn main` in the loaded module; `--main Qualified.Name` picks an alternative exported function from anywhere on the load path. The standard library, Appendix E, is on the load path by default; `--load-path` extends it. The runner applies the same path-shape rule as `ernc` (§11.1): each `.erc` file it opens as a module, and each directory component along the module path from a load-path root to that file, must match the shape rule. Files and directories the loader does not consider as modules (configuration, non-module artifacts) are unaffected — `--create-config-dir .` producing `.ernest/` under the current directory does not conflict with `--load-path .`.
+`ern [--config-dir dir] [--load-path dir ...] [--main Qualified.name] file.erc` loads the module and, on demand, the compiled modules on the load path, found by namespace: the compiled module for namespace `A.B.C` is `a/b/c.erc` on the load path, where each path segment is the lowercase of the corresponding namespace segment. `Net.Http.parse` is looked up at `net/http.erc`. For a type-member reference `A.B.C.T.member`, the loader consults the compiled interface of `a/b/c.erc` (which owns type `T`); the loader does *not* look for `a/b/c/t.erc`. The runner starts the system processes, binds their addresses to the `Sys.*` top-level references, and calls the program's entry point (§8.1). By default the entry point is `export fn main` in the loaded module; `--main Qualified.name` picks an alternative exported function from anywhere on the load path. The standard library, Appendix E, is on the load path by default; `--load-path` extends it. The runner applies the same path-shape rule as `ernc` (§11.1): each `.erc` file it opens as a module, and each directory component along the module path from a load-path root to that file, must match the shape rule. Files and directories the loader does not consider as modules (configuration, non-module artifacts) are unaffected — `--create-config-dir .` producing `.ernest/` under the current directory does not conflict with `--load-path .`.
 
 `ern --repl` starts a read-evaluate-print loop with the same loading. `--config-dir` names the configuration directory, `./.ernest` by default.
 
@@ -901,27 +932,32 @@ Sys.clock        : Address(ClockMsg) // the clock process
 
 `ernc --doc file.ern` writes the doc comments extracted from `file.ern` to stdout as Markdown, grouped by declaration.
 
+### 11.5 Diagnostics
+
+The annotation grammar does not admit the three inferred restrictions of §3.9 (the equality constraint, process-only, and not-reply-carrying), so the compiler shows them. Printed types distinguish `equal : (a, a) -> Bool` (constrained) from `always : (a, a) -> Bool` (unconstrained): the printer marks the constrained form so two functions with the same annotated shape are not indistinguishable. An error at a rejected call site names the parameter whose restriction failed and where the restriction came from. Generated documentation (`ernc --doc`) shows the restrictions in the same form.
+
 ## Appendix A. Grammar
 
 ```
 Program     = { Declaration } .
 Declaration = [ "export" ] ( TypeDecl | AbstractDecl | FnDecl | LetDecl | ForeignDecl ) .
 ForeignDecl = "foreign" ( "type" typename [ "(" typevar { "," typevar } ")" ]
-            | "fn" DeclName "(" [ Param { "," Param } ] ")" Return "=" string ) .
+            | "fn" DeclName "(" [ ForeignParam { "," ForeignParam } ] ")" Return "=" string ) .
+ForeignParam = ident ":" Type .
 
 TypeDecl    = "type" typename [ "(" typevar { "," typevar } ")" ] "="
               Constructor { "|" Constructor } .
 Constructor = conname [ "(" ( Type | Field { "," Field } ) ")" ] .
 Field       = ident ":" Type .
 AbstractDecl  = "abstract" TypeDecl "with" "{" Signature { ";" Signature } "}" .
-Signature   = ( ident | binop ) ":" Type .
+Signature   = ( ident | userop ) ":" Type .
 
 FnDecl      = "fn" DeclName "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 Param       = Pattern [ ":" Type ] .
 Return      = "->" Type [ "with" Type ] .
 LetDecl     = "let" DeclName [ ":" Type ] "=" Expr .
 Binding     = "let" Pattern [ ":" Type ] ( "=" | "<-" ) Expr .
-DeclName    = [ typename "." ] ( ident | binop ) .
+DeclName    = ident | typename "." ( ident | userop ) .
 
 Type        = TypeAtom | FnType | ParenType .
 TypeAtom    = { typename "." } typename [ "(" Type { "," Type } ")" ] | typevar
@@ -941,7 +977,8 @@ BinExpr     = Unary { binop Unary } .
 Unary       = [ "-" ] Primary { Call } .
 Call        = "(" [ Expr { "," Expr } ] ")" .
 Primary     = literal | QName | Tuple | ListLit | BitExpr | Block | "(" Expr ")" .
-QName       = { typename "." } ( ident | binop | conname [ "(" ( Expr | Fields ) ")" ] ) .
+QName       = { typename "." } ( ident | conname [ "(" ( Expr | Fields ) ")" ] )
+            | typename "." { typename "." } userop .
 Fields      = ".." Expr "," FieldSet { "," FieldSet } | FieldSet { "," FieldSet } .
 FieldSet    = ident "=" Expr .
 Tuple       = "#(" Expr { "," Expr } ")" .
@@ -968,7 +1005,7 @@ BitSpec     = "size" "(" Expr ")" | "unit" "(" int ")"
 FieldPats   = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 ```
 
-`binop` and `literal` are defined in section 2, along with the other lexical categories; `binop` precedence follows the table there. Every nonterminal is decided by its first token: `let` begins a binding, `fn` a declaration or lambda, `{` a block, `[` a list, `#(` a tuple, `(` a call or parenthesized expression, `<<` a bitstring. In `QName`, after each uppercase token the next token decides: `.` continues the qualification; otherwise the segment is final, and a lowercase final is a function or operator, an uppercase final a constructor. A constructor's fields are positional or named by whether `=` or `:` follows the first identifier. When a constructor name is immediately followed by a parenthesized constructor argument, the parser consumes that argument in the constructor branch of `QName`; a single-positional construction has the semantics of calling the constructor's function value. `conname` and `typename` are one token class; which one a segment is follows from its position.
+`binop`, `userop`, and `literal` are defined in section 2, along with the other lexical categories; `binop` precedence follows the table there. Every nonterminal is decided by its first token: `let` begins a binding, `fn` a declaration or lambda (an identifier after `fn` makes it a declaration, `(` a lambda), `{` a block, `[` a list, `#(` a tuple, `(` a call or parenthesized expression, `<<` a bitstring. In `QName`, after each uppercase token the next token decides: `.` continues the qualification; otherwise the segment is final, and a lowercase final is a function or operator, an uppercase final a constructor. A constructor's fields are positional or named by whether `=` or `:` follows the first identifier. When a constructor name is immediately followed by a parenthesized constructor argument, the parser consumes that argument in the constructor branch of `QName`; a single-positional construction has the semantics of calling the constructor's function value. `conname` and `typename` are one token class; which one a segment is follows from its position.
 
 ## Appendix B. Examples
 
@@ -1066,7 +1103,7 @@ fn submitter(worker : Address(WorkerMsg)) -> Unit with Never = {
 
 ## Appendix D. A Foreign Library
 
-A shim over Erlang's `ets`, tables of type `set`. Raw bindings are module-local (unqualified); the library is ordinary Ernest over them. The BEAM values `ets` returns line up with Ernest's ABI (§8.4) here without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and Erlang's `[{K, V}]` matches `List(#(k, v))`. Erlang's `{ok, V} | {error, R}` convention uses lowercase atoms `ok` and `error`, which under §8.4 do *not* map to Ernest's `Ok(v)` / `Error(r)` constructors (whose canonical encoding is `{'Ok', v}` / `{'Error', r}`, quoted and source-preserving). An API returning that shape needs a foreign adapter that returns the declared Ernest representation — either an Erlang helper module that rewrites `{ok, V}` to `{'Right', V}` before it crosses the boundary, or explicitly declared foreign decoding functions on the Ernest side. An ordinary Ernest `match` cannot destructure the raw `{ok, _}` term directly: `Foreign` is opaque (Appendix E.12) and Ernest has no atom-decomposition pattern. The `ets` calls used below don't use that convention, so no adapter is needed here.
+A shim over Erlang's `ets`, tables of type `set`. Raw bindings are module-local (unqualified); the library is ordinary Ernest over them. The BEAM values `ets` returns line up with Ernest's ABI (§8.4) here without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and Erlang's `[{K, V}]` matches `List(#(k, v))`. Erlang's `{ok, V} | {error, R}` convention uses lowercase atoms `ok` and `error`, which under §8.4 are not the encoding of any Ernest constructor: `Either`'s `Left(e)` and `Right(a)` encode as `{'Left', e}` and `{'Right', a}`, quoted and source-preserving. An API returning that shape needs a foreign adapter that returns the declared Ernest representation — either an Erlang helper module that rewrites `{ok, V}` to `{'Right', V}` before it crosses the boundary, or explicitly declared foreign decoding functions on the Ernest side. An ordinary Ernest `match` cannot destructure the raw `{ok, _}` term directly: `Foreign` is opaque (Appendix E.12) and Ernest has no atom-decomposition pattern. The `ets` calls used below don't use that convention, so no adapter is needed here.
 
 ```
 // ets.ern  (namespace Ets)
@@ -1149,11 +1186,11 @@ Informative, not normative: this appendix lists the modules that ship with the c
 Output helpers. The plain forms send to `Sys.stdout` (section 8); the `*To` forms take an explicit `Address(String)`, useful for logging to a mailbox that is not stdout.
 
 ```
-Io.print      : (String) -> Unit with m // to Sys.stdout
-Io.println    : (String) -> Unit with m // to Sys.stdout, appends "\n"
+Io.print : (String) -> Unit with m // to Sys.stdout
+Io.println : (String) -> Unit with m // to Sys.stdout, appends "\n"
 
-Io.printTo    : (Address(String), String) -> Unit with m
-Io.printlnTo  : (Address(String), String) -> Unit with m // appends "\n"
+Io.printTo : (Address(String), String) -> Unit with m
+Io.printlnTo : (Address(String), String) -> Unit with m // appends "\n"
 ```
 
 ### Appendix E.2. `list.ern` (namespace `List`)
@@ -1161,27 +1198,27 @@ Io.printlnTo  : (Address(String), String) -> Unit with m // appends "\n"
 Container-first operations over `List(a)`.
 
 ```
-List.size        : (List(a)) -> Int
-List.isEmpty     : (List(a)) -> Bool
-List.head        : (List(a)) -> Optional(a)
-List.last        : (List(a)) -> Optional(a)
-List.at          : (List(a), Int) -> Optional(a)
-List.reverse     : (List(a)) -> List(a)
-List.take        : (List(a), Int) -> List(a)
-List.drop        : (List(a), Int) -> List(a)
-List.dropLast    : (List(a)) -> List(a)
-List.contains    : (List(a), a) -> Bool // requires equality on a (§3.10)
-List.find        : (List(a), (a) -> Bool with e) -> Optional(a) with e
-List.any         : (List(a), (a) -> Bool with e) -> Bool with e
-List.all         : (List(a), (a) -> Bool with e) -> Bool with e
-List.map         : (List(a), (a) -> b with e) -> List(b) with e
-List.filter      : (List(a), (a) -> Bool with e) -> List(a) with e
-List.filterMap   : (List(a), (a) -> Optional(b) with e) -> List(b) with e
-List.foldLeft    : (List(a), b, (b, a) -> b with e) -> b with e
-List.foreach     : (List(a), (a) -> Unit with e) -> Unit with e
-List.span        : (List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e
-List.sort        : (List(a), (a, a) -> Ordering with e) -> List(a) with e
-List.remove      : (List(a), a) -> List(a) // requires equality on a (§3.10)
+List.size : (List(a)) -> Int
+List.isEmpty : (List(a)) -> Bool
+List.head : (List(a)) -> Optional(a)
+List.last : (List(a)) -> Optional(a)
+List.at : (List(a), Int) -> Optional(a)
+List.reverse : (List(a)) -> List(a)
+List.take : (List(a), Int) -> List(a)
+List.drop : (List(a), Int) -> List(a)
+List.dropLast : (List(a)) -> List(a)
+List.contains : (List(a), a) -> Bool // requires equality on a (§3.10)
+List.find : (List(a), (a) -> Bool with e) -> Optional(a) with e
+List.any : (List(a), (a) -> Bool with e) -> Bool with e
+List.all : (List(a), (a) -> Bool with e) -> Bool with e
+List.map : (List(a), (a) -> b with e) -> List(b) with e
+List.filter : (List(a), (a) -> Bool with e) -> List(a) with e
+List.filterMap : (List(a), (a) -> Optional(b) with e) -> List(b) with e
+List.foldLeft : (List(a), b, (b, a) -> b with e) -> b with e
+List.foreach : (List(a), (a) -> Unit with e) -> Unit with e
+List.span : (List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e
+List.sort : (List(a), (a, a) -> Ordering with e) -> List(a) with e
+List.remove : (List(a), a) -> List(a) // requires equality on a (§3.10)
 ```
 
 ### Appendix E.3. `map.ern` (namespace `Map`)
@@ -1189,17 +1226,17 @@ List.remove      : (List(a), a) -> List(a) // requires equality on a (§3.10)
 Container-first operations over `Map(k, v)`.
 
 ```
-Map.empty        : Map(k, v)
-Map.size         : (Map(k, v)) -> Int
-Map.isEmpty      : (Map(k, v)) -> Bool
-Map.contains     : (Map(k, v), k) -> Bool
-Map.get          : (Map(k, v), k) -> Optional(v)
-Map.put          : (Map(k, v), k, v) -> Map(k, v)
-Map.remove       : (Map(k, v), k) -> Map(k, v)
-Map.keys         : (Map(k, v)) -> List(k)
-Map.values       : (Map(k, v)) -> List(v)
-Map.map          : (Map(k, v), (k, v) -> w with e) -> Map(k, w) with e
-Map.foldLeft     : (Map(k, v), b, (b, k, v) -> b with e) -> b with e
+Map.empty : Map(k, v)
+Map.size : (Map(k, v)) -> Int
+Map.isEmpty : (Map(k, v)) -> Bool
+Map.contains : (Map(k, v), k) -> Bool
+Map.get : (Map(k, v), k) -> Optional(v)
+Map.put : (Map(k, v), k, v) -> Map(k, v)
+Map.remove : (Map(k, v), k) -> Map(k, v)
+Map.keys : (Map(k, v)) -> List(k)
+Map.values : (Map(k, v)) -> List(v)
+Map.map : (Map(k, v), (k, v) -> w with e) -> Map(k, w) with e
+Map.foldLeft : (Map(k, v), b, (b, k, v) -> b with e) -> b with e
 ```
 
 ### Appendix E.4. `set.ern` (namespace `Set`)
@@ -1207,108 +1244,110 @@ Map.foldLeft     : (Map(k, v), b, (b, k, v) -> b with e) -> b with e
 Container-first operations over `Set(a)`.
 
 ```
-Set.empty        : Set(a)
-Set.size         : (Set(a)) -> Int
-Set.isEmpty      : (Set(a)) -> Bool
-Set.contains     : (Set(a), a) -> Bool
-Set.add          : (Set(a), a) -> Set(a)
-Set.remove       : (Set(a), a) -> Set(a)
-Set.union        : (Set(a), Set(a)) -> Set(a)
-Set.intersect    : (Set(a), Set(a)) -> Set(a)
-Set.difference   : (Set(a), Set(a)) -> Set(a)
-Set.fromList     : (List(a)) -> Set(a)
-Set.toList       : (Set(a)) -> List(a)
+Set.empty : Set(a)
+Set.size : (Set(a)) -> Int
+Set.isEmpty : (Set(a)) -> Bool
+Set.contains : (Set(a), a) -> Bool
+Set.add : (Set(a), a) -> Set(a)
+Set.remove : (Set(a), a) -> Set(a)
+Set.union : (Set(a), Set(a)) -> Set(a)
+Set.intersect : (Set(a), Set(a)) -> Set(a)
+Set.difference : (Set(a), Set(a)) -> Set(a)
+Set.fromList : (List(a)) -> Set(a)
+Set.toList : (Set(a)) -> List(a)
 ```
 
 ### Appendix E.5. `string.ern` (namespace `String`)
 
 ```
-String.size        : (String) -> Int // number of code points
-String.isEmpty     : (String) -> Bool
-String.contains    : (String, String) -> Bool // substring test
-String.toInt       : (String) -> Optional(Int)
-String.chars       : (String) -> List(Char)
-String.fromChars   : (List(Char)) -> String
-String.fromUtf8    : (Bytes) -> Optional(String)
-String.toUtf8      : (String) -> Bytes
-String.lines       : (String) -> List(String)
-String.all         : (String, (Char) -> Bool with e) -> Bool with e
+String.size : (String) -> Int // number of code points
+String.isEmpty : (String) -> Bool
+String.contains : (String, String) -> Bool // substring test
+String.trim : (String) -> String // strip leading and trailing whitespace
+String.toLower : (String) -> String
+String.toInt : (String) -> Optional(Int)
+String.chars : (String) -> List(Char)
+String.fromChars : (List(Char)) -> String
+String.fromUtf8 : (Bytes) -> Optional(String)
+String.toUtf8 : (String) -> Bytes
+String.lines : (String) -> List(String)
+String.all : (String, (Char) -> Bool with e) -> Bool with e
 ```
 
 ### Appendix E.6. `char.ern` (namespace `Char`)
 
 ```
-Char.isDigit     : (Char) -> Bool
-Char.isAlpha     : (Char) -> Bool
-Char.isSpace     : (Char) -> Bool
-Char.toString      : (Char) -> String
-Char.toInt       : (Char) -> Int // Unicode code point
+Char.isDigit : (Char) -> Bool
+Char.isAlpha : (Char) -> Bool
+Char.isSpace : (Char) -> Bool
+Char.toString : (Char) -> String
+Char.toInt : (Char) -> Int // Unicode code point
 ```
 
 ### Appendix E.7. `bool.ern` (namespace `Bool`)
 
 ```
-Bool.not         : (Bool) -> Bool
-Bool.toString      : (Bool) -> String // "true" or "false"
+Bool.not : (Bool) -> Bool
+Bool.toString : (Bool) -> String // "true" or "false"
 ```
 
 ### Appendix E.8. `int.ern` (namespace `Int`)
 
 ```
-Int.abs          : (Int) -> Int
-Int.min          : (Int, Int) -> Int
-Int.max          : (Int, Int) -> Int
-Int.bitAnd       : (Int, Int) -> Int
-Int.bitOr        : (Int, Int) -> Int
-Int.bitXor       : (Int, Int) -> Int
-Int.bitNot       : (Int) -> Int
-Int.shiftLeft    : (Int, Int) -> Int
-Int.shiftRight   : (Int, Int) -> Int // arithmetic (sign-preserving)
-Int.toString       : (Int) -> String
-Int.toFloat      : (Int) -> Float
+Int.abs : (Int) -> Int
+Int.min : (Int, Int) -> Int
+Int.max : (Int, Int) -> Int
+Int.bitAnd : (Int, Int) -> Int
+Int.bitOr : (Int, Int) -> Int
+Int.bitXor : (Int, Int) -> Int
+Int.bitNot : (Int) -> Int
+Int.shiftLeft : (Int, Int) -> Int
+Int.shiftRight : (Int, Int) -> Int // arithmetic (sign-preserving)
+Int.toString : (Int) -> String
+Int.toFloat : (Int) -> Float
 ```
 
 ### Appendix E.9. `float.ern` (namespace `Float`)
 
 ```
-Float.abs        : (Float) -> Float
-Float.toString   : (Float) -> String
-Float.round      : (Float) -> Int // banker's rounding, IEEE 754 default
-Float.floor      : (Float) -> Int
-Float.ceil       : (Float) -> Int
+Float.abs : (Float) -> Float
+Float.toString : (Float) -> String
+Float.round : (Float) -> Int // banker's rounding, IEEE 754 default
+Float.floor : (Float) -> Int
+Float.ceil : (Float) -> Int
 ```
 
 ### Appendix E.10. `optional.ern` (namespace `Optional`)
 
 ```
-Optional.isSome      : (Optional(a)) -> Bool
-Optional.isNone      : (Optional(a)) -> Bool
+Optional.isSome : (Optional(a)) -> Bool
+Optional.isNone : (Optional(a)) -> Bool
 Optional.withDefault : (Optional(a), a) -> a
-Optional.map         : (Optional(a), (a) -> b with e) -> Optional(b) with e
-Optional.andThen     : (Optional(a), (a) -> Optional(b) with e) -> Optional(b) with e
+Optional.map : (Optional(a), (a) -> b with e) -> Optional(b) with e
+Optional.andThen : (Optional(a), (a) -> Optional(b) with e) -> Optional(b) with e
 ```
 
 ### Appendix E.11. `either.ern` (namespace `Either`)
 
 ```
-Either.isLeft       : (Either(e, a)) -> Bool
-Either.isRight      : (Either(e, a)) -> Bool
-Either.withDefault  : (Either(e, a), a) -> a
-Either.map          : (Either(e, a), (a) -> b with x) -> Either(e, b) with x
-Either.mapLeft      : (Either(e, a), (e) -> f with x) -> Either(f, a) with x
-Either.andThen      : (Either(e, a), (a) -> Either(e, b) with x) -> Either(e, b) with x
-Either.toOptional   : (Either(e, a)) -> Optional(a)
+Either.isLeft : (Either(e, a)) -> Bool
+Either.isRight : (Either(e, a)) -> Bool
+Either.withDefault : (Either(e, a), a) -> a
+Either.map : (Either(e, a), (a) -> b with x) -> Either(e, b) with x
+Either.mapLeft : (Either(e, a), (e) -> f with x) -> Either(f, a) with x
+Either.andThen : (Either(e, a), (a) -> Either(e, b) with x) -> Either(e, b) with x
+Either.toOptional : (Either(e, a)) -> Optional(a)
 Either.fromOptional : (Optional(a), e) -> Either(e, a)
 ```
 
 ### Appendix E.12. `foreign.ern` (namespace `Foreign`)
 
 ```
-Foreign.toInt    : (Foreign) -> Optional(Int)
-Foreign.toFloat  : (Foreign) -> Optional(Float)
-Foreign.toString   : (Foreign) -> Optional(String)
-Foreign.toBool   : (Foreign) -> Optional(Bool)
-Foreign.toList   : (Foreign) -> Optional(List(Foreign))
+Foreign.toInt : (Foreign) -> Optional(Int)
+Foreign.toFloat : (Foreign) -> Optional(Float)
+Foreign.toString : (Foreign) -> Optional(String)
+Foreign.toBool : (Foreign) -> Optional(Bool)
+Foreign.toList : (Foreign) -> Optional(List(Foreign))
 ```
 
 The standard library is expected to grow. New modules are added when a pattern shows up in three programs, matching the rule the decisions log applies to other deferred additions.
@@ -1346,7 +1385,7 @@ Every technical term this report introduces, with the section that defines it. P
 - **monitor** — `monitor(a, wrap)`; sends `wrap(d)` to the caller when `a` dies. §6.9, §9.5.
 - **named field** — a field on a constructor identified by name, not position. §3.5.
 - **namespace** — the dotted prefix of a name; equal to the module's path. §4.2.
-- **`Never`** — the type with no values. As a mailbox type it is the canonical send-only marker: the process cannot receive anything, and a `receive` in it is a type error. §3.7, §6.8.
+- **`Never`** — the type with no values. As a mailbox type it is the canonical send-only marker: the process cannot receive anything, and a `receive` with a pattern clause in it is a type error. §3.7, §6.8.
 - **operator resolution** — per-type dispatch of arithmetic and `<>` to `Type.<op>`. §4.8.
 - **pattern** — decomposes a value and binds its parts. §5.10.
 - **peer** — another node the runtime knows by name. §6.2, §8.3.
