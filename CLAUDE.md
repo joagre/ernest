@@ -20,21 +20,32 @@ Build a lexer and parser that reads Appendix A and rejects everything else.
 - Implementation language: **Erlang** (OTP 27). The compiler is `ernc`, the runner is `ern`. See the plan for architecture.
 - Hand-written parser: a direct precedence-climbing loop over a plain token list for expressions (no generic Pratt engine, no yecc), recursive descent for declarations. Hand-written lexer emitting yecc-shaped tokens. First-token dispatch with small bounded lookahead (the constructor-fields peek documented in Appendix A, the FnType-vs-ParenType decision after the closing paren, and `fn` followed by an identifier versus `(`), no backtracking.
 - Seventeen reserved words. `true`/`false` are literals, not keywords in the general sense.
-- Patterns via a small Pratt loop with `::` right-associative and postfix `as ident`.
+- Patterns via a second small precedence loop with `::` right-associative and postfix `as ident`.
 - AST as Erlang records with `{line, column}` on every node.
 
 ## First test programs
 
-- **Counter** (with `Upgrade` code replacement) — see the sketch in [`ernest_report.md`](ernest_report.md) §6.
-- **Ping-pong** — see [`ernest_report.md`](ernest_report.md) Appendix B.
+- **Counter** (with `Upgrade` code replacement) — [`ernest_report.md`](ernest_report.md) §6.10 and Appendix B; files `examples/counter.ern` and `examples/counter_upgrade.ern`.
+- **Ping-pong** — [`ernest_report.md`](ernest_report.md) Appendix B; file `examples/ping_pong.ern`.
+
+The other MVP 1 programs are `examples/hello.ern` and `examples/stack.ern`. The remaining files under `examples/` need later MVPs; each header says which.
 
 If either test surfaces an anomaly in the report, propose an update to [`ernest_report.md`](ernest_report.md) (and matching [`docs/decisions.md`](docs/decisions.md)) before working around it in the parser.
+
+## Repository layout and build
+
+- `lib/<app>/{src,include,ebin,test}` per compiler stage: `lexer`, `parser`, `type_system`, `utils` (vendored `getopt`). Later: `compiler`, `runtime`, `cli`. Module names carry the `ern_` prefix.
+- `stdlib/` is the Ernest standard library, a source root. `examples/` holds the example programs. `bin/` will hold `ernc` and `ern` as committed escript sources.
+- Build with `make` (per-app `src/Makefile` compiling into `../ebin` with `erlc -MMD`; top-level `Makefile` runs them), `make test` for EUnit, `make clean`. No rebar3, no OTP behaviours.
+- File and directory names use underscores everywhere (report §11.1 forbids hyphens in module paths).
+- Third-party code is listed in `THIRD_PARTY_LICENSES`; keep the upstream header on any borrowed file.
 
 ## Working style
 
 - Prefer minimal, direct implementations over speculative abstraction.
 - Ask before scaffolding when a decision affects the report or the plan.
 - When touching normative material, quote the exact section or grammar rule being applied.
+- Prose in the report and the guide is tight, in the register of a Wirth language report: state the rule, no rationale, no restating. Rationale goes to `docs/decisions.md`, compiler behaviour to §11.
 
 ## Ernest style guide
 

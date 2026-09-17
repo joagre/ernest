@@ -1,16 +1,16 @@
 # Ernest
 
-A functional language for explicit process protocols. Mailbox effects and reply ownership are part of the type system. Two organizing ideas: pure functions with Hindley-Milner types, and processes with typed mailboxes. On BEAM (Erlang OTP 27).
+A functional language for explicit process protocols. Mailbox effects and linear replies are part of the type system. Two organizing ideas: pure functions with Hindley-Milner types, and processes with typed mailboxes. On BEAM (Erlang OTP 27).
 
 ## Status
 
-Design complete for MVP 1 (single-node subset). Implementation begins with the lexer and parser, in Erlang. The compiler is `ernc`; the runner is `ern`.
+Design complete for MVP 1 (single-node subset). The build skeleton is in place; implementation begins with the lexer and parser, in Erlang. The compiler is `ernc`; the runner is `ern`.
 
 ## Reading order
 
 ### Start here
 
-- **[`ernest_report.md`](ernest_report.md)** — the language report. Normative. Everything else in this repo defers to it. Prose in eleven numbered sections plus six appendices: grammar (A), examples (B), configuration (C), a foreign-library walk-through (D), the standard library (E), and a glossary (F).
+- **[`ernest_report.md`](ernest_report.md)** — the language report. Normative. Everything else in this repo defers to it. Prose in twelve numbered sections, 0 through 11, plus six appendices: grammar (A), examples (B), configuration (C), a foreign-library walk-through (D), the standard library (E), and a glossary (F).
 
 - **[`ernest_guide.md`](ernest_guide.md)** — a reading guide for a first-time reader. Walks through hello world, types (including abstract), functions, one process (a counter), two processes talking (ping-pong), watching processes (`monitor`, `kill`), adapting messages with `via`, the `<-` chaining idiom, remote computation, foreign types and functions, bitstrings, and the toolchain. Closes with a short FAQ and pointers to the paper programs.
 
@@ -38,12 +38,42 @@ The complete programs from the report's Appendix B and the guide's checkpoints a
 - **Appendix A of the report is the grammar.** Any conflict between prose and Appendix A is resolved in favor of Appendix A.
 - **Section 0 of the report is the five principles.** They break ties when the design admits options.
 - **The decisions log is rationale only.** It's updated when the report is updated. Historical entries are dated and reflect their point in time.
-- **Paper programs are illustrative.** They test the report by putting it through real programs. When they surface an anomaly, the report changes first, then the log, then the code.
+- **Example programs are illustrative.** They test the report by putting it through real programs. When they surface an anomaly, the report changes first, then the log, then the code.
 
 ## Layout of the language
 
 Three layers:
 
 - **Language.** The rules in `ernest_report.md`: syntax, types, processes, evaluation. Small and stable.
-- **Prelude.** What the report requires to exist. Small — the built-in types (Address, Reply, Never, plus List, Map, and Set); a handful of declared sum types (Unit, Optional, Either, Ordering, Down, Reason, ClockMsg, RemoteError, Foreign, Where); the built-in functions (self, send, spawn); the process functions (via, Address.call, Address.callForever, answer, remote, parallelRemote, monitor, kill); the operations Ernest's operators resolve to (`Int.+` through `Int.%`, `Float.+` through `Float./`, negation, `String.<>`, `List.<>`, `Int.div`/`Int.mod`, the `.compare` functions, `todo`); and system references (Sys.stdout, Sys.clock).
+- **Prelude.** What the report requires to exist. Small — the built-in types (Address, Reply, Never, Foreign, plus List, Map, and Set); a handful of declared sum types (Unit, Optional, Either, Ordering, Down, Reason, ClockMsg, RemoteError, Where); the built-in functions (self, send, spawn); the process functions (via, Address.call, Address.callForever, answer, remote, parallelRemote, monitor, kill); the operations Ernest's operators resolve to (`Int.+` through `Int.%`, `Float.+` through `Float./`, negation, `String.<>`, `List.<>`, `Bytes.<>`, `Int.div`/`Int.mod`, the `.compare` functions, `todo`); and system references (Sys.stdout, Sys.clock).
 - **Standard library** (Appendix E). Ordinary Ernest code on the load path by default: Io, List, Map, Set, String, Char, Bool, Int, Float, Optional, Either, Foreign. Grows when a paper program writes the same pattern three times.
+
+## Layout of the repository
+
+```
+ernest_report.md   the language report (normative)
+ernest_guide.md    the reading guide
+docs/              decisions log, implementation plan, web server comparison
+examples/          Ernest programs: the paper programs and the small ones
+stdlib/            the Ernest standard library (Appendix E), a source root
+lib/               the compiler, as Erlang applications: lexer, parser,
+                   type_system, utils; each has src/, include/, ebin/, test/
+bin/               ernc and ern
+```
+
+File and directory names use underscores; report §11.1 forbids hyphens in module paths, and the repository follows one rule.
+
+## Building
+
+Erlang/OTP 27 and GNU make. No rebar3, no OTP behaviours.
+
+```
+make              compile every application into its ebin/
+make test         run the EUnit tests
+make clean        remove build products
+make clean-emacs  remove Emacs backup, auto-save, and lock files
+```
+
+## License
+
+Ernest is released under the terms in [`LICENSE`](LICENSE). Third-party components are listed, with their licenses, in [`THIRD_PARTY_LICENSES`](THIRD_PARTY_LICENSES).
