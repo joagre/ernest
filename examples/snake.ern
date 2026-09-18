@@ -10,8 +10,8 @@
 //
 // Assumptions. The report requires Sys.stdout and Sys.clock (§8); keys are the
 // runtime's addition. This program assumes an additional runtime reference
-// Sys.keys : Address(KeyMsg), with KeyMsg and Key as declared below, and a
-// stdlib Random module of Appendix E.13. main runs the game loop itself so the
+// Sys.keys : Address(KeyMsg), with KeyMsg and Key as declared below. Random is
+// the standard library's, Appendix E.13. main runs the game loop itself so the
 // program keeps running (report §8.6).
 //
 // Needs MVP 2 or later (Sys.keys, Map, Random). Not compiled by MVP 1.
