@@ -13,6 +13,11 @@ tmp() ->
     ok = filelib:ensure_path(Dir),
     Dir.
 
+%% A tool run with the captured output as its error device, so a test
+%% reads what the user sees on stderr.
+ernc_err(Args) -> ern_cli:ernc(Args, group_leader()).
+ern_err(Args) -> ern_cli:ern(Args, group_leader()).
+
 write(Dir, Rel, Text) ->
     Path = filename:join(Dir, Rel),
     ok = filelib:ensure_dir(Path),
@@ -111,8 +116,12 @@ default_root_test() ->
 
 parse_error_test() ->
     Dir = tmp(),
-    write(Dir, "a.ern", "export fn f() -> Int = \n"),
-    ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir])).
+    File = write(Dir, "a.ern", "export fn f() -> Int = \n"),
+    ?assertEqual(1, ernc_err(["--out-dir", Dir ++ "/build", Dir])),
+    Out = iolist_to_binary(?capturedOutput),
+    ?assertEqual(<<(list_to_binary(File))/binary, ":2:1: expected an expression instead of"
+                   " end of input\n1 | export fn f() -> Int = \n2 | \n  | ^\n\n">>,
+                 Out).
 
 %% report §4.8, §3.10, §4.2: an operator and an ordering on a type of a
 %% compiled module resolve through its interface and call into its module;
@@ -137,7 +146,9 @@ operators_across_modules_test() ->
     ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"3\n2.5\ntrue\n">>, iolist_to_binary(?capturedOutput)),
     write(Dir, "src/bad.ern", "export fn f(a : Geo.Vec.Vec, b) = a - b\n"),
-    ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ernc_err(["--errors", "short", "--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput),
+                                    "bad.ern:1:35: `-` is not defined on Geo.Vec.Vec\n$")),
     ?assertNot(filelib:is_regular(Dir ++ "/build/bad.erc")).
 
 %% report §4.2, §11.2: a type member of another module is called by its
@@ -238,8 +249,37 @@ emit_erl_test() ->
 compile_error_test() ->
     Dir = tmp(),
     File = write(Dir, "bad.ern", "export fn main() -> Unit with Never = Io.println(1)\n"),
-    ?assertEqual(1, ern_cli:ernc(["--source-root", Dir, File])),
+    ?assertEqual(1, ernc_err(["--source-root", Dir, File])),
+    ?assertEqual(<<(list_to_binary(File))/binary, ":1:50: the argument does not fit Io.println:"
+                   " expected String, found Int\n"
+                   "1 | export fn main() -> Unit with Never = Io.println(1)\n"
+                   "  |                                       ---------- Io.println : (String) ->"
+                   " Unit with e\n"
+                   "  |                                                  ^\n\n">>,
+                 iolist_to_binary(?capturedOutput)),
     ?assertNot(filelib:is_regular(filename:join(Dir, "bad.erc"))).
+
+%% report §11.5: --errors short is the first line alone
+errors_short_test() ->
+    Dir = tmp(),
+    File = write(Dir, "bad.ern", "export fn main() -> Unit with Never = Io.println(1)\n"),
+    ?assertEqual(1, ernc_err(["--errors", "short", "--source-root", Dir, File])),
+    ?assertEqual(<<(list_to_binary(File))/binary, ":1:50: the argument does not fit Io.println:"
+                   " expected String, found Int\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
+%% report §8.6, §7.4: a fault in main is reported on stderr with its
+%% cause, status 1
+fault_test() ->
+    Dir = tmp(),
+    File = write(Dir, "boom.ern",
+                 "export fn main() -> Unit with Never = {\n"
+                 "    let z = List.size([]);\n"
+                 "    Io.println(Int.toString(1 / z))\n"
+                 "}\n"),
+    ?assertEqual(0, ern_cli:ernc(["--source-root", Dir, File])),
+    ?assertEqual(1, ern_err([filename:join(Dir, "boom.erc")])),
+    ?assertEqual(<<"fault: division by zero\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §11.4, §11.5: every exported and every documented declaration,
 %% with its type and its doc comment, as Markdown
@@ -298,7 +338,9 @@ mvp_refusals_in_readme_test() ->
 %% report §11: options are long; --help and --version stop with status 0
 options_test() ->
     ?assertEqual(1, ern_cli:ernc(["-o", "x", example("hello.ern")])),
-    ?assertEqual(1, ern_cli:ernc([])),
+    ?assertEqual(1, ernc_err([])),
+    ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput),
+                                    "^ernc: one file or directory argument is required\nUsage: ")),
     ?assertEqual(0, ern_cli:ernc(["--version"])),
     ?assertEqual(0, ern_cli:ernc(["--help"])),
     ?assertEqual(0, ern_cli:ern(["--help"])).

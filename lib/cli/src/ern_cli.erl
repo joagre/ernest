@@ -3,7 +3,7 @@
 %% tests can call it. Each entry point returns the exit status.
 -module(ern_cli).
 
--export([main/2, ernc/1, ern/1, namespace/1, module_path/1]).
+-export([main/2, ernc/1, ernc/2, ern/1, ern/2, namespace/1, module_path/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("type_system/include/ern_types.hrl").
@@ -16,12 +16,14 @@
 
 -spec main(ernc | ern, [string()]) -> no_return().
 main(Tool, Args) ->
-    halt(?MODULE:Tool(Args)).
+    halt(?MODULE:Tool(Args, standard_error)).
 
 %% Run a tool with its options parsed by getopt. --help and --version
 %% print and stop with status 0; a usage error prints the message and the
-%% usage on stderr, any other error one line, both with status 1.
-tool(Tool, Spec, Positional, Args, Fun) ->
+%% usage on Err, the error device, any other error one line, both with
+%% status 1. Err is standard_error for the escripts; a test passes its
+%% own device and reads what the user would see.
+tool(Tool, Spec, Positional, Args, Fun, Err) ->
     try
         {Opts, Rest} = case getopt:parse(Spec, Args) of
                            {ok, Parsed} -> Parsed;
@@ -29,19 +31,25 @@ tool(Tool, Spec, Positional, Args, Fun) ->
                                usage_fail(getopt:format_error(Spec, {Reason, Data}))
                        end,
         case {lists:member(help, Opts), lists:member(version, Opts)} of
-            {true, _} -> getopt:usage(Spec, atom_to_list(Tool), Positional, standard_io), 0;
+            {true, _} -> usage(Spec, Tool, Positional, standard_io), 0;
             {_, true} -> io:format("~s ~s~n", [Tool, ?VERSION]), 0;
-            _ -> Fun(Opts, Rest)
+            _ -> Fun(Opts, Rest, Err)
         end
     catch
         throw:{cli_usage, Msg} ->
-            io:format(standard_error, "~s: ~s~n", [Tool, Msg]),
-            getopt:usage(Spec, atom_to_list(Tool), Positional, standard_error),
+            io:format(Err, "~s: ~s~n", [Tool, Msg]),
+            usage(Spec, Tool, Positional, Err),
             1;
         throw:{cli_error, Msg} ->
-            io:format(standard_error, "~s: ~s~n", [Tool, Msg]),
+            io:format(Err, "~s: ~s~n", [Tool, Msg]),
             1
     end.
+
+%% getopt's usage text on any device; getopt:usage/4 takes only an atom.
+usage(Spec, Tool, Positional, Device) ->
+    io:format(Device, "~ts ~ts~n~n~ts~n",
+              [getopt:usage_cmd_line(atom_to_list(Tool), Spec), Positional,
+               getopt:usage_options(Spec)]).
 
 %%
 %% ernc, report §11.1 and §11.4
@@ -62,16 +70,20 @@ ernc_options() ->
 
 -spec ernc([string()]) -> 0 | 1.
 ernc(Args) ->
-    tool(ernc, ernc_options(), "file.ern | src-dir", Args, fun ernc_main/2).
+    ernc(Args, standard_error).
 
-ernc_main(Opts, Rest) ->
+-spec ernc([string()], io:device()) -> 0 | 1.
+ernc(Args, Err) ->
+    tool(ernc, ernc_options(), "file.ern | src-dir", Args, fun ernc_main/3, Err).
+
+ernc_main(Opts, Rest, Err) ->
     case {Rest, lists:member(doc, Opts)} of
-        {[File], true} -> doc(Opts, File);
-        {[Path], false} -> ernc_compile(Opts, Path);
+        {[File], true} -> doc(Opts, File, Err);
+        {[Path], false} -> ernc_compile(Opts, Path, Err);
         _ -> usage_fail("one file or directory argument is required")
     end.
 
-ernc_compile(Opts, Path) ->
+ernc_compile(Opts, Path, Err) ->
     Emit = case proplists:get_value(emit, Opts) of
                undefined -> erc;
                "erl" -> erl;
@@ -101,12 +113,12 @@ ernc_compile(Opts, Path) ->
         end,
         0
     catch
-        throw:{errors, File, Errors} -> report_errors(Opts, File, Errors)
+        throw:{errors, File, Errors} -> report_errors(Opts, File, Errors, Err)
     end.
 
 %% Report §11.5: each error as ern_diag renders it, the first line alone
 %% under --errors short; status 1.
-report_errors(Opts, File, Errors) ->
+report_errors(Opts, File, Errors, Err) ->
     Short = proplists:get_value(errors, Opts) =:= "short",
     Source = case file:read_file(File) of
                  {ok, Bin} -> Bin;
@@ -117,7 +129,7 @@ report_errors(Opts, File, Errors) ->
                                  true -> ern_diag:short(File, D);
                                  false -> ern_diag:format(File, Source, D)
                              end,
-                      io:format(standard_error, "~s~n", [Text])
+                      io:format(Err, "~s~n", [Text])
                   end, Errors),
     1.
 
@@ -323,7 +335,7 @@ remove_empty(Dir, Top) ->
 %% Report §11.4: the module's documentation as Markdown: every exported
 %% and every documented declaration, with its type (§11.5) and its doc
 %% comment. The file is type-checked as for a compilation.
-doc(Opts, File) ->
+doc(Opts, File, Err) ->
     filelib:is_regular(File) orelse fail("no such file " ++ File),
     Root = absolute(proplists:get_value(source_root, Opts, ".")),
     OutDir = absolute(proplists:get_value(out_dir, Opts, Root)),
@@ -339,7 +351,7 @@ doc(Opts, File) ->
                 throw({errors, File, Errors})
         end
     catch
-        throw:{errors, F, Errors1} -> report_errors(Opts, F, Errors1)
+        throw:{errors, F, Errors1} -> report_errors(Opts, F, Errors1, Err)
     end.
 
 doc_decl(D, Env) ->
@@ -445,17 +457,21 @@ ern_options() ->
 
 -spec ern([string()]) -> 0 | 1.
 ern(Args) ->
-    tool(ern, ern_options(), "file.erc", Args, fun ern_main/2).
+    ern(Args, standard_error).
 
-ern_main(Opts, Rest) ->
+-spec ern([string()], io:device()) -> 0 | 1.
+ern(Args, Err) ->
+    tool(ern, ern_options(), "file.erc", Args, fun ern_main/3, Err).
+
+ern_main(Opts, Rest, Err) ->
     case {proplists:get_value(create_config_dir, Opts), lists:member(shell, Opts), Rest} of
         {Dir, _, []} when Dir =/= undefined -> create_config_dir(Dir);
         {undefined, true, _} -> fail("the shell is not in MVP 1");
-        {undefined, false, [File]} -> run(Opts, File);
+        {undefined, false, [File]} -> run(Opts, File, Err);
         _ -> usage_fail("one .erc file argument is required")
     end.
 
-run(Opts, File) ->
+run(Opts, File, Err) ->
     filelib:is_regular(File) orelse fail("no such file " ++ File),
     filename:extension(File) =:= ".erc" orelse fail(File ++ " does not end in .erc"),
     Abs = absolute(File),
@@ -495,7 +511,7 @@ run(Opts, File) ->
     case ern_rt:run_main(fun() -> EntryMod:EntryFn() end, Site, #{init => Init}) of
         ok -> 0;
         {fault, Msg} ->
-            io:format(standard_error, "fault: ~s~n", [Msg]),
+            io:format(Err, "fault: ~s~n", [Msg]),
             1
     end.
 
