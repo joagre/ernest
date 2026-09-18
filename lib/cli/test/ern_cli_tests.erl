@@ -114,6 +114,32 @@ parse_error_test() ->
     write(Dir, "a.ern", "export fn f() -> Int = \n"),
     ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir])).
 
+%% report §4.8, §3.10, §4.2: an operator and an ordering on a type of a
+%% compiled module resolve through its interface and call into its module;
+%% a member it lacks is an error
+operators_across_modules_test() ->
+    Dir = tmp(),
+    write(Dir, "src/geo/vec.ern",
+          "export type Vec = Vec(Int)\n"
+          "export fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a + b)\n"
+          "export fn Vec.*(Vec(a), Vec(b)) -> Float = Int.toFloat(a * b)\n"
+          "export fn Vec.compare(Vec(a), Vec(b)) -> Ordering = Int.compare(a, b)\n"
+          "export fn show(Vec(n)) -> String = Int.toString(n)\n"),
+    write(Dir, "src/main.ern",
+          "export fn main() -> Unit with Never = {\n"
+          "    let a = Geo.Vec.Vec(1);\n"
+          "    let b = Geo.Vec.Vec(2);\n"
+          "    Io.println(Geo.Vec.show(a + b));\n"
+          "    Io.println(Float.toString((a * b) + 0.5));\n"
+          "    Io.println(Bool.toString(a < b))\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"3\n2.5\ntrue\n">>, iolist_to_binary(?capturedOutput)),
+    write(Dir, "src/bad.ern", "export fn f(a : Geo.Vec.Vec, b) = a - b\n"),
+    ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertNot(filelib:is_regular(Dir ++ "/build/bad.erc")).
+
 %% report §4.2, §11.2: a type member of another module is called by its
 %% module path, type, and member, and loads from the module that owns it
 type_member_across_modules_test() ->
