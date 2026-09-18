@@ -3,10 +3,12 @@
 %% the Unicode properties Appendix E.6 names, through the property classes of
 %% the re module: isDigit is general category Nd, isAlpha is category L,
 %% isSpace is White_Space, which is the Z categories together with U+0009 to
-%% U+000D and U+0085. ASCII is decided without the regular expression.
+%% U+000D and U+0085, isUpper is Lu, isLower is Ll. ASCII is decided without
+%% the regular expression.
 -module('ernest@char').
 
--export([isDigit/1, isAlpha/1, isSpace/1, toString/1, toInt/1, fromInt/1, compare/2]).
+-export([isDigit/1, isAlpha/1, isSpace/1, isUpper/1, isLower/1, toUpper/1, toLower/1, toString/1,
+         toInt/1, fromInt/1, compare/2]).
 
 isDigit(C) when C < 16#80 -> C >= $0 andalso C =< $9;
 isDigit(C) -> category(C, "Nd").
@@ -14,6 +16,12 @@ isAlpha(C) when C < 16#80 -> (C >= $a andalso C =< $z) orelse (C >= $A andalso C
 isAlpha(C) -> category(C, "L").
 isSpace(C) when C < 16#80 -> (C >= 16#9 andalso C =< 16#D) orelse C =:= $\s;
 isSpace(C) -> C =:= 16#85 orelse category(C, "Z").
+isUpper(C) when C < 16#80 -> C >= $A andalso C =< $Z;
+isUpper(C) -> category(C, "Lu").
+isLower(C) when C < 16#80 -> C >= $a andalso C =< $z;
+isLower(C) -> category(C, "Ll").
+toUpper(C) -> single(string:uppercase([C]), C).
+toLower(C) -> single(string:lowercase([C]), C).
 toString(C) -> unicode:characters_to_binary([C]).
 toInt(C) -> C.
 fromInt(N) when N >= 0, N =< 16#10FFFF, not (N >= 16#D800 andalso N =< 16#DFFF) -> {'Some', N};
@@ -21,6 +29,10 @@ fromInt(_) -> 'None'.
 compare(A, B) when A < B -> 'Less';
 compare(A, B) when A > B -> 'Greater';
 compare(_, _) -> 'Equal'.
+
+%% A case mapping that is one character, else the character itself (E.6).
+single([U], _) -> U;
+single(_, C) -> C.
 
 category(C, Class) ->
     re:run(<<C/utf8>>, "^\\p{" ++ Class ++ "}$", [unicode]) =/= nomatch.

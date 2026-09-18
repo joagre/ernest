@@ -2525,6 +2525,12 @@ Rule 2 now says each kind of type has a vocabulary, lists text's and a path's be
 
 The pattern behind `Path` and `Fs` is that a module admitted by the corpus rule got the corpus's functions and nothing else, and the function-level decisions from reading `filename`, `filelib`, and `timer` had been made in conversation only. The plan's MVP 2.5 step 5 is now a table, one row per user-facing OTP module, with what Appendix E took, what waits and on what trigger, and what is out and why, so that a decision of this kind has a place to be recorded and a place to be found.
 
+## The Final Pass, 2026-09-18
+
+Appendix E read one last time against E.0 and against `gleam_stdlib` v1.0.5, OTP 27, Elixir's core, and Haskell's `base`, module by module. It holds: every module has its structure's vocabulary, every verb means one thing everywhere, every partial operation returns `Optional`, every contract the type does not state is a comment. `List` has thirty functions to `Data.List`'s hundred, `Enum`'s hundred, and `gleam/list`'s sixty-two, and what is not there is a composition the pipe writes or a speciality. `Optional` and `Either` are thin because `<-` is what the other twenty in `option` and `result` imitate. No type classes, no laziness, no format strings, no registry, no exceptions: positions the report states.
+
+Four things came out. `Map.update`, the counting idiom of get then put, is in snake's `applyInput` and in every word count, a `match` around two calls rather than a pipe of two, so rule 3 admits it and rule 4 does not exclude it; Gleam's `upsert`, Rust's entry. `Char.isUpper`, `isLower`, `toUpper`, `toLower`: `String` had the case operations and `Char` none, against "one verb in every module that has it"; Unicode shims, and a character whose case mapping is several, `ß`, maps to itself. `eunit` had no row in the plan's table, and Ernest will need a `Test` module the day the first test is written in Ernest; the row waits on that. The other OTP applications, `ssl` to `snmp`, `observer` to `parsetools`, got rows as libraries and tooling, so the table has every application and not only the two the question started from.
+
 ## Later
 
 Planned or considered, not in the language today.

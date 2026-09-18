@@ -284,7 +284,9 @@ The system processes and the paper programs as their tests are MVP 2.5.
    | `calendar` | `Time` | | a program that formats a timestamp | |
    | `binary` | `Bytes` | `<>` | `size`, `get`, `slice`, `toList`, `fromList`, when bitstrings show what a protocol needs | |
    | `array`, `queue` | | | indexed access or a FIFO that two lists cannot give | |
-   | `base64`, `json`, `uri_string`, `re`, `crypto`, `zlib`, `dets`, `digraph`, `sofs`, `erl_tar`, `zip`, `disk_log` | libraries | | | each a namespace of its own on Appendix D's pattern, never stdlib |
+   | `eunit` | `Test` | | a `Test` module, the first test written in Ernest; the decisions log of 2026-09-14 sketches its type | |
+   | `base64`, `json`, `uri_string`, `re`, `crypto`, `zlib`, `dets`, `digraph`, `sofs`, `erl_tar`, `zip`, `disk_log`; the applications `ssl`, `inets`, `xmerl`, `public_key`, `asn1`, `mnesia`, `snmp` | libraries | | | each a namespace of its own on Appendix D's pattern, never stdlib |
+   | `observer`, `dbg`, `cover`, `debugger`, `dialyzer`, `edoc`, `common_test`, `syntax_tools`, `parsetools` | | | | tooling: `ernc --doc`, Ernest's own types, the compiler; nothing for a program |
    | `gen_*`, `supervisor`, `proc_lib`, `sys`, `logger`, `application`, `code`, `rpc`, `erpc`, `global`, `pg`, `net_kernel`, `persistent_term`, `atomics`, `counters`, `erl_*`, the shell | | | | a function with a mailbox type, fifteen lines of `spawn` and `monitor`, `send` to a sink, MVP 3's own distribution, the runtime's internals, `ernc` and `ern` |
 
 The standard library is then the first Ernest program of size, and the compiler's first user other than the examples.

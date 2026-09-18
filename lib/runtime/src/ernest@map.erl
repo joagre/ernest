@@ -4,7 +4,7 @@
 
 -export([empty/0, size/1, isEmpty/1, contains/2, get/2, put/3, remove/2, keys/1, values/1,
          map/2, filter/2, filterMap/2, foldLeft/3, foreach/2, any/2, all/2, find/2,
-         merge/2, fromList/1, toList/1]).
+         update/3, merge/2, fromList/1, toList/1]).
 
 empty() -> #{}.
 size(M) -> map_size(M).
@@ -17,6 +17,7 @@ get(M, K) ->
     end.
 put(M, K, V) -> M#{K => V}.
 remove(M, K) -> maps:remove(K, M).
+update(M, K, F) -> M#{K => F(get(M, K))}.
 keys(M) -> maps:keys(M).
 values(M) -> maps:values(M).
 map(M, F) -> maps:map(F, M).

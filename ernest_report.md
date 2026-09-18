@@ -1217,7 +1217,7 @@ Informative, not normative: this appendix lists the modules that ship with the c
 Four rules decide whether a function is in.
 
 1. Its value lives in the runtime and Ernest cannot compute it, or the runtime's implementation is the one to trust: the `Map` and `Set` operations, the Unicode operations on `String` and `Char`, `Float` arithmetic, `Int.toString`, the bit operations, `Foreign`, `Random`, and the modules over the system references of §8.2. These are shims over `foreign fn` or over a system process, and a shim exists only where this rule applies.
-2. It follows from the type's structure, and each kind of type has a vocabulary. A container provides the container operations of the vocabulary below, or says in its section which it lacks and why. A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, and `tryMap` and `tryFold` for a step that can fail. Text adds `startsWith`, `endsWith`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `trim`, `toLower`, `toUpper`. A path adds its segments: `join`, `split`, `parent`, `name`, `extension`, `withExtension`, `isAbsolute`. A filesystem adds files and directories: `read`, `write`, `append`, `list`, `stat`, `makeDir`, `remove`, `rename`, `copy`. A conversion to text has its inverse when programs read that type from text. A type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote.
+2. It follows from the type's structure, and each kind of type has a vocabulary. A container provides the container operations of the vocabulary below, or says in its section which it lacks and why. A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, and `tryMap` and `tryFold` for a step that can fail. Text adds `startsWith`, `endsWith`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `trim`, `toLower`, `toUpper`, and a character `isUpper`, `isLower`, `toUpper`, `toLower`. A path adds its segments: `join`, `split`, `parent`, `name`, `extension`, `withExtension`, `isAbsolute`. A filesystem adds files and directories: `read`, `write`, `append`, `list`, `stat`, `makeDir`, `remove`, `rename`, `copy`. A conversion to text has its inverse when programs read that type from text. A type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote.
 3. A program under `examples/` writes it and the hand-written version has no policy choice in it. One program is enough.
 4. It is not a composition. A function that is one pipe of two functions already here is not added: `List.concat` is `List.flatMap(xs, fn(x) = x)`, `List.sum` is `List.foldLeft(xs, 0, Int.+)`.
 
@@ -1290,6 +1290,7 @@ Map.contains : (Map(k, v), k) -> Bool
 Map.get : (Map(k, v), k) -> Optional(v)
 Map.put : (Map(k, v), k, v) -> Map(k, v) // replaces an entry with that key
 Map.remove : (Map(k, v), k) -> Map(k, v) // a key not present is not an error
+Map.update : (Map(k, v), k, (Optional(v)) -> v with e) -> Map(k, v) with e // the entry, present or not, replaced by the function's value
 Map.map : (Map(k, v), (k, v) -> w with e) -> Map(k, w) with e
 Map.filter : (Map(k, v), (k, v) -> Bool with e) -> Map(k, v) with e
 Map.filterMap : (Map(k, v), (k, v) -> Optional(w) with e) -> Map(k, w) with e
@@ -1363,12 +1364,16 @@ String.fromUtf8 : (Bytes) -> Optional(String) // None when the bytes are not UTF
 
 ### Appendix E.6. `char.ern` (namespace `Char`)
 
-The predicates use the Unicode properties of the code point: `isDigit` is general category Nd, `isAlpha` is category L, `isSpace` is White_Space. `Char.compare` is the prelude's, §9.6.
+The predicates use the Unicode properties of the code point: `isDigit` is general category Nd, `isAlpha` is category L, `isSpace` is White_Space, `isUpper` is Lu, `isLower` is Ll. `Char.compare` is the prelude's, §9.6.
 
 ```
 Char.isDigit : (Char) -> Bool
 Char.isAlpha : (Char) -> Bool
 Char.isSpace : (Char) -> Bool
+Char.isUpper : (Char) -> Bool
+Char.isLower : (Char) -> Bool
+Char.toUpper : (Char) -> Char // itself when it has no single upper-case form
+Char.toLower : (Char) -> Char // itself when it has no single lower-case form
 Char.toString : (Char) -> String
 Char.toInt : (Char) -> Int // the code point
 Char.fromInt : (Int) -> Optional(Char) // None outside U+0000 to U+10FFFF or for a surrogate
