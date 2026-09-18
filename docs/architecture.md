@@ -20,13 +20,13 @@ One Ernest module goes through six stages, each an Erlang application under `lib
 
 ## Tokens and AST
 
-`ern_lexer:tokenize/1` returns `{ok, [Token]}` or `{error, {Line, Column, Message}}`. A token is `{Category, {Line, Column}, Value}` for `int`, `float`, `char`, `string`, `bool`, `ident`, `typename`, `doc`, and `{Symbol, {Line, Column}}` for operators, delimiters, and reserved words, which are quoted atoms where Erlang would otherwise read them (`'when'`, `'receive'`, `'after'`, `'if'`, `'let'`, `'else'`). Strings are UTF-8 binaries, chars code points.
+`ern_lexer:tokenize/1` returns `{ok, [Token]}` or `{error, #diag{}}`. A token is `{Category, Pos, Value}` for `int`, `float`, `char`, `string`, `bool`, `ident`, `typename`, `doc`, and `{Symbol, Pos}` for operators, delimiters, and reserved words, where `Pos` is `{Line, Column, End, Before}`, the token's end and the end of the token before it, which are quoted atoms where Erlang would otherwise read them (`'when'`, `'receive'`, `'after'`, `'if'`, `'let'`, `'else'`). Strings are UTF-8 binaries, chars code points.
 
 `ern_parser:parse/1` takes tokens; `parse_string/1`, `parse_expr/1`, `parse_type/1` are conveniences. Every AST node is a record of `lib/parser/include/ern_ast.hrl` with `pos` first, one record per production of Appendix A. Expressions and patterns carry a `type` field the checker fills; declarations carry `doc` and `export`. Two rewrites happen in the parser: parentheses produce no node, and `x |> f(a)` becomes `f(x, a)`. Expressions are parsed by one precedence-climbing loop over the token list; patterns by a second small loop with `::` right-associative and `as` postfix; declarations by recursive descent. No backtracking; the three one-token peeks are documented in the plan, 1.1.
 
 ## The type checker
 
-`ern_typecheck:check(Ns, Decls, Ifaces)` returns `{ok, Typed, Iface, Env}` or `{error, [{Line, Column, Message}]}`. `Ns` is the module's namespace as a list of atoms; `Ifaces` are the `#iface{}` records of the modules it refers to.
+`ern_typecheck:check(Ns, Decls, Ifaces)` returns `{ok, Typed, Iface, Env}` or `{error, [#diag{}]}`, each diagnostic with the span of the node it is anchored to. `Ns` is the module's namespace as a list of atoms; `Ifaces` are the `#iface{}` records of the modules it refers to.
 
 Types are the terms of `lib/type_system/include/ern_types.hrl`: `{tcon, QName, Args}`, `{tvar, Id}`, `{ttuple, Elems}`, `{tfn, Params, Effect, Result}` where `Effect` is `pure` or a type. Every variable has a `#tv{}` entry in the state's table with its level, its flags (`eq`, `process_only`, `no_reply`, report §3.9), and the name its annotation gave it. `ern_types` owns the state: fresh variables, unification with the effect rules, generalization by levels with pure elision, instantiation, and the printer that error messages and `ernc --doc` share (report §11.5: names as the module writes them, annotation names kept).
 
