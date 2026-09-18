@@ -2511,4 +2511,4 @@ The report without code blocks should stay under ten pages, Oberon's measure. At
 
 ## Next Steps
 
-The paper phase is done: web server, file sync, tick game, REPL, and the web server compared with Erlang. The background queue was dropped; it existed for backpressure, which waits. The Unison and Gleam weeks were dropped. Next: `counter` written by hand against the report, then a parser that reads Appendix A, then MVP 1 according to the implementation plan.
+The paper phase is done: web server, file sync, snake, REPL, and the web server compared with Erlang. The background queue was dropped; it existed for backpressure, which waits. The Unison and Gleam weeks were dropped. MVP 1 is done through plan 3.3, 2026-09-17: the chain from `.ern` to BEAM holds, the nine example programs run through `ernc` and `ern`, and the standard library is Erlang under the ABI. Appendix E has its rules, 2026-09-18. Next: plan 3.4, type error placement; then MVP 2, the whole report on one node; then MVP 2.5, the standard library in Ernest under `stdlib/`, with the report edits its step 1 names first.
