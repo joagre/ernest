@@ -40,6 +40,7 @@ process_only() ->
 %% keys, Set elements, and the List functions that compare elements.
 -spec eq_vars([atom()]) -> [atom()].
 eq_vars(['Map' | _]) -> [k];
+eq_vars(['Set', map]) -> [a, b];
 eq_vars(['Set' | _]) -> [a];
 eq_vars(['List', contains]) -> [a];
 eq_vars(['List', remove]) -> [a];
@@ -113,6 +114,9 @@ values() ->
      {['List', span], "(List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e"},
      {['List', sort], "(List(a), (a, a) -> Ordering with e) -> List(a) with e"},
      {['List', remove], "(List(a), a) -> List(a)"},
+     {['List', zip], "(List(a), List(b)) -> List(#(a, b))"},
+     {['List', flatMap], "(List(a), (a) -> List(b) with e) -> List(b) with e"},
+     {['List', range], "(Int, Int) -> List(Int)"},
      %% E.3 Map
      {['Map', empty], "Map(k, v)"},
      {['Map', size], "(Map(k, v)) -> Int"},
@@ -124,7 +128,13 @@ values() ->
      {['Map', keys], "(Map(k, v)) -> List(k)"},
      {['Map', values], "(Map(k, v)) -> List(v)"},
      {['Map', map], "(Map(k, v), (k, v) -> w with e) -> Map(k, w) with e"},
+     {['Map', filter], "(Map(k, v), (k, v) -> Bool with e) -> Map(k, v) with e"},
      {['Map', foldLeft], "(Map(k, v), b, (b, k, v) -> b with e) -> b with e"},
+     {['Map', any], "(Map(k, v), (k, v) -> Bool with e) -> Bool with e"},
+     {['Map', all], "(Map(k, v), (k, v) -> Bool with e) -> Bool with e"},
+     {['Map', find], "(Map(k, v), (k, v) -> Bool with e) -> Optional(#(k, v)) with e"},
+     {['Map', fromList], "(List(#(k, v))) -> Map(k, v)"},
+     {['Map', toList], "(Map(k, v)) -> List(#(k, v))"},
      %% E.4 Set
      {['Set', empty], "Set(a)"},
      {['Set', size], "(Set(a)) -> Int"},
@@ -137,18 +147,28 @@ values() ->
      {['Set', difference], "(Set(a), Set(a)) -> Set(a)"},
      {['Set', fromList], "(List(a)) -> Set(a)"},
      {['Set', toList], "(Set(a)) -> List(a)"},
+     {['Set', map], "(Set(a), (a) -> b with e) -> Set(b) with e"},
+     {['Set', filter], "(Set(a), (a) -> Bool with e) -> Set(a) with e"},
+     {['Set', foldLeft], "(Set(a), b, (b, a) -> b with e) -> b with e"},
+     {['Set', any], "(Set(a), (a) -> Bool with e) -> Bool with e"},
+     {['Set', all], "(Set(a), (a) -> Bool with e) -> Bool with e"},
+     {['Set', find], "(Set(a), (a) -> Bool with e) -> Optional(a) with e"},
      %% E.5 String
      {['String', size], "(String) -> Int"},
      {['String', isEmpty], "(String) -> Bool"},
      {['String', contains], "(String, String) -> Bool"},
      {['String', trim], "(String) -> String"},
      {['String', toLower], "(String) -> String"},
+     {['String', toUpper], "(String) -> String"},
      {['String', toInt], "(String) -> Optional(Int)"},
-     {['String', chars], "(String) -> List(Char)"},
-     {['String', fromChars], "(List(Char)) -> String"},
+     {['String', toList], "(String) -> List(Char)"},
+     {['String', fromList], "(List(Char)) -> String"},
      {['String', fromUtf8], "(Bytes) -> Optional(String)"},
      {['String', toUtf8], "(String) -> Bytes"},
      {['String', lines], "(String) -> List(String)"},
+     {['String', split], "(String, String) -> List(String)"},
+     {['String', join], "(List(String), String) -> String"},
+     {['String', any], "(String, (Char) -> Bool with e) -> Bool with e"},
      {['String', all], "(String, (Char) -> Bool with e) -> Bool with e"},
      %% E.6 Char
      {['Char', isDigit], "(Char) -> Bool"},

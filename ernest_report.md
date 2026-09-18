@@ -482,7 +482,7 @@ A nullary constructor is a value, a single-positional constructor is a function 
 `x |> e` treats `e` as a function value or a call and applies it with `x` inserted as an additional first argument: `x |> f` is `f(x)`; `x |> f(a, b)` is `f(x, a, b)`. The pipe reads left to right, which suits stdlib call chains where each function's first argument is the value being transformed:
 
 ```
-let words = input |> String.trim |> String.toLower |> String.chars
+let words = input |> String.trim |> String.toLower |> String.toList
 ```
 
 `|>` is left-associative and lowest-precedence, below `||`: `a + b |> f` is `f(a + b)`, and `a |> b |> c` is `c(b(a))`. The right-hand side may be a name, a qualified name, a parenthesized lambda, or a call whose first-argument slot the pipe fills. A lambda in this position must be parenthesized (`x |> (fn(y) = y + 1)`); an unparenthesized `fn(...) = ...` after `|>` would extend its body greedily into the surrounding expression. When the RHS is a chained call — `f(a)(b)` — the pipe fills the *outermost* call's first-argument slot: `x |> f(a)(b)` is `f(a)(x, b)`. A parenthesized call `(f(a))` behaves as a plain call: `x |> (f(a))` is `f(x, a)`. The type of `x` must match the target function's first argument.
@@ -1185,6 +1185,8 @@ The `raw` names have no `export` and are therefore invisible outside the module;
 
 Informative, not normative: this appendix lists the modules that ship with the compiler as ordinary Ernest files under `stdlib/`. The standard library is on the load path by default — no `--load-path` flag needed. Every program can call `Io.println`, `List.map`, and the rest without any setup. The prelude in section 9 is what the language itself requires; everything below is convenience written in Ernest on top of it.
 
+Three rules govern the appendix. A function is in when a program cannot write it without it, because its value lives in the runtime, or when writing it by hand is the same few lines every time; nothing is in for one program's convenience. One function per job: no aliases, no argument-order variants. The same name means the same operation in every module that has it, the container comes first, a predicate is `isX`, a conversion `toX` or `fromX`, a partial operation returns `Optional`, ordering goes through `compare`.
+
 ### Appendix E.1. `io.ern` (namespace `Io`)
 
 Output helpers. The plain forms send to `Sys.stdout` (section 8); the `*To` forms take an explicit `Address(String)`, useful for logging to a mailbox that is not stdout.
@@ -1223,6 +1225,9 @@ List.foreach : (List(a), (a) -> Unit with e) -> Unit with e
 List.span : (List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e
 List.sort : (List(a), (a, a) -> Ordering with e) -> List(a) with e
 List.remove : (List(a), a) -> List(a) // requires equality on a (§3.10)
+List.zip : (List(a), List(b)) -> List(#(a, b)) // to the shorter length
+List.flatMap : (List(a), (a) -> List(b) with e) -> List(b) with e
+List.range : (Int, Int) -> List(Int) // from the first to the second inclusive; empty when the first is greater
 ```
 
 ### Appendix E.3. `map.ern` (namespace `Map`)
@@ -1240,7 +1245,13 @@ Map.remove : (Map(k, v), k) -> Map(k, v)
 Map.keys : (Map(k, v)) -> List(k)
 Map.values : (Map(k, v)) -> List(v)
 Map.map : (Map(k, v), (k, v) -> w with e) -> Map(k, w) with e
+Map.filter : (Map(k, v), (k, v) -> Bool with e) -> Map(k, v) with e
 Map.foldLeft : (Map(k, v), b, (b, k, v) -> b with e) -> b with e
+Map.any : (Map(k, v), (k, v) -> Bool with e) -> Bool with e
+Map.all : (Map(k, v), (k, v) -> Bool with e) -> Bool with e
+Map.find : (Map(k, v), (k, v) -> Bool with e) -> Optional(#(k, v)) with e // some entry that satisfies
+Map.fromList : (List(#(k, v))) -> Map(k, v) // a later pair wins
+Map.toList : (Map(k, v)) -> List(#(k, v)) // unspecified order
 ```
 
 ### Appendix E.4. `set.ern` (namespace `Set`)
@@ -1258,7 +1269,13 @@ Set.union : (Set(a), Set(a)) -> Set(a)
 Set.intersect : (Set(a), Set(a)) -> Set(a)
 Set.difference : (Set(a), Set(a)) -> Set(a)
 Set.fromList : (List(a)) -> Set(a)
-Set.toList : (Set(a)) -> List(a)
+Set.toList : (Set(a)) -> List(a) // unspecified order
+Set.map : (Set(a), (a) -> b with e) -> Set(b) with e // requires equality on b
+Set.filter : (Set(a), (a) -> Bool with e) -> Set(a) with e
+Set.foldLeft : (Set(a), b, (b, a) -> b with e) -> b with e // unspecified order
+Set.any : (Set(a), (a) -> Bool with e) -> Bool with e
+Set.all : (Set(a), (a) -> Bool with e) -> Bool with e
+Set.find : (Set(a), (a) -> Bool with e) -> Optional(a) with e // some element that satisfies
 ```
 
 ### Appendix E.5. `string.ern` (namespace `String`)
@@ -1269,12 +1286,16 @@ String.isEmpty : (String) -> Bool
 String.contains : (String, String) -> Bool // substring test
 String.trim : (String) -> String // strip leading and trailing whitespace
 String.toLower : (String) -> String
+String.toUpper : (String) -> String
 String.toInt : (String) -> Optional(Int)
-String.chars : (String) -> List(Char)
-String.fromChars : (List(Char)) -> String
+String.toList : (String) -> List(Char)
+String.fromList : (List(Char)) -> String
 String.fromUtf8 : (Bytes) -> Optional(String)
 String.toUtf8 : (String) -> Bytes
 String.lines : (String) -> List(String)
+String.split : (String, String) -> List(String) // at each occurrence of the second, which is not empty
+String.join : (List(String), String) -> String // the second between the parts
+String.any : (String, (Char) -> Bool with e) -> Bool with e
 String.all : (String, (Char) -> Bool with e) -> Bool with e
 ```
 
@@ -1354,7 +1375,7 @@ Foreign.toBool : (Foreign) -> Optional(Bool)
 Foreign.toList : (Foreign) -> Optional(List(Foreign))
 ```
 
-The standard library is expected to grow. New modules are added when a pattern shows up in three programs, matching the rule the decisions log applies to other deferred additions.
+The standard library grows by the three rules above; a function that passes them enters this appendix before it enters `stdlib/`.
 
 ## Appendix F. Glossary
 

@@ -17,7 +17,7 @@ fn show(r : Either(String, #(String, Int))) -> String = match r {
 }
 
 fn parse(s : String) -> Either(String, #(String, Int)) = {
-    let #(key, rest) <- keyOf(String.chars(s));
+    let #(key, rest) <- keyOf(String.toList(s));
     let rest2 <- expectEq(rest, s);
     let n <- number(rest2, s);
     Right(#(key, n))
@@ -25,8 +25,8 @@ fn parse(s : String) -> Either(String, #(String, Int)) = {
 
 fn keyOf(cs : List(Char)) -> Either(String, #(String, List(Char))) = {
     let #(k, rest) = List.span(cs, Char.isAlpha);
-    if List.isEmpty(k) then Left("bad key: " <> String.fromChars(cs))
-    else Right(#(String.fromChars(k), rest))
+    if List.isEmpty(k) then Left("bad key: " <> String.fromList(cs))
+    else Right(#(String.fromList(k), rest))
 }
 
 fn expectEq(cs : List(Char), s : String) -> Either(String, List(Char)) = match cs {
@@ -35,7 +35,7 @@ fn expectEq(cs : List(Char), s : String) -> Either(String, List(Char)) = match c
 }
 
 fn number(cs : List(Char), s : String) -> Either(String, Int) =
-    match String.toInt(String.fromChars(cs)) {
+    match String.toInt(String.fromList(cs)) {
         Some(n) -> Right(n)
       | None -> Left("bad number: " <> s)
     }

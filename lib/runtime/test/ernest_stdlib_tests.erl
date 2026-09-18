@@ -34,7 +34,11 @@ list_test() ->
     ?assertEqual('Unit', L:foreach([1], fun(_) -> 'Unit' end)),
     ?assertEqual({[1, 2], [3, 1]}, L:span([1, 2, 3, 1], fun(X) -> X < 3 end)),
     ?assertEqual([1, 2, 3], L:sort([3, 1, 2], fun 'ernest@int':compare/2)),
-    ?assertEqual([1, 3, 2], L:remove([1, 2, 3, 2], 2)).
+    ?assertEqual([1, 3, 2], L:remove([1, 2, 3, 2], 2)),
+    ?assertEqual([{1, a}, {2, b}], L:zip([1, 2, 3], [a, b])),
+    ?assertEqual([1, 1, 2, 2], L:flatMap([1, 2], fun(X) -> [X, X] end)),
+    ?assertEqual([2, 3, 4], L:range(2, 4)),
+    ?assertEqual([], L:range(3, 2)).
 
 %% report Appendix E.3, §3.10
 map_test() ->
@@ -51,7 +55,14 @@ map_test() ->
     ?assertEqual([1, 2], lists:sort(M:values(M1))),
     ?assertEqual({'Some', 20}, M:get(M:map(M1, fun(_, V) -> V * 10 end), b)),
     ?assertEqual(3, M:foldLeft(M1, 0, fun(A, _, V) -> A + V end)),
-    ?assert(M:put(M:put(E, a, 1), b, 2) =:= M:put(M:put(E, b, 2), a, 1)).
+    ?assert(M:put(M:put(E, a, 1), b, 2) =:= M:put(M:put(E, b, 2), a, 1)),
+    ?assertEqual([{b, 2}], M:toList(M:filter(M1, fun(_, V) -> V > 1 end))),
+    ?assertEqual(true, M:any(M1, fun(K, _) -> K =:= a end)),
+    ?assertEqual(false, M:all(M1, fun(_, V) -> V > 1 end)),
+    ?assertEqual({'Some', {b, 2}}, M:find(M1, fun(_, V) -> V =:= 2 end)),
+    ?assertEqual('None', M:find(M1, fun(_, V) -> V =:= 3 end)),
+    ?assertEqual(M1, M:fromList([{a, 0}, {a, 1}, {b, 2}])),
+    ?assertEqual([{a, 1}, {b, 2}], lists:sort(M:toList(M1))).
 
 %% report Appendix E.4, §3.10
 set_test() ->
@@ -64,7 +75,14 @@ set_test() ->
     ?assertEqual([1, 2, 3], lists:sort(S:toList(S:union(S1, S:fromList([3]))))),
     ?assertEqual([2], S:toList(S:intersect(S1, S:fromList([2, 3])))),
     ?assertEqual([1], S:toList(S:difference(S1, S:fromList([2, 3])))),
-    ?assert(S:fromList([1, 2]) =:= S:fromList([2, 1])).
+    ?assert(S:fromList([1, 2]) =:= S:fromList([2, 1])),
+    ?assertEqual([2, 4], lists:sort(S:toList(S:map(S1, fun(X) -> X * 2 end)))),
+    ?assertEqual([2], S:toList(S:filter(S1, fun(X) -> X > 1 end))),
+    ?assertEqual(3, S:foldLeft(S1, 0, fun(A, X) -> A + X end)),
+    ?assertEqual(true, S:any(S1, fun(X) -> X > 1 end)),
+    ?assertEqual(false, S:all(S1, fun(X) -> X > 1 end)),
+    ?assertEqual({'Some', 2}, S:find(S1, fun(X) -> X > 1 end)),
+    ?assertEqual('None', S:find(S1, fun(X) -> X > 2 end)).
 
 %% report Appendix E.5, §9.6
 string_test() ->
@@ -78,14 +96,20 @@ string_test() ->
     ?assertEqual('None', S:toInt(<<"1a">>)),
     ?assertEqual('None', S:toInt(<<"-">>)),
     ?assertEqual('None', S:toInt(<<>>)),
-    ?assertEqual([$a, $b], S:chars(<<"ab">>)),
-    ?assertEqual(<<"ab">>, S:fromChars([$a, $b])),
+    ?assertEqual(<<"ABC">>, S:toUpper(<<"abC">>)),
+    ?assertEqual([$a, $b], S:toList(<<"ab">>)),
+    ?assertEqual(<<"ab">>, S:fromList([$a, $b])),
     ?assertEqual({'Some', <<"ab">>}, S:fromUtf8(<<"ab">>)),
     ?assertEqual('None', S:fromUtf8(<<255>>)),
     ?assertEqual(<<"ab">>, S:toUtf8(<<"ab">>)),
     ?assertEqual([<<"a">>, <<"b">>], S:lines(<<"a\nb\n">>)),
     ?assertEqual([<<"a">>, <<>>, <<"b">>], S:lines(<<"a\n\nb">>)),
     ?assertEqual([], S:lines(<<>>)),
+    ?assertEqual([<<"a">>, <<>>, <<"b">>], S:split(<<"a,,b">>, <<",">>)),
+    ?assertEqual([<<>>], S:split(<<>>, <<",">>)),
+    ?assertEqual(<<"a, b">>, S:join([<<"a">>, <<"b">>], <<", ">>)),
+    ?assertEqual(<<>>, S:join([], <<", ">>)),
+    ?assertEqual(true, S:any(<<"a1">>, fun 'ernest@char':isDigit/1)),
     ?assertEqual(true, S:all(<<"123">>, fun 'ernest@char':isDigit/1)),
     ?assertEqual('Less', S:compare(<<"a">>, <<"b">>)),
     ?assertEqual('Equal', S:compare(<<"a">>, <<"a">>)).

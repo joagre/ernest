@@ -266,7 +266,7 @@ The compiler picks Optional or Either from the right-hand side's type. One block
 Ernest's stdlib is subject-first. `|>` reads left-to-right:
 
 ```
-"abc" |> String.chars |> List.reverse |> String.fromChars      // "cba"
+"abc" |> String.toList |> List.reverse |> String.fromList      // "cba"
 ```
 
 `x |> f` is `f(x)`. `x |> f(a, b)` is `f(x, a, b)` — pipe inserts as the first argument. `x |> f(a)(b)` is `f(a)(x, b)`, inserted into the *outermost* call.

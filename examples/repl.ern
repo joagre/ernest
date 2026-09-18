@@ -10,7 +10,7 @@
 // Assumptions. The runtime is assumed to provide Sys.stdin : Address(StdinMsg)
 // as an additional top-level reference beyond the report's required Sys.stdout
 // and Sys.clock, with ReadLine(reply : Address(String)): one line per request.
-// String.chars, Char.isDigit, Char.isAlpha, Char.toString, and
+// String.toList, Char.isDigit, Char.isAlpha, Char.toString, and
 // String.toInt : (String) -> Optional(Int) are in the standard library (report
 // Appendix E). ParseError.toString and EvalError.toString are hand-written
 // renderings for stdout; both are todo("on paper") here. main runs the loop
@@ -116,7 +116,7 @@ fn EvalError.toString(e : EvalError) -> String = todo("on paper")
 // Pure code: lexer
 //
 
-fn tokenize(t : String) -> Either(LexError, List(Token)) = lex(String.chars(t), 0, [])
+fn tokenize(t : String) -> Either(LexError, List(Token)) = lex(String.toList(t), 0, [])
 
 fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Token)) = match cs {
     [] -> Right(List.reverse(acc))
@@ -127,12 +127,12 @@ fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Tok
   | '-' :: '>' :: r -> lex(r, i + 2, Arrow :: acc)
   | c :: _ when Char.isDigit(c) -> {
         let #(digits, rest) = List.span(cs, Char.isDigit);
-        let n = match String.toInt(String.fromChars(digits)) { Some(v) -> v | None -> 0 };
+        let n = match String.toInt(String.fromList(digits)) { Some(v) -> v | None -> 0 };
         lex(rest, i + List.size(digits), Num(n) :: acc)
     }
   | c :: _ when Char.isAlpha(c) -> {
         let #(word, rest) = List.span(cs, Char.isAlpha);
-        let tok = match String.fromChars(word) { "let" -> KwLet | "fun" -> KwFun | w -> Ident(w) };
+        let tok = match String.fromList(word) { "let" -> KwLet | "fun" -> KwFun | w -> Ident(w) };
         lex(rest, i + List.size(word), tok :: acc)
     }
   | c :: r when List.contains(['+', '-', '*', '/'], c) -> lex(r, i + 1, Op(c) :: acc)

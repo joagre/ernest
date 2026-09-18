@@ -4,7 +4,7 @@
 -module('ernest@set').
 
 -export([empty/0, size/1, isEmpty/1, contains/2, add/2, remove/2, union/2, intersect/2,
-         difference/2, fromList/1, toList/1]).
+         difference/2, fromList/1, toList/1, map/2, filter/2, foldLeft/3, any/2, all/2, find/2]).
 
 empty() -> sets:new([{version, 2}]).
 size(S) -> sets:size(S).
@@ -17,3 +17,13 @@ intersect(A, B) -> sets:intersection(A, B).
 difference(A, B) -> sets:subtract(A, B).
 fromList(Xs) -> sets:from_list(Xs, [{version, 2}]).
 toList(S) -> sets:to_list(S).
+map(S, F) -> sets:from_list([F(X) || X <- sets:to_list(S)], [{version, 2}]).
+filter(S, P) -> sets:filter(P, S).
+foldLeft(S, Acc, F) -> sets:fold(fun(X, A) -> F(A, X) end, Acc, S).
+any(S, P) -> lists:any(P, sets:to_list(S)).
+all(S, P) -> lists:all(P, sets:to_list(S)).
+find(S, P) ->
+    case lists:search(P, sets:to_list(S)) of
+        {value, X} -> {'Some', X};
+        false -> 'None'
+    end.

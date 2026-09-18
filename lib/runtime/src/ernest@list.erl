@@ -5,7 +5,7 @@
 
 -export([size/1, isEmpty/1, head/1, last/1, at/2, reverse/1, take/2, drop/2, dropLast/1,
          contains/2, find/2, any/2, all/2, map/2, filter/2, filterMap/2, foldLeft/3,
-         foreach/2, span/2, sort/2, remove/2]).
+         foreach/2, span/2, sort/2, remove/2, zip/2, flatMap/2, range/2]).
 
 size(Xs) -> length(Xs).
 isEmpty(Xs) -> Xs =:= [].
@@ -48,3 +48,8 @@ span(Xs, P) ->
     {Prefix, Rest}.
 sort(Xs, Compare) -> lists:sort(fun(A, B) -> Compare(A, B) =/= 'Greater' end, Xs).
 remove(Xs, X) -> lists:delete(X, Xs).
+zip([X | Xs], [Y | Ys]) -> [{X, Y} | zip(Xs, Ys)];
+zip(_, _) -> [].
+flatMap(Xs, F) -> lists:append([F(X) || X <- Xs]).
+range(From, To) when From > To -> [];
+range(From, To) -> lists:seq(From, To).
