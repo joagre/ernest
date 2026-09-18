@@ -113,7 +113,7 @@ values() ->
      {['Sys', keys], "Address(KeyMsg)"},
      {['Sys', clock], "Address(ClockMsg)"},
      {['Sys', fs], "Address(FsMsg)"},
-     {['Sys', net], "Address(TcpMsg)"},
+     {['Sys', tcp], "Address(TcpMsg)"},
      %% Appendix E.1 Io
      {['Io', print], "(String) -> Unit with m"},
      {['Io', println], "(String) -> Unit with m"},

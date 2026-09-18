@@ -519,3 +519,28 @@ examples_parse_test_() ->
               {ok, Bin} = file:read_file(F),
               ?assertMatch({ok, [_ | _]}, ern_parser:parse_string(Bin))
           end} || F <- Files].
+
+%% report §1, Appendix A: the grammar fragments in the sections are Appendix
+%% A's rules; Appendix A is the truth and this test keeps the fragments equal
+%% to it
+grammar_fragments_test() ->
+    {ok, Bin} = file:read_file("../../../ernest_report.md"),
+    Text = unicode:characters_to_list(Bin),
+    [Body, Appendix0] = string:split(Text, "## Appendix A. Grammar"),
+    [Appendix | _] = string:split(Appendix0, "## Appendix B"),
+    All = fun(Subject, Re, Opts) ->
+              case re:run(Subject, Re, [global, unicode, {capture, all_but_first, list} | Opts]) of
+                  {match, Ms} -> Ms;
+                  nomatch -> []
+              end
+          end,
+    Rules = fun(T) ->
+                maps:from_list(
+                  [{N, re:replace(R, "\\s+", " ", [global, unicode, {return, list}])}
+                   || [B] <- All(T, "```\n([\\s\\S]*?)```", []),
+                      [R, N] <- All(B, "^((\\w+)\\s*=[\\s\\S]*?\\s\\.)$", [multiline])])
+            end,
+    InAppendix = Rules(Appendix),
+    InSections = Rules(Body),
+    ?assert(map_size(InAppendix) > 40),
+    ?assertEqual([], [N || N := R <- InAppendix, maps:get(N, InSections, undefined) =/= R]).

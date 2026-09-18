@@ -1429,9 +1429,9 @@ Foreign.toList : (Foreign) -> Optional(List(Foreign))
 The runtime's generator behind a pure interface. `Seed` is a foreign type (§3.8): made by `seed`, bound to its node, and the same seed gives the same sequence on one runtime version. A program that wants a fresh seed takes `Clock.now()`.
 
 ```
-foreign type Seed // Random.Seed outside the module
-Random.seed : (Int) -> Seed
-Random.next : (Seed, Int) -> #(Int, Seed) // uniform between 0 and the second inclusive, and the seed after it
+foreign type Seed
+Random.seed : (Int) -> Random.Seed
+Random.next : (Random.Seed, Int) -> #(Int, Random.Seed) // uniform between 0 and the second inclusive, and the seed after it
 ```
 
 ### Appendix E.14. `path.ern` (namespace `Path`)

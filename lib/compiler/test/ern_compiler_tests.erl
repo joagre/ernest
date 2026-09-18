@@ -543,7 +543,9 @@ refused_names_test() ->
                  compile_error("export fn main() -> Unit with Never =\n"
                                "    { let _ = Tcp.listen(1); Unit }\n")),
     ?assertEqual("Sys.fs is not in MVP 1",
-                 compile_error("export fn main() -> Unit with Never = { let _ = Sys.fs; Unit }\n")).
+                 compile_error("export fn main() -> Unit with Never = { let _ = Sys.fs; Unit }\n")),
+    ?assertEqual("Sys.tcp is not in MVP 1",
+                 compile_error("export fn main() -> Unit with Never = { let _ = Sys.tcp; Unit }\n")).
 
 %% report §8.5, §8.2: the Sys.* references are bound before the top-level
 %% lets are evaluated
