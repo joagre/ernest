@@ -899,7 +899,7 @@ export foreign fn lookup(key : String) -> Either(String, Int) with m = "store_he
 
 If `find/1` returns reasons of another shape (an atom, a nested tuple), the Erlang helper must convert them to the declared Ernest form before returning; the Ernest side does not paper over ABI-shape breaches.
 
-Report Appendix D walks a full `ets.ern` reference implementation (namespace `Ets`). Its foreign calls happen to already match Ernest's ABI (`[{K, V}]` maps to `List(#(k, v))`, `Bool` to `true`/`false`), so it needs no Erlang wrapper.
+Report Appendix D walks a full `ets.ern` reference implementation (namespace `Ets`). Its foreign calls happen to already match Ernest's ABI (`[{K, V}]` maps to `List(#(k, v))`, `Bool` to `true`/`false`), so it needs no Erlang wrapper. This is also the shape of every library outside the standard library: JSON, TLS, regular expressions, HTTP are not in Appendix E and never will be, because each is a namespace of its own with policy inside; they are written as `Ets` is, by anyone, and put on the load path when a program wants them.
 
 ### 7.6 Bitstrings
 
