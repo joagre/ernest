@@ -10,7 +10,7 @@
 // stdout, todo("on paper") here. main runs the acceptor itself so the program
 // keeps running (report §8.6).
 //
-// Needs MVP 2.5 (Tcp, foreign fn, abstract types). Not compiled by MVP 1.
+// Needs MVP 2.5 (Tcp) and the Ets library on the load path. Not compiled by MVP 1.
 //
 
 //

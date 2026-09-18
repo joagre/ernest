@@ -943,6 +943,7 @@ A segment without specifiers is `int` of size 8, which is why `<<0, 1, 2>>` is t
 - A `bits` or `bytes` segment binding to a `Bytes` value must itself be byte-multiple. Sub-octet fields use the `int` specifier (binding to `Int`).
 - Compile-time-constant alignment violations are compile-time errors. Dynamic-size violations fault in construction and fail matching in patterns.
 - A segment value that does not fit its specified width — an `Int` too large for `size(N)-int` at construction — is a fault.
+- The runtime's bit syntax sets the limits the report states: `unit` is 1 to 256, a `float` segment is 16, 32, or 64 bits, a `utf` segment takes no size, and a sizeless `bits` or `bytes` segment is the last one.
 
 A segment pattern is a variable, `_`, or a literal. `size(Expr)` in a pattern evaluates in the scope of earlier-bound segment variables plus the enclosing scope. The expression is pure (no mailbox effect); a fault in it faults the process. A `match` over bitstring patterns ends with a `_` or variable clause, as `parseFrame` does: the checker does not decide whether bitstring patterns cover every `Bytes` value.
 
