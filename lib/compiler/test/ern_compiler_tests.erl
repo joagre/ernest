@@ -508,8 +508,8 @@ maps_sets_test() ->
         "}\n"),
     ?assertEqual(<<"2\n3\ntrue\n4\ntrue\n">>, Out).
 
-%% report Appendix E.13, §4.2: a standard library type in its namespace,
-%% constructed and matched qualified, and every draw within its bounds
+%% report Appendix E.13, §4.2, §3.8: a standard library foreign type in its
+%% namespace, and every draw within its bounds
 random_test() ->
     {ok, Out} = run(
         "fn draw(s : Random.Seed, n : Int) -> List(Int) = if n == 0 then [] else {\n"
@@ -517,12 +517,33 @@ random_test() ->
         "    x :: draw(s1, n - 1)\n"
         "}\n"
         "export fn main() -> Unit with Never = {\n"
-        "    let xs = draw(Random.Seed(42), 50);\n"
-        "    Io.println(Bool.toString(List.all(xs, fn(x) = x >= 0 && x <= 5)));\n"
-        "    let Random.Seed(n) = Random.Seed(7);\n"
-        "    Io.println(Int.toString(n))\n"
+        "    let xs = draw(Random.seed(42), 50);\n"
+        "    Io.println(Bool.toString(List.all(xs, fn(x) = x >= 0 && x <= 5)))\n"
         "}\n"),
-    ?assertEqual(<<"true\n7\n">>, Out).
+    ?assertEqual(<<"true\n">>, Out).
+
+%% report Appendix E.15, E.14, §9.3: Clock.alarm delivers the wrapped Unit to
+%% the caller, Clock.now is a time, Path is the prelude's
+clock_path_test() ->
+    {ok, Out} = run(
+        "type Msg = Tick\n"
+        "export fn main() -> Unit with Msg = {\n"
+        "    let t0 = Clock.now();\n"
+        "    Clock.alarm(10, fn(_) = Tick);\n"
+        "    receive { Tick -> Unit };\n"
+        "    Io.println(Bool.toString(Clock.now() >= t0 + 10));\n"
+        "    Io.println(Path.toString(Path.join(Path(\"a\"), Path(\"b\"))))\n"
+        "}\n"),
+    ?assertEqual(<<"true\na/b\n">>, Out).
+
+%% README, "What MVP 1 accepts": the MVP 2.5 names type-check and the
+%% compiler refuses them
+refused_names_test() ->
+    ?assertEqual("Tcp.listen is not in MVP 1",
+                 compile_error("export fn main() -> Unit with Never =\n"
+                               "    { let _ = Tcp.listen(1); Unit }\n")),
+    ?assertEqual("Sys.fs is not in MVP 1",
+                 compile_error("export fn main() -> Unit with Never = { let _ = Sys.fs; Unit }\n")).
 
 %% report §8.5, §8.2: the Sys.* references are bound before the top-level
 %% lets are evaluated
@@ -536,6 +557,7 @@ sys_in_let_test() ->
 %% arity of its type, so no accepted name can reach the runtime as undef
 prelude_targets_test() ->
     Missing = [Q || {Q, Text} <- ern_prelude:values(),
+                    not ern_compiler:refused(Q),
                     {M, F, A} <- [prelude_target(Q, Text)],
                     code:ensure_loaded(M) =/= {module, M} orelse
                         not erlang:function_exported(M, F, A)],

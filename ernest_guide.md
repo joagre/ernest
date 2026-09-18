@@ -275,7 +275,7 @@ Ernest's stdlib is subject-first. `|>` reads left-to-right:
 
 ### 2.9 The standard library
 
-Report Appendix E lists the library, one module per type: `List`, `Map`, `Set`, `String`, `Char`, `Bool`, `Int`, `Float`, `Optional`, `Either`, `Foreign`, `Random`, and `Io`. It is on the load path by default. Its rules, in Appendix E.0, are what let you guess a name before looking it up:
+Report Appendix E lists the library: one module per type, `List`, `Map`, `Set`, `String`, `Char`, `Bool`, `Int`, `Float`, `Optional`, `Either`, `Foreign`, `Random`, `Path`, and one per system process, `Io`, `Clock`, `Keys`, `Fs`, `Tcp`. It is on the load path by default. Its rules, in Appendix E.0, are what let you guess a name before looking it up:
 
 - **One verb per operation, in every module that has it.** `size`, `isEmpty`, `contains`, `get` for lookup by index or key, `put` for insertion, `remove`, `map`, `filter`, `filterMap`, `foldLeft`, `foreach`, `any`, `all`, `find`, `fromList`, `toList`. `Map.get(m, k)` and `List.get(xs, 0)` are the same verb; `Map.put` and `Set.put` likewise. A list adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `zip`, `flatMap`, `range`.
 - **Subject first, callbacks last, accumulator between**, so the pipe works: `xs |> List.foldLeft(0, fn(acc, x) = acc + x)`.
@@ -283,7 +283,8 @@ Report Appendix E lists the library, one module per type: `List`, `Map`, `Set`, 
 - **A partial operation returns `Optional`.** `List.get`, `Map.get`, `String.toInt`, `Char.fromInt`. Nothing in the library faults beyond what report §7.4 lists.
 - **Pure unless the value lives in a process.** `Io` carries `with m`; every other module is pure, and every function that takes a function is effect-polymorphic (§3.5).
 - **A `String` is not a container.** Its characters are reached through `String.toList`: `List.all(String.toList(t), Char.isDigit)`.
-- **`Random` is pure.** `Random.next(seed, n)` returns a draw between 0 and `n` inclusive and the next seed; `Random.Seed(42)` is a seed, and the same seed gives the same sequence.
+- **`Random` has a pure interface.** `Random.next(seed, n)` returns a draw between 0 and `n` inclusive and the next seed; `Random.seed(42)` makes a seed, and the same seed gives the same sequence.
+- **A system process is used through its module, never by `send`.** `Clock.alarm(100, fn(_) = Tick)`, `Fs.read(path, 5000)`, `Tcp.accept(listener, 60000)`. A function that waits takes the milliseconds last and answers `Left(Timeout)`; one that delivers later takes a function to your mailbox type, as `monitor` does (§5.2).
 
 What the type does not say, the comment on the signature in Appendix E says: `List.remove` removes the first occurrence, `Map.toList` has no order, `List.sort` is stable.
 
@@ -633,33 +634,21 @@ The runtime ends a program with the error `Deadlock` when forward progress is im
 
 ### 5.5 Adapting messages with `via`
 
-The prelude's clock accepts an `After` request that fires once:
+`monitor(child, wrap)` takes a function from the runtime's `Down` to your mailbox type. The standard library's system modules use the same shape wherever something arrives later: `Clock.alarm(ms, wrap)` puts `wrap(Unit)` in your mailbox after `ms` milliseconds, and `Keys.subscribe(wrap)` puts every key pressed in it.
 
 ```
-// excerpt from the prelude's ClockMsg — the full type has more variants
-After(ms : Int, to : Address(Unit))
+Clock.alarm(100, fn(_) = Tick)
 ```
 
-The clock will send `Unit` to `to` after `ms` milliseconds. If your process's mailbox holds `GameMsg`, not `Unit`, `via` bridges the shapes:
+Between your own processes the general form is `via`:
 
 ```
 via : ((a) -> b, Address(b)) -> Address(a)
 ```
 
-`via(convert, target)` returns an `Address(a)` that, on receipt of an `a`, applies `convert` and delivers the resulting `b` to `target`. For the clock:
+`via(convert, target)` returns an `Address(a)` that, on receipt of an `a`, applies `convert` and delivers the resulting `b` to `target`. A worker written to report to an `Address(Either(String, Int))` knows nothing of your `GameMsg`; you hand it `via(Done, self())`, where `Done` is the constructor of `GameMsg` that carries a result, and `Done(r)` arrives in your mailbox. `monitor` and `Clock.alarm` are `via` with `self()` already filled in.
 
-```
-send(Sys.clock, After(ms = 100, to = via(fn(_) = Tick, self())))
-```
-
-- `self()` is the current process's `Address(GameMsg)`.
-- `fn(_) = Tick` is `(Unit) -> GameMsg`.
-- `via(...)` builds `Address(Unit)`.
-- The clock, 100 ms later, sends `Unit` to the wrapper, which produces `Tick`, which arrives at your mailbox.
-
-`monitor`'s second parameter has the same shape — `via` is the general form.
-
-The clock's `After` fires exactly *once*. For a periodic tick, the receiver schedules a new one only after handling the previous. A naive `game` that loops back on every message would create one pending timer per input, so a burst of inputs multiplies the tick rate. Two functions make the boundary explicit:
+The clock's `after` fires exactly *once*. For a periodic tick, the receiver schedules a new one only after handling the previous. A naive `game` that loops back on every message would create one pending timer per input, so a burst of inputs multiplies the tick rate. Two functions make the boundary explicit:
 
 ```
 type GameMsg = Tick | Input(Char)
@@ -668,7 +657,7 @@ type World = World(score : Int)
 fn step(World(score = n) : World) -> World = World(score = n + 1)
 
 fn game(state : World) -> Unit with GameMsg = {
-    send(Sys.clock, After(ms = 100, to = via(fn(_) = Tick, self())));
+    Clock.alarm(100, fn(_) = Tick);
     waitForTick(state)
 }
 
@@ -678,7 +667,7 @@ fn waitForTick(state : World) -> Unit with GameMsg = receive {
 }
 ```
 
-`game` schedules exactly one clock request, then hands off to `waitForTick`. Inputs are handled without touching the pending timer; only a `Tick` returns to `game`, which schedules the next one. `step` destructures the world with a pattern — Ernest does not generate field-accessor functions.
+`game` schedules exactly one clock request, then hands off to `waitForTick`. Inputs are handled without touching the pending timer; only a `Tick` returns to `game`, which schedules the next one. `step` destructures the world with a pattern; Ernest does not generate field-accessor functions.
 
 ### 5.6 Prediction exercise
 
@@ -988,7 +977,7 @@ The four paper programs, in ascending complexity:
 - [`examples/filesync.ern`](examples/filesync.ern) — file sync between two nodes; mutual-address setup, one process per write, `Sys.fs`.
 - [`examples/webserver.ern`](examples/webserver.ern) — HTTP server with sessions in ETS; `foreign fn`, abstract types, ETS accessed through foreign functions.
 
-The paper programs assume runtime references beyond the required `Sys.stdout` and `Sys.clock` — `Sys.fs`, `Sys.keys`, `Sys.net`, and an ETS backend are program-specific dependencies that each program names in its own assumptions.
+The paper programs use the system modules `Fs`, `Keys`, `Tcp`, and `Io.readLine` beyond `Io.println` and `Clock`, and the `Ets` library of report Appendix D; those are MVP 2.5, and each program says so at its top.
 
 For the language rules themselves, [`ernest_report.md`](ernest_report.md) is the authority. Appendix F glosses every technical term.
 

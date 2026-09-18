@@ -28,19 +28,35 @@ declared_types() ->
     "type ClockMsg = After(ms : Int, to : Address(Unit)) | At(at : Int, to : Address(Unit))"
     " | Now(reply : Reply(Int))\n"
     "type RemoteError = NoRemotePeer | PeerLost\n"
-    "type Where = Local | Peer(String)\n".
+    "type Where = Local | Peer(String)\n"
+    "type Key = Char(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter | Escape\n"
+    "type KeyMsg = Subscribe(Address(Key))\n"
+    "type StdinMsg = ReadLine(reply : Reply(Optional(String)))\n"
+    "type Path = Path(String)\n"
+    "type Entry = Entry(path : Path, mtime : Int)\n"
+    "type IoError = NotFound | Denied | Refused | Closed | Timeout | Other(String)\n"
+    "type FsMsg = ReadFile(path : Path, reply : Reply(Either(IoError, Bytes)))"
+    " | WriteFile(path : Path, bytes : Bytes, reply : Reply(Either(IoError, Unit)))"
+    " | ListDir(path : Path, reply : Reply(Either(IoError, List(Entry))))\n"
+    "type TcpMsg = Listen(port : Int, reply : Reply(Either(IoError, Address(ListenerMsg))))"
+    " | Connect(host : String, port : Int, reply : Reply(Either(IoError, Address(SockMsg))))\n"
+    "type ListenerMsg = Accept(reply : Reply(Either(IoError, Address(SockMsg))))\n"
+    "type SockMsg = Recv(reply : Reply(Either(IoError, Bytes))) | Send(Bytes) | Close\n".
 
 %% Types the standard library declares, by namespace (Appendix E.13).
 -spec stdlib_types() -> [{[atom()], string()}].
 stdlib_types() ->
-    [{['Random'], "type Seed = Seed(Int)\n"}].
+    [{['Random'], "foreign type Seed\n"}].
 
 %% Primitives whose effect variables are process-only (report §3.9), and the
 %% Io functions, which are built on send.
 -spec process_only() -> [[atom()]].
 process_only() ->
     [[send], [spawn], ['Address', call], ['Address', callForever], [answer], [monitor],
-     [kill], [remote], [parallelRemote], ['Io', print], ['Io', println]].
+     [kill], [remote], [parallelRemote], ['Io', print], ['Io', println], ['Io', readLine],
+     ['Clock', now], ['Clock', alarm], ['Clock', alarmAt], ['Keys', subscribe],
+     ['Fs', read], ['Fs', write], ['Fs', list], ['Tcp', listen], ['Tcp', accept],
+     ['Tcp', connect], ['Tcp', read], ['Tcp', write], ['Tcp', close]].
 
 %% Type variables that carry the equality constraint (report §3.10): Map
 %% keys, Set elements, and the List functions that compare elements.
@@ -93,10 +109,15 @@ values() ->
      {[todo], "(String) -> a"},
      %% §9.7 system references
      {['Sys', stdout], "Address(String)"},
+     {['Sys', stdin], "Address(StdinMsg)"},
+     {['Sys', keys], "Address(KeyMsg)"},
      {['Sys', clock], "Address(ClockMsg)"},
+     {['Sys', fs], "Address(FsMsg)"},
+     {['Sys', net], "Address(TcpMsg)"},
      %% Appendix E.1 Io
      {['Io', print], "(String) -> Unit with m"},
      {['Io', println], "(String) -> Unit with m"},
+     {['Io', readLine], "() -> Optional(String) with m"},
      %% E.2 List
      {['List', size], "(List(a)) -> Int"},
      {['List', isEmpty], "(List(a)) -> Bool"},
@@ -229,4 +250,26 @@ values() ->
      {['Foreign', toBool], "(Foreign) -> Optional(Bool)"},
      {['Foreign', toList], "(Foreign) -> Optional(List(Foreign))"},
      %% E.13 Random
-     {['Random', next], "(Random.Seed, Int) -> #(Int, Random.Seed)"}].
+     {['Random', seed], "(Int) -> Random.Seed"},
+     {['Random', next], "(Random.Seed, Int) -> #(Int, Random.Seed)"},
+     %% E.14 Path
+     {['Path', join], "(Path, Path) -> Path"},
+     {['Path', withSuffix], "(Path, String) -> Path"},
+     {['Path', toString], "(Path) -> String"},
+     %% E.15 Clock
+     {['Clock', now], "() -> Int with m"},
+     {['Clock', alarm], "(Int, (Unit) -> m) -> Unit with m"},
+     {['Clock', alarmAt], "(Int, (Unit) -> m) -> Unit with m"},
+     %% E.16 Keys
+     {['Keys', subscribe], "((Key) -> m) -> Unit with m"},
+     %% E.17 Fs
+     {['Fs', read], "(Path, Int) -> Either(IoError, Bytes) with m"},
+     {['Fs', write], "(Path, Bytes, Int) -> Either(IoError, Unit) with m"},
+     {['Fs', list], "(Path, Int) -> Either(IoError, List(Entry)) with m"},
+     %% E.18 Tcp
+     {['Tcp', listen], "(Int) -> Either(IoError, Address(ListenerMsg)) with m"},
+     {['Tcp', accept], "(Address(ListenerMsg), Int) -> Either(IoError, Address(SockMsg)) with m"},
+     {['Tcp', connect], "(String, Int, Int) -> Either(IoError, Address(SockMsg)) with m"},
+     {['Tcp', read], "(Address(SockMsg), Int) -> Either(IoError, Bytes) with m"},
+     {['Tcp', write], "(Address(SockMsg), Bytes) -> Unit with m"},
+     {['Tcp', close], "(Address(SockMsg)) -> Unit with m"}].

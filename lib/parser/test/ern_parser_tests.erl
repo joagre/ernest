@@ -494,7 +494,8 @@ ast_coverage_test() ->
     {ok, Hrl} = file:read_file("../include/ern_ast.hrl"),
     {match, M} = re:run(Hrl, "-record\\(([a-z_]+),", [global, {capture, all_but_first, list}]),
     Declared = lists:usort([list_to_atom(N) || [N] <- M]),
-    Files = filelib:wildcard("../../../examples/**/*.ern"),
+    Files = [F || F <- filelib:wildcard("../../../examples/**/*.ern"),
+                  hd(filename:basename(F)) =/= $.], % editor artifacts, report §11.1
     Used = lists:usort(lists:foldl(fun(F, Acc) ->
                                        {ok, Bin} = file:read_file(F),
                                        {ok, Ds} = ern_parser:parse_string(Bin),
@@ -511,7 +512,8 @@ tags(_, Acc) ->
 
 %% report Appendix B, examples/
 examples_parse_test_() ->
-    Files = filelib:wildcard("../../../examples/**/*.ern"),
+    Files = [F || F <- filelib:wildcard("../../../examples/**/*.ern"),
+                  hd(filename:basename(F)) =/= $.], % editor artifacts, report §11.1
     ?assert(length(Files) >= 12),
     [{F, fun() ->
               {ok, Bin} = file:read_file(F),

@@ -239,15 +239,24 @@ random_test() ->
     R = 'ernest@random',
     Draw = fun Draw(_, _, 0) -> [];
                Draw(S, B, N) -> {X, S1} = R:next(S, B), [X | Draw(S1, B, N - 1)] end,
-    Xs = Draw({'Seed', 42}, 5, 200),
-    ?assertEqual(Xs, Draw({'Seed', 42}, 5, 200)),
+    Xs = Draw(R:seed(42), 5, 200),
+    ?assertEqual(Xs, Draw(R:seed(42), 5, 200)),
     ?assert(lists:all(fun(X) -> X >= 0 andalso X =< 5 end, Xs)),
     ?assertEqual([0, 1, 2, 3, 4, 5], lists:usort(Xs)),
-    Ys = Draw({'Seed', 42}, -3, 200),
+    Ys = Draw(R:seed(42), -3, 200),
     ?assertEqual([-3, -2, -1, 0], lists:usort(Ys)),
-    ?assertEqual([0, 0], Draw({'Seed', 1}, 0, 2)),
-    {_, S1} = R:next({'Seed', 7}, 1),
-    ?assertNotEqual({'Seed', 7}, S1).
+    ?assertEqual([0, 0], Draw(R:seed(1), 0, 2)),
+    {_, S1} = R:next(R:seed(7), 1),
+    ?assertNotEqual(R:seed(7), S1).
+
+%% report Appendix E.14, §9.3
+path_test() ->
+    P = 'ernest@path',
+    ?assertEqual({'Path', <<"a/b">>}, P:join({'Path', <<"a">>}, {'Path', <<"b">>})),
+    ?assertEqual({'Path', <<"a/b">>}, P:join({'Path', <<"a/">>}, {'Path', <<"b">>})),
+    ?assertEqual({'Path', <<"/b">>}, P:join({'Path', <<"a">>}, {'Path', <<"/b">>})),
+    ?assertEqual({'Path', <<"a.conflict">>}, P:withSuffix({'Path', <<"a">>}, <<".conflict">>)),
+    ?assertEqual(<<"a">>, P:toString({'Path', <<"a">>})).
 
 %% report §6.7: no peer is configured in MVP 1
 remote_test() ->

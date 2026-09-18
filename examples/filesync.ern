@@ -6,49 +6,28 @@
 // file. The peer is an Address, and the code is the same whether it lives on
 // the same node or not.
 //
-// Assumptions. ClockMsg is the report's; Ordering is in the prelude.
-// Sys.stdout and Sys.clock are runtime references (report §8); this program
-// additionally assumes the runtime provides Sys.fs : Address(FsMsg), with
-// FsMsg, FsError, and Entry as declared below. Path, Mtime, and their helpers
-// are declared below with todo bodies; a runtime would provide them. main runs
-// syncer a itself so the program keeps running (report §8.6).
+// Assumptions. Fs and Clock are the standard library's system modules (report
+// Appendix E) over Sys.fs and Sys.clock (§8.2); Path, Entry, and IoError are
+// the prelude's (§9.3). errorText is a hand-written rendering for stdout,
+// todo("on paper") here. main runs syncer a itself so the program keeps
+// running (report §8.6).
 //
-// Needs MVP 2 or later (Sys.fs, Map). Not compiled by MVP 1.
+// Needs MVP 2.5 (Fs). Not compiled by MVP 1.
 //
-
-//
-// Assumed runtime types
-//
-
-type FsMsg
-    = ListDir(path : Path, reply : Address(Either(FsError, List(Entry))))
-    | Read(path : Path, reply : Reply(Either(FsError, Bytes)))
-    | Write(path : Path, bytes : Bytes, reply : Reply(Either(FsError, Unit)))
-
-type FsError = NotFound | Denied | Io(String)
-type Entry = Entry(path : Path, mtime : Mtime)
-type Path = Path(String)
-type Mtime = Mtime(Int)
-
-fn Path.join(dir : Path, p : Path) -> Path = todo("on paper")
-fn Path.toString(p : Path) -> String = todo("on paper")
-fn Path.withSuffix(p : Path, suffix : String) -> Path = todo("on paper")
-fn Mtime.compare(a : Mtime, b : Mtime) -> Ordering = todo("on paper")
-fn FsError.toString(e : FsError) -> String = todo("on paper")
 
 //
 // Types
 //
 
-type Change = Change(path : Path, mtime : Mtime)
+type Change = Change(path : Path, mtime : Int)
 
-type Ack = Stored | Conflict | Failed(FsError)
+type Ack = Stored | Conflict | Failed(IoError)
 
 type SyncMsg
     = Link(Address(SyncMsg))
     | Tick
-    | Listed(Either(FsError, List(Entry)))
-    | Put(path : Path, mtime : Mtime, bytes : Bytes, ack : Reply(Ack))
+    | Listed(Either(IoError, List(Entry)))
+    | Put(path : Path, mtime : Int, bytes : Bytes, ack : Reply(Ack))
 
 //
 // Program
@@ -72,10 +51,11 @@ fn start(dir : Path) -> Unit with SyncMsg = receive {
 }
 
 // The sync process: one per directory.
-fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> Unit with SyncMsg =
+fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) -> Unit with SyncMsg =
     receive {
         Tick -> {
-            send(Sys.fs, ListDir(path = dir, reply = via(Listed, self())));
+            let me = self();
+            let _ = spawn(Local, fn() -> Unit with Never = send(me, Listed(Fs.list(dir, 10000))));
             listing(dir, peer, seen)
         }
       | Put(path = p, mtime = m, bytes = bytes, ack = ack) -> {
@@ -86,9 +66,9 @@ fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> Unit 
       | Link(_) -> syncer(dir, peer, seen) // already connected
     }
 
-// Between ListDir and Listed: accept Put, but not Tick.
-fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> Unit with SyncMsg = {
-    let tick = fn() = send(Sys.clock, After(ms = 5000, to = via(fn(_) = Tick, self())));
+// Between the listing's start and Listed: accept Put, but not Tick.
+fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) -> Unit with SyncMsg = {
+    let tick = fn() = Clock.alarm(5000, fn(_) = Tick);
     receive {
         Listed(Right(entries)) -> {
             List.foreach(diff(seen, entries), fn(c) = {
@@ -99,7 +79,7 @@ fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> Unit
             syncer(dir, peer, snapshot(entries))
         }
       | Listed(Left(e)) -> {
-            Io.println("cannot list " <> Path.toString(dir) <> ": " <> FsError.toString(e));
+            Io.println("cannot list " <> Path.toString(dir) <> ": " <> errorText(e));
             tick();
             syncer(dir, peer, seen)
         }
@@ -107,25 +87,20 @@ fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Mtime)) -> Unit
             store(dir, seen, p, m, bytes, ack);
             listing(dir, peer, Map.put(seen, p, m))
         }
-      | after 10000 -> {
-            Io.println("fs is not answering");
-            tick();
-            syncer(dir, peer, seen)
-        }
     }
 }
 
 // Store a file from the peer. Newer local file: conflict.
 fn store(
     dir : Path,
-    seen : Map(Path, Mtime),
+    seen : Map(Path, Int),
     p : Path,
-    m : Mtime,
+    m : Int,
     bytes : Bytes,
     ack : Reply(Ack)
 ) -> Unit with SyncMsg =
     match Map.get(seen, p) {
-        Some(local) when Mtime.compare(local, m) == Greater -> {
+        Some(local) when local > m -> {
             let _ = spawn(Local, fn() =
                 writer(Path.join(dir, conflictPath(p)), bytes, ack, Conflict));
             Unit
@@ -138,10 +113,9 @@ fn store(
 
 // One process per write: waits for fs and answers the peer.
 fn writer(p : Path, bytes : Bytes, ack : Reply(Ack), okAck : Ack) -> Unit with n =
-    match Address.call(Sys.fs, fn(r) = Write(path = p, bytes = bytes, reply = r), 10000) {
-        Some(Right(Unit)) -> answer(ack, okAck)
-      | Some(Left(e)) -> answer(ack, Failed(e))
-      | None -> answer(ack, Failed(Io("timeout")))
+    match Fs.write(p, bytes, 10000) {
+        Right(Unit) -> answer(ack, okAck)
+      | Left(e) -> answer(ack, Failed(e))
     }
 
 // One process per changed file: reads and sends to the peer.
@@ -150,13 +124,12 @@ fn pusher(
     peer : Address(SyncMsg),
     Change(path = p, mtime = m) : Change
 ) -> Unit with n =
-    match Address.call(Sys.fs, fn(r) = Read(path = Path.join(dir, p), reply = r), 10000) {
-        Some(Right(bytes)) -> push(peer, p, m, bytes)
-      | Some(Left(_)) -> Io.println("cannot read " <> Path.toString(p))
-      | None -> Io.println("fs is not answering: " <> Path.toString(p))
+    match Fs.read(Path.join(dir, p), 10000) {
+        Right(bytes) -> push(peer, p, m, bytes)
+      | Left(e) -> Io.println("cannot read " <> Path.toString(p) <> ": " <> errorText(e))
     }
 
-fn push(peer : Address(SyncMsg), p : Path, m : Mtime, bytes : Bytes) -> Unit with n =
+fn push(peer : Address(SyncMsg), p : Path, m : Int, bytes : Bytes) -> Unit with n =
     match Address.call(peer, fn(r) = Put(path = p, mtime = m, bytes = bytes, ack = r), 30000) {
         Some(Stored) -> Unit
       | Some(Conflict) -> Io.println("conflict: " <> Path.toString(p))
@@ -169,19 +142,18 @@ fn push(peer : Address(SyncMsg), p : Path, m : Mtime, bytes : Bytes) -> Unit wit
 //
 
 // What has changed since the last snapshot?
-fn diff(old : Map(Path, Mtime), entries : List(Entry)) -> List(Change) =
+fn diff(old : Map(Path, Int), entries : List(Entry)) -> List(Change) =
     List.filterMap(entries, fn(e) = changed(old, e))
 
-fn changed(old : Map(Path, Mtime), Entry(path = p, mtime = m) : Entry) -> Optional(Change) =
+fn changed(old : Map(Path, Int), Entry(path = p, mtime = m) : Entry) -> Optional(Change) =
     match Map.get(old, p) {
         None -> Some(Change(path = p, mtime = m))
-      | Some(m0) -> match Mtime.compare(m, m0) {
-            Greater -> Some(Change(path = p, mtime = m))
-          | _ -> None
-        }
+      | Some(m0) -> if m > m0 then Some(Change(path = p, mtime = m)) else None
     }
 
-fn snapshot(entries : List(Entry)) -> Map(Path, Mtime) =
+fn snapshot(entries : List(Entry)) -> Map(Path, Int) =
     List.foldLeft(entries, Map.empty, fn(acc, Entry(path = p, mtime = m)) = Map.put(acc, p, m))
 
 fn conflictPath(p : Path) -> Path = Path.withSuffix(p, ".conflict")
+
+fn errorText(e : IoError) -> String = todo("on paper")

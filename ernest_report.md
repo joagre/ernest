@@ -736,11 +736,11 @@ The runtime resolves the entry point at launch: `ern module.erc` looks up `expor
 
 ### 8.2 System references
 
-The runtime starts with its system processes and exposes their addresses as top-level values in the `Sys` namespace. The language requires `Sys.stdout : Address(String)` and `Sys.clock : Address(ClockMsg)`, §9.7; a specific runtime may provide more, and a paper program that needs additions like `Sys.fs`, `Sys.stdin`, `Sys.keys`, or a stderr sink names them in its assumptions.
+The runtime starts with its system processes and exposes their addresses as top-level values in the `Sys` namespace, §9.7: `Sys.stdout`, `Sys.stdin`, `Sys.keys`, `Sys.clock`, `Sys.fs`, and `Sys.tcp`. A program uses each through the standard library module of its name, Appendix E; the address and its message type are declared for that module and for a foreign process that speaks it (§8.4). A specific runtime may provide more; a program that needs one names it in its assumptions.
 
 These are values, not functions — like `List`, `Map`, and `Set` they are in scope everywhere at the top level. To do IO a function sends to one, and `send` requires a mailbox effect on the caller (§6.1), so pure code cannot affect anything outside its process even though it can name the address.
 
-A reference to a `Sys.*` name the runtime does not provide is a name-resolution error at compile time. The `stdout` process writes each received `String` to standard output as bytes; newlines are the sender's responsibility.
+A reference to a `Sys.*` name the runtime does not provide is a name-resolution error at compile time. The `stdout` process writes each received `String` to standard output as bytes; newlines are the sender's responsibility. The `stdin` process answers each `ReadLine` with the next line without its line feed, `None` at end of input. The `keys` process sends every key pressed to each subscriber. The `fs` and `net` processes answer as their message types say.
 
 ### 8.3 Peers
 
@@ -845,6 +845,21 @@ type ClockMsg // times in milliseconds
     | Now(reply : Reply(Int))
 type RemoteError = NoRemotePeer | PeerLost
 type Where = Local | Peer(String) // spawn placement, section 6
+type Key = Char(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter | Escape
+type KeyMsg = Subscribe(Address(Key))
+type StdinMsg = ReadLine(reply : Reply(Optional(String)))
+type Path = Path(String) // in the runtime's syntax
+type Entry = Entry(path : Path, mtime : Int) // milliseconds since the epoch, as Clock.now
+type IoError = NotFound | Denied | Refused | Closed | Timeout | Other(String)
+type FsMsg
+    = ReadFile(path : Path, reply : Reply(Either(IoError, Bytes)))
+    | WriteFile(path : Path, bytes : Bytes, reply : Reply(Either(IoError, Unit)))
+    | ListDir(path : Path, reply : Reply(Either(IoError, List(Entry))))
+type TcpMsg
+    = Listen(port : Int, reply : Reply(Either(IoError, Address(ListenerMsg))))
+    | Connect(host : String, port : Int, reply : Reply(Either(IoError, Address(SockMsg))))
+type ListenerMsg = Accept(reply : Reply(Either(IoError, Address(SockMsg))))
+type SockMsg = Recv(reply : Reply(Either(IoError, Bytes))) | Send(Bytes) | Close
 ```
 
 ### 9.4 Built-in functions (section 6)
@@ -891,9 +906,15 @@ todo : (String) -> a // section 7: faults if reached
 Runtime-provided, section 8:
 
 ```
-Sys.stdout       : Address(String) // the stdout process
-Sys.clock        : Address(ClockMsg) // the clock process
+Sys.stdout : Address(String)
+Sys.stdin : Address(StdinMsg)
+Sys.keys : Address(KeyMsg)
+Sys.clock : Address(ClockMsg)
+Sys.fs : Address(FsMsg)
+Sys.tcp : Address(TcpMsg)
 ```
+
+Each is used through the standard library module of its name, Appendix E.
 
 ## 10. Runtime Requirements
 
@@ -1189,7 +1210,7 @@ Informative, not normative: this appendix lists the modules that ship with the c
 
 Four rules decide whether a function is in.
 
-1. Its value lives in the runtime and Ernest cannot compute it: the `Map` and `Set` operations, the Unicode operations on `String` and `Char`, `Float` arithmetic, `Int.toString`, the bit operations, `Foreign`. These are shims over `foreign fn`, and a shim exists only where this rule applies.
+1. Its value lives in the runtime and Ernest cannot compute it, or the runtime's implementation is the one to trust: the `Map` and `Set` operations, the Unicode operations on `String` and `Char`, `Float` arithmetic, `Int.toString`, the bit operations, `Foreign`, `Random`, and the modules over the system references of §8.2. These are shims over `foreign fn` or over a system process, and a shim exists only where this rule applies.
 2. It follows from the type's structure. A container provides the container operations of the vocabulary below; a container that lacks one says so in its section. A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `zip`, `flatMap`, `range`. A conversion to text has its inverse when programs read that type from text.
 3. A program under `examples/` writes it and the hand-written version has no policy choice in it. One program is enough.
 4. It is not a composition. A function that is one pipe of two functions already here is not added: `List.concat` is `List.flatMap(xs, fn(x) = x)`, `List.sum` is `List.foldLeft(xs, 0, Int.+)`.
@@ -1202,14 +1223,16 @@ Six rules give a function its shape.
 4. A partial operation returns `Optional`; one with a cause returns `Either`. No function here faults except as §7.4 says.
 5. A function is pure unless its value lives in a process: `Io` carries `with m`, nothing else does. Every function that takes a function is effect-polymorphic (§3.9).
 6. What the type does not say, the comment on the signature says: which occurrence `remove` removes, the order `toList` produces, the range `next` draws from.
+7. A system reference of §8.2 is used through the module of its name, never by `send`. A function that waits takes the milliseconds as its last argument and answers `Left(Timeout)`; one that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9).
 
 ### Appendix E.1. `io.ern` (namespace `Io`)
 
-Output to `Sys.stdout` (section 8). A string goes to any other `Address(String)` by `send`.
+Output to `Sys.stdout` and input from `Sys.stdin` (section 8). A string goes to any other `Address(String)` by `send`.
 
 ```
 Io.print : (String) -> Unit with m
 Io.println : (String) -> Unit with m // appends "\n"
+Io.readLine : () -> Optional(String) with m // the next line without its line feed; None at end of input
 ```
 
 ### Appendix E.2. `list.ern` (namespace `List`)
@@ -1403,11 +1426,63 @@ Foreign.toList : (Foreign) -> Optional(List(Foreign))
 
 ### Appendix E.13. `random.ern` (namespace `Random`)
 
-A pure generator. `Seed` is a concrete type, so a program makes one from any `Int` and a run is repeatable; only the low 64 bits of the `Int` take part, so two seeds that differ above them give the same sequence. A program that wants a fresh seed takes the time from `Sys.clock`'s `Now`.
+The runtime's generator behind a pure interface. `Seed` is a foreign type (§3.8): made by `seed`, bound to its node, and the same seed gives the same sequence on one runtime version. A program that wants a fresh seed takes `Clock.now()`.
 
 ```
-type Seed = Seed(Int) // Random.Seed outside the module
+foreign type Seed // Random.Seed outside the module
+Random.seed : (Int) -> Seed
 Random.next : (Seed, Int) -> #(Int, Seed) // uniform between 0 and the second inclusive, and the seed after it
+```
+
+### Appendix E.14. `path.ern` (namespace `Path`)
+
+`Path` is `Path(String)`, §9.3, in the runtime's syntax.
+
+```
+Path.join : (Path, Path) -> Path // the second under the first; an absolute second stands alone
+Path.withSuffix : (Path, String) -> Path // the string appended
+Path.toString : (Path) -> String
+```
+
+### Appendix E.15. `clock.ern` (namespace `Clock`)
+
+Over `Sys.clock`. Times are milliseconds since the epoch.
+
+```
+Clock.now : () -> Int with m
+Clock.alarm : (Int, (Unit) -> m) -> Unit with m // after the milliseconds, wrap(Unit) in the caller's mailbox
+Clock.alarmAt : (Int, (Unit) -> m) -> Unit with m // at the time, wrap(Unit) in the caller's mailbox
+```
+
+### Appendix E.16. `keys.ern` (namespace `Keys`)
+
+Over `Sys.keys`.
+
+```
+Keys.subscribe : ((Key) -> m) -> Unit with m // every key pressed from now on, wrapped, in the caller's mailbox
+```
+
+### Appendix E.17. `fs.ern` (namespace `Fs`)
+
+Over `Sys.fs`. The last argument is the milliseconds to wait.
+
+```
+Fs.read : (Path, Int) -> Either(IoError, Bytes) with m
+Fs.write : (Path, Bytes, Int) -> Either(IoError, Unit) with m // creates or replaces
+Fs.list : (Path, Int) -> Either(IoError, List(Entry)) with m // the entries of a directory
+```
+
+### Appendix E.18. `tcp.ern` (namespace `Tcp`)
+
+Over `Sys.tcp`. A socket is a process: its address can be sent, monitored, and killed like any other, and it dies with the connection. There are no options; framing is bitstrings (§5.11). The last argument of a function that waits is the milliseconds.
+
+```
+Tcp.listen : (Int) -> Either(IoError, Address(ListenerMsg)) with m // the port
+Tcp.accept : (Address(ListenerMsg), Int) -> Either(IoError, Address(SockMsg)) with m
+Tcp.connect : (String, Int, Int) -> Either(IoError, Address(SockMsg)) with m // host, port
+Tcp.read : (Address(SockMsg), Int) -> Either(IoError, Bytes) with m // what has arrived, at least one byte
+Tcp.write : (Address(SockMsg), Bytes) -> Unit with m
+Tcp.close : (Address(SockMsg)) -> Unit with m
 ```
 
 A function enters this appendix by the rules of E.0 before it enters `stdlib/`.

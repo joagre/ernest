@@ -7,23 +7,13 @@
 // (lexer, parser, evaluator) and try as a process (an expression that never
 // terminates must be abortable).
 //
-// Assumptions. The runtime is assumed to provide Sys.stdin : Address(StdinMsg)
-// as an additional top-level reference beyond the report's required Sys.stdout
-// and Sys.clock, with ReadLine(reply : Address(String)): one line per request.
-// String.toList, Char.isDigit, Char.isAlpha, Char.toString, and
-// String.toInt : (String) -> Optional(Int) are in the standard library (report
-// Appendix E). ParseError.toString and EvalError.toString are hand-written
+// Assumptions. Io.readLine is the standard library's (report Appendix E) over
+// Sys.stdin (§8.2). ParseError.toString and EvalError.toString are hand-written
 // renderings for stdout; both are todo("on paper") here. main runs the loop
 // itself so the program keeps running (report §8.6).
 //
-// Needs MVP 2 or later (Sys.stdin, Map, <- on Either). Not compiled by MVP 1.
+// Needs MVP 2.5 (Io.readLine). Not compiled by MVP 1.
 //
-
-//
-// Assumed runtime types
-//
-
-type StdinMsg = ReadLine(reply : Address(String))
 
 //
 // Types
@@ -48,8 +38,7 @@ type EvalError = Unbound(String) | DivZero | NotAFunction | NotANumber
 type TryError = Eval(EvalError) | Crashed | Timeout
 
 type ReplMsg
-    = Input(String)
-    | Result(Either(EvalError, Value))
+    = Result(Either(EvalError, Value))
     | Died(Down)
 
 //
@@ -62,26 +51,23 @@ export fn main() -> Unit with ReplMsg = repl(Map.empty)
 // Processes
 //
 
-fn repl(env : Map(String, Value)) -> Unit with ReplMsg = {
-    send(Sys.stdin, ReadLine(reply = via(Input, self())));
-    receive {
-        Input(text) -> match tokenize(text) {
-            Left(BadChar(c = c, at = i)) -> {
-                Io.println(
-                    "illegal character " <> Char.toString(c) <> " at " <> Int.toString(i));
-                repl(env)
-            }
-          | Right(ts) -> match parse(ts) {
-                Left(e) -> { Io.println(ParseError.toString(e)); repl(env) }
-              | Right(e) -> {
-                    let v = try(env, e);
-                    match #(e, v) {
-                        #(Let(name = x), Right(val)) -> {
-                            show(Right(val));
-                            repl(Map.put(env, x, val))
-                        }
-                      | #(_, r) -> { show(r); repl(env) }
+fn repl(env : Map(String, Value)) -> Unit with ReplMsg = match Io.readLine() {
+    None -> Unit // end of input
+  | Some(text) -> match tokenize(text) {
+        Left(BadChar(c = c, at = i)) -> {
+            Io.println("illegal character " <> Char.toString(c) <> " at " <> Int.toString(i));
+            repl(env)
+        }
+      | Right(ts) -> match parse(ts) {
+            Left(e) -> { Io.println(ParseError.toString(e)); repl(env) }
+          | Right(e) -> {
+                let v = try(env, e);
+                match #(e, v) {
+                    #(Let(name = x), Right(val)) -> {
+                        show(Right(val));
+                        repl(Map.put(env, x, val))
                     }
+                  | #(_, r) -> { show(r); repl(env) }
                 }
             }
         }

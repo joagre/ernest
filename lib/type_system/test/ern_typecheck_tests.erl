@@ -572,20 +572,22 @@ modules_example_test() ->
 %% report Appendix B, examples/
 examples_test_() ->
     Files = filelib:wildcard("../../../examples/*.ern"),
-    Mvp1 = ["counter", "upgrade", "hello", "pingpong", "remote", "stack", "patterns",
-            "kvparser", "ets"],
+    Checks = ["counter", "upgrade", "hello", "pingpong", "remote", "stack", "patterns",
+              "kvparser", "ets", "filesync", "repl", "snake"],
     [{F, fun() ->
               {ok, Bin} = file:read_file(F),
               Base = filename:basename(F, ".ern"),
               Ns = [list_to_atom(string:titlecase(Base))],
               Result = ern_typecheck:check_string(Ns, Bin),
-              case lists:member(Base, Mvp1) of
+              case lists:member(Base, Checks) of
                   true -> ?assertMatch({ok, _, _, _}, Result);
                   false ->
-                      %% MVP 2 programs fail only on runtime names they assume
+                      %% the webserver fails only on Ets, the library of
+                      %% Appendix D, which it assumes
                       {error, Errs} = Result,
                       lists:foreach(fun({_, _, Msg}) ->
-                                        ?assertMatch("unknown " ++ _, Msg)
+                                        ?assertMatch("unknown " ++ _, Msg),
+                                        ?assert(string:find(Msg, "Ets.") =/= nomatch)
                                     end, Errs)
               end
           end} || F <- Files].

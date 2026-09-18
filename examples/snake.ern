@@ -8,21 +8,12 @@
 // and randomness in pure code through a threaded seed rather than a hidden
 // source.
 //
-// Assumptions. The report requires Sys.stdout and Sys.clock (§8); keys are the
-// runtime's addition. This program assumes an additional runtime reference
-// Sys.keys : Address(KeyMsg), with KeyMsg and Key as declared below. Random is
-// the standard library's, Appendix E.13. main runs the game loop itself so the
-// program keeps running (report §8.6).
+// Assumptions. Keys, Clock, and Random are the standard library's (report
+// Appendix E); Key is the prelude's (§9.3). main runs the game loop itself so
+// the program keeps running (report §8.6).
 //
-// Needs MVP 2 or later (Sys.keys, Map, Random). Not compiled by MVP 1.
+// Needs MVP 2.5 (Keys). Not compiled by MVP 1.
 //
-
-//
-// Assumed runtime types
-//
-
-type KeyMsg = Subscribe(Address(Key))
-type Key = KeyUp | KeyDown | KeyLeft | KeyRight | KeyQuit
 
 //
 // Types
@@ -52,10 +43,9 @@ type GameMsg = Tick | In(Input)
 
 export fn main() -> Unit with GameMsg = {
     let world0 =
-        World(w = 40, h = 20, players = Map.empty, apples = [], seed = Random.Seed(42), tick = 0);
+        World(w = 40, h = 20, players = Map.empty, apples = [], seed = Random.seed(42), tick = 0);
     let me = self();
-    let p1 = spawn(Local, fn() = player(1, me));
-    send(Sys.keys, Subscribe(p1));
+    let _ = spawn(Local, fn() = { Keys.subscribe(fn(k) = k); player(1, me) });
     game(addPlayer(world0, 1))
 }
 
@@ -64,7 +54,7 @@ export fn main() -> Unit with GameMsg = {
 //
 
 fn game(world : World) -> Unit with GameMsg = {
-    send(Sys.clock, After(ms = 100, to = via(fn(_) = Tick, self())));
+    Clock.alarm(100, fn(_) = Tick);
     receive {
         Tick -> {
             let world2 = step(drain(world, 64));
@@ -84,11 +74,12 @@ fn drain(world : World, n : Int) -> World with GameMsg =
 
 // One process per player: translates keys into Input.
 fn player(id : Int, game : Address(GameMsg)) -> Unit with Key = receive {
-    KeyUp -> { send(game, In(Turn(id = id, dir = N))); player(id, game) }
-  | KeyDown -> { send(game, In(Turn(id = id, dir = S))); player(id, game) }
-  | KeyLeft -> { send(game, In(Turn(id = id, dir = W))); player(id, game) }
-  | KeyRight -> { send(game, In(Turn(id = id, dir = E))); player(id, game) }
-  | KeyQuit -> send(game, In(Leave(id)))
+    ArrowUp -> { send(game, In(Turn(id = id, dir = N))); player(id, game) }
+  | ArrowDown -> { send(game, In(Turn(id = id, dir = S))); player(id, game) }
+  | ArrowLeft -> { send(game, In(Turn(id = id, dir = W))); player(id, game) }
+  | ArrowRight -> { send(game, In(Turn(id = id, dir = E))); player(id, game) }
+  | Escape -> send(game, In(Leave(id)))
+  | _ -> player(id, game)
 }
 
 //
