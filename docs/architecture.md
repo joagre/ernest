@@ -36,7 +36,7 @@ Checking a module runs in this order:
 
 1. `declare_types`: every type of the module into the environment, constructors with their canonical field order (report §3.5), reply-carrying computed transitively (§6.6).
 2. `check_values`: the `fn`, `let`, and `foreign fn` declarations, in dependency groups from a `digraph` of references. Per group, `check_group`: a `let` cycle is an error (§8.5); each member gets a monomorphic placeholder; annotated shapes are unified first so every member sees every other's signature; then bodies are inferred in order and generalized.
-3. `post_checks`, per definition, after inference: `<-` bindings resolved to `Either` or `Optional` from the inferred types (§5.5); operators resolved on the operand type (§4.8); rigid annotation variables (§3.9); the local-fn use order (§5.4); undetermined block bindings (§4.6); exhaustiveness by `ern_exhaust`, Maranget's algorithm with a witness (§5.9); the reply discipline by `ern_reply` (§6.6); the no-reply instantiation check.
+3. `post_checks`, per definition, after inference: `<-` bindings resolved to `Either` or `Optional` from the inferred types (§5.5); operators deferred on an operand still unknown, resolved with them (§4.8); rigid annotation variables (§3.9); the local-fn use order (§5.4); undetermined block bindings (§4.6); exhaustiveness by `ern_exhaust`, Maranget's algorithm with a witness (§5.9); the reply discipline by `ern_reply` (§6.6); the no-reply instantiation check.
 4. `check_signatures`: abstract type signatures against the definitions (§4.4).
 5. `make_iface`: the exported types and values.
 
@@ -83,7 +83,6 @@ Four kinds, all run by `make test`:
 
 ## Where MVP 2 hooks in
 
-- **`Float`, and operators on user types**: the checker refuses Float arithmetic in `resolve_operators`, a post pass that also refuses a user type's own operator and ordering through its `compare`; the plan moves resolution into inference. The compiler's `binop` then calls `'ernest@float'` for the four operators, the type's member for a user operator, and `T.compare(a, b) =:= 'Less'` for an ordering. The stdlib module and its fault mapping exist.
 - **`foreign fn`, `foreign type`**: the checker accepts them; `ern_compiler:decl/2` refuses `#foreign_fn_decl{}`. Emit a call to the named Erlang function wrapped in a catch that turns an exception into a fault (§8.4); the `Foreign.*` conversions already exist as `ernest@foreign`. `stdlib/*.ern` can then replace the Erlang modules one by one, MVP 2.5, since generated code calls `ernest@list:map/2` either way.
 - **Bitstrings**: the lexer has no `<<` and `>>` tokens; `#e_bits{}` and `#p_bits{}` exist in the AST and the checker and compiler refuse them. Type against `Bytes` and emit BEAM's bit syntax directly.
 - **Abstract type ownership** (§4.4): the checker has the signature; add the constructor-visibility check in `check_values`. No compiler change: a type member stays in the module of the file that owns the type.

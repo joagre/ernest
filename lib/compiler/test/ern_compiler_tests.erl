@@ -383,7 +383,7 @@ receive_guard_general_test() ->
     ?assert(string:find(Msg, "§5.9") =/= nomatch).
 
 %% report §3.1, §4.8, §9.6: Int arithmetic, comparison, and the Boolean
-%% operators; Float arithmetic is MVP 2 (plan, MVP 1 scope)
+%% operators
 operators_test() ->
     {ok, Out} = run(
         "export fn main() -> Unit with Never = {\n"
@@ -396,6 +396,74 @@ operators_test() ->
         "    Io.println(Int.toString(List.size(1 :: [2] <> [3])))\n"
         "}\n"),
     ?assertEqual(<<"-2\n-1\n13\ntrue\ntrue\ntrue\n3\n">>, Out).
+
+%% report §3.1, §5.1, §9.6, Appendix E.9: Float arithmetic, negation, and
+%% ordering; the Float functions of E.9
+float_operators_test() ->
+    {ok, Out} = run(
+        "export fn main() -> Unit with Never = {\n"
+        "    Io.println(Float.toString(1.5 + 2.25 * 2.0 - 1.0 / 4.0));\n"
+        "    Io.println(Float.toString(-(1.0e-9)));\n"
+        "    Io.println(Bool.toString(1.5 < 2.0 && 2.0 <= 2.0 && 3.5 > 2.0 && 3.0 >= 3.0));\n"
+        "    Io.println(Int.toString(Float.round(2.5) + Float.round(3.5) + Float.floor(-0.5)"
+        " + Float.ceil(0.5)));\n"
+        "    Io.println(Float.toString(Int.toFloat(3)))\n"
+        "}\n"),
+    ?assertEqual(<<"5.75\n-1.0e-9\ntrue\n6\n3.0\n">>, Out).
+
+%% report §3.1, §7.4: a Float result outside the finite range faults with
+%% its own cause, distinct from the Int zero divisor
+float_fault_test() ->
+    Zero = "fn zero() -> Float = Int.toFloat(List.size([]))\n",
+    {R1, _} = run(Zero ++ "export fn main() -> Unit with Never = "
+                  "Io.println(Float.toString(1.0 / zero()))\n"),
+    ?assertEqual({fault, <<"float arithmetic error">>}, R1),
+    {R2, _} = run(Zero ++ "export fn main() -> Unit with Never = "
+                  "Io.println(Float.toString((zero() + 1.0e308) * 10.0))\n"),
+    ?assertEqual({fault, <<"float arithmetic error">>}, R2),
+    {R3, _} = run(Zero ++ "export fn main() -> Unit with Never = "
+                  "Io.println(Float.toString(zero() / zero()))\n"),
+    ?assertEqual({fault, <<"float arithmetic error">>}, R3).
+
+%% report §4.8, §3.10: a user type's operator is its member, and its
+%% ordering goes through its compare; in a receive guard the ordering is a
+%% call, so MVP 1's guard rule refuses it
+user_operators_test() ->
+    Vec = "type Vec = Vec(Int)\n"
+          "export fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a + b)\n"
+          "export fn Vec.*(Vec(a), Vec(b)) -> Float = Int.toFloat(a * b)\n"
+          "export fn Vec.compare(Vec(a), Vec(b)) -> Ordering = Int.compare(b, a)\n"
+          "fn show(Vec(n)) -> String = Int.toString(n)\n",
+    {ok, Out} = run(Vec ++
+        "export fn main() -> Unit with Never = {\n"
+        "    let a = Vec(1);\n"
+        "    let b = Vec(2);\n"
+        "    Io.println(show(a + b));\n"
+        "    Io.println(Float.toString((a * b) + 0.5));\n"
+        "    Io.println(Bool.toString(a < b));\n"
+        "    Io.println(Bool.toString(a >= b && b <= a && a > b))\n"
+        "}\n"),
+    ?assertEqual(<<"3\n2.5\nfalse\ntrue\n">>, Out),
+    Msg = compile_error(Vec ++
+        "type Msg = Go(Vec)\n"
+        "fn loop() -> Unit with Msg = receive {\n"
+        "    Go(v) when v < Vec(0) -> Unit\n"
+        "  | Go(_) -> Unit\n"
+        "}\n"
+        "export fn main() -> Unit with Msg = loop()\n"),
+    ?assertMatch("in MVP 1 a receive guard" ++ _, Msg).
+
+%% report §8.5: a top-level let evaluated through an operator's member
+%% comes after the lets that member reads
+let_order_through_operator_test() ->
+    {ok, Out} = run(
+        "type Vec = Vec(Int)\n"
+        "let sum = Vec(1) + Vec(2)\n"
+        "export fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec((a + b) * scale)\n"
+        "let scale = 10\n"
+        "fn show(Vec(n)) -> String = Int.toString(n)\n"
+        "export fn main() -> Unit with Never = Io.println(show(sum))\n"),
+    ?assertEqual(<<"30\n">>, Out).
 
 %% report §7.4: a zero divisor faults main with its cause
 division_fault_test() ->

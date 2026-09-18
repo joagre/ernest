@@ -432,23 +432,51 @@ dependency_groups(Values, Env) ->
     Ordered = lists:reverse([Comp || Comp <- Order, lists:member(Comp, Components)]),
     [[maps:get(K, ByKey) || K <- Comp] || Comp <- Ordered].
 
-%% Local value keys a declaration's body refers to.
+%% Local value keys a declaration's body refers to. An operator refers to
+%% the member it may resolve to (report §4.8, §3.10) in every local type,
+%% since the operand type is not known before inference; that orders the
+%% members before their users, and a group it over-approximates is checked
+%% together, which only makes it monomorphic within the group.
 references(D, Env) ->
-    Body = case D of
-               #fn_decl{body = B} -> B;
-               #let_decl{body = B} -> B;
-               _ -> undefined
-           end,
-    lists:usort(refs(Body, Env, [])).
+    lists:usort(refs(body_of(D), Env, [])).
+
+body_of(#fn_decl{body = B}) -> B;
+body_of(#let_decl{body = B}) -> B;
+body_of(_) -> undefined.
 
 refs(#e_var{path = [], name = N}, _Env, Acc) -> [{undefined, N} | Acc];
 refs(#e_var{path = [Owner], name = N}, #env{local_types = LT}, Acc) ->
     case maps:is_key(Owner, LT) of true -> [{Owner, N} | Acc]; false -> Acc end;
+refs(#e_binop{op = Op, left = L, right = R}, #env{local_types = LT} = Env, Acc)
+  when is_atom(Op) ->
+    Member = case lists:member(Op, ?ORDER) of
+                 true -> compare;
+                 false -> case lists:member(Op, ?ARITH) orelse Op =:= '<>' of
+                              true -> Op;
+                              false -> none
+                          end
+             end,
+    Acc1 = case Member of
+               none -> Acc;
+               _ -> [{Owner, Member} || Owner <- maps:keys(LT)] ++ Acc
+           end,
+    refs(R, Env, refs(L, Env, Acc1));
 refs(T, Env, Acc) when is_tuple(T) ->
     lists:foldl(fun(X, A) -> refs(X, Env, A) end, Acc, tl(tuple_to_list(T)));
 refs(L, Env, Acc) when is_list(L) ->
     lists:foldl(fun(X, A) -> refs(X, Env, A) end, Acc, L);
 refs(_, _, Acc) -> Acc.
+
+%% The references without the operator approximation, for the cycle rule.
+exact_references(D, Env) ->
+    lists:usort(exact_refs(body_of(D), Env, [])).
+
+exact_refs(#e_var{} = V, Env, Acc) -> refs(V, Env, Acc);
+exact_refs(T, Env, Acc) when is_tuple(T) ->
+    lists:foldl(fun(X, A) -> exact_refs(X, Env, A) end, Acc, tl(tuple_to_list(T)));
+exact_refs(L, Env, Acc) when is_list(L) ->
+    lists:foldl(fun(X, A) -> exact_refs(X, Env, A) end, Acc, L);
+exact_refs(_, _, Acc) -> Acc.
 
 %% A group failed: give its names a fresh polymorphic type so that later
 %% groups report their own errors rather than cascades.
@@ -508,16 +536,27 @@ zonk_ast(L, St) when is_list(L) -> [zonk_ast(X, St) || X <- L];
 zonk_ast(X, _) -> X.
 
 %% Report §8.5: a cycle among top-level let initializers, directly or through
-%% functions they call, is a compile-time error. A group is a strongly
-%% connected component, so a let in a group of two or more, or one that
-%% references itself, is on a cycle.
+%% functions they call, is a compile-time error. A cycle lies within one
+%% group, so the exact references among the group's members decide.
 let_cycle(Group, Env) ->
     case lists:keysort(2, [D || #let_decl{} = D <- Group]) of
         [] -> ok;
         [#let_decl{pos = Pos, name = Name} = D | _] ->
-            Others = [local_name(O, N) || {O, N} <- [decl_key(G) || G <- Group],
-                                          {O, N} =/= decl_key(D)],
-            Cyclic = Others =/= [] orelse lists:member(decl_key(D), references(D, Env)),
+            Keys = [decl_key(G) || G <- Group],
+            G = digraph:new(),
+            lists:foreach(fun(K) -> digraph:add_vertex(G, K) end, Keys),
+            lists:foreach(fun(M) ->
+                              [digraph:add_edge(G, decl_key(M), Ref)
+                               || Ref <- exact_references(M, Env), lists:member(Ref, Keys)]
+                          end, Group),
+            Cycle = digraph:get_cycle(G, decl_key(D)),
+            digraph:delete(G),
+            Others = case Cycle of
+                         false -> [];
+                         _ -> [local_name(O, N) || {O, N} <- lists:usort(Cycle),
+                                                   {O, N} =/= decl_key(D)]
+                     end,
+            Cyclic = Cycle =/= false,
             Through = case Others of
                           [] -> "";
                           _ -> ", through " ++ lists:join(", ", Others)
@@ -677,8 +716,7 @@ bind_vars(Bindings, #env{vars = Vs} = Env) ->
 post_checks(none, Env) ->
     Env;
 post_checks({Pos, TypedParams, TypedBody, FnT, Rigid, Pending, Deferred}, Env0) ->
-    Env = solve_deferred(Env0#env{deferred = Deferred}),
-    Env1 = resolve_operators(TypedBody, Env),
+    Env1 = solve_deferred(Env0#env{deferred = Deferred}),
     rigid_annotation_vars(Pos, Rigid, Env1),
     local_fn_order(TypedBody),
     undetermined_bindings(TypedBody, FnT, Env1),
@@ -702,11 +740,24 @@ solve_deferred(#env{deferred = Deferred} = Env) ->
     case length(Left) < length(Deferred) of
         true -> solve_deferred(Env1#env{deferred = Left});
         false ->
-            {bind_arrow, Pos, _, _, _} = hd(Left),
-            fail(Pos, "`<-` needs to know whether the value is an Either or an Optional;"
-                      " annotate it")
+            case hd(Left) of
+                {bind_arrow, Pos, _, _, _} ->
+                    fail(Pos, "`<-` needs to know whether the value is an Either or an"
+                              " Optional; annotate it");
+                {operator, Pos, Op, _, _} ->
+                    %% report §4.8: resolution precedes generalization
+                    fail(Pos, "the operand type of `" ++ atom_to_list(Op)
+                              ++ "` is not determined; annotate it")
+            end
     end.
 
+solve_one({operator, Pos, Op, LT, Res}, Env) ->
+    case ern_types:resolve(LT, Env#env.st) of
+        {tvar, _} -> unsolved;
+        _ ->
+            {T, Env1} = resolve_operator(Pos, Op, LT, Env),
+            {solved, unify_at(Pos, Res, T, Env1, "the result of `" ++ op_text(Op) ++ "`")}
+    end;
 solve_one({bind_arrow, Pos, XT, PT, RestT}, Env) ->
     St = Env#env.st,
     case {ern_types:resolve(XT, St), ern_types:resolve(RestT, St)} of
@@ -759,14 +810,6 @@ no_reply_instantiations(#env{pending = Pending} = Env) ->
                               false -> ok
                           end
                   end, Pending).
-
-%% Whether the type Q declares Member: in this module, as a local value not
-%% yet in the globals; elsewhere, through a compiled interface.
-declares(Q, Member, #env{ns = Ns, local_values = LV, globals = Gs}) ->
-    case lists:prefix(Ns, Q) andalso length(Q) =:= length(Ns) + 1 of
-        true -> maps:is_key({lists:last(Q), Member}, LV);
-        false -> maps:is_key(Q ++ [Member], Gs)
-    end.
 
 %% Report §5.4: a local fn may be used only after every `let` of its block
 %% that it references, directly or through other local fns, has been
@@ -873,53 +916,91 @@ free_in(L, Bound) when is_list(L) ->
 free_in(_, _) ->
     [].
 
-%% Report §4.8: arithmetic, <>, and ordering resolve on the operand type.
-resolve_operators(Node, Env) ->
-    walk(fun(#e_binop{pos = Pos, op = Op, left = L}, E) when is_atom(Op) ->
-                 case lists:member(Op, ?ARITH ++ ['<>' | ?ORDER]) of
-                     true -> check_operand(Pos, Op, node_type(L), E);
-                     false -> E
-                 end;
-            (#e_neg{pos = Pos, expr = X}, E) ->
-                 check_operand(Pos, '-', node_type(X), E);
-            (_, E) -> E
-         end, Node, Env).
-
-check_operand(Pos, Op, T, Env) ->
-    case ern_types:resolve(T, Env#env.st) of
+%% Report §4.8, §3.10, §5.1: an operator resolves against its operand
+%% type as soon as that type is known; an operand still a variable is
+%% deferred to the end of the definition, where it must be known. The
+%% result: the operand type for Int, Float, and `<>`; Bool for an
+%% ordering; a user type's own member, `T.+` or `T.compare`, instantiated
+%% and applied to two operands of the type. Prefix `-` is `negate` here.
+operator_result(Pos, Op, LT, Env) ->
+    case ern_types:resolve(LT, Env#env.st) of
         {tvar, _} ->
-            fail(Pos, "the operand type of `" ++ atom_to_list(Op)
-                      ++ "` is not determined; annotate it");
-        {tcon, Q, _} ->
-            Allowed = case lists:member(Op, ?ARITH) of
-                          true -> [['Int']];
-                          false when Op =:= '<>' -> [['String'], ['List'], ['Bytes']];
-                          false -> [['Int'], ['Float'], ['String'], ['Char']]
-                      end,
-            Member = case lists:member(Op, ?ORDER) of true -> compare; false -> Op end,
-            case lists:member(Q, Allowed) of
-                true -> Env;
-                false when Q =:= ['Float'], Op =/= '<>' ->
-                    fail(Pos, "Float arithmetic is not in MVP 1");
-                false ->
-                    %% report §4.8, §3.10: the type's own operator, or its
-                    %% compare, resolves in MVP 2 (plan, MVP 2)
-                    case declares(Q, Member, Env) of
-                        true when Member =:= compare ->
-                            fail(Pos, "ordering through " ++ ern_types:format(T, Env#env.st)
-                                      ++ ".compare is not in MVP 1");
-                        true ->
-                            fail(Pos, "operators on user types are not in MVP 1: `"
-                                      ++ atom_to_list(Op) ++ "` on "
-                                      ++ ern_types:format(T, Env#env.st));
-                        false ->
-                            fail(Pos, "`" ++ atom_to_list(Op) ++ "` is not defined on "
-                                      ++ ern_types:format(T, Env#env.st))
-                    end
-            end;
-        Other ->
-            fail(Pos, "`" ++ atom_to_list(Op) ++ "` is not defined on "
-                      ++ ern_types:format(Other, Env#env.st))
+            {Res, St} = ern_types:fresh(Env#env.st),
+            {Res, Env#env{st = St, deferred = [{operator, Pos, Op, LT, Res} | Env#env.deferred]}};
+        _ ->
+            resolve_operator(Pos, Op, LT, Env)
+    end.
+
+resolve_operator(Pos, Op, LT, #env{st = St} = Env) ->
+    T = ern_types:resolve(LT, St),
+    case T of
+        {tcon, ['Int'], []} when Op =:= negate -> {LT, Env};
+        {tcon, ['Float'], []} when Op =:= negate -> {LT, Env};
+        {tcon, ['Int'], []} -> arith_or_order(Op, LT, ?ARITH, Pos, Env);
+        {tcon, ['Float'], []} -> arith_or_order(Op, LT, ['+', '-', '*', '/'], Pos, Env);
+        {tcon, ['String'], []} when Op =:= '<>' -> {LT, Env};
+        {tcon, ['String'], []} -> arith_or_order(Op, LT, [], Pos, Env);
+        {tcon, ['Char'], []} -> arith_or_order(Op, LT, [], Pos, Env);
+        {tcon, ['List'], _} when Op =:= '<>' -> {LT, Env};
+        {tcon, ['Bytes'], []} when Op =:= '<>' -> {LT, Env};
+        {tcon, Q, _} when length(Q) > 1, Op =/= negate -> user_operator(Pos, Op, LT, Q, Env);
+        _ -> not_defined(Pos, Op, T, Env)
+    end.
+
+arith_or_order(Op, LT, Arith, Pos, Env) ->
+    case lists:member(Op, Arith) of
+        true -> {LT, Env};
+        false ->
+            case lists:member(Op, ?ORDER) of
+                true -> {?BOOL, Env};
+                false -> not_defined(Pos, Op, LT, Env)
+            end
+    end.
+
+user_operator(Pos, Op, LT, Q, Env) ->
+    Member = case lists:member(Op, ?ORDER) of true -> compare; false -> Op end,
+    Name = format_qname([lists:last(Q), Member]),
+    case member_scheme(Q, Member, Env) of
+        undefined -> not_defined(Pos, Op, LT, Env);
+        Scheme ->
+            {FT, St1} = ern_types:instantiate(Scheme, Env#env.st),
+            %% as a reference to the member would, report §3.9
+            Pending = [{Flag, Id, Pos} || Id <- ern_types:free_vars(FT, St1),
+                                          Flag <- ern_types:flags(Id, St1),
+                                          Flag =:= no_reply orelse Flag =:= eq],
+            {Eff, St2} = ern_types:fresh_effect(St1),
+            {Res, St3} = ern_types:fresh(St2),
+            Env1 = unify_at(Pos, {tfn, [LT, LT], Eff, Res}, FT,
+                            Env#env{st = St3, pending = Pending ++ Env#env.pending},
+                            Name ++ " does not fit two operands of "
+                            ++ ern_types:format(LT, St3)),
+            Env2 = use_effect(Pos, Name, Eff, Env1),
+            case Member of
+                compare ->
+                    Env3 = unify_at(Pos, {tcon, ['Ordering'], []}, Res, Env2,
+                                    Name ++ " must return an Ordering"),
+                    {?BOOL, Env3};
+                _ ->
+                    {Res, Env2}
+            end
+    end.
+
+not_defined(Pos, Op, T, Env) ->
+    fail(Pos, "`" ++ op_text(Op) ++ "` is not defined on " ++ ern_types:format(T, Env#env.st)).
+
+op_text(negate) -> "-";
+op_text(Op) -> atom_to_list(Op).
+
+%% The scheme of Member in the type Q: in this module, a local value; in
+%% another, through its compiled interface.
+member_scheme(Q, Member, #env{ns = Ns, local_values = LV, globals = Gs}) ->
+    Key = case lists:prefix(Ns, Q) andalso length(Q) =:= length(Ns) + 1 of
+              true -> maps:get({lists:last(Q), Member}, LV, undefined);
+              false -> Q ++ [Member]
+          end,
+    case Key of
+        undefined -> undefined;
+        _ -> maps:get(Key, Gs, undefined)
     end.
 
 %% Annotation variables scope over the definition and must stay distinct
@@ -1074,9 +1155,10 @@ infer(#e_call{pos = Pos, callee = Callee, args = Args} = E, Env) ->
             fail(Pos, Name ++ " is not a function; it has type "
                       ++ ern_types:format(Other, Env1#env.st))
     end;
-infer(#e_neg{expr = X} = E, Env) ->
+infer(#e_neg{pos = Pos, expr = X} = E, Env) ->
     {TypedX, XT, Env1} = infer(X, Env),
-    {E#e_neg{expr = TypedX, type = XT}, XT, Env1};
+    {T, Env2} = operator_result(Pos, negate, XT, Env1),
+    {E#e_neg{expr = TypedX, type = T}, T, Env2};
 infer(#e_binop{pos = Pos, op = Op, left = L, right = R} = E, Env) ->
     {TypedL, LT, Env1} = infer(L, Env),
     {TypedR, RT, Env2} = infer(R, Env1),
@@ -1251,15 +1333,15 @@ index_of(X, L) -> index_of(X, L, 1).
 index_of(X, [X | _], I) -> I;
 index_of(X, [_ | R], I) -> index_of(X, R, I + 1).
 
-binop_type(_Pos, Op, L, LT, R, RT, Env) when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/';
-                                             Op =:= '%'; Op =:= '<>' ->
-    {LT, same_operands(Op, L, LT, R, RT, Env)};
+binop_type(Pos, Op, L, LT, R, RT, Env) when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/';
+                                            Op =:= '%'; Op =:= '<>' ->
+    operator_result(Pos, Op, LT, same_operands(Op, L, LT, R, RT, Env));
 binop_type(Pos, Op, L, LT, R, RT, Env) when Op =:= '=='; Op =:= '!=' ->
     Env1 = same_operands(Op, L, LT, R, RT, Env),
     Env2 = equality_constraint(Pos, LT, Env1),
     {?BOOL, Env2};
-binop_type(_Pos, Op, L, LT, R, RT, Env) when Op =:= '<'; Op =:= '<='; Op =:= '>'; Op =:= '>=' ->
-    {?BOOL, same_operands(Op, L, LT, R, RT, Env)};
+binop_type(Pos, Op, L, LT, R, RT, Env) when Op =:= '<'; Op =:= '<='; Op =:= '>'; Op =:= '>=' ->
+    operator_result(Pos, Op, LT, same_operands(Op, L, LT, R, RT, Env));
 binop_type(_Pos, Op, L, LT, R, RT, Env) when Op =:= '&&'; Op =:= '||' ->
     Env1 = unify_at(node_span(L), ?BOOL, LT, Env, "the left operand of `" ++ atom_to_list(Op)
                                                  ++ "`"),

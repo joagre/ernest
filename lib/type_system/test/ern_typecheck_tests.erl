@@ -59,25 +59,55 @@ operators_need_a_determined_operand_type_test() ->
     ?assertEqual("the operand type of `+` is not determined; annotate it",
                  err("fn twice(n) = n + n")),
     ?assertEqual("(Int) -> Int", type_of("export fn twice(n : Int) = n + n", twice)),
-    ?assertEqual("Float arithmetic is not in MVP 1", err("fn f(x : Float) = x + x")),
+    ?assertEqual("(Float) -> Float", type_of("export fn f(x : Float) = x + x", f)),
+    ?assertEqual("(Float) -> Float", type_of("export fn f(x : Float) = -x * 2.0 / 0.5", f)),
+    ?assertEqual("`%` is not defined on Float", err("fn f(x : Float) = x % x")),
+    ?assertEqual("`-` is not defined on String", err("fn f(x : String) = -x")),
     ?assertEqual("`+` is not defined on String", err("fn f(s : String) = s + s")),
-    ?assertEqual("(String, String) -> String", type_of("export fn cat(a, b) = a <> b <> \"!\"",
-                                                       cat)),
+    %% report §4.8: the operand type comes from the operands, not from where
+    %% the result goes, since a user operator's result may differ from them
+    ?assertEqual("the operand type of `<>` is not determined; annotate it",
+                 err("fn cat(a, b) = a <> b <> \"!\"")),
+    ?assertEqual("(String, String) -> String",
+                 type_of("export fn cat(a : String, b) = a <> b <> \"!\"", cat)),
     ?assertEqual("`<>` is not defined on Int", err("fn f(x : Int) = x <> x")),
     ?assertEqual("(Int, Int) -> Bool", type_of("export fn lt(a : Int, b) = a < b", lt)),
     ?assertEqual("`<` is not defined on Bool", err("fn f(a : Bool, b) = a < b")).
 
 %% report §4.8, §3.10: a user type's own operator and its compare resolve
-%% in MVP 2; until then the refusal says so, and a type without them is
-%% simply undefined for the operator
+%% against the operand type; the result is the operator's, and an
+%% ordering is a Bool; a type without the member has no operator
 user_type_operators_test() ->
     Vec = "type Vec = Vec(Int)\nexport fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a + b)\n"
+          "export fn Vec.*(Vec(a), Vec(b)) -> Float = Int.toFloat(a * b)\n"
           "export fn Vec.compare(Vec(a), Vec(b)) -> Ordering = Int.compare(a, b)\n",
-    ?assertEqual("operators on user types are not in MVP 1: `+` on Vec",
-                 err(Vec ++ "fn f(a : Vec, b) = a + b")),
-    ?assertEqual("ordering through Vec.compare is not in MVP 1",
-                 err(Vec ++ "fn f(a : Vec, b) = a < b")),
-    ?assertEqual("`-` is not defined on Vec", err(Vec ++ "fn f(a : Vec, b) = a - b")).
+    ?assertEqual("(M.Vec, M.Vec) -> M.Vec", type_of(Vec ++ "export fn f(a : Vec, b) = a + b", f)),
+    ?assertEqual("(M.Vec, M.Vec) -> Float",
+                 type_of(Vec ++ "export fn f(a : Vec, b) = (a * b) + 1.0", f)),
+    ?assertEqual("(M.Vec, M.Vec) -> Bool",
+                 type_of(Vec ++ "export fn f(a : Vec, b) = a < b || a >= b", f)),
+    %% the operand type learned later in the definition resolves the operator
+    ?assertEqual("(M.Vec, M.Vec) -> Float",
+                 type_of(Vec ++ "export fn f(a, b) = { let c = a * b; let d : Vec = a; c }", f)),
+    %% a member declared after its user, and one using its own operator on Int
+    ?assertEqual("(M.Vec, M.Vec) -> M.Vec",
+                 type_of("export fn f(a : Vec, b) = a + b\n" ++ Vec, f)),
+    ?assertEqual("`-` is not defined on Vec", err(Vec ++ "fn f(a : Vec, b) = a - b")),
+    ?assertEqual("`-` is not defined on Vec", err(Vec ++ "fn f(a : Vec) = -a")),
+    ?assertMatch("V.compare must return an Ordering: " ++ _,
+                 err("type V = V(Int)\nexport fn V.compare(V(a), V(b)) -> Int = a - b\n"
+                     "fn f(a : V, b) = a < b")),
+    ?assertMatch("Vec.+ does not fit two operands of Vec: " ++ _,
+                 err("type Vec = Vec(Int)\nexport fn Vec.+(Vec(a), b : Int) -> Vec = Vec(a + b)\n"
+                     "fn f(a : Vec, b) = a + b")),
+    %% an operator with a mailbox effect is process code (report §3.4)
+    ?assertEqual("Vec.+ needs a process, and f is pure",
+                 err("type Vec = Vec(Int)\n"
+                     "export fn Vec.+(Vec(a), Vec(b)) -> Vec with Never = Vec(a + b)\n"
+                     "fn f(a : Vec, b) -> Vec = a + b")),
+    %% report §8.5: a let is not on a cycle through an operator it does not use
+    ?assertEqual(ok, ok("type Vec = Vec(Int)\nlet scale = 2 + 1\n"
+                        "export fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a + b * scale)\n")).
 
 %% report §3.10
 equality_test() ->

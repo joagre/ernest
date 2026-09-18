@@ -234,6 +234,17 @@ closure([R | Rest], Fns, Seen) ->
 
 refs(#e_var{path = [], name = N}) -> [{undefined, N}];
 refs(#e_var{path = [O], name = N}) -> [{O, N}];
+refs(#e_binop{op = Op, left = L, right = R}) ->
+    %% an operator on a local type calls its member (report §4.8, §3.10)
+    Member = case ern_typecheck:node_type(L) of
+                 {tcon, Q, _} when length(Q) > 1 ->
+                     case lists:member(Op, ['<', '<=', '>', '>=']) of
+                         true -> [{lists:last(Q), compare}];
+                         false -> [{lists:last(Q), Op}]
+                     end;
+                 _ -> []
+             end,
+    Member ++ refs(L) ++ refs(R);
 refs(T) when is_tuple(T) -> lists:append([refs(X) || X <- tl(tuple_to_list(T))]);
 refs(L) when is_list(L) -> lists:append([refs(X) || X <- L]);
 refs(_) -> [].
@@ -264,11 +275,11 @@ expr(#e_call{pos = Pos, callee = Callee, args = Args}, Cx) ->
     call(Pos, Callee, Args, Cx);
 expr(#e_neg{pos = Pos, expr = X}, Cx) ->
     {Form, Cx1} = expr(X, Cx),
-    {at(Pos, erl_syntax:prefix_expr(erl_syntax:operator('-'), Form)), Cx1};
+    {at(Pos, negate(resolved(ern_typecheck:node_type(X), Cx), Form)), Cx1};
 expr(#e_binop{pos = Pos, op = Op, left = L, right = R}, Cx) ->
     {LF, Cx1} = expr(L, Cx),
     {RF, Cx2} = expr(R, Cx1),
-    {at(Pos, binop(Op, resolved(ern_typecheck:node_type(L), Cx), LF, RF)), Cx2};
+    {at(Pos, binop(Op, resolved(ern_typecheck:node_type(L), Cx), LF, RF, Cx)), Cx2};
 expr(#e_lambda{pos = Pos, params = Params, body = Body}, Cx) ->
     {Pats, Cx1} = lists:mapfoldl(fun(#param{pattern = P}, C) -> pattern(P, C) end, Cx, Params),
     {BodyForms, Cx2} = body(Body, Cx1),
@@ -489,12 +500,12 @@ prelude_call(Pos, [todo], _, [Msg], _, Cx) ->
     {at(Pos, call_remote(ern_rt, todo, [Msg])), Cx};
 prelude_call(Pos, ['Int', Op], [L | _], [LF, RF], _, Cx) when Op =:= '+'; Op =:= '-'; Op =:= '*';
                                                              Op =:= '/'; Op =:= '%' ->
-    {at(Pos, binop(Op, resolved(ern_typecheck:node_type(L), Cx), LF, RF)), Cx};
+    {at(Pos, binop(Op, resolved(ern_typecheck:node_type(L), Cx), LF, RF, Cx)), Cx};
 prelude_call(Pos, ['Int', negate], _, [F], _, Cx) ->
     {at(Pos, erl_syntax:prefix_expr(erl_syntax:operator('-'), F)), Cx};
 prelude_call(Pos, [Ns, '<>'], [L | _], [LF, RF], _, Cx) when Ns =:= 'String'; Ns =:= 'List';
                                                             Ns =:= 'Bytes' ->
-    {at(Pos, binop('<>', resolved(ern_typecheck:node_type(L), Cx), LF, RF)), Cx};
+    {at(Pos, binop('<>', resolved(ern_typecheck:node_type(L), Cx), LF, RF, Cx)), Cx};
 prelude_call(Pos, [Ns | Rest], _, Args, _, Cx) when Rest =/= [] ->
     %% a stdlib function: the namespace's module
     {at(Pos, call_remote(module_atom([Ns]), lists:last(Rest), Args)), Cx};
@@ -510,7 +521,7 @@ prelude_value(Pos, [spawn], T, Cx) ->
 prelude_value(Pos, ['Int', Op], T, Cx) when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/';
                                              Op =:= '%' ->
     {[A, B], _} = fresh_vars(2, "A", Cx),
-    Body = binop(Op, {tcon, ['Int'], []}, erl_syntax:variable(A), erl_syntax:variable(B)),
+    Body = binop(Op, {tcon, ['Int'], []}, erl_syntax:variable(A), erl_syntax:variable(B), Cx),
     lambda([A, B], Body, arity_of(T, Pos), 2);
 prelude_value(Pos, ['Int', negate], T, Cx) ->
     {[A], _} = fresh_vars(1, "A", Cx),
@@ -518,7 +529,7 @@ prelude_value(Pos, ['Int', negate], T, Cx) ->
     lambda([A], Body, arity_of(T, Pos), 1);
 prelude_value(Pos, [_, '<>'], {tfn, [P | _], _, _} = T, Cx) ->
     {[A, B], _} = fresh_vars(2, "A", Cx),
-    Body = binop('<>', resolved(P, Cx), erl_syntax:variable(A), erl_syntax:variable(B)),
+    Body = binop('<>', resolved(P, Cx), erl_syntax:variable(A), erl_syntax:variable(B), Cx),
     lambda([A, B], Body, arity_of(T, Pos), 2);
 prelude_value(Pos, QName, T, _Cx) ->
     prelude_value(Pos, QName, T).
@@ -565,21 +576,54 @@ site(Pos, #cx{ns = Ns, fname = F}) ->
 %% Operators, report §4.8 and plan 2.1
 %%
 
-binop(Op, {tcon, ['Int'], []}, L, R) when Op =:= '+'; Op =:= '-'; Op =:= '*' ->
+%% Report §4.8, §3.10, §5.1: by the operand type. Int and the four
+%% ordered prelude types are Erlang's operators; Float goes through
+%% 'ernest@float', which turns badarith into the §7.4 fault; a user type's
+%% operator is its member, and its ordering is `T.compare(a, b)` against
+%% Less or Greater.
+binop(Op, {tcon, ['Int'], []}, L, R, _) when Op =:= '+'; Op =:= '-'; Op =:= '*' ->
     erl_syntax:infix_expr(L, erl_syntax:operator(Op), R);
-binop('/', {tcon, ['Int'], []}, L, R) -> erl_syntax:infix_expr(L, erl_syntax:operator('div'), R);
-binop('%', {tcon, ['Int'], []}, L, R) -> erl_syntax:infix_expr(L, erl_syntax:operator('rem'), R);
-binop('<>', {tcon, ['String'], []}, L, R) -> binary_append(L, R);
-binop('<>', {tcon, ['Bytes'], []}, L, R) -> binary_append(L, R);
-binop('<>', {tcon, ['List'], _}, L, R) -> erl_syntax:infix_expr(L, erl_syntax:operator('++'), R);
-binop('==', _, L, R) -> erl_syntax:infix_expr(L, erl_syntax:operator('=:='), R);
-binop('!=', _, L, R) -> erl_syntax:infix_expr(L, erl_syntax:operator('=/='), R);
-binop('<=', _, L, R) -> erl_syntax:infix_expr(L, erl_syntax:operator('=<'), R);
-binop(Op, _, L, R) when Op =:= '<'; Op =:= '>'; Op =:= '>=' ->
-    erl_syntax:infix_expr(L, erl_syntax:operator(Op), R);
-binop('&&', _, L, R) -> erl_syntax:infix_expr(L, erl_syntax:operator('andalso'), R);
-binop('||', _, L, R) -> erl_syntax:infix_expr(L, erl_syntax:operator('orelse'), R);
-binop('::', _, L, R) -> erl_syntax:cons(L, R).
+binop('/', {tcon, ['Int'], []}, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('div'), R);
+binop('%', {tcon, ['Int'], []}, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('rem'), R);
+binop(Op, {tcon, ['Float'], []}, L, R, _) when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/' ->
+    call_remote('ernest@float', Op, [L, R]);
+binop('<>', {tcon, ['String'], []}, L, R, _) -> binary_append(L, R);
+binop('<>', {tcon, ['Bytes'], []}, L, R, _) -> binary_append(L, R);
+binop('<>', {tcon, ['List'], _}, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('++'), R);
+binop('==', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('=:='), R);
+binop('!=', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('=/='), R);
+binop('&&', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('andalso'), R);
+binop('||', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('orelse'), R);
+binop('::', _, L, R, _) -> erl_syntax:cons(L, R);
+binop(Op, {tcon, Q, _}, L, R, Cx) when length(Q) > 1 ->
+    case lists:member(Op, ['<', '<=', '>', '>=']) of
+        true ->
+            {Erl, Side} = case Op of
+                              '<' -> {'=:=', 'Less'};
+                              '>' -> {'=:=', 'Greater'};
+                              '<=' -> {'=/=', 'Greater'};
+                              '>=' -> {'=/=', 'Less'}
+                          end,
+            erl_syntax:infix_expr(member_call(Q, compare, [L, R], Cx), erl_syntax:operator(Erl),
+                                  erl_syntax:atom(Side));
+        false ->
+            member_call(Q, Op, [L, R], Cx)
+    end;
+binop('<=', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('=<'), R);
+binop(Op, _, L, R, _) when Op =:= '<'; Op =:= '>'; Op =:= '>=' ->
+    erl_syntax:infix_expr(L, erl_syntax:operator(Op), R).
+
+negate({tcon, ['Float'], []}, Form) -> call_remote('ernest@float', negate, [Form]);
+negate(_, Form) -> erl_syntax:prefix_expr(erl_syntax:operator('-'), Form).
+
+%% A member of the type Q: a local function when Q is this module's type,
+%% otherwise a call into the module that owns it (report §4.2).
+member_call(Q, Name, Args, #cx{ns = Ns}) ->
+    Owner = lists:last(Q),
+    case lists:droplast(Q) of
+        Ns -> erl_syntax:application(erl_syntax:atom(fname(Owner, Name)), Args);
+        Mod -> call_remote(module_atom(Mod), fname(Owner, Name), Args)
+    end.
 
 %% <<A/binary, B/binary>>, with a string literal as a plain segment and an
 %% inner append flattened, so "a" <> f(x) <> "b" is one binary.
@@ -799,7 +843,7 @@ pattern_names(_) -> [].
 %% A clause whose guard is not an Erlang guard expression falls through by
 %% a continuation over the remaining clauses (plan 2.1).
 match_clauses(SF, Clauses, Cx) ->
-    case lists:any(fun(#clause{guard = G}) -> G =/= undefined andalso not erlang_guard(G) end,
+    case lists:any(fun(#clause{guard = G}) -> G =/= undefined andalso not erlang_guard(G, Cx) end,
                    Clauses) of
         false ->
             {Forms, Cx1} = lists:mapfoldl(fun simple_clause/2, Cx, Clauses),
@@ -855,7 +899,7 @@ simple_clause(#clause{pos = Pos, pattern = P, guard = G, body = B}, Cx) ->
 
 %% Plan 2.2: in MVP 1 a receive guard must be an Erlang guard expression.
 receive_clause(#clause{pos = Pos, guard = G} = C, Cx) ->
-    case G =:= undefined orelse erlang_guard(G) of
+    case G =:= undefined orelse erlang_guard(G, Cx) of
         true -> simple_clause(C, Cx);
         false -> fail(Pos, "in MVP 1 a receive guard is a comparison, or && and || of comparisons,"
                            " over variables and literals (report §5.9; general guards come with"
@@ -863,14 +907,21 @@ receive_clause(#clause{pos = Pos, guard = G} = C, Cx) ->
     end.
 
 %% Comparisons and Boolean operators over variables and literals.
-erlang_guard(#e_binop{op = Op, left = L, right = R}) when Op =:= '&&'; Op =:= '||' ->
-    erlang_guard(L) andalso erlang_guard(R);
-erlang_guard(#e_binop{op = Op, left = L, right = R}) when Op =:= '=='; Op =:= '!='; Op =:= '<';
-                                                       Op =:= '<='; Op =:= '>'; Op =:= '>=' ->
+erlang_guard(#e_binop{op = Op, left = L, right = R}, Cx) when Op =:= '&&'; Op =:= '||' ->
+    erlang_guard(L, Cx) andalso erlang_guard(R, Cx);
+erlang_guard(#e_binop{op = Op, left = L, right = R}, _) when Op =:= '=='; Op =:= '!=' ->
     guard_operand(L) andalso guard_operand(R);
-erlang_guard(#e_lit{kind = bool}) -> true;
-erlang_guard(#e_var{path = []}) -> true;
-erlang_guard(_) -> false.
+erlang_guard(#e_binop{op = Op, left = L, right = R}, Cx) when Op =:= '<'; Op =:= '<=';
+                                                           Op =:= '>'; Op =:= '>=' ->
+    %% an ordering through T.compare is a call (report §3.10)
+    Prelude = case resolved(ern_typecheck:node_type(L), Cx) of
+                  {tcon, [_], []} -> true;
+                  _ -> false
+              end,
+    Prelude andalso guard_operand(L) andalso guard_operand(R);
+erlang_guard(#e_lit{kind = bool}, _) -> true;
+erlang_guard(#e_var{path = []}, _) -> true;
+erlang_guard(_, _) -> false.
 
 guard_operand(#e_lit{}) -> true;
 guard_operand(#e_var{path = []}) -> true;
