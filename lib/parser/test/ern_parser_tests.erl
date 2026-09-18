@@ -2,6 +2,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
+-include_lib("lexer/include/ern_diag.hrl").
 
 e(Text) ->
     {ok, E} = ern_parser:parse_expr(Text),
@@ -16,11 +17,11 @@ ds(Text) ->
     Ds.
 
 err(Text) ->
-    {error, {_, _, Msg}} = ern_parser:parse_string(Text),
+    {error, #diag{message = Msg}} = ern_parser:parse_string(Text),
     Msg.
 
 err_expr(Text) ->
-    {error, {_, _, Msg}} = ern_parser:parse_expr(Text),
+    {error, #diag{message = Msg}} = ern_parser:parse_expr(Text),
     Msg.
 
 %%
@@ -476,13 +477,26 @@ misc_errors_test() ->
 
 %% report §11.1
 lexer_errors_pass_through_test() ->
-    ?assertEqual({error, {1, 10, "unterminated string literal"}},
+    ?assertMatch({error, #diag{span = {1, 10, _}, message = "unterminated string literal"}},
                  ern_parser:parse_string("fn f() = \"abc")).
 
-%% report §11.1
-format_error_test() ->
-    ?assertEqual("2:5: expected `)` instead of `;`",
-                 ern_parser:format_error({2, 5, "expected `)` instead of `;`"})).
+%% report §11.5: a node's pos is its span, first token to the end of its
+%% last, so a call includes its closing paren, an operator expression its
+%% right operand, a block its closing brace, and a declaration its body
+spans_test() ->
+    {ok, #e_call{pos = {1, 1, {1, 8}}}} = ern_parser:parse_expr("f(x, y)"),
+    {ok, #e_binop{pos = {1, 3, {1, 9}}, left = #e_var{pos = {1, 1, {1, 2}}}}} =
+        ern_parser:parse_expr("a + g(b)"),
+    {ok, #e_block{pos = {1, 1, {2, 6}}}} = ern_parser:parse_expr("{ x;\n  y }"),
+    {ok, [#fn_decl{pos = {1, 1, {1, 14}}, body = #e_lit{pos = {1, 11, {1, 14}}}}]} =
+        ern_parser:parse_string("fn f(x) = 123\n"),
+    {ok, #e_lit{pos = {1, 1, {1, 5}}}} = ern_parser:parse_expr("\"ab\"\n"),
+    ok.
+
+%% report §11.5: a parse error's span is the offending token
+error_span_test() ->
+    ?assertMatch({error, #diag{span = {1, 8, {1, 9}}}}, ern_parser:parse_string("fn f() ; x\n")),
+    ?assertMatch({error, #diag{span = {1, 6, {1, 11}}}}, ern_parser:parse_expr("f(x) hello")).
 
 %%
 %% The example programs

@@ -2,16 +2,18 @@
 %% list from ern_lexer, threading {Node, RestTokens}; a precedence-climbing
 %% loop for binary operators, a second one for `::` in patterns. First-token
 %% dispatch; the three bounded lookaheads named in Appendix A; no
-%% backtracking. Errors are thrown and returned as {error, {Line, Col, Msg}}.
+%% backtracking. Errors are thrown and returned as {error, #diag{}}. Every node's
+%% pos is its span, set by w/1 from the end of the token before the rest.
 -module(ern_parser).
 
--export([parse/1, parse_string/1, parse_expr/1, parse_type/1, format_error/1]).
+-export([parse/1, parse_string/1, parse_expr/1, parse_type/1]).
 
 -export_type([error/0]).
 
 -include_lib("parser/include/ern_ast.hrl").
+-include_lib("lexer/include/ern_diag.hrl").
 
--type error() :: {pos_integer(), pos_integer(), string()}.
+-type error() :: ern_diag:diag().
 
 -define(DECL_START, [export, type, abstract, fn, 'let', foreign]).
 -define(SPECS, [bits, bytes, int, float, utf8, utf16, utf32, big, little, native,
@@ -22,7 +24,7 @@ parse(Tokens) ->
     try
         {ok, program(prune_docs(Tokens), undefined, [])}
     catch
-        throw:{parse_error, {L, C}, Msg} -> {error, {L, C, Msg}}
+        throw:{parse_error, Span, Msg} -> {error, #diag{span = Span, message = Msg}}
     end.
 
 -spec parse_string(unicode:chardata()) -> {ok, [tuple()]} | {error, error()}.
@@ -44,7 +46,7 @@ parse_expr(Text) ->
                     [T | _] -> fail(pos(T), "expected end of input instead of " ++ describe(T))
                 end
             catch
-                throw:{parse_error, {L, C}, Msg} -> {error, {L, C, Msg}}
+                throw:{parse_error, Span, Msg} -> {error, #diag{span = Span, message = Msg}}
             end;
         {error, _} = E ->
             E
@@ -63,20 +65,16 @@ parse_type(Text) ->
                                                 ++ describe(Tok))
                 end
             catch
-                throw:{parse_error, {L, C}, Msg} -> {error, {L, C, Msg}}
+                throw:{parse_error, Span, Msg} -> {error, #diag{span = Span, message = Msg}}
             end;
         {error, _} = E ->
             E
     end.
 
--spec format_error(error()) -> string().
-format_error({Line, Col, Message}) ->
-    lists:flatten(io_lib:format("~B:~B: ~s", [Line, Col, Message])).
-
 %% A doc token survives only when a declaration starts on the line after it
 %% (report §2.2); elsewhere it is an ordinary comment.
-prune_docs([{doc, {L, _}, Text} = D, Next | R]) ->
-    LastLine = L + length([Ch || <<Ch>> <= Text, Ch =:= $\n]),
+prune_docs([{doc, Pos, Text} = D, Next | R]) ->
+    LastLine = element(1, Pos) + length([Ch || <<Ch>> <= Text, Ch =:= $\n]),
     case lists:member(sym(Next), ?DECL_START) andalso line(Next) =:= LastLine + 1 of
         true -> [D | prune_docs([Next | R])];
         false -> prune_docs([Next | R])
@@ -127,8 +125,8 @@ type_decl([{type, Pos} | R], Doc, Export) ->
     {Params, R2} = opt_typevars(R1),
     R3 = expect(R2, '='),
     {Cons, R4} = constructors(R3),
-    {#type_decl{pos = Pos, doc = Doc, export = Export, name = Name, params = Params,
-                constructors = Cons}, R4}.
+    w({#type_decl{pos = Pos, doc = Doc, export = Export, name = Name, params = Params,
+                  constructors = Cons}, R4}).
 
 opt_typevars([{'(', _} | R]) ->
     {Vars, R1} = sep_by(R, ',', fun expect_ident/1),
@@ -144,18 +142,18 @@ constructor(Ts) ->
     case R of
         [{'(', _}, {ident, _, _}, {':', _} | _] ->
             {Fields, R1} = sep_by(tl(R), ',', fun field/1),
-            {#constructor{pos = Pos, name = Name, fields = {named, Fields}}, expect(R1, ')')};
+            w({#constructor{pos = Pos, name = Name, fields = {named, Fields}}, expect(R1, ')')});
         [{'(', _} | R1] ->
             {T, R2} = type(R1),
-            {#constructor{pos = Pos, name = Name, fields = {positional, T}}, expect(R2, ')')};
+            w({#constructor{pos = Pos, name = Name, fields = {positional, T}}, expect(R2, ')')});
         _ ->
-            {#constructor{pos = Pos, name = Name}, R}
+            w({#constructor{pos = Pos, name = Name}, R})
     end.
 
 field(Ts) ->
     {Name, Pos, R} = expect_ident_pos(Ts),
     {T, R1} = type(expect(R, ':')),
-    {#field{pos = Pos, name = Name, type = T}, R1}.
+    w({#field{pos = Pos, name = Name, type = T}, R1}).
 
 abstract_decl([{abstract, Pos} | R], Doc, Export) ->
     {TD, R1} = case R of
@@ -164,16 +162,16 @@ abstract_decl([{abstract, Pos} | R], Doc, Export) ->
                end,
     R2 = expect(expect(R1, with), '{'),
     {Sigs, R3} = sep_by(R2, ';', fun signature/1),
-    {#abstract_decl{pos = Pos, doc = Doc, export = Export, type = TD, signatures = Sigs},
-     expect(R3, '}')}.
+    w({#abstract_decl{pos = Pos, doc = Doc, export = Export, type = TD, signatures = Sigs},
+       expect(R3, '}')}).
 
 signature([{ident, Pos, Name} | R]) ->
     {T, R1} = type(expect(R, ':')),
-    {#signature{pos = Pos, name = Name, type = T}, R1};
+    w({#signature{pos = Pos, name = Name, type = T}, R1});
 signature([{Op, Pos} | R]) when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/';
                                 Op =:= '%'; Op =:= '<>' ->
     {T, R1} = type(expect(R, ':')),
-    {#signature{pos = Pos, name = Op, type = T}, R1};
+    w({#signature{pos = Pos, name = Op, type = T}, R1});
 signature([T | _]) ->
     fail(pos(T), "expected a signature name instead of " ++ describe(T)).
 
@@ -182,8 +180,8 @@ fn_decl([{fn, Pos} | R], Doc, Export) ->
     {Params, R2} = params(R1),
     {Ret, Effect, R3} = opt_return(R2),
     {Body, R4} = expr(expect(R3, '=')),
-    {#fn_decl{pos = Pos, doc = Doc, export = Export, owner = Owner, name = Name,
-              params = Params, ret = Ret, effect = Effect, body = Body}, R4}.
+    w({#fn_decl{pos = Pos, doc = Doc, export = Export, owner = Owner, name = Name,
+                params = Params, ret = Ret, effect = Effect, body = Body}, R4}).
 
 decl_name([{ident, _, Name} | R]) ->
     {undefined, Name, R};
@@ -214,9 +212,9 @@ param(Ts) ->
     case R of
         [{':', _} | R1] ->
             {T, R2} = type(R1),
-            {#param{pos = node_pos(P), pattern = P, type = T}, R2};
+            w({#param{pos = node_pos(P), pattern = P, type = T}, R2});
         _ ->
-            {#param{pos = node_pos(P), pattern = P}, R}
+            w({#param{pos = node_pos(P), pattern = P}, R})
     end.
 
 opt_return([{'->', _} | R]) ->
@@ -242,14 +240,14 @@ let_decl([{'let', Pos} | R], Doc, Export) ->
              _ -> expect(R2, '=')
          end,
     {Body, R4} = expr(R3),
-    {#let_decl{pos = Pos, doc = Doc, export = Export, owner = Owner, name = Name, ann = Ann,
-               body = Body}, R4}.
+    w({#let_decl{pos = Pos, doc = Doc, export = Export, owner = Owner, name = Name, ann = Ann,
+                 body = Body}, R4}).
 
 foreign_decl([{foreign, Pos}, {type, _} | R], Doc, Export) ->
     {Name, R1} = expect_typename(R),
     {Params, R2} = opt_typevars(R1),
-    {#foreign_type_decl{pos = Pos, doc = Doc, export = Export, name = Name, params = Params},
-     R2};
+    w({#foreign_type_decl{pos = Pos, doc = Doc, export = Export, name = Name, params = Params},
+       R2});
 foreign_decl([{foreign, Pos}, {fn, _} | R], Doc, Export) ->
     {Owner, Name, R1} = decl_name(R),
     R2 = expect(R1, '('),
@@ -266,9 +264,9 @@ foreign_decl([{foreign, Pos}, {fn, _} | R], Doc, Export) ->
     R6 = expect(R5, '='),
     case R6 of
         [{string, _, Impl} | R7] ->
-            {#foreign_fn_decl{pos = Pos, doc = Doc, export = Export, owner = Owner,
-                              name = Name, params = Params, ret = Ret, effect = Effect,
-                              impl = Impl}, R7};
+            w({#foreign_fn_decl{pos = Pos, doc = Doc, export = Export, owner = Owner,
+                                name = Name, params = Params, ret = Ret, effect = Effect,
+                                impl = Impl}, R7});
         [T | _] ->
             fail(pos(T), "expected the implementation name as a string instead of "
                          ++ describe(T))
@@ -278,8 +276,9 @@ foreign_decl([{foreign, _}, T | _], _Doc, _Export) ->
 
 foreign_param(Ts) ->
     {Name, Pos, R} = expect_ident_pos(Ts),
+    {PV, _} = w({#p_var{pos = Pos, name = Name}, R}),
     {T, R1} = type(expect(R, ':')),
-    {#param{pos = Pos, pattern = #p_var{pos = Pos, name = Name}, type = T}, R1}.
+    w({#param{pos = Pos, pattern = PV, type = T}, R1}).
 
 %%
 %% Types
@@ -297,13 +296,13 @@ type([{'(', Pos} | R]) ->
             case R4 of
                 [{with, _} | R5] ->
                     {Eff, R6} = type(R5),
-                    {#t_fn{pos = Pos, params = Elems, ret = Ret, effect = Eff}, R6};
+                    w({#t_fn{pos = Pos, params = Elems, ret = Ret, effect = Eff}, R6});
                 _ ->
-                    {#t_fn{pos = Pos, params = Elems, ret = Ret}, R4}
+                    w({#t_fn{pos = Pos, params = Elems, ret = Ret}, R4})
             end;
         _ ->
             case Elems of
-                [T] -> {T, R2};
+                [T] -> w({T, R2});
                 [] -> fail(Pos, "expected a type inside the parentheses, or `->` after them");
                 _ -> fail(pos(hd(R2)), "expected `->` after a parameter list instead of "
                                        ++ describe(hd(R2)))
@@ -311,19 +310,19 @@ type([{'(', Pos} | R]) ->
     end;
 type([{'#(', Pos} | R]) ->
     {Elems, R1} = sep_by(R, ',', fun type/1),
-    {#t_tuple{pos = Pos, elems = Elems}, expect(R1, ')')};
+    w({#t_tuple{pos = Pos, elems = Elems}, expect(R1, ')')});
 type([{typename, Pos, _} | _] = Ts) ->
     case qualified(Ts) of
         {{con, Path, Name}, [{'(', _} | R]} ->
             {Args, R1} = sep_by(R, ',', fun type/1),
-            {#t_con{pos = Pos, path = Path, name = Name, args = Args}, expect(R1, ')')};
+            w({#t_con{pos = Pos, path = Path, name = Name, args = Args}, expect(R1, ')')});
         {{con, Path, Name}, R} ->
-            {#t_con{pos = Pos, path = Path, name = Name}, R};
+            w({#t_con{pos = Pos, path = Path, name = Name}, R});
         {{value, _, _}, _} ->
             fail(Pos, "expected a type name; a qualified type ends in an uppercase name")
     end;
 type([{ident, Pos, Name} | R]) ->
-    {#t_var{pos = Pos, name = Name}, R};
+    w({#t_var{pos = Pos, name = Name}, R});
 type([T | _]) ->
     fail(pos(T), "expected a type instead of " ++ describe(T)).
 
@@ -373,7 +372,7 @@ lambda(Ts, Pos) ->
     {Params, R1} = params(Ts),
     {Ret, Effect, R2} = opt_return(R1),
     {Body, R3} = expr(expect(R2, '=')),
-    {#e_lambda{pos = Pos, params = Params, ret = Ret, effect = Effect, body = Body}, R3}.
+    w({#e_lambda{pos = Pos, params = Params, ret = Ret, effect = Effect, body = Body}, R3}).
 
 if_expr(Ts, Pos) ->
     {Cond, R1} = expr(Ts),
@@ -381,7 +380,7 @@ if_expr(Ts, Pos) ->
     case R2 of
         [{'else', _} | R3] ->
             {Else, R4} = expr(R3),
-            {#e_if{pos = Pos, condition = Cond, then_branch = Then, else_branch = Else}, R4};
+            w({#e_if{pos = Pos, condition = Cond, then_branch = Then, else_branch = Else}, R4});
         [T | _] ->
             fail(pos(T), "`if` needs an `else`; every `if` is an expression")
     end.
@@ -390,17 +389,18 @@ match_expr(Ts, Pos) ->
     {Scrutinee, R1} = expr(Ts),
     R2 = expect(R1, '{'),
     {Clauses, R3} = sep_by(R2, '|', fun clause/1),
-    {#e_match{pos = Pos, scrutinee = Scrutinee, clauses = Clauses}, expect(R3, '}')}.
+    w({#e_match{pos = Pos, scrutinee = Scrutinee, clauses = Clauses}, expect(R3, '}')}).
 
 receive_expr(Ts, Pos) ->
     R = expect(Ts, '{'),
     {Clauses, After, R1} = receive_clauses(R, []),
-    {#e_receive{pos = Pos, clauses = Clauses, 'after' = After}, expect(R1, '}')}.
+    w({#e_receive{pos = Pos, clauses = Clauses, 'after' = After}, expect(R1, '}')}).
 
 receive_clauses([{'after', Pos} | R], Acc) ->
     {Timeout, R1} = expr(R),
     {Body, R2} = expr(expect(R1, '->')),
-    {lists:reverse(Acc), #after_clause{pos = Pos, timeout = Timeout, body = Body}, R2};
+    {After, _} = w({#after_clause{pos = Pos, timeout = Timeout, body = Body}, R2}),
+    {lists:reverse(Acc), After, R2};
 receive_clauses(Ts, Acc) ->
     {C, R} = clause(Ts),
     case R of
@@ -415,7 +415,7 @@ clause(Ts) ->
                       _ -> {undefined, R}
                   end,
     {Body, R2} = expr(expect(R1, '->')),
-    {#clause{pos = node_pos(P), pattern = P, guard = Guard, body = Body}, R2}.
+    w({#clause{pos = node_pos(P), pattern = P, guard = Guard, body = Body}, R2}).
 
 %% Precedence climbing. Higher binds tighter; report §2.6 numbers the levels
 %% the other way round.
@@ -428,7 +428,8 @@ binexpr_loop(Left, [{Op, Pos} | R] = Ts, Min) ->
         {P, Assoc} when P >= Min ->
             NextMin = case Assoc of left -> P + 1; right -> P end,
             {Right, R1} = binexpr(R, NextMin),
-            binexpr_loop(combine(Op, Pos, Left, Right), R1, Min);
+            {Node, _} = w({combine(Op, Pos, Left, Right), R1}),
+            binexpr_loop(Node, R1, Min);
         _ ->
             {Left, Ts}
     end;
@@ -463,7 +464,7 @@ combine(Op, Pos, L, R) ->
 
 unary([{'-', Pos} | R]) ->
     {E, R1} = postfix(R),
-    {#e_neg{pos = Pos, expr = E}, R1};
+    w({#e_neg{pos = Pos, expr = E}, R1});
 unary(Ts) ->
     postfix(Ts).
 
@@ -471,42 +472,44 @@ postfix(Ts) ->
     {P, R} = primary(Ts),
     calls(P, R).
 
-calls(Callee, [{'(', Pos} | R]) ->
+calls(Callee, [{'(', _} | R]) ->
     {Args, R1} = case R of
                      [{')', _} | _] -> {[], R};
                      _ -> sep_by(R, ',', fun expr/1)
                  end,
-    calls(#e_call{pos = Pos, callee = Callee, args = Args}, expect(R1, ')'));
+    {Call, R2} = w({#e_call{pos = node_pos(Callee), callee = Callee, args = Args},
+                    expect(R1, ')')}),
+    calls(Call, R2);
 calls(E, Ts) ->
     {E, Ts}.
 
 primary([{Kind, Pos, V} | R]) when Kind =:= int; Kind =:= float; Kind =:= char;
                                    Kind =:= string; Kind =:= bool ->
-    {#e_lit{pos = Pos, kind = Kind, value = V}, R};
+    w({#e_lit{pos = Pos, kind = Kind, value = V}, R});
 primary([{ident, Pos, Name} | R]) ->
-    {#e_var{pos = Pos, name = Name}, R};
+    w({#e_var{pos = Pos, name = Name}, R});
 primary([{typename, Pos, _} | _] = Ts) ->
     case qualified(Ts) of
-        {{value, Path, Name}, R} -> {#e_var{pos = Pos, path = Path, name = Name}, R};
+        {{value, Path, Name}, R} -> w({#e_var{pos = Pos, path = Path, name = Name}, R});
         {{con, Path, Name}, R} -> constructor_expr(Pos, Path, Name, R)
     end;
 primary([{'#(', Pos} | R]) ->
     {Elems, R1} = sep_by(R, ',', fun expr/1),
-    {#e_tuple{pos = Pos, elems = Elems}, expect(R1, ')')};
+    w({#e_tuple{pos = Pos, elems = Elems}, expect(R1, ')')});
 primary([{'[', Pos} | R]) ->
     {Elems, R1} = case R of
                       [{']', _} | _] -> {[], R};
                       _ -> sep_by(R, ',', fun expr/1)
                   end,
-    {#e_list{pos = Pos, elems = Elems}, expect(R1, ']')};
+    w({#e_list{pos = Pos, elems = Elems}, expect(R1, ']')});
 primary([{'<<', Pos} | R]) ->
     {Segs, R1} = bit_segments(R, fun expr/1),
-    {#e_bits{pos = Pos, segments = Segs}, R1};
+    w({#e_bits{pos = Pos, segments = Segs}, R1});
 primary([{'{', Pos} | R]) ->
     block(R, Pos);
 primary([{'(', _} | R]) ->
     {E, R1} = expr(R),
-    {E, expect(R1, ')')};
+    w({E, expect(R1, ')')});
 primary([{'_', Pos} | _]) ->
     fail(Pos, "`_` is a pattern, not an expression");
 primary([{Kw, Pos} | _]) when Kw =:= 'if'; Kw =:= match; Kw =:= 'receive'; Kw =:= fn ->
@@ -519,27 +522,27 @@ constructor_expr(Pos, Path, Name, [{'(', _} | R]) ->
         [{'..', _} | R1] ->
             {Base, R2} = expr(R1),
             {Sets, R3} = sep_by(expect(R2, ','), ',', fun field_set/1),
-            {#e_con{pos = Pos, path = Path, name = Name, args = {named, Base, Sets}},
-             expect(R3, ')')};
+            w({#e_con{pos = Pos, path = Path, name = Name, args = {named, Base, Sets}},
+               expect(R3, ')')});
         [{ident, _, _}, {'=', _} | _] ->
             {Sets, R1} = sep_by(R, ',', fun field_set/1),
-            {#e_con{pos = Pos, path = Path, name = Name, args = {named, undefined, Sets}},
-             expect(R1, ')')};
+            w({#e_con{pos = Pos, path = Path, name = Name, args = {named, undefined, Sets}},
+               expect(R1, ')')});
         [{')', P} | _] ->
             fail(P, "a constructor's fields are listed inside the parentheses; a nullary"
                     " constructor takes none");
         _ ->
             {E, R1} = expr(R),
-            {#e_con{pos = Pos, path = Path, name = Name, args = {positional, E}},
-             expect(R1, ')')}
+            w({#e_con{pos = Pos, path = Path, name = Name, args = {positional, E}},
+               expect(R1, ')')})
     end;
 constructor_expr(Pos, Path, Name, Ts) ->
-    {#e_con{pos = Pos, path = Path, name = Name}, Ts}.
+    w({#e_con{pos = Pos, path = Path, name = Name}, Ts}).
 
 field_set(Ts) ->
     {Name, Pos, R} = expect_ident_pos(Ts),
     {E, R1} = expr(expect(R, '=')),
-    {#field_set{pos = Pos, name = Name, expr = E}, R1}.
+    w({#field_set{pos = Pos, name = Name, expr = E}, R1}).
 
 %%
 %% Blocks
@@ -549,7 +552,7 @@ block([{'}', Pos} | _], _BlockPos) ->
     fail(Pos, "a block needs at least one expression");
 block(Ts, Pos) ->
     {Stmts, R} = stmts(Ts, undefined, []),
-    {#e_block{pos = Pos, stmts = Stmts}, R}.
+    w({#e_block{pos = Pos, stmts = Stmts}, R}).
 
 stmts(Ts, Prev, Acc) ->
     {S, R} = stmt(Ts),
@@ -586,7 +589,7 @@ stmt([{'let', Pos} | R]) ->
                    [T | _] -> fail(pos(T), "expected `=` or `<-` instead of " ++ describe(T))
                end,
     {E, R4} = expr(R3),
-    {#binding{pos = Pos, pattern = P, ann = Ann, op = Op, expr = E}, R4};
+    w({#binding{pos = Pos, pattern = P, ann = Ann, op = Op, expr = E}, R4});
 stmt([{fn, _}, {'(', _} | _] = Ts) ->
     expr(Ts);
 stmt([{fn, _} | _] = Ts) ->
@@ -602,7 +605,7 @@ pattern(Ts) ->
     {P, R} = conspat(Ts),
     case R of
         [{as, _}, {ident, _, Name} | R1] ->
-            {#p_as{pos = node_pos(P), pattern = P, name = Name}, R1};
+            w({#p_as{pos = node_pos(P), pattern = P, name = Name}, R1});
         [{as, _}, T | _] ->
             fail(pos(T), "expected a name after `as` instead of " ++ describe(T));
         _ ->
@@ -614,20 +617,20 @@ conspat(Ts) ->
     case R of
         [{'::', Pos} | R1] ->
             {Tail, R2} = conspat(R1),
-            {#p_cons{pos = Pos, head = Head, tail = Tail}, R2};
+            w({#p_cons{pos = Pos, head = Head, tail = Tail}, R2});
         _ ->
             {Head, R}
     end.
 
 atompat([{'_', Pos} | R]) ->
-    {#p_wild{pos = Pos}, R};
+    w({#p_wild{pos = Pos}, R});
 atompat([{ident, Pos, Name} | R]) ->
-    {#p_var{pos = Pos, name = Name}, R};
+    w({#p_var{pos = Pos, name = Name}, R});
 atompat([{Kind, Pos, V} | R]) when Kind =:= int; Kind =:= float; Kind =:= char;
                                    Kind =:= string; Kind =:= bool ->
-    {#p_lit{pos = Pos, kind = Kind, value = V}, R};
+    w({#p_lit{pos = Pos, kind = Kind, value = V}, R});
 atompat([{'-', Pos}, {Kind, _, V} | R]) when Kind =:= int; Kind =:= float ->
-    {#p_lit{pos = Pos, kind = Kind, value = -V}, R};
+    w({#p_lit{pos = Pos, kind = Kind, value = -V}, R});
 atompat([{'-', _}, T | _]) ->
     fail(pos(T), "expected a number after `-` in a pattern instead of " ++ describe(T));
 atompat([{typename, Pos, _} | _] = Ts) ->
@@ -638,39 +641,39 @@ atompat([{typename, Pos, _} | _] = Ts) ->
     end;
 atompat([{'#(', Pos} | R]) ->
     {Elems, R1} = sep_by(R, ',', fun pattern/1),
-    {#p_tuple{pos = Pos, elems = Elems}, expect(R1, ')')};
+    w({#p_tuple{pos = Pos, elems = Elems}, expect(R1, ')')});
 atompat([{'[', Pos} | R]) ->
     {Elems, R1} = case R of
                       [{']', _} | _] -> {[], R};
                       _ -> sep_by(R, ',', fun pattern/1)
                   end,
-    {#p_list{pos = Pos, elems = Elems}, expect(R1, ']')};
+    w({#p_list{pos = Pos, elems = Elems}, expect(R1, ']')});
 atompat([{'<<', Pos} | R]) ->
     {Segs, R1} = bit_segments(R, fun pattern/1),
-    {#p_bits{pos = Pos, segments = Segs}, R1};
+    w({#p_bits{pos = Pos, segments = Segs}, R1});
 atompat([T | _]) ->
     fail(pos(T), "expected a pattern instead of " ++ describe(T)).
 
 constructor_pat(Pos, Path, Name, [{'(', _} | R]) ->
     case R of
         [{')', _} | R1] ->
-            {#p_con{pos = Pos, path = Path, name = Name, args = {named, []}}, R1};
+            w({#p_con{pos = Pos, path = Path, name = Name, args = {named, []}}, R1});
         [{ident, _, _}, {'=', _} | _] ->
             {Fields, R1} = sep_by(R, ',', fun field_pat/1),
-            {#p_con{pos = Pos, path = Path, name = Name, args = {named, Fields}},
-             expect(R1, ')')};
+            w({#p_con{pos = Pos, path = Path, name = Name, args = {named, Fields}},
+               expect(R1, ')')});
         _ ->
             {P, R1} = pattern(R),
-            {#p_con{pos = Pos, path = Path, name = Name, args = {positional, P}},
-             expect(R1, ')')}
+            w({#p_con{pos = Pos, path = Path, name = Name, args = {positional, P}},
+               expect(R1, ')')})
     end;
 constructor_pat(Pos, Path, Name, Ts) ->
-    {#p_con{pos = Pos, path = Path, name = Name}, Ts}.
+    w({#p_con{pos = Pos, path = Path, name = Name}, Ts}).
 
 field_pat(Ts) ->
     {Name, Pos, R} = expect_ident_pos(Ts),
     {P, R1} = pattern(expect(R, '=')),
-    {#field_pat{pos = Pos, name = Name, pattern = P}, R1}.
+    w({#field_pat{pos = Pos, name = Name, pattern = P}, R1}).
 
 %%
 %% Bitstrings. Value is parsed by Parse (an expression or a pattern).
@@ -687,9 +690,9 @@ bit_segment(Ts, Parse) ->
     case R of
         [{':', _} | R1] ->
             {Specs, R2} = sep_by(R1, '-', fun bit_spec/1),
-            {#bit_seg{pos = node_pos(V), value = V, specs = Specs}, R2};
+            w({#bit_seg{pos = node_pos(V), value = V, specs = Specs}, R2});
         _ ->
-            {#bit_seg{pos = node_pos(V), value = V}, R}
+            w({#bit_seg{pos = node_pos(V), value = V}, R})
     end.
 
 bit_spec([{ident, _, size}, {'(', _} | R]) ->
@@ -745,6 +748,16 @@ pos(T) -> element(2, T).
 line(T) -> element(1, pos(T)).
 node_pos(Node) -> element(2, Node).
 
+%% Report §11.5: a node's pos is its span, from the node's first token to
+%% the end of the token before the rest, which every token carries.
+w({Node, R}) ->
+    Pos = element(2, Node),
+    End = case R of
+              [Next | _] -> element(4, element(2, Next));
+              [] -> element(3, Pos)
+          end,
+    {setelement(2, Node, {element(1, Pos), element(2, Pos), End}), R}.
+
 describe({ident, _, N}) -> "identifier `" ++ atom_to_list(N) ++ "`";
 describe({typename, _, N}) -> "type name `" ++ atom_to_list(N) ++ "`";
 describe({int, _, V}) -> "integer " ++ integer_to_list(V);
@@ -757,4 +770,4 @@ describe({eof, _}) -> "end of input";
 describe({Sym, _}) -> "`" ++ atom_to_list(Sym) ++ "`".
 
 fail(Pos, Message) ->
-    throw({parse_error, Pos, lists:flatten(Message)}).
+    throw({parse_error, ern_diag:span(Pos), lists:flatten(Message)}).

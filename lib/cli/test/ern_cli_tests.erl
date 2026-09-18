@@ -95,6 +95,20 @@ path_shape_test() ->
 
 %% report §11.1, §11.5: a parse error in directory mode is reported as
 %% file:line:column: text, status 1
+%% report §11.1: single-file mode with no --source-root uses the current
+%% directory, so `ernc a.ern` in a project's directory works
+default_root_test() ->
+    Dir = tmp(),
+    write(Dir, "hello.ern", hello()),
+    {ok, Cwd} = file:get_cwd(),
+    ok = file:set_cwd(Dir),
+    try
+        ?assertEqual(0, ern_cli:ernc(["hello.ern"])),
+        ?assert(filelib:is_regular(filename:join(Dir, "hello.erc")))
+    after
+        file:set_cwd(Cwd)
+    end.
+
 parse_error_test() ->
     Dir = tmp(),
     write(Dir, "a.ern", "export fn f() -> Int = \n"),

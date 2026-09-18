@@ -93,6 +93,7 @@ bin/ernc --out-dir build examples/modules    # a source tree, in dependency orde
 bin/ern build/main.erc                       # loads net/http.erc by namespace
 bin/ernc --emit erl examples/hello.ern       # the Erlang source, for reading
 bin/ernc --doc examples/ets.ern              # doc comments as Markdown
+bin/ernc --errors short examples/hello.ern  # the first line of each error only
 bin/ern --create-config-dir .                # .ernest/ with a key pair
 ```
 

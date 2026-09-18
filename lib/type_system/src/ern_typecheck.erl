@@ -13,7 +13,7 @@
 %% Errors are collected per definition; checking continues with the next.
 -module(ern_typecheck).
 
--export([check/3, check_string/2, prelude_env/0, format_error/1]).
+-export([check/3, check_string/2, prelude_env/0]).
 -export([is_reply_carrying/2, resolve_type/2, lookup_type/2, lookup_con/4, type_state/1,
          set_type_state/2, node_type/1]).
 
@@ -21,6 +21,7 @@
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("type_system/include/ern_types.hrl").
+-include_lib("lexer/include/ern_diag.hrl").
 
 -record(env, {ns = [], types = #{}, cons = #{}, globals = #{},
               local_types = #{}, local_cons = #{}, local_values = #{},
@@ -28,7 +29,7 @@
               ann_vars = #{}, rigid = []}).
 -opaque env() :: #env{}.
 
--type error() :: {pos_integer(), pos_integer(), string()}.
+-type error() :: ern_diag:diag().
 
 -define(INT, {tcon, ['Int'], []}).
 -define(FLOAT, {tcon, ['Float'], []}).
@@ -65,7 +66,7 @@ check(Ns, Decls, Ifaces) ->
             Errs -> {error, Errs}
         end
     catch
-        throw:{type_error, {L, C}, Msg} -> {error, [{L, C, Msg}]}
+        throw:{type_error, Pos, Msg} -> {error, [diag(Pos, Msg)]}
     end.
 
 -spec check_string([atom()], unicode:chardata()) ->
@@ -76,9 +77,7 @@ check_string(Ns, Text) ->
         {error, E} -> {error, [E]}
     end.
 
--spec format_error(error()) -> string().
-format_error({Line, Col, Message}) ->
-    lists:flatten(io_lib:format("~B:~B: ~s", [Line, Col, Message])).
+diag(Pos, Message) -> #diag{span = ern_diag:span(Pos), message = Message}.
 
 -spec type_state(env()) -> ern_types:st().
 type_state(#env{st = St}) -> St.
@@ -224,8 +223,8 @@ declare_types(Decls, Env0) ->
                                    try
                                        {declare_constructors(TD, Env), Errs}
                                    catch
-                                       throw:{type_error, {L, C}, Msg} ->
-                                           {Env, [{L, C, Msg} | Errs]}
+                                       throw:{type_error, Pos, Msg} ->
+                                           {Env, [diag(Pos, Msg) | Errs]}
                                    end
                                end, {Env2, []}, TypeDecls),
     {mark_reply_carrying(Env3), Errs}.
@@ -356,8 +355,9 @@ check_values(Decls, Env0) ->
                             {Typed, Env3} = check_group(Group, Env),
                             {Acc ++ Typed, Env3, Errs}
                         catch
-                            throw:{type_error, {L, C}, Msg} ->
-                                {Acc ++ Group, placeholder_group(Group, Env), [{L, C, Msg} | Errs]}
+                            throw:{type_error, Pos, Msg} ->
+                                {Acc ++ Group, placeholder_group(Group, Env),
+                                 [diag(Pos, Msg) | Errs]}
                         end
                     end, {[], Env1, []}, Groups),
     %% restore declaration order for the typed output
@@ -1504,7 +1504,7 @@ check_signature_list(#abstract_decl{type = #type_decl{name = TName}, signatures 
                    end
            end
        catch
-           throw:{type_error, {L, C}, Msg} -> [{L, C, Msg}]
+           throw:{type_error, Pos, Msg} -> [diag(Pos, Msg)]
        end || #signature{pos = Pos, name = Name, type = Syntax} <- Sigs]).
 
 %%

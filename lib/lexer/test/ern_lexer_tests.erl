@@ -1,6 +1,7 @@
 -module(ern_lexer_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("lexer/include/ern_diag.hrl").
 
 %% Token list without positions and without the trailing eof.
 toks(Text) ->
@@ -11,8 +12,8 @@ strip({Cat, _Pos, Value}) -> {Cat, Value};
 strip({Sym, _Pos}) -> Sym.
 
 err(Text) ->
-    {error, Error} = ern_lexer:tokenize(Text),
-    Error.
+    {error, #diag{span = {L, C, _}, message = Msg}} = ern_lexer:tokenize(Text),
+    {L, C, Msg}.
 
 %% report §2.4
 reserved_words_test() ->
@@ -117,16 +118,20 @@ doc_block_test() ->
 %% report §11.1 (line and column in errors)
 positions_test() ->
     {ok, Tokens} = ern_lexer:tokenize("fn main() =\n    x"),
-    ?assertEqual([{fn, {1, 1}}, {ident, {1, 4}, main}, {'(', {1, 8}}, {')', {1, 9}},
-                  {'=', {1, 11}}, {ident, {2, 5}, x}, {eof, {2, 6}}],
+    ?assertEqual([{fn, {1, 1, {1, 3}, {1, 1}}}, {ident, {1, 4, {1, 8}, {1, 3}}, main},
+                  {'(', {1, 8, {1, 9}, {1, 8}}}, {')', {1, 9, {1, 10}, {1, 9}}},
+                  {'=', {1, 11, {1, 12}, {1, 10}}}, {ident, {2, 5, {2, 6}, {1, 12}}, x},
+                  {eof, {2, 6, {2, 6}, {2, 6}}}],
                  Tokens).
 
 %% report §11.1
 position_after_multiline_things_test() ->
-    {ok, [_, {ident, {3, 4}, b} | _]} = ern_lexer:tokenize("a /* x\ny\n*/ b"),
-    {ok, [{string, {1, 1}, _}, {ident, {1, 11}, b} | _]} = ern_lexer:tokenize("\"a\\u{e9}\" b"),
-    {ok, [{doc, {1, 1}, _}, {ident, {3, 1}, a} | _]} = ern_lexer:tokenize("/// x\n/// y\na"),
-    {ok, [{char, {1, 1}, _}, {ident, {1, 6}, b} | _]} = ern_lexer:tokenize("'\\n' b").
+    {ok, [_, {ident, {3, 4, _, _}, b} | _]} = ern_lexer:tokenize("a /* x\ny\n*/ b"),
+    {ok, [{string, {1, 1, _, _}, _}, {ident, {1, 11, _, _}, b} | _]} =
+        ern_lexer:tokenize("\"a\\u{e9}\" b"),
+    {ok, [{doc, {1, 1, _, _}, _}, {ident, {3, 1, _, _}, a} | _]} =
+        ern_lexer:tokenize("/// x\n/// y\na"),
+    {ok, [{char, {1, 1, _, _}, _}, {ident, {1, 6, _, _}, b} | _]} = ern_lexer:tokenize("'\\n' b").
 
 %% report §2.1
 bom_is_stripped_test() ->
@@ -148,10 +153,15 @@ errors_test() ->
     ?assertEqual({2, 3, "illegal character '@'"}, err("a\n  @")),
     ?assertEqual({1, 1, "illegal character 'é'"}, err(<<"é"/utf8>>)).
 
-%% report §11.1
-format_error_test() ->
-    ?assertEqual("3:7: illegal character '@'",
-                 ern_lexer:format_error({3, 7, "illegal character '@'"})).
+%% report §11.5: a token's pos is its line, column, end, and the end of the
+%% token before it
+token_spans_test() ->
+    {ok, Tokens} = ern_lexer:tokenize("ab  +\n\"cd\" 12"),
+    ?assertEqual([{ident, {1, 1, {1, 3}, {1, 1}}, ab},
+                  {'+', {1, 5, {1, 6}, {1, 3}}},
+                  {string, {2, 1, {2, 5}, {1, 6}}, <<"cd">>},
+                  {int, {2, 6, {2, 8}, {2, 5}}, 12},
+                  {eof, {2, 8, {2, 8}, {2, 8}}}], Tokens).
 
 %% report Appendix B, guide §1
 hello_program_test() ->

@@ -3,13 +3,14 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("type_system/include/ern_types.hrl").
+-include_lib("lexer/include/ern_diag.hrl").
 
 check(Text) -> ern_typecheck:check_string(['M'], Text).
 
 ok(Text) ->
     case check(Text) of
         {ok, _, _, _} -> ok;
-        {error, Errs} -> {error, [ern_typecheck:format_error(E) || E <- Errs]}
+        {error, Errs} -> {error, [ern_diag:short("", E) || E <- Errs]}
     end.
 
 %% The printed type of the declaration named Name.
@@ -19,12 +20,12 @@ type_of(Text, Name) ->
     ern_types:format_scheme(Scheme, ern_typecheck:type_state(ern_typecheck:prelude_env())).
 
 err(Text) ->
-    {error, [{_, _, Msg} | _]} = check(Text),
+    {error, [#diag{message = Msg} | _]} = check(Text),
     Msg.
 
 errs(Text) ->
     {error, Errs} = check(Text),
-    [Msg || {_, _, Msg} <- Errs].
+    [Msg || #diag{message = Msg} <- Errs].
 
 %%
 %% Inference
@@ -537,11 +538,11 @@ interface_test() ->
            "  | None -> Io.println(\"bad request\")\n}",
     {ok, Main1} = ern_parser:parse_string(Main),
     ?assertMatch({ok, _, _, _}, ern_typecheck:check(['Main'], Main1, [Iface])),
-    ?assertEqual({error, [{1, 45, "unknown name Net.Http.parse"}]},
+    ?assertMatch({error, [#diag{span = {1, 45, _}, message = "unknown name Net.Http.parse"}]},
                  ern_typecheck:check(['Main'], Main1, [])),
     Private = "fn f() = Net.Http.private()",
     {ok, P1} = ern_parser:parse_string(Private),
-    ?assertMatch({error, [{1, 10, "unknown name Net.Http.private"}]},
+    ?assertMatch({error, [#diag{span = {1, 10, _}, message = "unknown name Net.Http.private"}]},
                  ern_typecheck:check(['Main'], P1, [Iface])).
 
 %% report §11.1
@@ -585,7 +586,7 @@ examples_test_() ->
                       %% the webserver fails only on Ets, the library of
                       %% Appendix D, which it assumes
                       {error, Errs} = Result,
-                      lists:foreach(fun({_, _, Msg}) ->
+                      lists:foreach(fun(#diag{message = Msg}) ->
                                         ?assertMatch("unknown " ++ _, Msg),
                                         ?assert(string:find(Msg, "Ets.") =/= nomatch)
                                     end, Errs)
@@ -596,10 +597,10 @@ examples_test_() ->
 %% declaration, so a use before the binding it sees is an error even when
 %% an earlier binding of the same name exists
 local_fn_shadowed_binding_test() ->
-    ?assertMatch({error, [{_, _, "local function f is used before `let x`" ++ _}]},
+    ?assertMatch({error, [#diag{message = "local function f is used before `let x`" ++ _}]},
                  check("fn m() -> Int = { let x = 1; let y = f(); let x = 2;"
                        " fn f() -> Int = x; y }\n")),
-    ?assertMatch({error, [{_, _, "local function f is used before `let x`" ++ _}]},
+    ?assertMatch({error, [#diag{message = "local function f is used before `let x`" ++ _}]},
                  check("fn m() -> Int = { let x = 1; let y = f(); fn f() -> Int = g();"
                        " let x = 2; fn g() -> Int = x; y }\n")),
     ?assertMatch({ok, _, _, _},
@@ -621,11 +622,13 @@ local_fn_annotation_before_use_test() ->
 %% the prelude's types bare, another module's qualified, a local type
 %% that shadows a prelude name qualified
 type_names_in_messages_test() ->
-    ?assertMatch({error, [{_, _, "the arguments do not fit f: expected (Shape) -> Int, found"
+    ?assertMatch({error, [#diag{message =
+                                  "the arguments do not fit f: expected (Shape) -> Int, found"
                            " (Optional(Shape)) -> a"}]},
                  check("type Shape = Dot\nfn f(s : Shape) -> Int = 1\n"
                        "fn g() -> Int = f(Some(Dot))\n")),
-    ?assertMatch({error, [{_, _, "the arguments do not fit f: expected (M.Optional) -> Int,"
+    ?assertMatch({error, [#diag{message =
+                                  "the arguments do not fit f: expected (M.Optional) -> Int,"
                            " found (Optional(Int)) -> a"}]},
                  check("type Optional = Nothing\nfn f(o : Optional) -> Int = 1\n"
                        "fn g() -> Int = f(List.get([1], 0))\n")),
@@ -633,7 +636,8 @@ type_names_in_messages_test() ->
     {ok, _, Iface, _} = ern_typecheck:check_string(['Net', 'Http'], Http),
     {ok, Decls} = ern_parser:parse_string("fn f(r : Net.Http.Request) -> Int = 1\n"
                                           "fn g() -> Int = f(1)\n"),
-    ?assertMatch({error, [{_, _, "the arguments do not fit f: expected (Net.Http.Request) -> Int,"
+    ?assertMatch({error, [#diag{message =
+                                  "the arguments do not fit f: expected (Net.Http.Request) -> Int,"
                            " found (Int) -> a"}]},
                  ern_typecheck:check(['Main'], Decls, [Iface])).
 

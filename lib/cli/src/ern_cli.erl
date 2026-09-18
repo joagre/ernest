@@ -56,6 +56,7 @@ ernc_options() ->
      {no_clean, undefined, "no-clean", undefined,
       "keep stale .erc files under the build directory"},
      {doc, undefined, "doc", undefined, "write the doc comments of a file to stdout as Markdown"},
+     {errors, undefined, "errors", string, "short: the first line of each error only"},
      {help, undefined, "help", undefined, "print this text"},
      {version, undefined, "version", undefined, "print the version"}].
 
@@ -76,6 +77,11 @@ ernc_compile(Opts, Path) ->
                "erl" -> erl;
                Other -> usage_fail("unknown --emit kind " ++ Other ++ "; erl is the only kind")
            end,
+    case proplists:get_value(errors, Opts) of
+        undefined -> ok;
+        "short" -> ok;
+        Kind -> usage_fail("unknown --errors kind " ++ Kind ++ "; short is the only kind")
+    end,
     filelib:is_file(Path) orelse fail("no such file or directory " ++ Path),
     DirMode = filelib:is_dir(Path),
     Root = absolute(proplists:get_value(source_root, Opts,
@@ -95,13 +101,23 @@ ernc_compile(Opts, Path) ->
         end,
         0
     catch
-        throw:{errors, File, Errors} -> report_errors(File, Errors)
+        throw:{errors, File, Errors} -> report_errors(Opts, File, Errors)
     end.
 
-%% Report §11.5: file:line:column: text, one line per error, status 1.
-report_errors(File, Errors) ->
-    lists:foreach(fun({L, C, Msg}) ->
-                      io:format(standard_error, "~s:~B:~B: ~s~n", [File, L, C, Msg])
+%% Report §11.5: each error as ern_diag renders it, the first line alone
+%% under --errors short; status 1.
+report_errors(Opts, File, Errors) ->
+    Short = proplists:get_value(errors, Opts) =:= "short",
+    Source = case file:read_file(File) of
+                 {ok, Bin} -> Bin;
+                 _ -> <<>>
+             end,
+    lists:foreach(fun(D) ->
+                      Text = case Short of
+                                 true -> ern_diag:short(File, D);
+                                 false -> ern_diag:format(File, Source, D)
+                             end,
+                      io:format(standard_error, "~s~n", [Text])
                   end, Errors),
     1.
 
@@ -323,7 +339,7 @@ doc(Opts, File) ->
                 throw({errors, File, Errors})
         end
     catch
-        throw:{errors, F, Errors1} -> report_errors(F, Errors1)
+        throw:{errors, F, Errors1} -> report_errors(Opts, F, Errors1)
     end.
 
 doc_decl(D, Env) ->
@@ -536,8 +552,15 @@ create_config_dir(Dir) ->
 %% Options and paths
 %%
 
+%% Absolute and normalized: no `.` or `..` segments, so that a default root
+%% of `.` is a prefix of the files under it.
 absolute(Path) ->
-    filename:absname(Path).
+    filename:join(normalize(filename:split(filename:absname(Path)), [])).
+
+normalize([], Acc) -> lists:reverse(Acc);
+normalize(["." | R], Acc) -> normalize(R, Acc);
+normalize([".." | R], [_ | Acc]) -> normalize(R, Acc);
+normalize([Seg | R], Acc) -> normalize(R, [Seg | Acc]).
 
 %% Path relative to Root, or outside.
 relative(Path, Root) ->

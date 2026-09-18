@@ -13,6 +13,7 @@ One Ernest module goes through six stages, each an Erlang application under `lib
 | type checker | `ern_typecheck` with `ern_types`, `ern_prelude`, `ern_exhaust`, `ern_reply` | AST, dependency interfaces | typed AST, interface, environment |
 | compiler | `ern_compiler` | typed AST, environment | Erlang forms, then a BEAM binary with the `ErnI` chunk |
 | runtime | `ern_rt`, `ernest@io` and the other stdlib modules | | what compiled code calls |
+| diagnostics | `ern_diag`, in the lexer's application | a `#diag{}` from any stage, the source | the text of §11.5, or its first line |
 | cli | `ern_cli` | command lines | `ernc` and `ern` |
 
 `utils` holds the vendored `getopt`. The escripts in `bin/` add `lib/*/ebin` to the code path relative to their own location and call `ern_cli:main/2`.

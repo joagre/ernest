@@ -8,11 +8,16 @@
 %% line is Line plus the number of "\n" in the text.
 -module(ern_lexer).
 
--export([tokenize/1, format_error/1]).
+-export([tokenize/1]).
+
+-include_lib("lexer/include/ern_diag.hrl").
 
 -export_type([pos/0, token/0, error/0]).
 
--type pos() :: {pos_integer(), pos_integer()}.
+-type pos() :: {pos_integer(), pos_integer(), {pos_integer(), pos_integer()},
+                {pos_integer(), pos_integer()}}.
+%% line, column, the end (exclusive) as line and column, and the end of the
+%% previous token, from which the parser sets a node's end (report §11.5)
 -type token() ::
     {int, pos(), integer()}
   | {float, pos(), float()}
@@ -38,59 +43,59 @@
 tokenize(Data) ->
     case unicode:characters_to_list(Data) of
         Chars when is_list(Chars) ->
-            try lex(strip_bom(Chars), 1, 1, []) of
+            try lex(strip_bom(Chars), 1, 1, {1, 1}, []) of
                 Tokens -> {ok, Tokens}
             catch
-                throw:{lex_error, Line, Col, Message} -> {error, {Line, Col, Message}}
+                throw:{lex_error, Line, Col, Message} ->
+                    {error, #diag{span = {Line, Col, {Line, Col + 1}}, message = Message}}
             end;
         _ ->
-            {error, {1, 1, "input is not valid UTF-8"}}
+            {error, #diag{span = {1, 1, {1, 2}}, message = "input is not valid UTF-8"}}
     end.
-
--spec format_error(error()) -> string().
-format_error({Line, Col, Message}) ->
-    lists:flatten(io_lib:format("~B:~B: ~s", [Line, Col, Message])).
 
 strip_bom([16#FEFF | Rest]) -> Rest;
 strip_bom(Chars) -> Chars.
 
 %%
-%% Main loop. Acc is reversed.
+%% Main loop. Acc is reversed; Prev is the end of the last token emitted.
 %%
 
-lex([], L, C, Acc) ->
-    lists:reverse([{eof, {L, C}} | Acc]);
-lex([$\n | R], L, _C, Acc) ->
-    lex(R, L + 1, 1, Acc);
-lex([Ch | R], L, C, Acc) when Ch =:= $\s; Ch =:= $\t; Ch =:= $\r ->
-    lex(R, L, C + 1, Acc);
-lex("///" ++ R, L, C, Acc) ->
+lex([], L, C, Prev, Acc) ->
+    lists:reverse([{eof, {L, C, {L, C}, Prev}} | Acc]);
+lex([$\n | R], L, _C, Prev, Acc) ->
+    lex(R, L + 1, 1, Prev, Acc);
+lex([Ch | R], L, C, Prev, Acc) when Ch =:= $\s; Ch =:= $\t; Ch =:= $\r ->
+    lex(R, L, C + 1, Prev, Acc);
+lex("///" ++ R, L, C, Prev, Acc) ->
     {Text, Rest, L1} = doc_block(R, L, []),
-    lex(Rest, L1, 1, [{doc, {L, C}, Text} | Acc]);
-lex("//" ++ R, L, C, Acc) ->
-    lex(skip_line(R), L, C, Acc);
-lex("/*" ++ R, L, C, Acc) ->
+    lex(Rest, L1, 1, {L1, 1}, [{doc, {L, C, {L1, 1}, Prev}, Text} | Acc]);
+lex("//" ++ R, L, C, Prev, Acc) ->
+    lex(skip_line(R), L, C, Prev, Acc);
+lex("/*" ++ R, L, C, Prev, Acc) ->
     {Rest, L1, C1} = block_comment(R, 1, L, C + 2, L, C),
-    lex(Rest, L1, C1, Acc);
-lex([Ch | _] = S, L, C, Acc) when Ch >= $0, Ch =< $9 ->
-    {Token, Rest, C1} = number(S, L, C),
-    lex(Rest, L, C1, [Token | Acc]);
-lex([$" | R], L, C, Acc) ->
+    lex(Rest, L1, C1, Prev, Acc);
+lex([Ch | _] = S, L, C, Prev, Acc) when Ch >= $0, Ch =< $9 ->
+    {{Kind, _, V}, Rest, C1} = number(S, L, C),
+    lex(Rest, L, C1, {L, C1}, [{Kind, {L, C, {L, C1}, Prev}, V} | Acc]);
+lex([$" | R], L, C, Prev, Acc) ->
     {Chars, Rest, L1, C1} = string_body(R, L, C + 1, L, C, []),
-    lex(Rest, L1, C1, [{string, {L, C}, unicode:characters_to_binary(Chars)} | Acc]);
-lex([$' | R], L, C, Acc) ->
+    lex(Rest, L1, C1, {L1, C1},
+        [{string, {L, C, {L1, C1}, Prev}, unicode:characters_to_binary(Chars)} | Acc]);
+lex([$' | R], L, C, Prev, Acc) ->
     {Ch, Rest, C1} = char_body(R, L, C),
-    lex(Rest, L, C1, [{char, {L, C}, Ch} | Acc]);
-lex([Ch | _] = S, L, C, Acc) when Ch >= $a, Ch =< $z; Ch =:= $_ ->
+    lex(Rest, L, C1, {L, C1}, [{char, {L, C, {L, C1}, Prev}, Ch} | Acc]);
+lex([Ch | _] = S, L, C, Prev, Acc) when Ch >= $a, Ch =< $z; Ch =:= $_ ->
     {Name, Rest} = take_word(S),
-    lex(Rest, L, C + length(Name), [word_token(Name, {L, C}) | Acc]);
-lex([Ch | _] = S, L, C, Acc) when Ch >= $A, Ch =< $Z ->
+    C1 = C + length(Name),
+    lex(Rest, L, C1, {L, C1}, [word_token(Name, {L, C, {L, C1}, Prev}) | Acc]);
+lex([Ch | _] = S, L, C, Prev, Acc) when Ch >= $A, Ch =< $Z ->
     {Name, Rest} = take_word(S),
-    lex(Rest, L, C + length(Name), [{typename, {L, C}, list_to_atom(Name)} | Acc]);
-lex(S, L, C, Acc) ->
+    C1 = C + length(Name),
+    lex(Rest, L, C1, {L, C1}, [{typename, {L, C, {L, C1}, Prev}, list_to_atom(Name)} | Acc]);
+lex(S, L, C, Prev, Acc) ->
     case symbol(S, ?SYMBOLS) of
         {Sym, Rest, Len} ->
-            lex(Rest, L, C + Len, [{Sym, {L, C}} | Acc]);
+            lex(Rest, L, C + Len, {L, C + Len}, [{Sym, {L, C, {L, C + Len}, Prev}} | Acc]);
         none ->
             error_at(L, C, io_lib:format("illegal character '~ts'", [[hd(S)]]))
     end.

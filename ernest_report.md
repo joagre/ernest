@@ -796,6 +796,8 @@ Options are long: `--name`, or `--name value` for one that takes a value.
 
 ### 11.5 Diagnostics
 
+An error is reported as `file:line:column: message`, then the source: a gutter of line numbers, the line before, the erroneous span underlined with `^`, any second span the message depends on, the declaration that fixed an expectation or the first use of a variable, underlined with `-` and labelled, and at most one `help:` line naming the fix. `--errors short` prints the first line alone. The parser reports one error per file; the checker reports every error that does not follow from another.
+
 The compiler shows the three inferred restrictions of §3.9. In a printed type a variable with the equality constraint is `a=` and one that is not reply-carrying `a!`: `equal : (a=, a=) -> Bool`, `discard : (a!) -> Unit`. A process-only effect variable prints unchanged, and its restriction is stated by the message that rejects a pure instantiation. A type name is printed as the module would write it (§4.2): the module's own types and the prelude's unqualified, other modules' qualified, a local type that shadows a prelude name qualified. A type variable is printed under its annotation's name; an unnamed one is `a`, `b`, ... for a value variable and `e`, `e1`, ... for an effect variable, avoiding the names in use. An error at a rejected call site names the parameter and the origin of its restriction; `ernc --doc` prints restrictions the same way.
 
 ## Appendix A. Grammar

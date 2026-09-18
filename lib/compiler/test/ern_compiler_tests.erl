@@ -4,6 +4,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
+-include_lib("lexer/include/ern_diag.hrl").
 -include_lib("type_system/include/ern_types.hrl").
 
 %%
@@ -41,7 +42,7 @@ collect(Acc) ->
 
 compile_error(Text) ->
     {ok, Typed, Iface, Env} = ern_typecheck:check_string(['M'], Text),
-    {error, [{_, _, Msg}]} = ern_compiler:compile(['M'], Typed, Iface, Env),
+    {error, [#diag{message = Msg}]} = ern_compiler:compile(['M'], Typed, Iface, Env),
     Msg.
 
 example(Base) ->
@@ -545,7 +546,8 @@ refused_names_test() ->
     ?assertEqual("Sys.fs is not in MVP 1",
                  compile_error("export fn main() -> Unit with Never = { let _ = Sys.fs; Unit }\n")),
     ?assertEqual("Sys.tcp is not in MVP 1",
-                 compile_error("export fn main() -> Unit with Never = { let _ = Sys.tcp; Unit }\n")).
+                 compile_error("export fn main() -> Unit with Never =\n"
+                               "    { let _ = Sys.tcp; Unit }\n")).
 
 %% report §8.5, §8.2: the Sys.* references are bound before the top-level
 %% lets are evaluated

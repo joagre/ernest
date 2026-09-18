@@ -12,9 +12,10 @@
 -module(ern_compiler).
 
 -export([refused/1, compile/4, compile/5, forms/3, erl_source/3, read_interface/1, iface_hash/1,
-         module_atom/1, format_error/1]).
+         module_atom/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
+-include_lib("lexer/include/ern_diag.hrl").
 -include_lib("type_system/include/ern_types.hrl").
 
 -define(CHUNK, <<"ErnI">>).
@@ -28,7 +29,7 @@
 %% #local{} (see Blocks); tops: top-level names => arity | value;
 %% lifted: module functions produced by lifting, reversed
 
--type error() :: {pos_integer(), pos_integer(), string()}.
+-type error() :: ern_diag:diag().
 
 %%
 %% Entry points
@@ -56,7 +57,8 @@ compile(Ns, Decls, Iface, Env, Build) ->
             {error, Errors, _} -> {error, erl_errors(Errors)}
         end
     catch
-        throw:{compile_error, {L, C}, Msg} -> {error, [{L, C, Msg}]}
+        throw:{compile_error, Pos, Msg} ->
+            {error, [#diag{span = ern_diag:span(Pos), message = Msg}]}
     end.
 
 %% The abstract forms, for the golden tests and erl_prettypr.
@@ -110,15 +112,12 @@ module_atom(Ns) ->
     list_to_atom(lists:flatten(["ernest" | ["@" ++ string:lowercase(atom_to_list(P))
                                             || P <- Ns]])).
 
--spec format_error(error()) -> string().
-format_error({Line, Col, Message}) ->
-    lists:flatten(io_lib:format("~B:~B: ~s", [Line, Col, Message])).
-
 erl_errors(PerFile) ->
-    [{line_of(Anno), 1, lists:flatten(Mod:format_error(Desc))}
+    [#diag{span = {line_of(Anno), 1, {line_of(Anno), 1}},
+           message = lists:flatten(Mod:format_error(Desc))}
      || {_File, Items} <- PerFile, {Anno, Mod, Desc} <- Items].
 
-line_of({L, _}) -> L;
+line_of(Pos) when is_tuple(Pos) -> element(1, Pos);
 line_of(L) when is_integer(L) -> L;
 line_of(_) -> 0.
 
@@ -559,7 +558,7 @@ prelude_value(Pos, QName, _) ->
     fail(Pos, "no emission for " ++ qname(QName)).
 
 site(Pos, #cx{ns = Ns, fname = F}) ->
-    {Line, _} = Pos,
+    Line = element(1, Pos),
     string_binary(unicode:characters_to_binary(qname(Ns ++ [F]) ++ ":" ++ integer_to_list(Line))).
 
 %%
@@ -955,7 +954,7 @@ fresh_name(Name, #cx{counter = N} = Cx) ->
 %%
 
 at(Pos, Form) ->
-    erl_syntax:set_pos(Form, Pos).
+    erl_syntax:set_pos(Form, {element(1, Pos), element(2, Pos)}).
 
 qname(Parts) ->
     lists:flatten(lists:join(".", [atom_to_list(P) || P <- Parts])).
