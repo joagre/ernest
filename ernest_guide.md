@@ -432,7 +432,7 @@ Six ways to consume:
 
 Form 4+5 together justify `Address.call`'s builder callback (§4.4): `fn(r) = Get(reply = r)` places `r` in `Get`, and returning the reply-carrying `CounterMsg` transfers the ownership obligation to `Address.call`. `Address.call` in turn consumes the message by sending it to the recipient, transferring the obligation to whichever `receive` clause on the recipient's side eventually binds it. Only `answer(r, v)` finally discharges the underlying `Reply`.
 
-The ownership check is static: it verifies that every syntactically reachable path calls `answer` (or delegates, or shifts). It does not guarantee that execution *reaches* that call at runtime — a path that faults, loops, or waits forever bypasses the answer without invalidating the type check. That is why `Address.call` requires a mandatory timeout (§4.4): the caller must plan for the case where the answer never comes.
+The ownership check is static: it verifies that every syntactically reachable path calls `answer` (or delegates, or shifts). It does not guarantee that execution *reaches* that call at runtime — a path that faults, loops, or waits forever bypasses the answer without invalidating the type check. That is why `Address.call` requires a mandatory timeout (§4.4): the caller must plan for the case where the answer never comes. So the check is linearity, not liveness: at most once, and consumed on every path, is checked the way Rust checks moves; that the answer is reached is not checkable by anything, and the timeout is the design's answer to it. The one place linearity cannot see, foreign code holding a `Reply`, the runtime covers: a second answer to an answered reply is discarded.
 
 Pattern-matching a reply-carrying scrutinee transfers the obligation to the pattern-bound reply-carrying fields; matching a nullary case (like `Stop` in `PongMsg`, §5) discharges the aggregate obligation with no new binding. A `let` passes the obligation along the same way: after `let r2 = r`, it is `r2` that must be consumed.
 
@@ -483,7 +483,7 @@ Four rules:
 
 1. **The deadline starts at invocation.** Build time and send time count against it.
 2. **`None` does not cancel the recipient's work.** The recipient may still be computing; retrying a state-changing request can repeat its effect.
-3. **Late answers are silently discarded.** They never enter the caller's ordinary mailbox. A reply arriving exactly at the deadline may be delivered or discarded — no deterministic tiebreak.
+3. **Late answers are silently discarded, and so are second answers.** They never enter the caller's ordinary mailbox. A reply arriving exactly at the deadline may be delivered or discarded — no deterministic tiebreak.
 4. **The reply mechanism is private.** `Address.call` works in a process whose declared mailbox is `Never` or any other type; the fresh Reply identifier is separate from the declared mailbox, and reply values never appear there.
 
 For no-timeout callers, `Address.callForever(addr, mk)` waits as long as needed and returns `a` directly (not `Optional(a)`). If the recipient never answers, the caller hangs; that is the point of the name.
