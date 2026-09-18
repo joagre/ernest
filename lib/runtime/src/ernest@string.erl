@@ -1,14 +1,16 @@
 %% Appendix E.5 and the String operations of report §9.6 that are not
 %% emitted inline, namespace String, as an Erlang module for MVP 1. A String
-%% is a UTF-8 binary (report §8.4). Where Appendix E leaves the definition
-%% open, this module chooses: trim strips Unicode whitespace; split keeps empty parts
-%% between adjacent separators and at the ends; lines splits on
-%% "\n" and a trailing newline ends the last line rather than adding an empty
-%% one; toInt accepts an optional leading minus and decimal digits only.
+%% is a UTF-8 binary (report §8.4). The contracts are Appendix E.5's: trim
+%% strips Unicode whitespace; split keeps empty parts between adjacent
+%% separators and at the ends; lines adds no empty line for a final line
+%% feed; toInt takes the digits 0 to 9 with an optional leading minus;
+%% toFloat takes the float literal form of report §2.5 the same way and
+%% answers None outside the finite range.
 -module('ernest@string').
 
--export([size/1, isEmpty/1, contains/2, trim/1, toLower/1, toUpper/1, toInt/1, toList/1,
-         fromList/1, fromUtf8/1, toUtf8/1, lines/1, split/2, join/2, any/2, all/2, compare/2]).
+-export([size/1, isEmpty/1, contains/2, trim/1, toLower/1, toUpper/1, toInt/1, toFloat/1,
+         toBool/1, toList/1, fromList/1, fromUtf8/1, toUtf8/1, lines/1, split/2, join/2,
+         any/2, all/2, compare/2]).
 
 size(S) -> string:length(S).
 isEmpty(S) -> S =:= <<>>.
@@ -30,6 +32,19 @@ digits(Bin) ->
         true -> {'Some', binary_to_integer(Bin)};
         false -> 'None'
     end.
+
+toFloat(S) ->
+    case re:run(S, "^-?[0-9]+\\.[0-9]+([eE][+-]?[0-9]+)?$") of
+        nomatch -> 'None';
+        _ ->
+            try {'Some', binary_to_float(S)}
+            catch error:badarg -> 'None'
+            end
+    end.
+
+toBool(<<"true">>) -> {'Some', true};
+toBool(<<"false">>) -> {'Some', false};
+toBool(_) -> 'None'.
 
 toUpper(S) -> unicode:characters_to_binary(string:uppercase(S)).
 toList(S) -> unicode:characters_to_list(S).

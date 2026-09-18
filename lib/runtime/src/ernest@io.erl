@@ -10,8 +10,8 @@ print(S) -> ern_rt:send(ern_rt:sys(stdout), S).
 -spec println(binary()) -> 'Unit'.
 println(S) -> ern_rt:send(ern_rt:sys(stdout), <<S/binary, "\n">>).
 
--spec printTo(pid(), binary()) -> 'Unit'.
-printTo(A, S) -> ern_rt:send(A, S).
+-spec printTo(binary(), pid()) -> 'Unit'.
+printTo(S, A) -> ern_rt:send(A, S).
 
--spec printlnTo(pid(), binary()) -> 'Unit'.
-printlnTo(A, S) -> ern_rt:send(A, <<S/binary, "\n">>).
+-spec printlnTo(binary(), pid()) -> 'Unit'.
+printlnTo(S, A) -> ern_rt:send(A, <<S/binary, "\n">>).

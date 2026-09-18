@@ -809,7 +809,7 @@ If forward progress is impossible — every live process is waiting in `receive`
 
 ## 9. Prelude
 
-The prelude is small: only what this report names. Convenience libraries — including all container operations, string and numeric utilities, and output helpers — live in the standard library, Appendix E.
+The prelude is small: only what this report names. Convenience libraries — including all container operations, string and numeric utilities, and output helpers — live in the standard library, Appendix E. A prelude operation in a type's namespace, `Int.compare`, is provided by that type's standard library module.
 
 ### 9.1 Built-in types (section 3)
 
@@ -1183,48 +1183,62 @@ The `raw` names have no `export` and are therefore invisible outside the module;
 
 ## Appendix E. Standard Library
 
-Informative, not normative: this appendix lists the modules that ship with the compiler as ordinary Ernest files under `stdlib/`. The standard library is on the load path by default — no `--load-path` flag needed. Every program can call `Io.println`, `List.map`, and the rest without any setup. The prelude in section 9 is what the language itself requires; everything below is convenience written in Ernest on top of it.
+Informative, not normative: this appendix lists the modules that ship with the compiler as ordinary Ernest files under `stdlib/`. The standard library is on the load path by default; every program can call `Io.println`, `List.map`, and the rest without any setup. The prelude in section 9 is what the language itself requires; a prelude operation in a type's namespace, `Int.compare`, is provided by that type's module below. Everything else here is written in Ernest on top of the language and prelude, except the shims that E.0's first rule admits.
 
-Three rules govern the appendix. A function is in when a program cannot write it without it, because its value lives in the runtime, or when writing it by hand is the same few lines every time; nothing is in for one program's convenience. One function per job: no aliases, no argument-order variants. The same name means the same operation in every module that has it, the container comes first, a predicate is `isX`, a conversion `toX` or `fromX`, a partial operation returns `Optional`, ordering goes through `compare`.
+### Appendix E.0. Rules
+
+Four rules decide whether a function is in.
+
+1. Its value lives in the runtime and Ernest cannot compute it: the `Map` and `Set` operations, the Unicode operations on `String` and `Char`, `Float` arithmetic, `Int.toString`, the bit operations, `Foreign`. These are shims over `foreign fn`, and a shim exists only where this rule applies.
+2. It follows from the type's structure. A container provides the container operations of the vocabulary below; a container that lacks one says so in its section. A conversion has its inverse where the inverse is meaningful.
+3. A program under `examples/` writes it and the hand-written version has no policy choice in it. One program is enough.
+4. It is not a composition. A function that is one pipe of two functions already here is not added: `List.concat` is `List.flatMap(xs, fn(x) = x)`, `List.sum` is `List.foldLeft(xs, 0, Int.+)`.
+
+Six rules give a function its shape.
+
+1. The subject comes first, callbacks last, an accumulator between them, so that `x |> f(a)` is `f(x, a)`. No aliases, no argument-order variants.
+2. One verb per operation, in every module that has it. The container operations are `empty`, `size`, `isEmpty`, `contains`, `get` for lookup by index or key, `put` for insertion, `remove`, `map`, `filter`, `filterMap`, `foldLeft`, `foreach`, `any`, `all`, `find`, `fromList`, and `toList`; the sum-type operations are `withDefault`, `map`, and `andThen`. A predicate is `isX`. A verb not in this list needs an entry in the decisions log.
+3. A conversion is named by the other type and lives in the subject's module: `String.toInt`, `String.fromList`, `Int.toString`. When one conversion has several policies, the policy is the name: `Float.round`, `Float.floor`, `Float.ceil`.
+4. A partial operation returns `Optional`; one with a cause returns `Either`. No function here faults except as §7.4 says.
+5. A function is pure unless its value lives in a process: `Io` carries `with m`, nothing else does. Every function that takes a function is effect-polymorphic (§3.9).
+6. What the type does not say, the comment on the signature says: which occurrence `remove` removes, the order `toList` produces, the range `next` draws from.
 
 ### Appendix E.1. `io.ern` (namespace `Io`)
 
-Output helpers. The plain forms send to `Sys.stdout` (section 8); the `*To` forms take an explicit `Address(String)`, useful for logging to a mailbox that is not stdout.
+Output. The plain forms send to `Sys.stdout` (section 8); the `*To` forms take the sink as their second argument, so `s |> Io.printlnTo(log)` reads as `s |> Io.println` does.
 
 ```
 Io.print : (String) -> Unit with m // to Sys.stdout
 Io.println : (String) -> Unit with m // to Sys.stdout, appends "\n"
-
-Io.printTo : (Address(String), String) -> Unit with m
-Io.printlnTo : (Address(String), String) -> Unit with m // appends "\n"
+Io.printTo : (String, Address(String)) -> Unit with m
+Io.printlnTo : (String, Address(String)) -> Unit with m // appends "\n"
 ```
 
 ### Appendix E.2. `list.ern` (namespace `List`)
 
-Container-first operations over `List(a)`.
+`[]` is `empty` and `::` is `put`, so neither is a function; `fromList` and `toList` are the identity and are not provided. `contains` and `remove` require equality on `a` (§3.10). `List.<>` is the prelude's, §9.6.
 
 ```
 List.size : (List(a)) -> Int
 List.isEmpty : (List(a)) -> Bool
-List.head : (List(a)) -> Optional(a)
-List.last : (List(a)) -> Optional(a)
-List.at : (List(a), Int) -> Optional(a)
-List.reverse : (List(a)) -> List(a)
-List.take : (List(a), Int) -> List(a)
-List.drop : (List(a), Int) -> List(a)
-List.dropLast : (List(a)) -> List(a)
-List.contains : (List(a), a) -> Bool // requires equality on a (§3.10)
-List.find : (List(a), (a) -> Bool with e) -> Optional(a) with e
-List.any : (List(a), (a) -> Bool with e) -> Bool with e
-List.all : (List(a), (a) -> Bool with e) -> Bool with e
+List.contains : (List(a), a) -> Bool
+List.get : (List(a), Int) -> Optional(a) // by index from 0
+List.remove : (List(a), a) -> List(a) // the first occurrence
 List.map : (List(a), (a) -> b with e) -> List(b) with e
 List.filter : (List(a), (a) -> Bool with e) -> List(a) with e
 List.filterMap : (List(a), (a) -> Optional(b) with e) -> List(b) with e
 List.foldLeft : (List(a), b, (b, a) -> b with e) -> b with e
 List.foreach : (List(a), (a) -> Unit with e) -> Unit with e
-List.span : (List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e
-List.sort : (List(a), (a, a) -> Ordering with e) -> List(a) with e
-List.remove : (List(a), a) -> List(a) // requires equality on a (§3.10)
+List.any : (List(a), (a) -> Bool with e) -> Bool with e
+List.all : (List(a), (a) -> Bool with e) -> Bool with e
+List.find : (List(a), (a) -> Bool with e) -> Optional(a) with e // the first that satisfies
+List.last : (List(a)) -> Optional(a)
+List.take : (List(a), Int) -> List(a) // the first n, or all when there are fewer; n below 0 is 0
+List.drop : (List(a), Int) -> List(a) // all but the first n; n below 0 is 0
+List.dropLast : (List(a)) -> List(a) // the empty list stays empty
+List.span : (List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e // the longest prefix that satisfies, and the rest
+List.reverse : (List(a)) -> List(a)
+List.sort : (List(a), (a, a) -> Ordering with e) -> List(a) with e // stable
 List.zip : (List(a), List(b)) -> List(#(a, b)) // to the shorter length
 List.flatMap : (List(a), (a) -> List(b) with e) -> List(b) with e
 List.range : (Int, Int) -> List(Int) // from the first to the second inclusive; empty when the first is greater
@@ -1232,7 +1246,7 @@ List.range : (Int, Int) -> List(Int) // from the first to the second inclusive; 
 
 ### Appendix E.3. `map.ern` (namespace `Map`)
 
-Container-first operations over `Map(k, v)`.
+Requires equality on `k` (§3.10). The order of `keys`, `values`, `toList`, `foldLeft`, `foreach`, and `find` is unspecified.
 
 ```
 Map.empty : Map(k, v)
@@ -1240,73 +1254,84 @@ Map.size : (Map(k, v)) -> Int
 Map.isEmpty : (Map(k, v)) -> Bool
 Map.contains : (Map(k, v), k) -> Bool
 Map.get : (Map(k, v), k) -> Optional(v)
-Map.put : (Map(k, v), k, v) -> Map(k, v)
-Map.remove : (Map(k, v), k) -> Map(k, v)
-Map.keys : (Map(k, v)) -> List(k)
-Map.values : (Map(k, v)) -> List(v)
+Map.put : (Map(k, v), k, v) -> Map(k, v) // replaces an entry with that key
+Map.remove : (Map(k, v), k) -> Map(k, v) // a key not present is not an error
 Map.map : (Map(k, v), (k, v) -> w with e) -> Map(k, w) with e
 Map.filter : (Map(k, v), (k, v) -> Bool with e) -> Map(k, v) with e
+Map.filterMap : (Map(k, v), (k, v) -> Optional(w) with e) -> Map(k, w) with e
 Map.foldLeft : (Map(k, v), b, (b, k, v) -> b with e) -> b with e
+Map.foreach : (Map(k, v), (k, v) -> Unit with e) -> Unit with e
 Map.any : (Map(k, v), (k, v) -> Bool with e) -> Bool with e
 Map.all : (Map(k, v), (k, v) -> Bool with e) -> Bool with e
 Map.find : (Map(k, v), (k, v) -> Bool with e) -> Optional(#(k, v)) with e // some entry that satisfies
 Map.fromList : (List(#(k, v))) -> Map(k, v) // a later pair wins
-Map.toList : (Map(k, v)) -> List(#(k, v)) // unspecified order
+Map.toList : (Map(k, v)) -> List(#(k, v))
+Map.keys : (Map(k, v)) -> List(k)
+Map.values : (Map(k, v)) -> List(v)
 ```
 
 ### Appendix E.4. `set.ern` (namespace `Set`)
 
-Container-first operations over `Set(a)`.
+Requires equality on `a` (§3.10). A set has no `get`; membership is `contains`. The order of `toList`, `foldLeft`, `foreach`, and `find` is unspecified.
 
 ```
 Set.empty : Set(a)
 Set.size : (Set(a)) -> Int
 Set.isEmpty : (Set(a)) -> Bool
 Set.contains : (Set(a), a) -> Bool
-Set.add : (Set(a), a) -> Set(a)
-Set.remove : (Set(a), a) -> Set(a)
-Set.union : (Set(a), Set(a)) -> Set(a)
-Set.intersect : (Set(a), Set(a)) -> Set(a)
-Set.difference : (Set(a), Set(a)) -> Set(a)
-Set.fromList : (List(a)) -> Set(a)
-Set.toList : (Set(a)) -> List(a) // unspecified order
+Set.put : (Set(a), a) -> Set(a) // an element already present is not an error
+Set.remove : (Set(a), a) -> Set(a) // an element not present is not an error
 Set.map : (Set(a), (a) -> b with e) -> Set(b) with e // requires equality on b
 Set.filter : (Set(a), (a) -> Bool with e) -> Set(a) with e
-Set.foldLeft : (Set(a), b, (b, a) -> b with e) -> b with e // unspecified order
+Set.filterMap : (Set(a), (a) -> Optional(b) with e) -> Set(b) with e // requires equality on b
+Set.foldLeft : (Set(a), b, (b, a) -> b with e) -> b with e
+Set.foreach : (Set(a), (a) -> Unit with e) -> Unit with e
 Set.any : (Set(a), (a) -> Bool with e) -> Bool with e
 Set.all : (Set(a), (a) -> Bool with e) -> Bool with e
 Set.find : (Set(a), (a) -> Bool with e) -> Optional(a) with e // some element that satisfies
+Set.fromList : (List(a)) -> Set(a)
+Set.toList : (Set(a)) -> List(a)
+Set.union : (Set(a), Set(a)) -> Set(a)
+Set.intersect : (Set(a), Set(a)) -> Set(a)
+Set.difference : (Set(a), Set(a)) -> Set(a) // the elements of the first not in the second
 ```
 
 ### Appendix E.5. `string.ern` (namespace `String`)
 
+A `String` is not a container: operations on its characters go through `toList`. `any` and `all` are the exception, since every parser tests the characters of a string. `String.compare` and `String.<>` are the prelude's, §9.6.
+
 ```
-String.size : (String) -> Int // number of code points
+String.size : (String) -> Int // code points
 String.isEmpty : (String) -> Bool
-String.contains : (String, String) -> Bool // substring test
-String.trim : (String) -> String // strip leading and trailing whitespace
+String.contains : (String, String) -> Bool // substring
+String.trim : (String) -> String // without leading and trailing whitespace
 String.toLower : (String) -> String
 String.toUpper : (String) -> String
-String.toInt : (String) -> Optional(Int)
-String.toList : (String) -> List(Char)
-String.fromList : (List(Char)) -> String
-String.fromUtf8 : (Bytes) -> Optional(String)
-String.toUtf8 : (String) -> Bytes
-String.lines : (String) -> List(String)
-String.split : (String, String) -> List(String) // at each occurrence of the second, which is not empty
+String.lines : (String) -> List(String) // at each line feed; a line feed at the end adds no empty line
+String.split : (String, String) -> List(String) // at each occurrence of the second; an empty second gives the first alone
 String.join : (List(String), String) -> String // the second between the parts
 String.any : (String, (Char) -> Bool with e) -> Bool with e
 String.all : (String, (Char) -> Bool with e) -> Bool with e
+String.toInt : (String) -> Optional(Int) // the digits 0 to 9, with an optional leading -
+String.toFloat : (String) -> Optional(Float) // the float literal form of §2.5, with an optional leading -
+String.toBool : (String) -> Optional(Bool) // "true" or "false"
+String.toList : (String) -> List(Char)
+String.fromList : (List(Char)) -> String
+String.toUtf8 : (String) -> Bytes
+String.fromUtf8 : (Bytes) -> Optional(String) // None when the bytes are not UTF-8
 ```
 
 ### Appendix E.6. `char.ern` (namespace `Char`)
+
+The predicates use the Unicode properties of the code point: `isDigit` is general category Nd, `isAlpha` is category L, `isSpace` is White_Space. `Char.compare` is the prelude's, §9.6.
 
 ```
 Char.isDigit : (Char) -> Bool
 Char.isAlpha : (Char) -> Bool
 Char.isSpace : (Char) -> Bool
 Char.toString : (Char) -> String
-Char.toInt : (Char) -> Int // Unicode code point
+Char.toInt : (Char) -> Int // the code point
+Char.fromInt : (Int) -> Optional(Char) // None outside U+0000 to U+10FFFF or for a surrogate
 ```
 
 ### Appendix E.7. `bool.ern` (namespace `Bool`)
@@ -1318,6 +1343,8 @@ Bool.toString : (Bool) -> String // "true" or "false"
 
 ### Appendix E.8. `int.ern` (namespace `Int`)
 
+`Int.div`, `Int.mod`, `Int.compare`, `Int.negate`, and the operators are the prelude's, §9.6.
+
 ```
 Int.abs : (Int) -> Int
 Int.min : (Int, Int) -> Int
@@ -1327,17 +1354,21 @@ Int.bitOr : (Int, Int) -> Int
 Int.bitXor : (Int, Int) -> Int
 Int.bitNot : (Int) -> Int
 Int.shiftLeft : (Int, Int) -> Int
-Int.shiftRight : (Int, Int) -> Int // arithmetic (sign-preserving)
+Int.shiftRight : (Int, Int) -> Int // arithmetic, sign-preserving
 Int.toString : (Int) -> String
-Int.toFloat : (Int) -> Float
+Int.toFloat : (Int) -> Float // faults outside the finite range, §3.1
 ```
 
 ### Appendix E.9. `float.ern` (namespace `Float`)
 
+`Float.compare`, `Float.negate`, and the operators are the prelude's, §9.6.
+
 ```
 Float.abs : (Float) -> Float
-Float.toString : (Float) -> String
-Float.round : (Float) -> Int // banker's rounding, IEEE 754 default
+Float.min : (Float, Float) -> Float
+Float.max : (Float, Float) -> Float
+Float.toString : (Float) -> String // the shortest decimal that reads back as the same value
+Float.round : (Float) -> Int // to the nearest, ties to even
 Float.floor : (Float) -> Int
 Float.ceil : (Float) -> Int
 ```
@@ -1375,7 +1406,16 @@ Foreign.toBool : (Foreign) -> Optional(Bool)
 Foreign.toList : (Foreign) -> Optional(List(Foreign))
 ```
 
-The standard library grows by the three rules above; a function that passes them enters this appendix before it enters `stdlib/`.
+### Appendix E.13. `random.ern` (namespace `Random`)
+
+A pure generator. `Seed` is a concrete type, so a program makes one from any `Int` and a run is repeatable; a program that wants a fresh seed takes the time from `Sys.clock`'s `Now`.
+
+```
+type Seed = Seed(Int) // Random.Seed outside the module
+Random.next : (Seed, Int) -> #(Int, Seed) // uniform between 0 and the second inclusive, and the seed after it
+```
+
+A function enters this appendix by the rules of E.0 before it enters `stdlib/`.
 
 ## Appendix F. Glossary
 

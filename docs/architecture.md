@@ -29,7 +29,7 @@ One Ernest module goes through six stages, each an Erlang application under `lib
 
 Types are the terms of `lib/type_system/include/ern_types.hrl`: `{tcon, QName, Args}`, `{tvar, Id}`, `{ttuple, Elems}`, `{tfn, Params, Effect, Result}` where `Effect` is `pure` or a type. Every variable has a `#tv{}` entry in the state's table with its level, its flags (`eq`, `process_only`, `no_reply`, report §3.9), and the name its annotation gave it. `ern_types` owns the state: fresh variables, unification with the effect rules, generalization by levels with pure elision, instantiation, and the printer that error messages and `ernc --doc` share (report §11.5: names as the module writes them, annotation names kept).
 
-`ern_prelude` is the prelude as three tables: the built-in types, the declared types as Ernest source, and the values as qualified name and type text, plus the process-only and equality-constrained ones. `prelude_env/0` parses them into the starting environment.
+`ern_prelude` is the prelude as four tables: the built-in types, the declared types as Ernest source, the standard library's declared types as Ernest source by namespace, and the values as qualified name and type text, plus the process-only and equality-constrained ones. `prelude_env/0` parses them into the starting environment.
 
 Checking a module runs in this order:
 

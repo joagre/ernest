@@ -11,8 +11,7 @@
 // Assumptions. The report requires Sys.stdout and Sys.clock (§8); keys are the
 // runtime's addition. This program assumes an additional runtime reference
 // Sys.keys : Address(KeyMsg), with KeyMsg and Key as declared below, and a
-// stdlib Random module providing a pure generator
-// Random.next : (Seed) -> #(Int, Seed). main runs the game loop itself so the
+// stdlib Random module of Appendix E.13. main runs the game loop itself so the
 // program keeps running (report §8.6).
 //
 // Needs MVP 2 or later (Sys.keys, Map, Random). Not compiled by MVP 1.
@@ -24,7 +23,6 @@
 
 type KeyMsg = Subscribe(Address(Key))
 type Key = KeyUp | KeyDown | KeyLeft | KeyRight | KeyQuit
-type Seed = Seed(Int)
 
 //
 // Types
@@ -40,7 +38,7 @@ type World = World(
     h : Int,
     players : Map(Int, Player),
     apples : List(Pos),
-    seed : Seed,
+    seed : Random.Seed,
     tick : Int
 )
 
@@ -54,7 +52,7 @@ type GameMsg = Tick | In(Input)
 
 export fn main() -> Unit with GameMsg = {
     let world0 =
-        World(w = 40, h = 20, players = Map.empty, apples = [], seed = Seed(42), tick = 0);
+        World(w = 40, h = 20, players = Map.empty, apples = [], seed = Random.Seed(42), tick = 0);
     let me = self();
     let p1 = spawn(Local, fn() = player(1, me));
     send(Sys.keys, Subscribe(p1));
@@ -138,12 +136,13 @@ fn collide(ps : Map(Int, Player), p : Player) -> Player = match p {
   | _ -> p
 }
 
-fn refill(w : Int, h : Int, want : Int, apples : List(Pos), seed : Seed) -> #(List(Pos), Seed) =
+fn refill(w : Int, h : Int, want : Int, apples : List(Pos), seed : Random.Seed)
+    -> #(List(Pos), Random.Seed) =
     if List.size(apples) >= want then #(apples, seed)
     else {
-        let #(rx, s1) = Random.next(seed);
-        let #(ry, s2) = Random.next(s1);
-        refill(w, h, want, Pos(x = rx % w, y = ry % h) :: apples, s2)
+        let #(x, s1) = Random.next(seed, w - 1);
+        let #(y, s2) = Random.next(s1, h - 1);
+        refill(w, h, want, Pos(x = x, y = y) :: apples, s2)
     }
 
 fn addPlayer(world : World, id : Int) -> World = todo("add a player at a random free position")

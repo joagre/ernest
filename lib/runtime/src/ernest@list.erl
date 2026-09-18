@@ -1,20 +1,17 @@
-%% Appendix E.2, namespace List, as an Erlang module for MVP 1. Indices are
-%% zero-based. No Erlang exception escapes: the partial operations return
-%% Optional.
+%% Appendix E.2, namespace List, as an Erlang module for MVP 1. No Erlang
+%% exception escapes: the partial operations return Optional.
 -module('ernest@list').
 
--export([size/1, isEmpty/1, head/1, last/1, at/2, reverse/1, take/2, drop/2, dropLast/1,
+-export([size/1, isEmpty/1, get/2, last/1, reverse/1, take/2, drop/2, dropLast/1,
          contains/2, find/2, any/2, all/2, map/2, filter/2, filterMap/2, foldLeft/3,
          foreach/2, span/2, sort/2, remove/2, zip/2, flatMap/2, range/2]).
 
 size(Xs) -> length(Xs).
 isEmpty(Xs) -> Xs =:= [].
-head([X | _]) -> {'Some', X};
-head([]) -> 'None'.
+get(Xs, N) when N >= 0, N < length(Xs) -> {'Some', lists:nth(N + 1, Xs)};
+get(_, _) -> 'None'.
 last([]) -> 'None';
 last(Xs) -> {'Some', lists:last(Xs)}.
-at(Xs, N) when N >= 0, N < length(Xs) -> {'Some', lists:nth(N + 1, Xs)};
-at(_, _) -> 'None'.
 reverse(Xs) -> lists:reverse(Xs).
 take(_, N) when N =< 0 -> [];
 take(Xs, N) -> lists:sublist(Xs, N).

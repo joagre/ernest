@@ -47,7 +47,7 @@ Three layers:
 
 - **Language.** The rules in `ernest_report.md`: syntax, types, processes, evaluation. Small and stable.
 - **Prelude.** What the report requires to exist. Small — the built-in types (Address, Reply, Never, Foreign, plus List, Map, and Set); a handful of declared sum types (Unit, Optional, Either, Ordering, Down, Reason, ClockMsg, RemoteError, Where); the built-in functions (self, send, spawn); the process functions (via, Address.call, Address.callForever, answer, remote, parallelRemote, monitor, kill); the operations Ernest's operators resolve to (`Int.+` through `Int.%`, `Float.+` through `Float./`, negation, `String.<>`, `List.<>`, `Bytes.<>`, `Int.div`/`Int.mod`, the `.compare` functions, `todo`); and system references (Sys.stdout, Sys.clock).
-- **Standard library** (Appendix E). On the load path by default, as Erlang modules under `lib/runtime/src` until `foreign fn` arrives in MVP 2: Io, List, Map, Set, String, Char, Bool, Int, Float, Optional, Either, Foreign, all of Appendix E. Grows when a paper program writes the same pattern three times.
+- **Standard library** (Appendix E). On the load path by default, as Erlang modules under `lib/runtime/src` until `foreign fn` arrives in MVP 2: Io, List, Map, Set, String, Char, Bool, Int, Float, Optional, Either, Foreign, Random, all of Appendix E. Grows by the admission and shape rules of Appendix E.0.
 
 ## Layout of the repository
 

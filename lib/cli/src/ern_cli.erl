@@ -211,6 +211,7 @@ prelude_namespaces() ->
     {ok, Decls} = ern_parser:parse_string(ern_prelude:declared_types()),
     lists:usort([N || {N, _} <- ern_prelude:builtin_types()]
                 ++ [N || #type_decl{name = N} <- Decls]
+                ++ [hd(Ns) || {Ns, _} <- ern_prelude:stdlib_types()]
                 ++ [hd(Q) || {Q, _} <- ern_prelude:values(), length(Q) > 1]).
 
 %% Type-check and compile one module against its dependencies'

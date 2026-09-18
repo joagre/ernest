@@ -99,13 +99,19 @@ prelude_env() ->
                        end, Env0, ern_prelude:builtin_types()),
     {ok, Decls} = ern_parser:parse_string(ern_prelude:declared_types()),
     {Env2, []} = declare_types(Decls, Env1),
+    Env3 = lists:foldl(fun({Ns, Source}, E) ->
+                           {ok, Ds} = ern_parser:parse_string(Source),
+                           {E1, []} = declare_types(Ds, E#env{ns = Ns, local_types = #{},
+                                                              local_cons = #{}}),
+                           E1
+                       end, Env2, ern_prelude:stdlib_types()),
     lists:foldl(fun({QName, Text}, E) ->
                     {ok, Syntax} = ern_parser:parse_type(Text),
                     ProcessOnly = lists:member(QName, ern_prelude:process_only()),
                     {Scheme, E1} = signature_scheme(Syntax, ProcessOnly,
                                                     ern_prelude:eq_vars(QName), E),
                     E1#env{globals = maps:put(QName, Scheme, E1#env.globals)}
-                end, Env2#env{ns = [], local_types = #{}, local_cons = #{}, local_values = #{}},
+                end, Env3#env{ns = [], local_types = #{}, local_cons = #{}, local_values = #{}},
                 ern_prelude:values()).
 
 add_iface(#iface{types = Ts, values = Vs}, #env{types = ET, globals = EG} = Env) ->

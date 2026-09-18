@@ -1,17 +1,23 @@
 %% Appendix E.6 and Char.compare of report §9.6, namespace Char, as an Erlang
-%% module for MVP 1. A Char is a code point (report §8.4). Where Appendix E
-%% leaves the definition open, this module chooses ASCII: isDigit is 0-9,
-%% isAlpha is A-Z and a-z, isSpace is space, tab, newline, carriage return,
-%% form feed, and vertical tab.
+%% module for MVP 1. A Char is a code point (report §8.4). The predicates use
+%% the Unicode properties Appendix E.6 names, through the property classes of
+%% the re module: isDigit is general category Nd, isAlpha is category L,
+%% isSpace is White_Space, which is the Z categories together with U+0009 to
+%% U+000D and U+0085.
 -module('ernest@char').
 
--export([isDigit/1, isAlpha/1, isSpace/1, toString/1, toInt/1, compare/2]).
+-export([isDigit/1, isAlpha/1, isSpace/1, toString/1, toInt/1, fromInt/1, compare/2]).
 
-isDigit(C) -> C >= $0 andalso C =< $9.
-isAlpha(C) -> (C >= $a andalso C =< $z) orelse (C >= $A andalso C =< $Z).
-isSpace(C) -> lists:member(C, [$\s, $\t, $\n, $\r, $\f, $\v]).
+isDigit(C) -> category(C, "Nd").
+isAlpha(C) -> category(C, "L").
+isSpace(C) -> (C >= 16#9 andalso C =< 16#D) orelse C =:= 16#85 orelse category(C, "Z").
 toString(C) -> unicode:characters_to_binary([C]).
 toInt(C) -> C.
+fromInt(N) when N >= 0, N =< 16#10FFFF, not (N >= 16#D800 andalso N =< 16#DFFF) -> {'Some', N};
+fromInt(_) -> 'None'.
 compare(A, B) when A < B -> 'Less';
 compare(A, B) when A > B -> 'Greater';
 compare(_, _) -> 'Equal'.
+
+category(C, Class) ->
+    re:run(<<C/utf8>>, "^\\p{" ++ Class ++ "}$", [unicode]) =/= nomatch.

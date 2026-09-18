@@ -2447,6 +2447,31 @@ The printer named every variable afresh, `a`, `b`, `e`, so `--doc` showed `new :
 
 The growth rule, a function enters when three programs write it by hand, was made for language features, where adding is dangerous; for a library it produces a minimal set, not a complete one, and a library function is cheap to add and expensive to lack. Appendix E now states three rules in its preamble: in when the value lives in the runtime or when the hand-written version is the same few lines every time; one function per job; the same name for the same operation in every module that has it, container first, `isX`, `toX`/`fromX`, `Optional` for partial operations, `compare` for order. Read with them, the appendix was inconsistent: `Set` had no higher-order functions, `Map` half of `List`'s, `String` had `all` but not `any`, `String.chars`/`fromChars` where every other module says `toList`/`fromList`, and `Map` could not be built from a list. Added: `List.zip`, `flatMap`, `range`; `Map.filter`, `any`, `all`, `find`, `fromList`, `toList`; `Set.map`, `filter`, `foldLeft`, `any`, `all`, `find`; `String.toUpper`, `split`, `join`, `any`; renamed `String.chars` and `fromChars` to `toList` and `fromList`. Not added, by the second rule: `List.foldRight`, `Optional.orElse`, `Int.pow`, and `Float` mathematics beyond the operators, which is a namespace of its own and waits for a program that needs it.
 
+## Appendix E: Admission and Shape Rules, 2026-09-18
+
+The three rules of the morning's entry left two judgments open: "the same few lines every time" has no test, and "the same name for the same operation" had no vocabulary behind it. The draft still had `Map.put` beside `Set.add`, `List.at` beside `Map.get`, `Io.printlnTo(addr, s)` beside `Io.println(s)`, and `List.remove` and `Char.isAlpha` with contracts the Erlang modules chose and the appendix did not state. Appendix E.0 now states four admission rules and six shape rules in their place.
+
+**Admission.** Runtime-bound (the closed list of shims); algebra-complete (a container provides the container vocabulary, or says which item it lacks and why; a conversion has its inverse); corpus-driven (one program under `examples/` is enough, when the hand-written version has no policy choice); and no compositions (one pipe of two functions is not a function). The corpus rule replaces the three-uses rule for good: a library function is cheap to add and expensive to lack, and the corpus is the measure, not a count.
+
+**Shape.** Subject first, callbacks last, accumulator between; one verb per operation, with the vocabulary listed; conversions named by the other type and living in the subject's module, several policies being several names; partial returns `Optional`, faults only per §7.4; pure unless the value lives in a process; every contract the type does not state is in the signature's comment.
+
+**Why not Erlang's or Gleam's list.** Erlang's stdlib is shaped by the absence of static types: the `lists:key*` family exists because tuples-as-records had no type, and `{ok, V} | {error, R}` is a runtime protocol where Ernest has `Optional`, `Either`, and `<-`. Gleam's is the nearest model but has no effect system, no linear `Reply`, and no `Never`, so its combinators cannot say whether a callback sends; every Ernest combinator does. What neither has is what follows from Ernest's own concepts, `via`, `monitor`, a pure `Random`.
+
+**Six decisions the rules could not make.**
+
+- Insertion is `put` in both `Map` and `Set`; `Set.add` is renamed.
+- Lookup is `get` by index and by key; `List.at` is renamed.
+- `Io.printTo` and `Io.printlnTo` take the string first and the sink second, so the pipe works as it does for `Io.println`. The process primitives of §9.4 and §9.5 stay address-first; they are prelude, not stdlib, and `send(a, v)` is not a subject-first transformation.
+- `String` is not a container; its character operations go through `toList`. `String.any` and `String.all` are the stated exception, by the corpus rule: every parser tests the characters of a string.
+- `Char.isDigit`, `isAlpha`, and `isSpace` use Unicode categories, the honest reading of a `Char` that is a code point. The Erlang modules were ASCII-only and did not say so.
+- `Random` is a pure stdlib module, not a system process as the plan's MVP 2.5 step 1 recommended: a generator's state does not live in the runtime, and only the pure form is repeatable in a test. `Seed` is a concrete type so `Random.Seed(42)` works as the snake program already wrote it; `Random.next(seed, n)` draws between 0 and `n` inclusive, total on every `n`, inclusive like `List.range`.
+
+**Added by the rules.** `Map.filterMap`, `Map.foreach`, `Set.filterMap`, `Set.foreach` by algebra; `String.toFloat`, `String.toBool`, `Char.fromInt`, `Float.min`, `Float.max` by inverse and by the same vocabulary in every module; `Random` by the corpus. **Removed.** `List.head`: it is `List.get(xs, 0)` and `x :: _` in a pattern, two ways already. Contracts stated: `List.remove` removes the first occurrence; `List.take` and `drop` treat a negative count as zero; `String.split` on an empty separator gives the string alone; `String.lines` adds no empty line for a final line feed; `Float.toString` prints the shortest decimal that reads back; `List.sort` is stable.
+
+**Prelude and stdlib.** §9 now says that a prelude operation in a type's namespace is provided by that type's stdlib module. The prelude lists what must exist; the stdlib module is where it lives. The question "prelude or stdlib" is about which document guarantees a name, never about the code.
+
+**Cost.** Appendix E rewritten, one sentence in §9, the snake program's `Seed` and `Random.next`, the plan's MVP 2.5 entry. Under `lib/`: three renames, two argument swaps, three Unicode predicates, nine new functions, and one new module, pending.
+
 ## Later
 
 Planned or considered, not in the language today.

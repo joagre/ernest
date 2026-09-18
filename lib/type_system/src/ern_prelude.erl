@@ -1,11 +1,13 @@
 %% The prelude, report section 9, and the standard library signatures of
-%% Appendix E, as data. Types are Ernest source; values are name and type
-%% text, parsed by ern_parser:parse_type/1 and converted by the checker.
+%% Appendix E, as data. Types are Ernest source, the standard library's
+%% under their namespaces; values are name and type text, parsed by
+%% ern_parser:parse_type/1 and converted by the checker.
 %% The stdlib entries are here until the stdlib exists as compiled modules
 %% with interfaces of their own (implementation plan, Phase 2.4).
 -module(ern_prelude).
 
--export([builtin_types/0, declared_types/0, values/0, process_only/0, eq_vars/1]).
+-export([builtin_types/0, declared_types/0, stdlib_types/0, values/0, process_only/0,
+         eq_vars/1]).
 
 %% Types the runtime provides with no Ernest declaration: name and arity.
 -spec builtin_types() -> [{atom(), non_neg_integer()}].
@@ -28,6 +30,11 @@ declared_types() ->
     "type RemoteError = NoRemotePeer | PeerLost\n"
     "type Where = Local | Peer(String)\n".
 
+%% Types the standard library declares, by namespace (Appendix E.13).
+-spec stdlib_types() -> [{[atom()], string()}].
+stdlib_types() ->
+    [{['Random'], "type Seed = Seed(Int)\n"}].
+
 %% Primitives whose effect variables are process-only (report §3.9), and the
 %% Io functions, which are built on send.
 -spec process_only() -> [[atom()]].
@@ -41,6 +48,7 @@ process_only() ->
 -spec eq_vars([atom()]) -> [atom()].
 eq_vars(['Map' | _]) -> [k];
 eq_vars(['Set', map]) -> [a, b];
+eq_vars(['Set', filterMap]) -> [a, b];
 eq_vars(['Set' | _]) -> [a];
 eq_vars(['List', contains]) -> [a];
 eq_vars(['List', remove]) -> [a];
@@ -90,14 +98,13 @@ values() ->
      %% Appendix E.1 Io
      {['Io', print], "(String) -> Unit with m"},
      {['Io', println], "(String) -> Unit with m"},
-     {['Io', printTo], "(Address(String), String) -> Unit with m"},
-     {['Io', printlnTo], "(Address(String), String) -> Unit with m"},
+     {['Io', printTo], "(String, Address(String)) -> Unit with m"},
+     {['Io', printlnTo], "(String, Address(String)) -> Unit with m"},
      %% E.2 List
      {['List', size], "(List(a)) -> Int"},
      {['List', isEmpty], "(List(a)) -> Bool"},
-     {['List', head], "(List(a)) -> Optional(a)"},
+     {['List', get], "(List(a), Int) -> Optional(a)"},
      {['List', last], "(List(a)) -> Optional(a)"},
-     {['List', at], "(List(a), Int) -> Optional(a)"},
      {['List', reverse], "(List(a)) -> List(a)"},
      {['List', take], "(List(a), Int) -> List(a)"},
      {['List', drop], "(List(a), Int) -> List(a)"},
@@ -129,6 +136,8 @@ values() ->
      {['Map', values], "(Map(k, v)) -> List(v)"},
      {['Map', map], "(Map(k, v), (k, v) -> w with e) -> Map(k, w) with e"},
      {['Map', filter], "(Map(k, v), (k, v) -> Bool with e) -> Map(k, v) with e"},
+     {['Map', filterMap], "(Map(k, v), (k, v) -> Optional(w) with e) -> Map(k, w) with e"},
+     {['Map', foreach], "(Map(k, v), (k, v) -> Unit with e) -> Unit with e"},
      {['Map', foldLeft], "(Map(k, v), b, (b, k, v) -> b with e) -> b with e"},
      {['Map', any], "(Map(k, v), (k, v) -> Bool with e) -> Bool with e"},
      {['Map', all], "(Map(k, v), (k, v) -> Bool with e) -> Bool with e"},
@@ -140,7 +149,7 @@ values() ->
      {['Set', size], "(Set(a)) -> Int"},
      {['Set', isEmpty], "(Set(a)) -> Bool"},
      {['Set', contains], "(Set(a), a) -> Bool"},
-     {['Set', add], "(Set(a), a) -> Set(a)"},
+     {['Set', put], "(Set(a), a) -> Set(a)"},
      {['Set', remove], "(Set(a), a) -> Set(a)"},
      {['Set', union], "(Set(a), Set(a)) -> Set(a)"},
      {['Set', intersect], "(Set(a), Set(a)) -> Set(a)"},
@@ -149,6 +158,8 @@ values() ->
      {['Set', toList], "(Set(a)) -> List(a)"},
      {['Set', map], "(Set(a), (a) -> b with e) -> Set(b) with e"},
      {['Set', filter], "(Set(a), (a) -> Bool with e) -> Set(a) with e"},
+     {['Set', filterMap], "(Set(a), (a) -> Optional(b) with e) -> Set(b) with e"},
+     {['Set', foreach], "(Set(a), (a) -> Unit with e) -> Unit with e"},
      {['Set', foldLeft], "(Set(a), b, (b, a) -> b with e) -> b with e"},
      {['Set', any], "(Set(a), (a) -> Bool with e) -> Bool with e"},
      {['Set', all], "(Set(a), (a) -> Bool with e) -> Bool with e"},
@@ -161,6 +172,8 @@ values() ->
      {['String', toLower], "(String) -> String"},
      {['String', toUpper], "(String) -> String"},
      {['String', toInt], "(String) -> Optional(Int)"},
+     {['String', toFloat], "(String) -> Optional(Float)"},
+     {['String', toBool], "(String) -> Optional(Bool)"},
      {['String', toList], "(String) -> List(Char)"},
      {['String', fromList], "(List(Char)) -> String"},
      {['String', fromUtf8], "(Bytes) -> Optional(String)"},
@@ -176,6 +189,7 @@ values() ->
      {['Char', isSpace], "(Char) -> Bool"},
      {['Char', toString], "(Char) -> String"},
      {['Char', toInt], "(Char) -> Int"},
+     {['Char', fromInt], "(Int) -> Optional(Char)"},
      %% E.7 Bool
      {['Bool', 'not'], "(Bool) -> Bool"},
      {['Bool', toString], "(Bool) -> String"},
@@ -193,6 +207,8 @@ values() ->
      {['Int', toFloat], "(Int) -> Float"},
      %% E.9 Float
      {['Float', abs], "(Float) -> Float"},
+     {['Float', min], "(Float, Float) -> Float"},
+     {['Float', max], "(Float, Float) -> Float"},
      {['Float', toString], "(Float) -> String"},
      {['Float', round], "(Float) -> Int"},
      {['Float', floor], "(Float) -> Int"},
@@ -217,4 +233,6 @@ values() ->
      {['Foreign', toFloat], "(Foreign) -> Optional(Float)"},
      {['Foreign', toString], "(Foreign) -> Optional(String)"},
      {['Foreign', toBool], "(Foreign) -> Optional(Bool)"},
-     {['Foreign', toList], "(Foreign) -> Optional(List(Foreign))"}].
+     {['Foreign', toList], "(Foreign) -> Optional(List(Foreign))"},
+     %% E.13 Random
+     {['Random', next], "(Random.Seed, Int) -> #(Int, Random.Seed)"}].

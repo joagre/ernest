@@ -7,8 +7,8 @@
 %% of report §7.4 from the Int zero divisor; these catch it at the source.
 -module('ernest@float').
 
--export(['+'/2, '-'/2, '*'/2, '/'/2, abs/1, toString/1, round/1, floor/1, ceil/1, compare/2,
-         negate/1]).
+-export(['+'/2, '-'/2, '*'/2, '/'/2, abs/1, min/2, max/2, toString/1, round/1, floor/1,
+         ceil/1, compare/2, negate/1]).
 
 '+'(A, B) -> arith(fun() -> A + B end).
 '-'(A, B) -> arith(fun() -> A - B end).
@@ -21,6 +21,8 @@ arith(F) ->
     end.
 
 abs(F) -> erlang:abs(F).
+min(A, B) -> erlang:min(A, B).
+max(A, B) -> erlang:max(A, B).
 toString(F) -> float_to_binary(F, [short]).
 round(F) ->
     Fl = erlang:floor(F),

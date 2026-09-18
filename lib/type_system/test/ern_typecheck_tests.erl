@@ -626,7 +626,7 @@ type_names_in_messages_test() ->
     ?assertMatch({error, [{_, _, "the arguments do not fit f: expected (M.Optional) -> Int,"
                            " found (Optional(Int)) -> a"}]},
                  check("type Optional = Nothing\nfn f(o : Optional) -> Int = 1\n"
-                       "fn g() -> Int = f(List.head([1]))\n")),
+                       "fn g() -> Int = f(List.get([1], 0))\n")),
     {ok, Http} = file:read_file("../../../examples/modules/net/http.ern"),
     {ok, _, Iface, _} = ern_typecheck:check_string(['Net', 'Http'], Http),
     {ok, Decls} = ern_parser:parse_string("fn f(r : Net.Http.Request) -> Int = 1\n"
