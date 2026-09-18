@@ -426,7 +426,7 @@ Each variable appears at most once in a pattern; equality is written in a guard.
 | `big`, `little`, `native`   | endianness                                                  |
 | `signed`, `unsigned`        | sign                                                        |
 
-A segment without specifiers is `int` of size 8. `int` binds to `Int`, `float` to `Float`, the `utf` forms to `Char`, `bits` and `bytes` to `Bytes`. The specifier names are ordinary identifiers outside a bitstring.
+A segment without specifiers is `int` of size 8. `int` binds to `Int`, `float` to `Float`, the `utf` forms to `Char`, `bits` and `bytes` to `Bytes`. `unit` is 1 to 256; a `float` segment is 16, 32, or 64 bits; a `utf` segment has no size; a `bits` or `bytes` segment without a size takes the rest and is the last segment. The specifier names are ordinary identifiers outside a bitstring.
 
 A construction's total bit count is a multiple of 8, and a `bits` or `bytes` segment bound to `Bytes` has a byte-multiple size; sub-octet fields are `int`. A violation that is constant is a compile-time error; one with a dynamic size faults at construction (§7.4) or fails to match. A segment pattern is a variable, `_`, or a literal of the segment's type. `size(Expr)` in a pattern is evaluated in the scope of the earlier segments and the enclosing scope; it is pure and yields a non-negative `Int`, a negative or out-of-range size fails the match, and a fault in it faults the process. Construction evaluates the segments left to right; a value that does not fit its width is a fault. `<<>>` is the empty `Bytes`.
 
