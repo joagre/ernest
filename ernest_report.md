@@ -1541,6 +1541,8 @@ Every technical term this report introduces, with the section that defines it. P
 - **`spawn`** — `spawn(w, f)`, starts a new process. §6.2.
 - **structural equality** — the meaning of `==`; two values are equal if their shape is. §3.10.
 - **sum type** — a type with one or more constructors. §3.5.
+- **standard library** — the modules under `stdlib/`, on the load path by default; not the prelude. §9, Appendix E.
+- **system module** — the standard library module of a system reference's name, through which a program uses it. §8.2, Appendix E.0.
 - **system reference** — a top-level address in `Sys.*`, wired by the runtime. §8.2.
 - **tail position** — the last expression of a block, `match` clause, or `receive` clause; guaranteed TCO. §10.
 - **top-level binding** — a value bound at file scope by a `let` (§4.6) or provided by the runtime (§8.2). A user-declared top-level binding is visible in its own module under its local name; external modules see it at the file's qualified name when marked `export`. Runtime-provided top-level bindings (`Sys.stdout`, prelude values) are in scope everywhere. §0, §8.2.
