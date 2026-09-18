@@ -972,10 +972,10 @@ Ernest is n-ary: every function has a specific number of arguments recorded in i
 
 The four paper programs, in ascending complexity:
 
-- [`examples/snake.ern`](examples/snake.ern) — snake game with tick-based updates; `..` record updates, one process per player.
-- [`examples/repl.ern`](examples/repl.ern) — small read-eval-print loop; `<-` for chained parsing, `monitor` + `kill` for aborting slow evaluation.
-- [`examples/filesync.ern`](examples/filesync.ern) — file sync between two nodes; mutual-address setup, one process per write, `Sys.fs`.
-- [`examples/webserver.ern`](examples/webserver.ern) — HTTP server with sessions in ETS; `foreign fn`, abstract types, ETS accessed through foreign functions.
+- [`examples/snake.ern`](examples/snake.ern) — snake game with tick-based updates; `..` record updates, one process per player, `Clock`, `Keys`, `Random`.
+- [`examples/repl.ern`](examples/repl.ern) — small read-eval-print loop; `<-` for chained parsing, `monitor` + `kill` for aborting slow evaluation, `Io.readLine`.
+- [`examples/filesync.ern`](examples/filesync.ern) — file sync between two nodes; mutual-address setup, one process per file operation, `Fs`.
+- [`examples/webserver.ern`](examples/webserver.ern) — HTTP server with sessions in ETS; `foreign fn`, abstract types, `Tcp`, ETS accessed through foreign functions.
 
 The paper programs use the system modules `Fs`, `Keys`, `Tcp`, and `Io.readLine` beyond `Io.println` and `Clock`, and the `Ets` library of report Appendix D; those are MVP 2.5, and each program says so at its top.
 

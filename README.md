@@ -20,10 +20,10 @@ The complete programs from the report's Appendix B and D and the guide's checkpo
 
 ### Then the paper programs, in this order
 
-- **[`examples/snake.ern`](examples/snake.ern)** — a snake game with tick-based updates. Introduces `..` record update, `Map` folds, one process per player.
-- **[`examples/repl.ern`](examples/repl.ern)** — a read-eval-print loop for a small expression language. Heavy use of `<-`, `try` as a supervised child process, `monitor` for detecting child death.
-- **[`examples/filesync.ern`](examples/filesync.ern)** — file synchronization between two nodes. Introduces mutual-address setup and additional runtime references (`Sys.fs`).
-- **[`examples/webserver.ern`](examples/webserver.ern)** — HTTP server with sessions. Introduces `foreign fn`, abstract types with signatures, ETS as a foreign process.
+- **[`examples/snake.ern`](examples/snake.ern)** — a snake game with tick-based updates. Introduces `..` record update, `Map` folds, one process per player, `Clock`, `Keys`, and `Random`.
+- **[`examples/repl.ern`](examples/repl.ern)** — a read-eval-print loop for a small expression language. Heavy use of `<-`, `try` as a supervised child process, `monitor` for detecting child death, `Io.readLine`.
+- **[`examples/filesync.ern`](examples/filesync.ern)** — file synchronization between two nodes. Introduces mutual-address setup, one process per file operation, and the `Fs` module.
+- **[`examples/webserver.ern`](examples/webserver.ern)** — HTTP server with sessions. Introduces `foreign fn`, abstract types with signatures, the `Tcp` module, ETS as a foreign library.
 
 ### Then, as reference material
 
@@ -46,7 +46,7 @@ The complete programs from the report's Appendix B and D and the guide's checkpo
 Three layers:
 
 - **Language.** The rules in `ernest_report.md`: syntax, types, processes, evaluation. Small and stable.
-- **Prelude.** What the report requires to exist. Small — the built-in types (Address, Reply, Never, Foreign, plus List, Map, and Set); a handful of declared sum types (Unit, Optional, Either, Ordering, Down, Reason, ClockMsg, RemoteError, Where); the built-in functions (self, send, spawn); the process functions (via, Address.call, Address.callForever, answer, remote, parallelRemote, monitor, kill); the operations Ernest's operators resolve to (`Int.+` through `Int.%`, `Float.+` through `Float./`, negation, `String.<>`, `List.<>`, `Bytes.<>`, `Int.div`/`Int.mod`, the `.compare` functions, `todo`); and system references (Sys.stdout, Sys.clock). A prelude operation in a type's namespace, `Int.compare`, is provided by that type's standard library module; the prelude lists what must exist, the library is where it lives.
+- **Prelude.** What the report requires to exist. Small — the built-in types (Address, Reply, Never, Foreign, plus List, Map, and Set); a handful of declared sum types (Unit, Optional, Either, Ordering, Down, Reason, ClockMsg, RemoteError, Where); the built-in functions (self, send, spawn); the process functions (via, Address.call, Address.callForever, answer, remote, parallelRemote, monitor, kill); the operations Ernest's operators resolve to (`Int.+` through `Int.%`, `Float.+` through `Float./`, negation, `String.<>`, `List.<>`, `Bytes.<>`, `Int.div`/`Int.mod`, the `.compare` functions, `todo`); and the six system references of §9.7, each used through the standard library module of its name. A prelude operation in a type's namespace, `Int.compare`, is provided by that type's standard library module; the prelude lists what must exist, the library is where it lives.
 - **Standard library** (Appendix E). On the load path by default: one module per type, List, Map, Set, String, Char, Bool, Int, Float, Optional, Either, Foreign, Random, Path, and one per system process, Io, Clock, Keys, Fs, Tcp, which are the way a program uses the `Sys.*` references. Erlang modules under `lib/runtime/src` until `foreign fn` arrives in MVP 2, then Ernest under `stdlib/` with shims only where the value lives in the runtime. Appendix E.0 has the rules: a function is in when the runtime alone can compute it, when it follows from the type's structure, or when a program under `examples/` writes it; never as a composition of two others. One verb per operation in every module (`get`, `put`, `remove`, `map`, `filter`, `foldLeft`, ...), subject first so the pipe works, `Optional` for partial operations, pure except `Io`, and every contract the type does not state in the comment on the signature.
 
 ## Layout of the repository
