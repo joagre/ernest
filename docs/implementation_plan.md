@@ -187,11 +187,11 @@ Local `fn`s in a block are generalized only once every later local `fn` they ref
 
 ### 3.2 Testing (2 days)
 
-- The MVP 1 programs under `examples/`: `hello`, `counter`, `upgrade`, `pingpong`, `stack`, `patterns`, `kvparser` (a pure parser with `Either`), `remote`, and the pair under `modules/`. The list is explicit in `test/ern_integration_tests.erl`; `ets` needs MVP 2 and is only type-checked.
+- The MVP 1 programs under `examples/`: `hello`, `counter`, `upgrade`, `pingpong`, `stack`, `patterns`, `kvparser` (a pure parser with `Either`), `remote`, and the pair under `modules/`. The list is the `PROGRAMS` macro in `test/ern_integration_tests.erl`, and the same nine are the golden-file set. The other five under `examples/` are type-checked only, each needing something MVP 1 refuses: `ets` (`foreign fn`, MVP 2), `filesync` (`Fs`), `repl` (`Io.readLine`), `snake` (`Keys`), and `webserver` (`Tcp`, `foreign fn`, and the `Ets` library, the one error the checker's test allows), the last four MVP 2.5, whose step 4 moves them into the run set with expected-output files.
 - Compile: `ernc program.ern`. Run: `ern program.erc`.
 - These are the tests for the runtime sections of the report, §6.4, §6.5, §6.9, §6.10, §7, §8, §11.2, §11.3, which no unit test cites; `make sections` lists the sections still without a citing test.
 - Smoke test in a top-level `test/`: every listed program compiles and runs, output compared against an expected-output file of the same name. The comparison treats output as a multiset of lines, since the interleaving of prints from different processes (ping-pong) is scheduling-dependent.
-- The web server and the file sync are MVP 2.5, when `Tcp` and `Fs` exist.
+- The four paper programs run in MVP 2.5, when their system processes exist.
 - Done 2026-09-17: `test/ern_integration_tests.erl`, run by `make test` after the unit tests, with `test/expected/<name>.out`; the program list is in the test module.
 - Golden files, 2026-09-17: `test/golden/*.erl` holds the Erlang source the compiler emits for every MVP 1 example, as `--emit erl` writes it; the compiler's tests compare against them and write a `.new` beside a differing file; `make golden` rewrites them after an intended emitter change. The hand-written targets under `test/target/` remain the two tests that are not self-referential.
 - Sections `make sections` lists, 2026-09-17: §3.11, §8.3, §8.7, all MVP 3 and unimplemented; anything else it prints is a gap.
