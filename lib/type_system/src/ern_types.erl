@@ -7,7 +7,7 @@
          enter/1, leave/1, level/1,
          resolve/2, zonk/2, unify/3, occurs_free/2,
          generalize/2, generalize/3, instantiate/2, mono/1, free_vars/2,
-         value_vars/1, effect_vars/1,
+         value_vars/1, effect_vars/1, mismatch_pair/3,
          format/2, format_scheme/2, format_error/1, set_scope/3]).
 
 -export_type([st/0, type/0, effect/0, qname/0, id/0, flags/0]).
@@ -295,6 +295,27 @@ subst_vars(pure, _) -> pure.
 %% that is process-only prints unchanged in effect position (its restriction
 %% is stated in messages), one that is not-reply-carrying prints as a!.
 %%
+
+%% Report §11.5: the differing part of two types that do not unify, so a
+%% message shows Int against String rather than two whole function types.
+-spec mismatch_pair(type() | pure, type() | pure, st()) -> {type() | pure, type() | pure}.
+mismatch_pair(E, A, St) ->
+    differing(zonk(E, St), zonk(A, St)).
+
+differing({tcon, Q, Es}, {tcon, Q, As}) when length(Es) =:= length(As) ->
+    first_differing(Es, As, {{tcon, Q, Es}, {tcon, Q, As}});
+differing({ttuple, Es}, {ttuple, As}) when length(Es) =:= length(As) ->
+    first_differing(Es, As, {{ttuple, Es}, {ttuple, As}});
+differing({tfn, EPs, EE, ER}, {tfn, APs, AE, AR}) when length(EPs) =:= length(APs) ->
+    first_differing(EPs ++ [EE, ER], APs ++ [AE, AR], {{tfn, EPs, EE, ER}, {tfn, APs, AE, AR}});
+differing(E, A) ->
+    {E, A}.
+
+first_differing(Es, As, Whole) ->
+    case [{E, A} || {E, A} <- lists:zip(Es, As), E =/= A] of
+        [{E, A} | _] -> differing(E, A);
+        [] -> Whole
+    end.
 
 -spec format(type() | pure, st()) -> string().
 format(T, St) ->

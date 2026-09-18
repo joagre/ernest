@@ -26,7 +26,7 @@ One Ernest module goes through six stages, each an Erlang application under `lib
 
 ## The type checker
 
-`ern_typecheck:check(Ns, Decls, Ifaces)` returns `{ok, Typed, Iface, Env}` or `{error, [#diag{}]}`, each diagnostic with the span of the node it is anchored to. `Ns` is the module's namespace as a list of atoms; `Ifaces` are the `#iface{}` records of the modules it refers to.
+`ern_typecheck:check(Ns, Decls, Ifaces)` returns `{ok, Typed, Iface, Env}` or `{error, [#diag{}]}`, each diagnostic with the span of the leaf it is anchored to, the label of the span that fixed the expectation, and a help line when the types differ inside (report §11.5). Inside, `infer/2` gives an expression its type and `check/5` checks it against an expected type, pushing the expectation through branches, clauses, and blocks. `Ns` is the module's namespace as a list of atoms; `Ifaces` are the `#iface{}` records of the modules it refers to.
 
 Types are the terms of `lib/type_system/include/ern_types.hrl`: `{tcon, QName, Args}`, `{tvar, Id}`, `{ttuple, Elems}`, `{tfn, Params, Effect, Result}` where `Effect` is `pure` or a type. Every variable has a `#tv{}` entry in the state's table with its level, its flags (`eq`, `process_only`, `no_reply`, report §3.9), and the name its annotation gave it. `ern_types` owns the state: fresh variables, unification with the effect rules, generalization by levels with pure elision, instantiation, and the printer that error messages and `ernc --doc` share (report §11.5: names as the module writes them, annotation names kept).
 

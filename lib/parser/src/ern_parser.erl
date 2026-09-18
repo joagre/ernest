@@ -24,7 +24,7 @@ parse(Tokens) ->
     try
         {ok, program(prune_docs(Tokens), undefined, [])}
     catch
-        throw:{parse_error, Span, Msg} -> {error, #diag{span = Span, message = Msg}}
+        throw:{parse_error, #diag{} = D} -> {error, D}
     end.
 
 -spec parse_string(unicode:chardata()) -> {ok, [tuple()]} | {error, error()}.
@@ -46,7 +46,7 @@ parse_expr(Text) ->
                     [T | _] -> fail(pos(T), "expected end of input instead of " ++ describe(T))
                 end
             catch
-                throw:{parse_error, Span, Msg} -> {error, #diag{span = Span, message = Msg}}
+                throw:{parse_error, #diag{} = D} -> {error, D}
             end;
         {error, _} = E ->
             E
@@ -65,7 +65,7 @@ parse_type(Text) ->
                                                 ++ describe(Tok))
                 end
             catch
-                throw:{parse_error, Span, Msg} -> {error, #diag{span = Span, message = Msg}}
+                throw:{parse_error, #diag{} = D} -> {error, D}
             end;
         {error, _} = E ->
             E
@@ -97,7 +97,7 @@ program(Ts, Prev, Acc) ->
 
 %% A second consecutive fn with the same name is the Haskell habit.
 one_clause(#fn_decl{pos = Pos, owner = O, name = N}, #fn_decl{owner = O, name = N}) ->
-    fail(Pos, "a function has one clause; write match");
+    fail(Pos, "a function has one clause", "write one clause whose body is a `match`");
 one_clause(_, _) ->
     ok.
 
@@ -236,7 +236,7 @@ let_decl([{'let', Pos} | R], Doc, Export) ->
                     _ -> {undefined, R1}
                 end,
     R3 = case R2 of
-             [{'<-', P} | _] -> fail(P, "`<-` is a block form; a top-level `let` uses `=`");
+             [{'<-', P} | _] -> fail(P, "`<-` is a block form", "a top-level `let` uses `=`");
              _ -> expect(R2, '=')
          end,
     {Body, R4} = expr(R3),
@@ -363,8 +363,8 @@ juxtaposition([T | _]) when element(1, T) =:= ident; element(1, T) =:= typename;
                             element(1, T) =:= int; element(1, T) =:= float;
                             element(1, T) =:= char; element(1, T) =:= string;
                             element(1, T) =:= bool ->
-    fail(pos(T), "unexpected " ++ describe(T) ++ " after an expression; a call is written"
-                 " f(x), and statements are separated by `;`");
+    fail(pos(T), "unexpected " ++ describe(T) ++ " after an expression",
+         "a call is written f(x), and statements are separated by `;`");
 juxtaposition(_) ->
     ok.
 
@@ -382,7 +382,8 @@ if_expr(Ts, Pos) ->
             {Else, R4} = expr(R3),
             w({#e_if{pos = Pos, condition = Cond, then_branch = Then, else_branch = Else}, R4});
         [T | _] ->
-            fail(pos(T), "`if` needs an `else`; every `if` is an expression")
+            fail(pos(T), "`if` needs an `else`", "every `if` is an expression; give the"
+                 " other branch a value")
     end.
 
 match_expr(Ts, Pos) ->
@@ -428,7 +429,7 @@ binexpr_loop(Left, [{Op, Pos} | R] = Ts, Min) ->
         {P, Assoc} when P >= Min ->
             NextMin = case Assoc of left -> P + 1; right -> P end,
             {Right, R1} = binexpr(R, NextMin),
-            {Node, _} = w({combine(Op, Pos, Left, Right), R1}),
+            {Node, _} = w({combine(Op, start_of(Left, Pos), Left, Right), R1}),
             binexpr_loop(Node, R1, Min);
         _ ->
             {Left, Ts}
@@ -461,6 +462,11 @@ combine('|>', Pos, X, F) ->
     #e_call{pos = Pos, callee = F, args = [X]};
 combine(Op, Pos, L, R) ->
     #e_binop{pos = Pos, op = Op, left = L, right = R}.
+
+%% An operator expression spans from its left operand (report §11.5).
+start_of(Left, OpPos) ->
+    LPos = element(2, Left),
+    {element(1, LPos), element(2, LPos), element(3, OpPos), element(4, OpPos)}.
 
 unary([{'-', Pos} | R]) ->
     {E, R1} = postfix(R),
@@ -513,7 +519,7 @@ primary([{'(', _} | R]) ->
 primary([{'_', Pos} | _]) ->
     fail(Pos, "`_` is a pattern, not an expression");
 primary([{Kw, Pos} | _]) when Kw =:= 'if'; Kw =:= match; Kw =:= 'receive'; Kw =:= fn ->
-    fail(Pos, "`" ++ atom_to_list(Kw) ++ "` is not an operand; parenthesize it");
+    fail(Pos, "`" ++ atom_to_list(Kw) ++ "` is not an operand", "parenthesize it");
 primary([T | _]) ->
     fail(pos(T), "expected an expression instead of " ++ describe(T)).
 
@@ -529,8 +535,8 @@ constructor_expr(Pos, Path, Name, [{'(', _} | R]) ->
             w({#e_con{pos = Pos, path = Path, name = Name, args = {named, undefined, Sets}},
                expect(R1, ')')});
         [{')', P} | _] ->
-            fail(P, "a constructor's fields are listed inside the parentheses; a nullary"
-                    " constructor takes none");
+            fail(P, "a constructor's fields are listed inside the parentheses",
+                 "a nullary constructor takes none: write it without parentheses");
         _ ->
             {E, R1} = expr(R),
             w({#e_con{pos = Pos, path = Path, name = Name, args = {positional, E}},
@@ -559,13 +565,15 @@ stmts(Ts, Prev, Acc) ->
     one_clause(S, Prev),
     case R of
         [{';', _}, {'}', P} | _] ->
-            fail(P, "a block ends with an expression; remove the trailing `;`");
+            fail(P, "a block ends with an expression", "remove the trailing `;`");
         [{';', _} | R1] ->
             stmts(R1, S, [S | Acc]);
         [{'}', P} | R1] ->
             case S of
-                #binding{} -> fail(P, "a block ends with an expression, not a `let`");
-                #fn_decl{} -> fail(P, "a block ends with an expression, not a `fn`");
+                #binding{} -> fail(P, "a block ends with an expression, not a `let`",
+                                    "add the expression the block is worth after it");
+                #fn_decl{} -> fail(P, "a block ends with an expression, not a `fn`",
+                                    "add the expression the block is worth after it");
                 _ -> {lists:reverse([S | Acc]), R1}
             end;
         [T | _] ->
@@ -770,4 +778,9 @@ describe({eof, _}) -> "end of input";
 describe({Sym, _}) -> "`" ++ atom_to_list(Sym) ++ "`".
 
 fail(Pos, Message) ->
-    throw({parse_error, ern_diag:span(Pos), lists:flatten(Message)}).
+    fail(Pos, Message, undefined).
+
+%% Report §11.5: the message states the rule, the help line the fix.
+fail(Pos, Message, Help) ->
+    throw({parse_error, #diag{span = ern_diag:span(Pos), message = lists:flatten(Message),
+                              help = Help}}).

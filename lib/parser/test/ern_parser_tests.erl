@@ -24,6 +24,14 @@ err_expr(Text) ->
     {error, #diag{message = Msg}} = ern_parser:parse_expr(Text),
     Msg.
 
+help(Text) ->
+    {error, #diag{help = Help}} = ern_parser:parse_string(Text),
+    Help.
+
+help_expr(Text) ->
+    {error, #diag{help = Help}} = ern_parser:parse_expr(Text),
+    Help.
+
 %%
 %% Expressions
 %%
@@ -407,41 +415,41 @@ several_declarations_test() ->
 
 %% report §4.5, plan 1.1
 two_clause_function_test() ->
-    ?assertEqual("a function has one clause; write match",
-                 err("fn f(0) = 1\nfn f(n) = n")),
-    ?assertEqual("a function has one clause; write match",
-                 err_expr("{ fn f(0) = 1; fn f(n) = n; f(1) }")).
+    ?assertEqual("a function has one clause", err("fn f(0) = 1\nfn f(n) = n")),
+    ?assertEqual("a function has one clause", err_expr("{ fn f(0) = 1; fn f(n) = n; f(1) }")),
+    ?assertEqual("write one clause whose body is a `match`", help("fn f(0) = 1\nfn f(n) = n")).
 
 %% report §5.2, plan 1.1
 juxtaposition_test() ->
-    ?assertEqual("unexpected identifier `x` after an expression; a call is written f(x),"
-                 " and statements are separated by `;`",
-                 err("fn g() = f x")),
-    ?assertEqual("unexpected integer 1 after an expression; a call is written f(x),"
-                 " and statements are separated by `;`",
-                 err_expr("{ let a = f 1; a }")).
+    ?assertEqual("unexpected identifier `x` after an expression", err("fn g() = f x")),
+    ?assertEqual("a call is written f(x), and statements are separated by `;`",
+                 help("fn g() = f x")),
+    ?assertEqual("unexpected integer 1 after an expression", err_expr("{ let a = f 1; a }")).
 
 %% report §5.4
 trailing_semicolon_test() ->
-    ?assertEqual("a block ends with an expression; remove the trailing `;`",
-                 err_expr("{ let x = 1; x; }")),
+    ?assertEqual("a block ends with an expression", err_expr("{ let x = 1; x; }")),
+    ?assertEqual("remove the trailing `;`", help_expr("{ let x = 1; x; }")),
     ?assertEqual("a block ends with an expression, not a `let`", err_expr("{ let x = 1 }")),
     ?assertEqual("a block needs at least one expression", err_expr("{}")).
 
 %% report §5.8
 if_without_else_test() ->
-    ?assertEqual("`if` needs an `else`; every `if` is an expression",
-                 err_expr("if c then a")).
+    ?assertEqual("`if` needs an `else`", err_expr("if c then a")),
+    ?assertEqual("every `if` is an expression; give the other branch a value",
+                 help_expr("if c then a")).
 
 %% report §4.6
 toplevel_bind_arrow_test() ->
-    ?assertEqual("`<-` is a block form; a top-level `let` uses `=`", err("let x <- f()")).
+    ?assertEqual("`<-` is a block form", err("let x <- f()")),
+    ?assertEqual("a top-level `let` uses `=`", help("let x <- f()")).
 
 %% report §5
 non_operand_forms_test() ->
-    ?assertEqual("`if` is not an operand; parenthesize it", err_expr("1 + if c then a else b")),
-    ?assertEqual("`fn` is not an operand; parenthesize it", err_expr("x |> fn(y) = y")),
-    ?assertEqual("`match` is not an operand; parenthesize it", err_expr("-match x { _ -> 1 }")),
+    ?assertEqual("`if` is not an operand", err_expr("1 + if c then a else b")),
+    ?assertEqual("parenthesize it", help_expr("1 + if c then a else b")),
+    ?assertEqual("`fn` is not an operand", err_expr("x |> fn(y) = y")),
+    ?assertEqual("`match` is not an operand", err_expr("-match x { _ -> 1 }")),
     ?assertMatch(#e_binop{op = '+', right = #e_if{}}, e("1 + (if c then a else b)")).
 
 %% report §2.6, §4.8
@@ -456,8 +464,7 @@ operator_grammar_test() ->
 %% report Appendix A
 misc_errors_test() ->
     ?assertEqual("`_` is a pattern, not an expression", err_expr("_ + 1")),
-    ?assertEqual("a constructor's fields are listed inside the parentheses; a nullary"
-                 " constructor takes none", err_expr("None()")),
+    ?assertEqual("a constructor's fields are listed inside the parentheses", err_expr("None()")),
     ?assertEqual("expected a name; a type member is written `Stack.name`",
                  err("fn Stack(x) = x")),
     ?assertEqual("a foreign function declares its return type",
@@ -485,7 +492,7 @@ lexer_errors_pass_through_test() ->
 %% right operand, a block its closing brace, and a declaration its body
 spans_test() ->
     {ok, #e_call{pos = {1, 1, {1, 8}}}} = ern_parser:parse_expr("f(x, y)"),
-    {ok, #e_binop{pos = {1, 3, {1, 9}}, left = #e_var{pos = {1, 1, {1, 2}}}}} =
+    {ok, #e_binop{pos = {1, 1, {1, 9}}, left = #e_var{pos = {1, 1, {1, 2}}}}} =
         ern_parser:parse_expr("a + g(b)"),
     {ok, #e_block{pos = {1, 1, {2, 6}}}} = ern_parser:parse_expr("{ x;\n  y }"),
     {ok, [#fn_decl{pos = {1, 1, {1, 14}}, body = #e_lit{pos = {1, 11, {1, 14}}}}]} =

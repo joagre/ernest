@@ -88,7 +88,7 @@ effects_test() ->
     ?assertEqual("() -> Unit with e", type_of("export fn main() = Io.println(\"x\")", main)),
     ?assertEqual("() -> Unit with Never",
                  type_of("export fn main() -> Unit with Never = Io.println(\"x\")", main)),
-    ?assertEqual("this call needs a process: process code called from a pure function",
+    ?assertEqual("Io.println needs a process, and main is pure",
                  err("fn main() -> Unit = Io.println(\"x\")")),
     ?assertEqual("() -> Address(a) with a", type_of("export fn me() = self()", me)),
     ?assertEqual("(Address(a), a) -> Unit with e",
@@ -111,11 +111,10 @@ receive_and_mailboxes_test() ->
               "    Inc(k) -> counter(n + k)\n"
               "  | Get(reply = r) -> { answer(r, n); counter(n) }\n}",
     ?assertEqual("(Int) -> Unit with M.CounterMsg", type_of(Counter, counter)),
-    ?assertEqual("`receive` in a pure function; give it a mailbox type with `with`",
+    ?assertEqual("`receive` needs a process, and f is pure",
                  err("fn f() -> Unit = receive { after 1 -> Unit }")),
     ?assertEqual(ok, ok("fn f() -> Unit with Never = receive { after 1 -> Unit }")),
-    ?assertEqual("a function with mailbox Never cannot receive; only an `after` clause is"
-                 " allowed",
+    ?assertEqual("a function with mailbox Never cannot receive",
                  err("fn f() -> Unit with Never = receive { Unit -> Unit }")),
     ?assertEqual("(a!) -> Unit with e",
                  type_of("export fn tick(n) = { let m = receive { k -> k }; Unit }", tick)).
@@ -125,7 +124,7 @@ spawn_test() ->
     ?assertEqual(ok, ok("fn work() -> Unit with Never = Unit\n"
                         "fn main() -> Unit with Never = { let _ = spawn(Local, fn() = work());"
                         " Unit }")),
-    ?assertEqual("the arguments do not fit spawn: process code called from a pure function",
+    ?assertEqual("the argument does not fit spawn: process code called from a pure function",
                  err("fn main() -> Unit with Never = { let _ = spawn(Local, fn() -> Unit = Unit);"
                      " Unit }")),
     ?assertEqual("the type of a is not determined (Address(a)); use it, or annotate it",
@@ -138,7 +137,7 @@ guards_are_pure_test() ->
     ?assertEqual(ok, ok("fn f(n : Int) = match n { k when k > 0 -> 1 | _ -> 0 }")),
     ?assertMatch("a guard is a Bool: " ++ _,
                  err("fn f(n : Int) = match n { k when k -> 1 | _ -> 0 }")),
-    ?assertEqual("this call needs a process: process code called from a pure function",
+    ?assertEqual("Io.println needs a process, and a guard is pure",
                  err("fn f(n : Int) -> Int with Never = match n {"
                      " k when Io.println(\"x\") == Unit -> 1 | _ -> 0 }")).
 
@@ -150,7 +149,7 @@ guards_are_pure_test() ->
 patterns_test() ->
     ?assertEqual("variable x appears twice in the pattern",
                  err("fn f(p) = match p { #(x, x) -> x }")),
-    ?assertEqual("a `let` pattern must be irrefutable; use match",
+    ?assertEqual("a `let` pattern must be irrefutable",
                  err("fn f(o) = { let Some(x) = o; x }")),
     ?assertEqual(ok, ok("type P = P(x : Int, y : Int)\nfn f(p) = { let P(x = a) = p; a }")),
     ?assertEqual("a parameter pattern must be irrefutable", err("fn f(Some(x)) = x")),
@@ -188,7 +187,7 @@ local_fn_names_are_plain_test() ->
 %% report §5.4
 local_fn_forward_reference_test() ->
     %% a is generalized only after b, which it references, is checked
-    ?assertEqual("the arguments do not fit a: expected (Int) -> Int, found (String) -> a",
+    ?assertEqual("the argument does not fit a: expected Int, found String",
                  err("fn f() = { fn a(x) = b(x); fn b(x) = x + 1; a(\"s\") }")),
     ?assertEqual("() -> Int", type_of("export fn f() = { fn a(x) = b(x); fn b(x) = x + 1; a(1) }",
                                       f)),
@@ -285,7 +284,7 @@ toplevel_let_test() ->
     ?assertEqual("List(a)", type_of("export let empty = []", empty)),
     ?assertEqual("the value does not have the declared type: expected Float, found Int",
                  err("let pi : Float = 3")),
-    ?assertEqual("this call needs a process: process code called from a pure function",
+    ?assertEqual("Io.println needs a process, and a top-level `let` is pure",
                  err("let x = Io.println(\"a\")")).
 
 %% report §5.6
@@ -303,7 +302,7 @@ constructors_test() ->
 
 %% report §5.2
 calls_test() ->
-    ?assertEqual("f takes 2 arguments, not 1; a call supplies them all",
+    ?assertEqual("f takes 2 arguments, not 1",
                  err("fn f(a, b) = a\nfn g() = f(1)")),
     ?assertEqual("x is not a function; it has type Int", err("let x = 1\nfn g() = x(1)")),
     ?assertEqual("unknown name nope", err("fn g() = nope(1)")),
@@ -410,7 +409,7 @@ warts_audit_test() ->
                  err(Msg ++ "fn f(r) = match r { Get(reply = a, reply = b) -> Unit"
                      " | Stop -> Unit }")),
     %% foreign fn with an effect is process-only
-    ?assertEqual("this call needs a process: process code called from a pure function",
+    ?assertEqual("tick needs a process, and f is pure",
                  err("foreign fn tick() -> Unit with m = \"m:tick/0\"\nfn f() -> Unit = tick()")),
     ?assertEqual(ok, ok("foreign fn tick() -> Unit with m = \"m:tick/0\"\n"
                         "fn f() -> Unit with Never = tick()")),
@@ -438,7 +437,7 @@ abstract_types_as_types_test() ->
                  type_of(Stack ++ "export fn f(s : Stack(Int)) = Stack.push(1, s)", f)),
     ?assertEqual("() -> M.Stack(String)",
                  type_of(Stack ++ "export fn f() = Stack.push(\"a\", Stack.empty)", f)),
-    ?assertMatch("the arguments do not fit Stack.push: " ++ _,
+    ?assertMatch("the argument does not fit Stack.push: " ++ _,
                  err(Stack ++ "fn f(s : Stack(Int)) = Stack.push(\"a\", s)")),
     %% a sum type like any other: structural equality applies
     ?assertEqual("(M.Stack(Int), M.Stack(Int)) -> Bool",
@@ -492,7 +491,7 @@ prelude_values_test() ->
                       ?assertEqual(ok, ok("export let v = " ++ Name))
                   end, ern_prelude:values()),
     %% the process primitives are process-only, the stdlib combinators are not
-    ?assertEqual("this call needs a process: process code called from a pure function",
+    ?assertEqual("send needs a process, and f is pure",
                  err("fn f(a : Address(Int)) -> Unit = send(a, 1)")),
     ?assertEqual("(List(Int)) -> List(Int)",
                  type_of("export fn f(xs) = List.map(xs, fn(x : Int) = x)", f)),
@@ -623,13 +622,11 @@ local_fn_annotation_before_use_test() ->
 %% that shadows a prelude name qualified
 type_names_in_messages_test() ->
     ?assertMatch({error, [#diag{message =
-                                  "the arguments do not fit f: expected (Shape) -> Int, found"
-                           " (Optional(Shape)) -> a"}]},
+                                  "the argument does not fit f: expected Shape, found Optional(Shape)"}]},
                  check("type Shape = Dot\nfn f(s : Shape) -> Int = 1\n"
                        "fn g() -> Int = f(Some(Dot))\n")),
     ?assertMatch({error, [#diag{message =
-                                  "the arguments do not fit f: expected (M.Optional) -> Int,"
-                           " found (Optional(Int)) -> a"}]},
+                                  "the argument does not fit f: expected M.Optional, found Optional(Int)"}]},
                  check("type Optional = Nothing\nfn f(o : Optional) -> Int = 1\n"
                        "fn g() -> Int = f(List.get([1], 0))\n")),
     {ok, Http} = file:read_file("../../../examples/modules/net/http.ern"),
@@ -637,8 +634,7 @@ type_names_in_messages_test() ->
     {ok, Decls} = ern_parser:parse_string("fn f(r : Net.Http.Request) -> Int = 1\n"
                                           "fn g() -> Int = f(1)\n"),
     ?assertMatch({error, [#diag{message =
-                                  "the arguments do not fit f: expected (Net.Http.Request) -> Int,"
-                           " found (Int) -> a"}]},
+                                  "the argument does not fit f: expected Net.Http.Request, found Int"}]},
                  ern_typecheck:check(['Main'], Decls, [Iface])).
 
 %% report §11.5, §3.9: a type variable prints under its annotation's name;
@@ -661,17 +657,111 @@ variable_names_test() ->
 pipe_type_test() ->
     ?assertEqual("(String) -> Int",
                  type_of("export fn n(s : String) = s |> String.trim |> String.size", n)),
-    ?assertMatch("the arguments do not fit String.size: expected (String) -> Int, found (Int)" ++ _,
+    ?assertMatch("the argument does not fit String.size: expected String, found Int",
                  err("fn n() = 1 |> String.size")).
 
 %% report §6.8: a `with Never` root is called only where the mailbox is
 %% Never; a polymorphic helper is called from either
 never_root_test() ->
     Root = "fn root() -> Unit with Never = Io.println(\"x\")\n",
-    ?assertEqual("this call needs a process: expected Msg, found Never",
+    ?assertEqual("root needs mailbox Never, and the mailbox here is Msg",
                  err("type Msg = Go\n" ++ Root ++ "fn p() -> Unit with Msg = root()")),
     ?assertEqual(ok, ok(Root ++ "fn q() -> Unit with Never = root()")),
     ?assertEqual("() -> Unit with Never", type_of(Root ++ "export fn r() = root()", r)),
     ?assertEqual(ok, ok("type Msg = Go\nfn helper() -> Unit with m = Io.println(\"x\")\n"
                         "fn p() -> Unit with Msg = helper()\n"
                         "fn q() -> Unit with Never = helper()")).
+
+%%
+%% Error placement (report §11.5)
+%%
+
+%% The first diagnostic, whole.
+diag(Text) ->
+    {error, [D | _]} = check(Text),
+    D.
+
+%% report §11.5: a mismatch is reported at the leaf that has the wrong
+%% type, not at the enclosing expression, and the label names the
+%% declaration that fixed the expectation
+leaf_placement_test() ->
+    %% the else branch of an `if` in a declared body: the span is the literal
+    D1 = diag("fn f(b : Bool) -> Int =\n    if b then 1 else \"x\"\n"),
+    ?assertEqual("the body does not have the declared return type: expected Int, found String",
+                 D1#diag.message),
+    ?assertEqual({2, 22, {2, 25}}, D1#diag.span),
+    ?assertEqual([{{1, 19, {1, 22}}, "declared to return Int here"}], D1#diag.labels),
+    %% the last statement of a block
+    D2 = diag("fn f() -> Int = { let x = 1; \"x\" }\n"),
+    ?assertEqual({1, 30, {1, 33}}, D2#diag.span),
+    %% a match clause: the second clause against the first
+    D3 = diag("fn f(n : Int) = match n { 0 -> 1 | _ -> \"x\" }\n"),
+    ?assertEqual("the clauses must have one type: expected Int, found String", D3#diag.message),
+    ?assertEqual({1, 41, {1, 44}}, D3#diag.span),
+    ?assertEqual([{{1, 32, {1, 33}}, "the first clause has type Int"}], D3#diag.labels),
+    %% the else branch against the then branch when nothing outside fixed the type
+    D4 = diag("fn f(b : Bool) = if b then 1 else \"x\"\n"),
+    ?assertEqual("the branches of `if` must have one type: expected Int, found String",
+                 D4#diag.message),
+    ?assertEqual([{{1, 28, {1, 29}}, "the then branch has type Int"}], D4#diag.labels),
+    %% a call argument, at the argument, labelled with the callee's type
+    D5 = diag("fn f(x : Int) = x\nfn g() = f(\"x\")\n"),
+    ?assertEqual("the argument does not fit f: expected Int, found String", D5#diag.message),
+    ?assertEqual({2, 12, {2, 15}}, D5#diag.span),
+    ?assertEqual([{{2, 10, {2, 11}}, "f : (Int) -> Int"}], D5#diag.labels),
+    %% a binary operator: the right operand, labelled with the left's type
+    D6 = diag("fn f() = 1 + \"x\"\n"),
+    ?assertEqual({1, 14, {1, 17}}, D6#diag.span),
+    ?assertEqual([{{1, 10, {1, 11}}, "the left operand has type Int"}], D6#diag.labels),
+    %% a list element against the first
+    D7 = diag("fn f() = [1, \"x\"]\n"),
+    ?assertEqual({1, 14, {1, 17}}, D7#diag.span),
+    ?assertEqual([{{1, 11, {1, 12}}, "the first element has type Int"}], D7#diag.labels),
+    %% an annotated `let` in a block: the value, labelled with the annotation
+    D8 = diag("fn f() = { let x : Int = \"x\"; x }\n"),
+    ?assertEqual("the value does not have the declared type: expected Int, found String",
+                 D8#diag.message),
+    ?assertEqual({1, 26, {1, 29}}, D8#diag.span),
+    ?assertEqual([{{1, 20, {1, 23}}, "declared Int here"}], D8#diag.labels),
+    %% a pattern against the value matched
+    D9 = diag("fn f(n : Int) = match n { Some(x) -> x }\n"),
+    ?assertEqual("the pattern does not fit the value: expected Int, found Optional(a)",
+                 D9#diag.message),
+    ?assertEqual([{{1, 23, {1, 24}}, "the value matched has type Int"}], D9#diag.labels).
+
+%% report §11.5: the message shows the whole types; when they differ
+%% inside, the help line names the differing part
+differing_part_test() ->
+    D = diag("fn f(xs : List(Int)) = xs\nfn g() = f([\"x\"])\n"),
+    ?assertEqual("the argument does not fit f: expected List(Int), found List(String)",
+                 D#diag.message),
+    ?assertEqual("the types differ at Int and String", D#diag.help),
+    ?assertEqual(undefined, (diag("fn f() = 1 + \"x\"\n"))#diag.help).
+
+%% report §11.5, §3.4: an effect error names the callee and what is pure,
+%% labels the annotation that made it pure, and says what to do
+effect_placement_test() ->
+    D1 = diag("fn main() -> Unit = Io.println(\"x\")\n"),
+    ?assertEqual("Io.println needs a process, and main is pure", D1#diag.message),
+    ?assertEqual({1, 21, {1, 36}}, D1#diag.span),
+    ?assertEqual([{{1, 14, {1, 18}}, "`-> Unit` with no `with` declares main pure"}],
+                 D1#diag.labels),
+    ?assertEqual("give main a mailbox type with `with`", D1#diag.help),
+    D2 = diag("let x = Io.println(\"a\")\n"),
+    ?assertEqual([{{1, 1, {1, 24}}, "a top-level `let` is pure"}], D2#diag.labels),
+    ?assertEqual("compute the value in a function with a mailbox type", D2#diag.help),
+    D3 = diag("fn f(n : Int) -> Int with Never = match n {"
+              " k when Io.println(\"x\") == Unit -> 1 | _ -> 0 }\n"),
+    ?assertEqual([{{1, 52, {1, 75}}, "a guard is pure (report §5.9)"}], D3#diag.labels),
+    ?assertEqual("compute the value before the match", D3#diag.help),
+    D4 = diag("fn f() -> Unit = receive { after 1 -> Unit }\n"),
+    ?assertEqual("`receive` needs a process, and f is pure", D4#diag.message),
+    ?assertEqual("give f a mailbox type with `with`", D4#diag.help),
+    D5 = diag("type Msg = Go\nfn root() -> Unit with Never = Io.println(\"x\")\n"
+              "fn p() -> Unit with Msg = root()\n"),
+    ?assertEqual([{{3, 21, {3, 24}}, "p is declared `with Msg` here"}], D5#diag.labels),
+    ?assertEqual(undefined, D5#diag.help),
+    %% a lambda's own annotation is the origin inside it
+    D6 = diag("fn f() -> Unit with Never = { let g = fn() -> Unit = Io.println(\"x\"); g() }\n"),
+    ?assertEqual("Io.println needs a process, and the lambda is pure", D6#diag.message),
+    ?assertEqual("give the lambda a mailbox type with `with`", D6#diag.help).

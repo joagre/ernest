@@ -60,12 +60,14 @@ export fn main() -> Unit = Io.println("hello, world")     // (b) declared pure
 
 Which of these compile?
 
-Answer: (a) compiles — inference gives `main` a fresh mailbox effect from `Io.println`'s call. (b) does not compile — the explicit `-> Unit` (without `with M`) declares the function *pure*, and a pure function cannot call `Io.println` (which sends). `ernc` says so in the form every error takes (report §11.5): the file, line, and column, the message, then the source with the offending span underlined:
+Answer: (a) compiles — inference gives `main` a fresh mailbox effect from `Io.println`'s call. (b) does not compile — the explicit `-> Unit` (without `with M`) declares the function *pure*, and a pure function cannot call `Io.println` (which sends). `ernc` says so in the form every error takes (report §11.5): the file, line, and column, the message, then the source with the offending span underlined, the annotation that caused it labelled, and a help line:
 
 ```
-hello.ern:1:28: this call needs a process: process code called from a pure function
+hello.ern:1:28: Io.println needs a process, and main is pure
 1 | export fn main() -> Unit = Io.println("hello, world")
+  |                     ---- `-> Unit` with no `with` declares main pure
   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | = help: give main a mailbox type with `with`
 ```
  The `with Never` in the actual hello-world declaration says "this process has a mailbox, but it will never receive." Omitting an annotation is not the same as declaring purity.
 
