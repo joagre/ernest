@@ -291,6 +291,17 @@ The system processes and the paper programs as their tests are MVP 2.5.
 
 The standard library is then the first Ernest program of size, and the compiler's first user other than the examples.
 
+**MVP 2.6 (the first libraries), about two weeks.** Appendix D has been written to once, for `Ets`; a pattern tried once is a guess. Four libraries written to it confirm or correct it before anyone outside writes to it, and they are the compiler's second real user. A library enters only when a paper program asks, which keeps 2.6 at four; being first-party changes nothing about the tier, since a library is not on the load path by default and not in Appendix E.
+
+- **The paper program:** `examples/fetch.ern`, a command-line tool that fetches JSON over HTTPS and prints a report to stdout, errors to stderr, with an exit status. Its assumptions are the command-line items of step 5's table and the four libraries below; its header says so, as the other four programs' do.
+- **Report first**, for what the program needs of the runtime: `Sys.args` and `Sys.env` in §8.2 and §9.7 as runtime-bound values; `Sys.stderr` with `Io.printError` and `Io.printlnError` in E.1; an exit status in §8.6; `Time` in Appendix E, over the clock's milliseconds, for the report's timestamp. Decisions log to match.
+- **`libs/json`**, pure Ernest: a `Json` type, a parser over `String` returning `Either`, a printer; the first test of `<-`, `tryMap`, and `tryFold` at size.
+- **`libs/tls`**, a shim over `ssl`: `Tls.listen`, `accept`, `connect` returning `Address(SockMsg)` with the encryption inside the socket process, so `Tcp.read`, `write`, and `close` serve both. Certificate verification is on by default and the program names the trust root; nothing else is configurable.
+- **`libs/http`**, Ernest over `Tcp` and `Tls`: request and response types, a client. No server; that is the webserver example's job, and the plan's position on HTTP servers stands.
+- **`libs/base64`**, a shim over `base64`, which HTTP authentication needs.
+- Each library is an Ernest source root under `libs/<name>/` that a program adds with `--load-path`, with tests under the same discipline as `stdlib/`, a README of its own, and no entry in Appendix E. Their own repositories later, when there is a package story. Appendix D is corrected where the four disagree with it, report first.
+- **Out of 2.6:** `Regex`, `Crypto`, `Uri`, `Zlib`, until a program asks; an HTTP server; a package manager.
+
 **MVP 3 (distribution with content addressing).**
 
 - Every definition gets a hash of its typed AST; modules are named by hash; a registry per node `{Hash -> Module}`. A message with a function carries the hash, and a node that lacks it fetches the code from the sender. Erlang's module distribution is not used.
@@ -301,6 +312,6 @@ The standard library is then the first Ernest program of size, and the compiler'
 - A runtime-managed mailbox: a ring buffer the runtime fills from the BEAM mailbox and scans with compiled clause functions in arrival order. It lifts the MVP 1 restriction on `receive` guards (2.2) and makes selective receive independent of BEAM's; every `receive` pays for it, which is the price of §5.9's general guards.
 - Erlang side: `process_flag(priority, ...)` and scheduling hints.
 
-No HTTP server, JSON, or database connectors are planned; those are libraries for others to write on the foreign-library pattern of Appendix D, as MVP 2.5 step 5 lists.
+No HTTP server or database connectors are planned; those are libraries for others to write on the foreign-library pattern of Appendix D, as MVP 2.5 step 5 lists. MVP 2.6 writes the first four libraries, JSON among them, to prove the pattern.
 
 MVP 1 is about eight and two thirds working weeks and shows that the chain holds, not that the design holds. The latter is decided beforehand, on paper.
