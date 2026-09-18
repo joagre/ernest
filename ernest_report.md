@@ -1205,7 +1205,7 @@ Six rules give a function its shape.
 
 ### Appendix E.1. `io.ern` (namespace `Io`)
 
-Output to `Sys.stdout` (section 8). Output to another `Address(String)` is `send(a, s)`.
+Output to `Sys.stdout` (section 8). A string goes to any other `Address(String)` by `send`.
 
 ```
 Io.print : (String) -> Unit with m
