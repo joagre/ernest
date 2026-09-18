@@ -33,11 +33,17 @@ declared_types() ->
     "type KeyMsg = Subscribe(Address(Key))\n"
     "type StdinMsg = ReadLine(reply : Reply(Optional(String)))\n"
     "type Path = Path(String)\n"
-    "type Entry = Entry(path : Path, mtime : Int)\n"
+    "type Entry = Entry(path : Path, mtime : Int, size : Int, isDir : Bool)\n"
     "type IoError = NotFound | Denied | Refused | Closed | Timeout | Other(String)\n"
     "type FsMsg = ReadFile(path : Path, reply : Reply(Either(IoError, Bytes)))"
     " | WriteFile(path : Path, bytes : Bytes, reply : Reply(Either(IoError, Unit)))"
-    " | ListDir(path : Path, reply : Reply(Either(IoError, List(Entry))))\n"
+    " | AppendFile(path : Path, bytes : Bytes, reply : Reply(Either(IoError, Unit)))"
+    " | ListDir(path : Path, reply : Reply(Either(IoError, List(Entry))))"
+    " | Stat(path : Path, reply : Reply(Either(IoError, Entry)))"
+    " | MakeDir(path : Path, reply : Reply(Either(IoError, Unit)))"
+    " | Remove(path : Path, reply : Reply(Either(IoError, Unit)))"
+    " | Rename(from : Path, to : Path, reply : Reply(Either(IoError, Unit)))"
+    " | Copy(from : Path, to : Path, reply : Reply(Either(IoError, Unit)))\n"
     "type TcpMsg = Listen(port : Int, reply : Reply(Either(IoError, Address(ListenerMsg))))"
     " | Connect(host : String, port : Int, reply : Reply(Either(IoError, Address(SockMsg))))\n"
     "type ListenerMsg = Accept(reply : Reply(Either(IoError, Address(SockMsg))))\n"
@@ -55,7 +61,8 @@ process_only() ->
     [[send], [spawn], ['Address', call], ['Address', callForever], [answer], [monitor],
      [kill], [remote], [parallelRemote], ['Io', print], ['Io', println], ['Io', readLine],
      ['Clock', now], ['Clock', alarm], ['Clock', alarmAt], ['Keys', subscribe],
-     ['Fs', read], ['Fs', write], ['Fs', list], ['Tcp', listen], ['Tcp', accept],
+     ['Fs', read], ['Fs', write], ['Fs', append], ['Fs', list], ['Fs', stat], ['Fs', makeDir],
+     ['Fs', remove], ['Fs', rename], ['Fs', copy], ['Tcp', listen], ['Tcp', accept],
      ['Tcp', connect], ['Tcp', read], ['Tcp', write], ['Tcp', close]].
 
 %% Type variables that carry the equality constraint (report §3.10): Map
@@ -287,7 +294,13 @@ values() ->
      %% E.17 Fs
      {['Fs', read], "(Path, Int) -> Either(IoError, Bytes) with m"},
      {['Fs', write], "(Path, Bytes, Int) -> Either(IoError, Unit) with m"},
+     {['Fs', append], "(Path, Bytes, Int) -> Either(IoError, Unit) with m"},
      {['Fs', list], "(Path, Int) -> Either(IoError, List(Entry)) with m"},
+     {['Fs', stat], "(Path, Int) -> Either(IoError, Entry) with m"},
+     {['Fs', makeDir], "(Path, Int) -> Either(IoError, Unit) with m"},
+     {['Fs', remove], "(Path, Int) -> Either(IoError, Unit) with m"},
+     {['Fs', rename], "(Path, Path, Int) -> Either(IoError, Unit) with m"},
+     {['Fs', copy], "(Path, Path, Int) -> Either(IoError, Unit) with m"},
      %% E.18 Tcp
      {['Tcp', listen], "(Int) -> Either(IoError, Address(ListenerMsg)) with m"},
      {['Tcp', accept], "(Address(ListenerMsg), Int) -> Either(IoError, Address(SockMsg)) with m"},

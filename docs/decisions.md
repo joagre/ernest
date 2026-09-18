@@ -2519,6 +2519,12 @@ Not admitted: Gleam's other thirty `list` functions, compositions (`first`, `res
 
 Rule 2 now says each kind of type has a vocabulary, lists text's and a path's beside the container's and the sequence's, and ends with the sentence that closes the gap: a type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote.
 
+## Fs by Its Structure, and the Table, 2026-09-18
+
+`Fs` had the three functions filesync wrote, as `Path` had, and the question about `filelib` found it: everything in `filelib` touches the filesystem and so is `Fs`'s by rule 7, but `Fs` had no vocabulary to receive it. E.17 now has what a filesystem's files and directories give and `file`, `filelib`, Gleam's `simplifile`, and Rust's `std::fs` agree on: `read`, `write`, `append`, `list`, `stat`, `makeDir`, `remove`, `rename`, `copy`. `stat` answers `is_dir`, `is_file`, `last_modified`, and `file_size` at once, so `Entry` in §9.3 carries `size` and `isDir` beside `mtime`; `makeDir` has `ensure_dir`'s semantics. Left out: `wildcard`, a glob language that is a library's; `fold_files`, five lines over `list`; `watch`, waiting for a program that must not poll, since filesync polls on a tick; `absname` and `expand`, waiting with the working directory. Rule 2 gains the filesystem line. §8.2 says `keys` and `stdin` are the same terminal, which the report had left unsaid.
+
+The pattern behind `Path` and `Fs` is that a module admitted by the corpus rule got the corpus's functions and nothing else, and the function-level decisions from reading `filename`, `filelib`, and `timer` had been made in conversation only. The plan's MVP 2.5 step 5 is now a table, one row per user-facing OTP module, with what Appendix E took, what waits and on what trigger, and what is out and why, so that a decision of this kind has a place to be recorded and a place to be found.
+
 ## Later
 
 Planned or considered, not in the language today.

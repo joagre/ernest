@@ -740,7 +740,7 @@ The runtime starts with its system processes and exposes their addresses as top-
 
 These are values, not functions — like `List`, `Map`, and `Set` they are in scope everywhere at the top level. To do IO a function sends to one, and `send` requires a mailbox effect on the caller (§6.1), so pure code cannot affect anything outside its process even though it can name the address.
 
-A reference to a `Sys.*` name the runtime does not provide is a name-resolution error at compile time. The `stdout` process writes each received `String` to standard output as bytes; newlines are the sender's responsibility. The `stdin` process answers each `ReadLine` with the next line without its line feed, `None` at end of input. The `keys` process sends every key pressed to each subscriber. The `fs` and `net` processes answer as their message types say.
+A reference to a `Sys.*` name the runtime does not provide is a name-resolution error at compile time. The `stdout` process writes each received `String` to standard output as bytes; newlines are the sender's responsibility. The `stdin` process answers each `ReadLine` with the next line without its line feed, `None` at end of input. The `keys` process sends every key pressed to each subscriber; it and `stdin` are the same terminal, and a program subscribes to keys or reads lines, not both. The `fs` and `net` processes answer as their message types say.
 
 ### 8.3 Peers
 
@@ -849,12 +849,18 @@ type Key = Char(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter | E
 type KeyMsg = Subscribe(Address(Key))
 type StdinMsg = ReadLine(reply : Reply(Optional(String)))
 type Path = Path(String) // in the runtime's syntax
-type Entry = Entry(path : Path, mtime : Int) // milliseconds since the epoch, as Clock.now
+type Entry = Entry(path : Path, mtime : Int, size : Int, isDir : Bool) // mtime in milliseconds since the epoch, as Clock.now; size in bytes
 type IoError = NotFound | Denied | Refused | Closed | Timeout | Other(String)
 type FsMsg
     = ReadFile(path : Path, reply : Reply(Either(IoError, Bytes)))
     | WriteFile(path : Path, bytes : Bytes, reply : Reply(Either(IoError, Unit)))
+    | AppendFile(path : Path, bytes : Bytes, reply : Reply(Either(IoError, Unit)))
     | ListDir(path : Path, reply : Reply(Either(IoError, List(Entry))))
+    | Stat(path : Path, reply : Reply(Either(IoError, Entry)))
+    | MakeDir(path : Path, reply : Reply(Either(IoError, Unit)))
+    | Remove(path : Path, reply : Reply(Either(IoError, Unit)))
+    | Rename(from : Path, to : Path, reply : Reply(Either(IoError, Unit)))
+    | Copy(from : Path, to : Path, reply : Reply(Either(IoError, Unit)))
 type TcpMsg
     = Listen(port : Int, reply : Reply(Either(IoError, Address(ListenerMsg))))
     | Connect(host : String, port : Int, reply : Reply(Either(IoError, Address(SockMsg))))
@@ -1211,7 +1217,7 @@ Informative, not normative: this appendix lists the modules that ship with the c
 Four rules decide whether a function is in.
 
 1. Its value lives in the runtime and Ernest cannot compute it, or the runtime's implementation is the one to trust: the `Map` and `Set` operations, the Unicode operations on `String` and `Char`, `Float` arithmetic, `Int.toString`, the bit operations, `Foreign`, `Random`, and the modules over the system references of §8.2. These are shims over `foreign fn` or over a system process, and a shim exists only where this rule applies.
-2. It follows from the type's structure, and each kind of type has a vocabulary. A container provides the container operations of the vocabulary below, or says in its section which it lacks and why. A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, and `tryMap` and `tryFold` for a step that can fail. Text adds `startsWith`, `endsWith`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `trim`, `toLower`, `toUpper`. A path adds its segments: `join`, `split`, `parent`, `name`, `extension`, `withExtension`, `isAbsolute`. A conversion to text has its inverse when programs read that type from text. A type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote.
+2. It follows from the type's structure, and each kind of type has a vocabulary. A container provides the container operations of the vocabulary below, or says in its section which it lacks and why. A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, and `tryMap` and `tryFold` for a step that can fail. Text adds `startsWith`, `endsWith`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `trim`, `toLower`, `toUpper`. A path adds its segments: `join`, `split`, `parent`, `name`, `extension`, `withExtension`, `isAbsolute`. A filesystem adds files and directories: `read`, `write`, `append`, `list`, `stat`, `makeDir`, `remove`, `rename`, `copy`. A conversion to text has its inverse when programs read that type from text. A type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote.
 3. A program under `examples/` writes it and the hand-written version has no policy choice in it. One program is enough.
 4. It is not a composition. A function that is one pipe of two functions already here is not added: `List.concat` is `List.flatMap(xs, fn(x) = x)`, `List.sum` is `List.foldLeft(xs, 0, Int.+)`.
 
@@ -1490,7 +1496,13 @@ Over `Sys.fs`. The last argument is the milliseconds to wait.
 ```
 Fs.read : (Path, Int) -> Either(IoError, Bytes) with m
 Fs.write : (Path, Bytes, Int) -> Either(IoError, Unit) with m // creates or replaces
-Fs.list : (Path, Int) -> Either(IoError, List(Entry)) with m // the entries of a directory
+Fs.append : (Path, Bytes, Int) -> Either(IoError, Unit) with m // creates or extends
+Fs.list : (Path, Int) -> Either(IoError, List(Entry)) with m // the entries of a directory, in unspecified order
+Fs.stat : (Path, Int) -> Either(IoError, Entry) with m
+Fs.makeDir : (Path, Int) -> Either(IoError, Unit) with m // with its missing parents; an existing directory is not an error
+Fs.remove : (Path, Int) -> Either(IoError, Unit) with m // a file or an empty directory
+Fs.rename : (Path, Path, Int) -> Either(IoError, Unit) with m // the first to the second
+Fs.copy : (Path, Path, Int) -> Either(IoError, Unit) with m // a file, the first to the second; replaces
 ```
 
 ### Appendix E.18. `tcp.ern` (namespace `Tcp`)
