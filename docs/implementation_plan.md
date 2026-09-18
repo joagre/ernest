@@ -323,7 +323,7 @@ The standard library is then the first Ernest program of size, and the compiler'
 
 **MVP 4 (optimizations and general receive guards).**
 
-- A runtime-managed mailbox: a ring buffer the runtime fills from the BEAM mailbox and scans with compiled clause functions in arrival order. It lifts the MVP 1 restriction on `receive` guards (2.2) and makes selective receive independent of BEAM's; every `receive` pays for it, which is the price of §5.9's general guards.
+- A runtime-managed mailbox: a ring buffer the runtime fills from the BEAM mailbox and scans with compiled clause functions in arrival order. It lifts the MVP 1 restriction on `receive` guards (2.2) and makes selective receive independent of BEAM's; every `receive` pays for it, which is the price of §5.9's general guards. The same compiled clause functions lift the MVP 2 refusal of a `size(...)` in a bitstring pattern that is not an Erlang guard expression (§5.11, the README's table), since a clause function evaluates the size as any expression; and they take over the message check of §8.4 from every receive clause, so only what a foreign process sends is walked.
 - Erlang side: `process_flag(priority, ...)` and scheduling hints.
 
 **Toolchain, no MVP yet.** A canonical formatter, `ernc --format`, one style and no configuration, mechanical over the grammar; it lands before a second person writes Ernest. `Slot(a)`, a one-shot credit parallel to `Reply(a)` for backpressure, waits until the credit protocol has been written as a convention three times; the decisions log has its shape.
