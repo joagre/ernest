@@ -47,7 +47,7 @@ hello, world
 
 `with Never` is the mailbox effect. Every process has a mailbox with a fixed message type; `Never` is the type with no values — a mailbox typed `Never` cannot receive anything. `main` here only sends (through `Io.println`), so `Never` fits.
 
-`Io.println` is a stdlib function that sends its argument to a small `Sys.stdout` process the runtime provides. The stdout process receives the text and writes it. Messaging to a runtime service is one of two ways Ernest interacts with the outside world (the other is `foreign fn`, §7).
+`Io.println` is a stdlib function that sends its argument to a small `Sys.stdout` process the runtime provides. The stdout process receives the text and writes it. There is no function for printing to another address: `send(a, s)` is that. Messaging to a runtime service is one of two ways Ernest interacts with the outside world (the other is `foreign fn`, §7).
 
 ### 1.2 Prediction exercise
 
@@ -273,7 +273,21 @@ Ernest's stdlib is subject-first. `|>` reads left-to-right:
 
 **A lambda after `|>` must be parenthesized:** `x |> (fn(y) = y + 1)`. Without parens, the lambda's body extends greedily and swallows the rest of the expression.
 
-### 2.9 Prediction exercise
+### 2.9 The standard library
+
+Report Appendix E lists the library, one module per type: `List`, `Map`, `Set`, `String`, `Char`, `Bool`, `Int`, `Float`, `Optional`, `Either`, `Foreign`, `Random`, and `Io`. It is on the load path by default. Its rules, in Appendix E.0, are what let you guess a name before looking it up:
+
+- **One verb per operation, in every module that has it.** `size`, `isEmpty`, `contains`, `get` for lookup by index or key, `put` for insertion, `remove`, `map`, `filter`, `filterMap`, `foldLeft`, `foreach`, `any`, `all`, `find`, `fromList`, `toList`. `Map.get(m, k)` and `List.get(xs, 0)` are the same verb; `Map.put` and `Set.put` likewise. A list adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `zip`, `flatMap`, `range`.
+- **Subject first, callbacks last, accumulator between**, so the pipe works: `xs |> List.foldLeft(0, fn(acc, x) = acc + x)`.
+- **Conversions are named by the other type and live in the subject's module.** `String.toInt`, `Int.toString`, `String.fromList`. Several policies are several names: `Float.round`, `Float.floor`, `Float.ceil`.
+- **A partial operation returns `Optional`.** `List.get`, `Map.get`, `String.toInt`, `Char.fromInt`. Nothing in the library faults beyond what report §7.4 lists.
+- **Pure unless the value lives in a process.** `Io` carries `with m`; every other module is pure, and every function that takes a function is effect-polymorphic (§3.5).
+- **A `String` is not a container.** Its characters are reached through `String.toList`: `List.all(String.toList(t), Char.isDigit)`.
+- **`Random` is pure.** `Random.next(seed, n)` returns a draw between 0 and `n` inclusive and the next seed; `Random.Seed(42)` is a seed, and the same seed gives the same sequence.
+
+What the type does not say, the comment on the signature in Appendix E says: `List.remove` removes the first occurrence, `Map.toList` has no order, `List.sort` is stable.
+
+### 2.10 Prediction exercise
 
 Given:
 
