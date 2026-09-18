@@ -2556,6 +2556,10 @@ What left the report, by section, and lives here now:
 - §8.7: hashing a recursive group by position gives a finite construction; an abstract type's signature is in its hash because the abstraction boundary is part of its identity; a captured address ships as a value because captures capture values, not names.
 - §11.1, §11.2: the path-shape rule validates each path compiled or loaded and does not scan a tree; `--create-config-dir .` does not conflict with `--load-path .`.
 
+## What the Reply Check Guarantees, 2026-09-18
+
+A reviewer's objection: exactly-once answering cannot be checked statically. Half true, and the report says which half. That `answer` is *reached* cannot be checked by any static system: a fault, a loop, a `receive` that never matches, or a `kill` bypasses it, which is the halting problem, and §6.6 states that the check is static in flow, not in dynamics. The "at least once" half is therefore handled dynamically, by the timeout of `Address.call`, with `callForever` opting out by name. The "at most once" half and "every path consumes" are what linear types check soundly, as Rust checks moves and session types check channels: a second use on any path is a type error, and the positions where a reply could be consumed any number of times, `List`, `Map`, `Set`, `Optional`, `Either`, a lambda called twice, are forbidden. The one hole the checker cannot see is foreign code holding a `Reply` handle, and the runtime closes it: a `Reply` is an alias that deactivates on the first answer, so a second answer is discarded like a late one. §6.6 now says so.
+
 ## Later
 
 Planned or considered, not in the language today.
