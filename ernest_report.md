@@ -210,9 +210,9 @@ A function has one mailbox effect or none. Two callbacks with independent effect
 
 ### 3.10 Equality and ordering
 
-`==` and `!=` are structural and defined for all values except those containing functions or addresses, on which they are a type error. Ordering is per type through `compare` in the type's namespace, `Int.compare : (Int, Int) -> Ordering`: `a < b` is `T.compare(a, b) == Less` for the operand type `T`, and `<=`, `>`, `>=` likewise; a type without `compare` has no ordering. The prelude defines `compare` for `Int`, `Float`, `String`, and `Char` (§9.6).
+`==` and `!=` are structural and defined for all values except those containing functions or addresses, on which they are a type error. Ordering is per type through `compare` in the type's namespace, `Int.compare : (Int, Int) -> Ordering`: `a < b` is `T.compare(a, b) == Less` for the operand type `T`, and `<=`, `>`, `>=` likewise; a type without `compare` has no ordering, and `<` on it is a type error. The prelude defines `compare` for `Int`, `Float`, `String`, and `Char` (§9.6).
 
-A function that applies `==` to a value of a type variable gives that variable an *equality constraint*, inferred and never written; instantiating it with a type that contains a function or an address is a type error at that call site. `Map(k, v)` and `Set(a)` carry the constraint on `k` and `a`, and a standard library function that compares elements, `List.contains`, propagates it through its parameter. The constraint is part of the type scheme (§3.9): `let f = equal` carries it, `if flag then equal else always` carries the union of the branches', and a compiled interface carries it across modules; the check is always at the concrete application.
+A function that applies `==` to a value of a type variable gives that variable an *equality constraint*, inferred and never written; instantiating it with a type that contains a function or an address is a type error at that call site. `Map(k, v)` and `Set(a)` carry the constraint on `k` and `a`, rejected at the first operation, and a standard library function that compares elements, `List.contains`, propagates it through its parameter. The constraint is part of the type scheme (§3.9): `let f = equal` carries it, `if flag then equal else always` carries the union of the branches', and a compiled interface carries it across modules; the check is always at the concrete application.
 
 ### 3.11 Serialization
 
@@ -361,7 +361,7 @@ Strict, left to right, arguments before the call. Nothing is delayed; `fn() = e`
 
 ### 5.2 Calls
 
-`f(x, y)` supplies all arguments. A call with the wrong number of arguments is a type error; a call never yields a partially applied function. An expression whose value is a function can be called directly, `makeAdder(3)(4)`.
+`f(x, y)` supplies all arguments. A call with the wrong number of arguments is a type error at the call; a call never yields a partially applied function. An expression whose value is a function can be called directly, `makeAdder(3)(4)`.
 
 ### 5.3 Lambda
 
@@ -624,7 +624,7 @@ Before `main` runs, the runtime evaluates every top-level `let` in dependency or
 
 The program ends when `main` returns or faults, a fault being reported on the runtime's exit indicator. Live local processes then die with cause `ProgramEnd`, and the runtime flushes the system processes' pending output before it stops. Workers spawned on peers are unaffected and follow their own return, `kill`, or peer loss (§10); peers observe the ending node as lost. A program that is to keep running waits in `main`.
 
-When no forward progress is possible, every live process waiting in `receive` without `after`, no message in flight, and no system process or connected peer holding a timer, subscription, pending I/O, or computation whose completion would deliver a message, the runtime ends the program with the error `Deadlock`. Detection is per node.
+When no forward progress is possible, every live process waiting in `receive` without `after`, no message in flight, and no system process or connected peer holding a timer, subscription, pending I/O, or computation whose completion would deliver a message, the runtime ends the program with the error `Deadlock`. Detection is per node, and whether a user-provided foreign process counts as such a source is the runtime's choice.
 
 ### 8.7 Code shipping
 
