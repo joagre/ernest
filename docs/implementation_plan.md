@@ -1,6 +1,6 @@
 # Ernest Compiler: Implementation Plan
 
-Target architecture: an Erlang-based compiler, `ernc`, that reads `.ern` files, type-checks them, and produces `.erc` files (BEAM under the hood), and a runner, `ern`, that starts a program, with a shell on request. One person, about eight working weeks for MVP 1 according to the budget below. The language was called Actorson until 12 September 2026.
+Target architecture: an Erlang-based compiler, `ernc`, that reads `.ern` files, type-checks them, and produces `.erc` files (BEAM under the hood), and a runner, `ern`, that starts a program, with a shell on request. One person, about nine working weeks for MVP 1 according to the budget below. The language was called Actorson until 12 September 2026.
 
 **MVP 1 (this plan):** prove the chain parser, types, BEAM, with the report's language, syntax, and semantics unchanged. MVP 1 accepts a subset and checks less: `Int` but no `Float`, no ownership rule for abstract types, no foreign code, no `net`, no distribution — `spawn(Peer, ...)` and `remote` are MVP 3. Exhaustiveness checking is in: it is the check that shaped `receive` and `if`, and a first user should not form habits the report forbids. Every program MVP 1 accepts is a valid Ernest program or one the report already says is wrong. One Erlang module per `.ern` file.
 
@@ -207,6 +207,15 @@ Local `fn`s in a block are generalized only once every later local `fn` they ref
 
 Hindley-Milner reports a mismatch where unification fails, which is the second use of a variable, not necessarily the wrong one, and shows two whole types where the reader wants the difference. The checker already anchors every unification to a node with a context sentence, unifies annotated shapes before bodies, and resolves operators, `<-`, exhaustiveness, and replies with their own messages. The remaining fix is bidirectional checking at annotated boundaries: wherever an expected type is known, push it down into the expression instead of inferring up. A function body against its declared return type, each argument against the parameter type of a known callee, branches after the first, annotated `let`s, constructor fields. The mismatch then surfaces at the leaf, naming the expectation: "expected Int here, because `f` is declared to return Int". An optional expected-type argument to `infer`, not a rewrite. With it: effect errors name the primitive and the annotation that made the caller pure, and messages print only the differing part of two large types. Done after the first programs run end to end, since real mistakes are the only good test of messages; the checker's tests pin current positions and wording.
 
+### 3.5 Paring the report (1 day)
+
+The report is complete: every mechanism has a section, an appendix entry, and a test. It is also three times over its own measure. The decisions log's "Measure" puts the prose under ten pages, Oberon's figure, and recorded 3,200 words; on 2026-09-18 sections 0 through 11 without code or tables are about 13,000. The long sections, §6.6 at 1,200 words, §3.9 at 1,000, §8.7, §4.2, §11.1, §4.6 at 500 to 800, state a rule, restate it with examples, then defend it; CLAUDE.md's register for the report, state the rule with no rationale and no restating, was written after them.
+
+- **Every heading stays; cuts happen inside sections; nothing moves between sections.** Then every `§x.y` in the tests, the guide, the decisions log, and this plan stays valid, and `make sections` and `make coverage` keep working.
+- Rationale goes to the decisions log, one dated entry per section pared, as CLAUDE.md's normative structure says. Examples stay only where a rule cannot be read without one; the guide is where examples live.
+- The mirror tests prove the grammar and the prelude did not move; `make test` proves no cited rule changed meaning, since a test cites every section.
+- Target: the log's measure, ten pages, about 4,000 words, measured the same way before and after and recorded in the log's "Measure".
+
 ---
 
 ## Tools and Environment
@@ -237,10 +246,10 @@ Nothing open.
 |-------|-------|------|-------|
 | 1     | Parser, type check, abstract, stdlib types | 24.5 | 4.9 |
 | 2     | Compiler, processes, stdlib, codegen | 9 | 1.8 |
-| 3     | Integration, tests, docs, error placement | 10 | 2.0 |
-| **Total** | | **43.5** | **8.7 weeks** |
+| 3     | Integration, tests, docs, error placement, paring | 11 | 2.2 |
+| **Total** | | **44.5** | **8.9 weeks** |
 
-One person full-time: about eight and two thirds working weeks. Half-time: three to four calendar months.
+One person full-time: about nine working weeks. Half-time: three to four calendar months.
 
 ---
 
@@ -317,4 +326,4 @@ The standard library is then the first Ernest program of size, and the compiler'
 
 No HTTP server or database connectors are planned; those are libraries for others to write on the foreign-library pattern of Appendix D, as MVP 2.5 step 5 lists. MVP 2.6 writes the first four libraries, JSON among them, to prove the pattern.
 
-MVP 1 is about eight and two thirds working weeks and shows that the chain holds, not that the design holds. The latter is decided beforehand, on paper.
+MVP 1 is about nine working weeks and shows that the chain holds, not that the design holds. The latter is decided beforehand, on paper.
