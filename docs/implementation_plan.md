@@ -302,6 +302,7 @@ The standard library is then the first Ernest program of size, and the compiler'
 - **`libs/http`**, Ernest over `Tcp` and `Tls`: request and response types, a client. No server; that is the webserver example's job, and the plan's position on HTTP servers stands.
 - **`libs/base64`**, a shim over `base64`, which HTTP authentication needs.
 - Each library is an Ernest source root under `libs/<name>/` that a program adds with `--load-path`, with tests under the same discipline as `stdlib/`, a README of its own, and no entry in Appendix E. Their own repositories later, when there is a package story. Appendix D is corrected where the four disagree with it, report first.
+- **The report lists them.** A new informative appendix, "First-party libraries", one section per library with its exported signatures and their contracts, as Appendix E lists the standard library, and a mirror test holding each library's compiled interface equal to it, as `ern_prelude_tests` holds the prelude tables to Appendix E. Third-party libraries are not listed; Appendix D is what they follow.
 - **Out of 2.6:** `Regex`, `Crypto`, `Uri`, `Zlib`, until a program asks; an HTTP server; a package manager.
 
 **MVP 3 (distribution with content addressing).**
