@@ -9,12 +9,28 @@
 %% toList (Appendix E.5).
 -module('ernest@string').
 
--export([size/1, isEmpty/1, contains/2, trim/1, toLower/1, toUpper/1, toInt/1, toFloat/1,
+-export([size/1, isEmpty/1, contains/2, startsWith/2, endsWith/2, replace/3, slice/3,
+         padStart/3, padEnd/3, repeat/2, trim/1, toLower/1, toUpper/1, toInt/1, toFloat/1,
          toList/1, fromList/1, fromUtf8/1, toUtf8/1, lines/1, split/2, join/2, compare/2]).
 
 size(S) -> string:length(S).
 isEmpty(S) -> S =:= <<>>.
 contains(S, Sub) -> string:find(S, Sub) =/= nomatch.
+startsWith(S, Prefix) -> string:prefix(S, Prefix) =/= nomatch.
+endsWith(S, Suffix) ->
+    Size = byte_size(S),
+    SSize = byte_size(Suffix),
+    Size >= SSize andalso binary:part(S, Size - SSize, SSize) =:= Suffix.
+replace(S, <<>>, _) -> S;
+replace(S, From, To) -> unicode:characters_to_binary(string:replace(S, From, To, all)).
+slice(S, From, Count) ->
+    unicode:characters_to_binary(string:slice(S, max(From, 0), max(Count, 0))).
+padStart(S, N, C) -> <<(padding(S, N, C))/binary, S/binary>>.
+padEnd(S, N, C) -> <<S/binary, (padding(S, N, C))/binary>>.
+repeat(S, N) -> binary:copy(S, max(N, 0)).
+
+padding(S, N, C) ->
+    unicode:characters_to_binary(lists:duplicate(max(N - string:length(S), 0), C)).
 trim(S) -> unicode:characters_to_binary(string:trim(S)).
 toLower(S) -> unicode:characters_to_binary(string:lowercase(S)).
 toInt(S) ->

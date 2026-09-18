@@ -4,7 +4,7 @@
 
 -export([empty/0, size/1, isEmpty/1, contains/2, get/2, put/3, remove/2, keys/1, values/1,
          map/2, filter/2, filterMap/2, foldLeft/3, foreach/2, any/2, all/2, find/2,
-         fromList/1, toList/1]).
+         merge/2, fromList/1, toList/1]).
 
 empty() -> #{}.
 size(M) -> map_size(M).
@@ -37,5 +37,6 @@ find(M, P) ->
         {value, KV} -> {'Some', KV};
         false -> 'None'
     end.
+merge(A, B) -> maps:merge(A, B).
 fromList(KVs) -> maps:from_list(KVs).
 toList(M) -> maps:to_list(M).

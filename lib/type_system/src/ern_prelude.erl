@@ -67,6 +67,7 @@ eq_vars(['Set', filterMap]) -> [a, b];
 eq_vars(['Set' | _]) -> [a];
 eq_vars(['List', contains]) -> [a];
 eq_vars(['List', remove]) -> [a];
+eq_vars(['List', unique]) -> [a];
 eq_vars(_) -> [].
 
 %% Qualified name and type text.
@@ -137,11 +138,18 @@ values() ->
      {['List', foldLeft], "(List(a), b, (b, a) -> b with e) -> b with e"},
      {['List', foreach], "(List(a), (a) -> Unit with e) -> Unit with e"},
      {['List', span], "(List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e"},
+     {['List', partition], "(List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e"},
+     {['List', unique], "(List(a)) -> List(a)"},
+     {['List', indexed], "(List(a)) -> List(#(Int, a))"},
+     {['List', repeat], "(a, Int) -> List(a)"},
      {['List', sort], "(List(a), (a, a) -> Ordering with e) -> List(a) with e"},
      {['List', remove], "(List(a), a) -> List(a)"},
      {['List', zip], "(List(a), List(b)) -> List(#(a, b))"},
+     {['List', unzip], "(List(#(a, b))) -> #(List(a), List(b))"},
      {['List', flatMap], "(List(a), (a) -> List(b) with e) -> List(b) with e"},
      {['List', range], "(Int, Int) -> List(Int)"},
+     {['List', tryMap], "(List(a), (a) -> Either(e, b) with x) -> Either(e, List(b)) with x"},
+     {['List', tryFold], "(List(a), b, (b, a) -> Either(e, b) with x) -> Either(e, b) with x"},
      %% E.3 Map
      {['Map', empty], "Map(k, v)"},
      {['Map', size], "(Map(k, v)) -> Int"},
@@ -160,6 +168,7 @@ values() ->
      {['Map', any], "(Map(k, v), (k, v) -> Bool with e) -> Bool with e"},
      {['Map', all], "(Map(k, v), (k, v) -> Bool with e) -> Bool with e"},
      {['Map', find], "(Map(k, v), (k, v) -> Bool with e) -> Optional(#(k, v)) with e"},
+     {['Map', merge], "(Map(k, v), Map(k, v)) -> Map(k, v)"},
      {['Map', fromList], "(List(#(k, v))) -> Map(k, v)"},
      {['Map', toList], "(Map(k, v)) -> List(#(k, v))"},
      %% E.4 Set
@@ -172,6 +181,7 @@ values() ->
      {['Set', union], "(Set(a), Set(a)) -> Set(a)"},
      {['Set', intersect], "(Set(a), Set(a)) -> Set(a)"},
      {['Set', difference], "(Set(a), Set(a)) -> Set(a)"},
+     {['Set', isSubset], "(Set(a), Set(a)) -> Bool"},
      {['Set', fromList], "(List(a)) -> Set(a)"},
      {['Set', toList], "(Set(a)) -> List(a)"},
      {['Set', map], "(Set(a), (a) -> b with e) -> Set(b) with e"},
@@ -186,6 +196,13 @@ values() ->
      {['String', size], "(String) -> Int"},
      {['String', isEmpty], "(String) -> Bool"},
      {['String', contains], "(String, String) -> Bool"},
+     {['String', startsWith], "(String, String) -> Bool"},
+     {['String', endsWith], "(String, String) -> Bool"},
+     {['String', replace], "(String, String, String) -> String"},
+     {['String', slice], "(String, Int, Int) -> String"},
+     {['String', padStart], "(String, Int, Char) -> String"},
+     {['String', padEnd], "(String, Int, Char) -> String"},
+     {['String', repeat], "(String, Int) -> String"},
      {['String', trim], "(String) -> String"},
      {['String', toLower], "(String) -> String"},
      {['String', toUpper], "(String) -> String"},

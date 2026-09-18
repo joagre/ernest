@@ -1211,7 +1211,7 @@ Informative, not normative: this appendix lists the modules that ship with the c
 Four rules decide whether a function is in.
 
 1. Its value lives in the runtime and Ernest cannot compute it, or the runtime's implementation is the one to trust: the `Map` and `Set` operations, the Unicode operations on `String` and `Char`, `Float` arithmetic, `Int.toString`, the bit operations, `Foreign`, `Random`, and the modules over the system references of §8.2. These are shims over `foreign fn` or over a system process, and a shim exists only where this rule applies.
-2. It follows from the type's structure. A container provides the container operations of the vocabulary below; a container that lacks one says so in its section. A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `zip`, `flatMap`, `range`. A conversion to text has its inverse when programs read that type from text.
+2. It follows from the type's structure. A container provides the container operations of the vocabulary below; a container that lacks one says so in its section. A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, and `tryMap` and `tryFold` for a step that can fail. A conversion to text has its inverse when programs read that type from text.
 3. A program under `examples/` writes it and the hand-written version has no policy choice in it. One program is enough.
 4. It is not a composition. A function that is one pipe of two functions already here is not added: `List.concat` is `List.flatMap(xs, fn(x) = x)`, `List.sum` is `List.foldLeft(xs, 0, Int.+)`.
 
@@ -1237,7 +1237,7 @@ Io.readLine : () -> Optional(String) with m // the next line without its line fe
 
 ### Appendix E.2. `list.ern` (namespace `List`)
 
-`[]` is `empty` and `::` is `put`, so neither is a function; `fromList` and `toList` are the identity and are not provided. `contains` and `remove` require equality on `a` (§3.10). `List.<>` is the prelude's, §9.6.
+`[]` is `empty` and `::` is `put`, so neither is a function; `fromList` and `toList` are the identity and are not provided. `contains`, `remove`, and `unique` require equality on `a` (§3.10). `List.<>` is the prelude's, §9.6.
 
 ```
 List.size : (List(a)) -> Int
@@ -1258,11 +1258,18 @@ List.take : (List(a), Int) -> List(a) // the first n, or all when there are fewe
 List.drop : (List(a), Int) -> List(a) // all but the first n; n below 0 is 0
 List.dropLast : (List(a)) -> List(a) // the empty list stays empty
 List.span : (List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e // the longest prefix that satisfies, and the rest
+List.partition : (List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e // those that satisfy and those that do not, each in order
+List.unique : (List(a)) -> List(a) // the first occurrence of each, in order
+List.indexed : (List(a)) -> List(#(Int, a)) // each element with its index from 0
+List.repeat : (a, Int) -> List(a) // n copies; n below 0 is 0
 List.reverse : (List(a)) -> List(a)
 List.sort : (List(a), (a, a) -> Ordering with e) -> List(a) with e // stable
 List.zip : (List(a), List(b)) -> List(#(a, b)) // to the shorter length
+List.unzip : (List(#(a, b))) -> #(List(a), List(b))
 List.flatMap : (List(a), (a) -> List(b) with e) -> List(b) with e
 List.range : (Int, Int) -> List(Int) // from the first to the second inclusive; empty when the first is greater
+List.tryMap : (List(a), (a) -> Either(e, b) with x) -> Either(e, List(b)) with x // the first Left ends it
+List.tryFold : (List(a), b, (b, a) -> Either(e, b) with x) -> Either(e, b) with x // the first Left ends it
 ```
 
 ### Appendix E.3. `map.ern` (namespace `Map`)
@@ -1285,6 +1292,7 @@ Map.foreach : (Map(k, v), (k, v) -> Unit with e) -> Unit with e
 Map.any : (Map(k, v), (k, v) -> Bool with e) -> Bool with e
 Map.all : (Map(k, v), (k, v) -> Bool with e) -> Bool with e
 Map.find : (Map(k, v), (k, v) -> Bool with e) -> Optional(#(k, v)) with e // some entry that satisfies
+Map.merge : (Map(k, v), Map(k, v)) -> Map(k, v) // the second wins for a shared key
 Map.fromList : (List(#(k, v))) -> Map(k, v) // a later pair wins
 Map.toList : (Map(k, v)) -> List(#(k, v))
 Map.keys : (Map(k, v)) -> List(k)
@@ -1315,6 +1323,7 @@ Set.toList : (Set(a)) -> List(a)
 Set.union : (Set(a), Set(a)) -> Set(a)
 Set.intersect : (Set(a), Set(a)) -> Set(a)
 Set.difference : (Set(a), Set(a)) -> Set(a) // the elements of the first not in the second
+Set.isSubset : (Set(a), Set(a)) -> Bool // every element of the first is in the second
 ```
 
 ### Appendix E.5. `string.ern` (namespace `String`)
@@ -1325,6 +1334,13 @@ A `String` is not a container: operations on its characters go through `toList`.
 String.size : (String) -> Int // code points
 String.isEmpty : (String) -> Bool
 String.contains : (String, String) -> Bool // substring
+String.startsWith : (String, String) -> Bool
+String.endsWith : (String, String) -> Bool
+String.replace : (String, String, String) -> String // every occurrence of the second by the third; an empty second changes nothing
+String.slice : (String, Int, Int) -> String // from the index, that many code points, clipped to the string; a negative index or count is 0
+String.padStart : (String, Int, Char) -> String // the character in front until the length is at least the second
+String.padEnd : (String, Int, Char) -> String // the character at the end until the length is at least the second
+String.repeat : (String, Int) -> String // n times; n below 0 is 0
 String.trim : (String) -> String // without leading and trailing whitespace
 String.toLower : (String) -> String
 String.toUpper : (String) -> String

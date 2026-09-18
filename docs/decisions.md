@@ -2505,6 +2505,14 @@ The question that started the day: which of Erlang's modules belong in Ernest's 
 
 **`Sys.args` and `Sys.env`** wait for the first command-line program, in the plan's list, rather than entering now: they are two lines, but nothing under `examples/` reads them, and the corpus rule is the rule.
 
+## Gleam's Standard Library, Compared, 2026-09-18
+
+Gleam stdlib v1.0.5, the BEAM library readers call sweet, read module by module against Appendix E. At module level Ernest has Gleam's set under its own names minus `function`, `pair`, `string_tree`, `bytes_tree`, `uri`, and `dynamic/decode`, which are patterns, compositions, or libraries here, and has `Char`, `Random`, `Path`, and the system modules, which are separate packages in Gleam. `Map` and `Set` match `dict` and `set` function for function, with `find`, `any`, `all`, and `filterMap` on top. `Optional` and `Either` are thinner than `option` and `result` because `<-` does what `use` and `result.try` do, and the rest are compositions.
+
+At function level `String` had eighteen functions to Gleam's thirty-nine and `List` twenty-three to sixty-two, and the gap held things a reader reaches for without thinking. Admitted, each needing recursion or the runtime and so not a composition: `String.startsWith`, `endsWith`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`; `List.partition`, `unique`, `indexed`, `repeat`, `unzip`, `tryMap`, `tryFold`; `Map.merge`, since `Set` had `union` and `Map` had no way to combine two; `Set.isSubset`, set algebra rule 2 implies. `indexed` is one function where Gleam has `index_map` and `index_fold`, since the pair list feeds `map` and `foldLeft` as they are. `tryMap` and `tryFold` are what `<-` cannot do inside a `map`. The pad functions take a `Char`, one job, where Gleam's take a string. The new verbs, `partition`, `unique`, `indexed`, `repeat`, `unzip`, `tryMap`, `tryFold`, `merge`, `isSubset`, `startsWith`, `endsWith`, `replace`, `slice`, `padStart`, `padEnd`, are in E.0's sequence vocabulary or are one type's algebra.
+
+Not admitted: Gleam's other thirty `list` functions, compositions (`first`, `rest`, `flatten`, `count`, `map2`) or specialities (`permutations`, `window`, `transpose`); `order`, since `Ordering.reverse` is `fn(a, b) = compare(b, a)`; `pair`; `function.identity`; `bool.guard`; `string.inspect`; `bit_array`'s base64, a library. Sent to the plan's bins: `Float.looselyEquals`, the honest float comparison, waiting for a program that compares floats; and stderr, which Gleam's `io` has as `print_error` and `println_error` and Ernest removed on 2026-09-14, restored as `Sys.stderr` with `Io.printError` and `Io.printlnError` at the first command-line program.
+
 ## Later
 
 Planned or considered, not in the language today.
