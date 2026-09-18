@@ -2580,7 +2580,7 @@ MVP 2's first item. MVP 1 typed `a + b` as `(t, t) -> t` and read `t` after the 
 
 Ordering the definitions was the one design problem. The dependency graph is built before inference, when `a + b` names no member, so an operator counts as a reference to that member in every local type, `Vec.+` and `Dist.+` alike for a `+`. The over-approximation costs only that a definition and an operator it does not use may be checked as one group, monomorphic within it, which is what any recursive group is; a false cycle among top-level lets was the one visible effect, so the §8.5 rule now walks the exact references inside the group instead of trusting the group's size. Not taken: resolving a forward member on demand from inside inference, re-entrant and a second order of checking; and a placeholder per operator member before all groups, which would have made every operator monomorphic before its own group's annotations were read.
 
-Prefix `-` stays `Int.negate` or `Float.negate` by §5.1, and a user type has no prefix minus; that is the report's rule, and whether it should extend to `T.negate` is a report decision left open for the user, not taken silently.
+Prefix `-` was `Int.negate` or `Float.negate` by §5.1, so a type with `Vec.+` and `Vec.-` had no `-v`, the one operator that did not resolve by operand type. The user decided the same day: §5.1 now says `negate` in the operand type's namespace, and §2.6 no longer names the two types. The checker resolves it as it resolves `+`, with a member of one operand.
 
 ## Later
 
@@ -2613,7 +2613,7 @@ What stood in the specification as reasoning, comparison, or guidance has moved 
 
 ## Measure
 
-The report's prose, sections 0 to 11 without code blocks and tables, stays under 8,500 words, about twenty-one pages, with no section over 600 words; it is measured the same way after every pass and recorded here. The limit was 8,000 until §11.5 gained the error format on 2026-09-18, a rule the report had never stated, which is what a limit is raised for. Oberon's ten pages was the measure when the language part was six pages and 2,100 words, and 3,200 words with distribution and the toolchain; the report since gained the reply discipline, bitstrings, system references, code shipping, the standard library's rules, and a toolchain, and after the paring of 2026-09-18 and the placement rule in §11.5 it is 8,167 words of rule in 81 sections at a median of 76 words. A section that grows past 600 words is restating something.
+The report's prose, sections 0 to 11 without code blocks and tables, stays under 8,500 words, about twenty-one pages, with no section over 600 words; it is measured the same way after every pass and recorded here. The limit was 8,000 until §11.5 gained the error format on 2026-09-18, a rule the report had never stated, which is what a limit is raised for. Oberon's ten pages was the measure when the language part was six pages and 2,100 words, and 3,200 words with distribution and the toolchain; the report since gained the reply discipline, bitstrings, system references, code shipping, the standard library's rules, and a toolchain, and after the paring of 2026-09-18 and the placement rule in §11.5 it is 8,171 words of rule in 81 sections at a median of 76 words. A section that grows past 600 words is restating something.
 
 ## Next Steps
 

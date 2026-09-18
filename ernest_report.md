@@ -110,7 +110,7 @@ literal  = int | float | char | string | bool .
 
 Tokens are formed by max-munch: `>>`, `<-`, `->`, `==`, `!=`, `<=`, `>=`, `&&`, `||`, `|>`, `<>`, `::`, `#(`, `<<`, and `..` are single tokens. `|` is a delimiter of `match` clauses, sum-type constructors, and `receive` clauses, and never a `binop`.
 
-Prefix `-` is negation on `Int` and `Float` and binds tighter than any binary operator. Precedence of the binary operators, highest first:
+Prefix `-` is negation and binds tighter than any binary operator. Precedence of the binary operators, highest first:
 
 | Level | Operators              | Associativity |
 |-------|------------------------|---------------|
@@ -357,7 +357,7 @@ FieldPats = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 
 ### 5.1 Evaluation
 
-Strict, left to right, arguments before the call. Nothing is delayed; `fn() = e` defers `e`. Prefix `-` is `Int.negate` or `Float.negate` by the operand type.
+Strict, left to right, arguments before the call. Nothing is delayed; `fn() = e` defers `e`. Prefix `-` is `negate` in the operand type's namespace: `Int.negate`, `Float.negate`, or `T.negate` declared as §4.8 declares `T.+`.
 
 ### 5.2 Calls
 

@@ -425,25 +425,26 @@ float_fault_test() ->
                   "Io.println(Float.toString(zero() / zero()))\n"),
     ?assertEqual({fault, <<"float arithmetic error">>}, R3).
 
-%% report §4.8, §3.10: a user type's operator is its member, and its
-%% ordering goes through its compare; in a receive guard the ordering is a
+%% report §4.8, §3.10, §5.1: a user type's operator is its member, its
+%% ordering goes through its compare, prefix - through its negate; in a receive guard the ordering is a
 %% call, so MVP 1's guard rule refuses it
 user_operators_test() ->
     Vec = "type Vec = Vec(Int)\n"
           "export fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a + b)\n"
           "export fn Vec.*(Vec(a), Vec(b)) -> Float = Int.toFloat(a * b)\n"
           "export fn Vec.compare(Vec(a), Vec(b)) -> Ordering = Int.compare(b, a)\n"
+          "export fn Vec.negate(Vec(a)) -> Vec = Vec(-a)\n"
           "fn show(Vec(n)) -> String = Int.toString(n)\n",
     {ok, Out} = run(Vec ++
         "export fn main() -> Unit with Never = {\n"
         "    let a = Vec(1);\n"
         "    let b = Vec(2);\n"
-        "    Io.println(show(a + b));\n"
+        "    Io.println(show(-(a + b)));\n"
         "    Io.println(Float.toString((a * b) + 0.5));\n"
         "    Io.println(Bool.toString(a < b));\n"
         "    Io.println(Bool.toString(a >= b && b <= a && a > b))\n"
         "}\n"),
-    ?assertEqual(<<"3\n2.5\nfalse\ntrue\n">>, Out),
+    ?assertEqual(<<"-3\n2.5\nfalse\ntrue\n">>, Out),
     Msg = compile_error(Vec ++
         "type Msg = Go(Vec)\n"
         "fn loop() -> Unit with Msg = receive {\n"

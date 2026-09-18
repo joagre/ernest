@@ -94,6 +94,13 @@ user_type_operators_test() ->
                  type_of("export fn f(a : Vec, b) = a + b\n" ++ Vec, f)),
     ?assertEqual("`-` is not defined on Vec", err(Vec ++ "fn f(a : Vec, b) = a - b")),
     ?assertEqual("`-` is not defined on Vec", err(Vec ++ "fn f(a : Vec) = -a")),
+    %% report §5.1: prefix - is negate in the operand type's namespace
+    ?assertEqual("(M.Vec) -> M.Vec",
+                 type_of(Vec ++ "export fn Vec.negate(Vec(a)) -> Vec = Vec(-a)\n"
+                         "export fn f(a : Vec) = -a", f)),
+    ?assertMatch("Vec.negate does not fit an operand of Vec: " ++ _,
+                 err(Vec ++ "export fn Vec.negate(Vec(a), Vec(b)) -> Vec = Vec(-a)\n"
+                     "fn f(a : Vec) = -a")),
     ?assertMatch("V.compare must return an Ordering: " ++ _,
                  err("type V = V(Int)\nexport fn V.compare(V(a), V(b)) -> Int = a - b\n"
                      "fn f(a : V, b) = a < b")),

@@ -461,6 +461,8 @@ refs(#e_binop{op = Op, left = L, right = R}, #env{local_types = LT} = Env, Acc)
                _ -> [{Owner, Member} || Owner <- maps:keys(LT)] ++ Acc
            end,
     refs(R, Env, refs(L, Env, Acc1));
+refs(#e_neg{expr = X}, #env{local_types = LT} = Env, Acc) ->
+    refs(X, Env, [{Owner, negate} || Owner <- maps:keys(LT)] ++ Acc);
 refs(T, Env, Acc) when is_tuple(T) ->
     lists:foldl(fun(X, A) -> refs(X, Env, A) end, Acc, tl(tuple_to_list(T)));
 refs(L, Env, Acc) when is_list(L) ->
@@ -921,7 +923,8 @@ free_in(_, _) ->
 %% deferred to the end of the definition, where it must be known. The
 %% result: the operand type for Int, Float, and `<>`; Bool for an
 %% ordering; a user type's own member, `T.+` or `T.compare`, instantiated
-%% and applied to two operands of the type. Prefix `-` is `negate` here.
+%% and applied to two operands of the type, or `T.negate` to one, since
+%% prefix `-` is `negate` in the operand type's namespace (§5.1).
 operator_result(Pos, Op, LT, Env) ->
     case ern_types:resolve(LT, Env#env.st) of
         {tvar, _} ->
@@ -943,7 +946,7 @@ resolve_operator(Pos, Op, LT, #env{st = St} = Env) ->
         {tcon, ['Char'], []} -> arith_or_order(Op, LT, [], Pos, Env);
         {tcon, ['List'], _} when Op =:= '<>' -> {LT, Env};
         {tcon, ['Bytes'], []} when Op =:= '<>' -> {LT, Env};
-        {tcon, Q, _} when length(Q) > 1, Op =/= negate -> user_operator(Pos, Op, LT, Q, Env);
+        {tcon, Q, _} when length(Q) > 1 -> user_operator(Pos, Op, LT, Q, Env);
         _ -> not_defined(Pos, Op, T, Env)
     end.
 
@@ -970,10 +973,14 @@ user_operator(Pos, Op, LT, Q, Env) ->
                                           Flag =:= no_reply orelse Flag =:= eq],
             {Eff, St2} = ern_types:fresh_effect(St1),
             {Res, St3} = ern_types:fresh(St2),
-            Env1 = unify_at(Pos, {tfn, [LT, LT], Eff, Res}, FT,
+            {Operands, Context} =
+                case Op of
+                    negate -> {[LT], Name ++ " does not fit an operand of "};
+                    _ -> {[LT, LT], Name ++ " does not fit two operands of "}
+                end,
+            Env1 = unify_at(Pos, {tfn, Operands, Eff, Res}, FT,
                             Env#env{st = St3, pending = Pending ++ Env#env.pending},
-                            Name ++ " does not fit two operands of "
-                            ++ ern_types:format(LT, St3)),
+                            Context ++ ern_types:format(LT, St3)),
             Env2 = use_effect(Pos, Name, Eff, Env1),
             case Member of
                 compare ->

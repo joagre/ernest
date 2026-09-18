@@ -245,6 +245,11 @@ refs(#e_binop{op = Op, left = L, right = R}) ->
                  _ -> []
              end,
     Member ++ refs(L) ++ refs(R);
+refs(#e_neg{expr = X}) ->
+    case ern_typecheck:node_type(X) of
+        {tcon, Q, _} when length(Q) > 1 -> [{lists:last(Q), negate} | refs(X)];
+        _ -> refs(X)
+    end;
 refs(T) when is_tuple(T) -> lists:append([refs(X) || X <- tl(tuple_to_list(T))]);
 refs(L) when is_list(L) -> lists:append([refs(X) || X <- L]);
 refs(_) -> [].
@@ -275,7 +280,7 @@ expr(#e_call{pos = Pos, callee = Callee, args = Args}, Cx) ->
     call(Pos, Callee, Args, Cx);
 expr(#e_neg{pos = Pos, expr = X}, Cx) ->
     {Form, Cx1} = expr(X, Cx),
-    {at(Pos, negate(resolved(ern_typecheck:node_type(X), Cx), Form)), Cx1};
+    {at(Pos, negate(resolved(ern_typecheck:node_type(X), Cx), Form, Cx)), Cx1};
 expr(#e_binop{pos = Pos, op = Op, left = L, right = R}, Cx) ->
     {LF, Cx1} = expr(L, Cx),
     {RF, Cx2} = expr(R, Cx1),
@@ -613,8 +618,9 @@ binop('<=', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('=<'), R
 binop(Op, _, L, R, _) when Op =:= '<'; Op =:= '>'; Op =:= '>=' ->
     erl_syntax:infix_expr(L, erl_syntax:operator(Op), R).
 
-negate({tcon, ['Float'], []}, Form) -> call_remote('ernest@float', negate, [Form]);
-negate(_, Form) -> erl_syntax:prefix_expr(erl_syntax:operator('-'), Form).
+negate({tcon, ['Float'], []}, Form, _) -> call_remote('ernest@float', negate, [Form]);
+negate({tcon, Q, _}, Form, Cx) when length(Q) > 1 -> member_call(Q, negate, [Form], Cx);
+negate(_, Form, _) -> erl_syntax:prefix_expr(erl_syntax:operator('-'), Form).
 
 %% A member of the type Q: a local function when Q is this module's type,
 %% otherwise a call into the module that owns it (report §4.2).
