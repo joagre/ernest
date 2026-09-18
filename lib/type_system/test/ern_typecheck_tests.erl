@@ -820,3 +820,62 @@ effect_placement_test() ->
     D6 = diag("fn f() -> Unit with Never = { let g = fn() -> Unit = Io.println(\"x\"); g() }\n"),
     ?assertEqual("Io.println needs a process, and the lambda is pure", D6#diag.message),
     ?assertEqual("give the lambda a mailbox type with `with`", D6#diag.help).
+
+%%
+%% Bitstrings (report §5.11)
+%%
+
+%% report §5.11: a construction is Bytes; each segment's value has its
+%% specifier's type; the specifiers have their defaults and cannot
+%% conflict; a constant bit count is a multiple of 8
+bitstring_construction_test() ->
+    ?assertEqual("(Int, Bytes) -> Bytes",
+                 type_of("export fn frame(len : Int, body : Bytes) -> Bytes ="
+                         " <<len:size(16)-big, body:bytes>>", frame)),
+    ?assertEqual("(Float, Char, Bytes) -> Bytes",
+                 type_of("export fn f(x, c, b) = <<x:float, c:utf8, b:size(2)-bytes, 1:size(4),"
+                         " 2:size(4)>>", f)),
+    ?assertEqual("() -> Bytes", type_of("export fn f() = <<>>", f)),
+    ?assertEqual("an `int` segment: expected Int, found String", err("fn f() = <<\"a\">>")),
+    ?assertEqual("a `bytes` segment: expected Bytes, found Int", err("fn f() = <<1:bytes>>")),
+    ?assertEqual("the size of a segment: expected Int, found Bool",
+                 err("fn f() = <<1:size(true)>>")),
+    ?assertEqual("the bitstring is 12 bits, not a multiple of 8",
+                 err("fn f() = <<1, 2:size(4)>>")),
+    ?assertEqual(ok, ok("fn f(n : Int) = <<1:size(4), 2:size(n)>>")),
+    ?assertEqual("conflicting bitstring specifiers `int` and `float`",
+                 err("fn f() = <<1:int-float>>")),
+    ?assertEqual("conflicting bitstring specifiers `big` and `little`",
+                 err("fn f() = <<1:big-little>>")),
+    ?assertEqual("unit is 1 to 256 on this runtime", err("fn f() = <<1:unit(0)>>")),
+    ?assertEqual("a utf segment has no size or unit", err("fn f() = <<'a':utf8-size(8)>>")),
+    ?assertEqual("a float segment is 16, 32, or 64 bits", err("fn f() = <<1.0:size(8)-float>>")),
+    ?assertEqual("a `bits` segment is a whole number of bytes, not 12 bits",
+                 err("fn f(b : Bytes) = <<b:size(12)-bits>>")).
+
+%% report §5.11: a pattern binds each segment at its type; a size sees the
+%% earlier segments and is pure; a segment pattern is a variable, `_`, or
+%% a literal; a sizeless rest is last; a match needs a final wildcard
+bitstring_pattern_test() ->
+    ?assertEqual("(Bytes) -> Optional(#(Int, Bytes, Bytes))",
+                 type_of("export fn parse(b : Bytes) = match b {"
+                         " <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> ->"
+                         " Some(#(len, body, rest)) | _ -> None }", parse)),
+    ?assertEqual("(Bytes) -> Optional(#(Char, Float))",
+                 type_of("export fn f(b) = match b { <<c:utf8, x:size(32)-float, _:bits>> ->"
+                         " Some(#(c, x)) | _ -> None }", f)),
+    ?assertEqual("the size of a segment: expected Int, found Bytes",
+                 err("fn f(b : Bytes) = match b { <<n:bytes, x:size(n)>> -> x | _ -> 0 }")),
+    ?assertEqual("Io.println needs a process, and a size expression is pure",
+                 err("fn f(b : Bytes) -> Int with Never = match b {"
+                     " <<x:size({ Io.println(\"a\"); 8 })>> -> x | _ -> 0 }")),
+    ?assertEqual("a segment pattern is a variable, `_`, or a literal",
+                 err("fn f(b : Bytes) = match b { <<Some(x)>> -> x | _ -> 0 }")),
+    ?assertEqual("a `bytes` segment without a size takes the rest, so it is the last segment",
+                 err("fn f(b : Bytes) = match b { <<a:bytes, c:bytes>> -> a | _ -> b }")),
+    ?assertEqual("the pattern is 4 bits, not a multiple of 8",
+                 err("fn f(b : Bytes) = match b { <<x:size(4)>> -> x | _ -> 0 }")),
+    ?assertMatch("match on Bytes is not exhaustive; missing _",
+                 err("fn f(b : Bytes) = match b { <<>> -> 0 | <<_, r:bytes>> -> 1 }")),
+    ?assertEqual("a `let` pattern must be irrefutable",
+                 err("fn f(b : Bytes) = { let <<x>> = b; x }")).

@@ -23,7 +23,9 @@
 
 %% Emission context, threaded through everything.
 -record(cx, {ns, mod, env, fname, vars = #{}, counter = 0, locals = #{}, lifted = [],
-             tops = #{}, mailbox = pure, descs = #{}}).
+             tops = #{}, mailbox = pure, descs = #{}, pat_guards = []}).
+%% pat_guards: Erlang guard forms a pattern needs on its clause, a `bits`
+%% segment's is_binary (report §5.11), taken by the clause that uses them
 %% descs: descriptor term => the name of the module function returning it
 %% mailbox: the enclosing function's effect, the type a receive checks its
 %% messages against (report §8.4)
@@ -307,8 +309,29 @@ expr(#e_tuple{pos = Pos, elems = Es}, Cx) ->
 expr(#e_list{pos = Pos, elems = Es}, Cx) ->
     {Forms, Cx1} = exprs(Es, Cx),
     {at(Pos, erl_syntax:list(Forms)), Cx1};
-expr(#e_bits{pos = Pos}, _Cx) ->
-    fail(Pos, "bitstrings are not in MVP 1");
+expr(#e_bits{pos = Pos, segments = Segs}, Cx) ->
+    %% report §5.11, §7.4: the runtime's bit syntax, each segment's value
+    %% checked for its width by ern_bits, a badarg the segment overflow
+    %% fault, and the result checked for alignment when a dynamic size
+    %% leaves the bit count open
+    {Fields, {Cx1, Open}} =
+        lists:mapfoldl(fun(#bit_seg{value = V, specs = Specs}, {C, O}) ->
+                           {ok, Spec} = ern_typecheck:segment_spec(Specs),
+                           {VF, C1} = expr(V, C),
+                           {SizeF, C2} = size_form(Spec, C1),
+                           Checked = segment_value(Spec, VF, SizeF),
+                           {erl_syntax:binary_field(Checked, SizeF, type_specs(Spec)),
+                            {C2, O orelse open(Spec)}}
+                       end, {Cx, false}, Segs),
+    Handler = erl_syntax:clause([erl_syntax:class_qualifier(erl_syntax:atom(error),
+                                                            erl_syntax:atom(badarg))],
+                                none, [call_remote(ern_bits, overflow, [])]),
+    Built = erl_syntax:try_expr([erl_syntax:binary(Fields)], [], [Handler]),
+    Form = case Open of
+               true -> call_remote(ern_bits, aligned, [Built]);
+               false -> Built
+           end,
+    {at(Pos, Form), Cx1};
 expr(#e_block{pos = Pos, stmts = Stmts}, Cx) ->
     {Forms, Cx1} = block(Stmts, Cx),
     {at(Pos, erl_syntax:block_expr(Forms)), Cx1#cx{vars = Cx#cx.vars, locals = Cx#cx.locals}};
@@ -1020,9 +1043,10 @@ match_clauses(SF, Clauses, Cx) ->
 
 general_clauses(SVar, [#clause{pattern = P, guard = G, body = B}], Cx) when
       G =:= undefined ->
-    {PF, Cx1} = pattern(P, Cx),
-    {BF, Cx2} = body(B, Cx1),
-    {erl_syntax:case_expr(SVar, [erl_syntax:clause([PF], none, BF)]), Cx2#cx{vars = Cx#cx.vars}};
+    {PF, Cx1} = pattern(P, Cx#cx{pat_guards = []}),
+    {PG, _} = take_pat_guards(none, Cx1),
+    {BF, Cx2} = body(B, Cx1#cx{pat_guards = Cx#cx.pat_guards}),
+    {erl_syntax:case_expr(SVar, [erl_syntax:clause([PF], PG, BF)]), Cx2#cx{vars = Cx#cx.vars}};
 general_clauses(SVar, [#clause{pattern = P, guard = G, body = B} | Rest], Cx) ->
     %% Rest = fun() -> <remaining> end; the guard falls through to Rest()
     {[R], Cx1} = fresh_vars(1, "Rest", Cx),
@@ -1033,7 +1057,9 @@ general_clauses(SVar, [#clause{pattern = P, guard = G, body = B} | Rest], Cx) ->
                       end,
     RestFun = erl_syntax:fun_expr([erl_syntax:clause([], none, [RestBody])]),
     Bind = erl_syntax:match_expr(RVar, RestFun),
-    {PF, Cx3} = pattern(P, Cx2),
+    {PF, Cx3a0} = pattern(P, Cx2#cx{pat_guards = []}),
+    {PG, _} = take_pat_guards(none, Cx3a0),
+    Cx3 = Cx3a0#cx{pat_guards = Cx2#cx.pat_guards},
     Fallthrough = erl_syntax:application(RVar, []),
     {Body, Cx4} = case G of
                       undefined -> body(B, Cx3);
@@ -1046,7 +1072,7 @@ general_clauses(SVar, [#clause{pattern = P, guard = G, body = B} | Rest], Cx) ->
                                                      [Fallthrough])])],
                            Cx3b}
                   end,
-    Case = erl_syntax:case_expr(SVar, [erl_syntax:clause([PF], none, Body),
+    Case = erl_syntax:case_expr(SVar, [erl_syntax:clause([PF], PG, Body),
                                        erl_syntax:clause([erl_syntax:underscore()], none,
                                                          [Fallthrough])]),
     {erl_syntax:block_expr([Bind, Case]), Cx4#cx{vars = Cx#cx.vars}}.
@@ -1057,12 +1083,13 @@ simple_clause(C, Cx) ->
 %% With Check, the whole matched value is bound to a variable and checked
 %% before the body (report §8.4).
 simple_clause(#clause{pos = Pos, pattern = P, guard = G, body = B}, Check, Cx) ->
-    {PF, Cx1} = pattern(P, Cx),
-    {GF, Cx2} = case G of
-                    undefined -> {none, Cx1};
-                    _ -> expr(G, Cx1)
-                end,
-    {BF, Cx3} = body(B, Cx2),
+    {PF, Cx1} = pattern(P, Cx#cx{pat_guards = []}),
+    {GF0, Cx2} = case G of
+                     undefined -> {none, Cx1};
+                     _ -> expr(G, Cx1)
+                 end,
+    {GF, _} = take_pat_guards(GF0, Cx2),
+    {BF, Cx3} = body(B, Cx2#cx{pat_guards = Cx#cx.pat_guards}),
     {PF1, BF1, Cx4} =
         case Check of
             none -> {PF, BF, Cx3};
@@ -1156,8 +1183,99 @@ pattern(#p_as{pos = Pos, pattern = P, name = N}, Cx) ->
     {PF, Cx1} = pattern(P, Cx),
     {V, Cx2} = bind(N, Cx1),
     {at(Pos, erl_syntax:match_expr(erl_syntax:variable(V), PF)), Cx2};
-pattern(#p_bits{pos = Pos}, _Cx) ->
-    fail(Pos, "bitstrings are not in MVP 1").
+pattern(#p_bits{pos = Pos, segments = Segs}, Cx) ->
+    %% report §5.11: a size expression must be an Erlang guard expression
+    %% here; a `bits` segment is bound to a variable and guarded is_binary,
+    %% so an unaligned rest fails the match
+    {Fields, Cx1} =
+        lists:mapfoldl(fun(#bit_seg{value = V, specs = Specs}, C) ->
+                           {ok, Spec} = ern_typecheck:segment_spec(Specs),
+                           {SizeF, C1} = pattern_size(Spec, C),
+                           {VF, C2} = bits_pattern_value(Spec, V, C1),
+                           {erl_syntax:binary_field(VF, SizeF, type_specs(Spec)), C2}
+                       end, Cx, Segs),
+    {at(Pos, erl_syntax:binary(Fields)), Cx1}.
+
+bits_pattern_value(#{kind := bits}, V, Cx) ->
+    {VF, Cx1} = case V of
+                    #p_wild{pos = Pos} ->
+                        {[N], C} = fresh_vars(1, "B", Cx),
+                        {at(Pos, erl_syntax:variable(N)), C};
+                    _ -> pattern(V, Cx)
+                end,
+    Guard = call_remote(erlang, is_binary, [VF]),
+    {VF, Cx1#cx{pat_guards = Cx1#cx.pat_guards ++ [Guard]}};
+bits_pattern_value(_, V, Cx) ->
+    pattern(V, Cx).
+
+pattern_size(#{size := {expr, E}}, Cx) ->
+    guard_expression(E) orelse
+        fail(element(2, E), "in MVP 2 a size expression in a pattern is a variable, a literal,"
+                            " or arithmetic on them (report §5.11; general expressions come with"
+                            " MVP 4)"),
+    expr(E, Cx);
+pattern_size(Spec, Cx) ->
+    size_form(Spec, Cx).
+
+guard_expression(#e_lit{kind = int}) -> true;
+guard_expression(#e_var{path = []}) -> true;
+guard_expression(#e_neg{expr = E}) -> guard_expression(E);
+guard_expression(#e_binop{op = Op, left = L, right = R}) when Op =:= '+'; Op =:= '-';
+                                                           Op =:= '*'; Op =:= '/';
+                                                           Op =:= '%' ->
+    guard_expression(L) andalso guard_expression(R);
+guard_expression(_) -> false.
+
+%% The clause guards a pattern asked for, joined to the clause's own.
+take_pat_guards(GF, #cx{pat_guards = []}) -> {GF, GF};
+take_pat_guards(GF, #cx{pat_guards = Gs}) ->
+    All = case GF of none -> Gs; _ -> Gs ++ [GF] end,
+    Joined = lists:foldl(fun(G, Acc) -> erl_syntax:infix_expr(Acc, erl_syntax:operator('andalso'),
+                                                              G) end,
+                         hd(All), tl(All)),
+    {Joined, GF}.
+
+%%
+%% Bitstring segments, report §5.11
+%%
+
+size_form(#{size := none}, Cx) -> {none, Cx};
+size_form(#{size := {const, N}}, Cx) -> {erl_syntax:integer(N), Cx};
+size_form(#{size := {expr, E}}, Cx) -> expr(E, Cx).
+
+%% The width in bits as a form: size times unit.
+bits_form(#{size := {const, N}, unit := U}, _) -> erl_syntax:integer(N * U);
+bits_form(#{unit := 1}, SizeF) -> SizeF;
+bits_form(#{unit := U}, SizeF) ->
+    erl_syntax:infix_expr(SizeF, erl_syntax:operator('*'), erl_syntax:integer(U)).
+
+segment_value(#{kind := int, sign := Sign} = Spec, VF, SizeF) ->
+    call_remote(ern_bits, int, [VF, bits_form(Spec, SizeF), erl_syntax:atom(Sign)]);
+segment_value(#{kind := float} = Spec, VF, SizeF) ->
+    call_remote(ern_bits, float, [VF, bits_form(Spec, SizeF)]);
+segment_value(#{kind := bytes, size := none}, VF, _) -> VF;
+segment_value(#{kind := bytes} = Spec, VF, SizeF) ->
+    call_remote(ern_bits, bytes, [VF, bits_form(Spec, SizeF)]);
+segment_value(#{kind := bits, size := none}, VF, _) -> VF;
+segment_value(#{kind := bits} = Spec, VF, SizeF) ->
+    call_remote(ern_bits, bits, [VF, bits_form(Spec, SizeF)]);
+segment_value(_, VF, _) -> VF.
+
+%% A dynamic size with a unit that is not a multiple of 8 leaves the bit
+%% count open; the built value is then checked for alignment.
+open(#{size := {expr, _}, unit := U}) -> U rem 8 =/= 0;
+open(_) -> false.
+
+type_specs(#{kind := Kind, unit := Unit, endian := Endian, sign := Sign, size := Size}) ->
+    Type = case Kind of
+               int -> integer; bits -> bitstring; bytes -> binary; K -> K
+           end,
+    Utf = lists:member(Kind, [utf8, utf16, utf32]),
+    [erl_syntax:atom(Type)]
+    ++ [erl_syntax:atom(Endian) || not Utf orelse Endian =/= big]
+    ++ [erl_syntax:atom(Sign) || Kind =:= int]
+    ++ [erl_syntax:size_qualifier(erl_syntax:atom(unit), erl_syntax:integer(Unit))
+        || not Utf, Size =/= none].
 
 %%
 %% Variables: every Ernest binding gets a fresh Erlang variable

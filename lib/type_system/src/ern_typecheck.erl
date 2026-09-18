@@ -15,7 +15,7 @@
 
 -export([check/3, check_string/2, prelude_env/0]).
 -export([is_reply_carrying/2, resolve_type/2, lookup_type/2, lookup_con/4, type_state/1,
-         set_type_state/2, node_type/1, foreign_impl/1]).
+         set_type_state/2, node_type/1, foreign_impl/1, segment_spec/1]).
 
 -export_type([env/0]).
 
@@ -1149,8 +1149,12 @@ infer(#e_list{elems = Es} = E, Env) ->
                        end, {Env#env{st = St}, undefined}, Es),
     T = {tcon, ['List'], [ElemT]},
     {E#e_list{elems = TypedEs, type = T}, T, Env1};
-infer(#e_bits{pos = Pos}, _Env) ->
-    fail(Pos, "bitstrings are not in MVP 1");
+infer(#e_bits{pos = Pos, segments = Segs} = E, Env) ->
+    %% report §5.11
+    {TypedSegs, Env1} = lists:mapfoldl(fun(S, En) -> bit_segment(S, construct, En) end, Env,
+                                       Segs),
+    alignment(Pos, TypedSegs, "the bitstring"),
+    {E#e_bits{segments = TypedSegs, type = ?BYTES}, ?BYTES, Env1};
 infer(#e_block{pos = Pos, stmts = Stmts} = E, Env) ->
     {TypedStmts, T, Env1} = infer_block(Stmts, Pos, undefined, Env),
     {E#e_block{stmts = TypedStmts, type = T}, T, Env1#env{vars = Env#env.vars}};
@@ -1674,8 +1678,151 @@ pat(#p_cons{pos = Pos, head = H, tail = Tl} = P, Env) ->
 pat(#p_as{pattern = Sub, name = N} = P, Env) ->
     {TypedSub, T, Bs, Env1} = pat(Sub, Env),
     {P#p_as{pattern = TypedSub, type = T}, T, Bs ++ [{N, T}], Env1};
-pat(#p_bits{pos = Pos}, _Env) ->
-    fail(Pos, "bitstrings are not in MVP 1").
+pat(#p_bits{pos = Pos, segments = Segs} = P, Env) ->
+    %% report §5.11: each segment pattern in turn, the size expressions in
+    %% the scope of the earlier segments' variables
+    {TypedSegs, {Bindings, Env1}} =
+        lists:mapfoldl(fun(S, {Bs, En}) ->
+                           {TS, SBs, En1} = bit_pattern(S, Bs, En),
+                           {TS, {Bs ++ SBs, En1}}
+                       end, {[], Env}, Segs),
+    alignment(Pos, TypedSegs, "the pattern"),
+    last_sizeless(TypedSegs),
+    {P#p_bits{segments = TypedSegs, type = ?BYTES}, ?BYTES, Bindings, Env1}.
+
+%% Report §5.11: a segment's value against its specifiers' type.
+bit_segment(#bit_seg{pos = Pos, value = V, specs = Specs} = S, construct, Env) ->
+    Spec = spec_of(Pos, Specs),
+    {TypedSpecs, Env1} = size_expr(Specs, Env),
+    {TypedV, _, Env2} = check(V, segment_type(Spec), segment_context(Spec), undefined, Env1),
+    {S#bit_seg{value = TypedV, specs = TypedSpecs}, Env2}.
+
+bit_pattern(#bit_seg{pos = Pos, value = V, specs = Specs} = S, Bindings, Env) ->
+    Spec = spec_of(Pos, Specs),
+    case V of
+        #p_var{} -> ok;
+        #p_wild{} -> ok;
+        #p_lit{} -> ok;
+        _ -> fail(element(2, V), "a segment pattern is a variable, `_`, or a literal")
+    end,
+    %% a size expression is pure and sees the earlier segments (report §5.11)
+    Scoped = bind_vars(Bindings, Env#env{effect = pure,
+                                         effect_origin = {"a size expression", Pos,
+                                                          "a size expression is pure",
+                                                          "compute the size before the match"}}),
+    {TypedSpecs, Scoped1} = size_expr(Specs, Scoped),
+    Env1 = Scoped1#env{vars = Env#env.vars, effect = Env#env.effect,
+                       effect_origin = Env#env.effect_origin},
+    {TypedV, VT, Bs, Env2} = pat(V, Env1),
+    Env3 = unify_at(element(2, V), segment_type(Spec), VT, Env2, segment_context(Spec)),
+    {S#bit_seg{value = TypedV, specs = TypedSpecs}, Bs, Env3}.
+
+size_expr(Specs, Env) ->
+    lists:mapfoldl(fun({size, E}, En) ->
+                           {TE, _, En1} = check(E, ?INT, "the size of a segment", undefined, En),
+                           {{size, TE}, En1};
+                      (Other, En) ->
+                           {Other, En}
+                   end, Env, Specs).
+
+segment_type(#{kind := int}) -> ?INT;
+segment_type(#{kind := float}) -> ?FLOAT;
+segment_type(#{kind := K}) when K =:= utf8; K =:= utf16; K =:= utf32 -> ?CHAR;
+segment_type(_) -> ?BYTES.
+
+segment_context(#{kind := K}) when K =:= int; K =:= utf8; K =:= utf16; K =:= utf32 ->
+    "an `" ++ atom_to_list(K) ++ "` segment";
+segment_context(#{kind := K}) -> "a `" ++ atom_to_list(K) ++ "` segment".
+
+spec_of(Pos, Specs) ->
+    case segment_spec(Specs) of
+        {ok, Spec} -> Spec;
+        {error, Msg} -> fail(Pos, Msg)
+    end.
+
+%% Report §5.11: the specifiers of a segment as one map, kind, size
+%% (none, {const, N}, or {expr, E}), unit, endian, sign, with the defaults,
+%% or the error of a conflict or an impossible width.
+-spec segment_spec([term()]) -> {ok, map()} | {error, string()}.
+segment_spec(Specs) ->
+    try
+        Spec = lists:foldl(fun spec_fold/2, #{}, Specs),
+        Kind = maps:get(kind, Spec, int),
+        Unit = maps:get(unit, Spec, case Kind of bytes -> 8; _ -> 1 end),
+        Size = case maps:get(size, Spec, none) of
+                   none when Kind =:= int -> {const, 8};
+                   none when Kind =:= float -> {const, 64};
+                   S -> S
+               end,
+        Utf = lists:member(Kind, [utf8, utf16, utf32]),
+        Utf andalso (maps:is_key(size, Spec) orelse maps:is_key(unit, Spec)) andalso
+            throw("a utf segment has no size or unit"),
+        Unit >= 1 andalso Unit =< 256 orelse throw("unit is 1 to 256 on this runtime"),
+        case {Kind, Size} of
+            {float, {const, N}} when N =/= 16, N =/= 32, N =/= 64 ->
+                throw("a float segment is 16, 32, or 64 bits");
+            {K, {const, N}} when (K =:= bits orelse K =:= bytes), (N * Unit) rem 8 =/= 0 ->
+                throw("a `" ++ atom_to_list(K) ++ "` segment is a whole number of bytes, not "
+                      ++ integer_to_list(N * Unit) ++ " bits");
+            _ -> ok
+        end,
+        {ok, Spec#{kind => Kind, size => Size, unit => Unit,
+                   endian => maps:get(endian, Spec, big), sign => maps:get(sign, Spec, unsigned)}}
+    catch
+        throw:Msg -> {error, Msg}
+    end.
+
+spec_fold({size, #e_lit{kind = int, value = N}}, Spec) -> once(size, {const, N}, Spec);
+spec_fold({size, E}, Spec) -> once(size, {expr, E}, Spec);
+spec_fold({unit, N}, Spec) -> once(unit, N, Spec);
+spec_fold(K, Spec) when K =:= int; K =:= float; K =:= bits; K =:= bytes; K =:= utf8;
+                        K =:= utf16; K =:= utf32 ->
+    once(kind, K, Spec);
+spec_fold(E, Spec) when E =:= big; E =:= little; E =:= native -> once(endian, E, Spec);
+spec_fold(S, Spec) when S =:= signed; S =:= unsigned -> once(sign, S, Spec).
+
+once(Key, Value, Spec) ->
+    case Spec of
+        #{Key := Other} ->
+            throw("conflicting bitstring specifiers " ++ spec_text(Key, Other) ++ " and "
+                  ++ spec_text(Key, Value));
+        _ ->
+            Spec#{Key => Value}
+    end.
+
+spec_text(size, {const, N}) -> "`size(" ++ integer_to_list(N) ++ ")`";
+spec_text(size, _) -> "`size(...)`";
+spec_text(unit, N) -> "`unit(" ++ integer_to_list(N) ++ ")`";
+spec_text(_, A) -> "`" ++ atom_to_list(A) ++ "`".
+
+%% Report §5.11: a bit count that is constant and not a multiple of 8 is
+%% an error. A segment with a dynamic size and a unit that is not a
+%% multiple of 8 leaves the count open; every other segment keeps it.
+alignment(Pos, Segs, What) ->
+    {Bits, Open} = lists:foldl(fun(#bit_seg{specs = Specs}, {B, O}) ->
+                                   {ok, #{size := Size, unit := Unit}} = segment_spec(Specs),
+                                   case Size of
+                                       {const, N} -> {B + N * Unit, O};
+                                       {expr, _} when Unit rem 8 =:= 0 -> {B, O};
+                                       {expr, _} -> {B, true};
+                                       none -> {B, O}
+                                   end
+                               end, {0, false}, Segs),
+    case not Open andalso Bits rem 8 =/= 0 of
+        true -> fail(Pos, What ++ " is " ++ integer_to_list(Bits) ++ " bits, not a multiple of 8");
+        false -> ok
+    end.
+
+%% A `bits` or `bytes` segment without a size takes the rest, so it is last.
+last_sizeless([]) -> ok;
+last_sizeless([_]) -> ok;
+last_sizeless([#bit_seg{pos = Pos, specs = Specs} | Rest]) ->
+    case segment_spec(Specs) of
+        {ok, #{kind := K, size := none}} when K =:= bits; K =:= bytes ->
+            fail(Pos, "a `" ++ atom_to_list(K) ++ "` segment without a size takes the rest, so"
+                      " it is the last segment");
+        _ -> last_sizeless(Rest)
+    end.
 
 %% Report §5.10.
 irrefutable(#p_wild{}, _) -> true;

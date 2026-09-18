@@ -558,6 +558,70 @@ bif_names_test() ->
         "}\n"),
     ?assertEqual(<<"2\n10\n">>, Out).
 
+%% report §5.11: the report's frame round trip, sub-octet fields, utf8,
+%% float and signed and little segments, a dynamic size in a pattern, and
+%% an unaligned `bits` rest that fails the match
+bitstrings_test() ->
+    {ok, Out} = run(
+        "fn frame(len : Int, body : Bytes) -> Bytes = <<len:size(16)-big, body:bytes>>\n"
+        "fn parseFrame(bytes : Bytes) -> Optional(#(Int, Bytes, Bytes)) = match bytes {\n"
+        "    <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> -> Some(#(len, body, rest))\n"
+        "  | _ -> None\n"
+        "}\n"
+        "fn show(b : Bytes) -> String = match b {\n"
+        "    <<x, rest:bytes>> -> Int.toString(x) <> \" \" <> show(rest)\n"
+        "  | _ -> \"\"\n"
+        "}\n"
+        "fn nibbles(b : Bytes) -> String = match b {\n"
+        "    <<hi:size(4), lo:size(4), rest:bytes>> ->"
+        " Int.toString(hi) <> \":\" <> Int.toString(lo) <> \" \" <> nibbles(rest)\n"
+        "  | _ -> \"\"\n"
+        "}\n"
+        "fn tail(n : Int, b : Bytes) -> String = match b {\n"
+        "    <<_:size(n)-bits, rest:bits>> -> show(rest)\n"
+        "  | _ -> \"no\"\n"
+        "}\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    let f = frame(1, <<65, 66>>);\n"
+        "    Io.println(show(f));\n"
+        "    match parseFrame(f) {\n"
+        "        Some(#(len, body, rest)) ->"
+        " Io.println(Int.toString(len) <> \": \" <> show(body) <> \"| \" <> show(rest))\n"
+        "      | None -> Io.println(\"none\")\n"
+        "    };\n"
+        "    match parseFrame(<<0>>) { Some(_) -> Io.println(\"some\") | None -> Io.println(\"none\") };\n"
+        "    match <<'é':utf8, 0>> { <<c:utf8, _:bytes>> -> Io.println(String.fromList([c]))"
+        " | _ -> Io.println(\"?\") };\n"
+        "    Io.println(nibbles(<<31, 42>>));\n"
+        "    Io.println(show(<<1.5:size(32)-float, -1:size(8)-signed, 258:size(16)-little>>));\n"
+        "    Io.println(tail(8, <<1, 2>>));\n"
+        "    Io.println(tail(4, <<1, 2>>));\n"
+        "    Io.println(show(<<(String.toUtf8(\"hi\")):bytes, 3:size(4), 4:size(4)>>))\n"
+        "}\n"),
+    ?assertEqual(<<"0 1 65 66 \n1: 65 | 66 \nnone\né\n1:15 2:10 \n63 192 0 0 255 2 1 \n2 \nno\n"
+                   "104 105 52 \n"/utf8>>, Out).
+
+%% report §7.4, §5.11: a value that does not fit its width faults with
+%% segment overflow, an Int, a Float, a Bytes of another size; a dynamic
+%% size that leaves the count unaligned faults at construction
+bitstring_faults_test() ->
+    Main = "export fn main() -> Unit with Never = ",
+    Three = "fn three() -> Int = List.size([1, 2, 3])\n",
+    Faults = [{"<<300:size(8)>>", <<"segment overflow">>},
+              {"<<(0 - 129):size(8)-signed>>", <<"segment overflow">>},
+              {"<<1.0e300:size(32)-float>>", <<"segment overflow">>},
+              {"<<(<<1, 2, 3>>):size(2)-bytes>>", <<"segment overflow">>},
+              {"<<7:size(three())>>", <<"bitstring not byte-aligned">>},
+              {"<<(<<1>>):size(three())-bits>>", <<"bitstring not byte-aligned">>}],
+    lists:foreach(fun({Bits, Cause}) ->
+                      {R, _} = run(Three ++ Main ++ "{ let _ = " ++ Bits ++ "; Unit }\n"),
+                      ?assertEqual({fault, Cause}, R)
+                  end, Faults),
+    Msg = compile_error("fn f(b : Bytes) = match b {"
+                        " <<n, rest:size(List.size([n]))-bytes>> -> rest | _ -> b }\n"
+                        ++ Main ++ "Unit\n"),
+    ?assertMatch("in MVP 2 a size expression in a pattern" ++ _, Msg).
+
 %% report §7.4: a zero divisor faults main with its cause
 division_fault_test() ->
     {Result, _} = run("export fn main() -> Unit with Never = {\n"

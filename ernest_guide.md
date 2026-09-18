@@ -944,7 +944,7 @@ A segment without specifiers is `int` of size 8, which is why `<<0, 1, 2>>` is t
 - Compile-time-constant alignment violations are compile-time errors. Dynamic-size violations fault in construction and fail matching in patterns.
 - A segment value that does not fit its specified width — an `Int` too large for `size(N)-int` at construction — is a fault.
 
-`size(Expr)` in a pattern evaluates in the scope of earlier-bound segment variables plus the enclosing scope. The expression is pure (no mailbox effect); a fault in it faults the process.
+A segment pattern is a variable, `_`, or a literal. `size(Expr)` in a pattern evaluates in the scope of earlier-bound segment variables plus the enclosing scope. The expression is pure (no mailbox effect); a fault in it faults the process. A `match` over bitstring patterns ends with a `_` or variable clause, as `parseFrame` does: the checker does not decide whether bitstring patterns cover every `Bytes` value.
 
 **Precondition for `frame`/`parseFrame`:** the round trip works when `len` equals `body`'s byte count *and* `len` fits in the length-field width (16 bits, so 0 to 65 535). `parseFrame(frame(1, <<65, 66>>))` returns `Some(#(1, <<65>>, <<66>>))` — a one-byte body and a one-byte remainder, not an error, because `len = 1` was chosen. If `len` doesn't fit the width, `frame` faults at construction.
 

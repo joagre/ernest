@@ -338,7 +338,7 @@ doc_test() ->
                                   write(Dir, "bad.ern", "export fn f() -> Int = \"s\"\n")])).
 
 %% README, "What MVP 1 accepts": every error text in lib/*/src that names
-%% MVP 1 appears in the README's table, by its first forty characters, so
+%% an MVP appears in the README's table, by its first forty characters, so
 %% the table cannot drift from what the code refuses
 mvp_refusals_in_readme_test() ->
     {ok, Readme} = file:read_file("../../../README.md"),
@@ -346,13 +346,13 @@ mvp_refusals_in_readme_test() ->
     Texts = lists:usort(lists:append(
                           [begin
                                {ok, Src} = file:read_file(F),
-                               case re:run(Src, "\"([^\"\n]*MVP 1[^\"\n]*)\"",
+                               case re:run(Src, "\"([^\"\n]*\\bin MVP [0-9][^\"\n]*)\"",
                                            [global, {capture, all_but_first, binary}]) of
                                    {match, Ms} -> [M || [M] <- Ms];
                                    nomatch -> []
                                end
                            end || F <- Sources])),
-    ?assert(length(Texts) >= 5),
+    ?assert(length(Texts) >= 3),
     Missing = [T || T <- Texts, binary:match(Readme, binary:part(T, 0, min(40, byte_size(T))))
                                 =:= nomatch],
     ?assertEqual([], Missing).

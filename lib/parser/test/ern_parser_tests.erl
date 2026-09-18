@@ -565,3 +565,26 @@ grammar_fragments_test() ->
     InSections = Rules(Body),
     ?assert(map_size(InAppendix) > 40),
     ?assertEqual([], [N || N := R <- InAppendix, maps:get(N, InSections, undefined) =/= R]).
+
+%% report §5.11, Appendix A BitExpr, BitPat, BitSpec: segments with
+%% dash-separated specifiers, size with an expression, unit with an integer
+bitstrings_test() ->
+    ?assertMatch(#e_bits{segments = []}, e("<<>>")),
+    ?assertMatch(#e_bits{segments = [#bit_seg{value = #e_lit{value = 1}, specs = []},
+                                     #bit_seg{value = #e_var{name = x},
+                                              specs = [{size, #e_binop{op = '+'}}, {unit, 8},
+                                                       big, signed]},
+                                     #bit_seg{value = #e_var{name = b}, specs = [bytes]}]},
+                 e("<<1, x:size(n + 1)-unit(8)-big-signed, b:bytes>>")),
+    ?assertMatch(#e_match{clauses = [#clause{pattern = #p_bits{segments =
+                                                   [#bit_seg{value = #p_var{name = len},
+                                                             specs = [{size, _}, big]},
+                                                    #bit_seg{value = #p_var{name = body},
+                                                             specs = [{size, #e_var{name = len}},
+                                                                      bytes]},
+                                                    #bit_seg{value = #p_wild{}, specs = [utf8]}]}}
+                                     | _]},
+                 e("match b { <<len:size(16)-big, body:size(len)-bytes, _:utf8>> -> len"
+                   " | _ -> 0 }")),
+    ?assertEqual("unknown bitstring specifier `word`", err_expr("<<1:word>>")),
+    ?assertEqual("`unit` takes an integer in parentheses", err_expr("<<1:unit>>")).

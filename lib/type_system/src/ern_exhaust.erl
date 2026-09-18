@@ -63,7 +63,7 @@ simplify(#p_con{pos = Pos, path = Path, name = Name, args = Args}, Env) ->
                     end || N <- Names]
            end,
     {con, {con, Q}, Subs};
-simplify(#p_bits{}, _) -> wild.
+simplify(#p_bits{}, _) -> {con, bits, []}.
 
 %%
 %% Usefulness with a witness. useful(Rows, Vector) is no when every value
@@ -124,6 +124,9 @@ complete([], _Env) ->
     {false, any};
 complete([{lit, _} | _], _Env) ->
     {false, any};
+complete([bits | _], _Env) ->
+    %% report §5.11, §6.3: a bitstring pattern can fail to match
+    {false, any};
 complete([{bool, _} | _] = Keys, _Env) ->
     All = [{bool, true}, {bool, false}],
     missing(All, Keys);
@@ -158,6 +161,7 @@ con_info(Q, Env) ->
 show(wild, _) -> "_";
 show({con, {bool, B}, []}, _) -> atom_to_list(B);
 show({con, {lit, V}, []}, _) -> lists:flatten(io_lib:format("~p", [V]));
+show({con, bits, []}, _) -> "<<...>>";
 show({con, {tuple, _}, Subs}, Env) -> ["#(", join([show(S, Env) || S <- Subs]), ")"];
 show({con, nil, []}, _) -> "[]";
 show({con, cons, [H, T]}, Env) -> [show_atom(H, Env), " :: ", show(T, Env)];
