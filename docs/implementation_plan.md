@@ -18,7 +18,7 @@ All `.ern` files are read; definitions have full names (`Net.Http.parse`) and th
 
 ## Repository Layout
 
-Standard Erlang application layout under `lib/`, one application per compiler stage: `lib/lexer`, `lib/parser`, `lib/type_system`, `lib/utils` (vendored `getopt`), each with `src/`, `include/`, `ebin/`, `test/`. Phases 2 and 3 add `lib/compiler`, `lib/runtime`, and `lib/cli`. Module names carry the `ern_` prefix, since Erlang's module namespace is flat. `stdlib/` will hold the Ernest standard library as a source root, so `stdlib/io.ern` is `Io`, from MVP 2; in MVP 1 the standard library is Erlang under `lib/runtime/src` (2.4). `examples/` holds the paper programs and the small programs from the report and the guide; `bin/` holds `ernc` and `ern`. Build: a generic `src/Makefile` per application compiling into `../ebin` with `erlc -MMD` header tracking, and a top-level `Makefile` that runs them; `make test` runs EUnit. No rebar3, no OTP behaviours.
+The layout and the build are the README's. Decided here: one Erlang application per compiler stage under `lib/`, so a stage can be tested alone; module names with the `ern_` prefix, since Erlang's module namespace is flat; a generic `src/Makefile` per application with `erlc -MMD` header tracking and a top-level `Makefile` that runs them; no rebar3, no OTP behaviours; the standard library as Erlang under `lib/runtime/src` until MVP 2.5, then Ernest source under `stdlib/`, so `stdlib/io.ern` is `Io`.
 
 ## Phase 1: Type Checker (4 weeks)
 

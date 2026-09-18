@@ -56,9 +56,12 @@ ernest_guide.md    the reading guide
 docs/              decisions log, implementation plan
 examples/          Ernest programs: the paper programs and the small ones
 lib/               the compiler, as Erlang applications: lexer, parser,
-                   type_system, runtime, compiler, utils; each has src/,
-                   include/, ebin/, test/
-bin/               ernc and ern
+                   type_system, runtime, compiler, cli, utils (vendored
+                   getopt); each has src/, include/, ebin/, test/
+test/              what spans applications: the hand-written target modules,
+                   the integration tests, expected/, golden/
+bin/               ernc and ern, as escript sources
+stdlib/            the standard library as Ernest source, from MVP 2.5
 ```
 
 A module path segment is one lowercase word (report §11.1); a multi-word module is a nested directory. Files that are not modules use underscores.
@@ -70,6 +73,8 @@ Erlang/OTP 27 and GNU make. No rebar3, no OTP behaviours.
 ```
 make              compile every application into its ebin/
 make test         run the EUnit tests, then the integration tests in test/
+make sections     list the report sections no test cites
+make coverage     every section with how many tests cite it, thinnest first
 make golden       rewrite test/golden/, the Erlang the compiler emits per example
 make clean        remove build products
 make clean-emacs  remove Emacs backup, auto-save, and lock files

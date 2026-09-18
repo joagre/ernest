@@ -15,20 +15,18 @@ A functional language for concurrent programs, designed by the user (joagre). Tw
 
 ## Where we are
 
-The current phase and its decisions are in [`docs/implementation_plan.md`](docs/implementation_plan.md); what is built is what `lib/` and `make test` say. Implementation language: Erlang, OTP 27. The compiler is `ernc`, the runner is `ern`. The MVP 1 test programs are listed in the README.
+The current phase and its decisions are in [`docs/implementation_plan.md`](docs/implementation_plan.md); what is built is what `lib/` and `make test` say. Implementation language: Erlang, OTP 27. The compiler is `ernc`, the runner is `ern`. The programs MVP 1 runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`.
 
 ## Repository layout and build
 
-- `lib/<app>/{src,include,ebin,test}` per compiler stage: `lexer`, `parser`, `type_system`, `runtime`, `compiler`, `cli`, `utils` (vendored `getopt`).
-- The standard library is Erlang under `lib/runtime/src` (`ernest@list` and so on) until MVP 2.5, when `stdlib/` becomes its Ernest source root. `examples/` holds the example programs. `test/` holds what spans applications: the hand-written target modules and the integration tests. `bin/` holds `ernc` and `ern` as committed escript sources.
-- Build with `make` (per-app `src/Makefile` compiling into `../ebin` with `erlc -MMD`; top-level `Makefile` runs them), `make test` for EUnit, `make clean`.
+- The README owns the layout ("Layout of the repository") and the commands ("Building"); `make` builds, `make test` tests.
 - A module path segment is one lowercase word (report §11.1), so `.ern` files and their directories never carry underscores; every other file and directory name uses underscores. The one `@` is Erlang's: a module implementing an Ernest namespace is `ernest@io` in `ernest@io.erl`, the path with `@` for `/`, as Gleam does.
 - Third-party code is listed in `THIRD_PARTY_LICENSES`; keep the upstream header on any borrowed file.
 
 ## Working style
 
 - Prefer minimal, direct implementations over speculative abstraction.
-- **One owner per fact.** The report owns the language, the decisions log the rationale, the plan the roadmap, the code and its tests what is built, the architecture note how the code is arranged. Every other document points at the owner and does not restate it; the README says where things are, not what they are. Two exceptions: the guide restates the report because teaching is restating, and a list that must live in the code and in a document has a test keeping them equal. A restatement without a test is a wart.
+- **One owner per fact.** The report owns the language, the decisions log the rationale, the plan the roadmap, the code and its tests what is built, the architecture note how the code is arranged. Every other document points at the owner and does not restate it; the README says where things are, not what they are. Two exceptions: the guide restates the report because teaching is restating, and a list that must live in the code and in a document has a test keeping them equal. A restatement without a test is a wart. The mirrors with tests today: the README's "What MVP 1 accepts" table against the toolchain's error texts (`ern_cli_tests`), the prelude tables against §9 and Appendix E (`ern_prelude_tests`), and the section grammars against Appendix A (`ern_parser_tests`).
 - Ask before scaffolding when a decision affects the report or the plan.
 - **No warts.** Never leave an approximation, a silent deviation from the report, or an unstated semantic choice in the code. When the report is silent, either add the sentence to the report (report, then decisions log, then code) or reject the input with an error; never accept it silently. State every such choice to the user when it is made. A known gap goes in the plan with a date, not in a comment; a refusal made for MVP 1's sake says "MVP 1" in its error text, and a test checks the README's table lists it.
 - **Read before code.** Before implementing a module, list the report sections it implements. After, each section has at least one test whose comment cites it (`%% report §5.4`); `make sections` lists the sections still without one, `make coverage` how thinly each is cited. A section without a test is not implemented.
