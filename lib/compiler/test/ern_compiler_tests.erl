@@ -487,9 +487,10 @@ foreign_fn_test() ->
         "    match lookup(t, 1) { [#(_, v)] -> Io.println(v) | _ -> Io.println(\"none\") };\n"
         "    Io.println(Int.toString(size(\"abc\")));\n"
         "    let _ = each(fn(n : Int) -> Unit with Never = Io.println(Int.toString(n)), [1, 2]);\n"
-        "    Unit\n"
+        "    let f = size;\n"
+        "    Io.println(Int.toString(List.foldLeft(List.map([\"a\", \"bb\"], f), 0, Int.+)))\n"
         "}\n"),
-    ?assertEqual(<<"one\n3\n1\n2\n">>, Out).
+    ?assertEqual(<<"one\n3\n1\n2\n3\n">>, Out).
 
 %% report §4.7, §7.4, §8.4: a return of another shape faults on first
 %% observation, naming the declared type; a nested breach is found; an
