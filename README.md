@@ -104,6 +104,8 @@ MVP 1 is the report on one node. Everything the report describes type-checks, an
 | Construct | Until | What you see today |
 |---|---|---|
 | `Float` arithmetic and negation (§3.1); `Float` values and the `Float` functions work | MVP 2 | `Float arithmetic is not in MVP 1` |
+| `+`, `-`, `*`, `/`, `%`, `<>` on a user type that declares the operator (§4.8) | MVP 2 | `operators on user types are not in MVP 1: ...` |
+| `<`, `<=`, `>`, `>=` on a user type that declares `compare` (§3.10) | MVP 2 | `ordering through T.compare is not in MVP 1` |
 | `foreign fn`, `foreign type` (§4.7) | MVP 2 | type-checks; `ernc` says `foreign functions are not in MVP 1` |
 | Bitstrings (§5.11) | MVP 2 | `bitstrings are not in MVP 1` |
 | The ownership rule of abstract types (§4.4) | MVP 2 | not checked; a constructor is usable anywhere in its module |

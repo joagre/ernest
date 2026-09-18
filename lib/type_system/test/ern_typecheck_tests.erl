@@ -67,6 +67,18 @@ operators_need_a_determined_operand_type_test() ->
     ?assertEqual("(Int, Int) -> Bool", type_of("export fn lt(a : Int, b) = a < b", lt)),
     ?assertEqual("`<` is not defined on Bool", err("fn f(a : Bool, b) = a < b")).
 
+%% report §4.8, §3.10: a user type's own operator and its compare resolve
+%% in MVP 2; until then the refusal says so, and a type without them is
+%% simply undefined for the operator
+user_type_operators_test() ->
+    Vec = "type Vec = Vec(Int)\nexport fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a + b)\n"
+          "export fn Vec.compare(Vec(a), Vec(b)) -> Ordering = Int.compare(a, b)\n",
+    ?assertEqual("operators on user types are not in MVP 1: `+` on Vec",
+                 err(Vec ++ "fn f(a : Vec, b) = a + b")),
+    ?assertEqual("ordering through Vec.compare is not in MVP 1",
+                 err(Vec ++ "fn f(a : Vec, b) = a < b")),
+    ?assertEqual("`-` is not defined on Vec", err(Vec ++ "fn f(a : Vec, b) = a - b")).
+
 %% report §3.10
 equality_test() ->
     ?assertEqual("`==` is not defined on (Int) -> Int: it contains a function or an address",

@@ -760,6 +760,14 @@ no_reply_instantiations(#env{pending = Pending} = Env) ->
                           end
                   end, Pending).
 
+%% Whether the type Q declares Member: in this module, as a local value not
+%% yet in the globals; elsewhere, through a compiled interface.
+declares(Q, Member, #env{ns = Ns, local_values = LV, globals = Gs}) ->
+    case lists:prefix(Ns, Q) andalso length(Q) =:= length(Ns) + 1 of
+        true -> maps:is_key({lists:last(Q), Member}, LV);
+        false -> maps:is_key(Q ++ [Member], Gs)
+    end.
+
 %% Report §5.4: a local fn may be used only after every `let` of its block
 %% that it references, directly or through other local fns, has been
 %% evaluated. Uses are calls and value references alike.
@@ -888,12 +896,26 @@ check_operand(Pos, Op, T, Env) ->
                           false when Op =:= '<>' -> [['String'], ['List'], ['Bytes']];
                           false -> [['Int'], ['Float'], ['String'], ['Char']]
                       end,
+            Member = case lists:member(Op, ?ORDER) of true -> compare; false -> Op end,
             case lists:member(Q, Allowed) of
                 true -> Env;
                 false when Q =:= ['Float'], Op =/= '<>' ->
                     fail(Pos, "Float arithmetic is not in MVP 1");
-                false -> fail(Pos, "`" ++ atom_to_list(Op) ++ "` is not defined on "
-                                   ++ ern_types:format(T, Env#env.st))
+                false ->
+                    %% report §4.8, §3.10: the type's own operator, or its
+                    %% compare, resolves in MVP 2 (plan, MVP 2)
+                    case declares(Q, Member, Env) of
+                        true when Member =:= compare ->
+                            fail(Pos, "ordering through " ++ ern_types:format(T, Env#env.st)
+                                      ++ ".compare is not in MVP 1");
+                        true ->
+                            fail(Pos, "operators on user types are not in MVP 1: `"
+                                      ++ atom_to_list(Op) ++ "` on "
+                                      ++ ern_types:format(T, Env#env.st));
+                        false ->
+                            fail(Pos, "`" ++ atom_to_list(Op) ++ "` is not defined on "
+                                      ++ ern_types:format(T, Env#env.st))
+                    end
             end;
         Other ->
             fail(Pos, "`" ++ atom_to_list(Op) ++ "` is not defined on "
