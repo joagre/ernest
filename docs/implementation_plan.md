@@ -278,7 +278,7 @@ The system processes and the paper programs as their tests are MVP 2.5.
    | `timer` | `Clock` | `now`, `alarm`, `alarmAt` | `Clock.monotonic`, the echo server of step 4 | `send_interval`, `cancel`: E.15's positions. `sleep`: `receive { after ms -> Unit }`. `seconds`, `minutes`: arithmetic |
    | `rand` | `Random` | `seed`, `next` | a float draw, a program that needs one | |
    | `math` | `Float` | the operators, `abs`, `min`, `max`, `round`, `floor`, `ceil`, `toString` | `sqrt`, `pow`, `exp`, `log`, the trigonometry, and `looselyEquals`, a program that computes or compares | |
-   | `gen_tcp`, `inet`, `socket` | `Tcp` | E.18 | `Udp` as its own module, a program that needs datagrams | socket options: tuning is a library's |
+   | `gen_tcp`, `inet`, `socket`, `ssl` | `Tcp` | E.18 | `Udp` as its own module, a program that needs datagrams | socket options: tuning is a library's. TLS: a library whose `listen`, `accept`, and `connect` return the same `Address(SockMsg)`, the encryption inside the socket process, so a program's `Tcp.read` and `Tcp.write` do not change |
    | `ets` | `Ets` | Appendix D; its E section is step 1 | | match specifications, `qlc`: `Ets` is a key-value table |
    | `os` | `Sys` | | `Sys.env`, `Sys.args`, the first command-line program | `cmd`: a program that runs commands has not been written |
    | `calendar` | `Time` | | a program that formats a timestamp | |
