@@ -2587,7 +2587,7 @@ What stood in the specification as reasoning, comparison, or guidance has moved 
 
 ## Measure
 
-The report's prose, sections 0 to 11 without code blocks and tables, stays under 8,000 words, about twenty pages, with no section over 600 words; it is measured the same way after every pass and recorded here. Oberon's ten pages was the measure when the language part was six pages and 2,100 words, and 3,200 words with distribution and the toolchain; the report since gained the reply discipline, bitstrings, system references, code shipping, the standard library's rules, and a toolchain, and after the paring of 2026-09-18 it is 7,635 words of rule in 81 sections at a median of 76 words. A section that grows past 600 words is restating something.
+The report's prose, sections 0 to 11 without code blocks and tables, stays under 8,000 words, about twenty pages, with no section over 600 words; it is measured the same way after every pass and recorded here. Oberon's ten pages was the measure when the language part was six pages and 2,100 words, and 3,200 words with distribution and the toolchain; the report since gained the reply discipline, bitstrings, system references, code shipping, the standard library's rules, and a toolchain, and after the paring of 2026-09-18 it is 7,986 words of rule in 81 sections at a median of 76 words. A section that grows past 600 words is restating something.
 
 ## Next Steps
 
