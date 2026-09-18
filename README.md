@@ -99,11 +99,10 @@ bin/ern --create-config-dir .                # .ernest/ with a key pair
 
 ## What MVP 1 accepts
 
-MVP 1 is the report on one node, and MVP 2 lifts the table row by row. Everything the report describes type-checks, and what the table leaves out compiles and runs: pure functions with inference, `Float` and operators on user types, sum and abstract types, processes with typed mailboxes, `receive` with `after`, `Address.call`, `monitor` and `kill`, `<-`, `match` with any guard, top-level `let`, and modules in directories. The table is what the toolchain refuses or does not yet check, each with the MVP that lifts it in [`docs/implementation_plan.md`](docs/implementation_plan.md).
+MVP 1 is the report on one node, and MVP 2 lifts the table row by row. Everything the report describes type-checks, and what the table leaves out compiles and runs: pure functions with inference, `Float` and operators on user types, `foreign fn` and `foreign type` with the checks of §8.4, sum and abstract types, processes with typed mailboxes, `receive` with `after`, `Address.call`, `monitor` and `kill`, `<-`, `match` with any guard, top-level `let`, and modules in directories. The table is what the toolchain refuses or does not yet check, each with the MVP that lifts it in [`docs/implementation_plan.md`](docs/implementation_plan.md).
 
 | Construct | Until | What you see today |
 |---|---|---|
-| `foreign fn`, `foreign type` (§4.7) | MVP 2 | type-checks; `ernc` says `foreign functions are not in MVP 1` |
 | Bitstrings (§5.11) | MVP 2 | `bitstrings are not in MVP 1` |
 | The ownership rule of abstract types (§4.4) | MVP 2 | not checked; a constructor is usable anywhere in its module |
 | A `Reply` captured by a lambda that reaches `spawn` through a `let` rather than as its direct argument (§6.6) | MVP 2 | `in MVP 1 the reply-carrying value r is captured by a lambda that is not passed directly to spawn` |

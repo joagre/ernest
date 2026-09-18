@@ -3,6 +3,8 @@
 -export([write_golden/0]).
 
 -include_lib("eunit/include/eunit.hrl").
+
+-export([pair/0, opt/1, junk/1, junk_server/0]).
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("lexer/include/ern_diag.hrl").
 -include_lib("type_system/include/ern_types.hrl").
@@ -465,6 +467,95 @@ let_order_through_operator_test() ->
         "fn show(Vec(n)) -> String = Int.toString(n)\n"
         "export fn main() -> Unit with Never = Io.println(show(sum))\n"),
     ?assertEqual(<<"30\n">>, Out).
+
+%% report §4.7, §8.4: a foreign fn calls its implementation with the
+%% arguments as the ABI maps them, and a foreign type's values pass through
+%% unchecked
+foreign_fn_test() ->
+    {ok, Out} = run(
+        "foreign type Table\n"
+        "foreign fn size(s : String) -> Int = \"erlang:byte_size/1\"\n"
+        "foreign fn atom(s : String) -> Foreign = \"erlang:binary_to_atom/1\"\n"
+        "foreign fn newTable(n : Foreign, o : List(Foreign)) -> Table with m = \"ets:new/2\"\n"
+        "foreign fn insert(t : Table, row : #(Int, String)) -> Bool with m = \"ets:insert/2\"\n"
+        "foreign fn lookup(t : Table, k : Int) -> List(#(Int, String)) with m = \"ets:lookup/2\"\n"
+        "foreign fn each(f : (Int) -> Unit with m, xs : List(Int)) -> Foreign with m"
+        " = \"lists:foreach/2\"\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    let t = newTable(atom(\"t\"), [atom(\"set\")]);\n"
+        "    let _ = insert(t, #(1, \"one\"));\n"
+        "    match lookup(t, 1) { [#(_, v)] -> Io.println(v) | _ -> Io.println(\"none\") };\n"
+        "    Io.println(Int.toString(size(\"abc\")));\n"
+        "    let _ = each(fn(n : Int) -> Unit with Never = Io.println(Int.toString(n)), [1, 2]);\n"
+        "    Unit\n"
+        "}\n"),
+    ?assertEqual(<<"one\n3\n1\n2\n">>, Out).
+
+%% report §4.7, §7.4, §8.4: a return of another shape faults on first
+%% observation, naming the declared type; a nested breach is found; an
+%% exception is a fault naming the implementation; an Ernest fault raised
+%% inside foreign code passes through as itself
+foreign_faults_test() ->
+    Main = "export fn main() -> Unit with Never = ",
+    {R1, _} = run("foreign fn bad() -> Int = \"erlang:node/0\"\n"
+                  ++ Main ++ "Io.println(Int.toString(bad()))\n"),
+    ?assertEqual({fault, <<"foreign return does not match Int">>}, R1),
+    {R2, _} = run("foreign fn pair() -> #(Int, String) = \"ern_compiler_tests:pair/0\"\n"
+                  ++ Main ++ "{ let #(_, s) = pair(); Io.println(s) }\n"),
+    ?assertEqual({fault, <<"foreign return does not match #(Int, String)">>}, R2),
+    {R3, _} = run("foreign fn opt(k : Int) -> Optional(Int) = \"ern_compiler_tests:opt/1\"\n"
+                  ++ Main ++ "match opt(1) { Some(n) -> Io.println(Int.toString(n))"
+                  " | None -> Io.println(\"none\") }\n"),
+    ?assertEqual({fault, <<"foreign return does not match Optional(Int)">>}, R3),
+    {ok, Out} = run("foreign fn opt(k : Int) -> Optional(Int) = \"ern_compiler_tests:opt/1\"\n"
+                    ++ Main ++ "match opt(0) { Some(n) -> Io.println(Int.toString(n))"
+                    " | None -> Io.println(\"none\") }\n"),
+    ?assertEqual(<<"3\n">>, Out),
+    {R4, _} = run("foreign fn boom(x : Int) -> Int = \"erlang:error/1\"\n"
+                  ++ Main ++ "Io.println(Int.toString(boom(7)))\n"),
+    ?assertEqual({fault, <<"foreign function erlang:error/1 raised error:7">>}, R4),
+    {R5, _} = run("foreign fn each(f : (Int) -> Unit with m, xs : List(Int)) -> Unit with m"
+                  " = \"lists:foreach/2\"\n"
+                  ++ Main ++ "each(fn(n : Int) -> Unit with Never = todo(\"later\"), [1])\n"),
+    ?assertEqual({fault, <<"todo: later">>}, R5).
+
+%% report §8.4, §7.4: a message from a foreign process is checked by the
+%% receive that binds it, and a reply by the call that observes it
+foreign_messages_test() ->
+    {R1, _} = run("type Msg = Go(Int)\n"
+                  "foreign fn junk(a : Address(Msg)) -> Unit with m = \"ern_compiler_tests:junk/1\"\n"
+                  "export fn main() -> Unit with Msg = {\n"
+                  "    junk(self());\n"
+                  "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
+                  "}\n"),
+    ?assertEqual({fault, <<"message does not match Msg">>}, R1),
+    {R2, _} = run("type Ask = Ask(reply : Reply(Int))\n"
+                  "foreign fn server() -> Address(Ask) with m = \"ern_compiler_tests:junk_server/0\"\n"
+                  "export fn main() -> Unit with Never = {\n"
+                  "    let n = Address.callForever(server(), fn(r) = Ask(reply = r));\n"
+                  "    Io.println(Int.toString(n))\n"
+                  "}\n"),
+    ?assertEqual({fault, <<"reply does not match Int">>}, R2).
+
+%% The foreign side of the tests above.
+pair() -> {1, 2}.
+opt(0) -> {'Some', 3};
+opt(_) -> {'Some', <<"x">>}.
+junk(Pid) -> Pid ! {'Go', <<"x">>}, 'Unit'.
+junk_server() ->
+    spawn(fun() -> receive {'Ask', Ref} -> Ref ! {Ref, <<"x">>} end end).
+
+%% report §4.5, plan 2.4: an Ernest function named like an auto-imported
+%% Erlang BIF, `size`, `max`, is called by its own name
+bif_names_test() ->
+    {ok, Out} = run(
+        "fn max(a : Int, b : Int) -> Int = if a > b then a else b\n"
+        "fn size(xs : List(Int)) -> Int = List.size(xs) * 10\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    Io.println(Int.toString(max(1, 2)));\n"
+        "    Io.println(Int.toString(size([1])))\n"
+        "}\n"),
+    ?assertEqual(<<"2\n10\n">>, Out).
 
 %% report §7.4: a zero divisor faults main with its cause
 division_fault_test() ->

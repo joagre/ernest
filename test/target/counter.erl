@@ -22,7 +22,10 @@
 %% through ern_rt (plan 2.4). spawn gets a third argument naming the spawn
 %% site for Down (report §6.9). Int arithmetic is emitted inline; String.<>
 %% is binary concatenation; stdlib calls go to the namespace's module,
-%% 'ernest@int' for Int.
+%% 'ernest@int' for Int. A message a receive clause binds, and a reply a
+%% call observes, are checked against the declared type through ern_check
+%% (report §8.4), the type described once per module by a '$type_N'
+%% function.
 %%
 %% The compiler also adds the module's interface as the BEAM chunk "ErnI".
 
@@ -43,7 +46,8 @@ main() ->
     C = ern_rt:spawn('Local', fun() -> counter(0) end, <<"Counter.main:17">>),
     ern_rt:send(C, {'Inc', 5}),
     ern_rt:send(C, {'Inc', 3}),
-    case ern_rt:call(C, fun(R) -> {'Get', R} end, 1000) of
+    case ern_check:value('$type_1'(), ern_rt:call(C, fun(R) -> {'Get', R} end, 1000),
+                         <<"reply does not match Optional(Int)">>) of
         {'Some', N} ->
             'ernest@io':println(<<"count is ", ('ernest@int':toString(N))/binary>>);
         'None' ->
@@ -57,11 +61,19 @@ main() ->
 %% }
 counter(N) ->
     receive
-        {'Inc', K} ->
+        {'Inc', K} = M1 ->
+            ern_check:value('$type_2'(), M1, <<"message does not match CounterMsg">>),
             counter(N + K);
-        {'Get', R} ->
+        {'Get', R} = M2 ->
+            ern_check:value('$type_2'(), M2, <<"message does not match CounterMsg">>),
             ern_rt:answer(R, N),
             counter(N);
-        {'Upgrade', M, K} ->
+        {'Upgrade', M, K} = M3 ->
+            ern_check:value('$type_2'(), M3, <<"message does not match CounterMsg">>),
             K(M(N))
     end.
+
+'$type_1'() -> {con, [{'None', []}, {'Some', [int]}]}.
+
+'$type_2'() ->
+    {con, [{'Inc', [int]}, {'Get', [ref]}, {'Upgrade', [{'fun', 1}, {'fun', 1}]}]}.

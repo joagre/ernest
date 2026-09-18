@@ -575,7 +575,7 @@ Partial operations in the prelude return `Optional` or `Either`. These fault, wi
 - `todo("...")`, which compiles at any type: `Fault("todo: ...")`.
 - Cross-node transport of a foreign value (§3.8): `Fault("foreign value cannot cross nodes")`.
 - `spawn(Peer(...), ...)` with an unknown or unreachable peer, `Fault("peer unreachable")`, or with a resolution failure on the peer (§8.7), `Fault("peer resolution failed: ...")`. `send` to a remote address faults the sender with the same cause asynchronously, after its return, when resolution fails.
-- A foreign return or a message from a foreign process that does not match the declared type faults the receiving Ernest process on first observation (§8.4).
+- A foreign function that raises: `Fault("foreign function m:f/n raised ...")`. A foreign return, a message from a foreign process, or a reply that does not match the declared type faults the receiving Ernest process on first observation (§8.4): `Fault("foreign return does not match T")`, `Fault("message does not match M")`, `Fault("reply does not match T")`, naming the declared type.
 
 ## 8. Programs
 
@@ -614,7 +614,7 @@ The system processes are foreign processes: their message types are declared in 
 - `Address(m)`, `Reply(a)`, function values → opaque handles foreign code may pass back but not inspect.
 - Foreign values → as foreign code made them; Ernest does not inspect them.
 
-Same-named constructors of different types share an atom; the receiver's declared type disambiguates. Cross-node transport uses the runtime's external term format for these representations.
+Same-named constructors of different types share an atom; the receiver's declared type disambiguates. Cross-node transport uses the runtime's external term format for these representations. A `foreign fn` implementation is named `module:function/arity`, the arity its parameter count.
 
 ### 8.5 Initialization
 

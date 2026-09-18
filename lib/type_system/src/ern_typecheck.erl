@@ -15,7 +15,7 @@
 
 -export([check/3, check_string/2, prelude_env/0]).
 -export([is_reply_carrying/2, resolve_type/2, lookup_type/2, lookup_con/4, type_state/1,
-         set_type_state/2, node_type/1]).
+         set_type_state/2, node_type/1, foreign_impl/1]).
 
 -export_type([env/0]).
 
@@ -594,6 +594,7 @@ signature_shape(_, _, Env) ->
 
 set_decl_type(#fn_decl{} = D, S) -> D#fn_decl{type = S};
 set_decl_type(#let_decl{} = D, S) -> D#let_decl{type = S};
+set_decl_type(#foreign_fn_decl{} = D, S) -> D#foreign_fn_decl{type = S};
 set_decl_type(D, _) -> D.
 
 check_value(#fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect, body = Body} = D,
@@ -634,8 +635,18 @@ check_value(#let_decl{pos = Pos, ann = Ann, body = Body} = D, Placeholder, Env) 
     {D#let_decl{body = TypedBody}, Post,
      Env3#env{vars = Env#env.vars, effect = Env#env.effect, pending = Env#env.pending,
               deferred = Env#env.deferred, ann_vars = Env#env.ann_vars, rigid = Env#env.rigid}};
-check_value(#foreign_fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect} = D,
-            Placeholder, Env) ->
+check_value(#foreign_fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect,
+                             impl = Impl} = D, Placeholder, Env) ->
+    %% report §8.4: the implementation is module:function/arity
+    case foreign_impl(Impl) of
+        {ok, {_, _, A}} when A =:= length(Params) -> ok;
+        {ok, {_, _, A}} ->
+            fail(Pos, io_lib:format("the implementation names arity ~B, and ~s has ~B parameter~s",
+                                    [A, decl_name(D), length(Params), plural(length(Params))]));
+        error ->
+            fail(Pos, "the implementation of " ++ decl_name(D)
+                      ++ " is named module:function/arity, as \"ets:new/2\"")
+    end,
     Syntax = #t_fn{pos = Pos, params = [T || #param{type = T} <- Params], ret = Ret,
                    effect = Effect},
     {T, _, St} = ann(Syntax, #{}, Env),
@@ -645,6 +656,15 @@ check_value(#foreign_fn_decl{pos = Pos, params = Params, ret = Ret, effect = Eff
 %% A foreign fn declared `with m` is process-only (report §3.9).
 foreign_effect({tfn, _, {tvar, _} = E, _}, St) -> ern_types:add_flag(E, process_only, St);
 foreign_effect(_, St) -> St.
+
+%% Report §8.4: the implementation name of a foreign fn, module:function/arity.
+-spec foreign_impl(binary()) -> {ok, {atom(), atom(), non_neg_integer()}} | error.
+foreign_impl(Impl) ->
+    case re:run(Impl, "^([a-z][A-Za-z0-9_@]*):([a-z][A-Za-z0-9_]*)/([0-9]+)$",
+                [{capture, all_but_first, list}]) of
+        {match, [M, F, A]} -> {ok, {list_to_atom(M), list_to_atom(F), list_to_integer(A)}};
+        nomatch -> error
+    end.
 
 %% Parameters bind pattern variables monomorphically; annotation variables
 %% are shared across the parameters and the return annotation.
@@ -703,7 +723,9 @@ effect_origin(Name, _Ret, Effect, _RetT, EffT, St) ->
                               ++ "` here", undefined}.
 
 decl_name(#fn_decl{owner = undefined, name = N}) -> atom_to_list(N);
-decl_name(#fn_decl{owner = O, name = N}) -> atom_to_list(O) ++ "." ++ atom_to_list(N).
+decl_name(#fn_decl{owner = O, name = N}) -> atom_to_list(O) ++ "." ++ atom_to_list(N);
+decl_name(#foreign_fn_decl{owner = undefined, name = N}) -> atom_to_list(N);
+decl_name(#foreign_fn_decl{owner = O, name = N}) -> atom_to_list(O) ++ "." ++ atom_to_list(N).
 
 node_span(Node) -> element(2, Node).
 

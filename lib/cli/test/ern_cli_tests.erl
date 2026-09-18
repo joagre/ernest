@@ -123,6 +123,28 @@ parse_error_test() ->
                    " end of input\n1 | export fn f() -> Int = \n2 | \n  | ^\n\n">>,
                  Out).
 
+%% report Appendix D, §4.7, §8.4: the Ets library compiles as a module and
+%% a program uses it through its interface
+ets_library_test() ->
+    Dir = tmp(),
+    {ok, Ets} = file:read_file(example("ets.ern")),
+    write(Dir, "src/ets.ern", Ets),
+    write(Dir, "src/main.ern",
+          "export fn main() -> Unit with Never = {\n"
+          "    let t = Ets.new();\n"
+          "    Ets.insert(t, \"a\", 1);\n"
+          "    Ets.insert(t, \"b\", 2);\n"
+          "    match Ets.lookup(t, \"b\") {\n"
+          "        Some(n) -> Io.println(Int.toString(n))\n"
+          "      | None -> Io.println(\"none\")\n"
+          "    };\n"
+          "    Io.println(Int.toString(Ets.size(t)));\n"
+          "    Io.println(Bool.toString(Ets.member(t, \"c\")))\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"2\n2\nfalse\n">>, iolist_to_binary(?capturedOutput)).
+
 %% report §4.8, §3.10, §4.2: an operator and an ordering on a type of a
 %% compiled module resolve through its interface and call into its module;
 %% a member it lacks is an error

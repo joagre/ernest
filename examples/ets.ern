@@ -5,7 +5,7 @@
 // Raw bindings are module-local; the library is ordinary Ernest over them.
 // The report is normative; this file is a copy. Namespace Ets.
 //
-// Needs MVP 2 (foreign fn, foreign type). Not compiled by MVP 1.
+// A library: no main. Compiled and used by the CLI tests.
 //
 
 /// A key-value table stored in the runtime's ETS backend, keyed

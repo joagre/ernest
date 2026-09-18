@@ -23,7 +23,10 @@
 
 %% Emission context, threaded through everything.
 -record(cx, {ns, mod, env, fname, vars = #{}, counter = 0, locals = #{}, lifted = [],
-             tops = #{}}).
+             tops = #{}, mailbox = pure, descs = #{}}).
+%% descs: descriptor term => the name of the module function returning it
+%% mailbox: the enclosing function's effect, the type a receive checks its
+%% messages against (report §8.4)
 -record(local, {lifted, own, extra, refs, snap = pending}).
 %% vars: Ernest name => Erlang variable name; locals: local fn name =>
 %% #local{} (see Blocks); tops: top-level names => arity | value;
@@ -70,11 +73,25 @@ forms(Ns, Decls, Env) ->
     Lets = [D || #let_decl{} = D <- Decls],
     {Init, Cx2} = init_fun(Lets, Decls, Cx1),
     Exports = [export(D) || D <- Decls, exported(D)] ++ [{'$init', 0} || Lets =/= []],
-    Attrs = [erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Mod)]),
-             erl_syntax:attribute(erl_syntax:atom(export),
-                                  [erl_syntax:list([erl_syntax:arity_qualifier(
-                                                      erl_syntax:atom(F), erl_syntax:integer(A))
-                                                    || {F, A} <- Exports])])],
+    %% an Ernest function named like an auto-imported BIF, `size`, `max`,
+    %% is called by its own name: the auto-import is switched off for it
+    Clashes = [{F, A} || {F, A} <- maps:fold(fun({O, N}, Arity, Acc) when is_integer(Arity) ->
+                                                    [{fname(O, N), Arity} | Acc];
+                                                ({O, N}, value, Acc) ->
+                                                    [{fname(O, N), 0} | Acc]
+                                             end, [], Cx0#cx.tops),
+                         erl_internal:bif(F, A)],
+    NoImport = case Clashes of
+                   [] -> [];
+                   _ -> [erl_syntax:attribute(erl_syntax:atom(compile),
+                                              [erl_syntax:abstract({no_auto_import, Clashes})])]
+               end,
+    Attrs = [erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Mod)])]
+            ++ NoImport
+            ++ [erl_syntax:attribute(erl_syntax:atom(export),
+                                     [erl_syntax:list([erl_syntax:arity_qualifier(
+                                                         erl_syntax:atom(F), erl_syntax:integer(A))
+                                                       || {F, A} <- Exports])])],
     Functions = lists:append(Funs) ++ Init ++ lists:reverse(Cx2#cx.lifted),
     erl_syntax:revert_forms(Attrs ++ Functions).
 
@@ -154,21 +171,27 @@ renumber(T, _) -> T.
 
 top_names(Decls) ->
     maps:from_list([{{O, N}, length(Ps)} || #fn_decl{owner = O, name = N, params = Ps} <- Decls]
+                   ++ [{{O, N}, length(Ps)}
+                       || #foreign_fn_decl{owner = O, name = N, params = Ps} <- Decls]
                    ++ [{{O, N}, value} || #let_decl{owner = O, name = N} <- Decls]).
 
 exported(#fn_decl{export = E}) -> E;
 exported(#let_decl{export = E}) -> E;
+exported(#foreign_fn_decl{export = E}) -> E;
 exported(_) -> false.
 
 export(#fn_decl{owner = O, name = N, params = Ps}) -> {fname(O, N), length(Ps)};
+export(#foreign_fn_decl{owner = O, name = N, params = Ps}) -> {fname(O, N), length(Ps)};
 export(#let_decl{owner = O, name = N}) -> {fname(O, N), 0}.
 
 fname(undefined, N) -> N;
 fname(Owner, N) -> list_to_atom(atom_to_list(Owner) ++ "." ++ atom_to_list(N)).
 
-decl(#fn_decl{pos = Pos, owner = O, name = N, params = Params, body = Body}, Cx) ->
+decl(#fn_decl{pos = Pos, owner = O, name = N, params = Params, body = Body, type = Scheme},
+     Cx) ->
     Name = fname(O, N),
-    Cx1 = Cx#cx{fname = Name, vars = #{}, locals = #{}},
+    {tfn, _, Eff, _} = Scheme#scheme.type,
+    Cx1 = Cx#cx{fname = Name, vars = #{}, locals = #{}, mailbox = Eff},
     {Pats, Cx2} = lists:mapfoldl(fun(#param{pattern = P}, C) -> pattern(P, C) end, Cx1, Params),
     {BodyForms, Cx3} = body(Body, Cx2),
     Clause = at(Pos, erl_syntax:clause(Pats, none, BodyForms)),
@@ -179,8 +202,21 @@ decl(#let_decl{pos = Pos, owner = O, name = N}, Cx) ->
     Get = call_remote(persistent_term, get, [key(Cx, Name)]),
     Clause = at(Pos, erl_syntax:clause([], none, [Get])),
     {[at(Pos, erl_syntax:function(erl_syntax:atom(Name), [Clause]))], Cx};
-decl(#foreign_fn_decl{pos = Pos}, _Cx) ->
-    fail(Pos, "foreign functions are not in MVP 1");
+decl(#foreign_fn_decl{pos = Pos, owner = O, name = N, params = Params, impl = Impl,
+                      type = Scheme}, Cx) ->
+    %% report §4.7, §8.4: the implementation, called through ern_check,
+    %% which turns an exception into a fault and checks the return
+    Name = fname(O, N),
+    {ok, {M, F, _}} = ern_typecheck:foreign_impl(Impl),
+    {Vars, Cx1} = fresh_vars(length(Params), "A", Cx#cx{fname = Name}),
+    {tfn, _, _, Ret} = Scheme#scheme.type,
+    Args = [erl_syntax:variable(V) || V <- Vars],
+    {DescForm, Cx2} = descriptor_ref(Ret, Cx1),
+    Body = call_remote(ern_check, foreign,
+                       [erl_syntax:atom(M), erl_syntax:atom(F), erl_syntax:list(Args), DescForm,
+                        check_text("foreign return does not match ", Ret, Cx)]),
+    Clause = at(Pos, erl_syntax:clause(Args, none, [Body])),
+    {[at(Pos, erl_syntax:function(erl_syntax:atom(Name), [Clause]))], Cx2};
 decl(_, Cx) ->
     {[], Cx}.
 
@@ -285,11 +321,13 @@ expr(#e_binop{pos = Pos, op = Op, left = L, right = R}, Cx) ->
     {LF, Cx1} = expr(L, Cx),
     {RF, Cx2} = expr(R, Cx1),
     {at(Pos, binop(Op, resolved(ern_typecheck:node_type(L), Cx), LF, RF, Cx)), Cx2};
-expr(#e_lambda{pos = Pos, params = Params, body = Body}, Cx) ->
-    {Pats, Cx1} = lists:mapfoldl(fun(#param{pattern = P}, C) -> pattern(P, C) end, Cx, Params),
+expr(#e_lambda{pos = Pos, params = Params, body = Body, type = T}, Cx) ->
+    {tfn, _, Eff, _} = resolved(T, Cx),
+    {Pats, Cx1} = lists:mapfoldl(fun(#param{pattern = P}, C) -> pattern(P, C) end,
+                                 Cx#cx{mailbox = Eff}, Params),
     {BodyForms, Cx2} = body(Body, Cx1),
     Clause = erl_syntax:clause(Pats, none, BodyForms),
-    {at(Pos, erl_syntax:fun_expr([Clause])), Cx2#cx{vars = Cx#cx.vars}};
+    {at(Pos, erl_syntax:fun_expr([Clause])), Cx2#cx{vars = Cx#cx.vars, mailbox = Cx#cx.mailbox}};
 expr(#e_if{pos = Pos, condition = C, then_branch = T, else_branch = E}, Cx) ->
     {CF, Cx1} = expr(C, Cx),
     {TF, Cx2} = body(T, Cx1),
@@ -494,10 +532,16 @@ prelude_call(Pos, [monitor], _, Args, _, Cx) -> {at(Pos, call_remote(ern_rt, mon
 prelude_call(Pos, [kill], _, Args, _, Cx) -> {at(Pos, call_remote(ern_rt, kill, Args)), Cx};
 prelude_call(Pos, [spawn], _, Args, _, Cx) ->
     {at(Pos, call_remote(ern_rt, spawn, Args ++ [site(Pos, Cx)])), Cx};
-prelude_call(Pos, ['Address', call], _, Args, _, Cx) ->
-    {at(Pos, call_remote(ern_rt, call, Args)), Cx};
-prelude_call(Pos, ['Address', callForever], _, Args, _, Cx) ->
-    {at(Pos, call_remote(ern_rt, call_forever, Args)), Cx};
+prelude_call(Pos, ['Address', call], _, Args, #e_var{type = T}, Cx) ->
+    %% report §8.4: the reply is a message, checked on first observation
+    {tfn, _, _, Ret} = resolved(T, Cx),
+    {Form, Cx1} = checked(call_remote(ern_rt, call, Args), Ret, "reply does not match ", Cx),
+    {at(Pos, Form), Cx1};
+prelude_call(Pos, ['Address', callForever], _, Args, #e_var{type = T}, Cx) ->
+    {tfn, _, _, Ret} = resolved(T, Cx),
+    {Form, Cx1} = checked(call_remote(ern_rt, call_forever, Args), Ret, "reply does not match ",
+                          Cx),
+    {at(Pos, Form), Cx1};
 prelude_call(Pos, [remote], _, Args, _, Cx) -> {at(Pos, call_remote(ern_rt, remote, Args)), Cx};
 prelude_call(Pos, [parallelRemote], _, Args, _, Cx) ->
     {at(Pos, call_remote(ern_rt, parallel_remote, Args)), Cx};
@@ -645,6 +689,119 @@ segments(Form) ->
 
 resolved(T, #cx{env = Env}) ->
     ern_typecheck:resolve_type(T, Env).
+
+%%
+%% The foreign boundary, report §8.4: a declared type as the term
+%% ern_check interprets
+%%
+
+checked(Form, T, Prefix, Cx) ->
+    {DescForm, Cx1} = descriptor_ref(T, Cx),
+    {call_remote(ern_check, value, [DescForm, Form, check_text(Prefix, T, Cx)]), Cx1}.
+
+%% A descriptor as a form: a literal when it is a word, else a call of a
+%% module function that returns it, one per distinct descriptor.
+descriptor_ref(T, Cx) ->
+    case descriptor(T, Cx) of
+        Desc when is_atom(Desc) ->
+            {erl_syntax:abstract(Desc), Cx};
+        Desc ->
+            case Cx#cx.descs of
+                #{Desc := Name} ->
+                    {erl_syntax:application(erl_syntax:atom(Name), []), Cx};
+                Descs ->
+                    Name = list_to_atom("$type_" ++ integer_to_list(map_size(Descs) + 1)),
+                    Fun = erl_syntax:function(erl_syntax:atom(Name),
+                                              [erl_syntax:clause([], none,
+                                                                 [erl_syntax:abstract(Desc)])]),
+                    {erl_syntax:application(erl_syntax:atom(Name), []),
+                     Cx#cx{descs = Descs#{Desc => Name}, lifted = [Fun | Cx#cx.lifted]}}
+            end
+    end.
+
+check_text(Prefix, T, #cx{env = Env}) ->
+    string_binary(unicode:characters_to_binary(
+                    Prefix ++ ern_types:format(T, ern_typecheck:type_state(Env)))).
+
+descriptor(T, #cx{env = Env} = Cx) ->
+    {D, _} = desc(ern_types:zonk(T, ern_typecheck:type_state(Env)), #{}, Cx),
+    D.
+
+%% Seen maps a user type already being described to the id its mu bound,
+%% so a recursive type refers back instead of unfolding.
+desc({tvar, _}, Seen, _) -> {any, Seen};
+desc(pure, Seen, _) -> {any, Seen};
+desc({ttuple, Es}, Seen, Cx) ->
+    {Ds, Seen1} = descs(Es, Seen, Cx),
+    {{tuple, Ds}, Seen1};
+desc({tfn, Ps, _, _}, Seen, _) -> {{'fun', length(Ps)}, Seen};
+desc({tcon, ['Int'], []}, Seen, _) -> {int, Seen};
+desc({tcon, ['Float'], []}, Seen, _) -> {float, Seen};
+desc({tcon, ['Bool'], []}, Seen, _) -> {bool, Seen};
+desc({tcon, ['Char'], []}, Seen, _) -> {char, Seen};
+desc({tcon, ['String'], []}, Seen, _) -> {string, Seen};
+desc({tcon, ['Bytes'], []}, Seen, _) -> {bytes, Seen};
+desc({tcon, ['Address'], _}, Seen, _) -> {pid, Seen};
+desc({tcon, ['Reply'], _}, Seen, _) -> {ref, Seen};
+desc({tcon, ['Foreign'], []}, Seen, _) -> {any, Seen};
+desc({tcon, ['Never'], []}, Seen, _) -> {never, Seen};
+desc({tcon, ['List'], [A]}, Seen, Cx) ->
+    {D, Seen1} = desc(A, Seen, Cx),
+    {{list, D}, Seen1};
+desc({tcon, ['Map'], [K, V]}, Seen, Cx) ->
+    {[DK, DV], Seen1} = descs([K, V], Seen, Cx),
+    {{map, DK, DV}, Seen1};
+desc({tcon, ['Set'], [A]}, Seen, Cx) ->
+    {D, Seen1} = desc(A, Seen, Cx),
+    {{set, D}, Seen1};
+desc({tcon, Q, Args} = T, Seen, #cx{env = Env} = Cx) ->
+    case Seen of
+        #{T := Id} ->
+            {{ref, Id}, Seen};
+        _ ->
+            case ern_typecheck:lookup_type(Q, Env) of
+                #tinfo{foreign = true} ->
+                    {any, Seen};
+                #tinfo{constructors = Cs} ->
+                    Id = map_size(Seen) + 1,
+                    {ConDs, Seen2} =
+                        lists:mapfoldl(fun(#cinfo{name = Tag} = C, S) ->
+                                           {Ds, S1} = descs(fields(C, Args, Cx), S, Cx),
+                                           {{Tag, Ds}, S1}
+                                       end, Seen#{T => Id}, Cs),
+                    Con = {con, ConDs},
+                    case refers(Con, Id) of
+                        true -> {{mu, Id, Con}, Seen2};
+                        false -> {Con, Seen2}
+                    end
+            end
+    end.
+
+refers({ref, Id}, Id) -> true;
+refers(T, Id) when is_tuple(T) -> lists:any(fun(X) -> refers(X, Id) end, tuple_to_list(T));
+refers(L, Id) when is_list(L) -> lists:any(fun(X) -> refers(X, Id) end, L);
+refers(_, _) -> false.
+
+descs(Ts, Seen, Cx) ->
+    lists:mapfoldl(fun(T, S) -> desc(T, S, Cx) end, Seen, Ts).
+
+%% A constructor's field types at the type's arguments: its scheme is
+%% quantified over the type's parameters, which its result type lists in
+%% order as distinct variables once instantiated.
+fields(#cinfo{scheme = Scheme}, Args, #cx{env = Env}) ->
+    {FT, _} = ern_types:instantiate(Scheme, ern_typecheck:type_state(Env)),
+    {FieldTs, {tcon, _, Params}} = case FT of
+                                       {tfn, Fs, _, R} -> {Fs, R};
+                                       R -> {[], R}
+                                   end,
+    Sub = maps:from_list(lists:zip([Id || {tvar, Id} <- Params], Args)),
+    [subst(F, Sub) || F <- FieldTs].
+
+subst({tvar, Id} = T, Sub) -> maps:get(Id, Sub, T);
+subst({tcon, Q, Args}, Sub) -> {tcon, Q, [subst(A, Sub) || A <- Args]};
+subst({ttuple, Es}, Sub) -> {ttuple, [subst(E, Sub) || E <- Es]};
+subst({tfn, Ps, E, R}, Sub) -> {tfn, [subst(P, Sub) || P <- Ps], subst(E, Sub), subst(R, Sub)};
+subst(pure, _) -> pure.
 
 %%
 %% Constructors, report §8.4
@@ -894,19 +1051,38 @@ general_clauses(SVar, [#clause{pattern = P, guard = G, body = B} | Rest], Cx) ->
                                                          [Fallthrough])]),
     {erl_syntax:block_expr([Bind, Case]), Cx4#cx{vars = Cx#cx.vars}}.
 
-simple_clause(#clause{pos = Pos, pattern = P, guard = G, body = B}, Cx) ->
+simple_clause(C, Cx) ->
+    simple_clause(C, none, Cx).
+
+%% With Check, the whole matched value is bound to a variable and checked
+%% before the body (report §8.4).
+simple_clause(#clause{pos = Pos, pattern = P, guard = G, body = B}, Check, Cx) ->
     {PF, Cx1} = pattern(P, Cx),
     {GF, Cx2} = case G of
                     undefined -> {none, Cx1};
                     _ -> expr(G, Cx1)
                 end,
     {BF, Cx3} = body(B, Cx2),
-    {at(Pos, erl_syntax:clause([PF], GF, BF)), Cx3#cx{vars = Cx#cx.vars}}.
+    {PF1, BF1, Cx4} =
+        case Check of
+            none -> {PF, BF, Cx3};
+            {DescForm, Text} ->
+                {[V], Cx3a} = fresh_vars(1, "M", Cx3),
+                Var = erl_syntax:variable(V),
+                {erl_syntax:match_expr(PF, Var),
+                 [call_remote(ern_check, value, [DescForm, Var, Text]) | BF], Cx3a}
+        end,
+    {at(Pos, erl_syntax:clause([PF1], GF, BF1)), Cx4#cx{vars = Cx#cx.vars}}.
 
 %% Plan 2.2: in MVP 1 a receive guard must be an Erlang guard expression.
-receive_clause(#clause{pos = Pos, guard = G} = C, Cx) ->
+%% Report §8.4: the message a clause binds is checked against the mailbox
+%% type, since a foreign process may have sent it.
+receive_clause(#clause{pos = Pos, guard = G} = C, #cx{mailbox = Mailbox} = Cx) ->
     case G =:= undefined orelse erlang_guard(G, Cx) of
-        true -> simple_clause(C, Cx);
+        true ->
+            {DescForm, Cx1} = descriptor_ref(Mailbox, Cx),
+            simple_clause(C, {DescForm, check_text("message does not match ", Mailbox, Cx)},
+                          Cx1);
         false -> fail(Pos, "in MVP 1 a receive guard is a comparison, or && and || of comparisons,"
                            " over variables and literals (report §5.9; general guards come with"
                            " MVP 4)")

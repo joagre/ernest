@@ -457,6 +457,12 @@ warts_audit_test() ->
     ?assertEqual("a field is matched twice",
                  err(Msg ++ "fn f(r) = match r { Get(reply = a, reply = b) -> Unit"
                      " | Stop -> Unit }")),
+    %% report §8.4: the implementation is module:function/arity, the arity
+    %% the parameter count
+    ?assertEqual("the implementation names arity 2, and tick has 0 parameters",
+                 err("foreign fn tick() -> Unit with m = \"m:tick/2\"")),
+    ?assertEqual("the implementation of tick is named module:function/arity, as \"ets:new/2\"",
+                 err("foreign fn tick() -> Unit with m = \"tick\"")),
     %% foreign fn with an effect is process-only
     ?assertEqual("tick needs a process, and f is pure",
                  err("foreign fn tick() -> Unit with m = \"m:tick/0\"\nfn f() -> Unit = tick()")),
@@ -495,7 +501,7 @@ abstract_types_as_types_test() ->
 %% report §3.8
 foreign_types_test() ->
     Table = "export foreign type Table(k, v)\n"
-            "foreign fn rawNew(name : String) -> Table(k, v) with m = \"ets:new/2\"\n",
+            "foreign fn rawNew(name : String) -> Table(k, v) with m = \"ets:new/1\"\n",
     ?assertEqual("(M.Table(Int, String)) -> M.Table(Int, String)",
                  type_of(Table ++ "export fn id(t : Table(Int, String)) = t", id)),
     ?assertEqual("() -> M.Table(a, b) with e",

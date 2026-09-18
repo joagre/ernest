@@ -1,0 +1,68 @@
+%% Report §4.7, §8.4, §7.4: the foreign boundary. A foreign function is
+%% called inside a catch that turns an exception into a fault, and its
+%% return, a received message, and a reply are checked against the
+%% declared type on first observation. The compiler describes a type as a
+%% term this module interprets: any | int | float | bool | char | string |
+%% bytes | pid | ref | {'fun', Arity} | never | {list, D} | {tuple, [D]} |
+%% {map, K, V} | {set, D} | {con, [{Tag, [D]}]} | {mu, Id, D} | {ref, Id},
+%% mu binding Id for the ref inside it, which is how a recursive type is
+%% described once.
+-module(ern_check).
+
+-export([foreign/5, value/3]).
+
+-spec foreign(module(), atom(), [term()], term(), binary()) -> term().
+foreign(M, F, Args, Desc, Text) ->
+    V = try apply(M, F, Args)
+        catch
+            throw:{ernest, _, _} = Passing -> throw(Passing);
+            Class:Reason ->
+                ern_rt:fault(unicode:characters_to_binary(
+                               io_lib:format("foreign function ~s:~s/~B raised ~p:~p",
+                                             [M, F, length(Args), Class, Reason])))
+        end,
+    value(Desc, V, Text).
+
+%% The value, or the fault Text (report §7.4).
+-spec value(term(), term(), binary()) -> term().
+value(Desc, V, Text) ->
+    case chk(Desc, V, #{}) of
+        true -> V;
+        false -> ern_rt:fault(Text)
+    end.
+
+chk(any, _, _) -> true;
+chk(int, V, _) -> is_integer(V);
+chk(float, V, _) -> is_float(V);
+chk(bool, V, _) -> is_boolean(V);
+chk(char, V, _) ->
+    is_integer(V) andalso V >= 0 andalso V =< 16#10FFFF andalso (V < 16#D800 orelse V > 16#DFFF);
+chk(string, V, _) -> is_binary(V) andalso unicode:characters_to_binary(V) =:= V;
+chk(bytes, V, _) -> is_binary(V);
+chk(pid, V, _) -> is_pid(V);
+chk(ref, V, _) -> is_reference(V);
+chk({'fun', N}, V, _) -> is_function(V, N);
+chk(never, _, _) -> false;
+chk({list, D}, V, B) -> is_list(V) andalso lists:all(fun(X) -> chk(D, X, B) end, V);
+chk({tuple, Ds}, V, B) ->
+    is_tuple(V) andalso tuple_size(V) =:= length(Ds) andalso all(Ds, tuple_to_list(V), B);
+chk({map, K, D}, V, B) ->
+    is_map(V) andalso maps:fold(fun(Key, Val, Ok) -> Ok andalso chk(K, Key, B) andalso chk(D, Val, B)
+                                end, true, V);
+chk({set, D}, V, B) ->
+    %% a version 2 set is a map from element to []
+    is_map(V) andalso maps:fold(fun(E, Val, Ok) -> Ok andalso Val =:= [] andalso chk(D, E, B)
+                                end, true, V);
+chk({con, Cs}, V, _) when is_atom(V) ->
+    lists:keyfind(V, 1, Cs) =:= {V, []};
+chk({con, Cs}, V, B) when is_tuple(V), tuple_size(V) > 1, is_atom(element(1, V)) ->
+    case lists:keyfind(element(1, V), 1, Cs) of
+        {_, Ds} when length(Ds) =:= tuple_size(V) - 1 -> all(Ds, tl(tuple_to_list(V)), B);
+        _ -> false
+    end;
+chk({con, _}, _, _) -> false;
+chk({mu, Id, D}, V, B) -> chk(D, V, B#{Id => D});
+chk({ref, Id}, V, B) -> chk(maps:get(Id, B), V, B).
+
+all([], [], _) -> true;
+all([D | Ds], [V | Vs], B) -> chk(D, V, B) andalso all(Ds, Vs, B).

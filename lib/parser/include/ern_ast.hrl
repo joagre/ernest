@@ -34,7 +34,8 @@
 
 -record(foreign_type_decl, {pos, doc, export = false, name, params = []}).
 -record(foreign_fn_decl, {pos, doc, export = false, owner, name, params, ret, effect,
-                          impl}).
+                          impl, type}).
+%% type: the scheme, set by the checker, as on fn_decl
 
 %%
 %% Types (syntactic)
