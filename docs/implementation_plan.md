@@ -209,12 +209,9 @@ Hindley-Milner reports a mismatch where unification fails, which is the second u
 
 ### 3.5 Paring the report (1 day)
 
-The report is complete: every mechanism has a section, an appendix entry, and a test. It is also three times over its own measure. The decisions log's "Measure" puts the prose under ten pages, Oberon's figure, and recorded 3,200 words; on 2026-09-18 sections 0 through 11 without code or tables are about 13,000. The long sections, §6.6 at 1,200 words, §3.9 at 1,000, §8.7, §4.2, §11.1, §4.6 at 500 to 800, state a rule, restate it with examples, then defend it; CLAUDE.md's register for the report, state the rule with no rationale and no restating, was written after them.
+Done 2026-09-18. Sections 0 to 11 without code blocks or tables went from 13,084 words to 7,635, thirty-three pages to nineteen, in one pass: every heading kept, every code block kept byte for byte, every cut inside a section, so every `§x.y` citation and `make sections` still hold; the mirror tests proved the grammar and the prelude did not move, and `make test` that no cited rule changed meaning. Rationale went to the decisions log, one entry listing what left by section. What remains is rules, 81 sections at a median of 76 words, the longest 548, so the measure was revised rather than the report cut past it: the log's "Measure" now says under 8,000 words and no section over 600, measured the same way after every pass.
 
-- **Every heading stays; cuts happen inside sections; nothing moves between sections.** Then every `§x.y` in the tests, the guide, the decisions log, and this plan stays valid, and `make sections` and `make coverage` keep working.
-- Rationale goes to the decisions log, one dated entry per section pared, as CLAUDE.md's normative structure says. Examples stay only where a rule cannot be read without one; the guide is where examples live.
-- The mirror tests prove the grammar and the prelude did not move; `make test` proves no cited rule changed meaning, since a test cites every section.
-- Target: the log's measure, ten pages, about 4,000 words, measured the same way before and after and recorded in the log's "Measure".
+The standing rule for edits, from here on: a change to the report is made inside its heading, in the report's register, and a section that passes 600 words is restating something.
 
 ---
 

@@ -2531,6 +2531,31 @@ Appendix E read one last time against E.0 and against `gleam_stdlib` v1.0.5, OTP
 
 Four things came out. `Map.update`, the counting idiom of get then put, is in snake's `applyInput` and in every word count, a `match` around two calls rather than a pipe of two, so rule 3 admits it and rule 4 does not exclude it; Gleam's `upsert`, Rust's entry. `Char.isUpper`, `isLower`, `toUpper`, `toLower`: `String` had the case operations and `Char` none, against "one verb in every module that has it"; Unicode shims, and a character whose case mapping is several, `ß`, maps to itself. `eunit` had no row in the plan's table, and Ernest will need a `Test` module the day the first test is written in Ernest; the row waits on that. The other OTP applications, `ssl` to `snmp`, `observer` to `parsetools`, got rows as libraries and tooling, so the table has every application and not only the two the question started from.
 
+## Paring the Report, 2026-09-18
+
+The report was complete and three times over its own measure: sections 0 to 11 without code blocks or tables were 13,084 words, about thirty-three pages, against the ten pages of "Measure" below. The long sections stated a rule, restated it with examples, then defended it. One pass, every heading kept, every code block kept byte for byte, every cut inside a section, the mirror tests and the section citations proving nothing normative moved: 7,635 words after, 81 sections, median 76 words, the longest, §6.6, 548. The rest is rules, and a further cut would remove rules, so the measure is revised below rather than the report cut past it.
+
+What left the report, by section, and lives here now:
+
+- §3.1: `Int.mod` gives `%`'s result and a mathematical modulo is written in Ernest when needed; the finite `Float` domain is BEAM's, and a program that needs non-finite arithmetic handles those cases before they arise.
+- §3.2: the `#(` prefix keeps tuples distinct from grouping and from function types.
+- §3.5: names are required past one field because position alone would hide what a field means; canonical order is what lets two nodes that declare a type with reordered fields agree on layout.
+- §3.9: annotations describe shape only, so the inferred restrictions stay out of the annotation grammar and are shown by the compiler instead; the process-only restriction on the primitives is a rule of the prelude, not of the grammar; unification does the rest once the value-position rule ties the two occurrences of `m`.
+- §3.10: the equality constraint is `Eq a => (a, a) -> Bool` in Haskell's spelling, inferred and never written; checking at instantiation matches the check on concrete types.
+- §4.2: canonical namespace segments are one-to-one with lowercase paths so the compiler and the loader agree on a spelling; a declaration carries no namespace prefix because repeating `Net.Http.` on every line would restate the file's path.
+- §5.7: the pipe reads left to right, which suits subject-first call chains; an unparenthesized lambda after `|>` would swallow the rest of the expression.
+- §5.11: a `bits` segment bound to `Bytes` must be byte-sized because a 3-bit `Bytes` value does not exist; size-dependent matches are what protocol parsing is; bitstrings compile to BEAM's bit syntax so its optimizer handles prefix-heavy matches.
+- §6.3: coverage is not required so that a `receive` can wait for one reply in the middle of a protocol without losing other messages.
+- §6.6: `callForever` opts out of the timeout by name, as a `receive` without `after` does; the reply-carrying property is by type because the checker cannot tell which constructor a value holds; `as` on a reply-carrying scrutinee would duplicate the obligation, and a wildcard would drop it silently.
+- §6.7: `remote` is a one-shot compute-and-return, which is why `f` is pure; its failure modes expose runtime state, which is why `remote` itself carries a mailbox effect; a caller that wants cancellation or per-task timeouts spawns processes.
+- §7.4: `todo` exists so an unfinished function can be declared before it is written.
+- §8.1: a project may have several entry-point modules, a service main, a migration main, a bench main.
+- §8.4: preserving a constructor's case in its atom makes the tag injective.
+- §8.5: purity does not imply totality.
+- §8.6: `Sys.*` processes count as external event sources by default; whether a user-provided foreign event source does is a runtime's decision.
+- §8.7: hashing a recursive group by position gives a finite construction; an abstract type's signature is in its hash because the abstraction boundary is part of its identity; a captured address ships as a value because captures capture values, not names.
+- §11.1, §11.2: the path-shape rule validates each path compiled or loaded and does not scan a tree; `--create-config-dir .` does not conflict with `--load-path .`.
+
 ## Later
 
 Planned or considered, not in the language today.
@@ -2562,7 +2587,7 @@ What stood in the specification as reasoning, comparison, or guidance has moved 
 
 ## Measure
 
-The report without code blocks should stay under ten pages, Oberon's measure. At the split the language part was six pages; after paring, 2,100 words; as a report with distribution and toolchain, 3,200 words of prose, of which the prelude and the grammar are lists.
+The report's prose, sections 0 to 11 without code blocks and tables, stays under 8,000 words, about twenty pages, with no section over 600 words; it is measured the same way after every pass and recorded here. Oberon's ten pages was the measure when the language part was six pages and 2,100 words, and 3,200 words with distribution and the toolchain; the report since gained the reply discipline, bitstrings, system references, code shipping, the standard library's rules, and a toolchain, and after the paring of 2026-09-18 it is 7,635 words of rule in 81 sections at a median of 76 words. A section that grows past 600 words is restating something.
 
 ## Next Steps
 
