@@ -186,8 +186,11 @@ let #(x, y) = point                  // x = 3, y = 4
 ```
 let m = Map.empty |> Map.put("a", 1) |> Map.put("b", 2);
 let n = Map.get(m, "a");             // Some(1)
+let c = Map.update(m, "a", fn(v) = Optional.withDefault(v, 0) + 1);   // "a" is 2
 let s = Set.fromList([1, 2, 3])
 ```
+
+`Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call.
 
 Map keys and set elements require equality. Ernest's `==` is defined for every type *except* those containing functions or addresses (report §3.10) — that includes tuples, sums, and constructor fields that transitively contain either. `Map(Address(m), v)` is a type error at instantiation; so is `xs == ys` when `xs` is `List(Address(m))` or any type containing one.
 
@@ -284,7 +287,7 @@ Report Appendix E lists the library: one module per type, `List`, `Map`, `Set`, 
 - **Conversions are named by the other type and live in the subject's module.** `String.toInt`, `Int.toString`, `String.fromList`. Several policies are several names: `Float.round`, `Float.floor`, `Float.ceil`.
 - **A partial operation returns `Optional`.** `List.get`, `Map.get`, `String.toInt`, `Char.fromInt`. Nothing in the library faults beyond what report §7.4 lists.
 - **Pure unless the value lives in a process.** `Io` carries `with m`; every other module is pure, and every function that takes a function is effect-polymorphic (§3.5).
-- **A `String` is not a container.** Its characters are reached through `String.toList`: `List.all(String.toList(t), Char.isDigit)`. Text has its own operations instead: `startsWith`, `endsWith`, `replace`, `slice`, `padStart`, `padEnd`, `split`, `join`, `trim`.
+- **A `String` is not a container.** Its characters are reached through `String.toList`: `List.all(String.toList(t), Char.isDigit)`. Text has its own operations instead: `startsWith`, `endsWith`, `replace`, `slice`, `padStart`, `padEnd`, `split`, `join`, `trim`; a `Char` has its predicates and its case, `isDigit`, `isAlpha`, `isSpace`, `isUpper`, `isLower`, `toUpper`, `toLower`.
 - **`Random` has a pure interface.** `Random.next(seed, n)` returns a draw between 0 and `n` inclusive and the next seed; `Random.seed(42)` makes a seed, and the same seed gives the same sequence.
 - **A system process is used through its module, never by `send`.** `Clock.alarm(100, fn(_) = Tick)`, `Fs.read(path, 5000)`, `Tcp.accept(listener, 60000)`. A function that waits takes the milliseconds last and answers `Left(Timeout)`; one that delivers later takes a function to your mailbox type, as `monitor` does (§5.2). `Keys.subscribe` and `Io.readLine` are the same terminal, in raw and in line mode: a program uses one or the other.
 
