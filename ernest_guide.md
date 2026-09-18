@@ -261,6 +261,8 @@ fn positiveInt(text : String) -> Either(String, Int) = {
 
 The compiler picks Optional or Either from the right-hand side's type. One block cannot mix — a block is either an Optional chain or an Either chain, not both.
 
+`<-` works in a block, one step at a time. To run a step that can fail over every element of a list, `List.tryMap(xs, f)` and `List.tryFold(xs, acc, f)` do the same short-circuit: the first `Left` ends them.
+
 ### 2.8 The pipe operator `|>`
 
 Ernest's stdlib is subject-first. `|>` reads left-to-right:
@@ -282,7 +284,7 @@ Report Appendix E lists the library: one module per type, `List`, `Map`, `Set`, 
 - **Conversions are named by the other type and live in the subject's module.** `String.toInt`, `Int.toString`, `String.fromList`. Several policies are several names: `Float.round`, `Float.floor`, `Float.ceil`.
 - **A partial operation returns `Optional`.** `List.get`, `Map.get`, `String.toInt`, `Char.fromInt`. Nothing in the library faults beyond what report §7.4 lists.
 - **Pure unless the value lives in a process.** `Io` carries `with m`; every other module is pure, and every function that takes a function is effect-polymorphic (§3.5).
-- **A `String` is not a container.** Its characters are reached through `String.toList`: `List.all(String.toList(t), Char.isDigit)`.
+- **A `String` is not a container.** Its characters are reached through `String.toList`: `List.all(String.toList(t), Char.isDigit)`. Text has its own operations instead: `startsWith`, `endsWith`, `replace`, `slice`, `padStart`, `padEnd`, `split`, `join`, `trim`.
 - **`Random` has a pure interface.** `Random.next(seed, n)` returns a draw between 0 and `n` inclusive and the next seed; `Random.seed(42)` makes a seed, and the same seed gives the same sequence.
 - **A system process is used through its module, never by `send`.** `Clock.alarm(100, fn(_) = Tick)`, `Fs.read(path, 5000)`, `Tcp.accept(listener, 60000)`. A function that waits takes the milliseconds last and answers `Left(Timeout)`; one that delivers later takes a function to your mailbox type, as `monitor` does (§5.2).
 
