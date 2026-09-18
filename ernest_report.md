@@ -1446,7 +1446,7 @@ Path.toString : (Path) -> String
 
 ### Appendix E.15. `clock.ern` (namespace `Clock`)
 
-Over `Sys.clock`. Times are milliseconds since the epoch.
+Over `Sys.clock`. Times are milliseconds since the epoch. An alarm fires once and cannot be cancelled: a process that no longer wants it ignores the message, and a periodic tick is scheduled after the previous one is handled.
 
 ```
 Clock.now : () -> Int with m
