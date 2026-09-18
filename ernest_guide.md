@@ -11,7 +11,7 @@ Ernest is a functional language for concurrent programs. Two organizing ideas ru
 
 Everything else is a rule for how functions and processes appear in each other's code.
 
-The guide is arranged as seven stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, organize code, cross boundaries. A complete runnable program appears at selected checkpoints (hello, the counter, the module example, the remote example). The complete programs are collected as files under [`examples/`](examples/). Other snippets are illustrative fragments — assembling them into files is left to the reader. Each stage ends with a short prediction exercise. Read the stages in order; each builds on what came before.
+The guide is arranged as seven stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, organize code, cross boundaries. A complete runnable program appears at selected checkpoints (hello, the counter, the module example, the remote example). The complete programs are collected as files under [`examples/`](examples/); §9 says which of them the toolchain runs today. Other snippets are illustrative fragments — assembling them into files is left to the reader. Each stage ends with a short prediction exercise. Read the stages in order; each builds on what came before.
 
 ## 1. Run a program
 
@@ -969,6 +969,8 @@ A lambda's body is greedy — it extends until the enclosing form's separator. W
 Ernest is n-ary: every function has a specific number of arguments recorded in its type. `fn(x)` says "one argument"; `fn(x, y)` says "two." The chosen syntax makes arity visible at the definition site, and the parenthesized form matches ordinary calls.
 
 ## 9. Reading further
+
+MVP 1 compiles and runs nine of the programs under `examples/` and checks their output in `make test`: `hello`, `counter`, `upgrade`, `pingpong`, `stack`, `patterns`, `kvparser`, `remote`, and the `modules/` pair. The four paper programs below are type-checked only until MVP 2.5, since each uses a system module whose process does not exist yet; the header of each says which.
 
 The four paper programs, in ascending complexity:
 
