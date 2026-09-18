@@ -1229,7 +1229,8 @@ Six rules give a function its shape.
 4. A partial operation returns `Optional`; one with a cause returns `Either`. No function here faults except as §7.4 says.
 5. A function is pure unless its value lives in a process: `Io` carries `with m`, nothing else does. Every function that takes a function is effect-polymorphic (§3.9).
 6. What the type does not say, the comment on the signature says: which occurrence `remove` removes, the order `toList` produces, the range `next` draws from.
-7. A system reference of §8.2 is used through the module of its name, never by `send`. A function that waits takes the milliseconds as its last argument and answers `Left(Timeout)`; one that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9).
+7. A type a module declares is listed in its section as its functions are, `foreign type Seed` in E.13, and is named for what it is within the module, never for the module, since it is `Module.Type` from outside. The types the runtime speaks are the prelude's, §9.3.
+8. A system reference of §8.2 is used through the module of its name, never by `send`. A function that waits takes the milliseconds as its last argument and answers `Left(Timeout)`; one that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9).
 
 ### Appendix E.1. `io.ern` (namespace `Io`)
 
