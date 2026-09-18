@@ -298,7 +298,7 @@ init_order_test() ->
     write(Dir, "src/main.ern",
           "let total = Lib.Values.base + 2\n"
           "export fn main() -> Unit with Never =\n"
-          "    Io.printlnTo(Int.toString(total), Lib.Values.out)\n"),
+          "    send(Lib.Values.out, Int.toString(total) <> \"\\n\")\n"),
     ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"42\n">>, iolist_to_binary(?capturedOutput)).

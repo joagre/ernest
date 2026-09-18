@@ -40,8 +40,7 @@ stdlib_types() ->
 -spec process_only() -> [[atom()]].
 process_only() ->
     [[send], [spawn], ['Address', call], ['Address', callForever], [answer], [monitor],
-     [kill], [remote], [parallelRemote],
-     ['Io', print], ['Io', println], ['Io', printTo], ['Io', printlnTo]].
+     [kill], [remote], [parallelRemote], ['Io', print], ['Io', println]].
 
 %% Type variables that carry the equality constraint (report §3.10): Map
 %% keys, Set elements, and the List functions that compare elements.
@@ -98,8 +97,6 @@ values() ->
      %% Appendix E.1 Io
      {['Io', print], "(String) -> Unit with m"},
      {['Io', println], "(String) -> Unit with m"},
-     {['Io', printTo], "(String, Address(String)) -> Unit with m"},
-     {['Io', printlnTo], "(String, Address(String)) -> Unit with m"},
      %% E.2 List
      {['List', size], "(List(a)) -> Int"},
      {['List', isEmpty], "(List(a)) -> Bool"},
@@ -173,7 +170,6 @@ values() ->
      {['String', toUpper], "(String) -> String"},
      {['String', toInt], "(String) -> Optional(Int)"},
      {['String', toFloat], "(String) -> Optional(Float)"},
-     {['String', toBool], "(String) -> Optional(Bool)"},
      {['String', toList], "(String) -> List(Char)"},
      {['String', fromList], "(List(Char)) -> String"},
      {['String', fromUtf8], "(Bytes) -> Optional(String)"},
@@ -181,8 +177,6 @@ values() ->
      {['String', lines], "(String) -> List(String)"},
      {['String', split], "(String, String) -> List(String)"},
      {['String', join], "(List(String), String) -> String"},
-     {['String', any], "(String, (Char) -> Bool with e) -> Bool with e"},
-     {['String', all], "(String, (Char) -> Bool with e) -> Bool with e"},
      %% E.6 Char
      {['Char', isDigit], "(Char) -> Bool"},
      {['Char', isAlpha], "(Char) -> Bool"},

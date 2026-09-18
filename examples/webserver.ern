@@ -137,5 +137,6 @@ let StatusCode.notFound = StatusCode(404)
 fn StatusCode.render(StatusCode(n)) = Int.toString(n)
 
 fn SessionId.fresh(n) = SessionId(Int.toString(n)) // good enough on paper
-fn SessionId.parse(t) = if String.all(t, Char.isDigit) then Some(SessionId(t)) else None
+fn SessionId.parse(t) =
+    if List.all(String.toList(t), Char.isDigit) then Some(SessionId(t)) else None
 fn SessionId.text(SessionId(t)) = t

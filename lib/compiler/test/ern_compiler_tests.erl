@@ -484,7 +484,7 @@ stdlib_values_test() ->
         "type Msg = Ask(Reply(Int))\n"
         "fn answerer() -> Unit with Msg = receive { Ask(r) -> answer(r, 7) }\n"
         "export fn main() -> Unit with Never = {\n"
-        "    Io.println(Bool.toString(String.all(\"123\", Char.isDigit)));\n"
+        "    Io.println(Bool.toString(List.all(String.toList(\"123\"), Char.isDigit)));\n"
         "    let a = spawn(Local, fn() = answerer());\n"
         "    match call(Address.call, a, Ask) {\n"
         "        Some(n) -> Io.println(Int.toString(n))\n"
@@ -528,7 +528,7 @@ random_test() ->
 %% lets are evaluated
 sys_in_let_test() ->
     {ok, Out} = run("let out = Sys.stdout\n"
-                    "export fn main() -> Unit with Never = Io.printlnTo(\"via let\", out)\n"),
+                    "export fn main() -> Unit with Never = send(out, \"via let\\n\")\n"),
     ?assertEqual(<<"via let\n">>, Out).
 
 %% report §9, Appendix E; plan 2.1 table two: every prelude value the
@@ -599,6 +599,6 @@ process_functions_test() ->
 
 %% report §8.2, §9.7: Sys.stdout is a value
 sys_stdout_test() ->
-    {ok, Out} = run("export fn main() -> Unit with Never = Io.printlnTo(\"hi\", Sys.stdout)\n"),
+    {ok, Out} = run("export fn main() -> Unit with Never = send(Sys.stdout, \"hi\\n\")\n"),
     ?assertEqual(<<"hi\n">>, Out).
 

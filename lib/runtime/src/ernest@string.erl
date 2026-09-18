@@ -5,12 +5,12 @@
 %% separators and at the ends; lines adds no empty line for a final line
 %% feed; toInt takes the digits 0 to 9 with an optional leading minus;
 %% toFloat takes the float literal form of report §2.5 the same way and
-%% answers None outside the finite range.
+%% answers None outside the finite range. Character operations go through
+%% toList (Appendix E.5).
 -module('ernest@string').
 
 -export([size/1, isEmpty/1, contains/2, trim/1, toLower/1, toUpper/1, toInt/1, toFloat/1,
-         toBool/1, toList/1, fromList/1, fromUtf8/1, toUtf8/1, lines/1, split/2, join/2,
-         any/2, all/2, compare/2]).
+         toList/1, fromList/1, fromUtf8/1, toUtf8/1, lines/1, split/2, join/2, compare/2]).
 
 size(S) -> string:length(S).
 isEmpty(S) -> S =:= <<>>.
@@ -42,10 +42,6 @@ toFloat(S) ->
             end
     end.
 
-toBool(<<"true">>) -> {'Some', true};
-toBool(<<"false">>) -> {'Some', false};
-toBool(_) -> 'None'.
-
 toUpper(S) -> unicode:characters_to_binary(string:uppercase(S)).
 toList(S) -> unicode:characters_to_list(S).
 fromList(Cs) -> unicode:characters_to_binary(Cs).
@@ -64,8 +60,6 @@ lines(S) ->
     end.
 split(S, Sep) -> binary:split(S, Sep, [global]).
 join(Parts, Sep) -> iolist_to_binary(lists:join(Sep, Parts)).
-any(S, P) -> lists:any(P, unicode:characters_to_list(S)).
-all(S, P) -> lists:all(P, unicode:characters_to_list(S)).
 compare(A, B) when A < B -> 'Less';
 compare(A, B) when A > B -> 'Greater';
 compare(_, _) -> 'Equal'.

@@ -107,8 +107,6 @@ string_test() ->
     ?assertEqual('None', S:toFloat(<<"1">>)),
     ?assertEqual('None', S:toFloat(<<"1e5">>)),
     ?assertEqual('None', S:toFloat(<<"1.0e999">>)),
-    ?assertEqual({'Some', false}, S:toBool(<<"false">>)),
-    ?assertEqual('None', S:toBool(<<"False">>)),
     ?assertEqual(<<"ABC">>, S:toUpper(<<"abC">>)),
     ?assertEqual([$a, $b], S:toList(<<"ab">>)),
     ?assertEqual(<<"ab">>, S:fromList([$a, $b])),
@@ -122,8 +120,6 @@ string_test() ->
     ?assertEqual([<<>>], S:split(<<>>, <<",">>)),
     ?assertEqual(<<"a, b">>, S:join([<<"a">>, <<"b">>], <<", ">>)),
     ?assertEqual(<<>>, S:join([], <<", ">>)),
-    ?assertEqual(true, S:any(<<"a1">>, fun 'ernest@char':isDigit/1)),
-    ?assertEqual(true, S:all(<<"123">>, fun 'ernest@char':isDigit/1)),
     ?assertEqual('Less', S:compare(<<"a">>, <<"b">>)),
     ?assertEqual('Equal', S:compare(<<"a">>, <<"a">>)).
 
@@ -138,6 +134,8 @@ char_test() ->
     ?assertEqual(false, C:isAlpha($1)),
     ?assertEqual(false, C:isAlpha(16#663)),
     ?assertEqual(true, C:isSpace($\n)),
+    ?assertEqual(true, C:isSpace($\s)),
+    ?assertEqual(false, C:isSpace($a)),
     ?assertEqual(true, C:isSpace(16#85)),
     ?assertEqual(true, C:isSpace(16#3000)),
     ?assertEqual(false, C:isSpace(16#200E)),

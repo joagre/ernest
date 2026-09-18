@@ -1190,7 +1190,7 @@ Informative, not normative: this appendix lists the modules that ship with the c
 Four rules decide whether a function is in.
 
 1. Its value lives in the runtime and Ernest cannot compute it: the `Map` and `Set` operations, the Unicode operations on `String` and `Char`, `Float` arithmetic, `Int.toString`, the bit operations, `Foreign`. These are shims over `foreign fn`, and a shim exists only where this rule applies.
-2. It follows from the type's structure. A container provides the container operations of the vocabulary below; a container that lacks one says so in its section. A conversion has its inverse where the inverse is meaningful.
+2. It follows from the type's structure. A container provides the container operations of the vocabulary below; a container that lacks one says so in its section. A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `zip`, `flatMap`, `range`. A conversion to text has its inverse when programs read that type from text.
 3. A program under `examples/` writes it and the hand-written version has no policy choice in it. One program is enough.
 4. It is not a composition. A function that is one pipe of two functions already here is not added: `List.concat` is `List.flatMap(xs, fn(x) = x)`, `List.sum` is `List.foldLeft(xs, 0, Int.+)`.
 
@@ -1205,13 +1205,11 @@ Six rules give a function its shape.
 
 ### Appendix E.1. `io.ern` (namespace `Io`)
 
-Output. The plain forms send to `Sys.stdout` (section 8); the `*To` forms take the sink as their second argument, so `s |> Io.printlnTo(log)` reads as `s |> Io.println` does.
+Output to `Sys.stdout` (section 8). Output to another `Address(String)` is `send(a, s)`.
 
 ```
-Io.print : (String) -> Unit with m // to Sys.stdout
-Io.println : (String) -> Unit with m // to Sys.stdout, appends "\n"
-Io.printTo : (String, Address(String)) -> Unit with m
-Io.printlnTo : (String, Address(String)) -> Unit with m // appends "\n"
+Io.print : (String) -> Unit with m
+Io.println : (String) -> Unit with m // appends "\n"
 ```
 
 ### Appendix E.2. `list.ern` (namespace `List`)
@@ -1298,7 +1296,7 @@ Set.difference : (Set(a), Set(a)) -> Set(a) // the elements of the first not in 
 
 ### Appendix E.5. `string.ern` (namespace `String`)
 
-A `String` is not a container: operations on its characters go through `toList`. `any` and `all` are the exception, since every parser tests the characters of a string. `String.compare` and `String.<>` are the prelude's, §9.6.
+A `String` is not a container: operations on its characters go through `toList`. `String.compare` and `String.<>` are the prelude's, §9.6.
 
 ```
 String.size : (String) -> Int // code points
@@ -1310,11 +1308,8 @@ String.toUpper : (String) -> String
 String.lines : (String) -> List(String) // at each line feed; a line feed at the end adds no empty line
 String.split : (String, String) -> List(String) // at each occurrence of the second; an empty second gives the first alone
 String.join : (List(String), String) -> String // the second between the parts
-String.any : (String, (Char) -> Bool with e) -> Bool with e
-String.all : (String, (Char) -> Bool with e) -> Bool with e
 String.toInt : (String) -> Optional(Int) // the digits 0 to 9, with an optional leading -
 String.toFloat : (String) -> Optional(Float) // the float literal form of §2.5, with an optional leading -
-String.toBool : (String) -> Optional(Bool) // "true" or "false"
 String.toList : (String) -> List(Char)
 String.fromList : (List(Char)) -> String
 String.toUtf8 : (String) -> Bytes
@@ -1408,7 +1403,7 @@ Foreign.toList : (Foreign) -> Optional(List(Foreign))
 
 ### Appendix E.13. `random.ern` (namespace `Random`)
 
-A pure generator. `Seed` is a concrete type, so a program makes one from any `Int` and a run is repeatable; a program that wants a fresh seed takes the time from `Sys.clock`'s `Now`.
+A pure generator. `Seed` is a concrete type, so a program makes one from any `Int` and a run is repeatable; only the low 64 bits of the `Int` take part, so two seeds that differ above them give the same sequence. A program that wants a fresh seed takes the time from `Sys.clock`'s `Now`.
 
 ```
 type Seed = Seed(Int) // Random.Seed outside the module

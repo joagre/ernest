@@ -2472,6 +2472,10 @@ The three rules of the morning's entry left two judgments open: "the same few li
 
 **Cost.** Appendix E rewritten, one sentence in §9, the snake program's `Seed` and `Random.next`, the plan's MVP 2.5 entry. Under `lib/`: three renames, two argument swaps, three Unicode predicates, nine new functions, and one new module, pending.
 
+## Appendix E: Read Back Against Its Own Rules, 2026-09-18
+
+The appendix of the previous entry, read against the rules it opens with, disagreed with them in three places. `Io.printTo` and `Io.printlnTo`: no program writes them, and each is one `send`, so admission rules 3 and 4 both reject them; the argument-order decision above was about two functions the rules exclude, and a reader would have met `send(out, s)` beside `Io.printlnTo(s, out)` in one program. Removed; printing to a sink other than `Sys.stdout` is `send(a, s)`. `List.take`, `drop`, `sort`, `zip`, `flatMap`, `range`, and `last` were admitted by no rule: rule 2 named only the container vocabulary, and a list also has order and position. Rule 2 now lists the sequence vocabulary. `String.any` and `String.all` were an exception to "`String` is not a container" on the rule's first application, and a second way beside `toList |> List.all`. Removed. Also: `String.toBool` came from the inverse clause applied mechanically and no program reads a `Bool` from text; the clause now says "when programs read that type from text", and `toBool` is gone. E.13 states that only the low 64 bits of a seed take part, which the code did and the appendix did not say. The `Char` predicates decide ASCII without the regular expression.
+
 ## Later
 
 Planned or considered, not in the language today.
