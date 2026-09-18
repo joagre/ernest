@@ -16,16 +16,13 @@ Design complete for MVP 1 (single-node subset). The toolchain is done in Erlang:
 
 ### Then the small programs
 
-The complete programs from the report's Appendix B and D and the guide's checkpoints are collected under [`examples/`](examples/): `hello`, `counter`, `upgrade`, `pingpong`, `stack`, `patterns`, `kvparser`, the two-module pair under `modules/`, `remote`, and the foreign library `ets`. Each file's header says where it comes from and which MVP it needs. Together the examples exercise every construct of the grammar except bitstrings, and a test keeps it so.
+The complete programs from the report's Appendix B and D and the guide's checkpoints are collected under [`examples/`](examples/). Each file's header says where it comes from and which MVP it needs. Together the examples exercise every construct of the grammar except bitstrings, and a test keeps it so.
 
-**What MVP 1 runs.** `make test` compiles and runs nine programs through `ernc` and `ern` and compares their output with `test/expected/`: `hello`, `counter`, `upgrade`, `pingpong`, `stack`, `patterns`, `kvparser`, `remote`, and the `modules/` pair in directory mode; the same nine have golden files of the Erlang the compiler emits under `test/golden/`. The list is the `PROGRAMS` macro in `test/ern_integration_tests.erl`. The other five are type-checked only, since each needs something MVP 1 refuses: `ets` (`foreign fn`), `filesync` (`Fs`), `repl` (`Io.readLine`), `snake` (`Keys`), and `webserver` (`Tcp`, `foreign fn`, and the `Ets` library, the one error its check allows). MVP 2.5 moves the four paper programs into the run set.
+**What MVP 1 runs.** The programs `make test` compiles and runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`, with their expected output under `test/expected/` and the Erlang they compile to under `test/golden/`. The rest of `examples/` is type-checked only, and each file's header says which MVP runs it.
 
-### Then the paper programs, in this order
+### Then the paper programs
 
-- **[`examples/snake.ern`](examples/snake.ern)** — a snake game with tick-based updates. Introduces `..` record update, `Map` folds, one process per player, `Clock`, `Keys`, and `Random`.
-- **[`examples/repl.ern`](examples/repl.ern)** — a read-eval-print loop for a small expression language. Heavy use of `<-`, `try` as a supervised child process, `monitor` for detecting child death, `Io.readLine`.
-- **[`examples/filesync.ern`](examples/filesync.ern)** — file synchronization between two nodes. Introduces mutual-address setup, one process per file operation, and the `Fs` module.
-- **[`examples/webserver.ern`](examples/webserver.ern)** — HTTP server with sessions. Introduces `foreign fn`, abstract types with signatures, the `Tcp` module, ETS as a foreign library.
+[`examples/snake.ern`](examples/snake.ern), [`examples/repl.ern`](examples/repl.ern), [`examples/filesync.ern`](examples/filesync.ern), and [`examples/webserver.ern`](examples/webserver.ern), in that order; guide §9 says what each one shows.
 
 ### Then, as reference material
 
@@ -48,8 +45,8 @@ The complete programs from the report's Appendix B and D and the guide's checkpo
 Three layers:
 
 - **Language.** The rules in `ernest_report.md`: syntax, types, processes, evaluation. Small and stable.
-- **Prelude.** What the report requires to exist. Small — the built-in types (Address, Reply, Never, Foreign, plus List, Map, and Set); a handful of declared sum types (Unit, Optional, Either, Ordering, Down, Reason, ClockMsg, RemoteError, Where); the built-in functions (self, send, spawn); the process functions (via, Address.call, Address.callForever, answer, remote, parallelRemote, monitor, kill); the operations Ernest's operators resolve to (`Int.+` through `Int.%`, `Float.+` through `Float./`, negation, `String.<>`, `List.<>`, `Bytes.<>`, `Int.div`/`Int.mod`, the `.compare` functions, `todo`); and the six system references of §9.7, each used through the standard library module of its name. A prelude operation in a type's namespace, `Int.compare`, is provided by that type's standard library module; the prelude lists what must exist, the library is where it lives.
-- **Standard library** (Appendix E). On the load path by default: one module per type, List, Map, Set, String, Char, Bool, Int, Float, Optional, Either, Foreign, Random, Path, and one per system process, Io, Clock, Keys, Fs, Tcp, which are the way a program uses the `Sys.*` references. Erlang modules under `lib/runtime/src` until `foreign fn` arrives in MVP 2, then Ernest under `stdlib/` with shims only where the value lives in the runtime. Appendix E.0 has the rules: a function is in when the runtime alone can compute it, when it follows from the type's structure, or when a program under `examples/` writes it; never as a composition of two others. One verb per operation in every module (`get`, `put`, `remove`, `map`, `filter`, `foldLeft`, ...), subject first so the pipe works, `Optional` for partial operations, pure except `Io`, and every contract the type does not state in the comment on the signature.
+- **Prelude.** What the report requires to exist, §9: the built-in and declared types, the process functions, the operations the operators resolve to, and the system references. A prelude operation in a type's namespace is provided by that type's standard library module.
+- **Standard library** (Appendix E). On the load path by default: one module per type and one per system process, which is the way a program uses a `Sys.*` reference. Appendix E.0 has the rules for what enters and how it is named. Erlang modules under `lib/runtime/src` until MVP 2.5, then Ernest under `stdlib/`.
 
 ## Layout of the repository
 

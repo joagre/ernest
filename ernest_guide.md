@@ -970,7 +970,7 @@ Ernest is n-ary: every function has a specific number of arguments recorded in i
 
 ## 9. Reading further
 
-MVP 1 compiles and runs nine of the programs under `examples/` and checks their output in `make test`: `hello`, `counter`, `upgrade`, `pingpong`, `stack`, `patterns`, `kvparser`, `remote`, and the `modules/` pair. The four paper programs below are type-checked only until MVP 2.5, since each uses a system module whose process does not exist yet; the header of each says which.
+Which programs under `examples/` the toolchain runs today is the `PROGRAMS` macro in `test/ern_integration_tests.erl`. The four paper programs below are type-checked only until MVP 2.5, since each uses a system module whose process does not exist yet; the header of each says which.
 
 The four paper programs, in ascending complexity:
 
