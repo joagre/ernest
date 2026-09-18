@@ -10,7 +10,7 @@ Design complete for MVP 1 (single-node subset). The toolchain is done in Erlang:
 
 ### Start here
 
-- **[`ernest_report.md`](ernest_report.md)** — the language report. Normative. Everything else in this repo defers to it. Prose in twelve numbered sections, 0 through 11, plus six appendices: grammar (A), examples (B), configuration (C), a foreign-library walk-through (D), the standard library (E), and a glossary (F).
+- **[`ernest_report.md`](ernest_report.md)** — the language report. Normative. Everything else in this repo defers to it. About twenty pages of rules in twelve numbered sections, 0 through 11, in the register of a Wirth report, no rationale and no restating, plus six appendices: grammar (A), examples (B), configuration (C), a foreign-library walk-through (D), the standard library (E), and a glossary (F). The reasons are in the decisions log.
 
 - **[`ernest_guide.md`](ernest_guide.md)** — a reading guide for a first-time reader. Walks through hello world, types (including abstract), functions, one process (a counter), two processes talking (ping-pong), watching processes (`monitor`, `kill`), adapting messages with `via`, the `<-` chaining idiom, remote computation, foreign types and functions, bitstrings, and the toolchain. Closes with a short FAQ and pointers to the paper programs.
 
