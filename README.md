@@ -16,7 +16,9 @@ Design complete for MVP 1 (single-node subset). The toolchain is done in Erlang:
 
 ### Then the small programs
 
-The complete programs from the report's Appendix B and D and the guide's checkpoints are collected under [`examples/`](examples/): `hello`, `counter`, `upgrade`, `pingpong`, `stack`, `patterns`, `kvparser`, the two-module pair under `modules/`, `remote`, and the foreign library `ets`. All but `ets` are the MVP 1 test programs, compiled and run by `make test`. Each file's header says where it comes from and which MVP it needs. Together the examples exercise every construct of the grammar except bitstrings, and a test keeps it so.
+The complete programs from the report's Appendix B and D and the guide's checkpoints are collected under [`examples/`](examples/): `hello`, `counter`, `upgrade`, `pingpong`, `stack`, `patterns`, `kvparser`, the two-module pair under `modules/`, `remote`, and the foreign library `ets`. Each file's header says where it comes from and which MVP it needs. Together the examples exercise every construct of the grammar except bitstrings, and a test keeps it so.
+
+**What MVP 1 runs.** `make test` compiles and runs nine programs through `ernc` and `ern` and compares their output with `test/expected/`: `hello`, `counter`, `upgrade`, `pingpong`, `stack`, `patterns`, `kvparser`, `remote`, and the `modules/` pair in directory mode; the same nine have golden files of the Erlang the compiler emits under `test/golden/`. The list is the `PROGRAMS` macro in `test/ern_integration_tests.erl`. The other five are type-checked only, since each needs something MVP 1 refuses: `ets` (`foreign fn`), `filesync` (`Fs`), `repl` (`Io.readLine`), `snake` (`Keys`), and `webserver` (`Tcp`, `foreign fn`, and the `Ets` library, the one error its check allows). MVP 2.5 moves the four paper programs into the run set.
 
 ### Then the paper programs, in this order
 
