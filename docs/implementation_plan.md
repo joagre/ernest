@@ -296,7 +296,7 @@ The standard library is then the first Ernest program of size, and the compiler'
 - **The paper program:** `examples/fetch.ern`, a command-line tool that fetches JSON over HTTPS and prints a report to stdout, errors to stderr, with an exit status. Its assumptions are the command-line items of step 5's table and the four libraries below; its header says so, as the other four programs' do.
 - **Report first**, for what the program needs of the runtime: `Sys.args` and `Sys.env` in §8.2 and §9.7 as runtime-bound values; `Sys.stderr` with `Io.printError` and `Io.printlnError` in E.1; an exit status in §8.6; `Time` in Appendix E, over the clock's milliseconds, for the report's timestamp. Decisions log to match.
 - **`libs/json`**, pure Ernest: a `Json` type, a parser over `String` returning `Either`, a printer; the first test of `<-`, `tryMap`, and `tryFold` at size.
-- **`libs/tls`**, a shim over `ssl`: `Tls.listen`, `accept`, `connect` returning `Address(SockMsg)` with the encryption inside the socket process, so `Tcp.read`, `write`, and `close` serve both. Certificate verification is on by default and the program names the trust root; nothing else is configurable.
+- **`libs/tls`**, a shim over `ssl` and `public_key`: `Tls.listen`, `accept`, `connect` returning `Address(SockMsg)` with the encryption inside the socket process, so `Tcp.read`, `write`, and `close` serve both. Certificate verification is on by default; the program names the trust root and, for `listen`, its own certificate and key as PEM files, read with `public_key`; nothing else is configurable. `crypto` is reached only through these two and gets no module of its own until a program asks.
 - **`libs/http`**, Ernest over `Tcp` and `Tls`: request and response types, a client. No server; that is the webserver example's job, and the plan's position on HTTP servers stands.
 - **`libs/base64`**, a shim over `base64`, which HTTP authentication needs.
 - Each library is an Ernest source root under `libs/<name>/` that a program adds with `--load-path`, with tests under the same discipline as `stdlib/`, a README of its own, and no entry in Appendix E. Their own repositories later, when there is a package story. Appendix D is corrected where the four disagree with it, report first.
@@ -305,7 +305,7 @@ The standard library is then the first Ernest program of size, and the compiler'
 **MVP 3 (distribution with content addressing).**
 
 - Every definition gets a hash of its typed AST; modules are named by hash; a registry per node `{Hash -> Module}`. A message with a function carries the hash, and a node that lacks it fetches the code from the sender. Erlang's module distribution is not used.
-- `spawn(Peer(name), f)` and `remote(f)` over the peers in `ernest.conf`, authenticated with the configured keys; `remote` picks among peers flagged `"remote-peer": true` by load, criterion to be chosen then.
+- `spawn(Peer(name), f)` and `remote(f)` over the peers in `ernest.conf`, authenticated with the configured keys: the node-to-node connection is `ssl` with the peer's public key from `ernest.conf` as the only trust, read with `public_key`, inside `ern`, and a program never sees either module. `remote` picks among peers flagged `"remote-peer": true` by load, criterion to be chosen then.
 
 **MVP 4 (optimizations and general receive guards).**
 
