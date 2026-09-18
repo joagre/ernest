@@ -2492,7 +2492,7 @@ The report had `Sys.stdout` and `Sys.clock` as addresses, `Io.println` over the 
 
 ## The Erlang Standard Library, Read for Ernest, 2026-09-18
 
-The question that started the day: which of Erlang's modules belong in Ernest's standard library for MVP 2.5, as pure Ernest or as a shim, with the library a sweet spot and not Erlang's accretion. OTP 27 has 218 modules in `stdlib`, `kernel`, `erts`, and `crypto`; about 180 are OTP's own machinery, the compiler front end, the shell, `logger`, distribution, the behaviours, supervisors, code loading, which Ernest's concepts or toolchain replace. The forty user-facing ones sort into six bins under Appendix E.0.
+The question that started the day: which of Erlang's modules belong in Ernest's standard library for MVP 2.5, as pure Ernest or as a shim, with the library a sweet spot and not Erlang's accretion. The roadmap that came out of it is plan MVP 2.5 step 5; this entry is the reading and the reasons. OTP 27 has 218 modules in `stdlib`, `kernel`, `erts`, and `crypto`; about 180 are OTP's own machinery, the compiler front end, the shell, `logger`, distribution, the behaviours, supervisors, code loading, which Ernest's concepts or toolchain replace. The forty user-facing ones sort into six bins under Appendix E.0.
 
 - **Already an Appendix E module.** `lists` is `List`; `maps`, `dict`, `orddict`, `gb_trees`, `proplists` are `Map`; `sets`, `ordsets`, `gb_sets` are `Set`; `string` and `unicode` are `String` and `Char`; `math` and the float BIFs are `Float`; the integer BIFs are `Int`; `rand` is `Random`; `io` for output is `Io`; `ets` is `Ets`, Appendix D. Erlang has five map-likes and three set-likes by history; Ernest has one of each.
 - **A system process with a module**, §8.2 and E.15 to E.18: `file` and `filelib` are `Fs`; `gen_tcp`, `socket`, `inet` are `Tcp`; `io` for input is `Io.readLine`; `timer` is `Clock`; the keyboard is `Keys`.
@@ -2503,7 +2503,7 @@ The question that started the day: which of Erlang's modules belong in Ernest's 
 
 **Calibration.** Gleam's core, the BEAM stdlib readers call sweet, is `bit_array`, `bool`, `dict`, `dynamic`, `float`, `function`, `int`, `io`, `list`, `option`, `order`, `pair`, `result`, `set`, `string`, `string_tree`, `uri`. Ernest after MVP 2.5 has the same set under its own names minus four: `function` and `pair` are compositions and patterns here, the two builders are unnecessary with BEAM's binary append, `uri` is a library. It has what Gleam lacks: `Random` behind a pure interface, `Ets`, `Path`, effect-polymorphic combinators, and the system modules over typed processes. Nineteen modules; Erlang's user-facing surface is twice that, from history rather than need.
 
-**Open.** `Sys.args : List(String)` and `Sys.env`, the command line and the environment, are two lines in §8.2 and §9.7 that every command-line tool needs on day one; no program under `examples/` reads them yet. Recommended: add them when the first such program is written, report first.
+**`Sys.args` and `Sys.env`** wait for the first command-line program, in the plan's list, rather than entering now: they are two lines, but nothing under `examples/` reads them, and the corpus rule is the rule.
 
 ## Later
 
