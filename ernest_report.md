@@ -1211,7 +1211,7 @@ Informative, not normative: this appendix lists the modules that ship with the c
 Four rules decide whether a function is in.
 
 1. Its value lives in the runtime and Ernest cannot compute it, or the runtime's implementation is the one to trust: the `Map` and `Set` operations, the Unicode operations on `String` and `Char`, `Float` arithmetic, `Int.toString`, the bit operations, `Foreign`, `Random`, and the modules over the system references of §8.2. These are shims over `foreign fn` or over a system process, and a shim exists only where this rule applies.
-2. It follows from the type's structure. A container provides the container operations of the vocabulary below; a container that lacks one says so in its section. A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, and `tryMap` and `tryFold` for a step that can fail. A conversion to text has its inverse when programs read that type from text.
+2. It follows from the type's structure, and each kind of type has a vocabulary. A container provides the container operations of the vocabulary below, or says in its section which it lacks and why. A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, and `tryMap` and `tryFold` for a step that can fail. Text adds `startsWith`, `endsWith`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `trim`, `toLower`, `toUpper`. A path adds its segments: `join`, `split`, `parent`, `name`, `extension`, `withExtension`, `isAbsolute`. A conversion to text has its inverse when programs read that type from text. A type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote.
 3. A program under `examples/` writes it and the hand-written version has no policy choice in it. One program is enough.
 4. It is not a composition. A function that is one pipe of two functions already here is not added: `List.concat` is `List.flatMap(xs, fn(x) = x)`, `List.sum` is `List.foldLeft(xs, 0, Int.+)`.
 
@@ -1456,7 +1456,12 @@ Random.next : (Random.Seed, Int) -> #(Int, Random.Seed) // uniform between 0 and
 
 ```
 Path.join : (Path, Path) -> Path // the second under the first; an absolute second stands alone
-Path.withSuffix : (Path, String) -> Path // the string appended
+Path.split : (Path) -> List(String) // the segments; an absolute path's first is the root
+Path.parent : (Path) -> Optional(Path) // None for a bare name or the root
+Path.name : (Path) -> String // the last segment
+Path.extension : (Path) -> Optional(String) // after the last "." of the name, without it
+Path.withExtension : (Path, String) -> Path // replaced or added; an empty string removes it
+Path.isAbsolute : (Path) -> Bool
 Path.toString : (Path) -> String
 ```
 

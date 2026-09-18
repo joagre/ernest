@@ -271,7 +271,12 @@ values() ->
      {['Random', next], "(Random.Seed, Int) -> #(Int, Random.Seed)"},
      %% E.14 Path
      {['Path', join], "(Path, Path) -> Path"},
-     {['Path', withSuffix], "(Path, String) -> Path"},
+     {['Path', split], "(Path) -> List(String)"},
+     {['Path', parent], "(Path) -> Optional(Path)"},
+     {['Path', name], "(Path) -> String"},
+     {['Path', extension], "(Path) -> Optional(String)"},
+     {['Path', withExtension], "(Path, String) -> Path"},
+     {['Path', isAbsolute], "(Path) -> Bool"},
      {['Path', toString], "(Path) -> String"},
      %% E.15 Clock
      {['Clock', now], "() -> Int with m"},

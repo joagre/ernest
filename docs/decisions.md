@@ -2513,6 +2513,12 @@ At function level `String` had eighteen functions to Gleam's thirty-nine and `Li
 
 Not admitted: Gleam's other thirty `list` functions, compositions (`first`, `rest`, `flatten`, `count`, `map2`) or specialities (`permutations`, `window`, `transpose`); `order`, since `Ordering.reverse` is `fn(a, b) = compare(b, a)`; `pair`; `function.identity`; `bool.guard`; `string.inspect`; `bit_array`'s base64, a library. Sent to the plan's bins: `Float.looselyEquals`, the honest float comparison, waiting for a program that compares floats; and stderr, which Gleam's `io` has as `print_error` and `println_error` and Ernest removed on 2026-09-14, restored as `Sys.stderr` with `Io.printError` and `Io.printlnError` at the first command-line program.
 
+## Path by Its Structure, 2026-09-18
+
+`Path` entered Appendix E by the corpus rule with the three functions filesync had written, `join`, `toString`, `withSuffix`, and nothing else, because rule 2's vocabulary named containers and sequences only. That is the too-minimalistic failure of the morning on a smaller scale, and `withSuffix` was a composition, `Path(Path.toString(p) <> s)`, that rule 4 excludes; the corpus had carried it in. E.14 now has what a path's structure gives and every path library agrees on, `filename`, Gleam's `filepath`, Rust's `Path`: `join`, `split`, `parent`, `name`, `extension`, `withExtension`, `isAbsolute`, `toString`. Left out: `absname` and `expand`, which read the working directory and are `Fs`'s, and `nativename`, since a `Path` is already in the runtime's syntax. `withSuffix` is gone; filesync writes the composition.
+
+Rule 2 now says each kind of type has a vocabulary, lists text's and a path's beside the container's and the sequence's, and ends with the sentence that closes the gap: a type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote.
+
 ## Later
 
 Planned or considered, not in the language today.

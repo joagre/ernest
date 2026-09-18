@@ -284,7 +284,20 @@ path_test() ->
     ?assertEqual({'Path', <<"a/b">>}, P:join({'Path', <<"a">>}, {'Path', <<"b">>})),
     ?assertEqual({'Path', <<"a/b">>}, P:join({'Path', <<"a/">>}, {'Path', <<"b">>})),
     ?assertEqual({'Path', <<"/b">>}, P:join({'Path', <<"a">>}, {'Path', <<"/b">>})),
-    ?assertEqual({'Path', <<"a.conflict">>}, P:withSuffix({'Path', <<"a">>}, <<".conflict">>)),
+    ?assertEqual([<<"/">>, <<"a">>, <<"b">>], P:split({'Path', <<"/a/b">>})),
+    ?assertEqual([<<"a">>, <<"b">>], P:split({'Path', <<"a/b">>})),
+    ?assertEqual({'Some', {'Path', <<"a">>}}, P:parent({'Path', <<"a/b">>})),
+    ?assertEqual({'Some', {'Path', <<"/">>}}, P:parent({'Path', <<"/a">>})),
+    ?assertEqual('None', P:parent({'Path', <<"a">>})),
+    ?assertEqual('None', P:parent({'Path', <<"/">>})),
+    ?assertEqual(<<"b.txt">>, P:name({'Path', <<"a/b.txt">>})),
+    ?assertEqual({'Some', <<"txt">>}, P:extension({'Path', <<"a/b.txt">>})),
+    ?assertEqual('None', P:extension({'Path', <<"a/b">>})),
+    ?assertEqual({'Path', <<"a/b.md">>}, P:withExtension({'Path', <<"a/b.txt">>}, <<"md">>)),
+    ?assertEqual({'Path', <<"a/b.md">>}, P:withExtension({'Path', <<"a/b">>}, <<"md">>)),
+    ?assertEqual({'Path', <<"a/b">>}, P:withExtension({'Path', <<"a/b.txt">>}, <<>>)),
+    ?assertEqual(true, P:isAbsolute({'Path', <<"/a">>})),
+    ?assertEqual(false, P:isAbsolute({'Path', <<"a">>})),
     ?assertEqual(<<"a">>, P:toString({'Path', <<"a">>})).
 
 %% report §6.7: no peer is configured in MVP 1

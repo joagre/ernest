@@ -154,6 +154,6 @@ fn changed(old : Map(Path, Int), Entry(path = p, mtime = m) : Entry) -> Optional
 fn snapshot(entries : List(Entry)) -> Map(Path, Int) =
     List.foldLeft(entries, Map.empty, fn(acc, Entry(path = p, mtime = m)) = Map.put(acc, p, m))
 
-fn conflictPath(p : Path) -> Path = Path.withSuffix(p, ".conflict")
+fn conflictPath(p : Path) -> Path = Path(Path.toString(p) <> ".conflict")
 
 fn errorText(e : IoError) -> String = todo("on paper")
