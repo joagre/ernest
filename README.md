@@ -47,7 +47,7 @@ Four layers:
 - **Language.** The rules in `ernest_report.md`: syntax, types, processes, evaluation. Small and stable.
 - **Prelude.** What the report requires to exist, §9: the built-in and declared types, the process functions, the operations the operators resolve to, and the system references. A prelude operation in a type's namespace is provided by that type's standard library module.
 - **Standard library** (Appendix E). On the load path by default: one module per type and one per system process, which is the way a program uses a `Sys.*` reference. Appendix E.0 has the rules for what enters and how it is named. Erlang modules under `lib/runtime/src` until MVP 2.5, then Ernest under `stdlib/`.
-- **Libraries.** Everything else, `Json`, `Tls`, `Regex`, `Http`, and the rest: written on the foreign-library pattern of Appendix D, by anyone, in their own repositories, added to a program's load path when wanted. The line between the standard library and a library is Appendix E.0: a namespace of its own with policy inside is a library, however useful.
+- **Libraries.** Everything else, `Json`, `Tls`, `Regex`, `Http`, and the rest: written on the foreign-library pattern of Appendix D, by anyone, added to a program's load path when wanted. The first four, `json`, `tls`, `http`, `base64`, are first-party under `libs/` from MVP 2.6; their own repositories come with a package story. The line between the standard library and a library is Appendix E.0: a namespace of its own with policy inside is a library, however useful.
 
 ## Layout of the repository
 
@@ -63,6 +63,7 @@ test/              what spans applications: the hand-written target modules,
                    the integration tests, expected/, golden/
 bin/               ernc and ern, as escript sources
 stdlib/            the standard library as Ernest source, from MVP 2.5
+libs/              the first-party libraries, each a source root, from MVP 2.6
 ```
 
 A module path segment is one lowercase word (report §11.1); a multi-word module is a nested directory. Files that are not modules use underscores.
