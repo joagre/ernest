@@ -2486,6 +2486,8 @@ The report had `Sys.stdout` and `Sys.clock` as addresses, `Io.println` over the 
 
 **`Random` over `rand`.** The morning's SplitMix64 existed so that a seed could be a plain `Int` that travels between nodes and gives the same sequence everywhere; no program asked for that, and writing a generator of our own is exactly what E.0's first rule now says not to do where the runtime's implementation is the one to trust. `Seed` is a foreign type made by `Random.seed`, node-bound like any foreign value.
 
+**Lesson, in CLAUDE.md as a rule.** The drift came from applying the principles to the language only and reading the result back after committing: `send` to system processes, a generator of our own, a reserved word as a function name. The rule is to read the resulting code back as a reader would, before reporting it.
+
 **MVP 1.** `Clock` and `Path` ship now as Erlang modules; the other four references and their modules type-check and `ernc` refuses them with "is not in MVP 1", listed in the README's table, until MVP 2.5 step 4.
 
 ## Later
