@@ -2744,6 +2744,10 @@ A review of every document against the report found E.0 rule 6 stricter than the
 
 The first module with no shim at all: thirty functions and `List.<>`, each written over `[]` and `::`. `sort` is a merge sort, stable because `merge` takes the left element unless `compare` says `Greater`; 200,000 elements sort in about 110 ms, and a map, filter and fold over the same list in 17 ms, which settles the question of whether the language can carry its own list module. `tryMap` and `tryFold` use `<-` on `Either`, so the module reads as the guide teaches. Writing it changed only the machinery: a doc example may print, as one for `foreach` must, so each example now runs on its own and the value it ends with is the last line it prints, and E.0 rule 6 says so. `Bytes` has no standard library module, so §9's sentence that a prelude operation in a type's namespace is provided by that type's module leaves `Bytes.<>` with no owner; the plan's table has `Bytes` waiting for a program.
 
+## `Bytes` Has a Module, 2026-09-20
+
+`List` left `Bytes.<>` without the module §9 says provides it, and the plan had `Bytes` waiting for "a program that needs it". That trigger is the corpus rule, which decides nothing: a `Bytes` is a sequence of octets, so E.0 rule 2 gives it the vocabulary its structure implies, program or none. Appendix E.20 is `size`, `isEmpty`, `get`, `slice`, `toList`, `fromList`, and `<>`, with the section saying what it lacks and why: a `Bytes` is not a container, its octets are reached through `toList`, and `<<...>>` builds one, so there is no constructor. The shims are Erlang's `byte_size`, `binary:at`, `binary:part`, `binary_to_list`, and `list_to_binary`, which rule 1 now names; the bounds, the clipping, and the 0-to-255 check are in Ernest.
+
 ## Later
 
 Planned or considered, not in the language today.

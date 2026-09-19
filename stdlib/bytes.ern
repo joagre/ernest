@@ -1,0 +1,84 @@
+/// Operations on `Bytes`, a sequence of octets (report §3.1). A `Bytes` is
+/// not a container: its octets are reached through `toList`, each an `Int`
+/// from 0 to 255, and `<<...>>` builds and matches one at the bit level
+/// (report §5.11), so there is no constructor here.
+///
+/// ## Examples
+///
+/// ```ernest
+/// Bytes.toList(<<104, 105>> <> <<33>>)
+/// // => [104, 105, 33]
+/// ```
+///
+/// ```ernest
+/// Bytes.fromList([104, 105])
+/// // => Some(<<104, 105>>)
+/// ```
+///
+/// ## See also
+///
+/// `String.toUtf8` and `String.fromUtf8` for text, `Int` for the octets.
+///
+/// since 0.1.0
+
+/// The octets of the first, then those of the second.
+export fn Bytes.<>(a : Bytes, b : Bytes) -> Bytes = a <> b
+
+/// The number of octets.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Bytes.size(<<1, 2, 3>>), Bytes.isEmpty(<<>>))
+/// // => #(3, true)
+/// ```
+export foreign fn size(b : Bytes) -> Int = "erlang:byte_size/1"
+
+/// `true` for the empty `Bytes`.
+export fn isEmpty(b : Bytes) -> Bool = size(b) == 0
+
+/// The octet at the index, counting from 0, or `None` beyond either end.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Bytes.get(<<7, 8>>, 1), Bytes.get(<<7, 8>>, 2))
+/// // => #(Some(8), None)
+/// ```
+export fn get(b : Bytes, i : Int) -> Optional(Int) =
+    if i < 0 || i >= size(b) then None else Some(at(b, i))
+
+foreign fn at(b : Bytes, i : Int) -> Int = "binary:at/2"
+
+/// The octets from the index, that many of them, clipped to what is there;
+/// a negative index or count gives the empty `Bytes`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Bytes.slice(<<1, 2, 3>>, 1, 5), Bytes.slice(<<1, 2, 3>>, 0, 2))
+/// // => #(<<2, 3>>, <<1, 2>>)
+/// ```
+export fn slice(b : Bytes, from : Int, count : Int) -> Bytes =
+    if from < 0 || count <= 0 || from >= size(b) then
+        <<>>
+    else
+        part(b, from, Int.min(count, size(b) - from))
+
+foreign fn part(b : Bytes, from : Int, count : Int) -> Bytes = "binary:part/3"
+
+/// The octets, each from 0 to 255.
+export foreign fn toList(b : Bytes) -> List(Int) = "erlang:binary_to_list/1"
+
+/// The `Bytes` of those octets, or `None` when one is outside 0 to 255.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Bytes.fromList([256])
+/// // => None
+/// ```
+export fn fromList(octets : List(Int)) -> Optional(Bytes) =
+    if List.all(octets, fn(n) = n >= 0 && n <= 255) then Some(pack(octets)) else None
+
+foreign fn pack(octets : List(Int)) -> Bytes = "erlang:list_to_binary/1"

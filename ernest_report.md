@@ -1071,7 +1071,7 @@ E.0 is normative; the listing that follows is what E.0 has admitted, the modules
 
 Four rules decide whether a function is in.
 
-1. Its value lives in the runtime and Ernest cannot compute it, or the runtime's implementation is the one to trust: the `Map` and `Set` operations, the Unicode operations on `String` and `Char`, `Int.toString` and `Float.toString`, the conversions between `Int` and `Float` and between `Int` and `Char`, the bit operations, `Foreign` and `Erl.atom`, `Random`, and the modules over the system references of §8.2. These are shims over `foreign fn` or over a system process, and a shim exists only where this rule applies.
+1. Its value lives in the runtime and Ernest cannot compute it, or the runtime's implementation is the one to trust: the `Map` and `Set` operations, the Unicode operations on `String` and `Char`, `Int.toString` and `Float.toString`, the conversions between `Int` and `Float` and between `Int` and `Char`, the `Bytes` operations, the bit operations, `Foreign` and `Erl.atom`, `Random`, and the modules over the system references of §8.2. These are shims over `foreign fn` or over a system process, and a shim exists only where this rule applies.
 2. It follows from the type's structure, and each kind of type has a vocabulary. A container provides the container operations of the vocabulary below, or says in its section which it lacks and why. A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, and `tryMap` and `tryFold` for a step that can fail. Text adds `startsWith`, `endsWith`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `trim`, `toLower`, `toUpper`, and a character `isUpper`, `isLower`, `toUpper`, `toLower`. A path adds its segments: `join`, `split`, `parent`, `name`, `extension`, `withExtension`, `isAbsolute`. A filesystem adds files and directories: `read`, `write`, `append`, `list`, `stat`, `makeDir`, `remove`, `rename`, `copy`. A conversion to text has its inverse when programs read that type from text. A type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote.
 3. A program writes it and the hand-written version has no policy choice in it. One program is enough.
 4. It is not a composition. A function that is one pipe of two functions already here is not added: `List.concat` is `List.flatMap(xs, fn(x) = x)`, `List.sum` is `List.foldLeft(xs, 0, Int.+)`.
@@ -1392,6 +1392,19 @@ Erl.atom : (String) -> Foreign // the Erlang atom of the text
 ```
 
 A function enters this appendix by the rules of E.0 before it enters `stdlib/`.
+
+### Appendix E.20. `bytes.ern` (namespace `Bytes`)
+
+A `Bytes` is not a container: operations on its octets go through `toList`, which gives each as an `Int` from 0 to 255. `Bytes.<>` is the prelude's, §9.6; this module provides it. `<<...>>` builds and matches a `Bytes` at the bit level (§5.11), so there is no constructor here.
+
+```
+Bytes.size : (Bytes) -> Int // octets
+Bytes.isEmpty : (Bytes) -> Bool
+Bytes.get : (Bytes, Int) -> Optional(Int) // the octet at the index from 0
+Bytes.slice : (Bytes, Int, Int) -> Bytes // from the index, that many octets, clipped; a negative index or count is 0
+Bytes.toList : (Bytes) -> List(Int)
+Bytes.fromList : (List(Int)) -> Optional(Bytes) // None when a value is outside 0 to 255
+```
 
 ## Appendix F. Glossary
 

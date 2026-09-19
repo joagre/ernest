@@ -196,6 +196,22 @@ char_test() ->
     ?assertEqual('Greater', C:compare($b, $a)).
 
 %% report Appendix E.7
+%% report Appendix E.20
+bytes_test() ->
+    B = 'ernest@bytes',
+    ?assertEqual(3, B:size(<<1, 2, 3>>)),
+    ?assertEqual(true, B:isEmpty(<<>>)),
+    ?assertEqual({'Some', 8}, B:get(<<7, 8>>, 1)),
+    ?assertEqual('None', B:get(<<7, 8>>, 2)),
+    ?assertEqual('None', B:get(<<7, 8>>, -1)),
+    ?assertEqual(<<2, 3>>, B:slice(<<1, 2, 3>>, 1, 5)),
+    ?assertEqual(<<>>, B:slice(<<1, 2, 3>>, 3, 1)),
+    ?assertEqual(<<>>, B:slice(<<1, 2, 3>>, 0, -1)),
+    ?assertEqual([104, 105], B:toList(<<"hi">>)),
+    ?assertEqual({'Some', <<104, 105>>}, B:fromList([104, 105])),
+    ?assertEqual('None', B:fromList([256])),
+    ?assertEqual(<<1, 2>>, B:'<>'(<<1>>, <<2>>)).
+
 %% report Appendix E.19
 erl_test() ->
     ?assertEqual(ready, 'ernest@erl':atom(<<"ready">>)).
