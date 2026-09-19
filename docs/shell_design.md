@@ -19,6 +19,8 @@ xs : List(Int)
 
 A declaration prints its name and its type; a `let` its name and type; an expression its value and type. The last expression's value is bound to `it`, as in every ML-family shell, so `it` at the next prompt is that value at that type.
 
+A value is printed by its type, which the shell knows from the checker, and as the source writes it: a named constructor with its field names, `Snap(dir = "x", seen = 2) : Snap`; a `Char` as `'a'`; a `Map` and a `Set` as `Map.fromList` and `Set.fromList`; a value of an abstract type as `<abstract>`, so its representation stays private, as OCaml prints `<abstr>`; an address, a reply, a function, or a foreign value as `<address>`, `<reply>`, `<function>`, `<foreign>`. `Io.debug` prints by the runtime's representation instead, since at run time it cannot know the type (Appendix E.1).
+
 A large value is printed up to a depth and a length, the rest shown as `...`. `:set depth n` and `:set length n` change the limits, and `Io.debug` prints a value in full.
 
 ## Bindings at the prompt
@@ -68,7 +70,7 @@ Any prefix of a command's name selects it, as in GHCi, and an ambiguous prefix s
 - **`:type e`**: the type of an expression, without evaluating it, printed as the checker prints types (§11.5). In a typed language this is the command used most.
 - **`:browse Module`**: every export of a module with its type, the compact overview beside `:doc`'s text.
 - **`:load file`**: brings a source file's declarations into the session, as if typed at the prompt.
-- **`:reload Module`**: recompiles and reloads a module during development. It is a toolchain convenience and does not compete with §6.10's `Upgrade`.
+- **`:reload Module`**: recompiles and reloads a module during development; without a name, every loaded module whose source changed since it was loaded, as GHCi's `:r` and Erlang's `lm()` do. It is a toolchain convenience and does not compete with §6.10's `Upgrade`.
 - **`:quit`**, as `C-d` on an empty line.
 - **`:doc Name`**: a declaration's documentation, rendered as `ernc --doc` renders it (§11.4): the declaration, with a type's constructors and a function's type, and its text. The documentation norm, Appendix E.0 rule 6, makes it worth more than Erlang's `h`. A GHCi user's `:i` finds nothing; the help text says `:doc` is the command.
 - **`:help`**, which lists the commands and their prefixes.
@@ -100,6 +102,7 @@ Two questions a Haskell user asks on the first day:
 - **`regs()`.** Ernest has no registered names.
 - **The records commands.** Ernest has no records; a `type` declaration typed at the prompt does their work.
 - **`rp`.** The shell prints up to its limits, and `Io.debug` prints a value in full.
+- **`:kind`**, GHCi's. Ernest exposes no kinds; `:doc` on a type shows its parameters.
 - **`:info`**, GHCi's. `:doc` already shows the declaration; a second command for one lookup would be two ways (principle 2).
 - **`cd`, `pwd`, `ls`.** The `Fs` module does this in the language; a command would be a second way (principle 2).
 - **`v(N)`, `e(N)`, `bt`, `memory`, `uptime`, and job control.** Power tooling a first shell does not need; each may come later on its own merits.
