@@ -267,6 +267,10 @@ stdlib_root_test() ->
 stdlib_file_takes_its_root_test() ->
     Dir = tmp(),
     ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir, "../../../stdlib/optional.ern"])),
+    %% report §11.1: and builds into build/stdlib, where its dependencies are
+    ?assertEqual(0, ern_cli:ernc(["--doc", "../../../stdlib/float.ern"])),
+    ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput),
+                                    "# Ernest module Float")),
     ?assert(filelib:is_regular(Dir ++ "/optional.erc")),
     ?assertEqual(1, ern_cli:ernc(["--source-root", "../../..", "--out-dir", Dir,
                                   "../../../stdlib/optional.ern"])).

@@ -98,7 +98,7 @@ ernc_compile(Opts, Path, Err) ->
     filelib:is_file(Path) orelse fail("no such file or directory " ++ Path),
     DirMode = filelib:is_dir(Path),
     Root = source_root(Opts, Path, case DirMode of true -> Path; false -> "." end),
-    OutDir = absolute(proplists:get_value(out_dir, Opts, Root)),
+    OutDir = out_dir(Opts, Root),
     Files = case DirMode of
                 true -> [filename:join(Path, F) || F <- filelib:wildcard("**/*.ern", Path)];
                 false -> [Path]
@@ -298,6 +298,20 @@ source_root(Opts, Path, Default) ->
         Root -> absolute(Root)
     end.
 
+%% Report §11.1: the build directory is --out-dir; without it, the source
+%% root, and `build/stdlib` for the standard library's own root, where the
+%% Makefile builds it.
+out_dir(Opts, Root) ->
+    case proplists:get_value(out_dir, Opts) of
+        undefined ->
+            case is_stdlib_root(Root) of
+                true -> absolute(filename:join([filename:dirname(stdlib_root()), "build",
+                                                "stdlib"]));
+                false -> Root
+            end;
+        Dir -> absolute(Dir)
+    end.
+
 is_stdlib_root(Root) ->
     absolute(Root) =:= stdlib_root().
 
@@ -439,7 +453,7 @@ doc(Opts, Path, Err) ->
         false ->
             filelib:is_regular(Path) orelse fail("no such file " ++ Path),
             Root = source_root(Opts, Path, "."),
-            OutDir = absolute(proplists:get_value(out_dir, Opts, Root)),
+            OutDir = out_dir(Opts, Root),
             try
                 Mod = module_of(absolute(Path), Root),
                 [Parsed] = compile_order([Mod], Root),
@@ -452,7 +466,7 @@ doc(Opts, Path, Err) ->
 
 doc_dir(Opts, Path) ->
     Root = source_root(Opts, Path, Path),
-    OutDir = absolute(proplists:get_value(out_dir, Opts, Root)),
+    OutDir = out_dir(Opts, Root),
     Files = [filename:join(Path, F) || F <- filelib:wildcard("**/*.ern", Path)],
     Mods = compile_order([module_of(absolute(F), Root) || F <- Files], Root),
     Entries = [begin

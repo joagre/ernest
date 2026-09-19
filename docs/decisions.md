@@ -2736,6 +2736,10 @@ Writing `Float.abs` in Ernest needed `if x <= 0.0 then 0.0 - x else x`, where ev
 
 A review of every document against the report found E.0 rule 6 stricter than the template the user agreed, the documentation tests, and every module written since: rule 6 asked for one central example, a module `See also` always, a doc block on every declaration, and a call in some example of every exported function. The template, agreed first, has the module's central examples, `See also` where there is something to see, doc blocks on exported declarations, and operators exempt, since an operator is used infix and `Float./(1.0, 2.0)` is not how a reader calls it. The report changed to the agreed form. The template's exception for an abstract value's example stays, now in rule 6: it prints as `<abstract>`, which shows nothing. Rule 1 names `Erl.atom`, which E.19 admits by it.
 
+## The Standard Library's Root Builds Into `build/stdlib`, 2026-09-20
+
+`ernc --doc stdlib/float.ern` failed with "compile Int first": the build directory defaulted to the source root, `stdlib/`, while `make` builds the modules into `build/stdlib`. The rule was uniform and the error named the fix, so it was first left alone with `make doc` as the way to render the pages; the command was typed twice more, which is principle 1 deciding. §11.1 now defaults the build directory for the standard library's own root to `build/stdlib`, beside the toolchain. Nothing new is invisible: §4.2 and §11.1 already treat that one directory apart, the Makefile already builds there, and the default stops `ernc stdlib` from writing `.erc` and `.md` files into the source directory.
+
 ## Later
 
 Planned or considered, not in the language today.
