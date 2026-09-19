@@ -2774,6 +2774,10 @@ Two things had to change first. §3.10 says `Map(k, v)` and `Set(a)` carry the e
 
 The higher-order operations were written in Ernest first, because §3.9 made every `foreign fn` with an effect process-only, and `snake.ern` calls `Map.foldLeft` from pure code. The rule refused a whole class of shims that rule 1 admits, so it was refined the same day: a `foreign fn`'s effect is its own, and process-only, unless its effect variable is also the effect of one of its parameters' function types, where the effect is that callback's and the function is effect-polymorphic. The foreign code still promises purity; what it runs is the caller's. `Map.map`, `filter`, `filterMap`, `foldLeft`, `foreach`, and `Set.filter`, `foldLeft`, `foreach` are shims again, over `maps` and `sets`.
 
+## Shims Where the Runtime Owns the Representation, 2026-09-20
+
+With effect-polymorphic shims possible, the question became which Ernest code should become one. The line is ownership, and E.0 rule 1 now says it: a `Map`, a `Set`, a `String`, a `Bytes`, a `Float` are the runtime's, so their operations are the runtime's; `[]` and `::` are the language's, so `List` is written in Ernest, which is also the proof that the language carries its own core. The exception the rule names is `List.sort`, where Erlang's stable merge sort is the one to trust: 200,000 elements sort in 75 ms rather than 110. `Int.abs`, `min`, `max`, `Float.abs`, `min`, `max`, and `Float.truncate` became shims over the builtins of the same names, since they are float and integer operations the runtime owns. What has no native form stays Ernest: `Optional`, `Either`, `Bool`, `List.tryMap` and `tryFold`, `Map.any`, `all`, `find`, `Set.map`, `Int.div` and `mod`, `Float.round` with its ties to even, and `String.toInt`, whose digit rule is narrower than any Erlang function's.
+
 ## Later
 
 Planned or considered, not in the language today.

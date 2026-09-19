@@ -71,7 +71,7 @@ export fn compare(a : Int, b : Int) -> Ordering =
     if a < b then Less else if a > b then Greater else Equal
 
 /// The magnitude.
-export fn abs(n : Int) -> Int = if n < 0 then -n else n
+export foreign fn abs(n : Int) -> Int = "erlang:abs/1"
 
 /// The smaller.
 ///
@@ -81,10 +81,10 @@ export fn abs(n : Int) -> Int = if n < 0 then -n else n
 /// Int.min(1, 2)
 /// // => 1
 /// ```
-export fn min(a : Int, b : Int) -> Int = if a < b then a else b
+export foreign fn min(a : Int, b : Int) -> Int = "erlang:min/2"
 
 /// The larger.
-export fn max(a : Int, b : Int) -> Int = if a > b then a else b
+export foreign fn max(a : Int, b : Int) -> Int = "erlang:max/2"
 
 /// Bitwise and, on the two's complement form.
 ///
