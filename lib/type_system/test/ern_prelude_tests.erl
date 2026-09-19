@@ -19,7 +19,11 @@ values_test() ->
     St = ern_typecheck:type_state(ern_typecheck:prelude_env()),
     Compiled = [{qname(Q), normalize(unmarked(ern_types:format_scheme(S, St)))}
                 || I <- ern_prelude:stdlib_ifaces(), {Q, S} <- maps:to_list(element(4, I))],
-    Tables = lists:sort([{qname(Q), normalize(T)} || {Q, T} <- ern_prelude:values()] ++ Compiled),
+    %% a §9.6 operation is in the table, which types it before any module is
+    %% installed, and in its module's interface: it counts once when the two
+    %% agree, twice and so unequal to the report when they do not
+    Tables = lists:usort([{qname(Q), normalize(T)} || {Q, T} <- ern_prelude:values()]
+                         ++ Compiled),
     ?assertEqual(Report, Tables).
 
 %% report §9.3: the declared types

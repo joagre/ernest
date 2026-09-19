@@ -1,0 +1,96 @@
+/// Operations on `Char`, a Unicode code point (report §3.1). The predicates
+/// use the code point's Unicode properties; the ordering is the prelude's
+/// (report §9.6), by code point.
+///
+/// ## Examples
+///
+/// ```ernest
+/// #(Char.isDigit('7'), Char.isAlpha('中'), Char.toString(Char.toUpper('é')))
+/// // => #(true, true, "É")
+/// ```
+///
+/// ```ernest
+/// #(Char.toInt('A'), Char.fromInt(66) == Some('B'), Char.fromInt(55296))
+/// // => #(65, true, None)
+/// ```
+///
+/// ## See also
+///
+/// `String.toList`, `String.fromList`.
+///
+/// since 0.1.0
+
+/// `true` for a decimal digit in any script, general category Nd.
+export foreign fn isDigit(c : Char) -> Bool = "ern_char:is_digit/1"
+
+/// `true` for a letter in any script, general category L.
+export foreign fn isAlpha(c : Char) -> Bool = "ern_char:is_alpha/1"
+
+/// `true` for white space, the White_Space property: `' '`, `'\n'`, and the
+/// wider spaces of other scripts.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Char.isSpace('\n'), Char.isSpace('a'))
+/// // => #(true, false)
+/// ```
+export foreign fn isSpace(c : Char) -> Bool = "ern_char:is_space/1"
+
+/// `true` for an upper-case letter, general category Lu.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Char.isUpper('A'), Char.isLower('A'))
+/// // => #(true, false)
+/// ```
+export foreign fn isUpper(c : Char) -> Bool = "ern_char:is_upper/1"
+
+/// `true` for a lower-case letter, general category Ll.
+export foreign fn isLower(c : Char) -> Bool = "ern_char:is_lower/1"
+
+/// The upper-case form, or `c` itself when it has no single upper-case
+/// form: `'ß'` stays `'ß'`.
+export foreign fn toUpper(c : Char) -> Char = "ern_char:to_upper/1"
+
+/// The lower-case form, or `c` itself when it has no single lower-case form.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Char.toString(Char.toLower('A'))
+/// // => "a"
+/// ```
+export foreign fn toLower(c : Char) -> Char = "ern_char:to_lower/1"
+
+/// The one-character string.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Char.toString('é')
+/// // => "é"
+/// ```
+export foreign fn toString(c : Char) -> String = "ern_char:to_string/1"
+
+/// The code point.
+export foreign fn toInt(c : Char) -> Int = "ern_char:to_int/1"
+
+/// The character with code point `n`, or `None` outside U+0000 to U+10FFFF
+/// or for a surrogate, U+D800 to U+DFFF.
+export fn fromInt(n : Int) -> Optional(Char) =
+    if n < 0 || n > 1114111 || (n >= 55296 && n <= 57343) then None else Some(fromCode(n))
+
+foreign fn fromCode(n : Int) -> Char = "ern_char:from_int/1"
+
+/// The order of the code points, which `<` and the other comparisons use.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Char.compare('b', 'a')
+/// // => Greater
+/// ```
+export fn compare(a : Char, b : Char) -> Ordering =
+    if a < b then Less else if a > b then Greater else Equal

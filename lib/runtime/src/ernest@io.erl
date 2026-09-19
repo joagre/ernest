@@ -14,7 +14,8 @@ println(S) -> ern_rt:send(ern_rt:sys(stdout), <<S/binary, "\n">>).
 %% (report §8.4), printed and returned.
 -spec debug(term()) -> term().
 debug(V) ->
-    println(iolist_to_binary(render(V))),
+    %% render gives code points; a String is UTF-8 (report §8.4)
+    println(unicode:characters_to_binary(render(V))),
     V.
 
 render(V) when is_integer(V) -> integer_to_list(V);
@@ -29,8 +30,15 @@ render(L) when is_list(L) -> ["[", join([render(X) || X <- L]), "]"];
 render({set, S}) when is_map(S) ->
     ["Set.fromList([", join([render(K) || K <- lists:sort(maps:keys(S))]), "])"];
 render(T) when is_tuple(T), tuple_size(T) > 0, is_atom(element(1, T)) ->
+    %% report §8.4: a constructor's atom is its source spelling, capitalized;
+    %% any other first atom, `true` among them, begins a tuple
     [Tag | Fields] = tuple_to_list(T),
-    [atom_to_list(Tag), "(", join([render(F) || F <- Fields]), ")"];
+    case atom_to_list(Tag) of
+        [C | _] when C >= $A, C =< $Z ->
+            [atom_to_list(Tag), "(", join([render(F) || F <- Fields]), ")"];
+        _ ->
+            ["#(", join([render(F) || F <- tuple_to_list(T)]), ")"]
+    end;
 render(T) when is_tuple(T) -> ["#(", join([render(F) || F <- tuple_to_list(T)]), ")"];
 render(M) when is_map(M) ->
     Pairs = lists:sort(maps:to_list(M)),

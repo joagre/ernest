@@ -415,10 +415,13 @@ io_debug_test() ->
         "    let _ = Io.debug(Map.put(Map.empty, \"k\", [1]));\n"
         "    let _ = Io.debug(Set.fromList([2, 1]));\n"
         "    let _ = Io.debug(fn(x) = x);\n"
+        "    let _ = Io.debug(#(true, false));\n"
+        "    let _ = Io.debug(\"é中\");\n"
         "    Unit\n"
         "}\n"),
     ?assertEqual(<<"4\n5\n[Circle(-3), Dot]\n#(1.5, \"a\\nb\", true, Unit)\nSnap(\"x\", 2)\n"
-                   "Map.fromList([#(\"k\", [1])])\nSet.fromList([1, 2])\n<function>\n">>, Out).
+                   "Map.fromList([#(\"k\", [1])])\nSet.fromList([1, 2])\n<function>\n"
+                   "#(true, false)\n\"é中\"\n"/utf8>>, Out).
 
 %% report §8.6: a program whose every process waits forever ends with
 %% Deadlock; a timed receive is a source and ends by itself

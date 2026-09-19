@@ -58,7 +58,8 @@
 %% environment, which the compiler needs for the layouts of private types.
 -spec check([atom()], [tuple()], [#iface{}]) ->
           {ok, [tuple()], #iface{}, env()} | {error, [error()]}.
-check(Ns, Decls, Ifaces) ->
+check(Ns, Decls0, Ifaces) ->
+    Decls = builtin_operators(Ns, Decls0),
     Env0 = lists:foldl(fun add_iface/2, (prelude_env())#env{ns = Ns}, Ifaces),
     try
         {Env1a, Errs1} = declare_types(Decls, Env0),
@@ -76,6 +77,30 @@ check(Ns, Decls, Ifaces) ->
         throw:{type_error, Pos, Msg} -> {error, [diag(Pos, Msg)]};
         throw:{type_error, #diag{} = D} -> {error, [D]}
     end.
+
+%% Report §4.8: in the standard library module of a built-in type, an
+%% operator declared as that type's, `fn Float.+` in float.ern, is the
+%% module's own `+`, as a self-qualified name is (§4.2).
+builtin_operators([T], Decls) ->
+    case lists:keymember(T, 1, ern_prelude:builtin_types()) of
+        true -> [own_operator(T, D) || D <- Decls];
+        false -> Decls
+    end;
+builtin_operators(_, Decls) ->
+    Decls.
+
+own_operator(T, #fn_decl{owner = T, name = N} = D) ->
+    case is_operator(N) of
+        true -> D#fn_decl{owner = undefined};
+        false -> D
+    end;
+own_operator(T, #foreign_fn_decl{owner = T, name = N} = D) ->
+    case is_operator(N) of
+        true -> D#foreign_fn_decl{owner = undefined};
+        false -> D
+    end;
+own_operator(_, D) ->
+    D.
 
 -spec check_string([atom()], unicode:chardata()) ->
           {ok, [tuple()], #iface{}, env()} | {error, [error()]}.

@@ -1,0 +1,138 @@
+/// Operations on `Int`, the integers of arbitrary precision (report §3.1).
+/// The arithmetic and the ordering are the prelude's (report §9.6); this
+/// module provides them with the rest.
+///
+/// ## Examples
+///
+/// ```ernest
+/// Int.toString(Int.max(Int.abs(-7), 3))
+/// // => "7"
+/// ```
+///
+/// ```ernest
+/// #(Int.div(-7, 3), Int.mod(-7, 3), Int.div(1, 0))
+/// // => #(Some(-2), Some(-1), None)
+/// ```
+///
+/// ## See also
+///
+/// `Float`, `String.toInt`.
+///
+/// since 0.1.0
+
+/// The sum.
+export fn Int.+(a : Int, b : Int) -> Int = a + b
+
+/// The difference.
+export fn Int.-(a : Int, b : Int) -> Int = a - b
+
+/// The product.
+export fn Int.*(a : Int, b : Int) -> Int = a * b
+
+/// The quotient, truncated toward zero: `-7 / 3` is `-2`.
+///
+/// ### Errors
+///
+/// Faults with `Fault("division by zero")` when `b` is `0`; `Int.div` does not.
+export fn Int./(a : Int, b : Int) -> Int = a / b
+
+/// The remainder of `/`, with the sign of `a`: `-7 % 3` is `-1`.
+///
+/// ### Errors
+///
+/// Faults with `Fault("division by zero")` when `b` is `0`; `Int.mod` does not.
+export fn Int.%(a : Int, b : Int) -> Int = a % b
+
+/// `-n`, which prefix `-` calls.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Int.negate(5)
+/// // => -5
+/// ```
+export fn negate(n : Int) -> Int = -n
+
+/// `a / b`, or `None` when `b` is `0`.
+export fn div(a : Int, b : Int) -> Optional(Int) = if b == 0 then None else Some(a / b)
+
+/// `a % b`, or `None` when `b` is `0`.
+export fn mod(a : Int, b : Int) -> Optional(Int) = if b == 0 then None else Some(a % b)
+
+/// The numeric order, which `<` and the other comparisons use.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Int.compare(1, 2)
+/// // => Less
+/// ```
+export fn compare(a : Int, b : Int) -> Ordering =
+    if a < b then Less else if a > b then Greater else Equal
+
+/// The magnitude.
+export fn abs(n : Int) -> Int = if n < 0 then -n else n
+
+/// The smaller.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Int.min(1, 2)
+/// // => 1
+/// ```
+export fn min(a : Int, b : Int) -> Int = if a < b then a else b
+
+/// The larger.
+export fn max(a : Int, b : Int) -> Int = if a > b then a else b
+
+/// Bitwise and, on the two's complement form.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Int.bitAnd(6, 3), Int.bitOr(6, 3), Int.bitXor(6, 3), Int.bitNot(6))
+/// // => #(2, 7, 5, -7)
+/// ```
+export foreign fn bitAnd(a : Int, b : Int) -> Int = "erlang:band/2"
+
+/// Bitwise or, on the two's complement form.
+export foreign fn bitOr(a : Int, b : Int) -> Int = "erlang:bor/2"
+
+/// Bitwise exclusive or, on the two's complement form.
+export foreign fn bitXor(a : Int, b : Int) -> Int = "erlang:bxor/2"
+
+/// Bitwise complement, `-n - 1`.
+export foreign fn bitNot(n : Int) -> Int = "erlang:bnot/1"
+
+/// `n` shifted left by `k` bits: `n` times two to the power `k`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Int.shiftLeft(3, 2), Int.shiftRight(-7, 2))
+/// // => #(12, -2)
+/// ```
+export foreign fn shiftLeft(n : Int, k : Int) -> Int = "erlang:bsl/2"
+
+/// `n` shifted right by `k` bits, the sign kept: `n` divided by two to the
+/// power `k`, rounded toward negative infinity.
+export foreign fn shiftRight(n : Int, k : Int) -> Int = "erlang:bsr/2"
+
+/// The decimal form, with a leading `-` when negative.
+export foreign fn toString(n : Int) -> String = "erlang:integer_to_binary/1"
+
+/// The nearest `Float`, ties to even.
+///
+/// ### Errors
+///
+/// Faults with `Fault("Int out of Float range")` beyond the largest finite
+/// `Float` (report §3.1).
+///
+/// ### Examples
+///
+/// ```ernest
+/// Int.toFloat(7)
+/// // => 7.0
+/// ```
+export foreign fn toFloat(n : Int) -> Float = "ern_int:to_float/1"

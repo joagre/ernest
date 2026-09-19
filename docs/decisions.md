@@ -2706,6 +2706,10 @@ The first rendered pages in Ernest showed `Optional.withDefault : (Optional(a!),
 
 `ernc --doc stdlib/optional.ern`, run from the repository, took the current directory as the source root (§11.1) and built a user module `Stdlib.Optional`. Its page headed every function `Stdlib.Optional.x`, while its examples called the installed `Optional`, so the page described one module and ran another. The build followed the rules and misled the reader, against principle 1. A refusal was tried first and dropped the same day: a file under the standard library's root has one valid outcome, compiled with that root, so an error that names the fix only makes the user type it. Without `--source-root`, §11.1 now takes that root for a path under it. The special case is §4.2's, which already sets that one directory apart; nothing new is invisible. A `--source-root` that names another root is still an error, since overriding a flag the user wrote would be.
 
+## A Built-in Type's Operators in Its Module, 2026-09-19
+
+§9 says a prelude operation in a type's namespace is provided by that type's standard library module, so `float.ern` provides `Float.+`. It could not declare it: §4.8 let a module declare operators only for a type it declares, and `Float` is built in. The operators cannot be written in Ernest either, since `a + b` on floats inside `float.ern` calls `Float.+` itself; they are shims, as E.0 rule 1 says of float arithmetic. §4.8 now lets the module of a built-in type declare that type's operators as a user type's module does. It is the rule users already know, applied to the one module that owns the type. Two alternatives were rejected. A hidden Erlang module called by the compiler would contradict §9's sentence and keep part of the prelude out of sight. A free `fn +` at a module's top level would let an operator exist apart from its operand type, which §4.8's resolution depends on. The exception covers operators only: `fn Float.abs` in `float.ern` stays an error, so a named function has one spelling, `fn abs`.
+
 ## Later
 
 Planned or considered, not in the language today.

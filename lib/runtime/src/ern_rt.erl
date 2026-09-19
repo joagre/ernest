@@ -353,9 +353,8 @@ run_main(Main, Site, Opts) ->
     FlushRef = make_ref(),
     Stdout ! {flush, erlang:self(), FlushRef},
     receive {FlushRef, flushed} -> ok end,
-    exit(Stdout, kill),
-    exit(Clock, kill),
-    exit(Reaper, kill),
+    %% each ended before the table goes, which the reaper reads
+    lists:foreach(fun stop/1, [Stdout, Clock, Reaper]),
     ets:delete(?PROCESSES),
     flush_run(Run),
     case Result of
@@ -364,6 +363,11 @@ run_main(Main, Site, Opts) ->
         deadlock -> deadlock;
         Other -> {fault, format("~p", [Other])}
     end.
+
+stop(Pid) ->
+    Ref = erlang:monitor(process, Pid),
+    exit(Pid, kill),
+    receive {'DOWN', Ref, process, Pid, _} -> ok end.
 
 %% What the reaper may still send about this run after it ended.
 flush_run(Run) ->

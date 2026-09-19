@@ -702,6 +702,18 @@ ownership_test() ->
                         "fn Box.make(x) = { fn wrap(y) = Box(y); wrap(x) }")).
 
 %% report §4.2, §11.1
+%% report §4.8: the standard library module of a built-in type declares that
+%% type's operators as a user type's module does; no other module may
+builtin_type_operators_test() ->
+    Float = "export foreign fn Float.+(a : Float, b : Float) -> Float = \"ern_float:add/2\"\n",
+    {ok, _, Iface, _} = ern_typecheck:check_string(['Float'], Float),
+    ?assertEqual([['Float', '+']], maps:keys(Iface#iface.values)),
+    ?assertEqual("Float is not a type declared in this module",
+                 err("export fn Float.+(a : Float, b : Float) -> Float = a")),
+    ?assertMatch({error, _},
+                 ern_typecheck:check_string(['Float'],
+                                            "export fn Float.abs(x : Float) -> Float = x")).
+
 interface_test() ->
     Http = "export type Request = Request(method : String, path : String)\n"
            "export fn parse(s : String) -> Optional(Request) =\n"

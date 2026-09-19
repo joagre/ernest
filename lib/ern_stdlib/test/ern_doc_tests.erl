@@ -158,8 +158,8 @@ is_alpha(N) ->
     C >= $a andalso C =< $z.
 
 %% Appendix E.0 rule 6: every backticked name under `See also` is a
-%% declaration of the module, a prelude or standard library namespace, or a
-%% prelude type
+%% declaration of the module, a prelude or standard library namespace or
+%% value, or a prelude type
 doc_see_also_test_() ->
     [{atom_to_list(hd(Ns)), fun() -> see_also(File) end} || {Ns, File} <- modules()].
 
@@ -170,7 +170,9 @@ see_also(File) ->
         ++ [atom_to_list(hd(Ns)) || {Ns, _} <- ern_prelude:stdlib_types()]
         ++ [atom_to_list(hd(Q)) || {Q, _} <- ern_prelude:values(), length(Q) > 1]
         ++ [atom_to_list(hd(I#iface.namespace)) || I <- ern_prelude:stdlib_ifaces()]
-        ++ [atom_to_list(N) || {N, _} <- ern_prelude:builtin_types()],
+        ++ [atom_to_list(N) || {N, _} <- ern_prelude:builtin_types()]
+        ++ [qualified(Q) || {Q, _} <- ern_prelude:values()]
+        ++ [qualified(Q) || I <- ern_prelude:stdlib_ifaces(), Q <- maps:keys(element(4, I))],
     Named = [N || Doc <- docs(Decls, []),
                   {match, Secs} <- [re:run(Doc, "#+ See also\\n\\n(.*?)(?=\\n#|$)",
                                            [global, dotall, {capture, all_but_first, list}])],
@@ -179,6 +181,8 @@ see_also(File) ->
                                          [global, {capture, all_but_first, list}])],
                   [N] <- Ns],
     ?assertEqual([], [N || N <- Named, not lists:member(N, Known)]).
+
+qualified(Q) -> lists:flatten(lists:join(".", [atom_to_list(A) || A <- Q])).
 
 decl_names(#type_decl{name = N}) -> [atom_to_list(N)];
 decl_names(#abstract_decl{type = #type_decl{name = N}}) -> [atom_to_list(N)];

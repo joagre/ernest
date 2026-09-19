@@ -231,37 +231,9 @@ values() ->
      {['String', split], "(String, String) -> List(String)"},
      {['String', join], "(List(String), String) -> String"},
      %% E.6 Char
-     {['Char', isDigit], "(Char) -> Bool"},
-     {['Char', isAlpha], "(Char) -> Bool"},
-     {['Char', isSpace], "(Char) -> Bool"},
-     {['Char', isUpper], "(Char) -> Bool"},
-     {['Char', isLower], "(Char) -> Bool"},
-     {['Char', toUpper], "(Char) -> Char"},
-     {['Char', toLower], "(Char) -> Char"},
-     {['Char', toString], "(Char) -> String"},
-     {['Char', toInt], "(Char) -> Int"},
-     {['Char', fromInt], "(Int) -> Optional(Char)"},
      %% E.7 Bool
      %% E.8 Int
-     {['Int', abs], "(Int) -> Int"},
-     {['Int', min], "(Int, Int) -> Int"},
-     {['Int', max], "(Int, Int) -> Int"},
-     {['Int', bitAnd], "(Int, Int) -> Int"},
-     {['Int', bitOr], "(Int, Int) -> Int"},
-     {['Int', bitXor], "(Int, Int) -> Int"},
-     {['Int', bitNot], "(Int) -> Int"},
-     {['Int', shiftLeft], "(Int, Int) -> Int"},
-     {['Int', shiftRight], "(Int, Int) -> Int"},
-     {['Int', toString], "(Int) -> String"},
-     {['Int', toFloat], "(Int) -> Float"},
      %% E.9 Float
-     {['Float', abs], "(Float) -> Float"},
-     {['Float', min], "(Float, Float) -> Float"},
-     {['Float', max], "(Float, Float) -> Float"},
-     {['Float', toString], "(Float) -> String"},
-     {['Float', round], "(Float) -> Int"},
-     {['Float', floor], "(Float) -> Int"},
-     {['Float', ceil], "(Float) -> Int"},
      %% E.10 Optional
      %% E.11 Either
      %% E.12 Foreign
