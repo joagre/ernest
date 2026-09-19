@@ -784,6 +784,15 @@ Directory mode compiles in dependency order automatically, creates missing subdi
 
 **External references use the qualified name.** A caller outside `net/http.ern` writes `Net.Http.parse`. Inside `net/http.ern`, unqualified `parse` refers to the local declaration, and `Net.Http.parse` works there too (report §4.2), which is how a documentation example is written.
 
+**Testing a module.** A test is a top-level `let` of the prelude type `Test`, a name and a function returning `Passed` or `Failed(text)`:
+
+```
+let addsTwo = Test(name = "adds two", run = fn() -> TestResult with Never =
+    if add(1, 1) == 2 then Passed else Failed("not two"))
+```
+
+`ern --test module.erc` runs every test of the module, exported or not, each in a process of its own, and prints each as passed, failed with its text, or faulted with its cause. A test runs as a process root, `with Never`, so it may spawn, send, and call; one that needs `receive` spawns a process for it (report §9.3, report §11.2).
+
 **Documenting a module.** A `///` block documents what follows it on the next line: a declaration, a constructor, a named field, or a signature entry. A `///` block first in the file, with a blank line after it, documents the module. The text is CommonMark, and `ernc --doc` renders the module as a page: the title, each declaration's type in a code block, and the text. An example in a doc block ends with `// => v`, the value `Io.debug` prints, and the standard library's tests run it. What a module's documentation must contain is Appendix E.0 rule 6 of the report; [`docs/module_doc_template.md`](docs/module_doc_template.md) shows it on a fictive module, generated and kept true by a test (report §2.2 and report §11.4).
 
 **Entry point.** `ern main.erc` looks up `export fn main` in the loaded module and invokes it. `main` is a naming convention, not a reserved specialness — any exported function with the entry-point shape `() -> Unit with M` can be selected. If `tools.ern` exports a `check` function of that shape, run it as:

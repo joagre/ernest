@@ -706,7 +706,11 @@ type TcpMsg
     | Connect(host : String, port : Int, reply : Reply(Either(IoError, Address(SockMsg))))
 type ListenerMsg = Accept(reply : Reply(Either(IoError, Address(SockMsg))))
 type SockMsg = Recv(reply : Reply(Either(IoError, Bytes))) | Send(Bytes) | Close
+type Test = Test(name : String, run : () -> TestResult with Never)
+type TestResult = Passed | Failed(String)
 ```
+
+A top-level `let` of type `Test` is a test; `ern --test` runs it (§11.2).
 
 ### 9.4 Built-in functions (section 6)
 
@@ -793,6 +797,8 @@ Options are long: `--name`, or `--name value` for one that takes a value.
 ### 11.2 `ern` (runner)
 
 `ern [--config-dir dir] [--load-path dir ...] [--main Qualified.name] file.erc` loads the module and, on demand, the modules on the load path. They are found by namespace: `A.B.C` is `a/b/c.erc`, each segment lowercased. A type-member reference `A.B.C.T.member` is found through the interface of `a/b/c.erc`, the module that owns `T`. The runner starts the system processes, binds their addresses to the `Sys.*` references, and calls the entry point (§8.1): the `export fn main` of the loaded module, or the function `--main` names, anywhere on the load path. The load path holds the standard library and the root of the loaded module: the directory reached from the module's file by going up one directory per segment of its namespace. `--load-path` adds directories. The path-shape rule of §11.1 applies to every `.erc` opened as a module and to each directory between its load-path root and it. Other files are not checked: `.ernest/` under a load-path root is not a module.
+
+`ern --test file.erc` runs every top-level `let` of type `Test` in the module (§9.3), exported or not, each in a process of its own after the module's initializers (§8.5). It prints each test's name with `passed`, `failed` and the text of `Failed`, or `faulted` and the cause, and exits with status 1 unless every test passed.
 
 `--shell` adds an interactive shell process to the running program with every loaded module in scope; without a file, `ern --shell` starts the runtime with the standard library alone. `--config-dir` names the configuration directory, `./.ernest` by default.
 
@@ -1088,7 +1094,7 @@ Io.readLine : () -> Optional(String) with m // the next line without its line fe
 Io.debug : (a) -> a with m // prints the value as Ernest writes it, then returns it
 ```
 
-`Io.debug` prints by the runtime's representation (§8.4): a `Char` as its `Int`; a `Bytes` that is UTF-8 as a `String`; a constructor's fields positional; a `Map` as `Map.fromList` of its pairs and a `Set` as `Set.fromList` of its elements; an address, a reply, a function, or a foreign value as `<address>`, `<reply>`, `<function>`, `<foreign>`.
+`Io.debug` prints by the runtime's representation (§8.4): a `Char` as its `Int`; a `Bytes` that is UTF-8 as a `String`; a constructor's fields positional; a `Map` as `Map.fromList` of its pairs and a `Set` as `Set.fromList` of its elements; an address, a reply, or a function as `<address>`, `<reply>`, `<function>`; a foreign value as its representation reads by these rules, and as `<foreign>` where it reads as none of them.
 
 ### Appendix E.2. `list.ern` (namespace `List`)
 
@@ -1370,6 +1376,15 @@ Tcp.connect : (String, Int, Int) -> Either(IoError, Address(SockMsg)) with m // 
 Tcp.read : (Address(SockMsg), Int) -> Either(IoError, Bytes) with m // what has arrived, at least one byte
 Tcp.write : (Address(SockMsg), Bytes) -> Unit with m
 Tcp.close : (Address(SockMsg)) -> Unit with m
+```
+
+### Appendix E.19. `erl.ern` (namespace `Erl`)
+
+What a shim over an Erlang API needs from Erlang's conventions (rule 1).
+
+```
+type Result(v, r) = Ok(v) | Error(r) // Erlang's {ok, V} and {error, R}, rewritten by the shim's helper
+Erl.atom : (String) -> Foreign // the Erlang atom of the text
 ```
 
 A function enters this appendix by the rules of E.0 before it enters `stdlib/`.

@@ -292,7 +292,8 @@ prelude_namespaces() ->
     lists:usort([N || {N, _} <- ern_prelude:builtin_types()]
                 ++ [N || #type_decl{name = N} <- Decls]
                 ++ [hd(Ns) || {Ns, _} <- ern_prelude:stdlib_types()]
-                ++ [hd(Q) || {Q, _} <- ern_prelude:values(), length(Q) > 1]).
+                ++ [hd(Q) || {Q, _} <- ern_prelude:values(), length(Q) > 1]
+                ++ [hd(I#iface.namespace) || I <- ern_prelude:stdlib_ifaces()]).
 
 %% Type-check and compile one module against its dependencies'
 %% interfaces, unless its .erc is current (§11.1). Returns the interfaces
@@ -605,6 +606,7 @@ ern_options() ->
      {load_path, undefined, "load-path", string, "a root of compiled modules; may be repeated"},
      {main, undefined, "main", string, "the entry point, a qualified exported function"},
      {shell, undefined, "shell", undefined, "add an interactive shell to the running program"},
+     {test, undefined, "test", undefined, "run the module's tests instead of its entry point"},
      {create_config_dir, undefined, "create-config-dir", string,
       "create dir/.ernest with a configuration and a private key, and stop"},
      {help, undefined, "help", undefined, "print this text"},
@@ -642,6 +644,74 @@ run(Opts, File, Err) ->
     lists:foreach(fun shape/1, filename:split(filename:rootname(module_path(Ns)))),
     Roots = [Root | [absolute(D) || {load_path, D} <- Opts]],
     Loaded = load(Ns, Roots, []),
+    case lists:member(test, Opts) of
+        true -> run_tests(Ns, Loaded, Err);
+        false -> run_entry(Opts, Ns, Roots, Loaded, Err)
+    end.
+
+%% Report §8.5: every top-level let of the loaded modules, dependencies
+%% first, once the runtime has bound the Sys.* references.
+init_fun(Loaded) ->
+    fun() ->
+        lists:foreach(fun(Mod) ->
+                          erlang:function_exported(Mod, '$init', 0) andalso Mod:'$init'()
+                      end, lists:reverse(Loaded))
+    end.
+
+%% Report §11.2: every test of the module, each in a process of its own;
+%% status 1 unless every one passed.
+run_tests(Ns, Loaded, Err) ->
+    Mod = ern_compiler:module_atom(Ns),
+    Me = self(),
+    Main = fun() ->
+               Tests = case erlang:function_exported(Mod, '$tests', 0) of
+                           true -> Mod:'$tests'();
+                           false -> []
+                       end,
+               Me ! {ern_tests, [run_test(T) || T <- Tests]}
+           end,
+    Site = unicode:characters_to_binary(qname(Ns) ++ ".$tests"),
+    case ern_rt:run_main(Main, Site, #{init => init_fun(Loaded)}) of
+        ok ->
+            Results = receive {ern_tests, R} -> R after 0 -> [] end,
+            lists:foreach(fun({Name, Outcome}) ->
+                              io:format("~s: ~s~n", [Name, Outcome])
+                          end, Results),
+            case [N || {N, Outcome} <- Results, Outcome =/= <<"passed">>] of
+                [] -> 0;
+                _ -> 1
+            end;
+        {fault, Msg} ->
+            io:format(Err, "fault: ~s~n", [Msg]),
+            1;
+        deadlock ->
+            io:format(Err, "error: Deadlock~n", []),
+            1
+    end.
+
+%% One test, Test(name, run) in canonical field order, in a process of its
+%% own, monitored so that a fault is reported and not taken for the run's.
+run_test({'Test', Name, Run}) ->
+    Me = ern_rt:self(),
+    Ref = make_ref(),
+    Pid = ern_rt:spawn('Local', fun() -> Me ! {Ref, Run()} end, Name),
+    ern_rt:monitor(Pid, fun(Down) -> {Ref, down, Down} end),
+    Outcome = receive
+                  {Ref, 'Passed'} -> returned(Ref, <<"passed">>);
+                  {Ref, {'Failed', Text}} -> returned(Ref, <<"failed: ", Text/binary>>);
+                  {Ref, down, {'Down', _, Reason}} -> <<"faulted: ", (cause(Reason))/binary>>
+              end,
+    {Name, Outcome}.
+
+%% A test that returned still sends its Down; it is taken so that it is not
+%% left in the runner's mailbox.
+returned(Ref, Outcome) ->
+    receive {Ref, down, _} -> Outcome end.
+
+cause({'Fault', Msg}) -> Msg;
+cause(Reason) -> atom_to_binary(Reason).
+
+run_entry(Opts, Ns, Roots, Loaded, Err) ->
     {EntryMod, EntryFn, Loaded1} =
         case proplists:get_value(main, Opts) of
             undefined -> {ern_compiler:module_atom(Ns), main, Loaded};
@@ -655,13 +725,7 @@ run(Opts, File, Err) ->
     erlang:function_exported(EntryMod, EntryFn, 0) orelse
         fail("no exported entry point " ++ atom_to_list(EntryFn) ++ " in "
              ++ qname(entry_ns(EntryMod)) ++ "; an entry point takes no arguments (report §8.1)"),
-    %% report §8.5: every top-level let, dependencies first, once the
-    %% runtime has bound the Sys.* references
-    Init = fun() ->
-               lists:foreach(fun(Mod) ->
-                                 erlang:function_exported(Mod, '$init', 0) andalso Mod:'$init'()
-                             end, lists:reverse(Loaded1))
-           end,
+    Init = init_fun(Loaded1),
     Site = unicode:characters_to_binary(qname(entry_ns(EntryMod)) ++ "." ++ atom_to_list(EntryFn)),
     case ern_rt:run_main(fun() -> EntryMod:EntryFn() end, Site, #{init => Init}) of
         ok -> 0;

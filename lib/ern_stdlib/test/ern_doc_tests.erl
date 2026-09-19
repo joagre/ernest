@@ -145,7 +145,9 @@ coverage(Ns, File) ->
     Examples = iolist_to_binary([B || Doc <- docs(Decls, []), B <- fences(Doc)]),
     Prefix = lists:join(".", [atom_to_list(A) || A <- Ns]),
     Fns = [owned_name(O, N) || #fn_decl{export = true, owner = O, name = N} <- Decls,
-                               is_alpha(N)],
+                               is_alpha(N)]
+        ++ [owned_name(O, N) || #foreign_fn_decl{export = true, owner = O, name = N} <- Decls,
+                                is_alpha(N)],
     ?assertNotEqual([], Fns),
     Uncalled = [F || F <- Fns,
                      binary:match(Examples, iolist_to_binary([Prefix, ".", F, "("])) =:= nomatch],

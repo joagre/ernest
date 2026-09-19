@@ -35,7 +35,69 @@ stdlib_types_test() ->
     Tables = lists:sort(lists:append(
                           [[{Ns, D} || D <- declarations(string:split(Src, "\n", all))]
                            || {Ns, Src} <- ern_prelude:stdlib_types()])),
-    ?assertEqual(Report, Tables).
+    %% a module written in Ernest gives its types by its interface, whose
+    %% parameters are variables: both sides are compared with the
+    %% parameters renamed in order
+    Compiled = [{Ns, rename(compiled_decl(Ns, TI))}
+                || I <- ern_prelude:stdlib_ifaces(), Ns <- [element(2, I)],
+                   TI <- maps:values(element(3, I))],
+    ?assertEqual(lists:sort([{Ns, rename(D)} || {Ns, D} <- Report]),
+                 lists:sort([{Ns, rename(D)} || {Ns, D} <- Tables] ++ Compiled)).
+
+%% `type T(p, q) = ...` with its parameters renamed a, b, ... in order.
+rename(Decl) ->
+    case re:run(Decl, "^(?:foreign )?type \\w+\\(([^)]*)\\)", [{capture, all_but_first, list}]) of
+        {match, [Ps]} ->
+            Params = [string:trim(P) || P <- string:split(Ps, ",", all)],
+            Fresh = [[C] || C <- lists:seq($a, $a + length(Params) - 1)],
+            lists:foldl(fun({P, F}, D) ->
+                            re:replace(D, "\\b" ++ P ++ "\\b", F,
+                                       [global, {return, list}])
+                        end, Decl, lists:zip(Params, Fresh));
+        nomatch ->
+            Decl
+    end.
+
+%% A compiled type's declaration, as the appendix writes it.
+compiled_decl(Ns, TI) ->
+    Q = element(2, TI),
+    Params = element(3, TI),
+    Names = maps:from_list(lists:zip([Id || {tvar, Id} <- Params],
+                                     [[C] || C <- lists:seq($a, $a + length(Params) - 1)])),
+    Head = case Params of
+               [] -> "";
+               _ -> "(" ++ lists:join(", ", [maps:get(Id, Names) || {tvar, Id} <- Params]) ++ ")"
+           end,
+    Cons = [con_text(C, Ns, Names) || C <- element(4, TI)],
+    normalize(lists:flatten(["type ", atom_to_list(lists:last(Q)), Head, " = ",
+                             lists:join(" | ", Cons)])).
+
+con_text(CI, Ns, Names) ->
+    Name = atom_to_list(element(2, CI)),
+    Fields = case element(7, CI) of
+                 {scheme, _, {tfn, FieldTs, _, _}, _} -> FieldTs;
+                 _ -> []
+             end,
+    case {element(5, CI), Fields} of
+        {none, _} -> Name;
+        {positional, [T]} -> Name ++ "(" ++ type_text(T, Ns, Names) ++ ")";
+        {{named, Fs}, FTs} ->
+            Name ++ "(" ++ lists:join(", ", [atom_to_list(F) ++ " : " ++ type_text(T, Ns, Names)
+                                             || {F, T} <- lists:zip(Fs, FTs)]) ++ ")"
+    end.
+
+type_text({tvar, Id}, _, Names) -> maps:get(Id, Names);
+type_text({tcon, Q, Args}, Ns, Names) ->
+    N = case lists:droplast(Q) of
+            Ns -> atom_to_list(lists:last(Q));
+            _ -> qname(Q)
+        end,
+    case Args of
+        [] -> N;
+        _ -> N ++ "(" ++ lists:join(", ", [type_text(A, Ns, Names) || A <- Args]) ++ ")"
+    end;
+type_text({ttuple, Es}, Ns, Names) ->
+    "#(" ++ lists:join(", ", [type_text(E, Ns, Names) || E <- Es]) ++ ")".
 
 %% report §3.1, §9.1, §9.2: the built-in types and their arities
 builtin_types_test() ->

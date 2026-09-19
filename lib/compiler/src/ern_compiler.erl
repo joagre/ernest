@@ -74,7 +74,9 @@ forms(Ns, Decls, Env) ->
     {Funs, Cx1} = lists:mapfoldl(fun decl/2, Cx0, Decls),
     Lets = [D || #let_decl{} = D <- Decls],
     {Init, Cx2} = init_fun(Lets, Decls, Cx1),
-    Exports = [export(D) || D <- Decls, exported(D)] ++ [{'$init', 0} || Lets =/= []],
+    Tests = tests_fun(Lets),
+    Exports = [export(D) || D <- Decls, exported(D)] ++ [{'$init', 0} || Lets =/= []]
+        ++ [{'$tests', 0} || Tests =/= []],
     %% an Ernest function named like an auto-imported BIF, `size`, `max`,
     %% is called by its own name: the auto-import is switched off for it
     Clashes = [{F, A} || {F, A} <- maps:fold(fun({O, N}, Arity, Acc) when is_integer(Arity) ->
@@ -94,8 +96,21 @@ forms(Ns, Decls, Env) ->
                                      [erl_syntax:list([erl_syntax:arity_qualifier(
                                                          erl_syntax:atom(F), erl_syntax:integer(A))
                                                        || {F, A} <- Exports])])],
-    Functions = lists:append(Funs) ++ Init ++ lists:reverse(Cx2#cx.lifted),
+    Functions = lists:append(Funs) ++ Init ++ Tests ++ lists:reverse(Cx2#cx.lifted),
     erl_syntax:revert_forms(Attrs ++ Functions).
+
+%% Report §9.3, §11.2: '$tests'/0 lists the module's tests, every top-level
+%% let of type Test, exported or not, for `ern --test`.
+tests_fun(Lets) ->
+    Names = [fname(O, N) || #let_decl{owner = O, name = N, type = Scheme} <- Lets,
+                            element(3, Scheme) =:= {tcon, ['Test'], []}],
+    case Names of
+        [] -> [];
+        _ ->
+            Calls = [erl_syntax:application(erl_syntax:atom(F), []) || F <- Names],
+            [erl_syntax:function(erl_syntax:atom('$tests'),
+                                 [erl_syntax:clause([], none, [erl_syntax:list(Calls)])])]
+    end.
 
 %% The module as Erlang source, for --emit erl (report §11.1).
 -spec erl_source([atom()], [tuple()], ern_typecheck:env()) -> iolist().

@@ -189,6 +189,10 @@ char_test() ->
     ?assertEqual('Greater', C:compare($b, $a)).
 
 %% report Appendix E.7
+%% report Appendix E.19
+erl_test() ->
+    ?assertEqual(ready, 'ernest@erl':atom(<<"ready">>)).
+
 bool_test() ->
     ?assertEqual(false, 'ernest@bool':'not'(true)),
     ?assertEqual(<<"true">>, 'ernest@bool':toString(true)).

@@ -50,7 +50,9 @@ declared_types() ->
     "type TcpMsg = Listen(port : Int, reply : Reply(Either(IoError, Address(ListenerMsg))))"
     " | Connect(host : String, port : Int, reply : Reply(Either(IoError, Address(SockMsg))))\n"
     "type ListenerMsg = Accept(reply : Reply(Either(IoError, Address(SockMsg))))\n"
-    "type SockMsg = Recv(reply : Reply(Either(IoError, Bytes))) | Send(Bytes) | Close\n".
+    "type SockMsg = Recv(reply : Reply(Either(IoError, Bytes))) | Send(Bytes) | Close\n"
+    "type Test = Test(name : String, run : () -> TestResult with Never)\n"
+    "type TestResult = Passed | Failed(String)\n".
 
 %% Types the standard library declares, by namespace (Appendix E.13).
 -spec stdlib_types() -> [{[atom()], string()}].

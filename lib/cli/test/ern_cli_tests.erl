@@ -259,6 +259,37 @@ stdlib_root_test() ->
     write(Dir, "src/bool.ern", "export fn not(b : Bool) -> Bool = b\n"),
     ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/b2", Dir ++ "/src"])).
 
+%% report §9.3, §11.2: ern --test runs every top-level let of type Test,
+%% exported or not, each in its own process, reports each, and exits 1
+%% unless every one passed
+test_runner_test() ->
+    Dir = tmp(),
+    write(Dir, "src/checks.ern",
+          "fn add(a : Int, b : Int) -> Int = a + b\n"
+          "let addsTwo = Test(name = \"adds two\", run = fn() -> TestResult with Never =\n"
+          "    if add(1, 1) == 2 then Passed else Failed(\"not two\"))\n"
+          "export let wrong = Test(name = \"wrong\", run = fn() -> TestResult with Never =\n"
+          "    Failed(\"expected 3\"))\n"
+          "let divides = Test(name = \"divides\", run = fn() -> TestResult with Never =\n"
+          "    if 1 / (add(1, 1) - 2) == 0 then Passed else Passed)\n"),
+    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_cli:ern(["--test", Dir ++ "/build/checks.erc"])),
+    Out = iolist_to_binary(?capturedOutput),
+    ?assertMatch({match, _}, re:run(Out, "adds two: passed\n")),
+    ?assertMatch({match, _}, re:run(Out, "wrong: failed: expected 3\n")),
+    ?assertMatch({match, _}, re:run(Out, "divides: faulted: division by zero\n")),
+    write(Dir, "src2/ok.ern",
+          "let fine = Test(name = \"fine\", run = fn() -> TestResult with Never = Passed)\n"),
+    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build2", Dir ++ "/src2"])),
+    ?assertEqual(0, ern_cli:ern(["--test", Dir ++ "/build2/ok.erc"])).
+
+%% report §4.2: a module may not take a namespace of a standard library
+%% module written in Ernest
+stdlib_namespace_test() ->
+    Dir = tmp(),
+    write(Dir, "src/erl.ern", "export fn atom(s : String) -> String = s\n"),
+    ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])).
+
 %% report §11.1: a module cycle is an error naming the modules
 module_cycle_test() ->
     Dir = tmp(),
