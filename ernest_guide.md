@@ -49,7 +49,7 @@ hello, world
 
 `Io.println` is a stdlib function that sends its argument to a small `Sys.stdout` process the runtime provides. The stdout process receives the text and writes it. `Io.println` writes to `Sys.stdout` only. To write a string to any other `Address(String)`, a logger say, send to it directly, `send(logger, "starting\n")`; the library has no second print function for that. Messaging to a runtime service is one of two ways Ernest interacts with the outside world (the other is `foreign fn`, §7).
 
-For development output, `Io.debug(x)` prints any value and returns it, so it wraps an expression in place: `let n = Io.debug(f(x))`. It prints the value as the source writes it, by the argument's type: `Io.debug('a')` prints `'a'`, and a named constructor prints with its field names. An address prints as `<address>`. Inside a generic function, where the type is a variable, it can only go by the runtime's representation, so a `Char` there prints as its code point (report Appendix E.1). It carries `with m` like `Io.println`, so it cannot hide in pure code.
+For development output, `Io.debug(x)` prints any value and returns it, so it wraps an expression in place: `let n = Io.debug(f(x))`. It prints the value as the source writes it, by the argument's type: `Io.debug('a')` prints `'a'`, and a named constructor prints with its field names. An address prints as `<address>`. A value of an abstract type prints as `<abstract>` outside its module. Inside a generic function, where the type is a variable, and for a foreign type, it can only go by the runtime's representation, so a `Char` there prints as its code point (report Appendix E.1). It carries `with m` like `Io.println`, so it cannot hide in pure code.
 
 ### 1.2 Prediction exercise
 
@@ -79,7 +79,7 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 
 ### 2.1 Scalars, Unit, and literals
 
-- **`Int`** — arbitrary precision. Literals: `42`, and in another base `0xFF`, `0o644`, `0b1010`, the prefix lowercase. An `_` between two digits groups them, in any number: `1_000_000`, `0xFFFF_FFFF`, `3.141_592`. A letter right after a number is an error, so `12px` is rejected.
+- **`Int`** — arbitrary precision. Literals: `42`, and in another base `0xFF`, `0o644`, `0b1010`, the prefix lowercase. An `_` between two digits groups them, in any number: `1_000_000`, `0xFFFF_FFFF`, `3.141_592`. A letter or digit right after a number is an error, so `12px` and `0b102` are rejected, and so is an `_` anywhere but between two digits, as in `1_` or `0x_FF`.
 - **`Float`** — IEEE 754 binary64, finite range only, with one zero: `0.0 * -1.0` is `0.0`. Literal: `3.14`.
 - **`Char`** — one Unicode code point. Literal: `'a'`.
 - **`String`** — a Unicode string. Literal: `"hello"`. Escapes: `\n`, `\r`, `\t`, `\\`, `\"`, `\'`, `\u{1F600}`. A raw string is written between backticks; see below.
@@ -227,6 +227,7 @@ The same patterns appear in `match` clauses, `let` bindings, and function parame
 - `_` and identifiers are irrefutable.
 - A tuple pattern is irrefutable iff every component pattern is.
 - A single-constructor type's constructor pattern is irrefutable iff every field pattern is.
+- An irrefutable pattern with `as` is irrefutable.
 
 ```
 let #(x, y) = point;                              // irrefutable
@@ -321,20 +322,20 @@ Ernest's stdlib is subject-first. `|>` reads left-to-right:
 "abc" |> String.toList |> List.reverse |> String.fromList      // "cba"
 ```
 
-`x |> f` is `f(x)`. `x |> f(a, b)` is `f(x, a, b)` — pipe inserts as the first argument. `x |> f(a)(b)` is `f(a)(x, b)`, inserted into the *outermost* call.
+`x |> f` is `f(x)`. `x |> f(a, b)` is `f(x, a, b)` — pipe inserts as the first argument. `x |> f(a)(b)` is `f(a)(x, b)`, inserted into the *outermost* call. A parenthesized call is a plain call: `x |> (f(a))` is `f(x, a)`.
 
 **A lambda after `|>` must be parenthesized:** `x |> (fn(y) = y + 1)`. Without parens, the lambda's body extends greedily and swallows the rest of the expression.
 
 ### 2.9 The standard library
 
-Report Appendix E lists the library: one module per type, `List`, `Map`, `Set`, `String`, `Char`, `Bool`, `Int`, `Float`, `Optional`, `Either`, `Foreign`, `Random`, `Path`, and one per system process, `Io`, `Clock`, `Keys`, `Fs`, `Tcp`. It is on the load path by default. Its rules, in Appendix E.0, are what let you guess a name before looking it up:
+Report Appendix E lists the library: one module per type, `List`, `Map`, `Set`, `String`, `Char`, `Bool`, `Int`, `Float`, `Optional`, `Either`, `Foreign`, `Random`, `Path`, `Erl` for what a shim needs from Erlang, and one per system process, `Io`, `Clock`, `Keys`, `Fs`, `Tcp`. It is on the load path by default. Its rules, in Appendix E.0, are what let you guess a name before looking it up:
 
 - **One verb per operation, in every module that has it.** `size`, `isEmpty`, `contains`, `get` for lookup by index or key, `put` for insertion, `remove`, `map`, `filter`, `filterMap`, `foldLeft`, `foreach`, `any`, `all`, `find`, `fromList`, `toList`. `Map.get(m, k)` and `List.get(xs, 0)` are the same verb; `Map.put` and `Set.put` likewise. A list adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, and `tryMap` and `tryFold` for a step over `Either` that can fail. A path adds its segments: `join`, `split`, `parent`, `name`, `extension`, `withExtension`, `isAbsolute`. A filesystem adds files and directories: `read`, `write`, `append`, `list`, `stat`, `makeDir`, `remove`, `rename`, `copy`.
 - **Subject first, callbacks last, accumulator between**, so the pipe works: `xs |> List.foldLeft(0, fn(acc, x) = acc + x)`.
 - **Conversions are named by the other type and live in the subject's module.** `String.toInt`, `Int.toString`, `String.fromList`. Several policies are several names: `Float.round`, `Float.floor`, `Float.ceil`.
-- **A partial operation returns `Optional`.** `List.get`, `Map.get`, `String.toInt`, `Char.fromInt`. Nothing in the library faults beyond what report §7.4 lists.
+- **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get`, `Map.get`, `String.toInt`, `Char.fromInt` return `Optional`. Nothing in the library faults beyond what report §7.4 lists.
 - **Pure unless the value lives in a process.** The system modules `Io`, `Clock`, `Keys`, `Fs`, and `Tcp` carry `with m`; every other module is pure, and every function that takes a function is effect-polymorphic (§3.5).
-- **A `String` is not a container.** Its characters are reached through `String.toList`: `List.all(String.toList(t), Char.isDigit)`. Text has its own operations instead: `startsWith`, `endsWith`, `replace`, `slice`, `padStart`, `padEnd`, `split`, `join`, `trim`; a `Char` has its predicates and its case, `isDigit`, `isAlpha`, `isSpace`, `isUpper`, `isLower`, `toUpper`, `toLower`.
+- **A `String` is not a container.** Its characters are reached through `String.toList`: `List.all(String.toList(t), Char.isDigit)`. Text has its own operations instead: `startsWith`, `endsWith`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `trim`, `toLower`, `toUpper`; a `Char` has its predicates and its case, `isDigit`, `isAlpha`, `isSpace`, `isUpper`, `isLower`, `toUpper`, `toLower`.
 - **`Random` has a pure interface.** `Random.next(seed, n)` returns a draw between 0 and `n` inclusive and the next seed; `Random.seed(42)` makes a seed, and the same seed gives the same sequence.
 - **A system process is used through its module, never by `send`.** `Clock.alarm(100, fn(_) = Tick)`, `Fs.read(path, 5000)`, `Tcp.accept(listener, 60000)`. A function that waits takes the milliseconds last and answers `Left(Timeout)`; `Clock.now`, `Tcp.listen`, and `Io.readLine` take none, the first two answer at once and the third waits for the user. One that delivers later takes a function to your mailbox type, as `monitor` does (§5.2). `Keys.subscribe` and `Io.readLine` are the same terminal, in raw and in line mode: a program uses one or the other. A socket is an `Address(SockMsg)`, a process, so it can be monitored, killed, and adapted with `via` like any other.
 
@@ -393,12 +394,12 @@ fn double(n) = n * 2       // inferred (Int) -> Int
 fn twice(n) = n + n        // n's type ambiguous — annotate: (n : Int) or (n : Float)
 ```
 
-Without a source that fixes the type, `n + n` is a type error.
+Without a source that fixes the type, `n + n` is a type error. Once it is fixed, `+` is that type's: `Int.+` for an `Int`, `Distance.+` for a user type that declares it, and `Int.+` is also a function value, as in `List.foldLeft(xs, 0, Int.+)` (report §4.8, report §5.6).
 
 Other limits worth knowing:
 
 - `fn` definitions and top-level `let` values generalize over free type variables. Block `let` bindings are monomorphic — a block `let xs = []` types `xs : List(a)` with `a` to be resolved by an annotation, by later use in the block, or by escape through the block's return; a variable none of these resolves is a type error at the binding. `let _ = e` binds no variable, so nothing in the type of `e` needs resolving: `let _ = spawn(Local, fn() = worker())` is legal with the mailbox type unresolved, as ping-pong does in §5.1.
-- Local `fn` names inside a block are visible throughout the block, but you cannot *use* one — call it, obtain it as a value, pass it, store it — before the `let` bindings it references have been evaluated. Passing a local function to another counts as using it: if `g`'s body reads a `let` that comes later in the block, `h(g)` before that `let` is the error, reported at `g`.
+- Local `fn` names inside a block are visible throughout the block, but you cannot *use* one — call it, obtain it as a value, pass it, store it — before the `let` bindings it references have been evaluated. Passing a local function to another counts as using it: if `g`'s body reads a `let` that comes after `h(g)` but before `g`'s declaration, `h(g)` is the error. A `let` after `g`'s declaration is already an error in `g`'s body (report §5.4).
 - Top-level `let` initializers must be pure — no mailbox effect. Effectful setup (spawning processes, sending initial messages) belongs in `main`. The runtime evaluates top-level `let` bindings in dependency order before `main` runs.
 
 ### 3.4 Pure functions and functions with a mailbox effect
@@ -466,7 +467,7 @@ fn counter(n : Int) -> Unit with CounterMsg = receive {
 
 ### 4.2 Reply is linear
 
-The compiler enforces: **a `Reply(a)` bound in a `receive` clause must be consumed exactly once on every path.** The rule generalizes to *reply-carrying types* — any type that transitively contains a `Reply`. `CounterMsg` above is reply-carrying because `Get` has a `Reply` field.
+The compiler enforces: **a `Reply(a)` must be consumed exactly once on every path, wherever it is bound: a `receive` clause, a parameter, a pattern, a `let`, a call's result, or a capture.** The rule generalizes to *reply-carrying types* — any type that transitively contains a `Reply`. `CounterMsg` above is reply-carrying because `Get` has a `Reply` field.
 
 Six ways to consume:
 
@@ -774,9 +775,9 @@ $ ern build/main.erc
 GET /
 ```
 
-Directory mode compiles in dependency order automatically, creates missing subdirectories under `build/`, and, after a successful build, removes `.erc` files whose `.ern` is gone and the directories that empties (`--no-clean` disables the sweep; single-file mode never sweeps). It's the recommended pattern once a project has more than one file. A second run rebuilds only what changed: a module whose source changed, whose dependency's interface changed, or that an older `ernc` built. A change to a dependency's bodies alone leaves its dependents as they are (report §11.1).
+Directory mode compiles in dependency order automatically, creates missing subdirectories under `build/`, and, after a successful build, removes `.erc` files whose `.ern` is gone and the directories that empties (`--no-clean` disables the sweep; single-file mode never sweeps). It's the recommended pattern once a project has more than one file. A second run rebuilds only what changed: a module whose source changed, whose dependency's interface changed, or that another version of `ernc` built; any change to a standard library interface rebuilds every module. A change to a dependency's bodies alone leaves its dependents as they are (report §11.1).
 
-**The file's path is its namespace.** A file at `a/b/c.ern` under the source root provides declarations at namespace `A.B.C`. The source root is the current directory when one file is compiled, the directory passed when a tree is, or `--source-root dir` (report §11.1). Each path segment is one lowercase word; each namespace segment is the path segment with its first letter uppercased and the rest unchanged (`http.ern` → `Http`, `httpv2.ern` → `Httpv2`). A multi-word module is a nested directory, `http/parser.ern` for `Http.Parser` (report §11.1), so the mapping is one-to-one. A module namespace may not coincide with a namespace of the prelude or the standard library, so `io.ern` at the source root is an error, nor with a type namespace of its parent module: `main/stack.ern` is an error when `main.ern` declares `Stack` (report §4.2).
+**The file's path is its namespace.** A file at `a/b/c.ern` under the source root provides declarations at namespace `A.B.C`. The source root is `--source-root dir`; without it, the current directory when one file is compiled and the directory passed when a tree is. A file of the standard library's own `stdlib/` always takes that directory as its root (report §4.2, report §11.1). Each path segment is one lowercase word; each namespace segment is the path segment with its first letter uppercased and the rest unchanged (`http.ern` → `Http`, `httpv2.ern` → `Httpv2`). A multi-word module is a nested directory, `http/parser.ern` for `Http.Parser` (report §11.1), so the mapping is one-to-one. A module namespace may not coincide with a namespace of the prelude or the standard library, so `io.ern` at the source root is an error, nor with a type namespace of its parent module: `main/stack.ern` is an error when `main.ern` declares `Stack` (report §4.2).
 
 **Declarations use local names.** Inside `net/http.ern`, `export fn parse(...)` declares the function at its local name `parse`; the compiler exports it as `Net.Http.parse`. There is no file-namespace prefix on the declaration itself — repeating `Net.Http.` on every line would just restate the file's path.
 
@@ -908,9 +909,9 @@ Ernest treats the foreign boundary as a *promise*: the declared type is what com
 - **Wrong return type.** *Checked at runtime.* The declared type is Ernest's contract; a value the foreign side hands over that does not match faults the *receiving* Ernest process on first observation.
 - **Thrown exception.** *Checked at runtime.* Erlang exits and throws become `Fault` on the calling process.
 - **Wrong message from a foreign process.** *Checked at runtime.* A message that doesn't match the *destination's* declared mailbox type faults the receiver on delivery. Messages from the system processes are not checked (report §8.4). A message between two Ernest processes was already checked by `send`'s type, so nothing is checked at delivery.
-
-A value foreign code made and Ernest does not inspect has the built-in type `Foreign`; `Foreign.toInt` and the rest of Appendix E.12 read it, and Appendix D's `atom(name : String) -> Foreign` is how an Erlang atom is passed (report §3.7).
 - **Purity.** *Not checked.* Declaring `foreign fn` without `with M` is a promise the foreign side cannot enforce mechanically. Reserve pure declarations for functions that genuinely have no effect.
+
+A value foreign code made and Ernest does not inspect has the built-in type `Foreign`; `Foreign.toInt` and the rest of Appendix E.12 read it, and `Erl.atom(name)` is how an Erlang atom is passed (report §3.7, Appendix E.19).
 
 ### 7.4 Node-local foreign values
 
@@ -959,7 +960,7 @@ The Ernest `foreign fn` binds to that helper — the returned term already match
 export foreign fn lookup(key : String) -> Either(String, Int) with m = "store_helper:lookup/1"
 ```
 
-If `find/1` returns reasons of another shape (an atom, a nested tuple), the Erlang helper must convert them to the declared Ernest form before returning; the Ernest side does not paper over ABI-shape breaches.
+If `find/1` returns reasons of another shape (an atom, a nested tuple), the Erlang helper must convert them to the declared Ernest form before returning; the Ernest side does not paper over ABI-shape breaches. Where a shim keeps Erlang's convention as a type, it declares the result `Erl.Result(v, r)`, which is `Ok(v) | Error(r)`, and its helper rewrites `{ok, V}` and `{error, R}` to those constructors (report Appendix E.19).
 
 Report Appendix D walks a full `ets.ern` reference implementation (namespace `Ets`). Its foreign calls happen to already match Ernest's ABI (`[{K, V}]` maps to `List(#(k, v))`, `Bool` to `true`/`false`), so it needs no Erlang wrapper. This is also the shape of every library outside the standard library: JSON, TLS, regular expressions, HTTP are not in Appendix E, by E.0's rules, since each is a namespace of its own with policy inside; they are written as `Ets` is, by anyone, and put on the load path when a program wants them. Which are first-party, and when, is the plan's.
 
@@ -998,7 +999,7 @@ A segment without specifiers is `int` of size 8, which is why `<<0, 1, 2>>` is t
 - A segment value that does not fit its specified width — an `Int` too large for `size(N)-int` at construction — is a fault.
 - Four fixed limits (report §5.11): `unit` is 1 to 256; a `float` segment is 16, 32, or 64 bits; a `utf` segment takes no size; a sizeless `bits` or `bytes` segment is the last one.
 
-A segment pattern is a variable, `_`, or a literal. `size(Expr)` in a pattern is a variable of an earlier segment or the enclosing function, an `Int` literal, or `+`, `-`, `*` of these, evaluated while matching. A `match` over bitstring patterns ends with a `_` or variable clause, as `parseFrame` does: the checker does not decide whether bitstring patterns cover every `Bytes` value.
+A segment pattern is a variable, `_`, or a literal; a float literal `0.0` matches the bytes of either zero (report §3.1). `size(Expr)` in a pattern is a variable of an earlier segment or the enclosing function, an `Int` literal, or `+`, `-`, `*` of these, evaluated while matching. A `match` over bitstring patterns ends with a `_` or variable clause, as `parseFrame` does: the checker does not decide whether bitstring patterns cover every `Bytes` value.
 
 **Precondition for `frame`/`parseFrame`:** the round trip works when `len` equals `body`'s byte count *and* `len` fits in the length-field width (16 bits, so 0 to 65 535). `parseFrame(frame(1, <<65, 66>>))` returns `Some(#(1, <<65>>, <<66>>))` — a one-byte body and a one-byte remainder, not an error, because `len = 1` was chosen. If `len` doesn't fit the width, `frame` faults at construction.
 

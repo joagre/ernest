@@ -30,7 +30,7 @@ The complete programs from the report's Appendix B and D and the guide's checkpo
 
 - **[`docs/implementation_plan.md`](docs/implementation_plan.md)** — the roadmap: MVP 1 and MVP 2, done, and the later MVPs.
 
-- **[`docs/architecture.md`](docs/architecture.md)** — how the toolchain is built: the stages, what flows between them, the checker's passes, the compiler's one traversal, the runtime, the tests, and where MVP 2 hooks in.
+- **[`docs/architecture.md`](docs/architecture.md)** — how the toolchain is built: the stages, what flows between them, the checker's passes, the compiler's one traversal, the runtime, the tests, and where MVP 2.5 and later hook in.
 
 ## Ground rules
 
@@ -46,7 +46,7 @@ Four layers:
 
 - **Language.** The rules in `ernest_report.md`: syntax, types, processes, evaluation. Small and stable.
 - **Prelude.** What the report requires to exist, §9: the built-in and declared types, the process functions, the operations the operators resolve to, and the system references. A prelude operation in a type's namespace is provided by that type's standard library module.
-- **Standard library** (Appendix E). On the load path by default: one module per type and one per system process, which is the way a program uses a `Sys.*` reference. Appendix E.0 has the rules for what enters and how it is named. Where the modules live and when they move to Ernest under `stdlib/` is the plan's MVP 2.5.
+- **Standard library** (Appendix E). On the load path by default: one module per namespace of Appendix E, mostly one per type and one per system process, which is the way a program uses a `Sys.*` reference. Appendix E.0 has the rules for what enters and how it is named. Where the modules live and when they move to Ernest under `stdlib/` is the plan's MVP 2.5.
 - **Libraries.** Everything else, `Json`, `Tls`, `Regex`, `Http`, and the rest: written on the foreign-library pattern of Appendix D, by anyone, added to a program's load path when wanted. Which are first-party under `libs/`, and when, is the plan's MVP 2.6 and 2.7. The line between the standard library and a library is Appendix E.0: a namespace of its own with policy inside is a library, however useful.
 
 ## Layout of the repository
@@ -66,6 +66,7 @@ test/              what spans applications: the hand-written target modules,
                    the integration tests, expected/, golden/
 bin/               ernc and ern, as escript sources
 stdlib/            the standard library as Ernest source
+build/             build products, not in git: build/stdlib/ from make and make doc
 libs/              the first-party libraries, each a source root, from MVP 2.6
 ```
 

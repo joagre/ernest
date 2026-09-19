@@ -2732,6 +2732,10 @@ Added the same day as the based literals, on the same principle. `1_000_000` and
 
 Writing `Float.abs` in Ernest needed `if x <= 0.0 then 0.0 - x else x`, where every reader writes `if x < 0.0 then -x else x`; the natural line returned `-0.0` for `-0.0`. The cause was a value the report never mentioned: `0.0 == -0.0` was false, since `==` is structural, while `Float.compare` said `Equal`, and a `Map` could hold both zeros as keys. Principle 1 rejects all three. Ernest already restricted floats to the finite range, removing the IEEE values a program rarely wants and must always guard against; negative zero is the last of them. A zero is now `0.0` wherever it arises: an operation's result gets `+ 0.0`, which is exact for every other value, negation compiles as `0.0 - x`, and floats entering from foreign code, bytes, and text are normalized at the entry. `==` and `compare` agree, and `Float.abs` is the line a reader predicts. The cost is one addition per float operation. The alternative, keeping `-0.0` and stating the three results in the report, was honest but kept the surprise.
 
+## Rule 6 Matched to the Agreed Template, 2026-09-19
+
+A review of every document against the report found E.0 rule 6 stricter than the template the user agreed, the documentation tests, and every module written since: rule 6 asked for one central example, a module `See also` always, a doc block on every declaration, and a call in some example of every exported function. The template, agreed first, has the module's central examples, `See also` where there is something to see, doc blocks on exported declarations, and operators exempt, since an operator is used infix and `Float./(1.0, 2.0)` is not how a reader calls it. The report changed to the agreed form. The template's exception for an abstract value's example stays, now in rule 6: it prints as `<abstract>`, which shows nothing. Rule 1 names `Erl.atom`, which E.19 admits by it.
+
 ## Later
 
 Planned or considered, not in the language today.

@@ -26,16 +26,31 @@
 /// ### Errors
 ///
 /// Faults with `Fault("float arithmetic error")` when the result is not
-/// finite (report §3.1). `-`, `*`, and `/` fault the same way.
+/// finite (report §3.1).
 export fn Float.+(a : Float, b : Float) -> Float = a + b
 
 /// The difference, rounded to the nearest `Float`.
+///
+/// ### Errors
+///
+/// Faults with `Fault("float arithmetic error")` when the result is not
+/// finite (report §3.1).
 export fn Float.-(a : Float, b : Float) -> Float = a - b
 
 /// The product, rounded to the nearest `Float`.
+///
+/// ### Errors
+///
+/// Faults with `Fault("float arithmetic error")` when the result is not
+/// finite (report §3.1).
 export fn Float.*(a : Float, b : Float) -> Float = a * b
 
-/// The quotient, rounded to the nearest `Float`; division by zero faults.
+/// The quotient, rounded to the nearest `Float`.
+///
+/// ### Errors
+///
+/// Faults with `Fault("float arithmetic error")` when the result is not
+/// finite (report §3.1), which a divisor of `0.0` makes it.
 export fn Float./(a : Float, b : Float) -> Float = a / b
 
 /// `-x`, which prefix `-` calls.

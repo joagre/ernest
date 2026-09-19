@@ -935,7 +935,7 @@ clock_path_test() ->
         "}\n"),
     ?assertEqual(<<"true\na/b\n">>, Out).
 
-%% README, "What MVP 1 accepts": the MVP 2.5 names type-check and the
+%% README, "What the toolchain accepts": the MVP 2.5 names type-check and the
 %% compiler refuses them
 refused_names_test() ->
     ?assertEqual("Tcp.listen is not in MVP 1",
