@@ -4,7 +4,7 @@ A functional language for explicit process protocols. Mailbox effects and linear
 
 ## Status
 
-Design complete for MVP 1 (single-node subset). The toolchain is done in Erlang: lexer, parser, type checker, runtime, the compiler to BEAM, and the two programs `ernc` and `ern` under `bin/`, with every MVP 1 example program under `examples/` compiled and run as a test.
+MVP 1 and MVP 2 are done: the whole report on one node, except the standard library's system processes, which are MVP 2.5, and the shell, which is MVP 2.6. The toolchain is written in Erlang: lexer, parser, type checker, runtime, the compiler to BEAM, and the two programs `ernc` and `ern` under `bin/`, with every example program the toolchain runs compiled and run as a test. The plan says what comes next.
 
 ## Reading order
 
@@ -18,7 +18,7 @@ Design complete for MVP 1 (single-node subset). The toolchain is done in Erlang:
 
 The complete programs from the report's Appendix B and D and the guide's checkpoints are collected under [`examples/`](examples/). Each file's header says where it comes from and what it needs. Together the examples exercise every construct of the grammar except bitstrings, and a test keeps it so.
 
-**What MVP 1 runs.** The programs `make test` compiles and runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`, with their expected output under `test/expected/` and the Erlang they compile to under `test/golden/`. The `modules` pair and the `ets` library are compiled by their own tests; the rest of `examples/` is type-checked only, and each file's header says what it waits for.
+**What the toolchain runs.** The programs `make test` compiles and runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`, with their expected output under `test/expected/` and the Erlang they compile to under `test/golden/`. The `modules` pair and the `ets` library are compiled by their own tests; the rest of `examples/` is type-checked only, and each file's header says what it waits for.
 
 ### Then the paper programs
 
@@ -28,7 +28,7 @@ The complete programs from the report's Appendix B and D and the guide's checkpo
 
 - **[`docs/decisions.md`](docs/decisions.md)** — dated design decisions and their rationale. What was tried, what was rejected, why the report says what it says. Not normative — the report wins any conflict. Browse as needed; not intended to be read straight through.
 
-- **[`docs/implementation_plan.md`](docs/implementation_plan.md)** — the roadmap: MVP 1, done, and the later MVPs.
+- **[`docs/implementation_plan.md`](docs/implementation_plan.md)** — the roadmap: MVP 1 and MVP 2, done, and the later MVPs.
 
 - **[`docs/architecture.md`](docs/architecture.md)** — how the toolchain is built: the stages, what flows between them, the checker's passes, the compiler's one traversal, the runtime, the tests, and where MVP 2 hooks in.
 
