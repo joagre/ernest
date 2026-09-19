@@ -204,18 +204,56 @@ compile_order(Modules, Root) ->
 parse_module(#mod{file = File} = M, Root) ->
     {ok, Bin} = file:read_file(File),
     case ern_parser:parse_string(Bin) of
-        {ok, Decls} -> M#mod{decls = Decls, deps = deps(Decls, Root)};
+        {ok, Decls} ->
+            namespace_clash(M#mod{decls = Decls}, Root),
+            M#mod{decls = Decls, deps = deps(Decls, Root)};
         {error, E} -> throw({errors, File, [E]})
     end.
+
+%% Report §4.2: a module namespace may not coincide with a type namespace
+%% of its parent module. Checked from both files, so either finds it.
+namespace_clash(#mod{ns = Ns, rel = Rel, decls = Decls}, Root) ->
+    Clash = fun(ChildRel, T, ParentRel, Q) ->
+                fail(ChildRel ++ " and type " ++ atom_to_list(T) ++ " in " ++ ParentRel
+                     ++ " share the namespace " ++ qname(Q) ++ " (report §4.2)")
+            end,
+    case Ns of
+        [_, _ | _] ->
+            Parent = lists:droplast(Ns),
+            ParentRel = module_path(Parent) ++ ".ern",
+            lists:member(lists:last(Ns), source_types(filename:join(Root, ParentRel)))
+                andalso Clash(Rel, lists:last(Ns), ParentRel, Ns);
+        _ ->
+            ok
+    end,
+    lists:foreach(fun(T) ->
+                      ChildRel = module_path(Ns ++ [T]) ++ ".ern",
+                      filelib:is_regular(filename:join(Root, ChildRel))
+                          andalso Clash(ChildRel, T, Rel, Ns ++ [T])
+                  end, local_types(Decls)).
+
+%% The types a parsed source declares; none when it is absent or does not parse.
+source_types(File) ->
+    case file:read_file(File) of
+        {ok, Bin} ->
+            case ern_parser:parse_string(Bin) of
+                {ok, Decls} -> local_types(Decls);
+                {error, _} -> []
+            end;
+        {error, _} ->
+            []
+    end.
+
+local_types(Decls) ->
+    [N || #type_decl{name = N} <- Decls]
+        ++ [N || #abstract_decl{type = #type_decl{name = N}} <- Decls]
+        ++ [N || #foreign_type_decl{name = N} <- Decls].
 
 %% The modules a source refers to: every qualified name whose first
 %% segment is neither a type of this module nor a prelude namespace, and
 %% whose longest prefix names an existing .ern under the root.
 deps(Decls, Root) ->
-    Local = [N || #type_decl{name = N} <- Decls]
-        ++ [N || #abstract_decl{type = #type_decl{name = N}} <- Decls]
-        ++ [N || #foreign_type_decl{name = N} <- Decls],
-    Skip = Local ++ prelude_namespaces(),
+    Skip = local_types(Decls) ++ prelude_namespaces(),
     Paths = lists:usort([P || P <- paths(Decls), P =/= [], not lists:member(hd(P), Skip)]),
     lists:usort(lists:filtermap(fun(P) -> module_prefix(P, Root) end, Paths)).
 

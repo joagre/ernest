@@ -439,7 +439,16 @@ register_value_name(D, #env{local_values = LV} = Env) ->
     end,
     Owner =:= undefined orelse maps:is_key(Owner, Env#env.local_types) orelse
         fail(Pos, atom_to_list(Owner) ++ " is not a type declared in this module"),
+    %% report §4.8: an operator is declared with `fn`
+    not (is_record(D, let_decl) andalso is_operator(Name)) orelse
+        fail(Pos, "an operator is declared with `fn`, not `let`"),
     Env#env{local_values = LV#{Key => value_qname(Env, Owner, Name)}}.
+
+is_operator(Name) ->
+    case atom_to_list(Name) of
+        [C | _] when C >= $a, C =< $z; C =:= $_ -> false;
+        _ -> true
+    end.
 
 local_key(undefined, Name) -> Name;
 local_key(Owner, Name) -> {Owner, Name}.

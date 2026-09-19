@@ -257,7 +257,7 @@ export fn parse(s : String) -> Optional(Request) = ...
 fn helper(x) = ...        // private to net/http.ern
 ```
 
-**Type members.** A type `T` declared in a module, concrete or abstract, is a nested namespace. Its members are declared with the single prefix `T.`, `fn Distance.+`, `let Stack.empty`, and exported at `Module.T.member`. The namespace belongs to the file that declares the type: `main/stack.ern` cannot add members to the `Main.Stack` declared in `main.ern`, and a declaration that tries is a duplicate export. Type names that differ only in case are permitted. For an abstract type, only the definitions in its signature may name the constructor (§4.4).
+**Type members.** A type `T` declared in a module, concrete or abstract, is a nested namespace. Its members are declared with the single prefix `T.`, `fn Distance.+`, `let Stack.empty`, and exported at `Module.T.member`. The namespace belongs to the file that declares the type, and a module namespace may not coincide with it: `main/stack.ern` is an error when `main.ern` declares `Stack`. Type names that differ only in case are permitted. For an abstract type, only the definitions in its signature may name the constructor (§4.4).
 
 **Unqualified lookup.** An unqualified name in a body is looked up in the module's declarations, exported or not, then in the type-member namespace of the enclosing declaration, then in the prelude; any other name is written qualified. A module may declare a type or constructor with a prelude name, and the name then means the local one throughout the module. Within a module, type names are unique and constructor names are unique across its types.
 
@@ -296,7 +296,7 @@ A function has one clause. Patterns in parameters are irrefutable, §5.10: `fn s
 
 In a block, `let p = e` binds the irrefutable pattern `p` to the value of `e`; `let p <- e` is §5.5. A binding is monomorphic and does not see its own name. A later binding of the same name shadows the earlier one from the next statement on, and its right-hand side sees the earlier one.
 
-A block binding's type may hold unresolved variables, from `[]`, `None`, `Map.empty`, or a call that returns a polymorphic value. Each is resolved by a later use of the binding in the block, by reaching the block's result and being generalized by the enclosing `fn` or top-level `let`, or by an annotation on the binding; a variable none of these resolves is a type error at the binding. `let _ = e` binds nothing and resolves nothing. A type parameter of an enclosing scope is not unresolved.
+A block binding's type may hold unresolved variables, from `[]`, `None`, `Map.empty`, or a call that returns a polymorphic value. Each is resolved by a later use of the binding in the block, by reaching the block's result and being generalized by the enclosing `fn` or top-level `let`, or by an annotation on the binding; a variable none of these resolves is a type error at the binding. `let _ = e` binds no variable, and none in the type of `e` is required to resolve. A type parameter of an enclosing scope is not unresolved.
 
 At top level, `let` binds a `DeclName`, an `ident` optionally prefixed with a type of the same module (§4.2), and generalizes its free type variables: `let Stack.empty : Stack(a) = Stack([])`. The left side is a name, not a pattern, and `<-` is a block form only. The initializer is pure; effectful setup belongs in `main`. The runtime evaluates top-level bindings in dependency order before `main` runs (§8.5).
 
@@ -310,7 +310,7 @@ At top level, `let` binds a `DeclName`, an `ident` optionally prefixed with a ty
 
 The arithmetic operators and `<>` resolve against the operand type: `+` in `a + b` with `a : Int` is `Int.+`, and with `a : Distance` is `Distance.+`, declared in the type's module as `export fn Distance.+(Distance(a), Distance(b)) -> Distance = Distance(a + b)`. Both operands have the same type; there is no numeric type to generalize over. Resolution precedes generalization: an operand whose type comes from no annotation, literal, pattern, or call in the same definition is a type error that asks for an annotation.
 
-`==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, and `||` cannot be defined per type: equality is structural and ordering goes through `compare` (§3.10); `&&` and `||` short-circuit on `Bool`. `::` is cons (§3.3); `|>` is a syntactic form (§5.7).
+`==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, and `||` cannot be defined per type: equality is structural and ordering goes through `compare` (§3.10); `&&` and `||` short-circuit on `Bool`. An operator is declared with `fn`; `let T.op` is an error. `::` is cons (§3.3); `|>` is a syntactic form (§5.7).
 
 ## 5. Expressions
 
@@ -585,7 +585,7 @@ The entry point is a `fn () -> Unit with m`. `m` is a message type when the entr
 
 ### 8.2 System references
 
-The runtime starts its system processes and binds their addresses to top-level values in the `Sys` namespace, §9.7. A program uses each through the standard library, Appendix E, `Sys.stdout` and `Sys.stdin` through `Io` and the rest through the module of its name; the address and its message type are declared for that module and for a foreign process that speaks it (§8.4). A runtime may provide more; a program that needs one names it in its assumptions. The values are in scope everywhere; pure code can name an address and not use it (§6.1). A `Sys.*` name the runtime does not provide is a name-resolution error.
+The runtime starts its system processes and binds their addresses to top-level values in the `Sys` namespace, §9.7. A program uses each through the standard library, Appendix E, `Sys.stdout` and `Sys.stdin` through `Io` and the rest through the module of its name; the address and its message type are declared for that module and for a foreign process that speaks it (§8.4). A runtime may provide more. The values are in scope everywhere; pure code can name an address and not use it (§6.1). A `Sys.*` name the runtime does not provide is a name-resolution error.
 
 `stdout` writes each received `String` to standard output as bytes; newlines are the sender's. `stdin` answers each `ReadLine` with the next line without its line feed, `None` at end of input. `keys` sends every key pressed to each subscriber; it and `stdin` are the same terminal, and a program subscribes to keys or reads lines, not both. `clock`, `fs`, and `tcp` answer as their message types say.
 
@@ -970,7 +970,7 @@ fn submitter(worker : Address(WorkerMsg)) -> Unit with Never = {
 
 ## Appendix D. A Foreign Library
 
-A shim over Erlang's `ets`, tables of type `set`. Raw bindings are module-local (unqualified); the library is ordinary Ernest over them. The BEAM values `ets` returns line up with Ernest's ABI (§8.4) here without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and Erlang's `[{K, V}]` matches `List(#(k, v))`. Erlang's `{ok, V} | {error, R}` convention uses lowercase atoms `ok` and `error`, which under §8.4 are not the encoding of any Ernest constructor: `Either`'s `Left(e)` and `Right(a)` encode as `{'Left', e}` and `{'Right', a}`, quoted and source-preserving. An API returning that shape needs a foreign adapter that returns the declared Ernest representation — either an Erlang helper module that rewrites `{ok, V}` to `{'Right', V}` before it crosses the boundary, or explicitly declared foreign decoding functions on the Ernest side. An ordinary Ernest `match` cannot destructure the raw `{ok, _}` term directly: `Foreign` is opaque (Appendix E.12) and Ernest has no atom-decomposition pattern. The `ets` calls used below don't use that convention, so no adapter is needed here.
+A shim over Erlang's `ets`, tables of type `set`. Raw bindings are module-local, unqualified; the library is ordinary Ernest over them. The values `ets` returns match the ABI of §8.4 without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and `[{K, V}]` is `List(#(k, v))`. Erlang's `{ok, V} | {error, R}` convention is the encoding of no Ernest constructor, `Left(e)` and `Right(a)` being `{'Left', e}` and `{'Right', a}`; an API that returns it needs a foreign adapter, an Erlang helper that rewrites the term before it crosses the boundary or a declared foreign decoding function. `Foreign` is opaque (E.12) and no pattern decomposes an atom. The `ets` calls below do not use that convention.
 
 ```
 // ets.ern  (namespace Ets)
@@ -1042,11 +1042,11 @@ export fn main() -> Unit with Never = {
 }
 ```
 
-The `raw` names have no `export` and are therefore invisible outside the module; the exported `Ets.*` interface is what callers see. `Ets.Table(k, v)` has type parameters the implementation never sees: `Ets.insert(t, "a", 1)` fixes `t` to `Ets.Table(String, Int)`, and an insert with other types on the next line is a type error. Every operation has a mailbox type, `size` and `member` included, because they read state that others write. `atom` is pure: the same text gives the same atom. No Erlang wrapper module is needed for this particular `ets` API because its raw returns already have Ernest-compatible shapes; an API using the `{ok, _} | {error, _}` convention would need one, as the introduction to this appendix notes. What the type cannot say, the declaration's documentation must: a table lives until `Ets.drop`, or until the process that created it dies.
+The `raw` names have no `export` and are invisible outside the module; the exported `Ets.*` interface is what callers see. `Ets.Table(k, v)` has type parameters the implementation never sees: `Ets.insert(t, "a", 1)` fixes `t` to `Ets.Table(String, Int)`, and an insert with other types on the next line is a type error. Every operation has a mailbox type, `size` and `member` included: they read state that others write. `atom` is pure: the same text gives the same atom. What the type cannot say, the declaration's documentation says: a table lives until `Ets.drop`, or until the process that created it dies.
 
 ## Appendix E. Standard Library
 
-Informative, not normative: this appendix lists the modules that ship with the compiler as ordinary Ernest files under `stdlib/`. The standard library is on the load path by default; every program can call `Io.println`, `List.map`, and the rest without any setup. The prelude in section 9 is what the language itself requires. Everything else here is written in Ernest on top of the language and prelude, except the shims that E.0's first rule admits.
+E.0 is normative; the listing that follows is what E.0 has admitted, the modules that ship with the compiler as ordinary Ernest files under `stdlib/`. The standard library is on the load path by default; every program can call `Io.println`, `List.map`, and the rest without any setup. The prelude in section 9 is what the language itself requires. Everything else here is written in Ernest on top of the language and prelude, except the shims that E.0's first rule admits.
 
 ### Appendix E.0. Rules
 
@@ -1066,7 +1066,7 @@ Eight rules give a function its shape.
 5. A function is pure unless its value lives in a process: the modules over the system references of §8.2 carry `with m`, nothing else does. Every function that takes a function is effect-polymorphic (§3.9).
 6. What the type does not say, the comment on the signature says: which occurrence `remove` removes, the order `toList` produces, the range `next` draws from.
 7. A type a module declares is listed in its section as its functions are, `foreign type Seed` in E.13, and is named for what it is within the module, never for the module. The types the runtime speaks are the prelude's, §9.3.
-8. A system reference of §8.2 is used through its standard library module, never by `send`. A function that waits takes the milliseconds as its last argument and answers `Left(Timeout)`; one that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9).
+8. A system reference of §8.2 is used through its standard library module, never by `send`. A function that waits takes the milliseconds as its last argument and answers `Left(Timeout)`; `Clock.now`, `Tcp.listen`, and `Io.readLine` take none, the first two answered at once and the third waiting for the user; one that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9).
 
 ### Appendix E.1. `io.ern` (namespace `Io`)
 

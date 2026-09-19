@@ -104,7 +104,6 @@ The toolchain is the report on one node; the plan's MVPs lift the table row by r
 | Construct | Until | What you see today |
 |---|---|---|
 | The ownership rule of abstract types (§4.4) | MVP 2 | not checked; a constructor is usable anywhere in its module |
-| A `Reply` captured by a lambda that reaches `spawn` through a `let` rather than as its direct argument (§6.6's rule; MVP 2 changes §6.6 and lifts it) | MVP 2 | `in MVP 1 the reply-carrying value r is captured by a lambda that is not passed directly to spawn` |
 | `Deadlock` (§8.6) | MVP 2 | a deadlocked program waits |
 | `Sys.stdin`, `Sys.keys`, `Sys.fs`, `Sys.tcp` and their modules `Io.readLine`, `Keys`, `Fs`, `Tcp` (§8.2, Appendix E.1, E.16 to E.18) | MVP 2.5 | type-checks; `ernc` says `Tcp.listen is not in MVP 1`, and the same for each of those names |
 | `ern --shell` (§11.2) | MVP 2 | `the shell is not in MVP 1` |

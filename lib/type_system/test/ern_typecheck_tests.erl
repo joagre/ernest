@@ -341,6 +341,12 @@ with_binds_to_the_nearest_arrow_test() ->
                  type_of("export fn f(a : Int) -> ((Int) -> Int) with Never = fn(b) = a + b",
                          f)).
 
+%% report §4.8: an operator is declared with `fn`
+let_operator_test() ->
+    ?assertEqual("an operator is declared with `fn`, not `let`",
+                 err("type Vec = Vec(Int)\nlet Vec.+ = fn(a : Vec, b : Vec) -> Vec = a")),
+    ?assertEqual(ok, ok("type Vec = Vec(Int)\nlet Vec.zero = Vec(0)")).
+
 %% report §8.5
 let_cycle_test() ->
     ?assertEqual("the initializer of a depends on itself, through b",
@@ -450,7 +456,7 @@ reply_test() ->
                  err(Msg ++ "fn f(r : Reply(Int), b : Bool) = if b then answer(r, 1) else Unit")),
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int), b : Bool) = if b then answer(r, 1)"
                         " else answer(r, 2)")),
-    ?assertEqual("in MVP 1 the reply-carrying value r is captured by a lambda that is not passed"
+    ?assertEqual("the reply-carrying value r is captured by a lambda that is not passed"
                  " directly to spawn",
                  err(Msg ++ "fn f(r : Reply(Int)) = List.map([1], fn(x) = answer(r, x))")),
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never ="

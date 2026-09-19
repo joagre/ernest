@@ -203,6 +203,22 @@ prelude_namespace_test() ->
     ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
     ?assertNot(filelib:is_regular(Dir ++ "/build/main.erc")).
 
+%% report §4.2: a module namespace may not coincide with a type namespace
+%% of its parent module, found from either file and in either mode
+namespace_clash_test() ->
+    Dir = tmp(),
+    write(Dir, "src/main.ern", "type Stack = Stack(Int)\n" ++ hello()),
+    write(Dir, "src/main/stack.ern", "export fn push(n : Int) -> Int = n\n"),
+    ?assertEqual(1, ernc_err(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertMatch({match, _},
+                 re:run(iolist_to_binary(?capturedOutput),
+                        "main/stack.ern and type Stack in main.ern share the namespace"
+                        " Main.Stack")),
+    ?assertNot(filelib:is_regular(Dir ++ "/build/main.erc")),
+    Single = ["--source-root", Dir ++ "/src", "--out-dir", Dir ++ "/build"],
+    ?assertEqual(1, ernc_err(Single ++ [Dir ++ "/src/main.ern"])),
+    ?assertEqual(1, ernc_err(Single ++ [Dir ++ "/src/main/stack.ern"])).
+
 %% report §11.1: a module cycle is an error naming the modules
 module_cycle_test() ->
     Dir = tmp(),
@@ -352,7 +368,7 @@ mvp_refusals_in_readme_test() ->
                                    nomatch -> []
                                end
                            end || F <- Sources])),
-    ?assert(length(Texts) >= 3),
+    ?assert(length(Texts) >= 2),
     Missing = [T || T <- Texts, binary:match(Readme, binary:part(T, 0, min(40, byte_size(T))))
                                 =:= nomatch],
     ?assertEqual([], Missing).
