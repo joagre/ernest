@@ -182,8 +182,8 @@ A line that faults reports the fault and leaves the shell running with its bindi
 
 The shell is too large for one review at the end, so its item in the plan stops three times, each a working shell a user can try.
 
-1. **The foreign interface and the line-mode shell.** Every line checked, run, and printed with its type; `it`, bindings, faults, and the commands that need no editor; the session golden tests.
-2. **The line editor.** The Readline bindings, history kept between sessions, interruption, and the redraw after another process prints; the key-stream tests.
+1. **The foreign interface and the line-mode shell.** Every line checked, run, and printed with its type; `it`, bindings, faults, and the commands that need no editor; the session golden tests; errors shown as `ernc` shows them, timing, faults in spawned processes reported, the startup file, and quitting.
+2. **The line editor.** The Readline bindings, history kept between sessions, interruption, and the redraw after another process prints; the key-stream tests; bracketed paste, the prompts, and colour.
 3. **Completion and documentation at the cursor.** `Tab` for names, commands, and arguments, `Shift-Tab`, and the documentation chunk in the `.erc` it depends on.
 
 ## Decisions
