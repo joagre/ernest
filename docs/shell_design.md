@@ -1,6 +1,6 @@
 # The Ernest Shell: Design Notes
 
-The shell of MVP 2.6, `ern --shell`: an Ernest program over `Keys`, with its own line editor, and with the checker's incremental entry reached through a `foreign fn` (report §8.4, §11.2). The plan owns when it is built; this document owns what it is. It is a first draft, begun 2026-09-19, and much more will be added. Three decisions are open, listed under "Open decisions" at the end; the foreign interface is sketched and is settled when it is built.
+The shell of MVP 2.6, `ern --shell`: an Ernest program over `Keys`, with its own line editor, and with the checker's incremental entry reached through a `foreign fn` (report §8.4, §11.2). The plan owns when it is built; this document owns what it is. It is a first draft, begun 2026-09-19, and more will be added. Its three decisions are under "Decisions" at the end; the foreign interface is sketched and is settled when it is built.
 
 ## Every result has a type
 
@@ -28,6 +28,7 @@ A large value is printed up to a depth and a length, the rest shown as `...`. `:
 - **A `let` at the prompt generalizes as a top-level `let` does** (§4.6): `let id = fn(x) = x` stays polymorphic, so `id(1)` and `id("a")` both check on later lines.
 - **A later declaration of a name is seen by later lines.** A closure or a function made before it keeps the one it was made with, as a block's shadowing does (§4.6).
 - **Bindings survive a faulting or interrupted line**; only `:forget` removes them.
+- **An address bound at the prompt to `self()` outlives its process.** Each input runs in a process of its own that ends with it (see "Decisions"), so `let me = self()` binds an address that reaches no one on a later line. A message is received inside the input that expects it.
 
 ## The parts
 
@@ -35,7 +36,7 @@ The shell is an Ernest program, and one of the larger ones: an estimate is one t
 
 - **The reader.** It reads keystrokes through `Keys`, not lines through `Io.readLine`: line editing needs every key, and §8.2 lets a program use keys or lines, never both. The line editor below is Ernest over the key stream, with the line, the cursor, the kill ring, and the history carried through its loop. When the input is not a terminal, `ern --shell < script.ern`, there are no keys: the shell reads lines with `Io.readLine`, without editing, and prints each result as at the prompt.
 - **The front end.** Lexing, parsing, type-checking, and compiling stay in the Erlang toolchain and are reached through a few `foreign fn`s: check a line against the bindings so far, compile a declaration, load a module, list a module's exports, fetch a declaration's documentation. The boundary is narrow by design, and it is the part to get right first.
-- **The evaluator.** It runs each line in a process of its own. The shell monitors it (§6.9); a line that faults kills the evaluator, the shell reports the fault, and starts a new evaluator with the bindings kept.
+- **The evaluator.** Each input runs in a fresh process of its own, whose mailbox type is the input's own effect. The shell monitors it (§6.9): a fault or `C-c` ends only that process, the shell reports it, and the next input gets a new process. There is no evaluator to restart.
 - **The commands.** The `:` commands below, small once the front end exists, since they reuse the checker's printer and the documentation renderer.
 - **The printer.** A result and its type, as above.
 
@@ -43,7 +44,7 @@ The shell is an Ernest program, and one of the larger ones: an estimate is one t
 
 The shell is written in Ernest, and working through its parts shows what Ernest already offers and what it lacks.
 
-- **Already there, or in MVP 2.5.** The line editor is data carried through a loop: the line as a `List(Char)`, the cursor, the kill ring, the history. Drawing is ANSI escape sequences written with `Io.print`, a string holding `\u{1B}[K`. Keys come through `Keys`, and `C-c` arrives as a key in raw mode, not as a signal, so interrupting is ordinary message handling. The history file uses `Fs`, and completing a path uses `Fs.list`. The evaluator is a process: `monitor` reports its death and `kill` stops it.
+- **Already there, or in MVP 2.5.** The line editor is data carried through a loop: the line as a `List(Char)`, the cursor, the kill ring, the history. Drawing is ANSI escape sequences written with `Io.print`, a string holding `\u{1B}[K`. Keys come through `Keys`, and `C-c` arrives as a key in raw mode, not as a signal, so interrupting is ordinary message handling. The history file uses `Fs`, and completing a path uses `Fs.list`. Each input runs in a process: `monitor` reports its end and `kill` stops it.
 - **Results are `Foreign` to the shell.** The shell is a statically typed program handling values of every type a user can write, so a result, a binding, and a message in its mailbox are opaque handles to it, of type `Foreign`, passed back to the toolchain. The foreign entries do the typed work: check a line against the bindings, compile and run it, print a value by its type, list a module's exports, fetch documentation. The shell is the interface and the orchestration; evaluation and printing stay behind the boundary, as GHC stands behind GHCi. The foreign interface is therefore the real design, and larger than a few entries.
 - **The terminal's width.** Redrawing a line that wraps and laying out a completion list need it. Nothing in the report provides it; Erlang has `io:columns`. An addition to `Io` or `Keys`, report first.
 - **Whether input is a terminal.** The fall-back to reading lines, `ern --shell < script.ern`, needs to know. Nothing provides it. An addition to `Io`, report first.
@@ -77,9 +78,9 @@ The keys are GNU Readline's Emacs bindings, which every shell user's fingers alr
 - **Deleting and killing.** `Backspace` and `C-h` delete back, `C-d` deletes forward and quits on an empty line, `C-k` kills to the end of the line, `C-u` to the start, `C-w` and `M-Backspace` the word before, `M-d` the word after. A kill goes to the kill ring; `C-y` yanks the last kill and `M-y` cycles the ring.
 - **Transposing and case.** `C-t` transposes two characters, `M-t` two words; `M-u`, `M-l`, and `M-c` upcase, downcase, and capitalize a word.
 - **History.** `C-p` and `C-n`, and the up and down arrows, step through earlier lines; `M-<` and `M->` go to the first and the current. `C-r` searches back incrementally and `C-s` forward, `C-g` abandons the search. The history is kept between sessions in the configuration directory, `.ernest/history`.
-- **Interrupting.** `C-c` abandons the line being typed. During an evaluation it kills the evaluator, which is reported as `Killed`, and the bindings are kept; a line that loops or waits in `receive` is stopped this way.
+- **Interrupting.** `C-c` abandons the line being typed. During an evaluation it kills the input's process, which is reported as `Killed`, and the bindings are kept; an input that loops or waits in `receive` is stopped this way.
 - **Output from other processes.** A process spawned at the prompt may print while a line is being typed. The editor then redraws the prompt and the partial line below the output, as Readline does.
-- **The rest.** `C-l` clears the screen. `Enter` submits the line, or continues it when it is not yet complete.
+- **The rest.** `C-l` clears the screen. `Enter` submits a line that is complete by itself; after an incomplete line it continues the input, which a blank line then submits (see "Decisions").
 
 ## Completion and documentation at the cursor
 
@@ -96,7 +97,7 @@ The keys are GNU Readline's Emacs bindings, which every shell user's fingers alr
 
 A command is written with a `:` prefix, as in GHCi, and is not a function. It cannot collide with a program's names, and it cannot be mistaken for Ernest code (principles 1 and 3).
 
-Any prefix of a command's name selects it, as in GHCi, and an ambiguous prefix selects the first command in the order of the list below. The order puts GHCi's habitual letters where GHCi puts them: `:t` is `:type`, `:b` is `:browse`, `:l` is `:load`, `:r` is `:reload`, `:q` is `:quit`, `:d` is `:doc`, `:f` is `:flush`.
+Any prefix of a command's name selects it, as in GHCi, and an ambiguous prefix selects the first command in the order of the list below. The order puts GHCi's habitual letters where GHCi puts them: `:t` is `:type`, `:b` is `:browse`, `:l` is `:load`, `:r` is `:reload`, `:q` is `:quit`, `:d` is `:doc`, `:f` is `:forget`.
 
 - **`:type e`**: the type of an expression, without evaluating it, printed as the checker prints types (§11.5). In a typed language this is the command used most.
 - **`:browse Module`**: every export of a module with its type, the compact overview beside `:doc`'s text.
@@ -105,7 +106,6 @@ Any prefix of a command's name selects it, as in GHCi, and an ambiguous prefix s
 - **`:quit`**, as `C-d` on an empty line.
 - **`:doc Name`**: a declaration's documentation, rendered as `ernc --doc` renders it (§11.4): the declaration, with a type's constructors and a function's type, and its text. The documentation norm, Appendix E.0 rule 6, makes it worth more than Erlang's `h`. A GHCi user's `:i` finds nothing; the help text says `:doc` is the command.
 - **`:help`**, which lists the commands and their prefixes.
-- **`:flush`**: prints and empties the shell's mailbox. Without it a message sent to `self()` at the prompt is invisible.
 - **`:forget x`**: forgets one binding made at the prompt, or all of them without a name.
 - **`:bindings`**: the bindings made at the prompt, with their types.
 - **`:processes`**: the live processes with their spawn sites, which the runtime's process table already records (§6.9).
@@ -114,7 +114,7 @@ Any prefix of a command's name selects it, as in GHCi, and an ambiguous prefix s
 Two questions a Haskell user asks on the first day:
 
 - **How is a module imported?** It is not. Every module on the load path is in scope by its qualified name (§4.2), so GHCi's `:module` has no counterpart.
-- **How is a program started?** By calling it. A module meant to be used from a shell exports a function that spawns its processes and returns, as an Erlang user calls `server:start()`. `Server.main()` at the prompt runs an entry point in the evaluator, and `C-c` stops it; `spawn(Local, fn() = Server.main())` runs it beside the shell. There is no `:main` or `:run`: calling the function is the one way (principle 2).
+- **How is a program started?** By calling it. A module meant to be used from a shell exports a function that spawns its processes and returns, as an Erlang user calls `server:start()`. `Server.main()` at the prompt runs an entry point in that input's process, and `C-c` stops it; `spawn(Local, fn() = Server.main())` runs it beside the shell. There is no `:main` or `:run`: calling the function is the one way (principle 2).
 
 ## What other shells offer
 
@@ -133,6 +133,7 @@ Two questions a Haskell user asks on the first day:
 - **`regs()`.** Ernest has no registered names.
 - **The records commands.** Ernest has no records; a `type` declaration typed at the prompt does their work.
 - **`rp`.** The shell prints up to its limits, and `Io.debug` prints a value in full.
+- **`flush()`**, Erlang's. No mailbox persists between inputs to be flushed; a message is received inside the input that expects it.
 - **`:kind`**, GHCi's. Ernest exposes no kinds; `:doc` on a type shows its parameters.
 - **`:info`**, GHCi's. `:doc` already shows the declaration; a second command for one lookup would be two ways (principle 2).
 - **`cd`, `pwd`, `ls`.** The `Fs` module does this in the language; a command would be a second way (principle 2).
@@ -144,7 +145,7 @@ Two questions a Haskell user asks on the first day:
 
 ## A line that faults
 
-A line that faults reports the fault and leaves the shell running with its bindings intact. Erlang restarts its evaluator for the same reason: the death of the shell's own process is the one failure a user cannot recover from at the prompt.
+A line that faults reports the fault and leaves the shell running with its bindings intact. The fault ends only the input's own process; the shell's process, the one failure a user could not recover from at the prompt, never runs the user's code.
 
 ## Testing
 
@@ -160,10 +161,10 @@ The shell is too large for one review at the end, so its item in the plan stops 
 2. **The line editor.** The Readline bindings, history kept between sessions, interruption, and the redraw after another process prints; the key-stream tests.
 3. **Completion and documentation at the cursor.** `Tab` for names, commands, and arguments, `Shift-Tab`, and the documentation chunk in the `.erc` it depends on.
 
-## Open decisions
+## Decisions
 
-These are the user's, and are settled here before MVP 2.6 starts.
+Settled 2026-09-19.
 
-1. **Multi-line input.** When a line is not complete, how the shell knows it and how the user ends it: a line continues while a bracket is open or the parser wants more, or an explicit form such as GHCi's `:{` and `:}`, or both.
-2. **A declaration typed at the prompt.** How it is compiled and loaded: one throwaway module per line, or one growing module recompiled each time; and what a later declaration of the same name does to the functions already compiled against the old one.
-3. **The shell's mailbox type.** What the shell's process, and the evaluator's, can receive: `Never`, so a line that calls `receive` is a type error; a fixed type; or the type of the entry point when `ern --shell` runs beside a program.
+1. **Multi-line input.** A line that is complete by itself is submitted at once. A line that is incomplete, a bracket open or an expression or declaration unfinished, starts a multi-line input, which ends only at a blank line. The blank line is needed because a type written as the style guide writes it, its alternatives on later lines led by `|`, parses as complete after its first alternative. There is no `:{` and `:}`: the blank line is the one way, and `:load` takes anything larger.
+2. **A declaration at the prompt.** Each submitted input is compiled as a small module of its own against the interfaces of the bindings so far, and loaded. A later declaration of a name is a new module; later inputs see the newest, and functions compiled earlier keep calling the one they were compiled against, as "Bindings at the prompt" says. Functions that call each other are entered in one multi-line input, as in GHCi. One growing module recompiled on each input was not taken: it would change the behaviour of functions already defined without a word.
+3. **The mailbox type.** Each input runs in a fresh process whose mailbox type is the input's own inferred effect, instantiated as an entry point's is (§8.1), a polymorphic one to `Never`. `receive` inside an input is sound, and a fault or `C-c` ends only that input. The price is stated where it is felt: `self()` bound at the prompt outlives its process, and there is no `:flush`. One persistent evaluator with a session mailbox type was not taken: the type would be `Never`, forbidding `receive` at the prompt, or chosen at start, which no user can do well.
