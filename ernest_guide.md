@@ -84,7 +84,7 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 - **`Char`** — one Unicode code point. Literal: `'a'`.
 - **`String`** — a Unicode string. Literal: `"hello"`. Escapes: `\n`, `\r`, `\t`, `\\`, `\"`, `\'`, `\u{1F600}`. A raw string is written between backticks; see below.
 - **`Bytes`** — sequence of octets. Literal: `<<0, 1, 2>>` (a bitstring, §7.6 below; report §5.11).
-- **`Bool`** — `true` or `false`.
+- **`Bool`** — `true` or `false`. `&&` and `||` short-circuit, `!` negates, and `Bool.not` is `!` as a function, the way `Int.negate` is prefix `-`.
 - **`Unit`** — one value, also called `Unit`.
 
 A raw string, between backticks, is taken exactly as written: a backslash is a backslash, and a line break is a line break. It is the form for text full of backslashes or quotes, and for text over several lines:

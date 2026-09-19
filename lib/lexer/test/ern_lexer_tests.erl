@@ -47,6 +47,12 @@ integers_test() ->
     ?assertEqual([{int, 0}, {int, 42}, {int, 123456789012345678901234567890}],
                  toks("0 42 123456789012345678901234567890")).
 
+%% report §4.8: `!` is a symbol of its own, and `!=` stays one token
+not_symbol_test() ->
+    ?assertEqual(['!', {ident, ok}], toks("!ok")),
+    ?assertEqual([{ident, a}, '!=', {ident, b}], toks("a != b")),
+    ?assertEqual(['!', '(', {ident, a}, ')'], toks("!(a)")).
+
 %% report §2.5: hexadecimal, octal, and binary integers, the prefix lowercase
 based_integers_test() ->
     ?assertEqual([{int, 16#10FFFF}, {int, 255}, {int, 8#644}, {int, 10}, {int, 0}],

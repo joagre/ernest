@@ -2762,6 +2762,10 @@ The twelve functions admitted on 2026-09-20 doubled the module, and rule 3 refus
 
 The largest module: twenty-three functions and `String.<>`. The split follows rule 1. Unicode decides case folding, trimming, finding, slicing by code point, and the conversions to and from octets and code points, so those are shims over `string` and `unicode` through `ern_string`; `compare` is one too, since Erlang's order on UTF-8 binaries is the order of code points and its implementation is the one to trust. What the language can say is Ernest: the empty test, the padding, `lines`, `join`, `split` on an empty separator, the clamping in `slice` and `repeat`, the base check in `toIntBase`, and `toInt`, which walks the code points and accepts only 0 to 9 with an optional leading `-`, where `Char.isDigit` would have accepted every script's digits. Writing it found no gap in the language. It did find one asymmetry: `&&` and `||` are operators, and the third of the trio is `Bool.not`, so `!p` does not parse, which is the one thing that had to be rewritten.
 
+## Prefix `!`, 2026-09-20
+
+Writing `String.toInt` in Ernest, `!p` was typed and did not parse: `&&` and `||` were operators and the third of the trio was `Bool.not`, a function in a module. A reader who has `&&`, `||`, and `!=` predicts `!`, which is principle 1, and the language already pairs a prefix operator with a named function: prefix `-` with `Int.negate`. `!` is that pairing for `Bool`, with `Bool.not` as its function form, so principle 2 sees one way, not two. It costs one symbol in the lexer, one alternative in `Unary`, and no reserved word. It does not stack: `Unary` takes one prefix operator, as it does for `-`, so `!!b` is a parse error, and nothing is lost, since `!!b` is `b`.
+
 ## Later
 
 Planned or considered, not in the language today.

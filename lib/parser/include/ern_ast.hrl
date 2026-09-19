@@ -72,6 +72,7 @@
 %% op: '=' | '<-'
 -record(e_call, {pos, callee, args, type}).
 -record(e_neg, {pos, expr, type}).
+-record(e_not, {pos, expr, type}).
 -record(e_binop, {pos, op, left, right, type}).
 -record(e_lambda, {pos, params, ret, effect, body, type}).
 -record(e_if, {pos, condition, then_branch, else_branch, type}).

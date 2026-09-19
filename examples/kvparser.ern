@@ -25,8 +25,8 @@ fn parse(s : String) -> Either(String, #(String, Int)) = {
 
 fn keyOf(cs : List(Char)) -> Either(String, #(String, List(Char))) = {
     let #(k, rest) = List.span(cs, Char.isAlpha);
-    if List.isEmpty(k) then Left("bad key: " <> String.fromList(cs))
-    else Right(#(String.fromList(k), rest))
+    if !List.isEmpty(k) then Right(#(String.fromList(k), rest))
+    else Left("bad key: " <> String.fromList(cs))
 }
 
 fn expectEq(cs : List(Char), s : String) -> Either(String, List(Char)) = match cs {

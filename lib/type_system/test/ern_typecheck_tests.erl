@@ -64,6 +64,12 @@ container_elements_are_not_marked_not_reply_carrying_test() ->
     ?assertEqual("(a!, (List(a!)) -> Int) -> Unit",
                  type_of("export fn skip(x : a, f : (List(a)) -> Int) = Unit", skip)).
 
+%% report §4.8: `!` is negation on Bool
+not_operator_test() ->
+    ?assertEqual("(Bool) -> Bool", type_of("export fn flip(b) = !b", flip)),
+    ?assertEqual("(Bool, Bool) -> Bool", type_of("export fn nand(a, b) = !(a && b)", nand)),
+    ?assertEqual("the operand of `!`: expected Bool, found Int", err("fn f() = !3")).
+
 %% report §4.8
 operators_need_a_determined_operand_type_test() ->
     ?assertEqual("the operand type of `+` is not determined; annotate it",

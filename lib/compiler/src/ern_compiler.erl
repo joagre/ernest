@@ -305,6 +305,8 @@ refs(#e_binop{op = Op, left = L, right = R}) ->
                  _ -> []
              end,
     Member ++ refs(L) ++ refs(R);
+refs(#e_not{expr = X}) ->
+    refs(X);
 refs(#e_neg{expr = X}) ->
     case ern_typecheck:node_type(X) of
         {tcon, Q, _} when length(Q) > 1 -> [{lists:last(Q), negate} | refs(X)];
@@ -359,6 +361,9 @@ expr(#e_block{pos = Pos, stmts = Stmts}, Cx) ->
     {at(Pos, erl_syntax:block_expr(Forms)), Cx1#cx{vars = Cx#cx.vars, locals = Cx#cx.locals}};
 expr(#e_call{pos = Pos, callee = Callee, args = Args}, Cx) ->
     call(Pos, Callee, Args, Cx);
+expr(#e_not{pos = Pos, expr = X}, Cx) ->
+    {Form, Cx1} = expr(X, Cx),
+    {at(Pos, erl_syntax:prefix_expr(erl_syntax:operator('not'), Form)), Cx1};
 expr(#e_neg{pos = Pos, expr = X}, Cx) ->
     {Form, Cx1} = expr(X, Cx),
     {at(Pos, negate(resolved(ern_typecheck:node_type(X), Cx), Form, Cx)), Cx1};
@@ -1269,6 +1274,7 @@ erlang_guard(_, _) -> false.
 guard_operand(#e_lit{}) -> true;
 guard_operand(#e_var{path = []}) -> true;
 guard_operand(#e_con{args = none}) -> true;
+guard_operand(#e_not{expr = X}) -> guard_operand(X);
 guard_operand(#e_neg{expr = #e_lit{}}) -> true;
 guard_operand(_) -> false.
 

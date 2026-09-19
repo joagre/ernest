@@ -540,6 +540,10 @@ start_of(Left, OpPos) ->
 unary([{'-', Pos} | R]) ->
     {E, R1} = postfix(R),
     w({#e_neg{pos = Pos, expr = E}, R1});
+unary([{'!', Pos} | R]) ->
+    %% report §4.8: prefix negation on Bool
+    {E, R1} = postfix(R),
+    w({#e_not{pos = Pos, expr = E}, R1});
 unary(Ts) ->
     postfix(Ts).
 

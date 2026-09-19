@@ -314,7 +314,7 @@ At top level, `let` binds a `DeclName`: an `ident`, optionally prefixed with a t
 
 The arithmetic operators `+`, `-`, `*`, `/`, `%` and `<>` resolve against the operand type. In `a + b`, `+` is `Int.+` when `a : Int` and `Distance.+` when `a : Distance`. A user type declares its operators in its own module: `export fn Distance.+(Distance(a), Distance(b)) -> Distance = Distance(a + b)`. The standard library module of a built-in type declares that type's operators the same way: `Float.+` in `float.ern` (§9.6). Both operands have the same type; there is no numeric type to generalize over. Resolution precedes generalization. An operand whose type comes from no annotation, literal, pattern, or call in the same definition is a type error; the error asks for an annotation.
 
-`==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, and `||` cannot be defined per type: equality is structural and ordering goes through `compare` (§3.10); `&&` and `||` short-circuit on `Bool`. An operator is declared with `fn`; `let T.op` is an error. `::` is cons (§3.3); `|>` is a syntactic form (§5.7).
+`!` is negation on `Bool`, the prefix operator of `&&` and `||`, and `Bool.not` (E.7) is the same operation as a function, as `Int.negate` is of prefix `-`. `==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, and `||` cannot be defined per type: equality is structural and ordering goes through `compare` (§3.10); `&&` and `||` short-circuit on `Bool`. An operator is declared with `fn`; `let T.op` is an error. `::` is cons (§3.3); `|>` is a syntactic form (§5.7).
 
 ## 5. Expressions
 
@@ -327,7 +327,7 @@ Clause    = Pattern { "or" Pattern } [ "when" Expr ] "->" Expr .
 ReceiveExpr  = "receive" "{" ( Clause { "|" Clause } [ "|" AfterClause ] | AfterClause ) "}" .
 AfterClause  = "after" Expr "->" Expr .
 BinExpr   = Unary { binop Unary } .
-Unary     = [ "-" ] Primary { Call } .
+Unary     = [ "-" | "!" ] Primary { Call } .
 Call      = "(" [ Expr { "," Expr } ] ")" .
 Primary   = literal | QName | Tuple | ListLit | BitExpr | Block | "(" Expr ")" .
 QName     = { typename "." } ( ident | conname [ "(" ( Expr | Fields ) ")" ] )
@@ -860,7 +860,7 @@ Clause      = Pattern { "or" Pattern } [ "when" Expr ] "->" Expr .
 ReceiveExpr    = "receive" "{" ( Clause { "|" Clause } [ "|" AfterClause ] | AfterClause ) "}" .
 AfterClause    = "after" Expr "->" Expr .
 BinExpr     = Unary { binop Unary } .
-Unary       = [ "-" ] Primary { Call } .
+Unary       = [ "-" | "!" ] Primary { Call } .
 Call        = "(" [ Expr { "," Expr } ] ")" .
 Primary     = literal | QName | Tuple | ListLit | BitExpr | Block | "(" Expr ")" .
 QName       = { typename "." } ( ident | conname [ "(" ( Expr | Fields ) ")" ] )

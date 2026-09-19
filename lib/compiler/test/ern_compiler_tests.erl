@@ -576,6 +576,18 @@ no_negative_zero_test() ->
     ?assertEqual(<<"#(0.0, 0.0, 0.0, 0.0)\ntrue\n1\n0.0\n\"zero\"\nSome(0.0)\n0.0\n"
                    "\"guard\"\n0.0\n">>, Out).
 
+%% report §4.8: `!` negates a Bool, in an expression and in a guard
+not_operator_test() ->
+    {ok, Out} = run(
+        "fn small(n : Int) -> String = match n { m when !(m > 5) -> \"small\" | _ -> \"big\" }\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    let _ = Io.debug(!true);\n"
+        "    let _ = Io.debug(List.filter([1, 2, 3, 4], fn(n) = !(n % 2 == 1)));\n"
+        "    let _ = Io.debug(small(3));\n"
+        "    Unit\n"
+        "}\n"),
+    ?assertEqual(<<"false\n[2, 4]\n\"small\"\n">>, Out).
+
 %% report §4.8, §3.10, §5.1: a user type's operator is its member, its
 %% ordering goes through its compare, prefix - through its negate; in a receive guard
 %% the ordering is a call, a type error by §5.9

@@ -33,13 +33,12 @@ parse(S_6) ->
 keyOf(Cs_14) ->
     {K_15, Rest_16} = ernest@list:span(Cs_14,
                                        fun ernest@char:isAlpha/1),
-    case ernest@list:isEmpty(K_15) of
+    case not ernest@list:isEmpty(K_15) of
         true ->
-            {'Left',
-             <<"bad key: ",
-               (ernest@string:fromList(Cs_14))/binary>>};
+            {'Right', {ernest@string:fromList(K_15), Rest_16}};
         false ->
-            {'Right', {ernest@string:fromList(K_15), Rest_16}}
+            {'Left',
+             <<"bad key: ", (ernest@string:fromList(Cs_14))/binary>>}
     end.
 
 expectEq(Cs_17, S_18) ->

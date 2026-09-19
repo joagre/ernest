@@ -574,6 +574,8 @@ refs(#e_binop{op = Op, left = L, right = R}, Env, Acc) when is_atom(Op) ->
                           end
              end,
     refs(R, Env, refs(L, Env, operator_ref(Member, L, Env) ++ Acc));
+refs(#e_not{expr = X}, Env, Acc) ->
+    refs(X, Env, Acc);
 refs(#e_neg{expr = X}, Env, Acc) ->
     refs(X, Env, operator_ref(negate, X, Env) ++ Acc);
 refs(T, Env, Acc) when is_tuple(T) ->
@@ -1315,6 +1317,11 @@ infer(#e_call{pos = Pos, callee = Callee, args = Args} = E, Env) ->
             fail(Pos, Name ++ " is not a function; it has type "
                       ++ ern_types:format(Other, Env1#env.st))
     end;
+infer(#e_not{pos = Pos, expr = X} = E, Env) ->
+    %% report §4.8: `!` is Bool's, as `&&` and `||` are
+    {TypedX, XT, Env1} = infer(X, Env),
+    Env2 = unify_at(Pos, {tcon, ['Bool'], []}, XT, Env1, "the operand of `!`"),
+    {E#e_not{expr = TypedX, type = {tcon, ['Bool'], []}}, {tcon, ['Bool'], []}, Env2};
 infer(#e_neg{pos = Pos, expr = X} = E, Env) ->
     {TypedX, XT, Env1} = infer(X, Env),
     {T, Env2} = operator_result(Pos, negate, XT, Env1),
@@ -1433,6 +1440,7 @@ guard_expression(#e_var{path = [], name = N}, #env{vars = Vs}) -> maps:is_key(N,
 guard_expression(_, _) -> false.
 
 guard_operand(#e_lit{}, _) -> true;
+guard_operand(#e_not{expr = X}, Env) -> guard_operand(X, Env);
 guard_operand(#e_neg{expr = #e_lit{}}, _) -> true;
 guard_operand(#e_var{path = [], name = N}, #env{vars = Vs}) -> maps:is_key(N, Vs);
 guard_operand(#e_con{args = none}, _) -> true;

@@ -84,6 +84,13 @@ unary_minus_test() ->
     ?assertMatch(#e_binop{op = '*', left = #e_neg{}, right = #e_lit{value = 3}}, e("-2 * 3")),
     ?assertMatch(#e_binop{op = '-', left = #e_var{name = a}, right = #e_neg{}}, e("a - -b")).
 
+%% report §4.8: `!` is prefix negation, and binds like prefix `-`
+unary_not_test() ->
+    ?assertMatch(#e_not{expr = #e_lit{value = true}}, e("!true")),
+    ?assertMatch(#e_not{expr = #e_call{callee = #e_var{name = f}}}, e("!f(x)")),
+    ?assertMatch(#e_not{expr = #e_binop{op = '&&'}}, e("!(a && b)")),
+    ?assertMatch(#e_binop{op = '&&', left = #e_not{}, right = #e_var{name = b}}, e("!a && b")).
+
 %% report §5.2
 calls_test() ->
     ?assertMatch(#e_call{callee = #e_var{name = f}, args = []}, e("f()")),
