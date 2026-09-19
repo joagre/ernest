@@ -843,7 +843,7 @@ post_checks({Pos, TypedParams, TypedBody, FnT, Rigid, Pending, Deferred}, Env0) 
     local_fn_order(TypedBody),
     undetermined_bindings(TypedBody, FnT, Env1),
     ern_exhaust:check(TypedBody, Env1),
-    Env2 = ern_reply:check(TypedParams, TypedBody, Env1),
+    Env2 = ern_reply:check(TypedParams, TypedBody, FnT, Env1),
     no_reply_instantiations(Env2#env{pending = Pending}),
     Env2#env{pending = Env0#env.pending, deferred = Env0#env.deferred}.
 

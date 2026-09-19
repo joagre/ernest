@@ -54,6 +54,16 @@ constraints_are_inferred_and_printed_test() ->
     ?assertEqual("(a!) -> Unit", type_of("export fn discard(x) = Unit", discard)),
     ?assertEqual("(a) -> a", type_of("export fn identity(x) = x", identity)).
 
+%% report §3.9, §6.6
+container_elements_are_not_marked_not_reply_carrying_test() ->
+    ?assertEqual("(Optional(a), a) -> a",
+                 type_of("export fn orElse(o : Optional(a), d : a) -> a =\n"
+                         "    match o { Some(x) -> x | None -> d }", orElse)),
+    ?assertEqual("(a, List(#(a, b))) -> List(#(a, b))",
+                 type_of("export fn keep(x : a, ys : List(#(a, b))) = ys", keep)),
+    ?assertEqual("(a!, (List(a!)) -> Int) -> Unit",
+                 type_of("export fn skip(x : a, f : (List(a)) -> Int) = Unit", skip)).
+
 %% report §4.8
 operators_need_a_determined_operand_type_test() ->
     ?assertEqual("the operand type of `+` is not determined; annotate it",

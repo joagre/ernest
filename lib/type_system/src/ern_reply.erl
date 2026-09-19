@@ -10,29 +10,33 @@
 %% for such a lambda bound by let.
 %%
 %% A polymorphic parameter that is used other than exactly once gets the
-%% no_reply flag on its type variable (report §3.9).
+%% no_reply flag on its type variable, unless that variable is an element
+%% of a container in the function's type (report §3.9).
 -module(ern_reply).
 
--export([check/3]).
+-export([check/4]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("type_system/include/ern_types.hrl").
 
 -define(CONTAINERS, [['List'], ['Map'], ['Set'], ['Optional'], ['Either']]).
 
--spec check([#param{}], tuple(), ern_typecheck:env()) -> ern_typecheck:env().
-check(Params, Body, Env) ->
+-spec check([#param{}], tuple(), ern_types:type(), ern_typecheck:env()) ->
+          ern_typecheck:env().
+check(Params, Body, FnT, Env) ->
     positions(Params, Env),
     positions(Body, Env),
     Linear = [N || P <- Params, N <- linear_bindings(P#param.pattern, Env)],
     Uses = uses(Body, Linear, Env),
     lists:foreach(fun(N) -> exactly_once(N, Uses, element(2, Body), Env) end, Linear),
     %% polymorphic parameter variables used other than once
+    Elements = elements(FnT, ern_typecheck:type_state(Env)),
     lists:foldl(fun({N, T}, E) ->
                     St = ern_typecheck:type_state(E),
                     case ern_types:resolve(T, St) of
                         {tvar, _} = V ->
-                            case used_exactly_once(N, Body, E) of
+                            case lists:member(V, Elements)
+                                 orelse used_exactly_once(N, Body, E) of
                                 true -> E;
                                 false -> ern_typecheck:set_type_state(
                                            ern_types:add_flag(V, no_reply, St), E)
@@ -40,6 +44,28 @@ check(Params, Body, Env) ->
                         _ -> E
                     end
                 end, Env, [B || P <- Params, B <- var_bindings(P#param.pattern)]).
+
+%% The type variables that are elements of a container in a parameter
+%% type or the result type, directly or through tuples and containers.
+%% No expression of such a container type with a reply-carrying element
+%% is legal, so the variable can never be reply-carrying there.
+elements(FnT, St) ->
+    case ern_types:resolve(FnT, St) of
+        {tfn, Ps, _, R} -> lists:append([within(T, false, St) || T <- [R | Ps]]);
+        _ -> []
+    end.
+
+within(T, In, St) ->
+    case ern_types:resolve(T, St) of
+        {tvar, _} = V when In -> [V];
+        {tcon, Q, Args} ->
+            case lists:member(Q, ?CONTAINERS) of
+                true -> lists:append([within(A, true, St) || A <- Args]);
+                false -> []
+            end;
+        {ttuple, Es} -> lists:append([within(E, In, St) || E <- Es]);
+        _ -> []
+    end.
 
 var_bindings(#p_var{name = N, type = T}) -> [{N, T}];
 var_bindings(#p_as{name = N, type = T, pattern = P}) -> [{N, T} | var_bindings(P)];

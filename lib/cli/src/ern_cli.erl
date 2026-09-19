@@ -142,6 +142,11 @@ report_errors(Opts, File, Errors, Err) ->
 module_of(File, Root) ->
     Rel = relative(File, Root),
     Rel =/= outside orelse fail(File ++ " is not under the source root " ++ Root),
+    %% report §4.2: a file of the standard library's own source root is
+    %% compiled with that root only
+    is_stdlib_root(Root) orelse relative(File, stdlib_root()) =:= outside orelse
+        fail(File ++ " is in the standard library's source root; compile it with"
+             " --source-root " ++ stdlib_root()),
     filename:extension(Rel) =:= ".ern" orelse fail(Rel ++ " does not end in .ern"),
     Components = filename:split(filename:rootname(Rel)),
     lists:foreach(fun shape/1, Components),
@@ -284,9 +289,12 @@ module_prefix(Path, Root) ->
 %% Report §4.2: the standard library's source root, `stdlib/` beside the
 %% toolchain's `lib/`, found from where this module was loaded.
 is_stdlib_root(Root) ->
+    absolute(Root) =:= stdlib_root().
+
+stdlib_root() ->
     Here = absolute(code:which(?MODULE)),
     Repo = filename:dirname(filename:dirname(filename:dirname(filename:dirname(Here)))),
-    absolute(Root) =:= absolute(filename:join(Repo, "stdlib")).
+    absolute(filename:join(Repo, "stdlib")).
 
 prelude_namespaces() ->
     {ok, Decls} = ern_parser:parse_string(ern_prelude:declared_types()),

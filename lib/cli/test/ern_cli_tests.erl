@@ -259,6 +259,15 @@ stdlib_root_test() ->
     write(Dir, "src/bool.ern", "export fn not(b : Bool) -> Bool = b\n"),
     ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/b2", Dir ++ "/src"])).
 
+%% report §4.2: a file under the standard library's source root is compiled
+%% with that root only
+stdlib_file_needs_its_root_test() ->
+    Dir = tmp(),
+    ?assertEqual(1, ern_cli:ernc(["--source-root", "../../..", "--out-dir", Dir,
+                                  "../../../stdlib/optional.ern"])),
+    ?assertEqual(0, ern_cli:ernc(["--source-root", "../../../stdlib", "--out-dir", Dir,
+                                  "../../../stdlib/optional.ern"])).
+
 %% report §9.3, §11.2: ern --test runs every top-level let of type Test,
 %% exported or not, each in its own process, reports each, and exits 1
 %% unless every one passed
