@@ -2628,6 +2628,10 @@ A clause may list several patterns separated by `or`, §5.9 and Appendix A's `Cl
 
 Checking `Bool`'s documentation found a defect in the template, an exported `let` without its `since` line, which the check now over every module caught; and adding the check that code lines fit docs/style.md found twenty-two lines that did not, most from the same day, a rule without a test having been missed again.
 
+## `Optional` and `Either` in Ernest, 2026-09-19
+
+The two modules are pattern matching over the prelude's own types, and they were written with the appendix's type variables as annotations so that their pages print what Appendix E prints. Compiled, `withDefault` and `fromOptional` carry §3.9's not-reply-carrying restriction on the parameter each discards on one path, which the hand-written table never expressed: the module in Ernest is exact where the table was not. The mirror test compares signatures without such marks, since §3.9 says the inferred restrictions are shown by the compiler and never written.
+
 ## The Standard Library in the Build Record, 2026-09-19
 
 The entry on the first module let the toolchain's `VERSION` stand in for the standard library's interfaces in a user module's build record, which relied on someone remembering to change `VERSION`; the user called it a wart, and it was. The build record now holds one hash over every installed standard library interface, and a change to any of them recompiles every user module built against the old ones (§11.1). One hash over the set, not a hash per module named: an operator reaches a standard library module that no path names, `+` on a `Float` calling `ernest@float`, so tracking the names would miss uses. The cost is a recompile the precise rule would have spared, only when the standard library changes, which for a user is a toolchain update and recompiles everything by the version rule anyway. The standard library's own modules record none: they depend on each other as ordinary modules.

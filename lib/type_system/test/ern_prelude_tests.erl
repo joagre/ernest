@@ -13,9 +13,11 @@ values_test() ->
     Lines = code_lines(section("## 9. Prelude", "## 10. ")) ++
         code_lines(section("## Appendix E.", "## Appendix F")),
     Report = lists:sort(lists:append([signature(L) || L <- Lines])),
-    %% a module written in Ernest gives its signatures by its interface
+    %% a module written in Ernest gives its signatures by its interface; the
+    %% restrictions the compiler infers and prints, `a=` and `a!`, are never
+    %% written (report §3.9), so they are left out of the comparison
     St = ern_typecheck:type_state(ern_typecheck:prelude_env()),
-    Compiled = [{qname(Q), normalize(ern_types:format_scheme(S, St))}
+    Compiled = [{qname(Q), normalize(unmarked(ern_types:format_scheme(S, St)))}
                 || I <- ern_prelude:stdlib_ifaces(), {Q, S} <- maps:to_list(element(4, I))],
     Tables = lists:sort([{qname(Q), normalize(T)} || {Q, T} <- ern_prelude:values()] ++ Compiled),
     ?assertEqual(Report, Tables).
@@ -43,6 +45,10 @@ stdlib_types_test() ->
                    TI <- maps:values(element(3, I))],
     ?assertEqual(lists:sort([{Ns, rename(D)} || {Ns, D} <- Report]),
                  lists:sort([{Ns, rename(D)} || {Ns, D} <- Tables] ++ Compiled)).
+
+%% A printed type without the marks of the inferred restrictions.
+unmarked(Text) ->
+    re:replace(Text, "\\b([a-z][a-z0-9]*)[=!]+", "\\1", [global, {return, list}]).
 
 %% `type T(p, q) = ...` with its parameters renamed a, b, ... in order.
 rename(Decl) ->

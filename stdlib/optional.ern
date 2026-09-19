@@ -1,0 +1,61 @@
+/// A value that may be absent. `Optional(a)` is `Some(a)` or `None`, a
+/// prelude type (report §9.3); this module holds the operations over it. A
+/// function that may find nothing returns an `Optional`, and `<-` in a block
+/// unwraps one (report §5.5).
+///
+/// ## Examples
+///
+/// ```ernest
+/// Optional.map(Some(2), fn(n) = n * 10)
+/// // => Some(20)
+/// ```
+///
+/// ```ernest
+/// Optional.andThen(Some(4), fn(n) = if n > 0 then Some(n - 1) else None)
+/// // => Some(3)
+/// ```
+///
+/// ```ernest
+/// Optional.withDefault(None, 0)
+/// // => 0
+/// ```
+///
+/// ## See also
+///
+/// `Either`, when the absence has a cause.
+///
+/// since 0.1.0
+
+/// `true` for `Some`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Optional.isSome(Some(1))
+/// // => true
+/// ```
+export fn isSome(o : Optional(a)) -> Bool = match o { Some(_) -> true | None -> false }
+
+/// `true` for `None`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Optional.isNone(Some(1))
+/// // => false
+/// ```
+export fn isNone(o : Optional(a)) -> Bool = match o { Some(_) -> false | None -> true }
+
+/// The value in `Some`, or the default for `None`.
+export fn withDefault(o : Optional(a), default : a) -> a =
+    match o { Some(x) -> x | None -> default }
+
+/// `Some` of the function applied to the value, or `None`; the function is
+/// not called on `None`.
+export fn map(o : Optional(a), f : (a) -> b with e) -> Optional(b) with e =
+    match o { Some(x) -> Some(f(x)) | None -> None }
+
+/// The function's result for `Some`, or `None` without calling it: one step
+/// of a chain in which any step may find nothing.
+export fn andThen(o : Optional(a), f : (a) -> Optional(b) with e) -> Optional(b) with e =
+    match o { Some(x) -> f(x) | None -> None }

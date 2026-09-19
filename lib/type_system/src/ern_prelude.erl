@@ -263,20 +263,7 @@ values() ->
      {['Float', floor], "(Float) -> Int"},
      {['Float', ceil], "(Float) -> Int"},
      %% E.10 Optional
-     {['Optional', isSome], "(Optional(a)) -> Bool"},
-     {['Optional', isNone], "(Optional(a)) -> Bool"},
-     {['Optional', withDefault], "(Optional(a), a) -> a"},
-     {['Optional', map], "(Optional(a), (a) -> b with e) -> Optional(b) with e"},
-     {['Optional', andThen], "(Optional(a), (a) -> Optional(b) with e) -> Optional(b) with e"},
      %% E.11 Either
-     {['Either', isLeft], "(Either(e, a)) -> Bool"},
-     {['Either', isRight], "(Either(e, a)) -> Bool"},
-     {['Either', withDefault], "(Either(e, a), a) -> a"},
-     {['Either', map], "(Either(e, a), (a) -> b with x) -> Either(e, b) with x"},
-     {['Either', mapLeft], "(Either(e, a), (e) -> f with x) -> Either(f, a) with x"},
-     {['Either', andThen], "(Either(e, a), (a) -> Either(e, b) with x) -> Either(e, b) with x"},
-     {['Either', toOptional], "(Either(e, a)) -> Optional(a)"},
-     {['Either', fromOptional], "(Optional(a), e) -> Either(e, a)"},
      %% E.12 Foreign
      {['Foreign', toInt], "(Foreign) -> Optional(Int)"},
      {['Foreign', toFloat], "(Foreign) -> Optional(Float)"},

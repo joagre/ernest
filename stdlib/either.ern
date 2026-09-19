@@ -1,0 +1,95 @@
+/// A value or the cause of its absence. `Either(e, a)` is `Left(e)`, the
+/// cause, or `Right(a)`, the value, a prelude type (report §9.3); this module
+/// holds the operations over it. A function that can fail with a cause
+/// returns an `Either` (Appendix E.0 rule 4), and `<-` in a block unwraps one
+/// (report §5.5).
+///
+/// ## Examples
+///
+/// ```ernest
+/// Either.map(Right(2), fn(n) = n * 10)
+/// // => Right(20)
+/// ```
+///
+/// ```ernest
+/// Either.andThen(Right(3), fn(n) = if n > 5 then Right(n) else Left("small"))
+/// // => Left("small")
+/// ```
+///
+/// ```ernest
+/// Either.withDefault(Left("gone"), 0)
+/// // => 0
+/// ```
+///
+/// ## See also
+///
+/// `Optional`, when the absence needs no cause.
+///
+/// since 0.1.0
+
+/// `true` for `Left`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Either.isLeft(Left(1))
+/// // => true
+/// ```
+export fn isLeft(r : Either(e, a)) -> Bool = match r { Left(_) -> true | Right(_) -> false }
+
+/// `true` for `Right`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Either.isRight(Left(1))
+/// // => false
+/// ```
+export fn isRight(r : Either(e, a)) -> Bool = match r { Left(_) -> false | Right(_) -> true }
+
+/// The value in `Right`, or the default for `Left`.
+export fn withDefault(r : Either(e, a), default : a) -> a =
+    match r { Right(x) -> x | Left(_) -> default }
+
+/// `Right` of the function applied to the value, or the `Left` unchanged;
+/// the function is not called on `Left`.
+export fn map(r : Either(e, a), f : (a) -> b with x) -> Either(e, b) with x =
+    match r { Right(v) -> Right(f(v)) | Left(c) -> Left(c) }
+
+/// `Left` of the function applied to the cause, or the `Right` unchanged.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Either.mapLeft(Left("bad"), fn(s) = s <> "!")
+/// // => Left("bad!")
+/// ```
+export fn mapLeft(r : Either(e, a), g : (e) -> f with x) -> Either(f, a) with x =
+    match r { Left(c) -> Left(g(c)) | Right(v) -> Right(v) }
+
+/// The function's result for `Right`, or the `Left` unchanged without
+/// calling it: one step of a chain in which any step may fail.
+export fn andThen(r : Either(e, a), f : (a) -> Either(e, b) with x) -> Either(e, b) with x =
+    match r { Right(v) -> f(v) | Left(c) -> Left(c) }
+
+/// `Some` of the value in `Right`, or `None`; the cause is dropped.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Either.toOptional(Right(3))
+/// // => Some(3)
+/// ```
+export fn toOptional(r : Either(e, a)) -> Optional(a) =
+    match r { Right(v) -> Some(v) | Left(_) -> None }
+
+/// `Right` of the value in `Some`, or `Left` of the given cause for `None`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Either.fromOptional(None, "missing")
+/// // => Left("missing")
+/// ```
+export fn fromOptional(o : Optional(a), cause : e) -> Either(e, a) =
+    match o { Some(v) -> Right(v) | None -> Left(cause) }
