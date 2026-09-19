@@ -4,10 +4,23 @@
 ///
 /// ## Examples
 ///
+/// A shape and its area:
+///
 /// ```ernest
 /// let c = Template.circle(Template.Point(x = 0, y = 0), 2);
 /// Template.area(c)
 /// // => 12
+/// ```
+///
+/// A stack of shapes, pushed and popped:
+///
+/// ```ernest
+/// let s = Template.Stack.push(Template.Dot(Template.Point(x = 1, y = 1)), Template.Stack.empty);
+/// match Template.Stack.pop(s) {
+///     Some(#(top, _)) -> Template.area(top)
+///   | None -> -1
+/// }
+/// // => 0
 /// ```
 ///
 /// ## See also

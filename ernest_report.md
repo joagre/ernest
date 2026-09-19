@@ -802,7 +802,7 @@ Options are long: `--name`, or `--name value` for one that takes a value.
 
 ### 11.4 Documentation extraction
 
-`ernc --doc file.ern` writes the module's documentation to stdout as CommonMark: a title with the module's namespace and the module's doc block; then, in source order, every exported declaration and every declaration with a doc block, each under a heading of its name as the module writes it, with its type (§11.5) in a code block, its doc block, and the doc blocks of its constructors, fields, or signature entries as a list. `ernc --doc src-dir` writes one such document per module into `build-dir` beside the `.erc`, and `index.md` listing them. A declaration's heading is level two, so a heading inside its doc block is level three or deeper; a heading in the module's doc block is level two. Appendix E.0 rule 6 says what a doc block contains.
+`ernc --doc file.ern` writes the module's documentation to stdout as CommonMark: a title naming the module, `# Ernest module Net.Http`, and the module's doc block; then, in source order, every exported declaration and every declaration with a doc block, each under a heading of its name as the module writes it, with its type (§11.5) in a code block, its doc block, and the doc blocks of its constructors, fields, or signature entries as a list. `ernc --doc src-dir` writes one such document per module into `build-dir` beside the `.erc`, and `index.md` listing them. The last line names the compiler's version and the source file. A declaration's heading is level two, so a heading inside its doc block is level three or deeper; a heading in the module's doc block is level two. Appendix E.0 rule 6 says what a doc block contains.
 
 ### 11.5 Diagnostics
 
