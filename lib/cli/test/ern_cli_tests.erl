@@ -283,7 +283,18 @@ recompile_rule_test() ->
           "    if s == \"GET /\" then Some(Request(method = \"GET\", path = \"/\")) else None\n"
           "export fn version() -> Int = 2\n"),
     ?assertEqual(0, ern_cli:ernc(Args)),
-    ?assertNotEqual({ok, Main1}, file:read_file(Dir ++ "/build/main.erc")).
+    ?assertNotEqual({ok, Main1}, file:read_file(Dir ++ "/build/main.erc")),
+    %% a module built by another version of ernc is rebuilt
+    {ok, Main3} = file:read_file(Dir ++ "/build/main.erc"),
+    {ok, ernest@main, Chunks} = beam_lib:all_chunks(Main3),
+    Old = [case Id of
+               "ErnI" -> {Id, term_to_binary((binary_to_term(C))#{compiler => <<"0.0.0">>})};
+               _ -> {Id, C}
+           end || {Id, C} <- Chunks],
+    {ok, Forged} = beam_lib:build_module(Old),
+    ok = file:write_file(Dir ++ "/build/main.erc", Forged),
+    ?assertEqual(0, ern_cli:ernc(Args)),
+    ?assertEqual({ok, Main3}, file:read_file(Dir ++ "/build/main.erc")).
 
 %% report §11.1: the sweep removes .erc files whose source is gone and
 %% directories left empty; --no-clean keeps them; single-file mode does

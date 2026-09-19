@@ -38,7 +38,8 @@
 %% Entry points
 %%
 
--type chunk() :: #{iface := #iface{}, source_hash := binary(), deps := [{[atom()], binary()}]}.
+-type chunk() :: #{iface := #iface{}, source_hash := binary(), deps := [{[atom()], binary()}],
+                   compiler => binary()}.
 
 -spec compile([atom()], [tuple()], #iface{}, ern_typecheck:env()) ->
           {ok, atom(), binary()} | {error, [error()]}.
@@ -48,7 +49,8 @@ compile(Ns, Decls, Iface, Env) ->
 %% Build: the source hash and the dependencies' interface hashes go into
 %% the chunk beside the interface.
 -spec compile([atom()], [tuple()], #iface{}, ern_typecheck:env(),
-              #{source_hash := binary(), deps := [{[atom()], binary()}]}) ->
+              #{source_hash := binary(), deps := [{[atom()], binary()}],
+                compiler => binary()}) ->
           {ok, atom(), binary()} | {error, [error()]}.
 compile(Ns, Decls, Iface, Env, Build) ->
     try

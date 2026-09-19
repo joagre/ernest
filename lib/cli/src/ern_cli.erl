@@ -305,7 +305,8 @@ build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces,
                                    ern_compiler:erl_source(Ns, Typed, Env)],
                             ok = file:write_file(Out ++ ".erl", Src);
                         erc ->
-                            Build = #{source_hash => SourceHash, deps => DepHashes},
+                            Build = #{source_hash => SourceHash, deps => DepHashes,
+                                      compiler => list_to_binary(?VERSION)},
                             case ern_compiler:compile(Ns, Typed, Iface, Env, Build) of
                                 {ok, _, Beam} -> ok = file:write_file(Erc, Beam);
                                 {error, Errors} -> throw({errors, File, Errors})
@@ -328,9 +329,12 @@ dep_iface(D, Ifaces, OutDir) ->
             end
     end.
 
+%% Report §11.1: current when the source, every dependency's interface, and
+%% the compiler's version are those the .erc was built from.
 current(Erc, SourceHash, DepHashes) ->
+    Version = list_to_binary(?VERSION),
     case read_erc(Erc) of
-        {ok, #{iface := Iface, source_hash := SourceHash, deps := Deps}} ->
+        {ok, #{iface := Iface, source_hash := SourceHash, deps := Deps, compiler := Version}} ->
             case lists:sort(Deps) =:= DepHashes of
                 true -> {true, Iface};
                 false -> false
