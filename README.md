@@ -16,9 +16,9 @@ Design complete for MVP 1 (single-node subset). The toolchain is done in Erlang:
 
 ### Then the small programs
 
-The complete programs from the report's Appendix B and D and the guide's checkpoints are collected under [`examples/`](examples/). Each file's header says where it comes from and which MVP it needs. Together the examples exercise every construct of the grammar except bitstrings, and a test keeps it so.
+The complete programs from the report's Appendix B and D and the guide's checkpoints are collected under [`examples/`](examples/). Each file's header says where it comes from and what it needs. Together the examples exercise every construct of the grammar except bitstrings, and a test keeps it so.
 
-**What MVP 1 runs.** The programs `make test` compiles and runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`, with their expected output under `test/expected/` and the Erlang they compile to under `test/golden/`. The rest of `examples/` is type-checked only, and each file's header says which MVP runs it.
+**What MVP 1 runs.** The programs `make test` compiles and runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`, with their expected output under `test/expected/` and the Erlang they compile to under `test/golden/`. The `modules` pair and the `ets` library are compiled by their own tests; the rest of `examples/` is type-checked only, and each file's header says what it waits for.
 
 ### Then the paper programs
 
@@ -28,7 +28,7 @@ The complete programs from the report's Appendix B and D and the guide's checkpo
 
 - **[`docs/decisions.md`](docs/decisions.md)** — dated design decisions and their rationale. What was tried, what was rejected, why the report says what it says. Not normative — the report wins any conflict. Browse as needed; not intended to be read straight through.
 
-- **[`docs/implementation_plan.md`](docs/implementation_plan.md)** — MVP 1 roadmap. About eight weeks of one-person work in Erlang, with a hand-written parser.
+- **[`docs/implementation_plan.md`](docs/implementation_plan.md)** — the roadmap: MVP 1, done, and the later MVPs.
 
 - **[`docs/architecture.md`](docs/architecture.md)** — how the toolchain is built: the stages, what flows between them, the checker's passes, the compiler's one traversal, the runtime, the tests, and where MVP 2 hooks in.
 
@@ -46,15 +46,15 @@ Four layers:
 
 - **Language.** The rules in `ernest_report.md`: syntax, types, processes, evaluation. Small and stable.
 - **Prelude.** What the report requires to exist, §9: the built-in and declared types, the process functions, the operations the operators resolve to, and the system references. A prelude operation in a type's namespace is provided by that type's standard library module.
-- **Standard library** (Appendix E). On the load path by default: one module per type and one per system process, which is the way a program uses a `Sys.*` reference. Appendix E.0 has the rules for what enters and how it is named. Erlang modules under `lib/runtime/src` until MVP 2.5, then Ernest under `stdlib/`.
-- **Libraries.** Everything else, `Json`, `Tls`, `Regex`, `Http`, and the rest: written on the foreign-library pattern of Appendix D, by anyone, added to a program's load path when wanted. The first four, `json`, `tls`, `http`, `base64`, are first-party under `libs/` from MVP 2.6, listed with their signatures in an informative appendix of the report as Appendix E lists the standard library; their own repositories come with a package story. The line between the standard library and a library is Appendix E.0: a namespace of its own with policy inside is a library, however useful.
+- **Standard library** (Appendix E). On the load path by default: one module per type and one per system process, which is the way a program uses a `Sys.*` reference. Appendix E.0 has the rules for what enters and how it is named. Where the modules live and when they move to Ernest under `stdlib/` is the plan's MVP 2.5.
+- **Libraries.** Everything else, `Json`, `Tls`, `Regex`, `Http`, and the rest: written on the foreign-library pattern of Appendix D, by anyone, added to a program's load path when wanted. Which are first-party under `libs/`, and when, is the plan's MVP 2.6. The line between the standard library and a library is Appendix E.0: a namespace of its own with policy inside is a library, however useful.
 
 ## Layout of the repository
 
 ```
 ernest_report.md   the language report (normative)
 ernest_guide.md    the reading guide
-docs/              decisions log, implementation plan
+docs/              decisions log, implementation plan, architecture note
 examples/          Ernest programs: the paper programs and the small ones
 lib/               the compiler, as Erlang applications: lexer, parser,
                    type_system, runtime, compiler, cli, utils (vendored
@@ -97,21 +97,21 @@ bin/ernc --errors short examples/hello.ern  # the first line of each error only
 bin/ern --create-config-dir .                # .ernest/ with a key pair
 ```
 
-## What MVP 1 accepts
+## What the toolchain accepts
 
-MVP 1 is the report on one node, and MVP 2 lifts the table row by row. Everything the report describes type-checks, and what the table leaves out compiles and runs: pure functions with inference, `Float` and operators on user types, `foreign fn` and `foreign type` with the checks of §8.4, bitstrings, sum and abstract types, processes with typed mailboxes, `receive` with `after`, `Address.call`, `monitor` and `kill`, `<-`, `match` with any guard, top-level `let`, and modules in directories. The table is what the toolchain refuses or does not yet check, each with the MVP that lifts it in [`docs/implementation_plan.md`](docs/implementation_plan.md).
+The toolchain is the report on one node; the plan's MVPs lift the table row by row. Everything the report describes type-checks, and what the table leaves out compiles and runs: pure functions with inference, `Float` and operators on user types, `foreign fn` and `foreign type` with the checks of §8.4, bitstrings, sum and abstract types, processes with typed mailboxes, `receive` with `after`, `Address.call`, `monitor` and `kill`, `<-`, `match` with any guard, top-level `let`, and modules in directories. The table is what the toolchain refuses or does not yet check, each with the MVP that lifts it in [`docs/implementation_plan.md`](docs/implementation_plan.md).
 
 | Construct | Until | What you see today |
 |---|---|---|
 | The ownership rule of abstract types (§4.4) | MVP 2 | not checked; a constructor is usable anywhere in its module |
-| A `Reply` captured by a lambda that reaches `spawn` through a `let` rather than as its direct argument (§6.6) | MVP 2 | `in MVP 1 the reply-carrying value r is captured by a lambda that is not passed directly to spawn` |
+| A `Reply` captured by a lambda that reaches `spawn` through a `let` rather than as its direct argument (§6.6's rule; MVP 2 changes §6.6 and lifts it) | MVP 2 | `in MVP 1 the reply-carrying value r is captured by a lambda that is not passed directly to spawn` |
 | `Deadlock` (§8.6) | MVP 2 | a deadlocked program waits |
-| `Sys.stdin`, `Sys.keys`, `Sys.fs`, `Sys.tcp` and their modules `Io.readLine`, `Keys`, `Fs`, `Tcp` (§8.2, Appendix E.15 to E.18) | MVP 2.5 | type-checks; `ernc` says `Tcp.listen is not in MVP 1`, and the same for each of those names |
+| `Sys.stdin`, `Sys.keys`, `Sys.fs`, `Sys.tcp` and their modules `Io.readLine`, `Keys`, `Fs`, `Tcp` (§8.2, Appendix E.1, E.16 to E.18) | MVP 2.5 | type-checks; `ernc` says `Tcp.listen is not in MVP 1`, and the same for each of those names |
 | `ern --shell` (§11.2) | MVP 2 | `the shell is not in MVP 1` |
 | `spawn(Peer(...))`, peers, `--config-dir` (§6.2, §8.3) | MVP 3 | `spawn` faults with `peer unreachable`; the configuration is not read |
 | `remote`, `parallelRemote` (§6.7) | MVP 3 | `Left(NoRemotePeer)` |
 
-Every refusal the toolchain makes for a later MVP's sake names the current MVP in its error text, "MVP 1" or "MVP 2", and a test in `lib/cli/test` fails when such a text is missing from this table. Runtime behaviour that stands in for a later MVP, the peer fault and `Left(NoRemotePeer)`, is listed by hand. `make sections` lists the report sections no test cites; the three it prints are MVP 3 material. `make coverage` lists every section with how many tests cite it and its length, thinnest first: a long section with one citation is where a rule can hide untested.
+Every refusal the toolchain makes for a later MVP's sake names in its error text the MVP that made it, "MVP 1" today, and a test in `lib/cli/test` fails when such a text is missing from this table. Runtime behaviour that stands in for a later MVP, the peer fault and `Left(NoRemotePeer)`, is listed by hand. `make sections` lists the report sections no test cites; the three it prints are MVP 3 material. `make coverage` lists every section with how many tests cite it and its length, thinnest first: a long section with one citation is where a rule can hide untested.
 
 ## License
 

@@ -5,13 +5,14 @@
 // list at least one peer with "remote-peer": true before Right(...) is
 // possible; without one the program prints "no remote peer configured".
 //
-// Needs MVP 3 (peers, remote). Not compiled by MVP 1.
+// Compiles and runs today, printing "no remote peer configured"; Right(...) needs
+// MVP 3 (peers).
 //
-
-fn heavy(a : Int, b : Int) -> Int = a * a + b * b
 
 export fn main() -> Unit with m = match remote(fn() = heavy(3, 4)) {
     Right(n) -> Io.println("remote returned " <> Int.toString(n))
   | Left(NoRemotePeer) -> Io.println("no remote peer configured")
   | Left(PeerLost) -> Io.println("peer lost or callback failed")
 }
+
+fn heavy(a : Int, b : Int) -> Int = a * a + b * b

@@ -1,9 +1,9 @@
 //
 // Patterns
 //
-// The pattern forms of the report, §5.10, as a program: negative literal
-// patterns, `as` bindings, wildcards, list and constructor patterns, and
-// prefix negation. Expected output: "minus one", "zero", "other", "a 2",
+// The pattern forms of the report as a program: negative literal
+// patterns, `as` bindings, wildcards, list and constructor patterns (§5.10),
+// and prefix negation (§5.1). Expected output: "minus one", "zero", "other", "a 2",
 // "nothing", "-3", "3".
 //
 // Needs MVP 1.

@@ -179,9 +179,9 @@ fn app(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
 
 fn appRest(f : Expr, ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
     match atom(ts) {
-    Left(_) -> Right(#(f, ts)) // no atom: the application is over
-  | Right(#(a, r)) -> appRest(App(f = f, arg = a), r)
-}
+        Left(_) -> Right(#(f, ts)) // no atom: the application is over
+      | Right(#(a, r)) -> appRest(App(f = f, arg = a), r)
+    }
 
 fn atom(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) = match ts {
     Num(n) :: r -> Right(#(Lit(n), r))

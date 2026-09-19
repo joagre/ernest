@@ -4,7 +4,8 @@
 // From the guide, §6.1. Calls Net.Http.parse from net/http.ern by its
 // qualified name; there is no import. See net/http.ern for how to build.
 //
-// Needs multi-module compilation (ernc directory mode).
+// Needs net/http.ern compiled first; ernc directory mode does both in dependency
+// order (§11.1).
 //
 
 export fn main() -> Unit with Never = match Net.Http.parse("GET /") {

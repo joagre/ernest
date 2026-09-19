@@ -1,10 +1,10 @@
 # Ernest Toolchain: Architecture Notes
 
-How the MVP 1 toolchain is built, for whoever starts MVP 2. Written from the code on 2026-09-17; the code wins any conflict. The report is the specification, the plan says why each part is the way it is; this says where things are and what flows between them.
+How the MVP 1 toolchain is built, for whoever starts MVP 2. Written from the code on 2026-09-17, revised 2026-09-19; the code wins any conflict. The report is the specification, the plan says what was built when, the decisions log why; this says where things are and what flows between them.
 
 ## The pipeline
 
-One Ernest module goes through six stages, each an Erlang application under `lib/` with its own `src/`, `include/`, `ebin/`, `test/`:
+One Ernest module goes through the stages below, Erlang applications under `lib/` with its own `src/`, `include/`, `ebin/`, `test/`:
 
 | Stage | Module | In | Out |
 |---|---|---|---|
@@ -20,7 +20,7 @@ One Ernest module goes through six stages, each an Erlang application under `lib
 
 ## Tokens and AST
 
-`ern_lexer:tokenize/1` returns `{ok, [Token]}` or `{error, #diag{}}`. A token is `{Category, Pos, Value}` for `int`, `float`, `char`, `string`, `bool`, `ident`, `typename`, `doc`, and `{Symbol, Pos}` for operators, delimiters, and reserved words, where `Pos` is `{Line, Column, End, Before}`, the token's end and the end of the token before it, which are quoted atoms where Erlang would otherwise read them (`'when'`, `'receive'`, `'after'`, `'if'`, `'let'`, `'else'`). Strings are UTF-8 binaries, chars code points.
+`ern_lexer:tokenize/1` returns `{ok, [Token]}` or `{error, #diag{}}`. A token is `{Category, Pos, Value}` for `int`, `float`, `char`, `string`, `bool`, `ident`, `typename`, `doc`, and `{Symbol, Pos}` for operators, delimiters, and reserved words, which are quoted atoms where Erlang would otherwise read them (`'when'`, `'receive'`, `'after'`, `'if'`, `'let'`, `'else'`). `Pos` is `{Line, Column, End, Before}`, the token's end and the end of the token before it. Strings are UTF-8 binaries, chars code points.
 
 `ern_parser:parse/1` takes tokens; `parse_string/1`, `parse_expr/1`, `parse_type/1` are conveniences. Every AST node is a record of `lib/parser/include/ern_ast.hrl` with `pos` first, one record per production of Appendix A. Expressions and patterns carry a `type` field the checker fills; declarations carry `doc` and `export`. Two rewrites happen in the parser: parentheses produce no node, and `x |> f(a)` becomes `f(x, a)`. Expressions are parsed by one precedence-climbing loop over the token list; patterns by a second small loop with `::` right-associative and `as` postfix; declarations by recursive descent. No backtracking; the three one-token peeks are documented in the plan, 1.1.
 
@@ -35,8 +35,8 @@ Types are the terms of `lib/type_system/include/ern_types.hrl`: `{tcon, QName, A
 Checking a module runs in this order:
 
 1. `declare_types`: every type of the module into the environment, constructors with their canonical field order (report §3.5), reply-carrying computed transitively (§6.6).
-2. `check_values`: the `fn`, `let`, and `foreign fn` declarations, in dependency groups from a `digraph` of references. Per group, `check_group`: a `let` cycle is an error (§8.5); each member gets a monomorphic placeholder; annotated shapes are unified first so every member sees every other's signature; then bodies are inferred in order and generalized.
-3. `post_checks`, per definition, after inference: `<-` bindings resolved to `Either` or `Optional` from the inferred types (§5.5); operators deferred on an operand still unknown, resolved with them (§4.8); rigid annotation variables (§3.9); the local-fn use order (§5.4); undetermined block bindings (§4.6); exhaustiveness by `ern_exhaust`, Maranget's algorithm with a witness (§5.9); the reply discipline by `ern_reply` (§6.6); the no-reply instantiation check.
+2. `check_values`: the `fn`, `let`, and `foreign fn` declarations, in dependency groups from a `digraph` of references by name. `run_group` checks a group when the fold reaches it or when `demand` asks for one of its names from inside another definition's inference, a reference or an operator resolving to a member (§4.8), with that definition's scope set aside meanwhile. Per group, `check_group`: each member gets a monomorphic placeholder; annotated shapes are unified first so every member sees every other's signature; then bodies are inferred in order and generalized. After every group, `let_cycles` reads the typed declarations, an operator as its member, and reports a `let` cycle (§8.5).
+3. `post_checks`, per definition, after inference: `<-` bindings resolved to `Either` or `Optional` from the inferred types (§5.5); operators whose operand was still a variable when `operator_result/4` met them in `infer`, resolved with them (§4.8); rigid annotation variables (§3.9); the local-fn use order (§5.4); undetermined block bindings (§4.6); exhaustiveness by `ern_exhaust`, Maranget's algorithm with a witness (§5.9); the reply discipline by `ern_reply` (§6.6); the no-reply instantiation check.
 4. `check_signatures`: abstract type signatures against the definitions (§4.4).
 5. `make_iface`: the exported types and values.
 

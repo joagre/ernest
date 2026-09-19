@@ -81,7 +81,7 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 - **`Float`** — IEEE 754 binary64, finite range only. Literal: `3.14`.
 - **`Char`** — one Unicode code point. Literal: `'a'`.
 - **`String`** — a Unicode string. Literal: `"hello"`. Escapes: `\n`, `\r`, `\t`, `\\`, `\"`, `\'`, `\u{1F600}`.
-- **`Bytes`** — sequence of octets. Literal: `<<0, 1, 2>>` (a bitstring, §7.6).
+- **`Bytes`** — sequence of octets. Literal: `<<0, 1, 2>>` (a bitstring, §7.6 below; report §5.11).
 - **`Bool`** — `true` or `false`.
 - **`Unit`** — one value, also called `Unit`.
 
@@ -117,7 +117,7 @@ let defaultPort : Int = 8080
 export let helloBanner : String = "hello, world"
 ```
 
-Top-level initializers must be pure — no `send`, no `spawn`, no other process effects. Effectful setup belongs in `main`. Initializers run in dependency order before `main` starts: a top-level `let` that references another is evaluated after the one it references. Cycles among top-level `let`s within one module are rejected at compile time; cycles across modules are rejected at load time. A pure initializer can still fault or fail to terminate, in which case `main` never starts — a fault at startup is observed the same way as one during execution (§3.4).
+Top-level initializers must be pure — no `send`, no `spawn`, no other process effects. Effectful setup belongs in `main`. Initializers run in dependency order before `main` starts: a top-level `let` that references another is evaluated after the one it references. A cycle among top-level `let`s, within a module or across modules, is a compile-time error. A pure initializer can still fault or fail to terminate, in which case `main` never starts — a fault at startup is observed the same way as one during execution (§3.4).
 
 ### 2.3 Sum types and pattern matching
 
@@ -201,7 +201,7 @@ let s = Set.fromList([1, 2, 3])
 
 `Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call.
 
-Map keys and set elements require equality. Ernest's `==` is defined for every type *except* those containing functions or addresses (report §3.10) — that includes tuples, sums, and constructor fields that transitively contain either. `Map(Address(m), v)` is a type error at instantiation; so is `xs == ys` when `xs` is `List(Address(m))` or any type containing one.
+Map keys and set elements require equality. Ernest's `==` is defined for every type *except* those containing functions or addresses (report §3.10) — that includes tuples, sums, and constructor fields that transitively contain either. `Map(Address(m), v)` is a type error at the first `Map` operation on it; so is `xs == ys` when `xs` is `List(Address(m))` or any type containing one.
 
 Ordering is separate from equality: `a < b` goes through the type's `compare` function, and only `Int`, `Float`, `String`, and `Char` have one in the prelude. `<` on a type without `compare` is a type error (report §3.10).
 
@@ -232,7 +232,7 @@ Each variable appears at most once in a pattern. Repeated names within one patte
 
 A postfix `as ident` binds the whole match alongside its destructured parts: `Some(x) as present` binds `x` to the payload *and* `present` to the whole Optional. Useful when both the interior and the aggregate matter. `as` is not allowed on reply-carrying scrutinees (§4.2).
 
-Guards are pure `Bool` expressions — no mailbox effect. A guard that evaluates to `false` falls through to the next clause; a guard that *faults* faults the enclosing process. A `receive` guard is narrower, because it selects a message without taking it out of the mailbox: comparisons of variables, literals, and nullary constructors joined by `&&` and `||`, and no calls (report §5.9). When you need more, receive the message and `match` it. Guards do not count toward `match` exhaustiveness — a clause with a guard still needs an unguarded fallback (a wildcard `_` clause, typically) so the compiler can prove coverage.
+Guards are pure `Bool` expressions — no mailbox effect. A guard that evaluates to `false` falls through to the next clause; a guard that *faults* faults the enclosing process. A `receive` guard is narrower, because it selects a message without taking it out of the mailbox: a *guard expression*, comparisons of variables, literals, and nullary constructors joined by `&&` and `||`, the orderings on `Int`, `Float`, `String`, and `Char` only, and no calls (report §5.9). When you need more, receive the message and `match` it. Guards do not count toward `match` exhaustiveness — a clause with a guard still needs an unguarded fallback (a wildcard `_` clause, typically) so the compiler can prove coverage.
 
 ### 2.7 `if` and `<-`
 
@@ -271,7 +271,7 @@ fn positiveInt(text : String) -> Either(String, Int) = {
 - `positiveInt("oops")` → `Left("not an integer")` — `String.toInt` returned `None`, `Either.fromOptional` turned it into `Left`, and the chain short-circuits.
 - `positiveInt("0")` → `Left("not positive")` — the parse succeeded but the explicit branch rejects.
 
-The compiler picks Optional or Either from the right-hand side's type. One block cannot mix — a block is either an Optional chain or an Either chain, not both.
+The compiler picks Optional or Either from the right-hand side's type or, failing that, from the block's type. One block cannot mix — a block is either an Optional chain or an Either chain, not both.
 
 `<-` works in a block, one step at a time. To run a step that can fail over every element of a list, `List.tryMap(xs, f)` and `List.tryFold(xs, acc, f)` do the same short-circuit: the first `Left` ends them.
 
@@ -295,7 +295,7 @@ Report Appendix E lists the library: one module per type, `List`, `Map`, `Set`, 
 - **Subject first, callbacks last, accumulator between**, so the pipe works: `xs |> List.foldLeft(0, fn(acc, x) = acc + x)`.
 - **Conversions are named by the other type and live in the subject's module.** `String.toInt`, `Int.toString`, `String.fromList`. Several policies are several names: `Float.round`, `Float.floor`, `Float.ceil`.
 - **A partial operation returns `Optional`.** `List.get`, `Map.get`, `String.toInt`, `Char.fromInt`. Nothing in the library faults beyond what report §7.4 lists.
-- **Pure unless the value lives in a process.** `Io` carries `with m`; every other module is pure, and every function that takes a function is effect-polymorphic (§3.5).
+- **Pure unless the value lives in a process.** the system modules `Io`, `Clock`, `Keys`, `Fs`, and `Tcp` carry `with m`; every other module is pure, and every function that takes a function is effect-polymorphic (§3.5).
 - **A `String` is not a container.** Its characters are reached through `String.toList`: `List.all(String.toList(t), Char.isDigit)`. Text has its own operations instead: `startsWith`, `endsWith`, `replace`, `slice`, `padStart`, `padEnd`, `split`, `join`, `trim`; a `Char` has its predicates and its case, `isDigit`, `isAlpha`, `isSpace`, `isUpper`, `isLower`, `toUpper`, `toLower`.
 - **`Random` has a pure interface.** `Random.next(seed, n)` returns a draw between 0 and `n` inclusive and the next seed; `Random.seed(42)` makes a seed, and the same seed gives the same sequence.
 - **A system process is used through its module, never by `send`.** `Clock.alarm(100, fn(_) = Tick)`, `Fs.read(path, 5000)`, `Tcp.accept(listener, 60000)`. A function that waits takes the milliseconds last and answers `Left(Timeout)`; one that delivers later takes a function to your mailbox type, as `monitor` does (§5.2). `Keys.subscribe` and `Io.readLine` are the same terminal, in raw and in line mode: a program uses one or the other. A socket is an `Address(SockMsg)`, a process, so it can be monitored, killed, and adapted with `via` like any other, and a TLS library hands out the same addresses, so `Tcp.read` and `Tcp.write` do not change over TLS.
@@ -359,7 +359,7 @@ Without a source that fixes the type, `n + n` is a type error.
 
 Other limits worth knowing:
 
-- `fn` definitions and top-level `let` values generalize over free type variables. Block `let` bindings are monomorphic — a block `let xs = []` types `xs : List(a)` with `a` to be resolved by later use in the block, or by escape through the block's return.
+- `fn` definitions and top-level `let` values generalize over free type variables. Block `let` bindings are monomorphic — a block `let xs = []` types `xs : List(a)` with `a` to be resolved by an annotation, by later use in the block, or by escape through the block's return; a variable none of these resolves is a type error at the binding.
 - Local `fn` names inside a block are visible throughout the block, but you cannot *use* one — call it, obtain it as a value, pass it, store it — before the `let` bindings it references have been evaluated. The check follows references between local functions, so an early `invoke(read)` that eventually needs a later `let` is rejected at the point where `read` is obtained.
 - Top-level `let` initializers must be pure — no mailbox effect. Effectful setup (spawning processes, sending initial messages) belongs in `main`. The runtime evaluates top-level `let` bindings in dependency order before `main` runs.
 
@@ -644,7 +644,7 @@ kill : (Address(a)) -> Unit with m
 
 ### 5.4 `Deadlock` as a safety net
 
-The runtime ends a program with the error `Deadlock` when forward progress is impossible: every live process is waiting in `receive` without `after`, no message is in flight, and no live system process or connected peer holds a subscription, timer, pending I/O, or in-progress computation that could deliver a message. Pending `after`s, network listeners, keyboard subscribers, and running peer computations that owe this node a reply all count as "message in flight" — an idle server waiting on external events is not deadlocked. Detection is per-node; a distributed deadlock across peers may not be detected.
+The runtime ends a program with the error `Deadlock` when forward progress is impossible: every live process is waiting in `receive` without `after`, no message is in flight, and no live system process or connected peer holds a subscription, timer, pending I/O, or in-progress computation that could deliver a message. Pending `after`s, network listeners, keyboard subscribers, and running peer computations that owe this node a reply all count as a source that could still deliver a message — an idle server waiting on external events is not deadlocked. Detection is per-node; a distributed deadlock across peers may not be detected.
 
 ### 5.5 Adapting messages with `via`
 
@@ -662,7 +662,7 @@ via : ((a) -> b, Address(b)) -> Address(a)
 
 `via(convert, target)` returns an `Address(a)` that, on receipt of an `a`, applies `convert` and delivers the resulting `b` to `target`. A worker written to report to an `Address(Either(String, Int))` knows nothing of your `GameMsg`; you hand it `via(Done, self())`, where `Done` is the constructor of `GameMsg` that carries a result, and `Done(r)` arrives in your mailbox. `monitor` and `Clock.alarm` are `via` with `self()` already filled in.
 
-The clock's `after` fires exactly *once*. For a periodic tick, the receiver schedules a new one only after handling the previous. A naive `game` that loops back on every message would create one pending timer per input, so a burst of inputs multiplies the tick rate. Two functions make the boundary explicit:
+`Clock.alarm` fires exactly *once*. For a periodic tick, the receiver schedules a new one only after handling the previous. A naive `game` that loops back on every message would create one pending timer per input, so a burst of inputs multiplies the tick rate. Two functions make the boundary explicit:
 
 ```
 type GameMsg = Tick | Input(Char)
@@ -730,7 +730,7 @@ Or in directory mode — compile the whole tree and put outputs under `build/`:
 
 ```
 $ ernc --out-dir build .         # walks the source tree, writes build/net/http.erc and build/main.erc
-$ ern --load-path build build/main.erc
+$ ern build/main.erc
 GET /
 ```
 
@@ -811,7 +811,7 @@ type RemoteError = NoRemotePeer | PeerLost
 
 Both operations have a mailbox effect: `Left(NoRemotePeer)` when no peer is configured, `Left(PeerLost)` when the peer becomes unreachable *or* when peer-side dependency resolution fails *or* when the callback faults on the peer. `PeerLost` signals that this specific operation did not complete; it does not invalidate other `Address` values held for the same peer (which only die on actual peer-loss detection).
 
-`parallelRemote` preserves input order in the result list. Each callback is pure; the batch call has a mailbox effect. There is no per-job timeout — a nonterminating callback prevents the whole list from returning.
+`parallelRemote` preserves input order in the result list. Each callback is pure; the batch call has a mailbox effect. The signature has no timeout; a callback that does not return keeps the call from returning.
 
 A minimal program that submits a computation:
 
@@ -856,7 +856,7 @@ Ernest treats the foreign boundary as a *promise*: the declared type is what com
 
 - **Wrong return type.** *Checked at runtime.* The declared type is Ernest's contract; a value the foreign side hands over that does not match faults the *receiving* Ernest process on first observation.
 - **Thrown exception.** *Checked at runtime.* Erlang exits and throws become `Fault` on the calling process.
-- **Wrong message from a foreign process.** *Checked at runtime.* A message that doesn't match the *destination's* declared mailbox type faults the receiver on delivery. The runtime hands foreign code a checking proxy in place of every Ernest address it receives as an argument, so Ernest-to-Ernest messages cost nothing extra.
+- **Wrong message from a foreign process.** *Checked at runtime.* A message that doesn't match the *destination's* declared mailbox type faults the receiver on delivery. Messages between Ernest processes are not checked (report §8.4).
 - **Purity.** *Not checked.* Declaring `foreign fn` without `with M` is a promise the foreign side cannot enforce mechanically. Reserve pure declarations for functions that genuinely have no effect.
 
 ### 7.4 Node-local foreign values
@@ -885,7 +885,7 @@ foreign fn rawLookup(t : Table(k, v), key : k)
 
 `rawLookup` has no `export`, so it is file-local. `Ets.lookup` is the typed API callers use, by its qualified name.
 
-Erlang's `{ok, V} | {error, R}` convention does not automatically match an Ernest `Either(e, a)`. Ernest's `Either` constructors are `Left(e)` and `Right(a)`, and under §8.4's ABI they encode as `{'Left', e}` and `{'Right', a}` (quoted, source-preserving). Erlang's `{ok, V}` uses the lowercase atom `ok`, which is a different value.
+Erlang's `{ok, V} | {error, R}` convention does not automatically match an Ernest `Either(e, a)`. Ernest's `Either` constructors are `Left(e)` and `Right(a)`, and under the ABI of report §8.4 they encode as `{'Left', e}` and `{'Right', a}` (quoted, source-preserving). Erlang's `{ok, V}` uses the lowercase atom `ok`, which is a different value.
 
 The cleanest fix is a small Erlang-side helper that produces the Ernest-shaped return. For a foreign call whose Ernest declaration is `Either(String, Int)`, the helper's payloads must already match Ernest's ABI: `V` must be an `Int`-shaped integer, and `R` must be a UTF-8 binary (Ernest `String`). The helper is a fragment — the surrounding `find/1`, module name, and export list depend on the caller's setup:
 
@@ -908,7 +908,7 @@ export foreign fn lookup(key : String) -> Either(String, Int) with m = "store_he
 
 If `find/1` returns reasons of another shape (an atom, a nested tuple), the Erlang helper must convert them to the declared Ernest form before returning; the Ernest side does not paper over ABI-shape breaches.
 
-Report Appendix D walks a full `ets.ern` reference implementation (namespace `Ets`). Its foreign calls happen to already match Ernest's ABI (`[{K, V}]` maps to `List(#(k, v))`, `Bool` to `true`/`false`), so it needs no Erlang wrapper. This is also the shape of every library outside the standard library: JSON, TLS, regular expressions, HTTP are not in Appendix E and never will be, because each is a namespace of its own with policy inside; they are written as `Ets` is, by anyone, and put on the load path when a program wants them. The first four, JSON, TLS, an HTTP client, and Base64, are MVP 2.6, driven by a command-line program that fetches JSON over HTTPS, and the report will list their signatures in an appendix of their own, as Appendix E lists the standard library.
+Report Appendix D walks a full `ets.ern` reference implementation (namespace `Ets`). Its foreign calls happen to already match Ernest's ABI (`[{K, V}]` maps to `List(#(k, v))`, `Bool` to `true`/`false`), so it needs no Erlang wrapper. This is also the shape of every library outside the standard library: JSON, TLS, regular expressions, HTTP are not in Appendix E, by E.0's rules, since each is a namespace of its own with policy inside; they are written as `Ets` is, by anyone, and put on the load path when a program wants them. Which are first-party, and when, is the plan's.
 
 ### 7.6 Bitstrings
 
@@ -949,7 +949,7 @@ A segment pattern is a variable, `_`, or a literal. `size(Expr)` in a pattern is
 
 **Precondition for `frame`/`parseFrame`:** the round trip works when `len` equals `body`'s byte count *and* `len` fits in the length-field width (16 bits, so 0 to 65 535). `parseFrame(frame(1, <<65, 66>>))` returns `Some(#(1, <<65>>, <<66>>))` — a one-byte body and a one-byte remainder, not an error, because `len = 1` was chosen. If `len` doesn't fit the width, `frame` faults at construction.
 
-Bitstrings compile to BEAM's bit syntax so the platform's mature bit-syntax optimizer handles the code.
+Bitstrings compile to the runtime's bit syntax (report §5.11, §10).
 
 ### 7.7 Prediction exercise
 
@@ -985,7 +985,7 @@ Ernest is n-ary: every function has a specific number of arguments recorded in i
 
 ## 9. Reading further
 
-Which programs under `examples/` the toolchain runs today is the `PROGRAMS` macro in `test/ern_integration_tests.erl`. The four paper programs below are type-checked only until MVP 2.5, since each uses a system module whose process does not exist yet; the header of each says which.
+Which programs under `examples/` the toolchain runs today is the `PROGRAMS` macro in `test/ern_integration_tests.erl`. The four paper programs below are type-checked only today: each uses a system module `ernc` refuses, the README's table names them, and the plan says when they arrive.
 
 The four paper programs, in ascending complexity:
 
@@ -994,7 +994,7 @@ The four paper programs, in ascending complexity:
 - [`examples/filesync.ern`](examples/filesync.ern) — file sync between two nodes; mutual-address setup, one process per file operation, `Fs`.
 - [`examples/webserver.ern`](examples/webserver.ern) — HTTP server with sessions in ETS; `foreign fn`, abstract types, `Tcp`, ETS accessed through foreign functions.
 
-The paper programs use the system modules `Fs`, `Keys`, `Tcp`, and `Io.readLine` beyond `Io.println` and `Clock`, and the `Ets` library of report Appendix D; those are MVP 2.5, and each program says so at its top.
+The paper programs use the system modules `Fs`, `Keys`, `Tcp`, and `Io.readLine` beyond `Io.println` and `Clock`, and the `Ets` library of report Appendix D; which `ernc` refuses today is the README's table, and each program says so at its top.
 
 For the language rules themselves, [`ernest_report.md`](ernest_report.md) is the authority. Appendix F glosses every technical term.
 
