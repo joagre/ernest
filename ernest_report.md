@@ -401,7 +401,7 @@ let words = input |> String.trim |> String.toLower |> String.toList
 
 ### 5.9 `match`
 
-The value is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. The clauses together cover the type; guards do not count as coverage. A guard is a `Bool` expression with no mailbox effect that sees the pattern's variables and the enclosing scope. A guard that is `false` falls through to the next clause; a guard that faults faults the process. The same holds for `receive`.
+The value is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. The clauses together cover the type; guards do not count as coverage. A guard is a `Bool` expression with no mailbox effect that sees the pattern's variables and the enclosing scope. A guard that is `false` falls through to the next clause; a guard that faults faults the process. The same holds for `receive`, whose guard selects a message without removing it (§6.3) and so is a *guard expression*: a comparison of the pattern's variables, the enclosing function's variables, literals, and nullary constructors with `==`, `!=`, `<`, `<=`, `>`, `>=`, the orderings on `Int`, `Float`, `String`, and `Char` only, joined by `&&` and `||`; it calls nothing and cannot fault.
 
 ### 5.10 Patterns
 
@@ -428,7 +428,7 @@ Each variable appears at most once in a pattern; equality is written in a guard.
 
 A segment without specifiers is `int` of size 8. `int` binds to `Int`, `float` to `Float`, the `utf` forms to `Char`, `bits` and `bytes` to `Bytes`. `unit` is 1 to 256; a `float` segment is 16, 32, or 64 bits; a `utf` segment has no size; a `bits` or `bytes` segment without a size takes the rest and is the last segment. The specifier names are ordinary identifiers outside a bitstring.
 
-A construction's total bit count is a multiple of 8, and a `bits` or `bytes` segment bound to `Bytes` has a byte-multiple size; sub-octet fields are `int`. A violation that is constant is a compile-time error; one with a dynamic size faults at construction (§7.4) or fails to match. A segment pattern is a variable, `_`, or a literal of the segment's type. `size(Expr)` in a pattern is evaluated in the scope of the earlier segments and the enclosing scope; it is pure and yields a non-negative `Int`, a negative or out-of-range size fails the match, and a fault in it faults the process. Construction evaluates the segments left to right; a value that does not fit its width is a fault. `<<>>` is the empty `Bytes`.
+A construction's total bit count is a multiple of 8, and a `bits` or `bytes` segment bound to `Bytes` has a byte-multiple size; sub-octet fields are `int`. A violation that is constant is a compile-time error; one with a dynamic size faults at construction (§7.4) or fails to match. A segment pattern is a variable, `_`, or a literal of the segment's type. `size(Expr)` in a pattern is a variable of the earlier segments or the enclosing function, an `Int` literal, or `+`, `-`, `*` of these; a negative or out-of-range size fails the match. Construction evaluates the segments left to right; a value that does not fit its width is a fault. `<<>>` is the empty `Bytes`.
 
 ```
 fn frame(len : Int, body : Bytes) -> Bytes =

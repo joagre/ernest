@@ -106,12 +106,10 @@ MVP 1 is the report on one node, and MVP 2 lifts the table row by row. Everythin
 | The ownership rule of abstract types (§4.4) | MVP 2 | not checked; a constructor is usable anywhere in its module |
 | A `Reply` captured by a lambda that reaches `spawn` through a `let` rather than as its direct argument (§6.6) | MVP 2 | `in MVP 1 the reply-carrying value r is captured by a lambda that is not passed directly to spawn` |
 | `Deadlock` (§8.6) | MVP 2 | a deadlocked program waits |
-| A `size(...)` in a bitstring pattern that is not a variable, a literal, or arithmetic on them (§5.11) | MVP 4 | `in MVP 2 a size expression in a pattern is a variable, a literal, or arithmetic on them` |
 | `Sys.stdin`, `Sys.keys`, `Sys.fs`, `Sys.tcp` and their modules `Io.readLine`, `Keys`, `Fs`, `Tcp` (§8.2, Appendix E.15 to E.18) | MVP 2.5 | type-checks; `ernc` says `Tcp.listen is not in MVP 1`, and the same for each of those names |
 | `ern --shell` (§11.2) | MVP 2 | `the shell is not in MVP 1` |
 | `spawn(Peer(...))`, peers, `--config-dir` (§6.2, §8.3) | MVP 3 | `spawn` faults with `peer unreachable`; the configuration is not read |
 | `remote`, `parallelRemote` (§6.7) | MVP 3 | `Left(NoRemotePeer)` |
-| `receive` guards beyond comparisons joined by `&&` and `\|\|` (§5.9) | MVP 4 | `in MVP 1 a receive guard is a comparison, ...` |
 
 Every refusal the toolchain makes for a later MVP's sake names the current MVP in its error text, "MVP 1" or "MVP 2", and a test in `lib/cli/test` fails when such a text is missing from this table. Runtime behaviour that stands in for a later MVP, the peer fault and `Left(NoRemotePeer)`, is listed by hand. `make sections` lists the report sections no test cites; the three it prints are MVP 3 material. `make coverage` lists every section with how many tests cite it and its length, thinnest first: a long section with one citation is where a rule can hide untested.
 

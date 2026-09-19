@@ -879,3 +879,48 @@ bitstring_pattern_test() ->
                  err("fn f(b : Bytes) = match b { <<>> -> 0 | <<_, r:bytes>> -> 1 }")),
     ?assertEqual("a `let` pattern must be irrefutable",
                  err("fn f(b : Bytes) = { let <<x>> = b; x }")).
+
+%% report §5.9: a receive guard is a guard expression: comparisons of
+%% variables, literals, and nullary constructors joined by && and ||, no
+%% call, orderings on the four ordered prelude types only; a match guard
+%% is any Bool expression
+receive_guard_test() ->
+    Msg = "type Msg = N(Int) | Stop\n",
+    ?assertEqual(ok, ok(Msg ++ "fn big(k : Int) -> Bool = k > 100\n"
+                        "fn loop(limit : Int, go : Bool) -> Unit with Msg = receive {"
+                        " N(k) when (k > limit || k == -1) && go && k != 7 -> loop(limit, go)"
+                        " | Stop -> Unit | N(_) -> Unit }")),
+    ?assertEqual(ok, ok(Msg ++ "fn big(k : Int) -> Bool = k > 100\n"
+                        "fn f(m : Msg) -> Unit = match m { N(k) when big(k) -> Unit | _ -> Unit }")),
+    D = diag(Msg ++ "fn big(k : Int) -> Bool = k > 100\n"
+             "fn loop() -> Unit with Msg = receive { N(k) when big(k) -> Unit | _ -> Unit }"),
+    ?assertEqual("a `receive` guard is a comparison of variables, literals, and nullary"
+                 " constructors, joined by `&&` and `||`, and calls nothing", D#diag.message),
+    ?assertEqual("receive the message and `match` it", D#diag.help),
+    ?assertEqual("a `receive` guard is a comparison of variables, literals, and nullary"
+                 " constructors, joined by `&&` and `||`, and calls nothing",
+                 err(Msg ++ "fn loop() -> Unit with Msg = receive { N(k) when k + 1 > 2 -> Unit"
+                     " | _ -> Unit }")),
+    ?assertEqual("a `receive` guard is a comparison of variables, literals, and nullary"
+                 " constructors, joined by `&&` and `||`, and calls nothing",
+                 err(Msg ++ "let limit = 5\n"
+                     "fn loop() -> Unit with Msg = receive { N(k) when k > limit -> Unit"
+                     " | _ -> Unit }")),
+    ?assertEqual("a `receive` guard orders only Int, Float, String, and Char, not Vec",
+                 err("type Vec = Vec(Int)\n"
+                     "export fn Vec.compare(Vec(a), Vec(b)) -> Ordering = Int.compare(a, b)\n"
+                     "type M = Go(Vec)\n"
+                     "fn loop() -> Unit with M = receive { Go(v) when v < Vec(0) -> Unit"
+                     " | _ -> Unit }")).
+
+%% report §5.11: a size in a pattern is a variable, a literal, or +, -, *
+%% of them
+bitstring_size_shape_test() ->
+    ?assertEqual(ok, ok("fn f(b : Bytes, n : Int) = match b {"
+                        " <<k, rest:size(k * 8 + n - 1)-bits>> -> rest | _ -> b }")),
+    ?assertEqual("a size in a pattern is a variable, an Int literal, or `+`, `-`, `*` of them",
+                 err("fn f(b : Bytes) = match b {"
+                     " <<n, rest:size(List.size([n]))-bytes>> -> rest | _ -> b }")),
+    ?assertEqual("a size in a pattern is a variable, an Int literal, or `+`, `-`, `*` of them",
+                 err("fn f(b : Bytes) = match b { <<n, rest:size(n / 2)-bytes>> -> rest"
+                     " | _ -> b }")).

@@ -1101,19 +1101,13 @@ simple_clause(#clause{pos = Pos, pattern = P, guard = G, body = B}, Check, Cx) -
         end,
     {at(Pos, erl_syntax:clause([PF1], GF, BF1)), Cx4#cx{vars = Cx#cx.vars}}.
 
-%% Plan 2.2: in MVP 1 a receive guard must be an Erlang guard expression.
-%% Report §8.4: the message a clause binds is checked against the mailbox
-%% type, since a foreign process may have sent it.
-receive_clause(#clause{pos = Pos, guard = G} = C, #cx{mailbox = Mailbox} = Cx) ->
-    case G =:= undefined orelse erlang_guard(G, Cx) of
-        true ->
-            {DescForm, Cx1} = descriptor_ref(Mailbox, Cx),
-            simple_clause(C, {DescForm, check_text("message does not match ", Mailbox, Cx)},
-                          Cx1);
-        false -> fail(Pos, "in MVP 1 a receive guard is a comparison, or && and || of comparisons,"
-                           " over variables and literals (report §5.9; general guards come with"
-                           " MVP 4)")
-    end.
+%% Report §5.9: a receive guard is a guard expression, which the checker
+%% holds it to, so it is an Erlang guard here. Report §8.4: the message a
+%% clause binds is checked against the mailbox type, since a foreign
+%% process may have sent it.
+receive_clause(C, #cx{mailbox = Mailbox} = Cx) ->
+    {DescForm, Cx1} = descriptor_ref(Mailbox, Cx),
+    simple_clause(C, {DescForm, check_text("message does not match ", Mailbox, Cx)}, Cx1).
 
 %% Comparisons and Boolean operators over variables and literals.
 erlang_guard(#e_binop{op = Op, left = L, right = R}, Cx) when Op =:= '&&'; Op =:= '||' ->
@@ -1190,7 +1184,7 @@ pattern(#p_bits{pos = Pos, segments = Segs}, Cx) ->
     {Fields, Cx1} =
         lists:mapfoldl(fun(#bit_seg{value = V, specs = Specs}, C) ->
                            {ok, Spec} = ern_typecheck:segment_spec(Specs),
-                           {SizeF, C1} = pattern_size(Spec, C),
+                           {SizeF, C1} = size_form(Spec, C),
                            {VF, C2} = bits_pattern_value(Spec, V, C1),
                            {erl_syntax:binary_field(VF, SizeF, type_specs(Spec)), C2}
                        end, Cx, Segs),
@@ -1208,23 +1202,6 @@ bits_pattern_value(#{kind := bits}, V, Cx) ->
 bits_pattern_value(_, V, Cx) ->
     pattern(V, Cx).
 
-pattern_size(#{size := {expr, E}}, Cx) ->
-    guard_expression(E) orelse
-        fail(element(2, E), "in MVP 2 a size expression in a pattern is a variable, a literal,"
-                            " or arithmetic on them (report §5.11; general expressions come with"
-                            " MVP 4)"),
-    expr(E, Cx);
-pattern_size(Spec, Cx) ->
-    size_form(Spec, Cx).
-
-guard_expression(#e_lit{kind = int}) -> true;
-guard_expression(#e_var{path = []}) -> true;
-guard_expression(#e_neg{expr = E}) -> guard_expression(E);
-guard_expression(#e_binop{op = Op, left = L, right = R}) when Op =:= '+'; Op =:= '-';
-                                                           Op =:= '*'; Op =:= '/';
-                                                           Op =:= '%' ->
-    guard_expression(L) andalso guard_expression(R);
-guard_expression(_) -> false.
 
 %% The clause guards a pattern asked for, joined to the clause's own.
 take_pat_guards(GF, #cx{pat_guards = []}) -> {GF, GF};

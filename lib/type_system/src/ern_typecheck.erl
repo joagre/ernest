@@ -1242,7 +1242,7 @@ check(#e_match{scrutinee = S, clauses = Clauses} = E, Expected, Context, Origin,
     {TypedS, ST, Env1} = infer(S, Env),
     ScrutOrigin = {node_span(S), "the value matched has type "
                                  ++ ern_types:format(ST, Env1#env.st)},
-    {TypedClauses, Env2} = check_clauses(Clauses, ST, ScrutOrigin, Expected, Context, Origin,
+    {TypedClauses, Env2} = check_clauses(match, Clauses, ST, ScrutOrigin, Expected, Context, Origin,
                                          "the clauses must have one type", Env1),
     {E#e_match{scrutinee = TypedS, clauses = TypedClauses, type = Expected}, Expected, Env2};
 check(#e_receive{pos = Pos, clauses = Clauses, 'after' = After} = E, Expected, Context,
@@ -1254,7 +1254,7 @@ check(#e_receive{pos = Pos, clauses = Clauses, 'after' = After} = E, Expected, C
                      " type with `with`");
         false -> ok
     end,
-    {TypedClauses, Env2} = check_clauses(Clauses, MailboxT, undefined, Expected, Context,
+    {TypedClauses, Env2} = check_clauses(rcv, Clauses, MailboxT, undefined, Expected, Context,
                                          Origin, "the clauses must have one type", Env1),
     {TypedAfter, Env3} =
         case After of
@@ -1281,6 +1281,35 @@ check(E, Expected, Context, Origin, Env) ->
     Env2 = unify_at(node_span(E), Expected, T, Env1, default(Context, "this expression"),
                     Origin),
     {Typed, T, Env2}.
+
+%% Report §5.9: a receive guard is a guard expression, since it selects a
+%% message without removing it.
+receive_guard(G, Env) ->
+    guard_expression(G, Env) orelse
+        fail(node_span(G), "a `receive` guard is a comparison of variables, literals, and nullary"
+                           " constructors, joined by `&&` and `||`, and calls nothing", [],
+             "receive the message and `match` it").
+
+guard_expression(#e_binop{op = Op, left = L, right = R}, Env) when Op =:= '&&'; Op =:= '||' ->
+    guard_expression(L, Env) andalso guard_expression(R, Env);
+guard_expression(#e_binop{pos = Pos, op = Op, left = L, right = R}, Env)
+  when Op =:= '=='; Op =:= '!='; Op =:= '<'; Op =:= '<='; Op =:= '>'; Op =:= '>=' ->
+    lists:member(Op, ?ORDER) andalso
+        (case ern_types:resolve(node_type(L), Env#env.st) of
+             {tcon, [T], []} when T =:= 'Int'; T =:= 'Float'; T =:= 'String'; T =:= 'Char' -> ok;
+             T -> fail(Pos, "a `receive` guard orders only Int, Float, String, and Char, not "
+                            ++ ern_types:format(T, Env#env.st))
+         end),
+    guard_operand(L, Env) andalso guard_operand(R, Env);
+guard_expression(#e_lit{kind = bool}, _) -> true;
+guard_expression(#e_var{path = [], name = N}, #env{vars = Vs}) -> maps:is_key(N, Vs);
+guard_expression(_, _) -> false.
+
+guard_operand(#e_lit{}, _) -> true;
+guard_operand(#e_neg{expr = #e_lit{}}, _) -> true;
+guard_operand(#e_var{path = [], name = N}, #env{vars = Vs}) -> maps:is_key(N, Vs);
+guard_operand(#e_con{args = none}, _) -> true;
+guard_operand(_, _) -> false.
 
 %% After the first branch, the expectation's origin is that branch when
 %% nothing outside fixed it.
@@ -1429,7 +1458,7 @@ mailbox_type(Pos, Env) ->
             {T, Env}
     end.
 
-check_clauses(Clauses, ScrutT, ScrutOrigin, Expected, Context, Origin, SiblingContext, Env) ->
+check_clauses(Kind, Clauses, ScrutT, ScrutOrigin, Expected, Context, Origin, SiblingContext, Env) ->
     {Typed, {Env1, _, _}} =
         lists:mapfoldl(
           fun(#clause{pattern = P, guard = G, body = B} = C, {En, Ctx, Or}) ->
@@ -1449,6 +1478,7 @@ check_clauses(Clauses, ScrutT, ScrutOrigin, Expected, Context, Origin, SiblingCo
                                                                  " the match"}},
                               {TG, _, En3a} = check(G, ?BOOL, "a guard is a Bool", undefined,
                                                     Guarded),
+                              Kind =:= rcv andalso receive_guard(TG, En3a),
                               {TG, En3a#env{effect = En3#env.effect,
                                             effect_origin = En3#env.effect_origin}}
                       end,
@@ -1711,6 +1741,7 @@ bit_pattern(#bit_seg{pos = Pos, value = V, specs = Specs} = S, Bindings, Env) ->
                                                           "a size expression is pure",
                                                           "compute the size before the match"}}),
     {TypedSpecs, Scoped1} = size_expr(Specs, Scoped),
+    lists:foreach(fun({size, E}) -> size_shape(E, Scoped1); (_) -> ok end, TypedSpecs),
     Env1 = Scoped1#env{vars = Env#env.vars, effect = Env#env.effect,
                        effect_origin = Env#env.effect_origin},
     {TypedV, VT, Bs, Env2} = pat(V, Env1),
@@ -1724,6 +1755,21 @@ size_expr(Specs, Env) ->
                       (Other, En) ->
                            {Other, En}
                    end, Env, Specs).
+
+%% Report §5.11: a size in a pattern is a variable, a literal, or +, -, * of
+%% them, since the runtime evaluates it while matching.
+size_shape(E, Env) ->
+    size_expression(E, Env) orelse
+        fail(node_span(E), "a size in a pattern is a variable, an Int literal, or `+`, `-`, `*`"
+                           " of them").
+
+size_expression(#e_lit{kind = int}, _) -> true;
+size_expression(#e_var{path = [], name = N}, #env{vars = Vs}) -> maps:is_key(N, Vs);
+size_expression(#e_neg{expr = E}, Env) -> size_expression(E, Env);
+size_expression(#e_binop{op = Op, left = L, right = R}, Env) when Op =:= '+'; Op =:= '-';
+                                                                Op =:= '*' ->
+    size_expression(L, Env) andalso size_expression(R, Env);
+size_expression(_, _) -> false.
 
 segment_type(#{kind := int}) -> ?INT;
 segment_type(#{kind := float}) -> ?FLOAT;

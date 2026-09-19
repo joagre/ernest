@@ -354,7 +354,8 @@ match_general_guard_test() ->
         "}\n"),
     ?assertEqual(<<"small\neven\nodd\n">>, Out).
 
-%% report §5.9, plan 2.2: a receive guard is an Erlang guard in MVP 1
+%% report §5.9: a receive guard is a guard expression, emitted as an Erlang
+%% guard, tested while the message stays in the mailbox
 receive_guard_test() ->
     {ok, Out} = run(
         "type Msg = N(Int)\n"
@@ -371,18 +372,23 @@ receive_guard_test() ->
         "}\n"),
     ?assertEqual(<<"5\n">>, Out).
 
-%% report §5.9, plan 2.2: a general receive guard is refused in MVP 1
-receive_guard_general_test() ->
-    Msg = compile_error(
-        "type Msg = N(Int)\n"
-        "fn big(k : Int) -> Bool = k > 100\n"
-        "fn loop() -> Unit with Msg = receive {\n"
-        "    N(k) when big(k) -> Unit\n"
-        "  | N(_) -> loop()\n"
+%% report §5.9: a compound guard expression; a message the guard rejects
+%% stays in the mailbox
+receive_guard_compound_test() ->
+    {ok, Out} = run(
+        "type Msg = N(Int) | Stop\n"
+        "fn loop(limit : Int) -> Unit with Msg = receive {\n"
+        "    N(k) when k > limit && k != 7 -> { Io.println(Int.toString(k)); loop(limit) }\n"
+        "  | Stop -> Unit\n"
         "}\n"
-        "export fn main() -> Unit with Msg = loop()\n"),
-    ?assertMatch("in MVP 1 a receive guard" ++ _, Msg),
-    ?assert(string:find(Msg, "§5.9") =/= nomatch).
+        "export fn main() -> Unit with Msg = {\n"
+        "    send(self(), N(1));\n"
+        "    send(self(), N(9));\n"
+        "    send(self(), N(7));\n"
+        "    send(self(), Stop);\n"
+        "    loop(5)\n"
+        "}\n"),
+    ?assertEqual(<<"9\n">>, Out).
 
 %% report §3.1, §4.8, §9.6: Int arithmetic, comparison, and the Boolean
 %% operators
@@ -428,7 +434,7 @@ float_fault_test() ->
     ?assertEqual({fault, <<"float arithmetic error">>}, R3).
 
 %% report §4.8, §3.10, §5.1: a user type's operator is its member, its
-%% ordering goes through its compare, prefix - through its negate; in a receive guard the ordering is a
+%% ordering goes through its compare, prefix - through its negate in a receive guard the ordering is a
 %% call, so MVP 1's guard rule refuses it
 user_operators_test() ->
     Vec = "type Vec = Vec(Int)\n"
@@ -446,15 +452,7 @@ user_operators_test() ->
         "    Io.println(Bool.toString(a < b));\n"
         "    Io.println(Bool.toString(a >= b && b <= a && a > b))\n"
         "}\n"),
-    ?assertEqual(<<"-3\n2.5\nfalse\ntrue\n">>, Out),
-    Msg = compile_error(Vec ++
-        "type Msg = Go(Vec)\n"
-        "fn loop() -> Unit with Msg = receive {\n"
-        "    Go(v) when v < Vec(0) -> Unit\n"
-        "  | Go(_) -> Unit\n"
-        "}\n"
-        "export fn main() -> Unit with Msg = loop()\n"),
-    ?assertMatch("in MVP 1 a receive guard" ++ _, Msg).
+    ?assertEqual(<<"-3\n2.5\nfalse\ntrue\n">>, Out).
 
 %% report §8.5: a top-level let evaluated through an operator's member
 %% comes after the lets that member reads
@@ -616,11 +614,7 @@ bitstring_faults_test() ->
     lists:foreach(fun({Bits, Cause}) ->
                       {R, _} = run(Three ++ Main ++ "{ let _ = " ++ Bits ++ "; Unit }\n"),
                       ?assertEqual({fault, Cause}, R)
-                  end, Faults),
-    Msg = compile_error("fn f(b : Bytes) = match b {"
-                        " <<n, rest:size(List.size([n]))-bytes>> -> rest | _ -> b }\n"
-                        ++ Main ++ "Unit\n"),
-    ?assertMatch("in MVP 2 a size expression in a pattern" ++ _, Msg).
+                  end, Faults).
 
 %% report §7.4: a zero divisor faults main with its cause
 division_fault_test() ->

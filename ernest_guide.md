@@ -232,7 +232,7 @@ Each variable appears at most once in a pattern. Repeated names within one patte
 
 A postfix `as ident` binds the whole match alongside its destructured parts: `Some(x) as present` binds `x` to the payload *and* `present` to the whole Optional. Useful when both the interior and the aggregate matter. `as` is not allowed on reply-carrying scrutinees (§4.2).
 
-Guards are pure `Bool` expressions — no mailbox effect. A guard that evaluates to `false` falls through to the next clause; a guard that *faults* faults the enclosing process. Guards do not count toward `match` exhaustiveness — a clause with a guard still needs an unguarded fallback (a wildcard `_` clause, typically) so the compiler can prove coverage.
+Guards are pure `Bool` expressions — no mailbox effect. A guard that evaluates to `false` falls through to the next clause; a guard that *faults* faults the enclosing process. A `receive` guard is narrower, because it selects a message without taking it out of the mailbox: comparisons of variables, literals, and nullary constructors joined by `&&` and `||`, and no calls (report §5.9). When you need more, receive the message and `match` it. Guards do not count toward `match` exhaustiveness — a clause with a guard still needs an unguarded fallback (a wildcard `_` clause, typically) so the compiler can prove coverage.
 
 ### 2.7 `if` and `<-`
 
@@ -945,7 +945,7 @@ A segment without specifiers is `int` of size 8, which is why `<<0, 1, 2>>` is t
 - A segment value that does not fit its specified width — an `Int` too large for `size(N)-int` at construction — is a fault.
 - The runtime's bit syntax sets the limits the report states: `unit` is 1 to 256, a `float` segment is 16, 32, or 64 bits, a `utf` segment takes no size, and a sizeless `bits` or `bytes` segment is the last one.
 
-A segment pattern is a variable, `_`, or a literal. `size(Expr)` in a pattern evaluates in the scope of earlier-bound segment variables plus the enclosing scope. The expression is pure (no mailbox effect); a fault in it faults the process. A `match` over bitstring patterns ends with a `_` or variable clause, as `parseFrame` does: the checker does not decide whether bitstring patterns cover every `Bytes` value.
+A segment pattern is a variable, `_`, or a literal. `size(Expr)` in a pattern is a variable of an earlier segment or the enclosing function, an `Int` literal, or `+`, `-`, `*` of these, evaluated while matching. A `match` over bitstring patterns ends with a `_` or variable clause, as `parseFrame` does: the checker does not decide whether bitstring patterns cover every `Bytes` value.
 
 **Precondition for `frame`/`parseFrame`:** the round trip works when `len` equals `body`'s byte count *and* `len` fits in the length-field width (16 bits, so 0 to 65 535). `parseFrame(frame(1, <<65, 66>>))` returns `Some(#(1, <<65>>, <<66>>))` — a one-byte body and a one-byte remainder, not an error, because `len = 1` was chosen. If `len` doesn't fit the width, `frame` faults at construction.
 
