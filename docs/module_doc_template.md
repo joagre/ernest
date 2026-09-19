@@ -14,7 +14,7 @@ A module's documentation is a section 3 manual page. Its headings fall in three 
 - The module's doc block, first in the file with a blank line after it: what the module is for in free text, then `## Examples` with a few central examples, the ones a reader tries first.
 - DESCRIPTION for every exported declaration: one or a few sentences, saying what the type does not say, which occurrence `remove` removes, the order `toList` produces, the range `next` draws from. A member of an abstract type is documented at its signature entry and inherits that text under its own heading.
 - `### Errors` for every function that faults, naming the fault; no other function has the section, by E.0 rule 4.
-- `### Examples` with one example for every exported declaration, unless the sentence suffices, as for an exported constant.
+- `### Examples` with one example for every exported declaration, unless the sentence suffices, as for an exported constant. An example ends in `// => v`, where `v` is what `Io.debug` prints for its value; the test runs the example and compares, so a documented result is a tested one. An example whose value is of an abstract type omits the line, since the rendering would show the private representation.
 
 **Optional**, added where the author sees fit:
 
@@ -36,6 +36,7 @@ circle around one; `area` is the one operation every shape supports, and
 ```ernest
 let c = Template.circle(Template.Point(x = 0, y = 0), 2);
 Template.area(c)
+// => 12
 ```
 
 ## See also
@@ -54,6 +55,7 @@ A point in the plane, in whole units.
 
 ```ernest
 Template.Point(x = 1, y = 2)
+// => Point(1, 2)
 ```
 
 - `Point`
@@ -72,6 +74,7 @@ A shape: a point alone, or a circle of a radius around a centre.
 
 ```ernest
 Template.Circle(centre = Template.Point(x = 0, y = 0), radius = 1)
+// => Circle(Point(0, 0), 1)
 ```
 
 - `Dot`: A point alone; its area is zero.
@@ -140,6 +143,7 @@ The circle of the radius around the centre.
 
 ```ernest
 Template.circle(Template.Point(x = 1, y = 2), 3)
+// => Circle(Point(1, 2), 3)
 ```
 
 ## area
@@ -155,6 +159,7 @@ for a circle, since the module has no `Float`.
 
 ```ernest
 Template.area(Template.Dot(Template.Point(x = 0, y = 0)))
+// => 0
 ```
 
 ### See also
@@ -178,6 +183,7 @@ one fault in this module.
 
 ```ernest
 Template.checked(4)
+// => 4
 ```
 
 ## half
@@ -193,5 +199,6 @@ appears in the module's documentation among the exported declarations.
 
 ```ernest
 half(7)
+// => 3
 ```
 

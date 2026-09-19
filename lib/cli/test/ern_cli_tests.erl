@@ -385,17 +385,40 @@ doc_template_test() ->
 
 %% report §2.2, Appendix E.0 rule 6: every fenced Ernest block in the
 %% template's doc blocks type-checks against the module, as the body of a
-%% lambda, so an example cannot rot
+%% lambda, and one that ends in `// => v` is run, its value printed by
+%% Io.debug and compared with v, so an example cannot rot
 doc_examples_test() ->
     {ok, Src} = file:read_file(example("template.ern")),
     {ok, Decls} = ern_parser:parse_string(Src),
     Blocks = lists:append([fences(Doc) || Doc <- docs(Decls, [])]),
     ?assert(length(Blocks) >= 4),
-    lists:foreach(fun({N, Block}) ->
+    Numbered = lists:zip(lists:seq(1, length(Blocks)), [split_result(B) || B <- Blocks]),
+    lists:foreach(fun({N, {Body, _}}) ->
                       Text = <<Src/binary, "\nfn docExample", (integer_to_binary(N))/binary,
-                               "() = fn() = {\n", Block/binary, "\n}\n">>,
+                               "() = fn() = {\n", Body/binary, "\n}\n">>,
                       ?assertMatch({ok, _, _, _}, ern_typecheck:check_string(['Template'], Text))
-                  end, lists:zip(lists:seq(1, length(Blocks)), Blocks)).
+                  end, Numbered),
+    WithResult = [{N, Body, V} || {N, {Body, V}} <- Numbered, V =/= none],
+    ?assert(length(WithResult) >= 4),
+    Dir = tmp(),
+    Fns = [<<"export fn docExample", (integer_to_binary(N))/binary, "() = {\n", Body/binary,
+             "\n}\n">> || {N, Body, _} <- WithResult],
+    write(Dir, "src/template.ern", [Src, "\n", Fns]),
+    Calls = [<<"    let _ = Io.debug(Template.docExample", (integer_to_binary(N))/binary, "());\n">>
+             || {N, _, _} <- WithResult],
+    write(Dir, "src/main.ern", ["export fn main() -> Unit with Never = {\n", Calls, "    Unit\n}\n"]),
+    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
+    Expected = iolist_to_binary([[V, "\n"] || {_, _, V} <- WithResult]),
+    ?assertEqual(Expected, iolist_to_binary(?capturedOutput)).
+
+%% An example's body and the value its last line `// => v` promises, or none.
+split_result(Block) ->
+    Lines = binary:split(Block, <<"\n">>, [global]),
+    case lists:last(Lines) of
+        <<"// => ", V/binary>> -> {iolist_to_binary(lists:join(<<"\n">>, lists:droplast(Lines))), V};
+        _ -> {Block, none}
+    end.
 
 %% Every doc text in an AST: the third element of the records that carry one.
 docs(T, Acc) when is_tuple(T), tuple_size(T) >= 3 ->

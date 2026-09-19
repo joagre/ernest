@@ -7,6 +7,7 @@
 /// ```ernest
 /// let c = Template.circle(Template.Point(x = 0, y = 0), 2);
 /// Template.area(c)
+/// // => 12
 /// ```
 ///
 /// ## See also
@@ -31,6 +32,7 @@
 ///
 /// ```ernest
 /// Template.Point(x = 1, y = 2)
+/// // => Point(1, 2)
 /// ```
 export type Point = Point(
     /// The horizontal coordinate, growing to the right.
@@ -44,6 +46,7 @@ export type Point = Point(
 ///
 /// ```ernest
 /// Template.Circle(centre = Template.Point(x = 0, y = 0), radius = 1)
+/// // => Circle(Point(0, 0), 1)
 /// ```
 export type Shape =
     /// A point alone; its area is zero.
@@ -82,6 +85,7 @@ export fn Stack.pop(Stack(ss)) = match ss { [] -> None | s :: rest -> Some(#(s, 
 ///
 /// ```ernest
 /// Template.circle(Template.Point(x = 1, y = 2), 3)
+/// // => Circle(Point(1, 2), 3)
 /// ```
 export fn circle(centre : Point, radius : Int) -> Shape =
     Circle(centre = centre, radius = radius)
@@ -93,6 +97,7 @@ export fn circle(centre : Point, radius : Int) -> Shape =
 ///
 /// ```ernest
 /// Template.area(Template.Dot(Template.Point(x = 0, y = 0)))
+/// // => 0
 /// ```
 ///
 /// ### See also
@@ -114,6 +119,7 @@ export fn area(s : Shape) -> Int = match s {
 ///
 /// ```ernest
 /// Template.checked(4)
+/// // => 4
 /// ```
 export fn checked(radius : Int) -> Int =
     if radius < 0 then todo("negative radius") else radius
@@ -125,5 +131,6 @@ export fn checked(radius : Int) -> Int =
 ///
 /// ```ernest
 /// half(7)
+/// // => 3
 /// ```
 fn half(n : Int) -> Int = n / 2
