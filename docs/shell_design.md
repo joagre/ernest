@@ -39,6 +39,18 @@ The shell is an Ernest program, and one of the larger ones: an estimate is one t
 - **The commands.** The `:` commands below, small once the front end exists, since they reuse the checker's printer and the documentation renderer.
 - **The printer.** A result and its type, as above.
 
+## What Ernest must provide
+
+The shell is written in Ernest, and working through its parts shows what Ernest already offers and what it lacks.
+
+- **Already there, or in MVP 2.5.** The line editor is data carried through a loop: the line as a `List(Char)`, the cursor, the kill ring, the history. Drawing is ANSI escape sequences written with `Io.print`, a string holding `\u{1B}[K`. Keys come through `Keys`, and `C-c` arrives as a key in raw mode, not as a signal, so interrupting is ordinary message handling. The history file uses `Fs`, and completing a path uses `Fs.list`. The evaluator is a process: `monitor` reports its death and `kill` stops it.
+- **Results are `Foreign` to the shell.** The shell is a statically typed program handling values of every type a user can write, so a result, a binding, and a message in its mailbox are opaque handles to it, of type `Foreign`, passed back to the toolchain. The foreign entries do the typed work: check a line against the bindings, compile and run it, print a value by its type, list a module's exports, fetch documentation. The shell is the interface and the orchestration; evaluation and printing stay behind the boundary, as GHC stands behind GHCi. The foreign interface is therefore the real design, and larger than a few entries.
+- **The terminal's width.** Redrawing a line that wraps and laying out a completion list need it. Nothing in the report provides it; Erlang has `io:columns`. An addition to `Io` or `Keys`, report first.
+- **Whether input is a terminal.** The fall-back to reading lines, `ern --shell < script.ern`, needs to know. Nothing provides it. An addition to `Io`, report first.
+- **Knowing that another process printed.** Redrawing the prompt after output from a spawned process needs the editor to learn that output happened: `Sys.stdout` notifies a subscriber, or the shell stands in front of it. A runtime hook to be designed, report first.
+
+The three additions are questions for MVP 2.5, which builds `Keys` and `Io.readLine`, and are best answered when those are built.
+
 ## Line editing and history
 
 The keys are GNU Readline's Emacs bindings, which every shell user's fingers already know.
