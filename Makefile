@@ -10,6 +10,7 @@ all:
 test clean:
 	@for app in $(APPS); do $(MAKE) -C lib/$$app/src $@ || exit 1; done
 	@$(MAKE) -C test $@
+	@if [ "$@" = clean ]; then rm -f examples/*.erc examples/**/*.erc; fi
 
 # Rewrite test/golden/*.erl, the Erlang source the compiler emits for every
 # MVP 1 example, after an intended change to the emitter.
