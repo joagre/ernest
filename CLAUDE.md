@@ -40,6 +40,7 @@ The rules below are in the order of work: what is authoritative, the repository,
 - **Features are judged on the principles.** A feature enters or stays out by the five principles, weighed one by one, examples or not. How many programs ask for it is one argument, never the gate.
 - **The log names the principle that decided.** A "Later" entry states the verdict and what would change it, never a count of programs as its trigger.
 - **Bring options, not defenses.** When a proposed simplification seems to conflict with a principle, first check whether the principle is being applied too dogmatically. The ambient `Sys.*` values were once refused on a misreading of "nothing invisible".
+- **Writing Ernest tests the language.** Code written in Ernest, the standard library above all, is where the language is felt. Where it feels against a principle, a workaround that should not be needed, a second way, something invisible, say so and discuss it with the user before working around it; the fix may be a report change.
 - **Read the result back before reporting it.** After a design change, read the resulting Ernest code as a reader who knows the rest of Ernest would, against principles 1 and 2 and Appendix E.0, and say what surprised. The principles apply to the standard library and the toolchain as much as to the language.
 
 ### Correctness
