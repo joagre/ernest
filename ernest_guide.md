@@ -761,7 +761,7 @@ $ ern build/main.erc
 GET /
 ```
 
-Directory mode compiles in dependency order automatically, creates missing subdirectories under `build/`, and, after a successful build, removes `.erc` files whose `.ern` is gone and the directories that empties (`--no-clean` disables the sweep; single-file mode never sweeps). It's the recommended pattern once a project has more than one file.
+Directory mode compiles in dependency order automatically, creates missing subdirectories under `build/`, and, after a successful build, removes `.erc` files whose `.ern` is gone and the directories that empties (`--no-clean` disables the sweep; single-file mode never sweeps). It's the recommended pattern once a project has more than one file. A second run rebuilds only what changed: a module whose source changed, whose dependency's interface changed, or that an older `ernc` built. A change to a dependency's bodies alone leaves its dependents as they are (report §11.1).
 
 **The file's path is its namespace.** A file at `a/b/c.ern` under the source root provides declarations at namespace `A.B.C`. The source root is the current directory when one file is compiled, the directory passed when a tree is, or `--source-root dir` (report §11.1). Each path segment is one lowercase word; each namespace segment is the path segment with its first letter uppercased and the rest unchanged (`http.ern` → `Http`, `httpv2.ern` → `Httpv2`). A multi-word module is a nested directory, `http/parser.ern` for `Http.Parser` (report §11.1), so the mapping is one-to-one. A module namespace may not coincide with a namespace of the prelude or the standard library, so `io.ern` at the source root is an error, nor with a type namespace of its parent module: `main/stack.ern` is an error when `main.ern` declares `Stack` (report §4.2).
 
@@ -769,7 +769,9 @@ Directory mode compiles in dependency order automatically, creates missing subdi
 
 **`export` marks the boundary.** A declaration prefixed with `export` is visible from other modules; a declaration without `export` is private to its own file. No `import`, no export list, no `pub`. `export` may prefix any top-level declaration: `fn`, `type`, `abstract type`, `let`, `foreign fn`, or `foreign type`. Constructors of an exported concrete type are exported with the type — `export type Optional(a) = None | Some(a)` makes `None` and `Some` visible to other modules; `type Internal = A | B` keeps the type and both constructors private. An abstract type controls constructor visibility through its `with { ... }` signature, not through `export`: the type name is `export`ed, its accessors are separately `export`ed if they should be public, and the constructor stays visible only to the definitions listed in the signature.
 
-**External references use the qualified name.** A caller outside `net/http.ern` writes `Net.Http.parse`. Inside `net/http.ern`, unqualified `parse` refers to the local declaration.
+**External references use the qualified name.** A caller outside `net/http.ern` writes `Net.Http.parse`. Inside `net/http.ern`, unqualified `parse` refers to the local declaration, and `Net.Http.parse` works there too (report §4.2), which is how a documentation example is written.
+
+**Documenting a module.** A `///` block documents what follows it on the next line: a declaration, a constructor, a named field, or a signature entry. A `///` block first in the file, with a blank line after it, documents the module. The text is CommonMark, and `ernc --doc` renders the module as a page: the title, each declaration's type in a code block, and the text. An example in a doc block ends with `// => v`, the value `Io.debug` prints, and the standard library's tests run it. What a module's documentation must contain is Appendix E.0 rule 6 of the report; [`docs/module_doc_template.md`](docs/module_doc_template.md) shows it on a fictive module, generated and kept true by a test (report §2.2 and report §11.4).
 
 **Entry point.** `ern main.erc` looks up `export fn main` in the loaded module and invokes it. `main` is a naming convention, not a reserved specialness — any exported function with the entry-point shape `() -> Unit with M` can be selected. If `tools.ern` exports a `check` function of that shape, run it as:
 
@@ -781,7 +783,7 @@ $ ern --main Tools.check build/main.erc
 
 ### 6.2 Abstract types
 
-Abstract types have a private representation and a public signature. Only definitions listed in the `with { ... }` signature can mention the constructor. Any locally declared type — abstract or concrete — creates a nested namespace inside its module, and its members are declared with a single-typename prefix (`fn Stack.push`). Report §4.8 shows the concrete-type variant used for per-type operator overloading (`fn Distance.+`, and so on).
+Abstract types have a private representation and a public signature. Only definitions listed in the `with { ... }` signature can mention the constructor. Any locally declared type — abstract or concrete — creates a nested namespace inside its module, and its members are declared with a single-typename prefix (`fn Stack.push`). Report §4.8 shows the concrete-type variant used for per-type operator overloading (`fn Distance.+`, and so on); an operator is declared with `fn`, never with `let`. From another module an abstract type's constructor is not visible at all: `Main.Stack([])` there is an error, and callers go through the signature.
 
 ```
 // main.ern  (namespace Main)
