@@ -90,7 +90,7 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 A raw string, between backticks, is taken exactly as written: a backslash is a backslash, and a line break is a line break. It is the form for text full of backslashes or quotes, and for text over several lines:
 
 ```
-let number = `\d+(\.\d+)?`                // a regular expression, not "\\d+(\\.\\d+)?"
+let number = `\d+(\.\d+)?` // a regular expression, not "\\d+(\\.\\d+)?"
 let path = `C:\Users\ada\notes.txt`
 let fixture = `{
     "name": "ada",
