@@ -475,8 +475,8 @@ reply_test() ->
                  err(Msg ++ "fn f(r : Reply(Int), b : Bool) = if b then answer(r, 1) else Unit")),
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int), b : Bool) = if b then answer(r, 1)"
                         " else answer(r, 2)")),
-    ?assertEqual("the reply-carrying value r is captured by a lambda that is not passed"
-                 " directly to spawn",
+    ?assertEqual("the reply-carrying value r is captured by a lambda that is not called, bound by"
+                 " `let`, or passed directly to spawn",
                  err(Msg ++ "fn f(r : Reply(Int)) = List.map([1], fn(x) = answer(r, x))")),
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never ="
                         " { let _ = spawn(Local, fn() -> Unit with Never = answer(r, 1)); Unit }")),
@@ -632,6 +632,35 @@ abstract_type_test() ->
                  err("abstract type Stack(a) = Stack(List(a)) with { size : (Stack(a)) -> Int }\n"
                      "fn Stack.size(s) = true")),
     ?assertEqual("Nope is not a type declared in this module", err("fn Nope.f() = 1")).
+
+%% report §6.6: a lambda that captures a reply-carrying value is reply-carrying
+%% itself, consumed exactly once by a call or as spawn's direct argument,
+%% bindable by let, and legal nowhere else
+reply_lambda_test() ->
+    Msg = "type Req = Get(reply : Reply(Int)) | Stop\n"
+          "fn worker(r : Reply(Int)) -> Unit with Never = answer(r, 1)\n",
+    ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never = {\n"
+                        "    let g = fn() = worker(r);\n    let _ = spawn(Local, g);\n    Unit }")),
+    ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never = {\n"
+                        "    let g = fn() = worker(r);\n    g() }")),
+    ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never = (fn() = worker(r))()")),
+    ?assertEqual("the reply-carrying value g is consumed twice",
+                 err(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never = {\n"
+                     "    let g = fn() = worker(r);\n    let _ = spawn(Local, g);\n    g() }")),
+    ?assertEqual("the reply-carrying value g is never consumed",
+                 err(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never = {\n"
+                     "    let g = fn() = worker(r);\n    Unit }")),
+    ?assertEqual("the reply-carrying value g is captured by a lambda that is not called, bound by"
+                 " `let`, or passed directly to spawn",
+                 err(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never = {\n"
+                     "    let g = fn() = worker(r);\n    List.foreach([1], fn(_) = g()) }")),
+    ?assertEqual("the lambda g captures a reply-carrying value and may only be called or passed"
+                 " directly to spawn",
+                 err(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never = {\n"
+                     "    let g = fn() = worker(r);\n    let h = g;\n    h() }")),
+    ?assertEqual("the reply-carrying value g is consumed on one path but not on another",
+                 err(Msg ++ "fn f(r : Reply(Int), b : Bool) -> Unit with Never = {\n"
+                     "    let g = fn() = worker(r);\n    if b then g() else Unit }")).
 
 %% report §4.2: a module may name its own declarations by their qualified
 %% names, in any order

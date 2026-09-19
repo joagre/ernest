@@ -462,7 +462,7 @@ Six ways to consume:
 3. Sending with `send(a, v)` (shifts to the recipient's `receive` clause).
 4. Placing into a constructor or tuple of reply-carrying type — the constructed value inherits the obligation.
 5. Returning from a function whose declared return type is reply-carrying — shifts to the caller.
-6. Capturing in a lambda passed directly to `spawn`.
+6. Capturing in a lambda. The lambda is then reply-carrying itself: consumed exactly once, by a call or as `spawn`'s direct argument, and it may be bound with `let` but appear nowhere else, since its type does not show the capture. `let g = fn() = worker(r); spawn(Local, g)` is fine; calling `g()` after that is consuming it twice.
 
 A reply-carrying value neither bound nor consumed is a type error: `Get(reply = r); Unit` consumes `r` into a message and then drops the message.
 

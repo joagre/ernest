@@ -4,7 +4,10 @@
 %% every position such a value can occupy is a consuming one. Also: no
 %% reply-carrying elements in List, Map, Set, Optional, or Either; no `as`
 %% on a reply-carrying value; no wildcard or omitted reply-carrying field;
-%% a lambda captures a linear variable only as spawn's direct argument.
+%% a lambda that captures a linear variable is linear itself: consumed
+%% exactly once, by a call or as spawn's direct argument, bindable by let,
+%% and legal nowhere else. Linear holds a name N for a value and {lambda, N}
+%% for such a lambda bound by let.
 %%
 %% A polymorphic parameter that is used other than exactly once gets the
 %% no_reply flag on its type variable (report §3.9).
@@ -160,21 +163,42 @@ container(Pos, T, Env) ->
 uses(#e_var{pos = Pos, path = [], name = N}, Linear, _Env) ->
     case lists:member(N, Linear) of
         true -> [{N, Pos}];
-        false -> []
+        false ->
+            case lists:member({lambda, N}, Linear) of
+                true -> throw({type_error, Pos, "the lambda " ++ atom_to_list(N)
+                                                ++ " captures a reply-carrying value and may only"
+                                                " be called or passed directly to spawn"});
+                false -> []
+            end
     end;
-uses(#e_call{callee = #e_var{path = [], name = spawn}, args = [Where, #e_lambda{} = L]},
-     Linear, Env) ->
-    %% a lambda passed directly to spawn may capture linear variables
-    seq([uses(Where, Linear, Env), uses(L#e_lambda.body, Linear, Env)]);
-uses(#e_lambda{pos = Pos, params = Params, body = Body}, Linear, Env) ->
-    Inner = [N || P <- Params, N <- linear_bindings(P#param.pattern, Env)],
-    BodyUses = uses(Body, Linear ++ Inner, Env),
-    lists:foreach(fun(N) -> exactly_once(N, BodyUses, Pos, Env) end, Inner),
-    case [N || {N, _} <- BodyUses, lists:member(N, Linear)] of
+uses(#e_call{callee = #e_var{path = [], name = spawn}, args = [Where, Arg]}, Linear, Env) ->
+    %% spawn's direct argument consumes a capturing lambda
+    ArgUses = case Arg of
+                  #e_lambda{} -> captures(Arg, Linear, Env);
+                  #e_var{pos = Pos, path = [], name = F} ->
+                      case lists:member({lambda, F}, Linear) of
+                          true -> [{F, Pos}];
+                          false -> uses(Arg, Linear, Env)
+                      end;
+                  _ -> uses(Arg, Linear, Env)
+              end,
+    seq([uses(Where, Linear, Env), ArgUses]);
+uses(#e_call{pos = Pos, callee = #e_var{path = [], name = F}, args = Args}, Linear, Env) ->
+    %% a call consumes a capturing lambda bound by let
+    Callee = case lists:member({lambda, F}, Linear) of
+                 true -> [{F, Pos}];
+                 false -> []
+             end,
+    seq([Callee, uses(Args, Linear, Env)]);
+uses(#e_call{callee = #e_lambda{} = L, args = Args}, Linear, Env) ->
+    %% a call consumes the lambda's captures
+    seq([captures(L, Linear, Env), uses(Args, Linear, Env)]);
+uses(#e_lambda{pos = Pos} = L, Linear, Env) ->
+    case captures(L, Linear, Env) of
         [] -> [];
-        [N | _] -> throw({type_error, Pos, "the reply-carrying value " ++ atom_to_list(N)
-                                           ++ " is captured by a lambda that is not passed"
-                                           " directly to spawn"})
+        [{N, _} | _] -> throw({type_error, Pos, "the reply-carrying value " ++ atom_to_list(N)
+                                                ++ " is captured by a lambda that is not called,"
+                                                " bound by `let`, or passed directly to spawn"})
     end;
 uses(#fn_decl{pos = Pos, body = Body}, Linear, Env) ->
     case [N || {N, _} <- uses(Body, Linear, Env)] of
@@ -211,15 +235,40 @@ clause_uses(#clause{pos = Pos, pattern = P, guard = G, body = B}, Linear, Env) -
 
 block_uses([], _Linear, _Env, Acc) ->
     seq(lists:reverse(Acc));
-block_uses([#binding{pos = Pos, pattern = P, expr = X} | Rest], Linear, Env, Acc) ->
+block_uses([#binding{pos = Pos, pattern = #p_var{name = F}, expr = #e_lambda{} = L} | Rest],
+           Linear, Env, Acc) ->
+    %% a let bound to a capturing lambda is a linear binding of the lambda
+    case captures(L, Linear, Env) of
+        [] ->
+            block_uses([#binding{pos = Pos, pattern = #p_var{name = F}, expr = L} | Rest],
+                       Linear, Env, Acc, plain);
+        Caps ->
+            RestUses = block_uses(Rest, [{lambda, F} | Linear], Env, []),
+            exactly_once(F, RestUses, Pos, Env),
+            Outer = [U || {N, _} = U <- RestUses, N =/= F],
+            seq(lists:reverse([Outer, Caps | Acc]))
+    end;
+block_uses([#binding{} = B | Rest], Linear, Env, Acc) ->
+    block_uses([B | Rest], Linear, Env, Acc, plain);
+block_uses([S | Rest], Linear, Env, Acc) ->
+    block_uses(Rest, Linear, Env, [uses(S, Linear, Env) | Acc]).
+
+block_uses([#binding{pos = Pos, pattern = P, expr = X} | Rest], Linear, Env, Acc, plain) ->
     XUses = uses(X, Linear, Env),
     Inner = linear_bindings(P, Env),
     RestUses = block_uses(Rest, Linear ++ Inner, Env, []),
     lists:foreach(fun(N) -> exactly_once(N, RestUses, Pos, Env) end, Inner),
     Outer = [U || {N, _} = U <- RestUses, not lists:member(N, Inner)],
-    seq(lists:reverse([Outer, XUses | Acc]));
-block_uses([S | Rest], Linear, Env, Acc) ->
-    block_uses(Rest, Linear, Env, [uses(S, Linear, Env) | Acc]).
+    seq(lists:reverse([Outer, XUses | Acc])).
+
+%% The uses a lambda's body makes of the enclosing linear names: its
+%% captures, each consumed once by the capture. The lambda's own linear
+%% parameters are checked here.
+captures(#e_lambda{pos = Pos, params = Params, body = Body}, Linear, Env) ->
+    Inner = [N || P <- Params, N <- linear_bindings(P#param.pattern, Env)],
+    BodyUses = uses(Body, Linear ++ Inner, Env),
+    lists:foreach(fun(N) -> exactly_once(N, BodyUses, Pos, Env) end, Inner),
+    [U || {N, _} = U <- BodyUses, not lists:member(N, Inner)].
 
 %% Sequential composition: a second use of a name is an error there.
 seq(Lists) ->
