@@ -15,7 +15,7 @@ citations_resolve_test() ->
     ReportHeads = headings(Report),
     GuideHeads = headings(Guide),
     Live = ["ernest_report.md", "README.md", "CLAUDE.md", "docs/implementation_plan.md",
-            "docs/architecture.md" | examples()],
+            "docs/architecture.md", "docs/shell_design.md" | examples()],
     Dangling =
         [{F, C} || F <- Live, C <- cites(read(F)), not resolves(C, report, ReportHeads, GuideHeads)]
         ++ [{"ernest_guide.md", C} || C <- cites(Guide),
