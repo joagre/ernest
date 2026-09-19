@@ -53,10 +53,12 @@ chk({tuple, Ds}, V, B) ->
 chk({map, K, D}, V, B) ->
     is_map(V) andalso maps:fold(fun(Key, Val, Ok) -> Ok andalso chk(K, Key, B) andalso chk(D, Val, B)
                                 end, true, V);
-chk({set, D}, V, B) ->
-    %% a version 2 set is a map from element to []
+chk({set, D}, {set, V}, B) ->
+    %% a version 2 set is a map from element to [], tagged (ernest@set)
     is_map(V) andalso maps:fold(fun(E, Val, Ok) -> Ok andalso Val =:= [] andalso chk(D, E, B)
                                 end, true, V);
+chk({set, _}, _, _) ->
+    false;
 chk({con, Cs}, V, _) when is_atom(V) ->
     lists:keyfind(V, 1, Cs) =:= {V, []};
 chk({con, Cs}, V, B) when is_tuple(V), tuple_size(V) > 1, is_atom(element(1, V)) ->
