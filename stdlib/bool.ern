@@ -1,6 +1,5 @@
-/// Operations on `Bool`, the type of `true` and `false`. The operators on
-/// it, `&&`, `||`, `==`, and `!=`, are the language's own; this module holds
-/// what is not an operator.
+/// Operations on `Bool`, the type of `true` and `false`. The language
+/// itself has `&&`, `||`, and `if`; this module holds the rest.
 ///
 /// ## Examples
 ///
@@ -15,12 +14,6 @@
 /// ```
 ///
 /// since 0.1.0
-
-//
-// Bool
-//
-// Appendix E.7 of the report, in Ernest.
-//
 
 /// The other truth value.
 export fn not(b : Bool) -> Bool = if b then false else true

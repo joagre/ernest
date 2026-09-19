@@ -23,3 +23,4 @@ Ernest is order-independent at top level; these are style choices, not correctne
 - **No alignment padding, anywhere.** Don't add spaces to align tokens across lines: `->`, `=`, trailing `//` comments, anything. Structural indentation (block bodies, clause separators) isn't padding — that stays. One space where a space is needed.
 - **Code lines ≤ 100 characters,** which `test/ern_style_tests.erl` checks. Split long expressions rather than let one line run wide. Prose in markdown can be longer.
 - **Block-comment banners for sections.** Open with `//` on its own line, one or more `// text` lines, close with `//` on its own line. Blank line before the opening, blank line after the closing. Not `// Section ----------`.
+- **A module with a doc block has no header banner.** The module's `///` block is its header (report §2.2); a banner in such a file marks a section, never the file.
