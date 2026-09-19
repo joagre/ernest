@@ -322,11 +322,7 @@ The standard library is then the first Ernest program of size, and the compiler'
 - Peer loss as §10 says: every process on the lost peer dead with `Fault("peer lost")`, monitors delivered, pending `remote` calls `Left(PeerLost)`; a peer that reappears is a new instance.
 - Two nodes with different versions of one type: reject at send, each message carrying its type hash and an unknown hash refused with a fault or `Left`; fetch on receipt waits for a program that needs it. The decisions log has the two shapes.
 
-**MVP 4 (optimizations).**
-
-- Erlang side: `process_flag(priority, ...)` and scheduling hints.
-
-**Toolchain, no MVP yet.** A canonical formatter, `ernc --format`, one style and no configuration, mechanical over the grammar; it lands before a second person writes Ernest. `Slot(a)`, a one-shot credit parallel to `Reply(a)` for backpressure, waits until the credit protocol has been written as a convention three times; the decisions log has its shape.
+**Toolchain and runtime, no MVP yet.** A canonical formatter, `ernc --format`, one style and no configuration, mechanical over the grammar; it lands before a second person writes Ernest. `Slot(a)`, a one-shot credit parallel to `Reply(a)` for backpressure, waits until the credit protocol has been written as a convention three times; the decisions log has its shape. Erlang scheduling hints, `process_flag(priority, ...)`, wait for a program that needs them; they were MVP 4 until 2026-09-19, when the runtime mailbox and the general receive guards had left it and one optimization is not a phase.
 
 No HTTP server or database connectors are planned; those are libraries for others to write on the foreign-library pattern of Appendix D, as MVP 2.5 step 5 lists. MVP 2.6 writes the first four libraries, JSON among them, to prove the pattern.
 
