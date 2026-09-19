@@ -29,18 +29,6 @@
 ///
 /// since 0.1.0
 
-//
-// Template
-//
-// The fictive module behind docs/module_doc_template.md: every place a doc
-// block may go (report §2.2), every section of a manual page a doc block
-// carries (Appendix E.0 rule 6), and everything `ernc --doc` renders (§11.4).
-// A test keeps the rendered file equal to this module's documentation and
-// another type-checks its examples.
-//
-// Needs MVP 1.
-//
-
 /// A point in the plane, in whole units.
 ///
 /// ### Examples
