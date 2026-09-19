@@ -1,16 +1,30 @@
 # Top-level build. Each application under lib/ has its own src/Makefile;
 # this one just runs them in order.
 
-APPS = utils lexer parser type_system runtime compiler cli
+APPS = utils lexer parser type_system runtime compiler cli ern_stdlib
 
 all:
 	@for app in $(APPS); do $(MAKE) -C lib/$$app/src $@ || exit 1; done
+	@$(MAKE) -s stdlib
+
+# The standard library written in Ernest: stdlib/ compiled by ernc, each
+# module installed in lib/ern_stdlib/ebin under its Erlang module name, where
+# the code path loads it and the checker reads its interface (plan, MVP 2.5).
+stdlib:
+	@bin/ernc --out-dir build/stdlib stdlib
+	@mkdir -p lib/ern_stdlib/ebin
+	@for f in build/stdlib/*.erc; do \
+	  cp $$f lib/ern_stdlib/ebin/ernest@$$(basename $$f .erc).beam; done
 
 # The unit tests of every application, then the integration tests in test/.
-test clean:
+test: all
 	@for app in $(APPS); do $(MAKE) -C lib/$$app/src $@ || exit 1; done
 	@$(MAKE) -C test $@
-	@if [ "$@" = clean ]; then rm -f examples/*.erc examples/**/*.erc; fi
+
+clean:
+	@for app in $(APPS); do $(MAKE) -C lib/$$app/src $@ || exit 1; done
+	@$(MAKE) -C test $@
+	@rm -rf build/stdlib examples/*.erc examples/**/*.erc
 
 # Rewrite test/golden/*.erl, the Erlang source the compiler emits for every
 # MVP 1 example, after an intended change to the emitter.
@@ -44,4 +58,4 @@ clean-emacs:
 	find . -path ./.git -prune -o \( -name '*~' -o -name '#*#' -o -name '.#*' \) -print0 \
 	  | xargs -0 rm -f
 
-.PHONY: all test clean clean-emacs sections coverage golden xref
+.PHONY: all test clean clean-emacs sections coverage golden xref stdlib

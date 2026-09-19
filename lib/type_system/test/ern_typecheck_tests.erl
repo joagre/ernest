@@ -350,10 +350,12 @@ or_pattern_test() ->
                          " Circle(n) or Square(n) -> n | Dot -> 0 }", area)),
     ?assertEqual("the alternatives of a clause bind different variables: `n` is bound by the"
                  " first alternative and not by this one",
-                 err(Shape ++ "fn f(s : Shape) = match s { Circle(n) or Dot -> n | Square(_) -> 0 }")),
+                 err(Shape ++ "fn f(s : Shape) ="
+                     " match s { Circle(n) or Dot -> n | Square(_) -> 0 }")),
     ?assertEqual("the alternatives of a clause bind different variables: `m` is bound by this"
                  " alternative and not by the first",
-                 err(Shape ++ "fn f(s : Shape) = match s { Dot or Square(m) -> 1 | Circle(_) -> 0 }")),
+                 err(Shape ++ "fn f(s : Shape) ="
+                     " match s { Dot or Square(m) -> 1 | Circle(_) -> 0 }")),
     [TypeErr | _] = errs("fn f(e : Either(Int, String)) = match e { Left(x) or Right(x) -> 1 }"),
     ?assertMatch({match, _}, re:run(TypeErr, "the alternatives bind `x` at one type")),
     ?assertEqual(ok, ok("fn f(e : Either(Int, Int)) = match e { Left(n) or Right(n) -> n }")),
@@ -790,11 +792,13 @@ local_fn_annotation_before_use_test() ->
 %% that shadows a prelude name qualified
 type_names_in_messages_test() ->
     ?assertMatch({error, [#diag{message =
-                                  "the argument does not fit f: expected Shape, found Optional(Shape)"}]},
+                                  "the argument does not fit f: expected Shape,"
+                                  " found Optional(Shape)"}]},
                  check("type Shape = Dot\nfn f(s : Shape) -> Int = 1\n"
                        "fn g() -> Int = f(Some(Dot))\n")),
     ?assertMatch({error, [#diag{message =
-                                  "the argument does not fit f: expected M.Optional, found Optional(Int)"}]},
+                                  "the argument does not fit f: expected M.Optional,"
+                                  " found Optional(Int)"}]},
                  check("type Optional = Nothing\nfn f(o : Optional) -> Int = 1\n"
                        "fn g() -> Int = f(List.get([1], 0))\n")),
     {ok, Http} = file:read_file("../../../examples/modules/net/http.ern"),
@@ -802,7 +806,8 @@ type_names_in_messages_test() ->
     {ok, Decls} = ern_parser:parse_string("fn f(r : Net.Http.Request) -> Int = 1\n"
                                           "fn g() -> Int = f(1)\n"),
     ?assertMatch({error, [#diag{message =
-                                  "the argument does not fit f: expected Net.Http.Request, found Int"}]},
+                                  "the argument does not fit f: expected Net.Http.Request,"
+                                  " found Int"}]},
                  ern_typecheck:check(['Main'], Decls, [Iface])).
 
 %% report §11.5, §3.9: a type variable prints under its annotation's name;
@@ -1004,7 +1009,8 @@ receive_guard_test() ->
                         " N(k) when (k > limit || k == -1) && go && k != 7 -> loop(limit, go)"
                         " | Stop -> Unit | N(_) -> Unit }")),
     ?assertEqual(ok, ok(Msg ++ "fn big(k : Int) -> Bool = k > 100\n"
-                        "fn f(m : Msg) -> Unit = match m { N(k) when big(k) -> Unit | _ -> Unit }")),
+                        "fn f(m : Msg) -> Unit ="
+                        " match m { N(k) when big(k) -> Unit | _ -> Unit }")),
     D = diag(Msg ++ "fn big(k : Int) -> Bool = k > 100\n"
              "fn loop() -> Unit with Msg = receive { N(k) when big(k) -> Unit | _ -> Unit }"),
     ?assertEqual("a `receive` guard is a comparison of variables, literals, and nullary"

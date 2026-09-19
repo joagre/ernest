@@ -112,14 +112,16 @@ prelude_env() ->
                                                               local_cons = #{}}),
                            E1
                        end, Env2, ern_prelude:stdlib_types()),
-    lists:foldl(fun({QName, Text}, E) ->
+    Env4 = lists:foldl(fun({QName, Text}, E) ->
                     {ok, Syntax} = ern_parser:parse_type(Text),
                     ProcessOnly = lists:member(QName, ern_prelude:process_only()),
                     {Scheme, E1} = signature_scheme(Syntax, ProcessOnly,
                                                     ern_prelude:eq_vars(QName), E),
                     E1#env{globals = maps:put(QName, Scheme, E1#env.globals)}
                 end, Env3#env{ns = [], local_types = #{}, local_cons = #{}, local_values = #{}},
-                ern_prelude:values()).
+                ern_prelude:values()),
+    %% the standard library modules written in Ernest, by their interfaces
+    lists:foldl(fun add_iface/2, Env4, ern_prelude:stdlib_ifaces()).
 
 %% Report §4.4: the type's info, and so the compiled interface, marks an
 %% abstract type; lookup_con refuses its constructor from another module.

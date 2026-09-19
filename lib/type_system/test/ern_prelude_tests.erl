@@ -13,7 +13,11 @@ values_test() ->
     Lines = code_lines(section("## 9. Prelude", "## 10. ")) ++
         code_lines(section("## Appendix E.", "## Appendix F")),
     Report = lists:sort(lists:append([signature(L) || L <- Lines])),
-    Tables = lists:sort([{qname(Q), normalize(T)} || {Q, T} <- ern_prelude:values()]),
+    %% a module written in Ernest gives its signatures by its interface
+    St = ern_typecheck:type_state(ern_typecheck:prelude_env()),
+    Compiled = [{qname(Q), normalize(ern_types:format_scheme(S, St))}
+                || I <- ern_prelude:stdlib_ifaces(), {Q, S} <- maps:to_list(element(4, I))],
+    Tables = lists:sort([{qname(Q), normalize(T)} || {Q, T} <- ern_prelude:values()] ++ Compiled),
     ?assertEqual(Report, Tables).
 
 %% report §9.3: the declared types

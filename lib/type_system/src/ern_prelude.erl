@@ -2,12 +2,15 @@
 %% Appendix E, as data. Types are Ernest source, the standard library's
 %% under their namespaces; values are name and type text, parsed by
 %% ern_parser:parse_type/1 and converted by the checker.
-%% The stdlib entries are here until the stdlib exists as compiled modules
-%% with interfaces of their own (implementation plan, Phase 2.4).
+%% A standard library module leaves these tables when it is rewritten in
+%% Ernest (plan, MVP 2.5 step 3); its signatures then come from its compiled
+%% interface, stdlib_ifaces/0.
 -module(ern_prelude).
 
 -export([builtin_types/0, declared_types/0, stdlib_types/0, values/0, process_only/0,
-         eq_vars/1]).
+         eq_vars/1, stdlib_ifaces/0]).
+
+-include_lib("type_system/include/ern_types.hrl").
 
 %% Types the runtime provides with no Ernest declaration: name and arity.
 -spec builtin_types() -> [{atom(), non_neg_integer()}].
@@ -59,7 +62,8 @@ stdlib_types() ->
 -spec process_only() -> [[atom()]].
 process_only() ->
     [[send], [spawn], ['Address', call], ['Address', callForever], [answer], [monitor],
-     [kill], [remote], [parallelRemote], ['Io', print], ['Io', println], ['Io', readLine], ['Io', debug],
+     [kill], [remote], [parallelRemote], ['Io', print], ['Io', println], ['Io', readLine],
+     ['Io', debug],
      ['Clock', now], ['Clock', alarm], ['Clock', alarmAt], ['Keys', subscribe],
      ['Fs', read], ['Fs', write], ['Fs', append], ['Fs', list], ['Fs', stat], ['Fs', makeDir],
      ['Fs', remove], ['Fs', rename], ['Fs', copy], ['Tcp', listen], ['Tcp', accept],
@@ -236,8 +240,6 @@ values() ->
      {['Char', toInt], "(Char) -> Int"},
      {['Char', fromInt], "(Int) -> Optional(Char)"},
      %% E.7 Bool
-     {['Bool', 'not'], "(Bool) -> Bool"},
-     {['Bool', toString], "(Bool) -> String"},
      %% E.8 Int
      {['Int', abs], "(Int) -> Int"},
      {['Int', min], "(Int, Int) -> Int"},
@@ -314,3 +316,28 @@ values() ->
      {['Tcp', read], "(Address(SockMsg), Int) -> Either(IoError, Bytes) with m"},
      {['Tcp', write], "(Address(SockMsg), Bytes) -> Unit with m"},
      {['Tcp', close], "(Address(SockMsg)) -> Unit with m"}].
+
+%% The interfaces of the standard library modules written in Ernest: every
+%% ernest@*.beam in an ern_stdlib ebin directory on the code path that
+%% carries an interface chunk (plan, MVP 2.5 step 2). A hand-written module
+%% has no chunk and is skipped.
+-spec stdlib_ifaces() -> [#iface{}].
+stdlib_ifaces() ->
+    Dirs = [D || D <- code:get_path(), filename:basename(filename:dirname(D)) =:= "ern_stdlib"],
+    Files = lists:usort(lists:append([filelib:wildcard(filename:join(D, "ernest@*.beam"))
+                                      || D <- Dirs])),
+    lists:append([stdlib_iface(F) || F <- Files]).
+
+stdlib_iface(File) ->
+    case beam_lib:chunks(File, ["ErnI"]) of
+        {ok, {_, [{_, Chunk}]}} ->
+            case catch binary_to_term(Chunk) of
+                #{iface := {iface, Ns, Types, Values}} ->
+                    [#iface{namespace = Ns, types = maps:from_list(Types),
+                            values = maps:from_list(Values)}];
+                _ ->
+                    []
+            end;
+        _ ->
+            []
+    end.

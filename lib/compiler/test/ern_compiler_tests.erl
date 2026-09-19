@@ -633,7 +633,8 @@ foreign_messages_test() ->
                   "}\n"),
     ?assertEqual({fault, <<"message does not match Msg">>}, R0),
     {ok, Out} = run("type Msg = Go(Int)\n"
-                    "foreign fn good(a : Address(Msg)) -> Unit with m = \"ern_compiler_tests:good/1\"\n"
+                    "foreign fn good(a : Address(Msg)) -> Unit with m ="
+                    " \"ern_compiler_tests:good/1\"\n"
                     "foreign fn tell(targets : List(Address(Msg))) -> Unit with m"
                     " = \"ern_compiler_tests:tell/1\"\n"
                     "export fn main() -> Unit with Msg = {\n"
@@ -644,7 +645,8 @@ foreign_messages_test() ->
                     "}\n"),
     ?assertEqual(<<"1\n2\n">>, Out),
     {R2, _} = run("type Ask = Ask(reply : Reply(Int))\n"
-                  "foreign fn server() -> Address(Ask) with m = \"ern_compiler_tests:junk_server/0\"\n"
+                  "foreign fn server() -> Address(Ask) with m ="
+                  " \"ern_compiler_tests:junk_server/0\"\n"
                   "export fn main() -> Unit with Never = {\n"
                   "    let n = Address.callForever(server(), fn(r) = Ask(reply = r));\n"
                   "    Io.println(Int.toString(n))\n"
@@ -704,7 +706,8 @@ bitstrings_test() ->
         " Io.println(Int.toString(len) <> \": \" <> show(body) <> \"| \" <> show(rest))\n"
         "      | None -> Io.println(\"none\")\n"
         "    };\n"
-        "    match parseFrame(<<0>>) { Some(_) -> Io.println(\"some\") | None -> Io.println(\"none\") };\n"
+        "    match parseFrame(<<0>>) {"
+        " Some(_) -> Io.println(\"some\") | None -> Io.println(\"none\") };\n"
         "    match <<'é':utf8, 0>> { <<c:utf8, _:bytes>> -> Io.println(String.fromList([c]))"
         " | _ -> Io.println(\"?\") };\n"
         "    Io.println(nibbles(<<31, 42>>));\n"

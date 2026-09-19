@@ -51,7 +51,8 @@ chk({list, D}, V, B) -> is_list(V) andalso lists:all(fun(X) -> chk(D, X, B) end,
 chk({tuple, Ds}, V, B) ->
     is_tuple(V) andalso tuple_size(V) =:= length(Ds) andalso all(Ds, tuple_to_list(V), B);
 chk({map, K, D}, V, B) ->
-    is_map(V) andalso maps:fold(fun(Key, Val, Ok) -> Ok andalso chk(K, Key, B) andalso chk(D, Val, B)
+    is_map(V) andalso maps:fold(fun(Key, Val, Ok) ->
+                                    Ok andalso chk(K, Key, B) andalso chk(D, Val, B)
                                 end, true, V);
 chk({set, D}, {set, V}, B) ->
     %% a version 2 set is a map from element to [], tagged (ernest@set)
@@ -84,7 +85,8 @@ expose({map, _, D}, V, B) when is_map(V) -> maps:map(fun(_, X) -> expose(D, X, B
 expose({con, Cs}, V, B) when is_tuple(V), tuple_size(V) > 1 ->
     case lists:keyfind(element(1, V), 1, Cs) of
         {Tag, Ds} when length(Ds) =:= tuple_size(V) - 1 ->
-            list_to_tuple([Tag | [expose(D, X, B) || {D, X} <- lists:zip(Ds, tl(tuple_to_list(V)))]]);
+            Fields = lists:zip(Ds, tl(tuple_to_list(V))),
+            list_to_tuple([Tag | [expose(D, X, B) || {D, X} <- Fields]]);
         _ -> V
     end;
 expose({mu, Id, D}, V, B) -> expose(D, V, B#{Id => D});

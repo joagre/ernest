@@ -47,7 +47,8 @@ call_timeout_test() ->
 %% by itself
 deadlock_test() ->
     Quiet = #{stdout => fun(_) -> ok end},
-    ?assertEqual(deadlock, ern_rt:run_main(fun() -> receive never -> ok end end, <<"main">>, Quiet)),
+    ?assertEqual(deadlock,
+                 ern_rt:run_main(fun() -> receive never -> ok end end, <<"main">>, Quiet)),
     ?assertEqual(deadlock,
                  ern_rt:run_main(fun() ->
                                      _ = ern_rt:spawn('Local', fun() -> receive x -> ok end end,
@@ -61,7 +62,8 @@ deadlock_test() ->
                                          end
                                      end, <<"main">>, Quiet)),
     ?assertEqual(ok, ern_rt:run_main(fun() ->
-                                         ern_rt:send(ern_rt:sys(clock), {'After', 250, ern_rt:self()}),
+                                         Clock = ern_rt:sys(clock),
+                                         ern_rt:send(Clock, {'After', 250, ern_rt:self()}),
                                          receive 'Unit' -> ok end
                                      end, <<"main">>, Quiet)),
     ?assertEqual(ok, ern_rt:run_main(fun() ->

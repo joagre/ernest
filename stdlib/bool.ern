@@ -1,0 +1,47 @@
+/// Operations on `Bool`, the type of `true` and `false`. The operators on
+/// it, `&&`, `||`, `==`, and `!=`, are the language's own; this module holds
+/// what is not an operator.
+///
+/// ## Examples
+///
+/// ```ernest
+/// Bool.not(1 < 2)
+/// // => false
+/// ```
+///
+/// ```ernest
+/// Bool.toString(true)
+/// // => "true"
+/// ```
+///
+/// since 0.1.0
+
+//
+// Bool
+//
+// Appendix E.7 of the report, in Ernest.
+//
+
+/// The other truth value.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Bool.not(false)
+/// // => true
+/// ```
+///
+/// since 0.1.0
+export fn not(b : Bool) -> Bool = if b then false else true
+
+/// `"true"` or `"false"`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Bool.toString(false)
+/// // => "false"
+/// ```
+///
+/// since 0.1.0
+export fn toString(b : Bool) -> String = if b then "true" else "false"

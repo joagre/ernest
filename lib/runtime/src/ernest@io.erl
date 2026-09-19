@@ -26,7 +26,8 @@ render(B) when is_binary(B) ->
         _ -> ["<<", join([integer_to_list(X) || <<X>> <= B]), ">>"]
     end;
 render(L) when is_list(L) -> ["[", join([render(X) || X <- L]), "]"];
-render({set, S}) when is_map(S) -> ["Set.fromList([", join([render(K) || K <- lists:sort(maps:keys(S))]), "])"];
+render({set, S}) when is_map(S) ->
+    ["Set.fromList([", join([render(K) || K <- lists:sort(maps:keys(S))]), "])"];
 render(T) when is_tuple(T), tuple_size(T) > 0, is_atom(element(1, T)) ->
     [Tag | Fields] = tuple_to_list(T),
     [atom_to_list(Tag), "(", join([render(F) || F <- Fields]), ")"];

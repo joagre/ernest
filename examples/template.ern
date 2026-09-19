@@ -96,6 +96,7 @@ export abstract type Stack = Stack(List(Shape)) with {
     pop : (Stack) -> Optional(#(Shape, Stack))
 }
 
+/// since 0.1.0
 export let Stack.empty = Stack([])
 ///
 /// since 0.1.0

@@ -60,11 +60,12 @@ docs/              decisions log, implementation plan, architecture note, style 
 examples/          Ernest programs: the paper programs and the small ones
 lib/               the compiler, as Erlang applications: lexer, parser,
                    type_system, runtime, compiler, cli, utils (vendored
-                   getopt); each has src/, include/, ebin/, test/
+                   getopt), and ern_stdlib, the standard library's Erlang
+                   half and compiled modules; each has src/, include/, ebin/, test/
 test/              what spans applications: the hand-written target modules,
                    the integration tests, expected/, golden/
 bin/               ernc and ern, as escript sources
-stdlib/            the standard library as Ernest source, from MVP 2.5
+stdlib/            the standard library as Ernest source
 libs/              the first-party libraries, each a source root, from MVP 2.6
 ```
 
@@ -75,8 +76,8 @@ A module path segment is one lowercase word (report §11.1); a multi-word module
 Erlang/OTP 27 and GNU make. No rebar3, no OTP behaviours.
 
 ```
-make              compile every application into its ebin/
-make test         run the EUnit tests, then the integration tests in test/
+make              compile every application into its ebin/, then stdlib/
+make test         build, run the EUnit tests, then the tests in test/
 make sections     list the report sections no test cites
 make xref         check that every section citation in the documents resolves
 make coverage     every section with how many tests cite it, thinnest first

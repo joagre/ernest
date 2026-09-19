@@ -52,7 +52,8 @@ cites(Bin) ->
               {match, Ms} -> [{kind(W), N} || [W, N] <- Ms];
               nomatch -> []
           end,
-    App = case re:run(Bin, "Appendix ([A-F])(?:\\.([0-9]+))?", [global, {capture, all_but_first, list}]) of
+    App = case re:run(Bin, "Appendix ([A-F])(?:\\.([0-9]+))?",
+                      [global, {capture, all_but_first, list}]) of
               {match, As} -> lists:append([case A of [X] -> [{report, "Appendix " ++ X}];
                                                      [X, E] -> [{report, X ++ "." ++ E}]
                                            end || A <- As]);

@@ -137,6 +137,8 @@ Template.Stack.push(Template.Dot(Template.Point(x = 0, y = 0)), Template.Stack.e
 Stack.empty : Stack
 ```
 
+*Since 0.1.0.*
+
 The stack with nothing on it.
 
 ## Stack.push
