@@ -14,6 +14,7 @@ A module's documentation is a section 3 manual page. Its headings fall in three 
 - The module's doc block, first in the file with a blank line after it: what the module is for in free text, then `## Examples` with a few central examples, the ones a reader tries first, one per core operation.
 - DESCRIPTION for every exported declaration: one or a few sentences, saying what the type does not say, which occurrence `remove` removes, the order `toList` produces, the range `next` draws from. A member of an abstract type is documented at its signature entry and inherits that text under its own heading.
 - `### Errors` for every function that faults, naming the fault; no other function has the section, by E.0 rule 4.
+- `since v` as the last line of the module's doc block and of every exported declaration's, `v` the `VERSION` in which it appeared; rendered as *Since v.* after the synopsis, so a later tool can list what a version added.
 - `### Examples` with one example for every exported declaration, unless the sentence suffices, as for an exported constant. An example ends in `// => v`, where `v` is what `Io.debug` prints for its value; the test runs the example and compares, so a documented result is a tested one. An example whose value is of an abstract type omits the line, since the rendering would show the private representation.
 
 **Optional**, added where the author sees fit:
@@ -28,6 +29,8 @@ Each standard library module is written and documented in one pass, to this page
 
 <!-- generated: ernc --doc examples/template.ern -->
 # Ernest module Template
+
+*Since 0.1.0.*
 
 Shapes in the plane and their areas. A shape is a point alone or a
 circle around one; `area` is the one operation every shape supports, and
@@ -64,6 +67,8 @@ match Template.Stack.pop(s) {
 type Point = Point(x : Int, y : Int)
 ```
 
+*Since 0.1.0.*
+
 A point in the plane, in whole units.
 
 ### Examples
@@ -82,6 +87,8 @@ Template.Point(x = 1, y = 2)
 ```ernest
 type Shape = Dot(Point) | Circle(centre : Point, radius : Int)
 ```
+
+*Since 0.1.0.*
 
 A shape: a point alone, or a circle of a radius around a centre.
 
@@ -104,6 +111,8 @@ abstract type Stack with {
     pop : (Stack) -> Optional(#(Shape, Stack))
 }
 ```
+
+*Since 0.1.0.*
 
 Shapes in the order they were pushed, most recent on top. The
 representation is private.
@@ -136,6 +145,8 @@ The stack with nothing on it.
 Stack.push : (Shape, Stack) -> Stack
 ```
 
+*Since 0.1.0.*
+
 The stack with the shape on top.
 
 ## Stack.pop
@@ -144,6 +155,8 @@ The stack with the shape on top.
 Stack.pop : (Stack) -> Optional(#(Shape, Stack))
 ```
 
+*Since 0.1.0.*
+
 The top shape and the rest, `None` when the stack is empty.
 
 ## circle
@@ -151,6 +164,8 @@ The top shape and the rest, `None` when the stack is empty.
 ```ernest
 circle : (Point, Int) -> Shape
 ```
+
+*Since 0.1.0.*
 
 The circle of the radius around the centre.
 
@@ -166,6 +181,8 @@ Template.circle(Template.Point(x = 1, y = 2), 3)
 ```ernest
 area : (Shape) -> Int
 ```
+
+*Since 0.1.0.*
 
 The area of the shape: zero for a point, three times the radius squared
 for a circle, since the module has no `Float`.
@@ -186,6 +203,8 @@ Template.area(Template.Dot(Template.Point(x = 0, y = 0)))
 ```ernest
 checked : (Int) -> Int
 ```
+
+*Since 0.1.0.*
 
 The radius itself when it is not negative.
 

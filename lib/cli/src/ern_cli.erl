@@ -419,7 +419,9 @@ doc_text(#mod{ns = Ns, file = File, decls = Decls, deps = Deps}, OutDir) ->
     case ern_typecheck:check(Ns, Decls, DepIfaces) of
         {ok, Typed, _, Env} ->
             ModDoc = case [T || #module_doc{text = T} <- Typed] of
-                         [T | _] -> [T, "\n\n"];
+                         [T | _] ->
+                             {Text, Since} = split_since(T),
+                             [since_line(Since), Text, "\n\n"];
                          [] -> []
                      end,
             %% a member of an abstract type is documented at its signature
@@ -439,16 +441,32 @@ documented(#module_doc{}) -> false;
 documented(D) -> exported(D) orelse doc_of(D) =/= undefined.
 
 doc_decl(D, Entries, Env) ->
-    Doc = case doc_of(D) of
-              undefined -> maps:get(member_key(D), Entries, undefined);
-              Own -> Own
-          end,
-    ["## ", heading(D), "\n\n```ernest\n", signature(D, Env), "\n```\n\n",
-     case Doc of
+    {Own, Since} = case doc_of(D) of
+                       undefined -> {undefined, undefined};
+                       OwnDoc -> split_since(OwnDoc)
+                   end,
+    %% a member whose own block is only its `since` line inherits the entry's text
+    Text = case Own of
+               T when T =:= undefined; T =:= <<>> -> maps:get(member_key(D), Entries, undefined);
+               _ -> Own
+           end,
+    ["## ", heading(D), "\n\n```ernest\n", signature(D, Env), "\n```\n\n", since_line(Since),
+     case Text of
          undefined -> [];
-         _ -> [Doc, "\n\n"]
+         _ -> [Text, "\n\n"]
      end,
      items(D)].
+
+%% Appendix E.0 rule 6: a doc block's last line `since v` names the version
+%% the declaration appeared in; it is rendered after the synopsis.
+split_since(Doc) ->
+    case re:run(Doc, "^(.*?)\\n?since ([0-9][0-9A-Za-z.+-]*)\\s*$", [dotall, {capture, all_but_first, binary}]) of
+        {match, [Text, V]} -> {string:trim(Text, trailing), V};
+        nomatch -> {Doc, undefined}
+    end.
+
+since_line(undefined) -> [];
+since_line(V) -> ["*Since ", V, ".*\n\n"].
 
 member_key(#fn_decl{owner = O, name = N}) -> {O, N};
 member_key(#let_decl{owner = O, name = N}) -> {O, N};

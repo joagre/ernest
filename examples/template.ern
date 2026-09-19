@@ -26,6 +26,8 @@
 /// ## See also
 ///
 /// `Int` (Appendix E.8) for the arithmetic used.
+///
+/// since 0.1.0
 
 //
 // Template
@@ -47,6 +49,8 @@
 /// Template.Point(x = 1, y = 2)
 /// // => Point(1, 2)
 /// ```
+///
+/// since 0.1.0
 export type Point = Point(
     /// The horizontal coordinate, growing to the right.
     x : Int,
@@ -61,6 +65,8 @@ export type Point = Point(
 /// Template.Circle(centre = Template.Point(x = 0, y = 0), radius = 1)
 /// // => Circle(Point(0, 0), 1)
 /// ```
+///
+/// since 0.1.0
 export type Shape =
     /// A point alone; its area is zero.
     Dot(Point)
@@ -79,6 +85,8 @@ export type Shape =
 /// ### See also
 ///
 /// `List` (Appendix E.2), which a stack is a restriction of.
+///
+/// since 0.1.0
 export abstract type Stack = Stack(List(Shape)) with {
     /// The stack with nothing on it.
     empty : Stack;
@@ -89,7 +97,11 @@ export abstract type Stack = Stack(List(Shape)) with {
 }
 
 export let Stack.empty = Stack([])
+///
+/// since 0.1.0
 export fn Stack.push(s, Stack(ss)) = Stack(s :: ss)
+///
+/// since 0.1.0
 export fn Stack.pop(Stack(ss)) = match ss { [] -> None | s :: rest -> Some(#(s, Stack(rest))) }
 
 /// The circle of the radius around the centre.
@@ -100,6 +112,8 @@ export fn Stack.pop(Stack(ss)) = match ss { [] -> None | s :: rest -> Some(#(s, 
 /// Template.circle(Template.Point(x = 1, y = 2), 3)
 /// // => Circle(Point(1, 2), 3)
 /// ```
+///
+/// since 0.1.0
 export fn circle(centre : Point, radius : Int) -> Shape =
     Circle(centre = centre, radius = radius)
 
@@ -116,6 +130,8 @@ export fn circle(centre : Point, radius : Int) -> Shape =
 /// ### See also
 ///
 /// `circle`, which builds the shape whose area is not zero.
+///
+/// since 0.1.0
 export fn area(s : Shape) -> Int = match s {
     Dot(_) -> 0
   | Circle(radius = r) -> 3 * r * r
@@ -134,6 +150,8 @@ export fn area(s : Shape) -> Int = match s {
 /// Template.checked(4)
 /// // => 4
 /// ```
+///
+/// since 0.1.0
 export fn checked(radius : Int) -> Int =
     if radius < 0 then todo("negative radius") else radius
 
