@@ -54,7 +54,7 @@ Four layers:
 ```
 ernest_report.md   the language report (normative)
 ernest_guide.md    the reading guide
-docs/              decisions log, implementation plan, architecture note
+docs/              decisions log, implementation plan, architecture note, style guides
 examples/          Ernest programs: the paper programs and the small ones
 lib/               the compiler, as Erlang applications: lexer, parser,
                    type_system, runtime, compiler, cli, utils (vendored
