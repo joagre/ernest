@@ -17,7 +17,9 @@ double : (Int) -> Int
 xs : List(Int)
 ```
 
-A declaration prints its name and its type; a `let` its name and type; an expression its value and type. `:type e` prints the type alone and evaluates nothing.
+A declaration prints its name and its type; a `let` its name and type; an expression its value and type. `:type e` prints the type alone and evaluates nothing. The last expression's value is bound to `it`, as in every ML-family shell, so `it` at the next prompt is that value at that type.
+
+A large value is printed up to a depth and a length, the rest shown as `...`; `:set depth n` and `:set length n` change the limits, and `Io.debug` prints a value in full.
 
 ## The parts
 
@@ -60,8 +62,21 @@ A command is written with a `:` prefix, as in GHCi, and is not a function. It ca
 - **`:bindings`** and **`:forget x`**: the bindings made by `let` at the prompt, and forgetting one or all of them.
 - **`:flush`**: prints and empties the shell's mailbox. Without it a message sent to `self()` at the prompt is invisible.
 - **`:processes`**: the live processes with their spawn sites, which the runtime's process table already records (§6.9).
+- **`:info Name`**: the declaration behind a name, where `:type` gives only the type. For a type it shows the constructors, for a function its type and the module it comes from.
+- **`:browse Module`**: every export of a module with its type, the compact overview beside `:doc`'s text.
+- **`:load file`**: brings a source file's declarations into the session, as if typed at the prompt.
 - **`:reload Module`**: recompiles and reloads a module during development. It is a toolchain convenience and does not compete with §6.10's `Upgrade`.
+- **`:set depth n`** and **`:set length n`**: the printing limits above.
 - **`:help`** and **`:quit`**.
+
+## What other shells offer
+
+- **GHCi, Haskell.** Commands with a `:` prefix, the convention taken here: `:type`, `:kind`, `:info` for a name's declaration and where it came from, `:browse Module` for a module's exports, `:load` and `:reload`, `:module` for what is in scope, `:{` and `:}` around multi-line input, `it` for the last value, `:set +t` to print each result's type, a step debugger with `:break`, `:step`, `:trace`, and `:history`, `:sprint` to show a value without forcing it, `:def` for new commands, `:!` for a system command.
+- **The OCaml toplevel and `utop`.** Directives with a `#` prefix. Every result prints with its type, `- : int = 3`, the choice taken here. `#use` loads a source file, `#load` and `#require` libraries; `#show` prints a declaration and `#typeof` a type; `#trace f` prints every call and return of a function; `#print_depth` and `#print_length` cap what a large value prints; `#install_printer` registers a printer for a type. `utop` adds completion, colours, and history.
+- **SML/NJ.** `val it = 3 : int`: the value, its type, and `it` in one line; `use` loads a file; a setting caps the print depth.
+- **`iex`, Elixir.** `h` for documentation, `i` to describe any value, `t` for types, `exports(Module)`, `v(n)` for earlier results, `recompile()`, and breakpoints with `IEx.pry`.
+- **`ucm`, Unison.** Watch expressions: a line starting with `>` in a scratch file is evaluated and shown each time the file is saved.
+- **Gleam** has no shell.
 
 ## What the Ernest shell leaves out
 
@@ -71,6 +86,10 @@ A command is written with a `:` prefix, as in GHCi, and is not a function. It ca
 - **`rp`.** The shell prints results in full, and `Io.debug` covers the rest.
 - **`cd`, `pwd`, `ls`.** The `Fs` module does this in the language; a command would be a second way (principle 2).
 - **`v(N)`, `e(N)`, `bt`, `memory`, `uptime`, and job control.** Power tooling a first shell does not need; each may come later on its own merits.
+- **Custom printers**, OCaml's `#install_printer`. A value has one rendering, `Io.debug`'s.
+- **`:!` system commands and `:def` user commands**, GHCi's. The terminal and `Fs` already exist, and a shell with user-defined commands is a second language.
+- **A step debugger.** A project of its own. OCaml shows that call tracing is most of what a shell debugger is used for; `:trace f`, printing each call and return of a function, is a later item for that reason.
+- **Watch expressions**, Unison's. They belong to an editor integration, not to the shell.
 
 ## A line that faults
 
