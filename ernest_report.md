@@ -30,7 +30,7 @@ Source text is Unicode in UTF-8; a leading byte-order mark (U+FEFF) is stripped.
 
 `//` to end of line and `/* ... */`, which nests, are removed by the lexer and take part in no grammar rule.
 
-`///` to end of line is a doc comment; consecutive `///` lines form a doc block. A doc block immediately preceding a declaration, with no blank line between, is that declaration's documentation, extractable by the toolchain, section 11. Elsewhere it is an ordinary comment.
+`///` to end of line is a doc comment; consecutive `///` lines form a doc block, whose text is CommonMark 0.31. A doc block immediately preceding a declaration, a constructor, a named field, or a signature entry, with no blank line between, is its documentation, extractable by the toolchain, section 11. A doc block before the first declaration, with a blank line after it, is the module's documentation. Elsewhere it is an ordinary comment.
 
 ### 2.3 Identifiers
 
@@ -248,7 +248,7 @@ A *module* is one source file, ending in `.ern`: the unit of compilation and of 
 
 **Files are namespaces.** A file at `a/b/c.ern` under the source root provides the namespace `A.B.C`. Each segment is the path segment with its first letter uppercased: `http.ern` is `Http`, `httpv2.ern` is `Httpv2`. Path segments are one lowercase word (§11.1), so the mapping is one-to-one. The top of the hierarchy, where the prelude lives, is provided by the runtime, not by user code.
 
-**Declarations are local; `export` marks the boundary.** A declaration is written with its local name. `fn parse` in `net/http.ern` is exported as `Net.Http.parse` when marked `export`; otherwise it is private to its module. The qualified name appears at use sites, never at declarations. Two exported declarations with the same qualified name are an error. A module namespace may not coincide with a namespace of the prelude or the standard library: `io.ern` at the source root is an error. There is no export list and no `import`.
+**Declarations are local; `export` marks the boundary.** A declaration is written with its local name. `fn parse` in `net/http.ern` is exported as `Net.Http.parse` when marked `export`; otherwise it is private to its module. The qualified name appears at use sites, in the module itself as well, never at declarations. Two exported declarations with the same qualified name are an error. A module namespace may not coincide with a namespace of the prelude or the standard library: `io.ern` at the source root is an error. There is no export list and no `import`.
 
 ```
 // net/http.ern
@@ -802,7 +802,7 @@ Options are long: `--name`, or `--name value` for one that takes a value.
 
 ### 11.4 Documentation extraction
 
-`ernc --doc file.ern` writes the module's documentation to stdout as Markdown: every exported declaration and every declaration with a doc comment, each with its type (§11.5) and its doc comment, in source order.
+`ernc --doc file.ern` writes the module's documentation to stdout as CommonMark: a title with the module's namespace and the module's doc block; then, in source order, every exported declaration and every declaration with a doc block, each under a heading of its name as the module writes it, with its type (§11.5) in a code block, its doc block, and the doc blocks of its constructors, fields, or signature entries as a list. `ernc --doc src-dir` writes one such document per module into `build-dir` beside the `.erc`, and `index.md` listing them. A declaration's heading is level two, so a heading inside its doc block is level three or deeper; a heading in the module's doc block is level two. Appendix E.0 rule 6 says what a doc block contains.
 
 ### 11.5 Diagnostics
 
@@ -1073,7 +1073,7 @@ Eight rules give a function its shape.
 3. A conversion is named by the other type and lives in the subject's module: `String.toInt`, `String.fromList`, `Int.toString`. When one conversion has several policies, the policy is the name: `Float.round`, `Float.floor`, `Float.ceil`.
 4. A partial operation returns `Optional`; one with a cause returns `Either`. No function here faults except as §7.4 says.
 5. A function is pure unless its value lives in a process: the modules over the system references of §8.2 carry `with m`, nothing else does. Every function that takes a function is effect-polymorphic (§3.9).
-6. What the type does not say, the comment on the signature says: which occurrence `remove` removes, the order `toList` produces, the range `next` draws from.
+6. A module is documented as a section 3 manual page, in CommonMark (§2.2). The module's doc block says what the module is for, then has the sections `Examples`, with one central example, and `See also`. Every declaration has a doc block, a member of an abstract type at its signature entry: one sentence saying what the type does not say, which occurrence `remove` removes, the order `toList` produces, the range `next` draws from; an `Errors` section when it faults, and none otherwise (rule 4); an `Examples` section with one example; `See also` when there is something to see. The name and the type are the heading and the code block `ernc --doc` renders (§11.4).
 7. A type a module declares is listed in its section as its functions are, `foreign type Seed` in E.13, and is named for what it is within the module, never for the module. The types the runtime speaks are the prelude's, §9.3.
 8. A system reference of §8.2 is used through its standard library module, never by `send`. A function that waits takes the milliseconds as its last argument and answers `Left(Timeout)`; `Clock.now`, `Tcp.listen`, and `Io.readLine` take none, the first two answered at once and the third waiting for the user; one that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9).
 

@@ -16,13 +16,14 @@
 %% DeclName: name is an ident or a userop atom; owner is the typename prefix
 %% of a type member (`fn Stack.push`), else undefined.
 
+-record(module_doc, {pos, text}). % the module's doc block, first in the list, report §2.2
 -record(type_decl, {pos, doc, export = false, name, params = [], constructors}).
--record(constructor, {pos, name, fields = none}).
+-record(constructor, {pos, doc, name, fields = none}).
 %% fields: none | {positional, Type} | {named, [#field{}]}
--record(field, {pos, name, type}).
+-record(field, {pos, doc, name, type}).
 
 -record(abstract_decl, {pos, doc, export = false, type, signatures}).
--record(signature, {pos, name, type}).
+-record(signature, {pos, doc, name, type}).
 
 -record(fn_decl, {pos, doc, export = false, owner, name, params, ret, effect, body,
                   type}).

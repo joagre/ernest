@@ -633,6 +633,13 @@ abstract_type_test() ->
                      "fn Stack.size(s) = true")),
     ?assertEqual("Nope is not a type declared in this module", err("fn Nope.f() = 1")).
 
+%% report §4.2: a module may name its own declarations by their qualified
+%% names, in any order
+self_qualified_test() ->
+    ?assertEqual("() -> Int", type_of("export fn f() = M.g()\nfn g() = 1\n", f)),
+    ?assertEqual("(M.T) -> Int", type_of("type T = T(Int)\nexport fn f(t) = M.T.n(t)\n"
+                                         "fn T.n(T(n)) = n\n", f)).
+
 %% report §4.4: the constructor of an abstract type appears only in the
 %% definitions its signature names; a local fn inside such a definition is
 %% part of it
@@ -705,7 +712,7 @@ modules_example_test() ->
 examples_test_() ->
     Files = filelib:wildcard("../../../examples/*.ern"),
     Checks = ["counter", "upgrade", "hello", "pingpong", "remote", "stack", "patterns",
-              "kvparser", "ets", "filesync", "repl", "snake"],
+              "kvparser", "ets", "filesync", "repl", "snake", "template"],
     [{F, fun() ->
               {ok, Bin} = file:read_file(F),
               Base = filename:basename(F, ".ern"),

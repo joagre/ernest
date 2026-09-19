@@ -63,7 +63,8 @@ ernc_options() ->
      {emit, undefined, "emit", string, "erl: write the module's Erlang source instead of .erc"},
      {no_clean, undefined, "no-clean", undefined,
       "keep stale .erc files under the build directory"},
-     {doc, undefined, "doc", undefined, "write the doc comments of a file to stdout as Markdown"},
+     {doc, undefined, "doc", undefined,
+      "write the documentation of a file to stdout, of a directory into the build directory"},
      {errors, undefined, "errors", string, "short: the first line of each error only"},
      {help, undefined, "help", undefined, "print this text"},
      {version, undefined, "version", undefined, "print the version"}].
@@ -78,7 +79,7 @@ ernc(Args, Err) ->
 
 ernc_main(Opts, Rest, Err) ->
     case {Rest, lists:member(doc, Opts)} of
-        {[File], true} -> doc(Opts, File, Err);
+        {[Path], true} -> doc(Opts, Path, Err);
         {[Path], false} -> ernc_compile(Opts, Path, Err);
         _ -> usage_fail("one file or directory argument is required")
     end.
@@ -206,7 +207,8 @@ parse_module(#mod{file = File} = M, Root) ->
     case ern_parser:parse_string(Bin) of
         {ok, Decls} ->
             namespace_clash(M#mod{decls = Decls}, Root),
-            M#mod{decls = Decls, deps = deps(Decls, Root)};
+            %% a module naming itself qualified (report §4.2) depends on nothing by it
+            M#mod{decls = Decls, deps = deps(Decls, Root) -- [M#mod.ns]};
         {error, E} -> throw({errors, File, [E]})
     end.
 
@@ -370,39 +372,121 @@ remove_empty(Dir, Top) ->
         _ -> ok
     end.
 
-%% Report §11.4: the module's documentation as Markdown: every exported
-%% and every documented declaration, with its type (§11.5) and its doc
-%% comment. The file is type-checked as for a compilation.
-doc(Opts, File, Err) ->
-    filelib:is_regular(File) orelse fail("no such file " ++ File),
-    Root = absolute(proplists:get_value(source_root, Opts, ".")),
-    OutDir = absolute(proplists:get_value(out_dir, Opts, Root)),
-    try
-        Mod = module_of(absolute(File), Root),
-        [#mod{ns = Ns, decls = Decls, deps = Deps}] = compile_order([Mod], Root),
-        DepIfaces = [I || D <- Deps, {_, I} <- [dep_iface(D, #{}, OutDir)]],
-        case ern_typecheck:check(Ns, Decls, DepIfaces) of
-            {ok, Typed, _, Env} ->
-                lists:foreach(fun(D) -> doc_decl(D, Env) end, Typed),
-                0;
-            {error, Errors} ->
-                throw({errors, File, Errors})
-        end
-    catch
-        throw:{errors, F, Errors1} -> report_errors(Opts, F, Errors1, Err)
-    end.
-
-doc_decl(D, Env) ->
-    case exported(D) orelse doc_of(D) =/= undefined of
+%% Report §11.4: a file's documentation to stdout, a directory's into the
+%% build directory, one document per module and an index. The modules are
+%% compiled first, so every document is of a module that type-checks and
+%% every dependency has an interface.
+doc(Opts, Path, Err) ->
+    case filelib:is_dir(Path) of
         true ->
-            io:format("### ~s~n~n~s~n", [decl_name(D), signature(D, Env)]),
-            case doc_of(D) of
-                undefined -> ok;
-                Doc -> io:format("~s~n~n", [Doc])
+            case ernc_compile(Opts -- [doc], Path, Err) of
+                0 -> doc_dir(Opts, Path);
+                Status -> Status
             end;
         false ->
-            ok
+            filelib:is_regular(Path) orelse fail("no such file " ++ Path),
+            Root = absolute(proplists:get_value(source_root, Opts, ".")),
+            OutDir = absolute(proplists:get_value(out_dir, Opts, Root)),
+            try
+                Mod = module_of(absolute(Path), Root),
+                [Parsed] = compile_order([Mod], Root),
+                io:put_chars(doc_text(Parsed, OutDir)),
+                0
+            catch
+                throw:{errors, F, Errors} -> report_errors(Opts, F, Errors, Err)
+            end
     end.
+
+doc_dir(Opts, Path) ->
+    Root = absolute(proplists:get_value(source_root, Opts, Path)),
+    OutDir = absolute(proplists:get_value(out_dir, Opts, Root)),
+    Files = [filename:join(Path, F) || F <- filelib:wildcard("**/*.ern", Path)],
+    Mods = compile_order([module_of(absolute(F), Root) || F <- Files], Root),
+    Entries = [begin
+                   Rel = module_path(Ns) ++ ".md",
+                   Out = filename:join(OutDir, Rel),
+                   ok = filelib:ensure_dir(Out),
+                   ok = file:write_file(Out, unicode:characters_to_binary(doc_text(M, OutDir))),
+                   ["- [", qname(Ns), "](", Rel, ")\n"]
+               end || #mod{ns = Ns} = M <- lists:sort(Mods)],
+    ok = file:write_file(filename:join(OutDir, "index.md"),
+                         unicode:characters_to_binary(["# Modules\n\n", Entries])),
+    0.
+
+%% The document of one parsed module: type-checked as for a compilation.
+doc_text(#mod{ns = Ns, file = File, decls = Decls, deps = Deps}, OutDir) ->
+    DepIfaces = [I || D <- Deps, {_, I} <- [dep_iface(D, #{}, OutDir)]],
+    case ern_typecheck:check(Ns, Decls, DepIfaces) of
+        {ok, Typed, _, Env} ->
+            ModDoc = case [T || #module_doc{text = T} <- Typed] of
+                         [T | _] -> [T, "\n\n"];
+                         [] -> []
+                     end,
+            %% a member of an abstract type is documented at its signature
+            %% entry (Appendix E.0 rule 6)
+            Entries = maps:from_list([{{TName, N}, Doc}
+                                      || #abstract_decl{type = #type_decl{name = TName},
+                                                        signatures = Sigs} <- Typed,
+                                         #signature{name = N, doc = Doc} <- Sigs, Doc =/= undefined]),
+            ["# ", qname(Ns), "\n\n", ModDoc,
+             [doc_decl(D, Entries, Env) || D <- Typed, documented(D)]];
+        {error, Errors} ->
+            throw({errors, File, Errors})
+    end.
+
+documented(#module_doc{}) -> false;
+documented(D) -> exported(D) orelse doc_of(D) =/= undefined.
+
+doc_decl(D, Entries, Env) ->
+    Doc = case doc_of(D) of
+              undefined -> maps:get(member_key(D), Entries, undefined);
+              Own -> Own
+          end,
+    ["## ", heading(D), "\n\n```ernest\n", signature(D, Env), "\n```\n\n",
+     case Doc of
+         undefined -> [];
+         _ -> [Doc, "\n\n"]
+     end,
+     items(D)].
+
+member_key(#fn_decl{owner = O, name = N}) -> {O, N};
+member_key(#let_decl{owner = O, name = N}) -> {O, N};
+member_key(#foreign_fn_decl{owner = O, name = N}) -> {O, N};
+member_key(_) -> none.
+
+%% The documented constructors, fields, and signature entries as a list.
+items(#type_decl{constructors = Cs}) ->
+    list([begin
+              FieldItems = [["  - `", atom_to_list(F), " : ", syn(T), "`: ", FDoc, "\n"]
+                            || #field{doc = FDoc, name = F, type = T} <- named_fields(Fields),
+                               FDoc =/= undefined],
+              case {Doc, FieldItems} of
+                  {undefined, []} -> [];
+                  {undefined, _} -> [["- `", atom_to_list(N), "`\n"], FieldItems];
+                  _ -> [["- `", atom_to_list(N), "`: ", Doc, "\n"], FieldItems]
+              end
+          end || #constructor{doc = Doc, name = N, fields = Fields} <- Cs]);
+items(#abstract_decl{signatures = Sigs}) ->
+    list([["- `", atom_to_list(N), " : ", syn(T), "`: ", Doc, "\n"]
+          || #signature{doc = Doc, name = N, type = T} <- Sigs, Doc =/= undefined]);
+items(_) ->
+    [].
+
+named_fields({named, Fs}) -> Fs;
+named_fields(_) -> [].
+
+list(Items) ->
+    case lists:flatten(Items) of
+        [] -> [];
+        _ -> [Items, "\n"]
+    end.
+
+heading(#type_decl{name = N}) -> atom_to_list(N);
+heading(#abstract_decl{type = #type_decl{name = N}}) -> atom_to_list(N);
+heading(#fn_decl{owner = O, name = N}) -> owned(O, N);
+heading(#let_decl{owner = O, name = N}) -> owned(O, N);
+heading(#foreign_type_decl{name = N}) -> atom_to_list(N);
+heading(#foreign_fn_decl{owner = O, name = N}) -> owned(O, N).
 
 exported(#type_decl{export = E}) -> E;
 exported(#abstract_decl{export = E}) -> E;
@@ -418,18 +502,12 @@ doc_of(#let_decl{doc = D}) -> D;
 doc_of(#foreign_type_decl{doc = D}) -> D;
 doc_of(#foreign_fn_decl{doc = D}) -> D.
 
-decl_name(#type_decl{name = N}) -> "type " ++ atom_to_list(N);
-decl_name(#abstract_decl{type = #type_decl{name = N}}) -> "abstract type " ++ atom_to_list(N);
-decl_name(#fn_decl{owner = O, name = N}) -> "fn " ++ owned(O, N);
-decl_name(#let_decl{owner = O, name = N}) -> "let " ++ owned(O, N);
-decl_name(#foreign_type_decl{name = N}) -> "foreign type " ++ atom_to_list(N);
-decl_name(#foreign_fn_decl{owner = O, name = N}) -> "foreign fn " ++ owned(O, N).
-
 owned(undefined, N) -> atom_to_list(N);
 owned(O, N) -> atom_to_list(O) ++ "." ++ atom_to_list(N).
 
-%% The declaration's type as an indented code block: inferred schemes for
-%% fn and let, the declaration itself for the type forms.
+%% The declaration's type: inferred schemes for fn and let, the
+%% declaration itself for the type forms, an abstract type without its
+%% representation.
 signature(#fn_decl{owner = O, name = N, type = Scheme}, Env) ->
     code([owned(O, N), " : ", ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
 signature(#let_decl{owner = O, name = N, type = Scheme}, Env) ->
@@ -439,8 +517,8 @@ signature(#foreign_fn_decl{owner = O, name = N, params = Ps, ret = R, effect = E
                                         effect = E})]);
 signature(#type_decl{} = D, _) ->
     code(type_text(D));
-signature(#abstract_decl{type = D, signatures = Sigs}, _) ->
-    code([["abstract ", type_text(D), " with {\n"],
+signature(#abstract_decl{type = #type_decl{name = TName, params = Ps}, signatures = Sigs}, _) ->
+    code([["abstract type ", atom_to_list(TName), params_text(Ps), " with {\n"],
           lists:join(";\n", [["    ", atom_to_list(N), " : ", syn(T)]
                               || #signature{name = N, type = T} <- Sigs]),
           "\n}"]);
@@ -473,10 +551,8 @@ syn(#t_fn{params = Ps, ret = R, effect = E}) ->
     ["(", lists:join(", ", [syn(P) || P <- Ps]), ") -> ", syn(R),
      case E of undefined -> ""; _ -> [" with ", syn(E)] end].
 
-%% Every line indented four spaces: a Markdown code block.
 code(Text) ->
-    Lines = string:split(unicode:characters_to_list(Text), "\n", all),
-    [["    ", L, "\n"] || L <- Lines].
+    unicode:characters_to_list(Text).
 
 %%
 %% ern, report §11.2 and §11.3

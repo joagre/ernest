@@ -232,6 +232,13 @@ abstract_constructor_outside_test() ->
                         "Main.Stack is the constructor of an abstract type and is not visible"
                         " outside its module")).
 
+%% report §4.2: a module that names itself qualified is not a module cycle
+self_qualified_module_test() ->
+    Dir = tmp(),
+    write(Dir, "src/main.ern", "export fn g() -> Int = 1\nexport fn f() -> Int = Main.g()\n"
+                               "export fn main() -> Unit with Never = Io.println(Int.toString(f()))\n"),
+    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])).
+
 %% report §11.1: a module cycle is an error naming the modules
 module_cycle_test() ->
     Dir = tmp(),
@@ -353,18 +360,61 @@ doc_test() ->
     ?assertEqual(0, ern_cli:ernc(["--doc", "--source-root", Dir, File])),
     Out = iolist_to_binary(?capturedOutput),
     Expect = fun(Text) -> ?assertMatch({_, _}, binary:match(Out, Text)) end,
-    Expect(<<"### type Shape\n\n    type Shape = Dot | At(x : Int, y : Int)\n\nA shape.\n">>),
-    Expect(<<"### abstract type Box\n\n    abstract type Box(a) = Box(List(a)) with {\n"
-             "        empty : Box(a);\n        put : (a, Box(a)) -> Box(a)\n    }\n">>),
-    Expect(<<"### let Box.empty\n\n    Box.empty : Box(a)\n">>),
-    Expect(<<"### fn Box.put\n\n    Box.put : (a, Box(a)) -> Box(a)\n\n"
+    Expect(<<"# Shapes\n\n## Shape\n\n```ernest\ntype Shape = Dot | At(x : Int, y : Int)\n```\n\nA shape.\n">>),
+    Expect(<<"## Box\n\n```ernest\nabstract type Box(a) with {\n"
+             "    empty : Box(a);\n    put : (a, Box(a)) -> Box(a)\n}\n```\n">>),
+    Expect(<<"## Box.empty\n\n```ernest\nBox.empty : Box(a)\n```\n">>),
+    Expect(<<"## Box.put\n\n```ernest\nBox.put : (a, Box(a)) -> Box(a)\n```\n\n"
              "Put x in the box.\n">>),
-    Expect(<<"### fn same\n\n    same : (a=, a=) -> Bool\n">>),
-    Expect(<<"### fn twice\n\n    twice : (Int) -> Int\n\nDocumented but private.\n">>),
+    Expect(<<"## same\n\n```ernest\nsame : (a=, a=) -> Bool\n```\n">>),
+    Expect(<<"## twice\n\n```ernest\ntwice : (Int) -> Int\n```\n\nDocumented but private.\n">>),
     ?assertEqual(nomatch, binary:match(Out, <<"hidden">>)),
     %% a type error is reported as for a compilation
     ?assertEqual(1, ern_cli:ernc(["--doc", "--source-root", Dir,
                                   write(Dir, "bad.ern", "export fn f() -> Int = \"s\"\n")])).
+
+%% report §11.4, Appendix E.0 rule 6: docs/module_doc_template.md is what
+%% `ernc --doc` renders for examples/template.ern, after its marker line
+doc_template_test() ->
+    Src = example("template.ern"),
+    ?assertEqual(0, ern_cli:ernc(["--doc", "--source-root", filename:dirname(Src), Src])),
+    Out = iolist_to_binary(?capturedOutput),
+    {ok, File} = file:read_file("../../../docs/module_doc_template.md"),
+    [_, Generated] = binary:split(File, <<"<!-- generated: ernc --doc examples/template.ern -->\n">>),
+    ?assertEqual(Generated, Out).
+
+%% report §2.2, Appendix E.0 rule 6: every fenced Ernest block in the
+%% template's doc blocks type-checks against the module, as the body of a
+%% lambda, so an example cannot rot
+doc_examples_test() ->
+    {ok, Src} = file:read_file(example("template.ern")),
+    {ok, Decls} = ern_parser:parse_string(Src),
+    Blocks = lists:append([fences(Doc) || Doc <- docs(Decls, [])]),
+    ?assert(length(Blocks) >= 4),
+    lists:foreach(fun({N, Block}) ->
+                      Text = <<Src/binary, "\nfn docExample", (integer_to_binary(N))/binary,
+                               "() = fn() = {\n", Block/binary, "\n}\n">>,
+                      ?assertMatch({ok, _, _, _}, ern_typecheck:check_string(['Template'], Text))
+                  end, lists:zip(lists:seq(1, length(Blocks)), Blocks)).
+
+%% Every doc text in an AST: the third element of the records that carry one.
+docs(T, Acc) when is_tuple(T), tuple_size(T) >= 3 ->
+    Acc1 = case lists:member(element(1, T), [module_doc, type_decl, abstract_decl, fn_decl,
+                                              let_decl, foreign_type_decl, foreign_fn_decl,
+                                              constructor, field, signature])
+                    andalso is_binary(element(3, T)) of
+               true -> [element(3, T) | Acc];
+               false -> Acc
+           end,
+    lists:foldl(fun docs/2, Acc1, tuple_to_list(T));
+docs(L, Acc) when is_list(L) -> lists:foldl(fun docs/2, Acc, L);
+docs(_, Acc) -> Acc.
+
+fences(Doc) ->
+    case re:run(Doc, "```ernest\n(.*?)\n```", [global, dotall, {capture, all_but_first, binary}]) of
+        {match, Ms} -> [B || [B] <- Ms];
+        nomatch -> []
+    end.
 
 %% README, "What MVP 1 accepts": every error text in lib/*/src that names
 %% an MVP appears in the README's table, by its first forty characters, so

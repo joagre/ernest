@@ -194,6 +194,24 @@ match_test() ->
     ?assertMatch(#e_match{clauses = [#clause{body = #e_match{}}, #clause{}]},
                  e("match a { Some(b) -> match b { 1 -> x | _ -> y } | None -> z }")).
 
+%% report §2.2: a doc block attaches to a declaration, to a constructor
+%% above it or above its `|`, to a field, to a signature entry, or, with a
+%% blank line after it, to the module; elsewhere it is a comment
+doc_attachment_test() ->
+    {ok, Ds} = ern_parser:parse_string(
+                 <<"/// The module.\n\n/// T.\ntype T =\n    /// A.\n    A(\n    /// f.\n"
+                   "    x : Int)\n    /// B.\n  | B\n/// S.\nabstract type S = S(Int) with {\n"
+                   "    /// e.\n    e : S\n}\n">>),
+    ?assertMatch([#module_doc{text = <<"The module.">>},
+                  #type_decl{doc = <<"T.">>,
+                             constructors = [#constructor{doc = <<"A.">>,
+                                                          fields = {named, [#field{doc = <<"f.">>}]}},
+                                             #constructor{doc = <<"B.">>}]},
+                  #abstract_decl{doc = <<"S.">>, signatures = [#signature{doc = <<"e.">>}]}],
+                 Ds),
+    ?assertMatch({ok, [#fn_decl{doc = undefined}]},
+                 ern_parser:parse_string(<<"fn f() = {\n    /// stray\n    1\n}\n">>)).
+
 %% report §5.9: a clause lists one or more patterns separated by `or`
 or_pattern_test() ->
     ?assertMatch(#e_match{clauses = [#clause{pattern = #p_or{alts = [#p_con{name = 'A'},
@@ -401,8 +419,12 @@ doc_comments_test() ->
                  ds("/// Adds one.\n/// Really.\nfn inc(n) = n + 1")),
     ?assertMatch([#type_decl{doc = <<"A table">>}],
                  ds("/// A table\nexport type T = T")),
-    %% a blank line breaks the attachment; the block is then a comment
-    ?assertMatch([#fn_decl{doc = undefined}], ds("/// lost\n\nfn inc(n) = n + 1")),
+    %% a blank line breaks the attachment; first in the file, the block is then
+    %% the module's documentation, elsewhere a comment
+    ?assertMatch([#module_doc{text = <<"first">>}, #fn_decl{doc = undefined}],
+                 ds("/// first\n\nfn inc(n) = n + 1")),
+    ?assertMatch([#fn_decl{doc = undefined}, #fn_decl{doc = undefined}],
+                 ds("fn a() = 1\n/// lost\n\nfn inc(n) = n + 1")),
     %% a doc comment inside an expression is a comment
     ?assertMatch([#fn_decl{doc = undefined, body = #e_block{}}],
                  ds("fn f() = {\n    /// not a doc\n    1\n}")),

@@ -1,0 +1,129 @@
+/// Shapes in the plane and their areas. A shape is a point alone or a
+/// circle around one; `area` is the one operation every shape supports, and
+/// `Stack` keeps shapes in the order they were pushed.
+///
+/// ## Examples
+///
+/// ```ernest
+/// let c = Template.circle(Template.Point(x = 0, y = 0), 2);
+/// Template.area(c)
+/// ```
+///
+/// ## See also
+///
+/// `Int` (Appendix E.8) for the arithmetic used.
+
+//
+// Template
+//
+// The fictive module behind docs/module_doc_template.md: every place a doc
+// block may go (report §2.2), every section of a manual page a doc block
+// carries (Appendix E.0 rule 6), and everything `ernc --doc` renders (§11.4).
+// A test keeps the rendered file equal to this module's documentation and
+// another type-checks its examples.
+//
+// Needs MVP 1.
+//
+
+/// A point in the plane, in whole units.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Template.Point(x = 1, y = 2)
+/// ```
+export type Point = Point(
+    /// The horizontal coordinate, growing to the right.
+    x : Int,
+    /// The vertical coordinate, growing upward.
+    y : Int)
+
+/// A shape: a point alone, or a circle of a radius around a centre.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Template.Circle(centre = Template.Point(x = 0, y = 0), radius = 1)
+/// ```
+export type Shape =
+    /// A point alone; its area is zero.
+    Dot(Point)
+    /// A circle by its centre and radius.
+  | Circle(centre : Point, radius : Int)
+
+/// Shapes in the order they were pushed, most recent on top. The
+/// representation is private.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Template.Stack.push(Template.Dot(Template.Point(x = 0, y = 0)), Template.Stack.empty)
+/// ```
+///
+/// ### See also
+///
+/// `List` (Appendix E.2), which a stack is a restriction of.
+export abstract type Stack = Stack(List(Shape)) with {
+    /// The stack with nothing on it.
+    empty : Stack;
+    /// The stack with the shape on top.
+    push : (Shape, Stack) -> Stack;
+    /// The top shape and the rest, `None` when the stack is empty.
+    pop : (Stack) -> Optional(#(Shape, Stack))
+}
+
+export let Stack.empty = Stack([])
+export fn Stack.push(s, Stack(ss)) = Stack(s :: ss)
+export fn Stack.pop(Stack(ss)) = match ss { [] -> None | s :: rest -> Some(#(s, Stack(rest))) }
+
+/// The circle of the radius around the centre.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Template.circle(Template.Point(x = 1, y = 2), 3)
+/// ```
+export fn circle(centre : Point, radius : Int) -> Shape =
+    Circle(centre = centre, radius = radius)
+
+/// The area of the shape: zero for a point, three times the radius squared
+/// for a circle, since the module has no `Float`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Template.area(Template.Dot(Template.Point(x = 0, y = 0)))
+/// ```
+///
+/// ### See also
+///
+/// `circle`, which builds the shape whose area is not zero.
+export fn area(s : Shape) -> Int = match s {
+    Dot(_) -> 0
+  | Circle(radius = r) -> 3 * r * r
+}
+
+/// The radius itself when it is not negative.
+///
+/// ### Errors
+///
+/// Faults with `Fault("todo: negative radius")` on a negative radius, the
+/// one fault in this module.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Template.checked(4)
+/// ```
+export fn checked(radius : Int) -> Int =
+    if radius < 0 then todo("negative radius") else radius
+
+/// Half of a whole number, toward zero. Private, and documented, so it
+/// appears in the module's documentation among the exported declarations.
+///
+/// ### Examples
+///
+/// ```ernest
+/// half(7)
+/// ```
+fn half(n : Int) -> Int = n / 2

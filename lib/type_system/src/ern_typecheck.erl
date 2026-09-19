@@ -528,8 +528,16 @@ body_of(#let_decl{body = B}) -> B;
 body_of(_) -> undefined.
 
 refs(#e_var{path = [], name = N}, _Env, Acc) -> [{undefined, N} | Acc];
+refs(#e_var{path = Ns, name = N}, #env{ns = Ns} = Env, Acc) when Ns =/= [] ->
+    %% the module's own qualified name (report §4.2)
+    refs(#e_var{path = [], name = N}, Env, Acc);
 refs(#e_var{path = [Owner], name = N}, #env{local_types = LT}, Acc) ->
     case maps:is_key(Owner, LT) of true -> [{Owner, N} | Acc]; false -> Acc end;
+refs(#e_var{path = P} = V, #env{ns = Ns} = Env, Acc) when length(P) > 1 ->
+    case lists:prefix(Ns, P) andalso length(P) =:= length(Ns) + 1 of
+        true -> refs(V#e_var{path = [lists:last(P)]}, Env, Acc);
+        false -> Acc
+    end;
 refs(#e_binop{op = Op, left = L, right = R}, Env, Acc) when is_atom(Op) ->
     Member = case lists:member(Op, ?ORDER) of
                  true -> compare;
@@ -2043,8 +2051,20 @@ lookup_value(Pos, [Owner] = Path, Name, #env{local_values = LV} = Env) ->
         #{{Owner, Name} := Q} -> local_global(Q, Env);
         _ -> lookup_global(Pos, Path ++ [Name], Env)
     end;
-lookup_value(Pos, Path, Name, Env) ->
-    lookup_global(Pos, Path ++ [Name], Env).
+lookup_value(Pos, Path, Name, #env{ns = Ns, local_values = LV} = Env) ->
+    %% report §4.2: a module may name its own declarations qualified
+    case Path =:= Ns of
+        true ->
+            case LV of
+                #{Name := Q} -> local_global(Q, Env);
+                _ -> lookup_global(Pos, Path ++ [Name], Env)
+            end;
+        false ->
+            case lists:prefix(Ns, Path) andalso length(Path) =:= length(Ns) + 1 of
+                true -> lookup_value(Pos, [lists:last(Path)], Name, Env);
+                false -> lookup_global(Pos, Path ++ [Name], Env)
+            end
+    end.
 
 local_global(Q, Env) ->
     Env1 = demand(Q, Env),

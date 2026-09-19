@@ -54,7 +54,7 @@ Four layers:
 ```
 ernest_report.md   the language report (normative)
 ernest_guide.md    the reading guide
-docs/              decisions log, implementation plan, architecture note, style guides
+docs/              decisions log, implementation plan, architecture note, style guides, module documentation template
 examples/          Ernest programs: the paper programs and the small ones
 lib/               the compiler, as Erlang applications: lexer, parser,
                    type_system, runtime, compiler, cli, utils (vendored
@@ -93,7 +93,7 @@ bin/ern examples/hello.erc                   # hello, world
 bin/ernc --out-dir build examples/modules    # a source tree, in dependency order
 bin/ern build/main.erc                       # loads net/http.erc by namespace
 bin/ernc --emit erl examples/hello.ern       # the Erlang source, for reading
-bin/ernc --doc examples/ets.ern              # doc comments as Markdown
+bin/ernc --doc examples/ets.ern              # the module's documentation as CommonMark
 bin/ernc --errors short examples/hello.ern  # the first line of each error only
 bin/ern --create-config-dir .                # .ernest/ with a key pair
 ```

@@ -22,7 +22,9 @@
 -spec parse([ern_lexer:token()]) -> {ok, [tuple()]} | {error, error()}.
 parse(Tokens) ->
     try
-        {ok, program(prune_docs(Tokens), undefined, [])}
+        {ModDoc, Tokens1} = module_doc(Tokens),
+        Decls = program(prune_docs(Tokens1), undefined, []),
+        {ok, case ModDoc of undefined -> Decls; _ -> [ModDoc | Decls] end}
     catch
         throw:{parse_error, #diag{} = D} -> {error, D}
     end.
@@ -71,17 +73,51 @@ parse_type(Text) ->
             E
     end.
 
-%% A doc token survives only when a declaration starts on the line after it
-%% (report §2.2); elsewhere it is an ordinary comment.
-prune_docs([{doc, Pos, Text} = D, Next | R]) ->
-    LastLine = element(1, Pos) + length([Ch || <<Ch>> <= Text, Ch =:= $\n]),
-    case lists:member(sym(Next), ?DECL_START) andalso line(Next) =:= LastLine + 1 of
-        true -> [D | prune_docs([Next | R])];
-        false -> prune_docs([Next | R])
+%% Report §2.2: a doc block before the first declaration, with a blank line
+%% after it, is the module's documentation.
+module_doc([{doc, Pos, Text}, Next | R]) ->
+    case line(Next) > doc_end(Pos, Text) + 1 of
+        true -> {#module_doc{pos = Pos, text = Text}, [Next | R]};
+        false -> {undefined, [{doc, Pos, Text}, Next | R]}
     end;
-prune_docs([T | R]) ->
-    [T | prune_docs(R)];
-prune_docs([]) ->
+module_doc(Ts) ->
+    {undefined, Ts}.
+
+doc_end(Pos, Text) ->
+    element(1, Pos) + length([Ch || <<Ch>> <= Text, Ch =:= $\n]).
+
+%% A doc token survives only where report §2.2 attaches it: on the line
+%% before a declaration, or, inside a type declaration, before a
+%% constructor, a field, or a signature entry; elsewhere it is an ordinary
+%% comment. InType is true inside a type or abstract type declaration,
+%% where no expression can occur, and Depth counts the brackets there.
+prune_docs(Ts) ->
+    prune_docs(Ts, false, 0).
+
+prune_docs([{doc, Pos, Text} = D, Next | R], InType, Depth) ->
+    Adjacent = line(Next) =:= doc_end(Pos, Text) + 1,
+    Keep = Adjacent andalso
+           (lists:member(sym(Next), ?DECL_START)
+            orelse (InType andalso lists:member(sym(Next), [typename, ident, '|']))),
+    Rest = prune_docs([Next | R], InType, Depth),
+    case Keep of
+        true -> [D | Rest];
+        false -> Rest
+    end;
+prune_docs([T | R], InType, Depth) ->
+    {InType1, Depth1} =
+        case sym(T) of
+            type -> {true, Depth};
+            S when Depth =:= 0, S =:= fn; Depth =:= 0, S =:= 'let'; Depth =:= 0, S =:= foreign;
+                   Depth =:= 0, S =:= export; Depth =:= 0, S =:= abstract -> {false, Depth};
+            '(' -> {InType, Depth + 1};
+            '{' -> {InType, Depth + 1};
+            ')' -> {InType, Depth - 1};
+            '}' -> {InType, Depth - 1};
+            _ -> {InType, Depth}
+        end,
+    [T | prune_docs(R, InType1, Depth1)];
+prune_docs([], _, _) ->
     [].
 
 %%
@@ -134,26 +170,50 @@ opt_typevars([{'(', _} | R]) ->
 opt_typevars(Ts) ->
     {[], Ts}.
 
+%% Report §2.2: a doc block before a constructor documents it, on the line
+%% above the constructor or above the `|` that leads it.
 constructors(Ts) ->
-    sep_by(Ts, '|', fun constructor/1).
+    {C, R} = constructor(Ts),
+    constructors_rest(R, [C]).
+
+constructors_rest([{doc, _, Text}, {'|', _} | R], Acc) ->
+    {C, R1} = constructor(R, Text),
+    constructors_rest(R1, [C | Acc]);
+constructors_rest([{'|', _} | R], Acc) ->
+    {C, R1} = constructor(R),
+    constructors_rest(R1, [C | Acc]);
+constructors_rest(R, Acc) ->
+    {lists:reverse(Acc), R}.
 
 constructor(Ts) ->
-    {Name, Pos, R} = expect_typename_pos(Ts),
+    {Doc, Ts1} = doc(Ts),
+    constructor(Ts1, Doc).
+
+constructor(Ts1, Doc) ->
+    {Name, Pos, R} = expect_typename_pos(Ts1),
+    Named = case R of
+                [{'(', _}, {ident, _, _}, {':', _} | _] -> true;
+                [{'(', _}, {doc, _, _}, {ident, _, _}, {':', _} | _] -> true;
+                _ -> false
+            end,
     case R of
-        [{'(', _}, {ident, _, _}, {':', _} | _] ->
-            {Fields, R1} = sep_by(tl(R), ',', fun field/1),
-            w({#constructor{pos = Pos, name = Name, fields = {named, Fields}}, expect(R1, ')')});
+        [{'(', _} | R1] when Named ->
+            {Fields, R2} = sep_by(R1, ',', fun field/1),
+            w({#constructor{pos = Pos, doc = Doc, name = Name, fields = {named, Fields}},
+               expect(R2, ')')});
         [{'(', _} | R1] ->
             {T, R2} = type(R1),
-            w({#constructor{pos = Pos, name = Name, fields = {positional, T}}, expect(R2, ')')});
+            w({#constructor{pos = Pos, doc = Doc, name = Name, fields = {positional, T}},
+               expect(R2, ')')});
         _ ->
-            w({#constructor{pos = Pos, name = Name}, R})
+            w({#constructor{pos = Pos, doc = Doc, name = Name}, R})
     end.
 
 field(Ts) ->
-    {Name, Pos, R} = expect_ident_pos(Ts),
+    {Doc, Ts1} = doc(Ts),
+    {Name, Pos, R} = expect_ident_pos(Ts1),
     {T, R1} = type(expect(R, ':')),
-    w({#field{pos = Pos, name = Name, type = T}, R1}).
+    w({#field{pos = Pos, doc = Doc, name = Name, type = T}, R1}).
 
 abstract_decl([{abstract, Pos} | R], Doc, Export) ->
     {TD, R1} = case R of
@@ -165,14 +225,18 @@ abstract_decl([{abstract, Pos} | R], Doc, Export) ->
     w({#abstract_decl{pos = Pos, doc = Doc, export = Export, type = TD, signatures = Sigs},
        expect(R3, '}')}).
 
-signature([{ident, Pos, Name} | R]) ->
+signature(Ts) ->
+    {Doc, Ts1} = doc(Ts),
+    signature(Ts1, Doc).
+
+signature([{ident, Pos, Name} | R], Doc) ->
     {T, R1} = type(expect(R, ':')),
-    w({#signature{pos = Pos, name = Name, type = T}, R1});
-signature([{Op, Pos} | R]) when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/';
-                                Op =:= '%'; Op =:= '<>' ->
+    w({#signature{pos = Pos, doc = Doc, name = Name, type = T}, R1});
+signature([{Op, Pos} | R], Doc) when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/';
+                                     Op =:= '%'; Op =:= '<>' ->
     {T, R1} = type(expect(R, ':')),
-    w({#signature{pos = Pos, name = Op, type = T}, R1});
-signature([T | _]) ->
+    w({#signature{pos = Pos, doc = Doc, name = Op, type = T}, R1});
+signature([T | _], _) ->
     fail(pos(T), "expected a signature name instead of " ++ describe(T)).
 
 fn_decl([{fn, Pos} | R], Doc, Export) ->
