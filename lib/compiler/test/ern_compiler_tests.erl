@@ -4,7 +4,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--export([pair/0, opt/1, junk/1, junk_server/0]).
+-export([pair/0, opt/1, junk/1, junk_server/0, good/1, tell/1]).
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("lexer/include/ern_diag.hrl").
 -include_lib("type_system/include/ern_types.hrl").
@@ -518,16 +518,35 @@ foreign_faults_test() ->
                   ++ Main ++ "each(fn(n : Int) -> Unit with Never = todo(\"later\"), [1])\n"),
     ?assertEqual({fault, <<"todo: later">>}, R5).
 
-%% report §8.4, §7.4: a message from a foreign process is checked by the
-%% receive that binds it, and a reply by the call that observes it
+%% report §8.4, §7.4: an address given to foreign code is a proxy that
+%% checks each message on delivery, a bad one faulting the target even
+%% when no clause would bind it; a good one arrives, also from inside a
+%% list; a reply is checked by the call that observes it
 foreign_messages_test() ->
-    {R1, _} = run("type Msg = Go(Int)\n"
-                  "foreign fn junk(a : Address(Msg)) -> Unit with m = \"ern_compiler_tests:junk/1\"\n"
+    Junk = "foreign fn junk(a : Address(Msg)) -> Unit with m = \"ern_compiler_tests:junk/1\"\n",
+    {R1, _} = run("type Msg = Go(Int)\n" ++ Junk ++
                   "export fn main() -> Unit with Msg = {\n"
                   "    junk(self());\n"
                   "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
                   "}\n"),
     ?assertEqual({fault, <<"message does not match Msg">>}, R1),
+    {R0, _} = run("type Msg = Go(Int) | Stop\n" ++ Junk ++
+                  "export fn main() -> Unit with Msg = {\n"
+                  "    junk(self());\n"
+                  "    receive { Stop -> Unit }\n"
+                  "}\n"),
+    ?assertEqual({fault, <<"message does not match Msg">>}, R0),
+    {ok, Out} = run("type Msg = Go(Int)\n"
+                    "foreign fn good(a : Address(Msg)) -> Unit with m = \"ern_compiler_tests:good/1\"\n"
+                    "foreign fn tell(targets : List(Address(Msg))) -> Unit with m"
+                    " = \"ern_compiler_tests:tell/1\"\n"
+                    "export fn main() -> Unit with Msg = {\n"
+                    "    good(self());\n"
+                    "    receive { Go(n) -> Io.println(Int.toString(n)) };\n"
+                    "    tell([self()]);\n"
+                    "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
+                    "}\n"),
+    ?assertEqual(<<"1\n2\n">>, Out),
     {R2, _} = run("type Ask = Ask(reply : Reply(Int))\n"
                   "foreign fn server() -> Address(Ask) with m = \"ern_compiler_tests:junk_server/0\"\n"
                   "export fn main() -> Unit with Never = {\n"
@@ -541,6 +560,8 @@ pair() -> {1, 2}.
 opt(0) -> {'Some', 3};
 opt(_) -> {'Some', <<"x">>}.
 junk(Pid) -> Pid ! {'Go', <<"x">>}, 'Unit'.
+good(Pid) -> Pid ! {'Go', 1}, 'Unit'.
+tell(Pids) -> [P ! {'Go', 2} || P <- Pids], 'Unit'.
 junk_server() ->
     spawn(fun() -> receive {'Ask', Ref} -> Ref ! {Ref, <<"x">>} end end).
 

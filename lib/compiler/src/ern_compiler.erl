@@ -23,12 +23,10 @@
 
 %% Emission context, threaded through everything.
 -record(cx, {ns, mod, env, fname, vars = #{}, counter = 0, locals = #{}, lifted = [],
-             tops = #{}, mailbox = pure, descs = #{}, pat_guards = []}).
+             tops = #{}, descs = #{}, pat_guards = []}).
 %% pat_guards: Erlang guard forms a pattern needs on its clause, a `bits`
 %% segment's is_binary (report §5.11), taken by the clause that uses them
 %% descs: descriptor term => the name of the module function returning it
-%% mailbox: the enclosing function's effect, the type a receive checks its
-%% messages against (report §8.4)
 -record(local, {lifted, own, extra, refs, snap = pending}).
 %% vars: Ernest name => Erlang variable name; locals: local fn name =>
 %% #local{} (see Blocks); tops: top-level names => arity | value;
@@ -189,11 +187,9 @@ export(#let_decl{owner = O, name = N}) -> {fname(O, N), 0}.
 fname(undefined, N) -> N;
 fname(Owner, N) -> list_to_atom(atom_to_list(Owner) ++ "." ++ atom_to_list(N)).
 
-decl(#fn_decl{pos = Pos, owner = O, name = N, params = Params, body = Body, type = Scheme},
-     Cx) ->
+decl(#fn_decl{pos = Pos, owner = O, name = N, params = Params, body = Body}, Cx) ->
     Name = fname(O, N),
-    {tfn, _, Eff, _} = Scheme#scheme.type,
-    Cx1 = Cx#cx{fname = Name, vars = #{}, locals = #{}, mailbox = Eff},
+    Cx1 = Cx#cx{fname = Name, vars = #{}, locals = #{}},
     {Pats, Cx2} = lists:mapfoldl(fun(#param{pattern = P}, C) -> pattern(P, C) end, Cx1, Params),
     {BodyForms, Cx3} = body(Body, Cx2),
     Clause = at(Pos, erl_syntax:clause(Pats, none, BodyForms)),
@@ -211,14 +207,23 @@ decl(#foreign_fn_decl{pos = Pos, owner = O, name = N, params = Params, impl = Im
     Name = fname(O, N),
     {ok, {M, F, _}} = ern_typecheck:foreign_impl(Impl),
     {Vars, Cx1} = fresh_vars(length(Params), "A", Cx#cx{fname = Name}),
-    {tfn, _, _, Ret} = Scheme#scheme.type,
+    {tfn, ParamTs, _, Ret} = Scheme#scheme.type,
     Args = [erl_syntax:variable(V) || V <- Vars],
     {DescForm, Cx2} = descriptor_ref(Ret, Cx1),
+    %% a parameter with an address inside gets its descriptor, so the
+    %% address is exposed through a proxy; any other is none
+    {ArgDescs, Cx3} = lists:mapfoldl(fun(PT, C) ->
+                                         case has_address(descriptor(PT, C)) of
+                                             true -> descriptor_ref(PT, C);
+                                             false -> {erl_syntax:atom(none), C}
+                                         end
+                                     end, Cx2, ParamTs),
     Body = call_remote(ern_check, foreign,
-                       [erl_syntax:atom(M), erl_syntax:atom(F), erl_syntax:list(Args), DescForm,
+                       [erl_syntax:atom(M), erl_syntax:atom(F), erl_syntax:list(Args),
+                        erl_syntax:list(ArgDescs), DescForm,
                         check_text("foreign return does not match ", Ret, Cx)]),
     Clause = at(Pos, erl_syntax:clause(Args, none, [Body])),
-    {[at(Pos, erl_syntax:function(erl_syntax:atom(Name), [Clause]))], Cx2};
+    {[at(Pos, erl_syntax:function(erl_syntax:atom(Name), [Clause]))], Cx3};
 decl(_, Cx) ->
     {[], Cx}.
 
@@ -344,13 +349,11 @@ expr(#e_binop{pos = Pos, op = Op, left = L, right = R}, Cx) ->
     {LF, Cx1} = expr(L, Cx),
     {RF, Cx2} = expr(R, Cx1),
     {at(Pos, binop(Op, resolved(ern_typecheck:node_type(L), Cx), LF, RF, Cx)), Cx2};
-expr(#e_lambda{pos = Pos, params = Params, body = Body, type = T}, Cx) ->
-    {tfn, _, Eff, _} = resolved(T, Cx),
-    {Pats, Cx1} = lists:mapfoldl(fun(#param{pattern = P}, C) -> pattern(P, C) end,
-                                 Cx#cx{mailbox = Eff}, Params),
+expr(#e_lambda{pos = Pos, params = Params, body = Body}, Cx) ->
+    {Pats, Cx1} = lists:mapfoldl(fun(#param{pattern = P}, C) -> pattern(P, C) end, Cx, Params),
     {BodyForms, Cx2} = body(Body, Cx1),
     Clause = erl_syntax:clause(Pats, none, BodyForms),
-    {at(Pos, erl_syntax:fun_expr([Clause])), Cx2#cx{vars = Cx#cx.vars, mailbox = Cx#cx.mailbox}};
+    {at(Pos, erl_syntax:fun_expr([Clause])), Cx2#cx{vars = Cx#cx.vars}};
 expr(#e_if{pos = Pos, condition = C, then_branch = T, else_branch = E}, Cx) ->
     {CF, Cx1} = expr(C, Cx),
     {TF, Cx2} = body(T, Cx1),
@@ -742,9 +745,11 @@ descriptor_ref(T, Cx) ->
             end
     end.
 
-check_text(Prefix, T, #cx{env = Env}) ->
-    string_binary(unicode:characters_to_binary(
-                    Prefix ++ ern_types:format(T, ern_typecheck:type_state(Env)))).
+check_text(Prefix, T, Cx) ->
+    string_binary(text_binary(Prefix, T, Cx)).
+
+text_binary(Prefix, T, #cx{env = Env}) ->
+    unicode:characters_to_binary(Prefix ++ ern_types:format(T, ern_typecheck:type_state(Env))).
 
 descriptor(T, #cx{env = Env} = Cx) ->
     {D, _} = desc(ern_types:zonk(T, ern_typecheck:type_state(Env)), #{}, Cx),
@@ -764,7 +769,10 @@ desc({tcon, ['Bool'], []}, Seen, _) -> {bool, Seen};
 desc({tcon, ['Char'], []}, Seen, _) -> {char, Seen};
 desc({tcon, ['String'], []}, Seen, _) -> {string, Seen};
 desc({tcon, ['Bytes'], []}, Seen, _) -> {bytes, Seen};
-desc({tcon, ['Address'], _}, Seen, _) -> {pid, Seen};
+desc({tcon, ['Address'], [M]}, Seen, Cx) ->
+    %% the address's messages, for the proxy that exposes it (report §8.4)
+    {D, Seen1} = desc(M, Seen, Cx),
+    {{pid, D, text_binary("message does not match ", M, Cx)}, Seen1};
 desc({tcon, ['Reply'], _}, Seen, _) -> {ref, Seen};
 desc({tcon, ['Foreign'], []}, Seen, _) -> {any, Seen};
 desc({tcon, ['Never'], []}, Seen, _) -> {never, Seen};
@@ -799,6 +807,11 @@ desc({tcon, Q, Args} = T, Seen, #cx{env = Env} = Cx) ->
                     end
             end
     end.
+
+has_address({pid, _, _}) -> true;
+has_address(T) when is_tuple(T) -> lists:any(fun has_address/1, tuple_to_list(T));
+has_address(L) when is_list(L) -> lists:any(fun has_address/1, L);
+has_address(_) -> false.
 
 refers({ref, Id}, Id) -> true;
 refers(T, Id) when is_tuple(T) -> lists:any(fun(X) -> refers(X, Id) end, tuple_to_list(T));
@@ -1077,12 +1090,7 @@ general_clauses(SVar, [#clause{pattern = P, guard = G, body = B} | Rest], Cx) ->
                                                          [Fallthrough])]),
     {erl_syntax:block_expr([Bind, Case]), Cx4#cx{vars = Cx#cx.vars}}.
 
-simple_clause(C, Cx) ->
-    simple_clause(C, none, Cx).
-
-%% With Check, the whole matched value is bound to a variable and checked
-%% before the body (report §8.4).
-simple_clause(#clause{pos = Pos, pattern = P, guard = G, body = B}, Check, Cx) ->
+simple_clause(#clause{pos = Pos, pattern = P, guard = G, body = B}, Cx) ->
     {PF, Cx1} = pattern(P, Cx#cx{pat_guards = []}),
     {GF0, Cx2} = case G of
                      undefined -> {none, Cx1};
@@ -1090,24 +1098,13 @@ simple_clause(#clause{pos = Pos, pattern = P, guard = G, body = B}, Check, Cx) -
                  end,
     {GF, _} = take_pat_guards(GF0, Cx2),
     {BF, Cx3} = body(B, Cx2#cx{pat_guards = Cx#cx.pat_guards}),
-    {PF1, BF1, Cx4} =
-        case Check of
-            none -> {PF, BF, Cx3};
-            {DescForm, Text} ->
-                {[V], Cx3a} = fresh_vars(1, "M", Cx3),
-                Var = erl_syntax:variable(V),
-                {erl_syntax:match_expr(PF, Var),
-                 [call_remote(ern_check, value, [DescForm, Var, Text]) | BF], Cx3a}
-        end,
-    {at(Pos, erl_syntax:clause([PF1], GF, BF1)), Cx4#cx{vars = Cx#cx.vars}}.
+    {at(Pos, erl_syntax:clause([PF], GF, BF)), Cx3#cx{vars = Cx#cx.vars}}.
 
 %% Report §5.9: a receive guard is a guard expression, which the checker
-%% holds it to, so it is an Erlang guard here. Report §8.4: the message a
-%% clause binds is checked against the mailbox type, since a foreign
-%% process may have sent it.
-receive_clause(C, #cx{mailbox = Mailbox} = Cx) ->
-    {DescForm, Cx1} = descriptor_ref(Mailbox, Cx),
-    simple_clause(C, {DescForm, check_text("message does not match ", Mailbox, Cx)}, Cx1).
+%% holds it to, so it is an Erlang guard here. A message from a foreign
+%% process was checked by the proxy that delivered it (report §8.4).
+receive_clause(C, Cx) ->
+    simple_clause(C, Cx).
 
 %% Comparisons and Boolean operators over variables and literals.
 erlang_guard(#e_binop{op = Op, left = L, right = R}, Cx) when Op =:= '&&'; Op =:= '||' ->

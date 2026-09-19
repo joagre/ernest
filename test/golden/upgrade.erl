@@ -34,48 +34,20 @@ main() ->
 
 counter(N_7) ->
     receive
-        {'Inc', K_8} = M_9 ->
-            ern_check:value('$type_2'(),
-                            M_9,
-                            <<"message does not match CounterMsg">>),
-            counter(N_7 + K_8);
-        {'Get', R_10} = M_11 ->
-            ern_check:value('$type_2'(),
-                            M_11,
-                            <<"message does not match CounterMsg">>),
-            ern_rt:answer(R_10, N_7),
+        {'Inc', K_8} -> counter(N_7 + K_8);
+        {'Get', R_9} ->
+            ern_rt:answer(R_9, N_7),
             counter(N_7);
-        {'Upgrade', M_12, K_13} = M_14 ->
-            ern_check:value('$type_2'(),
-                            M_14,
-                            <<"message does not match CounterMsg">>),
-            K_13(M_12(N_7))
+        {'Upgrade', M_10, K_11} -> K_11(M_10(N_7))
     end.
 
-doublingCounter(N_15) ->
+doublingCounter(N_12) ->
     receive
-        {'Inc', K_16} = M_17 ->
-            ern_check:value('$type_2'(),
-                            M_17,
-                            <<"message does not match CounterMsg">>),
-            doublingCounter(N_15 + 2 * K_16);
-        {'Get', R_18} = M_19 ->
-            ern_check:value('$type_2'(),
-                            M_19,
-                            <<"message does not match CounterMsg">>),
-            ern_rt:answer(R_18, N_15),
-            doublingCounter(N_15);
-        {'Upgrade', M_20, K_21} = M_22 ->
-            ern_check:value('$type_2'(),
-                            M_22,
-                            <<"message does not match CounterMsg">>),
-            K_21(M_20(N_15))
+        {'Inc', K_13} -> doublingCounter(N_12 + 2 * K_13);
+        {'Get', R_14} ->
+            ern_rt:answer(R_14, N_12),
+            doublingCounter(N_12);
+        {'Upgrade', M_15, K_16} -> K_16(M_15(N_12))
     end.
 
 '$type_1'() -> {con, [{'None', []}, {'Some', [int]}]}.
-
-'$type_2'() ->
-    {con,
-     [{'Inc', [int]},
-      {'Get', [ref]},
-      {'Upgrade', [{'fun', 1}, {'fun', 1}]}]}.

@@ -856,7 +856,7 @@ Ernest treats the foreign boundary as a *promise*: the declared type is what com
 
 - **Wrong return type.** *Checked at runtime.* The declared type is Ernest's contract; a value the foreign side hands over that does not match faults the *receiving* Ernest process on first observation.
 - **Thrown exception.** *Checked at runtime.* Erlang exits and throws become `Fault` on the calling process.
-- **Wrong message from a foreign process.** *Checked at runtime.* A message that doesn't match the *destination's* declared mailbox type faults the receiver on first observation.
+- **Wrong message from a foreign process.** *Checked at runtime.* A message that doesn't match the *destination's* declared mailbox type faults the receiver on delivery. The runtime hands foreign code a checking proxy in place of every Ernest address it receives as an argument, so Ernest-to-Ernest messages cost nothing extra.
 - **Purity.** *Not checked.* Declaring `foreign fn` without `with M` is a promise the foreign side cannot enforce mechanically. Reserve pure declarations for functions that genuinely have no effect.
 
 ### 7.4 Node-local foreign values

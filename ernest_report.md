@@ -575,7 +575,7 @@ Partial operations in the prelude return `Optional` or `Either`. These fault, wi
 - `todo("...")`, which compiles at any type: `Fault("todo: ...")`.
 - Cross-node transport of a foreign value (§3.8): `Fault("foreign value cannot cross nodes")`.
 - `spawn(Peer(...), ...)` with an unknown or unreachable peer, `Fault("peer unreachable")`, or with a resolution failure on the peer (§8.7), `Fault("peer resolution failed: ...")`. `send` to a remote address faults the sender with the same cause asynchronously, after its return, when resolution fails.
-- A foreign function that raises: `Fault("foreign function m:f/n raised ...")`. A foreign return, a message from a foreign process, or a reply that does not match the declared type faults the receiving Ernest process on first observation (§8.4): `Fault("foreign return does not match T")`, `Fault("message does not match M")`, `Fault("reply does not match T")`, naming the declared type.
+- A foreign function that raises: `Fault("foreign function m:f/n raised ...")`. A foreign return or a reply that does not match the declared type faults the receiving Ernest process on first observation, a message from a foreign process on delivery (§8.4): `Fault("foreign return does not match T")`, `Fault("message does not match M")`, `Fault("reply does not match T")`, naming the declared type.
 
 ## 8. Programs
 
@@ -595,7 +595,7 @@ Peers are configured outside the language, §11.3; `Peer(name)` refers to them b
 
 ### 8.4 Foreign code
 
-The system processes are foreign processes: their message types are declared in Ernest, their implementations live outside the language, and the runtime starts them and binds their addresses. Other foreign code enters through `foreign fn` and `foreign type`, §4.7. Both boundaries carry the same promise: the foreign side delivers the declared types, and a breach faults the receiving Ernest process on first observation.
+The system processes are foreign processes: their message types are declared in Ernest, their implementations live outside the language, and the runtime starts them and binds their addresses. Other foreign code enters through `foreign fn` and `foreign type`, §4.7. Both boundaries carry the same promise: the foreign side delivers the declared types, and a breach faults the receiving Ernest process, a return on first observation, a message on delivery.
 
 **ABI.** The runtime maps Ernest values to host terms; for the BEAM runtime:
 
