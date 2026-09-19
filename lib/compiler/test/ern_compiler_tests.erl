@@ -354,6 +354,24 @@ match_general_guard_test() ->
         "}\n"),
     ?assertEqual(<<"small\neven\nodd\n">>, Out).
 
+%% report §5.9: a guard that faults faults the process; it never becomes a
+%% silent `false` as an Erlang guard would, since only comparisons that
+%% cannot fault are emitted as Erlang guards and every other guard runs as
+%% an expression that falls through on `false` alone
+match_guard_faults_test() ->
+    {R, _} = run(
+        "fn name(n : Int) -> String = match n {\n"
+        "    k when k == 7 -> \"seven\"\n"
+        "  | k when 10 / k == 5 -> \"half\"\n"
+        "  | _ -> \"other\"\n"
+        "}\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    Io.println(name(7));\n"
+        "    Io.println(name(2));\n"
+        "    Io.println(name(0))\n"
+        "}\n"),
+    ?assertEqual({fault, <<"division by zero">>}, R).
+
 %% report §5.9: a receive guard is a guard expression, emitted as an Erlang
 %% guard, tested while the message stays in the mailbox
 receive_guard_test() ->
@@ -434,8 +452,8 @@ float_fault_test() ->
     ?assertEqual({fault, <<"float arithmetic error">>}, R3).
 
 %% report §4.8, §3.10, §5.1: a user type's operator is its member, its
-%% ordering goes through its compare, prefix - through its negate in a receive guard the ordering is a
-%% call, so MVP 1's guard rule refuses it
+%% ordering goes through its compare, prefix - through its negate; in a receive guard
+%% the ordering is a call, a type error by §5.9
 user_operators_test() ->
     Vec = "type Vec = Vec(Int)\n"
           "export fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a + b)\n"
