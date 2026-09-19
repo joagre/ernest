@@ -34,16 +34,24 @@ The rules below are in the order of work: what is authoritative, the repository,
 
 ## While working
 
+### Design
+
 - **Prefer minimal, direct implementations** over speculative abstraction.
 - **Features are judged on the principles.** A feature enters or stays out by the five principles, weighed one by one, examples or not. How many programs ask for it is one argument, never the gate.
 - **The log names the principle that decided.** A "Later" entry states the verdict and what would change it, never a count of programs as its trigger.
 - **Bring options, not defenses.** When a proposed simplification seems to conflict with a principle, first check whether the principle is being applied too dogmatically. The ambient `Sys.*` values were once refused on a misreading of "nothing invisible".
 - **Read the result back before reporting it.** After a design change, read the resulting Ernest code as a reader who knows the rest of Ernest would, against principles 1 and 2 and Appendix E.0, and say what surprised. The principles apply to the standard library and the toolchain as much as to the language.
+
+### Correctness
+
 - **No warts.** Never leave an approximation, a silent deviation from the report, or an unstated semantic choice in the code.
 - **A known defect is fixed when found**, however few programs it has misled. A gap too large to fix now goes in the plan with a date, never in a comment.
 - **Where the report is silent, add the sentence to the report or reject the input with an error.** Never accept it silently, and state the choice to the user when it is made.
 - **A refusal made for a later MVP's sake names that MVP in its error text.** A test checks that the README's table lists it.
 - **Every report section has a test.** Each has at least one test whose comment cites it (`%% report §5.4`); a section without a test is not implemented. `make sections` lists the sections without one, `make coverage` how thinly each is cited, and `make xref`, also part of `make test`, fails on a citation that names no heading.
+
+### Writing
+
 - **The report and the guide are tight, in a Wirth language report's register.** State the rule; no rationale, no restating.
 - **Clear before short.** A rule reads easily at first pass, in plain sentences, one rule per sentence, its exception and its example in sentences of their own, never compressed into a cryptic one. A sentence is cut for restating or rationale, never for the count alone.
 - **A report edit updates the revision date** in its line 3.
