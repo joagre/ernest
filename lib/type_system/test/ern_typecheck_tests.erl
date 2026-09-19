@@ -64,6 +64,20 @@ container_elements_are_not_marked_not_reply_carrying_test() ->
     ?assertEqual("(a!, (List(a!)) -> Int) -> Unit",
                  type_of("export fn skip(x : a, f : (List(a)) -> Int) = Unit", skip)).
 
+%% report §3.9: a foreign fn whose effect is its own is process-only; one
+%% whose effect is a parameter's callback's is effect-polymorphic
+foreign_effect_test() ->
+    Own = "foreign fn tick(n : Int) -> Int with m = \"erlang:abs/1\"\n"
+          "export fn pure() -> Int = tick(1)\n",
+    {error, [#diag{message = Msg} | _]} = ern_typecheck:check_string(['M'], Own),
+    ?assertEqual("tick needs a process, and pure is pure", Msg),
+    Callback = "foreign fn each(xs : List(a), f : (a) -> Unit with e) -> Unit with e ="
+               " \"lists:foreach/2\"\n"
+               "export fn pure(xs : List(Int)) -> Unit = each(xs, fn(x) = Unit)\n"
+               "export fn inProcess(xs : List(Int)) -> Unit with m ="
+               " each(xs, fn(x) = Io.println(Int.toString(x)))\n",
+    ?assertMatch({ok, _, _, _}, ern_typecheck:check_string(['M'], Callback)).
+
 %% report §4.8: `!` is negation on Bool
 not_operator_test() ->
     ?assertEqual("(Bool) -> Bool", type_of("export fn flip(b) = !b", flip)),

@@ -3,8 +3,8 @@
 %% order, subject first, and Optional where a key may be absent.
 -module(ern_map).
 
--export([empty/0, size/1, contains/2, get/2, put/3, remove/2, map/2, filter/2, fold/3,
-         foreach/2]).
+-export([empty/0, size/1, contains/2, get/2, put/3, remove/2, map/2, filter/2, filtermap/2,
+         fold/3, foreach/2]).
 
 -spec empty() -> map().
 empty() -> #{}.
@@ -33,6 +33,17 @@ map(M, F) -> maps:map(F, M).
 
 -spec filter(map(), fun((term(), term()) -> boolean())) -> map().
 filter(M, P) -> maps:filter(P, M).
+
+%% Appendix E.3: the entries the function answers Some for, that value in
+%% their place
+-spec filtermap(map(), fun((term(), term()) -> {'Some', term()} | 'None')) -> map().
+filtermap(M, F) ->
+    maps:filtermap(fun(K, V) ->
+                       case F(K, V) of
+                           {'Some', W} -> {true, W};
+                           'None' -> false
+                       end
+                   end, M).
 
 -spec fold(map(), term(), fun((term(), term(), term()) -> term())) -> term().
 fold(M, Acc, F) -> maps:fold(fun(K, V, A) -> F(A, K, V) end, Acc, M).

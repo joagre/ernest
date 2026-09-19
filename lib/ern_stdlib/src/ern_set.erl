@@ -4,7 +4,7 @@
 -module(ern_set).
 
 -export([empty/0, size/1, contains/2, put/2, remove/2, union/2, intersect/2, difference/2,
-         is_subset/2, from_list/1, to_list/1, filter/2]).
+         is_subset/2, from_list/1, to_list/1, filter/2, fold/3, foreach/2]).
 
 -spec empty() -> {set, sets:set()}.
 empty() -> wrap(sets:new([{version, 2}])).
@@ -41,5 +41,13 @@ to_list({set, S}) -> sets:to_list(S).
 
 -spec filter({set, sets:set()}, fun((term()) -> boolean())) -> {set, sets:set()}.
 filter({set, S}, P) -> wrap(sets:filter(P, S)).
+
+-spec fold({set, sets:set()}, term(), fun((term(), term()) -> term())) -> term().
+fold({set, S}, Acc, F) -> sets:fold(fun(X, A) -> F(A, X) end, Acc, S).
+
+-spec foreach({set, sets:set()}, fun((term()) -> 'Unit')) -> 'Unit'.
+foreach({set, S}, F) ->
+    lists:foreach(F, sets:to_list(S)),
+    'Unit'.
 
 wrap(S) -> {set, S}.

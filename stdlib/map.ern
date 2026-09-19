@@ -79,8 +79,8 @@ export fn update(m : Map(k, v), key : k, f : (Optional(v)) -> v with e) -> Map(k
     put(m, key, f(get(m, key)))
 
 /// Each value replaced by the function's, the key beside it.
-export fn map(m : Map(k, v), f : (k, v) -> w with e) -> Map(k, w) with e =
-    foldLeft(m, empty, fn(acc, key, value) = put(acc, key, f(key, value)))
+export foreign fn map(m : Map(k, v), f : (k, v) -> w with e) -> Map(k, w) with e =
+    "ern_map:map/2"
 
 /// The entries the predicate holds for.
 ///
@@ -90,9 +90,8 @@ export fn map(m : Map(k, v), f : (k, v) -> w with e) -> Map(k, w) with e =
 /// Map.toList(Map.filter(Map.fromList([#("a", 1), #("b", 2)]), fn(key, n) = n > 1))
 /// // => [#("b", 2)]
 /// ```
-export fn filter(m : Map(k, v), p : (k, v) -> Bool with e) -> Map(k, v) with e =
-    foldLeft(m, empty, fn(acc, key, value) =
-        if p(key, value) then put(acc, key, value) else acc)
+export foreign fn filter(m : Map(k, v), p : (k, v) -> Bool with e) -> Map(k, v) with e =
+    "ern_map:filter/2"
 
 /// The entries whose value the function answers `Some` for, that value in
 /// their place.
@@ -104,12 +103,8 @@ export fn filter(m : Map(k, v), p : (k, v) -> Bool with e) -> Map(k, v) with e =
 ///                          fn(key, s) = String.toInt(s)))
 /// // => [#("a", 1)]
 /// ```
-export fn filterMap(m : Map(k, v), f : (k, v) -> Optional(w) with e) -> Map(k, w) with e =
-    foldLeft(m, empty, fn(acc, key, value) =
-        match f(key, value) {
-            Some(w) -> put(acc, key, w)
-          | None -> acc
-        })
+export foreign fn filterMap(m : Map(k, v), f : (k, v) -> Optional(w) with e) -> Map(k, w) with e =
+    "ern_map:filtermap/2"
 
 /// The accumulator after the function has seen each entry, the accumulator
 /// first.
@@ -120,8 +115,8 @@ export fn filterMap(m : Map(k, v), f : (k, v) -> Optional(w) with e) -> Map(k, w
 /// Map.foldLeft(Map.fromList([#("a", 1), #("b", 2)]), 0, fn(acc, key, n) = acc + n)
 /// // => 3
 /// ```
-export fn foldLeft(m : Map(k, v), acc : b, f : (b, k, v) -> b with e) -> b with e =
-    List.foldLeft(toList(m), acc, fn(a, #(key, value)) = f(a, key, value))
+export foreign fn foldLeft(m : Map(k, v), acc : b, f : (b, k, v) -> b with e) -> b with e =
+    "ern_map:fold/3"
 
 /// The function applied to each entry for its effect.
 ///
@@ -131,8 +126,8 @@ export fn foldLeft(m : Map(k, v), acc : b, f : (b, k, v) -> b with e) -> b with 
 /// Map.foreach(Map.fromList([#("a", 1)]), fn(key, n) = Io.println(key))
 /// // => Unit
 /// ```
-export fn foreach(m : Map(k, v), f : (k, v) -> Unit with e) -> Unit with e =
-    List.foreach(toList(m), fn(#(key, value)) = f(key, value))
+export foreign fn foreach(m : Map(k, v), f : (k, v) -> Unit with e) -> Unit with e =
+    "ern_map:foreach/2"
 
 /// `true` when the predicate holds for some entry.
 ///

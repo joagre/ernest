@@ -75,8 +75,8 @@ export fn map(s : Set(a), f : (a) -> b with e) -> Set(b) with e =
 /// Set.toList(Set.filter(Set.fromList([1, 2, 3]), fn(n) = n > 2))
 /// // => [3]
 /// ```
-export fn filter(s : Set(a), p : (a) -> Bool with e) -> Set(a) with e =
-    fromList(List.filter(toList(s), p))
+export foreign fn filter(s : Set(a), p : (a) -> Bool with e) -> Set(a) with e =
+    "ern_set:filter/2"
 
 /// The values of the `Some` results.
 ///
@@ -98,8 +98,8 @@ export fn filterMap(s : Set(a), f : (a) -> Optional(b) with e) -> Set(b) with e 
 /// Set.foldLeft(Set.fromList([1, 2]), 0, Int.+)
 /// // => 3
 /// ```
-export fn foldLeft(s : Set(a), acc : b, f : (b, a) -> b with e) -> b with e =
-    List.foldLeft(toList(s), acc, f)
+export foreign fn foldLeft(s : Set(a), acc : b, f : (b, a) -> b with e) -> b with e =
+    "ern_set:fold/3"
 
 /// The function applied to each element for its effect.
 ///
@@ -109,8 +109,8 @@ export fn foldLeft(s : Set(a), acc : b, f : (b, a) -> b with e) -> b with e =
 /// Set.foreach(Set.fromList(["a"]), Io.println)
 /// // => Unit
 /// ```
-export fn foreach(s : Set(a), f : (a) -> Unit with e) -> Unit with e =
-    List.foreach(toList(s), f)
+export foreign fn foreach(s : Set(a), f : (a) -> Unit with e) -> Unit with e =
+    "ern_set:foreach/2"
 
 /// `true` when the predicate holds for some element.
 ///

@@ -786,9 +786,18 @@ check_value(#foreign_fn_decl{pos = Pos, params = Params, ret = Ret, effect = Eff
     Env1 = unify_at(Pos, Placeholder, T, Env#env{st = foreign_effect(T, St)}, "foreign signature"),
     {D, none, Env1}.
 
-%% A foreign fn declared `with m` is process-only (report §3.9).
-foreign_effect({tfn, _, {tvar, _} = E, _}, St) -> ern_types:add_flag(E, process_only, St);
+%% Report §3.9: a foreign fn's effect is its own, and so process-only,
+%% unless it is the effect of one of its parameters' function types, where
+%% it is that callback's and the function is effect-polymorphic.
+foreign_effect({tfn, Ps, {tvar, Id} = E, _}, St) ->
+    case lists:any(fun(P) -> parameter_effect(P, Id) end, Ps) of
+        true -> St;
+        false -> ern_types:add_flag(E, process_only, St)
+    end;
 foreign_effect(_, St) -> St.
+
+parameter_effect({tfn, _, {tvar, Id}, _}, Id) -> true;
+parameter_effect(_, _) -> false.
 
 %% Report §8.4: the implementation name of a foreign fn, module:function/arity.
 -spec foreign_impl(binary()) -> {ok, {atom(), atom(), non_neg_integer()}} | error.
