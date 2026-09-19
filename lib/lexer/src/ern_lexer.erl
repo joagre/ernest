@@ -81,6 +81,11 @@ lex([$" | R], L, C, Prev, Acc) ->
     {Chars, Rest, L1, C1} = string_body(R, L, C + 1, L, C, []),
     lex(Rest, L1, C1, {L1, C1},
         [{string, {L, C, {L1, C1}, Prev}, unicode:characters_to_binary(Chars)} | Acc]);
+lex([$` | R], L, C, Prev, Acc) ->
+    %% report §2.5: a raw string, no escapes, may span lines
+    {Chars, Rest, L1, C1} = raw_body(R, L, C + 1, L, C, []),
+    lex(Rest, L1, C1, {L1, C1},
+        [{string, {L, C, {L1, C1}, Prev}, unicode:characters_to_binary(Chars)} | Acc]);
 lex([$' | R], L, C, Prev, Acc) ->
     {Ch, Rest, C1} = char_body(R, L, C),
     lex(Rest, L, C1, {L, C1}, [{char, {L, C, {L, C1}, Prev}, Ch} | Acc]);
@@ -201,6 +206,19 @@ string_body([$\\ | R], L, C, L0, C0, Acc) ->
     string_body(R1, L, C + 1 + Len, L0, C0, [Ch | Acc]);
 string_body([Ch | R], L, C, L0, C0, Acc) ->
     string_body(R, L, C + 1, L0, C0, [Ch | Acc]).
+
+%% Report §2.5: everything up to the next backtick, a line break being a
+%% line feed and a carriage return before it dropped.
+raw_body([], _L, _C, L0, C0, _Acc) ->
+    error_at(L0, C0, "unterminated raw string");
+raw_body([$` | R], L, C, _L0, _C0, Acc) ->
+    {lists:reverse(Acc), R, L, C + 1};
+raw_body([$\r, $\n | R], L, _C, L0, C0, Acc) ->
+    raw_body(R, L + 1, 1, L0, C0, [$\n | Acc]);
+raw_body([$\n | R], L, _C, L0, C0, Acc) ->
+    raw_body(R, L + 1, 1, L0, C0, [$\n | Acc]);
+raw_body([Ch | R], L, C, L0, C0, Acc) ->
+    raw_body(R, L, C + 1, L0, C0, [Ch | Acc]).
 
 char_body([$\\ | R], L, C) ->
     {Ch, R1, Len} = escape(R, L, C + 1),

@@ -178,3 +178,14 @@ receive_clause_test() ->
                   {ident, counter}, '(', {ident, n}, '+', {ident, k}, ')', '|', 'after',
                   {int, 0}, '->', {ident, world}, '}'],
                  toks(Src)).
+
+%% report §2.5: a raw string is a String taken as written, no escapes, and may
+%% span lines, a CR before a line break dropped
+raw_string_test() ->
+    ?assertEqual([{string, <<"\\d+\\.\\d+">>}], toks("`\\d+\\.\\d+`")),
+    ?assertEqual([{string, <<>>}], toks("``")),
+    ?assertEqual([{string, <<"say \"hi\"">>}], toks("`say \"hi\"`")),
+    ?assertEqual([{string, <<"a\nb">>}], toks("`a\nb`")),
+    ?assertEqual([{string, <<"a\nb">>}], toks("`a\r\nb`")),
+    {ok, [_, {ident, {2, 4, _, _}, _} | _]} = ern_lexer:tokenize("`a\nb` x"),
+    ?assertEqual({1, 1, "unterminated raw string"}, err("`abc")).

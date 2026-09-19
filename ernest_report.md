@@ -69,7 +69,7 @@ Eighteen, grouped by role:
 int      = digit { digit } .
 float    = digit { digit } "." digit { digit } [ ( "e" | "E" ) [ "+" | "-" ] digit { digit } ] .
 char     = "'" ( character | escape ) "'" .
-string   = '"' { character | escape } '"' .
+string   = '"' { character | escape } '"' | "`" { rawchar } "`" .
 escape   = "\\" ( "'" | '"' | "\\" | "n" | "r" | "t"
            | "u{" hexdigit [ hexdigit ] [ hexdigit ] [ hexdigit ] [ hexdigit ] [ hexdigit ] "}" ) .
 bool     = "true" | "false" .
@@ -89,7 +89,7 @@ The escapes:
 | `\t`         | tab (U+0009)                                   |
 | `\u{...}`    | Unicode scalar; one to six hex digits          |
 
-`\u{...}` denotes a Unicode scalar value, U+0000 through U+10FFFF excluding the surrogates U+D800 through U+DFFF. A `character` inside a `char` or `string` literal is any code point other than the enclosing quote, `\`, U+000A, and U+000D. A multi-line string is built with `\n` or by concatenation. Identifiers are ASCII, though source text is Unicode.
+`\u{...}` denotes a Unicode scalar value, U+0000 through U+10FFFF excluding the surrogates U+D800 through U+DFFF. A `character` inside a `char` or `string` literal is any code point other than the enclosing quote, `\`, U+000A, and U+000D. A multi-line string is built with `\n`, by concatenation, or as a raw string. A raw string, `` `\d+\.\d+` ``, is a `String` whose text is taken as written: `rawchar` is any code point other than the backtick, there are no escapes, and it may span lines, a line break in it being a line feed, with a carriage return before it dropped. Identifiers are ASCII, though source text is Unicode.
 
 ### 2.6 Operators and delimiters
 

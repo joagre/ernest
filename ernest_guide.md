@@ -82,7 +82,7 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 - **`Int`** — arbitrary precision. Literal: `42`.
 - **`Float`** — IEEE 754 binary64, finite range only. Literal: `3.14`.
 - **`Char`** — one Unicode code point. Literal: `'a'`.
-- **`String`** — a Unicode string. Literal: `"hello"`. Escapes: `\n`, `\r`, `\t`, `\\`, `\"`, `\'`, `\u{1F600}`.
+- **`String`** — a Unicode string. Literal: `"hello"`. Escapes: `\n`, `\r`, `\t`, `\\`, `\"`, `\'`, `\u{1F600}`. A raw string between backticks is taken as written, no escapes, and may span lines: `` `\d+\.\d+` `` for a regular expression, `` `C:\temp` `` for a path (report §2.5).
 - **`Bytes`** — sequence of octets. Literal: `<<0, 1, 2>>` (a bitstring, §7.6 below; report §5.11).
 - **`Bool`** — `true` or `false`.
 - **`Unit`** — one value, also called `Unit`.
