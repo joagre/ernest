@@ -39,7 +39,7 @@
 %%
 
 -type chunk() :: #{iface := #iface{}, source_hash := binary(), deps := [{[atom()], binary()}],
-                   compiler => binary()}.
+                   compiler => binary(), stdlib => binary() | none}.
 
 -spec compile([atom()], [tuple()], #iface{}, ern_typecheck:env()) ->
           {ok, atom(), binary()} | {error, [error()]}.
@@ -50,7 +50,7 @@ compile(Ns, Decls, Iface, Env) ->
 %% the chunk beside the interface.
 -spec compile([atom()], [tuple()], #iface{}, ern_typecheck:env(),
               #{source_hash := binary(), deps := [{[atom()], binary()}],
-                compiler => binary()}) ->
+                compiler => binary(), stdlib => binary() | none}) ->
           {ok, atom(), binary()} | {error, [error()]}.
 compile(Ns, Decls, Iface, Env, Build) ->
     try

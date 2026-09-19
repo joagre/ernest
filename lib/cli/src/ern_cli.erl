@@ -107,7 +107,8 @@ ernc_compile(Opts, Path, Err) ->
     Modules = [module_of(absolute(F), Root) || F <- Files],
     try
         Order = compile_order(Modules, Root),
-        lists:foldl(fun(M, Ifaces) -> build(M, Ifaces, OutDir, Emit) end, #{}, Order),
+        Std = stdlib_hash(Root),
+        lists:foldl(fun(M, Ifaces) -> build(M, Ifaces, OutDir, Emit, Std) end, #{}, Order),
         case DirMode andalso Emit =:= erc andalso not lists:member(no_clean, Opts) of
             true -> sweep(absolute(Path), Root, OutDir);
             false -> ok
@@ -298,14 +299,15 @@ prelude_namespaces() ->
 %% Type-check and compile one module against its dependencies'
 %% interfaces, unless its .erc is current (§11.1). Returns the interfaces
 %% with this module's added.
-build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces, OutDir, Emit) ->
+build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces, OutDir, Emit,
+      Std) ->
     DepIfaces = [dep_iface(D, Ifaces, OutDir) || D <- Deps],
     DepHashes = lists:sort([{D, ern_compiler:iface_hash(I)} || {D, I} <- DepIfaces]),
     {ok, Source} = file:read_file(File),
     SourceHash = crypto:hash(sha256, Source),
     Out = filename:join(OutDir, filename:rootname(Rel)),
     Erc = Out ++ ".erc",
-    case Emit =:= erc andalso current(Erc, SourceHash, DepHashes) of
+    case Emit =:= erc andalso current(Erc, SourceHash, DepHashes, Std) of
         {true, Iface} ->
             Ifaces#{Ns => Iface};
         false ->
@@ -319,7 +321,7 @@ build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces,
                             ok = file:write_file(Out ++ ".erl", Src);
                         erc ->
                             Build = #{source_hash => SourceHash, deps => DepHashes,
-                                      compiler => list_to_binary(?VERSION)},
+                                      compiler => list_to_binary(?VERSION), stdlib => Std},
                             case ern_compiler:compile(Ns, Typed, Iface, Env, Build) of
                                 {ok, _, Beam} -> ok = file:write_file(Erc, Beam);
                                 {error, Errors} -> throw({errors, File, Errors})
@@ -329,6 +331,20 @@ build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces,
                 {error, Errors} ->
                     throw({errors, File, Errors})
             end
+    end.
+
+%% Report §11.1: one hash over every installed standard library interface,
+%% so that any change to one recompiles the modules built against it; an
+%% operator can reach a standard library module no path names, so the whole
+%% set is hashed. The standard library's own modules depend on each other
+%% as ordinary modules do, and record none.
+stdlib_hash(Root) ->
+    case is_stdlib_root(Root) of
+        true -> none;
+        false ->
+            Hashes = lists:sort([{I#iface.namespace, ern_compiler:iface_hash(I)}
+                                 || I <- ern_prelude:stdlib_ifaces()]),
+            crypto:hash(sha256, term_to_binary(Hashes))
     end.
 
 dep_iface(D, Ifaces, OutDir) ->
@@ -342,12 +358,14 @@ dep_iface(D, Ifaces, OutDir) ->
             end
     end.
 
-%% Report §11.1: current when the source, every dependency's interface, and
-%% the compiler's version are those the .erc was built from.
-current(Erc, SourceHash, DepHashes) ->
+%% Report §11.1: current when the source, every dependency's interface, the
+%% standard library's interfaces, and the compiler's version are those the
+%% .erc was built from.
+current(Erc, SourceHash, DepHashes, Std) ->
     Version = list_to_binary(?VERSION),
     case read_erc(Erc) of
-        {ok, #{iface := Iface, source_hash := SourceHash, deps := Deps, compiler := Version}} ->
+        {ok, #{iface := Iface, source_hash := SourceHash, deps := Deps, compiler := Version,
+               stdlib := Std}} ->
             case lists:sort(Deps) =:= DepHashes of
                 true -> {true, Iface};
                 false -> false

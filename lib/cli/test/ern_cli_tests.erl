@@ -297,8 +297,9 @@ module_cycle_test() ->
     write(Dir, "b.ern", "export fn g() -> Int = A.f()\n"),
     ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir])).
 
-%% report §11.1: a module is recompiled when its source or a dependency's
-%% interface changed, and not when only a dependency's bodies changed
+%% report §11.1: a module is recompiled when its source, a dependency's
+%% interface, the standard library's interfaces, or the compiler changed, and
+%% not when only a dependency's bodies changed
 recompile_rule_test() ->
     Dir = pair(tmp()),
     Args = ["--out-dir", Dir ++ "/build", Dir ++ "/src"],
@@ -326,17 +327,27 @@ recompile_rule_test() ->
           "export fn version() -> Int = 2\n"),
     ?assertEqual(0, ern_cli:ernc(Args)),
     ?assertNotEqual({ok, Main1}, file:read_file(Dir ++ "/build/main.erc")),
-    %% a module built by another version of ernc is rebuilt
     {ok, Main3} = file:read_file(Dir ++ "/build/main.erc"),
-    {ok, ernest@main, Chunks} = beam_lib:all_chunks(Main3),
-    Old = [case Id of
-               "ErnI" -> {Id, term_to_binary((binary_to_term(C))#{compiler => <<"0.0.0">>})};
-               _ -> {Id, C}
-           end || {Id, C} <- Chunks],
-    {ok, Forged} = beam_lib:build_module(Old),
-    ok = file:write_file(Dir ++ "/build/main.erc", Forged),
+    %% a module built against other standard library interfaces is rebuilt
+    ok = file:write_file(Dir ++ "/build/main.erc",
+                         forge(Main3, fun(C) -> C#{stdlib => <<"another">>} end)),
+    ?assertEqual(0, ern_cli:ernc(Args)),
+    ?assertEqual({ok, Main3}, file:read_file(Dir ++ "/build/main.erc")),
+    %% a module built by another version of ernc is rebuilt
+    ok = file:write_file(Dir ++ "/build/main.erc",
+                         forge(Main3, fun(C) -> C#{compiler => <<"0.0.0">>} end)),
     ?assertEqual(0, ern_cli:ernc(Args)),
     ?assertEqual({ok, Main3}, file:read_file(Dir ++ "/build/main.erc")).
+
+%% A compiled module with its interface chunk changed by F.
+forge(Beam, F) ->
+    {ok, _, Chunks} = beam_lib:all_chunks(Beam),
+    New = [case Id of
+               "ErnI" -> {Id, term_to_binary(F(binary_to_term(C)))};
+               _ -> {Id, C}
+           end || {Id, C} <- Chunks],
+    {ok, Forged} = beam_lib:build_module(New),
+    Forged.
 
 %% report §11.1: the sweep removes .erc files whose source is gone and
 %% directories left empty; --no-clean keeps them; single-file mode does
