@@ -1,0 +1,283 @@
+/// Operations on `String`, a sequence of Unicode code points (report §3.1).
+/// A `String` is not a container: its characters are reached through
+/// `toList`, which gives a `List(Char)`. `size` counts code points, and the
+/// operations that fold case or trim space follow Unicode, which the
+/// runtime decides (report Appendix E.0, rule 1).
+///
+/// ## Examples
+///
+/// ```ernest
+/// String.join(List.map(String.split("a,b", ","), String.toUpper), "-")
+/// // => "A-B"
+/// ```
+///
+/// ```ernest
+/// String.slice("hello", 1, 3)
+/// // => "ell"
+/// ```
+///
+/// ```ernest
+/// String.toInt("-12")
+/// // => Some(-12)
+/// ```
+///
+/// ## See also
+///
+/// `Char` for one code point, `Bytes` for octets, `Int.toString` and
+/// `Float.toString` for numbers as text.
+///
+/// since 0.1.0
+
+/// The characters of the first, then those of the second.
+export fn String.<>(a : String, b : String) -> String = a <> b
+
+/// The number of code points, which is not the number of octets.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.size("héj"), String.isEmpty(""))
+/// // => #(3, true)
+/// ```
+export foreign fn size(s : String) -> Int = "string:length/1"
+
+/// `true` for the empty string.
+export fn isEmpty(s : String) -> Bool = size(s) == 0
+
+/// The order of the code points, which `<` and the other comparisons use.
+///
+/// ### Examples
+///
+/// ```ernest
+/// String.compare("a", "b")
+/// // => Less
+/// ```
+export foreign fn compare(a : String, b : String) -> Ordering = "ern_string:compare/2"
+
+/// `true` when the second is somewhere in the first.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.contains("hello", "ell"), String.contains("hello", "x"))
+/// // => #(true, false)
+/// ```
+export foreign fn contains(s : String, part : String) -> Bool = "ern_string:contains/2"
+
+/// `true` when the string begins with the second.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.startsWith("hello", "he"), String.endsWith("hello", "lo"))
+/// // => #(true, true)
+/// ```
+export foreign fn startsWith(s : String, prefix : String) -> Bool = "ern_string:starts_with/2"
+
+/// `true` when the string ends with the second.
+export foreign fn endsWith(s : String, suffix : String) -> Bool = "ern_string:ends_with/2"
+
+/// Every occurrence of the second replaced by the third; an empty second
+/// changes nothing.
+///
+/// ### Examples
+///
+/// ```ernest
+/// String.replace("a-b-c", "-", "+")
+/// // => "a+b+c"
+/// ```
+export foreign fn replace(s : String, from : String, to : String) -> String =
+    "ern_string:replace/3"
+
+/// From the index, that many code points, clipped to what is there; a
+/// negative index starts at the beginning, and a negative count gives the
+/// empty string.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.slice("hello", -1, 3), String.slice("hello", 3, 9))
+/// // => #("hel", "lo")
+/// ```
+export fn slice(s : String, from : Int, count : Int) -> String =
+    if count <= 0 then "" else part(s, Int.max(from, 0), count)
+
+foreign fn part(s : String, from : Int, count : Int) -> String = "ern_string:slice/3"
+
+/// The character in front until the string is at least that many code
+/// points long.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.padStart("7", 3, '0'), String.padEnd("7", 3, '.'))
+/// // => #("007", "7..")
+/// ```
+export fn padStart(s : String, length : Int, c : Char) -> String = padding(s, length, c) <> s
+
+/// The character at the end until the string is at least that many code
+/// points long.
+export fn padEnd(s : String, length : Int, c : Char) -> String = s <> padding(s, length, c)
+
+fn padding(s : String, length : Int, c : Char) -> String =
+    repeat(Char.toString(c), length - size(s))
+
+/// The string `n` times; `n` below 0 gives the empty string.
+///
+/// ### Examples
+///
+/// ```ernest
+/// String.repeat("ab", 3)
+/// // => "ababab"
+/// ```
+export fn repeat(s : String, n : Int) -> String = if n <= 0 then "" else copy(s, n)
+
+foreign fn copy(s : String, n : Int) -> String = "ern_string:copy/2"
+
+/// Without leading and trailing whitespace.
+///
+/// ### Examples
+///
+/// ```ernest
+/// String.trim("  hi\n")
+/// // => "hi"
+/// ```
+export foreign fn trim(s : String) -> String = "ern_string:trim/1"
+
+/// The lower-case form, by Unicode.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.toLower("ÉH"), String.toUpper("éh"))
+/// // => #("éh", "ÉH")
+/// ```
+export foreign fn toLower(s : String) -> String = "ern_string:to_lower/1"
+
+/// The upper-case form, by Unicode.
+export foreign fn toUpper(s : String) -> String = "ern_string:to_upper/1"
+
+/// The lines, split at each line feed; a line feed at the end adds no empty
+/// line.
+///
+/// ### Examples
+///
+/// ```ernest
+/// String.lines("a\nb\n")
+/// // => ["a", "b"]
+/// ```
+export fn lines(s : String) -> List(String) =
+    if isEmpty(s) then
+        []
+    else {
+        let parts = split(s, "\n");
+        match List.last(parts) {
+            Some("") -> List.dropLast(parts)
+          | _ -> parts
+        }
+    }
+
+/// The parts between the occurrences of the second, the empty parts
+/// included; an empty second gives the string alone.
+///
+/// ### Examples
+///
+/// ```ernest
+/// String.split("a,,b", ",")
+/// // => ["a", "", "b"]
+/// ```
+export fn split(s : String, separator : String) -> List(String) =
+    if isEmpty(separator) then [s] else parts(s, separator)
+
+foreign fn parts(s : String, separator : String) -> List(String) = "ern_string:split/2"
+
+/// The parts with the second between them.
+///
+/// ### Examples
+///
+/// ```ernest
+/// String.join(["a", "b"], ", ")
+/// // => "a, b"
+/// ```
+export fn join(parts : List(String), separator : String) -> String =
+    match parts {
+        [] -> ""
+      | first :: rest -> List.foldLeft(rest, first, fn(acc, s) = acc <> separator <> s)
+    }
+
+/// The digits 0 to 9 as an `Int`, with an optional leading `-`, or `None`
+/// for anything else.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.toInt("12"), String.toInt("1x"))
+/// // => #(Some(12), None)
+/// ```
+export fn toInt(s : String) -> Optional(Int) =
+    match toList(s) {
+        [] -> None
+      | '-' :: rest -> Optional.map(digits(rest), Int.negate)
+      | chars -> digits(chars)
+    }
+
+fn digits(chars : List(Char)) -> Optional(Int) =
+    if List.isEmpty(chars) then
+        None
+    else if List.all(chars, isAsciiDigit) then
+        toIntBase(fromList(chars), 10)
+    else
+        None
+
+fn isAsciiDigit(c : Char) -> Bool = c >= '0' && c <= '9'
+
+/// The digits and letters in that base, 2 to 36, in either case, or `None`
+/// for anything else and for a base outside those.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.toIntBase("ff", 16), String.toIntBase("fg", 16))
+/// // => #(Some(255), None)
+/// ```
+export fn toIntBase(s : String, base : Int) -> Optional(Int) =
+    if base < 2 || base > 36 then None else inBase(s, base)
+
+foreign fn inBase(s : String, base : Int) -> Optional(Int) = "ern_string:to_int_base/2"
+
+/// The float literal form of report §2.5 as a `Float`, with an optional
+/// leading `-`, or `None` for anything else.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.toFloat("1.5"), String.toFloat("1"))
+/// // => #(Some(1.5), None)
+/// ```
+export foreign fn toFloat(s : String) -> Optional(Float) = "ern_string:to_float/1"
+
+/// The code points, in order.
+///
+/// ### Examples
+///
+/// ```ernest
+/// String.fromList(List.filter(String.toList("a1b"), Char.isAlpha))
+/// // => "ab"
+/// ```
+export foreign fn toList(s : String) -> List(Char) = "ern_string:to_list/1"
+
+/// The string of those code points.
+export foreign fn fromList(chars : List(Char)) -> String = "ern_string:from_list/1"
+
+/// The UTF-8 octets of the string.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.toUtf8("hi"), String.fromUtf8(<<104, 105>>))
+/// // => #(<<104, 105>>, Some("hi"))
+/// ```
+export foreign fn toUtf8(s : String) -> Bytes = "ern_string:to_utf8/1"
+
+/// The string those octets spell, or `None` when they are not UTF-8.
+export foreign fn fromUtf8(b : Bytes) -> Optional(String) = "ern_string:from_utf8/1"

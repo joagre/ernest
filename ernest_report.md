@@ -1195,7 +1195,7 @@ Set.isSubset : (Set(a), Set(a)) -> Bool // every element of the first is in the 
 
 ### Appendix E.5. `string.ern` (namespace `String`)
 
-A `String` is not a container: operations on its characters go through `toList`. `String.compare` and `String.<>` are the prelude's, §9.6.
+A `String` is not a container: operations on its characters go through `toList`. `String.compare` and `String.<>` are the prelude's, §9.6; this module provides them (§9).
 
 ```
 String.size : (String) -> Int // code points

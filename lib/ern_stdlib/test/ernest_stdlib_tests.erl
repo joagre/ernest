@@ -163,6 +163,12 @@ string_test() ->
     ?assertEqual({'Some', 255}, S:toIntBase(<<"FF">>, 16)),
     ?assertEqual('None', S:toIntBase(<<"fg">>, 16)),
     ?assertEqual('None', S:toIntBase(<<"1">>, 40)),
+    ?assertEqual(<<"hel">>, S:slice(<<"hello">>, -1, 3)),
+    ?assertEqual(<<>>, S:slice(<<"hello">>, 1, -1)),
+    ?assertEqual({'Some', 7}, S:toInt(<<"007">>)),
+    ?assertEqual('None', S:toInt(<<"-">>)),
+    ?assertEqual({'Some', -255}, S:toIntBase(<<"-ff">>, 16)),
+    ?assertEqual([<<"a">>], S:split(<<"a">>, <<>>)),
     ?assertEqual('Less', S:compare(<<"a">>, <<"b">>)),
     ?assertEqual('Equal', S:compare(<<"a">>, <<"a">>)).
 

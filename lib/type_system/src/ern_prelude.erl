@@ -118,7 +118,6 @@ values() ->
      {['Int', 'mod'], "(Int, Int) -> Optional(Int)"},
      {['Int', compare], "(Int, Int) -> Ordering"},
      {['Float', compare], "(Float, Float) -> Ordering"},
-     {['String', compare], "(String, String) -> Ordering"},
      {['Char', compare], "(Char, Char) -> Ordering"},
      {[todo], "(String) -> a"},
      %% §9.7 system references
@@ -208,29 +207,6 @@ values() ->
      {['Set', all], "(Set(a), (a) -> Bool with e) -> Bool with e"},
      {['Set', find], "(Set(a), (a) -> Bool with e) -> Optional(a) with e"},
      %% E.5 String
-     {['String', size], "(String) -> Int"},
-     {['String', isEmpty], "(String) -> Bool"},
-     {['String', contains], "(String, String) -> Bool"},
-     {['String', startsWith], "(String, String) -> Bool"},
-     {['String', endsWith], "(String, String) -> Bool"},
-     {['String', replace], "(String, String, String) -> String"},
-     {['String', slice], "(String, Int, Int) -> String"},
-     {['String', padStart], "(String, Int, Char) -> String"},
-     {['String', padEnd], "(String, Int, Char) -> String"},
-     {['String', repeat], "(String, Int) -> String"},
-     {['String', trim], "(String) -> String"},
-     {['String', toLower], "(String) -> String"},
-     {['String', toUpper], "(String) -> String"},
-     {['String', toInt], "(String) -> Optional(Int)"},
-     {['String', toIntBase], "(String, Int) -> Optional(Int)"},
-     {['String', toFloat], "(String) -> Optional(Float)"},
-     {['String', toList], "(String) -> List(Char)"},
-     {['String', fromList], "(List(Char)) -> String"},
-     {['String', fromUtf8], "(Bytes) -> Optional(String)"},
-     {['String', toUtf8], "(String) -> Bytes"},
-     {['String', lines], "(String) -> List(String)"},
-     {['String', split], "(String, String) -> List(String)"},
-     {['String', join], "(List(String), String) -> String"},
      %% E.6 Char
      %% E.7 Bool
      %% E.8 Int

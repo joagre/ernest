@@ -2758,6 +2758,10 @@ Decided the same day by the new rules. In: `Float.sqrt`, `pow`, `exp`, `log`, `s
 
 The twelve functions admitted on 2026-09-20 doubled the module, and rule 3 refuses only what carries a policy, so the next request for a mean or a matrix would have had taste to answer it. E.9 now says the module holds the operations of the type itself, and that mathematics over collections of floats, statistics, matrices, and numerical methods, is a library. It is the sentence E.5 has for `String`, which says it is not a container, and it keeps principle 5 in front of a module that attracts additions. The base conversions kept the names E.0's shape rule gives, `Int.toStringBase` and `String.toIntBase`: `Int.toBase` and `String.fromBase` read better but name the base instead of the other type, and `fromBase` reads as building a `String`, while it produces an `Int`.
 
+## `String` in Ernest, 2026-09-20
+
+The largest module: twenty-three functions and `String.<>`. The split follows rule 1. Unicode decides case folding, trimming, finding, slicing by code point, and the conversions to and from octets and code points, so those are shims over `string` and `unicode` through `ern_string`; `compare` is one too, since Erlang's order on UTF-8 binaries is the order of code points and its implementation is the one to trust. What the language can say is Ernest: the empty test, the padding, `lines`, `join`, `split` on an empty separator, the clamping in `slice` and `repeat`, the base check in `toIntBase`, and `toInt`, which walks the code points and accepts only 0 to 9 with an optional leading `-`, where `Char.isDigit` would have accepted every script's digits. Writing it found no gap in the language. It did find one asymmetry: `&&` and `||` are operators, and the third of the trio is `Bool.not`, so `!p` does not parse, which is the one thing that had to be rewritten.
+
 ## Later
 
 Planned or considered, not in the language today.
