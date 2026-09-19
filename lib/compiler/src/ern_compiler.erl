@@ -365,7 +365,13 @@ expr(#e_neg{pos = Pos, expr = X}, Cx) ->
 expr(#e_binop{pos = Pos, op = Op, left = L, right = R}, Cx) ->
     {LF, Cx1} = expr(L, Cx),
     {RF, Cx2} = expr(R, Cx1),
-    {at(Pos, binop(Op, resolved(ern_typecheck:node_type(L), Cx), LF, RF, Cx)), Cx2};
+    case resolved(ern_typecheck:node_type(L), Cx) of
+        {tcon, ['Float'], []} when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/' ->
+            {[A, B], Cx3} = fresh_vars(2, "F", Cx2),
+            {at(Pos, float_op(Op, LF, RF, A, B)), Cx3};
+        T ->
+            {at(Pos, binop(Op, T, LF, RF, Cx)), Cx2}
+    end;
 expr(#e_lambda{pos = Pos, params = Params, body = Body}, Cx) ->
     {Pats, Cx1} = lists:mapfoldl(fun(#param{pattern = P}, C) -> pattern(P, C) end, Cx, Params),
     {BodyForms, Cx2} = body(Body, Cx1),
@@ -677,16 +683,13 @@ site(Pos, #cx{ns = Ns, fname = F}) ->
 %%
 
 %% Report §4.8, §3.10, §5.1: by the operand type. Int and the four
-%% ordered prelude types are Erlang's operators; Float goes through
-%% 'ernest@float', which turns badarith into the §7.4 fault; a user type's
-%% operator is its member, and its ordering is `T.compare(a, b)` against
-%% Less or Greater.
+%% ordered prelude types are Erlang's operators; Float's arithmetic is
+%% float_op/5; a user type's operator is its member, and its ordering is
+%% `T.compare(a, b)` against Less or Greater.
 binop(Op, {tcon, ['Int'], []}, L, R, _) when Op =:= '+'; Op =:= '-'; Op =:= '*' ->
     erl_syntax:infix_expr(L, erl_syntax:operator(Op), R);
 binop('/', {tcon, ['Int'], []}, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('div'), R);
 binop('%', {tcon, ['Int'], []}, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('rem'), R);
-binop(Op, {tcon, ['Float'], []}, L, R, _) when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/' ->
-    call_remote('ernest@float', Op, [L, R]);
 binop('<>', {tcon, ['String'], []}, L, R, _) -> binary_append(L, R);
 binop('<>', {tcon, ['Bytes'], []}, L, R, _) -> binary_append(L, R);
 binop('<>', {tcon, ['List'], _}, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('++'), R);
@@ -713,7 +716,20 @@ binop('<=', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('=<'), R
 binop(Op, _, L, R, _) when Op =:= '<'; Op =:= '>'; Op =:= '>=' ->
     erl_syntax:infix_expr(L, erl_syntax:operator(Op), R).
 
-negate({tcon, ['Float'], []}, Form, _) -> call_remote('ernest@float', negate, [Form]);
+%% Report §3.1, §7.4: a Float operation inline, its operands bound first so
+%% that only its own badarith becomes the float fault; an Int division by
+%% zero inside an operand stays that fault.
+float_op(Op, L, R, A, B) ->
+    Cause = erl_syntax:string("float arithmetic error"),
+    Text = erl_syntax:binary([erl_syntax:binary_field(Cause)]),
+    Badarith = erl_syntax:class_qualifier(erl_syntax:atom(error), erl_syntax:atom(badarith)),
+    Handler = erl_syntax:clause([Badarith], none, [call_remote(ern_rt, fault, [Text])]),
+    Operation = erl_syntax:infix_expr(erl_syntax:variable(A), erl_syntax:operator(Op),
+                                      erl_syntax:variable(B)),
+    erl_syntax:block_expr([erl_syntax:match_expr(erl_syntax:variable(A), L),
+                           erl_syntax:match_expr(erl_syntax:variable(B), R),
+                           erl_syntax:try_expr([Operation], [Handler])]).
+
 negate({tcon, Q, _}, Form, Cx) when length(Q) > 1 -> member_call(Q, negate, [Form], Cx);
 negate(_, Form, _) -> erl_syntax:prefix_expr(erl_syntax:operator('-'), Form).
 

@@ -530,7 +530,16 @@ float_fault_test() ->
     ?assertEqual({fault, <<"float arithmetic error">>}, R2),
     {R3, _} = run(Zero ++ "export fn main() -> Unit with Never = "
                   "Io.println(Float.toString(zero() / zero()))\n"),
-    ?assertEqual({fault, <<"float arithmetic error">>}, R3).
+    ?assertEqual({fault, <<"float arithmetic error">>}, R3),
+    %% an Int zero divisor inside a Float operand keeps its own cause
+    {R4, _} = run("fn n() -> Int = List.size([])\n"
+                  "export fn main() -> Unit with Never = "
+                  "Io.println(Float.toString(Int.toFloat(1 / n()) + 1.0))\n"),
+    ?assertEqual({fault, <<"division by zero">>}, R4),
+    %% Float.+ taken as a value faults the same way
+    {R5, _} = run("export fn main() -> Unit with Never = "
+                  "Io.println(Float.toString(List.foldLeft([1.0e308, 1.0e308], 0.0, Float.+)))\n"),
+    ?assertEqual({fault, <<"float arithmetic error">>}, R5).
 
 %% report §4.8, §3.10, §5.1: a user type's operator is its member, its
 %% ordering goes through its compare, prefix - through its negate; in a receive guard

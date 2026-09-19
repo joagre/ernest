@@ -27,16 +27,16 @@
 ///
 /// Faults with `Fault("float arithmetic error")` when the result is not
 /// finite (report §3.1). `-`, `*`, and `/` fault the same way.
-export foreign fn Float.+(a : Float, b : Float) -> Float = "ern_float:add/2"
+export fn Float.+(a : Float, b : Float) -> Float = a + b
 
 /// The difference, rounded to the nearest `Float`.
-export foreign fn Float.-(a : Float, b : Float) -> Float = "ern_float:subtract/2"
+export fn Float.-(a : Float, b : Float) -> Float = a - b
 
 /// The product, rounded to the nearest `Float`.
-export foreign fn Float.*(a : Float, b : Float) -> Float = "ern_float:multiply/2"
+export fn Float.*(a : Float, b : Float) -> Float = a * b
 
 /// The quotient, rounded to the nearest `Float`; division by zero faults.
-export foreign fn Float./(a : Float, b : Float) -> Float = "ern_float:divide/2"
+export fn Float./(a : Float, b : Float) -> Float = a / b
 
 /// `-x`, which prefix `-` calls; `0.0` becomes `-0.0`.
 ///
@@ -46,7 +46,7 @@ export foreign fn Float./(a : Float, b : Float) -> Float = "ern_float:divide/2"
 /// Float.negate(1.5)
 /// // => -1.5
 /// ```
-export foreign fn negate(x : Float) -> Float = "ern_float:negate/1"
+export fn negate(x : Float) -> Float = -x
 
 /// The numeric order, which `<` and the other comparisons use; `-0.0` and
 /// `0.0` are `Equal`.
