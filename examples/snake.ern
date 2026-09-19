@@ -91,7 +91,7 @@ fn player(id : Int, game : Address(GameMsg)) -> Unit with Key = receive {
 fn step(world : World) -> World = {
     let World(w = w, h = h, players = ps, apples = apples, seed = seed, tick = t) = world;
     fn movePlayer(#(acc, apples), _, p) = match p {
-        Player(alive = false) | Player(body = []) -> #(acc, apples)
+        Player(alive = false) or Player(body = []) -> #(acc, apples)
       | Player(body = head :: rest, dir = d, score = s) -> {
             let next = move(w, h, head, d);
             let ate = List.contains(apples, next);

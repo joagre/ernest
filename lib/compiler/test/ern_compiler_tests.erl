@@ -379,13 +379,13 @@ match_guard_faults_test() ->
 or_pattern_test() ->
     Shape = "type Shape = Circle(Int) | Square(Int) | Dot\n",
     Kind = "fn kind(s : Shape) -> String = match s {\n"
-           "    Circle(n) | Square(n) when 10 / n > 0 -> \"sized\"\n"
+           "    Circle(n) or Square(n) when 10 / n > 0 -> \"sized\"\n"
            "  | _ -> \"dot\"\n"
            "}\n",
     {ok, Out} = run(Shape ++ Kind ++
         "fn area(s : Shape) -> Int = match s {\n"
-        "    Circle(n) | Square(n) when n > 1 -> n * 10\n"
-        "  | Circle(n) | Square(n) -> n\n"
+        "    Circle(n) or Square(n) when n > 1 -> n * 10\n"
+        "  | Circle(n) or Square(n) -> n\n"
         "  | Dot -> 0\n"
         "}\n"
         "export fn main() -> Unit with Never = {\n"
@@ -425,7 +425,7 @@ receive_or_pattern_test() ->
     {ok, Out} = run(
         "type Msg = Inc(Int) | Dec(Int) | Stop\n"
         "fn loop(n : Int) -> Int with Msg = receive {\n"
-        "    Inc(k) | Dec(k) -> loop(n + k)\n"
+        "    Inc(k) or Dec(k) -> loop(n + k)\n"
         "  | Stop -> n\n"
         "}\n"
         "export fn main() -> Unit with Msg = {\n"

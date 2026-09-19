@@ -30,7 +30,7 @@
   | {atom(), pos()}.
 -type error() :: {pos_integer(), pos_integer(), string()}.
 
--define(RESERVED, [type, abstract, with, foreign, match, 'when', 'receive', 'after',
+-define(RESERVED, [type, abstract, with, foreign, match, 'when', 'receive', 'after', 'or',
                    as, 'if', then, 'else', fn, 'let', export]).
 
 %% Longest first, so max-munch is clause order.

@@ -232,24 +232,24 @@ match m {
 
 Each variable appears at most once in a pattern. Repeated names within one pattern are a type error.
 
-A clause may list several patterns separated by `|`; it matches when any of them does. Every alternative binds the same variables at the same types, so the body uses them whichever alternative matched:
+A clause may list several patterns separated by `or`; it matches when any of them does. Every alternative binds the same variables at the same types, so the body uses them whichever alternative matched:
 
 ```
 type Direction = North | South | East | West
 type Move = Forward(Int) | Back(Int) | Stay
 
 fn axis(d : Direction) -> String = match d {
-    North | South -> "vertical"
-  | East | West -> "horizontal"
+    North or South -> "vertical"
+  | East or West -> "horizontal"
 }
 
 fn step(m : Move) -> Int = match m {
-    Forward(n) | Back(n) when n > 0 -> n
+    Forward(n) or Back(n) when n > 0 -> n
   | _ -> 0
 }
 ```
 
-A guard after the alternatives sees the shared variables. The same works in `receive`. `Some(x) | None -> x` is a type error, since `None` binds no `x` (report §5.9).
+A guard after the alternatives sees the shared variables. The same works in `receive`. `Some(x) or None -> x` is a type error, since `None` binds no `x` (report §5.9).
 
 A postfix `as ident` binds the whole match alongside its destructured parts: `Some(x) as present` binds `x` to the payload *and* `present` to the whole Optional. Useful when both the interior and the aggregate matter. `as` is not allowed on reply-carrying scrutinees (§4.2).
 

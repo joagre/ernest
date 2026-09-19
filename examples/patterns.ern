@@ -40,7 +40,7 @@ fn negate(n : Int) -> Int = -n
 
 // A clause with alternatives binds the same variables in each.
 fn side(s : Shape) -> Int = match s {
-    Circle(n) | Square(n) -> n
+    Circle(n) or Square(n) -> n
   | Dot -> 0
 }
 

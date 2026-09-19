@@ -194,15 +194,15 @@ match_test() ->
     ?assertMatch(#e_match{clauses = [#clause{body = #e_match{}}, #clause{}]},
                  e("match a { Some(b) -> match b { 1 -> x | _ -> y } | None -> z }")).
 
-%% report §5.9: a clause lists one or more patterns separated by `|`
+%% report §5.9: a clause lists one or more patterns separated by `or`
 or_pattern_test() ->
     ?assertMatch(#e_match{clauses = [#clause{pattern = #p_or{alts = [#p_con{name = 'A'},
                                                                      #p_con{name = 'B'}]},
                                              body = #e_lit{}},
                                      #clause{pattern = #p_con{name = 'C'}, guard = #e_lit{}}]},
-                 e("match x { A | B -> 1 | C when true -> 2 }")),
+                 e("match x { A or B -> 1 | C when true -> 2 }")),
     ?assertMatch(#e_receive{clauses = [#clause{pattern = #p_or{alts = [_, _, _]}}]},
-                 e("receive { A | B | C -> 1 }")).
+                 e("receive { A or B or C -> 1 }")).
 
 %% report §6.3
 receive_test() ->
