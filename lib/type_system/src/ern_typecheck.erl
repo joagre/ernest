@@ -26,7 +26,11 @@
 -record(env, {ns = [], types = #{}, cons = #{}, globals = #{},
               local_types = #{}, local_cons = #{}, local_values = #{},
               vars = #{}, effect = pure, st, pending = [], deferred = [],
-              ann_vars = #{}, rigid = [], effect_origin = undefined}).
+              ann_vars = #{}, rigid = [], effect_origin = undefined,
+              groups = #{}, typed = [], errs = []}).
+%% groups: qname => the dependency group not yet checked that declares it,
+%% checked on first demand (a reference, or an operator resolving to it);
+%% typed: the groups checked so far; errs: their errors
 %% effect_origin: undefined | {what, span, label, help}: what is pure here
 %% ("f", "the lambda", "a top-level `let`", "a guard"), the span that
 %% made it so, and what to do; named by an effect error (report §11.5)
@@ -355,22 +359,55 @@ check_values(Decls, Env0) ->
     %% names first, so every body can see every other
     Env1 = lists:foldl(fun(D, Env) -> register_value_name(D, Env) end, Env0, Values),
     Groups = dependency_groups(Values, Env1),
-    {TypedGroups, Env2, Errs} =
-        lists:foldl(fun(Group, {Acc, Env, Errs}) ->
-                        try
-                            {Typed, Env3} = check_group(Group, Env),
-                            {Acc ++ Typed, Env3, Errs}
-                        catch
-                            throw:{type_error, Pos, Msg} ->
-                                {Acc ++ Group, placeholder_group(Group, Env),
-                                 [diag(Pos, Msg) | Errs]};
-                            throw:{type_error, #diag{} = D} ->
-                                {Acc ++ Group, placeholder_group(Group, Env), [D | Errs]}
-                        end
-                    end, {[], Env1, []}, Groups),
+    Pending = maps:from_list([{group_qname(D, Env1), G} || G <- Groups, D <- G]),
+    Env2 = lists:foldl(fun run_group/2, Env1#env{groups = Pending, typed = [], errs = []}, Groups),
+    Errs = let_cycles(Env2#env.typed, Env2) ++ Env2#env.errs,
     %% restore declaration order for the typed output
-    Typed = [replace_typed(D, TypedGroups) || D <- Decls],
-    {Typed, Env2, Errs}.
+    Typed = [replace_typed(D, Env2#env.typed) || D <- Decls],
+    {Typed, Env2#env{groups = #{}, typed = [], errs = []}, Errs}.
+
+group_qname(D, Env) ->
+    {Owner, Name} = decl_key(D),
+    value_qname(Env, Owner, Name).
+
+%% A group is checked once, when the fold reaches it or when a definition
+%% under inference demands one of its names first (report §4.8: an
+%% operator names its member only once the operand type is known, so the
+%% reference graph cannot order it). A failed group gets placeholders so
+%% later groups report their own errors.
+run_group(Group, #env{groups = Pending} = Env) ->
+    Keys = [group_qname(D, Env) || D <- Group],
+    case maps:is_key(hd(Keys), Pending) of
+        false ->
+            Env;
+        true ->
+            Env1 = Env#env{groups = maps:without(Keys, Pending)},
+            try check_group(Group, Env1) of
+                {Typed, Env2} -> Env2#env{typed = Env2#env.typed ++ Typed}
+            catch
+                throw:{type_error, Pos, Msg} ->
+                    E = placeholder_group(Group, Env1),
+                    E#env{typed = E#env.typed ++ Group, errs = [diag(Pos, Msg) | E#env.errs]};
+                throw:{type_error, #diag{} = D} ->
+                    E = placeholder_group(Group, Env1),
+                    E#env{typed = E#env.typed ++ Group, errs = [D | E#env.errs]}
+            end
+    end.
+
+%% A name demanded before its group ran: the group is checked now, with
+%% the demanding definition's own scope set aside and restored after.
+demand(Q, #env{groups = Pending} = Env) ->
+    case Pending of
+        #{Q := Group} ->
+            Clean = Env#env{vars = #{}, effect = pure, pending = [], deferred = [], ann_vars = #{},
+                            rigid = [], effect_origin = undefined},
+            Env1 = run_group(Group, Clean),
+            Env1#env{vars = Env#env.vars, effect = Env#env.effect, pending = Env#env.pending,
+                     deferred = Env#env.deferred, ann_vars = Env#env.ann_vars,
+                     rigid = Env#env.rigid, effect_origin = Env#env.effect_origin};
+        _ ->
+            Env
+    end.
 
 is_value_decl(#fn_decl{}) -> true;
 is_value_decl(#let_decl{}) -> true;
@@ -432,11 +469,12 @@ dependency_groups(Values, Env) ->
     Ordered = lists:reverse([Comp || Comp <- Order, lists:member(Comp, Components)]),
     [[maps:get(K, ByKey) || K <- Comp] || Comp <- Ordered].
 
-%% Local value keys a declaration's body refers to. An operator refers to
-%% the member it may resolve to (report §4.8, §3.10) in every local type,
-%% since the operand type is not known before inference; that orders the
-%% members before their users, and a group it over-approximates is checked
-%% together, which only makes it monomorphic within the group.
+%% Local value keys a declaration's body refers to: by name, and through
+%% an operator whose operand type is known, the member it resolves to
+%% (report §4.8, §3.10, §5.1). Before inference no operand type is known,
+%% so the graph that orders the groups holds names only and a member is
+%% checked on demand (run_group); after it, the typed AST names every
+%% member, which the §8.5 cycle rule reads.
 references(D, Env) ->
     lists:usort(refs(body_of(D), Env, [])).
 
@@ -447,8 +485,7 @@ body_of(_) -> undefined.
 refs(#e_var{path = [], name = N}, _Env, Acc) -> [{undefined, N} | Acc];
 refs(#e_var{path = [Owner], name = N}, #env{local_types = LT}, Acc) ->
     case maps:is_key(Owner, LT) of true -> [{Owner, N} | Acc]; false -> Acc end;
-refs(#e_binop{op = Op, left = L, right = R}, #env{local_types = LT} = Env, Acc)
-  when is_atom(Op) ->
+refs(#e_binop{op = Op, left = L, right = R}, Env, Acc) when is_atom(Op) ->
     Member = case lists:member(Op, ?ORDER) of
                  true -> compare;
                  false -> case lists:member(Op, ?ARITH) orelse Op =:= '<>' of
@@ -456,29 +493,28 @@ refs(#e_binop{op = Op, left = L, right = R}, #env{local_types = LT} = Env, Acc)
                               false -> none
                           end
              end,
-    Acc1 = case Member of
-               none -> Acc;
-               _ -> [{Owner, Member} || Owner <- maps:keys(LT)] ++ Acc
-           end,
-    refs(R, Env, refs(L, Env, Acc1));
-refs(#e_neg{expr = X}, #env{local_types = LT} = Env, Acc) ->
-    refs(X, Env, [{Owner, negate} || Owner <- maps:keys(LT)] ++ Acc);
+    refs(R, Env, refs(L, Env, operator_ref(Member, L, Env) ++ Acc));
+refs(#e_neg{expr = X}, Env, Acc) ->
+    refs(X, Env, operator_ref(negate, X, Env) ++ Acc);
 refs(T, Env, Acc) when is_tuple(T) ->
     lists:foldl(fun(X, A) -> refs(X, Env, A) end, Acc, tl(tuple_to_list(T)));
 refs(L, Env, Acc) when is_list(L) ->
     lists:foldl(fun(X, A) -> refs(X, Env, A) end, Acc, L);
 refs(_, _, Acc) -> Acc.
 
-%% The references without the operator approximation, for the cycle rule.
-exact_references(D, Env) ->
-    lists:usort(exact_refs(body_of(D), Env, [])).
-
-exact_refs(#e_var{} = V, Env, Acc) -> refs(V, Env, Acc);
-exact_refs(T, Env, Acc) when is_tuple(T) ->
-    lists:foldl(fun(X, A) -> exact_refs(X, Env, A) end, Acc, tl(tuple_to_list(T)));
-exact_refs(L, Env, Acc) when is_list(L) ->
-    lists:foldl(fun(X, A) -> exact_refs(X, Env, A) end, Acc, L);
-exact_refs(_, _, Acc) -> Acc.
+%% The member an operator on Operand calls, once typed and of a local type.
+operator_ref(none, _, _) -> [];
+operator_ref(Member, Operand, #env{ns = Ns, local_types = LT}) ->
+    case node_type(Operand) of
+        {tcon, Q, _} when length(Q) =:= length(Ns) + 1 ->
+            Owner = lists:last(Q),
+            case lists:prefix(Ns, Q) andalso maps:is_key(Owner, LT) of
+                true -> [{Owner, Member}];
+                false -> []
+            end;
+        _ ->
+            []
+    end.
 
 %% A group failed: give its names a fresh polymorphic type so that later
 %% groups report their own errors rather than cascades.
@@ -492,7 +528,6 @@ placeholder_group(Group, Env) ->
                 end, Env, Group).
 
 check_group(Group, Env0) ->
-    let_cycle(Group, Env0),
     St0 = ern_types:enter(Env0#env.st),
     %% a monomorphic placeholder per member for recursion
     {Placeholders, St1} = lists:mapfoldl(fun(D, S) ->
@@ -538,34 +573,42 @@ zonk_ast(L, St) when is_list(L) -> [zonk_ast(X, St) || X <- L];
 zonk_ast(X, _) -> X.
 
 %% Report §8.5: a cycle among top-level let initializers, directly or through
-%% functions they call, is a compile-time error. A cycle lies within one
-%% group, so the exact references among the group's members decide.
-let_cycle(Group, Env) ->
-    case lists:keysort(2, [D || #let_decl{} = D <- Group]) of
-        [] -> ok;
-        [#let_decl{pos = Pos, name = Name} = D | _] ->
-            Keys = [decl_key(G) || G <- Group],
-            G = digraph:new(),
-            lists:foreach(fun(K) -> digraph:add_vertex(G, K) end, Keys),
-            lists:foreach(fun(M) ->
-                              [digraph:add_edge(G, decl_key(M), Ref)
-                               || Ref <- exact_references(M, Env), lists:member(Ref, Keys)]
-                          end, Group),
-            Cycle = digraph:get_cycle(G, decl_key(D)),
-            digraph:delete(G),
-            Others = case Cycle of
-                         false -> [];
-                         _ -> [local_name(O, N) || {O, N} <- lists:usort(Cycle),
-                                                   {O, N} =/= decl_key(D)]
-                     end,
-            Cyclic = Cycle =/= false,
-            Through = case Others of
-                          [] -> "";
-                          _ -> ", through " ++ lists:join(", ", Others)
-                      end,
-            Cyclic andalso fail(Pos, "the initializer of " ++ atom_to_list(Name)
-                                     ++ " depends on itself" ++ Through),
-            ok
+%% functions they call, is a compile-time error. Read off the typed
+%% declarations, since an operator names its member only once typed; one
+%% error per cycle, at its first let.
+let_cycles(Decls, Env) ->
+    Keys = [decl_key(D) || D <- Decls],
+    G = digraph:new(),
+    lists:foreach(fun(K) -> digraph:add_vertex(G, K) end, Keys),
+    lists:foreach(fun(D) ->
+                      [digraph:add_edge(G, decl_key(D), Ref)
+                       || Ref <- references(D, Env), lists:member(Ref, Keys)]
+                  end, Decls),
+    Lets = lists:keysort(2, [D || #let_decl{} = D <- Decls]),
+    {Errs, _} = lists:foldl(fun(D, {Acc, Seen}) -> let_cycle(D, G, Acc, Seen) end,
+                            {[], []}, Lets),
+    digraph:delete(G),
+    lists:reverse(Errs).
+
+let_cycle(#let_decl{pos = Pos, name = Name} = D, G, Errs, Seen) ->
+    Key = decl_key(D),
+    case lists:member(Key, Seen) of
+        true ->
+            {Errs, Seen};
+        false ->
+            case digraph:get_cycle(G, Key) of
+                false ->
+                    {Errs, Seen};
+                Cycle ->
+                    Others = [local_name(O, N) || {O, N} <- lists:usort(Cycle), {O, N} =/= Key],
+                    Through = case Others of
+                                  [] -> "";
+                                  _ -> ", through " ++ lists:join(", ", Others)
+                              end,
+                    Msg = lists:flatten(["the initializer of ", atom_to_list(Name),
+                                         " depends on itself", Through]),
+                    {[diag(Pos, Msg) | Errs], Cycle ++ Seen}
+            end
     end.
 
 %% Unify a placeholder with what the annotations say, before any body.
@@ -982,12 +1025,12 @@ arith_or_order(Op, LT, Arith, Pos, Env) ->
             end
     end.
 
-user_operator(Pos, Op, LT, Q, Env) ->
+user_operator(Pos, Op, LT, Q, Env0) ->
     Member = case lists:member(Op, ?ORDER) of true -> compare; false -> Op end,
     Name = format_qname([lists:last(Q), Member]),
-    case member_scheme(Q, Member, Env) of
-        undefined -> not_defined(Pos, Op, LT, Env);
-        Scheme ->
+    case member_scheme(Q, Member, Env0) of
+        {undefined, Env} -> not_defined(Pos, Op, LT, Env);
+        {Scheme, Env} ->
             {FT, St1} = ern_types:instantiate(Scheme, Env#env.st),
             %% as a reference to the member would, report §3.9
             Pending = [{Flag, Id, Pos} || Id <- ern_types:free_vars(FT, St1),
@@ -1020,16 +1063,19 @@ not_defined(Pos, Op, T, Env) ->
 op_text(negate) -> "-";
 op_text(Op) -> atom_to_list(Op).
 
-%% The scheme of Member in the type Q: in this module, a local value; in
-%% another, through its compiled interface.
-member_scheme(Q, Member, #env{ns = Ns, local_values = LV, globals = Gs}) ->
+%% The scheme of Member in the type Q: in this module, a local value,
+%% checked now if its group has not run; in another, through its compiled
+%% interface.
+member_scheme(Q, Member, #env{ns = Ns, local_values = LV} = Env) ->
     Key = case lists:prefix(Ns, Q) andalso length(Q) =:= length(Ns) + 1 of
               true -> maps:get({lists:last(Q), Member}, LV, undefined);
               false -> Q ++ [Member]
           end,
     case Key of
-        undefined -> undefined;
-        _ -> maps:get(Key, Gs, undefined)
+        undefined -> {undefined, Env};
+        _ ->
+            Env1 = demand(Key, Env),
+            {maps:get(Key, Env1#env.globals, undefined), Env1}
     end.
 
 %% Annotation variables scope over the definition and must stay distinct
@@ -1097,8 +1143,8 @@ infer(#e_lit{kind = Kind} = E, Env) ->
             int -> ?INT; float -> ?FLOAT; char -> ?CHAR; string -> ?STRING; bool -> ?BOOL
         end,
     {E#e_lit{type = T}, T, Env};
-infer(#e_var{pos = Pos, path = Path, name = Name} = E, Env) ->
-    Scheme = lookup_value(Pos, Path, Name, Env),
+infer(#e_var{pos = Pos, path = Path, name = Name} = E, Env0) ->
+    {Scheme, Env} = lookup_value(Pos, Path, Name, Env0),
     {T, St} = ern_types:instantiate(Scheme, Env#env.st),
     Pending = [{Flag, Id, Pos} || Id <- ern_types:free_vars(T, St),
                                   Flag <- ern_types:flags(Id, St),
@@ -1891,30 +1937,36 @@ irrefutable(_, _) -> false.
 %% Name lookup (report §4.2)
 %%
 
-lookup_value(Pos, [], Name, #env{vars = Vs, local_values = LV, globals = Gs}) ->
+%% A name's scheme and the environment, since a local name whose group
+%% has not run is checked on demand.
+lookup_value(Pos, [], Name, #env{vars = Vs, local_values = LV} = Env) ->
     case Vs of
-        #{Name := Scheme} -> Scheme;
+        #{Name := Scheme} -> {Scheme, Env};
         _ ->
             case LV of
-                #{Name := Q} -> maps:get(Q, Gs);
+                #{Name := Q} -> local_global(Q, Env);
                 _ ->
-                    case Gs of
-                        #{[Name] := Scheme} -> Scheme;
+                    case Env#env.globals of
+                        #{[Name] := Scheme} -> {Scheme, Env};
                         _ -> fail(Pos, "unknown name " ++ atom_to_list(Name))
                     end
             end
     end;
-lookup_value(Pos, [Owner] = Path, Name, #env{local_values = LV, globals = Gs}) ->
+lookup_value(Pos, [Owner] = Path, Name, #env{local_values = LV} = Env) ->
     case LV of
-        #{{Owner, Name} := Q} -> maps:get(Q, Gs);
-        _ -> lookup_global(Pos, Path ++ [Name], Gs)
+        #{{Owner, Name} := Q} -> local_global(Q, Env);
+        _ -> lookup_global(Pos, Path ++ [Name], Env)
     end;
-lookup_value(Pos, Path, Name, #env{globals = Gs}) ->
-    lookup_global(Pos, Path ++ [Name], Gs).
+lookup_value(Pos, Path, Name, Env) ->
+    lookup_global(Pos, Path ++ [Name], Env).
 
-lookup_global(Pos, Q, Gs) ->
+local_global(Q, Env) ->
+    Env1 = demand(Q, Env),
+    {maps:get(Q, Env1#env.globals), Env1}.
+
+lookup_global(Pos, Q, #env{globals = Gs} = Env) ->
     case Gs of
-        #{Q := Scheme} -> Scheme;
+        #{Q := Scheme} -> {Scheme, Env};
         _ -> fail(Pos, "unknown name " ++ format_qname(Q))
     end.
 

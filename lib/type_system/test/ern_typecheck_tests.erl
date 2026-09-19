@@ -116,6 +116,29 @@ user_type_operators_test() ->
     ?assertEqual(ok, ok("type Vec = Vec(Int)\nlet scale = 2 + 1\n"
                         "export fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a + b * scale)\n")).
 
+%% report §4.8, §3.9: an operator's member is checked when first demanded,
+%% so a helper both the member and another definition use keeps its
+%% polymorphism, a member and a helper may use each other, and a member
+%% that fails leaves its users with their own types
+operator_member_on_demand_test() ->
+    Vec = "type Vec = Vec(Int)\n",
+    %% pair is polymorphic in x; Vec.+ uses it at Vec and f at String
+    ?assertEqual("(M.Vec, M.Vec) -> #(String, Int)",
+                 type_of(Vec ++ "export fn f(a : Vec, b) = { let _ = a + b; pair(\"s\", 2) }\n"
+                         "fn pair(x, n : Int) = #(x, n + 1)\n"
+                         "export fn Vec.+(Vec(a), Vec(b)) -> Vec = {"
+                         " let #(v, _) = pair(Vec(a + b), 1); v }\n", f)),
+    %% norm uses Vec.+, and Vec.+ uses norm
+    ?assertEqual("(M.Vec) -> M.Vec",
+                 type_of(Vec ++ "export fn norm(v : Vec) = v + Vec(1)\n"
+                         "export fn Vec.+(Vec(a), Vec(b)) -> Vec ="
+                         " if a == 0 then norm(Vec(b)) else Vec(a + b)\n", norm)),
+    %% one error, in the member; its user keeps its own type
+    Errs = errs(Vec ++ "export fn f(a : Vec, b) = a + b\n"
+                "export fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a <> b)\n"),
+    ?assertEqual(["`<>` is not defined on Int"], Errs).
+
+
 %% report §3.10
 equality_test() ->
     ?assertEqual("`==` is not defined on (Int) -> Int: it contains a function or an address",
@@ -325,7 +348,16 @@ let_cycle_test() ->
     ?assertEqual("the initializer of a depends on itself, through f",
                  err("let a : Int = f()\nfn f() -> Int = a")),
     ?assertEqual("the initializer of a depends on itself", err("let a : Int = a")),
-    ?assertEqual(ok, ok("let a : Int = b + 1\nlet b : Int = 1")).
+    ?assertEqual(ok, ok("let a : Int = b + 1\nlet b : Int = 1")),
+    %% through an operator's member (report §4.8)
+    ?assertEqual("the initializer of x depends on itself, through Vec.+, y",
+                 err("type Vec = Vec(Int)\nlet x = Vec(1) + Vec(2)\nlet y = x\n"
+                     "export fn Vec.+(Vec(a), Vec(b)) -> Vec ="
+                     " { let Vec(c) = y; Vec(a + b + c) }")),
+    %% two independent cycles are two errors
+    ?assertEqual(["the initializer of a depends on itself",
+                  "the initializer of b depends on itself"],
+                 errs("let a : Int = a\nlet b : Int = b")).
 
 %% report §4.6
 toplevel_let_test() ->
