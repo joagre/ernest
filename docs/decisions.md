@@ -2766,6 +2766,14 @@ The largest module: twenty-three functions and `String.<>`. The split follows ru
 
 Writing `String.toInt` in Ernest, `!p` was typed and did not parse: `&&` and `||` were operators and the third of the trio was `Bool.not`, a function in a module. A reader who has `&&`, `||`, and `!=` predicts `!`, which is principle 1, and the language already pairs a prefix operator with a named function: prefix `-` with `Int.negate`. `!` is that pairing for `Bool`, with `Bool.not` as its function form, so principle 2 sees one way, not two. It costs one symbol in the lexer, one alternative in `Unary`, and no reserved word. It does not stack: `Unary` takes one prefix operator, as it does for `-`, so `!!b` is a parse error, and nothing is lost, since `!!b` is `b`.
 
+## `Map` and `Set` in Ernest, 2026-09-20
+
+Rule 1 admits the `Map` and `Set` operations as shims, and Erlang's maps and version 2 sets are what they are built on, so the primitives are `foreign fn`s over `ern_map` and `ern_set`, in Ernest's argument order. What the language can say is Ernest: the empty tests, `update`, `filterMap`, `any`, `all`, `find`, and `Set`'s `map`, `foldLeft`, and `foreach`, which go through `toList` and the `List` functions of E.2.
+
+Two things had to change first. §3.10 says `Map(k, v)` and `Set(a)` carry the equality constraint on `k` and `a`, but the checker attached it from a table keyed on the prelude's own names, so a module compiled from Ernest lost it: the constraint now comes from the type wherever it is written (`ann/3`), and a `Map` keyed by functions is refused again. §8.5 says a top-level `let` is evaluated once at program start, and the runner did that for the modules it loads from the load path; a standard library module is installed instead, so `Map.empty` read an unset term. `ern_rt:init_stdlib/0` now runs those initializers before the program's own, which every harness gets, not only the runner.
+
+`Map.map`, `Map.filter`, `Map.foldLeft`, `Map.foreach`, and `Set.filter` are written in Ernest over `toList` and `put`, not over `maps:map` and its kin, because §3.9 makes every `foreign fn` with an effect process-only: `snake.ern` calls `Map.foldLeft` from pure code, which such a shim would refuse. Whether a `foreign fn` whose effect variable is its callback's should stay process-only is an open report question, not a decision.
+
 ## Later
 
 Planned or considered, not in the language today.

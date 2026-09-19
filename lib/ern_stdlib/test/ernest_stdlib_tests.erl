@@ -62,6 +62,8 @@ list_test() ->
 
 %% report Appendix E.3, §3.10
 map_test() ->
+    %% report §8.5: Map.empty is a top-level let, evaluated at program start
+    ern_rt:init_stdlib(),
     M = 'ernest@map',
     E = M:empty(),
     ?assertEqual(true, M:isEmpty(E)),
@@ -93,6 +95,7 @@ map_test() ->
 
 %% report Appendix E.4, §3.10
 set_test() ->
+    ern_rt:init_stdlib(),
     S = 'ernest@set',
     ?assertEqual(true, S:isEmpty(S:empty())),
     S1 = S:put(S:put(S:put(S:empty(), 1), 2), 2),

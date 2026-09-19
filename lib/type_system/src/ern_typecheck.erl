@@ -207,7 +207,15 @@ ann(#t_con{pos = Pos, path = Path, name = Name, args = Args}, VarMap, Env) ->
         fail(Pos, io_lib:format("~s takes ~B type argument~s, not ~B",
                                 [format_qname(QName), Arity, plural(Arity), length(Args)])),
     {ArgTs, VarMap1, St} = ann_list(Args, VarMap, Env),
-    {{tcon, QName, ArgTs}, VarMap1, St};
+    %% report §3.10: Map(k, v) and Set(a) carry the equality constraint on
+    %% k and a, wherever the type is written
+    St1 = lists:foldl(fun(T, S) -> ern_types:add_flag(T, eq, S) end, St,
+                      case {QName, ArgTs} of
+                          {['Map'], [K, _]} -> [K];
+                          {['Set'], [A]} -> [A];
+                          _ -> []
+                      end),
+    {{tcon, QName, ArgTs}, VarMap1, St1};
 ann(#t_tuple{elems = Es}, VarMap, Env) ->
     {Ts, VarMap1, St} = ann_list(Es, VarMap, Env),
     {{ttuple, Ts}, VarMap1, St};

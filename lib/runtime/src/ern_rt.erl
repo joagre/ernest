@@ -22,7 +22,7 @@
 
 -export([send/2, spawn/3, self/0, via/2, call/3, call_forever/2, answer/2, monitor/2,
          kill/1, sys/1, run_main/2, run_main/3, fault/1, remote/1, parallel_remote/1,
-         todo/1, timed/0, untimed/0, in_foreign/1]).
+         todo/1, timed/0, untimed/0, in_foreign/1, init_stdlib/0]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -340,6 +340,7 @@ run_main(Main, Site, Opts) ->
     Clock = erlang:spawn(fun() -> clock_loop(0) end),
     persistent_term:put({?MODULE, stdout}, Stdout),
     persistent_term:put({?MODULE, clock}, Clock),
+    init_stdlib(),
     Init = maps:get(init, Opts, fun() -> ok end),
     MainPid = spawn('Local', fun() -> Init(), Main() end, Site),
     Reaper ! {await, MainPid, erlang:self(), fun(Down) -> {main_down, Run, Down} end},
@@ -362,6 +363,24 @@ run_main(Main, Site, Opts) ->
         {'Fault', Msg} -> {fault, Msg};
         deadlock -> deadlock;
         Other -> {fault, format("~p", [Other])}
+    end.
+
+%% Report §8.5: a standard library module's top-level lets, `Map.empty`
+%% among them, are evaluated once at program start like any other module's;
+%% the runner initializes the program's own modules, the runtime these,
+%% which are installed rather than loaded from the load path.
+-spec init_stdlib() -> ok.
+init_stdlib() ->
+    case code:lib_dir(ern_stdlib) of
+        {error, _} ->
+            ok;
+        App ->
+            Dir = filename:join(App, "ebin"),
+            lists:foreach(fun(File) ->
+                              Mod = list_to_atom(filename:basename(File, ".beam")),
+                              code:ensure_loaded(Mod),
+                              erlang:function_exported(Mod, '$init', 0) andalso Mod:'$init'()
+                          end, lists:sort(filelib:wildcard(filename:join(Dir, "ernest@*.beam"))))
     end.
 
 stop(Pid) ->

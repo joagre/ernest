@@ -1,0 +1,177 @@
+/// Operations on `Set(a)`, a finite set of elements (report §3.3). The
+/// element type needs equality, which the type itself requires (report
+/// §3.10). A set has no `get`: membership is `contains`. The order of
+/// `toList`, `foldLeft`, `foreach`, and `find` is unspecified.
+///
+/// ## Examples
+///
+/// ```ernest
+/// Set.contains(Set.put(Set.empty, "a"), "a")
+/// // => true
+/// ```
+///
+/// ```ernest
+/// Set.toList(Set.difference(Set.fromList([1, 2, 3]), Set.fromList([2])))
+/// // => [1, 3]
+/// ```
+///
+/// ## See also
+///
+/// `Map` for elements with values, `List.unique` for order kept.
+///
+/// since 0.1.0
+
+/// The set with no elements.
+export let empty : Set(a) = emptySet()
+
+foreign fn emptySet() -> Set(a) = "ern_set:empty/0"
+
+/// The number of elements.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Set.size(Set.fromList([1, 1, 2])), Set.isEmpty(Set.empty))
+/// // => #(2, true)
+/// ```
+export foreign fn size(s : Set(a)) -> Int = "ern_set:size/1"
+
+/// `true` for the set with no elements.
+export fn isEmpty(s : Set(a)) -> Bool = size(s) == 0
+
+/// `true` when the element is in the set.
+export foreign fn contains(s : Set(a), x : a) -> Bool = "ern_set:contains/2"
+
+/// The set with that element, which may already be there.
+export foreign fn put(s : Set(a), x : a) -> Set(a) = "ern_set:put/2"
+
+/// The set without that element, which need not be there.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Set.toList(Set.remove(Set.fromList([1, 2]), 2))
+/// // => [1]
+/// ```
+export foreign fn remove(s : Set(a), x : a) -> Set(a) = "ern_set:remove/2"
+
+/// The function applied to each element; two elements it maps together
+/// become one, so the result may be smaller.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Set.toList(Set.map(Set.fromList([1, 2]), fn(n) = n * 10))
+/// // => [10, 20]
+/// ```
+export fn map(s : Set(a), f : (a) -> b with e) -> Set(b) with e =
+    fromList(List.map(toList(s), f))
+
+/// The elements the predicate holds for.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Set.toList(Set.filter(Set.fromList([1, 2, 3]), fn(n) = n > 2))
+/// // => [3]
+/// ```
+export fn filter(s : Set(a), p : (a) -> Bool with e) -> Set(a) with e =
+    fromList(List.filter(toList(s), p))
+
+/// The values of the `Some` results.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Set.toList(Set.filterMap(Set.fromList(["1", "x"]), String.toInt))
+/// // => [1]
+/// ```
+export fn filterMap(s : Set(a), f : (a) -> Optional(b) with e) -> Set(b) with e =
+    fromList(List.filterMap(toList(s), f))
+
+/// The accumulator after the function has seen each element, the
+/// accumulator first.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Set.foldLeft(Set.fromList([1, 2]), 0, Int.+)
+/// // => 3
+/// ```
+export fn foldLeft(s : Set(a), acc : b, f : (b, a) -> b with e) -> b with e =
+    List.foldLeft(toList(s), acc, f)
+
+/// The function applied to each element for its effect.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Set.foreach(Set.fromList(["a"]), Io.println)
+/// // => Unit
+/// ```
+export fn foreach(s : Set(a), f : (a) -> Unit with e) -> Unit with e =
+    List.foreach(toList(s), f)
+
+/// `true` when the predicate holds for some element.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Set.any(Set.fromList([1]), fn(n) = n > 0), Set.all(Set.fromList([1]), fn(n) = n > 1))
+/// // => #(true, false)
+/// ```
+export fn any(s : Set(a), p : (a) -> Bool with e) -> Bool with e = List.any(toList(s), p)
+
+/// `true` when the predicate holds for every element, and for the set with
+/// no elements.
+export fn all(s : Set(a), p : (a) -> Bool with e) -> Bool with e = List.all(toList(s), p)
+
+/// Some element the predicate holds for.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Set.find(Set.fromList([1, 2]), fn(n) = n > 1)
+/// // => Some(2)
+/// ```
+export fn find(s : Set(a), p : (a) -> Bool with e) -> Optional(a) with e =
+    List.find(toList(s), p)
+
+/// The set of those elements, each once.
+export foreign fn fromList(xs : List(a)) -> Set(a) = "ern_set:from_list/1"
+
+/// The elements.
+export foreign fn toList(s : Set(a)) -> List(a) = "ern_set:to_list/1"
+
+/// The elements of both.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Set.toList(Set.union(Set.fromList([1]), Set.fromList([2])))
+/// // => [1, 2]
+/// ```
+export foreign fn union(s : Set(a), other : Set(a)) -> Set(a) = "ern_set:union/2"
+
+/// The elements in both.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Set.toList(Set.intersect(Set.fromList([1, 2]), Set.fromList([2, 3])))
+/// // => [2]
+/// ```
+export foreign fn intersect(s : Set(a), other : Set(a)) -> Set(a) = "ern_set:intersect/2"
+
+/// The elements of the first that are not in the second.
+export foreign fn difference(s : Set(a), other : Set(a)) -> Set(a) = "ern_set:difference/2"
+
+/// `true` when every element of the first is in the second.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Set.isSubset(Set.fromList([1]), Set.fromList([1, 2]))
+/// // => true
+/// ```
+export foreign fn isSubset(s : Set(a), other : Set(a)) -> Bool = "ern_set:is_subset/2"

@@ -1,0 +1,192 @@
+/// Operations on `Map(k, v)`, a finite map from keys to values (report
+/// §3.3). The key type needs equality, which the type itself requires
+/// (report §3.10), so a key holding a function or an address is a type
+/// error. The order of `keys`, `values`, `toList`, `foldLeft`, `foreach`,
+/// and `find` is unspecified.
+///
+/// ## Examples
+///
+/// ```ernest
+/// Map.get(Map.put(Map.empty, "a", 1), "a")
+/// // => Some(1)
+/// ```
+///
+/// ```ernest
+/// Map.toList(Map.map(Map.fromList([#("a", 1)]), fn(key, n) = n * 10))
+/// // => [#("a", 10)]
+/// ```
+///
+/// ## See also
+///
+/// `Set` for elements without values, `List` for order and position.
+///
+/// since 0.1.0
+
+/// The map with no entries.
+export let empty : Map(k, v) = emptyMap()
+
+foreign fn emptyMap() -> Map(k, v) = "ern_map:empty/0"
+
+/// The number of entries.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Map.size(Map.fromList([#("a", 1)])), Map.isEmpty(Map.empty))
+/// // => #(1, true)
+/// ```
+export foreign fn size(m : Map(k, v)) -> Int = "ern_map:size/1"
+
+/// `true` for the map with no entries.
+export fn isEmpty(m : Map(k, v)) -> Bool = size(m) == 0
+
+/// `true` when the map has an entry with that key.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Map.contains(Map.fromList([#("a", 1)]), "a"), Map.contains(Map.empty, "a"))
+/// // => #(true, false)
+/// ```
+export foreign fn contains(m : Map(k, v), key : k) -> Bool = "ern_map:contains/2"
+
+/// The value at that key.
+export foreign fn get(m : Map(k, v), key : k) -> Optional(v) = "ern_map:get/2"
+
+/// The map with that entry, replacing any entry with the same key.
+export foreign fn put(m : Map(k, v), key : k, value : v) -> Map(k, v) = "ern_map:put/3"
+
+/// The map without that key, which need not be present.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Map.toList(Map.remove(Map.fromList([#("a", 1)]), "a"))
+/// // => []
+/// ```
+export foreign fn remove(m : Map(k, v), key : k) -> Map(k, v) = "ern_map:remove/2"
+
+/// The map with the entry at that key replaced by the function's value; the
+/// function sees `None` when there is no entry.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Map.get(Map.update(Map.empty, "n", fn(o) = Optional.withDefault(o, 0) + 1), "n")
+/// // => Some(1)
+/// ```
+export fn update(m : Map(k, v), key : k, f : (Optional(v)) -> v with e) -> Map(k, v) with e =
+    put(m, key, f(get(m, key)))
+
+/// Each value replaced by the function's, the key beside it.
+export fn map(m : Map(k, v), f : (k, v) -> w with e) -> Map(k, w) with e =
+    foldLeft(m, empty, fn(acc, key, value) = put(acc, key, f(key, value)))
+
+/// The entries the predicate holds for.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Map.toList(Map.filter(Map.fromList([#("a", 1), #("b", 2)]), fn(key, n) = n > 1))
+/// // => [#("b", 2)]
+/// ```
+export fn filter(m : Map(k, v), p : (k, v) -> Bool with e) -> Map(k, v) with e =
+    foldLeft(m, empty, fn(acc, key, value) =
+        if p(key, value) then put(acc, key, value) else acc)
+
+/// The entries whose value the function answers `Some` for, that value in
+/// their place.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Map.toList(Map.filterMap(Map.fromList([#("a", "1"), #("b", "x")]),
+///                          fn(key, s) = String.toInt(s)))
+/// // => [#("a", 1)]
+/// ```
+export fn filterMap(m : Map(k, v), f : (k, v) -> Optional(w) with e) -> Map(k, w) with e =
+    foldLeft(m, empty, fn(acc, key, value) =
+        match f(key, value) {
+            Some(w) -> put(acc, key, w)
+          | None -> acc
+        })
+
+/// The accumulator after the function has seen each entry, the accumulator
+/// first.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Map.foldLeft(Map.fromList([#("a", 1), #("b", 2)]), 0, fn(acc, key, n) = acc + n)
+/// // => 3
+/// ```
+export fn foldLeft(m : Map(k, v), acc : b, f : (b, k, v) -> b with e) -> b with e =
+    List.foldLeft(toList(m), acc, fn(a, #(key, value)) = f(a, key, value))
+
+/// The function applied to each entry for its effect.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Map.foreach(Map.fromList([#("a", 1)]), fn(key, n) = Io.println(key))
+/// // => Unit
+/// ```
+export fn foreach(m : Map(k, v), f : (k, v) -> Unit with e) -> Unit with e =
+    List.foreach(toList(m), fn(#(key, value)) = f(key, value))
+
+/// `true` when the predicate holds for some entry.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Map.any(Map.fromList([#("a", 1)]), fn(key, n) = n > 0),
+///   Map.all(Map.fromList([#("a", 1)]), fn(key, n) = n > 1))
+/// // => #(true, false)
+/// ```
+export fn any(m : Map(k, v), p : (k, v) -> Bool with e) -> Bool with e =
+    List.any(toList(m), fn(#(key, value)) = p(key, value))
+
+/// `true` when the predicate holds for every entry, and for the map with no
+/// entries.
+export fn all(m : Map(k, v), p : (k, v) -> Bool with e) -> Bool with e =
+    List.all(toList(m), fn(#(key, value)) = p(key, value))
+
+/// Some entry the predicate holds for.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Map.find(Map.fromList([#("a", 1)]), fn(key, n) = n == 1)
+/// // => Some(#("a", 1))
+/// ```
+export fn find(m : Map(k, v), p : (k, v) -> Bool with e) -> Optional(#(k, v)) with e =
+    List.find(toList(m), fn(#(key, value)) = p(key, value))
+
+/// The entries of both, the second winning a shared key.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Map.toList(Map.merge(Map.fromList([#("a", 1)]), Map.fromList([#("a", 2)])))
+/// // => [#("a", 2)]
+/// ```
+export foreign fn merge(m : Map(k, v), other : Map(k, v)) -> Map(k, v) = "maps:merge/2"
+
+/// The map of those pairs, a later pair winning its key.
+export foreign fn fromList(pairs : List(#(k, v))) -> Map(k, v) = "maps:from_list/1"
+
+/// The entries as pairs.
+export foreign fn toList(m : Map(k, v)) -> List(#(k, v)) = "maps:to_list/1"
+
+/// The keys.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Map.keys(Map.fromList([#("a", 1)])), Map.values(Map.fromList([#("a", 1)])))
+/// // => #(["a"], [1])
+/// ```
+export foreign fn keys(m : Map(k, v)) -> List(k) = "maps:keys/1"
+
+/// The values.
+export foreign fn values(m : Map(k, v)) -> List(v) = "maps:values/1"
