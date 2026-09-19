@@ -2748,6 +2748,12 @@ The first module with no shim at all: thirty functions and `List.<>`, each writt
 
 `List` left `Bytes.<>` without the module §9 says provides it, and the plan had `Bytes` waiting for "a program that needs it". That trigger is the corpus rule, which decides nothing: a `Bytes` is a sequence of octets, so E.0 rule 2 gives it the vocabulary its structure implies, program or none. Appendix E.20 is `size`, `isEmpty`, `get`, `slice`, `toList`, `fromList`, and `<>`, with the section saying what it lacks and why: a `Bytes` is not a container, its octets are reached through `toList`, and `<<...>>` builds one, so there is no constructor. The shims are Erlang's `byte_size`, `binary:at`, `binary:part`, `binary_to_list`, and `list_to_binary`, which rule 1 now names; the bounds, the clipping, and the 0-to-255 check are in Ernest.
 
+## Nothing Waits for a Program, 2026-09-20
+
+E.0's third rule read "A program writes it and the hand-written version has no policy choice in it. One program is enough." Read as a sufficient condition it was harmless; in practice it became a gate, and the plan's roadmap table gated fifteen entries on "a program that needs it", which decides nothing and leaves the library with holes a reader trips over. Rule 3 is now a test of the function itself: a general operation of the type, its definition the obvious one, with no policy buried in it, and the preamble says no rule counts programs. The table's trigger column became a schedule: what waits needs a runtime door or a whole MVP, and says which.
+
+Decided the same day by the new rules. In: `Float.sqrt`, `pow`, `exp`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2` and `truncate` (rule 1 for the arithmetic, rule 2 for the fourth rounding policy); `Int.toStringBase` and `String.toIntBase`, the bases the language's own `0x` literals read; `List.foldRight`; `Optional.orElse` and `Either.orElse`. The partial ones answer `Optional`, by shape rule 4, and `pow` and `exp` fault with §3.1's cause. Out: `List.sum`, `max`, `min`, `first`, `rest`, `flatten`, `count`, `map2`, one pipe each by rule 4; `scan`, `mapFold`, `window`, `chunk`, each a `foldLeft` with an accumulator that hides a choice about the ends; `Float.looselyEquals`, whose tolerance is the program's, and `toPrecision`, which is a format; `array` and `queue`, which `List` and `Map` give; formatting a timestamp.
+
 ## Later
 
 Planned or considered, not in the language today.

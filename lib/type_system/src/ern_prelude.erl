@@ -222,6 +222,7 @@ values() ->
      {['String', toLower], "(String) -> String"},
      {['String', toUpper], "(String) -> String"},
      {['String', toInt], "(String) -> Optional(Int)"},
+     {['String', toIntBase], "(String, Int) -> Optional(Int)"},
      {['String', toFloat], "(String) -> Optional(Float)"},
      {['String', toList], "(String) -> List(Char)"},
      {['String', fromList], "(List(Char)) -> String"},

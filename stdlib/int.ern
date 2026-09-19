@@ -122,6 +122,20 @@ export foreign fn shiftRight(n : Int, k : Int) -> Int = "erlang:bsr/2"
 /// The decimal form, with a leading `-` when negative.
 export foreign fn toString(n : Int) -> String = "erlang:integer_to_binary/1"
 
+/// The digits of `n` in that base, 2 to 36, letters upper case, with a
+/// leading `-` when negative; `None` outside those bases.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Int.toStringBase(255, 16), Int.toStringBase(5, 1))
+/// // => #(Some("FF"), None)
+/// ```
+export fn toStringBase(n : Int, base : Int) -> Optional(String) =
+    if base < 2 || base > 36 then None else Some(inBase(n, base))
+
+foreign fn inBase(n : Int, base : Int) -> String = "erlang:integer_to_binary/2"
+
 /// The nearest `Float`, ties to even.
 ///
 /// ### Errors

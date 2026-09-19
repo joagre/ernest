@@ -1069,11 +1069,11 @@ E.0 is normative; the listing that follows is what E.0 has admitted, the modules
 
 ### Appendix E.0. Rules
 
-Four rules decide whether a function is in.
+Four rules decide whether a function is in. None of them counts programs: a function enters when a rule admits it, whether or not a program has asked, and a program that wants one the rules refuse writes it itself.
 
 1. Its value lives in the runtime and Ernest cannot compute it, or the runtime's implementation is the one to trust: the `Map` and `Set` operations, the Unicode operations on `String` and `Char`, `Int.toString` and `Float.toString`, the conversions between `Int` and `Float` and between `Int` and `Char`, the `Bytes` operations, the bit operations, `Foreign` and `Erl.atom`, `Random`, and the modules over the system references of §8.2. These are shims over `foreign fn` or over a system process, and a shim exists only where this rule applies.
 2. It follows from the type's structure, and each kind of type has a vocabulary. A container provides the container operations of the vocabulary below, or says in its section which it lacks and why. A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, and `tryMap` and `tryFold` for a step that can fail. Text adds `startsWith`, `endsWith`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `trim`, `toLower`, `toUpper`, and a character `isUpper`, `isLower`, `toUpper`, `toLower`. A path adds its segments: `join`, `split`, `parent`, `name`, `extension`, `withExtension`, `isAbsolute`. A filesystem adds files and directories: `read`, `write`, `append`, `list`, `stat`, `makeDir`, `remove`, `rename`, `copy`. A conversion to text has its inverse when programs read that type from text. A type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote.
-3. A program writes it and the hand-written version has no policy choice in it. One program is enough.
+3. It is a general operation of the type, its definition is the obvious one, and no policy is buried in it: `List.foldRight`, `Float.sqrt`. A function whose result depends on a choice the library would be making for the program, a format, a locale, a tolerance, is refused whatever asks for it.
 4. It is not a composition. A function that is one pipe of two functions already here is not added: `List.concat` is `List.flatMap(xs, fn(x) = x)`, `List.sum` is `List.foldLeft(xs, 0, Int.+)`.
 
 Eight rules give a function its shape.
@@ -1114,6 +1114,7 @@ List.map : (List(a), (a) -> b with e) -> List(b) with e
 List.filter : (List(a), (a) -> Bool with e) -> List(a) with e
 List.filterMap : (List(a), (a) -> Optional(b) with e) -> List(b) with e
 List.foldLeft : (List(a), b, (b, a) -> b with e) -> b with e
+List.foldRight : (List(a), b, (a, b) -> b with e) -> b with e // from the right, the element first
 List.foreach : (List(a), (a) -> Unit with e) -> Unit with e
 List.any : (List(a), (a) -> Bool with e) -> Bool with e
 List.all : (List(a), (a) -> Bool with e) -> Bool with e
@@ -1214,6 +1215,7 @@ String.lines : (String) -> List(String) // at each line feed; a line feed at the
 String.split : (String, String) -> List(String) // at each occurrence of the second; an empty second gives the first alone
 String.join : (List(String), String) -> String // the second between the parts
 String.toInt : (String) -> Optional(Int) // the digits 0 to 9, with an optional leading -
+String.toIntBase : (String, Int) -> Optional(Int) // in that base, 2 to 36, its digits and letters in either case; None outside
 String.toFloat : (String) -> Optional(Float) // the float literal form of §2.5, with an optional leading -
 String.toList : (String) -> List(Char)
 String.fromList : (List(Char)) -> String
@@ -1260,6 +1262,7 @@ Int.bitNot : (Int) -> Int
 Int.shiftLeft : (Int, Int) -> Int
 Int.shiftRight : (Int, Int) -> Int // arithmetic, sign-preserving
 Int.toString : (Int) -> String
+Int.toStringBase : (Int, Int) -> Optional(String) // in that base, 2 to 36, with upper-case letters; None outside
 Int.toFloat : (Int) -> Float // faults outside the finite range, §3.1
 ```
 
@@ -1273,8 +1276,20 @@ Float.min : (Float, Float) -> Float
 Float.max : (Float, Float) -> Float
 Float.toString : (Float) -> String // the shortest decimal that reads back as the same value
 Float.round : (Float) -> Int // to the nearest, ties to even
+Float.truncate : (Float) -> Int // toward zero
 Float.floor : (Float) -> Int
 Float.ceil : (Float) -> Int
+Float.sqrt : (Float) -> Optional(Float) // None below zero
+Float.pow : (Float, Float) -> Float
+Float.exp : (Float) -> Float
+Float.log : (Float) -> Optional(Float) // the natural logarithm; None at zero and below
+Float.sin : (Float) -> Float // radians, as the other trigonometric functions
+Float.cos : (Float) -> Float
+Float.tan : (Float) -> Float
+Float.asin : (Float) -> Optional(Float) // None outside -1.0 to 1.0
+Float.acos : (Float) -> Optional(Float) // None outside -1.0 to 1.0
+Float.atan : (Float) -> Float
+Float.atan2 : (Float, Float) -> Float // the angle of the point #(x, y), the y first
 ```
 
 ### Appendix E.10. `optional.ern` (namespace `Optional`)
@@ -1283,6 +1298,7 @@ Float.ceil : (Float) -> Int
 Optional.isSome : (Optional(a)) -> Bool
 Optional.isNone : (Optional(a)) -> Bool
 Optional.withDefault : (Optional(a), a) -> a
+Optional.orElse : (Optional(a), Optional(a)) -> Optional(a) // the first that is Some
 Optional.map : (Optional(a), (a) -> b with e) -> Optional(b) with e
 Optional.andThen : (Optional(a), (a) -> Optional(b) with e) -> Optional(b) with e
 ```
@@ -1293,6 +1309,7 @@ Optional.andThen : (Optional(a), (a) -> Optional(b) with e) -> Optional(b) with 
 Either.isLeft : (Either(e, a)) -> Bool
 Either.isRight : (Either(e, a)) -> Bool
 Either.withDefault : (Either(e, a), a) -> a
+Either.orElse : (Either(e, a), Either(e, a)) -> Either(e, a) // the first that is Right
 Either.map : (Either(e, a), (a) -> b with x) -> Either(e, b) with x
 Either.mapLeft : (Either(e, a), (e) -> f with x) -> Either(f, a) with x
 Either.andThen : (Either(e, a), (a) -> Either(e, b) with x) -> Either(e, b) with x

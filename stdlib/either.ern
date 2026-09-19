@@ -51,6 +51,18 @@ export fn isRight(r : Either(e, a)) -> Bool = match r { Left(_) -> false | Right
 export fn withDefault(r : Either(e, a), default : a) -> a =
     match r { Right(x) -> x | Left(_) -> default }
 
+/// The first `Either` that is `Right`, or the second `Left` when neither
+/// is.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Either.orElse(Left("no"), Right(2))
+/// // => Right(2)
+/// ```
+export fn orElse(r : Either(e, a), other : Either(e, a)) -> Either(e, a) =
+    match r { Right(_) -> r | Left(_) -> other }
+
 /// `Right` of the function applied to the value, or the `Left` unchanged;
 /// the function is not called on `Left`.
 export fn map(r : Either(e, a), f : (a) -> b with x) -> Either(e, b) with x =

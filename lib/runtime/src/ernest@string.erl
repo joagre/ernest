@@ -10,8 +10,9 @@
 -module('ernest@string').
 
 -export([size/1, isEmpty/1, contains/2, startsWith/2, endsWith/2, replace/3, slice/3,
-         padStart/3, padEnd/3, repeat/2, trim/1, toLower/1, toUpper/1, toInt/1, toFloat/1,
-         toList/1, fromList/1, fromUtf8/1, toUtf8/1, lines/1, split/2, join/2, compare/2]).
+         padStart/3, padEnd/3, repeat/2, trim/1, toLower/1, toUpper/1, toInt/1, toIntBase/2,
+         toFloat/1, toList/1, fromList/1, fromUtf8/1, toUtf8/1, lines/1, split/2, join/2,
+         compare/2]).
 
 size(S) -> string:length(S).
 isEmpty(S) -> S =:= <<>>.
@@ -47,6 +48,13 @@ digits(Bin) ->
     case lists:all(fun(C) -> C >= $0 andalso C =< $9 end, binary_to_list(Bin)) of
         true -> {'Some', binary_to_integer(Bin)};
         false -> 'None'
+    end.
+
+%% report Appendix E.5: in that base, its digits and letters in either case
+toIntBase(_, Base) when Base < 2; Base > 36 -> 'None';
+toIntBase(S, Base) ->
+    try {'Some', binary_to_integer(S, Base)}
+    catch error:badarg -> 'None'
     end.
 
 toFloat(S) ->

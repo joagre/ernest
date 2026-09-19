@@ -159,6 +159,10 @@ string_test() ->
     ?assertEqual([<<>>], S:split(<<>>, <<",">>)),
     ?assertEqual(<<"a, b">>, S:join([<<"a">>, <<"b">>], <<", ">>)),
     ?assertEqual(<<>>, S:join([], <<", ">>)),
+    ?assertEqual({'Some', 255}, S:toIntBase(<<"ff">>, 16)),
+    ?assertEqual({'Some', 255}, S:toIntBase(<<"FF">>, 16)),
+    ?assertEqual('None', S:toIntBase(<<"fg">>, 16)),
+    ?assertEqual('None', S:toIntBase(<<"1">>, 40)),
     ?assertEqual('Less', S:compare(<<"a">>, <<"b">>)),
     ?assertEqual('Equal', S:compare(<<"a">>, <<"a">>)).
 
@@ -270,6 +274,8 @@ optional_test() ->
     O = 'ernest@optional',
     ?assertEqual(true, O:isSome({'Some', 1})),
     ?assertEqual(true, O:isNone('None')),
+    ?assertEqual({'Some', 2}, O:orElse('None', {'Some', 2})),
+    ?assertEqual({'Some', 1}, O:orElse({'Some', 1}, {'Some', 2})),
     ?assertEqual(1, O:withDefault({'Some', 1}, 0)),
     ?assertEqual(0, O:withDefault('None', 0)),
     ?assertEqual({'Some', 2}, O:map({'Some', 1}, fun(X) -> X + 1 end)),
@@ -280,6 +286,8 @@ either_test() ->
     E = 'ernest@either',
     ?assertEqual(true, E:isLeft({'Left', e})),
     ?assertEqual(true, E:isRight({'Right', 1})),
+    ?assertEqual({'Right', 2}, E:orElse({'Left', e}, {'Right', 2})),
+    ?assertEqual({'Right', 1}, E:orElse({'Right', 1}, {'Right', 2})),
     ?assertEqual(1, E:withDefault({'Right', 1}, 0)),
     ?assertEqual(0, E:withDefault({'Left', e}, 0)),
     ?assertEqual({'Right', 2}, E:map({'Right', 1}, fun(X) -> X + 1 end)),

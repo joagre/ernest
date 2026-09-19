@@ -50,6 +50,17 @@ export fn isNone(o : Optional(a)) -> Bool = match o { Some(_) -> false | None ->
 export fn withDefault(o : Optional(a), default : a) -> a =
     match o { Some(x) -> x | None -> default }
 
+/// The first `Optional` that is `Some`, or `None` when neither is.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Optional.orElse(None, Some(2))
+/// // => Some(2)
+/// ```
+export fn orElse(o : Optional(a), other : Optional(a)) -> Optional(a) =
+    match o { Some(_) -> o | None -> other }
+
 /// `Some` of the function applied to the value, or `None`; the function is
 /// not called on `None`.
 export fn map(o : Optional(a), f : (a) -> b with e) -> Optional(b) with e =

@@ -149,6 +149,21 @@ export fn foldLeft(xs : List(a), acc : b, f : (b, a) -> b with e) -> b with e =
       | y :: rest -> foldLeft(rest, f(acc, y), f)
     }
 
+/// The accumulator after the function has seen each element from the
+/// right, the element first.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.foldRight(["a", "b"], "", fn(s, acc) = s <> acc)
+/// // => "ab"
+/// ```
+export fn foldRight(xs : List(a), acc : b, f : (a, b) -> b with e) -> b with e =
+    match xs {
+        [] -> acc
+      | y :: rest -> f(y, foldRight(rest, acc, f))
+    }
+
 /// The function applied to each element for its effect.
 ///
 /// ### Examples
