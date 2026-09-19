@@ -754,7 +754,7 @@ $ ern --load-path build --main Tools.check build/main.erc
 
 ### 6.2 Abstract types
 
-Abstract types have a private representation and a public signature. Only definitions listed in the `with { ... }` signature can mention the constructor. Any locally declared type — abstract or concrete — creates a nested namespace inside its module, and its members are declared with a single-typename prefix (`fn Stack.push`). Report report §4.8 shows the concrete-type variant used for per-type operator overloading (`fn Distance.+`, and so on).
+Abstract types have a private representation and a public signature. Only definitions listed in the `with { ... }` signature can mention the constructor. Any locally declared type — abstract or concrete — creates a nested namespace inside its module, and its members are declared with a single-typename prefix (`fn Stack.push`). Report §4.8 shows the concrete-type variant used for per-type operator overloading (`fn Distance.+`, and so on).
 
 ```
 // main.ern  (namespace Main)
@@ -949,7 +949,7 @@ A segment pattern is a variable, `_`, or a literal. `size(Expr)` in a pattern is
 
 **Precondition for `frame`/`parseFrame`:** the round trip works when `len` equals `body`'s byte count *and* `len` fits in the length-field width (16 bits, so 0 to 65 535). `parseFrame(frame(1, <<65, 66>>))` returns `Some(#(1, <<65>>, <<66>>))` — a one-byte body and a one-byte remainder, not an error, because `len = 1` was chosen. If `len` doesn't fit the width, `frame` faults at construction.
 
-Bitstrings compile to the runtime's bit syntax (report §5.11, §10).
+Bitstrings compile to the runtime's bit syntax (report §5.11, report §10).
 
 ### 7.7 Prediction exercise
 

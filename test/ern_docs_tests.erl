@@ -47,7 +47,7 @@ heading(L) ->
 %% Every citation in a document: {Kind, Target} with Kind report, guide,
 %% or bare, the bare ones resolved by the document's own convention.
 cites(Bin) ->
-    Sec = case re:run(Bin, "(report|guide)?,? ?§([0-9]+(?:\\.[0-9]+)?)",
+    Sec = case re:run(Bin, "([Rr]eport|[Gg]uide)?,? ?§([0-9]+(?:\\.[0-9]+)?)",
                       [global, unicode, {capture, all_but_first, list}]) of
               {match, Ms} -> [{kind(W), N} || [W, N] <- Ms];
               nomatch -> []
@@ -64,9 +64,8 @@ cites(Bin) ->
          end,
     lists:usort(Sec ++ App ++ E0).
 
-kind("report") -> report;
-kind("guide") -> guide;
-kind([]) -> bare.
+kind([]) -> bare;
+kind(W) -> list_to_atom(string:lowercase(W)).
 
 resolves({report, T}, _, ReportHeads, _) -> lists:member(T, ReportHeads);
 resolves({guide, T}, _, _, GuideHeads) -> lists:member(T, GuideHeads);
