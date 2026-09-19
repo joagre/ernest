@@ -80,7 +80,7 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 ### 2.1 Scalars, Unit, and literals
 
 - **`Int`** — arbitrary precision. Literals: `42`, and in another base `0xFF`, `0o644`, `0b1010`, the prefix lowercase. An `_` between two digits groups them, in any number: `1_000_000`, `0xFFFF_FFFF`, `3.141_592`. A letter right after a number is an error, so `12px` is rejected.
-- **`Float`** — IEEE 754 binary64, finite range only. Literal: `3.14`.
+- **`Float`** — IEEE 754 binary64, finite range only, with one zero: `0.0 * -1.0` is `0.0`. Literal: `3.14`.
 - **`Char`** — one Unicode code point. Literal: `'a'`.
 - **`String`** — a Unicode string. Literal: `"hello"`. Escapes: `\n`, `\r`, `\t`, `\\`, `\"`, `\'`, `\u{1F600}`. A raw string is written between backticks; see below.
 - **`Bytes`** — sequence of octets. Literal: `<<0, 1, 2>>` (a bitstring, §7.6 below; report §5.11).

@@ -551,6 +551,31 @@ float_fault_test() ->
                   "Io.println(Float.toString(List.foldLeft([1.0e308, 1.0e308], 0.0, Float.+)))\n"),
     ?assertEqual({fault, <<"float arithmetic error">>}, R5).
 
+%% report §3.1: there is no negative zero; an operation, a negation, a
+%% float segment, parsed text, and a foreign value give 0.0
+no_negative_zero_test() ->
+    {ok, Out} = run(
+        "foreign fn parse(s : String) -> Float = \"erlang:binary_to_float/1\"\n"
+        "fn tiny() -> Float = 1.0e-300\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    let z = 0.0;\n"
+        "    let _ = Io.debug(#(z * -1.0, -z, z / -2.0, -tiny() * tiny()));\n"
+        "    let _ = Io.debug(z * -1.0 == 0.0);\n"
+        "    let _ = Io.debug(Map.size(Map.fromList([#(z, 1), #(-z, 2)])));\n"
+        "    let b = <<128, 0, 0, 0, 0, 0, 0, 0>>;\n"
+        "    let _ = match b { <<x:size(64)-float>> -> Io.debug(x) | _ -> 1.0 };\n"
+        "    let _ = match b { <<0.0:size(64)-float>> -> Io.debug(\"zero\") | _ -> \"other\" };\n"
+        "    let _ = Io.debug(String.toFloat(\"-0.0\"));\n"
+        "    let _ = Io.debug(parse(\"-0.0\"));\n"
+        "    let _ = match b { <<x:size(64)-float>> when x == 0.0 -> Io.debug(\"guard\")"
+        " | _ -> \"no\" };\n"
+        "    let _ = match b { <<x:size(64)-float>> -> { fn g() -> Float = x; Io.debug(g()) }"
+        " | _ -> 1.0 };\n"
+        "    Unit\n"
+        "}\n"),
+    ?assertEqual(<<"#(0.0, 0.0, 0.0, 0.0)\ntrue\n1\n0.0\n\"zero\"\nSome(0.0)\n0.0\n"
+                   "\"guard\"\n0.0\n">>, Out).
+
 %% report §4.8, §3.10, §5.1: a user type's operator is its member, its
 %% ordering goes through its compare, prefix - through its negate; in a receive guard
 %% the ordering is a call, a type error by §5.9

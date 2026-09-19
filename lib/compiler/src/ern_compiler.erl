@@ -441,7 +441,7 @@ string_binary(Bin) ->
 %% A name used as a value: var_ref(...) -> {Form, Cx}.
 var_ref(Pos, [], Name, T, #cx{vars = Vars, locals = Locals, tops = Tops} = Cx) ->
     case Vars of
-        #{Name := V} -> {erl_syntax:variable(V), Cx};
+        #{Name := V} -> {var_form(V), Cx};
         _ ->
             case Locals of
                 #{Name := #local{lifted = Lifted}} ->
@@ -529,7 +529,7 @@ call(Pos, #e_var{path = [], name = Name} = Callee, Args, Cx) ->
     {ArgForms, Cx1} = exprs(Args, Cx),
     case Vars of
         #{Name := V} ->
-            {at(Pos, erl_syntax:application(erl_syntax:variable(V), ArgForms)), Cx1};
+            {at(Pos, erl_syntax:application(var_form(V), ArgForms)), Cx1};
         _ ->
             case Locals of
                 #{Name := #local{lifted = Lifted}} ->
@@ -733,12 +733,18 @@ float_op(Op, L, R, A, B) ->
     Text = erl_syntax:binary([erl_syntax:binary_field(Cause)]),
     Badarith = erl_syntax:class_qualifier(erl_syntax:atom(error), erl_syntax:atom(badarith)),
     Handler = erl_syntax:clause([Badarith], none, [call_remote(ern_rt, fault, [Text])]),
-    Operation = erl_syntax:infix_expr(erl_syntax:variable(A), erl_syntax:operator(Op),
-                                      erl_syntax:variable(B)),
+    %% report §3.1: + 0.0 turns a negative zero into 0.0 and keeps any other
+    Operation = erl_syntax:infix_expr(
+                  erl_syntax:infix_expr(erl_syntax:variable(A), erl_syntax:operator(Op),
+                                        erl_syntax:variable(B)),
+                  erl_syntax:operator('+'), erl_syntax:float(0.0)),
     erl_syntax:block_expr([erl_syntax:match_expr(erl_syntax:variable(A), L),
                            erl_syntax:match_expr(erl_syntax:variable(B), R),
                            erl_syntax:try_expr([Operation], [Handler])]).
 
+negate({tcon, ['Float'], []}, Form, _) ->
+    %% report §3.1: 0.0 - x, so that negating 0.0 gives 0.0
+    erl_syntax:infix_expr(erl_syntax:float(0.0), erl_syntax:operator('-'), Form);
 negate({tcon, Q, _}, Form, Cx) when length(Q) > 1 -> member_call(Q, negate, [Form], Cx);
 negate(_, Form, _) -> erl_syntax:prefix_expr(erl_syntax:operator('-'), Form).
 
@@ -1045,7 +1051,7 @@ instances([N | Rest], Locals, Vars, Seen, Acc) ->
         false ->
             #local{own = Own, extra = Extra, refs = Refs, snap = Snap} = maps:get(N, Locals),
             Scope = case Snap of pending -> Vars; _ -> Snap end,
-            Vs = [maps:get(O, Scope) || O <- Own] ++ Extra,
+            Vs = [var_atom(maps:get(O, Scope)) || O <- Own] ++ Extra,
             instances(Refs ++ Rest, Locals, Vars, [N | Seen], Vs ++ Acc)
     end.
 
@@ -1223,13 +1229,14 @@ alternatives(#clause{pos = Pos, pattern = #p_or{alts = [First | _] = Alts}, guar
     {[F], Cx0} = fresh_vars(1, "Body", Cx),
     FVar = erl_syntax:variable(F),
     {_, CxP} = pattern(First, Cx0#cx{pat_guards = []}),
-    Params = [erl_syntax:variable(maps:get(N, CxP#cx.vars)) || N <- Names],
+    Params = [erl_syntax:variable(var_atom(maps:get(N, CxP#cx.vars))) || N <- Names],
     {BF, CxB} = body(B, CxP#cx{pat_guards = Cx0#cx.pat_guards}),
     Bind = erl_syntax:match_expr(FVar, erl_syntax:fun_expr([erl_syntax:clause(Params, none, BF)])),
     {Forms, CxN} =
         lists:mapfoldl(fun(A, C0) ->
                            {PF, C1} = pattern(A, C0#cx{pat_guards = []}),
-                           Args = [erl_syntax:variable(maps:get(N, C1#cx.vars)) || N <- Names],
+                           Args = [erl_syntax:variable(var_atom(maps:get(N, C1#cx.vars)))
+                                   || N <- Names],
                            Call = [at(Pos, erl_syntax:application(FVar, Args))],
                            {Form, C2} = Mk(Pos, PF, G, Call, C1),
                            {Form, C2#cx{vars = C0#cx.vars, pat_guards = C0#cx.pat_guards}}
@@ -1332,6 +1339,15 @@ bits_pattern_value(#{kind := bits}, V, Cx) ->
                 end,
     Guard = call_remote(erlang, is_binary, [VF]),
     {VF, Cx1#cx{pat_guards = Cx1#cx.pat_guards ++ [Guard]}};
+bits_pattern_value(#{kind := float}, #p_var{pos = Pos, name = Name}, Cx) ->
+    {V, Cx1} = bind(Name, Cx),
+    {at(Pos, erl_syntax:variable(V)), Cx1#cx{vars = (Cx1#cx.vars)#{Name => {zero, V}}}};
+bits_pattern_value(#{kind := float}, #p_lit{pos = Pos, value = Zero}, Cx) when Zero == 0.0 ->
+    %% report §3.1: the literal 0.0 matches the bytes of either zero
+    {[T], Cx1} = fresh_vars(1, "Z", Cx),
+    Guard = erl_syntax:infix_expr(erl_syntax:variable(T), erl_syntax:operator('=='),
+                                  erl_syntax:float(0.0)),
+    {at(Pos, erl_syntax:variable(T)), Cx1#cx{pat_guards = Cx1#cx.pat_guards ++ [Guard]}};
 bits_pattern_value(_, V, Cx) ->
     pattern(V, Cx).
 
@@ -1394,6 +1410,19 @@ type_specs(#{kind := Kind, unit := Unit, endian := Endian, sign := Sign, size :=
 bind(Name, #cx{vars = Vars, counter = N} = Cx) ->
     V = erlang_var(Name, N + 1),
     {V, Cx#cx{vars = Vars#{Name => V}, counter = N + 1}}.
+
+%% Report §3.1: a variable a float segment bound may hold the runtime's
+%% negative zero, so the map holds {zero, V} and each read is V + 0.0,
+%% which is 0.0 for either zero and V otherwise; a capture passes V itself,
+%% and the reads inside normalize it the same way.
+var_form({zero, V}) ->
+    erl_syntax:infix_expr(erl_syntax:variable(V), erl_syntax:operator('+'),
+                          erl_syntax:float(0.0));
+var_form(V) ->
+    erl_syntax:variable(V).
+
+var_atom({zero, V}) -> V;
+var_atom(V) -> V.
 
 erlang_var(Name, N) ->
     S = atom_to_list(Name),

@@ -2728,6 +2728,10 @@ Rule 1 of E.0 admitted float arithmetic as a shim. Once float operations were co
 
 Added the same day as the based literals, on the same principle. `1_000_000` and `0xFFFF_FFFF` are how a reader who knows Rust, Python, Gleam, or Java expects a long number to be written, and `1000000` must be counted digit by digit, so principle 1 decides over principle 2. The rule is the narrowest of the languages compared: a single `_` between two digits, in any base and in each part of a float. Rust also accepts `1_`, `1__0`, and `0x_FF`, and each gives one number more than one spelling that the reader must learn to ignore, so those are errors. The lexer cost is one function; the grammar gains the `decimal` rule and an optional `_` in the based ones.
 
+## No Negative Zero, 2026-09-19
+
+Writing `Float.abs` in Ernest needed `if x <= 0.0 then 0.0 - x else x`, where every reader writes `if x < 0.0 then -x else x`; the natural line returned `-0.0` for `-0.0`. The cause was a value the report never mentioned: `0.0 == -0.0` was false, since `==` is structural, while `Float.compare` said `Equal`, and a `Map` could hold both zeros as keys. Principle 1 rejects all three. Ernest already restricted floats to the finite range, removing the IEEE values a program rarely wants and must always guard against; negative zero is the last of them. A zero is now `0.0` wherever it arises: an operation's result gets `+ 0.0`, which is exact for every other value, negation compiles as `0.0 - x`, and floats entering from foreign code, bytes, and text are normalized at the entry. `==` and `compare` agree, and `Float.abs` is the line a reader predicts. The cost is one addition per float operation. The alternative, keeping `-0.0` and stating the three results in the report, was honest but kept the surprise.
+
 ## Later
 
 Planned or considered, not in the language today.

@@ -34,9 +34,42 @@ foreign(M, F, Args, ArgDescs, Desc, Text) ->
 -spec value(term(), term(), binary()) -> term().
 value(Desc, V, Text) ->
     case chk(Desc, V, #{}) of
-        true -> V;
+        true -> zeroed(Desc, V);
         false -> ern_rt:fault(Text)
     end.
+
+%% Report §3.1: a float entering from foreign code, the runtime's negative
+%% zero among them, is the language's; X + 0.0 is 0.0 for either zero and
+%% X otherwise. The value is already checked against D.
+zeroed(D, V) -> zeroed(D, V, #{}).
+
+zeroed(D, V, B) ->
+    case has_float([D | maps:values(B)]) of
+        true -> zero(D, V, B);
+        false -> V
+    end.
+
+has_float(float) -> true;
+has_float(T) when is_tuple(T) -> lists:any(fun has_float/1, tuple_to_list(T));
+has_float(L) when is_list(L) -> lists:any(fun has_float/1, L);
+has_float(_) -> false.
+
+zero(float, V, _) -> V + 0.0;
+zero({list, D}, V, B) -> [zero(D, X, B) || X <- V];
+zero({tuple, Ds}, V, B) ->
+    list_to_tuple([zero(D, X, B) || {D, X} <- lists:zip(Ds, tuple_to_list(V))]);
+zero({map, K, D}, V, B) -> maps:from_list([{zero(K, Key, B), zero(D, X, B)}
+                                          || {Key, X} <- maps:to_list(V)]);
+zero({set, D}, {set, S}, B) -> {set, maps:from_list([{zero(D, X, B), []}
+                                                    || X <- maps:keys(S)])};
+zero({con, Cs}, V, B) when is_tuple(V) ->
+    Ds = con_fields(element(1, V), Cs),
+    list_to_tuple([element(1, V) | [zero(D, X, B)
+                                    || {D, X} <- lists:zip(Ds, tl(tuple_to_list(V)))]]);
+zero({abstract, D}, V, B) -> zero(D, V, B);
+zero({mu, Id, D}, V, B) -> zero(D, V, B#{Id => D});
+zero({ref, Id}, V, B) -> zero(maps:get(Id, B), V, B);
+zero(_, V, _) -> V.
 
 chk(any, _, _) -> true;
 chk(int, V, _) -> is_integer(V);
@@ -121,7 +154,7 @@ proxy_loop(Target, MRef, D, B, Text) ->
             ok;
         Msg ->
             case chk(D, Msg, B) of
-                true -> Target ! Msg;
+                true -> Target ! zeroed(D, Msg, B);
                 false -> exit(Target, {ernest, fault, Text})
             end,
             proxy_loop(Target, MRef, D, B, Text)

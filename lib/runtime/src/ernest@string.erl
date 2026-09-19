@@ -53,7 +53,8 @@ toFloat(S) ->
     case re:run(S, "^-?[0-9]+\\.[0-9]+([eE][+-]?[0-9]+)?$") of
         nomatch -> 'None';
         _ ->
-            try {'Some', binary_to_float(S)}
+            %% report §3.1: "-0.0" reads as 0.0
+            try {'Some', binary_to_float(S) + 0.0}
             catch error:badarg -> 'None'
             end
     end.

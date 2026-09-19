@@ -38,7 +38,7 @@ export fn Float.*(a : Float, b : Float) -> Float = a * b
 /// The quotient, rounded to the nearest `Float`; division by zero faults.
 export fn Float./(a : Float, b : Float) -> Float = a / b
 
-/// `-x`, which prefix `-` calls; `0.0` becomes `-0.0`.
+/// `-x`, which prefix `-` calls.
 ///
 /// ### Examples
 ///
@@ -48,8 +48,7 @@ export fn Float./(a : Float, b : Float) -> Float = a / b
 /// ```
 export fn negate(x : Float) -> Float = -x
 
-/// The numeric order, which `<` and the other comparisons use; `-0.0` and
-/// `0.0` are `Equal`.
+/// The numeric order, which `<` and the other comparisons use.
 ///
 /// ### Examples
 ///
@@ -60,8 +59,8 @@ export fn negate(x : Float) -> Float = -x
 export fn compare(a : Float, b : Float) -> Ordering =
     if a < b then Less else if a > b then Greater else Equal
 
-/// The magnitude, `0.0` for `-0.0`.
-export fn abs(x : Float) -> Float = if x <= 0.0 then 0.0 - x else x
+/// The magnitude.
+export fn abs(x : Float) -> Float = if x < 0.0 then -x else x
 
 /// The smaller.
 ///

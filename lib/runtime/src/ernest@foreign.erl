@@ -8,7 +8,7 @@
 
 toInt(X) when is_integer(X) -> {'Some', X};
 toInt(_) -> 'None'.
-toFloat(X) when is_float(X) -> {'Some', X};
+toFloat(X) when is_float(X) -> {'Some', X + 0.0}; % report §3.1: no negative zero
 toFloat(_) -> 'None'.
 toString(X) when is_binary(X) ->
     case unicode:characters_to_binary(X, utf8, utf8) of
