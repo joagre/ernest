@@ -49,7 +49,7 @@ hello, world
 
 `Io.println` is a stdlib function that sends its argument to a small `Sys.stdout` process the runtime provides. The stdout process receives the text and writes it. `Io.println` writes to `Sys.stdout` only. To write a string to any other `Address(String)`, a logger say, send to it directly, `send(logger, "starting\n")`; the library has no second print function for that. Messaging to a runtime service is one of two ways Ernest interacts with the outside world (the other is `foreign fn`, §7).
 
-For development output, `Io.debug(x)` prints any value and returns it, so it wraps an expression in place: `let n = Io.debug(f(x))`. It prints by the runtime's representation, not the source form: a `Char` appears as its code point, a named constructor's fields positional, an address as `<address>` (report Appendix E.1). It carries `with m` like `Io.println`, so it cannot hide in pure code.
+For development output, `Io.debug(x)` prints any value and returns it, so it wraps an expression in place: `let n = Io.debug(f(x))`. It prints the value as the source writes it, by the argument's type: `Io.debug('a')` prints `'a'`, and a named constructor prints with its field names. An address prints as `<address>`. Inside a generic function, where the type is a variable, it can only go by the runtime's representation, so a `Char` there prints as its code point (report Appendix E.1). It carries `with m` like `Io.println`, so it cannot hide in pure code.
 
 ### 1.2 Prediction exercise
 

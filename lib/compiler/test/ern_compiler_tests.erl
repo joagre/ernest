@@ -400,12 +400,15 @@ or_pattern_test() ->
         "export fn main() -> Unit with Never = Io.println(kind(Circle(0)))\n"),
     ?assertEqual({fault, <<"division by zero">>}, R).
 
-%% report Appendix E.1: Io.debug prints any value as Ernest writes it, by
-%% the runtime's representation, and returns it
+%% report Appendix E.1: Io.debug prints a value as Ernest writes it, by the
+%% argument's type at the call, and returns it; with a type variable there,
+%% by the runtime's representation
 io_debug_test() ->
     {ok, Out} = run(
         "type Shape = Circle(Int) | Dot\n"
-        "type Snap = Snap(dir : String, seen : Int)\n"
+        "type Snap = Snap(seen : Int, dir : String)\n"
+        "type State = Ready | Busy\n"
+        "fn generic(x) = Io.debug(x)\n"
         "export fn main() -> Unit with Never = {\n"
         "    let n = Io.debug(4) + 1;\n"
         "    let _ = Io.debug(n);\n"
@@ -417,11 +420,18 @@ io_debug_test() ->
         "    let _ = Io.debug(fn(x) = x);\n"
         "    let _ = Io.debug(#(true, false));\n"
         "    let _ = Io.debug(\"é中\");\n"
+        "    let _ = Io.debug(#('a', '\\'', Some('\\n')));\n"
+        "    let _ = Io.debug(#(Ready, 1));\n"
+        "    let _ = Io.debug(<<104, 105>>);\n"
+        "    let _ = List.map(['x'], Io.debug);\n"
+        "    let _ = generic('a');\n"
         "    Unit\n"
         "}\n"),
-    ?assertEqual(<<"4\n5\n[Circle(-3), Dot]\n#(1.5, \"a\\nb\", true, Unit)\nSnap(\"x\", 2)\n"
+    ?assertEqual(<<"4\n5\n[Circle(-3), Dot]\n#(1.5, \"a\\nb\", true, Unit)\n"
+                   "Snap(dir = \"x\", seen = 2)\n"
                    "Map.fromList([#(\"k\", [1])])\nSet.fromList([1, 2])\n<function>\n"
-                   "#(true, false)\n\"é中\"\n"/utf8>>, Out).
+                   "#(true, false)\n\"é中\"\n#('a', '\\'', Some('\\n'))\n#(Ready, 1)\n"
+                   "<<104, 105>>\n'x'\n97\n"/utf8>>, Out).
 
 %% report §8.6: a program whose every process waits forever ends with
 %% Deadlock; a timed receive is a source and ends by itself

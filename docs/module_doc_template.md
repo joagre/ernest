@@ -73,7 +73,7 @@ A point in the plane, in whole units.
 
 ```ernest
 Template.Point(x = 1, y = 2)
-// => Point(1, 2)
+// => Point(x = 1, y = 2)
 ```
 
 - `Point`
@@ -92,7 +92,7 @@ A shape: a point alone, or a circle of a radius around a centre.
 
 ```ernest
 Template.Circle(centre = Template.Point(x = 0, y = 0), radius = 1)
-// => Circle(Point(0, 0), 1)
+// => Circle(centre = Point(x = 0, y = 0), radius = 1)
 ```
 
 - `Dot`: A point alone; its area is zero.

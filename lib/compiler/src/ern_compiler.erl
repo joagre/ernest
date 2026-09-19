@@ -612,6 +612,10 @@ prelude_call(Pos, ['Int', negate], _, [F], _, Cx) ->
 prelude_call(Pos, [Ns, '<>'], [L | _], [LF, RF], _, Cx) when Ns =:= 'String'; Ns =:= 'List';
                                                             Ns =:= 'Bytes' ->
     {at(Pos, binop('<>', resolved(ern_typecheck:node_type(L), Cx), LF, RF, Cx)), Cx};
+prelude_call(Pos, ['Io', debug], [A], [F], _, Cx) ->
+    %% Appendix E.1: printed by the argument's type at the call
+    Desc = erl_syntax:abstract(descriptor(ern_typecheck:node_type(A), Cx)),
+    {at(Pos, call_remote('ernest@io', debug, [F, Desc])), Cx};
 prelude_call(Pos, [Ns | Rest], _, Args, _, Cx) when Rest =/= [] ->
     %% a stdlib function: the namespace's module
     {at(Pos, call_remote(module_atom([Ns]), lists:last(Rest), Args)), Cx};
@@ -637,6 +641,11 @@ prelude_value(Pos, [_, '<>'], {tfn, [P | _], _, _} = T, Cx) ->
     {[A, B], _} = fresh_vars(2, "A", Cx),
     Body = binop('<>', resolved(P, Cx), erl_syntax:variable(A), erl_syntax:variable(B), Cx),
     lambda([A, B], Body, arity_of(T, Pos), 2);
+prelude_value(Pos, ['Io', debug], {tfn, [P], _, _} = T, Cx) ->
+    {[A], _} = fresh_vars(1, "A", Cx),
+    Desc = erl_syntax:abstract(descriptor(P, Cx)),
+    Body = call_remote('ernest@io', debug, [erl_syntax:variable(A), Desc]),
+    lambda([A], Body, arity_of(T, Pos), 1);
 prelude_value(Pos, QName, T, _Cx) ->
     prelude_value(Pos, QName, T).
 
@@ -796,8 +805,9 @@ descriptor(T, #cx{env = Env} = Cx) ->
     {D, _} = desc(ern_types:zonk(T, ern_typecheck:type_state(Env)), #{}, Cx),
     D.
 
-%% Seen maps a user type already being described to the id its mu bound,
-%% so a recursive type refers back instead of unfolding.
+%% Seen maps each user type enclosing the one being described to the id
+%% its mu binds, so a recursive type refers back instead of unfolding; a
+%% sibling is described in full, since a ref reaches only an enclosing mu.
 desc({tvar, _}, Seen, _) -> {any, Seen};
 desc(pure, Seen, _) -> {any, Seen};
 desc({ttuple, Es}, Seen, Cx) ->
@@ -834,20 +844,31 @@ desc({tcon, Q, Args} = T, Seen, #cx{env = Env} = Cx) ->
             case ern_typecheck:lookup_type(Q, Env) of
                 #tinfo{foreign = true} ->
                     {any, Seen};
-                #tinfo{constructors = Cs} ->
+                #tinfo{constructors = Cs, abstract = Abstract} ->
                     Id = map_size(Seen) + 1,
-                    {ConDs, Seen2} =
-                        lists:mapfoldl(fun(#cinfo{name = Tag} = C, S) ->
+                    {ConDs, _} =
+                        lists:mapfoldl(fun(#cinfo{name = Tag, fields = Spec} = C, S) ->
                                            {Ds, S1} = descs(fields(C, Args, Cx), S, Cx),
-                                           {{Tag, Ds}, S1}
+                                           {con_desc(Tag, Spec, Ds), S1}
                                        end, Seen#{T => Id}, Cs),
                     Con = {con, ConDs},
-                    case refers(Con, Id) of
-                        true -> {{mu, Id, Con}, Seen2};
-                        false -> {Con, Seen2}
+                    D = case refers(Con, Id) of
+                            true -> {mu, Id, Con};
+                            false -> Con
+                        end,
+                    %% report §4.4: seen from outside its module, an abstract
+                    %% type's representation is not the program's to print
+                    case Abstract andalso lists:droplast(Q) =/= Cx#cx.ns of
+                        true -> {{abstract, D}, Seen};
+                        false -> {D, Seen}
                     end
             end
     end.
+
+%% A named constructor's descriptor keeps its field names, in canonical
+%% order (report §3.5), for printing.
+con_desc(Tag, {named, Names}, Ds) -> {Tag, Ds, Names};
+con_desc(Tag, _, Ds) -> {Tag, Ds}.
 
 has_address({pid, _, _}) -> true;
 has_address(T) when is_tuple(T) -> lists:any(fun has_address/1, tuple_to_list(T));

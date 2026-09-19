@@ -5,13 +5,13 @@
 /// ## Examples
 ///
 /// ```ernest
-/// #(Char.isDigit('7'), Char.isAlpha('中'), Char.toString(Char.toUpper('é')))
-/// // => #(true, true, "É")
+/// #(Char.isDigit('7'), Char.isAlpha('中'), Char.toUpper('é'))
+/// // => #(true, true, 'É')
 /// ```
 ///
 /// ```ernest
-/// #(Char.toInt('A'), Char.fromInt(66) == Some('B'), Char.fromInt(0xD800))
-/// // => #(65, true, None)
+/// #(Char.toInt('A'), Char.fromInt(66), Char.fromInt(0xD800))
+/// // => #(65, Some('B'), None)
 /// ```
 ///
 /// ## See also
@@ -59,8 +59,8 @@ export foreign fn toUpper(c : Char) -> Char = "ern_char:to_upper/1"
 /// ### Examples
 ///
 /// ```ernest
-/// Char.toString(Char.toLower('A'))
-/// // => "a"
+/// Char.toLower('A')
+/// // => 'a'
 /// ```
 export foreign fn toLower(c : Char) -> Char = "ern_char:to_lower/1"
 

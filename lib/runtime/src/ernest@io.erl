@@ -2,7 +2,7 @@
 %% plan, Phase 2.4). Strings are UTF-8 binaries (report §8.4).
 -module('ernest@io').
 
--export([print/1, println/1, debug/1]).
+-export([print/1, println/1, debug/1, debug/2]).
 
 -spec print(binary()) -> 'Unit'.
 print(S) -> ern_rt:send(ern_rt:sys(stdout), S).
@@ -10,49 +10,14 @@ print(S) -> ern_rt:send(ern_rt:sys(stdout), S).
 -spec println(binary()) -> 'Unit'.
 println(S) -> ern_rt:send(ern_rt:sys(stdout), <<S/binary, "\n">>).
 
-%% Appendix E.1: the value as Ernest writes it, by its runtime representation
-%% (report §8.4), printed and returned.
+%% Appendix E.1: the value as Ernest writes it, by the descriptor of its
+%% type at the call, printed and returned; debug/1 is the value with no
+%% type to go by.
 -spec debug(term()) -> term().
 debug(V) ->
-    %% render gives code points; a String is UTF-8 (report §8.4)
-    println(unicode:characters_to_binary(render(V))),
+    debug(V, any).
+
+-spec debug(term(), term()) -> term().
+debug(V, Desc) ->
+    println(ern_show:show(Desc, V)),
     V.
-
-render(V) when is_integer(V) -> integer_to_list(V);
-render(V) when is_float(V) -> io_lib:format("~p", [V]);
-render(A) when is_atom(A) -> atom_to_list(A);
-render(B) when is_binary(B) ->
-    case unicode:characters_to_list(B) of
-        L when is_list(L) -> [$", [escape(C) || C <- L], $"];
-        _ -> ["<<", join([integer_to_list(X) || <<X>> <= B]), ">>"]
-    end;
-render(L) when is_list(L) -> ["[", join([render(X) || X <- L]), "]"];
-render({set, S}) when is_map(S) ->
-    ["Set.fromList([", join([render(K) || K <- lists:sort(maps:keys(S))]), "])"];
-render(T) when is_tuple(T), tuple_size(T) > 0, is_atom(element(1, T)) ->
-    %% report §8.4: a constructor's atom is its source spelling, capitalized;
-    %% any other first atom, `true` among them, begins a tuple
-    [Tag | Fields] = tuple_to_list(T),
-    case atom_to_list(Tag) of
-        [C | _] when C >= $A, C =< $Z ->
-            [atom_to_list(Tag), "(", join([render(F) || F <- Fields]), ")"];
-        _ ->
-            ["#(", join([render(F) || F <- tuple_to_list(T)]), ")"]
-    end;
-render(T) when is_tuple(T) -> ["#(", join([render(F) || F <- tuple_to_list(T)]), ")"];
-render(M) when is_map(M) ->
-    Pairs = lists:sort(maps:to_list(M)),
-    ["Map.fromList([", join([["#(", render(K), ", ", render(V), ")"] || {K, V} <- Pairs]), "])"];
-render(P) when is_pid(P) -> "<address>";
-render(R) when is_reference(R) -> "<reply>";
-render(F) when is_function(F) -> "<function>";
-render(_) -> "<foreign>".
-
-join(Parts) -> lists:join(", ", Parts).
-
-escape($") -> "\\\"";
-escape($\\) -> "\\\\";
-escape($\n) -> "\\n";
-escape($\t) -> "\\t";
-escape($\r) -> "\\r";
-escape(C) -> C.

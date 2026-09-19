@@ -33,7 +33,7 @@ The shell is an Ernest program. Its parts:
 ## Output
 
 - **An expression prints its value and its type**, the type as the checker prints it (§11.5): `3 : Int`. A declaration prints its name and type, `double : (Int) -> Int`; a `let` its name and type, `xs : List(Int)`.
-- **A value is printed by its type, as the source writes it.** A named constructor with its field names, `Snap(dir = "x", seen = 2)`; a `Char` as `'a'`; a `Map` and a `Set` as `Map.fromList(...)` and `Set.fromList(...)`; a value of an abstract type as `<abstract>`; an address, a reply, a function, or a foreign value as `<address>`, `<reply>`, `<function>`, `<foreign>`.
+- **A value is printed as `Io.debug` prints it** (Appendix E.1), by its type; the shell and `Io.debug` share one printer, `ern_show`.
 - **A large value is printed to a depth and a length,** the rest as `...`. The defaults are open; `:set` changes them.
 - **An input that does not check is shown as `ernc` shows an error** (§11.5), the input as the source and the span underlined. Nothing is run.
 - **A fault in an input is printed as `fault: ` and its text,** an interruption as `Killed`.

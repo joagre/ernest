@@ -1097,7 +1097,7 @@ Io.readLine : () -> Optional(String) with m // the next line without its line fe
 Io.debug : (a) -> a with m // prints the value as Ernest writes it, then returns it
 ```
 
-`Io.debug` prints by the runtime's representation (§8.4): a `Char` as its `Int`; a `Bytes` that is UTF-8 as a `String`; a constructor's fields positional; a `Map` as `Map.fromList` of its pairs and a `Set` as `Set.fromList` of its elements; an address, a reply, or a function as `<address>`, `<reply>`, `<function>`; a foreign value as its representation reads by these rules, and as `<foreign>` where it reads as none of them.
+`Io.debug` prints by the argument's type at the call, each value as its literal or construction is written: a `Char` as `'a'`, `Bytes` as `<<104, 105>>`, a named constructor with its fields in canonical order (§3.5), `Snap(dir = "x", seen = 2)`. A `Map` prints as `Map.fromList` of its pairs, a `Set` as `Set.fromList` of its elements. An address, a reply, and a function print as `<address>`, `<reply>`, and `<function>`, and a value of an abstract type outside its module as `<abstract>`. Where the argument's type is a type variable or a foreign type, the value is printed by its runtime representation (§8.4): a `Char` as its `Int`, a `Bytes` that is UTF-8 as a `String`, a constructor's fields positional, and `<foreign>` where the representation reads as none of these.
 
 ### Appendix E.2. `list.ern` (namespace `List`)
 

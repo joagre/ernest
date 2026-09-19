@@ -7,9 +7,12 @@
 %% fault. The compiler describes a type as a term this module interprets:
 %% any | int | float | bool | char | string | bytes | {pid, D, Text} | ref
 %% | {'fun', Arity} | never | {list, D} | {tuple, [D]} | {map, K, V}
-%% | {set, D} | {con, [{Tag, [D]}]} | {mu, Id, D} | {ref, Id}, mu binding
-%% Id for the ref inside it, which is how a recursive type is described
-%% once; {pid, D, Text} is an address whose messages D describes.
+%% | {set, D} | {con, [{Tag, [D]} | {Tag, [D], [Name]}]} | {abstract, D}
+%% | {mu, Id, D} | {ref, Id}, mu binding Id for the ref inside it, which is
+%% how a recursive type is described once; {pid, D, Text} is an address
+%% whose messages D describes; a constructor with named fields carries
+%% their names, and an abstract type seen from outside its module is
+%% wrapped, both for printing (ern_show).
 -module(ern_check).
 
 -export([foreign/6, value/3]).
@@ -61,15 +64,25 @@ chk({set, D}, {set, V}, B) ->
 chk({set, _}, _, _) ->
     false;
 chk({con, Cs}, V, _) when is_atom(V) ->
-    lists:keyfind(V, 1, Cs) =:= {V, []};
+    con_fields(V, Cs) =:= [];
 chk({con, Cs}, V, B) when is_tuple(V), tuple_size(V) > 1, is_atom(element(1, V)) ->
-    case lists:keyfind(element(1, V), 1, Cs) of
-        {_, Ds} when length(Ds) =:= tuple_size(V) - 1 -> all(Ds, tl(tuple_to_list(V)), B);
+    case con_fields(element(1, V), Cs) of
+        Ds when is_list(Ds), length(Ds) =:= tuple_size(V) - 1 -> all(Ds, tl(tuple_to_list(V)), B);
         _ -> false
     end;
 chk({con, _}, _, _) -> false;
+chk({abstract, D}, V, B) -> chk(D, V, B);
 chk({mu, Id, D}, V, B) -> chk(D, V, B#{Id => D});
 chk({ref, Id}, V, B) -> chk(maps:get(Id, B), V, B).
+
+%% The field descriptors of constructor Tag, or false.
+-spec con_fields(atom(), list()) -> [term()] | false.
+con_fields(Tag, Cs) ->
+    case lists:keyfind(Tag, 1, Cs) of
+        {_, Ds} -> Ds;
+        {_, Ds, _} -> Ds;
+        false -> false
+    end.
 
 all([], [], _) -> true;
 all([D | Ds], [V | Vs], B) -> chk(D, V, B) andalso all(Ds, Vs, B).
@@ -83,12 +96,13 @@ expose({tuple, Ds}, V, B) when is_tuple(V), tuple_size(V) =:= length(Ds) ->
     list_to_tuple([expose(D, X, B) || {D, X} <- lists:zip(Ds, tuple_to_list(V))]);
 expose({map, _, D}, V, B) when is_map(V) -> maps:map(fun(_, X) -> expose(D, X, B) end, V);
 expose({con, Cs}, V, B) when is_tuple(V), tuple_size(V) > 1 ->
-    case lists:keyfind(element(1, V), 1, Cs) of
-        {Tag, Ds} when length(Ds) =:= tuple_size(V) - 1 ->
+    case con_fields(element(1, V), Cs) of
+        Ds when is_list(Ds), length(Ds) =:= tuple_size(V) - 1 ->
             Fields = lists:zip(Ds, tl(tuple_to_list(V))),
-            list_to_tuple([Tag | [expose(D, X, B) || {D, X} <- Fields]]);
+            list_to_tuple([element(1, V) | [expose(D, X, B) || {D, X} <- Fields]]);
         _ -> V
     end;
+expose({abstract, D}, V, B) -> expose(D, V, B);
 expose({mu, Id, D}, V, B) -> expose(D, V, B#{Id => D});
 expose({ref, Id}, V, B) -> expose(maps:get(Id, B), V, B);
 expose(_, V, _) -> V.

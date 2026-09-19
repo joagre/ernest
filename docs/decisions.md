@@ -2720,6 +2720,10 @@ Integer literals were decimal only, on principle 5, with a note to revisit if pr
 
 Rule 1 of E.0 admitted float arithmetic as a shim. Once float operations were compiled inline, the rule's list no longer covered `Float.toString`, `Float.floor`, `Float.ceil`, `Int.toFloat`, or the conversions between `Char` and `Int`, though Ernest cannot compute any of them: each produces a value of one runtime type from another. The list now names them. `Float.abs`, which Ernest can compute, lost its shim and is written in Ernest.
 
+## `Io.debug` Prints by Type, 2026-09-19
+
+`Io.debug` printed by the runtime's representation, so `Io.debug('a')` printed `97`, and `#(Ready, 1)` printed as `Ready(1)`. E.1 said it printed a value "as Ernest writes it", and the output said otherwise. The first `Char` page showed the cost: its examples had to wrap each character in `Char.toString` so its page would show characters. That is a workaround in the standard library, and principle 1 rejects it. The compiler knows the argument's type at each call and already describes types for the foreign boundary, so it now passes that description, extended with field names and with abstract types seen from outside their module. The printer, `ern_show`, is also the shell's, so the two cannot drift. Where the type at the call is a variable, the representation is all there is; E.1 says so. Type classes, which would carry a printer through generic code, are refused by principle 5.
+
 ## Later
 
 Planned or considered, not in the language today.
