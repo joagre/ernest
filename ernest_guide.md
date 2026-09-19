@@ -82,10 +82,23 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 - **`Int`** — arbitrary precision. Literal: `42`.
 - **`Float`** — IEEE 754 binary64, finite range only. Literal: `3.14`.
 - **`Char`** — one Unicode code point. Literal: `'a'`.
-- **`String`** — a Unicode string. Literal: `"hello"`. Escapes: `\n`, `\r`, `\t`, `\\`, `\"`, `\'`, `\u{1F600}`. A raw string between backticks is taken as written, no escapes, and may span lines: `` `\d+\.\d+` `` for a regular expression, `` `C:\temp` `` for a path (report §2.5).
+- **`String`** — a Unicode string. Literal: `"hello"`. Escapes: `\n`, `\r`, `\t`, `\\`, `\"`, `\'`, `\u{1F600}`. A raw string is written between backticks; see below.
 - **`Bytes`** — sequence of octets. Literal: `<<0, 1, 2>>` (a bitstring, §7.6 below; report §5.11).
 - **`Bool`** — `true` or `false`.
 - **`Unit`** — one value, also called `Unit`.
+
+A raw string, between backticks, is taken exactly as written: a backslash is a backslash, and a line break is a line break. It is the form for text full of backslashes or quotes, and for text over several lines:
+
+```
+let number = `\d+(\.\d+)?`                // a regular expression, not "\\d+(\\.\\d+)?"
+let path = `C:\Users\ada\notes.txt`
+let fixture = `{
+    "name": "ada",
+    "tags": ["a", "b"]
+}`
+```
+
+A raw string has no escapes at all, so it cannot contain a backtick; build such a string from `"..."` pieces with `<>`. A line break inside it is a line feed whatever the file's line endings are (report §2.5). There is no regular expression syntax in the language: a pattern is a raw string given to a library.
 
 `Float` arithmetic that would produce a non-finite result (overflow, division by zero of a non-zero numerator, `0.0 / 0.0`) *faults*. `Int` division `/` or modulo `%` by zero also faults. `Int.div` and `Int.mod` are the total alternatives that return `Optional(Int)`.
 
