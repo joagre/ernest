@@ -1,6 +1,6 @@
 # How an Ernest module is documented
 
-This page is the norm for documenting a standard library module, and every module written in MVP 2.5 and after is documented to it. The rules are the report's: §2.2 says where a doc block may stand and that its text is CommonMark, §11.4 what `ernc --doc` renders, and Appendix E.0 rule 6 what a doc block contains. The page shows them on one fictive module, `examples/template.ern`. Everything below the marker is the output of `ernc --doc examples/template.ern`, and a test keeps it so; another test type-checks every example in the module's doc blocks.
+This page shows how a standard library module is documented; the rules are the report's, and where this page and the report differ, the report holds: §2.2 says where a doc block may stand and that its text is CommonMark, §11.4 what `ernc --doc` renders, and Appendix E.0 rule 6 what a doc block contains. The page shows them on one fictive module, `examples/template.ern`. Everything below the marker is the output of `ernc --doc examples/template.ern`, and a test keeps it so; another test type-checks every example in the module's doc blocks.
 
 A module's documentation is a section 3 manual page. Its headings fall in three groups.
 
