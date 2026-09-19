@@ -76,6 +76,12 @@ lex("/*" ++ R, L, C, Prev, Acc) ->
     lex(Rest, L1, C1, Prev, Acc);
 lex([Ch | _] = S, L, C, Prev, Acc) when Ch >= $0, Ch =< $9 ->
     {{Kind, _, V}, Rest, C1} = number(S, L, C),
+    %% report §2.5: nothing word-like directly after a number
+    case Rest of
+        [Next | _] -> is_word_char(Next) andalso
+                          error_at(L, C1, [Next] ++ " cannot follow a number directly");
+        [] -> ok
+    end,
     lex(Rest, L, C1, {L, C1}, [{Kind, {L, C, {L, C1}, Prev}, V} | Acc]);
 lex([$" | R], L, C, Prev, Acc) ->
     {Chars, Rest, L1, C1} = string_body(R, L, C + 1, L, C, []),
@@ -163,9 +169,28 @@ block_comment([_ | R], Depth, L, C, L0, C0) ->
     block_comment(R, Depth, L, C + 1, L0, C0).
 
 %%
-%% Numbers: int = digit {digit}; float = int "." digit {digit} [exponent].
+%% Numbers: int = digit {digit} | "0x" hexdigit {hexdigit} | "0o" ... |
+%% "0b" ...; float = int "." digit {digit} [exponent].
 %%
 
+number([$0, P | R], L, C) when P =:= $x; P =:= $o; P =:= $b ->
+    %% report §2.5: a based integer, its digits ending at a non-alphanumeric
+    {Base, Name} = case P of
+                       $x -> {16, "hexadecimal"};
+                       $o -> {8, "octal"};
+                       $b -> {2, "binary"}
+                   end,
+    {Digits, R1} = lists:splitwith(fun(Ch) -> digit_value(Ch) < Base end, R),
+    Digits =/= [] orelse error_at(L, C, [$0, P] ++ " needs a " ++ Name ++ " digit"),
+    End = C + 2 + length(Digits),
+    case R1 of
+        [Ch | _] -> is_word_char(Ch) andalso
+                        error_at(L, End, [Ch] ++ " is not a " ++ Name ++ " digit");
+        [] -> ok
+    end,
+    {{int, {L, C}, list_to_integer(Digits, Base)}, R1, End};
+number([$0, P | _], L, C) when P =:= $X; P =:= $O; P =:= $B ->
+    error_at(L, C, "a base prefix is lowercase: 0" ++ [P + 32]);
 number(S, L, C) ->
     {Int, R1} = take_digits(S),
     case R1 of
@@ -179,6 +204,11 @@ number(S, L, C) ->
     end.
 
 take_digits(S) -> lists:splitwith(fun(Ch) -> Ch >= $0 andalso Ch =< $9 end, S).
+
+digit_value(Ch) when Ch >= $0, Ch =< $9 -> Ch - $0;
+digit_value(Ch) when Ch >= $a, Ch =< $f -> Ch - $a + 10;
+digit_value(Ch) when Ch >= $A, Ch =< $F -> Ch - $A + 10;
+digit_value(_) -> 99.
 
 exponent([E, Sign, D | R]) when (E =:= $e orelse E =:= $E),
                                 (Sign =:= $+ orelse Sign =:= $-),

@@ -61,7 +61,7 @@ export fn compare(a : Float, b : Float) -> Ordering =
     if a < b then Less else if a > b then Greater else Equal
 
 /// The magnitude, `0.0` for `-0.0`.
-export foreign fn abs(x : Float) -> Float = "erlang:abs/1"
+export fn abs(x : Float) -> Float = if x <= 0.0 then 0.0 - x else x
 
 /// The smaller.
 ///

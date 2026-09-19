@@ -2712,6 +2712,14 @@ The first rendered pages in Ernest showed `Optional.withDefault : (Optional(a!),
 
 The operators were first shims over an Erlang helper, since the compiler called `Float.+` for `a + b` on floats and the body `a + b` would have called itself. A foreign call pays a result check and a quiescence counter on every operation, so the compiler now emits each float operation inline, as it does for `Int`: the operands are bound first, then the operation's own `badarith` is caught and raised as §7.4's fault, so an `Int` division by zero inside an operand keeps its own cause. `float.ern` then writes `fn Float.+(a, b) = a + b` as `int.ern` does, and E.0 rule 1 no longer lists float arithmetic among the shims. The declarations remain because an operator is also a value, `List.foldLeft(xs, 0.0, Float.+)`, and has a page.
 
+## Integer Literals in Every Common Base, 2026-09-19
+
+Integer literals were decimal only, on principle 5, with a note to revisit if programs asked for hexadecimal. Writing `Char.fromInt` in Ernest showed the cost: its limits read `1114111`, `55296`, `57343`, where every reader expects `0x10FFFF`, `0xD800`, `0xDFFF`. Principle 1 decides over principle 2 when the resulting code surprises, and a language without `0x`, `0o`, and `0b` surprises anyone who knows Rust, Go, Python, Gleam, or Elixir. Each base has its own job: code points and masks, file permissions, bit flags. Principles 4 and 5 are barely touched: the grammar already had `hexdigit` for `\u{...}`, and the prefix dispatches on its first two characters. The prefix is lowercase only, so each literal has one spelling. A letter, digit, or `_` right after a number became an error at the same time, since `0b102` and `12px` would otherwise lex as two tokens. Digit separators, `1_000_000`, stay out for now; the error that names `_` leaves room to add them.
+
+## The Shims Rule Names Every Conversion, 2026-09-19
+
+Rule 1 of E.0 admitted float arithmetic as a shim. Once float operations were compiled inline, the rule's list no longer covered `Float.toString`, `Float.floor`, `Float.ceil`, `Int.toFloat`, or the conversions between `Char` and `Int`, though Ernest cannot compute any of them: each produces a value of one runtime type from another. The list now names them. `Float.abs`, which Ernest can compute, lost its shim and is written in Ernest.
+
 ## Later
 
 Planned or considered, not in the language today.

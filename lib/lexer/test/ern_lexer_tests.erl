@@ -47,6 +47,20 @@ integers_test() ->
     ?assertEqual([{int, 0}, {int, 42}, {int, 123456789012345678901234567890}],
                  toks("0 42 123456789012345678901234567890")).
 
+%% report §2.5: hexadecimal, octal, and binary integers, the prefix lowercase
+based_integers_test() ->
+    ?assertEqual([{int, 16#10FFFF}, {int, 255}, {int, 8#644}, {int, 10}, {int, 0}],
+                 toks("0x10FFFF 0xfF 0o644 0b1010 0x0")),
+    ?assertEqual({1, 5, "2 is not a binary digit"}, err("0b102")),
+    ?assertEqual({1, 1, "0x needs a hexadecimal digit"}, err("0x")),
+    ?assertEqual({1, 1, "a base prefix is lowercase: 0x"}, err("0XFF")).
+
+%% report §2.5: nothing word-like directly after a number
+number_then_word_test() ->
+    ?assertEqual({1, 3, "p cannot follow a number directly"}, err("12px")),
+    ?assertEqual({1, 2, "_ cannot follow a number directly"}, err("1_000")),
+    ?assertEqual({1, 4, "x cannot follow a number directly"}, err("1.5x")).
+
 %% report §2.5
 floats_test() ->
     ?assertEqual([{float, 1.0}, {float, 3.25}, {float, 1.0e-9}, {float, 2.5e3},

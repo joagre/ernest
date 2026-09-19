@@ -10,7 +10,7 @@
 /// ```
 ///
 /// ```ernest
-/// #(Char.toInt('A'), Char.fromInt(66) == Some('B'), Char.fromInt(55296))
+/// #(Char.toInt('A'), Char.fromInt(66) == Some('B'), Char.fromInt(0xD800))
 /// // => #(65, true, None)
 /// ```
 ///
@@ -80,7 +80,7 @@ export foreign fn toInt(c : Char) -> Int = "ern_char:to_int/1"
 /// The character with code point `n`, or `None` outside U+0000 to U+10FFFF
 /// or for a surrogate, U+D800 to U+DFFF.
 export fn fromInt(n : Int) -> Optional(Char) =
-    if n < 0 || n > 1114111 || (n >= 55296 && n <= 57343) then None else Some(fromCode(n))
+    if n < 0 || n > 0x10FFFF || (n >= 0xD800 && n <= 0xDFFF) then None else Some(fromCode(n))
 
 foreign fn fromCode(n : Int) -> Char = "ern_char:from_int/1"
 

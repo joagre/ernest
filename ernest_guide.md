@@ -79,7 +79,7 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 
 ### 2.1 Scalars, Unit, and literals
 
-- **`Int`** — arbitrary precision. Literal: `42`.
+- **`Int`** — arbitrary precision. Literals: `42`, and in another base `0xFF`, `0o644`, `0b1010`, the prefix lowercase. A letter, digit, or `_` right after a number is an error, so `1_000` and `12px` are rejected.
 - **`Float`** — IEEE 754 binary64, finite range only. Literal: `3.14`.
 - **`Char`** — one Unicode code point. Literal: `'a'`.
 - **`String`** — a Unicode string. Literal: `"hello"`. Escapes: `\n`, `\r`, `\t`, `\\`, `\"`, `\'`, `\u{1F600}`. A raw string is written between backticks; see below.

@@ -227,6 +227,8 @@ float_test() ->
     ?assertThrow({ernest, fault, <<"float arithmetic error">>}, F:'/'(1.0, 0.0)),
     ?assertThrow({ernest, fault, <<"float arithmetic error">>}, F:'*'(1.0e308, 10.0)),
     ?assertEqual(1.5, F:abs(-1.5)),
+    ?assertEqual(0.0, F:abs(-0.0)),
+    ?assertEqual(2.0, F:abs(2.0)),
     ?assertEqual(1.0, F:min(1.0, 2.0)),
     ?assertEqual(2.0, F:max(1.0, 2.0)),
     ?assertEqual(<<"0.1">>, F:toString(0.1)),
