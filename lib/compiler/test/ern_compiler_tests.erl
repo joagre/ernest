@@ -608,6 +608,18 @@ foreign_fn_test() ->
         "}\n"),
     ?assertEqual(<<"one\n3\n1\n2\n3\n">>, Out).
 
+%% report §4.7, §8.4: a foreign return whose type holds the same user type
+%% twice, side by side, is checked; each is described in full
+foreign_sibling_types_test() ->
+    {ok, Out} = run(
+        "foreign fn pair(xs : List(Optional(Int))) -> #(Optional(Int), Optional(Int))"
+        " = \"erlang:list_to_tuple/1\"\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    let _ = Io.debug(pair([Some(1), None]));\n"
+        "    Unit\n"
+        "}\n"),
+    ?assertEqual(<<"#(Some(1), None)\n">>, Out).
+
 %% report §4.7, §7.4, §8.4: a return of another shape faults on first
 %% observation, naming the declared type; a nested breach is found; an
 %% exception is a fault naming the implementation; an Ernest fault raised

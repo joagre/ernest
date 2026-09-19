@@ -190,11 +190,14 @@ type_member_across_modules_test() ->
     write(Dir, "src/main.ern",
           "export fn main() -> Unit with Never = {\n"
           "    let s = Lib.Stack.Stack.push(1, Lib.Stack.Stack.empty);\n"
-          "    Io.println(Int.toString(Lib.Stack.Stack.size(s)))\n"
+          "    Io.println(Int.toString(Lib.Stack.Stack.size(s)));\n"
+          "    let _ = Io.debug(#(s, 2));\n"
+          "    Unit\n"
           "}\n"),
     ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
-    ?assertEqual(<<"1\n">>, iolist_to_binary(?capturedOutput)).
+    %% report Appendix E.1: an abstract value outside its module
+    ?assertEqual(<<"1\n#(<abstract>, 2)\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §4.2: a module may not take a prelude namespace
 prelude_namespace_test() ->
