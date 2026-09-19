@@ -1,0 +1,469 @@
+/// Operations on `List(a)`, the singly linked list of the language (report
+/// §3.3). `[]` is the empty list and `::` puts an element in front, so
+/// neither is a function here; the list of an element's own type is what
+/// `toList` and `fromList` elsewhere produce. `contains`, `remove`, and
+/// `unique` compare elements, so their element type needs equality
+/// (report §3.10).
+///
+/// ## Examples
+///
+/// ```ernest
+/// List.map([1, 2, 3], fn(n) = n * 2) <> [0]
+/// // => [2, 4, 6, 0]
+/// ```
+///
+/// ```ernest
+/// List.foldLeft(List.filter(List.range(1, 10), fn(n) = n % 2 == 0), 0, Int.+)
+/// // => 30
+/// ```
+///
+/// ```ernest
+/// List.sort(["pear", "fig", "apple"], String.compare)
+/// // => ["apple", "fig", "pear"]
+/// ```
+///
+/// ## See also
+///
+/// `Map` and `Set` for lookup by key, `String.toList` for the characters of
+/// a string.
+///
+/// since 0.1.0
+
+/// The elements of the first list, then those of the second.
+export fn List.<>(xs : List(a), ys : List(a)) -> List(a) = xs <> ys
+
+/// The number of elements.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(List.size([1, 2, 3]), List.isEmpty([]))
+/// // => #(3, true)
+/// ```
+export fn size(xs : List(a)) -> Int = sizeFrom(xs, 0)
+
+fn sizeFrom(xs : List(a), n : Int) -> Int =
+    match xs {
+        [] -> n
+      | _ :: rest -> sizeFrom(rest, n + 1)
+    }
+
+/// `true` for the empty list.
+export fn isEmpty(xs : List(a)) -> Bool =
+    match xs {
+        [] -> true
+      | _ -> false
+    }
+
+/// `true` when some element equals `x`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(List.contains([1, 2], 2), List.contains([1, 2], 3))
+/// // => #(true, false)
+/// ```
+export fn contains(xs : List(a), x : a) -> Bool =
+    match xs {
+        [] -> false
+      | y :: rest -> if y == x then true else contains(rest, x)
+    }
+
+/// The element at index `i`, counting from 0, or `None` beyond either end.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(List.get(["a", "b"], 1), List.get(["a", "b"], 2))
+/// // => #(Some("b"), None)
+/// ```
+export fn get(xs : List(a), i : Int) -> Optional(a) =
+    if i < 0 then
+        None
+    else
+        match xs {
+            [] -> None
+          | y :: rest -> if i == 0 then Some(y) else get(rest, i - 1)
+        }
+
+/// The list without the first element that equals `x`, or the list itself
+/// when none does.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.remove([1, 2, 1], 1)
+/// // => [2, 1]
+/// ```
+export fn remove(xs : List(a), x : a) -> List(a) =
+    match xs {
+        [] -> []
+      | y :: rest -> if y == x then rest else y :: remove(rest, x)
+    }
+
+/// The function applied to each element, in order.
+export fn map(xs : List(a), f : (a) -> b with e) -> List(b) with e =
+    match xs {
+        [] -> []
+      | y :: rest -> f(y) :: map(rest, f)
+    }
+
+/// The elements the predicate holds for, in order.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.filter([1, 2, 3, 4], fn(n) = n > 2)
+/// // => [3, 4]
+/// ```
+export fn filter(xs : List(a), p : (a) -> Bool with e) -> List(a) with e =
+    match xs {
+        [] -> []
+      | y :: rest -> if p(y) then y :: filter(rest, p) else filter(rest, p)
+    }
+
+/// The values of the `Some` results, in order: mapping and filtering in one
+/// pass.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.filterMap(["1", "x", "3"], String.toInt)
+/// // => [1, 3]
+/// ```
+export fn filterMap(xs : List(a), f : (a) -> Optional(b) with e) -> List(b) with e =
+    match xs {
+        [] -> []
+      | y :: rest ->
+            match f(y) {
+                Some(v) -> v :: filterMap(rest, f)
+              | None -> filterMap(rest, f)
+            }
+    }
+
+/// The accumulator after the function has seen each element from the left,
+/// the accumulator first.
+export fn foldLeft(xs : List(a), acc : b, f : (b, a) -> b with e) -> b with e =
+    match xs {
+        [] -> acc
+      | y :: rest -> foldLeft(rest, f(acc, y), f)
+    }
+
+/// The function applied to each element for its effect.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.foreach([1, 2], fn(n) = Io.println(Int.toString(n)))
+/// // => Unit
+/// ```
+export fn foreach(xs : List(a), f : (a) -> Unit with e) -> Unit with e =
+    match xs {
+        [] -> Unit
+      | y :: rest -> {
+            let _ = f(y);
+            foreach(rest, f)
+        }
+    }
+
+/// `true` when the predicate holds for some element; it is not called after
+/// the first that satisfies it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(List.any([1, 2], fn(n) = n > 1), List.all([1, 2], fn(n) = n > 1))
+/// // => #(true, false)
+/// ```
+export fn any(xs : List(a), p : (a) -> Bool with e) -> Bool with e =
+    match xs {
+        [] -> false
+      | y :: rest -> if p(y) then true else any(rest, p)
+    }
+
+/// `true` when the predicate holds for every element, and for the empty
+/// list; it is not called after the first that fails.
+export fn all(xs : List(a), p : (a) -> Bool with e) -> Bool with e =
+    match xs {
+        [] -> true
+      | y :: rest -> if p(y) then all(rest, p) else false
+    }
+
+/// The first element the predicate holds for.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.find([1, 2, 3], fn(n) = n > 1)
+/// // => Some(2)
+/// ```
+export fn find(xs : List(a), p : (a) -> Bool with e) -> Optional(a) with e =
+    match xs {
+        [] -> None
+      | y :: rest -> if p(y) then Some(y) else find(rest, p)
+    }
+
+/// The last element.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(List.last([1, 2]), List.last([]))
+/// // => #(Some(2), None)
+/// ```
+export fn last(xs : List(a)) -> Optional(a) =
+    match xs {
+        [] -> None
+      | [y] -> Some(y)
+      | _ :: rest -> last(rest)
+    }
+
+/// The first `n` elements, or all of them when there are fewer; `n` below 0
+/// takes none.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(List.take([1, 2, 3], 2), List.drop([1, 2, 3], 2))
+/// // => #([1, 2], [3])
+/// ```
+export fn take(xs : List(a), n : Int) -> List(a) =
+    if n <= 0 then
+        []
+    else
+        match xs {
+            [] -> []
+          | y :: rest -> y :: take(rest, n - 1)
+        }
+
+/// All but the first `n` elements; `n` below 0 drops none.
+export fn drop(xs : List(a), n : Int) -> List(a) =
+    if n <= 0 then
+        xs
+    else
+        match xs {
+            [] -> []
+          | _ :: rest -> drop(rest, n - 1)
+        }
+
+/// All but the last element; the empty list stays empty.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.dropLast([1, 2, 3])
+/// // => [1, 2]
+/// ```
+export fn dropLast(xs : List(a)) -> List(a) =
+    match xs {
+        [] -> []
+      | [_] -> []
+      | y :: rest -> y :: dropLast(rest)
+    }
+
+/// The longest prefix the predicate holds for, and the rest.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.span([1, 2, 3, 1], fn(n) = n < 3)
+/// // => #([1, 2], [3, 1])
+/// ```
+export fn span(xs : List(a), p : (a) -> Bool with e) -> #(List(a), List(a)) with e =
+    match xs {
+        [] -> #([], [])
+      | y :: rest ->
+            if p(y) then {
+                let #(prefix, tail) = span(rest, p);
+                #(y :: prefix, tail)
+            } else
+                #([], xs)
+    }
+
+/// The elements the predicate holds for and those it does not, each in
+/// order.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.partition([1, 2, 3, 4], fn(n) = n % 2 == 0)
+/// // => #([2, 4], [1, 3])
+/// ```
+export fn partition(xs : List(a), p : (a) -> Bool with e) -> #(List(a), List(a)) with e =
+    match xs {
+        [] -> #([], [])
+      | y :: rest -> {
+            let #(yes, no) = partition(rest, p);
+            if p(y) then #(y :: yes, no) else #(yes, y :: no)
+        }
+    }
+
+/// The first occurrence of each element, in order.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.unique([2, 1, 2, 3])
+/// // => [2, 1, 3]
+/// ```
+export fn unique(xs : List(a)) -> List(a) =
+    match xs {
+        [] -> []
+      | y :: rest -> y :: unique(filter(rest, fn(z) = z != y))
+    }
+
+/// Each element with its index, counting from 0.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.indexed(["a", "b"])
+/// // => [#(0, "a"), #(1, "b")]
+/// ```
+export fn indexed(xs : List(a)) -> List(#(Int, a)) = indexedFrom(xs, 0)
+
+fn indexedFrom(xs : List(a), i : Int) -> List(#(Int, a)) =
+    match xs {
+        [] -> []
+      | y :: rest -> #(i, y) :: indexedFrom(rest, i + 1)
+    }
+
+/// `n` copies of the value; `n` below 0 gives none.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.repeat("ha", 2)
+/// // => ["ha", "ha"]
+/// ```
+export fn repeat(x : a, n : Int) -> List(a) =
+    if n <= 0 then [] else x :: repeat(x, n - 1)
+
+/// The elements in the opposite order.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.reverse([1, 2, 3])
+/// // => [3, 2, 1]
+/// ```
+export fn reverse(xs : List(a)) -> List(a) = foldLeft(xs, [], fn(acc, y) = y :: acc)
+
+/// The elements in the order `compare` gives, stable: two elements it calls
+/// `Equal` keep the order they had.
+export fn sort(xs : List(a), compare : (a, a) -> Ordering with e) -> List(a) with e =
+    match xs {
+        [] -> []
+      | [y] -> [y]
+      | _ -> {
+            let half = size(xs) / 2;
+            merge(sort(take(xs, half), compare), sort(drop(xs, half), compare), compare)
+        }
+    }
+
+fn merge(xs : List(a), ys : List(a), compare : (a, a) -> Ordering with e) -> List(a) with e =
+    match #(xs, ys) {
+        #([], _) -> ys
+      | #(_, []) -> xs
+      | #(x :: xrest, y :: yrest) ->
+            if compare(x, y) == Greater then
+                y :: merge(xs, yrest, compare)
+            else
+                x :: merge(xrest, ys, compare)
+    }
+
+/// The pairs of elements at the same index, to the length of the shorter
+/// list.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.zip([1, 2, 3], ["a", "b"])
+/// // => [#(1, "a"), #(2, "b")]
+/// ```
+export fn zip(xs : List(a), ys : List(b)) -> List(#(a, b)) =
+    match #(xs, ys) {
+        #(x :: xrest, y :: yrest) -> #(x, y) :: zip(xrest, yrest)
+      | _ -> []
+    }
+
+/// The first components and the second components, each in order.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.unzip([#(1, "a"), #(2, "b")])
+/// // => #([1, 2], ["a", "b"])
+/// ```
+export fn unzip(pairs : List(#(a, b))) -> #(List(a), List(b)) =
+    match pairs {
+        [] -> #([], [])
+      | #(x, y) :: rest -> {
+            let #(firsts, seconds) = unzip(rest);
+            #(x :: firsts, y :: seconds)
+        }
+    }
+
+/// The lists the function gives, one after another.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.flatMap([1, 2], fn(n) = [n, n * 10])
+/// // => [1, 10, 2, 20]
+/// ```
+export fn flatMap(xs : List(a), f : (a) -> List(b) with e) -> List(b) with e =
+    match xs {
+        [] -> []
+      | y :: rest -> f(y) <> flatMap(rest, f)
+    }
+
+/// The integers from the first to the second, both included; empty when the
+/// first is greater.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(List.range(1, 4), List.range(2, 1))
+/// // => #([1, 2, 3, 4], [])
+/// ```
+export fn range(from : Int, to : Int) -> List(Int) =
+    if from > to then [] else from :: range(from + 1, to)
+
+/// The mapped elements, or the first `Left` the function gives, which ends
+/// the walk.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.tryMap(["1", "x"], fn(s) = Either.fromOptional(String.toInt(s), s))
+/// // => Left("x")
+/// ```
+export fn tryMap(xs : List(a), f : (a) -> Either(e, b) with x) -> Either(e, List(b)) with x =
+    match xs {
+        [] -> Right([])
+      | y :: rest -> {
+            let v <- f(y);
+            let vs <- tryMap(rest, f);
+            Right(v :: vs)
+        }
+    }
+
+/// The accumulator after the function has seen each element, or the first
+/// `Left` it gives, which ends the walk.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.tryFold([1, 2], 0, fn(acc, n) = if n > 1 then Left("big") else Right(acc + n))
+/// // => Left("big")
+/// ```
+export fn tryFold(xs : List(a), acc : b, f : (b, a) -> Either(e, b) with x) ->
+        Either(e, b) with x =
+    match xs {
+        [] -> Right(acc)
+      | y :: rest -> {
+            let next <- f(acc, y);
+            tryFold(rest, next, f)
+        }
+    }

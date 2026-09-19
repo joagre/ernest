@@ -47,6 +47,13 @@ list_test() ->
     Bounded = fun(A, X) when A + X > 2 -> {'Left', big}; (A, X) -> {'Right', A + X} end,
     ?assertEqual({'Left', big}, L:tryFold([1, 2, 3], 0, Bounded)),
     ?assertEqual([1, 2, 3], L:sort([3, 1, 2], fun 'ernest@int':compare/2)),
+    %% report Appendix E.2: sort is stable, and orders a long list as
+    %% Erlang's does
+    ByFirst = fun({A, _}, {B, _}) -> 'ernest@int':compare(A, B) end,
+    ?assertEqual([{1, a}, {1, b}, {2, c}],
+                 L:sort([{1, a}, {2, c}, {1, b}], ByFirst)),
+    Many = [(N * 7919) rem 1009 || N <- lists:seq(1, 2000)],
+    ?assertEqual(lists:sort(Many), L:sort(Many, fun 'ernest@int':compare/2)),
     ?assertEqual([1, 3, 2], L:remove([1, 2, 3, 2], 2)),
     ?assertEqual([{1, a}, {2, b}], L:zip([1, 2, 3], [a, b])),
     ?assertEqual([1, 1, 2, 2], L:flatMap([1, 2], fun(X) -> [X, X] end)),

@@ -41,15 +41,26 @@ examples(Ns, File) ->
     Fns = [<<"export fn docExample", (integer_to_binary(N))/binary, "() = {\n", Body/binary,
              "\n}\n">> || {N, Body, _} <- WithResult],
     Q = lists:join(".", [atom_to_list(A) || A <- Ns]),
-    Calls = [iolist_to_binary(["    let _ = Io.debug(", Q, ".docExample", integer_to_list(N),
-                               "());\n"]) || {N, _, _} <- WithResult],
-    Main = iolist_to_binary(["export fn docMain() -> Unit with Never = {\n", Calls,
-                             "    Unit\n}\n"]),
-    Text = iolist_to_binary([Src, "\n", Fns, Main]),
+    Mains = [iolist_to_binary(["export fn docMain", integer_to_list(N),
+                               "() -> Unit with Never = {\n    let _ = Io.debug(", Q,
+                               ".docExample", integer_to_list(N), "());\n    Unit\n}\n"])
+             || {N, _, _} <- WithResult],
+    Text = iolist_to_binary([Src, "\n", Fns, Mains]),
     {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Text),
     {ok, Mod, Bin} = ern_compiler:compile(Ns, Typed, Iface, Env),
     Original = code:which(Mod),
     {module, Mod} = code:load_binary(Mod, "doc examples", Bin),
+    try
+        %% Appendix E.0 rule 6: each example runs on its own, and the value
+        %% it ends with is the last line it prints; what it prints itself,
+        %% as an example of `foreach` does, comes before and is not compared
+        lists:foreach(fun({N, _, V}) -> run_example(Mod, N, V) end, WithResult)
+    after
+        restore(Mod, Original)
+    end.
+
+run_example(Mod, N, Expected) ->
+    Main = list_to_atom("docMain" ++ integer_to_list(N)),
     Me = self(),
     _ = collect([]),
     Init = fun() -> case erlang:function_exported(Mod, '$init', 0) of
@@ -57,12 +68,11 @@ examples(Ns, File) ->
                         false -> ok
                     end
            end,
-    Result = ern_rt:run_main(fun() -> Mod:docMain() end, <<"docMain">>,
+    Result = ern_rt:run_main(fun() -> Mod:Main() end, atom_to_binary(Main),
                              #{init => Init, stdout => fun(B) -> Me ! {out, B} end}),
-    restore(Mod, Original),
     ?assertEqual(ok, Result),
-    Expected = iolist_to_binary([[V, "\n"] || {_, _, V} <- WithResult]),
-    ?assertEqual(Expected, collect([])).
+    Lines = binary:split(collect([]), <<"\n">>, [global, trim]),
+    ?assertEqual(iolist_to_binary(Expected), lists:last(Lines)).
 
 %% A standard library module's own beam comes back after its examples ran.
 restore(Mod, Original) when is_list(Original) ->
