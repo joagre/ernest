@@ -64,7 +64,7 @@ GNU Readline's Emacs bindings.
   - in an expression, the bindings, the modules on the load path, and their values and constructors;
   - after `:` in a type annotation, types;
   - inside a named constructor, in construction, update (`Player(..p, `), or pattern, its remaining fields;
-  - after `:`, a command; after a command, its argument: names for `:type` and `:doc`, modules for `:browse` and `:reload`, file paths for `:load`, the bindings for `:forget`, `depth`, `length`, and `timing` for `:set`.
+  - at the start of an input, after `:`, a command; after a command, its argument: names for `:type` and `:doc`, modules for `:browse` and `:reload`, file paths for `:load`, the bindings for `:forget`, `depth`, `length`, and `timing` for `:set`.
 - **Reserved words and operators do not complete.**
 - **Completion reads the compiled interfaces**, held in memory once read.
 - **`Shift-Tab` shows documentation.** On a name: its type, its first sentence, and its `Since`; a second `Shift-Tab`, the section `:doc` prints. Inside a call: the signature with its parameters as declared, `circle(centre : Point, radius : Int) -> Shape`, the parameter at the cursor marked.
