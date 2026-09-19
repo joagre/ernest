@@ -4,7 +4,7 @@ A functional language for explicit process protocols. Mailbox effects and linear
 
 ## Status
 
-MVP 1 and MVP 2 are done: the whole report on one node, except the standard library's system processes, which are MVP 2.5, and the shell, which is MVP 2.6. The toolchain is written in Erlang: lexer, parser, type checker, runtime, the compiler to BEAM, and the two programs `ernc` and `ern` under `bin/`, with every example program the toolchain runs compiled and run as a test. The plan says what comes next.
+The toolchain is written in Erlang: lexer, parser, type checker, runtime, the compiler to BEAM, and the two programs `ernc` and `ern` under `bin/`, with every example program the toolchain runs compiled and run as a test. Where the project stands and what comes next is the first paragraph of [`docs/implementation_plan.md`](docs/implementation_plan.md).
 
 ## Reading order
 

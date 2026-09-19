@@ -1,6 +1,6 @@
 # Ernest Toolchain: Architecture Notes
 
-How the MVP 2 toolchain is built, for whoever starts MVP 2.5. Written from the code on 2026-09-17, revised 2026-09-19 at the end of MVP 2; the code wins any conflict. The report is the specification, the plan says what was built when, the decisions log why; this says where things are and what flows between them.
+How the toolchain is built. Written from the code on 2026-09-17, revised 2026-09-19; the code wins any conflict. The report is the specification, the plan says what was built when, the decisions log why; this says where things are and what flows between them.
 
 ## The pipeline
 
