@@ -1,7 +1,8 @@
 /// Operations on `Path`, a file system path in the runtime's syntax
 /// (report §9.3, Appendix E.14). A `Path` is `Path(String)`, so a path is
-/// built from text and `toString` gives it back; what counts as a segment,
-/// a parent, or a root is the runtime's.
+/// built from text and `toString` gives it back. There is no `fromString`:
+/// the constructor is it, `Path("/etc/hosts")`. What counts as a segment, a
+/// parent, or a root is the runtime's.
 ///
 /// ## Examples
 ///
