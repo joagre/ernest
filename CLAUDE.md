@@ -34,7 +34,7 @@ The current phase and its decisions are in [`docs/implementation_plan.md`](docs/
 - **Every message that reports code work ends with a "Report conformance" section.** It lists the sections applied; every place the report was silent and what was done; every deliberate omission, each with the MVP that will lift it and the error the code gives meanwhile. If nothing was silent, say "none". This section is not optional, and "tests green" does not replace it.
 - **Done means three things:** the tests pass, the conformance section is written, and no known gap exists outside the plan.
 - When touching normative material, quote the exact section or grammar rule being applied.
-- Prose in the report and the guide is tight, in the register of a Wirth language report: state the rule, no rationale, no restating. Rationale goes to `docs/decisions.md`, compiler behaviour to §11.
+- Prose in the report and the guide is tight, in the register of a Wirth language report: state the rule, no rationale, no restating. Clear before short: a rule is easy to read at first pass, in plain sentences, never compressed into a cryptic one, and no sentence is cut for the count alone. Rationale goes to `docs/decisions.md`, compiler behaviour to §11.
 
 ## Erlang style guide
 

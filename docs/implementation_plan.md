@@ -213,7 +213,7 @@ Local `fn`s in a block are generalized only once every later local `fn` they ref
 
 Done 2026-09-18. Sections 0 to 11 without code blocks or tables went from 13,084 words to under 8,000, thirty-three pages to twenty, in one pass, the exact count in the decisions log's "Measure": every heading kept, every code block kept byte for byte, every cut inside a section, so every `§x.y` citation and `make sections` still hold; the mirror tests proved the grammar and the prelude did not move, and `make test` that no cited rule changed meaning. Rationale went to the decisions log, one entry listing what left by section. What remains is rules, 81 sections at a median of 76 words, the longest 548, so the measure was revised rather than the report cut past it: the log's "Measure" said under 8,000 words and no section over 600, and since 2026-09-19 states the aim instead of a limit, measured the same way after every pass.
 
-The standing rule for edits, from here on: a change to the report is made inside its heading, in the report's register, and a section that passes 600 words is restating something.
+Read back 2026-09-19 against the pre-paring text: the paring had lost five rules, made twelve sentences ambiguous, and cut thirty examples a first reader needs, and had compressed 86 sentences past easy reading; all restored or rewritten that day, the log's "The Paring Read Back" has the list. The standing rule for edits, from here on: a change to the report is made inside its heading, in the report's register, clear before short; a section that passes 600 words is read for restating.
 
 ---
 
