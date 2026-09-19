@@ -16,6 +16,11 @@ stdlib:
 	@for f in build/stdlib/*.erc; do \
 	  cp $$f lib/ern_stdlib/ebin/ernest@$$(basename $$f .erc).beam; done
 
+# The standard library's pages, one per module beside its .erc in
+# build/stdlib, and index.md listing them (report §11.4).
+doc: all
+	@bin/ernc --doc --out-dir build/stdlib stdlib
+
 # The unit tests of every application, then the integration tests in test/.
 test: all
 	@for app in $(APPS); do $(MAKE) -C lib/$$app/src $@ || exit 1; done
@@ -58,4 +63,4 @@ clean-emacs:
 	find . -path ./.git -prune -o \( -name '*~' -o -name '#*#' -o -name '.#*' \) -print0 \
 	  | xargs -0 rm -f
 
-.PHONY: all test clean clean-emacs sections coverage golden xref stdlib
+.PHONY: all test clean clean-emacs sections coverage golden xref stdlib doc

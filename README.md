@@ -78,6 +78,7 @@ Erlang/OTP 27 and GNU make. No rebar3, no OTP behaviours.
 ```
 make              compile every application into its ebin/, then stdlib/
 make test         build, run the EUnit tests, then the tests in test/
+make doc          write the standard library's pages to build/stdlib/, with index.md
 make sections     list the report sections no test cites
 make xref         check that every section citation in the documents resolves
 make coverage     every section with how many tests cite it, thinnest first
