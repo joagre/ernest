@@ -459,8 +459,8 @@ arity_of({tfn, Ps, _, _}, _) -> length(Ps);
 arity_of(_, Pos) -> fail(Pos, "a local function used as a value must have a function type").
 
 %% The prelude names of plan MVP 2.5 step 4: the checker knows them so the
-%% MVP 2 programs type-check, and the compiler refuses them until the
-%% system processes behind them exist (README, "What MVP 1 accepts").
+%% paper programs type-check, and the compiler refuses them until the
+%% system processes behind them exist (README, "What the toolchain accepts").
 -spec refused([atom()]) -> boolean().
 refused(['Sys', N]) -> N =/= stdout andalso N =/= clock;
 refused(['Io', readLine]) -> true;
