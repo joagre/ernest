@@ -90,7 +90,7 @@ The keys are GNU Readline's Emacs bindings, which every shell user's fingers alr
 - **Completion by type is a later step.** After `xs |> `, only functions whose first parameter fits the type of `xs` would be offered; the checker can compute it.
 - **`Shift-Tab` shows the documentation of the name at the cursor,** as Jupyter does: the type, the first sentence, and `Since`. A second `Shift-Tab` shows the whole section `:doc` prints.
 - **Completion reads the compiled interfaces** that every `.erc` carries, so it knows exactly what the checker knows.
-- **Documentation must be in the `.erc`.** `Shift-Tab` and `:doc` work on compiled modules, whose source may not be at hand, so `ernc` writes the doc blocks into a chunk of the `.erc`, after Erlang's `Docs` chunk (EEP 48). This is a toolchain step the shell depends on, and a companion to the standard library of MVP 2.5.
+- **Documentation must be in the `.erc`.** `Shift-Tab` and `:doc` work on compiled modules, whose source may not be at hand, so `ernc` writes the doc blocks into a chunk of the `.erc`, after Erlang's `Docs` chunk (EEP 48). This is a toolchain step the shell depends on, the plan's MVP 2.5 step 6.
 - **The `Key` type must express `Shift-Tab`.** A terminal sends it as its own escape sequence; `Keys` in MVP 2.5 must deliver it.
 
 ## The commands
