@@ -400,6 +400,26 @@ or_pattern_test() ->
         "export fn main() -> Unit with Never = Io.println(kind(Circle(0)))\n"),
     ?assertEqual({fault, <<"division by zero">>}, R).
 
+%% report Appendix E.1: Io.debug prints any value as Ernest writes it, by
+%% the runtime's representation, and returns it
+io_debug_test() ->
+    {ok, Out} = run(
+        "type Shape = Circle(Int) | Dot\n"
+        "type Snap = Snap(dir : String, seen : Int)\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    let n = Io.debug(4) + 1;\n"
+        "    let _ = Io.debug(n);\n"
+        "    let _ = Io.debug([Circle(-3), Dot]);\n"
+        "    let _ = Io.debug(#(1.5, \"a\\nb\", true, Unit));\n"
+        "    let _ = Io.debug(Snap(dir = \"x\", seen = 2));\n"
+        "    let _ = Io.debug(Map.put(Map.empty, \"k\", [1]));\n"
+        "    let _ = Io.debug(Set.fromList([2, 1]));\n"
+        "    let _ = Io.debug(fn(x) = x);\n"
+        "    Unit\n"
+        "}\n"),
+    ?assertEqual(<<"4\n5\n[Circle(-3), Dot]\n#(1.5, \"a\\nb\", true, Unit)\nSnap(\"x\", 2)\n"
+                   "Map.fromList([#(\"k\", [1])])\nSet.fromList([1, 2])\n<function>\n">>, Out).
+
 %% report §5.9, §6.3: alternatives in a receive clause select either message
 receive_or_pattern_test() ->
     {ok, Out} = run(

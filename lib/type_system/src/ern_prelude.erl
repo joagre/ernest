@@ -59,7 +59,7 @@ stdlib_types() ->
 -spec process_only() -> [[atom()]].
 process_only() ->
     [[send], [spawn], ['Address', call], ['Address', callForever], [answer], [monitor],
-     [kill], [remote], [parallelRemote], ['Io', print], ['Io', println], ['Io', readLine],
+     [kill], [remote], [parallelRemote], ['Io', print], ['Io', println], ['Io', readLine], ['Io', debug],
      ['Clock', now], ['Clock', alarm], ['Clock', alarmAt], ['Keys', subscribe],
      ['Fs', read], ['Fs', write], ['Fs', append], ['Fs', list], ['Fs', stat], ['Fs', makeDir],
      ['Fs', remove], ['Fs', rename], ['Fs', copy], ['Tcp', listen], ['Tcp', accept],
@@ -126,6 +126,7 @@ values() ->
      {['Io', print], "(String) -> Unit with m"},
      {['Io', println], "(String) -> Unit with m"},
      {['Io', readLine], "() -> Optional(String) with m"},
+     {['Io', debug], "(a) -> a with m"},
      %% E.2 List
      {['List', size], "(List(a)) -> Int"},
      {['List', isEmpty], "(List(a)) -> Bool"},

@@ -49,6 +49,8 @@ hello, world
 
 `Io.println` is a stdlib function that sends its argument to a small `Sys.stdout` process the runtime provides. The stdout process receives the text and writes it. `Io.println` writes to `Sys.stdout` only. To write a string to any other `Address(String)`, a logger say, send to it directly, `send(logger, "starting\n")`; the library has no second print function for that. Messaging to a runtime service is one of two ways Ernest interacts with the outside world (the other is `foreign fn`, §7).
 
+For development output, `Io.debug(x)` prints any value as Ernest writes it and returns it, so it wraps an expression in place: `let n = Io.debug(f(x))`. It carries `with m` like `Io.println`, so it cannot hide in pure code (report Appendix E.1).
+
 ### 1.2 Prediction exercise
 
 Consider two variations on hello-world:

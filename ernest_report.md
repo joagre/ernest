@@ -1085,7 +1085,10 @@ Output to `Sys.stdout` and input from `Sys.stdin` (section 8). A string goes to 
 Io.print : (String) -> Unit with m
 Io.println : (String) -> Unit with m // appends "\n"
 Io.readLine : () -> Optional(String) with m // the next line without its line feed; None at end of input
+Io.debug : (a) -> a with m // prints the value as Ernest writes it, then returns it
 ```
+
+`Io.debug` prints by the runtime's representation (§8.4): a `Char` as its `Int`; a `Bytes` that is UTF-8 as a `String`; a constructor's fields positional; a `Map` as `Map.fromList` of its pairs and a `Set` as `Set.fromList` of its elements, a `Map` whose values are all `[]` printing as a `Set`; an address, a reply, a function, or a foreign value as `<address>`, `<reply>`, `<function>`, `<foreign>`.
 
 ### Appendix E.2. `list.ern` (namespace `List`)
 
