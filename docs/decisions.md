@@ -2754,6 +2754,10 @@ E.0's third rule read "A program writes it and the hand-written version has no p
 
 Decided the same day by the new rules. In: `Float.sqrt`, `pow`, `exp`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2` and `truncate` (rule 1 for the arithmetic, rule 2 for the fourth rounding policy); `Int.toStringBase` and `String.toIntBase`, the bases the language's own `0x` literals read; `List.foldRight`; `Optional.orElse` and `Either.orElse`. The partial ones answer `Optional`, by shape rule 4, and `pow` and `exp` fault with §3.1's cause. Out: `List.sum`, `max`, `min`, `first`, `rest`, `flatten`, `count`, `map2`, one pipe each by rule 4; `scan`, `mapFold`, `window`, `chunk`, each a `foldLeft` with an accumulator that hides a choice about the ends; `Float.looselyEquals`, whose tolerance is the program's, and `toPrecision`, which is a format; `array` and `queue`, which `List` and `Map` give; formatting a timestamp.
 
+## `Float`'s Boundary, 2026-09-20
+
+The twelve functions admitted on 2026-09-20 doubled the module, and rule 3 refuses only what carries a policy, so the next request for a mean or a matrix would have had taste to answer it. E.9 now says the module holds the operations of the type itself, and that mathematics over collections of floats, statistics, matrices, and numerical methods, is a library. It is the sentence E.5 has for `String`, which says it is not a container, and it keeps principle 5 in front of a module that attracts additions. The base conversions kept the names E.0's shape rule gives, `Int.toStringBase` and `String.toIntBase`: `Int.toBase` and `String.fromBase` read better but name the base instead of the other type, and `fromBase` reads as building a `String`, while it produces an `Int`.
+
 ## Later
 
 Planned or considered, not in the language today.

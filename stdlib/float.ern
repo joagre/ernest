@@ -1,7 +1,9 @@
 /// Operations on `Float`, IEEE 754 double precision restricted to the
 /// finite range (report §3.1). The arithmetic and the ordering are the
 /// prelude's (report §9.6); this module provides them with the rest. No
-/// operation here returns an infinity or a NaN: one that would, faults.
+/// operation here returns an infinity or a NaN: one that would, faults,
+/// and one with no answer gives `None`. The module holds the operations of
+/// the type itself; mathematics over collections of floats is a library.
 ///
 /// ## Examples
 ///

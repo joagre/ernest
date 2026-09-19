@@ -1268,7 +1268,7 @@ Int.toFloat : (Int) -> Float // faults outside the finite range, §3.1
 
 ### Appendix E.9. `float.ern` (namespace `Float`)
 
-`Float.compare`, `Float.negate`, and the operators are the prelude's, §9.6; this module provides them (§9).
+`Float.compare`, `Float.negate`, and the operators are the prelude's, §9.6; this module provides them (§9). The module holds the operations of the type itself. Mathematics over collections of floats, statistics, matrices, and numerical methods, is a library.
 
 ```
 Float.abs : (Float) -> Float
