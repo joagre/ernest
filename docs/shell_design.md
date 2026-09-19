@@ -63,16 +63,25 @@ The keys are GNU Readline's Emacs bindings, which every shell user's fingers alr
 
 A command is written with a `:` prefix, as in GHCi, and is not a function. It cannot collide with a program's names, and it cannot be mistaken for Ernest code (principles 1 and 3).
 
+Any prefix of a command's name selects it, as in GHCi, and an ambiguous prefix selects the first command in the order of the list below. The order puts GHCi's habitual letters where GHCi puts them: `:t` is `:type`, `:b` is `:browse`, `:l` is `:load`, `:r` is `:reload`, `:q` is `:quit`, `:d` is `:doc`, `:f` is `:flush`.
+
 - **`:type e`**: the type of an expression, without evaluating it, printed as the checker prints types (§11.5). In a typed language this is the command used most.
-- **`:doc Name`**: a declaration's documentation, rendered as `ernc --doc` renders it (§11.4): the declaration, with a type's constructors and a function's type, and its text. The documentation norm, Appendix E.0 rule 6, makes it worth more than Erlang's `h`.
 - **`:browse Module`**: every export of a module with its type, the compact overview beside `:doc`'s text.
-- **`:bindings`** and **`:forget x`**: the bindings made at the prompt, and forgetting one or all of them.
-- **`:flush`**: prints and empties the shell's mailbox. Without it a message sent to `self()` at the prompt is invisible.
-- **`:processes`**: the live processes with their spawn sites, which the runtime's process table already records (§6.9).
 - **`:load file`**: brings a source file's declarations into the session, as if typed at the prompt.
 - **`:reload Module`**: recompiles and reloads a module during development. It is a toolchain convenience and does not compete with §6.10's `Upgrade`.
+- **`:quit`**, as `C-d` on an empty line.
+- **`:doc Name`**: a declaration's documentation, rendered as `ernc --doc` renders it (§11.4): the declaration, with a type's constructors and a function's type, and its text. The documentation norm, Appendix E.0 rule 6, makes it worth more than Erlang's `h`. A GHCi user's `:i` finds nothing; the help text says `:doc` is the command.
+- **`:help`**, which lists the commands and their prefixes.
+- **`:flush`**: prints and empties the shell's mailbox. Without it a message sent to `self()` at the prompt is invisible.
+- **`:forget x`**: forgets one binding made at the prompt, or all of them without a name.
+- **`:bindings`**: the bindings made at the prompt, with their types.
+- **`:processes`**: the live processes with their spawn sites, which the runtime's process table already records (§6.9).
 - **`:set depth n`** and **`:set length n`**: the printing limits above.
-- **`:help`** and **`:quit`**.
+
+Two questions a Haskell user asks on the first day:
+
+- **How is a module imported?** It is not. Every module on the load path is in scope by its qualified name (§4.2), so GHCi's `:module` has no counterpart.
+- **How is a program started?** By calling it. A module meant to be used from a shell exports a function that spawns its processes and returns, as an Erlang user calls `server:start()`. `Server.main()` at the prompt runs an entry point in the evaluator, and `C-c` stops it; `spawn(Local, fn() = Server.main())` runs it beside the shell. There is no `:main` or `:run`: calling the function is the one way (principle 2).
 
 ## What other shells offer
 
