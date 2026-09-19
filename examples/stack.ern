@@ -5,8 +5,7 @@
 // main that uses it. Only the three definitions listed in the signature may
 // name the Stack constructor. The main is not from the guide.
 //
-// Needs MVP 1 (abstract types are ordinary types with a signature in MVP 1;
-// the ownership rule is MVP 2). The plan lists this as a Phase 1.4 test.
+// Needs MVP 1. The plan lists this as a Phase 1.4 test.
 //
 
 export abstract type Stack(a) = Stack(List(a)) with {

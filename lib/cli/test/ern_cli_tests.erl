@@ -219,6 +219,19 @@ namespace_clash_test() ->
     ?assertEqual(1, ernc_err(Single ++ [Dir ++ "/src/main.ern"])),
     ?assertEqual(1, ernc_err(Single ++ [Dir ++ "/src/main/stack.ern"])).
 
+%% report §4.4: an abstract type's constructor is not visible outside its module
+abstract_constructor_outside_test() ->
+    Dir = tmp(),
+    write(Dir, "src/main.ern",
+          "export abstract type Stack(a) = Stack(List(a)) with { empty : Stack(a) }\n"
+          "export let Stack.empty = Stack([])\n" ++ hello()),
+    write(Dir, "src/other.ern", "export fn f() -> Main.Stack(Int) = Main.Stack([])\n"),
+    ?assertEqual(1, ernc_err(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertMatch({match, _},
+                 re:run(iolist_to_binary(?capturedOutput),
+                        "Main.Stack is the constructor of an abstract type and is not visible"
+                        " outside its module")).
+
 %% report §11.1: a module cycle is an error naming the modules
 module_cycle_test() ->
     Dir = tmp(),

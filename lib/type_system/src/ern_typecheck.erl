@@ -65,7 +65,7 @@ check(Ns, Decls, Ifaces) ->
         %% report §11.5: the module's types print unqualified, except those
         %% that shadow a prelude name
         Shadows = [N || N <- maps:keys(Env1a#env.local_types), is_map_key([N], Env1a#env.types)],
-        Env1 = Env1a#env{st = ern_types:set_scope(Env1a#env.st, Ns, Shadows)},
+        Env1 = mark_abstract(Decls, Env1a#env{st = ern_types:set_scope(Env1a#env.st, Ns, Shadows)}),
         {Typed, Env2, Errs2} = check_values(Decls, Env1),
         Errs3 = check_signatures(Decls, Env2),
         case lists:sort(Errs1 ++ Errs2 ++ Errs3) of
@@ -120,6 +120,15 @@ prelude_env() ->
                     E1#env{globals = maps:put(QName, Scheme, E1#env.globals)}
                 end, Env3#env{ns = [], local_types = #{}, local_cons = #{}, local_values = #{}},
                 ern_prelude:values()).
+
+%% Report §4.4: the type's info, and so the compiled interface, marks an
+%% abstract type; lookup_con refuses its constructor from another module.
+mark_abstract(Decls, #env{local_types = LT, types = Ts} = Env) ->
+    Env#env{types = lists:foldl(fun(#abstract_decl{type = #type_decl{name = N}}, Acc) ->
+                                    maps:update_with(maps:get(N, LT),
+                                                     fun(TI) -> TI#tinfo{abstract = true} end, Acc);
+                                   (_, Acc) -> Acc
+                                end, Ts, Decls)}.
 
 add_iface(#iface{types = Ts, values = Vs}, #env{types = ET, globals = EG} = Env) ->
     Cons = maps:fold(fun(_, #tinfo{constructors = Cs}, Acc) ->
@@ -361,10 +370,37 @@ check_values(Decls, Env0) ->
     Groups = dependency_groups(Values, Env1),
     Pending = maps:from_list([{group_qname(D, Env1), G} || G <- Groups, D <- G]),
     Env2 = lists:foldl(fun run_group/2, Env1#env{groups = Pending, typed = [], errs = []}, Groups),
-    Errs = let_cycles(Env2#env.typed, Env2) ++ Env2#env.errs,
+    Errs = ownership(Decls, Values) ++ let_cycles(Env2#env.typed, Env2) ++ Env2#env.errs,
     %% restore declaration order for the typed output
     Typed = [replace_typed(D, Env2#env.typed) || D <- Decls],
     {Typed, Env2#env{groups = #{}, typed = [], errs = []}, Errs}.
+
+%% Report §4.4: the constructor of an abstract type appears only in the
+%% definitions its signature names. One error per definition, at the first
+%% constructor it mentions where it may not.
+ownership(Decls, Values) ->
+    Owned = maps:from_list(
+              [{C, {T, [S || #signature{name = S} <- Sigs]}}
+               || #abstract_decl{type = #type_decl{name = T, constructors = Cons},
+                                 signatures = Sigs} <- Decls,
+                  #constructor{name = C} <- Cons]),
+    lists:append(
+      [case [{Pos, C, T} || {Pos, C} <- lists:reverse(constructors_in(D, [])),
+                            {T, Sigs} <- [maps:get(C, Owned, none)],
+                            not (Owner =:= T andalso lists:member(Name, Sigs))] of
+           [] -> [];
+           [{Pos, C, T} | _] ->
+               [diag(Pos, "the constructor " ++ atom_to_list(C) ++ " of abstract type "
+                          ++ atom_to_list(T) ++ " may appear only in the definitions its"
+                          " signature names")]
+       end || D <- Values, {Owner, Name} <- [decl_key(D)]]).
+
+constructors_in(#e_con{pos = Pos, name = C, args = A}, Acc) -> constructors_in(A, [{Pos, C} | Acc]);
+constructors_in(#p_con{pos = Pos, name = C, args = A}, Acc) -> constructors_in(A, [{Pos, C} | Acc]);
+constructors_in(T, Acc) when is_tuple(T) ->
+    lists:foldl(fun constructors_in/2, Acc, tl(tuple_to_list(T)));
+constructors_in(L, Acc) when is_list(L) -> lists:foldl(fun constructors_in/2, Acc, L);
+constructors_in(_, Acc) -> Acc.
 
 group_qname(D, Env) ->
     {Owner, Name} = decl_key(D),
@@ -2029,15 +2065,23 @@ lookup_con(Pos, [], Name, #env{local_cons = LC, cons = Cs}) ->
                 _ -> fail(Pos, "unknown constructor " ++ atom_to_list(Name))
             end
     end;
-lookup_con(Pos, Path, Name, #env{cons = Cs}) ->
+lookup_con(Pos, Path, Name, #env{cons = Cs, types = Types, local_types = LT}) ->
     Q = Path ++ [Name],
     case Cs of
-        #{Q := CI} -> CI;
+        #{Q := #cinfo{type_qname = TQ} = CI} ->
+            %% report §4.4: an abstract type's constructor is its module's alone
+            Local = maps:get(lists:last(TQ), LT, undefined) =:= TQ,
+            case Types of
+                #{TQ := #tinfo{abstract = true}} when not Local ->
+                    fail(Pos, format_qname(Q) ++ " is the constructor of an abstract type and is"
+                              " not visible outside its module");
+                _ -> CI
+            end;
         _ -> fail(Pos, "unknown constructor " ++ format_qname(Q))
     end.
 
 %%
-%% Abstract type signatures (report §4.4; ownership is MVP 2)
+%% Abstract type signatures (report §4.4); the ownership rule is `ownership/2`
 %%
 
 check_signatures(Decls, Env) ->

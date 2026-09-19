@@ -633,6 +633,26 @@ abstract_type_test() ->
                      "fn Stack.size(s) = true")),
     ?assertEqual("Nope is not a type declared in this module", err("fn Nope.f() = 1")).
 
+%% report §4.4: the constructor of an abstract type appears only in the
+%% definitions its signature names; a local fn inside such a definition is
+%% part of it
+ownership_test() ->
+    Stack = "export abstract type Stack(a) = Stack(List(a)) with {\n"
+            "    empty : Stack(a);\n    push : (a, Stack(a)) -> Stack(a);\n"
+            "    pop : (Stack(a)) -> Optional(#(a, Stack(a)))\n}\n"
+            "export let Stack.empty = Stack([])\n"
+            "export fn Stack.push(x, Stack(xs)) = Stack(x :: xs)\n"
+            "export fn Stack.pop(Stack(xs)) = match xs { [] -> None | x :: rest ->"
+            " Some(#(x, Stack(rest))) }\n",
+    Msg = "the constructor Stack of abstract type Stack may appear only in the definitions its"
+          " signature names",
+    ?assertEqual(Msg, err(Stack ++ "fn peek(Stack(xs)) = xs")),
+    ?assertEqual(Msg, err(Stack ++ "fn Stack.size(s) = match s { Stack(xs) -> List.size(xs) }")),
+    ?assertEqual(Msg, err(Stack ++ "fn wrap(xs : List(List(Int))) = List.map(xs, Stack)")),
+    ?assertEqual(ok, ok(Stack ++ "fn use() = Stack.push(1, Stack.empty)")),
+    ?assertEqual(ok, ok("abstract type Box(a) = Box(a) with { make : (a) -> Box(a) }\n"
+                        "fn Box.make(x) = { fn wrap(y) = Box(y); wrap(x) }")).
+
 %% report §4.2, §11.1
 interface_test() ->
     Http = "export type Request = Request(method : String, path : String)\n"
