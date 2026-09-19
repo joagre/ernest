@@ -15,7 +15,8 @@
 -spec check(tuple(), ern_typecheck:env()) -> ok.
 check(Node, Env) ->
     walk(fun(#e_match{pos = Pos, scrutinee = S, clauses = Clauses}) ->
-                 Rows = [[simplify(P, Env)] || #clause{pattern = P, guard = undefined} <- Clauses],
+                 Rows = lists:append([alt_rows(P, Env)
+                                      || #clause{pattern = P, guard = undefined} <- Clauses]),
                  case useful(Rows, [wild], Env) of
                      no -> ok;
                      {yes, [Witness]} ->
@@ -38,6 +39,10 @@ walk(_, _) ->
 %%
 %% Simplification
 %%
+
+%% Report §5.9: a clause with alternatives covers what each alternative covers.
+alt_rows(#p_or{alts = Alts}, Env) -> [[simplify(A, Env)] || A <- Alts];
+alt_rows(P, Env) -> [[simplify(P, Env)]].
 
 simplify(#p_wild{}, _) -> wild;
 simplify(#p_var{}, _) -> wild;

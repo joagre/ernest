@@ -3,13 +3,14 @@
 //
 // The pattern forms of the report as a program: negative literal
 // patterns, `as` bindings, wildcards, list and constructor patterns (§5.10),
-// and prefix negation (§5.1). Expected output: "minus one", "zero", "other", "a 2",
-// "nothing", "-3", "3".
+// clause alternatives (§5.9), and prefix negation (§5.1). Expected output:
+// "minus one", "zero", "other", "a 2", "nothing", "-3", "3", "4".
 //
 // Needs MVP 1.
 //
 
 type Snapshot = Snapshot(dir : String, seen : Int)
+type Shape = Circle(Int) | Square(Int) | Dot
 
 export fn main() -> Unit with Never = {
     Io.println(sign(-1));
@@ -18,7 +19,8 @@ export fn main() -> Unit with Never = {
     Io.println(describe(Some(Snapshot(dir = "a", seen = 2))));
     Io.println(describe(None));
     Io.println(Int.toString(negate(3)));
-    Io.println(Int.toString(List.size(whole([1, 2, 3]))))
+    Io.println(Int.toString(List.size(whole([1, 2, 3]))));
+    Io.println(Int.toString(side(Square(4))))
 }
 
 fn sign(n : Int) -> String = match n {
@@ -35,6 +37,12 @@ fn describe(o : Optional(Snapshot)) -> String = match o {
 fn seen(Snapshot(seen = n) : Snapshot) -> Int = n
 
 fn negate(n : Int) -> Int = -n
+
+// A clause with alternatives binds the same variables in each.
+fn side(s : Shape) -> Int = match s {
+    Circle(n) | Square(n) -> n
+  | Dot -> 0
+}
 
 // `as` binds loosest: `x :: rest as all` names the whole list.
 fn whole(xs : List(Int)) -> List(Int) = match xs {

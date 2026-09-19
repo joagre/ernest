@@ -1132,6 +1132,7 @@ typed_pattern_bindings(#p_tuple{elems = Es}) ->
 typed_pattern_bindings(#p_list{elems = Es}) -> lists:append([typed_pattern_bindings(E) || E <- Es]);
 typed_pattern_bindings(#p_cons{head = H, tail = T}) ->
     typed_pattern_bindings(H) ++ typed_pattern_bindings(T);
+typed_pattern_bindings(#p_or{alts = [A | _]}) -> typed_pattern_bindings(A);
 typed_pattern_bindings(_) -> [].
 
 %% Generic pre-order walk over the typed AST, threading Env.
@@ -1520,7 +1521,7 @@ check_clauses(Kind, Clauses, ScrutT, ScrutOrigin, Expected, Context, Origin, Sib
                   {TypedP, PT, Bindings, En1} = check_pattern(P, En),
                   En2 = unify_at(node_span(P), ScrutT, PT, En1,
                                  "the pattern does not fit the value", ScrutOrigin),
-                  En3 = bind_vars(Bindings, En2),
+                  En3 = bind_vars(Bindings, alternatives_agree(TypedP, En2)),
                   {TypedG, En4} =
                       case G of
                           undefined -> {undefined, En3};
@@ -1684,6 +1685,31 @@ check_pattern(P, Env) ->
     end,
     {TypedP, T, Bindings, Env1}.
 
+%% Report §5.9: the alternatives bind each variable at one type, checked
+%% once the clause's pattern has met the value's type.
+alternatives_agree(#p_or{alts = [First | Rest]}, Env) ->
+    Bindings = typed_pattern_bindings(First),
+    lists:foldl(fun(A, En) ->
+                    lists:foldl(fun({N, TN}, E) ->
+                                    {N, TF} = lists:keyfind(N, 1, Bindings),
+                                    unify_at(node_span(A), TF, TN, E,
+                                             "the alternatives bind `" ++ atom_to_list(N)
+                                             ++ "` at one type", undefined)
+                                end, En, typed_pattern_bindings(A))
+                end, Env, Rest);
+alternatives_agree(_, Env) ->
+    Env.
+
+alternatives_differ(Pos, Names, NamesA) ->
+    Text = case Names -- NamesA of
+               [N | _] -> "`" ++ atom_to_list(N) ++ "` is bound by the first alternative"
+                          " and not by this one";
+               [] -> [N | _] = NamesA -- Names,
+                     "`" ++ atom_to_list(N) ++ "` is bound by this alternative and not by"
+                     " the first"
+           end,
+    fail(Pos, "the alternatives of a clause bind different variables: " ++ Text).
+
 pat(#p_wild{} = P, Env) ->
     {T, St} = ern_types:fresh(Env#env.st),
     {P#p_wild{type = T}, T, [], Env#env{st = St}};
@@ -1763,6 +1789,21 @@ pat(#p_cons{pos = Pos, head = H, tail = Tl} = P, Env) ->
 pat(#p_as{pattern = Sub, name = N} = P, Env) ->
     {TypedSub, T, Bs, Env1} = pat(Sub, Env),
     {P#p_as{pattern = TypedSub, type = T}, T, Bs ++ [{N, T}], Env1};
+pat(#p_or{alts = [First | Rest]} = P, Env) ->
+    %% report §5.9: every alternative binds the same variables at the same types
+    {TypedFirst, T, Bindings, Env1} = check_pattern(First, Env),
+    Names = lists:sort([N || {N, _} <- Bindings]),
+    {TypedRest, Env2} =
+        lists:mapfoldl(
+          fun(A, En) ->
+                  {TA, TT, BA, En1} = check_pattern(A, En),
+                  En2 = unify_at(node_span(A), T, TT, En1,
+                                 "the alternatives of a clause match one type", undefined),
+                  NamesA = lists:sort([N || {N, _} <- BA]),
+                  NamesA =:= Names orelse alternatives_differ(element(2, A), Names, NamesA),
+                  {TA, En2}
+          end, Env1, Rest),
+    {P#p_or{alts = [TypedFirst | TypedRest], type = T}, T, Bindings, Env2};
 pat(#p_bits{pos = Pos, segments = Segs} = P, Env) ->
     %% report §5.11: each segment pattern in turn, the size expressions in
     %% the scope of the earlier segments' variables

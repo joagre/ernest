@@ -186,7 +186,7 @@ examples_test_() ->
                 {"upgrade", <<"before upgrade: 8\nafter upgrade: 10\n">>},
                 {"pingpong", <<"ping 3\npong 3\nping 2\npong 2\nping 1\npong 1\n">>},
                 {"stack", <<"top is 2\n">>},
-                {"patterns", <<"minus one\nzero\nother\na 2\nnothing\n-3\n3\n">>},
+                {"patterns", <<"minus one\nzero\nother\na 2\nnothing\n-3\n3\n4\n">>},
                 {"kvparser", <<"a 12\nbad key: =1\nexpected =: a\nbad number: a=x\n">>},
                 {"remote", <<"no remote peer configured\n">>}],
     [{Base, fun() ->
@@ -371,6 +371,51 @@ match_guard_faults_test() ->
         "    Io.println(name(0))\n"
         "}\n"),
     ?assertEqual({fault, <<"division by zero">>}, R).
+
+%% report §5.9: a clause with alternatives runs one body for whichever
+%% alternative matched, with that alternative's variables; a guard applies to
+%% every alternative, as an Erlang guard or as an expression; a faulting guard
+%% still faults
+or_pattern_test() ->
+    Shape = "type Shape = Circle(Int) | Square(Int) | Dot\n",
+    Kind = "fn kind(s : Shape) -> String = match s {\n"
+           "    Circle(n) | Square(n) when 10 / n > 0 -> \"sized\"\n"
+           "  | _ -> \"dot\"\n"
+           "}\n",
+    {ok, Out} = run(Shape ++ Kind ++
+        "fn area(s : Shape) -> Int = match s {\n"
+        "    Circle(n) | Square(n) when n > 1 -> n * 10\n"
+        "  | Circle(n) | Square(n) -> n\n"
+        "  | Dot -> 0\n"
+        "}\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    Io.println(Int.toString(area(Circle(1))));\n"
+        "    Io.println(Int.toString(area(Square(2))));\n"
+        "    Io.println(Int.toString(area(Dot)));\n"
+        "    Io.println(kind(Square(5)));\n"
+        "    Io.println(kind(Dot))\n"
+        "}\n"),
+    ?assertEqual(<<"1\n20\n0\nsized\ndot\n">>, Out),
+    {R, _} = run(Shape ++ Kind ++
+        "export fn main() -> Unit with Never = Io.println(kind(Circle(0)))\n"),
+    ?assertEqual({fault, <<"division by zero">>}, R).
+
+%% report §5.9, §6.3: alternatives in a receive clause select either message
+receive_or_pattern_test() ->
+    {ok, Out} = run(
+        "type Msg = Inc(Int) | Dec(Int) | Stop\n"
+        "fn loop(n : Int) -> Int with Msg = receive {\n"
+        "    Inc(k) | Dec(k) -> loop(n + k)\n"
+        "  | Stop -> n\n"
+        "}\n"
+        "export fn main() -> Unit with Msg = {\n"
+        "    let me = self();\n"
+        "    send(me, Inc(2));\n"
+        "    send(me, Dec(3));\n"
+        "    send(me, Stop);\n"
+        "    Io.println(Int.toString(loop(0)))\n"
+        "}\n"),
+    ?assertEqual(<<"5\n">>, Out).
 
 %% report §5.9: a receive guard is a guard expression, emitted as an Erlang
 %% guard, tested while the message stays in the mailbox

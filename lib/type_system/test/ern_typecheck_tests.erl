@@ -341,6 +341,25 @@ with_binds_to_the_nearest_arrow_test() ->
                  type_of("export fn f(a : Int) -> ((Int) -> Int) with Never = fn(b) = a + b",
                          f)).
 
+%% report §5.9: the alternatives of a clause bind the same variables at the
+%% same types, and coverage counts each alternative
+or_pattern_test() ->
+    Shape = "type Shape = Circle(Int) | Square(Int) | Dot\n",
+    ?assertEqual("(M.Shape) -> Int",
+                 type_of(Shape ++ "export fn area(s : Shape) = match s {"
+                         " Circle(n) | Square(n) -> n | Dot -> 0 }", area)),
+    ?assertEqual("the alternatives of a clause bind different variables: `n` is bound by the"
+                 " first alternative and not by this one",
+                 err(Shape ++ "fn f(s : Shape) = match s { Circle(n) | Dot -> n | Square(_) -> 0 }")),
+    ?assertEqual("the alternatives of a clause bind different variables: `m` is bound by this"
+                 " alternative and not by the first",
+                 err(Shape ++ "fn f(s : Shape) = match s { Dot | Square(m) -> 1 | Circle(_) -> 0 }")),
+    [TypeErr | _] = errs("fn f(e : Either(Int, String)) = match e { Left(x) | Right(x) -> 1 }"),
+    ?assertMatch({match, _}, re:run(TypeErr, "the alternatives bind `x` at one type")),
+    ?assertEqual(ok, ok("fn f(e : Either(Int, Int)) = match e { Left(n) | Right(n) -> n }")),
+    [Cover | _] = errs("fn f(o : Optional(Int)) = match o { Some(1) | Some(2) -> 1 }"),
+    ?assertMatch({match, _}, re:run(Cover, "^match on Optional")).
+
 %% report §4.8: an operator is declared with `fn`
 let_operator_test() ->
     ?assertEqual("an operator is declared with `fn`, not `let`",

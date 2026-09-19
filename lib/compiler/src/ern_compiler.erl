@@ -366,14 +366,15 @@ expr(#e_match{pos = Pos, scrutinee = S, clauses = Clauses}, Cx) ->
     {Form, Cx2} = match_clauses(SF, Clauses, Cx1),
     {at(Pos, Form), Cx2};
 expr(#e_receive{pos = Pos, clauses = Clauses, 'after' = After}, Cx) ->
-    {ClauseForms, Cx1} = lists:mapfoldl(fun receive_clause/2, Cx, Clauses),
+    {Parts, Cx1} = lists:mapfoldl(fun receive_clauses/2, Cx, Clauses),
+    {Binds, ClauseForms} = join_parts(Parts),
     case After of
         undefined ->
-            {at(Pos, erl_syntax:receive_expr(ClauseForms)), Cx1};
+            {at(Pos, with_binds(Binds, erl_syntax:receive_expr(ClauseForms))), Cx1};
         #after_clause{timeout = T, body = B} ->
             {TF, Cx2} = expr(T, Cx1),
             {BF, Cx3} = body(B, Cx2),
-            {at(Pos, erl_syntax:receive_expr(ClauseForms, TF, BF)), Cx3}
+            {at(Pos, with_binds(Binds, erl_syntax:receive_expr(ClauseForms, TF, BF))), Cx3}
     end.
 
 exprs(Es, Cx) ->
@@ -1033,6 +1034,7 @@ pattern_names(#p_con{args = {named, FPs}}) ->
 pattern_names(#p_tuple{elems = Es}) -> lists:append([pattern_names(E) || E <- Es]);
 pattern_names(#p_list{elems = Es}) -> lists:append([pattern_names(E) || E <- Es]);
 pattern_names(#p_cons{head = H, tail = T}) -> pattern_names(H) ++ pattern_names(T);
+pattern_names(#p_or{alts = [A | _]}) -> pattern_names(A);
 pattern_names(_) -> [].
 
 %%
@@ -1045,8 +1047,9 @@ match_clauses(SF, Clauses, Cx) ->
     case lists:any(fun(#clause{guard = G}) -> G =/= undefined andalso not erlang_guard(G, Cx) end,
                    Clauses) of
         false ->
-            {Forms, Cx1} = lists:mapfoldl(fun simple_clause/2, Cx, Clauses),
-            {erl_syntax:case_expr(SF, Forms), Cx1};
+            {Parts, Cx1} = lists:mapfoldl(fun simple_clauses/2, Cx, Clauses),
+            {Binds, Forms} = join_parts(Parts),
+            {with_binds(Binds, erl_syntax:case_expr(SF, Forms)), Cx1};
         true ->
             {[S], Cx1} = fresh_vars(1, "S", Cx),
             SVar = erl_syntax:variable(S),
@@ -1054,6 +1057,34 @@ match_clauses(SF, Clauses, Cx) ->
             {erl_syntax:block_expr([erl_syntax:match_expr(SVar, SF), Body]), Cx2}
     end.
 
+general_clauses(SVar, [#clause{pattern = #p_or{}} = C | Rest], Cx) ->
+    {[R], Cx1} = fresh_vars(1, "Rest", Cx),
+    RVar = erl_syntax:variable(R),
+    {RestBody, Cx2} = case Rest of
+                          [] -> {call_remote(erlang, error, [erl_syntax:atom(no_match)]), Cx1};
+                          _ -> general_clauses(SVar, Rest, Cx1)
+                      end,
+    RestBind = erl_syntax:match_expr(RVar, erl_syntax:fun_expr([erl_syntax:clause([], none,
+                                                                                  [RestBody])])),
+    Fallthrough = erl_syntax:application(RVar, []),
+    Mk = fun(Pos, PF, G, Call, C1) ->
+             {PG, _} = take_pat_guards(none, C1),
+             case G of
+                 undefined ->
+                     {at(Pos, erl_syntax:clause([PF], PG, Call)), C1};
+                 _ ->
+                     {GF, C2} = expr(G, C1),
+                     Test = erl_syntax:case_expr(
+                              GF, [erl_syntax:clause([erl_syntax:atom(true)], none, Call),
+                                   erl_syntax:clause([erl_syntax:atom(false)], none,
+                                                     [Fallthrough])]),
+                     {at(Pos, erl_syntax:clause([PF], PG, [Test])), C2}
+             end
+         end,
+    {{Binds, Forms}, Cx3} = alternatives(C, Mk, Cx2),
+    Case = erl_syntax:case_expr(SVar, Forms ++ [erl_syntax:clause([erl_syntax:underscore()], none,
+                                                                  [Fallthrough])]),
+    {erl_syntax:block_expr([RestBind | Binds] ++ [Case]), Cx3#cx{vars = Cx#cx.vars}};
 general_clauses(SVar, [#clause{pattern = P, guard = G, body = B}], Cx) when
       G =:= undefined ->
     {PF, Cx1} = pattern(P, Cx#cx{pat_guards = []}),
@@ -1100,11 +1131,55 @@ simple_clause(#clause{pos = Pos, pattern = P, guard = G, body = B}, Cx) ->
     {BF, Cx3} = body(B, Cx2#cx{pat_guards = Cx#cx.pat_guards}),
     {at(Pos, erl_syntax:clause([PF], GF, BF)), Cx3#cx{vars = Cx#cx.vars}}.
 
+%% The Erlang clauses of one Ernest clause and the bindings they need.
+simple_clauses(#clause{pattern = #p_or{}} = C, Cx) ->
+    Mk = fun(Pos, PF, G, Call, C1) ->
+             {GF0, C2} = case G of
+                             undefined -> {none, C1};
+                             _ -> expr(G, C1)
+                         end,
+             {GF, _} = take_pat_guards(GF0, C2),
+             {at(Pos, erl_syntax:clause([PF], GF, Call)), C2}
+         end,
+    alternatives(C, Mk, Cx);
+simple_clauses(C, Cx) ->
+    {Form, Cx1} = simple_clause(C, Cx),
+    {{[], [Form]}, Cx1}.
+
+join_parts(Parts) ->
+    {lists:append([B || {B, _} <- Parts]), lists:append([F || {_, F} <- Parts])}.
+
+with_binds([], Form) -> Form;
+with_binds(Binds, Form) -> erl_syntax:block_expr(Binds ++ [Form]).
+
+%% Report §5.9: a clause with pattern alternatives is one Erlang clause per
+%% alternative. The body is compiled once, into a fun over the variables
+%% every alternative binds, and each clause calls it; Mk builds a clause
+%% from the clause's span, the pattern form, the Ernest guard, and that call.
+alternatives(#clause{pos = Pos, pattern = #p_or{alts = [First | _] = Alts}, guard = G,
+                     body = B}, Mk, Cx) ->
+    Names = pattern_names(First),
+    {[F], Cx0} = fresh_vars(1, "Body", Cx),
+    FVar = erl_syntax:variable(F),
+    {_, CxP} = pattern(First, Cx0#cx{pat_guards = []}),
+    Params = [erl_syntax:variable(maps:get(N, CxP#cx.vars)) || N <- Names],
+    {BF, CxB} = body(B, CxP#cx{pat_guards = Cx0#cx.pat_guards}),
+    Bind = erl_syntax:match_expr(FVar, erl_syntax:fun_expr([erl_syntax:clause(Params, none, BF)])),
+    {Forms, CxN} =
+        lists:mapfoldl(fun(A, C0) ->
+                           {PF, C1} = pattern(A, C0#cx{pat_guards = []}),
+                           Args = [erl_syntax:variable(maps:get(N, C1#cx.vars)) || N <- Names],
+                           Call = [at(Pos, erl_syntax:application(FVar, Args))],
+                           {Form, C2} = Mk(Pos, PF, G, Call, C1),
+                           {Form, C2#cx{vars = C0#cx.vars, pat_guards = C0#cx.pat_guards}}
+                       end, CxB#cx{vars = Cx0#cx.vars}, Alts),
+    {{[Bind], Forms}, CxN}.
+
 %% Report §5.9: a receive guard is a guard expression, which the checker
 %% holds it to, so it is an Erlang guard here. A message from a foreign
 %% process was checked by the proxy that delivered it (report §8.4).
-receive_clause(C, Cx) ->
-    simple_clause(C, Cx).
+receive_clauses(C, Cx) ->
+    simple_clauses(C, Cx).
 
 %% Comparisons and Boolean operators over variables and literals.
 erlang_guard(#e_binop{op = Op, left = L, right = R}, Cx) when Op =:= '&&'; Op =:= '||' ->

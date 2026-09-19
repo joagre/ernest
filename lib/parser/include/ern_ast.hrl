@@ -93,6 +93,7 @@
 -record(p_list, {pos, elems, type}).
 -record(p_cons, {pos, head, tail, type}).
 -record(p_as, {pos, pattern, name, type}).
+-record(p_or, {pos, alts, type}). % alternatives of a clause, report §5.9
 -record(p_bits, {pos, segments, type}).
 
 -endif.

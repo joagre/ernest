@@ -409,8 +409,13 @@ receive_clauses(Ts, Acc) ->
         _ -> {lists:reverse([C | Acc]), undefined, R}
     end.
 
+%% Report §5.9: a clause lists one or more patterns separated by `|`.
 clause(Ts) ->
-    {P, R} = pattern(Ts),
+    {Alts, R} = sep_by(Ts, '|', fun pattern/1),
+    P = case Alts of
+            [Single] -> Single;
+            [First | _] -> #p_or{pos = node_pos(First), alts = Alts}
+        end,
     {Guard, R1} = case R of
                       [{'when', _} | R0] -> expr(R0);
                       _ -> {undefined, R}

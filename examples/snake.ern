@@ -91,7 +91,7 @@ fn player(id : Int, game : Address(GameMsg)) -> Unit with Key = receive {
 fn step(world : World) -> World = {
     let World(w = w, h = h, players = ps, apples = apples, seed = seed, tick = t) = world;
     fn movePlayer(#(acc, apples), _, p) = match p {
-        Player(alive = false) -> #(acc, apples)
+        Player(alive = false) | Player(body = []) -> #(acc, apples)
       | Player(body = head :: rest, dir = d, score = s) -> {
             let next = move(w, h, head, d);
             let ate = List.contains(apples, next);
@@ -101,7 +101,6 @@ fn step(world : World) -> World = {
             let p2 = Player(..p, body = body, score = s2);
             #(Map.put(acc, Player.id(p), p2), List.remove(apples, next))
         }
-      | Player(body = []) -> #(acc, apples)
     };
     let #(ps2, apples2) = Map.foldLeft(ps, #(ps, apples), movePlayer);
     let ps3 = Map.map(ps2, fn(_, p) = collide(ps2, p));

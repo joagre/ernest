@@ -46,6 +46,7 @@ var_bindings(#p_con{args = {named, FPs}}) ->
 var_bindings(#p_tuple{elems = Es}) -> lists:append([var_bindings(E) || E <- Es]);
 var_bindings(#p_list{elems = Es}) -> lists:append([var_bindings(E) || E <- Es]);
 var_bindings(#p_cons{head = H, tail = T}) -> var_bindings(H) ++ var_bindings(T);
+var_bindings(#p_or{alts = [A | _]}) -> var_bindings(A);
 var_bindings(_) -> [].
 
 %% Would N pass the discipline if it were linear? A second use or a
@@ -119,6 +120,7 @@ position(#p_con{pos = Pos, path = Path, name = Name, args = Args, type = T}, Env
                 _ -> ok
             end
     end;
+position(#p_or{alts = Alts}, Env) -> lists:foreach(fun(A) -> position(A, Env) end, Alts);
 position(_, _) -> ok.
 
 wild_field(Pos, Name, [FT], Env) ->
@@ -275,6 +277,7 @@ linear_bindings(#p_tuple{elems = Es}, Env) -> lists:append([linear_bindings(E, E
 linear_bindings(#p_list{elems = Es}, Env) -> lists:append([linear_bindings(E, Env) || E <- Es]);
 linear_bindings(#p_cons{head = H, tail = T}, Env) ->
     linear_bindings(H, Env) ++ linear_bindings(T, Env);
+linear_bindings(#p_or{alts = [A | _]}, Env) -> linear_bindings(A, Env);
 linear_bindings(_, _) -> [].
 
 walk(F, Node) when is_tuple(Node), is_atom(element(1, Node)) ->

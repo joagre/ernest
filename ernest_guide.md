@@ -230,6 +230,17 @@ match m {
 
 Each variable appears at most once in a pattern. Repeated names within one pattern are a type error.
 
+A clause may list several patterns separated by `|`; it matches when any of them does. Every alternative binds the same variables at the same types, so the body uses them whichever alternative matched:
+
+```
+fn movePlayer(#(acc, apples), _, p) = match p {
+    Player(alive = false) | Player(body = []) -> #(acc, apples)
+  | Player(body = head :: rest, dir = d, score = s) -> ...
+}
+```
+
+The same works in `receive`. `Some(x) | None -> x` is a type error, since `None` binds no `x` (report §5.9).
+
 A postfix `as ident` binds the whole match alongside its destructured parts: `Some(x) as present` binds `x` to the payload *and* `present` to the whole Optional. Useful when both the interior and the aggregate matter. `as` is not allowed on reply-carrying scrutinees (§4.2).
 
 Guards are pure `Bool` expressions — no mailbox effect. A guard that evaluates to `false` falls through to the next clause; a guard that *faults* faults the enclosing process. A `receive` guard is narrower, because it selects a message without taking it out of the mailbox: a *guard expression*, comparisons of variables, literals, and nullary constructors joined by `&&` and `||`, the orderings on `Int`, `Float`, `String`, and `Char` only, and no calls (report §5.9). When you need more, receive the message and `match` it. Guards do not count toward `match` exhaustiveness — a clause with a guard still needs an unguarded fallback (a wildcard `_` clause, typically) so the compiler can prove coverage.

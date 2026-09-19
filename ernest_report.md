@@ -319,7 +319,7 @@ Expr      = Lambda | IfExpr | MatchExpr | ReceiveExpr | BinExpr .
 Lambda    = "fn" "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 IfExpr    = "if" Expr "then" Expr "else" Expr .
 MatchExpr = "match" Expr "{" Clause { "|" Clause } "}" .
-Clause    = Pattern [ "when" Expr ] "->" Expr .
+Clause    = Pattern { "|" Pattern } [ "when" Expr ] "->" Expr .
 ReceiveExpr  = "receive" "{" ( Clause { "|" Clause } [ "|" AfterClause ] | AfterClause ) "}" .
 AfterClause  = "after" Expr "->" Expr .
 BinExpr   = Unary { binop Unary } .
@@ -401,7 +401,7 @@ let words = input |> String.trim |> String.toLower |> String.toList
 
 ### 5.9 `match`
 
-The value is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. The clauses together cover the type; guards do not count as coverage. A guard is a `Bool` expression with no mailbox effect that sees the pattern's variables and the enclosing scope. A guard that is `false` falls through to the next clause; a guard that faults faults the process. A `receive` guard falls through likewise; it selects a message without removing it (§6.3) and so is a *guard expression*: a comparison of the pattern's variables, the enclosing function's variables, literals, and nullary constructors with `==`, `!=`, `<`, `<=`, `>`, `>=`, the orderings on `Int`, `Float`, `String`, and `Char` only, joined by `&&` and `||`; it calls nothing and cannot fault.
+The value is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. A clause may list several patterns separated by `|`, and matches when any of them does: `Player(alive = false) | Player(body = []) -> #(acc, apples)`. Every alternative binds the same variables at the same types; the guard and the body see them. Alternatives that bind different variables are a type error. The clauses together cover the type; guards do not count as coverage. A guard is a `Bool` expression with no mailbox effect that sees the pattern's variables and the enclosing scope. A guard that is `false` falls through to the next clause; a guard that faults faults the process. A `receive` guard falls through likewise; it selects a message without removing it (§6.3) and so is a *guard expression*: a comparison of the pattern's variables, the enclosing function's variables, literals, and nullary constructors with `==`, `!=`, `<`, `<=`, `>`, `>=`, the orderings on `Int`, `Float`, `String`, and `Char` only, joined by `&&` and `||`; it calls nothing and cannot fault.
 
 ### 5.10 Patterns
 
@@ -846,7 +846,7 @@ Expr        = Lambda | IfExpr | MatchExpr | ReceiveExpr | BinExpr .
 Lambda      = "fn" "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 IfExpr      = "if" Expr "then" Expr "else" Expr .
 MatchExpr   = "match" Expr "{" Clause { "|" Clause } "}" .
-Clause      = Pattern [ "when" Expr ] "->" Expr .
+Clause      = Pattern { "|" Pattern } [ "when" Expr ] "->" Expr .
 ReceiveExpr    = "receive" "{" ( Clause { "|" Clause } [ "|" AfterClause ] | AfterClause ) "}" .
 AfterClause    = "after" Expr "->" Expr .
 BinExpr     = Unary { binop Unary } .
