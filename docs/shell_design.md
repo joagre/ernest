@@ -1,6 +1,6 @@
 # The Ernest Shell: Design Notes
 
-The shell of MVP 2.6, `ern --shell`: an Ernest program over `Keys`, with its own line editor, and with the checker's incremental entry reached through a `foreign fn` (report §8.4, §11.2). The plan owns when it is built; this document owns what it is. It is a first draft, begun 2026-09-19, and much more will be added: multi-line input, how a declaration typed at the prompt is compiled and loaded, what the shell's mailbox type is, and the exact interface of the foreign entries.
+The shell of MVP 2.6, `ern --shell`: an Ernest program over `Keys`, with its own line editor, and with the checker's incremental entry reached through a `foreign fn` (report §8.4, §11.2). The plan owns when it is built; this document owns what it is. It is a first draft, begun 2026-09-19, and much more will be added. Three decisions are open, listed under "Open decisions" at the end; the foreign interface is sketched and is settled when it is built.
 
 ## Every result has a type
 
@@ -50,6 +50,24 @@ The shell is written in Ernest, and working through its parts shows what Ernest 
 - **Knowing that another process printed.** Redrawing the prompt after output from a spawned process needs the editor to learn that output happened: `Sys.stdout` notifies a subscriber, or the shell stands in front of it. A runtime hook to be designed, report first.
 
 The three additions are questions for MVP 2.5, which builds `Keys` and `Io.readLine`, and are best answered when those are built.
+
+## The foreign interface, a sketch
+
+The shell's own code is typed Ernest; the user's values are handles to it (see above), and the checker's types reach it as text. A first sketch, to be settled at the first checkpoint:
+
+```
+foreign type Env      // the bindings so far, with their types
+foreign type Checked  // a checked line
+foreign type Value    // a result
+foreign fn check(env : Env, line : String) -> Either(String, Checked) = "..."
+foreign fn typeText(c : Checked) -> String = "..."
+foreign fn run(env : Env, c : Checked) -> Either(String, #(Env, Value)) with m = "..."
+foreign fn show(v : Value, depth : Int, length : Int) -> String = "..."
+foreign fn exports(module : String) -> List(#(String, String)) = "..."
+foreign fn doc(name : String) -> Optional(String) = "..."
+```
+
+The handle types are distinct foreign types, so the checker keeps the shell from passing an environment where a value is expected. `check` returns the diagnostic text of §11.5 on an error; `run` returns the fault's text on a fault; `exports` gives names with their types for `:browse` and completion; `doc` gives the section `:doc` prints.
 
 ## Line editing and history
 
@@ -127,3 +145,25 @@ Two questions a Haskell user asks on the first day:
 ## A line that faults
 
 A line that faults reports the fault and leaves the shell running with its bindings intact. Erlang restarts its evaluator for the same reason: the death of the shell's own process is the one failure a user cannot recover from at the prompt.
+
+## Testing
+
+- **A session is a golden test.** Line mode, `ern --shell < session.ern`, reads lines and prints each result as at the prompt, so a file of input lines and a file of expected output test the whole shell: checking, compiling, running, printing, bindings, `it`, commands, and faults. Such tests go under `test/`, beside the integration tests.
+- **The line editor is tested on key streams.** Its core is a pure function from a state and a key to a new state and what to draw; a test feeds a list of keys and compares the resulting line, cursor, and output. No terminal is involved.
+- **Completion is tested on the foreign entries' answers**, a prefix and an environment in, the candidates out.
+
+## Checkpoints
+
+The shell is too large for one review at the end, so its item in the plan stops three times, each a working shell a user can try.
+
+1. **The foreign interface and the line-mode shell.** Every line checked, run, and printed with its type; `it`, bindings, faults, and the commands that need no editor; the session golden tests.
+2. **The line editor.** The Readline bindings, history kept between sessions, interruption, and the redraw after another process prints; the key-stream tests.
+3. **Completion and documentation at the cursor.** `Tab` for names, commands, and arguments, `Shift-Tab`, and the documentation chunk in the `.erc` it depends on.
+
+## Open decisions
+
+These are the user's, and are settled here before MVP 2.6 starts.
+
+1. **Multi-line input.** When a line is not complete, how the shell knows it and how the user ends it: a line continues while a bracket is open or the parser wants more, or an explicit form such as GHCi's `:{` and `:}`, or both.
+2. **A declaration typed at the prompt.** How it is compiled and loaded: one throwaway module per line, or one growing module recompiled each time; and what a later declaration of the same name does to the functions already compiled against the old one.
+3. **The shell's mailbox type.** What the shell's process, and the evaluator's, can receive: `Never`, so a line that calls `receive` is a type error; a fixed type; or the type of the entry point when `ern --shell` runs beside a program.
