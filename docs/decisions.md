@@ -2704,7 +2704,7 @@ The first rendered pages in Ernest showed `Optional.withDefault : (Optional(a!),
 
 ## A Standard Library File Is Compiled With Its Own Root, 2026-09-19
 
-`ernc --doc stdlib/optional.ern`, run from the repository, took the current directory as the source root (§11.1) and built a user module `Stdlib.Optional`. Its page headed every function `Stdlib.Optional.x`, while its examples called the installed `Optional`, so the page described one module and ran another. The build followed the rules and misled the reader, against principle 1. Choosing the root from the file's location would make one path compile differently from another with no flag to show it. Refusing is explicit: §4.2 now says a file under the standard library's root is compiled with that root, and the error names the flag that does it.
+`ernc --doc stdlib/optional.ern`, run from the repository, took the current directory as the source root (§11.1) and built a user module `Stdlib.Optional`. Its page headed every function `Stdlib.Optional.x`, while its examples called the installed `Optional`, so the page described one module and ran another. The build followed the rules and misled the reader, against principle 1. A refusal was tried first and dropped the same day: a file under the standard library's root has one valid outcome, compiled with that root, so an error that names the fix only makes the user type it. Without `--source-root`, §11.1 now takes that root for a path under it. The special case is §4.2's, which already sets that one directory apart; nothing new is invisible. A `--source-root` that names another root is still an error, since overriding a flag the user wrote would be.
 
 ## Later
 

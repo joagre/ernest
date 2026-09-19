@@ -97,8 +97,7 @@ ernc_compile(Opts, Path, Err) ->
     end,
     filelib:is_file(Path) orelse fail("no such file or directory " ++ Path),
     DirMode = filelib:is_dir(Path),
-    Root = absolute(proplists:get_value(source_root, Opts,
-                                        case DirMode of true -> Path; false -> "." end)),
+    Root = source_root(Opts, Path, case DirMode of true -> Path; false -> "." end),
     OutDir = absolute(proplists:get_value(out_dir, Opts, Root)),
     Files = case DirMode of
                 true -> [filename:join(Path, F) || F <- filelib:wildcard("**/*.ern", Path)];
@@ -145,8 +144,7 @@ module_of(File, Root) ->
     %% report §4.2: a file of the standard library's own source root is
     %% compiled with that root only
     is_stdlib_root(Root) orelse relative(File, stdlib_root()) =:= outside orelse
-        fail(File ++ " is in the standard library's source root; compile it with"
-             " --source-root " ++ stdlib_root()),
+        fail(Rel ++ " is in the standard library's source root; omit --source-root"),
     filename:extension(Rel) =:= ".ern" orelse fail(Rel ++ " does not end in .ern"),
     Components = filename:split(filename:rootname(Rel)),
     lists:foreach(fun shape/1, Components),
@@ -288,6 +286,18 @@ module_prefix(Path, Root) ->
 
 %% Report §4.2: the standard library's source root, `stdlib/` beside the
 %% toolchain's `lib/`, found from where this module was loaded.
+%% Report §11.1: the source root is --source-root; without it, the standard
+%% library's root for a path under it, else Default.
+source_root(Opts, Path, Default) ->
+    case proplists:get_value(source_root, Opts) of
+        undefined ->
+            case relative(Path, stdlib_root()) of
+                outside -> absolute(Default);
+                _ -> stdlib_root()
+            end;
+        Root -> absolute(Root)
+    end.
+
 is_stdlib_root(Root) ->
     absolute(Root) =:= stdlib_root().
 
@@ -428,7 +438,7 @@ doc(Opts, Path, Err) ->
             end;
         false ->
             filelib:is_regular(Path) orelse fail("no such file " ++ Path),
-            Root = absolute(proplists:get_value(source_root, Opts, ".")),
+            Root = source_root(Opts, Path, "."),
             OutDir = absolute(proplists:get_value(out_dir, Opts, Root)),
             try
                 Mod = module_of(absolute(Path), Root),
@@ -441,7 +451,7 @@ doc(Opts, Path, Err) ->
     end.
 
 doc_dir(Opts, Path) ->
-    Root = absolute(proplists:get_value(source_root, Opts, Path)),
+    Root = source_root(Opts, Path, Path),
     OutDir = absolute(proplists:get_value(out_dir, Opts, Root)),
     Files = [filename:join(Path, F) || F <- filelib:wildcard("**/*.ern", Path)],
     Mods = compile_order([module_of(absolute(F), Root) || F <- Files], Root),
