@@ -1,6 +1,6 @@
 # The Ernest Shell: Design Notes
 
-The shell of MVP 2.6, `ern --shell`: an Ernest program over `Io.readLine`, with the checker's incremental entry reached through a `foreign fn` (report §8.4, §11.2). The plan owns when it is built; this document owns what it is. It is a first draft, begun 2026-09-19, and much more will be added: multi-line input, completion in detail, how a declaration typed at the prompt is compiled and loaded, what the shell's mailbox type is, and the exact interface of the foreign entries.
+The shell of MVP 2.6, `ern --shell`: an Ernest program over `Keys`, with its own line editor, and with the checker's incremental entry reached through a `foreign fn` (report §8.4, §11.2). The plan owns when it is built; this document owns what it is. It is a first draft, begun 2026-09-19, and much more will be added: multi-line input, completion in detail, how a declaration typed at the prompt is compiled and loaded, what the shell's mailbox type is, and the exact interface of the foreign entries.
 
 ## Every result has a type
 
