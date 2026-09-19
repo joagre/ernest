@@ -2778,6 +2778,10 @@ The higher-order operations were written in Ernest first, because §3.9 made eve
 
 With effect-polymorphic shims possible, the question became which Ernest code should become one. The line is ownership, and E.0 rule 1 now says it: a `Map`, a `Set`, a `String`, a `Bytes`, a `Float` are the runtime's, so their operations are the runtime's; `[]` and `::` are the language's, so `List` is written in Ernest, which is also the proof that the language carries its own core. The exception the rule names is `List.sort`, where Erlang's stable merge sort is the one to trust: 200,000 elements sort in 75 ms rather than 110. `Int.abs`, `min`, `max`, `Float.abs`, `min`, `max`, and `Float.truncate` became shims over the builtins of the same names, since they are float and integer operations the runtime owns. What has no native form stays Ernest: `Optional`, `Either`, `Bool`, `List.tryMap` and `tryFold`, `Map.any`, `all`, `find`, `Set.map`, `Int.div` and `mod`, `Float.round` with its ties to even, and `String.toInt`, whose digit rule is narrower than any Erlang function's.
 
+## `Path` in Ernest, 2026-09-20
+
+E.14 says a path is in the runtime's syntax, so by rule 1's ownership line the segment work is `filename`'s, through `ern_path`: joining, splitting, the parent, the last segment, the extension, the root name, and whether a path is absolute. Ernest holds what the appendix adds on top: `toString` is the match on `Path(text)`, `parent` answers `None` when `filename` gives the path back or `"."`, `extension` drops the leading dot and answers `None` for a name without one, and `withExtension` removes the extension for an empty string. Nothing in the module needed a language change.
+
 ## Later
 
 Planned or considered, not in the language today.

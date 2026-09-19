@@ -1,0 +1,109 @@
+/// Operations on `Path`, a file system path in the runtime's syntax
+/// (report §9.3, Appendix E.14). A `Path` is `Path(String)`, so a path is
+/// built from text and `toString` gives it back; what counts as a segment,
+/// a parent, or a root is the runtime's.
+///
+/// ## Examples
+///
+/// ```ernest
+/// Path.toString(Path.join(Path("/etc"), Path("hosts")))
+/// // => "/etc/hosts"
+/// ```
+///
+/// ```ernest
+/// #(Path.name(Path("/tmp/report.txt")), Path.extension(Path("/tmp/report.txt")))
+/// // => #("report.txt", Some("txt"))
+/// ```
+///
+/// ## See also
+///
+/// `Fs` for reading and writing what a path names, `String` for the text.
+///
+/// since 0.1.0
+
+/// The second path under the first; an absolute second stands alone.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Path.toString(Path.join(Path("/etc"), Path("/var")))
+/// // => "/var"
+/// ```
+export fn join(p : Path, under : Path) -> Path = Path(joined(toString(p), toString(under)))
+
+foreign fn joined(p : String, under : String) -> String = "ern_path:join/2"
+
+/// The segments; an absolute path's first segment is the root.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Path.split(Path("/etc/hosts"))
+/// // => ["/", "etc", "hosts"]
+/// ```
+export fn split(p : Path) -> List(String) = segments(toString(p))
+
+foreign fn segments(p : String) -> List(String) = "ern_path:split/1"
+
+/// The path without its last segment, or `None` for a bare name and for the
+/// root.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Path.parent(Path("/etc/hosts")), Path.parent(Path("hosts")))
+/// // => #(Some(Path("/etc")), None)
+/// ```
+export fn parent(p : Path) -> Optional(Path) = {
+    let text = toString(p);
+    let up = dirname(text);
+    if up == text || up == "." then None else Some(Path(up))
+}
+
+foreign fn dirname(p : String) -> String = "ern_path:dirname/1"
+
+/// The last segment.
+export fn name(p : Path) -> String = basename(toString(p))
+
+foreign fn basename(p : String) -> String = "ern_path:basename/1"
+
+/// What follows the last `.` of the name, without the dot, or `None` when
+/// the name has none.
+export fn extension(p : Path) -> Optional(String) = {
+    let dotted = suffix(toString(p));
+    if String.isEmpty(dotted) then None else Some(String.slice(dotted, 1, String.size(dotted)))
+}
+
+foreign fn suffix(p : String) -> String = "ern_path:extension/1"
+
+/// The path with that extension in place of any it had; an empty string
+/// removes it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Path.toString(Path.withExtension(Path("a/b.txt"), "md")),
+///   Path.toString(Path.withExtension(Path("a/b.txt"), "")))
+/// // => #("a/b.md", "a/b")
+/// ```
+export fn withExtension(p : Path, ext : String) -> Path = {
+    let stem = rootname(toString(p));
+    if String.isEmpty(ext) then Path(stem) else Path(stem <> "." <> ext)
+}
+
+foreign fn rootname(p : String) -> String = "ern_path:rootname/1"
+
+/// `true` when the path starts at a root.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Path.isAbsolute(Path("/etc")), Path.isAbsolute(Path("etc")))
+/// // => #(true, false)
+/// ```
+export fn isAbsolute(p : Path) -> Bool = absolute(toString(p))
+
+foreign fn absolute(p : String) -> Bool = "ern_path:is_absolute/1"
+
+/// The path as text, as it was written.
+export fn toString(p : Path) -> String = match p { Path(text) -> text }
