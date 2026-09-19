@@ -86,9 +86,18 @@ The keys are GNU Readline's Emacs bindings, which every shell user's fingers alr
 
 - **`Tab` completes a qualified name segment by segment.** `Li` gives `List.`, and `List.ma` gives `List.map`. A second `Tab` where several names fit lists them; at `List.` it lists every export of `List` with its type.
 - **Every kind of name completes:** bindings, the modules on the load path, types, constructors, the `:` commands, and the field names of a named constructor, so `Point(` offers `x =` and `y =`.
+- **Type names complete after `:`.** In `fn f(x : ` the built-in types, the module's types, and qualified types from other modules are offered, not values.
+- **Fields complete in an update and in a pattern.** In `Player(..p, ` the remaining fields of `Player` are offered, as in `Point(`, and likewise inside a named constructor pattern.
+- **Matching is by abbreviation as well as by prefix.** `L.fM` and `List.fm` both complete to `List.filterMap`, the capitals and segment starts matched, as editors do.
+- **A suggestion from history appears as the line is typed,** as in fish: the most recent earlier line that begins with what is typed is shown greyed after the cursor, and `C-e` or the right arrow accepts it.
 - **A command's argument completes by what the command takes.** `:doc` and `:type` complete names as at the prompt, `:browse` and `:reload` module names, `:load` file paths, `:forget` the bindings made at the prompt, and `:set` its settings, `depth` and `length`.
 - **Inside a call, `Shift-Tab` shows the signature with its parameters as declared,** `circle(centre : Point, radius : Int) -> Shape`, the parameter under the cursor marked. The interface keeps only types, and a parameter need not be a name, `fn Stack.push(x, Stack(xs))`, so the parameter list comes from the documentation chunk, which records each declaration's parameters as written.
-- **Completion by type is a later step.** After `xs |> `, only functions whose first parameter fits the type of `xs` would be offered; at `circle(`, `Tab` would offer the bindings whose type is `Point`. The checker can compute the expected type at the cursor, since it pushes expected types into arguments already, but it must check an unfinished line to do so.
+- **Completion by type is a later step.** The checker can compute the expected type at the cursor, since it pushes expected types into arguments already, but it must check an unfinished line to do so. Then:
+  - **A `match` is filled in.** At `match shape {`, `Tab` inserts one clause per constructor of the scrutinee's type, each body `todo("")`; in a partial `match` it adds the clauses the exhaustiveness check finds missing (§5.9). It is the completion only a language with sum types and checked coverage can offer.
+  - **Messages complete.** In `send(counter, ` and in a `receive` clause, the constructors of the mailbox type are offered, with their fields.
+  - **Functions complete by their first parameter.** After `xs |> `, only functions whose first parameter fits the type of `xs` are offered.
+  - **Argument values complete.** At `circle(`, the bindings whose type is `Point` are offered.
+- **Reserved words and operators do not complete.** They are short and few.
 - **`Shift-Tab` shows the documentation of the name at the cursor,** as Jupyter does: the type, the first sentence, and `Since`. A second `Shift-Tab` shows the whole section `:doc` prints.
 - **Completion reads the compiled interfaces** that every `.erc` carries, so it knows exactly what the checker knows.
 - **Documentation must be in the `.erc`.** `Shift-Tab` and `:doc` work on compiled modules, whose source may not be at hand, so `ernc` writes the doc blocks into a chunk of the `.erc`, after Erlang's `Docs` chunk (EEP 48), with each function's parameter list as written for the signature above. This is a toolchain step the shell depends on, the plan's MVP 2.5 step 6.
