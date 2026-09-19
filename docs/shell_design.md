@@ -55,6 +55,7 @@ The keys are GNU Readline's Emacs bindings, which every shell user's fingers alr
 
 - **`Tab` completes a qualified name segment by segment.** `Li` gives `List.`, and `List.ma` gives `List.map`. A second `Tab` where several names fit lists them; at `List.` it lists every export of `List` with its type.
 - **Every kind of name completes:** bindings, the modules on the load path, types, constructors, the `:` commands, and the field names of a named constructor, so `Point(` offers `x =` and `y =`.
+- **A command's argument completes by what the command takes.** `:doc` and `:type` complete names as at the prompt, `:browse` and `:reload` module names, `:load` file paths, `:forget` the bindings made at the prompt, and `:set` its settings, `depth` and `length`.
 - **Completion by type is a later step.** After `xs |> `, only functions whose first parameter fits the type of `xs` would be offered; the checker can compute it.
 - **`Shift-Tab` shows the documentation of the name at the cursor,** as Jupyter does: the type, the first sentence, and `Since`. A second `Shift-Tab` shows the whole section `:doc` prints.
 - **Completion reads the compiled interfaces** that every `.erc` carries, so it knows exactly what the checker knows.
