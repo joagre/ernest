@@ -464,6 +464,12 @@ mvp_refusals_in_readme_test() ->
                                 =:= nomatch],
     ?assertEqual([], Missing).
 
+%% report §11: --version prints the top-level VERSION file's content
+version_test() ->
+    {ok, V} = file:read_file("../../../VERSION"),
+    ?assertEqual(0, ern_cli:ernc(["--version"])),
+    ?assertEqual(<<"ernc ", (string:trim(V))/binary, "\n">>, iolist_to_binary(?capturedOutput)).
+
 %% report §11: options are long; --help and --version stop with status 0
 options_test() ->
     ?assertEqual(1, ern_cli:ernc(["-o", "x", example("hello.ern")])),

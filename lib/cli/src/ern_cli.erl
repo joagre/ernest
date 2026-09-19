@@ -8,7 +8,7 @@
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("type_system/include/ern_types.hrl").
 
--define(VERSION, "0.1.0").
+%% VERSION is the top-level VERSION file, passed by the Makefile.
 
 %%
 %% Entry

@@ -16,7 +16,7 @@ One Ernest module goes through the stages below, Erlang applications under `lib/
 | diagnostics | `ern_diag`, in the lexer's application | a `#diag{}` from any stage, the source | the text of §11.5, or its first line |
 | cli | `ern_cli` | command lines | `ernc` and `ern` |
 
-`utils` holds the vendored `getopt`. The escripts in `bin/` add `lib/*/ebin` to the code path relative to their own location and call `ern_cli:main/2`.
+`VERSION` at the top of the repository is the toolchain's version; every application's Makefile passes it to `erlc` as the macro `VERSION`, which `ern_cli` prints for `--version` and in a documentation page's last line. `utils` holds the vendored `getopt`. The escripts in `bin/` add `lib/*/ebin` to the code path relative to their own location and call `ern_cli:main/2`.
 
 ## Tokens and AST
 

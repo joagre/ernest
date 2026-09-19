@@ -52,6 +52,7 @@ Four layers:
 ## Layout of the repository
 
 ```
+VERSION            the toolchain's version, read at build time
 ernest_report.md   the language report (normative)
 ernest_guide.md    the reading guide
 docs/              decisions log, implementation plan, architecture note, style guides, module documentation template

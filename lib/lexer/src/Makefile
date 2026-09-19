@@ -4,7 +4,8 @@
 
 EBIN = ../ebin
 ERLC = erlc
-ERLC_FLAGS = +debug_info -Werror -I ../include
+# VERSION at the top of the repository is the toolchain's version; a bump rebuilds.
+ERLC_FLAGS = +debug_info -Werror -I ../include -DVERSION='"$(shell cat ../../../VERSION)"'
 
 # Lets -include_lib("app/include/x.hrl") find sibling apps under lib/.
 export ERL_LIBS = $(abspath ../..)
@@ -16,6 +17,8 @@ TEST_BEAM = $(TEST_SRC:../test/%.erl=$(EBIN)/%.beam)
 DEPS = $(BEAM:.beam=.Pbeam) $(TEST_BEAM:.beam=.Pbeam)
 
 all: $(BEAM)
+
+$(BEAM) $(TEST_BEAM): ../../../VERSION
 
 test: $(BEAM) $(TEST_BEAM)
 	erl -noshell -pa $(EBIN) -eval \
