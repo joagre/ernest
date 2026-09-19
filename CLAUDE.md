@@ -1,43 +1,61 @@
 # Ernest — Claude Instructions
 
-## What Ernest is
+Ernest is a functional language for concurrent programs, designed by the user (joagre). Two concepts: pure functions (Hindley-Milner) and processes with typed mailboxes. [`ernest_report.md`](ernest_report.md) is the full report.
 
-A functional language for concurrent programs, designed by the user (joagre). Two concepts: pure functions (Hindley-Milner) and processes with typed mailboxes. See [`ernest_report.md`](ernest_report.md) for the full report.
+The rules below are in the order of work: what is authoritative, the repository, before code, while working, and when a task is done.
 
-## Normative structure
+## Authority
 
 - **[`ernest_report.md`](ernest_report.md) is the single normative document.** Nothing else in this repo overrides it.
-- **Appendix A (grammar) is the truth.** Any conflict between prose and Appendix A is resolved in favor of Appendix A.
-- **Section 0 (the five principles) is the tiebreaker.** When Appendix A leaves something ambiguous, or a design decision is under discussion, resolve it by section 0: principles 2 to 5 are the constructive rules, principle 1 audits the resulting code.
-- **[`docs/decisions.md`](docs/decisions.md) is rationale only.** It explains *why* the report and the plan say what they say, and changes with them. Never treat it as normative.
-- **The programs under `examples/` and the plan in `docs/implementation_plan.md` are illustrative**, not normative. Use them as motivating examples and roadmap, not as sources of truth.
-- **An anomaly found while implementing changes the report first**, then the decisions log, then the code.
+- **Appendix A, the grammar, is the truth.** A conflict between the prose and Appendix A is resolved in favour of Appendix A.
+- **Section 0, the five principles, is the tiebreaker.** It decides where Appendix A is ambiguous and when a design decision is under discussion. Principles 2 to 5 are the constructive rules; principle 1 audits the resulting code.
+- **Each fact has one owner.** The report owns the language, [`docs/decisions.md`](docs/decisions.md) the rationale, [`docs/implementation_plan.md`](docs/implementation_plan.md) the roadmap, the code and its tests what is built, and [`docs/architecture.md`](docs/architecture.md) how the code is arranged.
+- **The decisions log is rationale only.** It says why the report and the plan say what they say, and changes with them. It is never normative.
+- **The plan and the programs under `examples/` are illustrative.** They are the roadmap and the motivating examples, not sources of truth about the language.
+- **Every other document points at the owner and does not restate it.** The README says where things are, not what they are.
+- **A restatement is allowed only in two cases.** The guide restates the report, because teaching is restating. A list that must live both in the code and in a document has a test keeping the two equal; the tests that read `ernest_report.md` or the README are these mirrors. Any other restatement is a wart.
+- **A sentence goes to its owner before it is written.** What will be built and when goes in the plan; why goes in the log. A paragraph that does both is split at that line.
+- **A decision the user must see goes in the plan.** The user reads the plan and not the log, so a decision that is only in the log is one the user will not see.
 
-## Where we are
+## The repository
 
-The current phase and its decisions are in [`docs/implementation_plan.md`](docs/implementation_plan.md); what is built is what `lib/` and `make test` say. Implementation language: Erlang, OTP 27. The compiler is `ernc`, the runner is `ern`. The programs the toolchain runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`.
+- **The plan says where we are.** It holds the current phase and its decisions; what is built is what `lib/` and `make test` say.
+- **The implementation is Erlang, OTP 27.** The compiler is `ernc`, the runner `ern`. The programs the toolchain runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`.
+- **The README owns the layout and the commands**, under "Layout of the repository" and "Building". `make` builds; `make test` tests.
+- **A module implementing an Ernest namespace is named by its path**, with `@` for `/`, as Gleam does: `ernest@io` in `ernest@io.erl`. Every file that is not an Ernest module uses underscores.
+- **Third-party code is listed in `THIRD_PARTY_LICENSES`.** A borrowed file keeps its upstream header.
 
-## Repository layout and build
+## Before code
 
-- The README owns the layout ("Layout of the repository") and the commands ("Building"); `make` builds, `make test` tests.
-- A module implementing an Ernest namespace is `ernest@io` in `ernest@io.erl`, the path with `@` for `/`, as Gleam does; every file that is not an Ernest module uses underscores.
-- Third-party code is listed in `THIRD_PARTY_LICENSES`; keep the upstream header on any borrowed file.
+- **The report changes first.** An anomaly found while implementing changes the report, then the decisions log, then the code.
+- **Ask before scaffolding** when a decision affects the report or the plan.
+- **List the report sections a module implements before writing it.**
+- **Quote the exact section or grammar rule** when touching normative material.
 
-## Working style
+## While working
 
-- Prefer minimal, direct implementations over speculative abstraction.
-- **One owner per fact.** The report owns the language, the decisions log the rationale, the plan the roadmap, the code and its tests what is built, the architecture note how the code is arranged. Every other document points at the owner and does not restate it; the README says where things are, not what they are. The test for a sentence: if it says what will be built and when, it goes in the plan; if it says why, in the log; a paragraph that does both is split at that line before it is written. The user reads the plan and not the log, so a decision that is only in the log is a decision the user will not see. Two exceptions: the guide restates the report because teaching is restating, and a list that must live in the code and in a document has a test keeping them equal. A restatement without a test is a wart; the tests that read `ernest_report.md` or the README are the mirrors.
-- Ask before scaffolding when a decision affects the report or the plan.
-- **Stop after each plan item.** Finish it fully, tests, documents, conformance section, commit, then report the status and any open report question and wait; the next item starts in the next turn, since each is a rule with design choices the user wants to see before the next builds on it.
-- **Bring options, not defenses.** When a proposed simplification seems to conflict with a principle, check whether the principle is being applied too dogmatically before defending it; the ambient `Sys.*` values were once refused on a misreading of "nothing invisible".
+- **Prefer minimal, direct implementations** over speculative abstraction.
+- **Features are judged on the principles.** A feature enters or stays out by the five principles, weighed one by one, examples or not. How many programs ask for it is one argument, never the gate.
+- **The log names the principle that decided.** A "Later" entry states the verdict and what would change it, never a count of programs as its trigger.
+- **Bring options, not defenses.** When a proposed simplification seems to conflict with a principle, first check whether the principle is being applied too dogmatically. The ambient `Sys.*` values were once refused on a misreading of "nothing invisible".
 - **Read the result back before reporting it.** After a design change, read the resulting Ernest code as a reader who knows the rest of Ernest would, against principles 1 and 2 and Appendix E.0, and say what surprised. The principles apply to the standard library and the toolchain as much as to the language.
-- **Features are judged on the principles.** A feature enters or stays out by the five principles, weighed one by one, examples or not; how many programs ask for it is one argument, never the gate. The log names the principle that decided, and a "Later" entry states the verdict and what would change it, never a count of programs as its trigger.
-- **No warts.** Never leave an approximation, a silent deviation from the report, or an unstated semantic choice in the code. A known defect is fixed when found, however few programs it has misled; a known gap that is too large to fix now goes in the plan with a date, never in a comment. When the report is silent, either add the sentence to the report or reject the input with an error; never accept it silently, and state the choice to the user when it is made. A refusal made for a later MVP's sake names that MVP in its error text, and a test checks the README's table lists it.
-- **Read before code.** Before implementing a module, list the report sections it implements. After, each section has at least one test whose comment cites it (`%% report §5.4`); `make sections` lists the sections still without one, `make coverage` how thinly each is cited, and `make xref`, also part of `make test`, fails on a citation that names no heading. A section without a test is not implemented.
-- **Every message that reports code work ends with a "Report conformance" section.** It lists the sections applied; every place the report was silent and what was done; every deliberate omission, each with the MVP that will lift it and the error the code gives meanwhile. If nothing was silent, say "none". This section is not optional, and "tests green" does not replace it.
-- **Done means four things:** the tests pass, the conformance section is written, every known gap is in the plan, and the same commit removes every sentence elsewhere, the README's table, the plan's tables, an example's header, that says the item still waits.
-- When touching normative material, quote the exact section or grammar rule being applied.
-- Prose in the report and the guide is tight, in the register of a Wirth language report: state the rule, no rationale, no restating. Clear before short: a rule is easy to read at first pass, in plain sentences, one rule per sentence, its exception and its example in sentences of their own, never compressed into a cryptic one; a sentence is cut for restating or rationale, never for the count alone. A report edit updates the revision date in line 3, and a change to a section the guide teaches is followed by a re-read of the guide against it. Compiler behaviour goes to §11. The log records arguments, never who proposed them.
+- **No warts.** Never leave an approximation, a silent deviation from the report, or an unstated semantic choice in the code.
+- **A known defect is fixed when found**, however few programs it has misled. A gap too large to fix now goes in the plan with a date, never in a comment.
+- **Where the report is silent, add the sentence to the report or reject the input with an error.** Never accept it silently, and state the choice to the user when it is made.
+- **A refusal made for a later MVP's sake names that MVP in its error text.** A test checks that the README's table lists it.
+- **Every report section has a test.** Each has at least one test whose comment cites it (`%% report §5.4`); a section without a test is not implemented. `make sections` lists the sections without one, `make coverage` how thinly each is cited, and `make xref`, also part of `make test`, fails on a citation that names no heading.
+- **The report and the guide are tight, in a Wirth language report's register.** State the rule; no rationale, no restating.
+- **Clear before short.** A rule reads easily at first pass, in plain sentences, one rule per sentence, its exception and its example in sentences of their own, never compressed into a cryptic one. A sentence is cut for restating or rationale, never for the count alone.
+- **A report edit updates the revision date** in its line 3.
+- **A change to a section the guide teaches is followed by a re-read of the guide** against it.
+- **Compiler behaviour goes to §11** of the report.
+- **The log records arguments, never who proposed them.**
+
+## Done
+
+- **Stop after each plan item.** Finish it fully, with its tests, documents, conformance section, and commit, then report the status and any open report question, and wait. The next item starts in the next turn, since each is a rule with design choices the user wants to see before the next builds on it.
+- **Done means four things:** the tests pass; the conformance section is written; every known gap is in the plan; and the same commit removes every sentence elsewhere, in the README's table, the plan's tables, or an example's header, that says the item still waits.
+- **Every message that reports code work ends with a "Report conformance" section.** It lists the sections applied; every place the report was silent and what was done; and every deliberate omission, with the MVP that will lift it and the error the code gives meanwhile. If nothing was silent, it says "none". The section is not optional, and "tests green" does not replace it.
 
 ## Style
 
