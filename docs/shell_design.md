@@ -23,6 +23,14 @@ A value is printed by its type, which the shell knows from the checker, and as t
 
 A large value is printed up to a depth and a length, the rest shown as `...`. `:set depth n` and `:set length n` change the limits, and `Io.debug` prints a value in full.
 
+An input that does not check is shown as `ernc` shows an error (§11.5), the input as the source and the span underlined, and nothing is run. `:set timing on` prints each input's elapsed time after its result.
+
+## The screen
+
+- **Prompts.** The main prompt is `> `; a multi-line input continues after `| `, so it is always clear that the shell waits for more.
+- **Colour, sparingly.** Types dimmed, errors red, the history suggestion greyed. No colour when the output is not a terminal or when `NO_COLOR` is set.
+- **Faults in spawned processes are reported.** A process spawned at the prompt that faults would otherwise die unseen; the shell prints its spawn site and cause, which the runtime's process table records (§6.9): `a process spawned at input 3 faulted: division by zero`.
+
 ## Bindings at the prompt
 
 - **A `let` at the prompt generalizes as a top-level `let` does** (§4.6): `let id = fn(x) = x` stays polymorphic, so `id(1)` and `id("a")` both check on later lines.
@@ -80,7 +88,14 @@ The keys are GNU Readline's Emacs bindings, which every shell user's fingers alr
 - **History.** `C-p` and `C-n`, and the up and down arrows, step through earlier lines; `M-<` and `M->` go to the first and the current. `C-r` searches back incrementally and `C-s` forward, `C-g` abandons the search. The history is kept between sessions in the configuration directory, `.ernest/history`.
 - **Interrupting.** `C-c` abandons the line being typed. During an evaluation it kills the input's process, which is reported as `Killed`, and the bindings are kept; an input that loops or waits in `receive` is stopped this way.
 - **Output from other processes.** A process spawned at the prompt may print while a line is being typed. The editor then redraws the prompt and the partial line below the output, as Readline does.
+- **Pasting.** The shell turns on the terminal's bracketed paste, so pasted text arrives marked as one paste. A paste is one input, blank lines and all, submitted by the `Enter` after it; declarations pasted together are entered together.
 - **The rest.** `C-l` clears the screen. `Enter` submits a line that is complete by itself; after an incomplete line it continues the input, which a blank line then submits (see "Decisions").
+
+## Starting and quitting
+
+- **A startup file.** The inputs in `.ernest/shell.ern`, in the configuration directory, are run when the shell starts, as GHCi reads `.ghci` and `iex` reads `.iex.exs`, so common bindings are always there.
+- **Quitting.** On `:quit` or `C-d` on an empty line the history is saved, and every process the session spawned ends with `ProgramEnd`, as at the end of a program (§8.6).
+- **A shell attached to a running node**, Erlang's `-remsh`, comes with MVP 3's peers (§8.3): connecting to a live system is what Erlang users value most in their shell. The design does not assume the shell runs on the node whose code it evaluates.
 
 ## Completion and documentation at the cursor
 
@@ -119,7 +134,7 @@ Any prefix of a command's name selects it, as in GHCi, and an ambiguous prefix s
 - **`:forget x`**: forgets one binding made at the prompt, or all of them without a name.
 - **`:bindings`**: the bindings made at the prompt, with their types.
 - **`:processes`**: the live processes with their spawn sites, which the runtime's process table already records (§6.9).
-- **`:set depth n`** and **`:set length n`**: the printing limits above.
+- **`:set depth n`**, **`:set length n`**, and **`:set timing on`**: the printing limits and the timing above.
 
 Two questions a Haskell user asks on the first day:
 
@@ -175,6 +190,6 @@ The shell is too large for one review at the end, so its item in the plan stops 
 
 Settled 2026-09-19.
 
-1. **Multi-line input.** A line that is complete by itself is submitted at once. A line that is incomplete, a bracket open or an expression or declaration unfinished, starts a multi-line input, which ends only at a blank line. The blank line is needed because a type written as the style guide writes it, its alternatives on later lines led by `|`, parses as complete after its first alternative. There is no `:{` and `:}`: the blank line is the one way, and `:load` takes anything larger.
+1. **Multi-line input.** A line that is complete by itself is submitted at once. A line that is incomplete, a bracket open or an expression or declaration unfinished, starts a multi-line input, which ends only at a blank line. The blank line is needed because a type written as the style guide writes it, its alternatives on later lines led by `|`, parses as complete after its first alternative. There is no `:{` and `:}`: the blank line is the one way, and `:load` takes anything larger. A paste is one input whatever it contains, through the terminal's bracketed paste, so a pasted block with blank lines in it is not cut short.
 2. **A declaration at the prompt.** Each submitted input is compiled as a small module of its own against the interfaces of the bindings so far, and loaded. A later declaration of a name is a new module; later inputs see the newest, and functions compiled earlier keep calling the one they were compiled against, as "Bindings at the prompt" says. Functions that call each other are entered in one multi-line input, as in GHCi. One growing module recompiled on each input was not taken: it would change the behaviour of functions already defined without a word.
 3. **The mailbox type.** Each input runs in a fresh process whose mailbox type is the input's own inferred effect, instantiated as an entry point's is (§8.1), a polymorphic one to `Never`. `receive` inside an input is sound, and a fault or `C-c` ends only that input. The price is stated where it is felt: `self()` bound at the prompt outlives its process, and there is no `:flush`. One persistent evaluator with a session mailbox type was not taken: the type would be `Never`, forbidding `receive` at the prompt, or chosen at start, which no user can do well.
