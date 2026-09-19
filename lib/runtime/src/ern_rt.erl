@@ -13,12 +13,16 @@
 %% exception into an exit reason the monitor proxy reports as a Fault. All
 %% spawns go through the reaper process, which spawn_monitors each process
 %% and records how it ended, so a monitor placed after the death still
-%% reports the cause (report §6.9).
+%% reports the cause (report §6.9). The reaper also detects Deadlock
+%% (report §8.6): every live process blocked in an untimed receive, no timed
+%% receive or clock alarm pending, no process inside foreign code. A row of
+%% the process table is {Pid, Site, State, Timers, Foreign}: Timers counts
+%% the timed receives the process is in, Foreign its foreign calls.
 -module(ern_rt).
 
 -export([send/2, spawn/3, self/0, via/2, call/3, call_forever/2, answer/2, monitor/2,
          kill/1, sys/1, run_main/2, run_main/3, fault/1, remote/1, parallel_remote/1,
-         todo/1]).
+         todo/1, timed/0, untimed/0, in_foreign/1]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -80,9 +84,13 @@ via_loop(F, Target, Ref) ->
 call(Addr, Mk, Ms) ->
     Alias = erlang:alias([reply]),
     Addr ! Mk(Alias),
+    timed(),
     receive
-        {Alias, V} -> {'Some', V}
+        {Alias, V} ->
+            untimed(),
+            {'Some', V}
     after Ms ->
+        untimed(),
         erlang:unalias(Alias),
         'None'
     end.
@@ -143,12 +151,12 @@ reaper_loop(Waiters) ->
     receive
         {spawn, From, Ref, Fun, Site} ->
             {Pid, _MRef} = erlang:spawn_monitor(fun() -> run(Fun) end),
-            ets:insert(?PROCESSES, {Pid, Site, alive}),
+            ets:insert(?PROCESSES, {Pid, Site, alive, 0, 0}),
             From ! {Ref, Pid},
             reaper_loop(Waiters);
         {await, Pid, To, Wrap} ->
             case ets:lookup(?PROCESSES, Pid) of
-                [{_, Site, Reason}] when Reason =/= alive ->
+                [{_, Site, Reason, _, _}] when Reason =/= alive ->
                     To ! Wrap({'Down', Site, reason(Reason)}),
                     reaper_loop(Waiters);
                 _ ->
@@ -157,14 +165,76 @@ reaper_loop(Waiters) ->
             end;
         {'DOWN', _MRef, process, Pid, Reason} ->
             case ets:lookup(?PROCESSES, Pid) of
-                [{_, Site, alive}] ->
-                    ets:insert(?PROCESSES, {Pid, Site, Reason}),
+                [{_, Site, alive, _, _}] ->
+                    ets:insert(?PROCESSES, {Pid, Site, Reason, 0, 0}),
                     lists:foreach(fun({To, Wrap}) -> To ! Wrap({'Down', Site, reason(Reason)}) end,
                                   maps:get(Pid, Waiters, []));
                 _ ->
                     ok
             end,
             reaper_loop(maps:remove(Pid, Waiters))
+    after 100 ->
+        case deadlocked() of
+            true ->
+                {Launcher, Run} = persistent_term:get({?MODULE, launcher}),
+                Launcher ! {deadlock, Run};
+            false -> ok
+        end,
+        reaper_loop(Waiters)
+    end.
+
+%% Report §8.6. Two snapshots of every live process's status and reduction
+%% count, equal, with every status waiting, prove that nothing ran between
+%% them and so no message is in flight; a timed receive, a foreign call in
+%% progress, or a pending clock alarm is a source that can still deliver.
+deadlocked() ->
+    Rows = [{Pid, T, F} || {Pid, _, alive, T, F} <- ets:tab2list(?PROCESSES)],
+    Rows =/= []
+        andalso lists:all(fun({_, T, F}) -> T =:= 0 andalso F =:= 0 end, Rows)
+        andalso clock_pending() =:= 0
+        andalso begin
+                    Pids = [Pid || {Pid, _, _} <- Rows],
+                    First = snapshot(Pids),
+                    lists:all(fun({_, S}) -> S =:= waiting end, [{P, St} || {P, St, _} <- First])
+                        andalso snapshot(Pids) =:= First
+                end.
+
+snapshot(Pids) ->
+    [case erlang:process_info(Pid, [status, reductions]) of
+         [{status, S}, {reductions, R}] -> {Pid, S, R};
+         undefined -> {Pid, dead, 0}
+     end || Pid <- Pids].
+
+clock_pending() ->
+    Ref = make_ref(),
+    persistent_term:get({?MODULE, clock}) ! {pending, erlang:self(), Ref},
+    receive
+        {Ref, N} -> N
+    after 1000 ->
+        1
+    end.
+
+%% A timed receive counts itself in before and out first in every body,
+%% so tail position holds; the compiler emits the calls (report §8.6).
+-spec timed() -> ok.
+timed() ->
+    count(4, 1).
+
+-spec untimed() -> ok.
+untimed() ->
+    count(4, -1).
+
+%% Report §8.4, §8.6: a process inside foreign code is not waiting.
+-spec in_foreign(fun(() -> term())) -> term().
+in_foreign(Fun) ->
+    count(5, 1),
+    try Fun() after count(5, -1) end.
+
+count(Pos, D) ->
+    try ets:update_counter(?PROCESSES, erlang:self(), {Pos, D}) of
+        _ -> ok
+    catch
+        error:badarg -> ok
     end.
 
 %%
@@ -222,18 +292,27 @@ stdout_loop(Out) ->
             stdout_loop(Out)
     end.
 
-%% ClockMsg, report §9.3: After(ms, to), At(at, to), Now(reply).
-clock_loop() ->
+%% ClockMsg, report §9.3: After(ms, to), At(at, to), Now(reply). Alarms are
+%% delivered through the clock itself, so it knows how many are pending
+%% (report §8.6).
+clock_loop(Pending) ->
     receive
         {'After', Ms, To} ->
-            erlang:send_after(Ms, To, ?UNIT),
-            clock_loop();
+            erlang:send_after(Ms, erlang:self(), {fire, To}),
+            clock_loop(Pending + 1);
         {'At', At, To} ->
-            erlang:send_after(max(0, At - erlang:system_time(millisecond)), To, ?UNIT),
-            clock_loop();
+            erlang:send_after(max(0, At - erlang:system_time(millisecond)), erlang:self(),
+                              {fire, To}),
+            clock_loop(Pending + 1);
+        {fire, To} ->
+            To ! ?UNIT,
+            clock_loop(Pending - 1);
         {'Now', Reply} ->
             answer(Reply, erlang:system_time(millisecond)),
-            clock_loop()
+            clock_loop(Pending);
+        {pending, From, Ref} ->
+            From ! {Ref, Pending},
+            clock_loop(Pending)
     end.
 
 %%
@@ -245,27 +324,30 @@ clock_loop() ->
 %% is flushed. Opts: init => a function run in main's process before Main,
 %% after the Sys.* references are bound, for the top-level lets (report
 %% §8.5); stdout => fun((binary()) -> any()) for tests.
--spec run_main(fun(() -> term()), binary()) -> ok | {fault, binary()}.
+-spec run_main(fun(() -> term()), binary()) -> ok | {fault, binary()} | deadlock.
 run_main(Main, Site) ->
     run_main(Main, Site, #{}).
 
--spec run_main(fun(() -> term()), binary(), map()) -> ok | {fault, binary()}.
+-spec run_main(fun(() -> term()), binary(), map()) -> ok | {fault, binary()} | deadlock.
 run_main(Main, Site, Opts) ->
     ets:new(?PROCESSES, [named_table, public, set]),
+    Run = make_ref(),
+    persistent_term:put({?MODULE, launcher}, {erlang:self(), Run}),
     Reaper = erlang:spawn(fun() -> reaper_loop(#{}) end),
     persistent_term:put({?MODULE, reaper}, Reaper),
     Out = maps:get(stdout, Opts, fun(Bin) -> io:put_chars(Bin) end),
     Stdout = erlang:spawn(fun() -> stdout_loop(Out) end),
-    Clock = erlang:spawn(fun() -> clock_loop() end),
+    Clock = erlang:spawn(fun() -> clock_loop(0) end),
     persistent_term:put({?MODULE, stdout}, Stdout),
     persistent_term:put({?MODULE, clock}, Clock),
     Init = maps:get(init, Opts, fun() -> ok end),
     MainPid = spawn('Local', fun() -> Init(), Main() end, Site),
-    Reaper ! {await, MainPid, erlang:self(), fun(Down) -> {main_down, Down} end},
+    Reaper ! {await, MainPid, erlang:self(), fun(Down) -> {main_down, Run, Down} end},
     Result = receive
-                 {main_down, {'Down', _, Reason}} -> Reason
+                 {main_down, Run, {'Down', _, Reason}} -> Reason;
+                 {deadlock, Run} -> deadlock
              end,
-    lists:foreach(fun({Pid, _, alive}) -> exit(Pid, {ernest, program_end});
+    lists:foreach(fun({Pid, _, alive, _, _}) -> exit(Pid, {ernest, program_end});
                      (_) -> ok
                   end, ets:tab2list(?PROCESSES)),
     FlushRef = make_ref(),
@@ -275,10 +357,21 @@ run_main(Main, Site, Opts) ->
     exit(Clock, kill),
     exit(Reaper, kill),
     ets:delete(?PROCESSES),
+    flush_run(Run),
     case Result of
         'Returned' -> ok;
         {'Fault', Msg} -> {fault, Msg};
+        deadlock -> deadlock;
         Other -> {fault, format("~p", [Other])}
+    end.
+
+%% What the reaper may still send about this run after it ended.
+flush_run(Run) ->
+    receive
+        {main_down, Run, _} -> flush_run(Run);
+        {deadlock, Run} -> flush_run(Run)
+    after 0 ->
+        ok
     end.
 
 format(Fmt, Args) ->

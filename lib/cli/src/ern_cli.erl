@@ -645,6 +645,10 @@ run(Opts, File, Err) ->
         ok -> 0;
         {fault, Msg} ->
             io:format(Err, "fault: ~s~n", [Msg]),
+            1;
+        deadlock ->
+            %% report §8.6
+            io:format(Err, "error: Deadlock~n", []),
             1
     end.
 

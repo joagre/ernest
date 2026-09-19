@@ -671,7 +671,7 @@ kill : (Address(a)) -> Unit with m
 
 ### 5.4 `Deadlock` as a safety net
 
-The runtime ends a program with the error `Deadlock` when forward progress is impossible: every live process waits in `receive` without `after`, no message is in flight, and no live system process or connected peer holds a subscription, a timer, a pending I/O, or a computation that could deliver a message. Pending `after`s, network listeners, keyboard subscribers, and running peer computations that owe this node a reply all count as such a source, so an idle server waiting on external events is not deadlocked. Detection is per node; a distributed deadlock across peers may not be detected. `ernc` and `ern` do not detect `Deadlock` until MVP 2; the README's table says what stands in meanwhile.
+The runtime ends a program with the error `Deadlock` when forward progress is impossible: every live process waits in `receive` without `after`, no message is in flight, and no live system process or connected peer holds a subscription, a timer, a pending I/O, or a computation that could deliver a message. Pending `after`s, network listeners, keyboard subscribers, and running peer computations that owe this node a reply all count as such a source, so an idle server waiting on external events is not deadlocked. Detection is per node; a distributed deadlock across peers may not be detected.
 
 ### 5.5 Adapting messages with `via`
 

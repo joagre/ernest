@@ -17,7 +17,7 @@
 -spec foreign(module(), atom(), [term()], [term()], term(), binary()) -> term().
 foreign(M, F, Args, ArgDescs, Desc, Text) ->
     Exposed = [expose(D, A, #{}) || {D, A} <- lists:zip(ArgDescs, Args)],
-    V = try apply(M, F, Exposed)
+    V = try ern_rt:in_foreign(fun() -> apply(M, F, Exposed) end)
         catch
             throw:{ernest, _, _} = Passing -> throw(Passing);
             Class:Reason ->

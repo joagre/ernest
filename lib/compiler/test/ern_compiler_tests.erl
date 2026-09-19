@@ -420,6 +420,19 @@ io_debug_test() ->
     ?assertEqual(<<"4\n5\n[Circle(-3), Dot]\n#(1.5, \"a\\nb\", true, Unit)\nSnap(\"x\", 2)\n"
                    "Map.fromList([#(\"k\", [1])])\nSet.fromList([1, 2])\n<function>\n">>, Out).
 
+%% report §8.6: a program whose every process waits forever ends with
+%% Deadlock; a timed receive is a source and ends by itself
+deadlock_test() ->
+    {R1, _} = run("type Msg = Ping\n"
+                  "export fn main() -> Unit with Msg = receive { Ping -> Unit }\n"),
+    ?assertEqual(deadlock, R1),
+    {R2, Out} = run("type Msg = Ping\n"
+                    "export fn main() -> Unit with Msg = receive {\n"
+                    "    Ping -> Unit\n"
+                    "  | after 100 -> Io.println(\"timeout\")\n"
+                    "}\n"),
+    ?assertEqual({ok, <<"timeout\n">>}, {R2, Out}).
+
 %% report §5.9, §6.3: alternatives in a receive clause select either message
 receive_or_pattern_test() ->
     {ok, Out} = run(

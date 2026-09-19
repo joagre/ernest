@@ -372,9 +372,16 @@ expr(#e_receive{pos = Pos, clauses = Clauses, 'after' = After}, Cx) ->
         undefined ->
             {at(Pos, with_binds(Binds, erl_syntax:receive_expr(ClauseForms))), Cx1};
         #after_clause{timeout = T, body = B} ->
+            %% report §8.6: a timed receive counts itself in before, and out
+            %% first in every body, so the reaper knows it is not waiting
             {TF, Cx2} = expr(T, Cx1),
             {BF, Cx3} = body(B, Cx2),
-            {at(Pos, with_binds(Binds, erl_syntax:receive_expr(ClauseForms, TF, BF))), Cx3}
+            Untimed = call_remote(ern_rt, untimed, []),
+            Timed = [erl_syntax:clause(erl_syntax:clause_patterns(C), erl_syntax:clause_guard(C),
+                                       [Untimed | erl_syntax:clause_body(C)])
+                     || C <- ClauseForms],
+            Recv = erl_syntax:receive_expr(Timed, TF, [Untimed | BF]),
+            {at(Pos, with_binds(Binds ++ [call_remote(ern_rt, timed, [])], Recv)), Cx3}
     end.
 
 exprs(Es, Cx) ->

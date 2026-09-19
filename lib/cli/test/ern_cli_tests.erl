@@ -220,6 +220,14 @@ namespace_clash_test() ->
     ?assertEqual(1, ernc_err(Single ++ [Dir ++ "/src/main.ern"])),
     ?assertEqual(1, ernc_err(Single ++ [Dir ++ "/src/main/stack.ern"])).
 
+%% report §8.6, §11.2: ern reports Deadlock as an error and exits 1
+deadlock_test() ->
+    Dir = tmp(),
+    write(Dir, "src/main.ern", "type Msg = Ping\nexport fn main() -> Unit with Msg = receive { Ping -> Unit }\n"),
+    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_err([Dir ++ "/build/main.erc"])),
+    ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput), "^error: Deadlock\n")).
+
 %% report §4.4: an abstract type's constructor is not visible outside its module
 abstract_constructor_outside_test() ->
     Dir = tmp(),

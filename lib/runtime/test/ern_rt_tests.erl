@@ -41,6 +41,33 @@ call_timeout_test() ->
     ?assertEqual(ok, Result),
     receive {result, R} -> ?assertEqual('None', R) after 1000 -> ?assert(false) end.
 
+%% report §8.6: every live process blocked in an untimed receive, with no
+%% timed receive, clock alarm, or foreign call pending, is Deadlock; each
+%% of those is a source that can still deliver, and the program then ends
+%% by itself
+deadlock_test() ->
+    Quiet = #{stdout => fun(_) -> ok end},
+    ?assertEqual(deadlock, ern_rt:run_main(fun() -> receive never -> ok end end, <<"main">>, Quiet)),
+    ?assertEqual(deadlock,
+                 ern_rt:run_main(fun() ->
+                                     _ = ern_rt:spawn('Local', fun() -> receive x -> ok end end,
+                                                      <<"s">>),
+                                     receive y -> ok end
+                                 end, <<"main">>, Quiet)),
+    ?assertEqual(ok, ern_rt:run_main(fun() ->
+                                         ern_rt:timed(),
+                                         receive never -> ern_rt:untimed(), ok
+                                         after 250 -> ern_rt:untimed(), ok
+                                         end
+                                     end, <<"main">>, Quiet)),
+    ?assertEqual(ok, ern_rt:run_main(fun() ->
+                                         ern_rt:send(ern_rt:sys(clock), {'After', 250, ern_rt:self()}),
+                                         receive 'Unit' -> ok end
+                                     end, <<"main">>, Quiet)),
+    ?assertEqual(ok, ern_rt:run_main(fun() ->
+                                         ern_rt:in_foreign(fun() -> receive after 250 -> ok end end)
+                                     end, <<"main">>, Quiet)).
+
 %% report §6.9: Down carries the reason and the spawn site
 monitor_test() ->
     Me = self(),
