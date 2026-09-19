@@ -68,9 +68,10 @@ Eighteen, grouped by role:
 ### 2.5 Literals
 
 ```
-int      = digit { digit } | "0x" hexdigit { hexdigit } | "0o" octdigit { octdigit }
-         | "0b" bindigit { bindigit } .
-float    = digit { digit } "." digit { digit } [ ( "e" | "E" ) [ "+" | "-" ] digit { digit } ] .
+int      = decimal | "0x" hexdigit { [ "_" ] hexdigit } | "0o" octdigit { [ "_" ] octdigit }
+         | "0b" bindigit { [ "_" ] bindigit } .
+float    = decimal "." decimal [ ( "e" | "E" ) [ "+" | "-" ] decimal ] .
+decimal  = digit { [ "_" ] digit } .
 char     = "'" ( character | escape ) "'" .
 string   = '"' { character | escape } '"' | "`" { rawchar } "`" .
 escape   = "\\" ( "'" | '"' | "\\" | "n" | "r" | "t"
@@ -78,7 +79,7 @@ escape   = "\\" ( "'" | '"' | "\\" | "n" | "r" | "t"
 bool     = "true" | "false" .
 ```
 
-`1` is `Int`, `1.0` and `1.0e-9` are `Float`. Literals carry no sign; `-` is a prefix operator. There are no overloaded literals and no default. `0x`, `0o`, and `0b` begin a hexadecimal, an octal, and a binary integer: `0x10FFFF`, `0o644`, `0b1010`. The prefix is lowercase. A letter, digit, or `_` directly after a number is an error: `0b102`, `0x1g`, `12px`, `1_000`.
+`1` is `Int`, `1.0` and `1.0e-9` are `Float`. Literals carry no sign; `-` is a prefix operator. There are no overloaded literals and no default. `0x`, `0o`, and `0b` begin a hexadecimal, an octal, and a binary integer: `0x10FFFF`, `0o644`, `0b1010`. The prefix is lowercase. An `_` between two digits groups them and is ignored: `1_000_000`, `0xFFFF_FFFF`, `3.141_592`. An `_` anywhere else in a number is an error: `1_`, `1__0`, `0x_FF`. A letter or digit directly after a number is an error: `0b102`, `0x1g`, `12px`.
 
 The escapes:
 

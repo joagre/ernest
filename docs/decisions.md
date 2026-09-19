@@ -2724,6 +2724,10 @@ Rule 1 of E.0 admitted float arithmetic as a shim. Once float operations were co
 
 `Io.debug` printed by the runtime's representation, so `Io.debug('a')` printed `97`, and `#(Ready, 1)` printed as `Ready(1)`. E.1 said it printed a value "as Ernest writes it", and the output said otherwise. The first `Char` page showed the cost: its examples had to wrap each character in `Char.toString` so its page would show characters. That is a workaround in the standard library, and principle 1 rejects it. The compiler knows the argument's type at each call and already describes types for the foreign boundary, so it now passes that description, extended with field names and with abstract types seen from outside their module. The printer, `ern_show`, is also the shell's, so the two cannot drift. Where the type at the call is a variable, the representation is all there is; E.1 says so. Type classes, which would carry a printer through generic code, are refused by principle 5.
 
+## Digit Separators, 2026-09-19
+
+Added the same day as the based literals, on the same principle. `1_000_000` and `0xFFFF_FFFF` are how a reader who knows Rust, Python, Gleam, or Java expects a long number to be written, and `1000000` must be counted digit by digit, so principle 1 decides over principle 2. The rule is the narrowest of the languages compared: a single `_` between two digits, in any base and in each part of a float. Rust also accepts `1_`, `1__0`, and `0x_FF`, and each gives one number more than one spelling that the reader must learn to ignore, so those are errors. The lexer cost is one function; the grammar gains the `decimal` rule and an optional `_` in the based ones.
+
 ## Later
 
 Planned or considered, not in the language today.

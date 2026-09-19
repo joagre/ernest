@@ -78,6 +78,7 @@ lex([Ch | _] = S, L, C, Prev, Acc) when Ch >= $0, Ch =< $9 ->
     {{Kind, _, V}, Rest, C1} = number(S, L, C),
     %% report §2.5: nothing word-like directly after a number
     case Rest of
+        [$_ | _] -> error_at(L, C1, "_ must stand between two digits");
         [Next | _] -> is_word_char(Next) andalso
                           error_at(L, C1, [Next] ++ " cannot follow a number directly");
         [] -> ok
@@ -169,22 +170,27 @@ block_comment([_ | R], Depth, L, C, L0, C0) ->
     block_comment(R, Depth, L, C + 1, L0, C0).
 
 %%
-%% Numbers: int = digit {digit} | "0x" hexdigit {hexdigit} | "0o" ... |
-%% "0b" ...; float = int "." digit {digit} [exponent].
+%% Numbers, report §2.5: int = decimal | "0x" hexdigit {["_"] hexdigit} |
+%% "0o" ... | "0b" ...; float = decimal "." decimal [exponent]; decimal =
+%% digit {["_"] digit}. Each returns the token, the rest, and the column
+%% after the text, underscores counted.
 %%
 
 number([$0, P | R], L, C) when P =:= $x; P =:= $o; P =:= $b ->
-    %% report §2.5: a based integer, its digits ending at a non-alphanumeric
     {Base, Name} = case P of
                        $x -> {16, "hexadecimal"};
                        $o -> {8, "octal"};
                        $b -> {2, "binary"}
                    end,
-    {Digits, R1} = lists:splitwith(fun(Ch) -> digit_value(Ch) < Base end, R),
-    Digits =/= [] orelse error_at(L, C, [$0, P] ++ " needs a " ++ Name ++ " digit"),
-    End = C + 2 + length(Digits),
+    {Digits, N, R1} = digits(R, fun(Ch) -> digit_value(Ch) < Base end),
+    Digits =/= [] orelse
+        case R of
+            [$_ | _] -> error_at(L, C + 2, "_ must stand between two digits");
+            _ -> error_at(L, C, [$0, P] ++ " needs a " ++ Name ++ " digit")
+        end,
+    End = C + 2 + N,
     case R1 of
-        [Ch | _] -> is_word_char(Ch) andalso
+        [Ch | _] -> Ch =/= $_ andalso is_word_char(Ch) andalso
                         error_at(L, End, [Ch] ++ " is not a " ++ Name ++ " digit");
         [] -> ok
     end,
@@ -192,18 +198,37 @@ number([$0, P | R], L, C) when P =:= $x; P =:= $o; P =:= $b ->
 number([$0, P | _], L, C) when P =:= $X; P =:= $O; P =:= $B ->
     error_at(L, C, "a base prefix is lowercase: 0" ++ [P + 32]);
 number(S, L, C) ->
-    {Int, R1} = take_digits(S),
+    {Int, N1, R1} = digits(S, fun is_digit/1),
     case R1 of
         [$., D | _] when D >= $0, D =< $9 ->
-            {Frac, R2} = take_digits(tl(R1)),
-            {Exp, R3} = exponent(R2),
+            {Frac, N2, R2} = digits(tl(R1), fun is_digit/1),
+            {Exp, N3, R3} = exponent(R2),
             Text = Int ++ "." ++ Frac ++ Exp,
-            {{float, {L, C}, list_to_float(Text)}, R3, C + length(Text)};
+            {{float, {L, C}, list_to_float(Text)}, R3, C + N1 + 1 + N2 + N3};
         _ ->
-            {{int, {L, C}, list_to_integer(Int)}, R1, C + length(Int)}
+            {{int, {L, C}, list_to_integer(Int)}, R1, C + N1}
     end.
 
-take_digits(S) -> lists:splitwith(fun(Ch) -> Ch >= $0 andalso Ch =< $9 end, S).
+%% The digits Pred accepts, a single `_` allowed between two of them: the
+%% digits without it, the characters consumed, and the rest. An `_` that
+%% does not stand between two digits is left in the rest.
+digits(S, Pred) ->
+    digits(S, Pred, [], 0).
+
+digits([$_, D | R], Pred, Acc, N) when Acc =/= [] ->
+    case Pred(D) of
+        true -> digits(R, Pred, [D | Acc], N + 2);
+        false -> {lists:reverse(Acc), N, [$_, D | R]}
+    end;
+digits([D | R] = S, Pred, Acc, N) ->
+    case Pred(D) of
+        true -> digits(R, Pred, [D | Acc], N + 1);
+        false -> {lists:reverse(Acc), N, S}
+    end;
+digits([], _, Acc, N) ->
+    {lists:reverse(Acc), N, []}.
+
+is_digit(Ch) -> Ch >= $0 andalso Ch =< $9.
 
 digit_value(Ch) when Ch >= $0, Ch =< $9 -> Ch - $0;
 digit_value(Ch) when Ch >= $a, Ch =< $f -> Ch - $a + 10;
@@ -213,13 +238,13 @@ digit_value(_) -> 99.
 exponent([E, Sign, D | R]) when (E =:= $e orelse E =:= $E),
                                 (Sign =:= $+ orelse Sign =:= $-),
                                 D >= $0, D =< $9 ->
-    {Digits, R1} = take_digits([D | R]),
-    {[E, Sign | Digits], R1};
+    {Digits, N, R1} = digits([D | R], fun is_digit/1),
+    {[E, Sign | Digits], N + 2, R1};
 exponent([E, D | R]) when (E =:= $e orelse E =:= $E), D >= $0, D =< $9 ->
-    {Digits, R1} = take_digits([D | R]),
-    {[E | Digits], R1};
+    {Digits, N, R1} = digits([D | R], fun is_digit/1),
+    {[E | Digits], N + 1, R1};
 exponent(R) ->
-    {"", R}.
+    {"", 0, R}.
 
 %%
 %% Strings and chars. Content excludes the quote, backslash, LF, and CR.

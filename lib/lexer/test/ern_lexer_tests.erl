@@ -58,8 +58,19 @@ based_integers_test() ->
 %% report §2.5: nothing word-like directly after a number
 number_then_word_test() ->
     ?assertEqual({1, 3, "p cannot follow a number directly"}, err("12px")),
-    ?assertEqual({1, 2, "_ cannot follow a number directly"}, err("1_000")),
     ?assertEqual({1, 4, "x cannot follow a number directly"}, err("1.5x")).
+
+%% report §2.5: an `_` between two digits groups them; anywhere else in a
+%% number it is an error
+digit_separators_test() ->
+    ?assertEqual([{int, 1000000}, {int, 16#FFFFFFFF}, {int, 2#10101010}, {int, 8#7_55},
+                  {float, 3.141592}, {float, 1.0e10}],
+                 toks("1_000_000 0xFFFF_FFFF 0b1010_1010 0o7_55 3.141_592 1.0e1_0")),
+    ?assertEqual({1, 2, "_ must stand between two digits"}, err("1_")),
+    ?assertEqual({1, 2, "_ must stand between two digits"}, err("1__0")),
+    ?assertEqual({1, 3, "_ must stand between two digits"}, err("0x_FF")),
+    ?assertEqual({1, 4, "_ must stand between two digits"}, err("1.5_")),
+    ?assertEqual([{int, 1000}, '..', {int, 2000}], toks("1_000..2_000")).
 
 %% report §2.5
 floats_test() ->
