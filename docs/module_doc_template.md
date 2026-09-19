@@ -6,16 +6,16 @@ A module's documentation is a section 3 manual page. Its headings fall in three 
 
 **Automatic**, written by `ernc --doc` and never by hand:
 
-- NAME: the heading, `# Ernest module Name` for the module and `## name` for each declaration, the name as the module writes it; and the last line, which names the `ernc` version and the source file, so a page read alone says what it is and what made it.
-- SYNOPSIS: the code block under the heading, the declaration for a type and `name : type` for a function or value; an abstract type without its representation.
+- NAME: the heading, `# Ernest module Name` for the module and `## Name.name` for each declaration, the name as a caller writes it; and the last line, which names the `ernc` version and the source file, so a page read alone says what it is and what made it.
+- SYNOPSIS: the code block under the heading, the declaration for a type and `Name.name : type` for a function or value; an abstract type without its representation.
 
 **Mandatory**, written by the author:
 
 - The module's doc block, first in the file with a blank line after it: what the module is for in free text, then `## Examples` with a few central examples, the ones a reader tries first, one per core operation.
 - DESCRIPTION for every exported declaration: one or a few sentences, saying what the type does not say, which occurrence `remove` removes, the order `toList` produces, the range `next` draws from. A member of an abstract type is documented at its signature entry and inherits that text under its own heading.
 - `### Errors` for every function that faults, naming the fault; no other function has the section, by E.0 rule 4.
-- `since v` as the last line of the module's doc block and of every exported declaration's, `v` the `VERSION` in which it appeared; rendered as *Since v.* after the synopsis, so a later tool can list what a version added.
-- `### Examples` with one example for every exported `type` and `fn`. An abstract type's examples cover its members, which are documented at their signature entries. An exported `let` needs none: its sentence says what the value is, and an example would repeat the synopsis. A private declaration with a doc block may have one. An example ends in `// => v`, where `v` is what `Io.debug` prints for its value; the test runs the example and compares, so a documented result is a tested one. An example whose value is of an abstract type omits the line, since the rendering would show the private representation.
+- `since v` as the last line of the module's doc block, `v` the `VERSION` in which the module appeared, rendered as *Since v.* under the title. A declaration has the module's `since` unless its own doc block ends with one, written only when it differs, rendered after its synopsis, so the page shows what a later version added.
+- `### Examples` with one example for every exported type; an abstract type's examples cover its members, which are documented at their signature entries. Every exported function is called by at least one example on the page, the module's or its own, so a function needs `### Examples` only when no module example calls it; an example that would repeat another is left out. An exported `let` needs none: its sentence says what the value is. A private declaration with a doc block may have one. An example ends in `// => v`, where `v` is what `Io.debug` prints for its value; the test runs the example and compares, so a documented result is a tested one. An example whose value is of an abstract type omits the line, since the rendering would show the private representation.
 
 **Optional**, added where the author sees fit:
 
@@ -61,13 +61,11 @@ match Template.Stack.pop(s) {
 
 `Int` (Appendix E.8) for the arithmetic used.
 
-## Point
+## Template.Point
 
 ```ernest
 type Point = Point(x : Int, y : Int)
 ```
-
-*Since 0.1.0.*
 
 A point in the plane, in whole units.
 
@@ -82,13 +80,11 @@ Template.Point(x = 1, y = 2)
   - `x : Int`: The horizontal coordinate, growing to the right.
   - `y : Int`: The vertical coordinate, growing upward.
 
-## Shape
+## Template.Shape
 
 ```ernest
 type Shape = Dot(Point) | Circle(centre : Point, radius : Int)
 ```
-
-*Since 0.1.0.*
 
 A shape: a point alone, or a circle of a radius around a centre.
 
@@ -102,7 +98,7 @@ Template.Circle(centre = Template.Point(x = 0, y = 0), radius = 1)
 - `Dot`: A point alone; its area is zero.
 - `Circle`: A circle by its centre and radius.
 
-## Stack
+## Template.Stack
 
 ```ernest
 abstract type Stack with {
@@ -111,8 +107,6 @@ abstract type Stack with {
     pop : (Stack) -> Optional(#(Shape, Stack))
 }
 ```
-
-*Since 0.1.0.*
 
 Shapes in the order they were pushed, most recent on top. The
 representation is private.
@@ -131,82 +125,56 @@ Template.Stack.push(Template.Dot(Template.Point(x = 0, y = 0)), Template.Stack.e
 - `push : (Shape, Stack) -> Stack`: The stack with the shape on top.
 - `pop : (Stack) -> Optional(#(Shape, Stack))`: The top shape and the rest, `None` when the stack is empty.
 
-## Stack.empty
+## Template.Stack.empty
 
 ```ernest
-Stack.empty : Stack
+Template.Stack.empty : Stack
 ```
-
-*Since 0.1.0.*
 
 The stack with nothing on it.
 
-## Stack.push
+## Template.Stack.push
 
 ```ernest
-Stack.push : (Shape, Stack) -> Stack
+Template.Stack.push : (Shape, Stack) -> Stack
 ```
-
-*Since 0.1.0.*
 
 The stack with the shape on top.
 
-## Stack.pop
+## Template.Stack.pop
 
 ```ernest
-Stack.pop : (Stack) -> Optional(#(Shape, Stack))
+Template.Stack.pop : (Stack) -> Optional(#(Shape, Stack))
 ```
-
-*Since 0.1.0.*
 
 The top shape and the rest, `None` when the stack is empty.
 
-## circle
+## Template.circle
 
 ```ernest
-circle : (Point, Int) -> Shape
+Template.circle : (Point, Int) -> Shape
 ```
-
-*Since 0.1.0.*
 
 The circle of the radius around the centre.
 
-### Examples
+## Template.area
 
 ```ernest
-Template.circle(Template.Point(x = 1, y = 2), 3)
-// => Circle(Point(1, 2), 3)
+Template.area : (Shape) -> Int
 ```
-
-## area
-
-```ernest
-area : (Shape) -> Int
-```
-
-*Since 0.1.0.*
 
 The area of the shape: zero for a point, three times the radius squared
 for a circle, since the module has no `Float`.
-
-### Examples
-
-```ernest
-Template.area(Template.Dot(Template.Point(x = 0, y = 0)))
-// => 0
-```
 
 ### See also
 
 `circle`, which builds the shape whose area is not zero.
 
-## checked
+## Template.checked
 
 ```ernest
-checked : (Int) -> Int
+Template.checked : (Int) -> Int
 ```
-
-*Since 0.1.0.*
 
 The radius itself when it is not negative.
 
@@ -222,10 +190,10 @@ Template.checked(4)
 // => 4
 ```
 
-## half
+## Template.half
 
 ```ernest
-half : (Int) -> Int
+Template.half : (Int) -> Int
 ```
 
 Half of a whole number, toward zero. Private, and documented, so it

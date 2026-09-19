@@ -23,25 +23,7 @@
 //
 
 /// The other truth value.
-///
-/// ### Examples
-///
-/// ```ernest
-/// Bool.not(false)
-/// // => true
-/// ```
-///
-/// since 0.1.0
 export fn not(b : Bool) -> Bool = if b then false else true
 
 /// `"true"` or `"false"`.
-///
-/// ### Examples
-///
-/// ```ernest
-/// Bool.toString(false)
-/// // => "false"
-/// ```
-///
-/// since 0.1.0
 export fn toString(b : Bool) -> String = if b then "true" else "false"

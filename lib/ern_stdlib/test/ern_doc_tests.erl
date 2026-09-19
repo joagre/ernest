@@ -90,9 +90,8 @@ split_result(Block) ->
         _ -> {Block, none}
     end.
 
-%% Appendix E.0 rule 6: the module's doc block and every exported
-%% declaration's end with `since v`, v no newer than VERSION; a member of an
-%% abstract type may leave its text to its signature entry, not its `since`
+%% Appendix E.0 rule 6: the module's doc block ends with `since v`; a
+%% declaration may state its own; every one is no newer than VERSION
 doc_since_test_() ->
     [{atom_to_list(hd(Ns)), fun() -> since(File) end} || {Ns, File} <- modules()].
 
@@ -101,12 +100,11 @@ since(File) ->
     Current = version(V),
     {ok, Src} = file:read_file(File),
     {ok, Decls} = ern_parser:parse_string(Src),
-    Blocks = [T || #module_doc{text = T} <- Decls]
-        ++ [doc_field(D) || D <- Decls, exported_decl(D)],
-    ?assertNotEqual([], [T || #module_doc{text = T} <- Decls]),
-    Missing = [B || B <- Blocks, B =:= undefined orelse since_of(B) =:= none],
-    ?assertEqual([], Missing),
-    ?assertEqual([], [S || B <- Blocks, S <- [since_of(B)], version(S) > Current]).
+    ModDocs = [T || #module_doc{text = T} <- Decls],
+    ?assertMatch([_], ModDocs),
+    ?assertNotEqual(none, since_of(hd(ModDocs))),
+    Stated = [S || B <- docs(Decls, []), S <- [since_of(B)], S =/= none],
+    ?assertEqual([], [S || S <- Stated, version(S) > Current]).
 
 since_of(Doc) ->
     case re:run(Doc, "(?m)^since ([0-9][0-9.]*)\\s*$", [{capture, all_but_first, binary}]) of
@@ -117,6 +115,45 @@ since_of(Doc) ->
 version(Text) ->
     Trimmed = string:trim(unicode:characters_to_list(Text)),
     [list_to_integer(P) || P <- string:split(Trimmed, ".", all)].
+
+%% Appendix E.0 rule 6: every exported declaration has a doc block, a
+%% member of an abstract type at its signature entry if not its own
+doc_exported_documented_test_() ->
+    [{atom_to_list(hd(Ns)), fun() -> documented(File) end} || {Ns, File} <- modules()].
+
+documented(File) ->
+    {ok, Src} = file:read_file(File),
+    {ok, Decls} = ern_parser:parse_string(Src),
+    Entries = [{T, N} || #abstract_decl{type = #type_decl{name = T}, signatures = Sigs} <- Decls,
+                         #signature{name = N, doc = Doc} <- Sigs, Doc =/= undefined],
+    ?assertEqual([], [decl_names(D) || D <- Decls, exported_decl(D), doc_field(D) =:= undefined,
+                                       not lists:member(member_of(D), Entries)]).
+
+member_of(#fn_decl{owner = O, name = N}) -> {O, N};
+member_of(#let_decl{owner = O, name = N}) -> {O, N};
+member_of(_) -> none.
+
+%% Appendix E.0 rule 6: every exported function is called by an example on
+%% the page, the module's or its own; an operator member, used infix, is
+%% not a call and is not looked for
+doc_coverage_test_() ->
+    [{atom_to_list(hd(Ns)), fun() -> coverage(Ns, File) end} || {Ns, File} <- modules()].
+
+coverage(Ns, File) ->
+    {ok, Src} = file:read_file(File),
+    {ok, Decls} = ern_parser:parse_string(Src),
+    Examples = iolist_to_binary([B || Doc <- docs(Decls, []), B <- fences(Doc)]),
+    Prefix = lists:join(".", [atom_to_list(A) || A <- Ns]),
+    Fns = [owned_name(O, N) || #fn_decl{export = true, owner = O, name = N} <- Decls,
+                               is_alpha(N)],
+    ?assertNotEqual([], Fns),
+    Uncalled = [F || F <- Fns,
+                     binary:match(Examples, iolist_to_binary([Prefix, ".", F, "("])) =:= nomatch],
+    ?assertEqual([], Uncalled).
+
+is_alpha(N) ->
+    [C | _] = atom_to_list(N),
+    C >= $a andalso C =< $z.
 
 %% Appendix E.0 rule 6: every backticked name under `See also` is a
 %% declaration of the module, a prelude or standard library namespace, or a
