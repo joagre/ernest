@@ -1,6 +1,7 @@
 -module(ern_cli_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("parser/include/ern_ast.hrl").
 
 %%
 %% Helpers: a fresh directory per test, sources written into it
@@ -432,6 +433,76 @@ split_result(Block) ->
         <<"// => ", V/binary>> -> {iolist_to_binary(lists:join(<<"\n">>, lists:droplast(Lines))), V};
         _ -> {Block, none}
     end.
+
+%% Appendix E.0 rule 6: a `since v` names a version no newer than VERSION
+doc_since_test() ->
+    {ok, V} = file:read_file("../../../VERSION"),
+    Current = version(string:trim(V)),
+    Sinces = [version(S) || Doc <- template_docs(),
+                            {match, Ms} <- [re:run(Doc, "(?m)^since ([0-9][0-9.]*)$",
+                                                   [global, {capture, all_but_first, list}])],
+                            [S] <- Ms],
+    ?assert(length(Sinces) >= 9),
+    ?assertEqual([], [S || S <- Sinces, S > Current]).
+
+version(Text) ->
+    [list_to_integer(P) || P <- string:split(string:trim(unicode:characters_to_list(Text)), ".", all)].
+
+%% Appendix E.0 rule 6: every backticked name under `See also` is a
+%% declaration of the module, a prelude or standard library namespace, or a
+%% prelude type
+doc_see_also_test() ->
+    {ok, Src} = file:read_file(example("template.ern")),
+    {ok, Decls} = ern_parser:parse_string(Src),
+    Local = lists:append([decl_names(D) || D <- Decls]),
+    Known = Local ++ [atom_to_list(hd(Ns)) || {Ns, _} <- ern_prelude:stdlib_types()]
+        ++ [atom_to_list(hd(Q)) || {Q, _} <- ern_prelude:values(), length(Q) > 1]
+        ++ [atom_to_list(N) || {N, _} <- ern_prelude:builtin_types()],
+    Named = [N || Doc <- template_docs(),
+                  {match, Secs} <- [re:run(Doc, "#+ See also\\n\\n(.*?)(?=\\n#|$)",
+                                           [global, dotall, {capture, all_but_first, list}])],
+                  [Sec] <- Secs,
+                  {match, Ns} <- [re:run(Sec, "`([^`]+)`", [global, {capture, all_but_first, list}])],
+                  [N] <- Ns],
+    ?assert(length(Named) >= 3),
+    ?assertEqual([], [N || N <- Named, not lists:member(N, Known)]).
+
+decl_names(#type_decl{name = N}) -> [atom_to_list(N)];
+decl_names(#abstract_decl{type = #type_decl{name = N}}) -> [atom_to_list(N)];
+decl_names(#fn_decl{owner = O, name = N}) -> [owned_name(O, N)];
+decl_names(#let_decl{owner = O, name = N}) -> [owned_name(O, N)];
+decl_names(#foreign_fn_decl{owner = O, name = N}) -> [owned_name(O, N)];
+decl_names(#foreign_type_decl{name = N}) -> [atom_to_list(N)];
+decl_names(_) -> [].
+
+owned_name(undefined, N) -> atom_to_list(N);
+owned_name(O, N) -> atom_to_list(O) ++ "." ++ atom_to_list(N).
+
+%% Appendix E.0 rule 6: every exported declaration has a doc block; a
+%% member of an abstract type may have its at the signature entry
+doc_exported_documented_test() ->
+    {ok, Src} = file:read_file(example("template.ern")),
+    {ok, Decls} = ern_parser:parse_string(Src),
+    Entries = [{T, N} || #abstract_decl{type = #type_decl{name = T}, signatures = Sigs} <- Decls,
+                         #signature{name = N, doc = Doc} <- Sigs, Doc =/= undefined],
+    Undocumented = [decl_names(D) || D <- Decls, exported_decl(D), doc_field(D) =:= undefined,
+                                     not lists:member(member_of(D), Entries)],
+    ?assertEqual([], Undocumented).
+
+exported_decl(D) when is_tuple(D), tuple_size(D) >= 4,
+                      element(1, D) =/= module_doc -> element(4, D) =:= true;
+exported_decl(_) -> false.
+
+doc_field(D) -> element(3, D).
+
+member_of(#fn_decl{owner = O, name = N}) -> {O, N};
+member_of(#let_decl{owner = O, name = N}) -> {O, N};
+member_of(_) -> none.
+
+template_docs() ->
+    {ok, Src} = file:read_file(example("template.ern")),
+    {ok, Decls} = ern_parser:parse_string(Src),
+    docs(Decls, []).
 
 %% Every doc text in an AST: the third element of the records that carry one.
 docs(T, Acc) when is_tuple(T), tuple_size(T) >= 3 ->
