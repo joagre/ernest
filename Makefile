@@ -18,6 +18,11 @@ golden: all
 	@cd lib/compiler/src && erl -noshell -pa ../../*/ebin \
 	  -eval 'ern_compiler_tests:write_golden(), halt().'
 
+# Every `§x.y`, `Appendix X`, and `E.n` in a live document names a heading of the
+# report, and the guide's own bare `§x.y` a heading of the guide; a test in test/.
+xref:
+	@$(MAKE) -s -C test xref
+
 # Report sections no test cites (every test function carries a `%% report §x.y` line).
 sections:
 	@grep -oE '^#{2,3} [0-9]+\.[0-9]+' ernest_report.md | sed 's/^#* //' | \
@@ -38,4 +43,4 @@ clean-emacs:
 	find . -path ./.git -prune -o \( -name '*~' -o -name '#*#' -o -name '.#*' \) -print0 \
 	  | xargs -0 rm -f
 
-.PHONY: all test clean clean-emacs sections coverage golden
+.PHONY: all test clean clean-emacs sections coverage golden xref
