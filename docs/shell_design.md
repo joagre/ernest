@@ -16,7 +16,7 @@ The shell is an Ernest program. Its parts:
 
 ## Starting it
 
-`ern [--shell] [--source-root dir] [file.erc]`, report §11.2. The flag takes no argument, and with it the file is optional; `--source-root` says where `:load` finds a module's source, the working directory by default, as `ernc` defaults it.
+`ern [--config-dir dir] [--load-path dir ...] [--main Qualified.name] [--shell] [--source-root dir] [file.erc]`, report §11.2. The shell adds the last two: `--shell` takes no argument and makes the file optional, and `--source-root` says where `:load` finds a module's source, the working directory by default, as `ernc` defaults it.
 
 - **`ern --shell`** starts the runtime with the standard library and the load path, and nothing else running.
 - **`ern --shell file.erc`** loads the module and its dependencies and spawns its entry point beside the prompt, every loaded module in scope. The program's processes are the session's: `:processes` sees them, `:faults` reports their faults, and `:quit` ends them with `ProgramEnd` (§8.6).
@@ -69,9 +69,11 @@ A program that loses a worker to a fault says nothing: there is no automatic sup
 - **The shell cannot monitor what it cannot address.** There is no registry, and a process is reached only through an address someone holds (§6.3). The shell holds the address of the process it starts for each input and nothing deeper, so monitoring is not the mechanism.
 - **The runtime already knows.** It remembers how every process it started ended (§6.9), and `Down` carries the spawn site with its line. Erlang needs `proc_lib` to carry that much, because it keeps no record of who spawned what; Ernest has it in the report. What is missing is a way for the shell to be told, which is a prerequisite below.
 - **Faults only.** `Returned`, `Killed`, and `ProgramEnd` are not news, and a program that spawns a process for each connection would scroll the session away.
-- **The processes of the program the shell is running**, not the shell's own; a fault inside the shell is a defect in the shell and is reported as one.
+- **The processes of the program the shell is running**, not the shell's own; a fault inside the shell is a defect in the shell and is reported as one. The shell cannot tell them apart, since addresses have no equality (§6.3) and it could not compare a notice against what it holds. The front end can, having started both: it subscribes to the runtime's door and forwards what the shell should show, leaving out the processes the runner started for the shell and the input's own process, whose fault is already `run`'s outcome. So an input's fault is reported once, as the answer to that input, and the notice is for everything else.
 - **One line, written by the shell itself**, as any output is under `--shell` (Output), so its order against the program's own printing is the order every other print has.
 - **The last faults are kept** and `:faults` prints them. How many is open.
+- **`Deadlock` does not fire under `--shell`** (§8.6). The shell always holds a subscription to the keys, or a read outstanding on standard input in line mode, and a system process holding one is a source that can still deliver, so detection is off for the node for the whole session. A program whose processes all block gets no report, and `:processes` lists them as live with no hint. It is said here because unsaid it costs someone an afternoon.
+- **Reporting the program's own quiescence is later.** The door built for the faults and the live list can grow a third question, whether every process but the shell's own is waiting with nothing that could deliver, and answer it at the prompt. It is not built now because a person at a prompt finds a hung program by its not answering, where a fault gives no sign at all.
 
 ## Line editing
 
@@ -112,7 +114,7 @@ A command is `:` and a name; it is not an Ernest function. Any prefix of a name 
 
 - **`:type e`**: the type of `e`, which is not run.
 - **`:browse Module`**: the exports of `Module` with their types.
-- **`:load Module`**: the module by its namespace, never a path, as the host's shell takes a module name. Its source is found under the shell's source root, the working directory unless `--source-root` says otherwise, which is `ernc`'s own rule; it is compiled as `ernc` would compile it and loaded, and a module with no source there, the standard library's or a library's, is loaded from its compiled form. Afterwards it is in scope by its qualified name, like anything else on the load path.
+- **`:load Module`**: the module by its namespace, never a path, as the host's shell takes a module name. Its source is found under the shell's source root, the working directory unless `--source-root` says otherwise, which is `ernc`'s own rule; it is compiled as `ernc` would compile it and loaded, and a module with no source there, the standard library's or a library's, is loaded from its compiled form. A source under the source root wins over an `.erc` on the load path, which is the point of compiling at all. The compiled form goes to a directory of the shell's own and never beside the source, where it would land in the project's build and meet §11.1's cleanup sweep. Afterwards it is in scope by its qualified name, like anything else on the load path.
 - **`:reload`**: every loaded module whose source is newer than what was loaded, as `:load` would take each. It takes no name, since `:load Module` is that already and two names for one job is one too many. A call from another module reaches the new code. A process running the module's own loop does not: it keeps the version it is in until it returns, which is the case §6.10 exists for, where a process switches by receiving the new loop and tail-calling it. A closure made from the previous code keeps that code while the version lives. The first reload says how many processes and bindings are in the previous version and that another reload will end them; the second ends them, and the shell says which, by spawn site, with the cause "its code was replaced". Refusing to reload while a process is in the old version would fit §6.10 best and is unusable: there is no registry, so that process has no address at the prompt and the session would be stuck until `:quit`.
 - **`:quit`**: quits.
 - **`:doc Name`**: the documentation of `Name`, as `ernc --doc` renders it (§11.4), the declaration included.
@@ -127,7 +129,7 @@ A program is started by calling it; there is no command for it. A module meant f
 
 ## Starting and quitting
 
-- **At start the shell runs the inputs in `shell.ern`** in the configuration directory, if it exists: it is a project's, as the directory is.
+- **At start the shell runs the inputs in `$HOME/.ernest/startup`**, if it exists: per user, as the history is. It is a file of inputs, commands included, and not a module, so it has no `.ern` extension: a `.ern` file under a source root is compiled with the project, and one in the configuration directory breaks the project's build outright, since `ernc` reads dotted directories and then rejects the path. A startup input that fails is reported as any input is and the session goes on.
 - **On `:quit` or `C-d` on an empty line** the history is saved and every process the session spawned ends with `ProgramEnd` (§8.6).
 
 ## Not in the shell
@@ -180,6 +182,7 @@ foreign fn run(env : Env, c : Checked, wrap : (Outcome) -> m) -> Address(Never) 
 foreign fn show(v : Value, depth : Int, length : Int) -> String = "..."
 foreign fn exports(module : String) -> List(#(String, String)) = "..."
 foreign fn doc(name : String) -> Optional(String) = "..."
+foreign fn faults(wrap : (Fault) -> m) -> Unit with m = "..."
 ```
 
 `check` returns §11.5's diagnostic text on an error. `run` starts the input's process and answers with its address, which is what `C-c` kills, and delivers `Ok` or `Failed` to the shell when it ends, which is E.0 rule 8's shape for anything that arrives later; a synchronous `run` would have blocked the shell, leaving the reader dead and the interrupt unseen. `exports` gives names with types, `doc` the section `:doc` prints.
@@ -197,7 +200,7 @@ Delivered before the shell, each report first.
 - **Documentation in the `.erc`**, with each function's parameters as written, for `:doc` and `Shift-Tab` (MVP 2.5, step 6).
 - **The terminal is the shell's when `--shell` is given**, §11.2, and §8.2 gains the case: `Keys.subscribe` and `Io.readLine` from anything else fault with the remedy in the text (MVP 2.6).
 - **The shell reads the terminal's interrupt as a key while it reads**, §11.2, which every other program does not: §8.6's signal stands for them (MVP 2.6).
-- **The report's §11.2** states the shell's normative core: the flag without an argument and the file optional with it, the shell as the entry process (§8.1) with the file's entry point spawned beside it and what `--main` then names, the session as a scope in §4.2's lookup order with a session type printed unqualified (§11.5), the terminal's holder, and the interrupt read as a key; types on every result, a module and a process per input, bindings that survive a fault, the commands and their prefix rule, and line mode (MVP 2.6).
+- **The report's §11.2** states the shell's normative core: the flag without an argument and the file optional with it, the shell as the entry process (§8.1) with the file's entry point spawned beside it and what `--main` then names, the session as a scope in §4.2's lookup order with a session type printed unqualified (§11.5), the terminal's holder, the interrupt read as a key, and `Deadlock` not firing while a shell holds a source; types on every result, a module and a process per input, bindings that survive a fault, the commands and their prefix rule, and line mode (MVP 2.6).
 
 ## Open
 
