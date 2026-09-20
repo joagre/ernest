@@ -433,6 +433,17 @@ io_debug_test() ->
                    "#(true, false)\n\"é中\"\n#('a', '\\'', Some('\\n'))\n#(Ready, 1)\n"
                    "<<104, 105>>\n'x'\n97\n"/utf8>>, Out).
 
+%% report §8.2: keys and lines are the same terminal, so a program that
+%% does both ends with a fault naming the side that holds it
+terminal_is_lines_or_keys_test() ->
+    {R1, _} = run("type Msg = Pressed(Key)\n"
+                  "export fn main() -> Unit with Msg = {\n"
+                  "    let _ = Io.readLine();\n"
+                  "    Keys.subscribe(Pressed);\n"
+                  "    receive { Pressed(_) -> Unit }\n"
+                  "}\n"),
+    ?assertEqual({fault, <<"the terminal is already read as lines">>}, R1).
+
 %% report §8.6: a program whose every process waits forever ends with
 %% Deadlock; a timed receive is a source and ends by itself
 deadlock_test() ->
@@ -953,9 +964,9 @@ refused_names_test() ->
     ?assertEqual("Tcp.listen is not in this toolchain yet; it arrives in MVP 2.5",
                  compile_error("export fn main() -> Unit with Never =\n"
                                "    { let _ = Tcp.listen(1); Unit }\n")),
-    ?assertEqual("Sys.keys is not in this toolchain yet; it arrives in MVP 2.5",
+    ?assertEqual("Tcp.connect is not in this toolchain yet; it arrives in MVP 2.5",
                  compile_error("export fn main() -> Unit with Never ="
-                               " { let _ = Sys.keys; Unit }\n")),
+                               " { let _ = Tcp.connect(\"h\", 1, 1); Unit }\n")),
     ?assertEqual("Sys.tcp is not in this toolchain yet; it arrives in MVP 2.5",
                  compile_error("export fn main() -> Unit with Never =\n"
                                "    { let _ = Sys.tcp; Unit }\n")).

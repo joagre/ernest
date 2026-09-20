@@ -2852,6 +2852,12 @@ The second door of step 4, and the first that does real work. `ern_fs` answers e
 
 Two things the module decided. An `Fs.name(entry)` crept in to make a `list` example read well and was removed: it is a match and a `Path.name`, one pipe, which rule 4 refuses; the example does the match itself. And the documentation harness now runs each example in a directory of its own, removed afterwards, because the first run of the `Fs` page wrote seven files and a directory into `lib/ern_stdlib/src/`. That is what the plan meant by giving the harness a temporary directory, and it makes `Fs`'s examples real rather than type-checked only.
 
+## `Keys`, and Who Owns the Terminal, 2026-09-20
+
+The third door, and the one the plan called the risk of the step. `ern_keys` answers `Subscribe` by remembering the address, and puts the terminal in raw mode with echo off only when the first subscriber arrives, so a program that reads lines never leaves line mode. The decoding is a function over the characters read, `decode/1`, which the tests exercise: a character, the four arrows, `Enter` from either line ending, `Escape`, and a partial escape sequence that waits for the rest rather than guessing. The reading itself needs a terminal and has no test, which is why it is three lines around the function that does.
+
+§8.2 said keys and lines are the same terminal and a program does one or the other, and said nothing about a program that does both; it now faults, `Fault("the terminal is already read as lines")` or `as keys`, whichever side asked first. The runtime decides it in one place, `ern_rt:own_terminal/1`, and reports it the way `Deadlock` is reported, since neither the stdin process nor the keys process can answer for the other. Which side wins a race between a subscription and a read is not fixed, and need not be: the program has broken the rule either way, and the fault names the side that holds the terminal.
+
 ## Later
 
 Planned or considered, not in the language today.

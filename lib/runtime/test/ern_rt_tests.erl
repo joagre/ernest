@@ -2,6 +2,18 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+%% report §8.2: the terminal is read as lines or as keys, and the second
+%% side to ask is told it is taken, whichever asks first
+own_terminal_test() ->
+    Result = ern_rt:run_main(fun() ->
+                                 Me = ern_rt:self(),
+                                 Me ! {owned, ern_rt:own_terminal(keys)},
+                                 Me ! {owned, ern_rt:own_terminal(keys)},
+                                 Me ! {owned, ern_rt:own_terminal(lines)},
+                                 receive after 50 -> ok end
+                             end, <<"own_terminal_test">>, #{}),
+    ?assertEqual({fault, <<"the terminal is already read as keys">>}, Result).
+
 %% Compile a hand-written target module from forms, as the compiler will
 %% compile its own output, and run its main under the launcher, collecting
 %% what reaches stdout.

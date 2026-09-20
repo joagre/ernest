@@ -109,7 +109,7 @@ The toolchain is the report on one node; the plan's MVPs lift the table row by r
 
 | Construct | Until | What you see today |
 |---|---|---|
-| `Sys.keys`, `Sys.tcp` and their modules `Keys`, `Tcp` (§8.2, Appendix E.16, E.18) | MVP 2.5 | type-checks; `ernc` says `Tcp.listen is not in this toolchain yet; it arrives in MVP 2.5`, and the same for each of those names |
+| `Sys.tcp` and its module `Tcp` (§8.2, Appendix E.18) | MVP 2.5 | type-checks; `ernc` says `Tcp.listen is not in this toolchain yet; it arrives in MVP 2.5`, and the same for each of those names |
 | `ern --shell` (§11.2) | MVP 2.6 | `the shell is not in this toolchain yet; it arrives in MVP 2.6` |
 | `spawn(Peer(...))`, peers, `--config-dir` (§6.2, §8.3) | MVP 3 | `spawn` faults with `peer unreachable`; the configuration is not read |
 | `remote`, `parallelRemote` (§6.7) | MVP 3 | `Left(NoRemotePeer)` |

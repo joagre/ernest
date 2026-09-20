@@ -1,0 +1,22 @@
+/// Keys from the terminal through `Sys.keys`, the system process that reads
+/// it (report §8.2). A subscriber is sent every key pressed from then on,
+/// wrapped for its own mailbox, as `monitor` and `Clock.alarm` deliver.
+/// Keys and lines are the same terminal, so a program subscribes to keys or
+/// reads lines with `Io.readLine`, never both.
+///
+/// ## Examples
+///
+/// ```ernest
+/// Keys.subscribe(fn(key) = key)
+/// ```
+///
+/// ## See also
+///
+/// `Io.readLine` for the same terminal read as lines, `Clock.alarm` for the
+/// other message that arrives later.
+///
+/// since 0.1.0
+
+/// Every key pressed from now on, wrapped, in the caller's mailbox.
+export fn subscribe(wrap : (Key) -> m) -> Unit with m =
+    send(Sys.keys, Subscribe(via(wrap, self())))

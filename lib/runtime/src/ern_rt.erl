@@ -22,7 +22,7 @@
 
 -export([send/2, spawn/3, self/0, via/2, call/3, call_forever/2, answer/2, monitor/2,
          kill/1, sys/1, run_main/2, run_main/3, fault/1, remote/1, parallel_remote/1,
-         todo/1, timed/0, untimed/0, in_foreign/1, init_stdlib/0]).
+         todo/1, timed/0, untimed/0, in_foreign/1, init_stdlib/0, own_terminal/1]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -278,7 +278,7 @@ fault(Msg) ->
 %% Report §8.2, §9.7: system references
 %%
 
--spec sys(stdout | stderr | stdin | clock | fs) -> address().
+-spec sys(stdout | stderr | stdin | clock | fs | keys) -> address().
 sys(Name) ->
     persistent_term:get({?MODULE, Name}).
 
@@ -293,12 +293,30 @@ stdout_loop(Out) ->
             stdout_loop(Out)
     end.
 
+%% Report §8.2: keys and lines are the same terminal, so a program does one
+%% or the other; doing both ends the program with a fault, as Deadlock ends
+%% it, since neither side can answer for the other.
+-spec own_terminal(lines | keys) -> ok | taken.
+own_terminal(Kind) ->
+    case persistent_term:get({?MODULE, terminal}, undefined) of
+        undefined ->
+            persistent_term:put({?MODULE, terminal}, Kind),
+            ok;
+        Kind ->
+            ok;
+        Other ->
+            {Launcher, Run} = persistent_term:get({?MODULE, launcher}),
+            Launcher ! {terminal, Run, format("the terminal is already read as ~s", [Other])},
+            taken
+    end.
+
 %% Report §8.2: stdin answers each ReadLine with the next line without its
 %% line feed, None at end of input. Line is the runtime's reader, which a
 %% test replaces.
 stdin_loop(Line) ->
     receive
         {'ReadLine', Reply} ->
+            own_terminal(lines),
             answer(Reply, case Line() of
                               eof -> 'None';
                               Text -> {'Some', chomp(Text)}
@@ -352,6 +370,7 @@ run_main(Main, Site) ->
 -spec run_main(fun(() -> term()), binary(), map()) -> ok | {fault, binary()} | deadlock.
 run_main(Main, Site, Opts) ->
     ets:new(?PROCESSES, [named_table, public, set]),
+    persistent_term:erase({?MODULE, terminal}),
     Run = make_ref(),
     persistent_term:put({?MODULE, launcher}, {erlang:self(), Run}),
     Reaper = erlang:spawn(fun() -> reaper_loop(#{}) end),
@@ -363,11 +382,13 @@ run_main(Main, Site, Opts) ->
     Line = maps:get(stdin, Opts, fun() -> io:get_line("") end),
     Stdin = erlang:spawn(fun() -> stdin_loop(Line) end),
     Fs = erlang:spawn(fun ern_fs:loop/0),
+    Keys = erlang:spawn(fun ern_keys:loop/0),
     Clock = erlang:spawn(fun() -> clock_loop(0) end),
     persistent_term:put({?MODULE, stdout}, Stdout),
     persistent_term:put({?MODULE, stderr}, Stderr),
     persistent_term:put({?MODULE, stdin}, Stdin),
     persistent_term:put({?MODULE, fs}, Fs),
+    persistent_term:put({?MODULE, keys}, Keys),
     persistent_term:put({?MODULE, clock}, Clock),
     init_stdlib(),
     Init = maps:get(init, Opts, fun() -> ok end),
@@ -375,7 +396,8 @@ run_main(Main, Site, Opts) ->
     Reaper ! {await, MainPid, erlang:self(), fun(Down) -> {main_down, Run, Down} end},
     Result = receive
                  {main_down, Run, {'Down', _, Reason}} -> Reason;
-                 {deadlock, Run} -> deadlock
+                 {deadlock, Run} -> deadlock;
+                 {terminal, Run, Text} -> {'Fault', Text}
              end,
     lists:foreach(fun({Pid, _, alive, _, _}) -> exit(Pid, {ernest, program_end});
                      (_) -> ok
@@ -386,7 +408,7 @@ run_main(Main, Site, Opts) ->
                       receive {FlushRef, flushed} -> ok end
                   end, [Stdout, Stderr]),
     %% each ended before the table goes, which the reaper reads
-    lists:foreach(fun stop/1, [Stdout, Stderr, Stdin, Fs, Clock, Reaper]),
+    lists:foreach(fun stop/1, [Stdout, Stderr, Stdin, Fs, Keys, Clock, Reaper]),
     ets:delete(?PROCESSES),
     flush_run(Run),
     case Result of

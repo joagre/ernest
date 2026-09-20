@@ -495,8 +495,8 @@ arity_of(_, Pos) -> fail(Pos, "a local function used as a value must have a func
 -spec refused([atom()]) -> boolean().
 refused(['Sys', N]) ->
     N =/= stdout andalso N =/= stderr andalso N =/= stdin andalso N =/= clock
-        andalso N =/= fs;
-refused([Ns | _]) -> Ns =:= 'Keys' orelse Ns =:= 'Tcp';
+        andalso N =/= fs andalso N =/= keys;
+refused([Ns | _]) -> Ns =:= 'Tcp';
 refused(_) -> false.
 
 mvp1(Pos, QName) ->
