@@ -22,7 +22,8 @@
 
 -export([send/2, spawn/3, self/0, via/2, call/3, call_forever/2, answer/2, monitor/2,
          kill/1, sys/1, run_main/2, run_main/3, fault/1, remote/1, parallel_remote/1,
-         todo/1, timed/0, untimed/0, in_foreign/1, init_stdlib/0, own_terminal/1]).
+         todo/1, timed/0, untimed/0, in_foreign/1, init_stdlib/0, own_terminal/1,
+         source_begin/0, source_end/0]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -63,14 +64,20 @@ self() ->
 
 -spec via(fun((term()) -> term()), address()) -> address().
 via(F, Target) ->
-    erlang:spawn(fun() ->
-                     Ref = erlang:monitor(process, Target),
-                     via_loop(F, Target, Ref)
-                 end).
+    Proxy = erlang:spawn(fun() ->
+                             Ref = erlang:monitor(process, Target),
+                             via_loop(F, Target, Ref)
+                         end),
+    %% report §8.6: a message on its way through a proxy is a message in
+    %% flight, so the proxy is one of the processes the detector reads
+    ets:insert(?PROCESSES, {Proxy, <<"via">>, alive, 0, 0}),
+    Proxy.
 
 via_loop(F, Target, Ref) ->
     receive
-        {'DOWN', Ref, process, Target, _} -> ok;
+        {'DOWN', Ref, process, Target, _} ->
+            catch ets:delete(?PROCESSES, erlang:self()),
+            ok;
         Msg ->
             Target ! F(Msg),
             via_loop(F, Target, Ref)
@@ -186,12 +193,13 @@ reaper_loop(Waiters) ->
 %% Report §8.6. Two snapshots of every live process's status and reduction
 %% count, equal, with every status waiting, prove that nothing ran between
 %% them and so no message is in flight; a timed receive, a foreign call in
-%% progress, or a pending clock alarm is a source that can still deliver.
+%% progress, and a source held by a system process are what can still
+%% deliver.
 deadlocked() ->
     Rows = [{Pid, T, F} || {Pid, _, alive, T, F} <- ets:tab2list(?PROCESSES)],
     Rows =/= []
         andalso lists:all(fun({_, T, F}) -> T =:= 0 andalso F =:= 0 end, Rows)
-        andalso clock_pending() =:= 0
+        andalso sources() =:= 0
         andalso begin
                     Pids = [Pid || {Pid, _, _} <- Rows],
                     First = snapshot(Pids),
@@ -205,13 +213,23 @@ snapshot(Pids) ->
          undefined -> {Pid, dead, 0}
      end || Pid <- Pids].
 
-clock_pending() ->
-    Ref = make_ref(),
-    persistent_term:get({?MODULE, clock}) ! {pending, erlang:self(), Ref},
-    receive
-        {Ref, N} -> N
-    after 1000 ->
-        1
+%% Report §8.6: what a system process holds that can still deliver, a
+%% timer, a subscription, or a read in progress. Each is counted while it
+%% is held, since a process that is inside a read cannot answer a question.
+-spec source_begin() -> ok.
+source_begin() ->
+    _ = catch ets:update_counter(?PROCESSES, sources, {2, 1}),
+    ok.
+
+-spec source_end() -> ok.
+source_end() ->
+    _ = catch ets:update_counter(?PROCESSES, sources, {2, -1}),
+    ok.
+
+sources() ->
+    case catch ets:lookup(?PROCESSES, sources) of
+        [{sources, N}] -> N;
+        _ -> 1
     end.
 
 %% A timed receive counts itself in before and out first in every body,
@@ -317,10 +335,13 @@ stdin_loop(Line) ->
     receive
         {'ReadLine', Reply} ->
             own_terminal(lines),
-            answer(Reply, case Line() of
-                              eof -> 'None';
-                              Text -> {'Some', chomp(Text)}
-                          end),
+            source_begin(),
+            Read = case Line() of
+                       eof -> 'None';
+                       Text -> {'Some', chomp(Text)}
+                   end,
+            answer(Reply, Read),
+            source_end(),
             stdin_loop(Line)
     end.
 
@@ -337,20 +358,20 @@ chomp(Text) ->
 clock_loop(Pending) ->
     receive
         {'After', Ms, To} ->
+            source_begin(),
             erlang:send_after(Ms, erlang:self(), {fire, To}),
             clock_loop(Pending + 1);
         {'At', At, To} ->
+            source_begin(),
             erlang:send_after(max(0, At - erlang:system_time(millisecond)), erlang:self(),
                               {fire, To}),
             clock_loop(Pending + 1);
         {fire, To} ->
             To ! ?UNIT,
+            source_end(),
             clock_loop(Pending - 1);
         {'Now', Reply} ->
             answer(Reply, erlang:system_time(millisecond)),
-            clock_loop(Pending);
-        {pending, From, Ref} ->
-            From ! {Ref, Pending},
             clock_loop(Pending)
     end.
 
@@ -370,6 +391,8 @@ run_main(Main, Site) ->
 -spec run_main(fun(() -> term()), binary(), map()) -> ok | {fault, binary()} | deadlock.
 run_main(Main, Site, Opts) ->
     ets:new(?PROCESSES, [named_table, public, set]),
+    %% report §8.6: the sources a system process holds, counted while held
+    ets:insert(?PROCESSES, {sources, 0}),
     persistent_term:erase({?MODULE, terminal}),
     Run = make_ref(),
     persistent_term:put({?MODULE, launcher}, {erlang:self(), Run}),

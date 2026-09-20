@@ -2958,6 +2958,18 @@ The game had one more flaw of its own: `Escape` removed the player and the loop 
 
 What is still not under test is the reading itself: the decoder, the pause, and the restore have tests, and putting a terminal under the suite waits for the shell, which needs the same harness for its own sessions.
 
+## What Can Still Deliver, 2026-09-20
+
+§8.6 says the runtime ends a program with `Deadlock` when no forward progress is possible, and names what proves otherwise: a timed receive, a foreign call in progress, and a system process holding a timer, a subscription, a pending I/O, or a computation. The detector counted only the clock's alarms, so three ways of waiting were read as deadlock.
+
+A program waiting for a line was the worst of them: the REPL at an idle prompt was killed with `Deadlock` after a tenth of a second, and the only reason no test caught it is that every test feeds its input at once. A program waiting for a key was the same. And a message on its way through a `via` proxy was invisible, since a proxy is a plain process the table does not hold: the clock had already forgotten the alarm, the receiving process had not yet been handed the message, and both snapshots showed everyone waiting. That one is a race, which is why it appeared once and not always.
+
+Counting replaces asking. A system process cannot answer a question while it is inside a read, which is exactly when the answer matters, so each source is counted in the table while it is held: the clock counts an alarm from `After` until it fires, `stdin` counts a line from the request until the answer, and `keys` counts the subscription from the moment the reader starts. The detector reads one number. The clock's own query and its thousand-millisecond fallback are gone with it.
+
+A `via` proxy now has a row in the table of processes, so a message inside one is a message in flight by the same rule as any other, and the proxy's status is read with everyone else's.
+
+The three have tests of their own, which the suite had no way to write before: a key and a line that arrive half a second after the detector first looks, and an alarm delivered through a proxy.
+
 ## Later
 
 Planned or considered, not in the language today.

@@ -173,6 +173,38 @@ host_exit_reason_test() ->
     after 2000 -> error(no_program_end)
     end.
 
+%% report §8.6: a subscription and a read in progress are sources that can
+%% still deliver, so a program waiting on one is not deadlocked
+sources_test() ->
+    %% a key that arrives long after the detector has looked several times
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Keys = ern_rt:sys(keys),
+                           ern_rt:send(Keys, {'Subscribe', ern_rt:self()}),
+                           erlang:spawn(fun() -> timer:sleep(500), Keys ! {chars, "x"} end),
+                           receive _ -> ok end
+                       end, <<"main">>, #{stdout => fun(_) -> ok end})),
+    %% a line that takes as long to arrive
+    Slow = fun() -> timer:sleep(500), "hello\n" end,
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Stdin = ern_rt:sys(stdin),
+                           {'Some', {'Some', <<"hello">>}} =
+                               ern_rt:call(Stdin, fun(R) -> {'ReadLine', R} end, 5000),
+                           ok
+                       end, <<"main">>, #{stdout => fun(_) -> ok end, stdin => Slow})).
+
+%% report §8.6: a message on its way through a via proxy is in flight, so
+%% the program that waits for it is not deadlocked
+via_in_flight_test() ->
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Clock = ern_rt:sys(clock),
+                           ern_rt:send(Clock, {'After', 400,
+                                               ern_rt:via(fun(_) -> tick end, ern_rt:self())}),
+                           receive tick -> ok end
+                       end, <<"main">>, #{stdout => fun(_) -> ok end})).
+
 wait(Tag) ->
     receive {Tag, V} -> V after 1000 -> timeout end.
 

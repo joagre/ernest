@@ -54,6 +54,8 @@ start_reader(undefined) ->
     case ern_rt:own_terminal(keys) of
         ok ->
             stty(["-icanon", "-echo", "min", "1", "time", "0"]),
+            %% report §8.6: a subscription is a source that can still deliver
+            ern_rt:source_begin(),
             erlang:spawn(fun() -> read_loop(Keys) end);
         taken ->
             %% the program is already ending with the fault (report §8.2)
