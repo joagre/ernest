@@ -11,7 +11,7 @@
 %% and `let p <- e` becomes a case (report §5.5).
 -module(ern_compiler).
 
--export([refused/1, compile/4, compile/5, forms/3, erl_source/3, read_interface/1, iface_hash/1,
+-export([compile/4, compile/5, forms/3, erl_source/3, read_interface/1, iface_hash/1,
          module_atom/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -458,7 +458,7 @@ var_ref(Pos, [], Name, T, #cx{vars = Vars, locals = Locals, tops = Tops} = Cx) -
                         #{{undefined, Name} := Arity} ->
                             {erl_syntax:implicit_fun(erl_syntax:atom(Name),
                                                      erl_syntax:integer(Arity)), Cx};
-                        _ -> {prelude_value(Pos, mvp1(Pos, [Name]), T, Cx), Cx}
+                        _ -> {prelude_value(Pos, [Name], T, Cx), Cx}
                     end
             end
     end;
@@ -475,7 +475,7 @@ var_ref(Pos, Path, Name, T, #cx{tops = Tops, env = Env} = Cx) ->
                    end;
                _ ->
                    case is_prelude(Path ++ [Name], Env) of
-                       true -> prelude_value(Pos, mvp1(Pos, Path ++ [Name]), T, Cx);
+                       true -> prelude_value(Pos, Path ++ [Name], T, Cx);
                        false ->
                            {M, F} = remote_name(Path, Name, Env),
                            case T of
@@ -492,19 +492,6 @@ arity_of(_, Pos) -> fail(Pos, "a local function used as a value must have a func
 %% The prelude names of plan MVP 2.5 step 4: the checker knows them so the
 %% paper programs type-check, and the compiler refuses them until the
 %% system processes behind them exist (README, "What the toolchain accepts").
--spec refused([atom()]) -> boolean().
-refused(['Sys', N]) ->
-    N =/= stdout andalso N =/= stderr andalso N =/= stdin andalso N =/= clock
-        andalso N =/= fs andalso N =/= keys;
-refused([Ns | _]) -> Ns =:= 'Tcp';
-refused(_) -> false.
-
-mvp1(Pos, QName) ->
-    case refused(QName) of
-        true -> fail(Pos, qname(QName) ++ " is not in this toolchain yet; it arrives in MVP 2.5");
-        false -> QName
-    end.
-
 %% A prelude or stdlib name: the prelude tables know it and no module does.
 is_prelude(QName, Env) ->
     ern_typecheck:lookup_type(QName, Env) =:= undefined andalso
@@ -550,7 +537,7 @@ call(Pos, #e_var{path = [], name = Name} = Callee, Args, Cx) ->
                         #{{undefined, Name} := Arity} when is_integer(Arity) ->
                             {at(Pos, erl_syntax:application(erl_syntax:atom(Name), ArgForms)), Cx1};
                         _ ->
-                            prelude_call(Pos, mvp1(Pos, [Name]), Args, ArgForms, Callee, Cx1)
+                            prelude_call(Pos, [Name], Args, ArgForms, Callee, Cx1)
                     end
             end
     end;
@@ -568,7 +555,7 @@ call(Pos, #e_var{path = Path, name = Name} = Callee, Args, Cx) ->
             {at(Pos, erl_syntax:application(erl_syntax:atom(fname(Owner, Name)), ArgForms)), Cx1};
         _ ->
             case is_prelude(Path ++ [Name], Env) of
-                true -> prelude_call(Pos, mvp1(Pos, Path ++ [Name]), Args, ArgForms, Callee, Cx1);
+                true -> prelude_call(Pos, Path ++ [Name], Args, ArgForms, Callee, Cx1);
                 false ->
                     {M, F} = remote_name(Path, Name, Env),
                     {at(Pos, call_remote(M, F, ArgForms)), Cx1}

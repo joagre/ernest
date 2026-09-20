@@ -2858,6 +2858,14 @@ The third door, and the one the plan called the risk of the step. `ern_keys` ans
 
 §8.2 said keys and lines are the same terminal and a program does one or the other, and said nothing about a program that does both; it now faults, `Fault("the terminal is already read as lines")` or `as keys`, whichever side asked first. The runtime decides it in one place, `ern_rt:own_terminal/1`, and reports it the way `Deadlock` is reported, since neither the stdin process nor the keys process can answer for the other. Which side wins a race between a subscription and a read is not fixed, and need not be: the program has broken the rule either way, and the fault names the side that holds the terminal.
 
+## `Tcp`, Measured, and the Refusals Gone, 2026-09-20
+
+The last door. `ern_tcp` is three kinds of process: the one behind `Sys.tcp`, which opens listeners and connections; a listener, which answers each `Accept` in a worker so a slow peer does not hold up the next; and a socket, which owns its port, buffers what arrives, answers a waiting `Recv` as soon as bytes come, and dies with the connection so a monitor learns. `stdlib/tcp.ern` is six functions over them.
+
+The measurement the plan asked for, `examples/echo.ern`: 2,000 round trips over loopback take 160 ms through socket processes against 90 ms in raw Erlang, so the design costs 35 microseconds a round trip, 1.8 times raw. The verdict is to keep the processes. The first run said 5,002 ms, 55 times raw, and the cause was worth the hour: the accepting worker handed the connection to the listener and then tried to hand it on to the socket process, which only an owner may do, so the second hand-off failed silently and the listener kept the port. Erlang's hidden ownership is exactly what §8.2's design exists to keep out of a program, and it bit the runtime that implements it.
+
+With `Tcp` open nothing is refused any more, so the machinery went with it, as the plan said it would: `ern_compiler:refused/1`, `mvp1/2`, their tests, and the README's row. What remains is the shell's own refusal, which names MVP 2.6. The prelude's tables lost `Tcp`, `Keys`, `Fs`, and a block of `List` entries that had been dead since `List` moved to Ernest and had stayed hidden because the mirror test compares a set.
+
 ## Later
 
 Planned or considered, not in the language today.

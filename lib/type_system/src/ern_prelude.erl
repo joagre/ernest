@@ -67,9 +67,7 @@ stdlib_types() ->
 process_only() ->
     [[send], [spawn], ['Address', call], ['Address', callForever], [answer], [monitor],
      [kill], [remote], [parallelRemote],
-     ['Clock', now], ['Clock', alarm], ['Clock', alarmAt], ['Keys', subscribe],
-     ['Tcp', listen], ['Tcp', accept],
-     ['Tcp', connect], ['Tcp', read], ['Tcp', write], ['Tcp', close]].
+     ['Clock', now], ['Clock', alarm], ['Clock', alarmAt]].
 
 %% Type variables that carry the equality constraint (report §3.10): Map
 %% keys, Set elements, and the List functions that compare elements.
@@ -131,36 +129,6 @@ values() ->
      {['Sys', tcp], "Address(TcpMsg)"},
      %% Appendix E.1 Io
      %% E.2 List
-     {['List', size], "(List(a)) -> Int"},
-     {['List', isEmpty], "(List(a)) -> Bool"},
-     {['List', get], "(List(a), Int) -> Optional(a)"},
-     {['List', last], "(List(a)) -> Optional(a)"},
-     {['List', reverse], "(List(a)) -> List(a)"},
-     {['List', take], "(List(a), Int) -> List(a)"},
-     {['List', drop], "(List(a), Int) -> List(a)"},
-     {['List', dropLast], "(List(a)) -> List(a)"},
-     {['List', contains], "(List(a), a) -> Bool"},
-     {['List', find], "(List(a), (a) -> Bool with e) -> Optional(a) with e"},
-     {['List', any], "(List(a), (a) -> Bool with e) -> Bool with e"},
-     {['List', all], "(List(a), (a) -> Bool with e) -> Bool with e"},
-     {['List', map], "(List(a), (a) -> b with e) -> List(b) with e"},
-     {['List', filter], "(List(a), (a) -> Bool with e) -> List(a) with e"},
-     {['List', filterMap], "(List(a), (a) -> Optional(b) with e) -> List(b) with e"},
-     {['List', foldLeft], "(List(a), b, (b, a) -> b with e) -> b with e"},
-     {['List', foreach], "(List(a), (a) -> Unit with e) -> Unit with e"},
-     {['List', span], "(List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e"},
-     {['List', partition], "(List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e"},
-     {['List', unique], "(List(a)) -> List(a)"},
-     {['List', indexed], "(List(a)) -> List(#(Int, a))"},
-     {['List', repeat], "(a, Int) -> List(a)"},
-     {['List', sort], "(List(a), (a, a) -> Ordering with e) -> List(a) with e"},
-     {['List', remove], "(List(a), a) -> List(a)"},
-     {['List', zip], "(List(a), List(b)) -> List(#(a, b))"},
-     {['List', unzip], "(List(#(a, b))) -> #(List(a), List(b))"},
-     {['List', flatMap], "(List(a), (a) -> List(b) with e) -> List(b) with e"},
-     {['List', range], "(Int, Int) -> List(Int)"},
-     {['List', tryMap], "(List(a), (a) -> Either(e, b) with x) -> Either(e, List(b)) with x"},
-     {['List', tryFold], "(List(a), b, (b, a) -> Either(e, b) with x) -> Either(e, b) with x"},
      %% E.3 Map
      %% E.4 Set
      %% E.5 String
@@ -175,15 +143,14 @@ values() ->
      %% E.14 Path
      %% E.15 Clock
      %% E.16 Keys
-     {['Keys', subscribe], "((Key) -> m) -> Unit with m"},
      %% E.17 Fs
      %% E.18 Tcp
-     {['Tcp', listen], "(Int) -> Either(IoError, Address(ListenerMsg)) with m"},
-     {['Tcp', accept], "(Address(ListenerMsg), Int) -> Either(IoError, Address(SockMsg)) with m"},
-     {['Tcp', connect], "(String, Int, Int) -> Either(IoError, Address(SockMsg)) with m"},
-     {['Tcp', read], "(Address(SockMsg), Int) -> Either(IoError, Bytes) with m"},
-     {['Tcp', write], "(Address(SockMsg), Bytes) -> Unit with m"},
-     {['Tcp', close], "(Address(SockMsg)) -> Unit with m"}].
+     %% E.19 Erl
+     %% E.20 Bytes
+     %% the modules of Appendix E are written in Ernest and read from their
+     %% compiled interfaces (ern_prelude:stdlib_ifaces/0); what stays here is
+     %% section 9 and what the toolchain has not built yet
+     {['Sys', tcp], "Address(TcpMsg)"}].
 
 %% The interfaces of the standard library modules written in Ernest: every
 %% ernest@*.beam in an ern_stdlib ebin directory on the code path that

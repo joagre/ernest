@@ -1,0 +1,67 @@
+/// TCP over `Sys.tcp`, the system process that opens sockets (report §8.2).
+/// A socket is a process: its address can be sent, monitored, killed, and
+/// adapted with `via` like any other, and it dies with the connection, so a
+/// program learns of a peer going away the way it learns of any process
+/// ending. There are no socket options; framing is bitstrings (report
+/// §5.11). The last argument of a function that waits is the milliseconds.
+///
+/// ## Examples
+///
+/// A listener, a connection to it, and one message each way:
+///
+/// ```ernest
+/// {
+///     let _ <- Tcp.listen(7000);
+///     let client <- Tcp.connect("127.0.0.1", 7000, 1000);
+///     Tcp.write(client, String.toUtf8("ping"));
+///     let answer = Tcp.read(client, 1000);
+///     Tcp.close(client);
+///     answer
+/// }
+/// ```
+///
+/// ## See also
+///
+/// `Bytes` for what a socket carries, `monitor` for learning that a
+/// connection ended.
+///
+/// since 0.1.0
+
+/// A listener on that port; port 0 asks the runtime for a free one.
+export fn listen(port : Int) -> Either(IoError, Address(ListenerMsg)) with m =
+    Address.callForever(Sys.tcp, fn(r) = Listen(port = port, reply = r))
+
+/// The next connection to the listener, or `Left(Timeout)` when none comes
+/// in time.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let listener <- Tcp.listen(7001);
+///     Tcp.accept(listener, 10)
+/// }
+/// ```
+export fn accept(listener : Address(ListenerMsg), ms : Int) ->
+        Either(IoError, Address(SockMsg)) with m =
+    answered(Address.call(listener, fn(r) = Accept(reply = r), ms))
+
+/// A connection to that host and port.
+export fn connect(host : String, port : Int, ms : Int) ->
+        Either(IoError, Address(SockMsg)) with m =
+    answered(Address.call(Sys.tcp, fn(r) = Connect(host = host, port = port, reply = r), ms))
+
+/// What has arrived, at least one octet, or `Left(Closed)` when the peer
+/// has closed, or `Left(Timeout)` when nothing comes in time.
+export fn read(socket : Address(SockMsg), ms : Int) -> Either(IoError, Bytes) with m =
+    answered(Address.call(socket, fn(r) = Recv(reply = r), ms))
+
+/// Writes the octets to the socket.
+export fn write(socket : Address(SockMsg), bytes : Bytes) -> Unit with m =
+    send(socket, Send(bytes))
+
+/// Closes the socket, which ends its process.
+export fn close(socket : Address(SockMsg)) -> Unit with m = send(socket, Close)
+
+fn answered(answer : Optional(Either(IoError, a))) -> Either(IoError, a) =
+    Optional.withDefault(answer, Left(Timeout))

@@ -1,0 +1,58 @@
+//
+// An echo server and a client that measures it: the server accepts one
+// connection at a time and writes back what it reads, the client sends a
+// message and waits for it to come back, and the program prints how long a
+// round trip takes. It is the measurement the plan asks of Tcp (report
+// Appendix E.18), where each socket is a process.
+//
+
+type Msg = Served(Down)
+
+export fn main() -> Unit with Msg = {
+    let port = 7345;
+    match Tcp.listen(port) {
+        Left(_) -> Io.printlnError("cannot listen")
+      | Right(listener) -> {
+            let server = spawn(Local, fn() = serve(listener));
+            monitor(server, Served);
+            match Tcp.connect("127.0.0.1", port, 1000) {
+                Left(_) -> Io.printlnError("cannot connect")
+              | Right(socket) -> {
+                    let rounds = 2000;
+                    let started = Clock.now();
+                    roundTrips(socket, rounds);
+                    let elapsed = Clock.now() - started;
+                    Tcp.close(socket);
+                    Io.println(Int.toString(rounds) <> " round trips in "
+                               <> Int.toString(elapsed) <> " ms")
+                }
+            }
+        }
+    }
+}
+
+fn roundTrips(socket : Address(SockMsg), left : Int) -> Unit with m =
+    if left <= 0 then
+        Unit
+    else {
+        Tcp.write(socket, String.toUtf8("ping"));
+        match Tcp.read(socket, 5000) {
+            Right(_) -> roundTrips(socket, left - 1)
+          | Left(_) -> Unit
+        }
+    }
+
+fn serve(listener : Address(ListenerMsg)) -> Unit with Never =
+    match Tcp.accept(listener, 5000) {
+        Right(socket) -> echo(socket)
+      | Left(_) -> Unit
+    }
+
+fn echo(socket : Address(SockMsg)) -> Unit with Never =
+    match Tcp.read(socket, 5000) {
+        Right(bytes) -> {
+            Tcp.write(socket, bytes);
+            echo(socket)
+        }
+      | Left(_) -> Unit
+    }

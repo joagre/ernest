@@ -42,11 +42,6 @@ collect(Acc) ->
         iolist_to_binary(lists:reverse(Acc))
     end.
 
-compile_error(Text) ->
-    {ok, Typed, Iface, Env} = ern_typecheck:check_string(['M'], Text),
-    {error, [#diag{message = Msg}]} = ern_compiler:compile(['M'], Typed, Iface, Env),
-    Msg.
-
 example(Base) ->
     {ok, Bin} = file:read_file("../../../examples/" ++ Base ++ ".ern"),
     {[list_to_atom(string:titlecase(Base))], Bin}.
@@ -958,19 +953,6 @@ clock_path_test() ->
         "}\n"),
     ?assertEqual(<<"true\na/b\n">>, Out).
 
-%% README, "What the toolchain accepts": the MVP 2.5 names type-check and the
-%% compiler refuses them
-refused_names_test() ->
-    ?assertEqual("Tcp.listen is not in this toolchain yet; it arrives in MVP 2.5",
-                 compile_error("export fn main() -> Unit with Never =\n"
-                               "    { let _ = Tcp.listen(1); Unit }\n")),
-    ?assertEqual("Tcp.connect is not in this toolchain yet; it arrives in MVP 2.5",
-                 compile_error("export fn main() -> Unit with Never ="
-                               " { let _ = Tcp.connect(\"h\", 1, 1); Unit }\n")),
-    ?assertEqual("Sys.tcp is not in this toolchain yet; it arrives in MVP 2.5",
-                 compile_error("export fn main() -> Unit with Never =\n"
-                               "    { let _ = Sys.tcp; Unit }\n")).
-
 %% report §8.5, §8.2: the Sys.* references are bound before the top-level
 %% lets are evaluated
 sys_in_let_test() ->
@@ -983,7 +965,6 @@ sys_in_let_test() ->
 %% arity of its type, so no accepted name can reach the runtime as undef
 prelude_targets_test() ->
     Missing = [Q || {Q, Text} <- ern_prelude:values(),
-                    not ern_compiler:refused(Q),
                     {M, F, A} <- [prelude_target(Q, Text)],
                     code:ensure_loaded(M) =/= {module, M} orelse
                         not erlang:function_exported(M, F, A)],

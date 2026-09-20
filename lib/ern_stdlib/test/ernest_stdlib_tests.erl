@@ -414,6 +414,27 @@ fs_test() ->
     ?assertEqual({'Left', 'NotFound'}, Gone),
     file:del_dir_r(Dir).
 
+%% report Appendix E.18, §8.2: a listener and a socket are processes, a
+%% write arrives at the peer's read, and a closed socket answers Left(Closed)
+tcp_test() ->
+    Me = self(),
+    T = 'ernest@tcp',
+    Result = ern_rt:run_main(
+               fun() ->
+                   {'Right', Listener} = T:listen(7411),
+                   {'Right', Client} = T:connect(<<"127.0.0.1">>, 7411, 1000),
+                   {'Right', Server} = T:accept(Listener, 1000),
+                   T:write(Client, <<"ping">>),
+                   Me ! {tcp, T:read(Server, 1000)},
+                   T:write(Server, <<"pong">>),
+                   Me ! {tcp, T:read(Client, 1000)},
+                   T:close(Client),
+                   Me ! {tcp, T:read(Server, 1000)}
+               end, <<"tcp_test">>, #{}),
+    ?assertEqual(ok, Result),
+    ?assertEqual([{'Right', <<"ping">>}, {'Right', <<"pong">>}, {'Left', 'Closed'}],
+                 collect(tcp, [])).
+
 %% report Appendix E.12, §3.8, §8.4
 foreign_test() ->
     F = 'ernest@foreign',

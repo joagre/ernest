@@ -512,7 +512,7 @@ mvp_refusals_in_readme_test() ->
                                    nomatch -> []
                                end
                            end || F <- Sources])),
-    ?assert(length(Texts) >= 2),
+    ?assert(length(Texts) >= 1),
     Missing = [T || T <- Texts, binary:match(Readme, binary:part(T, 0, min(40, byte_size(T))))
                                 =:= nomatch],
     ?assertEqual([], Missing).
