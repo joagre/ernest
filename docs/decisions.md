@@ -2840,6 +2840,12 @@ In the report: its revision line still said 19 September; §2.6's token list had
 
 The defects. `make xref` never read `docs/module_doc_template.md` or the `stdlib/*.ern` doc blocks, so their citations were unchecked; both are in its list now. The documentation harness compared the last line of a mixed stream, while a module's value goes to stdout and its own output may go to stderr, and the two are separate processes, so the comparison raced; it compares stdout's last line now. And the `rand` row still waited for "a float draw, when `Random` moves to Ernest", a trigger that had already fired: `Random.nextFloat` is in E.13, above 0.0 and below 1.0, which is what the runtime's generator gives.
 
+## `Sys.stdin` and `Io.readLine`, 2026-09-20
+
+The first door of step 4, and the smallest: a process that answers each `ReadLine` with the next line without its line feed and `None` at end of input, as §8.2 says, and `Io.readLine` in `stdlib/io.ern` as one `Address.callForever`. It retires the refusal that had stood since MVP 1, so the README's table loses `Sys.stdin` and `Io.readLine` and keeps `Keys`, `Fs`, and `Tcp`.
+
+The reader is a function the runtime holds, `io:get_line` in a program and a queue in a test, which is how the interface test reads three lines without a terminal. Writing it found the same defect twice over: the compiler named each system reference in its own clause, so `Sys.stderr` had compiled to a call on a module that does not exist until it was fixed by hand, and `Sys.stdin` would have done the same. The clause is one line now, `['Sys', Name]` to `ern_rt:sys(Name)`, and §9.7 is the list it follows.
+
 ## Later
 
 Planned or considered, not in the language today.

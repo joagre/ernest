@@ -66,7 +66,7 @@ stdlib_types() ->
 -spec process_only() -> [[atom()]].
 process_only() ->
     [[send], [spawn], ['Address', call], ['Address', callForever], [answer], [monitor],
-     [kill], [remote], [parallelRemote], ['Io', readLine],
+     [kill], [remote], [parallelRemote],
      ['Clock', now], ['Clock', alarm], ['Clock', alarmAt], ['Keys', subscribe],
      ['Fs', read], ['Fs', write], ['Fs', append], ['Fs', list], ['Fs', stat], ['Fs', makeDir],
      ['Fs', remove], ['Fs', rename], ['Fs', copy], ['Tcp', listen], ['Tcp', accept],
@@ -125,12 +125,12 @@ values() ->
      {['Sys', stdout], "Address(String)"},
      {['Sys', stderr], "Address(String)"},
      {['Sys', stdin], "Address(StdinMsg)"},
+     {['Sys', stdin], "Address(StdinMsg)"},
      {['Sys', keys], "Address(KeyMsg)"},
      {['Sys', clock], "Address(ClockMsg)"},
      {['Sys', fs], "Address(FsMsg)"},
      {['Sys', tcp], "Address(TcpMsg)"},
      %% Appendix E.1 Io
-     {['Io', readLine], "() -> Optional(String) with m"},
      %% E.2 List
      {['List', size], "(List(a)) -> Int"},
      {['List', isEmpty], "(List(a)) -> Bool"},

@@ -278,7 +278,7 @@ fault(Msg) ->
 %% Report §8.2, §9.7: system references
 %%
 
--spec sys(stdout | stderr | clock) -> address().
+-spec sys(stdout | stderr | stdin | clock) -> address().
 sys(Name) ->
     persistent_term:get({?MODULE, Name}).
 
@@ -291,6 +291,26 @@ stdout_loop(Out) ->
         Bin when is_binary(Bin) ->
             Out(Bin),
             stdout_loop(Out)
+    end.
+
+%% Report §8.2: stdin answers each ReadLine with the next line without its
+%% line feed, None at end of input. Line is the runtime's reader, which a
+%% test replaces.
+stdin_loop(Line) ->
+    receive
+        {'ReadLine', Reply} ->
+            answer(Reply, case Line() of
+                              eof -> 'None';
+                              Text -> {'Some', chomp(Text)}
+                          end),
+            stdin_loop(Line)
+    end.
+
+chomp(Text) ->
+    Bin = unicode:characters_to_binary(Text),
+    case binary:last(Bin) of
+        $\n -> binary:part(Bin, 0, byte_size(Bin) - 1);
+        _ -> Bin
     end.
 
 %% ClockMsg, report §9.3: After(ms, to), At(at, to), Now(reply). Alarms are
@@ -340,9 +360,12 @@ run_main(Main, Site, Opts) ->
     Err = maps:get(stderr, Opts, fun(Bin) -> io:put_chars(standard_error, Bin) end),
     Stdout = erlang:spawn(fun() -> stdout_loop(Out) end),
     Stderr = erlang:spawn(fun() -> stdout_loop(Err) end),
+    Line = maps:get(stdin, Opts, fun() -> io:get_line("") end),
+    Stdin = erlang:spawn(fun() -> stdin_loop(Line) end),
     Clock = erlang:spawn(fun() -> clock_loop(0) end),
     persistent_term:put({?MODULE, stdout}, Stdout),
     persistent_term:put({?MODULE, stderr}, Stderr),
+    persistent_term:put({?MODULE, stdin}, Stdin),
     persistent_term:put({?MODULE, clock}, Clock),
     init_stdlib(),
     Init = maps:get(init, Opts, fun() -> ok end),
@@ -361,7 +384,7 @@ run_main(Main, Site, Opts) ->
                       receive {FlushRef, flushed} -> ok end
                   end, [Stdout, Stderr]),
     %% each ended before the table goes, which the reaper reads
-    lists:foreach(fun stop/1, [Stdout, Stderr, Clock, Reaper]),
+    lists:foreach(fun stop/1, [Stdout, Stderr, Stdin, Clock, Reaper]),
     ets:delete(?PROCESSES),
     flush_run(Run),
     case Result of

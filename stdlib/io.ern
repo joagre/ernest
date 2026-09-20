@@ -53,6 +53,18 @@ export fn printError(s : String) -> Unit with m = send(Sys.stderr, s)
 /// The string to standard error, with a line feed after it.
 export fn printlnError(s : String) -> Unit with m = send(Sys.stderr, s <> "\n")
 
+/// The next line from standard input, without its line feed, or `None` at
+/// end of input. A program reads lines or subscribes to keys, not both
+/// (report §8.2).
+///
+/// ### Examples
+///
+/// ```ernest
+/// Io.readLine()
+/// ```
+export fn readLine() -> Optional(String) with m =
+    Address.callForever(Sys.stdin, fn(r) = ReadLine(reply = r))
+
 /// The value printed as Ernest writes it, by its type at the call, and
 /// returned, so it wraps an expression where it stands: `let n =
 /// Io.debug(f(x))`. Inside a generic function, where the type is a

@@ -347,6 +347,27 @@ io_test() ->
     ?assertEqual([<<"a">>, <<"b\n">>, <<"42\n">>], collect(out, [])),
     ?assertEqual([<<"c">>, <<"d\n">>], collect(err, [])).
 
+%% report Appendix E.1, §8.2: readLine gives the next line without its line
+%% feed, and None at end of input
+io_read_line_test() ->
+    Me = self(),
+    %% the reader runs in the stdin process, so the queue is shared
+    Tab = ets:new(lines, [public]),
+    ets:insert(Tab, {queue, ["one\n", "two"]}),
+    Lines = fun() ->
+                case ets:lookup(Tab, queue) of
+                    [{_, [L | Rest]}] -> ets:insert(Tab, {queue, Rest}), L;
+                    _ -> eof
+                end
+            end,
+    Result = ern_rt:run_main(fun() ->
+                                 Me ! {read, 'ernest@io':readLine()},
+                                 Me ! {read, 'ernest@io':readLine()},
+                                 Me ! {read, 'ernest@io':readLine()}
+                             end, <<"io_read_line_test">>, #{stdin => Lines}),
+    ?assertEqual(ok, Result),
+    ?assertEqual([{'Some', <<"one">>}, {'Some', <<"two">>}, 'None'], collect(read, [])).
+
 collect(Tag, Acc) ->
     receive {Tag, Bin} -> collect(Tag, [Bin | Acc])
     after 0 -> lists:reverse(Acc)
