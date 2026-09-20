@@ -16,7 +16,7 @@ The shell is an Ernest program. Its parts:
 
 ## Starting it
 
-`ern [--shell] [file.erc]`, report §11.2. The flag takes no argument, and with it the file is optional.
+`ern [--shell] [--source-root dir] [file.erc]`, report §11.2. The flag takes no argument, and with it the file is optional; `--source-root` says where `:load` finds a module's source, the working directory by default, as `ernc` defaults it.
 
 - **`ern --shell`** starts the runtime with the standard library and the load path, and nothing else running.
 - **`ern --shell file.erc`** loads the module and its dependencies, runs its entry point, and gives a prompt beside it, every loaded module in scope. The program's processes are the session's: `:processes` sees them, `:faults` reports their faults, and `:quit` ends them with `ProgramEnd` (§8.6).
@@ -40,7 +40,7 @@ The shell is an Ernest program. Its parts:
 - **A declaration or a `let` at the prompt binds for the inputs after it.**
 - **A `let` at the prompt generalizes as a top-level `let` does** (§4.6): after `let id = fn(x) = x`, both `id(1)` and `id("a")` check.
 - **A later declaration of a name is seen by later inputs.** A function or closure made before it keeps the one it was compiled against.
-- **The value of the last expression is bound to `it`.**
+- **The value of the last expression is bound to `it`.** It is the one binding a person did not write, and it does not breach principle 3: the principle asks that a top-level binding be visible where its name appears at the use site, and `it` is written at its use site. What is implicit is its making, not its use. `:bindings` lists it and `:help` says it.
 - **Bindings survive a fault and an interruption.** Only `:forget` removes them.
 - **A member of an abstract type is declared with the type.** Two inputs are two modules, and §4's ownership rule keeps a type's members in the module that owns it, so a later input cannot add one; the type and its members are declared in one input or loaded from a file.
 - **`self()` names the input's own process**, which ends with the input. An address bound to it reaches no one on a later input; a message is received inside the input that expects it.
@@ -75,8 +75,8 @@ GNU Readline's Emacs bindings.
 
 - **Moving:** `C-a`, `C-e` to the start and end of the line; `C-b`, `C-f` a character; `M-b`, `M-f` a word; the arrow keys.
 - **Deleting:** `Backspace` and `C-h` back, `C-d` forward; on an empty line `C-d` quits.
-- **Killing:** `C-k` to the end of the line, `C-u` to the start, `C-w` and `M-Backspace` the word before, `M-d` the word after. A kill goes to the kill ring; `C-y` yanks the last, `M-y` cycles.
-- **Transposing and case:** `C-t` two characters, `M-t` two words; `M-u`, `M-l`, `M-c` upcase, downcase, capitalize a word.
+- **Killing:** `C-k` to the end of the line, `C-u` to the start, `C-w` and `M-Backspace` the word before, `M-d` the word after; `C-y` yanks the last kill.
+- **Later, each a day's work once the editor stands:** the kill ring with `M-y` cycling, `C-t` and `M-t` transposing characters and words, and `M-u`, `M-l`, `M-c` for case. They are left out of the checkpoint because each needs its own key-stream tests and none of them is why a person tries a language; a reader who has them everywhere else will miss them, which is the argument for the day.
 - **History:** `C-p`, `C-n`, up and down step through earlier inputs; `M-<` and `M->` go to the first and the current; `C-r` searches back incrementally, `C-s` forward, `C-g` abandons the search. The history is kept per user, in `$HOME/.ernest/history`, as a person expects when they type the same thing in two projects; with `HOME` unset nothing is saved and the shell says so once. It is not in the configuration directory, which §11.3 gives a job of its own, the node's address and its keys.
 - **Suggestion:** the most recent earlier input that begins with the text typed is shown greyed after the cursor; the right arrow, or `C-e` at the end of the line, accepts it.
 - **Adding a line:** `M-Enter`, when the input parses complete and is not.
@@ -92,7 +92,7 @@ GNU Readline's Emacs bindings.
   - in an expression, the bindings, the modules on the load path, and their values and constructors;
   - after `:` in a type annotation, types;
   - inside a named constructor, in construction, update (`Player(..p, `), or pattern, its remaining fields;
-  - at the start of an input, after `:`, a command; after a command, its argument: names for `:type` and `:doc`, modules for `:browse` and `:reload`, file paths for `:load`, the bindings for `:forget`, `depth`, `length`, and `timing` for `:set`.
+  - at the start of an input, after `:`, a command; after a command, its argument: names for `:type` and `:doc`, modules for `:browse` and `:load`, the bindings for `:forget`, `depth`, `length`, and `timing` for `:set`.
 - **Reserved words and operators do not complete.**
 - **Completion reads the compiled interfaces**, held in memory once read.
 - **`Shift-Tab` shows documentation.** On a name: its type, its first sentence, and its `Since`; a second `Shift-Tab`, the section `:doc` prints. Inside a call: the signature with its parameters as declared, `circle(centre : Point, radius : Int) -> Shape`, the parameter at the cursor marked.
@@ -108,8 +108,8 @@ A command is `:` and a name; it is not an Ernest function. Any prefix of a name 
 
 - **`:type e`**: the type of `e`, which is not run.
 - **`:browse Module`**: the exports of `Module` with their types.
-- **`:load file`**: the file's declarations, as if typed at the prompt.
-- **`:reload Module`**: recompiles and reloads `Module`; without a name, every loaded module whose source changed since it was loaded. The new code is the code: every call made after the reload reaches it. A closure made from the code before it keeps that code while the previous version is still loaded, and a second reload of the same module drops the version, so calling such a closure faults with the text saying its code was replaced. It is the host's rule, which the toolchain rests on, and a reader who knows the host predicts it; `:reload` says how many bindings hold code from the previous version, so the next reload does not surprise anyone.
+- **`:load Module`**: the module by its namespace, never a path, as the host's shell takes a module name. Its source is found under the shell's source root, the working directory unless `--source-root` says otherwise, which is `ernc`'s own rule; it is compiled as `ernc` would compile it and loaded, and a module with no source there, the standard library's or a library's, is loaded from its compiled form. Afterwards it is in scope by its qualified name, like anything else on the load path.
+- **`:reload`**: every loaded module whose source is newer than what was loaded, as `:load` would take each. It takes no name, since `:load Module` is that already and two names for one job is one too many. The new code is the code: every call made after it reaches it. A closure made from the code before it keeps that code while the previous version is still loaded, and a second reload of the same module drops the version, so calling such a closure faults with the text saying its code was replaced. It is the host's rule, which the toolchain rests on, and a reader who knows the host predicts it; `:reload` says how many bindings hold code from the previous version, so the next reload does not surprise anyone.
 - **`:quit`**: quits.
 - **`:doc Name`**: the documentation of `Name`, as `ernc --doc` renders it (§11.4), the declaration included.
 - **`:help`**: the commands and their prefixes; it says that `:doc` is what GHCi calls `:info`.
@@ -133,6 +133,7 @@ A program is started by calling it; there is no command for it. A module meant f
 - **Commands for records and registered names:** Ernest has neither.
 - **A second lookup command beside `:doc`, and a kinds command:** `:doc` shows the declaration, and Ernest exposes no kinds.
 - **Commands for the file system and the terminal:** `Fs` does this in the language.
+- **Declarations read from a file into the session:** `:load` takes a module and makes it reachable by its qualified name, as every module is (§4.2). Ernest has no imports, so names arriving unqualified from a file would have been the one place they did; a module's private declarations are not reachable from the prompt, as they are not from anywhere else.
 - **Running a terminal program from the prompt:** the shell holds the terminal, so a program that reads keys or lines is run with `ern` instead. The fault says so.
 - **Custom printers:** a value has one rendering.
 - **User-defined commands, system commands, job control, a step debugger, and watch expressions.**
@@ -212,5 +213,5 @@ The plan's item stops at each; each is a shell a user can try.
 
 0. **Expressions only.** The foreign interface; an input checked against the load path, compiled, run in a process, its value and type printed; faults, errors, quitting. No bindings, so no incremental checking: a calculator over the whole standard library, and the loop and the terminal harness proved end to end before the hard part begins.
 1. **Bindings.** Every input checked against the accumulated environment; `it`, timing, fault reports from spawned processes, the startup file, the commands; the session golden tests.
-2. **The line editor.** The bindings above, history, the suggestion, interruption, redrawing after other output, bracketed paste, the prompts, colour; the key-stream tests.
+2. **The line editor.** Moving, deleting, killing with a single yank, history and its search, the suggestion, interruption, redrawing after other output, bracketed paste, the prompts, colour; the key-stream tests. What "Line editing" marks later is later.
 3. **Completion and documentation.** `Tab`, `Shift-Tab`, command arguments.
