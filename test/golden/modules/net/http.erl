@@ -1,4 +1,4 @@
--module(ernest@net@http).
+-module(ern@net@http).
 
 -export([parse/1]).
 

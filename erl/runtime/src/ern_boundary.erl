@@ -91,7 +91,7 @@ chk({map, K, D}, V, B) ->
                                     Ok andalso chk(K, Key, B) andalso chk(D, Val, B)
                                 end, true, V);
 chk({set, D}, {set, V}, B) ->
-    %% a version 2 set is a map from element to [], tagged (ernest@set)
+    %% a version 2 set is a map from element to [], tagged (ern@set)
     is_map(V) andalso maps:fold(fun(E, Val, Ok) -> Ok andalso Val =:= [] andalso chk(D, E, B)
                                 end, true, V);
 chk({set, _}, _, _) ->

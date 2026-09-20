@@ -1,23 +1,23 @@
--module(ernest@kvparser).
+-module(ern@kvparser).
 
 -export([main/0]).
 
 main() ->
-    ernest@list:foreach([<<"a=12">>,
-                         <<"=1">>,
-                         <<"a">>,
-                         <<"a=x">>],
-                        fun (S_1) -> ernest@io:println(show(parse(S_1))) end).
+    ern@list:foreach([<<"a=12">>,
+                      <<"=1">>,
+                      <<"a">>,
+                      <<"a=x">>],
+                     fun (S_1) -> ern@io:println(show(parse(S_1))) end).
 
 show(R_2) ->
     case R_2 of
         {'Right', {K_3, V_4}} ->
-            <<K_3/binary, " ", (ernest@int:toString(V_4))/binary>>;
+            <<K_3/binary, " ", (ern@int:toString(V_4))/binary>>;
         {'Left', E_5} -> E_5
     end.
 
 parse(S_6) ->
-    case keyOf(ernest@string:toList(S_6)) of
+    case keyOf(ern@string:toList(S_6)) of
         {'Left', E_13} -> {'Left', E_13};
         {'Right', {Key_7, Rest_8}} ->
             case expectEq(Rest_8, S_6) of
@@ -31,14 +31,13 @@ parse(S_6) ->
     end.
 
 keyOf(Cs_14) ->
-    {K_15, Rest_16} = ernest@list:span(Cs_14,
-                                       fun ernest@char:isAlpha/1),
-    case not ernest@list:isEmpty(K_15) of
-        true ->
-            {'Right', {ernest@string:fromList(K_15), Rest_16}};
+    {K_15, Rest_16} = ern@list:span(Cs_14,
+                                    fun ern@char:isAlpha/1),
+    case not ern@list:isEmpty(K_15) of
+        true -> {'Right', {ern@string:fromList(K_15), Rest_16}};
         false ->
             {'Left',
-             <<"bad key: ", (ernest@string:fromList(Cs_14))/binary>>}
+             <<"bad key: ", (ern@string:fromList(Cs_14))/binary>>}
     end.
 
 expectEq(Cs_17, S_18) ->
@@ -48,8 +47,7 @@ expectEq(Cs_17, S_18) ->
     end.
 
 number(Cs_20, S_21) ->
-    case ernest@string:toInt(ernest@string:fromList(Cs_20))
-        of
+    case ern@string:toInt(ern@string:fromList(Cs_20)) of
         {'Some', N_22} -> {'Right', N_22};
         'None' -> {'Left', <<"bad number: ", S_21/binary>>}
     end.

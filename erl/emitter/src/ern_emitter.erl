@@ -140,11 +140,11 @@ read_interface(Beam) ->
 iface_hash(Iface) ->
     crypto:hash(sha256, term_to_binary(canonical_iface(Iface, strip))).
 
-%% Report §4.2, plan 2.4: the path with @ for / and the prefix ernest@.
+%% Report §4.2, plan 2.4: the path with @ for / and the prefix ern@.
 -spec module_atom([atom()]) -> atom().
 module_atom(Ns) ->
-    list_to_atom(lists:flatten(["ernest" | ["@" ++ string:lowercase(atom_to_list(P))
-                                            || P <- Ns]])).
+    list_to_atom(lists:flatten(["ern" | ["@" ++ string:lowercase(atom_to_list(P))
+                                         || P <- Ns]])).
 
 erl_errors(PerFile) ->
     [#diag{span = {line_of(Anno), 1, {line_of(Anno), 1}},

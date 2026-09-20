@@ -19,7 +19,7 @@ stdlib:
 	@bin/ernc --out-dir build/stdlib stdlib
 	@touch build/stdlib/.built
 	@for f in build/stdlib/*.erc; do \
-	  cp $$f build/stdlib/ernest@$$(basename $$f .erc).beam; done
+	  cp $$f build/stdlib/ern@$$(basename $$f .erc).beam; done
 
 # The standard library's pages, one per module beside its .erc in
 # build/stdlib, and index.md listing them (report §11.4).

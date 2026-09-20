@@ -386,7 +386,7 @@ emit_erl_test() ->
     Dir = pair(tmp()),
     ?assertEqual(0, ern_cli:ernc(["--emit", "erl", "--out-dir", Dir ++ "/build", Dir ++ "/src"])),
     {ok, Src} = file:read_file(Dir ++ "/build/net/http.erl"),
-    ?assertMatch({_, _}, binary:match(Src, <<"-module(ernest@net@http).">>)),
+    ?assertMatch({_, _}, binary:match(Src, <<"-module(ern@net@http).">>)),
     ?assertNot(filelib:is_regular(Dir ++ "/build/net/http.erc")),
     ?assertEqual(1, ern_cli:ernc(["--emit", "asm", Dir ++ "/src"])).
 

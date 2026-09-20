@@ -268,7 +268,7 @@ stdlib_targets_test() ->
     ?assertNotEqual([], ern_prelude:stdlib_ifaces()).
 
 module_atom(Ns) ->
-    list_to_atom("ernest@" ++ string:lowercase(lists:join("@", [atom_to_list(A) || A <- Ns]))).
+    list_to_atom("ern@" ++ string:lowercase(lists:join("@", [atom_to_list(A) || A <- Ns]))).
 
 arity(Scheme) ->
     case element(3, Scheme) of

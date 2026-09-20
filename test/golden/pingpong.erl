@@ -1,4 +1,4 @@
--module(ernest@pingpong).
+-module(ern@pingpong).
 
 -export([main/0]).
 
@@ -17,8 +17,8 @@ ping(PongAddr_3, N_4) ->
     case N_4 =:= 0 of
         true -> ern_rt:send(PongAddr_3, 'Stop');
         false ->
-            ernest@io:println(<<"ping ",
-                                (ernest@int:toString(N_4))/binary>>),
+            ern@io:println(<<"ping ",
+                             (ern@int:toString(N_4))/binary>>),
             case ern_boundary:value('$type_1'(),
                                     ern_rt:call(PongAddr_3,
                                                 fun (R_5) -> {'Ping', N_4, R_5}
@@ -28,7 +28,7 @@ ping(PongAddr_3, N_4) ->
                 of
                 {'Some', _} -> ping(PongAddr_3, N_4 - 1);
                 'None' ->
-                    ernest@io:println(<<"pong is not answering">>),
+                    ern@io:println(<<"pong is not answering">>),
                     ern_rt:send(PongAddr_3, 'Stop')
             end
     end.
@@ -36,8 +36,8 @@ ping(PongAddr_3, N_4) ->
 pong() ->
     receive
         {'Ping', N_6, R_7} ->
-            ernest@io:println(<<"pong ",
-                                (ernest@int:toString(N_6))/binary>>),
+            ern@io:println(<<"pong ",
+                             (ern@int:toString(N_6))/binary>>),
             ern_rt:answer(R_7, N_6),
             pong();
         'Stop' -> 'Unit'

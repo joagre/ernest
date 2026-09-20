@@ -790,7 +790,7 @@ run_entry(Opts, Ns, Roots, Loaded, Err) ->
     end.
 
 entry_ns(Mod) ->
-    "ernest@" ++ Path = atom_to_list(Mod),
+    "ern@" ++ Path = atom_to_list(Mod),
     namespace(string:split(Path, "@", all)).
 
 %% Load a module and, first, its dependencies, each once; the result lists

@@ -196,7 +196,7 @@ iface_chunk_test() ->
     {Ns, Bin} = example("stack"),
     {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Bin),
     Build = #{source_hash => <<"s">>, deps => [{['Net', 'Http'], <<"h">>}]},
-    {ok, 'ernest@stack', Beam} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
+    {ok, 'ern@stack', Beam} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
     {ok, #{iface := Read, source_hash := <<"s">>, deps := [{['Net', 'Http'], <<"h">>}]}} =
         ern_emitter:read_interface(Beam),
     ?assertEqual(['Stack'], Read#iface.namespace),
@@ -226,12 +226,12 @@ erl_source_test() ->
     {Ns, Bin} = example("hello"),
     {ok, Typed, _, Env} = ern_typecheck:check_string(Ns, Bin),
     Src = unicode:characters_to_binary(ern_emitter:erl_source(Ns, Typed, Env)),
-    ?assertMatch({_, _}, binary:match(Src, <<"-module(ernest@hello).">>)).
+    ?assertMatch({_, _}, binary:match(Src, <<"-module(ern@hello).">>)).
 
-%% plan 2.4: the module atom is ernest@ and the path with @ for /
+%% plan 2.4: the module atom is ern@ and the path with @ for /
 module_atom_test() ->
-    ?assertEqual('ernest@counter', ern_emitter:module_atom(['Counter'])),
-    ?assertEqual('ernest@net@http', ern_emitter:module_atom(['Net', 'Http'])).
+    ?assertEqual('ern@counter', ern_emitter:module_atom(['Counter'])),
+    ?assertEqual('ern@net@http', ern_emitter:module_atom(['Net', 'Http'])).
 
 %%
 %% Blocks, bindings, and local functions

@@ -1,12 +1,12 @@
 %% The stdlib modules of Appendix E, one test per module, and the
 %% operations of report §9.6 that live in them.
--module(ernest_stdlib_tests).
+-module(ern_stdlib_tests).
 
 -include_lib("eunit/include/eunit.hrl").
 
 %% report Appendix E.2
 list_test() ->
-    L = 'ernest@list',
+    L = 'ern@list',
     ?assertEqual(3, L:size([1, 2, 3])),
     ?assertEqual(true, L:isEmpty([])),
     ?assertEqual({'Some', 2}, L:last([1, 2])),
@@ -48,14 +48,14 @@ list_test() ->
     ?assertEqual({'Left', big}, L:tryFold([1, 2, 3], 0, Bounded)),
     ?assertEqual(<<"ab">>, L:foldRight([<<"a">>, <<"b">>], <<>>,
                                        fun(X, Acc) -> <<X/binary, Acc/binary>> end)),
-    ?assertEqual([1, 2, 3], L:sort([3, 1, 2], fun 'ernest@int':compare/2)),
+    ?assertEqual([1, 2, 3], L:sort([3, 1, 2], fun 'ern@int':compare/2)),
     %% report Appendix E.2: sort is stable, and orders a long list as
     %% Erlang's does
-    ByFirst = fun({A, _}, {B, _}) -> 'ernest@int':compare(A, B) end,
+    ByFirst = fun({A, _}, {B, _}) -> 'ern@int':compare(A, B) end,
     ?assertEqual([{1, a}, {1, b}, {2, c}],
                  L:sort([{1, a}, {2, c}, {1, b}], ByFirst)),
     Many = [(N * 7919) rem 1009 || N <- lists:seq(1, 2000)],
-    ?assertEqual(lists:sort(Many), L:sort(Many, fun 'ernest@int':compare/2)),
+    ?assertEqual(lists:sort(Many), L:sort(Many, fun 'ern@int':compare/2)),
     ?assertEqual([1, 3, 2], L:remove([1, 2, 3, 2], 2)),
     ?assertEqual([{1, a}, {2, b}], L:zip([1, 2, 3], [a, b])),
     ?assertEqual([1, 1, 2, 2], L:flatMap([1, 2], fun(X) -> [X, X] end)),
@@ -66,7 +66,7 @@ list_test() ->
 map_test() ->
     %% report §8.5: Map.empty is a top-level let, evaluated at program start
     ern_rt:init_stdlib(),
-    M = 'ernest@map',
+    M = 'ern@map',
     E = M:empty(),
     ?assertEqual(true, M:isEmpty(E)),
     M1 = M:put(M:put(E, a, 1), b, 2),
@@ -98,7 +98,7 @@ map_test() ->
 %% report Appendix E.4, §3.10
 set_test() ->
     ern_rt:init_stdlib(),
-    S = 'ernest@set',
+    S = 'ern@set',
     ?assertEqual(true, S:isEmpty(S:empty())),
     S1 = S:put(S:put(S:put(S:empty(), 1), 2), 2),
     ?assertEqual(2, S:size(S1)),
@@ -122,7 +122,7 @@ set_test() ->
 
 %% report Appendix E.5, §9.6
 string_test() ->
-    S = 'ernest@string',
+    S = 'ern@string',
     ?assertEqual(2, S:size(<<"hé"/utf8>>)),
     ?assertEqual(true, S:isEmpty(<<>>)),
     ?assertEqual(true, S:contains(<<"hello">>, <<"ell">>)),
@@ -182,7 +182,7 @@ string_test() ->
 
 %% report Appendix E.6, §9.6
 char_test() ->
-    C = 'ernest@char',
+    C = 'ern@char',
     ?assertEqual(true, C:isDigit($7)),
     ?assertEqual(true, C:isDigit(16#663)),
     ?assertEqual(false, C:isDigit($a)),
@@ -216,7 +216,7 @@ char_test() ->
 %% report Appendix E.7
 %% report Appendix E.20
 bytes_test() ->
-    B = 'ernest@bytes',
+    B = 'ern@bytes',
     ?assertEqual(3, B:size(<<1, 2, 3>>)),
     ?assertEqual(true, B:isEmpty(<<>>)),
     ?assertEqual({'Some', 8}, B:get(<<7, 8>>, 1)),
@@ -232,15 +232,15 @@ bytes_test() ->
 
 %% report Appendix E.19
 erl_test() ->
-    ?assertEqual(ready, 'ernest@erl':atom(<<"ready">>)).
+    ?assertEqual(ready, 'ern@erl':atom(<<"ready">>)).
 
 bool_test() ->
-    ?assertEqual(false, 'ernest@bool':'not'(true)),
-    ?assertEqual(<<"true">>, 'ernest@bool':toString(true)).
+    ?assertEqual(false, 'ern@bool':'not'(true)),
+    ?assertEqual(<<"true">>, 'ern@bool':toString(true)).
 
 %% report Appendix E.8, §3.1, §7.4, §9.6
 int_test() ->
-    I = 'ernest@int',
+    I = 'ern@int',
     ?assertEqual(3, I:abs(-3)),
     ?assertEqual(1, I:min(1, 2)),
     ?assertEqual(2, I:max(1, 2)),
@@ -268,7 +268,7 @@ int_test() ->
 
 %% report Appendix E.9, §3.1, §7.4, §9.6
 float_test() ->
-    F = 'ernest@float',
+    F = 'ern@float',
     ?assertEqual(3.5, F:'+'(F:'*'(1.5, 2.0), 0.5)),
     ?assertEqual(-1.0, F:'-'(1.0, 2.0)),
     ?assertEqual(0.5, F:'/'(1.0, 2.0)),
@@ -305,7 +305,7 @@ float_test() ->
 
 %% report Appendix E.10
 optional_test() ->
-    O = 'ernest@optional',
+    O = 'ern@optional',
     ?assertEqual(true, O:isSome({'Some', 1})),
     ?assertEqual(true, O:isNone('None')),
     ?assertEqual({'Some', 2}, O:orElse('None', {'Some', 2})),
@@ -317,7 +317,7 @@ optional_test() ->
 
 %% report Appendix E.11
 either_test() ->
-    E = 'ernest@either',
+    E = 'ern@either',
     ?assertEqual(true, E:isLeft({'Left', e})),
     ?assertEqual(true, E:isRight({'Right', 1})),
     ?assertEqual({'Right', 2}, E:orElse({'Left', e}, {'Right', 2})),
@@ -336,11 +336,11 @@ io_test() ->
     Me = self(),
     Sink = fun(Tag) -> fun(Bin) -> Me ! {Tag, Bin} end end,
     Result = ern_rt:run_main(fun() ->
-                                 'ernest@io':print(<<"a">>),
-                                 'ernest@io':println(<<"b">>),
-                                 'ernest@io':printError(<<"c">>),
-                                 'ernest@io':printlnError(<<"d">>),
-                                 'ernest@io':debug(42)
+                                 'ern@io':print(<<"a">>),
+                                 'ern@io':println(<<"b">>),
+                                 'ern@io':printError(<<"c">>),
+                                 'ern@io':printlnError(<<"d">>),
+                                 'ern@io':debug(42)
                              end, <<"io_test">>,
                              #{stdout => Sink(out), stderr => Sink(err)}),
     ?assertEqual(ok, Result),
@@ -361,9 +361,9 @@ io_read_line_test() ->
                 end
             end,
     Result = ern_rt:run_main(fun() ->
-                                 Me ! {read, 'ernest@io':readLine()},
-                                 Me ! {read, 'ernest@io':readLine()},
-                                 Me ! {read, 'ernest@io':readLine()}
+                                 Me ! {read, 'ern@io':readLine()},
+                                 Me ! {read, 'ern@io':readLine()},
+                                 Me ! {read, 'ern@io':readLine()}
                              end, <<"io_read_line_test">>, #{stdin => Lines}),
     ?assertEqual(ok, Result),
     ?assertEqual([{'Some', <<"one">>}, {'Some', <<"two">>}, 'None'], collect(read, [])).
@@ -380,7 +380,7 @@ fs_test() ->
     Dir = filename:join("/tmp", "ern_fs_" ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = filelib:ensure_path(Dir),
     P = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
-    F = 'ernest@fs',
+    F = 'ern@fs',
     Result = ern_rt:run_main(
                fun() ->
                    Me ! {fs, F:write(P("a.txt"), <<"hello">>, 5000)},
@@ -418,7 +418,7 @@ fs_test() ->
 %% write arrives at the peer's read, and a closed socket answers Left(Closed)
 tcp_test() ->
     Me = self(),
-    T = 'ernest@tcp',
+    T = 'ern@tcp',
     Result = ern_rt:run_main(
                fun() ->
                    {'Right', Listener} = T:listen(7411),
@@ -438,7 +438,7 @@ tcp_test() ->
 %% report Appendix E.21, Appendix D: a table of the runtime, its entries
 %% and its life
 ets_test() ->
-    E = 'ernest@ets',
+    E = 'ern@ets',
     Me = self(),
     Result = ern_rt:run_main(
                fun() ->
@@ -463,7 +463,7 @@ ets_test() ->
 
 %% report Appendix E.12, §3.8, §8.4
 foreign_test() ->
-    F = 'ernest@foreign',
+    F = 'ern@foreign',
     ?assertEqual(42, F:from(42)),
     ?assertEqual({'Some', 0.0}, F:toFloat(-0.0)),
     ?assertEqual({'Some', 3}, F:toInt(3)),
@@ -481,7 +481,7 @@ foreign_test() ->
 %% report Appendix E.13: the same seed gives the same sequence, every draw
 %% is within the bounds on either side of zero, and the seed moves
 random_test() ->
-    R = 'ernest@random',
+    R = 'ern@random',
     Draw = fun Draw(_, _, 0) -> [];
                Draw(S, B, N) -> {X, S1} = R:next(S, B), [X | Draw(S1, B, N - 1)] end,
     Xs = Draw(R:seed(42), 5, 200),
@@ -496,7 +496,7 @@ random_test() ->
 
 %% report Appendix E.14, §9.3
 path_test() ->
-    P = 'ernest@path',
+    P = 'ern@path',
     ?assertEqual({'Path', <<"a/b">>}, P:join({'Path', <<"a">>}, {'Path', <<"b">>})),
     ?assertEqual({'Path', <<"a/b">>}, P:join({'Path', <<"a/">>}, {'Path', <<"b">>})),
     ?assertEqual({'Path', <<"/b">>}, P:join({'Path', <<"a">>}, {'Path', <<"/b">>})),

@@ -1,4 +1,4 @@
--module(ernest@counter).
+-module(ern@counter).
 
 -export([main/0]).
 
@@ -15,10 +15,9 @@ main() ->
                             <<"reply does not match Optional(Int)">>)
         of
         {'Some', N_3} ->
-            ernest@io:println(<<"count is ",
-                                (ernest@int:toString(N_3))/binary>>);
-        'None' ->
-            ernest@io:println(<<"counter is not answering">>)
+            ern@io:println(<<"count is ",
+                             (ern@int:toString(N_3))/binary>>);
+        'None' -> ern@io:println(<<"counter is not answering">>)
     end.
 
 counter(N_4) ->

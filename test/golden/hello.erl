@@ -1,5 +1,5 @@
--module(ernest@hello).
+-module(ern@hello).
 
 -export([main/0]).
 
-main() -> ernest@io:println(<<"hello, world">>).
+main() -> ern@io:println(<<"hello, world">>).

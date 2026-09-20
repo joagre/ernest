@@ -1,20 +1,19 @@
--module(ernest@patterns).
+-module(ern@patterns).
 
 -export([main/0]).
 
 main() ->
-    ernest@io:println(sign(-1)),
-    ernest@io:println(sign(0)),
-    ernest@io:println(sign(7)),
-    ernest@io:println(describe({'Some',
-                                {'Snapshot', <<"a">>, 2}})),
-    ernest@io:println(describe('None')),
-    ernest@io:println(ernest@int:toString(negate(3))),
-    ernest@io:println(ernest@int:toString(ernest@list:size(whole([1,
-                                                                  2,
-                                                                  3])))),
-    ernest@io:println(ernest@int:toString(side({'Square',
-                                                4}))).
+    ern@io:println(sign(-1)),
+    ern@io:println(sign(0)),
+    ern@io:println(sign(7)),
+    ern@io:println(describe({'Some',
+                             {'Snapshot', <<"a">>, 2}})),
+    ern@io:println(describe('None')),
+    ern@io:println(ern@int:toString(negate(3))),
+    ern@io:println(ern@int:toString(ern@list:size(whole([1,
+                                                         2,
+                                                         3])))),
+    ern@io:println(ern@int:toString(side({'Square', 4}))).
 
 sign(N_1) ->
     case N_1 of
@@ -27,7 +26,7 @@ describe(O_2) ->
     case O_2 of
         {'Some', Snap_4 = {'Snapshot', D_3, _}} ->
             <<D_3/binary, " ",
-              (ernest@int:toString(seen(Snap_4)))/binary>>;
+              (ern@int:toString(seen(Snap_4)))/binary>>;
         'None' -> <<"nothing">>
     end.
 

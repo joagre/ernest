@@ -1,16 +1,16 @@
--module(ernest@remote).
+-module(ern@remote).
 
 -export([main/0]).
 
 main() ->
     case ern_rt:remote(fun () -> heavy(3, 4) end) of
         {'Right', N_1} ->
-            ernest@io:println(<<"remote returned ",
-                                (ernest@int:toString(N_1))/binary>>);
+            ern@io:println(<<"remote returned ",
+                             (ern@int:toString(N_1))/binary>>);
         {'Left', 'NoRemotePeer'} ->
-            ernest@io:println(<<"no remote peer configured">>);
+            ern@io:println(<<"no remote peer configured">>);
         {'Left', 'PeerLost'} ->
-            ernest@io:println(<<"peer lost or callback failed">>)
+            ern@io:println(<<"peer lost or callback failed">>)
     end.
 
 heavy(A_2, B_3) -> A_2 * A_2 + B_3 * B_3.

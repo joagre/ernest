@@ -1,4 +1,4 @@
--module(ernest@stack).
+-module(ern@stack).
 
 -export([main/0,
          'Stack.empty'/0,
@@ -10,13 +10,13 @@ main() ->
     S_1 = 'Stack.push'(2, 'Stack.push'(1, 'Stack.empty'())),
     case 'Stack.pop'(S_1) of
         {'Some', {Top_2, _}} ->
-            ernest@io:println(<<"top is ",
-                                (ernest@int:toString(Top_2))/binary>>);
-        'None' -> ernest@io:println(<<"empty">>)
+            ern@io:println(<<"top is ",
+                             (ern@int:toString(Top_2))/binary>>);
+        'None' -> ern@io:println(<<"empty">>)
     end.
 
 'Stack.empty'() ->
-    persistent_term:get({ernest@stack, 'Stack.empty'}).
+    persistent_term:get({ern@stack, 'Stack.empty'}).
 
 'Stack.push'(X_3, {'Stack', Xs_4}) ->
     {'Stack', [X_3 | Xs_4]}.
@@ -28,6 +28,6 @@ main() ->
     end.
 
 '$init'() ->
-    persistent_term:put({ernest@stack, 'Stack.empty'},
+    persistent_term:put({ern@stack, 'Stack.empty'},
                         {'Stack', []}),
     ok.

@@ -427,7 +427,7 @@ run_main(Main, Site, Opts) ->
 %% path.
 -spec init_stdlib() -> ok.
 init_stdlib() ->
-    Files = lists:append([filelib:wildcard(filename:join(D, "ernest@*.beam"))
+    Files = lists:append([filelib:wildcard(filename:join(D, "ern@*.beam"))
                           || D <- code:get_path()]),
     lists:foreach(fun(File) ->
                       Mod = list_to_atom(filename:basename(File, ".beam")),

@@ -1,4 +1,4 @@
--module(ernest@upgrade).
+-module(ern@upgrade).
 
 -export([main/0]).
 
@@ -15,9 +15,9 @@ main() ->
                             <<"reply does not match Optional(Int)">>)
         of
         {'Some', N_3} ->
-            ernest@io:println(<<"before upgrade: ",
-                                (ernest@int:toString(N_3))/binary>>);
-        'None' -> ernest@io:println(<<"timeout">>)
+            ern@io:println(<<"before upgrade: ",
+                             (ern@int:toString(N_3))/binary>>);
+        'None' -> ern@io:println(<<"timeout">>)
     end,
     ern_rt:send(C_1,
                 {'Upgrade',
@@ -31,9 +31,9 @@ main() ->
                             <<"reply does not match Optional(Int)">>)
         of
         {'Some', N_6} ->
-            ernest@io:println(<<"after upgrade: ",
-                                (ernest@int:toString(N_6))/binary>>);
-        'None' -> ernest@io:println(<<"timeout">>)
+            ern@io:println(<<"after upgrade: ",
+                             (ern@int:toString(N_6))/binary>>);
+        'None' -> ern@io:println(<<"timeout">>)
     end.
 
 counter(N_7) ->
