@@ -1,0 +1,118 @@
+/// Tables of the runtime, keyed by a value of type `k` (report Appendix
+/// E.21). A table belongs to the process that made it and dies with it, or
+/// with `drop`, and every operation on a table that is gone faults. The key
+/// type needs equality (report §3.10). Appendix D of the report is this
+/// library written out, as its example of a shim.
+///
+/// ## Examples
+///
+/// ```ernest
+/// {
+///     let t = Ets.new();
+///     Ets.insert(t, "a", 1);
+///     Ets.lookup(t, "a")
+/// }
+/// // => Some(1)
+/// ```
+///
+/// ```ernest
+/// {
+///     let t = Ets.new();
+///     Ets.insert(t, 1, "one");
+///     Ets.delete(t, 1);
+///     #(Ets.member(t, 1), Ets.size(t))
+/// }
+/// // => #(false, 0)
+/// ```
+///
+/// ## See also
+///
+/// `Map` for a value the program holds itself, `Erl` for what a shim needs
+/// from Erlang.
+///
+/// since 0.1.0
+
+/// A table of the runtime, keyed by `k` with values of type `v`.
+export foreign type Table(k, v)
+
+/// A fresh empty table, owned by the calling process.
+export fn new() -> Table(k, v) with m =
+    rawNew(Erl.atom("ernest"), [Erl.atom("set"), Erl.atom("public")])
+
+foreign fn rawNew(name : Foreign, options : List(Foreign)) -> Table(k, v) with m = "ets:new/2"
+
+/// Puts the value at that key, replacing any entry the key had.
+export fn insert(t : Table(k, v), key : k, value : v) -> Unit with m = {
+    let _ = rawInsert(t, #(key, value));
+    Unit
+}
+
+foreign fn rawInsert(t : Table(k, v), row : #(k, v)) -> Bool with m = "ets:insert/2"
+
+/// The value at that key.
+export fn lookup(t : Table(k, v), key : k) -> Optional(v) with m =
+    match rawLookup(t, key) {
+        [#(_, value)] -> Some(value)
+      | _ -> None
+    }
+
+foreign fn rawLookup(t : Table(k, v), key : k) -> List(#(k, v)) with m = "ets:lookup/2"
+
+/// `true` when the table has an entry with that key.
+export foreign fn member(t : Table(k, v), key : k) -> Bool with m = "ets:member/2"
+
+/// Removes the entry at that key, which need not be there.
+export fn delete(t : Table(k, v), key : k) -> Unit with m = {
+    let _ = rawDelete(t, key);
+    Unit
+}
+
+foreign fn rawDelete(t : Table(k, v), key : k) -> Bool with m = "ets:delete/2"
+
+/// The number of entries.
+export fn size(t : Table(k, v)) -> Int with m = rawInfo(t, Erl.atom("size"))
+
+foreign fn rawInfo(t : Table(k, v), item : Foreign) -> Int with m = "ets:info/2"
+
+/// Removes every entry, leaving the table.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let t = Ets.new();
+///     Ets.insert(t, "k", "v");
+///     Ets.clear(t);
+///     Ets.toList(t)
+/// }
+/// // => []
+/// ```
+export fn clear(t : Table(k, v)) -> Unit with m = {
+    let _ = rawClear(t);
+    Unit
+}
+
+foreign fn rawClear(t : Table(k, v)) -> Bool with m = "ets:delete_all_objects/1"
+
+/// Removes the table itself; every operation on it after this faults.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let t = Ets.new();
+///     Ets.insert(t, "k", "v");
+///     Ets.drop(t);
+///     "dropped"
+/// }
+/// // => "dropped"
+/// ```
+export fn drop(t : Table(k, v)) -> Unit with m = {
+    let _ = rawDrop(t);
+    Unit
+}
+
+foreign fn rawDrop(t : Table(k, v)) -> Bool with m = "ets:delete/1"
+
+/// The entries as pairs, in unspecified order.
+export foreign fn toList(t : Table(k, v)) -> List(#(k, v)) with m = "ets:tab2list/1"

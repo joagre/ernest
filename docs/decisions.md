@@ -2866,6 +2866,14 @@ The measurement the plan asked for, `examples/echo.ern`: 2,000 round trips over 
 
 With `Tcp` open nothing is refused any more, so the machinery went with it, as the plan said it would: `ern_compiler:refused/1`, `mvp1/2`, their tests, and the README's row. What remains is the shell's own refusal, which names MVP 2.6. The prelude's tables lost `Tcp`, `Keys`, `Fs`, and a block of `List` entries that had been dead since `List` moved to Ernest and had stayed hidden because the mirror test compares a set.
 
+## `Ets` in the Standard Library, 2026-09-20
+
+The last module of step 4, and a structural choice: `Ets` could have been a library under `libs/`, like `json` and `uri` will be, since it wraps a facility of the runtime rather than a concept of the language. It is in the standard library because Appendix D already writes it out in full as the report's example of a shim, because `webserver` assumes it, and because a one-node table is as fundamental to a server as `Map` is to a function. Appendix E.21 is its section, and Appendix D stays where it is: the same library, written out, as an example.
+
+Its keys need equality, which §3.10 gave only to `Map` and `Set`. The sentence now covers a standard library type whose section says it compares keys, `Ets.Table(k, v)` on `k`, and the checker attaches it where the type is written, as it does for the other two.
+
+Two things fell out. `examples/ets.ern`, the hand-written copy the tests compiled as a user module, is gone: a user module may not take a standard library namespace, which is the rule working as intended, and the CLI test now uses the real module. And the parser's AST coverage test, which had read only `examples/`, lost its only `foreign` declarations with that file; it reads `stdlib/` too now, which is where they live, and only a bitstring with segments and a bitstring pattern are still unexercised.
+
 ## Later
 
 Planned or considered, not in the language today.

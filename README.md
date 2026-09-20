@@ -98,7 +98,7 @@ bin/ern examples/hello.erc                   # hello, world
 bin/ernc --out-dir build examples/modules    # a source tree, in dependency order
 bin/ern build/main.erc                       # loads net/http.erc by namespace
 bin/ernc --emit erl examples/hello.ern       # the Erlang source, for reading
-bin/ernc --doc --source-root examples examples/ets.ern   # the module's documentation as CommonMark
+bin/ernc --doc stdlib/list.ern                           # the module's documentation as CommonMark
 bin/ernc --errors short examples/hello.ern  # the first line of each error only
 bin/ern --create-config-dir .                # .ernest/ with a key pair
 ```

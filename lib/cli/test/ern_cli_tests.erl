@@ -124,12 +124,10 @@ parse_error_test() ->
                    " end of input\n1 | export fn f() -> Int = \n2 | \n  | ^\n\n">>,
                  Out).
 
-%% report Appendix D, §4.7, §8.4: the Ets library compiles as a module and
-%% a program uses it through its interface
+%% report Appendix E.21, §4.7, §8.4: a program uses the standard library's
+%% Ets through its interface, tables and all
 ets_library_test() ->
     Dir = tmp(),
-    {ok, Ets} = file:read_file(example("ets.ern")),
-    write(Dir, "src/ets.ern", Ets),
     write(Dir, "src/main.ern",
           "export fn main() -> Unit with Never = {\n"
           "    let t = Ets.new();\n"

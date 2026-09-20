@@ -25,7 +25,7 @@ program(Name) ->
 %% compile end to end; they run forever or wait for a terminal, so running
 %% them under test waits for the step's own item. `webserver` is not here:
 %% it needs `Ets`.
--define(COMPILES, ["filesync", "repl", "snake", "echo"]).
+-define(COMPILES, ["filesync", "repl", "snake", "echo", "webserver"]).
 
 compiles_test_() ->
     [{Name, fun() ->

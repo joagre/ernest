@@ -216,7 +216,7 @@ A function has one mailbox effect or none. A function that takes two callbacks w
 
 `==` and `!=` are structural and defined for all values except those containing functions or addresses, on which they are a type error. Ordering is per type, through `compare` in the type's namespace: `Int.compare : (Int, Int) -> Ordering`. For operand type `T`, `a < b` is `T.compare(a, b) == Less`; `<=`, `>`, and `>=` likewise. A type without `compare` has no ordering, and `<` on it is a type error. The prelude defines `compare` for `Int`, `Float`, `String`, and `Char` (§9.6).
 
-A function that applies `==` to a value of a type variable gives that variable an *equality constraint*, inferred and never written; instantiating it with a type that contains a function or an address is a type error at that call site. `Map(k, v)` and `Set(a)` carry the constraint on `k` and `a`; a `Map` or `Set` over a type without equality is rejected at its first operation. A standard library function that compares elements, `List.contains`, propagates the constraint through its parameter. `fn equal(a, b) = a == b` has type `(a, a) -> Bool` with the constraint on `a`. The constraint is part of the type scheme (§3.9). `let f = equal` carries it, and applying `f` to addresses is an error at that application. `if flag then equal else always`, with `always` unconstrained, carries the union of the branches' constraints. A compiled interface carries it across modules. The check is at the concrete application.
+A function that applies `==` to a value of a type variable gives that variable an *equality constraint*, inferred and never written; instantiating it with a type that contains a function or an address is a type error at that call site. `Map(k, v)` and `Set(a)` carry the constraint on `k` and `a`, and so does a standard library type whose section says it compares keys, `Ets.Table(k, v)` on `k`; a `Map`, `Set`, or table over a type without equality is rejected at its first operation. A standard library function that compares elements, `List.contains`, propagates the constraint through its parameter. `fn equal(a, b) = a == b` has type `(a, a) -> Bool` with the constraint on `a`. The constraint is part of the type scheme (§3.9). `let f = equal` carries it, and applying `f` to addresses is an error at that application. `if flag then equal else always`, with `always` unconstrained, carries the union of the branches' constraints. A compiled interface carries it across modules. The check is at the concrete application.
 
 ### 3.11 Serialization
 
@@ -1428,6 +1428,23 @@ Bytes.get : (Bytes, Int) -> Optional(Int) // the octet at the index from 0
 Bytes.slice : (Bytes, Int, Int) -> Bytes // from the index, that many octets, clipped; a negative index or count is 0
 Bytes.toList : (Bytes) -> List(Int)
 Bytes.fromList : (List(Int)) -> Optional(Bytes) // None when a value is outside 0 to 255
+```
+
+### Appendix E.21. `ets.ern` (namespace `Ets`)
+
+A table of the runtime's, keyed by a value of type `k`. Requires equality on `k` (§3.10). A table belongs to the process that made it and dies with it, or with `drop`; `new` is the only way to make one, and every operation faults on a table that is gone. The order of `toList` is unspecified. Appendix D is the same library written out, as an example of a shim.
+
+```
+foreign type Table(k, v)
+Ets.new : () -> Ets.Table(k, v) with m
+Ets.insert : (Ets.Table(k, v), k, v) -> Unit with m // replaces an entry with that key
+Ets.lookup : (Ets.Table(k, v), k) -> Optional(v) with m
+Ets.member : (Ets.Table(k, v), k) -> Bool with m
+Ets.delete : (Ets.Table(k, v), k) -> Unit with m // a key not present is not an error
+Ets.size : (Ets.Table(k, v)) -> Int with m
+Ets.clear : (Ets.Table(k, v)) -> Unit with m // every entry, leaving the table
+Ets.drop : (Ets.Table(k, v)) -> Unit with m // the table itself
+Ets.toList : (Ets.Table(k, v)) -> List(#(k, v)) with m
 ```
 
 ## Appendix F. Glossary

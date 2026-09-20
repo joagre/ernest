@@ -69,6 +69,16 @@ rename(Decl) ->
     end.
 
 %% A compiled type's declaration, as the appendix writes it.
+compiled_decl(_Ns, TI) when element(7, TI) ->
+    %% report §3.8: a foreign type has no constructors, and its parameters
+    %% are names rather than variables
+    Q = element(2, TI),
+    Params = element(3, TI),
+    Head = case Params of
+               [] -> "";
+               _ -> "(" ++ lists:join(", ", [atom_to_list(P) || P <- Params]) ++ ")"
+           end,
+    normalize(lists:flatten(["foreign type ", atom_to_list(lists:last(Q)), Head]));
 compiled_decl(Ns, TI) ->
     Q = element(2, TI),
     Params = element(3, TI),
@@ -78,15 +88,9 @@ compiled_decl(Ns, TI) ->
                [] -> "";
                _ -> "(" ++ lists:join(", ", [maps:get(Id, Names) || {tvar, Id} <- Params]) ++ ")"
            end,
-    case element(7, TI) of
-        true ->
-            %% report §3.8: a foreign type has no constructors to print
-            normalize(lists:flatten(["foreign type ", atom_to_list(lists:last(Q)), Head]));
-        false ->
-            Cons = [con_text(C, Ns, Names) || C <- element(4, TI)],
-            normalize(lists:flatten(["type ", atom_to_list(lists:last(Q)), Head, " = ",
-                                     lists:join(" | ", Cons)]))
-    end.
+    Cons = [con_text(C, Ns, Names) || C <- element(4, TI)],
+    normalize(lists:flatten(["type ", atom_to_list(lists:last(Q)), Head, " = ",
+                             lists:join(" | ", Cons)])).
 
 con_text(CI, Ns, Names) ->
     Name = atom_to_list(element(2, CI)),

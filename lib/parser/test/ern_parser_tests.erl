@@ -549,20 +549,26 @@ error_span_test() ->
 %% The example programs
 %%
 
-%% report Appendix A, plan 2.1: the examples exercise every AST record the
-%% emitter must handle; bitstrings are MVP 2
+%% report Appendix A, plan 2.1: the examples and the standard library
+%% exercise every AST record the emitter must handle, but for a bitstring
+%% with segments and a bitstring pattern
 ast_coverage_test() ->
     {ok, Hrl} = file:read_file("../include/ern_ast.hrl"),
     {match, M} = re:run(Hrl, "-record\\(([a-z_]+),", [global, {capture, all_but_first, list}]),
     Declared = lists:usort([list_to_atom(N) || [N] <- M]),
-    Files = [F || F <- filelib:wildcard("../../../examples/**/*.ern"),
+    %% the examples and the standard library together: both are Ernest we
+    %% own, and the library is where the foreign declarations live
+    Files = [F || F <- filelib:wildcard("../../../examples/**/*.ern")
+                      ++ filelib:wildcard("../../../stdlib/*.ern"),
                   hd(filename:basename(F)) =/= $.], % editor artifacts, report §11.1
     Used = lists:usort(lists:foldl(fun(F, Acc) ->
                                        {ok, Bin} = file:read_file(F),
                                        {ok, Ds} = ern_parser:parse_string(Bin),
                                        tags(Ds, Acc)
                                    end, [], Files)),
-    ?assertEqual([bit_seg, e_bits, p_bits], Declared -- Used).
+    %% a bitstring with segments, and a bitstring pattern, wait for the
+    %% paper program that frames a protocol (plan, MVP 2.5)
+    ?assertEqual([bit_seg, p_bits], Declared -- Used).
 
 tags(T, Acc) when is_tuple(T), is_atom(element(1, T)) ->
     lists:foldl(fun tags/2, [element(1, T) | Acc], tl(tuple_to_list(T)));
@@ -573,7 +579,10 @@ tags(_, Acc) ->
 
 %% report Appendix B, examples/
 examples_parse_test_() ->
-    Files = [F || F <- filelib:wildcard("../../../examples/**/*.ern"),
+    %% the examples and the standard library together: both are Ernest we
+    %% own, and the library is where the foreign declarations live
+    Files = [F || F <- filelib:wildcard("../../../examples/**/*.ern")
+                      ++ filelib:wildcard("../../../stdlib/*.ern"),
                   hd(filename:basename(F)) =/= $.], % editor artifacts, report §11.1
     ?assert(length(Files) >= 12),
     [{F, fun() ->
