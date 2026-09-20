@@ -33,6 +33,7 @@ declared_types() ->
     "type RemoteError = NoRemotePeer | PeerLost\n"
     "type Where = Local | Peer(String)\n"
     "type Key = Char(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter | Escape\n"
+    "         | Interrupt\n"
     "type KeyMsg = Subscribe(Address(Key))\n"
     "type StdinMsg = ReadLine(reply : Reply(Optional(String)))\n"
     "type Path = Path(String)\n"

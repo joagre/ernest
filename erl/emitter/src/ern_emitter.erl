@@ -12,7 +12,7 @@
 -module(ern_emitter).
 
 -export([compile/4, compile/5, forms/3, erl_source/3, read_interface/1, iface_hash/1,
-         module_atom/1, read_docs/1]).
+         module_atom/1, read_docs/1, descriptor/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("lexer/include/ern_diag.hrl").
@@ -971,6 +971,12 @@ check_text(Prefix, T, Cx) ->
 text_binary(Prefix, T, #cx{env = Env}) ->
     unicode:characters_to_binary(Prefix ++ ern_types:format(T, ern_typecheck:type_state(Env))).
 
+%% Appendix E.1: the descriptor of a type, for a printer outside a compiled
+%% module. The shell prints a value with it as `Io.debug` prints one, the
+%% printer being the same (report §11.2).
+-spec descriptor(term(), ern_typecheck:env()) -> term().
+descriptor(T, Env) when not is_tuple(Env) orelse element(1, Env) =/= cx ->
+    descriptor(T, #cx{env = Env});
 descriptor(T, #cx{env = Env} = Cx) ->
     {D, _} = desc(ern_types:zonk(T, ern_typecheck:type_state(Env)), #{}, Cx),
     D.

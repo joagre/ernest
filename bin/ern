@@ -7,4 +7,5 @@ main(Args) ->
     Lib = filename:join([filename:dirname(filename:absname(escript:script_name())), "..", "erl"]),
     code:add_pathsa(filelib:wildcard(filename:join([Lib, "*", "ebin"]))),
     code:add_patha(filename:join([Lib, "..", "build", "stdlib"])),
+    code:add_patha(filename:join([Lib, "..", "build", "shell"])),
     ern_cli:main(ern, Args).

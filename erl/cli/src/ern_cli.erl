@@ -621,10 +621,30 @@ ern(Args, Err) ->
 ern_main(Opts, Rest, Err) ->
     case {proplists:get_value(create_config_dir, Opts), lists:member(shell, Opts), Rest} of
         {Dir, _, []} when Dir =/= undefined -> create_config_dir(Dir);
-        {undefined, true, _} ->
-            fail("the shell is not in this toolchain yet; it arrives in MVP 2.6");
+        {undefined, true, Rest2} -> shell(Opts, Rest2, Err);
         {undefined, false, [File]} -> run(Opts, File, Err);
         _ -> usage_fail("one .erc file argument is required")
+    end.
+
+%% Report §11.2: the shell is the entry process, and a file's entry point is
+%% spawned beside it. Checkpoint 0 takes no file.
+shell(_Opts, Rest, Err) ->
+    quiet_signals(),
+    Rest =:= [] orelse fail("a file with --shell is not in this toolchain yet;"
+                            " it arrives in MVP 2.6's checkpoint 1"),
+    Mod = ern_emitter:module_atom(['Shell']),
+    case code:ensure_loaded(Mod) of
+        {module, Mod} -> ok;
+        _ -> fail("the shell is not built; run make")
+    end,
+    case ern_rt:run_main(fun() -> Mod:main() end, <<"Shell.main">>, #{}) of
+        ok -> 0;
+        {fault, Msg} ->
+            io:format(Err, "fault: ~s~n", [Msg]),
+            1;
+        deadlock ->
+            io:format(Err, "error: Deadlock~n", []),
+            1
     end.
 
 run(Opts, File, Err) ->

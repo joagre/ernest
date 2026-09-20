@@ -1,0 +1,8 @@
+1 + 2
+"hi" <> "!"
+List.map([1, 2, 3], fn(n) = n * n)
+Optional.withDefault(Some(7), 0)
+1 + "a"
+1 / 0
+Io.println("side effect")
+:quit

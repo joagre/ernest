@@ -6,6 +6,7 @@ APPS = utils lexer parser typer runtime emitter cli
 all:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -s stdlib
+	@$(MAKE) -s shell
 
 # The standard library written in Ernest: stdlib/ compiled by ernc into
 # build/stdlib under its Erlang module name, where the tools put it on the
@@ -21,6 +22,17 @@ stdlib:
 	@for f in build/stdlib/*.erc; do \
 	  cp $$f build/stdlib/ern@$$(basename $$f .erc).beam; done
 
+# The shell, written in Ernest (report §11.2, plan MVP 2.6): shell/ compiled
+# by ernc into build/shell, where `ern --shell` finds it on the code path.
+# Rebuilt when a compiler beam is newer, as the standard library is.
+shell: stdlib
+	@if [ -n "$$(find erl -name '*.beam' -newer build/shell/.built 2>/dev/null)" ] \
+	   || [ ! -f build/shell/.built ]; then rm -rf build/shell; fi
+	@bin/ernc --out-dir build/shell shell
+	@touch build/shell/.built
+	@for f in build/shell/*.erc; do \
+	  cp $$f build/shell/ern@$$(basename $$f .erc).beam; done
+
 # The standard library's pages, one per module beside its .erc in
 # build/stdlib, and index.md listing them (report §11.4).
 doc: all
@@ -34,7 +46,7 @@ test: all
 clean:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -C test $@
-	@rm -rf build/stdlib examples/*.erc examples/**/*.erc
+	@rm -rf build/stdlib build/shell examples/*.erc examples/**/*.erc
 
 # Rewrite test/golden/*.erl, the Erlang source the compiler emits for every
 # MVP 1 example, after an intended change to the emitter.
@@ -68,4 +80,4 @@ clean-emacs:
 	find . -path ./.git -prune -o \( -name '*~' -o -name '#*#' -o -name '.#*' \) -print0 \
 	  | xargs -0 rm -f
 
-.PHONY: all test clean clean-emacs sections coverage golden xref stdlib doc
+.PHONY: all test clean clean-emacs sections coverage golden xref stdlib shell doc

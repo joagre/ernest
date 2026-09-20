@@ -1,0 +1,12 @@
+Ernest 0.1.0. :quit, or C-d on an empty line, to leave.
+> 3 : Int
+> "hi!" : String
+> [1, 4, 9] : List(Int)
+> 7 : Int
+> input:1:5: both operands of `+` must have the same type: expected Int, found String
+1 | 1 + "a"
+  | - the left operand has type Int
+  |     ^^^
+> fault: division by zero
+> side effect
+> 

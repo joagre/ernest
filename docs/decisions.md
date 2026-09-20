@@ -3074,6 +3074,18 @@ The two questions the shell's note left open, answered by running them rather th
 
 A cost worth remembering rather than acting on: the runtime's store is `persistent_term`, whose every write scans the node. At a prompt's rate that is nothing, and a table would be cheaper but would need a second way to read a value, which is a worse trade than the one it fixes.
 
+## Checkpoint 0, in Line Mode, 2026-09-20
+
+Report first, as the rule says: §11.2 states the shell's core — the entry process with a file's entry point spawned beside it, an input checked and compiled as a module of its own and run in a process of its own, the session as a scope in §4.2's lookup order, the terminal's holder, the interrupt as a key, and `Deadlock` not firing while a shell holds a source. §8.2 gains the holder's case, §7.3 the cause a process ends with when its code is replaced, and §9.3's `Key` the value `Interrupt`, which the prelude's copy mirrors.
+
+Then the tree: `shell/` beside `stdlib/`, a `make` rule that rebuilds it when a compiler beam is newer as the standard library's does, and `build/shell` on both runners' code paths.
+
+Then the two halves. `ern_shell` is the front end, wrapping an input as the entry point of `Input<n>`, checking it, compiling it, running it in a process, and printing its value with the descriptor of its type, which is E.1's printer and `Io.debug`'s. `shell/shell.ern` is the shell, reading a line, checking, running, and printing. In line mode `1 + 2` answers `3 : Int`, `List.map([1, 2, 3], fn(n) = n * n)` answers `[1, 4, 9] : List(Int)`, a type error is shown as `ernc` shows it with the input as the source, a fault is reported and the session goes on, and a `Unit` value prints nothing. A session golden test holds all of it.
+
+Two things the building taught. The interface takes an address where the sketch had a wrap: §8.4 makes a function value a handle foreign code may pass back but not inspect, and calling one is not passing it back, so the shell wraps at its own end with `via(Done, self())` and the front end only sends. And the emitter gained one export, the descriptor of a type, so that a printer outside a compiled module prints as `Io.debug` prints; the shell shares E.1's printer rather than growing one.
+
+What is not built is the terminal: the three processes are one, the reader is `Io.readLine`, and the runner records no holder. That half is the rest of checkpoint 0, and it is the half the harness was built for.
+
 ## Later
 
 Planned or considered, not in the language today.

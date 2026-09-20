@@ -576,7 +576,7 @@ The error crosses a process boundary and is in the message: `Either`, or a const
 
 ### 7.3 Faults
 
-The code cannot see the error. Causes are out of memory, `kill`, a failure in the runtime, a broken promise by foreign code, and a fault in a function adapting an address (§6.5). The process dies with a structured cause in `Down` (§6.9). Nothing is caught. A fault is any death whose `Reason` is not `Returned`; `Fault(String)` is one `Reason` beside `Killed` and `ProgramEnd`.
+The code cannot see the error. Causes are out of memory, `kill`, a failure in the runtime, a broken promise by foreign code, a fault in a function adapting an address (§6.5), and the replacement of a process's code under it (§11.2). The process dies with a structured cause in `Down` (§6.9). Nothing is caught. A fault is any death whose `Reason` is not `Returned`; `Fault(String)` is one `Reason` beside `Killed` and `ProgramEnd`.
 
 ### 7.4 Prelude operations and faults
 
@@ -600,7 +600,7 @@ The entry point is a `fn () -> Unit with m`. `m` is the message type when the en
 
 The runtime starts its system processes and binds their addresses to top-level values in the `Sys` namespace, §9.7. A program uses each through the standard library, Appendix E: `Sys.stdout`, `Sys.stderr`, and `Sys.stdin` through `Io`, the rest through the module of the same name. The address and its message type are declared in Ernest, for the module and for the foreign process behind it (§8.4). A runtime may provide more. The values are in scope everywhere; pure code can name an address but not send to it (§6.1). A `Sys.*` name the runtime does not provide is a name-resolution error.
 
-`stdout` writes each received `String` to standard output as bytes; it adds no newline. `stderr` does the same to standard error; it is a second sink for a program whose output is read by something else, not a level of severity. `stdin` answers each `ReadLine` with the next line without its line feed, `None` at end of input. `keys` sends every key pressed to each subscriber; it and `stdin` are the same terminal, and a program subscribes to keys or reads lines, not both. A program that does both ends with the fault `Fault("the terminal is already read as lines")`, or `as keys`, since neither side can answer for the other. While a program is subscribed the terminal delivers each key as it is pressed and does not echo it, and the runtime restores line mode with echo when the program ends. `Escape` is delivered once no escape sequence can still follow it; a sequence that is not a key of §9.3 is `Escape` and the characters after it. `clock`, `fs`, and `tcp` answer as their message types say.
+`stdout` writes each received `String` to standard output as bytes; it adds no newline. `stderr` does the same to standard error; it is a second sink for a program whose output is read by something else, not a level of severity. `stdin` answers each `ReadLine` with the next line without its line feed, `None` at end of input. `keys` sends every key pressed to each subscriber; it and `stdin` are the same terminal, and a program subscribes to keys or reads lines, not both. When the runner adds a shell (§11.2) the terminal is the shell's, and `Keys.subscribe` or `Io.readLine` from any other process faults. A program that does both ends with the fault `Fault("the terminal is already read as lines")`, or `as keys`, since neither side can answer for the other. While a program is subscribed the terminal delivers each key as it is pressed and does not echo it, and the runtime restores line mode with echo when the program ends. `Escape` is delivered once no escape sequence can still follow it; a sequence that is not a key of §9.3 is `Escape` and the characters after it. `Interrupt` is the terminal's interrupt, delivered to the holder of the terminal in place of the signal that would end the program (§8.6); a program that is not the holder is ended by that signal as before. `clock`, `fs`, and `tcp` answer as their message types say.
 
 ### 8.3 Peers
 
@@ -691,7 +691,7 @@ type ClockMsg // times in milliseconds
     | Now(reply : Reply(Int))
 type RemoteError = NoRemotePeer | PeerLost
 type Where = Local | Peer(String) // spawn placement, section 6
-type Key = Char(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter | Escape
+type Key = Char(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter | Escape | Interrupt
 type KeyMsg = Subscribe(Address(Key))
 type StdinMsg = ReadLine(reply : Reply(Optional(String)))
 type Path = Path(String) // in the runtime's syntax
@@ -807,7 +807,9 @@ Options are long: `--name`, or `--name value` for one that takes a value.
 
 `ern --test file.erc` runs every top-level `let` of type `Test` in the module (§9.3), exported or not, each in a process of its own after the module's initializers (§8.5). It prints each test's name with `passed`, `failed` and the text of `Failed`, or `faulted` and the cause, and exits with status 1 unless every test passed.
 
-`--shell` adds an interactive shell process to the running program with every loaded module in scope; without a file, `ern --shell` starts the runtime with the standard library alone. `--config-dir` names the configuration directory, `./.ernest` by default.
+`ern [--shell] [--source-root dir] [file.erc]` adds an interactive shell with every loaded module in scope; `--shell` takes no argument and makes the file optional, and `--source-root` names where the shell finds a module's source, the working directory by default.
+
+**The shell.** It is the entry point (§8.1), and a file's entry point is spawned beside it, so §8.6 ends the program when the shell ends and not when that entry point returns; `--main` then names the function to spawn. Each input is checked, compiled as a module of its own, and run in a process of its own; an expression's value is printed with its type (§11.5) and a declaration with its name and type. The session's declarations are a scope: an unqualified name is looked up in the input's own declarations, then in the type-member namespace of the enclosing declaration, then in the session's, then in the prelude (§4.2), and a type the session declares prints unqualified. Bindings survive a fault or an interruption in an input. The terminal is the shell's: `Keys.subscribe` and `Io.readLine` from any other process fault (§8.2), and the terminal's interrupt reaches the shell as a key rather than ending the program (§8.6). `Deadlock` does not fire while a shell holds the terminal, the shell being a source that can always deliver (§8.6). A command begins with `:` and is not an Ernest function; any prefix of its name selects it, an ambiguous prefix selecting the first in the order the shell's help gives. When input is not a terminal the shell reads lines and does not edit them. `--config-dir` names the configuration directory, `./.ernest` by default.
 
 ### 11.3 Configuration setup
 

@@ -1,0 +1,67 @@
+//
+// The Ernest shell (report §11.2), designed in docs/shell_design.md.
+//
+// Checkpoint 0: expressions only, in line mode. An input is checked,
+// compiled as a module of its own and run in a process of its own; its
+// value is printed with its type. The front end is the toolchain, reached
+// through the foreign interface below.
+//
+
+//
+// The front end
+//
+
+foreign type Env
+foreign type Checked
+foreign type Value
+
+type Outcome = Ok(env : Env, value : Value) | Failed(String)
+
+foreign fn start(loadPath : String, sourceRoot : String) -> Env with m =
+    "ern_shell:start/2"
+foreign fn check(env : Env, input : String) -> Either(String, #(Env, Checked)) with m =
+    "ern_shell:check/2"
+foreign fn typeText(c : Checked) -> String = "ern_shell:type_text/1"
+foreign fn run(env : Env, c : Checked, to : Address(Outcome)) -> Address(Never) with m =
+    "ern_shell:run/3"
+foreign fn show(v : Value) -> String = "ern_shell:show/1"
+
+//
+// The session
+//
+
+type ShellMsg = Done(Outcome)
+
+export fn main() -> Unit with ShellMsg = {
+    Io.println("Ernest 0.1.0. :quit, or C-d on an empty line, to leave.");
+    loop(start("", "."))
+}
+
+fn loop(env : Env) -> Unit with ShellMsg = {
+    Io.print("> ");
+    match Io.readLine() {
+        None -> Io.println("")
+      | Some(line) -> match String.trim(line) {
+            "" -> loop(env)
+          | ":quit" -> Unit
+          | input -> loop(evaluate(env, input))
+        }
+    }
+}
+
+// One input: checked, run in a process of its own, its value printed with
+// its type. An expression of type Unit prints nothing.
+fn evaluate(env : Env, input : String) -> Env with ShellMsg = match check(env, input) {
+    Left(text) -> { Io.print(text); env }
+  | Right(#(env2, checked)) -> {
+        let _ = run(env2, checked, via(Done, self()));
+        receive {
+            Done(Ok(env = env3, value = value)) -> {
+                let shown = typeText(checked);
+                if shown == "Unit" then Unit else Io.println(show(value) <> " : " <> shown);
+                env3
+            }
+          | Done(Failed(text)) -> { Io.println("fault: " <> text); env2 }
+        }
+    }
+}
