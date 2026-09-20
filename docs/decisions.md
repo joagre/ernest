@@ -2980,6 +2980,16 @@ What moved is where the function runs. In the proxy a faulting wrap killed the p
 
 `monitor` never had the problem, since the reaper holds the wrap and applies it when the process dies. That was the precedent for holding a function rather than spawning something to hold it.
 
+## MVP 2.5 Closed, 2026-09-20
+
+The sweep that closes the milestone, two readings as the rule asks. The guide was read against the day's report changes and gained three: an adapted address is the target and the function and not a process, with the fault in the function being the target's (§6.5); a subscribed terminal delivers each key unechoed and goes back to line mode when the program ends, and `Escape` arrives once no sequence can still follow it (§8.2); and a program stopped from outside ends as `main` returning does, the runtime saying nothing of its own (§8.6).
+
+The other documents were read against the report and the code. The architecture note still said `via` and `monitor` spawn proxies and that the deadlock detector asks the clock; both are now what the runtime does, the sources counted in the process table and `process_of/1` naming the pid behind an address. The README said the paper programs are compiled by their tests, where three of them now run. The plan's manual check is made, and the milestone is done.
+
+What MVP 2.5 delivered: twenty-one standard library modules in Ernest, every system door of §8.2 open, `Ets` in the standard library, the documentation carried in the `.erc` as EEP 48's chunk, the four paper programs written out with their holes filled, three of them under test, and the terminal checked by hand.
+
+What it found on the way, each in its own entry above: an `Entry`'s path was unstated; `Deadlock` counted only the clock, so an idle prompt was killed in a tenth of a second; raw mode through the host's own call stopped delivering keys; a lone `Escape` waited forever; and `via` spawned a process per adaptation, which a program with a tick paid ten times a second.
+
 ## Later
 
 Planned or considered, not in the language today.
