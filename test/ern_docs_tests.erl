@@ -23,6 +23,32 @@ citations_resolve_test() ->
                                       not resolves(C, guide, ReportHeads, GuideHeads)],
     ?assertEqual([], Dangling).
 
+%% docs/style.md, README "Layout of the repository": a document that says
+%% where things are names things that are there. The report and the guide
+%% name paths a program might have, `net/http.ern`, and the plan and the
+%% naming record name paths that are gone or not yet written, so the four
+%% checked here are the ones that describe the repository as it is.
+document_paths_test() ->
+    Where = ["README.md", "CLAUDE.md", "docs/architecture.md", "docs/style.md"],
+    Missing = [{F, P} || F <- Where, P <- paths(read(F)),
+                         not exists(P)],
+    ?assertEqual([], Missing).
+
+%% A backticked path under one of the repository's own directories. A
+%% metavariable is written `<name>`, as docs/style.md writes `ern_<thing>`,
+%% and a wildcard stands for a set, so neither names one file.
+paths(Bin) ->
+    Tops = ["erl/", "docs/", "test/", "bin/", "stdlib/", "examples/", "build/"],
+    Quoted = [B || B <- binary:split(Bin, <<"`">>, [global])],
+    [binary_to_list(P) || {I, P} <- lists:zip(lists:seq(1, length(Quoted)), Quoted),
+                          I rem 2 =:= 0,
+                          lists:any(fun(T) -> lists:prefix(T, binary_to_list(P)) end, Tops),
+                          binary:match(P, [<<"*">>, <<"<">>]) =:= nomatch,
+                          binary:last(P) =/= $/].
+
+exists(Rel) ->
+    filelib:is_file(filename:join(?ROOT, Rel)).
+
 read(Rel) ->
     {ok, Bin} = file:read_file(filename:join(?ROOT, Rel)),
     Bin.
