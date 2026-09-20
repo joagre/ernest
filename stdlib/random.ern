@@ -1,0 +1,45 @@
+/// Pseudo-random numbers from the runtime's generator behind a pure
+/// interface (report Appendix E.13). A `Seed` is made by `seed` and carried
+/// from one draw to the next, so the same seed gives the same sequence on
+/// one runtime version; there is no hidden state and no process. A program
+/// that wants a fresh sequence seeds from `Clock.now()`.
+///
+/// ## Examples
+///
+/// ```ernest
+/// let #(die, _) = Random.next(Random.seed(42), 5);
+/// die >= 0 && die <= 5
+/// // => true
+/// ```
+///
+/// ```ernest
+/// let #(x, _) = Random.next(Random.seed(7), 0);
+/// x
+/// // => 0
+/// ```
+///
+/// ## See also
+///
+/// `Clock.now` for a seed that differs between runs, `List.sort` for a
+/// shuffle written with draws.
+///
+/// since 0.1.0
+
+/// The generator's state, which a draw takes and gives back; it is the
+/// runtime's value and belongs to the node that made it.
+export foreign type Seed
+
+/// The seed that number names; the same number gives the same sequence.
+export foreign fn seed(n : Int) -> Seed = "ern_random:seed/1"
+
+/// A number between 0 and the bound, both included, and the seed to draw
+/// with next; a negative bound draws between it and 0.
+///
+/// ### Examples
+///
+/// ```ernest
+/// let #(x, _) = Random.next(Random.seed(1), -3);
+/// x <= 0 && x >= -3
+/// // => true
+/// ```
+export foreign fn next(s : Seed, bound : Int) -> #(Int, Seed) = "ern_random:next/2"

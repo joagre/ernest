@@ -78,9 +78,15 @@ compiled_decl(Ns, TI) ->
                [] -> "";
                _ -> "(" ++ lists:join(", ", [maps:get(Id, Names) || {tvar, Id} <- Params]) ++ ")"
            end,
-    Cons = [con_text(C, Ns, Names) || C <- element(4, TI)],
-    normalize(lists:flatten(["type ", atom_to_list(lists:last(Q)), Head, " = ",
-                             lists:join(" | ", Cons)])).
+    case element(7, TI) of
+        true ->
+            %% report §3.8: a foreign type has no constructors to print
+            normalize(lists:flatten(["foreign type ", atom_to_list(lists:last(Q)), Head]));
+        false ->
+            Cons = [con_text(C, Ns, Names) || C <- element(4, TI)],
+            normalize(lists:flatten(["type ", atom_to_list(lists:last(Q)), Head, " = ",
+                                     lists:join(" | ", Cons)]))
+    end.
 
 con_text(CI, Ns, Names) ->
     Name = atom_to_list(element(2, CI)),

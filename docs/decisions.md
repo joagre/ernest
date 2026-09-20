@@ -2786,6 +2786,12 @@ E.14 says a path is in the runtime's syntax, so by rule 1's ownership line the s
 
 Asking what a value of the runtime is can only be asked of the runtime, so E.12's five questions are shims over `ern_foreign`. Writing the page showed a hole: a program could receive a `Foreign` from a `foreign fn` and ask what it was, but nothing in the language could make one, so no example could show an answer other than `None`, and a shim that must pass a term through had no way to build its argument. `Foreign.from : (a) -> Foreign` fills it, admitted by rule 3: it is the general operation of the type, its definition is the identity, since an Ernest value is already a value of the runtime (§8.4), and no policy hides in it. It is the direction Gleam's `dynamic.from` goes, and the five `toX` functions are its inverses.
 
+## `Random` in Ernest, 2026-09-20
+
+`rand` with the exsss algorithm behind a pure interface, as E.13 has it: the state goes in and comes out, so there is no hidden generator and no process. The module declares `foreign type Seed` itself, which empties `ern_prelude`'s table of standard library types and finishes MVP 2.5 step 2: every type the checker knows now comes from §9 or from a compiled interface.
+
+Two things the module found. The mirror test printed a compiled foreign type as `type Seed =`, since it rendered constructors it does not have; it prints `foreign type Seed` now. And `Io.debug` crashed on a seed: `rand`'s state holds an improper list, which the representation printer walked as a list. E.1 says a foreign value prints as `<foreign>` where its representation reads as none of Ernest's forms, and an improper list is such a value, so the printer says that instead of faulting.
+
 ## Later
 
 Planned or considered, not in the language today.

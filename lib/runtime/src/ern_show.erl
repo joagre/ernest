@@ -52,7 +52,12 @@ represented(Bin) when is_binary(Bin) ->
         L when is_list(L) -> string(Bin);
         _ -> bytes(Bin)
     end;
-represented(L) when is_list(L) -> ["[", join([represented(X) || X <- L]), "]"];
+represented(L) when is_list(L) ->
+    %% a foreign value may be an improper list, which Ernest has no form for
+    case proper(L) of
+        true -> ["[", join([represented(X) || X <- L]), "]"];
+        false -> "<foreign>"
+    end;
 represented({set, S}) when is_map(S) ->
     ["Set.fromList([", join([represented(K) || K <- lists:sort(maps:keys(S))]), "])"];
 represented(T) when is_tuple(T), tuple_size(T) > 0, is_atom(element(1, T)) ->
@@ -74,6 +79,10 @@ represented(P) when is_pid(P) -> "<address>";
 represented(R) when is_reference(R) -> "<reply>";
 represented(F) when is_function(F) -> "<function>";
 represented(_) -> "<foreign>".
+
+proper([]) -> true;
+proper([_ | T]) -> proper(T);
+proper(_) -> false.
 
 float_text(F) -> float_to_list(F, [short]).
 

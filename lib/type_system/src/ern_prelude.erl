@@ -55,9 +55,11 @@ declared_types() ->
     "type TestResult = Passed | Failed(String)\n".
 
 %% Types the standard library declares, by namespace (Appendix E.13).
+%% Report Appendix E: a type a standard library module declares, for the
+%% modules not yet written in Ernest; each leaves as its module moves.
 -spec stdlib_types() -> [{[atom()], string()}].
 stdlib_types() ->
-    [{['Random'], "foreign type Seed\n"}].
+    [].
 
 %% Primitives whose effect variables are process-only (report §3.9), and the
 %% Io functions, which are built on send.
@@ -174,8 +176,6 @@ values() ->
      %% E.11 Either
      %% E.12 Foreign
      %% E.13 Random
-     {['Random', seed], "(Int) -> Random.Seed"},
-     {['Random', next], "(Random.Seed, Int) -> #(Int, Random.Seed)"},
      %% E.14 Path
      %% E.15 Clock
      {['Clock', now], "() -> Int with m"},
