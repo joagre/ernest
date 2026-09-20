@@ -3008,6 +3008,18 @@ The address handed out is now stable as well, which is what a foreign library th
 
 Checking inside the receiving process instead, with a clause the compiler adds, was the tempting alternative and fails on the section's own word: a bad message faults the receiver *on delivery*. A check in a `receive` fires when the process next reaches one, and a process that never receives again would never notice.
 
+## The Shell and the Stack Are Two Milestones, 2026-09-20
+
+MVP 2.6 held a shell, four libraries, and a paper program, and called itself two weeks. The shell alone is three checkpoints of the design note; the rest is a JSON parser, a TLS shim, an HTTP client, and a command-line program over all of them. A milestone that holds two large things measures neither.
+
+The cut is by what each thing proves. 2.6 proves the shell and that `libs/` works, for which one library of each kind is enough: `json`, pure Ernest, the first use of `<-` and the try functions at size, and `base64`, the smallest shim there is. Keeping a shim matters, since 2.6's reason for existing is that Appendix D has been written to once and a pattern tried once is a guess; `base64` gives it a second use in a library for almost nothing, where `Ets` gave it one in the standard library.
+
+2.7 becomes the network stack, `tls` and `http`, and `fetch.ern` goes with it. A paper program travels with the stack it needs: MVP 2.5 taught what a program that only compiles is worth, three defects deep, the first time one was run. `Time` goes with fetch, since only fetch wants it. `Sys.args`, `Sys.env` and the exit status stay in 2.6, being three small additions that every program started from a shell wants, the shell included.
+
+The four utility libraries, `regex`, `crypto`, `uri`, and `zlib`, are MVP 2.8, renumbered from 2.7. The entry of 2026-09-19 that named them 2.7 keeps its heading, as every entry keeps what it was written with.
+
+Against the cut: `tls` and `http` are where Ernest becomes useful for real work, and this defers that by a milestone. A shell a person can use is the better next demonstration, and the shim pattern still gets its second test.
+
 ## Later
 
 Planned or considered, not in the language today.
