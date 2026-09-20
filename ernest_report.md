@@ -1491,6 +1491,7 @@ Every technical term this report introduces, with the section that defines it. P
 - **standard library** — the modules under `stdlib/`, on the load path by default; not the prelude. §9, Appendix E.
 - **system module** — the standard library module of a system reference's name, through which a program uses it. §8.2, Appendix E.0.
 - **system reference** — a top-level address in `Sys.*`, wired by the runtime. §8.2.
+- **system process** — a process the runtime starts and keeps, its implementation foreign, its address a system reference. §8.2, §8.4.
 - **tail position** — the last expression of a block, `match` clause, or `receive` clause. §10.
 - **top-level binding** — a value bound at file scope by a `let` or provided by the runtime. §4.6, §8.2.
 - **tuple** — a positional product, `#(a, b)`, `#(a, b, c)`, `#(a)`. §3.2.
