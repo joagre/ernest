@@ -7,7 +7,7 @@ no way to open a pseudo-terminal, so the terminal path of report section
 8.2 -- keys as they are pressed, no echo, the mode restored -- can be
 tested no other way.
 
-    ern_pty.py [--timeout S] [--size ROWSxCOLS] --steps FILE -- COMMAND
+    ern_pty.py [--timeout S] [--size ROWSxCOLS] [--screen] --steps FILE -- COMMAND
 
 COMMAND runs under /bin/sh.  FILE holds one step a line, and they run in
 order; a file rather than arguments, since a step's text holds whatever a
@@ -26,13 +26,18 @@ for the moments no text marks, such as letting a game run for a tick.
 Two lines are printed:
 
     status <exit code> | timeout
-    data <the screen, base64>
+    data <what the program wrote, base64>
+
+With --screen the second line is the screen as a reader would see it,
+the writes played onto a grid of the given size: a test of a program
+that paints, rather than scrolls, asserts on that and not on the bytes.
 """
 
 import argparse
 import base64
 import fcntl
 import os
+import re
 import select
 import struct
 import sys
@@ -85,6 +90,46 @@ class Screen:
             return False
         self.cursor = at + len(text)
         return True
+
+
+# What the writes leave on the screen: the cursor moves, the erasures and
+# the text, which is all the shell uses. Enough to assert on a pane.
+def rendered(data, rows, columns):
+    text = data.decode("utf-8", "replace")
+    grid = [[" "] * columns for _ in range(rows)]
+    row = column = 0
+    i = 0
+    while i < len(text):
+        if text[i] == "\x1b":
+            match = re.match(r"\x1b\[(\d*);?(\d*)([A-Za-z])", text[i:])
+            if not match:
+                i += 1
+                continue
+            first, second, kind = match.group(1), match.group(2), match.group(3)
+            if kind == "H":
+                row, column = int(first or 1) - 1, int(second or 1) - 1
+            elif kind == "K":
+                for x in range(column, columns):
+                    grid[row][x] = " "
+            elif kind == "J":
+                grid = [[" "] * columns for _ in range(rows)]
+                row = column = 0
+            i += match.end()
+            continue
+        character = text[i]
+        if character == "\r":
+            column = 0
+        elif character == "\n":
+            row += 1
+            if row >= rows:
+                grid.pop(0)
+                grid.append([" "] * columns)
+                row = rows - 1
+        elif 0 <= row < rows and 0 <= column < columns:
+            grid[row][column] = character
+            column += 1
+        i += 1
+    return "\n".join("".join(line).rstrip() for line in grid)
 
 
 def run(command, steps, timeout, size):
@@ -151,6 +196,7 @@ def main():
     parser.add_argument("--timeout", type=float, default=10.0)
     parser.add_argument("--steps", default=None)
     parser.add_argument("--size", default="24x80")
+    parser.add_argument("--screen", action="store_true")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
@@ -161,6 +207,9 @@ def main():
                      if line.strip() and not line.startswith("#")]
     status, screen = run(" ".join(command), steps, args.timeout, args.size)
     print("status %s" % status)
+    if args.screen:
+        rows, _, columns = args.size.partition("x")
+        screen = rendered(screen, int(rows), int(columns)).encode("utf-8")
     print("data %s" % base64.b64encode(screen).decode("ascii"))
 
 

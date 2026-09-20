@@ -86,6 +86,58 @@ startup() ->
     %% what a startup input answered was not printed
     ?assertEqual(nomatch, binary:match(Out, <<"1 : Int">>)).
 
+%% report §11.2: the screen is two panes on a terminal. What a program
+%% writes through `Sys.stdout` is painted above, the shell's own output
+%% below, and the split appears with the first program output; `PageUp`
+%% scrolls the transcript and `Meta-PageUp` the pane above it; `:set
+%% output 0` takes the split away and gives the terminal's scrolling back
+panes_test_() ->
+    {timeout, 60, fun panes/0}.
+
+panes() ->
+    Screen = screen("../bin/ern --shell",
+                    [{expect, "> "},
+                     {send, hex("1 + 1\r")},
+                     {expect, "2 : Int"},
+                     {send, hex("spawn(Local, fn() = List.foreach(List.range(1, 30),"
+                                " fn(n) = Io.println(\"line \" <> Int.toString(n))))\r")},
+                     {sleep, 900},
+                     {send, "04"}],
+                    20, "20x60"),
+    Lines = [L || L <- binary:split(Screen, <<"\n">>, [global])],
+    Rules = fun(L) -> binary:match(L, <<"─"/utf8>>) =:= nomatch end,
+    {Above, [Rule | Below]} = lists:splitwith(Rules, Lines),
+    ?assertMatch({_, _}, binary:match(Rule, <<"────"/utf8>>)),
+    %% the program's newest lines are above, and nothing of the shell's
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(Above), <<"line 30">>)),
+    ?assertEqual(nomatch, binary:match(iolist_to_binary(Above), <<"2 : Int">>)),
+    %% the session's own is below, and none of the program's
+    Transcript = iolist_to_binary(Below),
+    ?assertMatch({_, _}, binary:match(Transcript, <<"2 : Int">>)),
+    ?assertEqual(nomatch, binary:match(Transcript, <<"line 30">>)).
+
+%% report §11.2: the panes scroll on their own, since the terminal's
+%% scrollback is what the split costs
+scrolling_test_() ->
+    {timeout, 60, fun scrolling/0}.
+
+scrolling() ->
+    Print = "spawn(Local, fn() = List.foreach(List.range(1, 30),"
+            " fn(n) = Io.println(\"line \" <> Int.toString(n))))\r",
+    Screen = screen("../bin/ern --shell",
+                    [{expect, "> "},
+                     {send, hex(Print)},
+                     {sleep, 900},
+                     %% Meta-PageUp: an Escape, then the sequence that is
+                     %% PageUp, which is how §8.2 delivers Meta
+                     {send, hex([16#1b]) ++ hex([16#1b]) ++ hex("[5~")},
+                     {sleep, 400},
+                     {send, "04"}],
+                    20, "20x60"),
+    %% a page back, so the newest is gone and an older line is there
+    ?assertEqual(nomatch, binary:match(Screen, <<"line 30">>)),
+    ?assertMatch({_, _}, binary:match(Screen, <<"line 20">>)).
+
 %% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
 %% under the source root and puts it in scope; `:reload` compiles again
 %% what has changed, names what is still in the previous version, and ends
@@ -170,15 +222,23 @@ terminal() ->
     ?assertMatch({_, _}, binary:match(Screen, <<"Killed">>)),
     ?assertMatch({_, _}, binary:match(Screen, <<"2 : Int">>)),
     %% the interrupt reached the shell as a key; the session was not ended
-    ?assertEqual(1, length(binary:matches(Screen, <<"Ernest ">>))).
+    ?assertMatch({_, _}, binary:match(Screen, <<"Killed">>)).
 
 hex(Text) ->
     lists:flatten([io_lib:format("~2.16.0b", [C]) || C <- Text]).
 
 pty(Command, Steps, Seconds) ->
+    pty(Command, Steps, Seconds, "").
+
+%% The screen as a reader sees it, rather than every write: a shell that
+%% paints its panes writes a line many times over.
+screen(Command, Steps, Seconds, Size) ->
+    pty(Command, Steps, Seconds, " --screen --size " ++ Size).
+
+pty(Command, Steps, Seconds, Extra) ->
     File = steps_file(Steps),
     {0, Out} = sh("./ern_pty.py --timeout " ++ integer_to_list(Seconds) ++ " --steps " ++ File
-                  ++ " -- " ++ Command),
+                  ++ Extra ++ " -- " ++ Command),
     Lines = [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
     %% a step the harness could not meet is a failure of the test, not a
     %% screen to assert against

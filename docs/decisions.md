@@ -3287,6 +3287,22 @@ Checkpoint 2's first half: `Keys` became `Terminal`, which answers its size and 
 
 **Two names the repository could not take.** The runtime's module is `ern_tty`, not `ern_terminal`, because `ern_terminal_tests` is the pseudo-terminal suite and two test modules cannot share a name; and the runtime's record of how the terminal is being read moved from the key `terminal` to `reading`, since `Sys.terminal` now needs that one.
 
+## Two Panes, Painted by the Shell, 2026-09-20
+
+Checkpoint 2's second half: the screen keeps two panes and paints them.
+
+**The reader stopped echoing.** It used to write each character to the terminal as it arrived, which a repainted pane cannot live with: the line being typed has to be drawn again after every paint, so the screen must know it. The reader now tells the screen the line, and the screen paints it after the prompt. It is the shape the line editor needs anyway, and it made `Backspace` a matter of sending a shorter line rather than writing `\b \b`.
+
+**The transcript fills from the top.** Both panes are painted from their top row, as a terminal fills a screen, and the cursor goes to the row the prompt was painted on rather than to the pane's last row. Bottom-anchoring the prompt was tried on paper and refused: a nearly empty session would show blank rows above the greeting, which is not what a terminal does.
+
+**A pane keeps a thousand lines.** The session never shrinks, but a program that prints forever would take the screen's buffers with it. A thousand lines a pane is the scrollback the split costs the terminal, given back.
+
+**`:set output 0` unsplits rather than shrinks.** A zero-row upper pane with its rule still drawn is not what the setting means: the screen is cleared and from then on both kinds of output are written in arrival order, which is what gives the terminal's own scrollback back.
+
+**What the harness had to learn.** A shell that paints writes the same line many times over, so a test that counted writes counted repaints: the greeting appeared thirteen times in a session that started once. The harness renders the writes onto a grid of the terminal's size and hands that back with `--screen`, and the pane tests assert on what a reader would see. It is fifty lines of the cursor moves, the erasures and the text, which is all the shell uses.
+
+**What writing it said about the language.** Ernest has no field selection, so every function that reads two fields of a record opens by destructuring it, and reading one boolean is a function of its own. In the screen, which is six fields carried through a dozen functions, that is the most repetitive thing in the shell. It is not a workaround and nothing is wrong with the code, but it is the first place where the absence has cost something, and it is worth a decision rather than a habit.
+
 ## Later
 
 Planned or considered, not in the language today.

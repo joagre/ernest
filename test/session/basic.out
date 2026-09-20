@@ -62,6 +62,7 @@ zero : () -> Int
 > depth 10
 length 100
 timing off
+output auto
 > > > [[..., ...], [...]] : List(List(List(Int)))
 > > > [1, 2, ...] : List(Int)
 > > > input:1:1: unknown name x

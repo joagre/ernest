@@ -56,17 +56,19 @@ type ShellMsg = Typed(String) | Eof | Interrupted | Done(Outcome) | Died(Down) |
 // What the session carries between inputs: the front end's environment and
 // the settings `:set` changes, which are ordinary values.
 type State = State(env : Env, settings : Settings)
-type Settings = Settings(depth : Int, length : Int, timing : Bool)
+type Settings = Settings(depth : Int, length : Int, timing : Bool, output : Optional(Int))
 
 // Report §11.2: a value is printed to a depth and a length, and 0 is
 // neither. The defaults print what a prompt is used for whole and stop a
 // value that would scroll the session away.
-let defaults = Settings(depth = 10, length = 100, timing = false)
+let defaults = Settings(depth = 10, length = 100, timing = false, output = None)
 
 export fn main() -> Unit with ShellMsg = {
     mine();
-    let screen = spawn(Local, fn() = { mine(); screenLoop() });
-    setScreen(via(Print, screen));
+    let screen = spawn(Local, fn() = { mine(); screenLoop(newScreen()) });
+    // report §11.2: the sinks are the upper pane's, the session's own
+    // writing to the lower
+    setScreen(via(Output, screen));
     send(screen, Print("Ernest 0.1.0. :help for the commands, :quit to leave.\n"));
     let state = State(env = start(), settings = defaults);
     // report §11.2: a process that faults is news at the prompt, whichever
@@ -82,7 +84,7 @@ export fn main() -> Unit with ShellMsg = {
             mine();
             Terminal.subscribe(K);
             send(me, Ready);
-            readLoop(me, screen, "")
+            readLoop(me, screen, "", false)
         });
         holdTerminal(reader);
         // report §8.2: the prompt waits for the reader to hold the
@@ -338,7 +340,20 @@ fn set(screen : Address(ScreenMsg), settings : Settings, arg : String) -> Settin
         if rest == "on" then Settings(..settings, timing = true)
         else if rest == "off" then Settings(..settings, timing = false)
         else { say(screen, ":set timing takes on or off"); settings }
-    else { say(screen, ":set takes depth, length, or timing"); settings }
+    else if what == "output" then
+        // report §11.2: the rows the upper pane takes, and none at 0
+        match String.toInt(rest) {
+            Some(n) -> if n < 0 then { say(screen, "a height is 0 or more"); settings }
+                       else {
+                           send(screen, Height(Some(n)));
+                           Settings(..settings, output = Some(n))
+                       }
+          | None -> if rest == "auto" then {
+                        send(screen, Height(None));
+                        Settings(..settings, output = None)
+                    } else { say(screen, ":set output takes a number of rows, or auto"); settings }
+        }
+    else { say(screen, ":set takes depth, length, timing, or output"); settings }
 }
 
 fn number(
@@ -353,9 +368,10 @@ fn number(
 }
 
 fn settingLines(settings : Settings) -> List(String) = match settings {
-    Settings(depth = d, length = l, timing = t) ->
+    Settings(depth = d, length = l, timing = t, output = o) ->
         ["depth " <> Int.toString(d), "length " <> Int.toString(l),
-         "timing " <> (if t then "on" else "off")]
+         "timing " <> (if t then "on" else "off"),
+         "output " <> (match o { None -> "auto" | Some(n) -> Int.toString(n) })]
 }
 
 // The first word of a line and what follows it, trimmed.
@@ -375,18 +391,280 @@ fn help() -> List(String) =
 // The screen: the only process that writes to the terminal
 //
 
-// The screen writes to the terminal itself, so the runtime's flush at the
-// end of the program (report §8.6) does not reach it: the session drains it
-// with `finish` before it returns.
-type ScreenMsg = Print(String) | Flush(reply : Reply(Unit))
+// Report §11.2: the screen keeps two panes. The upper holds everything
+// written through `Sys.stdout` and `Sys.stderr`, by any process; the lower
+// is the shell's own, its values, its diagnostics, its fault reports and
+// its prompt. Each is a buffer of lines, the incomplete line last written,
+// and an offset counting back from the newest, which `PageUp` and
+// `PageDown` move. A terminal has one screen and one scrollback, so a pane
+// that stays while the other scrolls is the shell's own to keep and to
+// paint, as an `ncurses` pad is.
+//
+// The upper pane appears with the first program output and takes a third
+// of the screen at most; `:set output n` fixes its height and `:set output
+// 0` takes it away. Until it appears, and where there is no terminal, the
+// text is written as it arrives and the terminal's own scrollback is
+// untouched.
 
-fn screenLoop() -> Unit with ScreenMsg = {
-    receive {
-        Print(text) -> write(text)
-      | Flush(reply = reply) -> answer(reply, Unit)
+type Pane = Pane(lines : List(String), partial : String, offset : Int)
+
+type Which = Upper | Lower
+
+type ScreenMsg = Print(String)                       // the shell's own
+               | Output(String)                      // a program's
+               | Typing(String)                      // the line being typed
+               | Entered                              // and now it is finished
+               | Scroll(pane : Which, pages : Int)
+               | Resize
+               | Height(Optional(Int))               // `:set output n`
+               | Flush(reply : Reply(Unit))
+
+type Screen = Screen(
+    upper : Pane,
+    lower : Pane,
+    typed : String,
+    output : Optional(Int),
+    size : Optional(Size),
+    split : Bool
+)
+
+let emptyPane = Pane(lines = [], partial = "", offset = 0)
+
+// Report §11.2: what a pane keeps, which is its scrollback. A session
+// never shrinks, but a program that prints forever would, so the oldest
+// lines go.
+let kept = 1000
+
+fn newScreen() -> Screen with m =
+    Screen(upper = emptyPane, lower = emptyPane, typed = "", output = None,
+           size = Terminal.size(), split = false)
+
+fn screenLoop(s : Screen) -> Unit with ScreenMsg = {
+    let s2 = receive {
+        Print(text) -> written(s, Lower, text)
+      | Output(text) -> written(s, Upper, text)
+      | Typing(text) -> shown(Screen(..s, typed = text), Lower)
+      | Entered -> entered(s)
+      | Scroll(pane = which, pages = pages) -> shown(scrolled(s, which, pages), which)
+      | Resize -> repainted(Screen(..s, size = Terminal.size()))
+      | Height(Some(0)) -> {
+            // report §11.2: no upper pane at all, and the terminal's own
+            // scrollback back with it; what was painted goes
+            if split(s) then write(clearAll) else Unit;
+            Screen(..s, output = Some(0), split = false)
+        }
+      | Height(n) -> repainted(Screen(..s, output = n))
+      | Flush(reply = reply) -> { answer(reply, Unit); s }
     };
-    screenLoop()
+    screenLoop(s2)
 }
+
+// The line being typed is finished: it joins the transcript, and the
+// screen stops drawing it. Where there are no panes it is on the screen
+// already, having been drawn as it was typed, so only the line feed is
+// written.
+fn entered(s : Screen) -> Screen with m = {
+    let Screen(typed = typed) = s;
+    let s2 = Screen(..appended(s, Lower, typed <> "\n"), typed = "");
+    if split(s2) then shown(s2, Lower)
+    else { write("\n"); s2 }
+}
+
+// What was written to a pane, and what the screen does about it: paint
+// that pane where the screen is split, and write it out where it is not.
+fn written(s : Screen, which : Which, text : String) -> Screen with m = {
+    let s2 = appended(s, which, text);
+    if split(s2) then shown(s2, which)
+    else if which == Upper && wants(s2) then {
+        // report §11.2: the split appears with the first program output
+        repainted(Screen(..s2, split = true))
+    } else {
+        write(text);
+        drawTyped(s2);
+        s2
+    }
+}
+
+// Whether a terminal that is not yet split should be: something has been
+// written above, and the setting allows it room.
+fn wants(s : Screen) -> Bool = {
+    let Screen(size = size, output = output) = s;
+    match #(size, output) {
+        #(None, _) -> false
+      | #(Some(_), Some(0)) -> false
+      | #(Some(Size(rows = rows)), _) -> rows >= 8
+    }
+}
+
+fn split(s : Screen) -> Bool = match s { Screen(split = yes) -> yes }
+
+fn appended(s : Screen, which : Which, text : String) -> Screen = {
+    let Screen(upper = upper, lower = lower) = s;
+    match which {
+        Upper -> Screen(..s, upper = into(upper, text))
+      | Lower -> Screen(..s, lower = into(lower, text))
+    }
+}
+
+// A pane takes text as a terminal does: a line feed ends the line it is
+// building and anything else adds to it. Scrolling back does not follow
+// what arrives, so an offset that is not zero stays where the reader put
+// it, and the pane grows behind it.
+fn into(pane : Pane, text : String) -> Pane = match String.split(text, "\n") {
+    [] -> pane
+  | first :: rest -> match pane {
+        Pane(lines = lines, partial = partial, offset = offset) ->
+            finished(lines, partial <> first, rest, offset)
+    }
+}
+
+fn finished(lines : List(String), partial : String, rest : List(String), offset : Int) -> Pane =
+    match rest {
+        [] -> Pane(lines = trimmed(lines), partial = partial, offset = offset)
+      | next :: more -> finished(lines <> [partial], next, more, offset)
+    }
+
+fn trimmed(lines : List(String)) -> List(String) = {
+    let over = List.size(lines) - kept;
+    if over <= 0 then lines else List.drop(lines, over)
+}
+
+fn scrolled(s : Screen, which : Which, pages : Int) -> Screen = {
+    let height = paneHeight(s, which);
+    let Screen(upper = upper, lower = lower) = s;
+    match which {
+        Upper -> Screen(..s, upper = moved(upper, height, pages))
+      | Lower -> Screen(..s, lower = moved(lower, height, pages))
+    }
+}
+
+// The offset counts lines back from the newest, and stops at the oldest.
+fn moved(pane : Pane, height : Int, pages : Int) -> Pane = match pane {
+    Pane(lines = lines, offset = offset) -> {
+        let most = Int.max(0, List.size(lines) - height + 1);
+        Pane(..pane, offset = Int.min(most, Int.max(0, offset + pages * height)))
+    }
+}
+
+//
+// Painting
+//
+
+fn shown(s : Screen, which : Which) -> Screen with m = {
+    let Screen(upper = upperPane, lower = lowerPane, typed = typed) = s;
+    if split(s) then {
+        match layout(s) {
+            None -> Unit
+          | Some(#(rows, columns, upper)) -> {
+                let text = match which {
+                    Upper -> paint(1, upper, columns, upperPane, "")
+                  | Lower -> paint(upper + 2, rows - upper - 1, columns, lowerPane, typed)
+                };
+                write(text <> cursor(s, upper + 2, rows - upper - 1, columns))
+            }
+        }
+    } else drawTyped(s);
+    s
+}
+
+fn repainted(s : Screen) -> Screen with m = {
+    let Screen(upper = upperPane, lower = lowerPane, typed = typed) = s;
+    if split(s) then {
+        match layout(s) {
+            None -> Unit
+          | Some(#(rows, columns, upper)) ->
+                write(clearAll
+                      <> paint(1, upper, columns, upperPane, "")
+                      <> at(upper + 1, 1) <> String.repeat("\u{2500}", columns)
+                      <> paint(upper + 2, rows - upper - 1, columns, lowerPane, typed)
+                      <> cursor(s, upper + 2, rows - upper - 1, columns))
+        }
+    } else Unit;
+    s
+}
+
+// The line being typed, where there are no panes: the row is written
+// again from its start, since a key may have taken a character away.
+fn drawTyped(s : Screen) -> Unit with m =
+    if isTerminal() then write("\r" <> clip(typedLine(s), width(s)) <> clearLine)
+    else Unit
+
+// The prompt and what has been typed after it, which is the row the
+// cursor sits on.
+fn typedLine(s : Screen) -> String = {
+    let Screen(lower = Pane(partial = partial), typed = typed) = s;
+    partial <> typed
+}
+
+// The terminal's rows and columns, and the upper pane's height, where
+// there is a terminal to paint on.
+fn layout(s : Screen) -> Optional(#(Int, Int, Int)) = match s {
+    Screen(size = None) -> None
+  | Screen(size = Some(Size(rows = rows, columns = columns))) ->
+        Some(#(rows, columns, upperHeight(s, rows)))
+}
+
+fn upperHeight(s : Screen, rows : Int) -> Int = {
+    let room = Int.max(1, rows - 3);
+    match s {
+        Screen(output = Some(n)) -> Int.min(n, room)
+      | Screen(output = None) -> Int.min(Int.max(1, rows / 3), room)
+    }
+}
+
+fn paneHeight(s : Screen, which : Which) -> Int = match layout(s) {
+    None -> 1
+  | Some(#(rows, _, upper)) -> match which {
+        Upper -> upper
+      | Lower -> Int.max(1, rows - upper - 1)
+    }
+}
+
+fn width(s : Screen) -> Int = match s {
+    Screen(size = None) -> 80
+  | Screen(size = Some(Size(columns = columns))) -> columns
+}
+
+// A pane's rows, each written from its start so that what was there is
+// gone, in one piece so that a repaint is never seen half done.
+fn paint(top : Int, height : Int, columns : Int, pane : Pane, tail : String) -> String =
+    String.join(
+        List.map(List.indexed(rowsOf(pane, height, tail)),
+                 fn(#(i, line)) = at(top + i, 1) <> clearLine <> clip(line, columns)),
+        "")
+
+// The lines a pane shows: the newest that fit, counting back from the
+// offset, and blank rows where the buffer is shorter than the pane.
+fn rowsOf(pane : Pane, height : Int, tail : String) -> List(String) = match pane {
+    Pane(lines = lines, partial = partial, offset = offset) -> {
+        let all = if String.isEmpty(partial) && String.isEmpty(tail) then lines
+                  else lines <> [partial <> tail];
+        let start = Int.max(0, List.size(all) - height - offset);
+        let shown = List.take(List.drop(all, start), height);
+        shown <> List.repeat("", Int.max(0, height - List.size(shown)))
+    }
+}
+
+// The cursor sits after what is being typed, on the row that line is
+// painted on: the transcript fills its pane from the top, as a terminal
+// fills a screen, and the prompt moves down with it. Scrolled back, there
+// is no such row and the cursor waits on the last one.
+fn cursor(s : Screen, top : Int, height : Int, columns : Int) -> String = {
+    let Screen(lower = Pane(lines = lines, offset = offset)) = s;
+    let row = if offset > 0 then top + height - 1
+              else top + Int.min(height, List.size(lines) + 1) - 1;
+    at(row, Int.min(columns, String.size(typedLine(s)) + 1))
+}
+
+fn clip(line : String, columns : Int) -> String =
+    if String.size(line) <= columns then line else String.slice(line, 0, columns)
+
+fn at(row : Int, column : Int) -> String =
+    "\u{1b}[" <> Int.toString(row) <> ";" <> Int.toString(column) <> "H"
+
+let clearLine = "\u{1b}[K"
+
+let clearAll = "\u{1b}[H\u{1b}[2J"
 
 fn finish(screen : Address(ScreenMsg), text : String) -> Unit with m = {
     send(screen, Print(text));
@@ -411,34 +689,58 @@ fn drain(screen : Address(ScreenMsg)) -> Unit with m =
 
 type ReaderMsg = K(Event)
 
-fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), line : String)
-    -> Unit with ReaderMsg = receive {
+fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), line : String,
+            meta : Bool) -> Unit with ReaderMsg = receive {
     K(Key(Enter)) -> {
-        send(screen, Print("\n"));
+        send(screen, Entered);
         send(session, Typed(line));
-        readLoop(session, screen, "")
+        readLoop(session, screen, "", false)
     }
   | K(Key(Interrupt)) -> {
-        send(screen, Print("\n"));
+        // what was typed stays in the transcript, abandoned
+        send(screen, Entered);
         send(session, Interrupted);
-        readLoop(session, screen, "")
+        readLoop(session, screen, "", false)
     }
+  | K(Key(PageUp)) -> {
+        // the offset counts back from the newest, so going back adds to it
+        send(screen, Scroll(pane = pane(meta), pages = 1));
+        readLoop(session, screen, line, false)
+    }
+  | K(Key(PageDown)) -> {
+        send(screen, Scroll(pane = pane(meta), pages = -1));
+        readLoop(session, screen, line, false)
+    }
+  | K(Resized(_)) -> {
+        send(screen, Resize);
+        readLoop(session, screen, line, meta)
+    }
+  | K(Key(Escape)) ->
+        // report §8.2: an Escape and the key after it are Meta and that
+        // key, which is how the panes are told apart
+        readLoop(session, screen, line, true)
   | K(Key(Char(c))) ->
         if c == '\u{4}' then
             if String.isEmpty(line) then send(session, Eof)
-            else readLoop(session, screen, line)
+            else readLoop(session, screen, line, false)
         else if c == '\u{7f}' || c == '\u{8}' then
-            if String.isEmpty(line) then readLoop(session, screen, line)
+            if String.isEmpty(line) then readLoop(session, screen, line, false)
             else {
-                send(screen, Print("\u{8} \u{8}"));
-                readLoop(session, screen, String.slice(line, 0, String.size(line) - 1))
+                let shorter = String.slice(line, 0, String.size(line) - 1);
+                send(screen, Typing(shorter));
+                readLoop(session, screen, shorter, false)
             }
         else {
-            send(screen, Print(Char.toString(c)));
-            readLoop(session, screen, line <> Char.toString(c))
+            let longer = line <> Char.toString(c);
+            send(screen, Typing(longer));
+            readLoop(session, screen, longer, false)
         }
-  | K(_) -> readLoop(session, screen, line)
+  | K(_) -> readLoop(session, screen, line, false)
 }
+
+// Report §11.2: `PageUp` and `PageDown` scroll the transcript, and with
+// `Meta` the pane a program writes to.
+fn pane(meta : Bool) -> Which = if meta then Upper else Lower
 
 fn keyLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = receive {
     Typed(line) -> match String.trim(line) {
