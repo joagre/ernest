@@ -21,7 +21,7 @@ The shell is an Ernest program of three processes over a front end. Its source i
 - **The program's processes are the session's.** `:processes` sees them, `:faults` reports their faults, `:quit` ends them with `ProgramEnd` (§8.6).
 - **An input cannot reach a process the program spawned.** There is no registry (§6.3), so the prompt has a running program's modules, its output, and its faults. A program meant to be driven from the prompt returns an address from the function that starts it.
 - **At start the shell prints one line**, the version and how to leave, `:quit` or `C-d`, with `:help` for the rest.
-- **Then it runs the inputs in `$HOME/.ernest/startup`**, if it exists. A startup input that fails is reported as any input is and the session goes on.
+- **Then it runs the inputs in `$HOME/.ernest/startup`**, if it exists, after the file's entry point has been spawned, so a startup input sees what is running. A startup input that fails is reported as any input is and the session goes on.
 - **On `:quit`, or `C-d` on an empty line**, the history is saved and every process the session spawned ends with `ProgramEnd`.
 
 ## The terminal
@@ -93,7 +93,7 @@ It does not hold the shell's settings, which are ordinary Ernest values; the his
 - **An input that does not check is shown as `ernc` shows an error** (§11.5), the input as the source and the span underlined. Nothing is run.
 - **A fault in an input is printed as `fault: ` and its text**, an interruption as `Killed`.
 - **A process that faults is reported** with its spawn site and cause: `Counter.worker:23 faulted: division by zero`. Which deaths are reported is "Failing processes".
-- **With timing on, each result is followed by its elapsed time.**
+- **With timing on, each result is followed by its elapsed time**, of the run alone: the check is not what is being measured.
 - **Output from another process while a line is being typed** is printed above it, and the prompt and the partial line are drawn again below.
 - **A write that does not end in a line feed is ended before the prompt is drawn**, so the prompt starts at column 0 and the next write starts a new line.
 
@@ -204,9 +204,16 @@ foreign fn show(v : Value, depth : Int, length : Int) -> String = "..."
 foreign fn exports(module : String) -> List(#(String, String)) = "..."
 foreign fn doc(name : String) -> Optional(String) = "..."
 foreign fn faults(wrap : (Fault) -> m) -> Unit with m = "..."
+foreign fn fields(env : Env, constructor : String) -> List(#(String, String)) = "..."
+
+foreign fn load(env : Env, module : String) -> Either(String, Env) with m = "..."
+foreign fn reload(env : Env) -> Either(String, #(Env, List(String))) with m = "..."
+foreign fn bindings(env : Env) -> List(#(String, String)) = "..."
+foreign fn forget(env : Env, name : String) -> Env = "..."
+foreign fn processes() -> List(#(String, String)) with m = "..."
 ```
 
-`start` makes the first `Env`, the load path and the source root in it, and every later one comes from an outcome. `check` returns §11.5's diagnostic text on an error. `run` starts the input's process, answers with its address, and delivers `Ok` or `Failed` when it ends, which is E.0 rule 8's shape for anything that arrives later. `typeText` is the type of an expression, for `:type`, which does not run it; `declared` is the names and types an input declares, which the shell prints and cannot read from an opaque `Env`. `exports` gives names with types, `doc` the section `:doc` prints, `faults` subscribes to what "Failing processes" shows.
+`start` makes the first `Env`, the load path and the source root in it, and every later one comes from an outcome. `check` returns §11.5's diagnostic text on an error. `run` starts the input's process, answers with its address, and delivers `Ok` or `Failed` when it ends, which is E.0 rule 8's shape for anything that arrives later. `typeText` is the type of an expression, for `:type`, which does not run it; `declared` is the names and types an input declares, which the shell prints and cannot read from an opaque `Env`. `exports` gives names with types, `doc` the section `:doc` prints, `faults` subscribes to what "Failing processes" shows. `fields` gives a named constructor's fields with their types, which completion needs and cannot get from `exports`, types crossing as text and the shell owning no parser of its own. The last five are the commands that reach past the shell: `load` and `reload` answer with the environment they made, `reload` also naming the modules it took; `bindings` and `forget` read and shrink the environment the shell cannot look into; `processes` asks the runtime what is alive. The processes `reload` ends need no shape of their own, §7.3 giving them a cause, so they arrive through `faults` as any other end does.
 
 ## Prerequisites
 
