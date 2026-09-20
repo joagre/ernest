@@ -124,7 +124,7 @@ design.
 ## Migration, in discrete steps
 
 Each step ended green, with `make test` and `make xref` passing, and is its own commit.
-Steps 1 to 6 are done; 7 waits for the first library, and 8 closes the rename.
+Steps 1 to 6 and 8 are done; 7 waits for the first library.
 
 1. `lib/` to `erl/`, directory rename only, the Makefile and `ERL_LIBS` with it.
 2. `type_system` to `typer`, `compiler` to `emitter`; `ern_stdlib`'s sources and tests move
