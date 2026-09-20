@@ -3032,6 +3032,20 @@ The shell's note gains a checkpoint before its first: expressions only, no bindi
 
 MVP 3 splits. Content addressing is not an implementation strategy that could be traded down: §8.7 makes it normative, identity across nodes being a hash of a normalized definition together with the hashes of what it references. What can be staged is the work. 3.0 is peers, three weeks, with code shipping between nodes of the same build, which satisfies §8.7 in its easiest case and refuses the rest with an error naming 3.1, as every deferral here does. 3.1 is identity in full, four weeks, and its first decision is what "normalized" means, since two nodes must agree exactly: the typed tree or the untyped, whether local names are erased, and what becomes of the effect variables, which are inferred and never written. `iface_hash/1` already hashes a canonical interface, and the cheaper answer is that it grows into the definition hash rather than a second scheme standing beside it.
 
+## The Shell's Smaller Rules, 2026-09-20
+
+The design note was rewritten as a specification and its arguments moved here, where the log owns them. The large ones have entries of their own above; these are the small ones, each of which a reader of the note would otherwise wonder about.
+
+A blank line submits whatever has been typed, complete or not, so `Enter` twice is always the way out of a multi-line input and no rule is needed for a blank line that arrives early; what does not parse gives the error it would give anyway. `M-Enter` is the way further in, and it exists because a declaration whose first line parses complete, `type Shape = Dot` before its alternatives, could otherwise not be typed at all, only pasted. The reminder is printed once a session rather than on every prompt, which would be noise.
+
+`:forget` requires a name and `:forget *` clears the session, so the destructive form is typed on purpose. A confirmation prompt was the alternative and it would have had to fight the live reader and the queue for the keyboard; a wildcard costs one character and needs no modal read. The prefix rule hands `:f` to `:forget`, which is why the form that destroys everything may not be the one a bare `:f` reaches.
+
+An expression of type `Unit` prints nothing, since `Io.println("hi")` would otherwise answer `hi` and then `Unit : Unit` after every effectful input. A pager is refused: the terminal's own scrollback, search and copy are one, and keeping them is half of why the transcript scrolls rather than splitting; a pager would also take the keyboard from the live reader. The terminal's width is asked for at each redraw instead of delivered as a notice when it changes, which spends nothing and saves a door in §8.2; a resize while the session is idle takes effect on the next keystroke.
+
+The atom and module tables grow with a session, each input being a module of its own name and each constructor an atom, and the host reclaims neither. It is a property rather than a defect, and it is written down so that a session of thousands of inputs is understood rather than investigated.
+
+The note gained one thing the decisions had implied without saying: the shell is three processes, a session holding the environment and the queue, a reader that owns the keys and stays live through an evaluation, and a screen that is the only writer, which is what the runner binds the sinks to. Without it an implementer would have had to invent the arrangement, and the redraw is where they would have got it wrong.
+
 ## Later
 
 Planned or considered, not in the language today.
