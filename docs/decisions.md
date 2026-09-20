@@ -2882,6 +2882,20 @@ The rest was drift, of one kind: everything that had said "waits", "is refused",
 
 One gap was unrecorded rather than stale, and it is the one worth keeping in view: the shell's design note listed four prerequisites against step 4, and step 4 closed with part of one. `Shift-Tab`, `Meta` combinations, and `C-c` as keys, the terminal's width, whether input is a terminal, and a way to learn that another process printed are none of them in the report. They are now an item of MVP 2.6, report first, in the plan and in the design note, since the shell is what needs them and the shell is where their shape will be decided.
 
+## One Token for the Project, 2026-09-20
+
+The Erlang side had three prefix conventions and no rule: `ern_check` beside `ern_char` beside `ern_diag`, a `runtime` directory beside an `ern_stdlib` one, `lib/compiler` holding a module that is not the compiler, and `lib/` holding both Erlang applications and, inside one of them, compiled Ernest. A newcomer read the Makefile to learn the shape of the repository.
+
+The rule is now one sentence: every Erlang module is `ern_<thing>`, unique across the repository, and every module compiled from an Ernest source is `ern@<namespace>`; a vendored file keeps its upstream name. `ern` is not shorthand invented for the occasion, it is the name on the runner, on the compiler, and on the source extension, so the token is learned once and typed everywhere. The prose keeps the language's full name, since it is about the language rather than the toolchain.
+
+Three arguments decided the shape. The top level should answer which language a file is in, so `erl/` holds the toolchain and `stdlib/`, `libs/`, and `examples/` hold Ernest; the directory already says which application a module belongs to, so the module name does not repeat it, which is what an earlier draft's `ernest_<app>_<thing>` would have done; and nothing is named to dodge a collision, measured rather than assumed. An application directory may take an Erlang application's name, as `lib/compiler` did, and both `ebin` directories stay on the code path, but the duplicate wins `code:lib_dir/1`; a module name, being global, must never clash. Of the names in play only `compiler` and `stdlib` exist in the distribution, and neither is needed: the application that turns a typed tree into Erlang forms is the emitter, `ernc` being the whole chain, and the standard library's Erlang half is part of the runtime, since it is what a compiled program calls. Its compiled modules are build output under `build/stdlib/`, not an application's `ebin`.
+
+Two names were wrong rather than mis-prefixed. `ern_compiler` became `ern_emitter`, the name the plan and the architecture note had used all along. `ern_check` became `ern_boundary`: it is the foreign boundary of §8.4, and nothing in it is a check in the sense the type checker uses that word. It could not be `ern_foreign`, which the standard library's `Foreign` already takes, and that near miss is what the uniqueness rule is for.
+
+Earlier entries keep the names they were written with, since an entry records an argument on its date and some of those arguments were about the names themselves. The two renames above and `ernest@` to `ern@` are the whole map from them to the code.
+
+[`naming.md`](naming.md) is the record; the rule itself lives in the style guide.
+
 ## Later
 
 Planned or considered, not in the language today.

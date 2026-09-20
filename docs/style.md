@@ -4,10 +4,11 @@ The style guides for the two languages in this repository. CLAUDE.md imports thi
 
 ## Erlang style guide
 
-For the compiler's own code under `lib/`.
+For the toolchain's own code under `erl/`.
 
 - **Four-space indent, no tabs. Lines ≤ 100 characters,** which `test/ern_style_tests.erl` checks.
-- **Module names carry the `ern_` prefix**, except modules implementing Ernest namespaces, which a `stdlib/x.ern` compiles to as `ernest@x`. One `-export` list at the top, in the order the functions appear.
+- **Every Erlang module is `ern_<thing>`**, where `<thing>` is unique across the repository; a vendored file keeps its upstream name. A module compiled from an Ernest source is `ern@<namespace>`, the path with `@` for `/`, so `stdlib/io.ern` becomes `ern@io`. The directory says which application a module belongs to, so the module name does not repeat it. [`naming.md`](naming.md) is the record of why.
+- **One `-export` list at the top**, in the order the functions appear.
 - **`-spec` on every exported function.** Types shared between modules are `-type`s in the owning module.
 - **Records live in `include/*.hrl`** when shared, else in the module. No macros beyond record definitions and the few constants that need a name.
 - **Tests are EUnit, in `test/<module>_tests.erl`**, one test function per behaviour, named after the behaviour, each with a `%% report §x.y` line.

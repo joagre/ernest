@@ -1,11 +1,12 @@
 # Naming the Erlang Side
 
-The scheme, settled 2026-09-20 and not yet carried out. The report owns the language, so
-nothing here touches it; this is the toolchain's own directories, applications, and Erlang
-modules, which a reader meets before any of them. The rule moves into [`style.md`](style.md)
-when the rename is done, and this page stays as its record.
+The scheme, settled and carried out on 2026-09-20. The report owns the language, so nothing
+here touches it; this is the toolchain's own directories, applications, and Erlang modules,
+which a reader meets before any of them. The rule lives in [`style.md`](style.md); this page
+is its record, and [`decisions.md`](decisions.md) holds the arguments under "One Token for
+the Project".
 
-## The problem
+## The problem, as it was
 
 Three conventions and no rule. `ern_check`, `ern_bits`, `ern_show`, `ern_fs`, `ern_keys`,
 `ern_tcp`, and `ern_rt` are one application; `ern_char`, `ern_float`, and `ern_string` are
@@ -122,7 +123,8 @@ design.
 
 ## Migration, in discrete steps
 
-Each step ends green, with `make test` and `make xref` passing, and is its own commit.
+Each step ended green, with `make test` and `make xref` passing, and is its own commit.
+Steps 1 to 6 are done; 7 waits for the first library, and 8 closes the rename.
 
 1. `lib/` to `erl/`, directory rename only, the Makefile and `ERL_LIBS` with it.
 2. `type_system` to `typer`, `compiler` to `emitter`; `ern_stdlib`'s sources and tests move
