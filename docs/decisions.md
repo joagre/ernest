@@ -3181,6 +3181,24 @@ The toolchain builds and passes on OTP 29, and the version it is written against
 
 **ncurses through cecho was refused.** It would be the repository's first NIF, its first C dependency and its first build that `make` alone does not do, and ncurses wants to own the output that `Sys.stdout` is. Two panes need a line buffer and a viewport each and ANSI, which is Ernest code in `shell/` and tests the language; colour and windows are report questions before they are library questions.
 
+## Two Panes, and One Module for the Terminal, 2026-09-20
+
+The shell splits the screen: a small upper pane for what programs print, the rest for the shell. Four decisions, and the one they reverse.
+
+**One module owns the terminal.** Panes need the terminal's size, which no Ernest program can ask for: snake hardcodes its board for want of it. Four shapes were weighed. A `Resized` constructor inside §9.3's `Key` is smallest by count, and principle 1 refuses it: a reader of `Key` reads "what the keyboard sent", and a window is not a keypress; a program that draws without reading keys would subscribe to the keyboard to hear about the window. A `Terminal` module beside `Keys` names things honestly and leaves two modules speaking for one terminal, which principle 2 calls an overlap, and the rule that the shell holds the terminal would be stated twice. A `foreign fn` for the shell alone leaves the gap and is the shape the standing rule against workarounds exists to refuse. So `Keys` becomes `Terminal`: the keyboard is not a resource, the terminal is, and it sends two kinds of event, `Event = Key(Key) | Resized(Size)`. One module, one system process renamed, no overlap, and every name reads as the thing it is. Done while `Keys` has four callers rather than after the editor has more.
+
+**The resize is an event, not a poll.** `Terminal.size()` alone would leave a window that changes while the session is idle stale until the next keystroke, which in a shell reads as broken.
+
+**The upper pane holds everything written through `Sys.stdout` and `Sys.stderr`.** The alternative was to keep an input's own output below with its value, so that one thought is not split across two panes, and it was refused for two reasons: the screen would have to know which process wrote each line, which §6.3 gives it no way to know, and the pane a line lands in would depend on whether the process that wrote it had outlived the input. One rule, stated once: program output above, the shell's own speech below.
+
+**A fault report is printed below.** It is the shell speaking about a program, not the program speaking. It is also the one line that arrives on its own rather than in answer to an input, which is the editor's redraw to handle and not the panes'.
+
+**The refusal this reverses.** The note refused two panes on three costs. The terminal's size and a notice when it changes are now added rather than missing. "The shell gets the small pane" was an argument against an even split, and the split is not even: the program's output takes a third at most and appears only once something prints, so `:browse` and `:doc` read where they always did. The third cost is paid: a pane that stays put while the other scrolls costs the terminal's own scrollback, search and selection over old output, since a terminal has one screen and one scrollback and lines that leave a repainted viewport are kept by nothing. The shell gives scrolling back itself, each pane being a line buffer, an offset and a height, and the renderer taking the visible slice, which is what an `ncurses` pad is and what `ncurses` would not have given us either. So `PageUp` and `PageDown` are part of the checkpoint and not polish: without them the older output is unreachable, not merely awkward.
+
+**The mouse stays off.** Wheel events need mouse reporting, which takes the terminal's click-and-drag selection away as well. Having paid once for the scrollback, paying again for a wheel that `PageUp` replaces is a worse trade.
+
+**Why the three changes are one checkpoint.** Panes need scroll keys, scroll keys need §9.3's `Key` to grow beyond its eight, and a `Key` that grows is the condition recorded earlier for taking OTP 29's `io_ansi:scan` in place of our decoder, whose two costs, `-opost` and `isig`, were measured the same day. Each is the reason for the next, and deciding them apart would decide them three times.
+
 ## Later
 
 Planned or considered, not in the language today.

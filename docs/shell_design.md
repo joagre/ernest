@@ -26,12 +26,25 @@ The shell is an Ernest program of three processes over a front end. Its source i
 
 ## The terminal
 
-- **The shell owns it, and the runner records the holder.** The runner starts the session's processes, so it marks the reader as the terminal's holder before anything else runs. `Keys.subscribe` and `Io.readLine` from any other process end the caller with `Fault("the shell holds the terminal; run the program with ern to give it the keyboard")`. §8.2 gains no notion of a shell: a holder is recorded, and the runner is the one that can record it, because it made the process. The shell reads through `Keys` and `Io.readLine` as any program does.
+- **One module owns the terminal, `Terminal`.** It replaces `Keys`, which spoke for the keyboard alone: the terminal is the resource, and it sends two kinds of event. `Terminal.subscribe(wrap)` delivers `Event = Key(Key) | Resized(Size)`, and `Terminal.size()` answers `Size(rows, columns)` now. §8.2's system process is the same one renamed, and `Sys.keys` becomes `Sys.terminal`.
+- **The shell owns it, and the runner records the holder.** The runner starts the session's processes, so it marks the reader as the terminal's holder before anything else runs. `Terminal.subscribe` and `Io.readLine` from any other process end the caller with `Fault("the shell holds the terminal; run the program with ern to give it the keyboard")`. §8.2 gains no notion of a shell: a holder is recorded, and the runner is the one that can record it, because it made the process. The shell reads through `Terminal` and `Io.readLine` as any program does.
 - **In line mode the holder holds standard input**, and the fault is the same. Line mode is what the reader uses when input is not a terminal: `Io.readLine`, no editing.
 - **A program under the shell prints and nothing more.** Its terminal fault is reported like any other, so a person who types `Snake.main()` is told why it will not run here and how to run it.
 - **The interrupt is a key to the shell while it reads**, not §8.6's signal, and §11.2 says so. Every other program keeps §8.6's rule, so the interrupt still stops a game that reads keys. The shell is left with `:quit` or `C-d`.
 - **The screen writes and nothing else does.** A program's print is an ordinary send; ordering is the screen's mailbox order. §8.2 is untouched: the runtime starts the system processes and binds their addresses, and a `String` sent to `Sys.stdout` still reaches standard output.
-- **The width is asked for at each redraw**, so a resize takes effect on the next keystroke and no notice is needed.
+- **The size is asked for at each redraw, and a resize is an event.** `Terminal.size()` gives the size the redraw uses; `Resized` arrives on the same stream as the keys, so a window that changes while the session is idle is repainted then and not at the next keystroke.
+
+## The screen and its panes
+
+The screen process, which is the only writer, keeps two panes. Nothing here is the terminal's doing: a terminal has one screen and one scrollback, and the panes are the shell's own, as an `ncurses` pad is the application's own.
+
+- **The upper pane holds what any process writes through `Sys.stdout` and `Sys.stderr`.** The lower pane is the shell's own: values, types, diagnostics, command output, fault reports and the prompt. Which pane a line lands in never depends on timing, and the screen needs no notion of who wrote it, which §6.3 gives it no way to have.
+- **A fault report is the shell speaking, so it is printed below.** It is the one line that arrives on its own rather than in answer to an input, and the line editor redraws the input under it.
+- **A pane is a line buffer, an offset and a height.** The renderer takes the visible slice of the buffer at the offset and paints the pane's rows; a write appends to the buffer and repaints that pane only. There are no scroll regions.
+- **The upper pane is small and appears with the first program output.** Nothing is split until something prints, so a shell with no program running looks as it always did. It then takes up to a third of the screen, and `:set output n` fixes it at n rows.
+- **`PageUp` and `PageDown` scroll a pane.** The split costs the terminal's own scrollback, since lines that leave a repainted viewport are kept by nothing, so the shell gives it back itself: the lower pane's buffer is the transcript and the upper pane's is the program's output, each with its own offset. Without these keys the older output would be unreachable rather than merely awkward, which is why they are not polish.
+- **The mouse is not turned on.** Wheel events need mouse reporting, and mouse reporting takes the terminal's click-and-drag selection away as well; `PageUp` does the same work for nothing.
+- **With no terminal there are no panes.** Line mode prints the shell's output and the program's in arrival order, as it does today.
 
 ## Input
 
@@ -191,12 +204,13 @@ A program is started by calling it; there is no command for it. A module meant f
 - **A second lookup command beside `:doc`, and a kinds command:** `:doc` shows the declaration, and Ernest exposes no kinds.
 - **Commands for the file system and the terminal:** `Fs` does this in the language.
 - **Declarations read from a file into the session:** `:load` takes a module and makes it reachable by its qualified name, as every module is (§4.2). Ernest has no imports, so names arriving unqualified from a file would have been the one place they did; a module's private declarations are no more reachable from the prompt than from anywhere else.
-- **A pager:** the terminal's own scrollback, search and copy are the pager, and keeping them is half the reason the transcript scrolls rather than splitting. One would also fight the live reader for the keyboard.
+- **A pager:** `PageUp` and `PageDown` over a pane's buffer are what a pager would be, and a long page is read there. One with its own key bindings would fight the live reader for the keyboard.
 - **Running a terminal program from the prompt:** the shell holds the terminal, so a program that reads keys or lines is run with `ern` instead. The fault says so.
 - **Custom printers:** a value has one rendering.
 - **User-defined commands, system commands, job control, a step debugger, and watch expressions.**
 - **Later, each on its own merits:** re-running an earlier input by number, `:trace f` to print each call and return of `f`, and, with MVP 3's peers, a shell attached to a running node. The design does not assume the shell runs on the node whose code it evaluates.
-- **A split screen, later and as a mode**, `:set split on`: a scrolling transcript above, the shell's output and the program's together, and the input alone at the bottom. It reads better while a program prints, and costs three things the scrolling terminal gives for nothing — the terminal's own scrollback, search and copy, since lines leaving a scroll region are not kept by most terminals; the terminal's height and a notice when it changes, neither of which is in §8.2; and a scroll region that shrinks and grows with every multi-line input. Splitting the other way, the program above and the shell below, is refused outright: the shell's own output is the large one, `:browse` and `:doc` being pages.
+- **Two panes were once refused and are now the design**, which "The screen and its panes" states. The refusal rested on three costs. Two are answered: the terminal's size and a notice when it changes are what `Terminal.size` and `Resized` add, and the shell keeps the large pane, the program's output taking a third at most, so `:browse` and `:doc` still read where they always did. The third is paid: the terminal's own scrollback, search and selection across old output go, and the shell gives back scrolling itself with `PageUp` and `PageDown` over each pane's buffer.
+- **Two terminals with the terminal's own behaviour:** that is `tmux`, or two pseudo-terminals and an emulator, and neither is a shell's work.
 
 ## Foreign interface
 
@@ -236,12 +250,12 @@ foreign fn processes() -> List(#(String, String)) with m = "..."
 
 Delivered before the shell. Those marked report first are written into the report before the code.
 
-- **`Keys`** delivers the arrows, `Enter`, `Escape`, and characters since MVP 2.5 step 4 (§9.3's `Key`). `Shift-Tab` and `Meta` need nothing added: §8.2 delivers a sequence that is not a key of §9.3 as `Escape` and the characters after it, and the editor decodes them as any editor does.
+- **`Keys`** delivers the arrows, `Enter`, `Escape`, and characters since MVP 2.5 step 4 (§9.3's `Key`). It becomes `Terminal` in checkpoint 2, where `Key` grows to what the panes and the editor need; until then a sequence that is not a key of §9.3 arrives as `Escape` and the characters after it.
 - **`Key` gains one value for the terminal's interrupt** (§9.3), delivered only to the terminal's holder. A subscriber receives `Key` values and nothing else (E.16), so without it the byte cannot arrive. Report first.
 - **§7.3 gains the cause** a process ends with when its code is replaced under it, which `:reload` reports. Report first.
-- **The terminal is the shell's when `--shell` is given** (§11.2), and §8.2 gains the case: `Keys.subscribe` and `Io.readLine` from anything else fault with the remedy in the text. Report first.
+- **The terminal is the shell's when `--shell` is given** (§11.2), and §8.2 gains the case: subscribing to the terminal and `Io.readLine` from anything else fault with the remedy in the text. Report first.
 - **The shell reads the terminal's interrupt as a key while it reads** (§11.2), which no other program does; §8.6's signal stands for them. Report first.
-- **The terminal's width**, asked for at each redraw. Not in the report; report first.
+- **The terminal's size**, asked for at each redraw, and a notice when it changes: `Terminal.size` and `Resized`, in checkpoint 2. Report first.
 - **Whether input is a terminal**, for line mode. Not in the report; report first.
 - **What the runtime knows about processes** — one system reference for two questions: subscribe me to the faults, and what is alive with its spawn site. The runtime holds both (§6.9); neither hands out an address, so §6.3 stands. Not in the report; report first.
 - **§11.2 states the shell's normative core:** the flag without an argument and the file optional with it; the shell as the entry process (§8.1) with the file's entry point spawned beside it, and what `--main` then names; the session as a scope in §4.2's lookup order, with a session type printed unqualified (§11.5); the terminal's holder; the interrupt read as a key; `Deadlock` not firing while a shell holds a source; types on every result, a module and a process per input, bindings that survive a fault, the commands and their prefix rule, and line mode.
@@ -271,5 +285,6 @@ The plan's item stops at each; each is a shell a user can try.
 
 0. **Expressions only.** The `shell/` tree, its `make` rule into `build/shell/` with the guard the standard library's build has, and `build/shell` on `bin/ern`'s code path; the three processes and the foreign interface; an input checked against the load path, compiled, run in a process, its value and type printed; faults, errors, quitting. The reader is the floor and no more: characters, `Backspace`, `Enter`, `C-d`, and the interrupt; the line editor is checkpoint 2. No bindings, so no incremental checking: a calculator over the whole standard library, with the loop and the terminal harness proved end to end before the hard part begins.
 1. **Bindings.** Every input checked against the accumulated environment; `it`, timing, fault reports from spawned processes, the startup file, the commands; the session golden tests.
-2. **The line editor.** Moving, deleting, killing with a single yank, history and its search, interruption, redrawing after other output, bracketed paste, the prompts; the key-stream tests. What "Line editing" marks later is later.
-3. **Completion and documentation.** `Tab`, `Shift-Tab`, command arguments.
+2. **The terminal and its panes.** `Terminal` replaces `Keys` and gains `size` and `Resized`; §9.3's `Key` grows to the keys the panes and the editor need, decoded by OTP 29's `io_ansi:scan` in place of our own decoder, which covers eight; the screen keeps two panes of lines, offset and height, output above and the shell below; `:set output n`; `PageUp` and `PageDown` over each pane. The three arrive together because each is the reason for the next.
+3. **The line editor.** Moving, deleting, killing with a single yank, history and its search, interruption, redrawing after other output, bracketed paste, the prompts; the key-stream tests. What "Line editing" marks later is later.
+4. **Completion and documentation.** `Tab`, `Shift-Tab`, command arguments.
