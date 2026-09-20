@@ -19,12 +19,12 @@ ping(PongAddr_3, N_4) ->
         false ->
             ernest@io:println(<<"ping ",
                                 (ernest@int:toString(N_4))/binary>>),
-            case ern_check:value('$type_1'(),
-                                 ern_rt:call(PongAddr_3,
-                                             fun (R_5) -> {'Ping', N_4, R_5}
-                                             end,
-                                             5000),
-                                 <<"reply does not match Optional(Int)">>)
+            case ern_boundary:value('$type_1'(),
+                                    ern_rt:call(PongAddr_3,
+                                                fun (R_5) -> {'Ping', N_4, R_5}
+                                                end,
+                                                5000),
+                                    <<"reply does not match Optional(Int)">>)
                 of
                 {'Some', _} -> ping(PongAddr_3, N_4 - 1);
                 'None' ->

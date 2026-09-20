@@ -39,9 +39,9 @@ clean:
 # Rewrite test/golden/*.erl, the Erlang source the compiler emits for every
 # MVP 1 example, after an intended change to the emitter.
 golden: all
-	@$(MAKE) -s -C erl/emitter/src ../ebin/ern_compiler_tests.beam
-	@cd erl/emitter/src && erl -noshell -pa ../../*/ebin \
-	  -eval 'ern_compiler_tests:write_golden(), halt().'
+	@$(MAKE) -s -C erl/emitter/src ../ebin/ern_emitter_tests.beam
+	@cd erl/emitter/src && erl -noshell -pa ../../*/ebin -pa $(abspath build/stdlib) \
+	  -eval 'ern_emitter_tests:write_golden(), halt().'
 
 # Every `§x.y`, `Appendix X`, and `E.n` in a live document names a heading of the
 # report, and the guide's own bare `§x.y` a heading of the guide; a test in test/.

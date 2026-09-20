@@ -1,5 +1,5 @@
 %% Report Appendix E.1: a value as Ernest writes it, by the descriptor of
-%% its type (ern_check); where the type is a variable, the descriptor is
+%% its type (ern_boundary); where the type is a variable, the descriptor is
 %% `any` and the value is read by its runtime representation (§8.4).
 -module(ern_show).
 

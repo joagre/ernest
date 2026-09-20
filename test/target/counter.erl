@@ -23,7 +23,7 @@
 %% site for Down (report §6.9). Int arithmetic is emitted inline; String.<>
 %% is binary concatenation; stdlib calls go to the namespace's module,
 %% 'ernest@int' for Int. A reply a call observes is checked against the
-%% declared type through ern_check (report §8.4), the type described once
+%% declared type through ern_boundary (report §8.4), the type described once
 %% per module by a '$type_N' function; a message from a foreign process is
 %% checked by the proxy that delivered it, so a receive checks nothing.
 %%
@@ -46,7 +46,7 @@ main() ->
     C = ern_rt:spawn('Local', fun() -> counter(0) end, <<"Counter.main:17">>),
     ern_rt:send(C, {'Inc', 5}),
     ern_rt:send(C, {'Inc', 3}),
-    case ern_check:value('$type_1'(), ern_rt:call(C, fun(R) -> {'Get', R} end, 1000),
+    case ern_boundary:value('$type_1'(), ern_rt:call(C, fun(R) -> {'Get', R} end, 1000),
                          <<"reply does not match Optional(Int)">>) of
         {'Some', N} ->
             'ernest@io':println(<<"count is ", ('ernest@int':toString(N))/binary>>);

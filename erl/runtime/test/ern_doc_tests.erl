@@ -47,7 +47,7 @@ examples(Ns, File) ->
              || {N, _, _} <- WithResult],
     Text = iolist_to_binary([Src, "\n", Fns, Mains]),
     {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Text),
-    {ok, Mod, Bin} = ern_compiler:compile(Ns, Typed, Iface, Env),
+    {ok, Mod, Bin} = ern_emitter:compile(Ns, Typed, Iface, Env),
     Original = code:which(Mod),
     {module, Mod} = code:load_binary(Mod, "doc examples", Bin),
     try

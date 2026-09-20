@@ -6,7 +6,14 @@
 EBIN = ebin
 ERLC_FLAGS = +debug_info -Werror
 
+# A changed compiler with an unchanged VERSION leaves ernc's build records
+# valid (report §11.1), so the programs compiled here are thrown away
+# whenever a toolchain beam is newer than the last run, as the standard
+# library's build does.
 test: $(EBIN)/ern_integration_tests.beam $(EBIN)/ern_docs_tests.beam $(EBIN)/ern_style_tests.beam
+	@if [ -n "$$(find ../erl -name '*.beam' -newer build/.built 2>/dev/null)" ] \
+	   || [ ! -f build/.built ]; then rm -rf build; fi
+	@mkdir -p build && touch build/.built
 	erl -noshell -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) -eval \
 	  'halt(case eunit:test([ern_integration_tests, ern_docs_tests, ern_style_tests], []) of ok -> 0; _ -> 1 end).'
 

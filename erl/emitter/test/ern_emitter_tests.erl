@@ -1,4 +1,4 @@
--module(ern_compiler_tests).
+-module(ern_emitter_tests).
 
 -export([write_golden/0]).
 
@@ -20,7 +20,7 @@ run(Text) ->
 
 run(Ns, Text) ->
     {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Text),
-    {ok, Mod, Bin} = ern_compiler:compile(Ns, Typed, Iface, Env),
+    {ok, Mod, Bin} = ern_emitter:compile(Ns, Typed, Iface, Env),
     {module, Mod} = code:load_binary(Mod, "test", Bin),
     Me = self(),
     Result = ern_rt:run_main(fun() -> Mod:main() end, <<"main">>,
@@ -53,7 +53,7 @@ example(Base) ->
 example_forms(Base) ->
     {Ns, Bin} = example(Base),
     {ok, Typed, _, Env} = ern_typecheck:check_string(Ns, Bin),
-    normalize(ern_compiler:forms(Ns, Typed, Env)).
+    normalize(ern_emitter:forms(Ns, Typed, Env)).
 
 target_forms(File) ->
     {ok, Forms} = epp:parse_file("../../../test/target/" ++ File, []),
@@ -142,7 +142,7 @@ golden_source(Name) ->
     emitted(Ns, Typed, Env).
 
 emitted(Ns, Typed, Env) ->
-    unicode:characters_to_binary(ern_compiler:erl_source(Ns, Typed, Env)).
+    unicode:characters_to_binary(ern_emitter:erl_source(Ns, Typed, Env)).
 
 %% report §11.1, plan 2: the emitted source of every example is what the
 %% golden file holds; a difference is written beside it as .new
@@ -196,14 +196,14 @@ iface_chunk_test() ->
     {Ns, Bin} = example("stack"),
     {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Bin),
     Build = #{source_hash => <<"s">>, deps => [{['Net', 'Http'], <<"h">>}]},
-    {ok, 'ernest@stack', Beam} = ern_compiler:compile(Ns, Typed, Iface, Env, Build),
+    {ok, 'ernest@stack', Beam} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
     {ok, #{iface := Read, source_hash := <<"s">>, deps := [{['Net', 'Http'], <<"h">>}]}} =
-        ern_compiler:read_interface(Beam),
+        ern_emitter:read_interface(Beam),
     ?assertEqual(['Stack'], Read#iface.namespace),
     ?assert(is_map_key(['Stack', 'Stack', push], Read#iface.values)),
-    ?assertEqual(ern_compiler:iface_hash(Iface), ern_compiler:iface_hash(Read)),
+    ?assertEqual(ern_emitter:iface_hash(Iface), ern_emitter:iface_hash(Read)),
     {ok, _, Iface2, _} = ern_typecheck:check_string(Ns, <<"fn f(x) = x\n", Bin/binary>>),
-    ?assertEqual(ern_compiler:iface_hash(Iface), ern_compiler:iface_hash(Iface2)).
+    ?assertEqual(ern_emitter:iface_hash(Iface), ern_emitter:iface_hash(Iface2)).
 
 %% report §11.1: a chunk of another compiler version reads as an error,
 %% so the module counts as stale; and the interface hash ignores the names
@@ -211,27 +211,27 @@ iface_chunk_test() ->
 stale_chunk_test() ->
     {Ns, Bin} = example("stack"),
     {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Bin),
-    {ok, _, Beam} = ern_compiler:compile(Ns, Typed, Iface, Env),
+    {ok, _, Beam} = ern_emitter:compile(Ns, Typed, Iface, Env),
     {ok, {_, [{"ErnI", Chunk}]}} = beam_lib:chunks(Beam, ["ErnI"]),
     Old = term_to_binary((binary_to_term(Chunk))#{format => 0}),
     {ok, _, Stale} = compile:forms([{attribute, 1, module, x}],
                                    [binary, {extra_chunks, [{<<"ErnI">>, Old}]}]),
-    ?assertMatch({error, _}, ern_compiler:read_interface(Stale)),
+    ?assertMatch({error, _}, ern_emitter:read_interface(Stale)),
     {ok, _, IfaceA, _} = ern_typecheck:check_string(['M'], "export fn id(x : a) -> a = x\n"),
     {ok, _, IfaceT, _} = ern_typecheck:check_string(['M'], "export fn id(x : t) -> t = x\n"),
-    ?assertEqual(ern_compiler:iface_hash(IfaceA), ern_compiler:iface_hash(IfaceT)).
+    ?assertEqual(ern_emitter:iface_hash(IfaceA), ern_emitter:iface_hash(IfaceT)).
 
 %% report §11.1: --emit erl gives the module as Erlang source
 erl_source_test() ->
     {Ns, Bin} = example("hello"),
     {ok, Typed, _, Env} = ern_typecheck:check_string(Ns, Bin),
-    Src = unicode:characters_to_binary(ern_compiler:erl_source(Ns, Typed, Env)),
+    Src = unicode:characters_to_binary(ern_emitter:erl_source(Ns, Typed, Env)),
     ?assertMatch({_, _}, binary:match(Src, <<"-module(ernest@hello).">>)).
 
 %% plan 2.4: the module atom is ernest@ and the path with @ for /
 module_atom_test() ->
-    ?assertEqual('ernest@counter', ern_compiler:module_atom(['Counter'])),
-    ?assertEqual('ernest@net@http', ern_compiler:module_atom(['Net', 'Http'])).
+    ?assertEqual('ernest@counter', ern_emitter:module_atom(['Counter'])),
+    ?assertEqual('ernest@net@http', ern_emitter:module_atom(['Net', 'Http'])).
 
 %%
 %% Blocks, bindings, and local functions
@@ -672,14 +672,14 @@ foreign_faults_test() ->
     {R1, _} = run("foreign fn bad() -> Int = \"erlang:node/0\"\n"
                   ++ Main ++ "Io.println(Int.toString(bad()))\n"),
     ?assertEqual({fault, <<"foreign return does not match Int">>}, R1),
-    {R2, _} = run("foreign fn pair() -> #(Int, String) = \"ern_compiler_tests:pair/0\"\n"
+    {R2, _} = run("foreign fn pair() -> #(Int, String) = \"ern_emitter_tests:pair/0\"\n"
                   ++ Main ++ "{ let #(_, s) = pair(); Io.println(s) }\n"),
     ?assertEqual({fault, <<"foreign return does not match #(Int, String)">>}, R2),
-    {R3, _} = run("foreign fn opt(k : Int) -> Optional(Int) = \"ern_compiler_tests:opt/1\"\n"
+    {R3, _} = run("foreign fn opt(k : Int) -> Optional(Int) = \"ern_emitter_tests:opt/1\"\n"
                   ++ Main ++ "match opt(1) { Some(n) -> Io.println(Int.toString(n))"
                   " | None -> Io.println(\"none\") }\n"),
     ?assertEqual({fault, <<"foreign return does not match Optional(Int)">>}, R3),
-    {ok, Out} = run("foreign fn opt(k : Int) -> Optional(Int) = \"ern_compiler_tests:opt/1\"\n"
+    {ok, Out} = run("foreign fn opt(k : Int) -> Optional(Int) = \"ern_emitter_tests:opt/1\"\n"
                     ++ Main ++ "match opt(0) { Some(n) -> Io.println(Int.toString(n))"
                     " | None -> Io.println(\"none\") }\n"),
     ?assertEqual(<<"3\n">>, Out),
@@ -696,7 +696,7 @@ foreign_faults_test() ->
 %% when no clause would bind it; a good one arrives, also from inside a
 %% list; a reply is checked by the call that observes it
 foreign_messages_test() ->
-    Junk = "foreign fn junk(a : Address(Msg)) -> Unit with m = \"ern_compiler_tests:junk/1\"\n",
+    Junk = "foreign fn junk(a : Address(Msg)) -> Unit with m = \"ern_emitter_tests:junk/1\"\n",
     {R1, _} = run("type Msg = Go(Int)\n" ++ Junk ++
                   "export fn main() -> Unit with Msg = {\n"
                   "    junk(self());\n"
@@ -711,9 +711,9 @@ foreign_messages_test() ->
     ?assertEqual({fault, <<"message does not match Msg">>}, R0),
     {ok, Out} = run("type Msg = Go(Int)\n"
                     "foreign fn good(a : Address(Msg)) -> Unit with m ="
-                    " \"ern_compiler_tests:good/1\"\n"
+                    " \"ern_emitter_tests:good/1\"\n"
                     "foreign fn tell(targets : List(Address(Msg))) -> Unit with m"
-                    " = \"ern_compiler_tests:tell/1\"\n"
+                    " = \"ern_emitter_tests:tell/1\"\n"
                     "export fn main() -> Unit with Msg = {\n"
                     "    good(self());\n"
                     "    receive { Go(n) -> Io.println(Int.toString(n)) };\n"
@@ -723,7 +723,7 @@ foreign_messages_test() ->
     ?assertEqual(<<"1\n2\n">>, Out),
     {R2, _} = run("type Ask = Ask(reply : Reply(Int))\n"
                   "foreign fn server() -> Address(Ask) with m ="
-                  " \"ern_compiler_tests:junk_server/0\"\n"
+                  " \"ern_emitter_tests:junk_server/0\"\n"
                   "export fn main() -> Unit with Never = {\n"
                   "    let n = Address.callForever(server(), fn(r) = Ask(reply = r));\n"
                   "    Io.println(Int.toString(n))\n"
@@ -970,7 +970,7 @@ prelude_targets_test() ->
                         not erlang:function_exported(M, F, A)],
     ?assertEqual([], Missing).
 
-%% The emission of a prelude name, as ern_compiler makes it; inline
+%% The emission of a prelude name, as ern_emitter makes it; inline
 %% operators have no target.
 prelude_target(Q, Text) ->
     {ok, Syntax} = ern_parser:parse_type(Text),
@@ -994,7 +994,7 @@ prelude_target(Q, Text) ->
         ['Sys', _] -> {ern_rt, sys, 1};
         [_, Op] when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/'; Op =:= '%'; Op =:= '<>';
                      Op =:= negate -> {erlang, is_atom, 1};
-        [Ns, F] -> {ern_compiler:module_atom([Ns]), F, Arity}
+        [Ns, F] -> {ern_emitter:module_atom([Ns]), F, Arity}
     end.
 
 %% report §6.5, §6.9, §7.3, §9.5: kill is a Down with Killed, a fault a

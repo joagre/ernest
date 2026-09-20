@@ -9,7 +9,7 @@
 %% gets a fresh Erlang variable (Ernest shadows, Erlang does not), local fns
 %% are lifted to module functions taking the block's free variables first,
 %% and `let p <- e` becomes a case (report §5.5).
--module(ern_compiler).
+-module(ern_emitter).
 
 -export([compile/4, compile/5, forms/3, erl_source/3, read_interface/1, iface_hash/1,
          module_atom/1]).
@@ -219,7 +219,7 @@ decl(#let_decl{pos = Pos, owner = O, name = N}, Cx) ->
     {[at(Pos, erl_syntax:function(erl_syntax:atom(Name), [Clause]))], Cx};
 decl(#foreign_fn_decl{pos = Pos, owner = O, name = N, params = Params, impl = Impl,
                       type = Scheme}, Cx) ->
-    %% report §4.7, §8.4: the implementation, called through ern_check,
+    %% report §4.7, §8.4: the implementation, called through ern_boundary,
     %% which turns an exception into a fault and checks the return
     Name = fname(O, N),
     {ok, {M, F, _}} = ern_typecheck:foreign_impl(Impl),
@@ -235,7 +235,7 @@ decl(#foreign_fn_decl{pos = Pos, owner = O, name = N, params = Params, impl = Im
                                              false -> {erl_syntax:atom(none), C}
                                          end
                                      end, Cx2, ParamTs),
-    Body = call_remote(ern_check, foreign,
+    Body = call_remote(ern_boundary, foreign,
                        [erl_syntax:atom(M), erl_syntax:atom(F), erl_syntax:list(Args),
                         erl_syntax:list(ArgDescs), DescForm,
                         check_text("foreign return does not match ", Ret, Cx)]),
@@ -777,12 +777,12 @@ resolved(T, #cx{env = Env}) ->
 
 %%
 %% The foreign boundary, report §8.4: a declared type as the term
-%% ern_check interprets
+%% ern_boundary interprets
 %%
 
 checked(Form, T, Prefix, Cx) ->
     {DescForm, Cx1} = descriptor_ref(T, Cx),
-    {call_remote(ern_check, value, [DescForm, Form, check_text(Prefix, T, Cx)]), Cx1}.
+    {call_remote(ern_boundary, value, [DescForm, Form, check_text(Prefix, T, Cx)]), Cx1}.
 
 %% A descriptor as a form: a literal when it is a word, else a call of a
 %% module function that returns it, one per distinct descriptor.

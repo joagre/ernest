@@ -13,7 +13,7 @@
 %% whose messages D describes; a constructor with named fields carries
 %% their names, and an abstract type seen from outside its module is
 %% wrapped, both for printing (ern_show).
--module(ern_check).
+-module(ern_boundary).
 
 -export([foreign/6, value/3]).
 
