@@ -4,7 +4,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--export([pair/0, opt/1, junk/1, junk_server/0, good/1, tell/1]).
+-export([pair/0, opt/1, junk/1, junk_server/0, good/1, tell/1, remember/1]).
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("lexer/include/ern_diag.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -724,6 +724,21 @@ foreign_faults_test() ->
                   ++ Main ++ "each(fn(n : Int) -> Unit with Never = todo(\"later\"), [1])\n"),
     ?assertEqual({fault, <<"todo: later">>}, R5).
 
+%% report §8.4: the proxy in front of an exposed address is one per address
+%% and mailbox type, so exposing the same address twice gives the same one
+foreign_proxy_is_one_test() ->
+    persistent_term:erase({?MODULE, proxy_seen}),
+    {ok, Out} = run("type Msg = Go(Int)\n"
+                    "foreign fn remember(a : Address(Msg)) -> Bool with m ="
+                    " \"ern_emitter_tests:remember/1\"\n"
+                    "export fn main() -> Unit with Msg = {\n"
+                    "    let _ = remember(self());\n"
+                    "    let again = remember(self());\n"
+                    "    Io.println(if again then \"same\" else \"another\")\n"
+                    "}\n"),
+    ?assertEqual(<<"same\n">>, Out),
+    persistent_term:erase({?MODULE, proxy_seen}).
+
 %% report §8.4, §7.4: an address given to foreign code is a proxy that
 %% checks each message on delivery, a bad one faulting the target even
 %% when no clause would bind it; a good one arrives, also from inside a
@@ -778,6 +793,15 @@ foreign_messages_test() ->
 pair() -> {1, 2}.
 opt(0) -> {'Some', 3};
 opt(_) -> {'Some', <<"x">>}.
+%% report §8.4: remembers the first address it is given and says whether
+%% the next is the same one
+remember(Pid) ->
+    case persistent_term:get({?MODULE, proxy_seen}, undefined) of
+        undefined -> persistent_term:put({?MODULE, proxy_seen}, Pid), false;
+        Pid -> true;
+        _ -> false
+    end.
+
 junk(Pid) -> Pid ! {'Go', <<"x">>}, 'Unit'.
 good(Pid) -> Pid ! {'Go', 1}, 'Unit'.
 tell(Pids) -> [P ! {'Go', 2} || P <- Pids], 'Unit'.

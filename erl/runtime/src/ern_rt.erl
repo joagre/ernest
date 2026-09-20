@@ -23,7 +23,7 @@
 -export([send/2, spawn/3, self/0, via/2, call/3, call_forever/2, answer/2, monitor/2,
          kill/1, sys/1, run_main/2, run_main/3, fault/1, remote/1, parallel_remote/1,
          todo/1, timed/0, untimed/0, in_foreign/1, init_stdlib/0, own_terminal/1,
-         source_begin/0, source_end/0, process_of/1]).
+         source_begin/0, source_end/0, process_of/1, proxy_for/2, proxy_forget/1]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -217,6 +217,32 @@ snapshot(Pids) ->
          [{status, S}, {reductions, R}] -> {Pid, S, R};
          undefined -> {Pid, dead, 0}
      end || Pid <- Pids].
+
+%% Report §8.4: the checking proxy in front of an address exposed to
+%% foreign code is one per address and mailbox type, not one per call: two
+%% proxies checking the same messages for the same process are two of the
+%% same thing. The loser of a race is killed and the winner used.
+-spec proxy_for(term(), fun(() -> pid())) -> pid().
+proxy_for(Key, Start) ->
+    case ets:lookup(?PROCESSES, {proxy, Key}) of
+        [{_, Pid}] ->
+            Pid;
+        [] ->
+            Pid = Start(),
+            case ets:insert_new(?PROCESSES, {{proxy, Key}, Pid}) of
+                true ->
+                    Pid;
+                false ->
+                    exit(Pid, kill),
+                    [{_, Winner}] = ets:lookup(?PROCESSES, {proxy, Key}),
+                    Winner
+            end
+    end.
+
+-spec proxy_forget(term()) -> ok.
+proxy_forget(Key) ->
+    _ = catch ets:delete(?PROCESSES, {proxy, Key}),
+    ok.
 
 %% Report §8.6: what a system process holds that can still deliver, a
 %% timer, a subscription, or a read in progress. Each is counted while it

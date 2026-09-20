@@ -143,22 +143,29 @@ expose({mu, Id, D}, V, B) -> expose(D, V, B#{Id => D});
 expose({ref, Id}, V, B) -> expose(maps:get(Id, B), V, B);
 expose(_, V, _) -> V.
 
-%% The proxy lives as long as the target; a message that does not match
-%% ends the target with the fault, as its own receive would have.
+%% The proxy lives as long as the target, and there is one of it per
+%% address and mailbox type however often the address is exposed; a message
+%% that does not match ends the target with the fault, as its own receive
+%% would have.
 proxy(Target, D, B, Text) ->
+    Key = {Target, D, B},
+    ern_rt:proxy_for(Key, fun() -> start_proxy(Key, Target, D, B, Text) end).
+
+start_proxy(Key, Target, D, B, Text) ->
     erlang:spawn(fun() ->
                      MRef = erlang:monitor(process, ern_rt:process_of(Target)),
-                     proxy_loop(Target, MRef, D, B, Text)
+                     proxy_loop(Key, Target, MRef, D, B, Text)
                  end).
 
-proxy_loop(Target, MRef, D, B, Text) ->
+proxy_loop(Key, Target, MRef, D, B, Text) ->
     receive
         {'DOWN', MRef, process, _, _} ->
+            ern_rt:proxy_forget(Key),
             ok;
         Msg ->
             case chk(D, Msg, B) of
                 true -> ern_rt:send(Target, zeroed(D, Msg, B));
                 false -> exit(ern_rt:process_of(Target), {ern, fault, Text})
             end,
-            proxy_loop(Target, MRef, D, B, Text)
+            proxy_loop(Key, Target, MRef, D, B, Text)
     end.

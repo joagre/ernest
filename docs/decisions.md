@@ -2998,6 +2998,16 @@ Two things came out of doing it. A monitor on a process the runtime did not star
 
 And the morning's change had left a hole: the foreign boundary recognised an address by `is_pid`, so after `via` became a pair, an adapted address handed to foreign code went through unchecked and as a bare term, which foreign code could not have sent to correctly either. It is an address, it goes through the same checking proxy, and a test now sends through one.
 
+## One Proxy in Front of an Address, 2026-09-20
+
+The last of the day's three of a kind. §8.4 hands foreign code a proxy rather than the address itself, since foreign code sends with the host's own primitive and the only thing the runtime controls is the identifier it gave out; the proxy checks each message against the mailbox type and ends the target with the fault when one does not match. It was made at every exposure, so a program that passes the same address to a foreign function in a loop made one process per call, each living as long as the target.
+
+Two proxies checking the same messages for the same process are two of the same thing, which principle 2 refuses, and §8.4 says "the proxy", singular. There is now one per address and mailbox type: the key is the target with the descriptor it is checked against, since two call sites that declare the same type build the same descriptor and one that declares another must check by its own. The loser of a race is killed and the winner used, and a proxy forgets itself before it follows its target.
+
+The address handed out is now stable as well, which is what a foreign library that stores it twice would expect and silently did not get.
+
+Checking inside the receiving process instead, with a clause the compiler adds, was the tempting alternative and fails on the section's own word: a bad message faults the receiver *on delivery*. A check in a `receive` fires when the process next reaches one, and a process that never receives again would never notice.
+
 ## Later
 
 Planned or considered, not in the language today.
