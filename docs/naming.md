@@ -56,10 +56,16 @@ The top level answers the first question a newcomer has, which language a file i
 ```
 erl/        the toolchain, written in Erlang
 stdlib/     the standard library, written in Ernest
-libs/       the libraries, written in Ernest
+libs/       the libraries, written in Ernest, each with its own erl/ if it needs one
 examples/   programs, written in Ernest
 bin/ build/ docs/ test/
 ```
+
+Nothing is named to dodge a collision. The Erlang half of the standard library is part of
+the runtime, since it is what a compiled program calls, and the compiled `ernest@*.beam`
+files are build output under `build/stdlib/`, which the tools put on the code path. A
+library that needs Erlang keeps it beside itself, `libs/json/json.ern` with
+`libs/json/erl/ernest_json_support.erl`, so everything about a library is in one place.
 
 ## The map
 
@@ -90,14 +96,15 @@ bin/ build/ docs/ test/
 | `lib/runtime/src/ern_tcp.erl` | `erl/runtime/src/ernest_tcp.erl` |
 | `lib/cli/src/ern_cli.erl` | `erl/cli/src/ernest_cli.erl` |
 | `lib/utils/src/getopt.erl` | `erl/utils/src/getopt.erl`, unchanged: vendored, and `THIRD_PARTY_LICENSES` names it |
-| `lib/ern_stdlib/` | `erl/estdlib/` |
-| `lib/ern_stdlib/src/ern_char.erl` | `erl/estdlib/src/ernest_char.erl` |
+| `lib/ern_stdlib/src/` | `erl/runtime/src/`: the shims are what a compiled program calls, so they are the runtime's |
+| `lib/ern_stdlib/src/ern_char.erl` | `erl/runtime/src/ernest_char.erl` |
 | (and `float`, `foreign`, `int`, `io`, `list`, `map`, `path`, `random`, `set`, `string`) | likewise |
 | `lib/*/test/ern_x_tests.erl` | `<new module name>_tests.erl` beside its subject |
 | `test/ern_docs_tests.erl` | `test/ernest_docs_tests.erl` |
 | `test/ern_style_tests.erl` | `test/ernest_style_tests.erl` |
 | `test/ern_integration_tests.erl` | `test/ernest_integration_tests.erl` |
-| — | `erl/elibs/` for the Erlang side of an Ernest library, `libs/` for the libraries themselves, `build/libs/` for their compiled form |
+| `lib/ern_stdlib/ebin/ernest@*.beam` | `build/stdlib/`, build output rather than an application's `ebin` |
+| — | `libs/<name>/` for a library, its Erlang half under `libs/<name>/erl/`, its compiled form in `build/libs/` |
 
 Unchanged: `bin/ernc` and `bin/ern`; `stdlib/*.ern`; `examples/*.ern`; `build/stdlib/`; and
 the compiled `ernest@<namespace>.beam` names, which report §11.1 fixes.
@@ -111,15 +118,16 @@ uniqueness rule is for. And `ern_compiler` becomes
 typer, and this; the application that turns a typed tree into Erlang forms is the emitter,
 which is what the plan and the architecture note have called it all along.
 
-## Two names that need a reason
+## One name that needs a reason
 
 - **`emitter`, not `compiler` or `codegen`.** `compiler` is Erlang's application name and
   would win `code:lib_dir/1`; `codegen` is an acronym in spirit. `emitter` is the word
   this project already uses for that code.
-- **`estdlib`, not `stdlib`.** The directory holds the Erlang half of the standard
-  library, `stdlib` is Erlang's application name, and we call `code:lib_dir/1` on this
-  application at startup, so the clash would be ours to trip over. The `e` means "the
-  Erlang side of an Ernest tree", as in `elibs`, and it appears in no other position.
+- **No `e` prefix anywhere.** An earlier draft had `estdlib` and `elibs`, each named to
+  dodge a collision, one with Erlang's application and one with our own `libs/`. Both are
+  gone: the shims joined the runtime, where they were always headed, and a library's
+  Erlang half lives with the library. A name chosen to dodge a collision is the weakest
+  kind, and the scheme is one rule shorter without them.
 
 ## Against the principles
 
@@ -138,27 +146,31 @@ design.
    `ern_stdlib/ebin`, compiled Ernest.
 4. **Simple to parse**, read as "simple to find": a name is `ernest_` and a word, so a
    grep for `ernest_` finds our code and nothing else.
-5. **Small.** Nine directories under `erl/`, one prefix, thirty-five modules that each say
-   one thing. `ernest_runtime_tcp` said two, and the second was in the path already.
+5. **Small.** Seven directories under `erl/`, one prefix, thirty-five modules that each
+   say one thing. `ernest_runtime_tcp` said two, and the second was in the path already;
+   `estdlib` and `elibs` were two more directories that said only where they were not.
 
 ## Migration, in discrete steps
 
 Each step ends green, with `make test` and `make xref` passing, and is its own commit.
 
 1. `lib/` to `erl/`, directory rename only, the Makefile and `ERL_LIBS` with it.
-2. Directory renames inside `erl/`: `type_system` to `typer`, `compiler` to `emitter`,
-   `ern_stdlib` to `estdlib`; `runtime` keeps its name.
-3. One application's modules at a time, headers with them, leaves first: `utils`, `lexer`,
-   `parser`, `typer`, `emitter`, `runtime`, `estdlib`, `cli`.
-4. Test modules, each with its subject.
-5. The emitted names and the library's own sources. `ernest_emitter` writes calls to
+2. Directory renames inside `erl/`: `type_system` to `typer`, `compiler` to `emitter`;
+   `runtime` keeps its name, and `ern_stdlib`'s sources move into it, its tests beside
+   them.
+3. The installed library moves from an application's `ebin` to `build/stdlib/`, with the
+   code path set by `bin/ernc`, `bin/ern`, the Makefiles, and the one place the runtime
+   asks where the library is installed.
+4. One application's modules at a time, headers with them, leaves first: `utils`, `lexer`,
+   `parser`, `typer`, `emitter`, `runtime`, `cli`.
+5. Test modules, each with its subject.
+6. The emitted names and the library's own sources. `ernest_emitter` writes calls to
    `ernest_runtime` and to the standard library's modules, so `make golden` runs here and
    every golden file changes; and seventy-four `foreign fn` targets in `stdlib/*.ern`
    name Erlang modules as text, so the Ernest sources are part of this step, their pages
    with them.
-6. The documents: the README's layout, the architecture note, the plan, CLAUDE.md, and the
+7. The documents: the README's layout, the architecture note, the plan, CLAUDE.md, and the
    style guide, which is where the rule lands.
-7. `libs/`, `build/libs/`, and `erl/elibs/` are created when the first library is written,
-   not before.
-8. A test that fails on any file or module named `ern_*`, so the rename's completion is a
+8. `libs/` and `build/libs/` are created when the first library is written, not before.
+9. A test that fails on any file or module named `ern_*`, so the rename's completion is a
    fact the suite checks rather than a claim.
