@@ -12,8 +12,8 @@
 // Appendix E); Key is the prelude's (§9.3). main runs the game loop itself so
 // the program keeps running (report §8.6).
 //
-// Compiles and type-checks since 2026-09-20; it is not run under test yet,
-// since it runs until it is stopped.
+// Compiled under test since 2026-09-20 and run by hand, since it wants a
+// terminal to read keys from and runs until Escape.
 //
 
 //
@@ -136,9 +136,53 @@ fn refill(w : Int, h : Int, want : Int, apples : List(Pos), seed : Random.Seed)
         refill(w, h, want, Pos(x = x, y = y) :: apples, s2)
     }
 
-fn addPlayer(world : World, id : Int) -> World = todo("add a player at a random free position")
+fn addPlayer(world : World, id : Int) -> World = {
+    let World(players = ps, seed = seed) = world;
+    let #(pos, seed2) = freePos(world, seed);
+    let p = Player(id = id, body = [pos], dir = E, score = 0, alive = true);
+    World(..world, players = Map.put(ps, id, p), seed = seed2)
+}
 
-fn render(world : World) -> String = todo("grid to text, one line per y")
+fn freePos(world : World, seed : Random.Seed) -> #(Pos, Random.Seed) = {
+    let World(w = w, h = h) = world;
+    let #(x, s1) = Random.next(seed, w - 1);
+    let #(y, s2) = Random.next(s1, h - 1);
+    let pos = Pos(x = x, y = y);
+    if taken(world, pos) then freePos(world, s2) else #(pos, s2)
+}
+
+fn taken(World(players = ps, apples = apples) : World, pos : Pos) -> Bool =
+    List.contains(apples, pos) || List.any(Map.values(ps), fn(p) = List.contains(bodyOf(p), pos))
+
+// The whole screen every tick: the terminal is cleared and drawn from the top,
+// so a tick's picture replaces the one before it.
+fn render(world : World) -> String = {
+    let World(w = w, h = h, players = ps, apples = apples, tick = t) = world;
+    let row = fn(y) = String.fromList(List.map(List.range(0, w - 1),
+                                               fn(x) = cell(ps, apples, Pos(x = x, y = y))));
+    let rows = List.map(List.range(0, h - 1), row);
+    "\u{1b}[H\u{1b}[2J" <> String.join(rows, "\n") <> "\n" <> status(ps, t) <> "\n"
+}
+
+fn cell(ps : Map(Int, Player), apples : List(Pos), pos : Pos) -> Char =
+    if List.any(Map.values(ps), fn(p) = headOf(p) == Some(pos)) then '@'
+    else if List.any(Map.values(ps), fn(p) = List.contains(bodyOf(p), pos)) then 'o'
+    else if List.contains(apples, pos) then '*'
+    else '.'
+
+fn status(ps : Map(Int, Player), t : Int) -> String =
+    "tick " <> Int.toString(t) <> "   "
+        <> String.join(List.map(Map.values(ps), scoreText), "   ")
+        <> "   (arrows steer, Escape leaves)"
+
+fn scoreText(Player(id = id, score = s, alive = alive) : Player) -> String =
+    "player " <> Int.toString(id) <> ": " <> Int.toString(s)
+        <> (if alive then "" else " (dead)")
+
+fn bodyOf(Player(body = b) : Player) -> List(Pos) = b
+
+fn headOf(Player(body = b) : Player) -> Optional(Pos) =
+    match b { head :: _ -> Some(head) | [] -> None }
 
 //
 // Small helpers

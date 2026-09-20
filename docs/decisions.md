@@ -2910,6 +2910,22 @@ A type's constructors, fields, and signature entries are structured in the entry
 
 `--doc` accepts a `.ern` as before and compiles it first, since a command that worked must keep working. `--no-docs` for lean files is not built; nothing has asked.
 
+## An Entry's Path Is the Path You Read, 2026-09-20
+
+Running paper program 2 for the first time found the report silent: E.17 said `Fs.list` gives the entries of a directory and not what an `Entry`'s path is, a bare name or the directory's path joined with it. The program had assumed a bare name, joined it with the directory it had just listed, and asked for `a/a/greeting.txt`.
+
+The rule is now in E.17: the path is the directory's joined with the entry's name, which is what the runtime already did. It is the useful half of the pair, since the whole point of an entry is to read or stat it, and `Path.name` gives the bare name to a program that wants it, which is what the program now sends its peer. The other choice would have made every use of a listing join first, and a program that forgot would fail only for a directory that is not the working one.
+
+## Running the Paper Programs, 2026-09-20
+
+The four programs had been compiled and type-checked since the doors of step 4 opened, and compiling is not running: each still had its `todo("on paper")` holes, twelve of them, and the first run of each found something the type checker could not.
+
+The REPL's was the sharpest. `try` spawns a child, monitors it, and waits for either the answer or the death. Every monitor reports every death, a normal return included (§6.9), and that report arrives after the answer has been taken, so it waits in the mailbox for the next expression, which reads it as its own child's death and prints "crashed". A child killed on a timeout reports later still. Addresses have no equality (§6.3), so the program cannot ask which child a `Down` came from; identity is expressed in the protocol, and the protocol here is the wrap function, which is a closure. The fix is that `monitor(child, fn(d) = Died(run, d))` captures the expression's run number, and a message that carries another run's number is ignored. No language change: the report already said where identity lives, and the wrap function is where it goes. The guide teaches the pattern now, since a program that monitors while it waits will meet this.
+
+The syncer's was the report's silence, recorded in its own entry above. The server's six holes were HTTP: a request line, header lines, a response rendering, and cookies, which the report's own types made short.
+
+`snake` is compiled but not run under test. It reads arrow keys from a terminal, which a test has none of, and E.0 rule 6 already allows a page whose examples cannot run; the same reasoning covers a program. It is on the manual list beside the `Keys` page.
+
 ## Later
 
 Planned or considered, not in the language today.

@@ -10,8 +10,9 @@
 // errorText is a hand-written rendering for stdout, todo("on paper") here.
 // main runs the acceptor itself so the program keeps running (report §8.6).
 //
-// Compiles and type-checks since 2026-09-20; it is not run under test yet,
-// since it serves until a client stops coming.
+// Run under test since 2026-09-20: the harness starts the server, makes two
+// requests over one session, and stops it, since the program itself serves
+// until it is stopped.
 //
 
 //
@@ -122,13 +123,75 @@ fn parse(b : Bytes) -> Either(ParseError, Request) = {
     Right(Request(method = method, path = path, headers = headers))
 }
 
-fn requestLine(lines : List(String)) -> Either(ParseError, #(String, String)) = todo("on paper")
-fn headerLines(lines : List(String)) -> Either(ParseError, List(#(String, String))) =
-    todo("on paper")
-fn render(r : Response) -> Bytes = todo("on paper")
-fn cookie(r : Request, name : String) -> Optional(String) = todo("on paper")
-fn withCookie(r : Response, name : String, value : String) -> Response = todo("on paper")
-fn errorText(e : IoError) -> String = todo("on paper")
+// "GET /path HTTP/1.1"; the version is not used.
+fn requestLine(lines : List(String)) -> Either(ParseError, #(String, String)) = match lines {
+    line :: _ -> match String.split(String.trim(line), " ") {
+        method :: path :: _ -> Right(#(method, path))
+      | _ -> Left(BadRequestLine)
+    }
+  | [] -> Left(BadRequestLine)
+}
+
+// The lines after the request line, up to the empty one. A name is lowercased,
+// since a header name is case-insensitive; a value keeps any colons in it.
+fn headerLines(lines : List(String)) -> Either(ParseError, List(#(String, String))) = match lines {
+    _ :: rest -> headerPairs(rest, [])
+  | [] -> Right([])
+}
+
+fn headerPairs(
+    lines : List(String),
+    acc : List(#(String, String))
+) -> Either(ParseError, List(#(String, String))) = match lines {
+    [] -> Right(List.reverse(acc))
+  | line :: rest ->
+        if String.trim(line) == "" then Right(List.reverse(acc))
+        else match String.split(line, ":") {
+            name :: first :: more -> {
+                let value = String.join(first :: more, ":");
+                headerPairs(rest, #(String.toLower(String.trim(name)),
+                                    String.trim(value)) :: acc)
+            }
+          | _ -> Left(BadHeader(line))
+        }
+}
+
+fn render(Response(status = s, headers = hs, body = b) : Response) -> Bytes = {
+    let body = String.toUtf8(b);
+    let start = "HTTP/1.1 " <> StatusCode.render(s);
+    let length = "content-length: " <> Int.toString(Bytes.size(body));
+    let rest = List.map(hs, fn(#(name, value)) = name <> ": " <> value);
+    String.toUtf8(String.join(start :: length :: rest, "\r\n") <> "\r\n\r\n") <> body
+}
+
+fn cookie(Request(headers = hs) : Request, name : String) -> Optional(String) =
+    Optional.andThen(List.find(hs, fn(#(n, _)) = n == "cookie"),
+                     fn(#(_, v)) = cookieValue(String.split(v, ";"), name))
+
+fn cookieValue(parts : List(String), name : String) -> Optional(String) = match parts {
+    [] -> None
+  | part :: rest -> match String.split(String.trim(part), "=") {
+        k :: v :: _ when k == name -> Some(v)
+      | _ -> cookieValue(rest, name)
+    }
+}
+
+fn withCookie(
+    Response(status = s, headers = hs, body = b) : Response,
+    name : String,
+    value : String
+) -> Response =
+    Response(status = s, headers = #("set-cookie", name <> "=" <> value <> "; path=/") :: hs,
+             body = b)
+
+fn errorText(e : IoError) -> String = match e {
+    NotFound -> "no such file"
+  | Denied -> "permission denied"
+  | Refused -> "refused"
+  | Closed -> "closed"
+  | Timeout -> "timed out"
+  | Other(text) -> text
+}
 
 //
 // Abstract-type definitions
@@ -136,7 +199,7 @@ fn errorText(e : IoError) -> String = todo("on paper")
 
 let StatusCode.ok = StatusCode(200)
 let StatusCode.notFound = StatusCode(404)
-fn StatusCode.render(StatusCode(n)) = Int.toString(n)
+fn StatusCode.render(StatusCode(n)) = if n == 200 then "200 OK" else "404 Not Found"
 
 fn SessionId.fresh(n) = SessionId(Int.toString(n)) // good enough on paper
 fn SessionId.parse(t) =

@@ -39,36 +39,36 @@ type EvalError = Unbound(String) | DivZero | NotAFunction | NotANumber
 type TryError = Eval(EvalError) | Crashed | Timeout
 
 type ReplMsg
-    = Result(Either(EvalError, Value))
-    | Died(Down)
+    = Result(run : Int, value : Either(EvalError, Value))
+    | Died(run : Int, down : Down)
 
 //
 // Program
 //
 
-export fn main() -> Unit with ReplMsg = repl(Map.empty)
+export fn main() -> Unit with ReplMsg = repl(Map.empty, 0)
 
 //
 // Processes
 //
 
-fn repl(env : Map(String, Value)) -> Unit with ReplMsg = match Io.readLine() {
+fn repl(env : Map(String, Value), run : Int) -> Unit with ReplMsg = match Io.readLine() {
     None -> Unit // end of input
   | Some(text) -> match tokenize(text) {
         Left(BadChar(c = c, at = i)) -> {
             Io.println("illegal character " <> Char.toString(c) <> " at " <> Int.toString(i));
-            repl(env)
+            repl(env, run)
         }
       | Right(ts) -> match parse(ts) {
-            Left(e) -> { Io.println(ParseError.toString(e)); repl(env) }
+            Left(e) -> { Io.println(ParseError.toString(e)); repl(env, run) }
           | Right(e) -> {
-                let v = try(env, e);
+                let v = try(env, e, run + 1);
                 match #(e, v) {
                     #(Let(name = x), Right(val)) -> {
                         show(Right(val));
-                        repl(Map.put(env, x, val))
+                        repl(Map.put(env, x, val), run + 1)
                     }
-                  | #(_, r) -> { show(r); repl(env) }
+                  | #(_, r) -> { show(r); repl(env, run + 1) }
                 }
             }
         }
@@ -77,15 +77,23 @@ fn repl(env : Map(String, Value)) -> Unit with ReplMsg = match Io.readLine() {
 
 // try as a process: evaluate in a child, wait at most two seconds,
 // kill the child if it does not answer.
-fn try(env : Map(String, Value), e : Expr) -> Either(TryError, Value) with ReplMsg = {
+fn try(env : Map(String, Value), e : Expr, run : Int) -> Either(TryError, Value) with ReplMsg = {
     let me = self(); // not self() inside the lambda: that is the child's
-    let child = spawn(Local, fn() -> Unit with Never = send(me, Result(eval(env, e))));
-    monitor(child, Died);
-    receive {
-        Result(r) -> Either.mapLeft(r, Eval)
-      | Died(_) -> Left(Crashed) // a fault in the child
-      | after 2000 -> { kill(child); Left(Timeout) }
-    }
+    let child = spawn(Local, fn() -> Unit with Never =
+        send(me, Result(run = run, value = eval(env, e))));
+    monitor(child, fn(d) = Died(run = run, down = d));
+    await(child, run)
+}
+
+// Every monitor reports a death, a normal return included, and it arrives
+// after the answer; a child killed on a timeout reports later still.
+// Addresses have no equality (report §6.3), so the run number in the
+// message is what tells this child's news from an earlier child's.
+fn await(child : Address(Never), run : Int) -> Either(TryError, Value) with ReplMsg = receive {
+    Result(run = r, value = v) when r == run -> Either.mapLeft(v, Eval)
+  | Died(run = r) when r == run -> Left(Crashed) // a fault in the child
+  | Result or Died -> await(child, run) // an earlier expression's child
+  | after 2000 -> { kill(child); Left(Timeout) }
 }
 
 fn show(r : Either(TryError, Value)) -> Unit with ReplMsg = Io.println(match r {
@@ -96,8 +104,29 @@ fn show(r : Either(TryError, Value)) -> Unit with ReplMsg = Io.println(match r {
   | Left(Timeout) -> "aborted after 2 s"
 })
 
-fn ParseError.toString(e : ParseError) -> String = todo("on paper")
-fn EvalError.toString(e : EvalError) -> String = todo("on paper")
+fn ParseError.toString(e : ParseError) -> String = match e {
+    Unexpected(t) -> "unexpected " <> Token.toString(t)
+  | Eof -> "unexpected end of input"
+}
+
+fn Token.toString(t : Token) -> String = match t {
+    Num(n) -> Int.toString(n)
+  | Ident(x) -> x
+  | Op(c) -> Char.toString(c)
+  | LParen -> "("
+  | RParen -> ")"
+  | KwLet -> "let"
+  | KwFun -> "fun"
+  | Eq -> "="
+  | Arrow -> "->"
+}
+
+fn EvalError.toString(e : EvalError) -> String = match e {
+    Unbound(x) -> "unbound " <> x
+  | DivZero -> "division by zero"
+  | NotAFunction -> "not a function"
+  | NotANumber -> "not a number"
+}
 
 //
 // Pure code: lexer

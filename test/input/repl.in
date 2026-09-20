@@ -1,0 +1,11 @@
+let x = 21
+x * 2
+let inc = fun n -> n + 1
+inc 41
+(fun n -> n * n) 9
+7 / 0
+y
+(3
+@
+(fun f -> f f) (fun f -> f f)
+1 + 1

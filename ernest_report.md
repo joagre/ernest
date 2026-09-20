@@ -1387,7 +1387,7 @@ Over `Sys.fs`. The last argument is the milliseconds to wait.
 Fs.read : (Path, Int) -> Either(IoError, Bytes) with m
 Fs.write : (Path, Bytes, Int) -> Either(IoError, Unit) with m // creates or replaces
 Fs.append : (Path, Bytes, Int) -> Either(IoError, Unit) with m // creates or extends
-Fs.list : (Path, Int) -> Either(IoError, List(Entry)) with m // the entries of a directory, in unspecified order
+Fs.list : (Path, Int) -> Either(IoError, List(Entry)) with m // the entries of a directory, in unspecified order, each path the directory's joined with the entry's name
 Fs.stat : (Path, Int) -> Either(IoError, Entry) with m
 Fs.makeDir : (Path, Int) -> Either(IoError, Unit) with m // with its missing parents; an existing directory is not an error
 Fs.remove : (Path, Int) -> Either(IoError, Unit) with m // a file or an empty directory
