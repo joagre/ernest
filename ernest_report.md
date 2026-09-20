@@ -637,7 +637,7 @@ Before `main` runs, the runtime evaluates every top-level `let` in dependency or
 
 ### 8.6 Program termination
 
-The program ends when `main` returns or faults, a fault being reported on the runtime's exit indicator. Live local processes then die with cause `ProgramEnd`, and the runtime flushes the system processes' pending output before it stops. Workers spawned on peers are unaffected and follow their own return, `kill`, or peer loss (§10); peers observe the ending node as lost. A program that is to keep running waits in `main`.
+The program ends when `main` returns or faults, a fault being reported on the runtime's exit indicator. Live local processes then die with cause `ProgramEnd`, and the runtime flushes the system processes' pending output before it stops. A signal from outside that ends the program, the host's termination or interrupt, ends it the same way, and the runtime prints nothing of its own about the signal. Workers spawned on peers are unaffected and follow their own return, `kill`, or peer loss (§10); peers observe the ending node as lost. A program that is to keep running waits in `main`.
 
 The runtime ends the program with the error `Deadlock` when no forward progress is possible: every live process waits in `receive` without `after`, no message is in flight, and no system process or connected peer holds a timer, a subscription, a pending I/O, or a computation whose completion would deliver a message. A process spawned on a peer by this node counts as such a computation while it runs. Detection is per node. Whether a user-provided foreign process counts like a system process here is the runtime's choice.
 

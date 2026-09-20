@@ -628,6 +628,7 @@ ern_main(Opts, Rest, Err) ->
     end.
 
 run(Opts, File, Err) ->
+    quiet_signals(),
     filelib:is_regular(File) orelse fail("no such file " ++ File),
     filename:extension(File) =:= ".erc" orelse fail(File ++ " does not end in .erc"),
     Abs = absolute(File),
@@ -647,6 +648,20 @@ run(Opts, File, Err) ->
         true -> run_tests(Ns, Loaded, Err);
         false -> run_entry(Opts, Ns, Roots, Loaded, Err)
     end.
+
+%% Report §8.6: a signal from outside ends the program as returning from
+%% main does, and the runtime prints nothing of its own about it. The host
+%% ends the node in order, which flushes what has been written; its own
+%% notice of the signal is an informational report, and a program's output
+%% is not to be mixed with it.
+quiet_signals() ->
+    ok = os:set_signal(sigterm, handle),
+    ok = os:set_signal(sighup, handle),
+    %% the host logs its own note about the signal at notice level, and a
+    %% program's output is not to be mixed with it; a warning or an error
+    %% from the host still comes through.
+    _ = logger:set_handler_config(default, level, warning),
+    ok.
 
 %% Report §8.5: every top-level let of the loaded modules, dependencies
 %% first, once the runtime has bound the Sys.* references.

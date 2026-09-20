@@ -2926,6 +2926,12 @@ The syncer's was the report's silence, recorded in its own entry above. The serv
 
 `snake` is compiled but not run under test. It reads arrow keys from a terminal, which a test has none of, and E.0 rule 6 already allows a page whose examples cannot run; the same reasoning covers a program. It is on the manual list beside the `Keys` page.
 
+## A Signal Says Nothing, 2026-09-20
+
+Three of the four paper programs run until they are stopped, so stopping one is part of using them, and the host printed its own note over the program's output: `=INFO REPORT==== SIGTERM received - shutting down`. §8.6 said what ending means when `main` returns and nothing about a signal, so the note was neither the report's nor a wart anyone could point at. The rule is now in §8.6: a signal from outside ends the program the same way, and the runtime prints nothing of its own about it.
+
+The note is logged at notice level, not info, which is why raising the level to notice left it in place; the runner now runs with the host's log handler at warning, so a warning or an error from the host still reaches the terminal and its chatter does not. Asking the host to handle the signal is what makes the end orderly, and what output a program has written is written before the node stops; the syncer's test asserts both halves, the line it printed and nothing else.
+
 ## Later
 
 Planned or considered, not in the language today.
