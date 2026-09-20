@@ -28,6 +28,7 @@ The shell is an Ernest program. Its parts:
 - **A later declaration of a name is seen by later inputs.** A function or closure made before it keeps the one it was compiled against.
 - **The value of the last expression is bound to `it`.**
 - **Bindings survive a fault and an interruption.** Only `:forget` removes them.
+- **A member of an abstract type is declared with the type.** Two inputs are two modules, and §4's ownership rule keeps a type's members in the module that owns it, so a later input cannot add one; the type and its members are declared in one input or loaded from a file.
 - **`self()` names the input's own process**, which ends with the input. An address bound to it reaches no one on a later input; a message is received inside the input that expects it.
 
 ## Output
@@ -152,6 +153,8 @@ Delivered before the shell, each report first.
 
 ## Open
 
+- **How input N sees input N−1's bindings at the type level.** `ern_typecheck:check/3` takes dependency interfaces; the shell has an environment of bindings with their generalized schemes instead. A spike before checkpoint 1 answers it.
+- **How it sees them at the value level.** The values live in the shell and the compiled module must receive them: as arguments, as a closure the shell builds, or through a table the emitted code reads. It is an ABI decision and it constrains everything after it; the same spike answers it.
 - **The depth and length defaults.**
 - **How many faults the buffer keeps.**
 - **How the line editor measures wide characters.**
@@ -167,6 +170,7 @@ Delivered before the shell, each report first.
 
 The plan's item stops at each; each is a shell a user can try.
 
-1. **Line mode.** The foreign interface; every input checked, run, and printed; bindings, `it`, faults, errors, timing, fault reports from spawned processes, the startup file, quitting, the commands; the session golden tests.
+0. **Expressions only.** The foreign interface; an input checked against the load path, compiled, run in a process, its value and type printed; faults, errors, quitting. No bindings, so no incremental checking: a calculator over the whole standard library, and the loop and the terminal harness proved end to end before the hard part begins.
+1. **Bindings.** Every input checked against the accumulated environment; `it`, timing, fault reports from spawned processes, the startup file, the commands; the session golden tests.
 2. **The line editor.** The bindings above, history, the suggestion, interruption, redrawing after other output, bracketed paste, the prompts, colour; the key-stream tests.
 3. **Completion and documentation.** `Tab`, `Shift-Tab`, command arguments.

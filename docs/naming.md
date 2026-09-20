@@ -139,6 +139,6 @@ Steps 1 to 6 and 8 are done; 7 waits for the first library.
    accepted.
 6. The documents: the README's layout, the architecture note, the plan, CLAUDE.md, and the
    style guide, which is where the rule lands.
-7. `libs/` and `build/libs/` are created when the first library is written, not before.
+7. `libs/` and `build/libs/` are created when the first library is written, not before: MVP 2.7, since the libraries left 2.6 on 2026-09-20.
 8. A test that fails on any name outside the rule, so the rename's completion is a fact the
    suite checks rather than a claim.

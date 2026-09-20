@@ -3022,6 +3022,16 @@ Against the cut: `tls` and `http` are where Ernest becomes useful for real work,
 
 Two corrections to the entry above, made the same day. The terminal harness had been written down as landing with the shell, which points the dependency the wrong way: the shell is what most needs it, so it is 2.6's first item and the shell's first checkpoint comes after. And the plan now says what gives way if the estimate is wrong, since a milestone that does not say that decides it by accident: the libraries move to 2.7 and the shell stays.
 
+## The Shell Alone, and MVP 3 in Halves, 2026-09-20
+
+Two more corrections to the day's planning, both from reading what the milestones actually contain.
+
+MVP 2.6 is the shell and nothing else. Keeping two small libraries in it was a compromise that served the milestone's old reason rather than its new one: 2.6 exists to build the shell, and Appendix D's second use can as well happen beside the two large libraries that need it. So `json` and `base64` join `tls`, `http`, and `fetch.ern` in 2.7, which becomes the libraries milestone as it was first conceived, minus the shell. `libs/` and `build/libs/` are created there, which finishes the rename of this morning.
+
+The shell's note gains a checkpoint before its first: expressions only, no bindings, and so no incremental checking at all. It is a calculator over the standard library, and it proves the loop and the terminal harness end to end before the hard part starts. The hard part is now stated as two questions rather than an estimate: how an input sees the bindings before it at the type level, where the checker takes dependency interfaces and the shell has an environment of schemes, and at the value level, where the values live in the shell and the compiled module must receive them somehow. The second is an ABI decision and constrains what follows it, so a spike answers both before checkpoint 1. One thing that had been left to discovery is now a rule: a member of an abstract type is declared with the type, since two inputs are two modules and §4 keeps a type's members in the module that owns it.
+
+MVP 3 splits. Content addressing is not an implementation strategy that could be traded down: §8.7 makes it normative, identity across nodes being a hash of a normalized definition together with the hashes of what it references. What can be staged is the work. 3.0 is peers, three weeks, with code shipping between nodes of the same build, which satisfies §8.7 in its easiest case and refuses the rest with an error naming 3.1, as every deferral here does. 3.1 is identity in full, four weeks, and its first decision is what "normalized" means, since two nodes must agree exactly: the typed tree or the untyped, whether local names are erased, and what becomes of the effect variables, which are inferred and never written. `iface_hash/1` already hashes a canonical interface, and the cheaper answer is that it grows into the definition hash rather than a second scheme standing beside it.
+
 ## Later
 
 Planned or considered, not in the language today.
