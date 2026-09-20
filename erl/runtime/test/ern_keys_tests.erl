@@ -21,3 +21,32 @@ partial_sequence_test() ->
     ?assertEqual({[], "\e["}, ern_keys:decode("\e[")),
     {[], Rest} = ern_keys:decode("\e["),
     ?assertEqual({['ArrowUp'], []}, ern_keys:decode(Rest ++ "A")).
+
+%% report §8.2: Escape is delivered once no escape sequence can still
+%% follow it, so what waits is flushed when the pause passes
+flush_test() ->
+    ?assertEqual(['Escape'], ern_keys:flush("\e")),
+    ?assertEqual(['Escape', {'Char', $[}], ern_keys:flush("\e[")),
+    ?assertEqual([], ern_keys:flush("")),
+    %% a sequence that did arrive whole is decoded, not flushed
+    ?assertEqual({['ArrowUp'], []}, ern_keys:decode("\e[A")).
+
+%% report §8.2: the keys process delivers a lone Escape after the pause,
+%% and an arrow at once; ern_rt:send needs a run, so this one has one
+escape_pause_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Keys = ern_rt:sys(keys),
+               ern_rt:send(Keys, {'Subscribe', ern_rt:self()}),
+               %% as the reader sends them: the arrow whole, the escape alone
+               Keys ! {chars, "\e[A"},
+               receive K1 -> Me ! {k1, K1} end,
+               Keys ! {chars, "\e"},
+               receive K2 -> Me ! {k2, K2} end
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual('ArrowUp', wait(k1)),
+    ?assertEqual('Escape', wait(k2)).
+
+wait(Tag) ->
+    receive {Tag, V} -> V after 2000 -> timeout end.

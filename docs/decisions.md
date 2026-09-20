@@ -2944,6 +2944,20 @@ Four rules keep it from becoming a second error mechanism, which principle 2 for
 
 If a logger is ever wanted it is a library and not Appendix E, by E.0's line: levels, handlers, and formatting are policy, and a namespace with policy inside is a library however useful.
 
+## The Terminal Reads Keys Again, 2026-09-20
+
+The `Keys` page and `snake` were type-checked and compiled but never driven from a terminal, and when they were, no key arrived at all: not an arrow, not `Escape`. Two defects, one in the runtime and one in the decoder.
+
+The runtime asked for raw mode with `shell:start_interactive({noshell, raw})`, which the host offers for exactly this. Under it `io:get_chars` returns the bytes buffered before the mode was entered and then never returns again, so a program received the keys pressed before it started and none after; a burst at start-up looked like it worked, which is why compiling and a quick look had not caught it. Raw mode is now set with `stty` on a port opened with `nouse_stdio`, which inherits the runtime's own standard input, and reading goes on through the ordinary reader. The host's mode is left alone when the input is not a terminal, since keys from a pipe need none and setting one there would set it on whatever terminal the runtime was started from, `make test` included.
+
+`Escape` was held back by the decoder. An escape may still grow into an arrow, so the decoder kept it and waited; nothing followed, and it waited forever. The rule is now a pause: a terminal sends a sequence in one burst, so an escape that stands alone for fifty milliseconds is the `Escape` key, and a sequence that never became an arrow is `Escape` and the characters after it. The pause lives in the process, not in the decoder, which stays a function of the bytes and is still what the tests exercise.
+
+§8.2 gained both sentences, since each is something a person at a terminal sees: keys arrive as they are pressed and are not echoed while a program is subscribed, the runtime restores line mode with echo when the program ends, and `Escape` is delivered once no sequence can still follow it.
+
+The game had one more flaw of its own: `Escape` removed the player and the loop went on drawing an empty field. A game with no players is over, so it ends, which is also what makes `Escape` quit.
+
+What is still not under test is the reading itself: the decoder, the pause, and the restore have tests, and putting a terminal under the suite waits for the shell, which needs the same harness for its own sessions.
+
 ## Later
 
 Planned or considered, not in the language today.

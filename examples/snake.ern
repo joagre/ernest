@@ -60,7 +60,8 @@ fn game(world : World) -> Unit with GameMsg = {
         Tick -> {
             let world2 = step(drain(world, 64));
             Io.print(render(world2));
-            game(world2)
+            // the last player left, so the game is over (report §8.6)
+            if Map.isEmpty(World.players(world2)) then Unit else game(world2)
         }
     }
 }
@@ -199,6 +200,8 @@ fn turn(p : Player, d : Dir) -> Player = match #(Player.dir(p), d) {
     #(N, S) -> p | #(S, N) -> p | #(W, E) -> p | #(E, W) -> p // no U-turn
   | _ -> Player(..p, dir = d)
 }
+
+fn World.players(World(players = ps) : World) -> Map(Int, Player) = ps
 
 fn Player.dir(Player(dir = d) : Player) -> Dir = d
 fn Player.id(Player(id = i) : Player) -> Int = i

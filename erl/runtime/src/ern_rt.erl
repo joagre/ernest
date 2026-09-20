@@ -411,6 +411,11 @@ run_main(Main, Site, Opts) ->
                   end, [Stdout, Stderr]),
     %% each ended before the table goes, which the reaper reads
     lists:foreach(fun stop/1, [Stdout, Stderr, Stdin, Fs, Keys, Tcp, Clock, Reaper]),
+    %% report §8.2: the terminal goes back as the program found it
+    case persistent_term:get({?MODULE, terminal}, undefined) of
+        keys -> ern_keys:restore();
+        _ -> ok
+    end,
     ets:delete(?PROCESSES),
     flush_run(Run),
     case Result of
