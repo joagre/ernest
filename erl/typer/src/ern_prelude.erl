@@ -132,13 +132,17 @@ values() ->
      {['Sys', tcp], "Address(TcpMsg)"}].
 
 %% The interfaces of the standard library modules written in Ernest: every
-%% ern@*.beam on the code path that carries an interface chunk (plan,
-%% MVP 2.5 step 2). The compiled library is build output, so it is found by
-%% what it holds rather than by an application's name.
+%% ern@*.beam in a `stdlib` directory on the code path that carries an
+%% interface chunk (plan, MVP 2.5 step 2). The compiled library is build
+%% output, so it is found by where it is installed rather than by an
+%% application's name; taking every ern@ module on the path instead would
+%% make the shell's own module, which lives in `build/shell` and is on the
+%% same path, a standard library namespace (report §4.2, §11.2).
 -spec stdlib_ifaces() -> [#iface{}].
 stdlib_ifaces() ->
     Files = lists:usort(lists:append([filelib:wildcard(filename:join(D, "ern@*.beam"))
-                                      || D <- code:get_path()])),
+                                      || D <- code:get_path(),
+                                         filename:basename(D) =:= "stdlib"])),
     lists:append([stdlib_iface(F) || F <- Files]).
 
 stdlib_iface(File) ->

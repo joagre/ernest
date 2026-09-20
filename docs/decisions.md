@@ -3086,6 +3086,20 @@ Two things the building taught. The interface takes an address where the sketch 
 
 What is not built is the terminal: the three processes are one, the reader is `Io.readLine`, and the runner records no holder. That half is the rest of checkpoint 0, and it is the half the harness was built for.
 
+## Checkpoint 0 on a Terminal, 2026-09-20
+
+The other half, the same day. Three processes as the note has them: the session holding the state, the reader owning the keys with the floor of characters, `Backspace`, `Enter`, `C-d` and the interrupt, and the screen, the only writer, which the sinks are bound to. On a terminal a person types and sees what they type, `Enter` runs it, and the interrupt kills a running input and leaves the session standing; where input is not a terminal the shell reads lines as before.
+
+The interrupt works because the mode drops the signal for the holder alone: the runtime records the process that reads the terminal for the shell, `stty` adds `-isig` when there is one, and the byte arrives as §9.3's `Interrupt`. Anything else that asks for keys is faulted with the remedy in the text, which is §8.2's case.
+
+Three things the building taught, each a defect before it was a rule.
+
+The standard library was found by scanning the code path for every `ern@` module, and the shell's own module lives in `build/shell` on that same path, so `Shell` became a standard library namespace and `ernc` refused the shell's own source. The scan now takes only what is installed in a `stdlib` directory: the standard library is what is in the standard library's place, not whatever is compiled from Ernest.
+
+The screen writes to the terminal itself, since `Sys.stdout` is the screen's and a screen printing through it would print to itself. So the runtime's flush at the end of a program (§8.6) does not reach it, and a session that returned lost what it had just printed. The session drains the screen before it returns, and before every prompt, which also fixes the second thing: an input's output and the next prompt are sent by two different processes, and without the drain the prompt could be written first. A golden session caught both; running it by hand had not.
+
+The front end gained three small doors for this: whether input is a terminal, a write that goes to the terminal rather than through the sinks, and the naming of the screen, so that what a program prints reaches it.
+
 ## Later
 
 Planned or considered, not in the language today.

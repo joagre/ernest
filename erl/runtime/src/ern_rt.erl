@@ -23,7 +23,8 @@
 -export([send/2, spawn/3, self/0, via/2, call/3, call_forever/2, answer/2, monitor/2,
          kill/1, sys/1, run_main/2, run_main/3, fault/1, remote/1, parallel_remote/1,
          todo/1, timed/0, untimed/0, in_foreign/1, init_stdlib/0, own_terminal/1,
-         source_begin/0, source_end/0, process_of/1, proxy_for/2, proxy_forget/1]).
+         source_begin/0, source_end/0, process_of/1, proxy_for/2, proxy_forget/1,
+         hold_terminal/1, terminal_holder/0]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -348,6 +349,18 @@ stdout_loop(Out) ->
 %% Report §8.2: keys and lines are the same terminal, so a program does one
 %% or the other; doing both ends the program with a fault, as Deadlock ends
 %% it, since neither side can answer for the other.
+%% Report §11.2: the terminal is the shell's, and the process that reads it
+%% for the shell is recorded as its holder; §8.2's case then faults anything
+%% else that asks for keys. The shell claims it before it runs any input.
+-spec hold_terminal(address()) -> 'Unit'.
+hold_terminal(Addr) ->
+    persistent_term:put({?MODULE, holder}, process_of(Addr)),
+    ?UNIT.
+
+-spec terminal_holder() -> pid() | undefined.
+terminal_holder() ->
+    persistent_term:get({?MODULE, holder}, undefined).
+
 -spec own_terminal(lines | keys) -> ok | taken.
 own_terminal(Kind) ->
     case persistent_term:get({?MODULE, terminal}, undefined) of
@@ -430,6 +443,7 @@ run_main(Main, Site, Opts) ->
     %% report §8.6: the sources a system process holds, counted while held
     ets:insert(?PROCESSES, {sources, 0}),
     persistent_term:erase({?MODULE, terminal}),
+    persistent_term:erase({?MODULE, holder}),
     Run = make_ref(),
     persistent_term:put({?MODULE, launcher}, {erlang:self(), Run}),
     Reaper = erlang:spawn(fun() -> reaper_loop(#{}) end),

@@ -1,10 +1,11 @@
 //
 // The Ernest shell (report §11.2), designed in docs/shell_design.md.
 //
-// Checkpoint 0: expressions only, in line mode. An input is checked,
-// compiled as a module of its own and run in a process of its own; its
-// value is printed with its type. The front end is the toolchain, reached
-// through the foreign interface below.
+// Checkpoint 0: expressions only. An input is checked, compiled as a module
+// of its own and run in a process of its own; its value is printed with its
+// type. Three processes: the session holds the state, the reader owns the
+// keys, and the screen is the only writer, which is what the sinks are
+// bound to. When input is not a terminal the shell reads lines instead.
 //
 
 //
@@ -25,43 +26,157 @@ foreign fn typeText(c : Checked) -> String = "ern_shell:type_text/1"
 foreign fn run(env : Env, c : Checked, to : Address(Outcome)) -> Address(Never) with m =
     "ern_shell:run/3"
 foreign fn show(v : Value) -> String = "ern_shell:show/1"
+foreign fn isTerminal() -> Bool with m = "ern_shell:is_terminal/0"
+foreign fn write(text : String) -> Unit with m = "ern_shell:write/1"
+foreign fn setScreen(to : Address(String)) -> Unit with m = "ern_shell:screen/1"
+foreign fn holdTerminal(reader : Address(a)) -> Unit with m = "ern_rt:hold_terminal/1"
 
 //
 // The session
 //
 
-type ShellMsg = Done(Outcome)
+type ShellMsg = Typed(String) | Eof | Interrupted | Done(Outcome)
 
 export fn main() -> Unit with ShellMsg = {
-    Io.println("Ernest 0.1.0. :quit, or C-d on an empty line, to leave.");
-    loop(start("", "."))
+    let screen = spawn(Local, fn() = screenLoop());
+    setScreen(via(Print, screen));
+    send(screen, Print("Ernest 0.1.0. :quit, or C-d on an empty line, to leave.\n"));
+    let env = start("", ".");
+    if isTerminal() then {
+        let me = self();
+        let reader = spawn(Local, fn() = { Keys.subscribe(K); readLoop(me, screen, "") });
+        holdTerminal(reader);
+        send(screen, Print("> "));
+        keyLoop(env, screen)
+    } else lineLoop(env, screen)
 }
 
-fn loop(env : Env) -> Unit with ShellMsg = {
-    Io.print("> ");
-    match Io.readLine() {
-        None -> Io.println("")
-      | Some(line) -> match String.trim(line) {
-            "" -> loop(env)
-          | ":quit" -> Unit
-          | input -> loop(evaluate(env, input))
+// One input, from either reader: checked, run in a process of its own, its
+// value printed with its type. An expression of type Unit prints nothing.
+fn evaluate(env : Env, screen : Address(ScreenMsg), input : String) -> Env with ShellMsg =
+    match check(env, input) {
+        Left(text) -> { send(screen, Print(text)); env }
+      | Right(#(env2, checked)) -> {
+            let child = run(env2, checked, via(Done, self()));
+            await(env2, screen, checked, child)
         }
     }
+
+// The reader stays live, so an interruption reaches the session while the
+// input runs and kills it (report §11.2).
+fn await(
+    env : Env,
+    screen : Address(ScreenMsg),
+    checked : Checked,
+    child : Address(Never)
+) -> Env with ShellMsg = receive {
+    Done(Ok(env = env2, value = value)) -> {
+        let shown = typeText(checked);
+        if shown == "Unit" then Unit
+        else send(screen, Print(show(value) <> " : " <> shown <> "\n"));
+        env2
+    }
+  | Done(Failed(text)) -> { send(screen, Print("fault: " <> text <> "\n")); env }
+  | Interrupted -> { kill(child); send(screen, Print("Killed\n")); env }
+  | Typed(_) or Eof -> await(env, screen, checked, child)
 }
 
-// One input: checked, run in a process of its own, its value printed with
-// its type. An expression of type Unit prints nothing.
-fn evaluate(env : Env, input : String) -> Env with ShellMsg = match check(env, input) {
-    Left(text) -> { Io.print(text); env }
-  | Right(#(env2, checked)) -> {
-        let _ = run(env2, checked, via(Done, self()));
-        receive {
-            Done(Ok(env = env3, value = value)) -> {
-                let shown = typeText(checked);
-                if shown == "Unit" then Unit else Io.println(show(value) <> " : " <> shown);
-                env3
+//
+// The screen: the only process that writes to the terminal
+//
+
+// The screen writes to the terminal itself, so the runtime's flush at the
+// end of the program (report §8.6) does not reach it: the session drains it
+// with `finish` before it returns.
+type ScreenMsg = Print(String) | Flush(reply : Reply(Unit))
+
+fn screenLoop() -> Unit with ScreenMsg = {
+    receive {
+        Print(text) -> write(text)
+      | Flush(reply = reply) -> answer(reply, Unit)
+    };
+    screenLoop()
+}
+
+fn finish(screen : Address(ScreenMsg), text : String) -> Unit with m = {
+    send(screen, Print(text));
+    drain(screen)
+}
+
+// The prompt comes after what the input printed, whatever order the two
+// processes sent in: the screen is drained first.
+fn prompt(screen : Address(ScreenMsg)) -> Unit with m = {
+    drain(screen);
+    send(screen, Print("> "))
+}
+
+fn drain(screen : Address(ScreenMsg)) -> Unit with m =
+    match Address.call(screen, fn(r) = Flush(reply = r), 5000) { _ -> Unit }
+
+//
+// The reader, on a terminal: the floor of checkpoint 0, characters and
+// Backspace and Enter and C-d and the interrupt. The line editor is
+// checkpoint 2.
+//
+
+type ReaderMsg = K(Key)
+
+fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), line : String)
+    -> Unit with ReaderMsg = receive {
+    K(Enter) -> {
+        send(screen, Print("\n"));
+        send(session, Typed(line));
+        readLoop(session, screen, "")
+    }
+  | K(Interrupt) -> {
+        send(screen, Print("\n"));
+        send(session, Interrupted);
+        readLoop(session, screen, "")
+    }
+  | K(Char(c)) ->
+        if c == '\u{4}' then
+            if String.isEmpty(line) then send(session, Eof)
+            else readLoop(session, screen, line)
+        else if c == '\u{7f}' || c == '\u{8}' then
+            if String.isEmpty(line) then readLoop(session, screen, line)
+            else {
+                send(screen, Print("\u{8} \u{8}"));
+                readLoop(session, screen, String.slice(line, 0, String.size(line) - 1))
             }
-          | Done(Failed(text)) -> { Io.println("fault: " <> text); env2 }
+        else {
+            send(screen, Print(Char.toString(c)));
+            readLoop(session, screen, line <> Char.toString(c))
+        }
+  | K(_) -> readLoop(session, screen, line)
+}
+
+fn keyLoop(env : Env, screen : Address(ScreenMsg)) -> Unit with ShellMsg = receive {
+    Typed(line) -> match String.trim(line) {
+        "" -> { prompt(screen); keyLoop(env, screen) }
+      | ":quit" -> finish(screen, "")
+      | input -> {
+            let env2 = evaluate(env, screen, input);
+            prompt(screen);
+            keyLoop(env2, screen)
+        }
+    }
+  | Eof -> finish(screen, "\n")
+  | Interrupted -> { prompt(screen); keyLoop(env, screen) }
+  | Done(_) -> keyLoop(env, screen)
+}
+
+//
+// The reader, when input is not a terminal: lines, no editing
+//
+
+fn lineLoop(env : Env, screen : Address(ScreenMsg)) -> Unit with ShellMsg = {
+    prompt(screen);
+    match Io.readLine() {
+        None -> finish(screen, "\n")
+      | Some(line) -> match String.trim(line) {
+            "" -> lineLoop(env, screen)
+          | ":quit" -> finish(screen, "")
+          | input -> { let _ = evaluate(env, screen, input); lineLoop(env, screen) }
         }
     }
 }

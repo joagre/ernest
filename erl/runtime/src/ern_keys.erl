@@ -32,7 +32,16 @@ loop(Subscribers, Reader, Pending) ->
     Pause = case Pending of [] -> infinity; _ -> ?ESCAPE_PAUSE end,
     receive
         {'Subscribe', Address} ->
-            loop([Address | Subscribers], start_reader(Reader), Pending);
+            case held_by_another(Address) of
+                true ->
+                    %% report §11.2: the terminal is the shell's
+                    exit(ern_rt:process_of(Address),
+                         {ern, fault, <<"the shell holds the terminal; run the program with ern "
+                                        "to give it the keyboard">>}),
+                    loop(Subscribers, Reader, Pending);
+                false ->
+                    loop([Address | Subscribers], start_reader(Reader), Pending)
+            end;
         {chars, Chars} ->
             {Decoded, Left} = decode(Pending ++ Chars),
             deliver(Decoded, Subscribers),
@@ -53,7 +62,7 @@ start_reader(undefined) ->
     Keys = self(),
     case ern_rt:own_terminal(keys) of
         ok ->
-            stty(["-icanon", "-echo", "min", "1", "time", "0"]),
+            stty(["-icanon", "-echo", "min", "1", "time", "0" | interrupt_mode()]),
             %% report §8.6: a subscription is a source that can still deliver
             ern_rt:source_begin(),
             erlang:spawn(fun() -> read_loop(Keys) end);
@@ -68,6 +77,20 @@ start_reader(Reader) ->
 %% half only. Full raw mode would also stop the terminal turning a line feed
 %% into a carriage return and a line feed, and a program that draws would
 %% climb the screen a column at a time.
+%% Report §11.2: the shell reads the terminal's interrupt as a key, so its
+%% signal is turned off for the shell and for nobody else.
+interrupt_mode() ->
+    case ern_rt:terminal_holder() of
+        undefined -> [];
+        _ -> ["-isig"]
+    end.
+
+held_by_another(Address) ->
+    case ern_rt:terminal_holder() of
+        undefined -> false;
+        Holder -> ern_rt:process_of(Address) =/= Holder
+    end.
+
 %% Report §8.6: the terminal is the one the program found.
 -spec restore() -> ok.
 restore() ->
@@ -102,7 +125,7 @@ read_loop(Keys) ->
     end.
 
 %% Report §9.3: Key = Char(Char) | ArrowUp | ArrowDown | ArrowLeft
-%% | ArrowRight | Enter | Escape. An escape sequence that is not an arrow
+%% | ArrowRight | Enter | Escape | Interrupt. An escape sequence that is not an arrow
 %% is the Escape key and the characters after it.
 -spec decode([char()]) -> {[term()], [char()]}.
 decode(Chars) ->
@@ -131,6 +154,7 @@ decode([$\e, $[, $B | Rest], Acc) -> decode(Rest, ['ArrowDown' | Acc]);
 decode([$\e, $[, $C | Rest], Acc) -> decode(Rest, ['ArrowRight' | Acc]);
 decode([$\e, $[, $D | Rest], Acc) -> decode(Rest, ['ArrowLeft' | Acc]);
 decode([$\e | Rest], Acc) -> decode(Rest, ['Escape' | Acc]);
+decode([3 | Rest], Acc) -> decode(Rest, ['Interrupt' | Acc]);
 decode([$\n | Rest], Acc) -> decode(Rest, ['Enter' | Acc]);
 decode([$\r | Rest], Acc) -> decode(Rest, ['Enter' | Acc]);
 decode([C | Rest], Acc) -> decode(Rest, [{'Char', C} | Acc]).

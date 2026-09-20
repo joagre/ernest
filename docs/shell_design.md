@@ -8,7 +8,7 @@ The shell is an Ernest program of three processes over a front end. Its source i
 
 - **The session** is the entry process (§8.1). It holds the `Env`, the queue of inputs, the settings, and the faults `:faults` prints. It receives inputs from the reader and outcomes and fault notices from the front end, and sends the screen what to print. It runs no user code.
 - **The reader** owns the terminal's keys and edits the input. It stays live while an evaluation runs. It sends a submitted input, and the interrupt, to the session; it draws nothing itself.
-- **The screen** is the only process that writes to the terminal. Its mailbox carries what a program printed, what the session prints, and the line and cursor the reader draws, so its type is the shell's own and not `String`; the runner binds `Sys.stdout` and `Sys.stderr` to `via(Print, screen)`, which §9.7's `Address(String)` requires and which costs no process (§6.5). A program's output and the shell's own then arrive in one mailbox and are written in its order. The screen keeps the input line and draws it again below whatever it has just printed.
+- **The screen** is the only process that writes to the terminal, and the session drains it before it prompts and before it returns: the screen writes to the terminal itself, so the runtime's flush at the end of a program (§8.6) does not reach it, and the prompt must come after what an input printed whatever order two processes sent in. Its mailbox carries what a program printed, what the session prints, and the line and cursor the reader draws, so its type is the shell's own and not `String`; the runner binds `Sys.stdout` and `Sys.stderr` to `via(Print, screen)`, which §9.7's `Address(String)` requires and which costs no process (§6.5). A program's output and the shell's own then arrive in one mailbox and are written in its order. The screen keeps the input line and draws it again below whatever it has just printed.
 - **The front end** is the Erlang toolchain behind the foreign interface: checking, compiling, running, printing, exports, documentation, and the fault notices.
 
 ## Starting and quitting
@@ -213,6 +213,9 @@ foreign fn show(v : Value, depth : Int, length : Int) -> String = "..."
 foreign fn exports(module : String) -> List(#(String, String)) = "..."
 foreign fn doc(name : String) -> Optional(String) = "..."
 foreign fn faults(wrap : (Fault) -> m) -> Unit with m = "..."
+foreign fn isTerminal() -> Bool with m = "..."
+foreign fn write(text : String) -> Unit with m = "..."        // the screen's own
+foreign fn setScreen(to : Address(String)) -> Unit with m = "..."
 foreign fn fields(env : Env, constructor : String) -> List(#(String, String)) = "..."
 
 foreign fn load(env : Env, module : String) -> Either(String, Env) with m = "..."

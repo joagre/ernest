@@ -637,7 +637,10 @@ shell(_Opts, Rest, Err) ->
         {module, Mod} -> ok;
         _ -> fail("the shell is not built; run make")
     end,
-    case ern_rt:run_main(fun() -> Mod:main() end, <<"Shell.main">>, #{}) of
+    %% report §11.2: the sinks are the screen's, which the shell names
+    Sink = fun(Bin) -> ern_shell:to_screen(Bin) end,
+    case ern_rt:run_main(fun() -> Mod:main() end, <<"Shell.main">>,
+                         #{stdout => Sink, stderr => Sink}) of
         ok -> 0;
         {fault, Msg} ->
             io:format(Err, "fault: ~s~n", [Msg]),

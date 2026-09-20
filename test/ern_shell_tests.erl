@@ -16,6 +16,39 @@ session() ->
     {ok, Expected} = file:read_file("session/basic.out"),
     ?assertEqual(Expected, Out).
 
+%% report §11.2: on a terminal the shell reads keys, echoes what is typed,
+%% takes Backspace and C-d, and reads the interrupt as a key, which kills a
+%% running input and leaves the session standing
+terminal_test_() ->
+    {timeout, 60, fun terminal/0}.
+
+terminal() ->
+    Long = "List.foldLeft(List.range(1, 200000000), 0, fn(a, b) = a + b)",
+    Screen = pty("../bin/ern --shell",
+                 [{800, hex("1 + 5")},
+                  {1200, hex([127]) ++ hex("2\r")},     % Backspace, then 2, Enter
+                  {2000, hex(Long ++ "\r")},
+                  {3200, "03"},                         % the interrupt
+                  {4000, hex("1 + 1\r")},
+                  {5000, "04"}],                        % C-d on an empty line
+                 8),
+    ?assertMatch({_, _}, binary:match(Screen, <<"3 : Int">>)),
+    ?assertMatch({_, _}, binary:match(Screen, <<"Killed">>)),
+    ?assertMatch({_, _}, binary:match(Screen, <<"2 : Int">>)),
+    %% the interrupt reached the shell as a key; the session was not ended
+    ?assertEqual(1, length(binary:matches(Screen, <<"Ernest ">>))).
+
+hex(Text) ->
+    lists:flatten([io_lib:format("~2.16.0b", [C]) || C <- Text]).
+
+pty(Command, Sends, Seconds) ->
+    Args = [" --send " ++ integer_to_list(Ms) ++ ":" ++ Hex || {Ms, Hex} <- Sends],
+    {0, Out} = sh("./ern_pty.py --timeout " ++ integer_to_list(Seconds) ++ Args
+                  ++ " -- " ++ Command),
+    [_, <<"data ", Data/binary>>] =
+        [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
+    base64:decode(Data).
+
 sh(Cmd) ->
     Port = open_port({spawn, "sh -c '" ++ Cmd ++ "'"}, [exit_status, stderr_to_stdout, binary]),
     collect(Port, []).

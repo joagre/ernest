@@ -7,6 +7,7 @@
 -module(ern_shell).
 
 -export([start/2, check/2, type_text/1, run/3, show/1]).
+-export([is_terminal/0, write/1, screen/1, to_screen/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -90,3 +91,32 @@ show(#value{term = V, desc = D}) ->
 diagnostic(Input, Diags) ->
     unicode:characters_to_binary(
       [ern_diag:format("input", Input, D) || D <- Diags]).
+
+%% Report §11.2: the shell edits a line when it has a terminal and reads
+%% lines when it has not.
+-spec is_terminal() -> boolean().
+is_terminal() ->
+    try prim_tty:isatty(stdin) =:= true
+    catch _:_ -> false
+    end.
+
+%% The screen writes to the terminal itself: `Sys.stdout` is the screen's,
+%% so a screen that printed through it would print to itself.
+-spec write(binary()) -> 'Unit'.
+write(Text) ->
+    io:put_chars(unicode:characters_to_binary(Text)),
+    'Unit'.
+
+%% Report §11.2: the runner binds the sinks to the screen, which the shell
+%% names once it has one; what is written before then goes straight out.
+-spec screen(term()) -> 'Unit'.
+screen(Address) ->
+    persistent_term:put({?MODULE, screen}, Address),
+    'Unit'.
+
+-spec to_screen(binary()) -> ok.
+to_screen(Bin) ->
+    case persistent_term:get({?MODULE, screen}, undefined) of
+        undefined -> io:put_chars(Bin);
+        Address -> ern_rt:send(Address, Bin)
+    end.
