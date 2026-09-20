@@ -5,4 +5,11 @@ Optional.withDefault(Some(7), 0)
 1 + "a"
 1 / 0
 Io.println("side effect")
+let x = 21
+x * 2
+let f = fn(n) = n + x
+let x = 100
+f(0)
+{ let y = 5; let y = y * 2; y }
+it
 :quit

@@ -3108,6 +3108,16 @@ The phrase is P.J. Plauger's, from *Programming on Purpose: Essays on Software D
 
 It gives a test for a rule proposed later: does it make a decision visible, or does it only make typing longer? `let _ =` passes, since a value dropped in silence is a decision nobody made and nobody can see. Ceremony around a `Unit` value fails, since there is no decision there to show. A rule that survives the five principles but fails this test is a rule that costs a reader nothing to obey and teaches them nothing to read.
 
+## A Binding That Holds a Function, 2026-09-20
+
+The first thing a person does at a prompt after binding a number is bind a function, and it faulted: `let f = fn(n) = n + 1` then `f(1)` answered `error:undef`.
+
+A session binding is held by a module of its own, which answered `f()` with the value, since that is what the emitter emits for another module's value. But for a name it knows the arity of, the emitter emits the call directly, `f(1)`, and the holder had no `f/1`. So a binding that holds a function is exported twice, `f/0` for the value and `f/N` for the call, and the holder answers whichever the emitter chose. Nothing in the emitter changed.
+
+With it, the rule the note states works as written: `let x = 1`, then `let g = fn(n) = n + x`, then `let x = 100`, and `g(0)` still answers 1. The closure was compiled against the first `x`'s holder and keeps it, which is what "a function or closure made before a redeclaration keeps the one it was compiled against" means when the holder is a module. Shadowing costs nothing, since a later binding is another module and the session's map names the latest.
+
+Block shadowing inside one input is the language's own and needed nothing: `{ let y = 5; let y = y * 2; y }` answers 10, and a block may shadow a session name without disturbing it.
+
 ## Later
 
 Planned or considered, not in the language today.

@@ -9,4 +9,11 @@ Ernest 0.1.0. :quit, or C-d on an empty line, to leave.
   |     ^^^
 > fault: division by zero
 > side effect
+> x : Int
+> 42 : Int
+> f : (Int) -> Int
+> x : Int
+> 21 : Int
+> 10 : Int
+> 10 : Int
 > 
