@@ -10,7 +10,7 @@ The shell is an Ernest program. Its parts:
 - **The shell owns the terminal, and the runner records the holder.** The runner starts the shell's process, so it marks that process as the terminal's holder before anything else runs; `Keys.subscribe` and `Io.readLine` from any other process end the caller with the fault `Fault("the shell holds the terminal; run the program with ern to give it the keyboard")`. §8.2 gains no notion of a shell: a holder is recorded, and the runner is the one that can record it, because it made the process. The shell itself reads through `Keys` and `Io.readLine` as any program does. In line mode the holder holds standard input, and the fault is the same. §11.2 states it. Taking it from first come instead would have forbidden a second `Keys` subscriber, which E.16 allows, and that is changing the language to solve the shell's problem.
 - **A program under the shell prints to stdout as any other does**, and that is all it gets. The shell reports the terminal fault like any other, so a person who types `Snake.main()` is told why it will not run here, and how to run it.
 - **The front end** is the Erlang toolchain, reached through the foreign interface below: checking, compiling, running, printing, listing exports, documentation.
-- **The evaluator** runs each input in a fresh process, whose mailbox type is the input's own inferred effect, a polymorphic one instantiated to `Never` as an entry point's is (§8.1). The shell monitors it (§6.9). A fault or an interruption ends that process only; the shell reports it and keeps its bindings. The shell's own process never runs user code.
+- **The evaluator** runs each input in a fresh process, whose mailbox type is the input's own inferred effect, a polymorphic one instantiated to `Never` as an entry point's is (§8.1). The front end starts that process, since its mailbox type is known only once the input is checked, and delivers the outcome to the shell as a message; a fault comes back as an outcome, so nothing needs monitoring. A fault or an interruption ends that process only; the shell reports it and keeps its bindings. The shell's own process never runs user code.
 - **The printer** prints results as below.
 - **The commands** are below.
 
@@ -34,13 +34,17 @@ The shell is an Ernest program. Its parts:
 - **Each input is compiled as a module of its own** against the environment so far, and loaded. Its namespace is `Input<n>`, counting from 1 in the session, which a person sees: a fault in a process spawned at the prompt reads `Input3.main:1 faulted: division by zero`, naming the input it came from (§6.9). A module on the load path called `Input3` is unreachable in a session that has got that far, which is rare enough to say rather than guard against.
 - **Functions that call each other are entered in one input.**
 - **The prompt is `> `**; a multi-line input continues after `... `.
+- **A queued input is checked when it runs, not when it is typed**, since the input before it may bind the name it uses; the queue holds text.
 - **The reader stays live while an evaluation runs.** What is typed is echoed and edited as usual, and `Enter` queues the input to run when the one before it finishes; several queue in order. Output arriving meanwhile is printed above the line and the line redrawn, as any other process's output is.
 
 ## Bindings
 
 - **A declaration or a `let` at the prompt binds for the inputs after it.**
-- **A `let` at the prompt generalizes as a top-level `let` does** (§4.6): after `let id = fn(x) = x`, both `id(1)` and `id("a")` check.
+- **An input is a block: the prompt is `main`.** A `let` binds as a block `let` does, monomorphic and allowed to be effectful, which is what `let a = Chat.start()` and `let a = spawn(Local, f)` need. A top-level `let` would be neither: §4.6 generalizes it and requires a pure initializer, and generalizing `spawn` is the value restriction, `Address(n)` for every `n` and a later input free to send it anything. No new rule is needed for this, only the one Ernest has: at the prompt you are writing `main`.
+- **A `fn` declaration generalizes** as a `fn` does anywhere (§3.9), local ones included. So `fn id(x) = x` is polymorphic and `let id = fn(x) = x` is not; when a `let`-bound function is used at a second type, the error says to declare it with `fn`. Type declarations are a module's and sit beside both.
 - **A later declaration of a name is seen by later inputs.** A function or closure made before it keeps the one it was compiled against.
+- **The session is a scope, and §11.2 says so, not §4.2.** An unqualified name is looked up in the input's own declarations, then the type-member namespace of the enclosing declaration, then the session's declarations, then the prelude; a prompt declaration may shadow a prelude name exactly as a module's may. Without the sentence the report would have a prompt name in no scope at all and require it written qualified. It lives in §11.2 because that is where the shell is normative; §4.2 does not learn about tools.
+- **A type declared in the session prints unqualified.** §11.5 prints another module's type qualified, and `Input3.Shape` is an implementation detail in every later line of output; the session is the reader's own scope.
 - **The value of the last expression is bound to `it`.** It is the one binding a person did not write, and it does not breach principle 3: the principle asks that a top-level binding be visible where its name appears at the use site, and `it` is written at its use site. What is implicit is its making, not its use. `:bindings` lists it and `:help` says it.
 - **Bindings survive a fault and an interruption.** Only `:forget` removes them.
 - **A member of an abstract type is declared with the type.** Two inputs are two modules, and §4's ownership rule keeps a type's members in the module that owns it, so a later input cannot add one; the type and its members are declared in one input or loaded from a file.
@@ -147,7 +151,7 @@ The front end owns the session, and the shell holds it as one opaque `Env`. The 
 An input may declare anything a module may, so `Env` holds four things:
 
 - **Types**: `type`, `abstract type`, and `foreign type`, each with its constructors, its fields, and an abstract type's members. They persist because later bindings hold their values and the printer renders a value by its type.
-- **Value bindings**, each with its generalized scheme (§4.6), `it` among them. A value carries the type it was made with, so one made before a type's shape changed still prints by its own descriptor rather than by the new one.
+- **Value bindings**, each with its type, `it` among them; a `let` at the prompt is a block `let`, so the type is monomorphic, and what generalizes is a `fn` declaration. A value carries the type it was made with, so one made before a type's shape changed still prints by its own descriptor rather than by the new one.
 - **Declarations that are code**: `fn` and `foreign fn`, with their types and their targets.
 - **The compiled modules behind all of it.** Each input is a module of its own and stays loaded: a function or closure made before a name was redeclared keeps the one it was compiled against, so its module may not go. Names collide never, since each input's module has its own name.
 
@@ -168,15 +172,17 @@ A sketch, settled at checkpoint 1. The user's values are handles of distinct for
 foreign type Env      // the session so far: see "The environment"
 foreign type Checked  // a checked input
 foreign type Value    // a result, with its type
+type Outcome = Ok(env : Env, value : Value) | Failed(String)
+
 foreign fn check(env : Env, input : String) -> Either(String, Checked) = "..."
 foreign fn typeText(c : Checked) -> String = "..."
-foreign fn run(env : Env, c : Checked) -> Either(String, #(Env, Value)) with m = "..."
+foreign fn run(env : Env, c : Checked, wrap : (Outcome) -> m) -> Address(Never) with m = "..."
 foreign fn show(v : Value, depth : Int, length : Int) -> String = "..."
 foreign fn exports(module : String) -> List(#(String, String)) = "..."
 foreign fn doc(name : String) -> Optional(String) = "..."
 ```
 
-`check` returns §11.5's diagnostic text on an error, `run` the fault's text on a fault, `exports` names with types, `doc` the section `:doc` prints.
+`check` returns §11.5's diagnostic text on an error. `run` starts the input's process and answers with its address, which is what `C-c` kills, and delivers `Ok` or `Failed` to the shell when it ends, which is E.0 rule 8's shape for anything that arrives later; a synchronous `run` would have blocked the shell, leaving the reader dead and the interrupt unseen. `exports` gives names with types, `doc` the section `:doc` prints.
 
 ## Prerequisites
 
@@ -191,7 +197,7 @@ Delivered before the shell, each report first.
 - **Documentation in the `.erc`**, with each function's parameters as written, for `:doc` and `Shift-Tab` (MVP 2.5, step 6).
 - **The terminal is the shell's when `--shell` is given**, §11.2, and §8.2 gains the case: `Keys.subscribe` and `Io.readLine` from anything else fault with the remedy in the text (MVP 2.6).
 - **The shell reads the terminal's interrupt as a key while it reads**, §11.2, which every other program does not: §8.6's signal stands for them (MVP 2.6).
-- **The report's §11.2** states the shell's normative core: the flag without an argument and the file optional with it, the shell as the entry process (§8.1) with the file's entry point spawned beside it, and what `--main` then names; types on every result, a module and a process per input, bindings that survive a fault, the commands and their prefix rule, and line mode (MVP 2.6).
+- **The report's §11.2** states the shell's normative core: the flag without an argument and the file optional with it, the shell as the entry process (§8.1) with the file's entry point spawned beside it and what `--main` then names, the session as a scope in §4.2's lookup order with a session type printed unqualified (§11.5), the terminal's holder, and the interrupt read as a key; types on every result, a module and a process per input, bindings that survive a fault, the commands and their prefix rule, and line mode (MVP 2.6).
 
 ## Open
 
