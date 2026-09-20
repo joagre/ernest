@@ -39,7 +39,7 @@ The shell is an Ernest program of three processes over a front end. Its source i
 - **An incomplete line starts a multi-line input.** A line is incomplete when the parser runs out of input where more was expected, which it answers as such rather than as a diagnostic. The shell never counts brackets itself: that is a second parser, to disagree with the first.
 - **A blank line always submits**, incomplete or not; what does not parse gives its error. So `Enter` twice is the way out of a multi-line input.
 - **`M-Enter` adds a line to an input the parser thinks is finished**, which `type Shape = Dot` is before its alternatives and an `if` is before its `else`.
-- **The first multi-line input of a session prints `M-Enter adds a line, Enter runs.`** above the `... ` prompt, once; `:help` lists it.
+- **The first multi-line input of a session prints `M-Enter adds a line, Enter runs.`** on a line of its own above the `... ` prompt, once; `:help` lists it. Not on the prompt itself: a hint there would shift the input's column for that line only, so the second line of a declaration would not line up with the third.
 - **A paste is one input.** The shell turns on the terminal's bracketed paste; a pasted text, blank lines included, is submitted by the `Enter` after it.
 - **Functions that call each other are entered in one input.**
 - **Each input is compiled as a module of its own**, against the environment so far, and loaded. Its namespace is `Input<n>`, counting from 1 in the session, which a person sees: a fault in a process spawned at the prompt reads `Input3.main:1 faulted: division by zero` (§6.9). A module on the load path called `Input3` is unreachable in a session that has got that far.

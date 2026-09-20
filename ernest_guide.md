@@ -155,6 +155,8 @@ fn opposite(d : Direction) -> Direction = match d {
 
 The compiler checks that clauses cover every case; a missing case is a type error.
 
+That rule has a shape you will meet again. Principles 2 to 5 of the report each turn an omission into a statement: exhaustiveness makes you say what every constructor does; `let _ = e` says a value is ignored on purpose; the reply discipline says where each `Reply` is consumed (§4); `export` says what crosses a module's boundary; `with m` says a function acts through a process; a qualified name says which module a name comes from. Several of these tell the compiler nothing it could not work out for itself. What they add is that the decision is written down, where a reader meets it. Principle 1, least surprise, then audits the result. It is programming on purpose, to borrow P.J. Plauger's phrase for designing deliberately rather than by accident — his subject is the whole of software design and broader than any of these rules (*Programming on Purpose: Essays on Software Design*, Prentice Hall, 1993).
+
 Constructors can carry data. `Optional(a)` is the standard example:
 
 ```

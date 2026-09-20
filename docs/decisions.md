@@ -3100,6 +3100,14 @@ The screen writes to the terminal itself, since `Sys.stdout` is the screen's and
 
 The front end gained three small doors for this: whether input is a terminal, a write that goes to the terminal rather than through the sinks, and the naming of the screen, so that what a program prints reaches it.
 
+## Programming on Purpose, 2026-09-20
+
+The guide now names, at §2.3 where a reader first meets a rule of the shape, the habit that principles 2 to 5 share: each turns an omission into a statement. Exhaustiveness makes a program say what every constructor does; `let _ = e` says a value is ignored on purpose; the reply discipline says where each `Reply` is consumed; `export` says what crosses a boundary; `with m` says a function acts through a process; a qualified name says which module a name comes from. Several tell the compiler nothing it could not work out; what they add is that the decision is written down where a reader meets it. Principle 1 then audits the result.
+
+The phrase is P.J. Plauger's, from *Programming on Purpose: Essays on Software Design* (Prentice Hall, 1993), and the guide borrows the phrase and not the rule: his subject is designing deliberately rather than by accident, across the whole of software design, and Ernest's rules are one specialisation of it. The report is unchanged. §0 states its principles and does not characterise itself, and a slogan there would send a reader hunting for a sixth principle.
+
+It gives a test for a rule proposed later: does it make a decision visible, or does it only make typing longer? `let _ =` passes, since a value dropped in silence is a decision nobody made and nobody can see. Ceremony around a `Unit` value fails, since there is no decision there to show. A rule that survives the five principles but fails this test is a rule that costs a reader nothing to obey and teaches them nothing to read.
+
 ## Later
 
 Planned or considered, not in the language today.

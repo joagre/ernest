@@ -13,7 +13,7 @@
 %% Errors are collected per definition; checking continues with the next.
 -module(ern_typecheck).
 
--export([check/3, check_string/2, prelude_env/0]).
+-export([check/3, check/4, check_string/2, prelude_env/0]).
 -export([is_reply_carrying/2, resolve_type/2, lookup_type/2, lookup_con/4, type_state/1,
          set_type_state/2, node_type/1, foreign_impl/1, segment_spec/1]).
 
@@ -59,8 +59,19 @@
 -spec check([atom()], [tuple()], [#iface{}]) ->
           {ok, [tuple()], #iface{}, env()} | {error, [error()]}.
 check(Ns, Decls0, Ifaces) ->
+    check(Ns, Decls0, Ifaces, #{}).
+
+%% Report §11.2: the shell's session is a scope between the input's own
+%% declarations and the prelude. Its names are seeded where a module's own
+%% go, so the input's own overwrite them as they are registered and the
+%% prelude is looked at after both; each is the qualified name of the input
+%% that declared it.
+-spec check([atom()], [tuple()], [#iface{}], #{atom() => [atom()]}) ->
+          {ok, [tuple()], #iface{}, env()} | {error, [error()]}.
+check(Ns, Decls0, Ifaces, Session) ->
     Decls = builtin_operators(Ns, Decls0),
-    Env0 = lists:foldl(fun add_iface/2, (prelude_env())#env{ns = Ns}, Ifaces),
+    Seeded = lists:foldl(fun add_iface/2, (prelude_env())#env{ns = Ns}, Ifaces),
+    Env0 = Seeded#env{local_values = Session},
     try
         {Env1a, Errs1} = declare_types(Decls, Env0),
         %% report §11.5: the module's types print unqualified, except those
@@ -497,6 +508,20 @@ decl_key(#fn_decl{owner = O, name = N}) -> {O, N};
 decl_key(#let_decl{owner = O, name = N}) -> {O, N};
 decl_key(#foreign_fn_decl{owner = O, name = N}) -> {O, N};
 decl_key(D) -> {other, element(2, D)}.
+
+%% Report §11.2: an unqualified name the session declared names another
+%% module, the input that declared it; anything else is left as written.
+session_name(E, [], Name, #env{ns = Ns, vars = Vs, local_values = LV}) ->
+    case {maps:is_key(Name, Vs), LV} of
+        {false, #{Name := Q}} when length(Q) > 1 ->
+            case lists:droplast(Q) of
+                Ns -> {E, []};
+                Owner -> {E#e_var{path = Owner}, Owner}
+            end;
+        _ -> {E, []}
+    end;
+session_name(E, Path, _Name, _Env) ->
+    {E, Path}.
 
 value_qname(#env{ns = Ns}, undefined, Name) -> Ns ++ [Name];
 value_qname(#env{ns = Ns}, Owner, Name) -> Ns ++ [Owner, Name].
@@ -1244,7 +1269,10 @@ infer(#e_lit{kind = Kind} = E, Env) ->
             int -> ?INT; float -> ?FLOAT; char -> ?CHAR; string -> ?STRING; bool -> ?BOOL
         end,
     {E#e_lit{type = T}, T, Env};
-infer(#e_var{pos = Pos, path = Path, name = Name} = E, Env0) ->
+infer(#e_var{pos = Pos, path = Path0, name = Name} = E0, Env0) ->
+    %% report §11.2: a name the session declared is rewritten to the input
+    %% that declared it, so that nothing after this knows of a session
+    {E, Path} = session_name(E0, Path0, Name, Env0),
     {Scheme, Env} = lookup_value(Pos, Path, Name, Env0),
     {T, St} = ern_types:instantiate(Scheme, Env#env.st),
     Pending = [{Flag, Id, Pos} || Id <- ern_types:free_vars(T, St),

@@ -23,6 +23,7 @@ foreign fn start(loadPath : String, sourceRoot : String) -> Env with m =
 foreign fn check(env : Env, input : String) -> Either(String, #(Env, Checked)) with m =
     "ern_shell:check/2"
 foreign fn typeText(c : Checked) -> String = "ern_shell:type_text/1"
+foreign fn declared(c : Checked) -> List(#(String, String)) = "ern_shell:declared/1"
 foreign fn run(env : Env, c : Checked, to : Address(Outcome)) -> Address(Never) with m =
     "ern_shell:run/3"
 foreign fn show(v : Value) -> String = "ern_shell:show/1"
@@ -72,8 +73,11 @@ fn await(
 ) -> Env with ShellMsg = receive {
     Done(Ok(env = env2, value = value)) -> {
         let shown = typeText(checked);
-        if shown == "Unit" then Unit
-        else send(screen, Print(show(value) <> " : " <> shown <> "\n"));
+        match declared(checked) {
+            [] -> if shown == "Unit" then Unit
+                  else send(screen, Print(show(value) <> " : " <> shown <> "\n"))
+          | #(name, shape) :: _ -> send(screen, Print(name <> " : " <> shape <> "\n"))
+        };
         env2
     }
   | Done(Failed(text)) -> { send(screen, Print("fault: " <> text <> "\n")); env }
@@ -176,7 +180,7 @@ fn lineLoop(env : Env, screen : Address(ScreenMsg)) -> Unit with ShellMsg = {
       | Some(line) -> match String.trim(line) {
             "" -> lineLoop(env, screen)
           | ":quit" -> finish(screen, "")
-          | input -> { let _ = evaluate(env, screen, input); lineLoop(env, screen) }
+          | input -> lineLoop(evaluate(env, screen, input), screen)
         }
     }
 }
