@@ -278,10 +278,11 @@ fault(Msg) ->
 %% Report §8.2, §9.7: system references
 %%
 
--spec sys(stdout | clock) -> address().
+-spec sys(stdout | stderr | clock) -> address().
 sys(Name) ->
     persistent_term:get({?MODULE, Name}).
 
+%% Report §8.2: stdout and stderr each write what they receive, as bytes.
 stdout_loop(Out) ->
     receive
         {flush, From, Ref} ->
@@ -336,9 +337,12 @@ run_main(Main, Site, Opts) ->
     Reaper = erlang:spawn(fun() -> reaper_loop(#{}) end),
     persistent_term:put({?MODULE, reaper}, Reaper),
     Out = maps:get(stdout, Opts, fun(Bin) -> io:put_chars(Bin) end),
+    Err = maps:get(stderr, Opts, fun(Bin) -> io:put_chars(standard_error, Bin) end),
     Stdout = erlang:spawn(fun() -> stdout_loop(Out) end),
+    Stderr = erlang:spawn(fun() -> stdout_loop(Err) end),
     Clock = erlang:spawn(fun() -> clock_loop(0) end),
     persistent_term:put({?MODULE, stdout}, Stdout),
+    persistent_term:put({?MODULE, stderr}, Stderr),
     persistent_term:put({?MODULE, clock}, Clock),
     init_stdlib(),
     Init = maps:get(init, Opts, fun() -> ok end),
@@ -351,11 +355,13 @@ run_main(Main, Site, Opts) ->
     lists:foreach(fun({Pid, _, alive, _, _}) -> exit(Pid, {ernest, program_end});
                      (_) -> ok
                   end, ets:tab2list(?PROCESSES)),
-    FlushRef = make_ref(),
-    Stdout ! {flush, erlang:self(), FlushRef},
-    receive {FlushRef, flushed} -> ok end,
+    lists:foreach(fun(Sink) ->
+                      FlushRef = make_ref(),
+                      Sink ! {flush, erlang:self(), FlushRef},
+                      receive {FlushRef, flushed} -> ok end
+                  end, [Stdout, Stderr]),
     %% each ended before the table goes, which the reaper reads
-    lists:foreach(fun stop/1, [Stdout, Clock, Reaper]),
+    lists:foreach(fun stop/1, [Stdout, Stderr, Clock, Reaper]),
     ets:delete(?PROCESSES),
     flush_run(Run),
     case Result of

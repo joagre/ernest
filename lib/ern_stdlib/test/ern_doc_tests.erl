@@ -69,7 +69,8 @@ run_example(Mod, N, Expected) ->
                     end
            end,
     Result = ern_rt:run_main(fun() -> Mod:Main() end, atom_to_binary(Main),
-                             #{init => Init, stdout => fun(B) -> Me ! {out, B} end}),
+                             #{init => Init, stdout => fun(B) -> Me ! {out, B} end,
+                               stderr => fun(B) -> Me ! {out, B} end}),
     ?assertEqual(ok, Result),
     Lines = binary:split(collect([]), <<"\n">>, [global, trim]),
     ?assertEqual(iolist_to_binary(Expected), lists:last(Lines)).

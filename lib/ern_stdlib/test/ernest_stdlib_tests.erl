@@ -305,6 +305,28 @@ either_test() ->
     ?assertEqual({'Some', 1}, E:toOptional({'Right', 1})),
     ?assertEqual({'Left', e}, E:fromOptional('None', e)).
 
+%% report Appendix E.1, §8.2: print and println write to Sys.stdout,
+%% printError and printlnError to Sys.stderr, each as a message
+io_test() ->
+    Me = self(),
+    Sink = fun(Tag) -> fun(Bin) -> Me ! {Tag, Bin} end end,
+    Result = ern_rt:run_main(fun() ->
+                                 'ernest@io':print(<<"a">>),
+                                 'ernest@io':println(<<"b">>),
+                                 'ernest@io':printError(<<"c">>),
+                                 'ernest@io':printlnError(<<"d">>),
+                                 'ernest@io':debug(42)
+                             end, <<"io_test">>,
+                             #{stdout => Sink(out), stderr => Sink(err)}),
+    ?assertEqual(ok, Result),
+    ?assertEqual([<<"a">>, <<"b\n">>, <<"42\n">>], collect(out, [])),
+    ?assertEqual([<<"c">>, <<"d\n">>], collect(err, [])).
+
+collect(Tag, Acc) ->
+    receive {Tag, Bin} -> collect(Tag, [Bin | Acc])
+    after 0 -> lists:reverse(Acc)
+    end.
+
 %% report Appendix E.12, §3.8, §8.4
 foreign_test() ->
     F = 'ernest@foreign',

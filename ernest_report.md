@@ -598,9 +598,9 @@ The entry point is a `fn () -> Unit with m`. `m` is the message type when the en
 
 ### 8.2 System references
 
-The runtime starts its system processes and binds their addresses to top-level values in the `Sys` namespace, §9.7. A program uses each through the standard library, Appendix E: `Sys.stdout` and `Sys.stdin` through `Io`, the rest through the module of the same name. The address and its message type are declared in Ernest, for the module and for the foreign process behind it (§8.4). A runtime may provide more. The values are in scope everywhere; pure code can name an address but not send to it (§6.1). A `Sys.*` name the runtime does not provide is a name-resolution error.
+The runtime starts its system processes and binds their addresses to top-level values in the `Sys` namespace, §9.7. A program uses each through the standard library, Appendix E: `Sys.stdout`, `Sys.stderr`, and `Sys.stdin` through `Io`, the rest through the module of the same name. The address and its message type are declared in Ernest, for the module and for the foreign process behind it (§8.4). A runtime may provide more. The values are in scope everywhere; pure code can name an address but not send to it (§6.1). A `Sys.*` name the runtime does not provide is a name-resolution error.
 
-`stdout` writes each received `String` to standard output as bytes; it adds no newline. `stdin` answers each `ReadLine` with the next line without its line feed, `None` at end of input. `keys` sends every key pressed to each subscriber; it and `stdin` are the same terminal, and a program subscribes to keys or reads lines, not both. `clock`, `fs`, and `tcp` answer as their message types say.
+`stdout` writes each received `String` to standard output as bytes; it adds no newline. `stderr` does the same to standard error; it is a second sink for a program whose output is read by something else, not a level of severity. `stdin` answers each `ReadLine` with the next line without its line feed, `None` at end of input. `keys` sends every key pressed to each subscriber; it and `stdin` are the same terminal, and a program subscribes to keys or reads lines, not both. `clock`, `fs`, and `tcp` answer as their message types say.
 
 ### 8.3 Peers
 
@@ -761,6 +761,7 @@ Runtime-provided, section 8:
 
 ```
 Sys.stdout : Address(String)
+Sys.stderr : Address(String)
 Sys.stdin : Address(StdinMsg)
 Sys.keys : Address(KeyMsg)
 Sys.clock : Address(ClockMsg)
@@ -1094,6 +1095,8 @@ Output to `Sys.stdout` and input from `Sys.stdin` (section 8). A string goes to 
 ```
 Io.print : (String) -> Unit with m
 Io.println : (String) -> Unit with m // appends "\n"
+Io.printError : (String) -> Unit with m // to `Sys.stderr`
+Io.printlnError : (String) -> Unit with m // appends "\n"
 Io.readLine : () -> Optional(String) with m // the next line without its line feed; None at end of input
 Io.debug : (a) -> a with m // prints the value as Ernest writes it, then returns it
 ```

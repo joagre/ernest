@@ -2792,6 +2792,14 @@ Asking what a value of the runtime is can only be asked of the runtime, so E.12'
 
 Two things the module found. The mirror test printed a compiled foreign type as `type Seed =`, since it rendered constructors it does not have; it prints `foreign type Seed` now. And `Io.debug` crashed on a seed: `rand`'s state holds an improper list, which the representation printer walked as a list. E.1 says a foreign value prints as `<foreign>` where its representation reads as none of Ernest's forms, and an improper list is such a value, so the printer says that instead of faulting.
 
+## `Io` in Ernest, and `Sys.stderr` Restored, 2026-09-20
+
+`Io.print` and `Io.println` are now what the report always said they were: `send(Sys.stdout, s)`. Writing them in Ernest is the clearest statement of §8.2 in the library, since the module that prints is a module that sends. `debug` stays a `foreign fn`, because the compiler passes it the descriptor of the argument's type (E.1), which no Ernest signature can carry; the special case in `ern_compiler` now fires on the qualified name rather than on `Io` being the prelude's, and covers the value form too. `Io.readLine` stays in `ern_prelude`'s table, refused, until `Sys.stdin` arrives in step 4.
+
+`Sys.stderr` came back with it. It was removed on 2026-09-14 because "no paper program sends anything to stderr", which is the corpus rule that was abolished on 2026-09-20. On merit the case is plain: a program whose output is read by something else cannot report an error without corrupting that output, and the operating system gives two streams for exactly this. It is the same shape as stdout, an `Address(String)`, so it adds no concept; §8.2 says it is a second sink, not a level of severity. `Io.printError` and `Io.printlnError` are its two functions.
+
+Two toolchain repairs came out of the same work. `make` rebuilt nothing when the compiler changed without its version changing, so the standard library was silently stale, which cost an hour of confusion; the `stdlib` target now wipes its build when a compiler beam is newer. And the documentation harness captured stdout only, so an example that wrote to stderr leaked into the test output; it captures both.
+
 ## Later
 
 Planned or considered, not in the language today.

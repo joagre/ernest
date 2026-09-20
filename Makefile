@@ -10,8 +10,14 @@ all:
 # The standard library written in Ernest: stdlib/ compiled by ernc, each
 # module installed in lib/ern_stdlib/ebin under its Erlang module name, where
 # the code path loads it and the checker reads its interface (plan, MVP 2.5).
+# A changed compiler with an unchanged VERSION leaves ernc's build records
+# valid (report §11.1), so the tree is rebuilt whenever a compiler beam is
+# newer than the last standard library build.
 stdlib:
+	@if [ -n "$$(find lib -name '*.beam' -newer build/stdlib/.built 2>/dev/null)" ] \
+	   || [ ! -f build/stdlib/.built ]; then rm -rf build/stdlib; fi
 	@bin/ernc --out-dir build/stdlib stdlib
+	@touch build/stdlib/.built
 	@mkdir -p lib/ern_stdlib/ebin
 	@for f in build/stdlib/*.erc; do \
 	  cp $$f lib/ern_stdlib/ebin/ernest@$$(basename $$f .erc).beam; done

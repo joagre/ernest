@@ -462,6 +462,9 @@ var_ref(Pos, [], Name, T, #cx{vars = Vars, locals = Locals, tops = Tops} = Cx) -
                     end
             end
     end;
+var_ref(Pos, ['Io'], debug, T, Cx) ->
+    %% Appendix E.1: as a value too, the descriptor of the argument's type
+    {prelude_value(Pos, ['Io', debug], T, Cx), Cx};
 var_ref(Pos, Path, Name, T, #cx{tops = Tops, env = Env} = Cx) ->
     Form = case Path of
                [Owner] when is_map_key({Owner, Name}, Tops) ->
@@ -490,7 +493,7 @@ arity_of(_, Pos) -> fail(Pos, "a local function used as a value must have a func
 %% paper programs type-check, and the compiler refuses them until the
 %% system processes behind them exist (README, "What the toolchain accepts").
 -spec refused([atom()]) -> boolean().
-refused(['Sys', N]) -> N =/= stdout andalso N =/= clock;
+refused(['Sys', N]) -> N =/= stdout andalso N =/= stderr andalso N =/= clock;
 refused(['Io', readLine]) -> true;
 refused([Ns | _]) -> Ns =:= 'Keys' orelse Ns =:= 'Fs' orelse Ns =:= 'Tcp';
 refused(_) -> false.
@@ -550,6 +553,12 @@ call(Pos, #e_var{path = [], name = Name} = Callee, Args, Cx) ->
                     end
             end
     end;
+call(Pos, #e_var{path = ['Io'], name = debug}, [A], Cx) ->
+    %% Appendix E.1: printed by the argument's type at the call, whether Io
+    %% is the prelude's or, once written in Ernest, the standard library's
+    {[F], Cx1} = exprs([A], Cx),
+    Desc = erl_syntax:abstract(descriptor(ern_typecheck:node_type(A), Cx)),
+    {at(Pos, call_remote(ern_io, debug, [F, Desc])), Cx1};
 call(Pos, #e_var{path = Path, name = Name} = Callee, Args, Cx) ->
     #cx{tops = Tops, env = Env} = Cx,
     {ArgForms, Cx1} = exprs(Args, Cx),
@@ -620,7 +629,7 @@ prelude_call(Pos, [Ns, '<>'], [L | _], [LF, RF], _, Cx) when Ns =:= 'String'; Ns
 prelude_call(Pos, ['Io', debug], [A], [F], _, Cx) ->
     %% Appendix E.1: printed by the argument's type at the call
     Desc = erl_syntax:abstract(descriptor(ern_typecheck:node_type(A), Cx)),
-    {at(Pos, call_remote('ernest@io', debug, [F, Desc])), Cx};
+    {at(Pos, call_remote(ern_io, debug, [F, Desc])), Cx};
 prelude_call(Pos, [Ns | Rest], _, Args, _, Cx) when Rest =/= [] ->
     %% a stdlib function: the namespace's module
     {at(Pos, call_remote(module_atom([Ns]), lists:last(Rest), Args)), Cx};
@@ -649,7 +658,7 @@ prelude_value(Pos, [_, '<>'], {tfn, [P | _], _, _} = T, Cx) ->
 prelude_value(Pos, ['Io', debug], {tfn, [P], _, _} = T, Cx) ->
     {[A], _} = fresh_vars(1, "A", Cx),
     Desc = erl_syntax:abstract(descriptor(P, Cx)),
-    Body = call_remote('ernest@io', debug, [erl_syntax:variable(A), Desc]),
+    Body = call_remote(ern_io, debug, [erl_syntax:variable(A), Desc]),
     lambda([A], Body, arity_of(T, Pos), 1);
 prelude_value(Pos, QName, T, _Cx) ->
     prelude_value(Pos, QName, T).
@@ -659,6 +668,7 @@ lambda(Vars, Body, Arity, Arity) ->
 
 %% Without a closure over the context.
 prelude_value(_Pos, ['Sys', stdout], _) -> call_remote(ern_rt, sys, [erl_syntax:atom(stdout)]);
+prelude_value(_Pos, ['Sys', stderr], _) -> call_remote(ern_rt, sys, [erl_syntax:atom(stderr)]);
 prelude_value(_Pos, ['Sys', clock], _) -> call_remote(ern_rt, sys, [erl_syntax:atom(clock)]);
 prelude_value(Pos, [Name], T) ->
     {M, F} = case Name of

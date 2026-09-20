@@ -1,0 +1,60 @@
+/// Output to `Sys.stdout` and `Sys.stderr`, and input from `Sys.stdin`
+/// (report §8.2). Each is a system process, so printing is a message and
+/// carries the caller's mailbox effect; pure code cannot print. A string
+/// goes to any other `Address(String)` by `send`, which is how a program
+/// writes to a socket or a sink of its own.
+///
+/// ## Examples
+///
+/// ```ernest
+/// Io.println("hello, world")
+/// // => Unit
+/// ```
+///
+/// ```ernest
+/// Io.debug(Optional.map(Some(2), fn(n) = n * 10))
+/// // => Some(20)
+/// ```
+///
+/// ## See also
+///
+/// `String` for building what is printed, `Clock` for the other system
+/// module a program meets first.
+///
+/// since 0.1.0
+
+/// The string to standard output, as it is, without a line feed.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Io.print("half ");
+/// Io.println("and half")
+/// // => Unit
+/// ```
+export fn print(s : String) -> Unit with m = send(Sys.stdout, s)
+
+/// The string to standard output, with a line feed after it.
+export fn println(s : String) -> Unit with m = send(Sys.stdout, s <> "\n")
+
+/// The string to standard error, as it is, without a line feed. Standard
+/// error is a second sink, for a program whose output something else reads;
+/// it is not a level of severity.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Io.printError("cannot ");
+/// Io.printlnError("open the file")
+/// // => Unit
+/// ```
+export fn printError(s : String) -> Unit with m = send(Sys.stderr, s)
+
+/// The string to standard error, with a line feed after it.
+export fn printlnError(s : String) -> Unit with m = send(Sys.stderr, s <> "\n")
+
+/// The value printed as Ernest writes it, by its type at the call, and
+/// returned, so it wraps an expression where it stands: `let n =
+/// Io.debug(f(x))`. Inside a generic function, where the type is a
+/// variable, it prints by the runtime's representation (report §8.4).
+export foreign fn debug(value : a) -> a with m = "ern_io:debug/1"
