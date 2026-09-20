@@ -12,7 +12,8 @@
 // Appendix E); Key is the prelude's (§9.3). main runs the game loop itself so
 // the program keeps running (report §8.6).
 //
-// Needs MVP 2.5 (Keys). Not compiled by MVP 1.
+// Compiles and type-checks since 2026-09-20; it is not run under test yet,
+// since it runs until it is stopped.
 //
 
 //

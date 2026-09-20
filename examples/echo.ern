@@ -5,6 +5,9 @@
 // round trip takes. It is the measurement the plan asks of Tcp (report
 // Appendix E.18), where each socket is a process.
 //
+// Compiles and runs since 2026-09-20; it is not an integration test, since
+// its output is a measurement rather than a fixed line.
+//
 
 type Msg = Served(Down)
 

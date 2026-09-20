@@ -122,34 +122,12 @@ values() ->
      {['Sys', stdout], "Address(String)"},
      {['Sys', stderr], "Address(String)"},
      {['Sys', stdin], "Address(StdinMsg)"},
-     {['Sys', stdin], "Address(StdinMsg)"},
      {['Sys', keys], "Address(KeyMsg)"},
      {['Sys', clock], "Address(ClockMsg)"},
      {['Sys', fs], "Address(FsMsg)"},
-     {['Sys', tcp], "Address(TcpMsg)"},
-     %% Appendix E.1 Io
-     %% E.2 List
-     %% E.3 Map
-     %% E.4 Set
-     %% E.5 String
-     %% E.6 Char
-     %% E.7 Bool
-     %% E.8 Int
-     %% E.9 Float
-     %% E.10 Optional
-     %% E.11 Either
-     %% E.12 Foreign
-     %% E.13 Random
-     %% E.14 Path
-     %% E.15 Clock
-     %% E.16 Keys
-     %% E.17 Fs
-     %% E.18 Tcp
-     %% E.19 Erl
-     %% E.20 Bytes
-     %% the modules of Appendix E are written in Ernest and read from their
-     %% compiled interfaces (ern_prelude:stdlib_ifaces/0); what stays here is
-     %% section 9 and what the toolchain has not built yet
+     %% every module of Appendix E is written in Ernest and read from its
+     %% compiled interface (stdlib_ifaces/0); what stays in this table is
+     %% section 9 alone
      {['Sys', tcp], "Address(TcpMsg)"}].
 
 %% The interfaces of the standard library modules written in Ernest: every

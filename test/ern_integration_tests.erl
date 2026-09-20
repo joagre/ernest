@@ -23,8 +23,7 @@ program(Name) ->
 
 %% Plan, MVP 2.5 step 4: the paper programs that the doors of step 4 opened
 %% compile end to end; they run forever or wait for a terminal, so running
-%% them under test waits for the step's own item. `webserver` is not here:
-%% it needs `Ets`.
+%% them under test waits for the step's own item.
 -define(COMPILES, ["filesync", "repl", "snake", "echo", "webserver"]).
 
 compiles_test_() ->

@@ -130,10 +130,10 @@ foreign fn doc(name : String) -> Optional(String) = "..."
 
 Delivered before the shell, each report first.
 
-- **`Keys`** delivers `Shift-Tab`, the arrows, and `Meta` combinations as keys, and `C-c` as a key in raw mode (MVP 2.5, step 4).
-- **The terminal's width**, for redrawing a wrapped line and laying out candidates (MVP 2.5, step 4).
-- **Whether input is a terminal**, for line mode (MVP 2.5, step 4).
-- **A notice that another process printed**, for redrawing the line (MVP 2.5, step 4).
+- **`Keys`** delivers the arrows, `Enter`, `Escape`, and characters since MVP 2.5 step 4 (§9.3's `Key`). `Shift-Tab`, `Meta` combinations, and `C-c` as a key are not in `Key` and land with the shell, report first (MVP 2.6).
+- **The terminal's width**, for redrawing a wrapped line and laying out candidates. Not in the report; it lands with the shell, report first (MVP 2.6).
+- **Whether input is a terminal**, for line mode. Not in the report; it lands with the shell, report first (MVP 2.6).
+- **A notice that another process printed**, for redrawing the line. Not in the report; it lands with the shell, report first (MVP 2.6).
 - **Documentation in the `.erc`**, with each function's parameters as written, for `:doc` and `Shift-Tab` (MVP 2.5, step 6).
 - **The report's §11.2** states the shell's normative core: types on every result, a module and a process per input, bindings that survive a fault, the commands and their prefix rule, and line mode (MVP 2.6).
 

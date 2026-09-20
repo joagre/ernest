@@ -18,7 +18,7 @@ The toolchain is written in Erlang: lexer, parser, type checker, runtime, the co
 
 The complete programs from the report's Appendix B and D and the guide's checkpoints are collected under [`examples/`](examples/). Each program's header comment says where it comes from and what it needs; `template.ern`, a documented module with no header comment, is described by [`docs/module_doc_template.md`](docs/module_doc_template.md). Together the examples exercise every construct of the grammar except bitstrings, and a test keeps it so.
 
-**What the toolchain runs.** The programs `make test` compiles and runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`, with their expected output under `test/expected/` and the Erlang they compile to under `test/golden/`. The `modules` pair and the `ets` library are compiled by their own tests; the rest of `examples/` is type-checked only, and each file's header says what it waits for.
+**What the toolchain runs.** The programs `make test` compiles and runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`, with their expected output under `test/expected/` and the Erlang they compile to under `test/golden/`. The `modules` pair and the programs of the `COMPILES` macro, `filesync`, `repl`, `snake`, `echo`, and `webserver`, are compiled by their own tests; the rest of `examples/` is type-checked only, and each file's header says where it stands.
 
 ### Then the paper programs
 

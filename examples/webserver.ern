@@ -5,12 +5,13 @@
 // sessions.
 //
 // Assumptions. Tcp and Clock are the standard library's system modules (report
-// Appendix E) over Sys.tcp and Sys.clock (§8.2). The Ets module is the foreign
-// library of report Appendix D. errorText is a hand-written rendering for
-// stdout, todo("on paper") here. main runs the acceptor itself so the program
-// keeps running (report §8.6).
+// Appendix E) over Sys.tcp and Sys.clock (§8.2). The Ets module is the
+// standard library's, Appendix E.21, which report Appendix D writes out.
+// errorText is a hand-written rendering for stdout, todo("on paper") here.
+// main runs the acceptor itself so the program keeps running (report §8.6).
 //
-// Needs MVP 2.5 (Tcp) and the Ets library on the load path. Not compiled by MVP 1.
+// Compiles and type-checks since 2026-09-20; it is not run under test yet,
+// since it serves until a client stops coming.
 //
 
 //

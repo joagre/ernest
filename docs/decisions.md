@@ -2874,6 +2874,14 @@ Its keys need equality, which §3.10 gave only to `Map` and `Set`. The sentence 
 
 Two things fell out. `examples/ets.ern`, the hand-written copy the tests compiled as a user module, is gone: a user module may not take a standard library namespace, which is the rule working as intended, and the CLI test now uses the real module. And the parser's AST coverage test, which had read only `examples/`, lost its only `foreign` declarations with that file; it reads `stdlib/` too now, which is where they live, and only a bitstring with segments and a bitstring pattern are still unexercised.
 
+## The Sweep After Step 4, 2026-09-20
+
+Two readings again, and this time the report itself was wrong in two places, both from the day's own work. `Ets` gives every function a mailbox effect, which E.0 shape rule 5 forbade by saying only the modules over §8.2's system references carry one; the rule now says a function is pure unless its value lives in a process or in the runtime's own state, and names `Ets`, whose tables belong to the process that made them. And E.21 says an operation on a table that is gone faults, which rule 4 forbade by allowing only §7.4's faults; rule 4 now allows a function's own section to name one. Rule 1's list of shims gained the tables.
+
+The rest was drift, of one kind: everything that had said "waits", "is refused", or "not compiled by MVP 1" was false after step 4. The guide said the paper programs were type-checked only and pointed at a README table that no longer names them; three example headers said they needed an MVP that had arrived; the plan routed the step's names through machinery that no longer exists and scheduled five things for a step that had closed; the architecture note described the refusal function and a future tense for work that is done; `ern_prelude` held two duplicate entries and a skeleton of comments for modules that had all moved. Each is now what the code says.
+
+One gap was unrecorded rather than stale, and it is the one worth keeping in view: the shell's design note listed four prerequisites against step 4, and step 4 closed with part of one. `Shift-Tab`, `Meta` combinations, and `C-c` as keys, the terminal's width, whether input is a terminal, and a way to learn that another process printed are none of them in the report. They are now an item of MVP 2.6, report first, in the plan and in the design note, since the shell is what needs them and the shell is where their shape will be decided.
+
 ## Later
 
 Planned or considered, not in the language today.
