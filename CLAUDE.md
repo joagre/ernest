@@ -20,7 +20,7 @@ The rules below are in the order of work: what is authoritative, the repository,
 ## The repository
 
 - **The plan says where we are.** It holds the current phase and its decisions; what is built is what `erl/` and `make test` say.
-- **The implementation is Erlang, OTP 27.** The compiler is `ernc`, the runner `ern`. The programs the toolchain runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`.
+- **The implementation is Erlang, OTP 29.** The compiler is `ernc`, the runner `ern`. The programs the toolchain runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`.
 - **The README owns the layout and the commands**, under "Layout of the repository" and "Building". `make` builds; `make test` tests.
 - **The style guide owns the naming of the code**, one rule for every Erlang module and every module compiled from Ernest.
 - **Third-party code is listed in `THIRD_PARTY_LICENSES`.** A borrowed file keeps its upstream header.

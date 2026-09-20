@@ -219,7 +219,7 @@ Read back 2026-09-19 against the pre-paring text: the paring had lost five rules
 
 ## Tools and Environment
 
-Erlang, OTP 27, Makefiles (see Repository Layout); no rebar3, no OTP behaviours. EUnit per module under `erl/*/test`; integration tests under `test/` run `ernc` on the example programs and compare output against expected. The compiler is distributed as the escript sources in `bin/`.
+Erlang, OTP 29, Makefiles (see Repository Layout); no rebar3, no OTP behaviours. EUnit per module under `erl/*/test`; integration tests under `test/` run `ernc` on the example programs and compare output against expected. The compiler is distributed as the escript sources in `bin/`.
 
 ---
 
@@ -233,7 +233,7 @@ Erlang, OTP 27, Makefiles (see Repository Layout); no rebar3, no OTP behaviours.
 
 ## Decisions Before Start
 
-Decided: hand-written lexer and a direct precedence-climbing parser over a token list (no yecc, no generic Pratt engine, decided 2026-09-17); yecc-shaped tokens; Erlang's abstract format via `erl_syntax` and `compile:forms`; OTP 27; Makefiles, no rebar3, no OTP behaviours; the `erl/` layout above; the error format of §11.5, whose first line is `file:line:column: message`; one Erlang module per Ernest module, named `ern@` and its path (2.4).
+Decided: hand-written lexer and a direct precedence-climbing parser over a token list (no yecc, no generic Pratt engine, decided 2026-09-17); yecc-shaped tokens; Erlang's abstract format via `erl_syntax` and `compile:forms`; OTP 29, raised from 27 on 2026-09-20; Makefiles, no rebar3, no OTP behaviours; the `erl/` layout above; the error format of §11.5, whose first line is `file:line:column: message`; one Erlang module per Ernest module, named `ern@` and its path (2.4).
 
 Nothing open.
 

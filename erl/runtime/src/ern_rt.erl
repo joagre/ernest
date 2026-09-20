@@ -242,7 +242,8 @@ proxy_for(Key, Start) ->
 
 -spec proxy_forget(term()) -> ok.
 proxy_forget(Key) ->
-    _ = catch ets:delete(?PROCESSES, {proxy, Key}),
+    %% the table is gone once the program has ended (report §8.6)
+    try ets:delete(?PROCESSES, {proxy, Key}) catch _:_ -> true end,
     ok.
 
 %% Report §8.6: what a system process holds that can still deliver, a
@@ -250,18 +251,20 @@ proxy_forget(Key) ->
 %% is held, since a process that is inside a read cannot answer a question.
 -spec source_begin() -> ok.
 source_begin() ->
-    _ = catch ets:update_counter(?PROCESSES, sources, {2, 1}),
+    try ets:update_counter(?PROCESSES, sources, {2, 1}) catch _:_ -> 0 end,
     ok.
 
 -spec source_end() -> ok.
 source_end() ->
-    _ = catch ets:update_counter(?PROCESSES, sources, {2, -1}),
+    try ets:update_counter(?PROCESSES, sources, {2, -1}) catch _:_ -> 0 end,
     ok.
 
 sources() ->
-    case catch ets:lookup(?PROCESSES, sources) of
+    try ets:lookup(?PROCESSES, sources) of
         [{sources, N}] -> N;
         _ -> 1
+    catch _:_ ->
+        1
     end.
 
 %% A timed receive counts itself in before and out first in every body,

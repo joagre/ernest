@@ -148,12 +148,14 @@ stdlib_ifaces() ->
 stdlib_iface(File) ->
     case beam_lib:chunks(File, ["ErnI"]) of
         {ok, {_, [{_, Chunk}]}} ->
-            case catch binary_to_term(Chunk) of
+            try binary_to_term(Chunk) of
                 #{iface := {iface, Ns, Types, Values}} ->
                     [#iface{namespace = Ns, types = maps:from_list(Types),
                             values = maps:from_list(Values)}];
                 _ ->
                     []
+            catch _:_ ->
+                []
             end;
         _ ->
             []

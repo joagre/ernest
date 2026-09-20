@@ -130,12 +130,14 @@ erl_source(Ns, Decls, Env) ->
 read_interface(Beam) ->
     case beam_lib:chunks(Beam, [binary_to_list(?CHUNK)]) of
         {ok, {_, [{_, Chunk}]}} ->
-            case catch binary_to_term(Chunk) of
+            try binary_to_term(Chunk) of
                 #{format := ?CHUNK_FORMAT, iface := {iface, Ns, Types, Values}} = Map ->
                     {ok, Map#{iface => #iface{namespace = Ns, types = maps:from_list(Types),
                                               values = maps:from_list(Values)}}};
                 _ ->
                     {error, "the interface chunk is of another compiler version"}
+            catch _:_ ->
+                {error, "the interface chunk is of another compiler version"}
             end;
         {error, beam_lib, Reason} ->
             {error, lists:flatten(beam_lib:format_error(Reason))}
@@ -150,9 +152,11 @@ read_interface(Beam) ->
 read_docs(Beam) ->
     case beam_lib:chunks(Beam, [binary_to_list(?DOCS)]) of
         {ok, {_, [{_, Chunk}]}} ->
-            case catch binary_to_term(Chunk) of
+            try binary_to_term(Chunk) of
                 {docs_v1, _, ernest, _, _, _, _} = Docs -> {ok, Docs};
                 _ -> {error, "the documentation chunk is of another compiler version"}
+            catch _:_ ->
+                {error, "the documentation chunk is of another compiler version"}
             end;
         {error, beam_lib, Reason} ->
             {error, lists:flatten(beam_lib:format_error(Reason))}

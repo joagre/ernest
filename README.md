@@ -1,6 +1,6 @@
 # Ernest
 
-A functional language for explicit process protocols. Mailbox effects and linear replies are part of the type system. Two organizing ideas: pure functions with Hindley-Milner types, and processes with typed mailboxes. On BEAM (Erlang OTP 27).
+A functional language for explicit process protocols. Mailbox effects and linear replies are part of the type system. Two organizing ideas: pure functions with Hindley-Milner types, and processes with typed mailboxes. On BEAM (Erlang OTP 29).
 
 ## Status
 
@@ -75,7 +75,7 @@ A module path segment is one lowercase word (report §11.1); a multi-word module
 
 ## Building
 
-Erlang/OTP 27 and GNU make. No rebar3, no OTP behaviours. `make test` also needs python3, for the pseudo-terminal the terminal tests run a program under; Erlang cannot open one.
+Erlang/OTP 29 and GNU make. No rebar3, no OTP behaviours. `make test` also needs python3, for the pseudo-terminal the terminal tests run a program under; Erlang cannot open one.
 
 ```
 make              compile every application into its ebin/, then stdlib/

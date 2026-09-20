@@ -119,7 +119,7 @@ webserver() ->
         ?assertMatch({_, _}, binary:match(Second, <<"Visit number 2">>))
     after
         os:cmd("kill " ++ integer_to_list(Pid)),
-        catch port_close(Port)
+        try port_close(Port) catch _:_ -> true end
     end.
 
 %% The server needs a moment to bind; a connection that is refused is retried.

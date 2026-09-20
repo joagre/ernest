@@ -3166,6 +3166,21 @@ An input may declare what a module may, which is what the shell's note says the 
 
 **A binding was made inside an unmarked foreign call.** An input that binds compiles a holder module, and the host's compiler waits for a process of its own; the input's process waited with it, looking idle, and `Deadlock` was declared over a binding being made. §8.6 already counts a foreign call in progress as something that can still deliver, and the front end simply was not saying so; the compile is now inside `ern_rt:in_foreign`. It appeared as a session that died the moment an input with a clock alarm bound its value, and two runs in a row showed it: rare in wall-clock terms, certain when the alarm and the reaper's hundred milliseconds line up.
 
+## OTP 29, and Why the Terminal Stays Ours, 2026-09-20
+
+The toolchain builds and passes on OTP 29, and the version it is written against is now 29. Four expressions had to change: OTP 29 deprecates the old `catch Expr`, and `-Werror` makes a deprecation an error, so each became a `try`.
+
+**What was measured, under a pseudo-terminal, before deciding anything.** OTP's own raw terminal interface, `shell:start_interactive({noshell, raw})` with `io_ansi:scan`, was argued to replace our `stty` port and our key decoder.
+
+- On OTP 27 it does not exist. `io_ansi` is not there, `{noshell, raw}` is not in that release's documentation of `start_interactive/1`, and under a pseudo-terminal no keystroke reached any device in six seconds, though `{echo, false}` was set. The note in `ern_keys` was right for a reason we now know.
+- On OTP 29 it works: keys arrive as they are pressed, there is no version banner, and `io_ansi:scan` names them, an arrow as `cursor_up` where our decoder gives `ArrowUp`.
+- It sets `-icanon -echo -icrnl -opost`, two flags more than we set. `-opost` is the one that matters: a bare line feed no longer returns the carriage, which is what made the snake board climb the screen a column at a time, so every program that draws would have to write `\r\n` or the runtime would have to translate on the way out.
+- `isig` stays on, so the terminal's interrupt still signals the program. §11.2 wants it as a key for the shell, so an `stty -isig` call is needed either way: the port does not go away, it shrinks to two flags.
+
+**So the terminal handling stays ours for now.** What OTP's interface would buy is the decoder, and ours is thirty tested lines that cover exactly the eight keys §9.3 names. The buy becomes worth it when §9.3 grows, which the line editor and completion will ask for: function keys, `Meta`, `Shift-Tab`, bracketed paste. That is checkpoint 2's question, with the two conditions above already measured.
+
+**ncurses through cecho was refused.** It would be the repository's first NIF, its first C dependency and its first build that `make` alone does not do, and ncurses wants to own the output that `Sys.stdout` is. Two panes need a line buffer and a viewport each and ANSI, which is Ernest code in `shell/` and tests the language; colour and windows are report questions before they are library questions.
+
 ## Later
 
 Planned or considered, not in the language today.

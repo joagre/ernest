@@ -38,6 +38,7 @@ The shell is an Ernest program of three processes over a front end. Its source i
 - **A line complete by itself is submitted by `Enter`.** The prompt is `> `; a multi-line input continues after `... `.
 - **An incomplete line starts a multi-line input.** A line is incomplete when the parser runs out of input where more was expected, which it answers as such rather than as a diagnostic. The shell never counts brackets itself: that is a second parser, to disagree with the first.
 - **A blank line always submits**, incomplete or not; what does not parse gives its error. So `Enter` twice is the way out of a multi-line input.
+- **The key decoder is ours until §9.3 grows.** OTP 29's `io_ansi:scan` names more keys than §9.3 has, and the editor and completion are what will ask for them; the measurements that decide it are in the decisions log, with the two flags OTP's raw mode sets that ours does not.
 - **`M-Enter` adds a line to an input the parser thinks is finished**, which `type Shape = Dot` is before its alternatives and an `if` is before its `else`.
 - **The first multi-line input of a session prints `M-Enter adds a line, Enter runs.`** on a line of its own above the `... ` prompt, once; `:help` lists it. Not on the prompt itself: a hint there would shift the input's column for that line only, so the second line of a declaration would not line up with the third.
 - **A paste is one input.** The shell turns on the terminal's bracketed paste; a pasted text, blank lines included, is submitted by the `Enter` after it.

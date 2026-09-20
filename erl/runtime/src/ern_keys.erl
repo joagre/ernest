@@ -5,11 +5,12 @@
 %% a program does one or the other, and restore/0 puts it back when the
 %% program ends (§8.6).
 %%
-%% Raw mode is set with stty on a port that inherits the terminal, not with
-%% shell:start_interactive({noshell, raw}): under that mode io:get_chars
-%% returns the bytes buffered before it was entered and then never returns
-%% again, so a program read the keys pressed before it started and none
-%% after.
+%% The mode is set with stty on a port that inherits the terminal, and not
+%% with shell:start_interactive({noshell, raw}), which arrived after the
+%% release this was written against. On OTP 29 that mode works, and it sets
+%% -opost as well, so a line feed would no longer return the carriage; it
+%% leaves isig on, which the shell needs off (§11.2). The decisions log of
+%% 2026-09-20 has the measurements and what would make it worth taking.
 %%
 %% Decoding is decode/1 over the bytes read, and flush/1 for what is left
 %% when nothing follows; both are functions and are what the unit tests
