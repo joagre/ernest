@@ -53,7 +53,7 @@ start_reader(undefined) ->
     Keys = self(),
     case ern_rt:own_terminal(keys) of
         ok ->
-            stty(["raw", "-echo"]),
+            stty(["-icanon", "-echo", "min", "1", "time", "0"]),
             erlang:spawn(fun() -> read_loop(Keys) end);
         taken ->
             %% the program is already ending with the fault (report §8.2)
@@ -62,6 +62,10 @@ start_reader(undefined) ->
 start_reader(Reader) ->
     Reader.
 
+%% Report §8.2: each key as it is pressed and no echo, which is the input
+%% half only. Full raw mode would also stop the terminal turning a line feed
+%% into a carriage return and a line feed, and a program that draws would
+%% climb the screen a column at a time.
 %% Report §8.6: the terminal is the one the program found.
 -spec restore() -> ok.
 restore() ->
