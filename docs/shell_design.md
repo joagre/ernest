@@ -7,10 +7,21 @@ The shell of MVP 2.6, `ern --shell` (report §11.2). The plan owns when it is bu
 The shell is an Ernest program. Its parts:
 
 - **The reader** reads keystrokes through `Keys` and edits the line itself; §8.2 lets a program read keys or lines, never both. When input is not a terminal it reads lines with `Io.readLine`, without editing: line mode.
+- **The shell owns the terminal, and the runner says so.** When `--shell` is given the terminal belongs to the shell, and `Keys.subscribe` and `Io.readLine` from anything else end the calling process with the fault `Fault("the shell holds the terminal; run the program with ern to give it the keyboard")`. It is a fact about how `ern` was invoked, not about who is asking: the runtime cannot tell the shell from the program it runs, since they are one program in one node. §11.2 states it and §8.2 gains the case. Taking it from first come instead would have forbidden a second `Keys` subscriber, which E.16 allows, and that is changing the language to solve the shell's problem.
+- **A program under the shell prints to stdout as any other does**, and that is all it gets. The shell reports the terminal fault like any other, so a person who types `Snake.main()` is told why it will not run here, and how to run it.
 - **The front end** is the Erlang toolchain, reached through the foreign interface below: checking, compiling, running, printing, listing exports, documentation.
 - **The evaluator** runs each input in a fresh process, whose mailbox type is the input's own inferred effect, a polymorphic one instantiated to `Never` as an entry point's is (§8.1). The shell monitors it (§6.9). A fault or an interruption ends that process only; the shell reports it and keeps its bindings. The shell's own process never runs user code.
 - **The printer** prints results as below.
 - **The commands** are below.
+
+## Starting it
+
+`ern [--shell] [file.erc]`, report §11.2. The flag takes no argument, and with it the file is optional.
+
+- **`ern --shell`** starts the runtime with the standard library and the load path, and nothing else running.
+- **`ern --shell file.erc`** loads the module and its dependencies, runs its entry point, and gives a prompt beside it, every loaded module in scope. The program's processes are the session's: `:processes` sees them, `:faults` reports their faults, and `:quit` ends them with `ProgramEnd` (§8.6).
+- **An input cannot reach a process the program spawned.** There is no registry (§6.3), so what the prompt has of a running program is its modules, its output, and the report of its faults. A program that means to be driven from the prompt returns an address from the function that starts it.
+- **`ern` takes no file when `--shell` is given**, which today it demands; the usage line changes with the shell.
 
 ## Input
 
@@ -41,7 +52,8 @@ The shell is an Ernest program. Its parts:
 - **A process that faults is reported** with its spawn site and cause: `Counter.worker:23 faulted: division by zero`. Which deaths are reported, and how the shell learns of them, is "Failing processes".
 - **With timing on, each result is followed by its elapsed time.**
 - **Colour:** types dimmed, errors red, the history suggestion greyed. None when output is not a terminal or `NO_COLOR` is set.
-- **Output from another process while a line is being typed** is printed above it, and the prompt and the partial line are drawn again below.
+- **Output from another process while a line is being typed** is printed above it, and the prompt and the partial line are drawn again below. Every write goes through `Sys.stdout`, one process (§8.2), and the shell holds the terminal, so the shell is told before the write lands, clears the input line, lets the output through, and redraws. Erlang's shell is racing writers it does not control; here there is no second path to the screen, so the prompt is the last thing on the terminal and stays correct.
+- **A write that does not end in a line feed is ended before the prompt is drawn**, so the prompt starts at column 0 and the next write starts a new line. The transcript then shows a break the program did not write, which is the price of not holding output back until a line feed that may never come.
 
 ## Failing processes
 
@@ -64,7 +76,7 @@ GNU Readline's Emacs bindings.
 - **Transposing and case:** `C-t` two characters, `M-t` two words; `M-u`, `M-l`, `M-c` upcase, downcase, capitalize a word.
 - **History:** `C-p`, `C-n`, up and down step through earlier inputs; `M-<` and `M->` go to the first and the current; `C-r` searches back incrementally, `C-s` forward, `C-g` abandons the search. The history is kept in the configuration directory (§11.2), `history`.
 - **Suggestion:** the most recent earlier input that begins with the text typed is shown greyed after the cursor; the right arrow, or `C-e` at the end of the line, accepts it.
-- **Interrupting:** `C-c` abandons the line being typed, and during an evaluation kills the input's process.
+- **Interrupting:** `C-c` abandons the line being typed, and during an evaluation kills the input's process, leaving the bindings. While the shell is reading, the terminal's interrupt is a key to it and not the signal that ends a program (§8.6); the shell is left with `:quit` or `C-d`. Every other program keeps §8.6's rule, so the interrupt still stops a game that reads keys. §11.2 says it, since §11.2 owns the shell.
 - **`C-l`** clears the screen.
 
 ## Completion
@@ -99,7 +111,7 @@ A command is `:` and a name; it is not an Ernest function. Any prefix of a name 
 - **`:help`**: the commands and their prefixes; it says that `:doc` is what GHCi calls `:info`.
 - **`:forget x`**: forgets the binding `x`; without a name, all bindings.
 - **`:bindings`**: the bindings, with their types.
-- **`:processes`**: the live processes with their spawn sites (§6.9).
+- **`:processes`**: the live processes with their spawn sites (§6.9), read through the same reference as the faults; a name and a site, never an address.
 - **`:faults`**: the faults reported since the session began, oldest first.
 - **`:set depth n`**, **`:set length n`**, **`:set timing on`** and **`off`**.
 
@@ -117,16 +129,38 @@ A program is started by calling it; there is no command for it. A module meant f
 - **Commands for records and registered names:** Ernest has neither.
 - **A second lookup command beside `:doc`, and a kinds command:** `:doc` shows the declaration, and Ernest exposes no kinds.
 - **Commands for the file system and the terminal:** `Fs` does this in the language.
+- **Running a terminal program from the prompt:** the shell holds the terminal, so a program that reads keys or lines is run with `ern` instead. The fault says so.
 - **Custom printers:** a value has one rendering.
 - **User-defined commands, system commands, job control, a step debugger, and watch expressions.**
 - **Later, each on its own merits:** re-running an earlier input by number, `:trace f` to print each call and return of `f`, and, with MVP 3's peers, a shell attached to a running node. The design does not assume the shell runs on the node whose code it evaluates.
+- **A split screen, later and as a mode**, `:set split on`: a scrolling transcript above, the shell's output and the program's together, and the input alone at the bottom. It reads better while a program prints, and it costs three things the scrolling terminal gives for nothing — the terminal's own scrollback, search and copy, since lines leaving a scroll region are not kept by most terminals; the terminal's height and a notice when it changes, neither of which is in §8.2; and a scroll region that shrinks and grows with every multi-line input. Splitting the other way, the program above and the shell below, is refused outright: the shell's own output is the large one, `:browse` and `:doc` being pages, and pinning it into a small pane is worse than the problem it solves.
+
+## The environment
+
+The front end owns the session, and the shell holds it as one opaque `Env`. The type system decides this rather than taste: bindings differ in type, and Ernest has no heterogeneous collection, so a shell that held the values itself could hold them only as `Foreign` with their types as text beside them.
+
+An input may declare anything a module may, so `Env` holds four things:
+
+- **Types**: `type`, `abstract type`, and `foreign type`, each with its constructors, its fields, and an abstract type's members. They persist because later bindings hold their values and the printer renders a value by its type.
+- **Value bindings**, each with its generalized scheme (§4.6), `it` among them.
+- **Declarations that are code**: `fn` and `foreign fn`, with their types and their targets.
+- **The compiled modules behind all of it.** Each input is a module of its own and stays loaded: a function or closure made before a name was redeclared keeps the one it was compiled against, so its module may not go. Names collide never, since each input's module has its own name.
+
+`Env` is a module interface plus the values behind it. The first half exists already, `#iface{namespace, types, values}`, which is what an `.erc` carries (§11.1); the shell's is that accumulated across inputs, with a value store and the loaded modules alongside.
+
+Two consequences, stated rather than discovered:
+
+- **A session never shrinks.** Code cannot be unloaded while a closure may reference it, so `:forget x` removes a name from the environment and frees nothing.
+- **Shadowing is by name in the environment**, not by replacing code, which is why an old closure keeps working.
+
+What `Env` does not hold: the shell's own settings, which are ordinary Ernest values; the history, a `List(String)`; and the modules on the load path, which are found by namespace (§4.2) and never enter the environment.
 
 ## Foreign interface
 
 A sketch, settled at checkpoint 1. The user's values are handles of distinct foreign types, so the shell cannot pass one kind where another is expected; types reach the shell as text.
 
 ```
-foreign type Env      // the bindings, with their types
+foreign type Env      // the session so far: see "The environment"
 foreign type Checked  // a checked input
 foreign type Value    // a result, with its type
 foreign fn check(env : Env, input : String) -> Either(String, Checked) = "..."
@@ -143,18 +177,18 @@ foreign fn doc(name : String) -> Optional(String) = "..."
 
 Delivered before the shell, each report first.
 
-- **`Keys`** delivers the arrows, `Enter`, `Escape`, and characters since MVP 2.5 step 4 (§9.3's `Key`). `Shift-Tab`, `Meta` combinations, and `C-c` as a key are not in `Key` and land with the shell, report first (MVP 2.6).
+- **`Keys`** delivers the arrows, `Enter`, `Escape`, and characters since MVP 2.5 step 4 (§9.3's `Key`). `Shift-Tab` and `Meta` combinations are not in `Key` and land with the shell, report first (MVP 2.6). The terminal's interrupt is not a `Key` value: it reaches the shell because §11.2 says the shell reads it as a key, which is the shell's exception and no other program's.
 - **The terminal's width**, for redrawing a wrapped line and laying out candidates. Not in the report; it lands with the shell, report first (MVP 2.6).
 - **Whether input is a terminal**, for line mode. Not in the report; it lands with the shell, report first (MVP 2.6).
 - **A notice that another process printed**, for redrawing the line. Not in the report; it lands with the shell, report first (MVP 2.6).
-- **A notice that a process died with a fault**, for "Failing processes". The runtime holds the fact (§6.9); the shell needs a system reference and a message type to be told it. Not in the report; it lands with the shell, report first (MVP 2.6).
+- **What the runtime knows about processes**, one system reference for two questions: subscribe me to the faults, for "Failing processes", and what is alive with its spawn site, for `:processes`. The runtime holds both facts (§6.9); neither hands out an address, so §6.3 stands. One addition rather than two. Not in the report; it lands with the shell, report first (MVP 2.6).
 - **Documentation in the `.erc`**, with each function's parameters as written, for `:doc` and `Shift-Tab` (MVP 2.5, step 6).
 - **The report's §11.2** states the shell's normative core: types on every result, a module and a process per input, bindings that survive a fault, the commands and their prefix rule, and line mode (MVP 2.6).
 
 ## Open
 
-- **How input N sees input N−1's bindings at the type level.** `ern_typecheck:check/3` takes dependency interfaces; the shell has an environment of bindings with their generalized schemes instead. A spike before checkpoint 1 answers it.
-- **How it sees them at the value level.** The values live in the shell and the compiled module must receive them: as arguments, as a closure the shell builds, or through a table the emitted code reads. It is an ABI decision and it constrains everything after it; the same spike answers it.
+- **How an input is checked against the environment.** `ern_typecheck:check/3` takes dependency interfaces; the accumulated environment is an interface with values behind it. Whether the checker takes it as one more interface or as an environment of its own is the spike's first question, before checkpoint 1.
+- **How the emitted module reaches the values.** The front end holds them; the code compiled for an input must get at them, as arguments, through a table the emitted code reads, or by closing over them. It is an ABI decision and it constrains what follows, so the same spike answers it.
 - **The depth and length defaults.**
 - **How many faults the buffer keeps.**
 - **How the line editor measures wide characters.**
