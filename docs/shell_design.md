@@ -37,6 +37,8 @@ The shell is an Ernest program of three processes over a front end. Its source i
 
 ## The screen and its panes
 
+**Decided 2026-09-21, not yet built.** The two painted panes become a live region at the bottom, the shape Claude's own terminal program has: the session's transcript is written into the terminal and scrolls there, so the terminal's scrollback, search and copy keep working and are what a person scrolls with, and the shell paints only the bottom rows, the line being typed and, above it, a tail of what programs have written. Nothing is cleared at start and nothing jolts when a program first prints. What follows describes what is built today, until that work is done; the decisions log of 2026-09-21 has the argument and the question it leaves open.
+
 The screen process, which is the only writer, keeps two panes. Nothing here is the terminal's doing: a terminal has one screen and one scrollback, and the panes are the shell's own, as an `ncurses` pad is the application's own.
 
 - **The upper pane holds what any process writes through `Sys.stdout` and `Sys.stderr`.** The lower pane is the shell's own: values, types, diagnostics, command output, fault reports and the prompt. Which pane a line lands in never depends on timing, and the screen needs no notion of who wrote it, which §6.3 gives it no way to have.

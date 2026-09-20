@@ -3303,6 +3303,20 @@ Checkpoint 2's second half: the screen keeps two panes and paints them.
 
 **What writing it said about the language.** Ernest has no field selection, so every function that reads two fields of a record opens by destructuring it, and reading one boolean is a function of its own. In the screen, which is six fields carried through a dozen functions, that is the most repetitive thing in the shell. It is not a workaround and nothing is wrong with the code; it was the first place where the absence cost something, and it is the last item of MVP 2.6, a discussion once the shell is built; "Field selection" in Later holds the arguments.
 
+## The Panes Become a Live Region, 2026-09-21
+
+The split screen was built on 2026-09-20 and is replaced the day after, by the shape Claude's own terminal program has: the transcript is written into the terminal and scrolls there, and the shell paints only a live region at the bottom, the line being typed and a tail of what programs have written above it.
+
+**What decided it.** The split cost the terminal's own scrollback, search and copy across old output, which the shell then had to give back as `PageUp` over its own buffers. A person who can already scroll their terminal does not want a worse copy of that, and a shell that clears the screen and rearranges it the moment a program prints is a poor guest in a window that held something else a second ago. The live region keeps the terminal's scrolling, never clears and never jolts.
+
+**What it keeps of the split.** The reason for the split was that a chatty program buries the results of what was typed. A pinned tail answers that as well as a pane does: the program's newest lines are always in view, above the prompt.
+
+**What it gives up.** Two independently scrolling regions. A terminal has one screen and one scrollback, so the transcript is the terminal's or the shell's and not both, and it is worth more to the terminal.
+
+**Open, and the first thing to settle.** What becomes of a line that ages out of the tail: gone, so that the tail is a window onto the newest output alone; or written into the transcript as it ages, so that the scrollback holds everything in arrival order. The second loses nothing and interleaves program output into the transcript a tail's height late; the first is simpler and drops output a person may have wanted.
+
+**What it cost to learn.** About a hundred lines of the shell exist only because there are two panes, and they go: the pane selector, the scrolling, the split's appearing and unsplitting, the layout. What carries over is the larger half and the part that was hard: the buffer model, the painting, the reader that no longer echoes and tells the screen the line instead, `Terminal.size` and `Resized`, `:set output n` as the tail's height, and the harness that renders a screen for a test to assert on. Two defects the panes flushed out stay fixed, a subscription that returned before the terminal's mode was set and a prompt printed before the reader held the keyboard. The lesson is not in the code: this shape was preferred here before the panes were chosen and was not pressed hard enough at the time, and an alternative that is already in the arguments should be put again before a day is spent, not after.
+
 ## Later
 
 Planned or considered, not in the language today.
