@@ -180,7 +180,8 @@ sources_test() ->
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
                            Keys = ern_rt:sys(keys),
-                           ern_rt:send(Keys, {'Subscribe', ern_rt:self()}),
+                           %% report §8.2: the subscription is answered once the mode is set
+                           subscribe(Keys),
                            erlang:spawn(fun() -> timer:sleep(500), Keys ! {chars, "x"} end),
                            receive _ -> ok end
                        end, <<"main">>, #{stdout => fun(_) -> ok end})),
@@ -270,3 +271,9 @@ wait_atom(Atom) ->
 %% a zero the compiler cannot see through
 zero() ->
     list_to_integer("0").
+
+%% Report §8.2: `Subscribe` carries a reply, answered once the terminal is
+%% in the mode the keys need.
+subscribe(Keys) ->
+    Me = ern_rt:self(),
+    ern_rt:call(Keys, fun(Reply) -> {'Subscribe', Reply, Me} end, 5000).

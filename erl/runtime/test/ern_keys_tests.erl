@@ -38,7 +38,8 @@ escape_pause_test() ->
     ok = ern_rt:run_main(
            fun() ->
                Keys = ern_rt:sys(keys),
-               ern_rt:send(Keys, {'Subscribe', ern_rt:self()}),
+               %% report §8.2: the subscription is answered once the mode is set
+               subscribe(Keys),
                %% as the reader sends them: the arrow whole, the escape alone
                Keys ! {chars, "\e[A"},
                receive K1 -> Me ! {k1, K1} end,
@@ -50,3 +51,9 @@ escape_pause_test() ->
 
 wait(Tag) ->
     receive {Tag, V} -> V after 2000 -> timeout end.
+
+%% Report §8.2: `Subscribe` carries a reply, answered once the terminal is
+%% in the mode the keys need.
+subscribe(Keys) ->
+    Me = ern_rt:self(),
+    ern_rt:call(Keys, fun(Reply) -> {'Subscribe', Reply, Me} end, 5000).

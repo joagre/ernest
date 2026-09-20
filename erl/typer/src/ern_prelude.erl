@@ -34,7 +34,7 @@ declared_types() ->
     "type Where = Local | Peer(String)\n"
     "type Key = Char(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter | Escape\n"
     "         | Interrupt\n"
-    "type KeyMsg = Subscribe(Address(Key))\n"
+    "type KeyMsg = Subscribe(to : Address(Key), reply : Reply(Unit))\n"
     "type StdinMsg = ReadLine(reply : Reply(Optional(String)))\n"
     "type Path = Path(String)\n"
     "type Entry = Entry(path : Path, mtime : Int, size : Int, isDir : Bool)\n"

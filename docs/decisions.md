@@ -3239,6 +3239,22 @@ A defect the shell found and ordinary programs had: `M.g()` answered the functio
 
 **Why the interface and not a convention.** Two shapes were weighed. Emitting a wrapper `g/N` beside the getter for every `let` of function type, as the holder did, collapses at arity zero, where the getter and the call are the same name and cannot mean two things. Deciding from the type alone is what was wrong to begin with. The interface is where the fact belongs: the declaration's kind is part of what a dependent must know, as its type is.
 
+## A Test Waits for the Screen, 2026-09-20
+
+The terminal tests sent their keystrokes at fixed times, and a full `make test` failed about one run in ten: under load the shell reaches its first prompt later than it did when the times were chosen. Widening them had already been tried once, which is how a test becomes slow and flaky at the same time.
+
+**The harness waits for what it expects.** Its steps are `expect`, `send` and `sleep`, run in order, and an expect matches after whatever the previous expect matched, so a prompt printed twice is two different moments. A step the harness could not meet is printed and the test fails on it rather than on a puzzling screen. `sleep` stays for the moments no text marks, which is now only the snake moves, where a few of the game's own ticks must pass. The interrupt looked like another of them and was not: an input that prints when it starts says the moment exactly, where a guess at how long the checking took was wrong under load.
+
+**The steps are read from a file.** They went on the command line first, and `expect:> ` broke out of the quoting, the shell taking the prompt for a redirection. A step's text is whatever a program prints, which no shell should read.
+
+**The race it found, which was the program's and not the test's.** With the waiting harness the first key was echoed: `Keys.subscribe` sent its message and returned, and the terminal's mode was set a moment later by the process that received it, so a key pressed in between was echoed by the terminal. Every program had this, not only the test; snake could echo its first keystroke. §8.2 now says a subscription is answered once the terminal is in the mode the keys need, `Subscribe` carries a `Reply(Unit)`, and `Keys.subscribe` is a call. The test's marker is printed after the subscription, so waiting for it means the mode is set.
+
+**And the shell had it too.** With `subscribe` answered, the shell still printed its first prompt before the reader it had just spawned had subscribed, so the first keys went to the terminal's line discipline and were echoed by it. The reader now says `Ready` once it holds the keyboard, and the prompt waits for that. A prompt is a promise that what is typed will be read as keys.
+
+**A golden that waited on a clock is not a golden.** The session that drives a program compared its output byte for byte, and where a fault report lands among the inputs depends on when the process faults, which under load moves. It asserts what must be true instead: the value the counter answered, what the program printed, each fault reported once as it happens and once by `:faults`, and `:processes` leaving the shell's own processes out. The byte-for-byte golden stays where it is deterministic, the line-mode session with no program running.
+
+**A field order caught the first attempt.** The runtime's clause read `{'Subscribe', Address, Reply}`, and §3.5 stores named fields in canonical order, `reply` before `to`. The rule is the language's and the runtime must follow it; the crash was immediate and the fix one line.
+
 ## Later
 
 Planned or considered, not in the language today.

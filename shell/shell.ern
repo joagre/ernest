@@ -50,7 +50,7 @@ foreign fn holdTerminal(reader : Address(a)) -> Unit with m = "ern_rt:hold_termi
 // The session
 //
 
-type ShellMsg = Typed(String) | Eof | Interrupted | Done(Outcome) | Died(Down)
+type ShellMsg = Typed(String) | Eof | Interrupted | Done(Outcome) | Died(Down) | Ready
 
 // What the session carries between inputs: the front end's environment and
 // the settings `:set` changes, which are ordinary values.
@@ -77,8 +77,16 @@ export fn main() -> Unit with ShellMsg = {
     };
     if isTerminal() then {
         let me = self();
-        let reader = spawn(Local, fn() = { mine(); Keys.subscribe(K); readLoop(me, screen, "") });
+        let reader = spawn(Local, fn() = {
+            mine();
+            Keys.subscribe(K);
+            send(me, Ready);
+            readLoop(me, screen, "")
+        });
         holdTerminal(reader);
+        // report §8.2: the prompt waits for the reader to hold the
+        // keyboard, since until then the terminal is still echoing lines
+        receive { Ready -> Unit };
         send(screen, Print("> "));
         keyLoop(state, screen)
     } else lineLoop(state, screen)

@@ -36,8 +36,24 @@ program() ->
     {0, _} = sh("../bin/ernc --source-root session --out-dir build/session"
                 " session/counter.ern"),
     {0, Out} = sh("../bin/ern --shell build/session/counter.erc < session/program.in"),
-    {ok, Expected} = file:read_file("session/program.out"),
-    ?assertEqual(Expected, Out).
+    %% not a golden: where a fault report lands among the inputs depends on
+    %% when the process faults, and the session is asserted on rather than
+    %% compared byte for byte
+    ?assertMatch({_, _}, binary:match(Out, <<"c : Address(Counter.Msg)">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"Some(7) : Optional(Int)">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"Counter.start : () -> Address(Msg) with m">>)),
+    %% what the program printed reached the screen
+    ?assertMatch({_, _}, binary:match(Out, <<"worker here">>)),
+    %% the program's entry point and a process spawned at the prompt, each
+    %% reported once as it faults and once by `:faults`
+    ?assertEqual(2, count(Out, <<"Counter.main faulted: division by zero">>)),
+    ?assertEqual(2, count(Out, <<"main:1 faulted: division by zero">>)),
+    %% `:processes` leaves the shell's own out, and the counter is still there
+    ?assertMatch({_, _}, binary:match(Out, <<"Counter.start:10">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"Shell.main">>)).
+
+count(Haystack, Needle) ->
+    length(binary:matches(Haystack, Needle)).
 
 %% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
 %% under the source root and puts it in scope; `:reload` compiles again
@@ -99,17 +115,26 @@ terminal_test_() ->
     {timeout, 60, fun terminal/0}.
 
 terminal() ->
-    Long = "List.foldLeft(List.range(1, 200000000), 0, fn(a, b) = a + b)",
-    %% the gaps are wide because each input is checked and compiled before
-    %% it runs, and the interrupt must arrive while the long one is running
+    %% it says when it is running, so the interrupt is sent then and not
+    %% on a guess at how long the checking took
+    Long = "{ Io.println(\"running\"); List.foldLeft(List.range(1, 200000000), 0,"
+           " fn(a, b) = a + b) }",
+    %% every step waits for what the screen shows, so that a shell slower
+    %% under load is waited for rather than raced
     Screen = pty("../bin/ern --shell",
-                 [{800, hex("1 + 5")},
-                  {1200, hex([127]) ++ hex("2\r")},     % Backspace, then 2, Enter
-                  {2000, hex(Long ++ "\r")},
-                  {4500, "03"},                         % the interrupt
-                  {5500, hex("1 + 1\r")},
-                  {7000, "04"}],                        % C-d on an empty line
-                 11),
+                 [{expect, "> "},
+                  {send, hex("1 + 5")},
+                  {expect, "1 + 5"},
+                  {send, hex([127]) ++ hex("2\r")},     % Backspace, then 2, Enter
+                  {expect, "3 : Int"},
+                  {send, hex(Long ++ "\r")},
+                  {expect, "running"},
+                  {send, "03"},                         % the interrupt
+                  {expect, "Killed"},
+                  {send, hex("1 + 1\r")},
+                  {expect, "2 : Int"},
+                  {send, "04"}],                        % C-d on an empty line
+                 20),
     ?assertMatch({_, _}, binary:match(Screen, <<"3 : Int">>)),
     ?assertMatch({_, _}, binary:match(Screen, <<"Killed">>)),
     ?assertMatch({_, _}, binary:match(Screen, <<"2 : Int">>)),
@@ -119,13 +144,28 @@ terminal() ->
 hex(Text) ->
     lists:flatten([io_lib:format("~2.16.0b", [C]) || C <- Text]).
 
-pty(Command, Sends, Seconds) ->
-    Args = [" --send " ++ integer_to_list(Ms) ++ ":" ++ Hex || {Ms, Hex} <- Sends],
-    {0, Out} = sh("./ern_pty.py --timeout " ++ integer_to_list(Seconds) ++ Args
+pty(Command, Steps, Seconds) ->
+    File = steps_file(Steps),
+    {0, Out} = sh("./ern_pty.py --timeout " ++ integer_to_list(Seconds) ++ " --steps " ++ File
                   ++ " -- " ++ Command),
-    [_, <<"data ", Data/binary>>] =
-        [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
+    Lines = [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
+    %% a step the harness could not meet is a failure of the test, not a
+    %% screen to assert against
+    ?assertEqual([], [L || <<"unmet ", _/binary>> = L <- Lines]),
+    [<<"data ", Data/binary>>] = [L || <<"data ", _/binary>> = L <- Lines],
     base64:decode(Data).
+
+%% The steps go in a file: one holds whatever the program prints, and a
+%% shell reading `>` would take it for a redirection.
+steps_file(Steps) ->
+    File = "build/steps-" ++ integer_to_list(erlang:unique_integer([positive])),
+    ok = filelib:ensure_dir(File),
+    ok = file:write_file(File, [[step(S), "\n"] || S <- Steps]),
+    File.
+
+step({expect, Text}) -> "expect:" ++ Text;
+step({send, Hex}) -> "send:" ++ Hex;
+step({sleep, Ms}) -> "sleep:" ++ integer_to_list(Ms).
 
 sh(Cmd) ->
     Port = open_port({spawn, "sh -c '" ++ Cmd ++ "'"}, [exit_status, stderr_to_stdout, binary]),

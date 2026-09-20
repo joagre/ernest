@@ -1,15 +1,28 @@
 #!/usr/bin/env python3
 """A pseudo-terminal for the tests (plan, MVP 2.6).
 
-Runs a command with a terminal of its own, sends bytes at chosen moments,
-and hands the screen back.  Erlang has no way to open a pseudo-terminal, so
-the terminal path of report section 8.2 -- keys as they are pressed, no
-echo, the mode restored -- can be tested no other way.
+Runs a command with a terminal of its own, sends bytes when the screen
+says the program is ready for them, and hands the screen back.  Erlang has
+no way to open a pseudo-terminal, so the terminal path of report section
+8.2 -- keys as they are pressed, no echo, the mode restored -- can be
+tested no other way.
 
-    ern_pty.py [--timeout S] [--send MS:HEX] ... -- COMMAND
+    ern_pty.py [--timeout S] --steps FILE -- COMMAND
 
-COMMAND runs under /bin/sh.  Each --send writes those bytes that many
-milliseconds after the start.  Two lines are printed:
+COMMAND runs under /bin/sh.  FILE holds one step a line, and they run in
+order; a file rather than arguments, since a step's text holds whatever a
+program prints, `>` among it, and no shell should read that.  A blank
+line and a line beginning with # are skipped.
+
+    expect:TEXT   wait until TEXT appears on the screen, after whatever
+                  the previous expect matched
+    send:HEX      write those bytes to the terminal
+    sleep:MS      wait that long, reading whatever arrives
+
+A step that waits for text is what keeps a test from racing a program
+that is slower under load than it was when the test was written; sleep is
+for the moments no text marks, such as letting a game run for a tick.
+Two lines are printed:
 
     status <exit code> | timeout
     data <the screen, base64>
@@ -25,36 +38,75 @@ import time
 import pty as _pty  # after the arguments, so a stray ./pty.py cannot shadow it
 
 
-def send_spec(text):
-    ms, _, hex_bytes = text.partition(":")
-    return int(ms) / 1000.0, bytes.fromhex(hex_bytes)
+def step_spec(text):
+    kind, _, arg = text.partition(":")
+    if kind == "expect":
+        return ("expect", arg.encode("utf-8"))
+    if kind == "send":
+        return ("send", bytes.fromhex(arg))
+    if kind == "sleep":
+        return ("sleep", int(arg) / 1000.0)
+    raise argparse.ArgumentTypeError("a step is expect:TEXT, send:HEX, or sleep:MS")
 
 
-def run(command, sends, timeout):
+class Screen:
+    """What the terminal has shown, and how far the steps have read it."""
+
+    def __init__(self, fd):
+        self.fd = fd
+        self.seen = bytearray()
+        self.cursor = 0
+        self.eof = False
+
+    def read(self, seconds):
+        readable, _, _ = select.select([self.fd], [], [], seconds)
+        if not readable:
+            return
+        try:
+            data = os.read(self.fd, 65536)
+        except OSError:
+            data = b""
+        if data:
+            self.seen.extend(data)
+        else:
+            self.eof = True
+
+    def find(self, text):
+        at = self.seen.find(text, self.cursor)
+        if at < 0:
+            return False
+        self.cursor = at + len(text)
+        return True
+
+
+def run(command, steps, timeout):
     pid, fd = _pty.fork()
     if pid == 0:
         os.execvp("/bin/sh", ["/bin/sh", "-c", command])
         os._exit(127)
-    screen = []
-    pending = sorted(sends)
-    started = time.monotonic()
+    screen = Screen(fd)
+    left = list(steps)
+    deadline = time.monotonic() + timeout
+    while left and time.monotonic() < deadline and not screen.eof:
+        kind, arg = left[0]
+        if kind == "send":
+            os.write(fd, arg)
+            left.pop(0)
+        elif kind == "expect":
+            if screen.find(arg):
+                left.pop(0)
+            else:
+                screen.read(0.02)
+        else:
+            until = time.monotonic() + arg
+            while time.monotonic() < until and not screen.eof:
+                screen.read(0.02)
+            left.pop(0)
     status = None
-    while time.monotonic() - started < timeout:
-        now = time.monotonic() - started
-        while pending and now >= pending[0][0]:
-            os.write(fd, pending.pop(0)[1])
-        readable, _, _ = select.select([fd], [], [], 0.02)
-        if readable:
-            try:
-                data = os.read(fd, 65536)
-            except OSError:
-                data = b""
-            if not data:
-                break
-            screen.append(data)
-            continue
+    while time.monotonic() < deadline and not screen.eof:
+        screen.read(0.02)
         ended, wait_status = os.waitpid(pid, os.WNOHANG)
-        if ended and not pending:
+        if ended:
             status = os.waitstatus_to_exitcode(wait_status)
             break
     if status is None:
@@ -67,29 +119,30 @@ def run(command, sends, timeout):
             status = os.waitstatus_to_exitcode(wait_status)
         except ChildProcessError:
             status = "timeout"
-    while True:                      # whatever the program wrote as it ended
-        readable, _, _ = select.select([fd], [], [], 0.2)
-        if not readable:
+    while not screen.eof:            # whatever the program wrote as it ended
+        before = len(screen.seen)
+        screen.read(0.2)
+        if len(screen.seen) == before:
             break
-        try:
-            data = os.read(fd, 65536)
-        except OSError:
-            break
-        if not data:
-            break
-        screen.append(data)
     os.close(fd)
-    return status, b"".join(screen)
+    if left:
+        print("unmet %s" % " ".join(kind for kind, _ in left), file=sys.stderr)
+    return status, bytes(screen.seen)
 
 
 def main():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--timeout", type=float, default=10.0)
-    parser.add_argument("--send", action="append", default=[], type=send_spec)
+    parser.add_argument("--steps", default=None)
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
-    status, screen = run(" ".join(command), args.send, args.timeout)
+    steps = []
+    if args.steps:
+        with open(args.steps, "r", encoding="utf-8") as handle:
+            steps = [step_spec(line.rstrip("\n")) for line in handle
+                     if line.strip() and not line.startswith("#")]
+    status, screen = run(" ".join(command), steps, args.timeout)
     print("status %s" % status)
     print("data %s" % base64.b64encode(screen).decode("ascii"))
 

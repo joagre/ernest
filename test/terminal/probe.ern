@@ -5,9 +5,11 @@
 
 type Msg = K(Key)
 
+// `ready` is printed after the subscription, not before: it is what the
+// harness waits for, and until the subscription the terminal still echoes.
 export fn main() -> Unit with Msg = {
-    Io.println("ready");
     Keys.subscribe(K);
+    Io.println("ready");
     loop()
 }
 

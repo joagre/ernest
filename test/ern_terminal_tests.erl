@@ -18,11 +18,15 @@ keys_test_() ->
 keys() ->
     ok = compile("terminal/probe.ern", "terminal"),
     {0, Screen} = pty("../bin/ern build/terminal/probe.erc",
-                      [{700, "78"},         % x
-                       {1200, "1b5b41"},    % ArrowUp, in one burst
-                       {1700, "1b5b42"},    % ArrowDown
-                       {2200, "1b"}],       % Escape, alone
-                      8),
+                      [{expect, "ready"},
+                       {send, "78"},        % x
+                       {expect, "char x"},
+                       {send, "1b5b41"},    % ArrowUp, in one burst
+                       {expect, "up"},
+                       {send, "1b5b42"},    % ArrowDown
+                       {expect, "down"},
+                       {send, "1b"}],       % Escape, alone
+                      15),
     Lines = lines(Screen),
     ?assertEqual([<<"ready">>, <<"char x">>, <<"up">>, <<"down">>, <<"escape">>], Lines),
     %% not echoed: the only x on the screen is the one the program printed
@@ -38,7 +42,7 @@ terminal_restored_test_() ->
 terminal_restored() ->
     ok = compile("terminal/probe.ern", "terminal"),
     {_, Screen} = pty("stty -a; ../bin/ern build/terminal/probe.erc; stty -a",
-                      [{1500, "1b"}], 8),
+                      [{expect, "ready"}, {send, "1b"}], 15),
     %% the terminal is described before and after, and is never left without
     %% echo; `-echoe` and its like are not `-echo`
     ?assert(count(Screen, <<"ready">>) =:= 1 andalso count(Screen, <<"escape">>) =:= 1),
@@ -53,11 +57,16 @@ snake_test_() ->
 
 snake() ->
     ok = compile("../examples/snake.ern", "../examples"),
+    %% the board is drawn before the first key, and a move is given a few
+    %% ticks to show: the game's own clock is what those sleeps wait for
     {0, Screen} = pty("../bin/ern build/snake.erc",
-                      [{1000, "1b5b42"},    % ArrowDown
-                       {2500, "1b5b44"},    % ArrowLeft
-                       {4000, "1b"}],       % Escape
-                      9),
+                      [{expect, "tick "},
+                       {send, "1b5b42"},    % ArrowDown
+                       {sleep, 1500},
+                       {send, "1b5b44"},    % ArrowLeft
+                       {sleep, 1500},
+                       {send, "1b"}],       % Escape
+                      15),
     Frames = binary:split(Screen, ?CLEAR, [global]),
     ?assert(length(Frames) > 20),
     Frame = lists:nth(3, Frames),
@@ -82,17 +91,35 @@ compile(Source, Root) ->
     ok.
 
 %% A command with a terminal of its own: {exit status, the screen}. The
+%% steps are the harness's, `{expect, Text}` before a `{send, Hex}` so
+%% that a program slower under load is waited for rather than raced. The
 %% command is one word to the shell that starts the harness, since its own
 %% `;` and `|` belong to the shell inside the terminal; it may hold no
 %% single quote.
-pty(Command, Sends, Seconds) ->
-    Args = [" --send " ++ integer_to_list(Ms) ++ ":" ++ Hex || {Ms, Hex} <- Sends],
+pty(Command, Steps, Seconds) ->
     nomatch = binary:match(list_to_binary(Command), <<"'">>),
-    {0, Out} = sh("./ern_pty.py --timeout " ++ integer_to_list(Seconds) ++ Args
+    File = steps_file(Steps),
+    {0, Out} = sh("./ern_pty.py --timeout " ++ integer_to_list(Seconds) ++ " --steps " ++ File
                   ++ " -- '" ++ Command ++ "'"),
-    [<<"status ", Status/binary>>, <<"data ", Data/binary>>] =
-        [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
+    Lines = [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
+    %% a step the harness could not meet is a failure of the test, not a
+    %% screen to assert against
+    ?assertEqual([], [L || <<"unmet ", _/binary>> = L <- Lines]),
+    [<<"status ", Status/binary>>] = [L || <<"status ", _/binary>> = L <- Lines],
+    [<<"data ", Data/binary>>] = [L || <<"data ", _/binary>> = L <- Lines],
     {status(Status), base64:decode(Data)}.
+
+%% The steps go in a file: one holds whatever the program prints, and a
+%% shell reading `>` would take it for a redirection.
+steps_file(Steps) ->
+    File = "build/steps-" ++ integer_to_list(erlang:unique_integer([positive])),
+    ok = filelib:ensure_dir(File),
+    ok = file:write_file(File, [[step(S), "\n"] || S <- Steps]),
+    File.
+
+step({expect, Text}) -> "expect:" ++ Text;
+step({send, Hex}) -> "send:" ++ Hex;
+step({sleep, Ms}) -> "sleep:" ++ integer_to_list(Ms).
 
 status(<<"timeout">>) -> timeout;
 status(Bin) -> binary_to_integer(Bin).

@@ -32,7 +32,8 @@ loop() ->
 loop(Subscribers, Reader, Pending) ->
     Pause = case Pending of [] -> infinity; _ -> ?ESCAPE_PAUSE end,
     receive
-        {'Subscribe', Address} ->
+        %% report §3.5: the fields are in canonical order, `reply` before `to`
+        {'Subscribe', Reply, Address} ->
             case held_by_another(Address) of
                 true ->
                     %% report §11.2: the terminal is the shell's
@@ -41,7 +42,11 @@ loop(Subscribers, Reader, Pending) ->
                                         "to give it the keyboard">>}),
                     loop(Subscribers, Reader, Pending);
                 false ->
-                    loop([Address | Subscribers], start_reader(Reader), Pending)
+                    Reader1 = start_reader(Reader),
+                    %% report §8.2: the mode is set before the caller goes
+                    %% on, so that nothing it types then is echoed
+                    ern_rt:answer(Reply, 'Unit'),
+                    loop([Address | Subscribers], Reader1, Pending)
             end;
         {chars, Chars} ->
             {Decoded, Left} = decode(Pending ++ Chars),

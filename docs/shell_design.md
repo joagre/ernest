@@ -30,6 +30,7 @@ The shell is an Ernest program of three processes over a front end. Its source i
 - **The shell owns it, and the runner records the holder.** The runner starts the session's processes, so it marks the reader as the terminal's holder before anything else runs. `Terminal.subscribe` and `Io.readLine` from any other process end the caller with `Fault("the shell holds the terminal; run the program with ern to give it the keyboard")`. §8.2 gains no notion of a shell: a holder is recorded, and the runner is the one that can record it, because it made the process. The shell reads through `Terminal` and `Io.readLine` as any program does.
 - **In line mode the holder holds standard input**, and the fault is the same. Line mode is what the reader uses when input is not a terminal: `Io.readLine`, no editing.
 - **A program under the shell prints and nothing more.** Its terminal fault is reported like any other, so a person who types `Snake.main()` is told why it will not run here and how to run it.
+- **The first prompt waits for the reader to hold the keyboard.** A subscription is answered once the terminal is in the mode the keys need (§8.2), and the reader says so; until then the terminal is still echoing lines, and what was typed at a prompt printed too early would be echoed twice and read as a line.
 - **The interrupt is a key to the shell while it reads**, not §8.6's signal, and §11.2 says so. Every other program keeps §8.6's rule, so the interrupt still stops a game that reads keys. The shell is left with `:quit` or `C-d`.
 - **The screen writes and nothing else does.** A program's print is an ordinary send; ordering is the screen's mailbox order. §8.2 is untouched: the runtime starts the system processes and binds their addresses, and a `String` sent to `Sys.stdout` still reaches standard output.
 - **The size is asked for at each redraw, and a resize is an event.** `Terminal.size()` gives the size the redraw uses; `Resized` arrives on the same stream as the keys, so a window that changes while the session is idle is repainted then and not at the next keystroke.
@@ -274,10 +275,10 @@ Delivered before the shell. Those marked report first are written into the repor
 
 ## Testing
 
-- **A session is a golden test:** a file of inputs run in line mode, `ern --shell < session.ern`, against a file of expected output, under `test/`.
+- **A session is a golden test:** a file of inputs run in line mode, `ern --shell < session.ern`, against a file of expected output, under `test/`. A session that drives a program is not one: where a fault report lands among the inputs depends on when the process faults, so that session asserts what must be true of it instead.
 - **The line editor is a pure function** from a state and a key to a new state and what to draw; tests feed key lists and compare line, cursor, and output.
 - **Completion is tested on the foreign entries' answers:** a prefix and an environment in, candidates out.
-- **The terminal itself is tested through the harness**, `test/ern_pty.py`, which gives a program a pseudo-terminal, sends keystrokes at chosen moments, and reads the screen back; built 2026-09-20, before the shell, and already holding §8.2's rules and `snake` under test.
+- **The terminal itself is tested through the harness**, `test/ern_pty.py`, which gives a program a pseudo-terminal, sends keystrokes when the screen says the program is ready for them, and reads the screen back; built 2026-09-20, before the shell, and holding §8.2's rules, the shell's own keys, and `snake` under test. A test waits for what it expects on the screen before it sends; a wait on the clock is left only where no text marks the moment, such as letting the game run a few ticks.
 
 ## Checkpoints
 
