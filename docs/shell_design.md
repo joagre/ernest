@@ -74,6 +74,15 @@ The front end owns the session's state and the shell holds it as one opaque `Env
 
 `Env` is a module interface plus the values behind it: `#iface{namespace, types, values}` is what an `.erc` carries (§11.1), and the shell's is that accumulated, with a value store and the loaded modules alongside.
 
+### How an input reaches the session
+
+Settled by the spike of 2026-09-20, which ran it end to end before any of this was built.
+
+- **The checker takes the session as a fourth argument**, a map from an unqualified name to the qualified name of the input that declared it, seeded where a module's own declarations go. That is §11.2's order for nothing: the input's own declarations overwrite the seeds as they are registered, and the prelude is looked at after both. Types and constructors declared at the prompt are seeded the same way.
+- **Resolution rewrites the reference.** A name the session declared is rewritten, as it is typed, to the input that declared it, so that everything downstream sees an ordinary cross-module value. Without it the emitter meets a bare name it has no declaration for and refuses to emit; with it the emitter needs to know nothing about a session at all.
+- **A value lives where a module's own values live.** The emitter already compiles a module-level value to a getter over the runtime's store, keyed by the module and the name, and a reference from another module to a call of that getter. A session binding is one of those, so reading one needs no new mechanism.
+- **What is new is publishing.** A `let` at the prompt is a block `let`, so its value is computed in the input's process and not by the module's initializers (§8.5); the input's module writes it to the store as it ends, which is the initializers' own act moved to where the value is made.
+
 It does not hold the shell's settings, which are ordinary Ernest values; the history, a `List(String)`; or the modules on the load path, which are found by namespace (§4.2).
 
 **A session never shrinks.** Code cannot be unloaded while a closure may reference it, so `:forget` removes a name and frees nothing. The module and atom tables grow with it, each input being a module and each constructor an atom, neither of which the host reclaims. It is a property and not a defect: a session of thousands of inputs grows both, and one that runs for days is restarted. Shadowing is by name in the environment, not by replacing code, which is why an old closure keeps working.
@@ -235,8 +244,6 @@ Delivered before the shell. Those marked report first are written into the repor
 
 ## Open
 
-- **How an input is checked against the environment.** `ern_typecheck:check/3` takes dependency interfaces; the accumulated environment is an interface with values behind it. Whether the checker takes it as one more interface or as an environment of its own is the spike's first question, before checkpoint 1.
-- **How the emitted module reaches the values.** The front end holds them; the code compiled for an input must get at them, as arguments, through a table the emitted code reads, or by closing over them. An ABI decision that constrains what follows, so the same spike answers it.
 - **The depth and length defaults**, which checkpoint 0 must pick rather than defer, since it prints values.
 - **How many faults the buffer keeps.**
 - **How the line editor measures wide characters.**

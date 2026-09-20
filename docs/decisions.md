@@ -3058,6 +3058,22 @@ Under test with it: §8.2's rules, that a character and an arrow arrive as they 
 
 Two things the writing taught. A command with a `;` or a `|` in it belongs to the shell inside the terminal, not to the one that starts the harness, so the harness takes it as a single quoted word; without that the pipeline ran outside the terminal and the test read the wrong screen, which cost twenty minutes and is now a check in the helper. And a test that drives a terminal is a timing test: every send is a moment measured from the start, so a test says when it presses a key rather than hoping.
 
+## The Spike: How an Input Sees the Session, 2026-09-20
+
+The two questions the shell's note left open, answered by running them rather than by arguing them. The experiment lived in a scratch directory and nothing of it is in the repository: two inputs, `let x = 21` and `x * 2`, the first hand-written as the emitter would emit it, the second checked and compiled and run. It printed 42.
+
+**Checking.** The checker takes the session as a fourth argument, a map from an unqualified name to the qualified name of the input that declared it, seeded where a module's own declarations go. That gives §11.2's lookup order for nothing: a block's variables are looked at first, then the seeds, which the input's own declarations overwrite as they are registered, and the prelude after both. Three lines.
+
+**Reaching a value.** No new mechanism. The emitter already compiles a module-level value to a getter over the runtime's store, keyed by the module and the name, and a reference from another module to a call of that getter; a session binding is one of those. The experiment hand-wrote that getter for the first input and the second read it with the emitter exactly as it is.
+
+**What neither question anticipated, and what the spike was for.** Resolution must rewrite the reference. The checker resolved `x` to `Input1.x` for typing, but the typed tree still carried the bare name, and the emitter answered `no emission for x`: it has no declaration of that name in the module it is compiling. One clause, as a name is typed, rewrites it to the input that declared it, and then nothing downstream knows a session exists. Found in twenty minutes here; it would have been found in the middle of checkpoint 1 otherwise.
+
+**What is left to build is publishing.** A `let` at the prompt is a block `let`, so its value is made in the input's process and not by the initializers of §8.5; the input's module writes it to the store as it ends. That is the initializers' own act moved to where the value is made, and it is the one emitter change.
+
+**What it means for the estimate.** Two small changes, in `ern_typecheck` and `ern_emitter`, and the store is one the runtime already keeps. Incremental checking was named as the least certain part of MVP 2.6's two weeks; it is no longer the risk. The editor and the protocol between the three processes are.
+
+A cost worth remembering rather than acting on: the runtime's store is `persistent_term`, whose every write scans the node. At a prompt's rate that is nothing, and a table would be cheaper but would need a second way to read a value, which is a worse trade than the one it fixes.
+
 ## Later
 
 Planned or considered, not in the language today.
