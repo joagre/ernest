@@ -21,6 +21,19 @@ program(Name) ->
     {0, Out} = sh("../bin/ern build/" ++ Name ++ ".erc"),
     ?assertEqual(expected(Name), lines(Out)).
 
+%% Plan, MVP 2.5 step 4: the paper programs that the doors of step 4 opened
+%% compile end to end; they run forever or wait for a terminal, so running
+%% them under test waits for the step's own item. `webserver` is not here:
+%% it needs `Ets`.
+-define(COMPILES, ["filesync", "repl", "snake", "echo"]).
+
+compiles_test_() ->
+    [{Name, fun() ->
+                {0, _} = sh("../bin/ernc --source-root ../examples --out-dir build ../examples/"
+                            ++ Name ++ ".ern"),
+                ?assert(filelib:is_regular("build/" ++ Name ++ ".erc"))
+            end} || Name <- ?COMPILES].
+
 %% report §4.2, §11.1: the two-module pair in directory mode
 modules_test() ->
     {0, _} = sh("../bin/ernc --out-dir build/modules ../examples/modules"),
