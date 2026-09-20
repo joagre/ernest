@@ -3,23 +3,36 @@
 // Each key is printed as it arrives; Escape ends the program.
 //
 
-type Msg = K(Key)
+type Msg = E(Event)
 
 // `ready` is printed after the subscription, not before: it is what the
 // harness waits for, and until the subscription the terminal still echoes.
 export fn main() -> Unit with Msg = {
-    Keys.subscribe(K);
-    Io.println("ready");
+    Terminal.subscribe(E);
+    Io.println("ready " <> sizeText());
     loop()
 }
 
+fn sizeText() -> String with m = match Terminal.size() {
+    None -> "no size"
+  | Some(Size(rows = rows, columns = columns)) ->
+        Int.toString(rows) <> "x" <> Int.toString(columns)
+}
+
 fn loop() -> Unit with Msg = receive {
-    K(Escape) -> Io.println("escape")
-  | K(ArrowUp) -> { Io.println("up"); loop() }
-  | K(ArrowDown) -> { Io.println("down"); loop() }
-  | K(ArrowLeft) -> { Io.println("left"); loop() }
-  | K(ArrowRight) -> { Io.println("right"); loop() }
-  | K(Enter) -> { Io.println("enter"); loop() }
-  | K(Char(c)) -> { Io.println("char " <> Char.toString(c)); loop() }
+    E(Key(Escape)) -> Io.println("escape")
+  | E(Key(ArrowUp)) -> { Io.println("up"); loop() }
+  | E(Key(ArrowDown)) -> { Io.println("down"); loop() }
+  | E(Key(ArrowLeft)) -> { Io.println("left"); loop() }
+  | E(Key(ArrowRight)) -> { Io.println("right"); loop() }
+  | E(Key(PageUp)) -> { Io.println("pageup"); loop() }
+  | E(Key(PageDown)) -> { Io.println("pagedown"); loop() }
+  | E(Key(Enter)) -> { Io.println("enter"); loop() }
+  | E(Key(Interrupt)) -> { Io.println("interrupt"); loop() }
+  | E(Key(Char(c))) -> { Io.println("char " <> Char.toString(c)); loop() }
+  | E(Resized(Size(rows = rows, columns = columns))) -> {
+        Io.println("resized " <> Int.toString(rows) <> "x" <> Int.toString(columns));
+        loop()
+    }
   | after 10000 -> Io.println("nothing came")
 }

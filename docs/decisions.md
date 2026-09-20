@@ -3269,6 +3269,24 @@ The last of checkpoint 1: the inputs a session runs before its first prompt.
 
 **Where they run.** After the file's entry point is spawned, so that an input sees what is running, and before the first prompt. On a terminal they wait for the reader to hold the keyboard, so a startup input that reads keys meets §8.2's refusal like any other program rather than stealing the keyboard from the reader that has not yet asked for it.
 
+## The Terminal Module, and `io_ansi` Measured Again, 2026-09-20
+
+Checkpoint 2's first half: `Keys` became `Terminal`, which answers its size and says when the window changes.
+
+**`io_ansi:scan` does not fit, and the entry that reserved a place for it is answered.** It was measured on one sequence, `\e[A` to `cursor_up`, and taken for a key decoder. It is a scanner of terminal capabilities: `\e[C` is `cursor_forward`, an output capability, `\e[F` is `cursor_previous_line`, which is not what the End key means, and the sequences the panes need most, `\e[5~` and `\e[6~`, come back as raw `{csi, _}`. A table mapping its names back to keys would be longer than the decoder it replaced and would read worse. Our decoder gained four lines for the two page keys and stays.
+
+**The host's raw mode is taken, for the size.** `io:rows` and `io:columns` answer only while the host's terminal is in charge, which `shell:start_interactive({noshell, raw})` arranges, so the mode is now the host's with two flags put back by the `stty` call that was already there: `opost`, without which a line feed stops returning the carriage, and `-isig` for the shell alone. Both were measured on OTP 29 before the change, and the same measurement showed the interrupt arriving as a key and a bare line feed printing correctly afterwards.
+
+**A resize is noticed by asking.** SIGWINCH is delivered through OTP's signal server, which is reached by writing a `gen_event` handler, and this repository has no OTP behaviours. The terminal's process asks for the size five times a second while anything is subscribed, and sends `Resized` when the answer changes. The cost is a wake-up every 200 ms in one system process, and it buys a rule with no callback and no behaviour.
+
+**`Measure`, not `Size`.** The message asking for the size cannot be `Size` while the answer's type is `Size`: two constructors of one name in the prelude. The house names a question for its verb, `ReadFile`, `Stat`, `ListDir`, so the question is `Measure` and the record stays `Size`.
+
+**What `Key` grew by, and what it did not.** `PageUp` and `PageDown`, which the panes need. `Meta` and `Shift-Tab` are not keys of §9.3 and do not become any: §8.2 delivers a sequence it does not know as `Escape` and the characters after it, which is exactly how the editor reads them, and the note has said so since it was written.
+
+**Snake measures its board.** The first program to ask for the size: it took 40 by 20 and now takes the window it was given, less a row for the status line. A `Resized` it ignores, its snake and apples being placed for the board they are on, and the comment says so.
+
+**Two names the repository could not take.** The runtime's module is `ern_tty`, not `ern_terminal`, because `ern_terminal_tests` is the pseudo-terminal suite and two test modules cannot share a name; and the runtime's record of how the terminal is being read moved from the key `terminal` to `reading`, since `Sys.terminal` now needs that one.
+
 ## Later
 
 Planned or considered, not in the language today.

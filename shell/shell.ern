@@ -80,7 +80,7 @@ export fn main() -> Unit with ShellMsg = {
         let me = self();
         let reader = spawn(Local, fn() = {
             mine();
-            Keys.subscribe(K);
+            Terminal.subscribe(K);
             send(me, Ready);
             readLoop(me, screen, "")
         });
@@ -409,21 +409,21 @@ fn drain(screen : Address(ScreenMsg)) -> Unit with m =
 // checkpoint 2.
 //
 
-type ReaderMsg = K(Key)
+type ReaderMsg = K(Event)
 
 fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), line : String)
     -> Unit with ReaderMsg = receive {
-    K(Enter) -> {
+    K(Key(Enter)) -> {
         send(screen, Print("\n"));
         send(session, Typed(line));
         readLoop(session, screen, "")
     }
-  | K(Interrupt) -> {
+  | K(Key(Interrupt)) -> {
         send(screen, Print("\n"));
         send(session, Interrupted);
         readLoop(session, screen, "")
     }
-  | K(Char(c)) ->
+  | K(Key(Char(c))) ->
         if c == '\u{4}' then
             if String.isEmpty(line) then send(session, Eof)
             else readLoop(session, screen, line)

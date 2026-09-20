@@ -179,10 +179,10 @@ sources_test() ->
     %% a key that arrives long after the detector has looked several times
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
-                           Keys = ern_rt:sys(keys),
+                           Tty = ern_rt:sys(terminal),
                            %% report §8.2: the subscription is answered once the mode is set
-                           subscribe(Keys),
-                           erlang:spawn(fun() -> timer:sleep(500), Keys ! {chars, "x"} end),
+                           subscribe(Tty),
+                           erlang:spawn(fun() -> timer:sleep(500), Tty ! {chars, "x"} end),
                            receive _ -> ok end
                        end, <<"main">>, #{stdout => fun(_) -> ok end})),
     %% a line that takes as long to arrive
@@ -274,6 +274,6 @@ zero() ->
 
 %% Report §8.2: `Subscribe` carries a reply, answered once the terminal is
 %% in the mode the keys need.
-subscribe(Keys) ->
+subscribe(Tty) ->
     Me = ern_rt:self(),
-    ern_rt:call(Keys, fun(Reply) -> {'Subscribe', Reply, Me} end, 5000).
+    ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Reply, Me} end, 5000).

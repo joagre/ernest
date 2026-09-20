@@ -254,7 +254,7 @@ quiet_system() ->
                                   undefined -> true;
                                   Pid -> quiet(Pid)
                               end
-                          end, [stdout, stderr, stdin, fs, keys, tcp, clock, deaths]).
+                          end, [stdout, stderr, stdin, fs, terminal, tcp, clock, deaths]).
 
 quiet(Pid) ->
     case erlang:process_info(Pid, [status, message_queue_len]) of
@@ -383,7 +383,7 @@ fault(Msg) ->
 %% Report §8.2, §9.7: system references
 %%
 
--spec sys(stdout | stderr | stdin | clock | fs | keys | tcp) -> address().
+-spec sys(stdout | stderr | stdin | clock | fs | terminal | tcp) -> address().
 sys(Name) ->
     persistent_term:get({?MODULE, Name}).
 
@@ -413,11 +413,13 @@ hold_terminal(Addr) ->
 terminal_holder() ->
     persistent_term:get({?MODULE, holder}, undefined).
 
+%% Report §8.2: which way the terminal is being read, keys or lines; a
+%% program does one or the other, and the second to ask ends it.
 -spec own_terminal(lines | keys) -> ok | taken.
 own_terminal(Kind) ->
-    case persistent_term:get({?MODULE, terminal}, undefined) of
+    case persistent_term:get({?MODULE, reading}, undefined) of
         undefined ->
-            persistent_term:put({?MODULE, terminal}, Kind),
+            persistent_term:put({?MODULE, reading}, Kind),
             ok;
         Kind ->
             ok;
@@ -494,7 +496,7 @@ run_main(Main, Site, Opts) ->
     ets:new(?PROCESSES, [named_table, public, set]),
     %% report §8.6: the sources a system process holds, counted while held
     ets:insert(?PROCESSES, {sources, 0}),
-    persistent_term:erase({?MODULE, terminal}),
+    persistent_term:erase({?MODULE, reading}),
     persistent_term:erase({?MODULE, holder}),
     persistent_term:erase({?MODULE, deaths}),
     Run = make_ref(),
@@ -508,14 +510,14 @@ run_main(Main, Site, Opts) ->
     Line = maps:get(stdin, Opts, fun() -> io:get_line("") end),
     Stdin = erlang:spawn(fun() -> stdin_loop(Line) end),
     Fs = erlang:spawn(fun ern_fs:loop/0),
-    Keys = erlang:spawn(fun ern_keys:loop/0),
+    Tty = erlang:spawn(fun ern_tty:loop/0),
     Tcp = erlang:spawn(fun ern_tcp:loop/0),
     Clock = erlang:spawn(fun() -> clock_loop(0) end),
     persistent_term:put({?MODULE, stdout}, Stdout),
     persistent_term:put({?MODULE, stderr}, Stderr),
     persistent_term:put({?MODULE, stdin}, Stdin),
     persistent_term:put({?MODULE, fs}, Fs),
-    persistent_term:put({?MODULE, keys}, Keys),
+    persistent_term:put({?MODULE, terminal}, Tty),
     persistent_term:put({?MODULE, tcp}, Tcp),
     persistent_term:put({?MODULE, clock}, Clock),
     init_stdlib(),
@@ -536,10 +538,10 @@ run_main(Main, Site, Opts) ->
                       receive {FlushRef, flushed} -> ok end
                   end, [Stdout, Stderr]),
     %% each ended before the table goes, which the reaper reads
-    lists:foreach(fun stop/1, [Stdout, Stderr, Stdin, Fs, Keys, Tcp, Clock, Reaper]),
+    lists:foreach(fun stop/1, [Stdout, Stderr, Stdin, Fs, Tty, Tcp, Clock, Reaper]),
     %% report §8.2: the terminal goes back as the program found it
-    case persistent_term:get({?MODULE, terminal}, undefined) of
-        keys -> ern_keys:restore();
+    case persistent_term:get({?MODULE, reading}, undefined) of
+        keys -> ern_tty:restore();
         _ -> ok
     end,
     ets:delete(?PROCESSES),

@@ -1,0 +1,42 @@
+/// The terminal through `Sys.terminal`, the system process that reads it
+/// (report §8.2). A subscriber is sent every key pressed from then on and
+/// the new size whenever the window changes, wrapped for its own mailbox,
+/// as `monitor` and `Clock.alarm` deliver. The terminal read as keys and
+/// the terminal read as lines are the same one, so a program subscribes
+/// here or reads lines with `Io.readLine`, never both.
+///
+/// ## Examples
+///
+/// ```ernest
+/// Terminal.subscribe(fn(event) = event)
+/// ```
+///
+/// ## See also
+///
+/// `Io.readLine` for the same terminal read as lines, `Clock.alarm` for the
+/// other message that arrives later.
+///
+/// since 0.1.0
+
+/// Every key pressed and every resize from now on, wrapped, in the
+/// caller's mailbox. It answers once the terminal is in the mode the keys
+/// need, so that nothing typed after it returns is echoed (report §8.2).
+export fn subscribe(wrap : (Event) -> m) -> Unit with m = {
+    let to = via(wrap, self());
+    Address.callForever(Sys.terminal, fn(r) = Subscribe(to = to, reply = r))
+}
+
+/// The terminal's size now, and `None` where there is no terminal or its
+/// size is unknown. A program that draws asks at each redraw and hears of
+/// a change as `Resized`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// match Terminal.size() {
+///     None -> 24
+///   | Some(Size(rows = rows)) -> rows
+/// }
+/// ```
+export fn size() -> Optional(Size) with m =
+    Address.callForever(Sys.terminal, fn(r) = Measure(reply = r))

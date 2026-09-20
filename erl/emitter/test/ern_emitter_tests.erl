@@ -509,10 +509,10 @@ io_debug_test() ->
 %% report §8.2: keys and lines are the same terminal, so a program that
 %% does both ends with a fault naming the side that holds it
 terminal_is_lines_or_keys_test() ->
-    {R1, _} = run("type Msg = Pressed(Key)\n"
+    {R1, _} = run("type Msg = Pressed(Event)\n"
                   "export fn main() -> Unit with Msg = {\n"
                   "    let _ = Io.readLine();\n"
-                  "    Keys.subscribe(Pressed);\n"
+                  "    Terminal.subscribe(Pressed);\n"
                   "    receive { Pressed(_) -> Unit }\n"
                   "}\n"),
     ?assertEqual({fault, <<"the terminal is already read as lines">>}, R1).

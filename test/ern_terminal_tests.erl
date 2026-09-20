@@ -11,7 +11,8 @@
 
 %% report §8.2, §9.3: every key pressed reaches the subscriber, a character
 %% as itself, an arrow whole rather than as Escape and two characters, and
-%% an Escape that stands alone as the key; nothing is echoed
+%% an Escape that stands alone as the key; nothing is echoed. The terminal
+%% answers its size, and a window that changes arrives as `Resized`.
 keys_test_() ->
     {timeout, 60, fun keys/0}.
 
@@ -25,12 +26,22 @@ keys() ->
                        {expect, "up"},
                        {send, "1b5b42"},    % ArrowDown
                        {expect, "down"},
+                       {send, "1b5b357e"},  % PageUp
+                       {expect, "pageup"},
+                       {send, "1b5b367e"},  % PageDown
+                       {expect, "pagedown"},
+                       {resize, "30x100"},
+                       {expect, "resized"},
                        {send, "1b"}],       % Escape, alone
                       15),
     Lines = lines(Screen),
-    ?assertEqual([<<"ready">>, <<"char x">>, <<"up">>, <<"down">>, <<"escape">>], Lines),
-    %% not echoed: the only x on the screen is the one the program printed
-    ?assertEqual(1, count(Screen, <<"x">>)),
+    %% report §9.3: the size the program was given, its keys, and the new
+    %% size when the window changed
+    ?assertEqual([<<"ready 24x80">>, <<"char x">>, <<"up">>, <<"down">>, <<"pageup">>,
+                  <<"pagedown">>, <<"resized 30x100">>, <<"escape">>], Lines),
+    %% nothing was echoed: an echoed key would stand in a line of its own
+    %% or before the line the program printed, and the lines above are all
+    %% of them
     %% an arrow is not split: no Escape arrived before the one that was sent
     ?assertEqual(1, count(Screen, <<"escape">>)).
 
@@ -118,6 +129,7 @@ steps_file(Steps) ->
     File.
 
 step({expect, Text}) -> "expect:" ++ Text;
+step({resize, Size}) -> "resize:" ++ Size;
 step({send, Hex}) -> "send:" ++ Hex;
 step({sleep, Ms}) -> "sleep:" ++ integer_to_list(Ms).
 

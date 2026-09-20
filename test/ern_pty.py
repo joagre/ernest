@@ -7,7 +7,7 @@ no way to open a pseudo-terminal, so the terminal path of report section
 8.2 -- keys as they are pressed, no echo, the mode restored -- can be
 tested no other way.
 
-    ern_pty.py [--timeout S] --steps FILE -- COMMAND
+    ern_pty.py [--timeout S] [--size ROWSxCOLS] --steps FILE -- COMMAND
 
 COMMAND runs under /bin/sh.  FILE holds one step a line, and they run in
 order; a file rather than arguments, since a step's text holds whatever a
@@ -17,6 +17,7 @@ line and a line beginning with # are skipped.
     expect:TEXT   wait until TEXT appears on the screen, after whatever
                   the previous expect matched
     send:HEX      write those bytes to the terminal
+    resize:RxC    give the terminal a new size, as a window manager does
     sleep:MS      wait that long, reading whatever arrives
 
 A step that waits for text is what keeps a test from racing a program
@@ -30,9 +31,12 @@ Two lines are printed:
 
 import argparse
 import base64
+import fcntl
 import os
 import select
+import struct
 import sys
+import termios
 import time
 
 import pty as _pty  # after the arguments, so a stray ./pty.py cannot shadow it
@@ -46,7 +50,11 @@ def step_spec(text):
         return ("send", bytes.fromhex(arg))
     if kind == "sleep":
         return ("sleep", int(arg) / 1000.0)
-    raise argparse.ArgumentTypeError("a step is expect:TEXT, send:HEX, or sleep:MS")
+    if kind == "resize":
+        rows, _, columns = arg.partition("x")
+        return ("resize", (int(rows), int(columns)))
+    raise argparse.ArgumentTypeError(
+        "a step is expect:TEXT, send:HEX, resize:RxC, or sleep:MS")
 
 
 class Screen:
@@ -79,11 +87,16 @@ class Screen:
         return True
 
 
-def run(command, steps, timeout):
+def run(command, steps, timeout, size):
     pid, fd = _pty.fork()
     if pid == 0:
         os.execvp("/bin/sh", ["/bin/sh", "-c", command])
         os._exit(127)
+    def resize(rows, columns):
+        fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, columns, 0, 0))
+
+    rows, _, columns = size.partition("x")
+    resize(int(rows), int(columns))
     screen = Screen(fd)
     left = list(steps)
     deadline = time.monotonic() + timeout
@@ -91,6 +104,9 @@ def run(command, steps, timeout):
         kind, arg = left[0]
         if kind == "send":
             os.write(fd, arg)
+            left.pop(0)
+        elif kind == "resize":
+            resize(*arg)
             left.pop(0)
         elif kind == "expect":
             if screen.find(arg):
@@ -134,6 +150,7 @@ def main():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--timeout", type=float, default=10.0)
     parser.add_argument("--steps", default=None)
+    parser.add_argument("--size", default="24x80")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
@@ -142,7 +159,7 @@ def main():
         with open(args.steps, "r", encoding="utf-8") as handle:
             steps = [step_spec(line.rstrip("\n")) for line in handle
                      if line.strip() and not line.startswith("#")]
-    status, screen = run(" ".join(command), steps, args.timeout)
+    status, screen = run(" ".join(command), steps, args.timeout, args.size)
     print("status %s" % status)
     print("data %s" % base64.b64encode(screen).decode("ascii"))
 

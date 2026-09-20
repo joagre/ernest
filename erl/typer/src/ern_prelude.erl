@@ -32,9 +32,12 @@ declared_types() ->
     " | Now(reply : Reply(Int))\n"
     "type RemoteError = NoRemotePeer | PeerLost\n"
     "type Where = Local | Peer(String)\n"
-    "type Key = Char(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter | Escape\n"
-    "         | Interrupt\n"
-    "type KeyMsg = Subscribe(to : Address(Key), reply : Reply(Unit))\n"
+    "type Key = Char(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | PageUp\n"
+    "         | PageDown | Enter | Escape | Interrupt\n"
+    "type Size = Size(rows : Int, columns : Int)\n"
+    "type Event = Key(Key) | Resized(Size)\n"
+    "type TerminalMsg = Subscribe(to : Address(Event), reply : Reply(Unit))\n"
+    "                 | Measure(reply : Reply(Optional(Size)))\n"
     "type StdinMsg = ReadLine(reply : Reply(Optional(String)))\n"
     "type Path = Path(String)\n"
     "type Entry = Entry(path : Path, mtime : Int, size : Int, isDir : Bool)\n"
@@ -123,7 +126,7 @@ values() ->
      {['Sys', stdout], "Address(String)"},
      {['Sys', stderr], "Address(String)"},
      {['Sys', stdin], "Address(StdinMsg)"},
-     {['Sys', keys], "Address(KeyMsg)"},
+     {['Sys', terminal], "Address(TerminalMsg)"},
      {['Sys', clock], "Address(ClockMsg)"},
      {['Sys', fs], "Address(FsMsg)"},
      %% every module of Appendix E is written in Ernest and read from its

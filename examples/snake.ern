@@ -8,9 +8,10 @@
 // and randomness in pure code through a threaded seed rather than a hidden
 // source.
 //
-// Assumptions. Keys, Clock, and Random are the standard library's (report
-// Appendix E); Key is the prelude's (§9.3). main runs the game loop itself so
-// the program keeps running (report §8.6).
+// Assumptions. Terminal, Clock, and Random are the standard library's
+// (report Appendix E); Key, Event, and Size are the prelude's (§9.3).
+// main runs the game loop itself so that the world is one value in one
+// place, and while it runs the program keeps running (report §8.6).
 //
 // Compiled under test since 2026-09-20 and run by hand, since it wants a
 // terminal to read keys from and runs until Escape.
@@ -43,10 +44,14 @@ type GameMsg = Tick | In(Input)
 //
 
 export fn main() -> Unit with GameMsg = {
+    // report §8.2: the board is the window the program was given. It keeps
+    // that size: a `Resized` is ignored, the snake and the apples being
+    // placed for the board they are on.
+    let #(w, h) = board();
     let world0 =
-        World(w = 40, h = 20, players = Map.empty, apples = [], seed = Random.seed(42), tick = 0);
+        World(w = w, h = h, players = Map.empty, apples = [], seed = Random.seed(42), tick = 0);
     let me = self();
-    let _ = spawn(Local, fn() = { Keys.subscribe(fn(k) = k); player(1, me) });
+    let _ = spawn(Local, fn() = { Terminal.subscribe(fn(e) = e); player(1, me) });
     game(addPlayer(world0, 1))
 }
 
@@ -75,13 +80,20 @@ fn drain(world : World, n : Int) -> World with GameMsg =
     }
 
 // One process per player: translates keys into Input.
-fn player(id : Int, game : Address(GameMsg)) -> Unit with Key = receive {
-    ArrowUp -> { send(game, In(Turn(id = id, dir = N))); player(id, game) }
-  | ArrowDown -> { send(game, In(Turn(id = id, dir = S))); player(id, game) }
-  | ArrowLeft -> { send(game, In(Turn(id = id, dir = W))); player(id, game) }
-  | ArrowRight -> { send(game, In(Turn(id = id, dir = E))); player(id, game) }
-  | Escape -> send(game, In(Leave(id)))
+fn player(id : Int, game : Address(GameMsg)) -> Unit with Event = receive {
+    Key(ArrowUp) -> { send(game, In(Turn(id = id, dir = N))); player(id, game) }
+  | Key(ArrowDown) -> { send(game, In(Turn(id = id, dir = S))); player(id, game) }
+  | Key(ArrowLeft) -> { send(game, In(Turn(id = id, dir = W))); player(id, game) }
+  | Key(ArrowRight) -> { send(game, In(Turn(id = id, dir = E))); player(id, game) }
+  | Key(Escape) -> send(game, In(Leave(id)))
   | _ -> player(id, game)
+}
+
+// The board: the window the program was given, a row kept for the status
+// line, and a size to fall back on where there is no terminal.
+fn board() -> #(Int, Int) with m = match Terminal.size() {
+    None -> #(40, 20)
+  | Some(Size(rows = rows, columns = columns)) -> #(Int.min(columns, 80), rows - 2)
 }
 
 //

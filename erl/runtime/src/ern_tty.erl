@@ -1,24 +1,34 @@
-%% Report §8.2, §9.3: the process behind Sys.keys. It answers Subscribe by
-%% remembering the address, and sends every key pressed to each subscriber
-%% as a Key of §9.3. The terminal is put in raw mode with echo off when the
-%% first subscriber arrives, since keys and lines are the same terminal and
-%% a program does one or the other, and restore/0 puts it back when the
-%% program ends (§8.6).
+%% Report §8.2, §9.3: the process behind Sys.terminal. It answers
+%% Subscribe by remembering the address, sends every key pressed to each
+%% subscriber as an Event of §9.3, answers Size with the terminal's size,
+%% and sends Resized when that size changes. The terminal is put in the
+%% mode the keys need when the first subscriber arrives, since keys and
+%% lines are the same terminal and a program does one or the other, and
+%% restore/0 puts it back when the program ends (§8.6).
 %%
-%% The mode is set with stty on a port that inherits the terminal, and not
-%% with shell:start_interactive({noshell, raw}), which arrived after the
-%% release this was written against. On OTP 29 that mode works, and it sets
-%% -opost as well, so a line feed would no longer return the carriage; it
-%% leaves isig on, which the shell needs off (§11.2). The decisions log of
-%% 2026-09-20 has the measurements and what would make it worth taking.
+%% The mode is the host's raw mode, shell:start_interactive({noshell,
+%% raw}), with two flags put back by stty on a port that inherits the
+%% terminal: opost, without which a line feed would no longer return the
+%% carriage, and, for the shell alone, -isig, so that the interrupt is a
+%% key (§11.2). Raw mode is also what makes the size askable, io:rows and
+%% io:columns answering only while the host's terminal is in charge.
+%%
+%% A resize is noticed by asking, five times a second while anything is
+%% subscribed: SIGWINCH is delivered through OTP's signal server, which is
+%% reached by writing a gen_event handler, and this repository has no OTP
+%% behaviours (docs/style.md).
 %%
 %% Decoding is decode/1 over the bytes read, and flush/1 for what is left
 %% when nothing follows; both are functions and are what the unit tests
 %% exercise. The reading itself is driven through a pseudo-terminal by
 %% test/ern_terminal_tests.erl, since 2026-09-20.
--module(ern_keys).
+-module(ern_tty).
 
 -export([loop/0, decode/1, flush/1, restore/0]).
+
+%% Report §8.2: how often the terminal is asked for its size while a
+%% program is subscribed, which is how a resize is noticed.
+-define(RESIZE_PAUSE, 200).
 
 %% Report §8.2: Escape is delivered once no escape sequence can still
 %% follow it. A terminal sends a sequence in one burst, so a pause this
@@ -27,10 +37,10 @@
 
 -spec loop() -> no_return().
 loop() ->
-    loop([], undefined, []).
+    loop([], undefined, [], none).
 
-loop(Subscribers, Reader, Pending) ->
-    Pause = case Pending of [] -> infinity; _ -> ?ESCAPE_PAUSE end,
+loop(Subscribers, Reader, Pending, Size) ->
+    Pause = pause(Subscribers, Pending),
     receive
         %% report §3.5: the fields are in canonical order, `reply` before `to`
         {'Subscribe', Reply, Address} ->
@@ -40,38 +50,64 @@ loop(Subscribers, Reader, Pending) ->
                     exit(ern_rt:process_of(Address),
                          {ern, fault, <<"the shell holds the terminal; run the program with ern "
                                         "to give it the keyboard">>}),
-                    loop(Subscribers, Reader, Pending);
+                    loop(Subscribers, Reader, Pending, Size);
                 false ->
                     Reader1 = start_reader(Reader),
                     %% report §8.2: the mode is set before the caller goes
                     %% on, so that nothing it types then is echoed
                     ern_rt:answer(Reply, 'Unit'),
-                    loop([Address | Subscribers], Reader1, Pending)
+                    loop([Address | Subscribers], Reader1, Pending, size_now())
             end;
+        {'Measure', Reply} ->
+            ern_rt:answer(Reply, optional(size_now())),
+            loop(Subscribers, Reader, Pending, Size);
         {chars, Chars} ->
             {Decoded, Left} = decode(Pending ++ Chars),
-            deliver(Decoded, Subscribers),
-            loop(Subscribers, Reader, Left)
+            deliver([{'Key', K} || K <- Decoded], Subscribers),
+            loop(Subscribers, Reader, Left, Size)
     after Pause ->
-        deliver(flush(Pending), Subscribers),
-        loop(Subscribers, Reader, [])
+        deliver([{'Key', K} || K <- flush(Pending)], Subscribers),
+        %% report §8.2: a size that has changed is news to every subscriber
+        case size_now() of
+            Size -> loop(Subscribers, Reader, [], Size);
+            Now ->
+                deliver([{'Resized', Now} || Now =/= none], Subscribers),
+                loop(Subscribers, Reader, [], Now)
+        end
     end.
 
-deliver(Keys, Subscribers) ->
-    lists:foreach(fun(Key) ->
-                      lists:foreach(fun(To) -> ern_rt:send(To, Key) end, Subscribers)
-                  end, Keys).
+%% An escape waits only as long as a sequence may still follow it; a
+%% subscriber's terminal is asked for its size between times.
+pause([], []) -> infinity;
+pause(_, []) -> ?RESIZE_PAUSE;
+pause(_, _) -> ?ESCAPE_PAUSE.
+
+deliver(Events, Subscribers) ->
+    lists:foreach(fun(Event) ->
+                      lists:foreach(fun(To) -> ern_rt:send(To, Event) end, Subscribers)
+                  end, Events).
+
+%% Report §9.3: Size(rows, columns), which the host answers only while its
+%% terminal is in charge, so before the first subscription there is none.
+size_now() ->
+    case {io:rows(), io:columns()} of
+        {{ok, Rows}, {ok, Columns}} -> {'Size', Columns, Rows};
+        _ -> none
+    end.
+
+optional(none) -> 'None';
+optional(Size) -> {'Some', Size}.
 
 %% The reader runs once a program has asked for keys, and not before: a
 %% program that reads lines never leaves the terminal's line mode.
 start_reader(undefined) ->
-    Keys = self(),
+    Tty = self(),
     case ern_rt:own_terminal(keys) of
         ok ->
-            stty(["-icanon", "-echo", "min", "1", "time", "0" | interrupt_mode()]),
+            raw_mode(),
             %% report §8.6: a subscription is a source that can still deliver
             ern_rt:source_begin(),
-            erlang:spawn(fun() -> read_loop(Keys) end);
+            erlang:spawn(fun() -> read_loop(Tty) end);
         taken ->
             %% the program is already ending with the fault (report §8.2)
             undefined
@@ -79,12 +115,17 @@ start_reader(undefined) ->
 start_reader(Reader) ->
     Reader.
 
-%% Report §8.2: each key as it is pressed and no echo, which is the input
-%% half only. Full raw mode would also stop the terminal turning a line feed
-%% into a carriage return and a line feed, and a program that draws would
-%% climb the screen a column at a time.
+%% Report §8.2: each key as it is pressed and no echo, and the host's
+%% terminal in charge, which is what makes the size askable. The host's raw
+%% mode also stops the terminal turning a line feed into a carriage return
+%% and a line feed, and a program that draws would climb the screen a
+%% column at a time, so `opost` goes back.
 %% Report §11.2: the shell reads the terminal's interrupt as a key, so its
 %% signal is turned off for the shell and for nobody else.
+raw_mode() ->
+    shell:start_interactive({noshell, raw}),
+    stty(["opost" | interrupt_mode()]).
+
 interrupt_mode() ->
     case ern_rt:terminal_holder() of
         undefined -> [];
@@ -131,8 +172,9 @@ read_loop(Keys) ->
     end.
 
 %% Report §9.3: Key = Char(Char) | ArrowUp | ArrowDown | ArrowLeft
-%% | ArrowRight | Enter | Escape | Interrupt. An escape sequence that is not an arrow
-%% is the Escape key and the characters after it.
+%% | ArrowRight | PageUp | PageDown | Enter | Escape | Interrupt. An escape
+%% sequence that is none of those is the Escape key and the characters
+%% after it, which is how Meta and Shift-Tab reach a program (§8.2).
 -spec decode([char()]) -> {[term()], [char()]}.
 decode(Chars) ->
     decode(Chars, []).
@@ -155,6 +197,12 @@ decode([$\e], Acc) ->
     {lists:reverse(Acc), [$\e]};
 decode([$\e, $[], Acc) ->
     {lists:reverse(Acc), [$\e, $[]};
+decode([$\e, $[, $5], Acc) ->
+    {lists:reverse(Acc), [$\e, $[, $5]};
+decode([$\e, $[, $6], Acc) ->
+    {lists:reverse(Acc), [$\e, $[, $6]};
+decode([$\e, $[, $5, $~ | Rest], Acc) -> decode(Rest, ['PageUp' | Acc]);
+decode([$\e, $[, $6, $~ | Rest], Acc) -> decode(Rest, ['PageDown' | Acc]);
 decode([$\e, $[, $A | Rest], Acc) -> decode(Rest, ['ArrowUp' | Acc]);
 decode([$\e, $[, $B | Rest], Acc) -> decode(Rest, ['ArrowDown' | Acc]);
 decode([$\e, $[, $C | Rest], Acc) -> decode(Rest, ['ArrowRight' | Acc]);
