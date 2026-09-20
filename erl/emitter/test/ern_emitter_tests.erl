@@ -754,6 +754,17 @@ foreign_messages_test() ->
                     "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
                     "}\n"),
     ?assertEqual(<<"1\n2\n">>, Out),
+    %% report §6.5, §8.4: an adapted address reaches foreign code through
+    %% the same proxy, and the wrap is applied on the way back
+    {ok, Wrapped} = run("type Msg = Wrapped(Int)\n"
+                        "type Inner = Go(Int)\n"
+                        "foreign fn good(a : Address(Inner)) -> Unit with m ="
+                        " \"ern_emitter_tests:good/1\"\n"
+                        "export fn main() -> Unit with Msg = {\n"
+                        "    good(via(fn(Go(n) : Inner) = Wrapped(n), self()));\n"
+                        "    receive { Wrapped(n) -> Io.println(Int.toString(n)) }\n"
+                        "}\n"),
+    ?assertEqual(<<"1\n">>, Wrapped),
     {R2, _} = run("type Ask = Ask(reply : Reply(Int))\n"
                   "foreign fn server() -> Address(Ask) with m ="
                   " \"ern_emitter_tests:junk_server/0\"\n"

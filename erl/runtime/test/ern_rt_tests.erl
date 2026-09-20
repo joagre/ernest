@@ -241,6 +241,24 @@ via_fault_test() ->
     ?assertEqual({'Down', <<"Main.main:3">>, {'Fault', <<"division by zero">>}}, wait(d)),
     ?assertEqual(alive, wait(sender)).
 
+%% report §6.9: a monitor is the reaper's whoever started the process, so
+%% watching one the runtime did not start costs no process either
+monitor_foreign_process_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               %% it outlives the monitors, which are asked for asynchronously
+               Other = erlang:spawn(fun() -> timer:sleep(300) end),
+               Before = erlang:system_info(process_count),
+               lists:foreach(fun(_) -> ern_rt:monitor(Other, fun(D) -> {down, D} end) end,
+                             lists:seq(1, 20)),
+               Me ! {counts, Before, erlang:system_info(process_count)},
+               receive {down, D} -> Me ! {d, D} end
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {Before, After} = wait(counts2),
+    ?assertEqual(Before, After),
+    ?assertEqual({'Down', <<"unknown">>, 'Returned'}, wait(d)).
+
 wait(counts2) ->
     receive {counts, B, A} -> {B, A} after 2000 -> timeout end;
 wait(Tag) ->

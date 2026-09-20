@@ -2990,6 +2990,14 @@ What MVP 2.5 delivered: twenty-one standard library modules in Ernest, every sys
 
 What it found on the way, each in its own entry above: an `Entry`'s path was unstated; `Deadlock` counted only the clock, so an idle prompt was killed in a tenth of a second; raw mode through the host's own call stopped delivering keys; a lone `Escape` waited forever; and `via` spawned a process per adaptation, which a program with a tick paid ten times a second.
 
+## Every Monitor Is the Reaper's, 2026-09-20
+
+`monitor` had two mechanisms. A process the runtime started was awaited in the reaper, which holds the wrap and already knows how every such process ended; anything else, a system process or a socket, got a process of its own whose whole life was to hold a function and wait for one message. That is the shape `via` had until this morning, and principle 2 asks for one way. The reaper now monitors a process it did not start as readily as one it did, so twenty monitors on the same socket cost twenty entries in a map rather than twenty processes.
+
+Two things came out of doing it. A monitor on a process the runtime did not start is a source under §8.6, since its death would deliver a message: without counting it, a program that monitors a socket and waits for it is declared deadlocked. It is counted from the moment the reaper begins to watch until the `Down` is delivered.
+
+And the morning's change had left a hole: the foreign boundary recognised an address by `is_pid`, so after `via` became a pair, an adapted address handed to foreign code went through unchecked and as a bare term, which foreign code could not have sent to correctly either. It is an address, it goes through the same checking proxy, and a test now sends through one.
+
 ## Later
 
 Planned or considered, not in the language today.

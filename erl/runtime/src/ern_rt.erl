@@ -121,25 +121,13 @@ answer(Reply, V) ->
 %% Report §6.9
 %%
 
-%% A process the runtime started is watched by the reaper, which delivers
-%% the recorded cause, at once if it is already dead. Any other pid (a via
-%% proxy, a system process) gets a proxy with a monitor of its own.
+%% Every monitor is the reaper's: it holds the wrap and delivers the cause,
+%% at once if the process is already dead. A process the runtime did not
+%% start, a system process or a socket, is watched from there too, so a
+%% monitor costs no process of its own (report §6.9).
 -spec monitor(address(), fun((term()) -> term())) -> 'Unit'.
-monitor(Addr0, Wrap) ->
-    Me = erlang:self(),
-    Addr = process_of(Addr0),
-    case ets:member(?PROCESSES, Addr) of
-        true ->
-            persistent_term:get({?MODULE, reaper}) ! {await, Addr, Me, Wrap};
-        false ->
-            erlang:spawn(fun() ->
-                             Ref = erlang:monitor(process, Addr),
-                             receive
-                                 {'DOWN', Ref, process, Addr, Reason} ->
-                                     Me ! Wrap({'Down', <<"unknown">>, reason(Reason)})
-                             end
-                         end)
-    end,
+monitor(Addr, Wrap) ->
+    persistent_term:get({?MODULE, reaper}) ! {await, process_of(Addr), erlang:self(), Wrap},
     ?UNIT.
 
 -spec kill(address()) -> 'Unit'.
@@ -169,6 +157,13 @@ reaper_loop(Waiters) ->
                 [{_, Site, Reason, _, _}] when Reason =/= alive ->
                     To ! Wrap({'Down', Site, reason(Reason)}),
                     reaper_loop(Waiters);
+                [] when not is_map_key(Pid, Waiters) ->
+                    %% not one the runtime started, so it is watched from
+                    %% here; report §8.6: its death would deliver a message,
+                    %% which is a source while it is awaited
+                    erlang:monitor(process, Pid),
+                    source_begin(),
+                    reaper_loop(Waiters#{Pid => [{To, Wrap}]});
                 _ ->
                     reaper_loop(maps:update_with(Pid, fun(L) -> [{To, Wrap} | L] end,
                                                  [{To, Wrap}], Waiters))
@@ -179,6 +174,13 @@ reaper_loop(Waiters) ->
                     ets:insert(?PROCESSES, {Pid, Site, Reason, 0, 0}),
                     lists:foreach(fun({To, Wrap}) -> To ! Wrap({'Down', Site, reason(Reason)}) end,
                                   maps:get(Pid, Waiters, []));
+                [] ->
+                    %% report §6.9: the spawn site of a process the runtime
+                    %% did not start is not known
+                    lists:foreach(fun({To, Wrap}) ->
+                                      To ! Wrap({'Down', <<"unknown">>, reason(Reason)})
+                                  end, maps:get(Pid, Waiters, [])),
+                    is_map_key(Pid, Waiters) andalso source_end();
                 _ ->
                     ok
             end,

@@ -124,6 +124,9 @@ all([D | Ds], [V | Vs], B) -> chk(D, V, B) andalso all(Ds, Vs, B).
 %% a parameter type without an address, left as it is.
 expose(none, V, _) -> V;
 expose({pid, D, Text}, V, B) when is_pid(V) -> proxy(V, D, B, Text);
+%% report §6.5: an address seen through a function is an address too, and
+%% foreign code must reach it through the same checking proxy
+expose({pid, D, Text}, {via, _, _} = V, B) -> proxy(V, D, B, Text);
 expose({list, D}, V, B) when is_list(V) -> [expose(D, X, B) || X <- V];
 expose({tuple, Ds}, V, B) when is_tuple(V), tuple_size(V) =:= length(Ds) ->
     list_to_tuple([expose(D, X, B) || {D, X} <- lists:zip(Ds, tuple_to_list(V))]);
