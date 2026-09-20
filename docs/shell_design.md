@@ -26,11 +26,14 @@ The shell is an Ernest program. Its parts:
 ## Input
 
 - **A line that is complete by itself is submitted by `Enter`.**
-- **An incomplete line starts a multi-line input**, which ends at a blank line. A line is incomplete when a bracket is open or an expression or declaration is unfinished. The blank line is required because a type whose alternatives follow on later lines, led by `|`, parses as complete after its first.
+- **An incomplete line starts a multi-line input**, which ends at a blank line. A line is incomplete when the parser runs out of input where more was expected, which it answers as such rather than as a diagnostic; the shell never counts brackets itself, which would be a second parser to disagree with the first.
+- **`M-Enter` adds a line to an input the parser thinks is finished.** `type Shape = Dot` parses complete, so `Enter` would run it and the next line, led by `|`, would be an error; `M-Enter` keeps the input open instead. It is what an `else`, an alternative, or a longer body on the next line needs.
+- **The reminder is on the continuation line.** The first multi-line input of a session prints `M-Enter adds a line, Enter runs.` above the `... ` prompt, once; `:help` lists it. A prompt that says it every time is noise.
 - **A paste is one input.** The shell turns on the terminal's bracketed paste; a pasted text, blank lines included, is submitted by the `Enter` after it.
 - **Each input is compiled as a module of its own** against the interfaces of the bindings so far, and loaded.
 - **Functions that call each other are entered in one input.**
 - **The prompt is `> `**; a multi-line input continues after `... `.
+- **The reader stays live while an evaluation runs.** What is typed is echoed and edited as usual, and `Enter` queues the input to run when the one before it finishes; several queue in order. Output arriving meanwhile is printed above the line and the line redrawn, as any other process's output is.
 
 ## Bindings
 
@@ -51,7 +54,7 @@ The shell is an Ernest program. Its parts:
 - **A fault in an input is printed as `fault: ` and its text,** an interruption as `Killed`.
 - **A process that faults is reported** with its spawn site and cause: `Counter.worker:23 faulted: division by zero`. Which deaths are reported, and how the shell learns of them, is "Failing processes".
 - **With timing on, each result is followed by its elapsed time.**
-- **Colour:** types dimmed, errors red, the history suggestion greyed. None when output is not a terminal or `NO_COLOR` is set.
+- **Colour:** types dimmed, errors red, the history suggestion greyed. None when output is not a terminal or `NO_COLOR` is set, and none when `TERM` is `dumb`, which also turns the editing off and leaves line mode.
 - **Output from another process while a line is being typed** is printed above it, and the prompt and the partial line are drawn again below. Every write goes through `Sys.stdout`, one process (§8.2), and the shell holds the terminal, so the shell is told before the write lands, clears the input line, lets the output through, and redraws. Erlang's shell is racing writers it does not control; here there is no second path to the screen, so the prompt is the last thing on the terminal and stays correct.
 - **A write that does not end in a line feed is ended before the prompt is drawn**, so the prompt starts at column 0 and the next write starts a new line. The transcript then shows a break the program did not write, which is the price of not holding output back until a line feed that may never come.
 
@@ -74,9 +77,10 @@ GNU Readline's Emacs bindings.
 - **Deleting:** `Backspace` and `C-h` back, `C-d` forward; on an empty line `C-d` quits.
 - **Killing:** `C-k` to the end of the line, `C-u` to the start, `C-w` and `M-Backspace` the word before, `M-d` the word after. A kill goes to the kill ring; `C-y` yanks the last, `M-y` cycles.
 - **Transposing and case:** `C-t` two characters, `M-t` two words; `M-u`, `M-l`, `M-c` upcase, downcase, capitalize a word.
-- **History:** `C-p`, `C-n`, up and down step through earlier inputs; `M-<` and `M->` go to the first and the current; `C-r` searches back incrementally, `C-s` forward, `C-g` abandons the search. The history is kept in the configuration directory (§11.2), `history`.
+- **History:** `C-p`, `C-n`, up and down step through earlier inputs; `M-<` and `M->` go to the first and the current; `C-r` searches back incrementally, `C-s` forward, `C-g` abandons the search. The history is kept per user, in `$HOME/.ernest/history`, as a person expects when they type the same thing in two projects; with `HOME` unset nothing is saved and the shell says so once. It is not in the configuration directory, which §11.3 gives a job of its own, the node's address and its keys.
 - **Suggestion:** the most recent earlier input that begins with the text typed is shown greyed after the cursor; the right arrow, or `C-e` at the end of the line, accepts it.
-- **Interrupting:** `C-c` abandons the line being typed, and during an evaluation kills the input's process, leaving the bindings. While the shell is reading, the terminal's interrupt is a key to it and not the signal that ends a program (§8.6); the shell is left with `:quit` or `C-d`. Every other program keeps §8.6's rule, so the interrupt still stops a game that reads keys. §11.2 says it, since §11.2 owns the shell.
+- **Adding a line:** `M-Enter`, when the input parses complete and is not.
+- **Interrupting:** `C-c` kills the running evaluation when there is one, and abandons the line being typed only when there is not; the bindings and the partial line both survive the kill, since the line was being typed and losing it would be its own surprise. A queued input is dropped with the evaluation it waited for, its text kept in the history. While the shell is reading, the terminal's interrupt is a key to it and not the signal that ends a program (§8.6); the shell is left with `:quit` or `C-d`. Every other program keeps §8.6's rule, so the interrupt still stops a game that reads keys. §11.2 says it, since §11.2 owns the shell.
 - **`C-l`** clears the screen.
 
 ## Completion
@@ -105,7 +109,7 @@ A command is `:` and a name; it is not an Ernest function. Any prefix of a name 
 - **`:type e`**: the type of `e`, which is not run.
 - **`:browse Module`**: the exports of `Module` with their types.
 - **`:load file`**: the file's declarations, as if typed at the prompt.
-- **`:reload Module`**: recompiles and reloads `Module`; without a name, every loaded module whose source changed since it was loaded.
+- **`:reload Module`**: recompiles and reloads `Module`; without a name, every loaded module whose source changed since it was loaded. The new code is the code: every call made after the reload reaches it. A closure made from the code before it keeps that code while the previous version is still loaded, and a second reload of the same module drops the version, so calling such a closure faults with the text saying its code was replaced. It is the host's rule, which the toolchain rests on, and a reader who knows the host predicts it; `:reload` says how many bindings hold code from the previous version, so the next reload does not surprise anyone.
 - **`:quit`**: quits.
 - **`:doc Name`**: the documentation of `Name`, as `ernc --doc` renders it (§11.4), the declaration included.
 - **`:help`**: the commands and their prefixes; it says that `:doc` is what GHCi calls `:info`.
@@ -119,7 +123,7 @@ A program is started by calling it; there is no command for it. A module meant f
 
 ## Starting and quitting
 
-- **At start the shell runs the inputs in `shell.ern`** in the configuration directory, if it exists.
+- **At start the shell runs the inputs in `shell.ern`** in the configuration directory, if it exists: it is a project's, as the directory is.
 - **On `:quit` or `C-d` on an empty line** the history is saved and every process the session spawned ends with `ProgramEnd` (§8.6).
 
 ## Not in the shell
@@ -142,7 +146,7 @@ The front end owns the session, and the shell holds it as one opaque `Env`. The 
 An input may declare anything a module may, so `Env` holds four things:
 
 - **Types**: `type`, `abstract type`, and `foreign type`, each with its constructors, its fields, and an abstract type's members. They persist because later bindings hold their values and the printer renders a value by its type.
-- **Value bindings**, each with its generalized scheme (§4.6), `it` among them.
+- **Value bindings**, each with its generalized scheme (§4.6), `it` among them. A value carries the type it was made with, so one made before a type's shape changed still prints by its own descriptor rather than by the new one.
 - **Declarations that are code**: `fn` and `foreign fn`, with their types and their targets.
 - **The compiled modules behind all of it.** Each input is a module of its own and stays loaded: a function or closure made before a name was redeclared keeps the one it was compiled against, so its module may not go. Names collide never, since each input's module has its own name.
 
@@ -150,7 +154,7 @@ An input may declare anything a module may, so `Env` holds four things:
 
 Two consequences, stated rather than discovered:
 
-- **A session never shrinks.** Code cannot be unloaded while a closure may reference it, so `:forget x` removes a name from the environment and frees nothing.
+- **A session never shrinks.** Code cannot be unloaded while a closure may reference it, so `:forget x` removes a name from the environment and frees nothing. Inputs never displace each other, each being a module of its own name; only `:reload` of a module on the load path replaces code, and it is the host's rule that governs there.
 - **Shadowing is by name in the environment**, not by replacing code, which is why an old closure keeps working.
 
 What `Env` does not hold: the shell's own settings, which are ordinary Ernest values; the history, a `List(String)`; and the modules on the load path, which are found by namespace (§4.2) and never enter the environment.
@@ -178,10 +182,12 @@ foreign fn doc(name : String) -> Optional(String) = "..."
 Delivered before the shell, each report first.
 
 - **`Keys`** delivers the arrows, `Enter`, `Escape`, and characters since MVP 2.5 step 4 (§9.3's `Key`). `Shift-Tab` and `Meta` combinations are not in `Key` and land with the shell, report first (MVP 2.6). The terminal's interrupt is not a `Key` value: it reaches the shell because §11.2 says the shell reads it as a key, which is the shell's exception and no other program's.
+- **The parser answers that an input is incomplete**, distinctly from a diagnostic: it ran out of input where more was expected. It knows already and does not say. A front-end change, not a report one (MVP 2.6).
 - **The terminal's width**, for redrawing a wrapped line and laying out candidates. Not in the report; it lands with the shell, report first (MVP 2.6).
 - **Whether input is a terminal**, for line mode. Not in the report; it lands with the shell, report first (MVP 2.6).
 - **A notice that another process printed**, for redrawing the line. Not in the report; it lands with the shell, report first (MVP 2.6).
 - **What the runtime knows about processes**, one system reference for two questions: subscribe me to the faults, for "Failing processes", and what is alive with its spawn site, for `:processes`. The runtime holds both facts (§6.9); neither hands out an address, so §6.3 stands. One addition rather than two. Not in the report; it lands with the shell, report first (MVP 2.6).
+- **`Sys.env`**, for `NO_COLOR` and `TERM`, with `Sys.args` beside it, since §9.7 states the pair together (§8.2 and §9.7, MVP 2.6, moved back from 2.7 on 2026-09-20).
 - **Documentation in the `.erc`**, with each function's parameters as written, for `:doc` and `Shift-Tab` (MVP 2.5, step 6).
 - **The report's §11.2** states the shell's normative core: types on every result, a module and a process per input, bindings that survive a fault, the commands and their prefix rule, and line mode (MVP 2.6).
 
