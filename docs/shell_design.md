@@ -49,6 +49,7 @@ The shell is an Ernest program. Its parts:
 - **The value of the last expression is bound to `it`.** It is the one binding a person did not write, and it does not breach principle 3: the principle asks that a top-level binding be visible where its name appears at the use site, and `it` is written at its use site. What is implicit is its making, not its use. `:bindings` lists it and `:help` says it.
 - **Bindings survive a fault and an interruption.** Only `:forget` removes them.
 - **A member of an abstract type is declared with the type.** Two inputs are two modules, and §4's ownership rule keeps a type's members in the module that owns it, so a later input cannot add one; the type and its members are declared in one input or loaded from a file.
+- **An input whose value is reply-carrying does not check** (§6.6): a reply-carrying value neither bound nor consumed is a type error, and the prompt drops an input's value once it is printed, so the checker refuses it and `it` is never such a value. No rule of the shell's own is needed.
 - **`self()` names the input's own process**, which ends with the input. An address bound to it reaches no one on a later input; a message is received inside the input that expects it.
 
 ## Output
@@ -121,16 +122,17 @@ A command is `:` and a name; it is not an Ernest function. Any prefix of a name 
 - **`:quit`**: quits.
 - **`:doc Name`**: the documentation of `Name`, as `ernc --doc` renders it (§11.4), the declaration included.
 - **`:help`**: the commands and their prefixes; it says that `:doc` is what GHCi calls `:info`.
-- **`:forget x`**: forgets the binding `x`; without a name, all bindings.
+- **`:forget name`**: forgets any name the session declared, a value, a `fn`, or a type; a name is required, and `:forget *` clears the session, `it` included. Forgetting a type needs no rule of its own, since a value carries the type it was made with and still prints. A wildcard typed on purpose is the confirmation: a prompt would have to fight the live reader and the queue, and the prefix rule hands `:f` to this command.
 - **`:bindings`**: the bindings, with their types.
 - **`:processes`**: the live processes with their spawn sites (§6.9), read through the same reference as the faults; a name and a site, never an address.
 - **`:faults`**: the faults reported since the session began, oldest first.
-- **`:set depth n`**, **`:set length n`**, **`:set timing on`** and **`off`**.
+- **`:set depth n`**, **`:set length n`**, **`:set timing on`** and **`off`**; `:set` alone shows what they are.
 
 A program is started by calling it; there is no command for it. A module meant for the shell exports a function that spawns its processes and returns. Modules are not imported: every module on the load path is in scope by its qualified name (§4.2).
 
 ## Starting and quitting
 
+- **At start the shell prints one line**, the version and how to leave, `:quit` or `C-d`, with `:help` for the rest. Not knowing the way out is the oldest complaint about an interactive tool.
 - **At start the shell runs the inputs in `$HOME/.ernest/startup`**, if it exists: per user, as the history is. It is a file of inputs, commands included, and not a module, so it has no `.ern` extension: a `.ern` file under a source root is compiled with the project, and one in the configuration directory breaks the project's build outright, since `ernc` reads dotted directories and then rejects the path. A startup input that fails is reported as any input is and the session goes on.
 - **On `:quit` or `C-d` on an empty line** the history is saved and every process the session spawned ends with `ProgramEnd` (§8.6).
 
@@ -164,7 +166,7 @@ An input may declare anything a module may, so `Env` holds four things:
 
 Two consequences, stated rather than discovered:
 
-- **A session never shrinks.** Code cannot be unloaded while a closure may reference it, so `:forget x` removes a name from the environment and frees nothing. Inputs never displace each other, each being a module of its own name; only `:reload` of a module on the load path replaces code, and it is the host's rule that governs there.
+- **A session never shrinks.** Code cannot be unloaded while a closure may reference it, so `:forget` removes a name from the environment and frees nothing. The module and atom tables grow with it, each input being a module of its own name and each constructor an atom, neither of which the host reclaims. It is a property and not a defect: a session of thousands of inputs grows both, and one that runs for days is restarted. Inputs never displace each other, each being a module of its own name; only `:reload` of a module on the load path replaces code, and it is the host's rule that governs there.
 - **Shadowing is by name in the environment**, not by replacing code, which is why an old closure keeps working.
 
 What `Env` does not hold: the shell's own settings, which are ordinary Ernest values; the history, a `List(String)`; and the modules on the load path, which are found by namespace (§4.2) and never enter the environment.
@@ -181,6 +183,7 @@ type Outcome = Ok(env : Env, value : Value) | Failed(String)
 
 foreign fn check(env : Env, input : String) -> Either(String, Checked) = "..."
 foreign fn typeText(c : Checked) -> String = "..."
+foreign fn declared(c : Checked) -> List(#(String, String)) = "..."
 foreign fn run(env : Env, c : Checked, wrap : (Outcome) -> m) -> Address(Never) with m = "..."
 foreign fn show(v : Value, depth : Int, length : Int) -> String = "..."
 foreign fn exports(module : String) -> List(#(String, String)) = "..."
@@ -188,7 +191,7 @@ foreign fn doc(name : String) -> Optional(String) = "..."
 foreign fn faults(wrap : (Fault) -> m) -> Unit with m = "..."
 ```
 
-`check` returns §11.5's diagnostic text on an error. `run` starts the input's process and answers with its address, which is what `C-c` kills, and delivers `Ok` or `Failed` to the shell when it ends, which is E.0 rule 8's shape for anything that arrives later; a synchronous `run` would have blocked the shell, leaving the reader dead and the interrupt unseen. `exports` gives names with types, `doc` the section `:doc` prints.
+`check` returns §11.5's diagnostic text on an error. `run` starts the input's process and answers with its address, which is what `C-c` kills, and delivers `Ok` or `Failed` to the shell when it ends, which is E.0 rule 8's shape for anything that arrives later; a synchronous `run` would have blocked the shell, leaving the reader dead and the interrupt unseen. `typeText` is the type of an expression, for `:type`, which does not run it; `declared` is the names and types an input declares, which the shell prints after a declaration and cannot read from `Env`, that being opaque. `exports` gives names with types, `doc` the section `:doc` prints.
 
 ## Prerequisites
 
@@ -198,7 +201,7 @@ Delivered before the shell, each report first.
 - **`Key` gains one value for the terminal's interrupt** (§9.3, MVP 2.6), delivered only to the holder of the terminal, which §11.2 makes the shell. A subscriber receives `Key` values and nothing else (E.16), so without it the byte cannot arrive at all; one constructor, not a family.
 - **`ern_show` takes a depth and a length**, which `Io.debug` passes unbounded, so the shell and E.1 keep one printer. A runtime change, not a report one (MVP 2.6).
 - **The parser answers that an input is incomplete**, distinctly from a diagnostic: it ran out of input where more was expected. It knows already and does not say. A front-end change, not a report one (MVP 2.6).
-- **The terminal's width**, for redrawing a wrapped line and laying out candidates. Not in the report; it lands with the shell, report first (MVP 2.6).
+- **The terminal's width**, for redrawing a wrapped line and laying out candidates, asked for at each redraw rather than delivered as a notice when it changes: a resize then takes effect on the next keystroke, and §8.2 gains one door instead of two. Not in the report; it lands with the shell, report first (MVP 2.6).
 - **Whether input is a terminal**, for line mode. Not in the report; it lands with the shell, report first (MVP 2.6).
 - **§7.3 gains the cause** a process ends with when its code is replaced under it, which its list of causes does not have; `:reload` reports it (MVP 2.6).
 - **What the runtime knows about processes**, one system reference for two questions: subscribe me to the faults, for "Failing processes", and what is alive with its spawn site, for `:processes`. The runtime holds both facts (§6.9); neither hands out an address, so §6.3 stands. One addition rather than two. Not in the report; it lands with the shell, report first (MVP 2.6).
