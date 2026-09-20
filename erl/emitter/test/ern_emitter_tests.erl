@@ -631,7 +631,7 @@ not_operator_test() ->
 %% ordering goes through its compare, prefix - through its negate; in a receive guard
 %% the ordering is a call, a type error by §5.9
 user_operators_test() ->
-    Vec = "type Vec = Vec(Int)\n"
+    Vec = "export type Vec = Vec(Int)\n"
           "export fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a + b)\n"
           "export fn Vec.*(Vec(a), Vec(b)) -> Float = Int.toFloat(a * b)\n"
           "export fn Vec.compare(Vec(a), Vec(b)) -> Ordering = Int.compare(b, a)\n"
@@ -652,7 +652,7 @@ user_operators_test() ->
 %% comes after the lets that member reads
 let_order_through_operator_test() ->
     {ok, Out} = run(
-        "type Vec = Vec(Int)\n"
+        "export type Vec = Vec(Int)\n"
         "let sum = Vec(1) + Vec(2)\n"
         "export fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec((a + b) * scale)\n"
         "let scale = 10\n"

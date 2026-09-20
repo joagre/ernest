@@ -23,6 +23,20 @@ session() ->
     {ok, Expected} = file:read_file("session/basic.out"),
     ?assertEqual(Expected, Out).
 
+%% report §11.2, §8.1: with a file the shell is the entry point and the
+%% file's entry point is spawned beside it; the loaded modules are in scope,
+%% by their qualified names, and a fault in the program is reported at the
+%% prompt without ending the session
+program_test_() ->
+    {timeout, 60, fun program/0}.
+
+program() ->
+    {0, _} = sh("../bin/ernc --source-root session --out-dir build/session"
+                " session/counter.ern"),
+    {0, Out} = sh("../bin/ern --shell build/session/counter.erc < session/program.in"),
+    {ok, Expected} = file:read_file("session/program.out"),
+    ?assertEqual(Expected, Out).
+
 %% report §11.2: on a terminal the shell reads keys, echoes what is typed,
 %% takes Backspace and C-d, and reads the interrupt as a key, which kills a
 %% running input and leaves the session standing

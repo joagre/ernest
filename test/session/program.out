@@ -1,0 +1,9 @@
+Ernest 0.1.0. :help for the commands, :quit to leave.
+counter is here
+> Counter.main faulted: division by zero
+> c : Address(Counter.Msg)
+> > Some(7) : Optional(Int)
+> type Counter.Msg
+Counter.main : () -> Unit with Unit
+Counter.start : () -> Address(Msg) with m
+> 

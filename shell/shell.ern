@@ -19,8 +19,8 @@ foreign type Value
 
 type Outcome = Ok(env : Env, value : Value) | Failed(String)
 
-foreign fn start(loadPath : String, sourceRoot : String) -> Env with m =
-    "ern_shell:start/2"
+foreign fn start() -> Env with m = "ern_shell:start/0"
+foreign fn program() -> Optional(Address(Never)) with m = "ern_shell:program/0"
 foreign fn check(env : Env, input : String) -> Either(String, #(Env, Checked)) with m =
     "ern_shell:check/2"
 foreign fn typeText(c : Checked) -> String = "ern_shell:type_text/1"
@@ -42,7 +42,7 @@ foreign fn holdTerminal(reader : Address(a)) -> Unit with m = "ern_rt:hold_termi
 // The session
 //
 
-type ShellMsg = Typed(String) | Eof | Interrupted | Done(Outcome)
+type ShellMsg = Typed(String) | Eof | Interrupted | Done(Outcome) | Died(Down)
 
 // What the session carries between inputs: the front end's environment and
 // the settings `:set` changes, which are ordinary values.
@@ -58,7 +58,13 @@ export fn main() -> Unit with ShellMsg = {
     let screen = spawn(Local, fn() = screenLoop());
     setScreen(via(Print, screen));
     send(screen, Print("Ernest 0.1.0. :help for the commands, :quit to leave.\n"));
-    let state = State(env = start("", "."), settings = defaults);
+    let state = State(env = start(), settings = defaults);
+    // report §11.2, §8.1: a file's entry point runs beside the prompt, and
+    // the shell monitors it, a fault in it being news at the prompt
+    match program() {
+        None -> Unit
+      | Some(entry) -> monitor(entry, Died)
+    };
     if isTerminal() then {
         let me = self();
         let reader = spawn(Local, fn() = { Keys.subscribe(K); readLoop(me, screen, "") });
@@ -111,6 +117,7 @@ fn await(
         state
     }
   | Interrupted -> { kill(child); say(screen, "Killed"); state }
+  | Died(down) -> { reportDeath(screen, down); await(state, screen, checked, child, started) }
   | Typed(_) or Eof -> await(state, screen, checked, child, started)
 }
 
@@ -374,7 +381,23 @@ fn keyLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = r
     }
   | Eof -> finish(screen, "\n")
   | Interrupted -> { prompt(screen); keyLoop(state, screen) }
+  | Died(down) -> { reportDeath(screen, down); keyLoop(state, screen) }
   | Done(_) -> keyLoop(state, screen)
+}
+
+// Report §11.2: what died while the session was reading. In line mode the
+// session blocks in `Io.readLine`, so a death is reported before the next
+// prompt instead; §6.4 leaves every other message in the mailbox.
+fn deaths(screen : Address(ScreenMsg)) -> Unit with ShellMsg = receive {
+    Died(down) -> { reportDeath(screen, down); deaths(screen) }
+  | after 0 -> Unit
+}
+
+// Report §11.2: a process that faults is reported with its spawn site and
+// cause; returning, being killed, and the program's end are not news.
+fn reportDeath(screen : Address(ScreenMsg), down : Down) -> Unit with m = match down {
+    Down(reason = Fault(text), function = where) -> say(screen, where <> " faulted: " <> text)
+  | Down(reason = _) -> Unit
 }
 
 //
@@ -382,6 +405,7 @@ fn keyLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = r
 //
 
 fn lineLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = {
+    deaths(screen);
     prompt(screen);
     match Io.readLine() {
         None -> finish(screen, "\n")

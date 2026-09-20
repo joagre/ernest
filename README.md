@@ -68,7 +68,7 @@ bin/               ernc and ern, as escript sources
 stdlib/            the standard library as Ernest source
 shell/             the shell as Ernest source, from MVP 2.6
 build/             build products, not in git: build/stdlib/ from make and make doc
-libs/              the first-party libraries, each a source root, from MVP 2.6
+libs/              the first-party libraries, each a source root, from MVP 2.7
 ```
 
 A module path segment is one lowercase word (report §11.1); a multi-word module is a nested directory. Files that are not modules use underscores.
@@ -110,7 +110,6 @@ The toolchain is the report on one node; the plan's MVPs lift the table row by r
 
 | Construct | Until | What you see today |
 |---|---|---|
-| `ern --shell file.erc` (§11.2) | MVP 2.6 | `a file with --shell is not in this toolchain yet; it arrives in MVP 2.6's checkpoint 1` |
 | `:load`, `:reload`, `:processes`, `:faults` at the prompt (§11.2) | MVP 2.6 | `that command is not built yet; it arrives in MVP 2.6's checkpoint 1` |
 | `spawn(Peer(...))`, peers, `--config-dir` (§6.2, §8.3) | MVP 3 | `spawn` faults with `peer unreachable`; the configuration is not read |
 | `remote`, `parallelRemote` (§6.7) | MVP 3 | `Left(NoRemotePeer)` |

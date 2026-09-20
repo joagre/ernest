@@ -1,0 +1,26 @@
+//
+// A program for the shell's own tests: a process to drive from the prompt,
+// and an entry point that prints, waits, and faults, so that the shell's
+// report of a fault in the program is under test. The waits make the order
+// of the session's output the same on every run.
+//
+
+export type Msg = Add(Int) | Get(reply : Reply(Int))
+
+export fn start() -> Address(Msg) with m = spawn(Local, fn() = loop(0))
+
+fn loop(n : Int) -> Unit with Msg = {
+    let n2 = receive {
+        Add(k) -> n + k
+      | Get(reply = r) -> { answer(r, n); n }
+    };
+    loop(n2)
+}
+
+export fn main() -> Unit with Unit = {
+    Io.println("counter is here");
+    Clock.alarm(150, fn(_) = Unit);
+    receive { _ -> Unit };
+    let n = 1 / 0;
+    Unit
+}

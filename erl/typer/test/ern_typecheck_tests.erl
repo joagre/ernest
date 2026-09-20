@@ -108,7 +108,7 @@ operators_need_a_determined_operand_type_test() ->
 %% against the operand type; the result is the operator's, and an
 %% ordering is a Bool; a type without the member has no operator
 user_type_operators_test() ->
-    Vec = "type Vec = Vec(Int)\nexport fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a + b)\n"
+    Vec = "export type Vec = Vec(Int)\nexport fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a + b)\n"
           "export fn Vec.*(Vec(a), Vec(b)) -> Float = Int.toFloat(a * b)\n"
           "export fn Vec.compare(Vec(a), Vec(b)) -> Ordering = Int.compare(a, b)\n",
     ?assertEqual("(M.Vec, M.Vec) -> M.Vec", type_of(Vec ++ "export fn f(a : Vec, b) = a + b", f)),
@@ -132,18 +132,19 @@ user_type_operators_test() ->
                  err(Vec ++ "export fn Vec.negate(Vec(a), Vec(b)) -> Vec = Vec(-a)\n"
                      "fn f(a : Vec) = -a")),
     ?assertMatch("V.compare must return an Ordering: " ++ _,
-                 err("type V = V(Int)\nexport fn V.compare(V(a), V(b)) -> Int = a - b\n"
+                 err("export type V = V(Int)\nexport fn V.compare(V(a), V(b)) -> Int = a - b\n"
                      "fn f(a : V, b) = a < b")),
     ?assertMatch("Vec.+ does not fit two operands of Vec: " ++ _,
-                 err("type Vec = Vec(Int)\nexport fn Vec.+(Vec(a), b : Int) -> Vec = Vec(a + b)\n"
+                 err("export type Vec = Vec(Int)\n"
+                     "export fn Vec.+(Vec(a), b : Int) -> Vec = Vec(a + b)\n"
                      "fn f(a : Vec, b) = a + b")),
     %% an operator with a mailbox effect is process code (report §3.4)
     ?assertEqual("Vec.+ needs a process, and f is pure",
-                 err("type Vec = Vec(Int)\n"
+                 err("export type Vec = Vec(Int)\n"
                      "export fn Vec.+(Vec(a), Vec(b)) -> Vec with Never = Vec(a + b)\n"
                      "fn f(a : Vec, b) -> Vec = a + b")),
     %% report §8.5: a let is not on a cycle through an operator it does not use
-    ?assertEqual(ok, ok("type Vec = Vec(Int)\nlet scale = 2 + 1\n"
+    ?assertEqual(ok, ok("export type Vec = Vec(Int)\nlet scale = 2 + 1\n"
                         "export fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a + b * scale)\n")).
 
 %% report §4.8, §3.9: an operator's member is checked when first demanded,
@@ -151,7 +152,7 @@ user_type_operators_test() ->
 %% polymorphism, a member and a helper may use each other, and a member
 %% that fails leaves its users with their own types
 operator_member_on_demand_test() ->
-    Vec = "type Vec = Vec(Int)\n",
+    Vec = "export type Vec = Vec(Int)\n",
     %% pair is polymorphic in x; Vec.+ uses it at Vec and f at String
     ?assertEqual("(M.Vec, M.Vec) -> #(String, Int)",
                  type_of(Vec ++ "export fn f(a : Vec, b) = { let _ = a + b; pair(\"s\", 2) }\n"
@@ -256,7 +257,8 @@ patterns_test() ->
     ?assertEqual(ok, ok("type P = P(x : Int, y : Int)\nfn f(p) = { let P(x = a) = p; a }")),
     ?assertEqual("a parameter pattern must be irrefutable", err("fn f(Some(x)) = x")),
     ?assertEqual("(M.P) -> Int",
-                 type_of("type P = P(x : Int, y : Int)\nexport fn getX(P(x = v) : P) = v", getX)),
+                 type_of("export type P = P(x : Int, y : Int)\n"
+                         "export fn getX(P(x = v) : P) = v", getX)),
     ?assertEqual("Get has no field bogus",
                  err("type R = Get(reply : Int)\nfn f(r) = match r { Get(bogus = b) -> b }")).
 
@@ -349,7 +351,8 @@ type_declarations_test() ->
     ?assertEqual("List takes 1 type argument, not 2", err("fn f(x : List(Int, Int)) = x")),
     %% prelude names may be shadowed (report §4.2)
     ?assertEqual("(M.Key) -> Bool",
-                 type_of("type Key = Up | Down\nexport fn isDown(k) = match k { Down -> true"
+                 type_of("export type Key = Up | Down\nexport fn isDown(k) = match k"
+                         " { Down -> true"
                          " | Up -> false }", isDown)),
     ?assertEqual("field names must be unique within a constructor",
                  err("type T = T(a : Int, a : Int)")).
@@ -374,7 +377,7 @@ with_binds_to_the_nearest_arrow_test() ->
 %% report §5.9: the alternatives of a clause bind the same variables at the
 %% same types, and coverage counts each alternative
 or_pattern_test() ->
-    Shape = "type Shape = Circle(Int) | Square(Int) | Dot\n",
+    Shape = "export type Shape = Circle(Int) | Square(Int) | Dot\n",
     ?assertEqual("(M.Shape) -> Int",
                  type_of(Shape ++ "export fn area(s : Shape) = match s {"
                          " Circle(n) or Square(n) -> n | Dot -> 0 }", area)),
@@ -408,7 +411,7 @@ let_cycle_test() ->
     ?assertEqual(ok, ok("let a : Int = b + 1\nlet b : Int = 1")),
     %% through an operator's member (report §4.8)
     ?assertEqual("the initializer of x depends on itself, through Vec.+, y",
-                 err("type Vec = Vec(Int)\nlet x = Vec(1) + Vec(2)\nlet y = x\n"
+                 err("export type Vec = Vec(Int)\nlet x = Vec(1) + Vec(2)\nlet y = x\n"
                      "export fn Vec.+(Vec(a), Vec(b)) -> Vec ="
                      " { let Vec(c) = y; Vec(a + b + c) }")),
     %% two independent cycles are two errors
@@ -698,7 +701,7 @@ reply_lambda_test() ->
 %% names, in any order
 self_qualified_test() ->
     ?assertEqual("() -> Int", type_of("export fn f() = M.g()\nfn g() = 1\n", f)),
-    ?assertEqual("(M.T) -> Int", type_of("type T = T(Int)\nexport fn f(t) = M.T.n(t)\n"
+    ?assertEqual("(M.T) -> Int", type_of("export type T = T(Int)\nexport fn f(t) = M.T.n(t)\n"
                                          "fn T.n(T(n)) = n\n", f)).
 
 %% report §4.4: the constructor of an abstract type appears only in the
@@ -771,6 +774,24 @@ typed_ast_test() ->
 %%
 %% The example programs
 %%
+
+%% report §4.2: an exported declaration is made of the types that cross the
+%% boundary with it; a private type in its signature is refused, and an
+%% abstract type, whose values cross and whose constructors do not, is not
+exported_types_test() ->
+    ?assertEqual("start is exported and its type names Msg, which this module keeps private",
+                 err("type Msg = Ping\nexport fn start() -> Address(Msg) with m ="
+                     " spawn(Local, fn() = Unit)")),
+    ?assertEqual("Holder is exported and its type names Hidden, which this module keeps private",
+                 err("type Hidden = Hidden(Int)\nexport type Holder = Holder(Hidden)")),
+    ?assertEqual(ok, ok("export type Msg = Ping\nexport fn start() -> Address(Msg) with m ="
+                        " spawn(Local, fn() = Unit)")),
+    %% an abstract type is how a value crosses without its constructors
+    ?assertEqual(ok, ok("export abstract type Box = B(Int) with { of : (Int) -> Box }\n"
+                        "export fn Box.of(n) = B(n)")),
+    %% the effect names no value: an entry point's mailbox type may be private
+    ?assertEqual(ok, ok("type Msg = Ping\nexport fn main() -> Unit with Msg ="
+                        " receive { Ping -> Unit }")).
 
 %% report §4.2
 modules_example_test() ->
@@ -1069,7 +1090,7 @@ receive_guard_test() ->
                      "fn loop() -> Unit with Msg = receive { N(k) when k > limit -> Unit"
                      " | _ -> Unit }")),
     ?assertEqual("a `receive` guard orders only Int, Float, String, and Char, not Vec",
-                 err("type Vec = Vec(Int)\n"
+                 err("export type Vec = Vec(Int)\n"
                      "export fn Vec.compare(Vec(a), Vec(b)) -> Ordering = Int.compare(a, b)\n"
                      "type M = Go(Vec)\n"
                      "fn loop() -> Unit with M = receive { Go(v) when v < Vec(0) -> Unit"

@@ -3154,6 +3154,18 @@ An input may declare what a module may, which is what the shell's note says the 
 
 **The documentation renderer moved out of the CLI.** `ernc --doc` and `:doc` render the same thing from the same chunk, a page and one declaration of it, so the rendering is `ern_page`, which both call. It is named `ern_page` and not `ern_doc` because `ern_doc_tests` is already the name of the test that reads the documentation rules over the standard library, and two test modules of one name cannot both exist.
 
+## A File Beside the Prompt, 2026-09-20
+
+`ern --shell file.erc`. The runner loads the module and its dependencies, runs their initializers (§8.5) and hands the front end their interfaces; the shell is the entry point and spawns the file's entry point itself, through a foreign call that gives it the address back, so that it can monitor it (§6.9).
+
+**The shell spawns it, rather than the runner.** Both are possible, and monitoring decides: a fault in the program is news at the prompt, and the shell can only learn of a death it monitors. One `monitor` gives that for the entry point today, and the general door, what the runtime knows about every process it started, is the next item; `Returned`, `Killed` and `ProgramEnd` are not news either way.
+
+**The loaded modules are the scope, not the load path.** §11.2 says every loaded module is in scope, and that is what the interfaces the runner hands over are. A module on the load path that nothing loaded is not in scope until `:load` loads it, which is what `:load` is for; the note said otherwise and was corrected.
+
+**An exported declaration is made of exported types (§4.2).** Found here: a counter module exported `start : () -> Address(Msg)` with `Msg` private, and printing that address at the prompt crashed the compiler with `no case clause matching undefined`, because the layout of a private type is not in the interface a dependent reads. `ernc` crashed the same way on an ordinary module that printed such a value, so the defect was never the shell's. The rule is now §4.2's: the type of an exported declaration, and the field types of an exported type, may not name a type the module keeps private; an opaque type whose values cross but whose constructors do not is an `abstract type` (§4.4). A function's effect is not part of this, since it names no value: an entry point may have a private mailbox type, which snake has. Seven test fixtures declared a private type and exported a function over it; each now exports the type, which is what a reader would have written.
+
+**A binding was made inside an unmarked foreign call.** An input that binds compiles a holder module, and the host's compiler waits for a process of its own; the input's process waited with it, looking idle, and `Deadlock` was declared over a binding being made. §8.6 already counts a foreign call in progress as something that can still deliver, and the front end simply was not saying so; the compile is now inside `ern_rt:in_foreign`. It appeared as a session that died the moment an input with a clock alarm bound its value, and two runs in a row showed it: rare in wall-clock terms, certain when the alarm and the reaper's hundred milliseconds line up.
+
 ## Later
 
 Planned or considered, not in the language today.

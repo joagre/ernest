@@ -539,20 +539,38 @@ ern_main(Opts, Rest, Err) ->
     end.
 
 %% Report §11.2: the shell is the entry process, and a file's entry point is
-%% spawned beside it. Checkpoint 0 takes no file.
-shell(_Opts, Rest, Err) ->
+%% spawned beside it, so §8.6 ends the program when the shell ends and not
+%% when that entry point returns. The shell spawns it itself, through the
+%% front end, so that it can monitor it (§6.9); what the runner does is load
+%% the modules, put their interfaces in the session's scope, and run their
+%% initializers (§8.5) before the shell starts.
+shell(Opts, Rest, Err) ->
     quiet_signals(),
-    Rest =:= [] orelse fail("a file with --shell is not in this toolchain yet;"
-                            " it arrives in MVP 2.6's checkpoint 1"),
     Mod = ern_emitter:module_atom(['Shell']),
     case code:ensure_loaded(Mod) of
         {module, Mod} -> ok;
         _ -> fail("the shell is not built; run make")
     end,
+    Init = case Rest of
+               [] ->
+                   ern_shell:loaded(#{roots => [], source_root => source_root(Opts, ".", "."),
+                                      ifaces => [], entry => none}),
+                   fun() -> ok end;
+               [File] ->
+                   {Ns, Roots, Loaded} = program(File, Opts),
+                   {EntryMod, EntryFn, Loaded1} = entry_point(Opts, Ns, Roots, Loaded),
+                   ern_shell:loaded(#{roots => Roots,
+                                      source_root => source_root(Opts, File, "."),
+                                      ifaces => ifaces(Loaded1),
+                                      entry => {EntryMod, EntryFn, entry_site(EntryMod, EntryFn)}}),
+                   init_fun(Loaded1);
+               _ ->
+                   usage_fail("--shell takes at most one .erc file")
+           end,
     %% report §11.2: the sinks are the screen's, which the shell names
     Sink = fun(Bin) -> ern_shell:to_screen(Bin) end,
     case ern_rt:run_main(fun() -> Mod:main() end, <<"Shell.main">>,
-                         #{stdout => Sink, stderr => Sink}) of
+                         #{stdout => Sink, stderr => Sink, init => Init}) of
         ok -> 0;
         {fault, Msg} ->
             io:format(Err, "fault: ~s~n", [Msg]),
@@ -564,6 +582,15 @@ shell(_Opts, Rest, Err) ->
 
 run(Opts, File, Err) ->
     quiet_signals(),
+    {Ns, Roots, Loaded} = program(File, Opts),
+    case lists:member(test, Opts) of
+        true -> run_tests(Ns, Loaded, Err);
+        false -> run_entry(Opts, Ns, Roots, Loaded, Err)
+    end.
+
+%% The module of a `.erc`, its load path, and every module loaded for it:
+%% the file's own dependencies first (report §11.2, §4.2).
+program(File, Opts) ->
     filelib:is_regular(File) orelse fail("no such file " ++ File),
     filename:extension(File) =:= ".erc" orelse fail(File ++ " does not end in .erc"),
     Abs = absolute(File),
@@ -578,11 +605,15 @@ run(Opts, File, Err) ->
         fail(File ++ " is not at the path of its namespace " ++ qname(Ns)),
     lists:foreach(fun shape/1, filename:split(filename:rootname(module_path(Ns)))),
     Roots = [Root | [absolute(D) || {load_path, D} <- Opts]],
-    Loaded = load(Ns, Roots, []),
-    case lists:member(test, Opts) of
-        true -> run_tests(Ns, Loaded, Err);
-        false -> run_entry(Opts, Ns, Roots, Loaded, Err)
-    end.
+    {Ns, Roots, load(Ns, Roots, [])}.
+
+%% Report §11.2: the interfaces of the modules loaded, which the shell puts
+%% in the session's scope; each is the `ErnI` chunk of the `.erc` it came
+%% from (§11.1).
+ifaces(Loaded) ->
+    [I || Mod <- lists:reverse(Loaded),
+          {ok, Bin} <- [file:read_file(code:which(Mod))],
+          {ok, #{iface := I}} <- [ern_emitter:read_interface(Bin)]].
 
 %% Report §8.6: a signal from outside ends the program as returning from
 %% main does, and the runtime prints nothing of its own about it. The host
@@ -661,6 +692,23 @@ cause({'Fault', Msg}) -> Msg;
 cause(Reason) -> atom_to_binary(Reason).
 
 run_entry(Opts, Ns, Roots, Loaded, Err) ->
+    {EntryMod, EntryFn, Loaded1} = entry_point(Opts, Ns, Roots, Loaded),
+    Init = init_fun(Loaded1),
+    Site = entry_site(EntryMod, EntryFn),
+    case ern_rt:run_main(fun() -> EntryMod:EntryFn() end, Site, #{init => Init}) of
+        ok -> 0;
+        {fault, Msg} ->
+            io:format(Err, "fault: ~s~n", [Msg]),
+            1;
+        deadlock ->
+            %% report §8.6
+            io:format(Err, "error: Deadlock~n", []),
+            1
+    end.
+
+%% Report §8.1: the entry point, the loaded module's `main` or the function
+%% `--main` names, and every module loaded for it.
+entry_point(Opts, Ns, Roots, Loaded) ->
     {EntryMod, EntryFn, Loaded1} =
         case proplists:get_value(main, Opts) of
             undefined -> {ern_emitter:module_atom(Ns), main, Loaded};
@@ -674,18 +722,10 @@ run_entry(Opts, Ns, Roots, Loaded, Err) ->
     erlang:function_exported(EntryMod, EntryFn, 0) orelse
         fail("no exported entry point " ++ atom_to_list(EntryFn) ++ " in "
              ++ qname(entry_ns(EntryMod)) ++ "; an entry point takes no arguments (report §8.1)"),
-    Init = init_fun(Loaded1),
-    Site = unicode:characters_to_binary(qname(entry_ns(EntryMod)) ++ "." ++ atom_to_list(EntryFn)),
-    case ern_rt:run_main(fun() -> EntryMod:EntryFn() end, Site, #{init => Init}) of
-        ok -> 0;
-        {fault, Msg} ->
-            io:format(Err, "fault: ~s~n", [Msg]),
-            1;
-        deadlock ->
-            %% report §8.6
-            io:format(Err, "error: Deadlock~n", []),
-            1
-    end.
+    {EntryMod, EntryFn, Loaded1}.
+
+entry_site(Mod, Fn) ->
+    unicode:characters_to_binary(qname(entry_ns(Mod)) ++ "." ++ atom_to_list(Fn)).
 
 entry_ns(Mod) ->
     "ern@" ++ Path = atom_to_list(Mod),

@@ -7,7 +7,7 @@
 %% input declares is the module's declarations.
 -module(ern_shell).
 
--export([start/2, check/2, type_text/1, declared/1, run/3, show/3]).
+-export([loaded/1, start/0, program/0, check/2, type_text/1, declared/1, run/3, show/3]).
 -export([bindings/1, forget/2, browse/2, doc/2]).
 -export([is_terminal/0, write/1, screen/1, to_screen/1]).
 
@@ -30,10 +30,32 @@
 %% A value with the descriptor of its type, so it prints as E.1 prints it.
 -record(value, {term, desc}).
 
--spec start(binary(), binary()) -> #env{}.
-start(LoadPath, SourceRoot) ->
-    #env{roots = [binary_to_list(D) || D <- binary:split(LoadPath, <<":">>, [global]), D =/= <<>>],
-         source_root = binary_to_list(SourceRoot)}.
+%% Report §11.2: what the runner loaded before the shell started, which the
+%% shell begins from: the load path, where a module's source is found, the
+%% interfaces of the loaded modules, and the entry point to spawn beside the
+%% prompt.
+-spec loaded(map()) -> ok.
+loaded(What) ->
+    persistent_term:put({?MODULE, loaded}, What).
+
+-spec start() -> #env{}.
+start() ->
+    What = persistent_term:get({?MODULE, loaded}, #{}),
+    #env{roots = maps:get(roots, What, []),
+         source_root = maps:get(source_root, What, "."),
+         ifaces = maps:get(ifaces, What, [])}.
+
+%% Report §11.2, §8.1: the file's entry point, spawned beside the prompt and
+%% not entered, and nothing where the shell was started with no file. The
+%% shell monitors what it gets back (§6.9), so a fault in it is seen.
+-spec program() -> {'Some', pid()} | 'None'.
+program() ->
+    case persistent_term:get({?MODULE, loaded}, #{}) of
+        #{entry := {Mod, Fn, Site}} ->
+            {'Some', ern_rt:spawn('Local', fun() -> Mod:Fn() end, Site)};
+        _ ->
+            'None'
+    end.
 
 %% Report §11.2: an input is checked before it is run; a failure is §11.5's
 %% text, as `ernc` shows it.
@@ -351,11 +373,15 @@ module_doc(Segments) when length(Segments) >= 2 ->
 module_doc(_) ->
     none.
 
+%% The compiled module behind a namespace, as bytes: the file the runner
+%% loaded it from, an `.erc`, or the `.beam` of a module on the code path,
+%% the standard library's among them. `beam_lib` takes either as a binary.
 beam_of(Ns) ->
-    File = atom_to_list(ern_emitter:module_atom(Ns)) ++ ".beam",
-    case code:where_is_file(File) of
-        non_existing -> none;
-        Path -> Path
+    Mod = ern_emitter:module_atom(Ns),
+    Paths = [code:which(Mod), code:where_is_file(atom_to_list(Mod) ++ ".beam")],
+    case [Bin || P <- Paths, is_list(P), {ok, Bin} <- [file:read_file(P)]] of
+        [] -> none;
+        [Bin | _] -> Bin
     end.
 
 entry(none, _) -> none;
@@ -444,7 +470,15 @@ arity(_) -> none.
 %% binding that holds a function, the direct call the emitter emits for a
 %% name it knows the arity of: `f(1)` is `ern@bindings1:f(1)` and `f` alone
 %% is `ern@bindings1:f()`, so the holder answers both.
+%%
+%% Report §8.6: the host's compiler waits for a process of its own, and the
+%% input's process is an Ernest process waiting with it. It is marked as a
+%% foreign call in progress, which is what it is, so that `Deadlock` is not
+%% declared over a binding being made.
 holder(Mod, Name, Arity) ->
+    ern_rt:in_foreign(fun() -> holder_beam(Mod, Name, Arity) end).
+
+holder_beam(Mod, Name, Arity) ->
     Get = erl_syntax:application(
             erl_syntax:module_qualifier(erl_syntax:atom(persistent_term), erl_syntax:atom(get)),
             [erl_syntax:tuple([erl_syntax:atom(Mod), erl_syntax:atom(Name)])]),

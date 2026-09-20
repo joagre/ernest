@@ -87,7 +87,7 @@ check(Ns, Decls0, Ifaces, Session) ->
         St1 = ern_types:set_scope(Env1a#env.st, Ns, SessionTypes, Shadows),
         Env1 = mark_abstract(Decls, Env1a#env{st = St1}),
         {Typed, Env2, Errs2} = check_values(Decls, Env1),
-        Errs3 = check_signatures(Decls, Env2),
+        Errs3 = check_signatures(Decls, Env2) ++ check_exports(Decls, Env2),
         case lists:sort(Errs1 ++ Errs2 ++ Errs3) of
             [] -> {ok, Typed, make_iface(Decls, Env2), Env2};
             Errs -> {error, Errs}
@@ -2289,6 +2289,57 @@ make_iface(Decls, #env{ns = Ns, types = Ts, globals = Gs} = Env) ->
     ExportedValues = maps:from_list([{Q, maps:get(Q, Gs)}
                                      || D <- Decls, {true, Q} <- [exported_value(D, Env)]]),
     #iface{namespace = Ns, types = ExportedTypes, values = ExportedValues}.
+
+%% Report §4.2: an exported declaration is made of the types that cross the
+%% boundary with it. A private type in an exported signature would leave a
+%% dependent module holding a value it cannot build or lay out; a type whose
+%% values cross but whose constructors do not is an abstract type (§4.4).
+%% A function's effect names no value and is not part of this.
+check_exports(Decls, #env{local_types = LT, globals = Gs, types = Ts} = Env) ->
+    Exported = [Q || D <- Decls, {true, Q} <- [exported_type(D, Env)]],
+    Own = maps:values(LT),
+    Private = fun(Q) -> lists:member(Q, Own) andalso not lists:member(Q, Exported) end,
+    lists:append(
+      [begin
+           Named = case exported_value(D, Env) of
+                       {true, Q} -> tcons(scheme_type(maps:get(Q, Gs, undefined), Env));
+                       false ->
+                           case exported_type(D, Env) of
+                               {true, TQ} -> constructor_tcons(maps:get(TQ, Ts, undefined), Env);
+                               false -> []
+                           end
+                   end,
+           [private_type(D, T) || T <- lists:usort(Named), Private(T)]
+       end || D <- Decls]).
+
+private_type(D, Q) ->
+    Name = lists:last(Q),
+    #diag{span = ern_diag:span(element(2, D)),
+          message = declared_text(D) ++ " is exported and its type names "
+                    ++ atom_to_list(Name) ++ ", which this module keeps private",
+          help = "export " ++ atom_to_list(Name) ++ ", or declare it `abstract type` so that"
+                 " its constructors stay private (§4.4)"}.
+
+declared_text(#fn_decl{owner = O, name = N}) -> local_name(O, N);
+declared_text(#let_decl{owner = O, name = N}) -> local_name(O, N);
+declared_text(#foreign_fn_decl{owner = O, name = N}) -> local_name(O, N);
+declared_text(#type_decl{name = N}) -> atom_to_list(N);
+declared_text(#abstract_decl{type = #type_decl{name = N}}) -> atom_to_list(N);
+declared_text(#foreign_type_decl{name = N}) -> atom_to_list(N).
+
+scheme_type(#scheme{type = T}, Env) -> resolve_type(T, Env);
+scheme_type(_, _) -> pure.
+
+constructor_tcons(#tinfo{constructors = Cs}, Env) ->
+    lists:append([tcons(scheme_type(S, Env)) || #cinfo{scheme = S} <- Cs]);
+constructor_tcons(_, _) ->
+    [].
+
+%% The type constructors a type names, its arrows' effects aside.
+tcons({tcon, Q, Args}) -> [Q | lists:append([tcons(A) || A <- Args])];
+tcons({ttuple, Es}) -> lists:append([tcons(E) || E <- Es]);
+tcons({tfn, Ps, _Effect, R}) -> lists:append([tcons(T) || T <- Ps ++ [R]]);
+tcons(_) -> [].
 
 exported_type(#type_decl{export = true, name = N}, Env) -> {true, Env#env.ns ++ [N]};
 exported_type(#abstract_decl{export = true, type = #type_decl{name = N}}, Env) ->

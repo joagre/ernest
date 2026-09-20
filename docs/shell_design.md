@@ -16,9 +16,9 @@ The shell is an Ernest program of three processes over a front end. Its source i
 `ern [--config-dir dir] [--load-path dir ...] [--main Qualified.name] [--shell] [--source-root dir] [file.erc]` (§11.2). The shell adds the last two: `--shell` takes no argument and makes the file optional; `--source-root` says where `:load` finds a module's source, the working directory by default, as `ernc` defaults it.
 
 - **`ern --shell`** starts the runtime with the standard library and the load path, nothing else running.
-- **`ern --shell file.erc`** loads the module and its dependencies and spawns its entry point beside the prompt, every loaded module in scope.
+- **`ern --shell file.erc`** loads the module and its dependencies and spawns its entry point beside the prompt, every loaded module in scope. The runner loads them, runs their initializers (§8.5), and hands the front end their interfaces; the shell spawns the entry point itself, so that it can monitor it.
 - **The shell is the entry process** (§8.1); the file's entry point is spawned, not entered. §8.6 then reads as it always did, of the shell: the spawned entry returning ends nothing, its processes keep running, a fault in it is one more fault reported at the prompt, and `--main Q.name` names the function to spawn rather than the one to be.
-- **The program's processes are the session's.** `:processes` sees them, `:faults` reports their faults, `:quit` ends them with `ProgramEnd` (§8.6).
+- **The program's processes are the session's.** `:processes` sees them, `:faults` reports their faults, `:quit` ends them with `ProgramEnd` (§8.6). Until the door onto what the runtime knows about processes is built, the shell reports the entry point's own fault, which it monitors, and no other death.
 - **An input cannot reach a process the program spawned.** There is no registry (§6.3), so the prompt has a running program's modules, its output, and its faults. A program meant to be driven from the prompt returns an address from the function that starts it.
 - **At start the shell prints one line**, the version and how to leave, `:quit` or `C-d`, with `:help` for the rest.
 - **Then it runs the inputs in `$HOME/.ernest/startup`**, if it exists, after the file's entry point has been spawned, so a startup input sees what is running. A startup input that fails is reported as any input is and the session goes on.
@@ -173,7 +173,7 @@ A command is `:` and a name; it is not an Ernest function. Any prefix selects th
 - **`:set depth n`**, **`:set length n`**, **`:set timing on`** and **`off`**; `:set` alone shows what they are. The settings are one Ernest value the session carries, not the front end's.
 - **A command that is not built yet says so.** `:help` lists it and typing it answers that it arrives in MVP 2.6's checkpoint 1, which the README's table holds; the order the prefix rule reads is the whole order from the start, so `:b` is `:browse` and `:f` is `:forget` before `:bindings` and `:faults` are built.
 
-A program is started by calling it; there is no command for it. A module meant for the shell exports a function that spawns its processes and returns. Modules are not imported: every module on the load path is in scope by its qualified name (§4.2).
+A program is started by calling it; there is no command for it. A module meant for the shell exports a function that spawns its processes and returns. Modules are not imported: every module the session has loaded is in scope by its qualified name (§4.2), which is the file's own modules and the standard library until `:load` brings in another.
 
 ## Files
 
