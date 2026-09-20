@@ -15,7 +15,8 @@ citations_resolve_test() ->
     ReportHeads = headings(Report),
     GuideHeads = headings(Guide),
     Live = ["ernest_report.md", "README.md", "CLAUDE.md", "docs/implementation_plan.md",
-            "docs/architecture.md", "docs/shell_design.md" | examples()],
+            "docs/architecture.md", "docs/shell_design.md", "docs/module_doc_template.md"]
+        ++ examples() ++ stdlib(),
     Dangling =
         [{F, C} || F <- Live, C <- cites(read(F)), not resolves(C, report, ReportHeads, GuideHeads)]
         ++ [{"ernest_guide.md", C} || C <- cites(Guide),
@@ -29,6 +30,10 @@ read(Rel) ->
 examples() ->
     [filename:join("examples", F)
      || F <- filelib:wildcard("**/*.ern", filename:join(?ROOT, "examples"))].
+
+stdlib() ->
+    [filename:join("stdlib", F)
+     || F <- filelib:wildcard("*.ern", filename:join(?ROOT, "stdlib"))].
 
 %% "3.9", "3", "Appendix A", "E.12" for the headings of a document.
 headings(Bin) ->

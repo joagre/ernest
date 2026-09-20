@@ -3,10 +3,13 @@
 %% A draw is uniform over the bound and zero, either sign.
 -module(ern_random).
 
--export([seed/1, next/2]).
+-export([seed/1, next/2, next_float/1]).
 
 -spec seed(integer()) -> rand:state().
 seed(N) -> rand:seed_s(exsss, N).
+
+-spec next_float(rand:state()) -> {float(), rand:state()}.
+next_float(S) -> rand:uniform_s(S).
 
 -spec next(rand:state(), integer()) -> {integer(), rand:state()}.
 next(S, Bound) when Bound >= 0 ->

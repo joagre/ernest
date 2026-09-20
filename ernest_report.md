@@ -1,6 +1,6 @@
 # Ernest: Language Report
 
-Revision of 19 September 2026. Rationale, rejected alternatives, and open questions are in [`decisions.md`](docs/decisions.md).
+Revision of 20 September 2026. Rationale, rejected alternatives, and open questions are in [`decisions.md`](docs/decisions.md).
 
 ## 0. Introduction
 
@@ -99,7 +99,7 @@ The escapes:
 
 ```
 ( ) { } [ ] << >> #( , ; : = <- -> | . .. _
-+ - * / % <> :: == != < <= > >= && || |>
++ - * / % <> :: == != < <= > >= && || |> !
 ```
 
 Three grammar categories built from the above:
@@ -1081,7 +1081,7 @@ Eight rules give a function its shape.
 
 1. The subject comes first, callbacks last, an accumulator between them: `x |> f(a)` is `f(x, a)`. No aliases, no argument-order variants.
 2. One verb per operation, in every module that has it. The container operations are `empty`, `size`, `isEmpty`, `contains`, `get` for lookup by index or key, `put` for insertion, `remove`, `map`, `filter`, `filterMap`, `foldLeft`, `foreach`, `any`, `all`, `find`, `fromList`, and `toList`; the sum-type operations are `withDefault`, `map`, and `andThen`. A predicate is `isX`. A verb not in this list needs an entry in the decisions log.
-3. A conversion is named by the other type and lives in the subject's module: `String.toInt`, `String.fromList`, `Int.toString`. When one conversion has several policies, the policy is the name: `Float.round`, `Float.floor`, `Float.ceil`.
+3. A conversion is named by the other type and lives in the subject's module: `String.toInt`, `String.fromList`, `Int.toString`. When one conversion has several policies, the policy is the name: `Float.round`, `Float.floor`, `Float.ceil`, `Float.truncate`.
 4. A partial operation returns `Optional`; one with a cause returns `Either`. No function here faults except as §7.4 says.
 5. A function is pure unless its value lives in a process: the modules over the system references of §8.2 carry `with m`, nothing else does. Every function that takes a function is effect-polymorphic (§3.9).
 6. A module is documented as a section 3 manual page, in CommonMark (§2.2). The module's doc block says what the module is for, then has the section `Examples`, with the module's central examples, and `See also` when there is something to see. Every exported declaration has a doc block, a member of an abstract type at its signature entry: one sentence saying what the type does not say, which occurrence `remove` removes, the order `toList` produces, the range `next` draws from; an `Errors` section when it faults, and none otherwise (rule 4); an `Examples` section with one example for an exported `type`, an abstract type's examples covering its members; `See also` when there is something to see. Every exported function except an operator, whose use is infix, is called by at least one example on the module's page, in the module's examples or its own, and an example that would repeat another is left out. An example ends in `// => v`, where `v` is what `Io.debug` prints for its value; what the example itself prints comes before it and is not part of `v`. An example that cannot run where the page's examples run, because its value is of an abstract type, because it reads a file or a socket, or because it needs a mailbox of its own, has no `// =>` line and is only type-checked. The module's doc block ends with the line `since v`, the toolchain version in which the module appeared; a declaration has the module's `since` unless its doc block ends with one of its own. The name and the type are the heading and the code block `ernc --doc` renders (§11.4).
@@ -1341,6 +1341,7 @@ The runtime's generator behind a pure interface. `Seed` is a foreign type (§3.8
 foreign type Seed
 Random.seed : (Int) -> Random.Seed
 Random.next : (Random.Seed, Int) -> #(Int, Random.Seed) // uniform between 0 and the second inclusive, and the seed after it
+Random.nextFloat : (Random.Seed) -> #(Float, Random.Seed) // uniform above 0.0 and below 1.0, and the seed after it
 ```
 
 ### Appendix E.14. `path.ern` (namespace `Path`)

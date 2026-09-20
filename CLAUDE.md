@@ -22,7 +22,7 @@ The rules below are in the order of work: what is authoritative, the repository,
 - **The plan says where we are.** It holds the current phase and its decisions; what is built is what `lib/` and `make test` say.
 - **The implementation is Erlang, OTP 27.** The compiler is `ernc`, the runner `ern`. The programs the toolchain runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`.
 - **The README owns the layout and the commands**, under "Layout of the repository" and "Building". `make` builds; `make test` tests.
-- **A module implementing an Ernest namespace is named by its path**, with `@` for `/`, as Gleam does: `ernest@io` in `ernest@io.erl`. Every file that is not an Ernest module uses underscores.
+- **A module implementing an Ernest namespace is named by its path**, with `@` for `/`, as Gleam does: `stdlib/io.ern` compiles to `ernest@io`. Every file that is not an Ernest module uses underscores.
 - **Third-party code is listed in `THIRD_PARTY_LICENSES`.** A borrowed file keeps its upstream header.
 
 ## Before code

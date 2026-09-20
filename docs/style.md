@@ -7,7 +7,7 @@ The style guides for the two languages in this repository. CLAUDE.md imports thi
 For the compiler's own code under `lib/`.
 
 - **Four-space indent, no tabs. Lines ≤ 100 characters,** which `test/ern_style_tests.erl` checks.
-- **Module names carry the `ern_` prefix**, except modules implementing Ernest namespaces, `ernest@io`. One `-export` list at the top, in the order the functions appear.
+- **Module names carry the `ern_` prefix**, except modules implementing Ernest namespaces, which a `stdlib/x.ern` compiles to as `ernest@x`. One `-export` list at the top, in the order the functions appear.
 - **`-spec` on every exported function.** Types shared between modules are `-type`s in the owning module.
 - **Records live in `include/*.hrl`** when shared, else in the module. No macros beyond record definitions and the few constants that need a name.
 - **Tests are EUnit, in `test/<module>_tests.erl`**, one test function per behaviour, named after the behaviour, each with a `%% report §x.y` line.

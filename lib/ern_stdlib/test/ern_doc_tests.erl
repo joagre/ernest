@@ -68,12 +68,21 @@ run_example(Mod, N, Expected) ->
                         false -> ok
                     end
            end,
+    %% the value goes to stdout, what the example prints itself may go to
+    %% either sink, and the two are separate processes, so only stdout's
+    %% last line is the value
     Result = ern_rt:run_main(fun() -> Mod:Main() end, atom_to_binary(Main),
                              #{init => Init, stdout => fun(B) -> Me ! {out, B} end,
-                               stderr => fun(B) -> Me ! {out, B} end}),
+                               stderr => fun(B) -> Me ! {err, B} end}),
     ?assertEqual(ok, Result),
     Lines = binary:split(collect([]), <<"\n">>, [global, trim]),
+    _ = collect(err, []),
     ?assertEqual(iolist_to_binary(Expected), lists:last(Lines)).
+
+collect(Tag, Acc) ->
+    receive {Tag, Bin} -> collect(Tag, [Bin | Acc])
+    after 0 -> lists:reverse(Acc)
+    end.
 
 %% A standard library module's own beam comes back after its examples ran.
 restore(Mod, Original) when is_list(Original) ->

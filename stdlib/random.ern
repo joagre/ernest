@@ -43,3 +43,14 @@ export foreign fn seed(n : Int) -> Seed = "ern_random:seed/1"
 /// // => true
 /// ```
 export foreign fn next(s : Seed, bound : Int) -> #(Int, Seed) = "ern_random:next/2"
+
+/// A number above 0.0 and below 1.0, and the seed to draw with next.
+///
+/// ### Examples
+///
+/// ```ernest
+/// let #(x, _) = Random.nextFloat(Random.seed(3));
+/// x > 0.0 && x < 1.0
+/// // => true
+/// ```
+export foreign fn nextFloat(s : Seed) -> #(Float, Seed) = "ern_random:next_float/1"

@@ -2247,6 +2247,8 @@ Bool.toText  : (Bool) -> Text
 
 **Naming.** Matches Ernest's stdlib convention: `Bool.not` (camelCase-ish since it's a single word), `Bool.toText` (matches `Int.toText`, `Float.toText`, `Char.toText`).
 
+*Superseded 2026-09-20 by "Prefix `!`" and "Nothing Waits for a Program": `!` is in the language, and no rule counts programs.*
+
 ## Bit Operators as Stdlib Functions, 2026-09-14
 
 Bit operators are added to `Int.ern` as ordinary functions, not to the language as operators:
@@ -2829,6 +2831,14 @@ The last module of the step, and the first written entirely as E.0 rule 8 descri
 Writing it found a third reason an example cannot run where a page's examples run. Rule 6 named two, an abstract value and one that reads a file or a socket. An alarm's wrap makes the caller's mailbox `Unit`, and the documentation runs its examples with `Never`, so `Clock.alarm(10, fn(_) = Unit)` type-checks and cannot run there. The rule now names that case too, and those examples carry no `// =>` line.
 
 With `Clock` the step is done: every module of Appendix E that does not wait for a system process of step 4 is written in Ernest, and `ern_prelude` keeps only §9 and the names step 4 will bring.
+
+## The Sync Sweep After Step 3, 2026-09-20
+
+Two readings, the guide against the report and every other document against the report and the code. Nothing contradicted the report on a rule of the language. What they found was drift and three real defects.
+
+In the report: its revision line still said 19 September; §2.6's token list had no `!`, though Appendix A's `Unary` does, and Appendix A is the truth; and E.0 shape rule 3 listed the rounding policies without `Float.truncate`, which E.9 admits. The plan said the phase was step 3, which `Clock` finished, and still owed `Sys.stderr` in a later MVP, which is already written. The architecture note described a runtime that no longer holds any `ernest@` module and a `run_main` that starts no stderr sink. CLAUDE.md and the style guide named `ernest@io.erl`, a file that no longer exists.
+
+The defects. `make xref` never read `docs/module_doc_template.md` or the `stdlib/*.ern` doc blocks, so their citations were unchecked; both are in its list now. The documentation harness compared the last line of a mixed stream, while a module's value goes to stdout and its own output may go to stderr, and the two are separate processes, so the comparison raced; it compares stdout's last line now. And the `rand` row still waited for "a float draw, when `Random` moves to Ernest", a trigger that had already fired: `Random.nextFloat` is in E.13, above 0.0 and below 1.0, which is what the runtime's generator gives.
 
 ## Later
 
