@@ -4,11 +4,11 @@ The shell of MVP 2.6, `ern --shell` (report §11.2). The plan owns when it is bu
 
 ## Shape
 
-The shell is an Ernest program of three processes over a front end.
+The shell is an Ernest program of three processes over a front end. Its source is a tree of its own, `shell/`, beside `stdlib/` and `examples/`, compiled by `make` into `build/shell/` where `ern --shell` finds it. It is not standard library, which E.0 would not admit it to, and not a library, which `libs/` holds from MVP 2.7; it is the toolchain's own program, written in Ernest.
 
 - **The session** is the entry process (§8.1). It holds the `Env`, the queue of inputs, the settings, and the faults `:faults` prints. It receives inputs from the reader and outcomes and fault notices from the front end, and sends the screen what to print. It runs no user code.
 - **The reader** owns the terminal's keys and edits the input. It stays live while an evaluation runs. It sends a submitted input, and the interrupt, to the session; it draws nothing itself.
-- **The screen** is the only process that writes to the terminal. The runner binds `Sys.stdout` and `Sys.stderr` to it, so a program's output and the shell's own arrive in one mailbox and are written in its order. It keeps the input line and draws it again below whatever it has just printed.
+- **The screen** is the only process that writes to the terminal. Its mailbox carries what a program printed, what the session prints, and the line and cursor the reader draws, so its type is the shell's own and not `String`; the runner binds `Sys.stdout` and `Sys.stderr` to `via(Print, screen)`, which §9.7's `Address(String)` requires and which costs no process (§6.5). A program's output and the shell's own then arrive in one mailbox and are written in its order. The screen keeps the input line and draws it again below whatever it has just printed.
 - **The front end** is the Erlang toolchain behind the foreign interface: checking, compiling, running, printing, exports, documentation, and the fault notices.
 
 ## Starting and quitting
@@ -193,7 +193,9 @@ foreign type Env      // the session so far: see "The environment"
 foreign type Checked  // a checked input
 foreign type Value    // a result, with its type
 type Outcome = Ok(env : Env, value : Value) | Failed(String)
+type Fault = Fault(site : String, cause : String) // the spawn site of §6.9 and the cause
 
+foreign fn start(loadPath : List(Path), sourceRoot : Path) -> Env with m = "..."
 foreign fn check(env : Env, input : String) -> Either(String, Checked) = "..."
 foreign fn typeText(c : Checked) -> String = "..."
 foreign fn declared(c : Checked) -> List(#(String, String)) = "..."
@@ -204,7 +206,7 @@ foreign fn doc(name : String) -> Optional(String) = "..."
 foreign fn faults(wrap : (Fault) -> m) -> Unit with m = "..."
 ```
 
-`check` returns §11.5's diagnostic text on an error. `run` starts the input's process, answers with its address, and delivers `Ok` or `Failed` when it ends, which is E.0 rule 8's shape for anything that arrives later. `typeText` is the type of an expression, for `:type`, which does not run it; `declared` is the names and types an input declares, which the shell prints and cannot read from an opaque `Env`. `exports` gives names with types, `doc` the section `:doc` prints, `faults` subscribes to what "Failing processes" shows.
+`start` makes the first `Env`, the load path and the source root in it, and every later one comes from an outcome. `check` returns §11.5's diagnostic text on an error. `run` starts the input's process, answers with its address, and delivers `Ok` or `Failed` when it ends, which is E.0 rule 8's shape for anything that arrives later. `typeText` is the type of an expression, for `:type`, which does not run it; `declared` is the names and types an input declares, which the shell prints and cannot read from an opaque `Env`. `exports` gives names with types, `doc` the section `:doc` prints, `faults` subscribes to what "Failing processes" shows.
 
 ## Prerequisites
 
@@ -228,7 +230,7 @@ Delivered before the shell. Those marked report first are written into the repor
 
 - **How an input is checked against the environment.** `ern_typecheck:check/3` takes dependency interfaces; the accumulated environment is an interface with values behind it. Whether the checker takes it as one more interface or as an environment of its own is the spike's first question, before checkpoint 1.
 - **How the emitted module reaches the values.** The front end holds them; the code compiled for an input must get at them, as arguments, through a table the emitted code reads, or by closing over them. An ABI decision that constrains what follows, so the same spike answers it.
-- **The depth and length defaults.**
+- **The depth and length defaults**, which checkpoint 0 must pick rather than defer, since it prints values.
 - **How many faults the buffer keeps.**
 - **How the line editor measures wide characters.**
 - **Where `:load`'s compiled output goes**, beyond "not beside the source".
@@ -245,7 +247,7 @@ Delivered before the shell. Those marked report first are written into the repor
 
 The plan's item stops at each; each is a shell a user can try.
 
-0. **Expressions only.** The three processes and the foreign interface; an input checked against the load path, compiled, run in a process, its value and type printed; faults, errors, quitting. No bindings, so no incremental checking: a calculator over the whole standard library, with the loop and the terminal harness proved end to end before the hard part begins.
+0. **Expressions only.** The three processes and the foreign interface; an input checked against the load path, compiled, run in a process, its value and type printed; faults, errors, quitting. The reader is the floor and no more: characters, `Backspace`, `Enter`, `C-d`, and the interrupt; the line editor is checkpoint 2. No bindings, so no incremental checking: a calculator over the whole standard library, with the loop and the terminal harness proved end to end before the hard part begins.
 1. **Bindings.** Every input checked against the accumulated environment; `it`, timing, fault reports from spawned processes, the startup file, the commands; the session golden tests.
 2. **The line editor.** Moving, deleting, killing with a single yank, history and its search, interruption, redrawing after other output, bracketed paste, the prompts; the key-stream tests. What "Line editing" marks later is later.
 3. **Completion and documentation.** `Tab`, `Shift-Tab`, command arguments.

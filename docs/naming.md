@@ -58,6 +58,7 @@ The top level answers the first question a newcomer has, which language a file i
 ```
 erl/        the toolchain, written in Erlang
 stdlib/     the standard library, written in Ernest
+shell/      the shell, written in Ernest, from MVP 2.6
 libs/       the libraries, written in Ernest, each with its own erl/ if it needs one
 examples/   programs, written in Ernest
 bin/ build/ docs/ test/

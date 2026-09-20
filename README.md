@@ -65,6 +65,7 @@ test/              what spans applications: the hand-written target modules,
                    the integration tests, expected/, golden/
 bin/               ernc and ern, as escript sources
 stdlib/            the standard library as Ernest source
+shell/             the shell as Ernest source, from MVP 2.6
 build/             build products, not in git: build/stdlib/ from make and make doc
 libs/              the first-party libraries, each a source root, from MVP 2.6
 ```
