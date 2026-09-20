@@ -3020,6 +3020,8 @@ The four utility libraries, `regex`, `crypto`, `uri`, and `zlib`, are MVP 2.8, r
 
 Against the cut: `tls` and `http` are where Ernest becomes useful for real work, and this defers that by a milestone. A shell a person can use is the better next demonstration, and the shim pattern still gets its second test.
 
+Two corrections to the entry above, made the same day. The terminal harness had been written down as landing with the shell, which points the dependency the wrong way: the shell is what most needs it, so it is 2.6's first item and the shell's first checkpoint comes after. And the plan now says what gives way if the estimate is wrong, since a milestone that does not say that decides it by accident: the libraries move to 2.7 and the shell stays.
+
 ## Later
 
 Planned or considered, not in the language today.
