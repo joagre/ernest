@@ -673,7 +673,8 @@ ern(Args, Err) ->
 ern_main(Opts, Rest, Err) ->
     case {proplists:get_value(create_config_dir, Opts), lists:member(shell, Opts), Rest} of
         {Dir, _, []} when Dir =/= undefined -> create_config_dir(Dir);
-        {undefined, true, _} -> fail("the shell is not in MVP 1");
+        {undefined, true, _} ->
+            fail("the shell is not in this toolchain yet; it arrives in MVP 2.6");
         {undefined, false, [File]} -> run(Opts, File, Err);
         _ -> usage_fail("one .erc file argument is required")
     end.

@@ -109,12 +109,12 @@ The toolchain is the report on one node; the plan's MVPs lift the table row by r
 
 | Construct | Until | What you see today |
 |---|---|---|
-| `Sys.keys`, `Sys.fs`, `Sys.tcp` and their modules `Keys`, `Fs`, `Tcp` (§8.2, Appendix E.16 to E.18) | MVP 2.5 | type-checks; `ernc` says `Tcp.listen is not in MVP 1`, and the same for each of those names |
-| `ern --shell` (§11.2) | MVP 2.6 | `the shell is not in MVP 1` |
+| `Sys.keys`, `Sys.fs`, `Sys.tcp` and their modules `Keys`, `Fs`, `Tcp` (§8.2, Appendix E.16 to E.18) | MVP 2.5 | type-checks; `ernc` says `Tcp.listen is not in this toolchain yet; it arrives in MVP 2.5`, and the same for each of those names |
+| `ern --shell` (§11.2) | MVP 2.6 | `the shell is not in this toolchain yet; it arrives in MVP 2.6` |
 | `spawn(Peer(...))`, peers, `--config-dir` (§6.2, §8.3) | MVP 3 | `spawn` faults with `peer unreachable`; the configuration is not read |
 | `remote`, `parallelRemote` (§6.7) | MVP 3 | `Left(NoRemotePeer)` |
 
-Every refusal the toolchain makes for a later MVP's sake names in its error text the MVP that made it, "MVP 1" today, and a test in `lib/cli/test` fails when such a text is missing from this table. Runtime behaviour that stands in for a later MVP, the peer fault and `Left(NoRemotePeer)`, is listed by hand. `make sections` lists the report sections no test cites; the three it prints are MVP 3 material. `make coverage` lists every section with how many tests cite it and its length, thinnest first: a long section with one citation is where a rule can hide untested.
+Every refusal the toolchain makes for a later MVP's sake names in its error text the MVP that brings the thing, and a test in `lib/cli/test` fails when such a text is missing from this table. Runtime behaviour that stands in for a later MVP, the peer fault and `Left(NoRemotePeer)`, is listed by hand. `make sections` lists the report sections no test cites; the three it prints are MVP 3 material. `make coverage` lists every section with how many tests cite it and its length, thinnest first: a long section with one citation is where a rule can hide untested.
 
 ## License
 

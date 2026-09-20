@@ -499,7 +499,7 @@ refused(_) -> false.
 
 mvp1(Pos, QName) ->
     case refused(QName) of
-        true -> fail(Pos, qname(QName) ++ " is not in MVP 1");
+        true -> fail(Pos, qname(QName) ++ " is not in this toolchain yet; it arrives in MVP 2.5");
         false -> QName
     end.
 

@@ -950,12 +950,12 @@ clock_path_test() ->
 %% README, "What the toolchain accepts": the MVP 2.5 names type-check and the
 %% compiler refuses them
 refused_names_test() ->
-    ?assertEqual("Tcp.listen is not in MVP 1",
+    ?assertEqual("Tcp.listen is not in this toolchain yet; it arrives in MVP 2.5",
                  compile_error("export fn main() -> Unit with Never =\n"
                                "    { let _ = Tcp.listen(1); Unit }\n")),
-    ?assertEqual("Sys.fs is not in MVP 1",
+    ?assertEqual("Sys.fs is not in this toolchain yet; it arrives in MVP 2.5",
                  compile_error("export fn main() -> Unit with Never = { let _ = Sys.fs; Unit }\n")),
-    ?assertEqual("Sys.tcp is not in MVP 1",
+    ?assertEqual("Sys.tcp is not in this toolchain yet; it arrives in MVP 2.5",
                  compile_error("export fn main() -> Unit with Never =\n"
                                "    { let _ = Sys.tcp; Unit }\n")).
 

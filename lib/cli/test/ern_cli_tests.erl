@@ -592,7 +592,8 @@ misplaced_module_test() ->
     ?assertEqual(1, ern_cli:ern([Dir ++ "/build/http.erc"])),
     ?assertEqual(1, ern_cli:ern([Dir ++ "/build/nothing.erc"])).
 
-%% report §11.2, plan 3.1: the shell is not in MVP 1, with or without a file
+%% report §11.2, plan 3.1: the shell is not in this toolchain yet, with or
+%% without a file
 shell_test() ->
     ?assertEqual(1, ern_cli:ern(["--shell"])),
     ?assertEqual(1, ern_cli:ern(["--shell", "--load-path", ".", example("hello.ern")])).
