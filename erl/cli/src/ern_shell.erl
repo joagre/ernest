@@ -7,7 +7,8 @@
 %% input declares is the module's declarations.
 -module(ern_shell).
 
--export([loaded/1, start/0, program/0, check/2, type_text/1, declared/1, run/3, show/3]).
+-export([loaded/1, start/0, program/0, startup/0, check/3, type_text/1, declared/1, run/3,
+         show/3]).
 -export([bindings/1, forget/2, browse/2, doc/2]).
 -export([deaths/1, mine/0, faults/0, processes/0, load/2, reload/1]).
 -export([is_terminal/0, write/1, screen/1, to_screen/1]).
@@ -63,18 +64,33 @@ program() ->
             'None'
     end.
 
+%% Report §11.2, §8.1: the inputs of the startup files, the person's first
+%% and then the node's, each line an input, with the file it came from, so
+%% that a failure names it rather than `input`.
+-spec startup() -> [{binary(), binary()}].
+startup() ->
+    What = persistent_term:get({?MODULE, loaded}, #{}),
+    [{unicode:characters_to_binary(File), Line}
+     || File <- maps:get(startups, What, []),
+        {ok, Text} <- [file:read_file(File)],
+        Line <- binary:split(Text, <<"\n">>, [global]),
+        string:trim(Line) =/= <<>>].
+
 %% Report §11.2: an input is checked before it is run; a failure is §11.5's
-%% text, as `ernc` shows it.
--spec check(#env{}, binary()) -> {'Left', binary()} | {'Right', {#env{}, #checked{}}}.
-check(#env{n = N} = Env, Input) ->
+%% text, as `ernc` shows it, under the name of where the input came from:
+%% `input` for one that was typed, the file's path for one from a startup
+%% file.
+-spec check(#env{}, binary(), binary()) ->
+          {'Left', binary()} | {'Right', {#env{}, #checked{}}}.
+check(#env{n = N} = Env, From, Input) ->
     Ns = [list_to_atom("Input" ++ integer_to_list(N + 1))],
     case input(Input) of
         {ok, Binds, Expr} ->
-            check_module(Env#env{n = N + 1}, Ns, Input, entry(Expr), Binds);
+            check_module(Env#env{n = N + 1}, Ns, From, Input, entry(Expr), Binds);
         {decls, Decls} ->
-            check_module(Env#env{n = N + 1}, Ns, Input, Decls, decls);
+            check_module(Env#env{n = N + 1}, Ns, From, Input, Decls, decls);
         {error, Diag} ->
-            {'Left', diagnostic(Input, [Diag])}
+            {'Left', diagnostic(From, Input, [Diag])}
     end.
 
 %% Report §11.2: an input is an expression, whose value is `it`; a `let`,
@@ -145,14 +161,14 @@ exported(D) -> D.
 entry(Expr) ->
     [#fn_decl{pos = {1, 1, {1, 1}}, export = true, name = main, params = [], body = Expr}].
 
-check_module(#env{ifaces = Ifaces, session = Session} = Env, Ns, Input, Decls, Binds) ->
+check_module(#env{ifaces = Ifaces, session = Session} = Env, Ns, From, Input, Decls, Binds) ->
     case ern_typecheck:check(Ns, Decls, Ifaces, Session) of
         {ok, Typed, Iface, TEnv} ->
             {'Right', {Env, #checked{ns = Ns, typed = Typed, decls = Decls, iface = Iface,
                                      env = TEnv, type = input_type(Typed, Binds),
                                      binds = Binds}}};
         {error, Diags} ->
-            {'Left', diagnostic(Input, Diags)}
+            {'Left', diagnostic(From, Input, Diags)}
     end.
 
 %% An input that declares has no value; report §11.2 prints what it
@@ -408,9 +424,9 @@ entry(Beam, Name) ->
     catch _:_ -> none
     end.
 
-diagnostic(Input, Diags) ->
+diagnostic(From, Input, Diags) ->
     unicode:characters_to_binary(
-      [ern_diag:format("input", Input, D) || D <- Diags]).
+      [ern_diag:format(binary_to_list(From), Input, D) || D <- Diags]).
 
 %% Report §11.2: the shell reports a process that faults, and the runtime
 %% is what knows. The watcher is told of every death the runtime records

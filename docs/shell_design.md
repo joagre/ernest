@@ -21,7 +21,7 @@ The shell is an Ernest program of three processes over a front end. Its source i
 - **The program's processes are the session's.** `:processes` sees them, `:faults` reports their faults, `:quit` ends them with `ProgramEnd` (§8.6). Until the door onto what the runtime knows about processes is built, the shell reports the entry point's own fault, which it monitors, and no other death.
 - **An input cannot reach a process the program spawned.** There is no registry (§6.3), so the prompt has a running program's modules, its output, and its faults. A program meant to be driven from the prompt returns an address from the function that starts it.
 - **At start the shell prints one line**, the version and how to leave, `:quit` or `C-d`, with `:help` for the rest.
-- **Then it runs the inputs in `$HOME/.ernest/startup`**, if it exists, after the file's entry point has been spawned, so a startup input sees what is running. A startup input that fails is reported as any input is and the session goes on.
+- **Then it runs the startup inputs**, the person's and then the node's, after the file's entry point has been spawned, so a startup input sees what is running, and before the first prompt. On a terminal it waits for the reader to hold the keyboard first, so that a startup input which reads keys is refused as any other program would be (§8.2). A startup input that fails is reported as any input is and the session goes on.
 - **On `:quit`, or `C-d` on an empty line**, the history is saved and every process the session spawned ends with `ProgramEnd`.
 
 ## The terminal
@@ -186,15 +186,16 @@ A command is `:` and a name; it is not an Ernest function. Any prefix selects th
 - **`:processes`** — the live processes with their spawn sites (§6.9), read through the same reference as the faults; a name and a site, never an address.
 - **`:faults`** — the faults reported since the session began, oldest first.
 - **`:set depth n`**, **`:set length n`**, **`:set timing on`** and **`off`**; `:set` alone shows what they are. The settings are one Ernest value the session carries, not the front end's.
-- **A command that is not built yet says so.** `:help` lists it and typing it answers that it arrives in MVP 2.6's checkpoint 1, which the README's table holds; the order the prefix rule reads is the whole order from the start, so `:b` is `:browse` and `:f` is `:forget` before `:bindings` and `:faults` are built.
+- **The order the prefix rule reads is the whole order, whatever is built.** A command built later would otherwise change what a prefix means, `:f` being `:faults` one day and `:forget` the next; every one was in the list and in `:help` from the first, and one not yet built said so and named the checkpoint that brings it. All twelve are built.
 
 A program is started by calling it; there is no command for it. A module meant for the shell exports a function that spawns its processes and returns. Modules are not imported: every module the session has loaded is in scope by its qualified name (§4.2), which is the file's own modules and the standard library until `:load` brings in another.
 
 ## Files
 
 - **`$HOME/.ernest/history`** — the history, per user, as a person expects when they type the same thing in two projects. With `HOME` unset nothing is saved and the shell says so once.
-- **`$HOME/.ernest/startup`** — the inputs run at start, commands included. It is not a module and has no `.ern` extension: a `.ern` file under a source root is compiled with the project, and one in the configuration directory breaks the project's build, since `ernc` reads dotted directories and then rejects the path.
-- **The configuration directory** (§11.2, §11.3) is the node's, holding its address and its keys, and holds nothing of the shell's.
+- **`$HOME/.ernest/startup`, then the configuration directory's `startup`** — the inputs run at start, commands included, a line an input and neither file required. The person's runs first and the node's after it, so a node adds to or overrides what a person always wants; `--config-dir` moves the second. Neither is a module and neither has a `.ern` extension: a `.ern` file under a source root is compiled with the project, and one in the configuration directory breaks the project's build, since `ernc` reads dotted directories and then rejects the path.
+- **A startup input shows nothing unless it fails.** Its value is not printed, a startup file being setup rather than a session; what does not check, or faults, is reported as any input is, under the path of the file it came from rather than `input`.
+- **The configuration directory** (§11.2, §11.3) is the node's, holding its address, its keys, and the node's own startup inputs.
 - **`:load`'s compiled output** goes to a directory of the shell's own, never beside the source, where it would land in the project's build and meet §11.1's cleanup sweep.
 
 ## Not in the shell

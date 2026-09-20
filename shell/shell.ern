@@ -29,11 +29,12 @@ foreign fn load(env : Env, name : String) -> Either(String, #(Env, String)) with
     "ern_shell:load/2"
 foreign fn reload(env : Env) -> Either(String, #(Env, List(String))) with m =
     "ern_shell:reload/1"
-foreign fn check(env : Env, input : String) -> Either(String, #(Env, Checked)) with m =
-    "ern_shell:check/2"
+foreign fn check(env : Env, from : String, input : String) -> Either(String, #(Env, Checked))
+    with m = "ern_shell:check/3"
+foreign fn startupInputs() -> List(#(String, String)) with m = "ern_shell:startup/0"
 foreign fn typeText(c : Checked) -> String = "ern_shell:type_text/1"
 foreign fn declared(c : Checked) -> List(String) = "ern_shell:declared/1"
-foreign fn run(env : Env, c : Checked, to : Address(Outcome)) -> Address(Never) with m =
+foreign fn spawnInput(env : Env, c : Checked, to : Address(Outcome)) -> Address(Never) with m =
     "ern_shell:run/3"
 foreign fn show(v : Value, depth : Int, length : Int) -> String = "ern_shell:show/3"
 foreign fn bindings(env : Env) -> List(String) = "ern_shell:bindings/1"
@@ -87,24 +88,50 @@ export fn main() -> Unit with ShellMsg = {
         // report §8.2: the prompt waits for the reader to hold the
         // keyboard, since until then the terminal is still echoing lines
         receive { Ready -> Unit };
+        let state2 = startup(state, screen);
         send(screen, Print("> "));
-        keyLoop(state, screen)
-    } else lineLoop(state, screen)
+        keyLoop(state2, screen)
+    } else lineLoop(startup(state, screen), screen)
 }
 
 // One input, from either reader: checked, run in a process of its own, its
 // value printed with its type. An expression of type Unit prints nothing.
-fn evaluate(state : State, screen : Address(ScreenMsg), input : String) -> State with ShellMsg = {
+fn evaluate(state : State, screen : Address(ScreenMsg), input : String) -> State with ShellMsg =
+    run(state, screen, "input", input, true)
+
+// Report §11.2: an input from a startup file is checked and run as a typed
+// one, and its value is not printed; what fails is reported with the file
+// it came from.
+fn quietly(state : State, screen : Address(ScreenMsg), from : String, input : String)
+    -> State with ShellMsg = run(state, screen, from, input, false)
+
+fn run(
+    state : State,
+    screen : Address(ScreenMsg),
+    from : String,
+    input : String,
+    show : Bool
+) -> State with ShellMsg = {
     let State(env = env) = state;
-    match check(env, input) {
+    match check(env, from, input) {
         Left(text) -> { send(screen, Print(text)); state }
       | Right(#(env2, checked)) -> {
             // report §11.2: the run is what timing measures, not the check
             let started = Clock.now();
-            let child = run(env2, checked, via(Done, self()));
-            await(State(..state, env = env2), screen, checked, child, started)
+            let child = spawnInput(env2, checked, via(Done, self()));
+            await(State(..state, env = env2), screen, checked, child, started, show)
         }
     }
+}
+
+// The inputs of the startup files, in the order the front end gives them.
+fn startup(state : State, screen : Address(ScreenMsg)) -> State with ShellMsg =
+    fromFiles(state, screen, startupInputs())
+
+fn fromFiles(state : State, screen : Address(ScreenMsg), inputs : List(#(String, String)))
+    -> State with ShellMsg = match inputs {
+    [] -> state
+  | #(from, input) :: rest -> fromFiles(quietly(state, screen, from, input), screen, rest)
 }
 
 // The reader stays live, so an interruption reaches the session while the
@@ -114,29 +141,35 @@ fn await(
     screen : Address(ScreenMsg),
     checked : Checked,
     child : Address(Never),
-    started : Int
+    started : Int,
+    showValue : Bool
 ) -> State with ShellMsg = receive {
     Done(Ok(env = env2, value = value)) -> {
         let State(settings = settings) = state;
         let Settings(depth = depth, length = length) = settings;
         let shown = typeText(checked);
-        match declared(checked) {
-            [] -> if shown == "Unit" then Unit
-                  else say(screen, show(value, depth, length) <> " : " <> shown)
-          | lines -> printLines(screen, lines)
-        };
-        timed(screen, settings, started);
+        if showValue then {
+            match declared(checked) {
+                [] -> if shown == "Unit" then Unit
+                      else say(screen, show(value, depth, length) <> " : " <> shown)
+              | lines -> printLines(screen, lines)
+            };
+            timed(screen, settings, started)
+        } else Unit;
         State(..state, env = env2)
     }
   | Done(Failed(text)) -> {
         say(screen, "fault: " <> text);
         let State(settings = settings) = state;
-        timed(screen, settings, started);
+        if showValue then timed(screen, settings, started) else Unit;
         state
     }
   | Interrupted -> { kill(child); say(screen, "Killed"); state }
-  | Died(down) -> { reportDeath(screen, down); await(state, screen, checked, child, started) }
-  | Typed(_) or Eof -> await(state, screen, checked, child, started)
+  | Died(down) -> {
+        reportDeath(screen, down);
+        await(state, screen, checked, child, started, showValue)
+    }
+  | Typed(_) or Eof -> await(state, screen, checked, child, started, showValue)
 }
 
 // Report §11.2: with timing on, a result is followed by the time the run
@@ -247,7 +280,7 @@ fn obey(state : State, screen : Address(ScreenMsg), c : Command, arg : String)
             [] -> { say(screen, "the session declares nothing yet"); Continue(state) }
           | lines -> { printLines(screen, lines); Continue(state) }
         }
-      | Type -> match check(env, arg) {
+      | Type -> match check(env, "input", arg) {
             Left(text) -> { send(screen, Print(text)); Continue(state) }
           | Right(#(env2, checked)) -> {
                 say(screen, arg <> " : " <> typeText(checked));

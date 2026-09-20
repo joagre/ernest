@@ -558,7 +558,8 @@ shell(Opts, Rest, Err) ->
                [] ->
                    ern_shell:loaded(#{roots => [absolute(D) || {load_path, D} <- Opts],
                                       source_root => source_root(Opts, ".", "."),
-                                      ifaces => [], entry => none}),
+                                      ifaces => [], entry => none,
+                                      startups => startups(Opts)}),
                    fun() -> ok end;
                [File] ->
                    {Ns, Roots, Loaded} = program(File, Opts),
@@ -566,7 +567,8 @@ shell(Opts, Rest, Err) ->
                    ern_shell:loaded(#{roots => Roots,
                                       source_root => source_root(Opts, File, "."),
                                       ifaces => ifaces(Loaded1),
-                                      entry => {EntryMod, EntryFn, entry_site(EntryMod, EntryFn)}}),
+                                      entry => {EntryMod, EntryFn, entry_site(EntryMod, EntryFn)},
+                                      startups => startups(Opts)}),
                    init_fun(Loaded1);
                _ ->
                    usage_fail("--shell takes at most one .erc file")
@@ -619,6 +621,17 @@ ifaces(Loaded) ->
     [{I, H} || Mod <- lists:reverse(Loaded),
                {ok, Bin} <- [file:read_file(code:which(Mod))],
                {ok, #{iface := I, source_hash := H}} <- [ern_emitter:read_interface(Bin)]].
+
+%% Report §11.2: the startup files the shell runs at start, the person's
+%% first and then the node's, and only those that exist. The node's is in
+%% the configuration directory of §11.3, which `--config-dir` names.
+startups(Opts) ->
+    Config = proplists:get_value(config_dir, Opts, ".ernest"),
+    Home = case os:getenv("HOME") of
+               false -> [];
+               Dir -> [filename:join([Dir, ".ernest", "startup"])]
+           end,
+    [F || F <- Home ++ [filename:join(Config, "startup")], filelib:is_regular(F)].
 
 %% Report §11.2: a module compiled from its source for the shell, as
 %% `ernc` would compile it but in memory, since `:load` and `:reload`

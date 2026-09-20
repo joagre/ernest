@@ -3255,6 +3255,20 @@ The terminal tests sent their keystrokes at fixed times, and a full `make test` 
 
 **A field order caught the first attempt.** The runtime's clause read `{'Subscribe', Address, Reply}`, and §3.5 stores named fields in canonical order, `reply` before `to`. The rule is the language's and the runtime must follow it; the crash was immediate and the fix one line.
 
+## The Startup Inputs, Two Files, 2026-09-20
+
+The last of checkpoint 1: the inputs a session runs before its first prompt.
+
+**Two files, the person's then the node's.** The note had one, `$HOME/.ernest/startup`, on the argument that what a person always wants should follow them between projects. A node wants its own as well: the module it drives, the addresses it starts with. Both run, the person's first, so that a node's input adds to or overrides what follows the person, which is the shape of a profile and a project's own configuration. The node's is in the configuration directory of §11.3, which `--config-dir` names, and that directory is no longer the node's keys alone.
+
+**The history stays the person's.** What was typed is not the node's, and finding it again in another project is the reason it is kept at all.
+
+**A startup input shows nothing unless it fails.** A startup file is setup: printing every value would scroll the greeting away before the first prompt. What does not check, or faults, is reported as any input is, and the session goes on.
+
+**A failure names the file it came from.** §11.5's first line is `file:line:column`, and for a typed input the shell writes `input`. A startup input that says `input` would send a person looking at their keyboard, so the origin is now an argument of the front end's `check`, the path for a file and `input` for a line.
+
+**Where they run.** After the file's entry point is spawned, so that an input sees what is running, and before the first prompt. On a terminal they wait for the reader to hold the keyboard, so a startup input that reads keys meets §8.2's refusal like any other program rather than stealing the keyboard from the reader that has not yet asked for it.
+
 ## Later
 
 Planned or considered, not in the language today.

@@ -55,6 +55,37 @@ program() ->
 count(Haystack, Needle) ->
     length(binary:matches(Haystack, Needle)).
 
+%% report §11.2: at start the shell runs the inputs of the person's
+%% startup file and then the node's, a line an input; a value is not
+%% printed, a later file's binding shadows an earlier one's, and an input
+%% that fails is reported with the file it came from and the session goes
+%% on
+startup_test_() ->
+    {timeout, 60, fun startup/0}.
+
+startup() ->
+    Unique = integer_to_list(erlang:unique_integer([positive])),
+    Home = filename:join("/tmp", "ern_home_" ++ Unique),
+    Node = filename:join("/tmp", "ern_node_" ++ Unique),
+    ok = filelib:ensure_path(filename:join(Home, ".ernest")),
+    ok = filelib:ensure_path(filename:join(Node, ".ernest")),
+    ok = file:write_file(filename:join([Home, ".ernest", "startup"]),
+                         "let greeting = \"from the user file\"\nlet shared = 1\n"),
+    %% the node's file binds the same name, and holds a line that does not
+    %% parse
+    ok = file:write_file(filename:join([Node, ".ernest", "startup"]),
+                         "let shared = 2\n1 +\n"),
+    In = filename:join(Node, "session.in"),
+    ok = file:write_file(In, "greeting\nshared\n"),
+    {0, Out} = sh("HOME=" ++ Home ++ " ../bin/ern --shell --config-dir "
+                  ++ filename:join(Node, ".ernest") ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"\"from the user file\" : String">>)),
+    %% the node's file ran after the person's, so its binding is the one
+    ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"startup:1:4: expected an expression">>)),
+    %% what a startup input answered was not printed
+    ?assertEqual(nomatch, binary:match(Out, <<"1 : Int">>)).
+
 %% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
 %% under the source root and puts it in scope; `:reload` compiles again
 %% what has changed, names what is still in the previous version, and ends
