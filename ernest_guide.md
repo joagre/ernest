@@ -683,7 +683,7 @@ monitor(child, fn(d) = Died(run = run, down = d));
 
 A message whose run is not the one being waited for is an earlier worker's, and is ignored. This is what the report means by identity being expressed in the protocol: the protocol is yours, and the wrap is where you put the identity in it.
 
-A fault in one process does not affect another (no automatic supervision), except that a fault in `main` ends the program and terminates its local processes with `ProgramEnd`.
+A fault in one process does not affect another (no automatic supervision). Two exceptions: a fault in `main` ends the program and terminates its local processes with `ProgramEnd`, and a fault in a function adapting an address ends the process that address names (§5.5).
 
 ### 5.3 `kill`
 
