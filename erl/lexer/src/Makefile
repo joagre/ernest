@@ -1,4 +1,4 @@
-# Generic per-application Makefile. Identical in every lib/*/src.
+# Generic per-application Makefile. Identical in every erl/*/src.
 # Compiles src/*.erl and test/*.erl into ../ebin, tracking header
 # dependencies with erlc's -MMD so that a changed .hrl rebuilds its users.
 
@@ -7,7 +7,7 @@ ERLC = erlc
 # VERSION at the top of the repository is the toolchain's version; a bump rebuilds.
 ERLC_FLAGS = +debug_info -Werror -I ../include -DVERSION='"$(shell cat ../../../VERSION)"'
 
-# Lets -include_lib("app/include/x.hrl") find sibling apps under lib/.
+# Lets -include_lib("app/include/x.hrl") find sibling apps under erl/.
 export ERL_LIBS = $(abspath ../..)
 
 SRC = $(wildcard *.erl)

@@ -8,7 +8,7 @@
 %% docs/style.md: code lines are at most 100 characters, in the compiler's
 %% Erlang and in Ernest alike; the vendored getopt keeps its upstream form
 line_length_test() ->
-    Patterns = ["lib/*/src/*.erl", "lib/*/test/*.erl", "test/*.erl", "stdlib/**/*.ern",
+    Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "test/*.erl", "stdlib/**/*.ern",
                 "examples/**/*.ern"],
     Files = [F || P <- Patterns, F <- filelib:wildcard(P, ?ROOT),
                   filename:basename(F) =/= "getopt.erl",

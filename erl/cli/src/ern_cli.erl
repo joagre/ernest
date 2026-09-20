@@ -285,7 +285,7 @@ module_prefix(Path, Root) ->
     end.
 
 %% Report §4.2: the standard library's source root, `stdlib/` beside the
-%% toolchain's `lib/`, found from where this module was loaded.
+%% toolchain's `erl/`, found from where this module was loaded.
 %% Report §11.1: the source root is --source-root; without it, the standard
 %% library's root for a path under it, else Default.
 source_root(Opts, Path, Default) ->

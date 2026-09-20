@@ -1,9 +1,9 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
-%% The Ernest compiler, report §11.1. Thin: puts lib/*/ebin, found relative
+%% The Ernest compiler, report §11.1. Thin: puts erl/*/ebin, found relative
 %% to this script, on the code path and calls ern_cli.
 
 main(Args) ->
-    Lib = filename:join([filename:dirname(filename:absname(escript:script_name())), "..", "lib"]),
+    Lib = filename:join([filename:dirname(filename:absname(escript:script_name())), "..", "erl"]),
     code:add_pathsa(filelib:wildcard(filename:join([Lib, "*", "ebin"]))),
     ern_cli:main(ernc, Args).
