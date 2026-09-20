@@ -245,6 +245,18 @@ export fn toIntBase(s : String, base : Int) -> Optional(Int) =
 
 foreign fn inBase(s : String, base : Int) -> Optional(Int) = "ern_string:to_int_base/2"
 
+/// `true` for `"true"` and `false` for `"false"`, or `None` for anything
+/// else; the inverse of `Bool.toString`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.toBool("true"), String.toBool("yes"))
+/// // => #(Some(true), None)
+/// ```
+export fn toBool(s : String) -> Optional(Bool) =
+    if s == "true" then Some(true) else if s == "false" then Some(false) else None
+
 /// The float literal form of report §2.5 as a `Float`, with an optional
 /// leading `-`, or `None` for anything else.
 ///

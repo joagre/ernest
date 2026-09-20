@@ -46,6 +46,8 @@ list_test() ->
     ?assertEqual({'Right', 3}, L:tryFold([1, 2], 0, fun(A, X) -> {'Right', A + X} end)),
     Bounded = fun(A, X) when A + X > 2 -> {'Left', big}; (A, X) -> {'Right', A + X} end,
     ?assertEqual({'Left', big}, L:tryFold([1, 2, 3], 0, Bounded)),
+    ?assertEqual(<<"ab">>, L:foldRight([<<"a">>, <<"b">>], <<>>,
+                                       fun(X, Acc) -> <<X/binary, Acc/binary>> end)),
     ?assertEqual([1, 2, 3], L:sort([3, 1, 2], fun 'ernest@int':compare/2)),
     %% report Appendix E.2: sort is stable, and orders a long list as
     %% Erlang's does
@@ -162,6 +164,9 @@ string_test() ->
     ?assertEqual([<<>>], S:split(<<>>, <<",">>)),
     ?assertEqual(<<"a, b">>, S:join([<<"a">>, <<"b">>], <<", ">>)),
     ?assertEqual(<<>>, S:join([], <<", ">>)),
+    ?assertEqual({'Some', true}, S:toBool(<<"true">>)),
+    ?assertEqual({'Some', false}, S:toBool(<<"false">>)),
+    ?assertEqual('None', S:toBool(<<"yes">>)),
     ?assertEqual({'Some', 255}, S:toIntBase(<<"ff">>, 16)),
     ?assertEqual({'Some', 255}, S:toIntBase(<<"FF">>, 16)),
     ?assertEqual('None', S:toIntBase(<<"fg">>, 16)),
@@ -252,7 +257,14 @@ int_test() ->
     ?assertEqual({'Some', -1}, I:'mod'(-7, 3)),
     ?assertEqual('None', I:'div'(1, 0)),
     ?assertEqual('Less', I:compare(1, 2)),
-    ?assertEqual(-1, I:negate(1)).
+    ?assertEqual(-1, I:negate(1)),
+    ?assertEqual({'Some', 1024}, I:pow(2, 10)),
+    ?assertEqual({'Some', 1}, I:pow(7, 0)),
+    ?assertEqual({'Some', -8}, I:pow(-2, 3)),
+    ?assertEqual('None', I:pow(2, -1)),
+    ?assertEqual({'Some', <<"FF">>}, I:toStringBase(255, 16)),
+    ?assertEqual({'Some', <<"-11">>}, I:toStringBase(-3, 2)),
+    ?assertEqual('None', I:toStringBase(5, 37)).
 
 %% report Appendix E.9, §3.1, §7.4, §9.6
 float_test() ->
@@ -276,7 +288,20 @@ float_test() ->
     ?assertEqual(-3, F:floor(-2.5)),
     ?assertEqual(-2, F:ceil(-2.5)),
     ?assertEqual('Greater', F:compare(2.0, 1.0)),
-    ?assertEqual(-1.0, F:negate(1.0)).
+    ?assertEqual(-1.0, F:negate(1.0)),
+    ?assertEqual(-2, F:truncate(-2.7)),
+    ?assertEqual({'Some', 3.0}, F:sqrt(9.0)),
+    ?assertEqual('None', F:sqrt(-1.0)),
+    ?assertEqual(1024.0, F:pow(2.0, 10.0)),
+    ?assertThrow({ernest, fault, <<"float arithmetic error">>}, F:pow(10.0, 400.0)),
+    ?assertEqual(1.0, F:exp(0.0)),
+    ?assertThrow({ernest, fault, <<"float arithmetic error">>}, F:exp(1000.0)),
+    ?assertEqual({'Some', 0.0}, F:log(1.0)),
+    ?assertEqual('None', F:log(0.0)),
+    ?assertEqual({0.0, 1.0, 0.0}, {F:sin(0.0), F:cos(0.0), F:tan(0.0)}),
+    ?assertEqual({'Some', 0.0}, F:asin(0.0)),
+    ?assertEqual('None', F:acos(-2.0)),
+    ?assertEqual(0.0, F:atan2(0.0, 1.0)).
 
 %% report Appendix E.10
 optional_test() ->

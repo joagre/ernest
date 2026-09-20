@@ -294,6 +294,8 @@ The prelude had grown to include roughly forty convenience functions on the buil
 
 Growth rule for the standard library: same as the deferrals in Later. When a paper program writes the same pattern three times, promote it to a stdlib module. Do not speculatively add.
 
+*Superseded 2026-09-20 by "Nothing Waits for a Program": no rule counts programs, and Appendix E.0's rules decide on the function itself.*
+
 ## Ambient Sys, Five Principles, 2026-09-14
 
 `Sys` is no longer a value threaded through the program. The runtime's system processes are exposed as top-level ambient references: `Sys.stdout : Address(Text)` and `Sys.clock : Address(ClockMsg)` in the report's prelude; paper-program runtimes may add `Sys.fs`, `Sys.stdin`, `Sys.keys`, a stderr sink, and the like. `main` takes no arguments: `fn main() -> () with ()`. The `Sys` type declaration is gone.
@@ -349,6 +351,8 @@ Appendix E was audited for naming, argument order, and coverage. The growth rule
 **Deferred to the growth rule.** These would round out the modules but haven't yet been written three times in a paper program: `List.zip/flatMap/concat/range/repeat/foldRight`, `Set.map/filter/foldLeft`, `Text.split/trim/replace/startsWith/endsWith/toLower/toUpper`, `Char.toUpper/toLower/isUpper/isLower/isAlphaNum`, `Int.pow`, `Float.sqrt/pow/min/max/truncate`, `Optional.orElse/toList`.
 
 **Paper programs updated.** `Map.delete` → `Map.remove` in [`examples/tick_game.ern`](../examples/tick_game.ern); `Optional.flatMap` → `Optional.andThen` in [`examples/webserver.ern`](../examples/webserver.ern). The implementation plan's note on `<-` desugaring reads `Optional.andThen` now.
+
+*Superseded 2026-09-20 by "Nothing Waits for a Program": no rule counts programs, and Appendix E.0's rules decide on the function itself.*
 
 ## `parallelRemote` in the Prelude, 2026-09-14
 
@@ -527,6 +531,8 @@ The 2026-09-14 removal applied the growth rule ("three uses before promoting to 
 **Effect.** §9 prelude regains the `Set(a)` line. §8's "System references" paragraph reads "like `List`, `Map`, and `Set`" again. Appendix E gets a restored §4 `Set.ern`; downstream sections renumber E.5–E.12. README's prelude and stdlib lists gain Set back.
 
 **Rule clarification.** The growth rule applies to *stdlib convenience functions*, not to fundamental container types. Adding `List.zipWithIndex` needs three-uses justification. Adding `Set(a)` doesn't, because a reader expects it. This distinction should have been named in the growth-rule entry originally.
+
+*Superseded 2026-09-20 by "Nothing Waits for a Program": no rule counts programs, and Appendix E.0's rules decide on the function itself.*
 
 ## Section 0 Rewrite, 2026-09-15
 
@@ -2307,6 +2313,8 @@ A systematic survey of Gleam's language features to check what Ernest is missing
 
 **Conclusion.** The substantive Gleam pass is done. Future adds should pass through the growth rule (three paper-program uses) or a specific principle-driven argument. Cosmetic imitation of Gleam is not a reason.
 
+*Superseded 2026-09-20 by "Nothing Waits for a Program": no rule counts programs, and Appendix E.0's rules decide on the function itself.*
+
 ## Reasons Lifted Out of the Report
 
 - `recv` is Erlang's `receive`: selective receive lets a process wait for a specific reply in the middle of a protocol without losing other messages; without it every process becomes a state machine, gen_server turned inside out. `recv` therefore does not require coverage, unlike `match`: the two forms share their syntax but not their semantics, since a `match` that finds no arm is a fault and a `recv` that finds no arm leaves the message in the mailbox. Cost O(n) in the mailbox, and a growing mailbox is not visible in the code, the same cost as in Erlang; the backpressure decision above covers the same problem from the sender's side.
@@ -2451,6 +2459,8 @@ The printer named every variable afresh, `a`, `b`, `e`, so `--doc` showed `new :
 
 The growth rule, a function enters when three programs write it by hand, was made for language features, where adding is dangerous; for a library it produces a minimal set, not a complete one, and a library function is cheap to add and expensive to lack. Appendix E now states three rules in its preamble: in when the value lives in the runtime or when the hand-written version is the same few lines every time; one function per job; the same name for the same operation in every module that has it, container first, `isX`, `toX`/`fromX`, `Optional` for partial operations, `compare` for order. Read with them, the appendix was inconsistent: `Set` had no higher-order functions, `Map` half of `List`'s, `String` had `all` but not `any`, `String.chars`/`fromChars` where every other module says `toList`/`fromList`, and `Map` could not be built from a list. Added: `List.zip`, `flatMap`, `range`; `Map.filter`, `any`, `all`, `find`, `fromList`, `toList`; `Set.map`, `filter`, `foldLeft`, `any`, `all`, `find`; `String.toUpper`, `split`, `join`, `any`; renamed `String.chars` and `fromChars` to `toList` and `fromList`. Not added, by the second rule: `List.foldRight`, `Optional.orElse`, `Int.pow`, and `Float` mathematics beyond the operators, which is a namespace of its own and waits for a program that needs it.
 
+*Superseded 2026-09-20 by "Nothing Waits for a Program": no rule counts programs, and Appendix E.0's rules decide on the function itself.*
+
 ## Appendix E: Admission and Shape Rules, 2026-09-18
 
 The three rules of the morning's entry left two judgments open: "the same few lines every time" has no test, and "the same name for the same operation" had no vocabulary behind it. The draft still had `Map.put` beside `Set.add`, `List.at` beside `Map.get`, `Io.printlnTo(addr, s)` beside `Io.println(s)`, and `List.remove` and `Char.isAlpha` with contracts the Erlang modules chose and the appendix did not state. Appendix E.0 now states four admission rules and six shape rules in their place.
@@ -2475,6 +2485,8 @@ The three rules of the morning's entry left two judgments open: "the same few li
 **Prelude and stdlib.** §9 now says that a prelude operation in a type's namespace is provided by that type's stdlib module. The prelude lists what must exist; the stdlib module is where it lives. The question "prelude or stdlib" is about which document guarantees a name, never about the code.
 
 **Cost.** Appendix E rewritten, one sentence in §9, the snake program's `Seed` and `Random.next`, the plan's MVP 2.5 entry. Under `lib/`: three renames, two argument swaps, three Unicode predicates, nine new functions, and one new module, pending.
+
+*Superseded 2026-09-20 by "Nothing Waits for a Program": no rule counts programs, and Appendix E.0's rules decide on the function itself.*
 
 ## Appendix E: Read Back Against Its Own Rules, 2026-09-18
 
@@ -2508,6 +2520,8 @@ The question that started the day: which of Erlang's modules belong in Ernest's 
 **Calibration.** Gleam's core, the BEAM stdlib readers call sweet, is `bit_array`, `bool`, `dict`, `dynamic`, `float`, `function`, `int`, `io`, `list`, `option`, `order`, `pair`, `result`, `set`, `string`, `string_tree`, `uri`. Ernest after MVP 2.5 has the same set under its own names minus six: `function` and `pair` are compositions and patterns here, the two builders are unnecessary with BEAM's binary append, `uri` is a library, and `dynamic/decode` is what `Foreign` and a JSON library cover between them. It has what Gleam lacks: `Random` behind a pure interface, `Ets`, `Path`, effect-polymorphic combinators, and the system modules over typed processes. Nineteen modules; Erlang's user-facing surface is twice that, from history rather than need.
 
 **`Sys.args` and `Sys.env`** wait for the first command-line program, in the plan's list, rather than entering now: they are two lines, but nothing under `examples/` reads them, and the corpus rule is the rule.
+
+*Superseded 2026-09-20 by "Nothing Waits for a Program": no rule counts programs, and Appendix E.0's rules decide on the function itself.*
 
 ## Gleam's Standard Library, Compared, 2026-09-18
 
@@ -2799,6 +2813,14 @@ Two things the module found. The mirror test printed a compiled foreign type as 
 `Sys.stderr` came back with it. It was removed on 2026-09-14 because "no paper program sends anything to stderr", which is the corpus rule that was abolished on 2026-09-20. On merit the case is plain: a program whose output is read by something else cannot report an error without corrupting that output, and the operating system gives two streams for exactly this. It is the same shape as stdout, an `Address(String)`, so it adds no concept; §8.2 says it is a second sink, not a level of severity. `Io.printError` and `Io.printlnError` are its two functions.
 
 Two toolchain repairs came out of the same work. `make` rebuilt nothing when the compiler changed without its version changing, so the standard library was silently stale, which cost an hour of confusion; the `stdlib` target now wipes its build when a compiler beam is newer. And the documentation harness captured stdout only, so an example that wrote to stderr leaked into the test output; it captures both.
+
+## The Corpus Decisions, Re-judged, 2026-09-20
+
+The log was read from the start for every decision that rested on how many programs had asked. Thirteen rested on a count alone; the rest named a principle or a rule beside it and stand as they are. The seven entries that state the growth rule or the corpus rule as policy now carry a line marking them superseded. Appendix E.0 rule 2 still hid one: "A conversion to text has its inverse when programs read that type from text". It now reads that the inverse exists where the text form is unambiguous and the type has no other way in, which is why `Char` needs none, `String.toList` being its way in.
+
+The verdicts, each on the rules as they now stand. Out: `Slot(a)`, a credit type for backpressure, on principles 2 and 5, since `Reply(a)` is the language's one-shot and a credit is a protocol a program writes; Gleam's `use`, function capture `f(_, y)`, and list spread, on principle 2, since `<-`, lambdas, and `<>` already do them; a per-process ambient `Sys`, on principle 2; `Float.isFinite`, permanently, since §3.1 leaves nothing infinite for it to answer about; `Fs.watch`, on rule 3, since what counts as a change and how changes coalesce are policy; `Optional.toList` and `Char.isAlphaNum`, on rule 4, one pipe each. In: `Int.pow`, exact, with `None` for a negative exponent, and `String.toBool`, the inverse of `Bool.toString`, both by rule 3. Scheduled rather than counted, and already so in the plan: `Sys.args`, `Sys.env`, a `Time` module, and MVP 3's cross-version message types.
+
+The pass also found four interface tests that a broken edit had silently dropped, for `Int.toStringBase`, `Float`'s mathematics, `List.foldRight`, and `Optional.orElse`; they are written now.
 
 ## Later
 

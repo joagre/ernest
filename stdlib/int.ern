@@ -122,6 +122,26 @@ export foreign fn shiftRight(n : Int, k : Int) -> Int = "erlang:bsr/2"
 /// The decimal form, with a leading `-` when negative.
 export foreign fn toString(n : Int) -> String = "erlang:integer_to_binary/1"
 
+/// `base` raised to `exponent`, exactly, or `None` when the exponent is
+/// negative, since that is not an `Int`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Int.pow(2, 10), Int.pow(2, -1))
+/// // => #(Some(1024), None)
+/// ```
+export fn pow(base : Int, exponent : Int) -> Optional(Int) =
+    if exponent < 0 then None else Some(power(base, exponent, 1))
+
+fn power(base : Int, exponent : Int, acc : Int) -> Int =
+    if exponent == 0 then
+        acc
+    else if exponent % 2 == 1 then
+        power(base * base, exponent / 2, acc * base)
+    else
+        power(base * base, exponent / 2, acc)
+
 /// The digits of `n` in that base, 2 to 36, letters upper case, with a
 /// leading `-` when negative; `None` outside those bases.
 ///
