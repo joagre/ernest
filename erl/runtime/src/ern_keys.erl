@@ -12,9 +12,9 @@
 %% after.
 %%
 %% Decoding is decode/1 over the bytes read, and flush/1 for what is left
-%% when nothing follows; both are functions and are what the tests
-%% exercise. The reading itself is the terminal's and cannot be tested
-%% without one.
+%% when nothing follows; both are functions and are what the unit tests
+%% exercise. The reading itself is driven through a pseudo-terminal by
+%% test/ern_terminal_tests.erl, since 2026-09-20.
 -module(ern_keys).
 
 -export([loop/0, decode/1, flush/1, restore/0]).

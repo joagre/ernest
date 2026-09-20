@@ -62,7 +62,8 @@ erl/               the toolchain, as Erlang applications: lexer, parser,
                    typer, runtime, emitter, cli, utils (vendored getopt);
                    each has src/, include/, ebin/, test/
 test/              what spans applications: the hand-written target modules,
-                   the integration tests, expected/, golden/
+                   the integration tests, the pseudo-terminal harness,
+                   expected/, golden/, input/, terminal/
 bin/               ernc and ern, as escript sources
 stdlib/            the standard library as Ernest source
 shell/             the shell as Ernest source, from MVP 2.6
@@ -74,7 +75,7 @@ A module path segment is one lowercase word (report §11.1); a multi-word module
 
 ## Building
 
-Erlang/OTP 27 and GNU make. No rebar3, no OTP behaviours.
+Erlang/OTP 27 and GNU make. No rebar3, no OTP behaviours. `make test` also needs python3, for the pseudo-terminal the terminal tests run a program under; Erlang cannot open one.
 
 ```
 make              compile every application into its ebin/, then stdlib/

@@ -248,7 +248,7 @@ Delivered before the shell. Those marked report first are written into the repor
 - **A session is a golden test:** a file of inputs run in line mode, `ern --shell < session.ern`, against a file of expected output, under `test/`.
 - **The line editor is a pure function** from a state and a key to a new state and what to draw; tests feed key lists and compare line, cursor, and output.
 - **Completion is tested on the foreign entries' answers:** a prefix and an environment in, candidates out.
-- **The terminal itself is tested through the harness** MVP 2.6 builds first, which gives a program a pseudo-terminal, sends keystrokes at chosen moments, and reads the screen back.
+- **The terminal itself is tested through the harness**, `test/ern_pty.py`, which gives a program a pseudo-terminal, sends keystrokes at chosen moments, and reads the screen back; built 2026-09-20, before the shell, and already holding §8.2's rules and `snake` under test.
 
 ## Checkpoints
 

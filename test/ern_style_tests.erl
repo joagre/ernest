@@ -9,7 +9,7 @@
 %% Erlang and in Ernest alike; the vendored getopt keeps its upstream form
 line_length_test() ->
     Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "test/*.erl", "stdlib/**/*.ern",
-                "examples/**/*.ern"],
+                "examples/**/*.ern", "test/**/*.ern", "test/*.py"],
     Files = [F || P <- Patterns, F <- filelib:wildcard(P, ?ROOT),
                   filename:basename(F) =/= "getopt.erl",
                   not editor_artifact(filename:basename(F))],

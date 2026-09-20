@@ -1,0 +1,23 @@
+//
+// What a terminal delivers, for the terminal tests (report §8.2, §9.3).
+// Each key is printed as it arrives; Escape ends the program.
+//
+
+type Msg = K(Key)
+
+export fn main() -> Unit with Msg = {
+    Io.println("ready");
+    Keys.subscribe(K);
+    loop()
+}
+
+fn loop() -> Unit with Msg = receive {
+    K(Escape) -> Io.println("escape")
+  | K(ArrowUp) -> { Io.println("up"); loop() }
+  | K(ArrowDown) -> { Io.println("down"); loop() }
+  | K(ArrowLeft) -> { Io.println("left"); loop() }
+  | K(ArrowRight) -> { Io.println("right"); loop() }
+  | K(Enter) -> { Io.println("enter"); loop() }
+  | K(Char(c)) -> { Io.println("char " <> Char.toString(c)); loop() }
+  | after 10000 -> Io.println("nothing came")
+}

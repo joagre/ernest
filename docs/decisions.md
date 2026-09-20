@@ -3046,6 +3046,18 @@ The atom and module tables grow with a session, each input being a module of its
 
 The note gained one thing the decisions had implied without saying: the shell is three processes, a session holding the environment and the queue, a reader that owns the keys and stays live through an evaluation, and a screen that is the only writer, which is what the runner binds the sinks to. Without it an implementer would have had to invent the arrangement, and the redraw is where they would have got it wrong.
 
+## A Terminal for the Tests, 2026-09-20
+
+MVP 2.6's first item, before any of the shell. MVP 2.5 ended with the terminal as the one path no test walked, and it was three defects deep by the time a person played the game: keys that never arrived, an `Escape` that waited forever, and a board that climbed the screen. The shell is a terminal program, so building it on that path untested was how a week would go missing.
+
+Erlang cannot open a pseudo-terminal. There is no `openpty` in OTP and no ioctl to do it by hand, so the harness is outside Erlang; of the three ways, python3's standard library has `pty`, needs no build step, and is the only one already proved against this runtime, where `script(1)`'s flags differ between util-linux and BSD and a C port program would put a compiled artefact and a third language in the build. `make test` now needs python3, and the README says so. It is the repository's only Python and keeps the repository's name, `ern_pty.py`.
+
+The harness takes a command, a list of moments and bytes to send, and a timeout, and answers with the exit status and the screen. Nothing of the terminal is mocked: the program runs under a real pseudo-terminal, the runtime sets the mode with `stty` as it does anywhere, and what the test reads is what a person would see.
+
+Under test with it: §8.2's rules, that a character and an arrow arrive as they are pressed and are not echoed, that an arrow is not split into an `Escape` and two characters, that an `Escape` alone arrives once no sequence can follow it, and that line mode with echo is restored when the program ends; and `snake`, steered by the arrows and left by `Escape`, its rows each starting at the left, which full raw mode had broken.
+
+Two things the writing taught. A command with a `;` or a `|` in it belongs to the shell inside the terminal, not to the one that starts the harness, so the harness takes it as a single quoted word; without that the pipeline ran outside the terminal and the test read the wrong screen, which cost twenty minutes and is now a check in the helper. And a test that drives a terminal is a timing test: every send is a moment measured from the start, so a test says when it presses a key rather than hoping.
+
 ## Later
 
 Planned or considered, not in the language today.

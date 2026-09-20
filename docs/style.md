@@ -15,6 +15,10 @@ For the toolchain's own code under `erl/`.
 - **No OTP behaviours, no rebar3.** `make` builds with `+debug_info -Werror`; a warning is an error.
 - **Tokens and AST nodes are plain tuples and records**, never closures or ETS state.
 
+## Python
+
+One file only, `test/ern_pty.py`, the pseudo-terminal the terminal tests need and Erlang cannot open. It keeps the repository's name, `ern_`, and its lines are ≤ 100 characters like everything else; `test/ern_style_tests.erl` checks the length.
+
 ## Ernest style guide
 
 Ernest is order-independent at top level; these are style choices, not correctness. Follow them consistently.
