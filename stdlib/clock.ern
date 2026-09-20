@@ -1,0 +1,43 @@
+/// Time from `Sys.clock`, the system process that keeps it (report §8.2).
+/// Times are milliseconds since the epoch. An alarm fires once and cannot
+/// be cancelled: a process that no longer wants it ignores the message, and
+/// a periodic tick is scheduled again after the previous one is handled.
+///
+/// ## Examples
+///
+/// ```ernest
+/// Clock.now() > 0
+/// // => true
+/// ```
+///
+/// ## See also
+///
+/// `Random.seed` for a sequence that differs between runs, `Io` for the
+/// other system module a program meets first.
+///
+/// since 0.1.0
+
+/// The time now.
+export fn now() -> Int with m = Address.callForever(Sys.clock, fn(r) = Now(reply = r))
+
+/// After that many milliseconds, `wrap(Unit)` arrives in the caller's
+/// mailbox.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Clock.alarm(10, fn(_) = Unit)
+/// ```
+export fn alarm(ms : Int, wrap : (Unit) -> m) -> Unit with m =
+    send(Sys.clock, After(ms = ms, to = via(wrap, self())))
+
+/// At that time, `wrap(Unit)` arrives in the caller's mailbox; a time
+/// already past arrives at once.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Clock.alarmAt(Clock.now() + 10, fn(_) = Unit)
+/// ```
+export fn alarmAt(at : Int, wrap : (Unit) -> m) -> Unit with m =
+    send(Sys.clock, At(at = at, to = via(wrap, self())))

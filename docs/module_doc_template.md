@@ -23,7 +23,7 @@ A module's documentation is a section 3 manual page. Its headings fall in three 
 - `### See also`, and `## See also` for the module.
 - Further examples, and a doc block on a private declaration, which then appears among the exported ones.
 
-RETURN VALUE has no heading: it is the type, plus what the description adds. `See also` names declarations and modules in backticks and never links them, since CommonMark fixes no anchor rule; a renderer that knows the headings may linkify. An example whose value cannot be shown, one that reads a file or a socket, or one of an abstract type, has no `// =>` line and is type-checked only.
+RETURN VALUE has no heading: it is the type, plus what the description adds. `See also` names declarations and modules in backticks and never links them, since CommonMark fixes no anchor rule; a renderer that knows the headings may linkify. An example that cannot run where the page's examples run, one that reads a file or a socket, one that needs a mailbox of its own, or one whose value is of an abstract type, has no `// =>` line and is type-checked only.
 
 Each standard library module is written and documented in one pass, to this page. After each module, its rendered page is read against this one before the next module starts, and what the reading changes goes into this page and E.0 rule 6 first. Headings inside a declaration's doc block are level three, since the declaration's own heading is level two; in the module's doc block they are level two.
 

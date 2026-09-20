@@ -2822,6 +2822,14 @@ The verdicts, each on the rules as they now stand. Out: `Slot(a)`, a credit type
 
 The pass also found four interface tests that a broken edit had silently dropped, for `Int.toStringBase`, `Float`'s mathematics, `List.foldRight`, and `Optional.orElse`; they are written now.
 
+## `Clock` in Ernest, and Step 3 Finished, 2026-09-20
+
+The last module of the step, and the first written entirely as E.0 rule 8 describes: `now` is `Address.callForever(Sys.clock, fn(r) = Now(reply = r))`, and `alarm` and `alarmAt` are a `send` of `After` or `At` with `via(wrap, self())` as the target, which is `monitor`'s shape. There is no shim and no helper; the module is what the report says a system module is.
+
+Writing it found a third reason an example cannot run where a page's examples run. Rule 6 named two, an abstract value and one that reads a file or a socket. An alarm's wrap makes the caller's mailbox `Unit`, and the documentation runs its examples with `Never`, so `Clock.alarm(10, fn(_) = Unit)` type-checks and cannot run there. The rule now names that case too, and those examples carry no `// =>` line.
+
+With `Clock` the step is done: every module of Appendix E that does not wait for a system process of step 4 is written in Ernest, and `ern_prelude` keeps only §9 and the names step 4 will bring.
+
 ## Later
 
 Planned or considered, not in the language today.

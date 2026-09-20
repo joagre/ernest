@@ -175,9 +175,6 @@ values() ->
      %% E.13 Random
      %% E.14 Path
      %% E.15 Clock
-     {['Clock', now], "() -> Int with m"},
-     {['Clock', alarm], "(Int, (Unit) -> m) -> Unit with m"},
-     {['Clock', alarmAt], "(Int, (Unit) -> m) -> Unit with m"},
      %% E.16 Keys
      {['Keys', subscribe], "((Key) -> m) -> Unit with m"},
      %% E.17 Fs
