@@ -16,6 +16,10 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 > 21 : Int
 > 10 : Int
 > 10 : Int
+> zero : () -> Int
+> 0 : Int
+> plus : (Int) -> Int
+> [2, 3] : List(Int)
 > double : (Int) -> Int
 > 42 : Int
 > double : (Int) -> Int
@@ -30,7 +34,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 Stack.empty : Stack
 Stack.push : (Stack, Int) -> Stack
 > <abstract> : Stack
-> input:1:1: Input24.S is the constructor of an abstract type and is not visible outside its module
+> input:1:1: Input28.S is the constructor of an abstract type and is not visible outside its module
 1 | S([])
   | ^^^^^
 > input:1:12: a `let` at the prompt is an input of its own
@@ -50,7 +54,9 @@ double : (Int) -> Int
 f : (Int) -> Int
 id : (a) -> a
 it : Stack
+plus : (Int) -> Int
 x : Int
+zero : () -> Int
 > 1 + 2 : Int
 > Io.println : (String) -> Unit with e
 > depth 10
@@ -97,6 +103,8 @@ double : (Int) -> Int
 f : (Int) -> Int
 id : (a) -> a
 it : List(Int)
+plus : (Int) -> Int
+zero : () -> Int
 > > the session declares nothing yet
 > Commands, which any prefix of the name selects:
   :type e         the type of e, which is not run

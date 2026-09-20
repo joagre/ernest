@@ -3227,6 +3227,18 @@ The shell prints a line for each process that faults, and `:processes` and `:fau
 
 **What this found, to be fixed next.** A `let` whose value is a function compiles to a getter alone, and the emitter emits a call of a qualified name as a direct remote call, so `M.g()` answers the function instead of calling it, and `M.h(2)` raises `undef` in a module that calls it. At the prompt the same defect reaches a zero-argument binding, `let g = fn() = 1` answering a function from `g()`. The cause is that an interface records a name's type and not whether it was declared with `fn` or with `let`, and the emitter guesses from the type. It is the next item, and it changes the interface chunk.
 
+## A `let` Is a Value, Whatever Its Type, 2026-09-20
+
+A defect the shell found and ordinary programs had: `M.g()` answered the function instead of calling it, `M.h(2)` raised `undef` in a module that called it, and `g(2)` inside the declaring module was refused with "no emission for g". At the prompt it reached every zero-argument binding, `let g = fn() = 1` answering a function from `g()`.
+
+**The cause.** A module's interface records a name's type and not how it was declared. The emitter reaches a module-level value through a getter and a function by its name, and for another module's name it had only the type to go by: it read a value of function type as a function declaration. Inside a module it already knew, its table of top-level names marking a `let` as `value`; the call path did not consult that either, which is why the local case was refused rather than mis-emitted.
+
+**The fix.** The interface says which exported names were declared with `let`, the chunk format is 2, and an `.erc` of the previous format is refused with the message that already existed for it. The checker keeps the same fact for a module's own declarations and for its dependencies', and answers `is_value/2`. The emitter then reads a `let` as the value it is: a reference to one is its getter, whatever its type, and a call of one applies what the getter answers. A `fn` is unchanged, a direct call and `fun M:F/N` as a value.
+
+**What it removed.** A session binding is a `let`, so the shell's holder module no longer exports a name twice, once for the value and once for the call: the emitter now asks for the getter and applies it, which is what the holder always had. The entry of earlier today that recorded the double export is answered by this one.
+
+**Why the interface and not a convention.** Two shapes were weighed. Emitting a wrapper `g/N` beside the getter for every `let` of function type, as the holder did, collapses at arity zero, where the getter and the call are the same name and cannot mean two things. Deciding from the type alone is what was wrong to begin with. The interface is where the fact belongs: the declaration's kind is part of what a dependent must know, as its type is.
+
 ## Later
 
 Planned or considered, not in the language today.

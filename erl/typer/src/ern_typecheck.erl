@@ -15,7 +15,7 @@
 
 -export([check/3, check/4, check_string/2, prelude_env/0]).
 -export([is_reply_carrying/2, resolve_type/2, lookup_type/2, lookup_con/4, type_state/1,
-         set_type_state/2, node_type/1, foreign_impl/1, segment_spec/1]).
+         set_type_state/2, node_type/1, foreign_impl/1, segment_spec/1, is_value/2]).
 
 -export_type([env/0, session/0]).
 
@@ -23,11 +23,13 @@
 -include_lib("typer/include/ern_types.hrl").
 -include_lib("lexer/include/ern_diag.hrl").
 
--record(env, {ns = [], types = #{}, cons = #{}, globals = #{},
+-record(env, {ns = [], types = #{}, cons = #{}, globals = #{}, lets = #{},
               local_types = #{}, local_cons = #{}, local_values = #{}, session = #{},
               vars = #{}, effect = pure, st, pending = [], deferred = [],
               ann_vars = #{}, rigid = [], effect_origin = undefined,
               groups = #{}, typed = [], errs = []}).
+%% lets: the qualified names, this module's and its dependencies', that
+%% were declared with `let`; the emitter reaches a value through its getter
 %% session: the shell's session, a scope between this module's own
 %% declarations and the prelude (report §11.2), empty in every other module
 %% groups: qname => the dependency group not yet checked that declares it,
@@ -176,11 +178,12 @@ mark_abstract(Decls, #env{local_types = LT, types = Ts} = Env) ->
                                    (_, Acc) -> Acc
                                 end, Ts, Decls)}.
 
-add_iface(#iface{types = Ts, values = Vs}, #env{types = ET, globals = EG} = Env) ->
+add_iface(#iface{types = Ts, values = Vs, lets = Lets}, #env{types = ET, globals = EG} = Env) ->
     Cons = maps:fold(fun(_, #tinfo{constructors = Cs}, Acc) ->
                          lists:foldl(fun(#cinfo{qname = Q} = C, A) -> A#{Q => C} end, Acc, Cs)
                      end, Env#env.cons, Ts),
-    Env#env{types = maps:merge(ET, Ts), globals = maps:merge(EG, Vs), cons = Cons}.
+    Env#env{types = maps:merge(ET, Ts), globals = maps:merge(EG, Vs), cons = Cons,
+            lets = maps:merge(Env#env.lets, maps:from_list([{Q, true} || Q <- Lets]))}.
 
 add_type(#env{types = Ts, cons = Cs} = Env, #tinfo{qname = Q, constructors = Cons} = TI) ->
     Cs1 = lists:foldl(fun(#cinfo{qname = CQ} = C, A) -> A#{CQ => C} end, Cs, Cons),
@@ -563,7 +566,12 @@ register_value_name(D, #env{local_values = LV} = Env) ->
     %% report §4.8: an operator is declared with `fn`
     not (is_record(D, let_decl) andalso is_operator(Name)) orelse
         fail(Pos, "an operator is declared with `fn`, not `let`"),
-    Env#env{local_values = LV#{Key => value_qname(Env, Owner, Name)}}.
+    Q = value_qname(Env, Owner, Name),
+    Lets = case D of
+               #let_decl{} -> (Env#env.lets)#{Q => true};
+               _ -> Env#env.lets
+           end,
+    Env#env{local_values = LV#{Key => Q}, lets = Lets}.
 
 is_operator(Name) ->
     case atom_to_list(Name) of
@@ -2288,7 +2296,10 @@ make_iface(Decls, #env{ns = Ns, types = Ts, globals = Gs} = Env) ->
                                     || D <- Decls, {true, Q} <- [exported_type(D, Env)]]),
     ExportedValues = maps:from_list([{Q, maps:get(Q, Gs)}
                                      || D <- Decls, {true, Q} <- [exported_value(D, Env)]]),
-    #iface{namespace = Ns, types = ExportedTypes, values = ExportedValues}.
+    %% report §4.6: a `let` is a value, and the emitter reaches it through
+    %% its getter even where its type is a function
+    Lets = [Q || #let_decl{} = D <- Decls, {true, Q} <- [exported_value(D, Env)]],
+    #iface{namespace = Ns, types = ExportedTypes, values = ExportedValues, lets = Lets}.
 
 %% Report §4.2: an exported declaration is made of the types that cross the
 %% boundary with it. A private type in an exported signature would leave a
@@ -2357,6 +2368,13 @@ exported_value(_, _) -> false.
 %%
 %% Helpers
 %%
+
+%% Report §4.6, §8.5: a name declared with `let` is a value, whatever its
+%% type, and the emitter reaches it through the getter of its module. A
+%% name declared with `fn` is a function.
+-spec is_value([atom()], env()) -> boolean().
+is_value(QName, #env{lets = Lets}) ->
+    maps:is_key(QName, Lets).
 
 -spec resolve_type(ern_types:type(), env()) -> ern_types:type().
 resolve_type(T, #env{st = St}) -> ern_types:zonk(T, St).

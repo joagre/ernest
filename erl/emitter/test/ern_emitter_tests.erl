@@ -122,6 +122,51 @@ golden_names() ->
     ["hello", "counter", "upgrade", "pingpong", "stack", "patterns", "kvparser",
      "remote", "modules/net/http", "modules/main"].
 
+%% report §4.6, §8.5, §11.1: a `let` is a value whatever its type, so one
+%% that holds a function is reached through its getter and called by
+%% applying what the getter answers, in its own module and in another; a
+%% `fn` of the same type is called directly. The interface says which of
+%% the two a name is.
+let_of_function_type_test() ->
+    {_, Out} = run("let g = fn() = 1\n"
+                   "let h = fn(x : Int) = x + 1\n"
+                   "fn twice(f : (Int) -> Int, n : Int) -> Int = f(f(n))\n"
+                   "export fn main() -> Unit with m = {\n"
+                   "    Io.println(Int.toString(g()));\n"
+                   "    Io.println(Int.toString(h(2)));\n"
+                   "    Io.println(Int.toString(twice(h, 0)))\n"
+                   "}\n"),
+    ?assertEqual(<<"1\n3\n2\n">>, Out).
+
+%% report §4.6, §11.1: the same across modules, where the interface is all
+%% the emitter has to tell a `let` from a `fn`
+let_of_function_type_remote_test() ->
+    {ok, MTyped, MIface, MEnv} =
+        ern_typecheck:check_string(['M'], "export let g = fn() = 1\n"
+                                          "export let h = fn(x : Int) = x + 1\n"
+                                          "export fn f(x : Int) -> Int = x * 2\n"),
+    {ok, MMod, MBin} = ern_emitter:compile(['M'], MTyped, MIface, MEnv),
+    {module, MMod} = code:load_binary(MMod, "test", MBin),
+    %% the interface the dependent is checked against is the compiled one
+    {ok, #{iface := Iface}} = ern_emitter:read_interface(MBin),
+    ?assertEqual([['M', g], ['M', h]], lists:sort(Iface#iface.lets)),
+    {ok, Decls} = ern_parser:parse_string(
+                    "export fn main() -> Unit with m = {\n"
+                    "    Io.println(Int.toString(M.g()));\n"
+                    "    Io.println(Int.toString(M.h(2)));\n"
+                    "    Io.println(Int.toString(twice(M.h, 0)));\n"
+                    "    Io.println(Int.toString(M.f(3)))\n"
+                    "}\n"
+                    "fn twice(f : (Int) -> Int, n : Int) -> Int = f(f(n))\n"),
+    {ok, Typed, Iface2, Env} = ern_typecheck:check(['Main'], Decls, [Iface]),
+    {ok, Mod, Bin} = ern_emitter:compile(['Main'], Typed, Iface2, Env),
+    {module, Mod} = code:load_binary(Mod, "test", Bin),
+    Me = self(),
+    ern_rt:run_main(fun() -> Mod:main() end, <<"main">>,
+                    #{init => fun() -> init(MMod), init(Mod) end,
+                      stdout => fun(B) -> Me ! {out, B} end}),
+    ?assertEqual(<<"1\n3\n2\n6\n">>, collect([])).
+
 %% The source the compiler emits for an example; the modules pair is
 %% checked in dependency order, main against http's interface.
 golden_source("modules/" ++ _ = Name) ->

@@ -19,7 +19,7 @@
 -include_lib("typer/include/ern_types.hrl").
 
 -define(CHUNK, <<"ErnI">>).
--define(CHUNK_FORMAT, 1).
+-define(CHUNK_FORMAT, 2).
 %% EEP 48: the documentation chunk every BEAM documentation tool reads.
 -define(DOCS, <<"Docs">>).
 
@@ -131,9 +131,9 @@ read_interface(Beam) ->
     case beam_lib:chunks(Beam, [binary_to_list(?CHUNK)]) of
         {ok, {_, [{_, Chunk}]}} ->
             try binary_to_term(Chunk) of
-                #{format := ?CHUNK_FORMAT, iface := {iface, Ns, Types, Values}} = Map ->
+                #{format := ?CHUNK_FORMAT, iface := {iface, Ns, Types, Values, Lets}} = Map ->
                     {ok, Map#{iface => #iface{namespace = Ns, types = maps:from_list(Types),
-                                              values = maps:from_list(Values)}}};
+                                              values = maps:from_list(Values), lets = Lets}}};
                 _ ->
                     {error, "the interface chunk is of another compiler version"}
             catch _:_ ->
@@ -326,9 +326,10 @@ line_of(_) -> 0.
 canonical_iface(Iface) ->
     canonical_iface(Iface, keep).
 
-canonical_iface(#iface{namespace = Ns, types = Ts, values = Vs}, Names) ->
+canonical_iface(#iface{namespace = Ns, types = Ts, values = Vs, lets = Lets}, Names) ->
     {iface, Ns, lists:sort(maps:to_list(Ts)),
-     lists:sort([{Q, canonical_scheme(S, Names)} || {Q, S} <- maps:to_list(Vs)])}.
+     lists:sort([{Q, canonical_scheme(S, Names)} || {Q, S} <- maps:to_list(Vs)]),
+     lists:sort(Lets)}.
 
 canonical_scheme(#scheme{vars = Vars, type = T, names = Names}, Keep) ->
     Map = maps:from_list([{Id, N} || {{Id, _}, N} <- lists:zip(Vars, lists:seq(1, length(Vars)))]),
@@ -643,9 +644,16 @@ var_ref(Pos, Path, Name, T, #cx{tops = Tops, env = Env} = Cx) ->
                        true -> prelude_value(Pos, Path ++ [Name], T, Cx);
                        false ->
                            {M, F} = remote_name(Path, Name, Env),
-                           case T of
-                               {tfn, Ps, _, _} -> remote_fun(M, F, length(Ps));
-                               _ -> call_remote(M, F, [])
+                           %% report §4.6: a `let` is a value, reached
+                           %% through its getter even where it holds a
+                           %% function; a `fn` is the function itself
+                           case is_value(Path, Name, Env) of
+                               true -> call_remote(M, F, []);
+                               false ->
+                                   case T of
+                                       {tfn, Ps, _, _} -> remote_fun(M, F, length(Ps));
+                                       _ -> call_remote(M, F, [])
+                                   end
                            end
                    end
            end,
@@ -661,6 +669,16 @@ arity_of(_, Pos) -> fail(Pos, "a local function used as a value must have a func
 is_prelude(QName, Env) ->
     ern_typecheck:lookup_type(QName, Env) =:= undefined andalso
         lists:keymember(QName, 1, ern_prelude:values()).
+
+%% Report §4.6: whether the qualified name was declared with `let`, which
+%% the module's interface says (§11.1).
+is_value(Path, Name, Env) ->
+    case ern_typecheck:lookup_type(Path, Env) of
+        #tinfo{qname = Q} when length(Q) > 1 ->
+            ern_typecheck:is_value(lists:droplast(Path) ++ [lists:last(Path), Name], Env);
+        _ ->
+            ern_typecheck:is_value(Path ++ [Name], Env)
+    end.
 
 %% A qualified name in another Ernest module: Path names the module, or a
 %% module plus a type-member owner (report §4.2).
@@ -701,6 +719,9 @@ call(Pos, #e_var{path = [], name = Name} = Callee, Args, Cx) ->
                     case Tops of
                         #{{undefined, Name} := Arity} when is_integer(Arity) ->
                             {at(Pos, erl_syntax:application(erl_syntax:atom(Name), ArgForms)), Cx1};
+                        #{{undefined, Name} := value} ->
+                            Get = erl_syntax:application(erl_syntax:atom(Name), []),
+                            {at(Pos, erl_syntax:application(Get, ArgForms)), Cx1};
                         _ ->
                             prelude_call(Pos, [Name], Args, ArgForms, Callee, Cx1)
                     end
@@ -717,13 +738,28 @@ call(Pos, #e_var{path = Path, name = Name} = Callee, Args, Cx) ->
     {ArgForms, Cx1} = exprs(Args, Cx),
     case Path of
         [Owner] when is_map_key({Owner, Name}, Tops) ->
-            {at(Pos, erl_syntax:application(erl_syntax:atom(fname(Owner, Name)), ArgForms)), Cx1};
+            Local = erl_syntax:atom(fname(Owner, Name)),
+            case maps:get({Owner, Name}, Tops) of
+                value ->
+                    Get = erl_syntax:application(Local, []),
+                    {at(Pos, erl_syntax:application(Get, ArgForms)), Cx1};
+                _ ->
+                    {at(Pos, erl_syntax:application(Local, ArgForms)), Cx1}
+            end;
         _ ->
             case is_prelude(Path ++ [Name], Env) of
                 true -> prelude_call(Pos, Path ++ [Name], Args, ArgForms, Callee, Cx1);
                 false ->
                     {M, F} = remote_name(Path, Name, Env),
-                    {at(Pos, call_remote(M, F, ArgForms)), Cx1}
+                    %% report §4.6: calling a `let` applies what its getter
+                    %% answers; calling a `fn` is the call itself
+                    case is_value(Path, Name, Env) of
+                        true ->
+                            Get = call_remote(M, F, []),
+                            {at(Pos, erl_syntax:application(Get, ArgForms)), Cx1};
+                        false ->
+                            {at(Pos, call_remote(M, F, ArgForms)), Cx1}
+                    end
             end
     end;
 call(Pos, #e_con{} = Con, Args, Cx) ->

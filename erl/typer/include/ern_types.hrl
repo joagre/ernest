@@ -50,7 +50,9 @@
 %% The compiled interface of a module: what other modules see (report §4.2,
 %% §11.1). Produced by the checker, consumed by the checker of a dependent
 %% module and by the compiler.
--record(iface, {namespace, types = #{}, values = #{}}).
+-record(iface, {namespace, types = #{}, values = #{}, lets = []}).
+%% lets: the qualified names among `values` that were declared with `let`,
+%% which the emitter calls through their getter (report §4.6, §8.5)
 %% namespace: qname(); types: #{qname() => #tinfo{}};
 %% values: #{qname() => #scheme{}} for exported fn, let, and foreign fn
 

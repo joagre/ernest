@@ -711,9 +711,10 @@ bind(#env{n = N} = Env, Name, _Ns, Value, Type, TEnv, _Iface) ->
     Mod = ern_emitter:module_atom(Holder),
     persistent_term:put({Mod, Name}, Value),
     Zonked = ern_types:zonk(Type, ern_typecheck:type_state(TEnv)),
-    {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), holder(Mod, Name, arity(Zonked))),
+    {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), holder(Mod, Name)),
     Scheme = ern_types:mono(Zonked),
-    session(Env, #iface{namespace = Holder, values = #{Holder ++ [Name] => Scheme}}).
+    session(Env, #iface{namespace = Holder, values = #{Holder ++ [Name] => Scheme},
+                        lets = [Holder ++ [Name]]}).
 
 %% Report §11.2: the session is a scope of its own. The interface behind an
 %% input joins the ones the checker is given, and what it declares joins the
@@ -740,38 +741,28 @@ value_key(Ns, Q) ->
         [Owner, Name] -> {Owner, Name}
     end.
 
-arity({tfn, Params, _, _}) -> length(Params);
-arity(_) -> none.
-
-%% The getter the emitter emits for a module's own value (§8.5), and, for a
-%% binding that holds a function, the direct call the emitter emits for a
-%% name it knows the arity of: `f(1)` is `ern@bindings1:f(1)` and `f` alone
-%% is `ern@bindings1:f()`, so the holder answers both.
+%% The getter the emitter emits for a module's own value (§8.5). A binding
+%% is a `let`, so a later input reaches it as it reaches any other module's
+%% value, and calls it by applying what the getter answers (§4.6).
 %%
 %% Report §8.6: the host's compiler waits for a process of its own, and the
 %% input's process is an Ernest process waiting with it. It is marked as a
 %% foreign call in progress, which is what it is, so that `Deadlock` is not
 %% declared over a binding being made.
-holder(Mod, Name, Arity) ->
-    ern_rt:in_foreign(fun() -> holder_beam(Mod, Name, Arity) end).
+holder(Mod, Name) ->
+    ern_rt:in_foreign(fun() -> holder_beam(Mod, Name) end).
 
-holder_beam(Mod, Name, Arity) ->
+holder_beam(Mod, Name) ->
     Get = erl_syntax:application(
             erl_syntax:module_qualifier(erl_syntax:atom(persistent_term), erl_syntax:atom(get)),
             [erl_syntax:tuple([erl_syntax:atom(Mod), erl_syntax:atom(Name)])]),
-    Exports = [erl_syntax:arity_qualifier(erl_syntax:atom(Name), erl_syntax:integer(0))
-               | [erl_syntax:arity_qualifier(erl_syntax:atom(Name), erl_syntax:integer(Arity))
-                  || is_integer(Arity), Arity > 0]],
-    Args = [erl_syntax:variable("A" ++ integer_to_list(I))
-            || is_integer(Arity), I <- lists:seq(1, Arity)],
-    Applied = [erl_syntax:function(erl_syntax:atom(Name),
-                                   [erl_syntax:clause(Args, none,
-                                                      [erl_syntax:application(Get, Args)])])
-               || is_integer(Arity), Arity > 0],
     Forms = [erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Mod)]),
-             erl_syntax:attribute(erl_syntax:atom(export), [erl_syntax:list(Exports)]),
+             erl_syntax:attribute(erl_syntax:atom(export),
+                                  [erl_syntax:list(
+                                     [erl_syntax:arity_qualifier(erl_syntax:atom(Name),
+                                                                 erl_syntax:integer(0))])]),
              erl_syntax:function(erl_syntax:atom(Name),
-                                 [erl_syntax:clause([], none, [Get])]) | Applied],
+                                 [erl_syntax:clause([], none, [Get])])],
     {ok, _, Bin} = compile:forms([erl_syntax:revert(F) || F <- Forms], [return_errors]),
     Bin.
 
