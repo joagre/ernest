@@ -134,13 +134,13 @@ monitor(Addr, Wrap) ->
 
 -spec kill(address()) -> 'Unit'.
 kill(Addr) ->
-    exit(Addr, {ernest, killed}),
+    exit(Addr, {ern, killed}),
     ?UNIT.
 
 reason(normal) -> 'Returned';
-reason({ernest, killed}) -> 'Killed';
-reason({ernest, program_end}) -> 'ProgramEnd';
-reason({ernest, fault, Msg}) -> {'Fault', Msg};
+reason({ern, killed}) -> 'Killed';
+reason({ern, program_end}) -> 'ProgramEnd';
+reason({ern, fault, Msg}) -> {'Fault', Msg};
 reason(noproc) -> {'Fault', <<"died before monitor">>};
 reason(Other) -> {'Fault', format("~p", [Other])}.
 
@@ -265,14 +265,14 @@ run(Fun) ->
     try
         Fun()
     catch
-        error:badarith -> exit({ernest, fault, <<"division by zero">>});
-        throw:{ernest, fault, Msg} -> exit({ernest, fault, Msg});
-        Class:Reason -> exit({ernest, fault, format("~p:~p", [Class, Reason])})
+        error:badarith -> exit({ern, fault, <<"division by zero">>});
+        throw:{ern, fault, Msg} -> exit({ern, fault, Msg});
+        Class:Reason -> exit({ern, fault, format("~p:~p", [Class, Reason])})
     end.
 
 -spec fault(binary()) -> no_return().
 fault(Msg) ->
-    throw({ernest, fault, Msg}).
+    throw({ern, fault, Msg}).
 
 %%
 %% Report §8.2, §9.7: system references
@@ -401,7 +401,7 @@ run_main(Main, Site, Opts) ->
                  {deadlock, Run} -> deadlock;
                  {terminal, Run, Text} -> {'Fault', Text}
              end,
-    lists:foreach(fun({Pid, _, alive, _, _}) -> exit(Pid, {ernest, program_end});
+    lists:foreach(fun({Pid, _, alive, _, _}) -> exit(Pid, {ern, program_end});
                      (_) -> ok
                   end, ets:tab2list(?PROCESSES)),
     lists:foreach(fun(Sink) ->

@@ -133,6 +133,46 @@ clock_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(true, wait(clock_ok)).
 
+%% report §8.4: a process's end is a host term, since foreign code may
+%% observe it: normal, {ern, fault, Text}, {ern, killed}, {ern, program_end}
+host_exit_reason_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Zero = zero(),
+               Good = ern_rt:spawn('Local', fun() -> receive go -> ok end end, <<"Main.main:3">>),
+               erlang:monitor(process, Good),
+               Good ! go,
+               receive {'DOWN', _, process, Good, R1} -> Me ! {r1, R1} end,
+               Bad = ern_rt:spawn('Local', fun() -> receive go -> 1 div Zero end end,
+                                  <<"Main.main:5">>),
+               erlang:monitor(process, Bad),
+               Bad ! go,
+               receive {'DOWN', _, process, Bad, R2} -> Me ! {r2, R2} end,
+               Victim = ern_rt:spawn('Local', fun() -> receive never -> ok end end,
+                                     <<"Main.main:7">>),
+               erlang:monitor(process, Victim),
+               ern_rt:kill(Victim),
+               receive {'DOWN', _, process, Victim, R3} -> Me ! {r3, R3} end
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual(normal, wait(r1)),
+    ?assertEqual({ern, fault, <<"division by zero">>}, wait(r2)),
+    ?assertEqual({ern, killed}, wait(r3)),
+    %% a process still alive when main returns ends with the program
+    spawn(fun() ->
+              ern_rt:run_main(
+                fun() ->
+                    Me ! {waiter, ern_rt:spawn('Local', fun() -> receive never -> ok end end,
+                                               <<"Main.main:9">>)},
+                    receive after 200 -> ok end
+                end, <<"main">>, #{stdout => fun(_) -> ok end})
+          end),
+    Waiter = wait(waiter),
+    Ref = erlang:monitor(process, Waiter),
+    receive {'DOWN', Ref, process, Waiter, R4} -> ?assertEqual({ern, program_end}, R4)
+    after 2000 -> error(no_program_end)
+    end.
+
 wait(Tag) ->
     receive {Tag, V} -> V after 1000 -> timeout end.
 

@@ -2894,6 +2894,8 @@ Two names were wrong rather than mis-prefixed. `ern_compiler` became `ern_emitte
 
 Earlier entries keep the names they were written with, since an entry records an argument on its date and some of those arguments were about the names themselves. The two renames above and `ernest@` to `ern@` are the whole map from them to the code.
 
+Two uses of the full name in code were weighed after the rename. The tag an Ernest process dies with, `{ernest, fault, Text}` and its two siblings, became `{ern, ...}` and moved into the report: §8.4 already gives the BEAM ABI value by value, foreign code can observe a death, and a tag the report does not name is something invisible, which principle 3 refuses. The configuration directory `.ernest/` and `ernest.conf` stay as they are. They are normative in §11.2 and §11.3 and they are user-facing: a directory listing should say which language owns the directory, as `.git` and `.cargo` do, and that is the language's name rather than the toolchain's.
+
 [`naming.md`](naming.md) is the record; the rule itself lives in the style guide.
 
 ## Later

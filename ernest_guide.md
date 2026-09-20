@@ -912,6 +912,8 @@ Ernest treats the foreign boundary as a *promise*: the declared type is what com
 - **Wrong message from a foreign process.** *Checked at runtime.* A message that doesn't match the *destination's* declared mailbox type faults the receiver on delivery. Messages from the system processes are not checked (report §8.4). A message between two Ernest processes was already checked by `send`'s type, so nothing is checked at delivery.
 - **Purity.** *Not checked.* Declaring `foreign fn` without `with M` is a promise the foreign side cannot enforce mechanically. Reserve pure declarations for functions that genuinely have no effect.
 
+In the other direction, an Ernest process's death is an Erlang exit reason: `normal` when it returned, `{ern, fault, Text}` when it faulted, `{ern, killed}` and `{ern, program_end}` for the other two ends (report §8.4). Erlang code that monitors an Ernest process reads these.
+
 A value foreign code made and Ernest does not inspect has the built-in type `Foreign`; `Foreign.toInt` and the rest of Appendix E.12 read it, and `Erl.atom(name)` is how an Erlang atom is passed (report §3.7, Appendix E.19).
 
 ### 7.4 Node-local foreign values

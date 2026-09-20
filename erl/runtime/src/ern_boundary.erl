@@ -22,7 +22,7 @@ foreign(M, F, Args, ArgDescs, Desc, Text) ->
     Exposed = [expose(D, A, #{}) || {D, A} <- lists:zip(ArgDescs, Args)],
     V = try ern_rt:in_foreign(fun() -> apply(M, F, Exposed) end)
         catch
-            throw:{ernest, _, _} = Passing -> throw(Passing);
+            throw:{ern, _, _} = Passing -> throw(Passing);
             Class:Reason ->
                 ern_rt:fault(unicode:characters_to_binary(
                                io_lib:format("foreign function ~s:~s/~B raised ~p:~p",
@@ -155,7 +155,7 @@ proxy_loop(Target, MRef, D, B, Text) ->
         Msg ->
             case chk(D, Msg, B) of
                 true -> Target ! zeroed(D, Msg, B);
-                false -> exit(Target, {ernest, fault, Text})
+                false -> exit(Target, {ern, fault, Text})
             end,
             proxy_loop(Target, MRef, D, B, Text)
     end.

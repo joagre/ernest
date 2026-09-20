@@ -627,6 +627,8 @@ The system processes are foreign processes: their message types are declared in 
 - `Address(m)`, `Reply(a)`, function values → opaque handles foreign code may pass back but not inspect.
 - Foreign values → as foreign code made them; Ernest does not inspect them.
 
+A process's end is a host term too, since foreign code may observe it: a process that returned exits `normal`, one that faulted `{ern, fault, Text}`, one killed by `kill` `{ern, killed}`, and one ended with the program `{ern, program_end}`. These are the `Reason` values of §6.9 as the host sees them.
+
 Same-named constructors of different types share an atom; the receiver's declared type disambiguates. Cross-node transport uses the runtime's external term format for these representations. A `foreign fn` implementation is named `module:function/arity`, the arity its parameter count.
 
 ### 8.5 Initialization

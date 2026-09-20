@@ -252,7 +252,7 @@ int_test() ->
     ?assertEqual(-2, I:shiftRight(-7, 2)),
     ?assertEqual(<<"-7">>, I:toString(-7)),
     ?assertEqual(7.0, I:toFloat(7)),
-    ?assertThrow({ernest, fault, <<"Int out of Float range">>}, I:toFloat(1 bsl 2000)),
+    ?assertThrow({ern, fault, <<"Int out of Float range">>}, I:toFloat(1 bsl 2000)),
     ?assertEqual({'Some', -2}, I:'div'(-7, 3)),
     ?assertEqual({'Some', -1}, I:'mod'(-7, 3)),
     ?assertEqual('None', I:'div'(1, 0)),
@@ -272,8 +272,8 @@ float_test() ->
     ?assertEqual(3.5, F:'+'(F:'*'(1.5, 2.0), 0.5)),
     ?assertEqual(-1.0, F:'-'(1.0, 2.0)),
     ?assertEqual(0.5, F:'/'(1.0, 2.0)),
-    ?assertThrow({ernest, fault, <<"float arithmetic error">>}, F:'/'(1.0, 0.0)),
-    ?assertThrow({ernest, fault, <<"float arithmetic error">>}, F:'*'(1.0e308, 10.0)),
+    ?assertThrow({ern, fault, <<"float arithmetic error">>}, F:'/'(1.0, 0.0)),
+    ?assertThrow({ern, fault, <<"float arithmetic error">>}, F:'*'(1.0e308, 10.0)),
     ?assertEqual(1.5, F:abs(-1.5)),
     ?assertEqual(0.0, F:abs(0.0)),
     ?assertEqual(2.0, F:abs(2.0)),
@@ -293,9 +293,9 @@ float_test() ->
     ?assertEqual({'Some', 3.0}, F:sqrt(9.0)),
     ?assertEqual('None', F:sqrt(-1.0)),
     ?assertEqual(1024.0, F:pow(2.0, 10.0)),
-    ?assertThrow({ernest, fault, <<"float arithmetic error">>}, F:pow(10.0, 400.0)),
+    ?assertThrow({ern, fault, <<"float arithmetic error">>}, F:pow(10.0, 400.0)),
     ?assertEqual(1.0, F:exp(0.0)),
-    ?assertThrow({ernest, fault, <<"float arithmetic error">>}, F:exp(1000.0)),
+    ?assertThrow({ern, fault, <<"float arithmetic error">>}, F:exp(1000.0)),
     ?assertEqual({'Some', 0.0}, F:log(1.0)),
     ?assertEqual('None', F:log(0.0)),
     ?assertEqual({0.0, 1.0, 0.0}, {F:sin(0.0), F:cos(0.0), F:tan(0.0)}),
@@ -523,4 +523,4 @@ remote_test() ->
 
 %% report §7.4
 todo_test() ->
-    ?assertThrow({ernest, fault, <<"todo: x">>}, ern_rt:todo(<<"x">>)).
+    ?assertThrow({ern, fault, <<"todo: x">>}, ern_rt:todo(<<"x">>)).
