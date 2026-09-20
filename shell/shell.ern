@@ -27,7 +27,12 @@ foreign fn typeText(c : Checked) -> String = "ern_shell:type_text/1"
 foreign fn declared(c : Checked) -> List(String) = "ern_shell:declared/1"
 foreign fn run(env : Env, c : Checked, to : Address(Outcome)) -> Address(Never) with m =
     "ern_shell:run/3"
-foreign fn show(v : Value) -> String = "ern_shell:show/1"
+foreign fn show(v : Value, depth : Int, length : Int) -> String = "ern_shell:show/3"
+foreign fn bindings(env : Env) -> List(String) = "ern_shell:bindings/1"
+foreign fn forget(env : Env, name : String) -> Either(String, Env) = "ern_shell:forget/2"
+foreign fn browse(env : Env, name : String) -> Either(String, List(String)) with m =
+    "ern_shell:browse/2"
+foreign fn doc(env : Env, name : String) -> Either(String, String) with m = "ern_shell:doc/2"
 foreign fn isTerminal() -> Bool with m = "ern_shell:is_terminal/0"
 foreign fn write(text : String) -> Unit with m = "ern_shell:write/1"
 foreign fn setScreen(to : Address(String)) -> Unit with m = "ern_shell:screen/1"
@@ -39,52 +44,87 @@ foreign fn holdTerminal(reader : Address(a)) -> Unit with m = "ern_rt:hold_termi
 
 type ShellMsg = Typed(String) | Eof | Interrupted | Done(Outcome)
 
+// What the session carries between inputs: the front end's environment and
+// the settings `:set` changes, which are ordinary values.
+type State = State(env : Env, settings : Settings)
+type Settings = Settings(depth : Int, length : Int, timing : Bool)
+
+// Report §11.2: a value is printed to a depth and a length, and 0 is
+// neither. The defaults print what a prompt is used for whole and stop a
+// value that would scroll the session away.
+let defaults = Settings(depth = 10, length = 100, timing = false)
+
 export fn main() -> Unit with ShellMsg = {
     let screen = spawn(Local, fn() = screenLoop());
     setScreen(via(Print, screen));
-    send(screen, Print("Ernest 0.1.0. :quit, or C-d on an empty line, to leave.\n"));
-    let env = start("", ".");
+    send(screen, Print("Ernest 0.1.0. :help for the commands, :quit to leave.\n"));
+    let state = State(env = start("", "."), settings = defaults);
     if isTerminal() then {
         let me = self();
         let reader = spawn(Local, fn() = { Keys.subscribe(K); readLoop(me, screen, "") });
         holdTerminal(reader);
         send(screen, Print("> "));
-        keyLoop(env, screen)
-    } else lineLoop(env, screen)
+        keyLoop(state, screen)
+    } else lineLoop(state, screen)
 }
 
 // One input, from either reader: checked, run in a process of its own, its
 // value printed with its type. An expression of type Unit prints nothing.
-fn evaluate(env : Env, screen : Address(ScreenMsg), input : String) -> Env with ShellMsg =
+fn evaluate(state : State, screen : Address(ScreenMsg), input : String) -> State with ShellMsg = {
+    let State(env = env) = state;
     match check(env, input) {
-        Left(text) -> { send(screen, Print(text)); env }
+        Left(text) -> { send(screen, Print(text)); state }
       | Right(#(env2, checked)) -> {
+            // report §11.2: the run is what timing measures, not the check
+            let started = Clock.now();
             let child = run(env2, checked, via(Done, self()));
-            await(env2, screen, checked, child)
+            await(State(..state, env = env2), screen, checked, child, started)
         }
     }
+}
 
 // The reader stays live, so an interruption reaches the session while the
 // input runs and kills it (report §11.2).
 fn await(
-    env : Env,
+    state : State,
     screen : Address(ScreenMsg),
     checked : Checked,
-    child : Address(Never)
-) -> Env with ShellMsg = receive {
+    child : Address(Never),
+    started : Int
+) -> State with ShellMsg = receive {
     Done(Ok(env = env2, value = value)) -> {
+        let State(settings = settings) = state;
+        let Settings(depth = depth, length = length) = settings;
         let shown = typeText(checked);
         match declared(checked) {
             [] -> if shown == "Unit" then Unit
-                  else send(screen, Print(show(value) <> " : " <> shown <> "\n"))
+                  else say(screen, show(value, depth, length) <> " : " <> shown)
           | lines -> printLines(screen, lines)
         };
-        env2
+        timed(screen, settings, started);
+        State(..state, env = env2)
     }
-  | Done(Failed(text)) -> { send(screen, Print("fault: " <> text <> "\n")); env }
-  | Interrupted -> { kill(child); send(screen, Print("Killed\n")); env }
-  | Typed(_) or Eof -> await(env, screen, checked, child)
+  | Done(Failed(text)) -> {
+        say(screen, "fault: " <> text);
+        let State(settings = settings) = state;
+        timed(screen, settings, started);
+        state
+    }
+  | Interrupted -> { kill(child); say(screen, "Killed"); state }
+  | Typed(_) or Eof -> await(state, screen, checked, child, started)
 }
+
+// Report §11.2: with timing on, a result is followed by the time the run
+// took.
+fn timed(screen : Address(ScreenMsg), settings : Settings, started : Int) -> Unit with m =
+    match settings {
+        Settings(timing = false) -> Unit
+      | Settings(timing = true) -> say(screen, "(" <> Int.toString(Clock.now() - started)
+                                                <> " ms)")
+    }
+
+fn say(screen : Address(ScreenMsg), text : String) -> Unit with m =
+    send(screen, Print(text <> "\n"))
 
 // What the input declared, a line for each, in the order they were written
 // (report §11.2).
@@ -96,6 +136,164 @@ fn printLines(screen : Address(ScreenMsg), lines : List(String)) -> Unit with m 
             printLines(screen, rest)
         }
     }
+
+//
+// Commands (report §11.2)
+//
+
+// A command is `:` and a name, and is not an Ernest function. Any prefix
+// of the name selects it, an ambiguous prefix the first in this order,
+// which is the order `:help` gives. One list holds all three, the order,
+// what a command takes after its name, and the line `:help` prints, so
+// that they cannot drift apart.
+type Command = Type | Browse | Load | Reload | Quit | Doc | Help | Forget
+             | Bindings | Processes | Faults | Set
+
+type Entry = Entry(name : String, command : Command, takes : Optional(String), about : String)
+
+type Next = Continue(State) | Leave
+
+let commands = [
+    Entry(name = "type", command = Type, takes = Some("an expression"),
+          about = " e         the type of e, which is not run"),
+    Entry(name = "browse", command = Browse, takes = Some("a module"),
+          about = " Module  the exports of Module with their types"),
+    Entry(name = "load", command = Load, takes = Some("a module"),
+          about = " Module    not built yet"),
+    Entry(name = "reload", command = Reload, takes = None,
+          about = "         not built yet"),
+    Entry(name = "quit", command = Quit, takes = None,
+          about = "           leave, as C-d on an empty line does"),
+    Entry(name = "doc", command = Doc, takes = Some("a name"),
+          about = " Name       the documentation of Name, which GHCi calls :info"),
+    Entry(name = "help", command = Help, takes = None,
+          about = "           this text"),
+    Entry(name = "forget", command = Forget, takes = Some("a name, or * for all of them"),
+          about = " name    forget a name the session declared, or * for all of them"),
+    Entry(name = "bindings", command = Bindings, takes = None,
+          about = "       what the session declares, with their types"),
+    Entry(name = "processes", command = Processes, takes = None,
+          about = "      not built yet"),
+    Entry(name = "faults", command = Faults, takes = None,
+          about = "         not built yet"),
+    Entry(name = "set", command = Set, takes = None,
+          about = "            depth n, length n, timing on or off; :set alone shows them")
+]
+
+// An input is a command or Ernest.
+fn submit(state : State, screen : Address(ScreenMsg), input : String) -> Next with ShellMsg =
+    if String.startsWith(input, ":") then perform(state, screen, input)
+    else Continue(evaluate(state, screen, input))
+
+fn perform(state : State, screen : Address(ScreenMsg), input : String) -> Next with ShellMsg = {
+    let #(word, arg) = splitWord(input, 0);
+    let name = String.slice(word, 1, String.size(word) - 1);
+    match pick(commands, name) {
+        None -> {
+            say(screen, "no command " <> word <> "; :help lists them");
+            Continue(state)
+        }
+      | Some(Entry(name = full, command = c, takes = Some(what))) ->
+            if String.isEmpty(arg) then {
+                say(screen, ":" <> full <> " takes " <> what);
+                Continue(state)
+            } else obey(state, screen, c, arg)
+      | Some(Entry(command = c)) -> obey(state, screen, c, arg)
+    }
+}
+
+fn pick(cs : List(Entry), name : String) -> Optional(Entry) =
+    if String.isEmpty(name) then None
+    else match cs {
+        [] -> None
+      | first :: rest -> match first {
+            Entry(name = full) ->
+                if String.startsWith(full, name) then Some(first) else pick(rest, name)
+        }
+    }
+
+fn obey(state : State, screen : Address(ScreenMsg), c : Command, arg : String)
+    -> Next with ShellMsg = {
+    let State(env = env, settings = settings) = state;
+    match c {
+        Quit -> Leave
+      | Help -> { printLines(screen, help()); Continue(state) }
+      | Bindings -> match bindings(env) {
+            [] -> { say(screen, "the session declares nothing yet"); Continue(state) }
+          | lines -> { printLines(screen, lines); Continue(state) }
+        }
+      | Type -> match check(env, arg) {
+            Left(text) -> { send(screen, Print(text)); Continue(state) }
+          | Right(#(env2, checked)) -> {
+                say(screen, arg <> " : " <> typeText(checked));
+                Continue(State(..state, env = env2))
+            }
+        }
+      | Forget -> match forget(env, arg) {
+            Left(text) -> { say(screen, text); Continue(state) }
+          | Right(env2) -> Continue(State(..state, env = env2))
+        }
+      | Browse -> match browse(env, arg) {
+            Left(text) -> { say(screen, text); Continue(state) }
+          | Right(lines) -> { printLines(screen, lines); Continue(state) }
+        }
+      | Doc -> match doc(env, arg) {
+            Left(text) -> { say(screen, text); Continue(state) }
+          | Right(text) -> { send(screen, Print(text)); Continue(state) }
+        }
+      | Set -> Continue(State(..state, settings = set(screen, settings, arg)))
+      | Load or Reload or Processes or Faults -> {
+            say(screen, "that command is not built yet; it arrives in MVP 2.6's checkpoint 1");
+            Continue(state)
+        }
+    }
+}
+
+// Report §11.2: the depth and the length a value is printed to, and
+// whether a result is followed by the time its run took.
+fn set(screen : Address(ScreenMsg), settings : Settings, arg : String) -> Settings with m = {
+    let #(what, rest) = splitWord(arg, 0);
+    if String.isEmpty(what) then { printLines(screen, settingLines(settings)); settings }
+    else if what == "depth" then
+        number(screen, settings, rest, fn(n) = Settings(..settings, depth = n))
+    else if what == "length" then
+        number(screen, settings, rest, fn(n) = Settings(..settings, length = n))
+    else if what == "timing" then
+        if rest == "on" then Settings(..settings, timing = true)
+        else if rest == "off" then Settings(..settings, timing = false)
+        else { say(screen, ":set timing takes on or off"); settings }
+    else { say(screen, ":set takes depth, length, or timing"); settings }
+}
+
+fn number(
+    screen : Address(ScreenMsg),
+    settings : Settings,
+    text : String,
+    f : (Int) -> Settings
+) -> Settings with m = match String.toInt(text) {
+    Some(n) -> if n < 0 then { say(screen, "a depth and a length are 0 or more"); settings }
+               else f(n)
+  | None -> { say(screen, "that is not a number"); settings }
+}
+
+fn settingLines(settings : Settings) -> List(String) = match settings {
+    Settings(depth = d, length = l, timing = t) ->
+        ["depth " <> Int.toString(d), "length " <> Int.toString(l),
+         "timing " <> (if t then "on" else "off")]
+}
+
+// The first word of a line and what follows it, trimmed.
+fn splitWord(s : String, i : Int) -> #(String, String) =
+    if i >= String.size(s) then #(s, "")
+    else if String.slice(s, i, 1) == " " then
+        #(String.slice(s, 0, i), String.trim(String.slice(s, i, String.size(s) - i)))
+    else splitWord(s, i + 1)
+
+// Report §11.2: the commands and their prefixes, from the one list.
+fn help() -> List(String) =
+    ["Commands, which any prefix of the name selects:"]
+    <> List.map(commands, fn(e) = match e { Entry(name = n, about = a) -> "  :" <> n <> a })
+    <> ["The value of the last expression is `it`."]
 
 //
 // The screen: the only process that writes to the terminal
@@ -166,33 +364,33 @@ fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), line : Str
   | K(_) -> readLoop(session, screen, line)
 }
 
-fn keyLoop(env : Env, screen : Address(ScreenMsg)) -> Unit with ShellMsg = receive {
+fn keyLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = receive {
     Typed(line) -> match String.trim(line) {
-        "" -> { prompt(screen); keyLoop(env, screen) }
-      | ":quit" -> finish(screen, "")
-      | input -> {
-            let env2 = evaluate(env, screen, input);
-            prompt(screen);
-            keyLoop(env2, screen)
+        "" -> { prompt(screen); keyLoop(state, screen) }
+      | input -> match submit(state, screen, input) {
+            Leave -> finish(screen, "")
+          | Continue(state2) -> { prompt(screen); keyLoop(state2, screen) }
         }
     }
   | Eof -> finish(screen, "\n")
-  | Interrupted -> { prompt(screen); keyLoop(env, screen) }
-  | Done(_) -> keyLoop(env, screen)
+  | Interrupted -> { prompt(screen); keyLoop(state, screen) }
+  | Done(_) -> keyLoop(state, screen)
 }
 
 //
 // The reader, when input is not a terminal: lines, no editing
 //
 
-fn lineLoop(env : Env, screen : Address(ScreenMsg)) -> Unit with ShellMsg = {
+fn lineLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = {
     prompt(screen);
     match Io.readLine() {
         None -> finish(screen, "\n")
       | Some(line) -> match String.trim(line) {
-            "" -> lineLoop(env, screen)
-          | ":quit" -> finish(screen, "")
-          | input -> lineLoop(evaluate(env, screen, input), screen)
+            "" -> lineLoop(state, screen)
+          | input -> match submit(state, screen, input) {
+                Leave -> finish(screen, "")
+              | Continue(state2) -> lineLoop(state2, screen)
+            }
         }
     }
 }

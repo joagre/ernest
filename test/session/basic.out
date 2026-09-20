@@ -1,4 +1,4 @@
-Ernest 0.1.0. :quit, or C-d on an empty line, to leave.
+Ernest 0.1.0. :help for the commands, :quit to leave.
 > 3 : Int
 > "hi!" : String
 > [1, 4, 9] : List(Int)
@@ -40,4 +40,76 @@ Stack.push : (Stack, Int) -> Stack
 > input:1:18: expected `)` instead of `,`
 1 | type Pair = P(Int, Int)
   |                  ^
+> type Shape
+abstract type Stack
+Stack.empty : Stack
+Stack.push : (Stack, Int) -> Stack
+area : (Shape) -> Int
+box : Shape
+double : (Int) -> Int
+f : (Int) -> Int
+id : (a) -> a
+it : Stack
+x : Int
+> 1 + 2 : Int
+> Io.println : (String) -> Unit with e
+> depth 10
+length 100
+timing off
+> > > [[..., ...], [...]] : List(List(List(Int)))
+> > > [1, 2, ...] : List(Int)
+> > > input:1:1: unknown name x
+1 | x
+  | ^
+> the session declares no nosuchname
+> Optional.andThen : (Optional(a), (a) -> Optional(b) with e) -> Optional(b) with e
+Optional.isNone : (Optional(a)) -> Bool
+Optional.isSome : (Optional(a)) -> Bool
+Optional.map : (Optional(a), (a) -> b with e) -> Optional(b) with e
+Optional.orElse : (Optional(a), Optional(a)) -> Optional(a)
+Optional.withDefault : (Optional(a), a) -> a
+> ## String.trim
+
+```ernest
+String.trim : (String) -> String
+```
+
+Without leading and trailing whitespace.
+
+### Examples
+
+```ernest
+String.trim("  hi\n")
+// => "hi"
+```
+
+> no command :zz; :help lists them
+> :type takes an expression
+> no module Nope is in scope
+> no documentation for Nope.nope
+> type Shape
+abstract type Stack
+Stack.empty : Stack
+Stack.push : (Stack, Int) -> Stack
+area : (Shape) -> Int
+box : Shape
+double : (Int) -> Int
+f : (Int) -> Int
+id : (a) -> a
+it : List(Int)
+> > the session declares nothing yet
+> Commands, which any prefix of the name selects:
+  :type e         the type of e, which is not run
+  :browse Module  the exports of Module with their types
+  :load Module    not built yet
+  :reload         not built yet
+  :quit           leave, as C-d on an empty line does
+  :doc Name       the documentation of Name, which GHCi calls :info
+  :help           this text
+  :forget name    forget a name the session declared, or * for all of them
+  :bindings       what the session declares, with their types
+  :processes      not built yet
+  :faults         not built yet
+  :set            depth n, length n, timing on or off; :set alone shows them
+The value of the last expression is `it`.
 > 

@@ -7,7 +7,8 @@
 %% input declares is the module's declarations.
 -module(ern_shell).
 
--export([start/2, check/2, type_text/1, declared/1, run/3, show/1]).
+-export([start/2, check/2, type_text/1, declared/1, run/3, show/3]).
+-export([bindings/1, forget/2, browse/2, doc/2]).
 -export([is_terminal/0, write/1, screen/1, to_screen/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -20,7 +21,9 @@
 %% interfaces of the modules behind the session, and the scope those
 %% modules make (report §11.2), which the checker takes as its fourth
 %% argument.
--record(env, {roots = [], source_root = ".", n = 0, ifaces = [], session = #{}}).
+-record(env, {roots = [], source_root = ".", n = 0, ifaces = [], session = #{}, beams = #{}}).
+%% beams: the namespace of an input that declared, to its compiled module,
+%% which `:doc` reads the documentation of (report §11.2, §11.4)
 %% A checked input: the module it became, its typed tree, its type.
 -record(checked, {ns, typed, decls, iface, env, type, binds}).
 %% binds: the name a `let` binds, `it` for an expression, or `decls`
@@ -150,12 +153,13 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
     Desc = ern_emitter:descriptor(T, TEnv),
     {ok, Mod, Beam} = ern_emitter:compile(Ns, Typed, Iface, TEnv),
     {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), Beam),
+    Env1 = Env#env{beams = maps:put(Ns, Beam, Env#env.beams)},
     Site = unicode:characters_to_binary(lists:flatten(io_lib:format("~s.main:1", [hd(Ns)]))),
     ern_rt:spawn('Local',
                  fun() ->
                      Outcome = try
                                    V = value(Mod, Binds),
-                                   {'Ok', bind(Env, Binds, Ns, V, T, TEnv, Iface),
+                                   {'Ok', bind(Env1, Binds, Ns, V, T, TEnv, Iface),
                                     #value{term = V, desc = Desc}}
                                catch
                                    throw:{ern, fault, Msg} -> {'Failed', Msg};
@@ -179,10 +183,186 @@ fault_text(error, badarith) -> <<"division by zero">>;
 fault_text(Class, Reason) ->
     unicode:characters_to_binary(io_lib:format("~p:~p", [Class, Reason])).
 
-%% Appendix E.1: the value as Ernest writes it, by the descriptor of its type.
--spec show(#value{}) -> binary().
-show(#value{term = V, desc = D}) ->
-    ern_show:show(D, V).
+%% Appendix E.1: the value as Ernest writes it, by the descriptor of its
+%% type; report §11.2: to the depth and the length the session is set to,
+%% where 0 is neither.
+-spec show(#value{}, integer(), integer()) -> binary().
+show(#value{term = V, desc = D}, Depth, Length) ->
+    ern_show:show(D, V, bound(Depth), bound(Length)).
+
+bound(N) when N =< 0 -> unbounded;
+bound(N) -> N.
+
+%% Report §11.2: what the session declares, a line for each as an input's
+%% own declarations print, its types first and then its values by name.
+-spec bindings(#env{}) -> [binary()].
+bindings(#env{session = S} = Env) ->
+    Types = [unicode:characters_to_binary([abstract_text(tinfo(Q, Env)), "type ",
+                                           atom_to_list(Name)])
+             || {Name, Q} <- lists:sort(maps:to_list(maps:get(types, S, #{})))],
+    St = session_state(Env),
+    Values = [unicode:characters_to_binary(
+                [Text, " : ", ern_types:format_scheme(Scheme, St)])
+              || {Text, Scheme} <- lists:sort(
+                                     [{name_text(Key), Scheme}
+                                      || {Key, Q} <- maps:to_list(maps:get(values, S, #{})),
+                                         {ok, Scheme} <- [scheme(Q, Env)]])],
+    Types ++ Values.
+
+tinfo(Q, #env{ifaces = Ifaces}) ->
+    case [TI || #iface{types = Ts} <- Ifaces, #{Q := TI} <- [Ts]] of
+        [] -> none;
+        Infos -> lists:last(Infos)
+    end.
+
+name_text({Owner, Name}) -> atom_to_list(Owner) ++ "." ++ atom_to_list(Name);
+name_text(Name) -> atom_to_list(Name).
+
+scheme(Q, #env{ifaces = Ifaces}) ->
+    case [Sc || #iface{values = Vs} <- Ifaces, #{Q := Sc} <- [Vs]] of
+        [] -> none;
+        Schemes -> {ok, lists:last(Schemes)}
+    end.
+
+%% The state a session name's type is printed under: the session's types
+%% print unqualified, as they do in an input (report §11.2).
+session_state(#env{session = S}) ->
+    St = ern_typecheck:type_state(ern_typecheck:prelude_env()),
+    ern_types:set_scope(St, [], maps:values(maps:get(types, S, #{})), []).
+
+%% Report §11.2: `:forget` removes a name the session declared, and `*`
+%% every one of them. A type is forgotten with its constructors; nothing is
+%% unloaded, since a value made before carries the type it was made with.
+-spec forget(#env{}, binary()) -> {'Left', binary()} | {'Right', #env{}}.
+forget(Env, <<"*">>) ->
+    {'Right', Env#env{session = #{}}};
+forget(#env{session = S} = Env, Text) ->
+    Name = binary_to_atom(Text),
+    Values = maps:get(values, S, #{}),
+    Types = maps:get(types, S, #{}),
+    Cons = maps:get(cons, S, #{}),
+    case maps:is_key(Name, Values) orelse maps:is_key(Name, Types) of
+        false ->
+            {'Left', <<"the session declares no ", Text/binary>>};
+        true ->
+            Members = [{O, M} || {O, M} <- maps:keys(Values), O =:= Name],
+            Gone = constructors(maps:get(Name, Types, none), Cons, Env),
+            {'Right', Env#env{session = S#{values => maps:without([Name | Members], Values),
+                                           types => maps:remove(Name, Types),
+                                           cons => maps:without(Gone, Cons)}}}
+    end.
+
+%% The constructors of the type being forgotten that still stand for it; one
+%% whose name a later type took belongs to that type now.
+constructors(none, _, _) ->
+    [];
+constructors(Q, Cons, #env{ifaces = Ifaces}) ->
+    [lists:last(CQ) || #iface{types = Ts} <- Ifaces,
+                       #{Q := #tinfo{constructors = Cs}} <- [Ts],
+                       #cinfo{qname = CQ} <- Cs,
+                       maps:get(lists:last(CQ), Cons, none) =:= CQ].
+
+%% Report §11.2, §4.2: the exports of a module in scope, its types and then
+%% its values, each with its type as §11.5 prints it.
+-spec browse(#env{}, binary()) -> {'Left', binary()} | {'Right', [binary()]}.
+browse(#env{ifaces = Ifaces}, Text) ->
+    Ns = namespace(Text),
+    case [I || #iface{namespace = N} = I <- Ifaces ++ ern_prelude:stdlib_ifaces(), N =:= Ns] of
+        [] ->
+            {'Left', <<"no module ", Text/binary, " is in scope">>};
+        Found ->
+            #iface{types = Ts, values = Vs} = lists:last(Found),
+            St0 = ern_typecheck:type_state(ern_typecheck:prelude_env()),
+            St = ern_types:set_scope(St0, Ns, [], []),
+            Types = [unicode:characters_to_binary([abstract_text(TI), "type ", qname_text(Q)])
+                     || {Q, TI} <- lists:sort(maps:to_list(Ts))],
+            Values = [unicode:characters_to_binary(
+                        [qname_text(Q), " : ", ern_types:format_scheme(Sc, St)])
+                      || {Q, Sc} <- lists:sort(maps:to_list(Vs))],
+            {'Right', Types ++ Values}
+    end.
+
+abstract_text(#tinfo{abstract = true}) -> "abstract ";
+abstract_text(_) -> "".
+
+qname_text(Q) -> lists:join(".", [atom_to_list(S) || S <- Q]).
+
+namespace(Text) ->
+    [binary_to_atom(S) || S <- binary:split(Text, <<".">>, [global]), S =/= <<>>].
+
+%% Report §11.2, §11.4: the documentation of one declaration, as
+%% `ernc --doc` renders it, read from the module that declares it: an input
+%% of this session, or a module on the load path.
+-spec doc(#env{}, binary()) -> {'Left', binary()} | {'Right', binary()}.
+doc(Env, Text) ->
+    Segments = namespace(Text),
+    case doc_of(Env, Segments) of
+        {ok, Page} -> {'Right', unicode:characters_to_binary(Page)};
+        none -> {'Left', <<"no documentation for ", Text/binary>>}
+    end.
+
+doc_of(Env, Segments) ->
+    case session_doc(Env, Segments) of
+        {ok, Page} -> {ok, Page};
+        none -> module_doc(Segments)
+    end.
+
+%% A name the session declared: the beam of the input that declared it, and
+%% the entry under its unqualified name, a member under `Type.name`.
+session_doc(#env{session = S, beams = Beams}, Segments) ->
+    Key = case Segments of
+              [Name] -> Name;
+              [Owner, Name] -> {Owner, Name};
+              _ -> none
+          end,
+    Values = maps:get(values, S, #{}),
+    Types = maps:get(types, S, #{}),
+    case {maps:get(Key, Values, none), maps:get(Key, Types, none)} of
+        {none, none} ->
+            none;
+        {none, Q} ->
+            entry(beam(Q, [lists:last(Q)], Beams), lists:last(Q));
+        {Q, _} ->
+            entry(beam(Q, Segments, Beams), entry_name(Segments))
+    end.
+
+%% The input that declared the name: the qualified name without the
+%% segments the name itself is written with.
+beam(Q, Segments, Beams) ->
+    maps:get(lists:sublist(Q, length(Q) - length(Segments)), Beams, none).
+
+entry_name([Name]) -> Name;
+entry_name([Owner, Name]) -> list_to_atom(atom_to_list(Owner) ++ "." ++ atom_to_list(Name)).
+
+%% A module on the load path, `List.map`, or one of its type's members,
+%% `Net.Http.Request.method`.
+module_doc(Segments) when length(Segments) >= 2 ->
+    Name = lists:last(Segments),
+    case entry(beam_of(lists:droplast(Segments)), Name) of
+        {ok, Page} ->
+            {ok, Page};
+        none when length(Segments) >= 3 ->
+            [Owner, Member] = lists:nthtail(length(Segments) - 2, Segments),
+            entry(beam_of(lists:sublist(Segments, length(Segments) - 2)),
+                  entry_name([Owner, Member]));
+        none ->
+            none
+    end;
+module_doc(_) ->
+    none.
+
+beam_of(Ns) ->
+    File = atom_to_list(ern_emitter:module_atom(Ns)) ++ ".beam",
+    case code:where_is_file(File) of
+        non_existing -> none;
+        Path -> Path
+    end.
+
+entry(none, _) -> none;
+entry(Beam, Name) ->
+    try ern_page:declaration(Beam, Name)
+    catch _:_ -> none
+    end.
 
 diagnostic(Input, Diags) ->
     unicode:characters_to_binary(

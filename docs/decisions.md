@@ -3138,6 +3138,22 @@ An input may declare what a module may, which is what the shell's note says the 
 
 **The declaration parser's error is the one shown.** An input is parsed as an expression first and as declarations second, and the expression's error was reported whichever the input was: `type Pair = P(Int, Int)` answered "expected an expression instead of `type`" rather than naming the second positional field (§3.5). The input's first token decides which error helps, `fn` counting as a declaration only when a name follows it, since `fn(x) = x` is a lambda.
 
+## The Commands That Need No New Door, 2026-09-20
+
+`:type`, `:browse`, `:doc`, `:help`, `:forget`, `:bindings`, `:set` and `:quit`, the eight that ask nothing of the runtime. The four that do, `:load`, `:reload`, `:processes` and `:faults`, are named and refused.
+
+**The prefix order is the whole order from the start.** §11.2 resolves a prefix by the order `:help` gives, so a command built later would change what a prefix means if the unbuilt ones were left out: `:f` would be `:faults` today and `:forget` tomorrow. All twelve are in the list and in `:help`; the four that are not built answer that they arrive in MVP 2.6's checkpoint 1, and the README's table holds that text. The mirror test now reads the shell's Ernest source as well as `erl/*/src`, since a refusal of the toolchain's now lives in Ernest. `:help` marks them `not built yet` and no more: the MVP belongs in the refusal, which is what the table is about, not in a listing.
+
+**A value is printed to a depth and a length.** The printer of E.1 gained both, and `Io.debug` passes neither, which is what E.1 says it does. Depth counts the brackets a reader would open, so a number or a string is never cut; what is cut prints as `...`. The defaults, 10 and 100, print whole what a prompt is used for and stop a value that would scroll the session away, and 0 is neither. A prompt with no bound at all was rejected: one large structure would fill the screen and no setting would bring it back.
+
+**The settings are an Ernest value.** They are the shell's own state, not the session's: the front end holds what the checker needs and nothing else, and `:set` changes a value the loop carries. The front end is told the depth and the length when it prints, as an argument.
+
+**Timing measures the run.** The check is not what a person is timing, and the shell knows when the run begins, having started the process; the elapsed time is printed after the result, on a line of its own.
+
+**`:bindings` lists what the session declares, not only what it binds.** A `fn`, a type, and a type member are what a person needs listed as much as a `let`; the name is the one an input writes, a member under the type that owns it. `:forget` already took all of them, so the two commands see the same session.
+
+**The documentation renderer moved out of the CLI.** `ernc --doc` and `:doc` render the same thing from the same chunk, a page and one declaration of it, so the rendering is `ern_page`, which both call. It is named `ern_page` and not `ern_doc` because `ern_doc_tests` is already the name of the test that reads the documentation rules over the standard library, and two test modules of one name cannot both exist.
+
 ## Later
 
 Planned or considered, not in the language today.

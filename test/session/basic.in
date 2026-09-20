@@ -27,4 +27,28 @@ Stack.push(Stack.empty, 4)
 S([])
 fn f() = 1 let y = 2
 type Pair = P(Int, Int)
+:bindings
+:t 1 + 2
+:type Io.println
+:set
+:set timing off
+:set depth 2
+[[[1, 2], [3]], [[4]]]
+:set depth 0
+:set length 2
+[1, 2, 3, 4]
+:set length 0
+:forget x
+x
+:forget nosuchname
+:browse Optional
+:doc String.trim
+:zz
+:t
+:browse Nope
+:doc Nope.nope
+:bindings
+:forget *
+:bindings
+:help
 :quit

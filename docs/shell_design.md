@@ -101,7 +101,7 @@ It does not hold the shell's settings, which are ordinary Ernest values; the his
 
 - **An expression prints its value and its type**, the type as the checker prints it (§11.5): `3 : Int`. An expression of type `Unit` prints nothing, so `Io.println("hi")` answers `hi` and not `hi` then `Unit : Unit`. A declaration prints its name and type, `double : (Int) -> Int`; a `let` its name and type, `xs : List(Int)`; a type declaration its keyword and its name, `type Shape`. An input that declares several prints a line for each, in the order they were written.
 - **A value is printed as `Io.debug` prints it** (E.1), by its type. The shell and `Io.debug` share one printer, `ern_show`, which takes a depth and a length that `Io.debug` passes unbounded; E.1 is unchanged, a program's `debug` printing the value.
-- **A large value is printed to that depth and length**, the rest as `...`. The defaults are open; `:set` changes them.
+- **A large value is printed to that depth and length**, the rest as `...`. The defaults are depth 10 and length 100, and `:set depth 0` or `:set length 0` is neither: the defaults print whole what a prompt is used for and stop a value that would scroll the session away. Depth counts the brackets a reader would open, so a number or a string is never `...`.
 - **An input that does not check is shown as `ernc` shows an error** (§11.5), the input as the source and the span underlined. Nothing is run.
 - **A fault in an input is printed as `fault: ` and its text**, an interruption as `Killed`.
 - **A process that faults is reported** with its spawn site and cause: `Counter.worker:23 faulted: division by zero`. Which deaths are reported is "Failing processes".
@@ -159,18 +159,19 @@ GNU Readline's Emacs bindings.
 
 A command is `:` and a name; it is not an Ernest function. Any prefix selects the command, and an ambiguous prefix selects the first in the order below: `:t` is `:type`, `:b` `:browse`, `:l` `:load`, `:r` `:reload`, `:q` `:quit`, `:d` `:doc`, `:f` `:forget`, `:fa` `:faults`.
 
-- **`:type e`** — the type of `e`, which is not run.
+- **`:type e`** — the type of `e`, which is not run; it answers `e : T`, the expression as it was written.
 - **`:browse Module`** — the exports of `Module` with their types.
 - **`:load Module`** — the module by its namespace, never a path. Its source is found under the shell's source root and compiled as `ernc` would compile it; a module with no source there, the standard library's or a library's, is loaded from its compiled form. A source under the source root wins over an `.erc` on the load path. Afterwards the module is in scope by its qualified name, like anything else on the load path.
 - **`:reload`** — every loaded module whose source is newer than what was loaded, as `:load` would take each; it takes no name, `:load Module` being that already. A call from another module reaches the new code. A process running the module's own loop does not: it keeps the version it is in until it returns, which is the case §6.10 exists for. A closure made from the previous code keeps that code while the version lives. The first reload says how many processes and bindings are in the previous version and that another will end them; the second ends them and says which, by spawn site, with the cause "its code was replaced".
 - **`:quit`** — quits.
 - **`:doc Name`** — the documentation of `Name`, as `ernc --doc` renders it (§11.4), the declaration included.
 - **`:help`** — the commands and their prefixes; it says that `:doc` is what GHCi calls `:info`.
-- **`:forget name`** — forgets any name the session declared, a value, a `fn`, or a type. A name is required; `:forget *` clears the session, `it` included. Forgetting a type needs no rule of its own, a value carrying the type it was made with.
-- **`:bindings`** — the bindings, with their types.
+- **`:forget name`** — forgets any name the session declared, a value, a `fn`, or a type. A name is required; `:forget *` clears the session, `it` included. Forgetting a type needs no rule of its own, a value carrying the type it was made with; it takes the type's members and its constructors with it, except a constructor whose name a later type has taken.
+- **`:bindings`** — what the session declares, with their types: its types first, then its values, `it` among them, and a type member under the type that owns it. It says so when the session declares nothing.
 - **`:processes`** — the live processes with their spawn sites (§6.9), read through the same reference as the faults; a name and a site, never an address.
 - **`:faults`** — the faults reported since the session began, oldest first.
-- **`:set depth n`**, **`:set length n`**, **`:set timing on`** and **`off`**; `:set` alone shows what they are.
+- **`:set depth n`**, **`:set length n`**, **`:set timing on`** and **`off`**; `:set` alone shows what they are. The settings are one Ernest value the session carries, not the front end's.
+- **A command that is not built yet says so.** `:help` lists it and typing it answers that it arrives in MVP 2.6's checkpoint 1, which the README's table holds; the order the prefix rule reads is the whole order from the start, so `:b` is `:browse` and `:f` is `:forget` before `:bindings` and `:faults` are built.
 
 A program is started by calling it; there is no command for it. A module meant for the shell exports a function that spawns its processes and returns. Modules are not imported: every module on the load path is in scope by its qualified name (§4.2).
 

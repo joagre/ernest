@@ -12,7 +12,9 @@
 %% declares what a module may, a later declaration of a name shadowing the
 %% one before it, and what it declared is printed a line for each; and
 %% report §4.4, an abstract type's constructor is the input's that declared
-%% it
+%% it. The commands are here too: `:type`, `:browse`, `:doc`, `:help`,
+%% `:forget`, `:bindings`, `:set` with the depth and the length a value is
+%% printed to, and a prefix of any of them
 session_test_() ->
     {timeout, 60, fun session/0}.
 
