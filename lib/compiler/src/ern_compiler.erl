@@ -493,8 +493,10 @@ arity_of(_, Pos) -> fail(Pos, "a local function used as a value must have a func
 %% paper programs type-check, and the compiler refuses them until the
 %% system processes behind them exist (README, "What the toolchain accepts").
 -spec refused([atom()]) -> boolean().
-refused(['Sys', N]) -> N =/= stdout andalso N =/= stderr andalso N =/= stdin andalso N =/= clock;
-refused([Ns | _]) -> Ns =:= 'Keys' orelse Ns =:= 'Fs' orelse Ns =:= 'Tcp';
+refused(['Sys', N]) ->
+    N =/= stdout andalso N =/= stderr andalso N =/= stdin andalso N =/= clock
+        andalso N =/= fs;
+refused([Ns | _]) -> Ns =:= 'Keys' orelse Ns =:= 'Tcp';
 refused(_) -> false.
 
 mvp1(Pos, QName) ->

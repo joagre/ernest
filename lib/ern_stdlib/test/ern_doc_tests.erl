@@ -60,6 +60,20 @@ examples(Ns, File) ->
     end.
 
 run_example(Mod, N, Expected) ->
+    %% Appendix E.0 rule 6: an example may touch the file system, so each
+    %% runs in a directory of its own, removed afterwards
+    {ok, Cwd} = file:get_cwd(),
+    Dir = filename:join(["/tmp", "ern_doc_" ++ integer_to_list(erlang:unique_integer([positive]))]),
+    ok = filelib:ensure_path(Dir),
+    ok = file:set_cwd(Dir),
+    try
+        run_example(Mod, N, Expected, Cwd)
+    after
+        file:set_cwd(Cwd),
+        file:del_dir_r(Dir)
+    end.
+
+run_example(Mod, N, Expected, _Cwd) ->
     Main = list_to_atom("docMain" ++ integer_to_list(N)),
     Me = self(),
     _ = collect([]),

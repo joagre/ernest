@@ -68,8 +68,7 @@ process_only() ->
     [[send], [spawn], ['Address', call], ['Address', callForever], [answer], [monitor],
      [kill], [remote], [parallelRemote],
      ['Clock', now], ['Clock', alarm], ['Clock', alarmAt], ['Keys', subscribe],
-     ['Fs', read], ['Fs', write], ['Fs', append], ['Fs', list], ['Fs', stat], ['Fs', makeDir],
-     ['Fs', remove], ['Fs', rename], ['Fs', copy], ['Tcp', listen], ['Tcp', accept],
+     ['Tcp', listen], ['Tcp', accept],
      ['Tcp', connect], ['Tcp', read], ['Tcp', write], ['Tcp', close]].
 
 %% Type variables that carry the equality constraint (report §3.10): Map
@@ -178,15 +177,6 @@ values() ->
      %% E.16 Keys
      {['Keys', subscribe], "((Key) -> m) -> Unit with m"},
      %% E.17 Fs
-     {['Fs', read], "(Path, Int) -> Either(IoError, Bytes) with m"},
-     {['Fs', write], "(Path, Bytes, Int) -> Either(IoError, Unit) with m"},
-     {['Fs', append], "(Path, Bytes, Int) -> Either(IoError, Unit) with m"},
-     {['Fs', list], "(Path, Int) -> Either(IoError, List(Entry)) with m"},
-     {['Fs', stat], "(Path, Int) -> Either(IoError, Entry) with m"},
-     {['Fs', makeDir], "(Path, Int) -> Either(IoError, Unit) with m"},
-     {['Fs', remove], "(Path, Int) -> Either(IoError, Unit) with m"},
-     {['Fs', rename], "(Path, Path, Int) -> Either(IoError, Unit) with m"},
-     {['Fs', copy], "(Path, Path, Int) -> Either(IoError, Unit) with m"},
      %% E.18 Tcp
      {['Tcp', listen], "(Int) -> Either(IoError, Address(ListenerMsg)) with m"},
      {['Tcp', accept], "(Address(ListenerMsg), Int) -> Either(IoError, Address(SockMsg)) with m"},

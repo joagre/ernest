@@ -1,0 +1,136 @@
+/// The file system through `Sys.fs`, the system process that reaches it
+/// (report §8.2). Every function answers `Right` with what it read or did,
+/// or `Left` with an `IoError`; the last argument is how many milliseconds
+/// to wait, and a slower answer than that is `Left(Timeout)`. A path is a
+/// `Path`, which `Path` builds and takes apart.
+///
+/// ## Examples
+///
+/// ```ernest
+/// {
+///     let _ = Fs.write(Path("greeting.txt"), String.toUtf8("hello"), 5000);
+///     Either.map(Fs.read(Path("greeting.txt"), 5000), String.fromUtf8)
+/// }
+/// // => Right(Some("hello"))
+/// ```
+///
+/// ```ernest
+/// Fs.read(Path("no-such-file"), 5000)
+/// // => Left(NotFound)
+/// ```
+///
+/// ## See also
+///
+/// `Path` for building and reading a path, `Bytes` and `String.toUtf8` for
+/// what a file holds.
+///
+/// since 0.1.0
+
+/// The file's octets.
+export fn read(path : Path, ms : Int) -> Either(IoError, Bytes) with m =
+    answered(Address.call(Sys.fs, fn(r) = ReadFile(path = path, reply = r), ms))
+
+/// Writes the octets, creating the file or replacing what it held.
+export fn write(path : Path, bytes : Bytes, ms : Int) -> Either(IoError, Unit) with m =
+    answered(Address.call(Sys.fs, fn(r) = WriteFile(path = path, bytes = bytes, reply = r), ms))
+
+/// Writes the octets after what the file holds, creating it when it is not
+/// there.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let _ = Fs.write(Path("log.txt"), String.toUtf8("a"), 5000);
+///     let _ = Fs.append(Path("log.txt"), String.toUtf8("b"), 5000);
+///     Either.map(Fs.read(Path("log.txt"), 5000), String.fromUtf8)
+/// }
+/// // => Right(Some("ab"))
+/// ```
+export fn append(path : Path, bytes : Bytes, ms : Int) -> Either(IoError, Unit) with m =
+    answered(Address.call(Sys.fs, fn(r) = AppendFile(path = path, bytes = bytes, reply = r), ms))
+
+/// The entries of the directory, in unspecified order.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let _ = Fs.makeDir(Path("shelf"), 5000);
+///     let _ = Fs.write(Path("shelf/one.txt"), <<>>, 5000);
+///     Either.map(Fs.list(Path("shelf"), 5000),
+///                fn(es) = List.map(es, fn(e) = match e { Entry(path = p) -> Path.name(p) }))
+/// }
+/// // => Right(["one.txt"])
+/// ```
+export fn list(path : Path, ms : Int) -> Either(IoError, List(Entry)) with m =
+    answered(Address.call(Sys.fs, fn(r) = ListDir(path = path, reply = r), ms))
+
+/// What the path names: its size, its modification time, and whether it is
+/// a directory.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let _ = Fs.write(Path("three.txt"), String.toUtf8("abc"), 5000);
+///     Either.map(Fs.stat(Path("three.txt"), 5000), fn(e) = match e { Entry(size = s) -> s })
+/// }
+/// // => Right(3)
+/// ```
+export fn stat(path : Path, ms : Int) -> Either(IoError, Entry) with m =
+    answered(Address.call(Sys.fs, fn(r) = Stat(path = path, reply = r), ms))
+
+/// Makes the directory and any parent it needs; a directory already there
+/// is not an error.
+export fn makeDir(path : Path, ms : Int) -> Either(IoError, Unit) with m =
+    answered(Address.call(Sys.fs, fn(r) = MakeDir(path = path, reply = r), ms))
+
+/// Removes a file or an empty directory.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let _ = Fs.write(Path("gone.txt"), <<>>, 5000);
+///     let _ = Fs.remove(Path("gone.txt"), 5000);
+///     Fs.read(Path("gone.txt"), 5000)
+/// }
+/// // => Left(NotFound)
+/// ```
+export fn remove(path : Path, ms : Int) -> Either(IoError, Unit) with m =
+    answered(Address.call(Sys.fs, fn(r) = Remove(path = path, reply = r), ms))
+
+/// Renames the first path to the second.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let _ = Fs.write(Path("before.txt"), String.toUtf8("x"), 5000);
+///     let _ = Fs.rename(Path("before.txt"), Path("after.txt"), 5000);
+///     Either.map(Fs.read(Path("after.txt"), 5000), String.fromUtf8)
+/// }
+/// // => Right(Some("x"))
+/// ```
+export fn rename(from : Path, to : Path, ms : Int) -> Either(IoError, Unit) with m =
+    answered(Address.call(Sys.fs, fn(r) = Rename(from = from, to = to, reply = r), ms))
+
+/// Copies the file at the first path to the second, replacing what is
+/// there.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let _ = Fs.write(Path("source.txt"), String.toUtf8("y"), 5000);
+///     let _ = Fs.copy(Path("source.txt"), Path("copy.txt"), 5000);
+///     Either.map(Fs.read(Path("copy.txt"), 5000), String.fromUtf8)
+/// }
+/// // => Right(Some("y"))
+/// ```
+export fn copy(from : Path, to : Path, ms : Int) -> Either(IoError, Unit) with m =
+    answered(Address.call(Sys.fs, fn(r) = Copy(from = from, to = to, reply = r), ms))
+
+fn answered(answer : Optional(Either(IoError, a))) -> Either(IoError, a) =
+    Optional.withDefault(answer, Left(Timeout))

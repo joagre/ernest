@@ -278,7 +278,7 @@ fault(Msg) ->
 %% Report §8.2, §9.7: system references
 %%
 
--spec sys(stdout | stderr | stdin | clock) -> address().
+-spec sys(stdout | stderr | stdin | clock | fs) -> address().
 sys(Name) ->
     persistent_term:get({?MODULE, Name}).
 
@@ -362,10 +362,12 @@ run_main(Main, Site, Opts) ->
     Stderr = erlang:spawn(fun() -> stdout_loop(Err) end),
     Line = maps:get(stdin, Opts, fun() -> io:get_line("") end),
     Stdin = erlang:spawn(fun() -> stdin_loop(Line) end),
+    Fs = erlang:spawn(fun ern_fs:loop/0),
     Clock = erlang:spawn(fun() -> clock_loop(0) end),
     persistent_term:put({?MODULE, stdout}, Stdout),
     persistent_term:put({?MODULE, stderr}, Stderr),
     persistent_term:put({?MODULE, stdin}, Stdin),
+    persistent_term:put({?MODULE, fs}, Fs),
     persistent_term:put({?MODULE, clock}, Clock),
     init_stdlib(),
     Init = maps:get(init, Opts, fun() -> ok end),
@@ -384,7 +386,7 @@ run_main(Main, Site, Opts) ->
                       receive {FlushRef, flushed} -> ok end
                   end, [Stdout, Stderr]),
     %% each ended before the table goes, which the reaper reads
-    lists:foreach(fun stop/1, [Stdout, Stderr, Stdin, Clock, Reaper]),
+    lists:foreach(fun stop/1, [Stdout, Stderr, Stdin, Fs, Clock, Reaper]),
     ets:delete(?PROCESSES),
     flush_run(Run),
     case Result of

@@ -2846,6 +2846,12 @@ The first door of step 4, and the smallest: a process that answers each `ReadLin
 
 The reader is a function the runtime holds, `io:get_line` in a program and a queue in a test, which is how the interface test reads three lines without a terminal. Writing it found the same defect twice over: the compiler named each system reference in its own clause, so `Sys.stderr` had compiled to a call on a module that does not exist until it was fixed by hand, and `Sys.stdin` would have done the same. The clause is one line now, `['Sys', Name]` to `ern_rt:sys(Name)`, and §9.7 is the list it follows.
 
+## `Fs` in Ernest, 2026-09-20
+
+The second door of step 4, and the first that does real work. `ern_fs` answers each `FsMsg` of §9.3, spawning a process per request so that one slow file does not hold up the rest, and mapping Erlang's reasons onto §9.3's `IoError`: `enoent` to `NotFound`, `eacces` and `eperm` to `Denied`, anything else to `Other` with its text. `stdlib/fs.ern` is nine `Address.call`s with one private helper, `answered`, which turns `None` into `Left(Timeout)`, which is E.0 rule 8's shape for a function that waits.
+
+Two things the module decided. An `Fs.name(entry)` crept in to make a `list` example read well and was removed: it is a match and a `Path.name`, one pipe, which rule 4 refuses; the example does the match itself. And the documentation harness now runs each example in a directory of its own, removed afterwards, because the first run of the `Fs` page wrote seven files and a directory into `lib/ern_stdlib/src/`. That is what the plan meant by giving the harness a temporary directory, and it makes `Fs`'s examples real rather than type-checked only.
+
 ## Later
 
 Planned or considered, not in the language today.

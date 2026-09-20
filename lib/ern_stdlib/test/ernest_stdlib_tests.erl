@@ -373,6 +373,47 @@ collect(Tag, Acc) ->
     after 0 -> lists:reverse(Acc)
     end.
 
+%% report Appendix E.17, §8.2: the file system through Sys.fs, each answer
+%% Right or Left(IoError), and Left(Timeout) when the wait runs out
+fs_test() ->
+    Me = self(),
+    Dir = filename:join("/tmp", "ern_fs_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    P = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
+    F = 'ernest@fs',
+    Result = ern_rt:run_main(
+               fun() ->
+                   Me ! {fs, F:write(P("a.txt"), <<"hello">>, 5000)},
+                   Me ! {fs, F:read(P("a.txt"), 5000)},
+                   Me ! {fs, F:append(P("a.txt"), <<"!">>, 5000)},
+                   Me ! {fs, F:read(P("a.txt"), 5000)},
+                   Me ! {fs, F:stat(P("a.txt"), 5000)},
+                   Me ! {fs, F:rename(P("a.txt"), P("b.txt"), 5000)},
+                   Me ! {fs, F:copy(P("b.txt"), P("c.txt"), 5000)},
+                   Me ! {fs, F:makeDir(P("d/e"), 5000)},
+                   Me ! {fs, F:list({'Path', unicode:characters_to_binary(Dir)}, 5000)},
+                   Me ! {fs, F:remove(P("c.txt"), 5000)},
+                   Me ! {fs, F:read(P("c.txt"), 5000)}
+               end, <<"fs_test">>, #{}),
+    ?assertEqual(ok, Result),
+    [Write, Read, Append, Read2, Stat, Rename, Copy, MakeDir, List, Remove, Gone] =
+        collect(fs, []),
+    ?assertEqual({'Right', 'Unit'}, Write),
+    ?assertEqual({'Right', <<"hello">>}, Read),
+    ?assertEqual({'Right', 'Unit'}, Append),
+    ?assertEqual({'Right', <<"hello!">>}, Read2),
+    ?assertMatch({'Right', {'Entry', false, _, _, 6}}, Stat),
+    ?assertEqual({'Right', 'Unit'}, Rename),
+    ?assertEqual({'Right', 'Unit'}, Copy),
+    ?assertEqual({'Right', 'Unit'}, MakeDir),
+    {'Right', Entries} = List,
+    ?assertEqual([<<"b.txt">>, <<"c.txt">>, <<"d">>],
+                 lists:sort([filename:basename(Path)
+                             || {'Entry', _, _, {'Path', Path}, _} <- Entries])),
+    ?assertEqual({'Right', 'Unit'}, Remove),
+    ?assertEqual({'Left', 'NotFound'}, Gone),
+    file:del_dir_r(Dir).
+
 %% report Appendix E.12, §3.8, §8.4
 foreign_test() ->
     F = 'ernest@foreign',
