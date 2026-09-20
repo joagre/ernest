@@ -190,7 +190,9 @@ Delivered before the shell, each report first.
 - **What the runtime knows about processes**, one system reference for two questions: subscribe me to the faults, for "Failing processes", and what is alive with its spawn site, for `:processes`. The runtime holds both facts (§6.9); neither hands out an address, so §6.3 stands. One addition rather than two. Not in the report; it lands with the shell, report first (MVP 2.6).
 - **`Sys.env`**, for `NO_COLOR` and `TERM`, with `Sys.args` beside it, since §9.7 states the pair together (§8.2 and §9.7, MVP 2.6, moved back from 2.7 on 2026-09-20).
 - **Documentation in the `.erc`**, with each function's parameters as written, for `:doc` and `Shift-Tab` (MVP 2.5, step 6).
-- **The report's §11.2** states the shell's normative core: types on every result, a module and a process per input, bindings that survive a fault, the commands and their prefix rule, and line mode (MVP 2.6).
+- **The terminal is the shell's when `--shell` is given**, §11.2, and §8.2 gains the case: `Keys.subscribe` and `Io.readLine` from anything else fault with the remedy in the text (MVP 2.6).
+- **The shell reads the terminal's interrupt as a key while it reads**, §11.2, which every other program does not: §8.6's signal stands for them (MVP 2.6).
+- **The report's §11.2** states the shell's normative core: `ern [--shell] [--source-root dir] [file.erc]`, the flag without an argument and the file optional with it; types on every result, a module and a process per input, bindings that survive a fault, the commands and their prefix rule, and line mode (MVP 2.6).
 
 ## Open
 
