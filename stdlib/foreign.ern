@@ -1,0 +1,63 @@
+/// Operations on `Foreign`, a value of the runtime that the language does
+/// not inspect (report §3.7). A `foreign fn` gives one back where its
+/// result has no Ernest type; these functions ask what it is, each
+/// answering `None` when it is something else. `from` goes the other way,
+/// since an Ernest value is already a value of the runtime (report §8.4).
+///
+/// ## Examples
+///
+/// ```ernest
+/// #(Foreign.toInt(Foreign.from(42)), Foreign.toInt(Foreign.from("42")))
+/// // => #(Some(42), None)
+/// ```
+///
+/// ```ernest
+/// Foreign.toList(Foreign.from([1, 2]))
+/// // => Some([1, 2])
+/// ```
+///
+/// ## See also
+///
+/// `Erl` for what a shim over an Erlang API needs, `String.toInt` for text.
+///
+/// since 0.1.0
+
+/// The value as the runtime holds it, which a `foreign fn` may take where
+/// it declares `Foreign`.
+export foreign fn from(value : a) -> Foreign = "ern_foreign:from/1"
+
+/// The `Int` it is, or `None`.
+export foreign fn toInt(value : Foreign) -> Optional(Int) = "ern_foreign:to_int/1"
+
+/// The `Float` it is, or `None`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Foreign.toFloat(Foreign.from(1.5))
+/// // => Some(1.5)
+/// ```
+export foreign fn toFloat(value : Foreign) -> Optional(Float) = "ern_foreign:to_float/1"
+
+/// The `String` it is, or `None`; a binary that is not UTF-8 is `None`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Foreign.toString(Foreign.from("hi"))
+/// // => Some("hi")
+/// ```
+export foreign fn toString(value : Foreign) -> Optional(String) = "ern_foreign:to_string/1"
+
+/// The `Bool` it is, or `None`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Foreign.toBool(Foreign.from(true)), Foreign.toBool(Erl.atom("ready")))
+/// // => #(Some(true), None)
+/// ```
+export foreign fn toBool(value : Foreign) -> Optional(Bool) = "ern_foreign:to_bool/1"
+
+/// The list it is, its elements still foreign, or `None`.
+export foreign fn toList(value : Foreign) -> Optional(List(Foreign)) = "ern_foreign:to_list/1"

@@ -1320,6 +1320,7 @@ Either.fromOptional : (Optional(a), e) -> Either(e, a)
 ### Appendix E.12. `foreign.ern` (namespace `Foreign`)
 
 ```
+Foreign.from : (a) -> Foreign // the value as the runtime holds it (§8.4)
 Foreign.toInt : (Foreign) -> Optional(Int)
 Foreign.toFloat : (Foreign) -> Optional(Float)
 Foreign.toString : (Foreign) -> Optional(String)

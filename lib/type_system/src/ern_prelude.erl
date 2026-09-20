@@ -173,11 +173,6 @@ values() ->
      %% E.10 Optional
      %% E.11 Either
      %% E.12 Foreign
-     {['Foreign', toInt], "(Foreign) -> Optional(Int)"},
-     {['Foreign', toFloat], "(Foreign) -> Optional(Float)"},
-     {['Foreign', toString], "(Foreign) -> Optional(String)"},
-     {['Foreign', toBool], "(Foreign) -> Optional(Bool)"},
-     {['Foreign', toList], "(Foreign) -> Optional(List(Foreign))"},
      %% E.13 Random
      {['Random', seed], "(Int) -> Random.Seed"},
      {['Random', next], "(Random.Seed, Int) -> #(Int, Random.Seed)"},

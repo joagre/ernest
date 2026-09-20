@@ -2782,6 +2782,10 @@ With effect-polymorphic shims possible, the question became which Ernest code sh
 
 E.14 says a path is in the runtime's syntax, so by rule 1's ownership line the segment work is `filename`'s, through `ern_path`: joining, splitting, the parent, the last segment, the extension, the root name, and whether a path is absolute. Ernest holds what the appendix adds on top: `toString` is the match on `Path(text)`, `parent` answers `None` when `filename` gives the path back or `"."`, `extension` drops the leading dot and answers `None` for a name without one, and `withExtension` removes the extension for an empty string. Nothing in the module needed a language change.
 
+## `Foreign` in Ernest, and `Foreign.from`, 2026-09-20
+
+Asking what a value of the runtime is can only be asked of the runtime, so E.12's five questions are shims over `ern_foreign`. Writing the page showed a hole: a program could receive a `Foreign` from a `foreign fn` and ask what it was, but nothing in the language could make one, so no example could show an answer other than `None`, and a shim that must pass a term through had no way to build its argument. `Foreign.from : (a) -> Foreign` fills it, admitted by rule 3: it is the general operation of the type, its definition is the identity, since an Ernest value is already a value of the runtime (§8.4), and no policy hides in it. It is the direction Gleam's `dynamic.from` goes, and the five `toX` functions are its inverses.
+
 ## Later
 
 Planned or considered, not in the language today.

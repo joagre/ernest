@@ -209,6 +209,22 @@ char_test() ->
     ?assertEqual('Greater', C:compare($b, $a)).
 
 %% report Appendix E.7
+%% report Appendix E.12
+foreign_test() ->
+    F = 'ernest@foreign',
+    ?assertEqual(42, F:from(42)),
+    ?assertEqual({'Some', 42}, F:toInt(42)),
+    ?assertEqual('None', F:toInt(<<"42">>)),
+    ?assertEqual({'Some', 1.5}, F:toFloat(1.5)),
+    ?assertEqual({'Some', 0.0}, F:toFloat(-0.0)),
+    ?assertEqual('None', F:toFloat(1)),
+    ?assertEqual({'Some', <<"hi">>}, F:toString(<<"hi">>)),
+    ?assertEqual('None', F:toString(<<255>>)),
+    ?assertEqual({'Some', true}, F:toBool(true)),
+    ?assertEqual('None', F:toBool(ready)),
+    ?assertEqual({'Some', [1, 2]}, F:toList([1, 2])),
+    ?assertEqual('None', F:toList(42)).
+
 %% report Appendix E.20
 bytes_test() ->
     B = 'ernest@bytes',
