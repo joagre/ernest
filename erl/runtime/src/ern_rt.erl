@@ -23,7 +23,7 @@
 -export([send/2, spawn/3, self/0, via/2, call/3, call_forever/2, answer/2, monitor/2,
          kill/1, sys/1, run_main/2, run_main/3, fault/1, remote/1, parallel_remote/1,
          todo/1, timed/0, untimed/0, in_foreign/1, init_stdlib/0, own_terminal/1,
-         source_begin/0, source_end/0]).
+         source_begin/0, source_end/0, process_of/1]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -39,8 +39,27 @@
 
 -spec send(address(), term()) -> 'Unit'.
 send(Addr, Msg) ->
-    Addr ! Msg,
+    deliver(Addr, Msg),
     ?UNIT.
+
+%% Report §6.5: an address seen through a function is the target and the
+%% function, not a process of its own, so sending applies the function here
+%% and the message goes straight into the target's mailbox. A fault in the
+%% function is the target's, since the function is part of the protocol the
+%% target's own via(wrap, self()) built.
+deliver({via, F, Target}, Msg) ->
+    try F(Msg) of
+        Adapted -> deliver(Target, Adapted)
+    catch
+        Class:Reason -> exit(process_of(Target), fault_reason(Class, Reason))
+    end;
+deliver(Pid, Msg) ->
+    Pid ! Msg.
+
+%% The process an address names, through any number of adaptations.
+-spec process_of(address()) -> pid().
+process_of({via, _, Target}) -> process_of(Target);
+process_of(Pid) -> Pid.
 
 %% Site names the spawning function for Down (report §6.9); the compiler
 %% supplies it, so this is spawn/3 where the report's spawn takes two.
@@ -64,24 +83,7 @@ self() ->
 
 -spec via(fun((term()) -> term()), address()) -> address().
 via(F, Target) ->
-    Proxy = erlang:spawn(fun() ->
-                             Ref = erlang:monitor(process, Target),
-                             via_loop(F, Target, Ref)
-                         end),
-    %% report §8.6: a message on its way through a proxy is a message in
-    %% flight, so the proxy is one of the processes the detector reads
-    ets:insert(?PROCESSES, {Proxy, <<"via">>, alive, 0, 0}),
-    Proxy.
-
-via_loop(F, Target, Ref) ->
-    receive
-        {'DOWN', Ref, process, Target, _} ->
-            catch ets:delete(?PROCESSES, erlang:self()),
-            ok;
-        Msg ->
-            Target ! F(Msg),
-            via_loop(F, Target, Ref)
-    end.
+    {via, F, Target}.
 
 %%
 %% Report §6.6
@@ -90,7 +92,7 @@ via_loop(F, Target, Ref) ->
 -spec call(address(), fun((reply()) -> term()), integer()) -> 'None' | {'Some', term()}.
 call(Addr, Mk, Ms) ->
     Alias = erlang:alias([reply]),
-    Addr ! Mk(Alias),
+    deliver(Addr, Mk(Alias)),
     timed(),
     receive
         {Alias, V} ->
@@ -105,7 +107,7 @@ call(Addr, Mk, Ms) ->
 -spec call_forever(address(), fun((reply()) -> term())) -> term().
 call_forever(Addr, Mk) ->
     Alias = erlang:alias([reply]),
-    Addr ! Mk(Alias),
+    deliver(Addr, Mk(Alias)),
     receive
         {Alias, V} -> V
     end.
@@ -123,8 +125,9 @@ answer(Reply, V) ->
 %% the recorded cause, at once if it is already dead. Any other pid (a via
 %% proxy, a system process) gets a proxy with a monitor of its own.
 -spec monitor(address(), fun((term()) -> term())) -> 'Unit'.
-monitor(Addr, Wrap) ->
+monitor(Addr0, Wrap) ->
     Me = erlang:self(),
+    Addr = process_of(Addr0),
     case ets:member(?PROCESSES, Addr) of
         true ->
             persistent_term:get({?MODULE, reaper}) ! {await, Addr, Me, Wrap};
@@ -141,7 +144,7 @@ monitor(Addr, Wrap) ->
 
 -spec kill(address()) -> 'Unit'.
 kill(Addr) ->
-    exit(Addr, {ern, killed}),
+    exit(process_of(Addr), {ern, killed}),
     ?UNIT.
 
 reason(normal) -> 'Returned';
@@ -283,10 +286,13 @@ run(Fun) ->
     try
         Fun()
     catch
-        error:badarith -> exit({ern, fault, <<"division by zero">>});
-        throw:{ern, fault, Msg} -> exit({ern, fault, Msg});
-        Class:Reason -> exit({ern, fault, format("~p:~p", [Class, Reason])})
+        Class:Reason -> exit(fault_reason(Class, Reason))
     end.
+
+%% Report §7.4: what a host error is as an Ernest fault.
+fault_reason(error, badarith) -> {ern, fault, <<"division by zero">>};
+fault_reason(throw, {ern, fault, Msg}) -> {ern, fault, Msg};
+fault_reason(Class, Reason) -> {ern, fault, format("~p:~p", [Class, Reason])}.
 
 -spec fault(binary()) -> no_return().
 fault(Msg) ->
@@ -367,7 +373,9 @@ clock_loop(Pending) ->
                               {fire, To}),
             clock_loop(Pending + 1);
         {fire, To} ->
-            To ! ?UNIT,
+            %% report §6.5: the alarm's target may be an address seen
+            %% through a function, and it is delivered as any send is
+            deliver(To, ?UNIT),
             source_end(),
             clock_loop(Pending - 1);
         {'Now', Reply} ->

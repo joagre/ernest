@@ -490,7 +490,7 @@ Messages from one process to another are received in sending order. Between diff
 
 ### 6.5 Addresses
 
-`Address(m)` identifies a process on a node and carries its protocol: `send(a, v)` is type-checked against `m` on any node. `via(f, addr)`, §9.5, is `addr` seen through `f : (a) -> b`: sending `v` to `via(f, addr)` sends `f(v)` to `addr`. `via(Wrap, self())`, with `Wrap : (Int) -> Msg` and the mailbox type `Msg`, is an `Address(Int)`; a value sent to it arrives as `Wrap(v)`.
+`Address(m)` identifies a process on a node and carries its protocol: `send(a, v)` is type-checked against `m` on any node. `via(f, addr)`, §9.5, is `addr` seen through `f : (a) -> b`: sending `v` to `via(f, addr)` sends `f(v)` to `addr`. `via(Wrap, self())`, with `Wrap : (Int) -> Msg` and the mailbox type `Msg`, is an `Address(Int)`; a value sent to it arrives as `Wrap(v)`. A fault in `f` is the target's: the process `addr` names dies of it, and the sender goes on.
 
 Addresses have no equality; identity is expressed in the protocol. There is no registry: a process reaches another only through an address it holds or received, and possession of the address is the permission to send.
 

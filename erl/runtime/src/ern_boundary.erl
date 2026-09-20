@@ -144,18 +144,18 @@ expose(_, V, _) -> V.
 %% ends the target with the fault, as its own receive would have.
 proxy(Target, D, B, Text) ->
     erlang:spawn(fun() ->
-                     MRef = erlang:monitor(process, Target),
+                     MRef = erlang:monitor(process, ern_rt:process_of(Target)),
                      proxy_loop(Target, MRef, D, B, Text)
                  end).
 
 proxy_loop(Target, MRef, D, B, Text) ->
     receive
-        {'DOWN', MRef, process, Target, _} ->
+        {'DOWN', MRef, process, _, _} ->
             ok;
         Msg ->
             case chk(D, Msg, B) of
-                true -> Target ! zeroed(D, Msg, B);
-                false -> exit(Target, {ern, fault, Text})
+                true -> ern_rt:send(Target, zeroed(D, Msg, B));
+                false -> exit(ern_rt:process_of(Target), {ern, fault, Text})
             end,
             proxy_loop(Target, MRef, D, B, Text)
     end.

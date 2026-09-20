@@ -2970,6 +2970,16 @@ A `via` proxy now has a row in the table of processes, so a message inside one i
 
 The three have tests of their own, which the suite had no way to write before: a key and a line that arrive half a second after the detector first looks, and an alarm delivered through a proxy.
 
+## `via` Is a Value, 2026-09-20
+
+`via(f, addr)` spawned a process that forwarded each message and lived until the target died. `Clock.alarm(ms, wrap)` is `send(Sys.clock, After(ms, via(wrap, self())))` by E.0 rule 8, so a program with a tick made one every tick: `snake` at ten frames a second leaked ten processes a second, each with a monitor, none of which could ever be reached again after the one message it carried.
+
+§6.5 says what `via` is and not what it is made of: `addr` seen through `f`, and sending `v` to it sends `f(v)` to `addr`. So the process was an implementation choice, and a poor one. `via(f, addr)` is now the pair of the function and the address, and `send` applies the function where the sending happens. Two hundred alarms cost no processes at all, where they had cost two hundred. It also closes the race the deadlock detector had to be taught about, since the clock now puts the message in the target's mailbox itself, before it stops counting the alarm.
+
+What moved is where the function runs. In the proxy a faulting wrap killed the proxy, the message vanished, and nobody was told, which is what principle 3 refuses. Applied at the send, a faulting wrap would kill the sender, and for `Clock.alarm` the sender is the runtime's clock, which no program may bring down. The fault is the target's: `via(f, addr)` is `addr` seen through `f`, `f` belongs to the protocol the target's own `via(wrap, self())` built, and the sender goes on. §6.5 says it in a sentence.
+
+`monitor` never had the problem, since the reaper holds the wrap and applies it when the process dies. That was the precedent for holding a function rather than spawning something to hold it.
+
 ## Later
 
 Planned or considered, not in the language today.

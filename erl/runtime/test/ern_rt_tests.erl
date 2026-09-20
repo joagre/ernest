@@ -205,6 +205,44 @@ via_in_flight_test() ->
                            receive tick -> ok end
                        end, <<"main">>, #{stdout => fun(_) -> ok end})).
 
+%% report §6.5: an address seen through a function is the target and the
+%% function, not a process, so adapting costs nothing that accumulates
+via_is_not_a_process_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Before = erlang:system_info(process_count),
+               Clock = ern_rt:sys(clock),
+               Mine = ern_rt:self(),
+               lists:foreach(fun(_) ->
+                                 ern_rt:send(Clock, {'After', 1,
+                                                     ern_rt:via(fun(_) -> tick end, Mine)})
+                             end, lists:seq(1, 100)),
+               lists:foreach(fun(_) -> receive tick -> ok end end, lists:seq(1, 100)),
+               Me ! {counts, Before, erlang:system_info(process_count)}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {Before, After} = wait(counts2),
+    ?assertEqual(Before, After).
+
+%% report §6.5, §7.4: a fault in the function is the target's, and the
+%% process that sent the message goes on
+via_fault_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Zero = zero(),
+               Victim = ern_rt:spawn('Local', fun() -> receive never -> ok end end,
+                                     <<"Main.main:3">>),
+               ern_rt:monitor(Victim, fun(D) -> {down, D} end),
+               ern_rt:send(ern_rt:via(fun(_) -> 1 div Zero end, Victim), 1),
+               receive {down, D} -> Me ! {d, D} end,
+               Me ! {sender, alive}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({'Down', <<"Main.main:3">>, {'Fault', <<"division by zero">>}}, wait(d)),
+    ?assertEqual(alive, wait(sender)).
+
+wait(counts2) ->
+    receive {counts, B, A} -> {B, A} after 2000 -> timeout end;
 wait(Tag) ->
     receive {Tag, V} -> V after 1000 -> timeout end.
 
