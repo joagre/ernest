@@ -1,7 +1,7 @@
 -module(ern_types_tests).
 
 -include_lib("eunit/include/eunit.hrl").
--include_lib("type_system/include/ern_types.hrl").
+-include_lib("typer/include/ern_types.hrl").
 
 int() -> {tcon, ['Int'], []}.
 bool() -> {tcon, ['Bool'], []}.

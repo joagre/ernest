@@ -21,7 +21,7 @@ all: $(BEAM)
 $(BEAM) $(TEST_BEAM): ../../../VERSION
 
 test: $(BEAM) $(TEST_BEAM)
-	erl -noshell -pa $(EBIN) -eval \
+	erl -noshell -pa $(EBIN) -pa $(abspath ../../../build/stdlib) -eval \
 	  'halt(case eunit:test({dir, "$(EBIN)"}, []) of ok -> 0; _ -> 1 end).'
 
 clean:

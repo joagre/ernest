@@ -1,15 +1,15 @@
 # Top-level build. Each application under erl/ has its own src/Makefile;
 # this one just runs them in order.
 
-APPS = utils lexer parser type_system runtime compiler cli ern_stdlib
+APPS = utils lexer parser typer runtime emitter cli
 
 all:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -s stdlib
 
-# The standard library written in Ernest: stdlib/ compiled by ernc, each
-# module installed in erl/ern_stdlib/ebin under its Erlang module name, where
-# the code path loads it and the checker reads its interface (plan, MVP 2.5).
+# The standard library written in Ernest: stdlib/ compiled by ernc into
+# build/stdlib under its Erlang module name, where the tools put it on the
+# code path and the checker reads its interface (plan, MVP 2.5).
 # A changed compiler with an unchanged VERSION leaves ernc's build records
 # valid (report §11.1), so the tree is rebuilt whenever a compiler beam is
 # newer than the last standard library build.
@@ -18,9 +18,8 @@ stdlib:
 	   || [ ! -f build/stdlib/.built ]; then rm -rf build/stdlib; fi
 	@bin/ernc --out-dir build/stdlib stdlib
 	@touch build/stdlib/.built
-	@mkdir -p erl/ern_stdlib/ebin
 	@for f in build/stdlib/*.erc; do \
-	  cp $$f erl/ern_stdlib/ebin/ernest@$$(basename $$f .erc).beam; done
+	  cp $$f build/stdlib/ernest@$$(basename $$f .erc).beam; done
 
 # The standard library's pages, one per module beside its .erc in
 # build/stdlib, and index.md listing them (report §11.4).
@@ -40,8 +39,8 @@ clean:
 # Rewrite test/golden/*.erl, the Erlang source the compiler emits for every
 # MVP 1 example, after an intended change to the emitter.
 golden: all
-	@$(MAKE) -s -C erl/compiler/src ../ebin/ern_compiler_tests.beam
-	@cd erl/compiler/src && erl -noshell -pa ../../*/ebin \
+	@$(MAKE) -s -C erl/emitter/src ../ebin/ern_compiler_tests.beam
+	@cd erl/emitter/src && erl -noshell -pa ../../*/ebin \
 	  -eval 'ern_compiler_tests:write_golden(), halt().'
 
 # Every `§x.y`, `Appendix X`, and `E.n` in a live document names a heading of the

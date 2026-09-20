@@ -10,7 +10,7 @@
 -export([builtin_types/0, declared_types/0, stdlib_types/0, values/0, process_only/0,
          eq_vars/1, stdlib_ifaces/0]).
 
--include_lib("type_system/include/ern_types.hrl").
+-include_lib("typer/include/ern_types.hrl").
 
 %% Types the runtime provides with no Ernest declaration: name and arity.
 -spec builtin_types() -> [{atom(), non_neg_integer()}].
@@ -131,14 +131,13 @@ values() ->
      {['Sys', tcp], "Address(TcpMsg)"}].
 
 %% The interfaces of the standard library modules written in Ernest: every
-%% ernest@*.beam in an ern_stdlib ebin directory on the code path that
-%% carries an interface chunk (plan, MVP 2.5 step 2). A hand-written module
-%% has no chunk and is skipped.
+%% ernest@*.beam on the code path that carries an interface chunk (plan,
+%% MVP 2.5 step 2). The compiled library is build output, so it is found by
+%% what it holds rather than by an application's name.
 -spec stdlib_ifaces() -> [#iface{}].
 stdlib_ifaces() ->
-    Dirs = [D || D <- code:get_path(), filename:basename(filename:dirname(D)) =:= "ern_stdlib"],
     Files = lists:usort(lists:append([filelib:wildcard(filename:join(D, "ernest@*.beam"))
-                                      || D <- Dirs])),
+                                      || D <- code:get_path()])),
     lists:append([stdlib_iface(F) || F <- Files]).
 
 stdlib_iface(File) ->

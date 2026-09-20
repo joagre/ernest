@@ -7,7 +7,7 @@
 -export([pair/0, opt/1, junk/1, junk_server/0, good/1, tell/1]).
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("lexer/include/ern_diag.hrl").
--include_lib("type_system/include/ern_types.hrl").
+-include_lib("typer/include/ern_types.hrl").
 
 %%
 %% Helpers

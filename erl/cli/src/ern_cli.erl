@@ -6,7 +6,7 @@
 -export([main/2, ernc/1, ernc/2, ern/1, ern/2, namespace/1, module_path/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("type_system/include/ern_types.hrl").
+-include_lib("typer/include/ern_types.hrl").
 
 %% VERSION is the top-level VERSION file, passed by the Makefile.
 

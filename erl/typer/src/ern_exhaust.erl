@@ -7,7 +7,7 @@
 -export([check/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("type_system/include/ern_types.hrl").
+-include_lib("typer/include/ern_types.hrl").
 
 %% Simplified patterns: wild | {con, key(), [pattern()]}
 %%   key(): {con, QName} | {tuple, N} | nil | cons | {bool, B} | {lit, V}

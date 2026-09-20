@@ -423,20 +423,18 @@ run_main(Main, Site, Opts) ->
 %% Report §8.5: a standard library module's top-level lets, `Map.empty`
 %% among them, are evaluated once at program start like any other module's;
 %% the runner initializes the program's own modules, the runtime these,
-%% which are installed rather than loaded from the load path.
+%% which are build output on the code path rather than modules of the load
+%% path.
 -spec init_stdlib() -> ok.
 init_stdlib() ->
-    case code:lib_dir(ern_stdlib) of
-        {error, _} ->
-            ok;
-        App ->
-            Dir = filename:join(App, "ebin"),
-            lists:foreach(fun(File) ->
-                              Mod = list_to_atom(filename:basename(File, ".beam")),
-                              code:ensure_loaded(Mod),
-                              erlang:function_exported(Mod, '$init', 0) andalso Mod:'$init'()
-                          end, lists:sort(filelib:wildcard(filename:join(Dir, "ernest@*.beam"))))
-    end.
+    Files = lists:append([filelib:wildcard(filename:join(D, "ernest@*.beam"))
+                          || D <- code:get_path()]),
+    lists:foreach(fun(File) ->
+                      Mod = list_to_atom(filename:basename(File, ".beam")),
+                      code:ensure_loaded(Mod),
+                      erlang:function_exported(Mod, '$init', 0) andalso Mod:'$init'()
+                  end, lists:usort(Files)),
+    ok.
 
 stop(Pid) ->
     Ref = erlang:monitor(process, Pid),

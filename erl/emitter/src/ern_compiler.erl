@@ -16,7 +16,7 @@
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("lexer/include/ern_diag.hrl").
--include_lib("type_system/include/ern_types.hrl").
+-include_lib("typer/include/ern_types.hrl").
 
 -define(CHUNK, <<"ErnI">>).
 -define(CHUNK_FORMAT, 1).

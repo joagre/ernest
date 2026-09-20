@@ -20,7 +20,7 @@
 -export_type([env/0]).
 
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("type_system/include/ern_types.hrl").
+-include_lib("typer/include/ern_types.hrl").
 -include_lib("lexer/include/ern_diag.hrl").
 
 -record(env, {ns = [], types = #{}, cons = #{}, globals = #{},

@@ -12,7 +12,7 @@
 
 -export_type([st/0, type/0, effect/0, qname/0, id/0, flags/0]).
 
--include_lib("type_system/include/ern_types.hrl").
+-include_lib("typer/include/ern_types.hrl").
 
 -type id() :: pos_integer().
 -type qname() :: [atom()].

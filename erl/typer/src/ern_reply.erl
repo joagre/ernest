@@ -17,7 +17,7 @@
 -export([check/4]).
 
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("type_system/include/ern_types.hrl").
+-include_lib("typer/include/ern_types.hrl").
 
 -define(CONTAINERS, [['List'], ['Map'], ['Set'], ['Optional'], ['Either']]).
 
