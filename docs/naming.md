@@ -1,8 +1,9 @@
 # Naming the Erlang Side
 
-A suggestion, not yet decided. The report owns the language, so nothing here touches it;
-this is about the toolchain's own directories, applications, and Erlang modules, which a
-reader meets before any of them.
+The scheme, settled 2026-09-20 and not yet carried out. The report owns the language, so
+nothing here touches it; this is about the toolchain's own directories, applications, and
+Erlang modules, which a reader meets before any of them. The rule moves into
+[`style.md`](style.md) when the rename is done, and this page becomes its record.
 
 ## The problem
 
@@ -34,53 +35,74 @@ something else may ask for.
 
 ## The rule
 
-> Every Erlang module in this repository is `ernest_<layer>` or `ernest_<layer>_<thing>`.
-> Every module compiled from an Ernest source is `ernest@<namespace>`. There is nothing
-> else.
+> Every Erlang module in this repository is `ernest_<app>` or `ernest_<app>_<thing>`.
+> Every module compiled from an Ernest source is `ernest@<namespace>`. The one exception
+> is a vendored file, which keeps its upstream name.
 
-One prefix, learned once. `ernest_` is the toolchain, written in Erlang; `ernest@` is the
-language, written in Ernest. The `@` already carries that distinction, and `ernest_` can
-never collide with anything Erlang ships or will ship.
+The prefix is two things at once: `ernest` says whose it is, `<app>` says which
+application it belongs to, so `ernest_rt_tcp` is the `tcp` part of `rt`. `ernest@` is the
+language itself, and the `@` carries that distinction already.
 
-Directories are named for the layer, short, and free of Erlang's application names.
+The vendor part earns its length twice over. An Ernest program calls foreign functions,
+so any Erlang library a user loads sits in the same node as our runtime; module names are
+global, and `rt`, `cli`, `parser`, and `typer` are exactly the names another library may
+take. And the precedent splits by who owns the distribution: Erlang's own compiler names
+its layers `erl_lint` and `beam_ssa_opt` because those names are its to take, while
+Elixir, a guest as we are, prefixes its whole Erlang side `elixir_tokenizer`,
+`elixir_parser`, `elixir_expand`.
+
+Directories are named for the application, short, and free of Erlang's application
+names.
 
 ## The map
 
+The top level answers the first question a newcomer has, which language a file is in:
+
+```
+erl/        the toolchain, written in Erlang
+stdlib/     the standard library, written in Ernest
+libs/       the libraries, written in Ernest
+examples/   programs, written in Ernest
+bin/ build/ docs/ test/
+```
+
+`core` was the first suggestion and says only "important", which every directory claims.
+
 | Now | Suggested |
 |---|---|
-| `lib/` | `core/` |
-| `lib/lexer/src/ern_lexer.erl` | `core/lexer/src/ernest_lexer.erl` |
-| `lib/lexer/src/ern_diag.erl` | `core/lexer/src/ernest_lexer_diag.erl` |
-| `lib/lexer/include/ern_diag.hrl` | `core/lexer/include/ernest_lexer_diag.hrl` |
-| `lib/parser/src/ern_parser.erl` | `core/parser/src/ernest_parser.erl` |
-| `lib/parser/include/ern_ast.hrl` | `core/parser/include/ernest_parser_ast.hrl` |
-| `lib/type_system/` | `core/typer/` |
-| `lib/type_system/src/ern_typecheck.erl` | `core/typer/src/ernest_typer.erl` |
-| `lib/type_system/src/ern_types.erl` | `core/typer/src/ernest_typer_types.erl` |
-| `lib/type_system/src/ern_prelude.erl` | `core/typer/src/ernest_typer_prelude.erl` |
-| `lib/type_system/src/ern_reply.erl` | `core/typer/src/ernest_typer_reply.erl` |
-| `lib/type_system/src/ern_exhaust.erl` | `core/typer/src/ernest_typer_exhaust.erl` |
-| `lib/type_system/include/ern_types.hrl` | `core/typer/include/ernest_typer_types.hrl` |
-| `lib/compiler/` | `core/codegen/` |
-| `lib/compiler/src/ern_compiler.erl` | `core/codegen/src/ernest_codegen.erl` |
-| `lib/runtime/` | `core/rt/` |
-| `lib/runtime/src/ern_rt.erl` | `core/rt/src/ernest_rt.erl` |
-| `lib/runtime/src/ern_check.erl` | `core/rt/src/ernest_rt_check.erl` |
-| `lib/runtime/src/ern_bits.erl` | `core/rt/src/ernest_rt_bits.erl` |
-| `lib/runtime/src/ern_show.erl` | `core/rt/src/ernest_rt_show.erl` |
-| `lib/runtime/src/ern_fs.erl` | `core/rt/src/ernest_rt_fs.erl` |
-| `lib/runtime/src/ern_keys.erl` | `core/rt/src/ernest_rt_keys.erl` |
-| `lib/runtime/src/ern_tcp.erl` | `core/rt/src/ernest_rt_tcp.erl` |
-| `lib/cli/src/ern_cli.erl` | `core/cli/src/ernest_cli.erl` |
-| `lib/utils/src/getopt.erl` | `core/utils/src/ernest_getopt.erl` |
-| `lib/ern_stdlib/` | `core/estdlib/` |
-| `lib/ern_stdlib/src/ern_char.erl` | `core/estdlib/src/ernest_stdlib_char.erl` |
+| `lib/` | `erl/` |
+| `lib/lexer/src/ern_lexer.erl` | `erl/lexer/src/ernest_lexer.erl` |
+| `lib/lexer/src/ern_diag.erl` | `erl/lexer/src/ernest_lexer_diag.erl` |
+| `lib/lexer/include/ern_diag.hrl` | `erl/lexer/include/ernest_lexer_diag.hrl` |
+| `lib/parser/src/ern_parser.erl` | `erl/parser/src/ernest_parser.erl` |
+| `lib/parser/include/ern_ast.hrl` | `erl/parser/include/ernest_parser_ast.hrl` |
+| `lib/type_system/` | `erl/typer/` |
+| `lib/type_system/src/ern_typecheck.erl` | `erl/typer/src/ernest_typer.erl` |
+| `lib/type_system/src/ern_types.erl` | `erl/typer/src/ernest_typer_types.erl` |
+| `lib/type_system/src/ern_prelude.erl` | `erl/typer/src/ernest_typer_prelude.erl` |
+| `lib/type_system/src/ern_reply.erl` | `erl/typer/src/ernest_typer_reply.erl` |
+| `lib/type_system/src/ern_exhaust.erl` | `erl/typer/src/ernest_typer_exhaust.erl` |
+| `lib/type_system/include/ern_types.hrl` | `erl/typer/include/ernest_typer_types.hrl` |
+| `lib/compiler/` | `erl/codegen/` |
+| `lib/compiler/src/ern_compiler.erl` | `erl/codegen/src/ernest_codegen.erl` |
+| `lib/runtime/` | `erl/rt/` |
+| `lib/runtime/src/ern_rt.erl` | `erl/rt/src/ernest_rt.erl` |
+| `lib/runtime/src/ern_check.erl` | `erl/rt/src/ernest_rt_check.erl` |
+| `lib/runtime/src/ern_bits.erl` | `erl/rt/src/ernest_rt_bits.erl` |
+| `lib/runtime/src/ern_show.erl` | `erl/rt/src/ernest_rt_show.erl` |
+| `lib/runtime/src/ern_fs.erl` | `erl/rt/src/ernest_rt_fs.erl` |
+| `lib/runtime/src/ern_keys.erl` | `erl/rt/src/ernest_rt_keys.erl` |
+| `lib/runtime/src/ern_tcp.erl` | `erl/rt/src/ernest_rt_tcp.erl` |
+| `lib/cli/src/ern_cli.erl` | `erl/cli/src/ernest_cli.erl` |
+| `lib/utils/src/getopt.erl` | `erl/utils/src/getopt.erl`, unchanged: vendored, and `THIRD_PARTY_LICENSES` names it |
+| `lib/ern_stdlib/` | `erl/estdlib/` |
+| `lib/ern_stdlib/src/ern_char.erl` | `erl/estdlib/src/ernest_stdlib_char.erl` |
 | (and `float`, `foreign`, `int`, `io`, `list`, `map`, `path`, `random`, `set`, `string`) | likewise |
-| `lib/*/test/ern_x_tests.erl` | `core/*/test/<new module name>_tests.erl` |
+| `lib/*/test/ern_x_tests.erl` | `erl/*/test/<new module name>_tests.erl` |
 | `test/ern_docs_tests.erl` | `test/ernest_docs_tests.erl` |
 | `test/ern_style_tests.erl` | `test/ernest_style_tests.erl` |
 | `test/ern_integration_tests.erl` | `test/ernest_integration_tests.erl` |
-| — | `core/elibs/` for the Erlang side of an Ernest library, modules `ernest_libs_<name>` |
+| — | `erl/elibs/` for the Erlang side of an Ernest library, modules `ernest_libs_<name>` |
 | — | `libs/` for Ernest library sources, `build/libs/` for their compiled form |
 
 Unchanged: `bin/ernc` and `bin/ern`; `stdlib/*.ern`; `examples/*.ern`; `build/stdlib/`; the
@@ -100,8 +122,8 @@ compiled `ernest@<namespace>.beam` names, which report §11.1 fixes.
 
 Each step ends green, with `make test` and `make xref` passing, and is its own commit.
 
-1. `lib/` to `core/`, directory rename only, Makefile and `ERL_LIBS` with it.
-2. Directory renames inside `core/`: `type_system` to `typer`, `compiler` to `codegen`,
+1. `lib/` to `erl/`, directory rename only, Makefile and `ERL_LIBS` with it.
+2. Directory renames inside `erl/`: `type_system` to `typer`, `compiler` to `codegen`,
    `runtime` to `rt`, `ern_stdlib` to `estdlib`.
 3. One application's modules at a time, headers with them, starting at the leaves:
    `utils`, `lexer`, `parser`, `typer`, `codegen`, `rt`, `estdlib`, `cli`.
@@ -110,16 +132,17 @@ Each step ends green, with `make test` and `make xref` passing, and is its own c
    library's modules, so `make golden` runs here and every golden file changes.
 6. The documents: README's layout, the architecture note, the plan, CLAUDE.md, the style
    guide, and the naming rule itself, which moves into `docs/style.md`.
-7. `libs/`, `build/libs/` and `core/elibs/` are created empty when the first library is
+7. `libs/`, `build/libs/` and `erl/elibs/` are created empty when the first library is
    written, not before.
 
-## Open questions
+## Settled, 2026-09-20
 
-- Is `ernest_rt_tcp` worth its length against `rt_tcp`? The long form buys one rule
-  instead of two and immunity from clashes; the short form reads better in a stack trace.
-- Should the vendored `getopt` keep its upstream name, since `THIRD_PARTY_LICENSES` names
-  it and its header says where it came from? Renaming it to `ernest_getopt` keeps the rule
-  whole; keeping `getopt` would be the single exception, and it is a name Erlang does not
-  ship.
-- Does `core/` earn its name, or is `src/` plainer for a newcomer? `core` says these are
-  the toolchain's own applications, against `stdlib/` and `libs/`, which are Ernest.
+- `ernest_<app>_<thing>` everywhere, the long form, for the two reasons above.
+- The vendored `getopt` keeps its name. The risk is that `getopt` is a global name a
+  user's foreign code could also load; it is not worth renaming a borrowed file over, and
+  the file's own header says where it came from.
+- `erl/`, not `core/`, so the top level says which language each tree is in.
+- `estdlib` keeps its `e`: the directory is an application name, `code:lib_dir/1`
+  resolves it, and `stdlib` is Erlang's. The `e` means the Erlang side of an Ernest
+  thing, as in `elibs`; the `ernest_` in a module name means something else, and the two
+  never meet in one name.
