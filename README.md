@@ -110,7 +110,7 @@ The toolchain is the report on one node; the plan's MVPs lift the table row by r
 
 | Construct | Until | What you see today |
 |---|---|---|
-| `:load`, `:reload`, `:processes`, `:faults` at the prompt (§11.2) | MVP 2.6 | `that command is not built yet; it arrives in MVP 2.6's checkpoint 1` |
+| `:load` and `:reload` at the prompt (§11.2) | MVP 2.6 | `that command is not built yet; it arrives in MVP 2.6's checkpoint 1` |
 | `spawn(Peer(...))`, peers, `--config-dir` (§6.2, §8.3) | MVP 3 | `spawn` faults with `peer unreachable`; the configuration is not read |
 | `remote`, `parallelRemote` (§6.7) | MVP 3 | `Left(NoRemotePeer)` |
 

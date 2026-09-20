@@ -17,8 +17,19 @@ fn loop(n : Int) -> Unit with Msg = {
     loop(n2)
 }
 
+/// Prints and then faults, a moment after it is spawned, so that a session
+/// sees both the output and the report while a later input is running.
+export fn boom() -> Unit with Unit = {
+    Clock.alarm(100, fn(_) = Unit);
+    receive { _ -> Unit };
+    Io.println("worker here");
+    let n = 1 / 0;
+    Unit
+}
+
+/// Waits and then faults. It prints nothing: the shell's first prompt and
+/// a program's first write are a race no test should depend on.
 export fn main() -> Unit with Unit = {
-    Io.println("counter is here");
     Clock.alarm(150, fn(_) = Unit);
     receive { _ -> Unit };
     let n = 1 / 0;

@@ -3,4 +3,8 @@ let c = Counter.start()
 send(c, Counter.Add(7))
 Address.call(c, fn(r) = Counter.Get(reply = r), 1000)
 :browse Counter
+spawn(Local, fn() = Counter.boom())
+{ Clock.alarm(400, fn(_) = Unit); receive { _ -> Unit } }
+:processes
+:faults
 :quit

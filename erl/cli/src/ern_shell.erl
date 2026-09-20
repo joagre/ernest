@@ -9,6 +9,7 @@
 
 -export([loaded/1, start/0, program/0, check/2, type_text/1, declared/1, run/3, show/3]).
 -export([bindings/1, forget/2, browse/2, doc/2]).
+-export([deaths/1, mine/0, faults/0, processes/0]).
 -export([is_terminal/0, write/1, screen/1, to_screen/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -177,7 +178,7 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
     {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), Beam),
     Env1 = Env#env{beams = maps:put(Ns, Beam, Env#env.beams)},
     Site = unicode:characters_to_binary(lists:flatten(io_lib:format("~s.main:1", [hd(Ns)]))),
-    ern_rt:spawn('Local',
+    input_process(ern_rt:spawn('Local',
                  fun() ->
                      Outcome = try
                                    V = value(Mod, Binds),
@@ -188,7 +189,15 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
                                    Class:Reason -> {'Failed', fault_text(Class, Reason)}
                                end,
                      ern_rt:send(To, Outcome)
-                 end, Site).
+                 end, Site)).
+
+%% An input's own fault is its answer, so the watcher leaves it out.
+input_process(Pid) ->
+    case persistent_term:get({?MODULE, watcher}, undefined) of
+        undefined -> ok;
+        Watcher -> Watcher ! {input, Pid}
+    end,
+    Pid.
 
 %% An input that declares runs its initializers and nothing else. Report
 %% §8.5: a module's top-level values are computed by them, which the runner
@@ -393,6 +402,73 @@ entry(Beam, Name) ->
 diagnostic(Input, Diags) ->
     unicode:characters_to_binary(
       [ern_diag:format("input", Input, D) || D <- Diags]).
+
+%% Report §11.2: the shell reports a process that faults, and the runtime
+%% is what knows. The watcher is told of every death the runtime records
+%% (§6.9), keeps the faults for `:faults`, and forwards the ones that are
+%% news to the session: not the shell's own processes, and not an input's,
+%% whose fault is already its answer.
+-define(FAULTS, 100).
+
+-spec deaths(term()) -> 'Unit'.
+deaths(To) ->
+    Watcher = erlang:spawn(fun() -> watch(To, [], []) end),
+    persistent_term:put({?MODULE, watcher}, Watcher),
+    ern_rt:deaths(Watcher),
+    'Unit'.
+
+watch(To, Inputs, Faults) ->
+    receive
+        {death, Pid, Site, {'Fault', _} = Reason} ->
+            case lists:member(Pid, Inputs ++ own()) of
+                true ->
+                    watch(To, Inputs, Faults);
+                false ->
+                    Down = {'Down', Site, Reason},
+                    ern_rt:send(To, Down),
+                    watch(To, Inputs, lists:sublist([Down | Faults], ?FAULTS))
+            end;
+        {death, _, _, _} ->
+            watch(To, Inputs, Faults);
+        {input, Pid} ->
+            watch(To, [Pid | Inputs], Faults);
+        {faults, From, Ref} ->
+            From ! {Ref, lists:reverse(Faults)},
+            watch(To, Inputs, Faults)
+    end.
+
+%% Report §11.2: a process of the shell's own, the session, the screen and
+%% the reader. Each says so from inside itself: an address handed to a
+%% foreign function arrives as the checking proxy in front of it (§8.4), so
+%% the process behind it is not what the front end would be holding.
+-spec mine() -> 'Unit'.
+mine() ->
+    persistent_term:put({?MODULE, own}, [ern_rt:self() | own()]),
+    'Unit'.
+
+own() ->
+    persistent_term:get({?MODULE, own}, []).
+
+%% Report §11.2: the faults reported since the session began, oldest first;
+%% the last few hundred are kept, a session never shrinking (§11.2).
+-spec faults() -> [term()].
+faults() ->
+    case persistent_term:get({?MODULE, watcher}, undefined) of
+        undefined ->
+            [];
+        Watcher ->
+            Ref = make_ref(),
+            Watcher ! {faults, erlang:self(), Ref},
+            receive {Ref, Faults} -> Faults after 5000 -> [] end
+    end.
+
+%% Report §11.2, §6.9: the live processes by their spawn sites, the
+%% session's own left out; a site and never an address, which §6.3 gives
+%% no way to compare anyway.
+-spec processes() -> [binary()].
+processes() ->
+    Own = [ern_rt:self() | own()],
+    lists:sort([Site || {Pid, Site} <- ern_rt:live(), not lists:member(Pid, Own)]).
 
 %% Report §11.2: the shell edits a line when it has a terminal and reads
 %% lines when it has not.

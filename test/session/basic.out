@@ -108,8 +108,8 @@ it : List(Int)
   :help           this text
   :forget name    forget a name the session declared, or * for all of them
   :bindings       what the session declares, with their types
-  :processes      not built yet
-  :faults         not built yet
+  :processes      the live processes of the session, by spawn site
+  :faults         the faults reported since the session began
   :set            depth n, length n, timing on or off; :set alone shows them
 The value of the last expression is `it`.
 > 

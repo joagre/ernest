@@ -41,7 +41,7 @@ The screen process, which is the only writer, keeps two panes. Nothing here is t
 - **The upper pane holds what any process writes through `Sys.stdout` and `Sys.stderr`.** The lower pane is the shell's own: values, types, diagnostics, command output, fault reports and the prompt. Which pane a line lands in never depends on timing, and the screen needs no notion of who wrote it, which §6.3 gives it no way to have.
 - **A fault report is the shell speaking, so it is printed below.** It is the one line that arrives on its own rather than in answer to an input, and the line editor redraws the input under it.
 - **A pane is a line buffer, an offset and a height.** The renderer takes the visible slice of the buffer at the offset and paints the pane's rows; a write appends to the buffer and repaints that pane only. There are no scroll regions.
-- **The upper pane is small and appears with the first program output.** Nothing is split until something prints, so a shell with no program running looks as it always did. It then takes up to a third of the screen, and `:set output n` fixes it at n rows.
+- **The upper pane is small and appears with the first program output.** Nothing is split until something prints, so a shell with no program running looks as it always did. It then takes up to a third of the screen, and `:set output n` fixes it at n rows. `:set output 0` is no upper pane at all: one transcript, the program's output and the shell's in arrival order, and the terminal's own scrollback back. There is no second setting for the split, since that one carries it.
 - **`PageUp` and `PageDown` scroll a pane.** The split costs the terminal's own scrollback, since lines that leave a repainted viewport are kept by nothing, so the shell gives it back itself: the lower pane's buffer is the transcript and the upper pane's is the program's output, each with its own offset. Without these keys the older output would be unreachable rather than merely awkward, which is why they are not polish.
 - **The mouse is not turned on.** Wheel events need mouse reporting, and mouse reporting takes the terminal's click-and-drag selection away as well; `PageUp` does the same work for nothing.
 - **With no terminal there are no panes.** Line mode prints the shell's output and the program's in arrival order, as it does today.
@@ -128,11 +128,11 @@ It does not hold the shell's settings, which are ordinary Ernest values; the his
 The shell reports a process that faults; a compiled program keeps its silence, and `monitor` stays the one way a program learns (§6.9).
 
 - **The shell cannot monitor what it cannot address.** There is no registry, and a process is reached only through an address someone holds (§6.3).
-- **The front end is told instead.** The runtime remembers how every process it started ended, and `Down` carries the spawn site with its line (§6.9); the front end subscribes and forwards.
+- **The front end is told instead.** The runtime remembers how every process it started ended, and `Down` carries the spawn site with its line (§6.9); the front end registers a watcher, which is told of every death and decides which are news.
 - **Faults only.** `Returned`, `Killed`, and `ProgramEnd` are not news, and a program that spawns a process for each connection would scroll the session away.
-- **The program's processes, not the shell's own.** The shell cannot tell them apart, addresses having no equality (§6.3); the front end can, having started both, and leaves out the processes the runner started for the shell and the input's own process, whose fault is already the outcome. So an input's fault is reported once.
+- **The program's processes, not the shell's own.** The shell cannot tell them apart, addresses having no equality (§6.3). Each of the shell's own processes says so from inside itself, since an address handed to a foreign function arrives as the checking proxy in front of it (§8.4) and the process behind it is not what the front end would hold. The input's own process is left out by the front end, which made it, its fault being the outcome already. So an input's fault is reported once.
 - **One line, written by the screen**, as all output is.
-- **The last faults are kept** and `:faults` prints them. How many is open.
+- **The last hundred faults are kept** and `:faults` prints them, oldest first.
 - **`Deadlock` does not fire under `--shell`** (§8.6): the shell always holds a subscription to the keys, or a read outstanding in line mode, and a system process holding one is a source that can still deliver. A program whose processes all block gets no report, and `:processes` lists them as live with no hint.
 - **Reporting the program's own quiescence is later**, on the door built for the faults and the live list.
 

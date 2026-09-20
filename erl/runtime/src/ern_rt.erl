@@ -24,7 +24,7 @@
          kill/1, sys/1, run_main/2, run_main/3, fault/1, remote/1, parallel_remote/1,
          todo/1, timed/0, untimed/0, in_foreign/1, init_stdlib/0, own_terminal/1,
          source_begin/0, source_end/0, process_of/1, proxy_for/2, proxy_forget/1,
-         hold_terminal/1, terminal_holder/0]).
+         hold_terminal/1, terminal_holder/0, deaths/1, live/0]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -173,6 +173,7 @@ reaper_loop(Waiters) ->
             case ets:lookup(?PROCESSES, Pid) of
                 [{_, Site, alive, _, _}] ->
                     ets:insert(?PROCESSES, {Pid, Site, Reason, 0, 0}),
+                    died(Pid, Site, Reason),
                     lists:foreach(fun({To, Wrap}) -> To ! Wrap({'Down', Site, reason(Reason)}) end,
                                   maps:get(Pid, Waiters, []));
                 [] ->
@@ -196,22 +197,67 @@ reaper_loop(Waiters) ->
         reaper_loop(Waiters)
     end.
 
+%% Report §11.2: the shell reads how every process the runtime started
+%% ended (§6.9) and which are alive, and no program does: §6.3 gives a
+%% program no registry, and these two are the toolchain's own door. The
+%% watcher is told of every death, and decides for itself which are news.
+-spec deaths(pid()) -> ok.
+deaths(Watcher) ->
+    persistent_term:put({?MODULE, deaths}, Watcher),
+    ok.
+
+-spec live() -> [{address(), binary()}].
+live() ->
+    try [{Pid, Site} || {Pid, Site, alive, _, _} <- ets:tab2list(?PROCESSES)]
+    catch _:_ -> []
+    end.
+
+died(Pid, Site, Reason) ->
+    case persistent_term:get({?MODULE, deaths}, undefined) of
+        undefined -> ok;
+        Watcher -> Watcher ! {death, Pid, Site, reason(Reason)}, ok
+    end.
+
 %% Report §8.6. Two snapshots of every live process's status and reduction
 %% count, equal, with every status waiting, prove that nothing ran between
-%% them and so no message is in flight; a timed receive, a foreign call in
-%% progress, and a source held by a system process are what can still
-%% deliver.
+%% them; a timed receive, a foreign call in progress, and a source held by
+%% a system process are what can still deliver.
+%%
+%% A message in flight to a system process would deliver too, and a system
+%% process is not in the table, so each one's mailbox and status are read
+%% as well: between taking a message out and counting the source it holds,
+%% it is running rather than waiting, and the check sees that. The reaper
+%% is the process making the check, so its own mailbox is what is read of
+%% it. §8.6 leaves a foreign process that can deliver to the runtime, and
+%% the one the shell registers for deaths (§11.2) is counted here.
 deadlocked() ->
     Rows = [{Pid, T, F} || {Pid, _, alive, T, F} <- ets:tab2list(?PROCESSES)],
     Rows =/= []
         andalso lists:all(fun({_, T, F}) -> T =:= 0 andalso F =:= 0 end, Rows)
         andalso sources() =:= 0
+        andalso quiet_system()
         andalso begin
                     Pids = [Pid || {Pid, _, _} <- Rows],
                     First = snapshot(Pids),
                     lists:all(fun({_, S}) -> S =:= waiting end, [{P, St} || {P, St, _} <- First])
                         andalso snapshot(Pids) =:= First
+                        andalso quiet_system()
                 end.
+
+quiet_system() ->
+    element(2, erlang:process_info(erlang:self(), message_queue_len)) =:= 0
+        andalso lists:all(fun(Key) ->
+                              case persistent_term:get({?MODULE, Key}, undefined) of
+                                  undefined -> true;
+                                  Pid -> quiet(Pid)
+                              end
+                          end, [stdout, stderr, stdin, fs, keys, tcp, clock, deaths]).
+
+quiet(Pid) ->
+    case erlang:process_info(Pid, [status, message_queue_len]) of
+        [{status, waiting}, {message_queue_len, 0}] -> true;
+        _ -> false
+    end.
 
 snapshot(Pids) ->
     [case erlang:process_info(Pid, [status, reductions]) of
@@ -447,6 +493,7 @@ run_main(Main, Site, Opts) ->
     ets:insert(?PROCESSES, {sources, 0}),
     persistent_term:erase({?MODULE, terminal}),
     persistent_term:erase({?MODULE, holder}),
+    persistent_term:erase({?MODULE, deaths}),
     Run = make_ref(),
     persistent_term:put({?MODULE, launcher}, {erlang:self(), Run}),
     Reaper = erlang:spawn(fun() -> reaper_loop(#{}) end),

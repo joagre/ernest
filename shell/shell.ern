@@ -21,6 +21,10 @@ type Outcome = Ok(env : Env, value : Value) | Failed(String)
 
 foreign fn start() -> Env with m = "ern_shell:start/0"
 foreign fn program() -> Optional(Address(Never)) with m = "ern_shell:program/0"
+foreign fn watchDeaths(to : Address(Down)) -> Unit with m = "ern_shell:deaths/1"
+foreign fn mine() -> Unit with m = "ern_shell:mine/0"
+foreign fn faults() -> List(Down) with m = "ern_shell:faults/0"
+foreign fn processes() -> List(String) with m = "ern_shell:processes/0"
 foreign fn check(env : Env, input : String) -> Either(String, #(Env, Checked)) with m =
     "ern_shell:check/2"
 foreign fn typeText(c : Checked) -> String = "ern_shell:type_text/1"
@@ -55,19 +59,21 @@ type Settings = Settings(depth : Int, length : Int, timing : Bool)
 let defaults = Settings(depth = 10, length = 100, timing = false)
 
 export fn main() -> Unit with ShellMsg = {
-    let screen = spawn(Local, fn() = screenLoop());
+    mine();
+    let screen = spawn(Local, fn() = { mine(); screenLoop() });
     setScreen(via(Print, screen));
     send(screen, Print("Ernest 0.1.0. :help for the commands, :quit to leave.\n"));
     let state = State(env = start(), settings = defaults);
-    // report §11.2, §8.1: a file's entry point runs beside the prompt, and
-    // the shell monitors it, a fault in it being news at the prompt
+    // report §11.2: a process that faults is news at the prompt, whichever
+    // it is; the watcher is in place before the program's entry point runs
+    watchDeaths(via(Died, self()));
     match program() {
         None -> Unit
-      | Some(entry) -> monitor(entry, Died)
+      | Some(_) -> Unit
     };
     if isTerminal() then {
         let me = self();
-        let reader = spawn(Local, fn() = { Keys.subscribe(K); readLoop(me, screen, "") });
+        let reader = spawn(Local, fn() = { mine(); Keys.subscribe(K); readLoop(me, screen, "") });
         holdTerminal(reader);
         send(screen, Print("> "));
         keyLoop(state, screen)
@@ -180,9 +186,9 @@ let commands = [
     Entry(name = "bindings", command = Bindings, takes = None,
           about = "       what the session declares, with their types"),
     Entry(name = "processes", command = Processes, takes = None,
-          about = "      not built yet"),
+          about = "      the live processes of the session, by spawn site"),
     Entry(name = "faults", command = Faults, takes = None,
-          about = "         not built yet"),
+          about = "         the faults reported since the session began"),
     Entry(name = "set", command = Set, takes = None,
           about = "            depth n, length n, timing on or off; :set alone shows them")
 ]
@@ -249,7 +255,15 @@ fn obey(state : State, screen : Address(ScreenMsg), c : Command, arg : String)
           | Right(text) -> { send(screen, Print(text)); Continue(state) }
         }
       | Set -> Continue(State(..state, settings = set(screen, settings, arg)))
-      | Load or Reload or Processes or Faults -> {
+      | Processes -> match processes() {
+            [] -> { say(screen, "no process of the session's is running"); Continue(state) }
+          | sites -> { printLines(screen, sites); Continue(state) }
+        }
+      | Faults -> match faults() {
+            [] -> { say(screen, "no process has faulted"); Continue(state) }
+          | downs -> { printLines(screen, List.map(downs, faultLine)); Continue(state) }
+        }
+      | Load or Reload -> {
             say(screen, "that command is not built yet; it arrives in MVP 2.6's checkpoint 1");
             Continue(state)
         }
@@ -395,9 +409,12 @@ fn deaths(screen : Address(ScreenMsg)) -> Unit with ShellMsg = receive {
 
 // Report §11.2: a process that faults is reported with its spawn site and
 // cause; returning, being killed, and the program's end are not news.
-fn reportDeath(screen : Address(ScreenMsg), down : Down) -> Unit with m = match down {
-    Down(reason = Fault(text), function = where) -> say(screen, where <> " faulted: " <> text)
-  | Down(reason = _) -> Unit
+fn reportDeath(screen : Address(ScreenMsg), down : Down) -> Unit with m =
+    say(screen, faultLine(down))
+
+fn faultLine(down : Down) -> String = match down {
+    Down(reason = Fault(text), function = where) -> where <> " faulted: " <> text
+  | Down(reason = _, function = where) -> where <> " ended"
 }
 
 //

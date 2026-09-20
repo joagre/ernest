@@ -23,10 +23,12 @@ session() ->
     {ok, Expected} = file:read_file("session/basic.out"),
     ?assertEqual(Expected, Out).
 
-%% report §11.2, §8.1: with a file the shell is the entry point and the
-%% file's entry point is spawned beside it; the loaded modules are in scope,
-%% by their qualified names, and a fault in the program is reported at the
-%% prompt without ending the session
+%% report §11.2, §8.1, §6.9: with a file the shell is the entry point and
+%% the file's entry point is spawned beside it; the loaded modules are in
+%% scope, by their qualified names; every process that faults is reported
+%% at the prompt with its spawn site, the program's own and one spawned at
+%% the prompt alike, without ending the session; `:processes` lists what is
+%% live and leaves the shell's own out, and `:faults` what has faulted
 program_test_() ->
     {timeout, 60, fun program/0}.
 

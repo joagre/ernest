@@ -3199,6 +3199,20 @@ The shell splits the screen: a small upper pane for what programs print, the res
 
 **Why the three changes are one checkpoint.** Panes need scroll keys, scroll keys need §9.3's `Key` to grow beyond its eight, and a `Key` that grows is the condition recorded earlier for taking OTP 29's `io_ansi:scan` in place of our decoder, whose two costs, `-opost` and `isig`, were measured the same day. Each is the reason for the next, and deciding them apart would decide them three times.
 
+## Every Fault Is Reported, 2026-09-20
+
+The shell prints a line for each process that faults, and `:processes` and `:faults` ride on the same door.
+
+**The door is the toolchain's, not the language's.** §6.9 already says the runtime remembers how every process it started ended, so nothing new is known; what is new is that the shell may read it. §11.2 says so, and says in the same breath that a program learns of a death through `monitor` alone, §6.3 giving it no registry. Nothing an Ernest program can write gained the power to enumerate processes.
+
+**The runtime tells a watcher and decides nothing.** Which deaths are news is the shell's rule, so the reaper forwards every death it records and the front end's watcher filters: faults only, since a process that returns, is killed, or ends with the program is not news; not the shell's own processes; not an input's, whose fault is already its answer. The watcher keeps the last hundred for `:faults`, oldest first.
+
+**A process of the shell's own says so from inside itself.** The first attempt had the shell hand its screen and reader to the front end as addresses, and it did not work: an address given to a foreign function arrives as the checking proxy in front of it (§8.4), so what the front end held was the proxy, and `:processes` listed the screen. Each of the shell's processes now calls a foreign function of its own, which records the process it is called in. It is also the honest shape: the front end is told what it cannot see.
+
+**A false `Deadlock`, and it was ours.** A session with a clock alarm sometimes died with `Deadlock` the moment an input ran. §8.6 requires that no message be in flight, and a message sitting in a system process's mailbox is one: the input sends `After` to the clock and blocks, and until the clock takes it out and counts its source, every Ernest process is waiting and the count is zero. The detector never looked at the system processes, which are not in its table. It now requires each of them, and the reaper's own mailbox, to be waiting and empty, twice around the two snapshots; §8.6's last sentence leaves a foreign process that can deliver to the runtime, and the shell's watcher is counted among them. The report needed no change: the rule was right and the detector did not implement it.
+
+**A golden session must not race the prompt.** The fixture program printed at startup, and whether that line beat the shell's first prompt depended on load, the shell's startup writing several `persistent_term` keys and each write scanning the node. The fixture now prints from a worker at a known moment instead, and the session is the same on every run.
+
 ## Later
 
 Planned or considered, not in the language today.
