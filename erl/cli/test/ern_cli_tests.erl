@@ -462,6 +462,58 @@ doc_test() ->
     ?assertEqual(1, ern_cli:ernc(["--doc", "--source-root", Dir,
                                   write(Dir, "bad.ern", "export fn f() -> Int = \"s\"\n")])).
 
+%% report §11.1, §11.4: the documentation comes from the compiled module,
+%% so --doc on a .erc writes what --doc on its source writes, and asking a
+%% source for its page writes nothing
+doc_from_compiled_test() ->
+    Dir = tmp(),
+    Src = write(Dir, "shapes.ern",
+                "/// A shape.\n"
+                "export type Shape = Dot | At(x : Int, y : Int)\n"
+                "/// Twice n.\n"
+                "export fn twice(n : Int) -> Int = 2 * n\n"),
+    Out = filename:join(Dir, "build"),
+    ?assertEqual(0, ern_cli:ernc(["--doc", "--source-root", Dir, "--out-dir", Out, Src])),
+    FromSource = iolist_to_binary(?capturedOutput),
+    ?assertEqual(false, filelib:is_regular(filename:join(Out, "shapes.erc"))),
+    ?assertEqual(0, ern_cli:ernc(["--source-root", Dir, "--out-dir", Out, Src])),
+    ?assertEqual(0, ern_cli:ernc(["--doc", filename:join(Out, "shapes.erc")])),
+    %% the captured output is everything this test printed, so the page twice
+    ?assertEqual(<<FromSource/binary, FromSource/binary>>, iolist_to_binary(?capturedOutput)),
+    ?assertMatch({_, _}, binary:match(FromSource, <<"## Shapes.twice">>)).
+
+%% report §11.1: the compiled module carries its documentation as EEP 48's
+%% Docs chunk, so the host's own tools read an Ernest module
+docs_chunk_test() ->
+    Dir = tmp(),
+    Src = write(Dir, "shapes.ern",
+                "/// A shape.\n"
+                "/// since 0.2.0\n"
+                "export type Shape = Dot | At(x : Int, y : Int)\n"
+                "/// Twice n.\n"
+                "export fn twice(n : Int) -> Int = 2 * n\n"),
+    Out = filename:join(Dir, "build"),
+    ?assertEqual(0, ern_cli:ernc(["--source-root", Dir, "--out-dir", Out, Src])),
+    {ok, Beam} = file:read_file(filename:join(Out, "shapes.erc")),
+    {ok, Docs} = ern_emitter:read_docs(Beam),
+    {docs_v1, _, ernest, <<"text/markdown">>, none, Meta, Entries} = Docs,
+    ?assertEqual(<<"shapes.ern">>, maps:get(source, Meta)),
+    %% the parameter list as written, for the shell's completion
+    ?assertMatch([{{type, 'Shape', 0}, _, [<<"type Shape = Dot | At(x : Int, y : Int)">>],
+                   #{<<"en">> := <<"A shape.\nsince 0.2.0">>}, #{items := _}},
+                  {{function, twice, 1}, _, [<<"Shapes.twice : (Int) -> Int">>],
+                   #{<<"en">> := <<"Twice n.">>}, #{params := [n]}}],
+                 Entries),
+    %% Erlang's own documentation reader finds it, as it finds the standard
+    %% library's modules installed under build/stdlib
+    Mod = ern_emitter:module_atom(['Shapes']),
+    ok = file:write_file(filename:join(Out, atom_to_list(Mod) ++ ".beam"), Beam),
+    true = code:add_patha(Out),
+    {module, Mod} = code:ensure_loaded(Mod),
+    ?assertMatch({ok, {docs_v1, _, ernest, _, _, _, _}}, code:get_doc(Mod)),
+    true = code:delete(Mod),
+    true = code:del_path(Out).
+
 %% report §11.4, Appendix E.0 rule 6: docs/module_doc_template.md is what
 %% `ernc --doc` renders for examples/template.ern, after its marker line
 doc_template_test() ->

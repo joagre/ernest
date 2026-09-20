@@ -2898,6 +2898,18 @@ Two uses of the full name in code were weighed after the rename. The tag an Erne
 
 [`naming.md`](naming.md) is the record; the rule itself lives in the style guide.
 
+## Documentation in the Compiled Module, 2026-09-20
+
+MVP 2.5's last step. `ernc --doc` re-read the source, which is a second source of truth for a module already compiled, and the shell of MVP 2.6 cannot re-read the source of a module it loaded from a load path. The `.erc` carries the interface; it now carries the documentation beside it.
+
+The chunk is EEP 48's `Docs`, not one of ours. The gain is that the host's tools read it: `h(ern@list)` in an Erlang shell answers from an Ernest module, and any BEAM documentation tool sees Ernest without knowing Ernest. The `BeamLanguage` atom is `ernest`, the language's name, as `elixir` and `gleam` use theirs, which is the same reading that kept `.ernest/` while the toolchain took `ern`. The cost is that we live inside someone else's shape, and the shape fits: an entry per function or type, a signature, a doc, and a metadata map.
+
+The chunk holds each entity's doc block, its signature as the page shows it, and its parameter list as written. Taking the signature from the interface chunk instead was the first plan and does not work: the interface holds the exported values, and §11.4 documents every declaration with a doc block, exported or not, so a documented private function has no type there. Rendering the signature for exported declarations from one chunk and private ones from the other would be two ways to do one job. The two cannot drift, since one compile writes both from one checked tree. Pre-rendering the whole page into the chunk was refused: the page's shape is §11.4's and belongs to whatever renders it, and the shell will render it differently.
+
+A type's constructors, fields, and signature entries are structured in the entry's metadata, a list in source order, rather than flattened into the type's doc text. The shell completes a constructor and shows its line; reading that back out of rendered markdown would be a wart. EEP 48 allows arbitrary metadata, so this stays inside the standard chunk.
+
+`--doc` accepts a `.ern` as before and compiles it first, since a command that worked must keep working. `--no-docs` for lean files is not built; nothing has asked.
+
 ## Later
 
 Planned or considered, not in the language today.

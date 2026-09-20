@@ -189,6 +189,39 @@ examples_test_() ->
                  ?assertEqual({ok, Out}, run(Ns, Bin))
              end} || {Base, Out} <- Expected].
 
+%% report §11.1: the documentation travels in the BEAM chunk Docs, EEP 48's,
+%% and a type's parts are structured in its entry rather than rendered
+docs_chunk_test() ->
+    Ns = ['Shapes'],
+    Src = <<"/// The module.\n\n"
+            "/// A shape.\n"
+            "export type Shape = Dot\n"
+            "    /// somewhere\n"
+            "    | At(/// across\n"
+            "         x : Int, y : Int)\n"
+            "export fn area(shape : Shape) -> Int = 0\n">>,
+    {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Src),
+    Build = #{source_hash => <<>>, deps => [], source => <<"shapes.ern">>},
+    {ok, 'ern@shapes', Beam} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
+    {ok, {docs_v1, _, ernest, <<"text/markdown">>, ModDoc, Meta, Entries}} =
+        ern_emitter:read_docs(Beam),
+    ?assertEqual(#{<<"en">> => <<"The module.">>}, ModDoc),
+    ?assertEqual(<<"shapes.ern">>, maps:get(source, Meta)),
+    [{{type, 'Shape', 0}, _, Signature, Doc, TypeMeta},
+     {{function, area, 1}, _, _, _, FnMeta}] = Entries,
+    ?assertEqual([<<"type Shape = Dot | At(x : Int, y : Int)">>], Signature),
+    ?assertEqual(#{<<"en">> => <<"A shape.">>}, Doc),
+    ?assertEqual([#{kind => constructor, name => 'Dot', doc => none, fields => []},
+                  #{kind => constructor, name => 'At', doc => <<"somewhere">>,
+                    fields => [#{name => x, type => <<"Int">>, doc => <<"across">>},
+                               #{name => y, type => <<"Int">>, doc => none}]}],
+                 maps:get(items, TypeMeta)),
+    ?assertEqual([shape], maps:get(params, FnMeta)),
+    %% the interface chunk keeps its own shape, the source name being the
+    %% documentation's
+    {ok, Read} = ern_emitter:read_interface(Beam),
+    ?assertEqual(false, is_map_key(source, Read)).
+
 %% report §11.1, plan 2.4: the interface travels in the BEAM chunk ErnI
 %% with the source hash and the dependencies' interface hashes, and its
 %% hash does not depend on the numbering of type variables
