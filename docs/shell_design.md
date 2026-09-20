@@ -28,6 +28,7 @@ The shell is an Ernest program. Its parts:
 
 - **A line that is complete by itself is submitted by `Enter`.**
 - **An incomplete line starts a multi-line input**, which ends at a blank line. A line is incomplete when the parser runs out of input where more was expected, which it answers as such rather than as a diagnostic; the shell never counts brackets itself, which would be a second parser to disagree with the first.
+- **A blank line always submits**, incomplete or not: what does not parse gives the error it would give anyway, and `Enter` twice is always the way out of a multi-line input. `M-Enter` is the way further in.
 - **`M-Enter` adds a line to an input the parser thinks is finished.** `type Shape = Dot` parses complete, so `Enter` would run it and the next line, led by `|`, would be an error; `M-Enter` keeps the input open instead. It is what an `else`, an alternative, or a longer body on the next line needs.
 - **The reminder is on the continuation line.** The first multi-line input of a session prints `M-Enter adds a line, Enter runs.` above the `... ` prompt, once; `:help` lists it. A prompt that says it every time is noise.
 - **A paste is one input.** The shell turns on the terminal's bracketed paste; a pasted text, blank lines included, is submitted by the `Enter` after it.
@@ -52,8 +53,8 @@ The shell is an Ernest program. Its parts:
 
 ## Output
 
-- **An expression prints its value and its type**, the type as the checker prints it (§11.5): `3 : Int`. A declaration prints its name and type, `double : (Int) -> Int`; a `let` its name and type, `xs : List(Int)`.
-- **A value is printed as `Io.debug` prints it** (Appendix E.1), by its type; the shell and `Io.debug` share one printer, `ern_show`.
+- **An expression prints its value and its type**, the type as the checker prints it (§11.5): `3 : Int`. An expression of type `Unit` prints nothing, since `Io.println("hi")` would otherwise answer `hi` and then `Unit : Unit` after every effectful input. A declaration prints its name and type, `double : (Int) -> Int`; a `let` its name and type, `xs : List(Int)`.
+- **A value is printed as `Io.debug` prints it** (Appendix E.1), by its type; the shell and `Io.debug` share one printer, `ern_show`, which grows a depth and a length that `Io.debug` passes unbounded. E.1 is unchanged: a program's `debug` prints the value.
 - **A large value is printed to a depth and a length,** the rest as `...`. The defaults are open; `:set` changes them.
 - **An input that does not check is shown as `ernc` shows an error** (§11.5), the input as the source and the span underlined. Nothing is run.
 - **A fault in an input is printed as `fault: ` and its text,** an interruption as `Killed`.
@@ -79,14 +80,15 @@ A program that loses a worker to a fault says nothing: there is no automatic sup
 
 GNU Readline's Emacs bindings.
 
+- **`Escape` and `Meta`:** §8.2 delivers `Escape` alone once no sequence can follow it, so an `Escape` followed at once by a character is `Meta` and an `Escape` that stands alone is the key. The pause rule was built for exactly this.
 - **Moving:** `C-a`, `C-e` to the start and end of the line; `C-b`, `C-f` a character; `M-b`, `M-f` a word; the arrow keys.
 - **Deleting:** `Backspace` and `C-h` back, `C-d` forward; on an empty line `C-d` quits.
 - **Killing:** `C-k` to the end of the line, `C-u` to the start, `C-w` and `M-Backspace` the word before, `M-d` the word after; `C-y` yanks the last kill.
 - **Colour and the suggestion, later.** Types dimmed, errors red, and the most recent earlier input shown greyed after the cursor for the right arrow to accept. They go together: grey is how a suggestion is told from what was typed. Colour also asks something of the front end, since a §11.5 diagnostic crosses as rendered text and only its renderer can colour the spans it laid out; the shell would say whether colour is wanted and `ernc` could take the same path. None of it is why a person tries a language.
 - **Later, each a day's work once the editor stands:** the kill ring with `M-y` cycling, `C-t` and `M-t` transposing characters and words, and `M-u`, `M-l`, `M-c` for case. They are left out of the checkpoint because each needs its own key-stream tests and none of them is why a person tries a language; a reader who has them everywhere else will miss them, which is the argument for the day.
-- **History:** `C-p`, `C-n`, up and down step through earlier inputs; `M-<` and `M->` go to the first and the current; `C-r` searches back incrementally, `C-s` forward, `C-g` abandons the search. The history is kept per user, in `$HOME/.ernest/history`, as a person expects when they type the same thing in two projects; with `HOME` unset nothing is saved and the shell says so once. It is not in the configuration directory, which §11.3 gives a job of its own, the node's address and its keys.
+- **History:** `C-p`, `C-n`, up and down step through earlier inputs, a multi-line one coming back whole, its lines under their continuation prompts and the cursor at the end; `M-<` and `M->` go to the first and the current; `C-r` searches back incrementally, `C-s` forward, `C-g` abandons the search. The history is kept per user, in `$HOME/.ernest/history`, as a person expects when they type the same thing in two projects; with `HOME` unset nothing is saved and the shell says so once. It is not in the configuration directory, which §11.3 gives a job of its own, the node's address and its keys.
 - **Adding a line:** `M-Enter`, when the input parses complete and is not.
-- **Interrupting:** `C-c` kills the running evaluation when there is one, and abandons the line being typed only when there is not; the bindings and the partial line both survive the kill, since the line was being typed and losing it would be its own surprise. A queued input is dropped with the evaluation it waited for, its text kept in the history. While the shell is reading, the terminal's interrupt is a key to it and not the signal that ends a program (§8.6); the shell is left with `:quit` or `C-d`. Every other program keeps §8.6's rule, so the interrupt still stops a game that reads keys. §11.2 says it, since §11.2 owns the shell.
+- **Interrupting:** `C-c` kills the running evaluation when there is one, and abandons the input being typed only when there is not, every line of it, its text kept in the history to recall and mend; the bindings and the partial line both survive the kill, since the line was being typed and losing it would be its own surprise. A queued input is dropped with the evaluation it waited for, its text kept in the history. While the shell is reading, the terminal's interrupt is a key to it and not the signal that ends a program (§8.6); the shell is left with `:quit` or `C-d`. Every other program keeps §8.6's rule, so the interrupt still stops a game that reads keys. §11.2 says it, since §11.2 owns the shell.
 - **`C-l`** clears the screen.
 
 ## Completion
@@ -140,6 +142,7 @@ A program is started by calling it; there is no command for it. A module meant f
 - **A second lookup command beside `:doc`, and a kinds command:** `:doc` shows the declaration, and Ernest exposes no kinds.
 - **Commands for the file system and the terminal:** `Fs` does this in the language.
 - **Declarations read from a file into the session:** `:load` takes a module and makes it reachable by its qualified name, as every module is (§4.2). Ernest has no imports, so names arriving unqualified from a file would have been the one place they did; a module's private declarations are not reachable from the prompt, as they are not from anywhere else.
+- **A pager:** the terminal's own scrollback, search and copy are the pager, and keeping them is half the reason the transcript scrolls rather than splitting. One would also fight the live reader for the keyboard.
 - **Running a terminal program from the prompt:** the shell holds the terminal, so a program that reads keys or lines is run with `ern` instead. The fault says so.
 - **Custom printers:** a value has one rendering.
 - **User-defined commands, system commands, job control, a step debugger, and watch expressions.**
@@ -191,7 +194,9 @@ foreign fn faults(wrap : (Fault) -> m) -> Unit with m = "..."
 
 Delivered before the shell, each report first.
 
-- **`Keys`** delivers the arrows, `Enter`, `Escape`, and characters since MVP 2.5 step 4 (§9.3's `Key`). `Shift-Tab` and `Meta` combinations are not in `Key` and land with the shell, report first (MVP 2.6). The terminal's interrupt is not a `Key` value: it reaches the shell because §11.2 says the shell reads it as a key, which is the shell's exception and no other program's.
+- **`Keys`** delivers the arrows, `Enter`, `Escape`, and characters since MVP 2.5 step 4 (§9.3's `Key`). `Shift-Tab` and `Meta` need nothing added: §8.2 already delivers a sequence that is not a key of §9.3 as `Escape` and the characters after it, so `M-b` arrives as `Escape` then `Char('b')` and `Shift-Tab` as `Escape` and its bytes, which the editor decodes as any line editor does. Growing `Key` for the shell would be the move refused for the terminal, and two ways to read one key.
+- **`Key` gains one value for the terminal's interrupt** (§9.3, MVP 2.6), delivered only to the holder of the terminal, which §11.2 makes the shell. A subscriber receives `Key` values and nothing else (E.16), so without it the byte cannot arrive at all; one constructor, not a family.
+- **`ern_show` takes a depth and a length**, which `Io.debug` passes unbounded, so the shell and E.1 keep one printer. A runtime change, not a report one (MVP 2.6).
 - **The parser answers that an input is incomplete**, distinctly from a diagnostic: it ran out of input where more was expected. It knows already and does not say. A front-end change, not a report one (MVP 2.6).
 - **The terminal's width**, for redrawing a wrapped line and laying out candidates. Not in the report; it lands with the shell, report first (MVP 2.6).
 - **Whether input is a terminal**, for line mode. Not in the report; it lands with the shell, report first (MVP 2.6).
