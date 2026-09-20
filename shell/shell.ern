@@ -25,6 +25,10 @@ foreign fn watchDeaths(to : Address(Down)) -> Unit with m = "ern_shell:deaths/1"
 foreign fn mine() -> Unit with m = "ern_shell:mine/0"
 foreign fn faults() -> List(Down) with m = "ern_shell:faults/0"
 foreign fn processes() -> List(String) with m = "ern_shell:processes/0"
+foreign fn load(env : Env, name : String) -> Either(String, #(Env, String)) with m =
+    "ern_shell:load/2"
+foreign fn reload(env : Env) -> Either(String, #(Env, List(String))) with m =
+    "ern_shell:reload/1"
 foreign fn check(env : Env, input : String) -> Either(String, #(Env, Checked)) with m =
     "ern_shell:check/2"
 foreign fn typeText(c : Checked) -> String = "ern_shell:type_text/1"
@@ -172,9 +176,9 @@ let commands = [
     Entry(name = "browse", command = Browse, takes = Some("a module"),
           about = " Module  the exports of Module with their types"),
     Entry(name = "load", command = Load, takes = Some("a module"),
-          about = " Module    not built yet"),
+          about = " Module    the module by its namespace, compiled from its source"),
     Entry(name = "reload", command = Reload, takes = None,
-          about = "         not built yet"),
+          about = "         every loaded module whose source has changed"),
     Entry(name = "quit", command = Quit, takes = None,
           about = "           leave, as C-d on an empty line does"),
     Entry(name = "doc", command = Doc, takes = Some("a name"),
@@ -263,9 +267,19 @@ fn obey(state : State, screen : Address(ScreenMsg), c : Command, arg : String)
             [] -> { say(screen, "no process has faulted"); Continue(state) }
           | downs -> { printLines(screen, List.map(downs, faultLine)); Continue(state) }
         }
-      | Load or Reload -> {
-            say(screen, "that command is not built yet; it arrives in MVP 2.6's checkpoint 1");
-            Continue(state)
+      | Load -> match load(env, arg) {
+            Left(text) -> { send(screen, Print(text)); Continue(state) }
+          | Right(#(env2, line)) -> {
+                say(screen, line);
+                Continue(State(..state, env = env2))
+            }
+        }
+      | Reload -> match reload(env) {
+            Left(text) -> { send(screen, Print(text)); Continue(state) }
+          | Right(#(env2, lines)) -> {
+                printLines(screen, lines);
+                Continue(State(..state, env = env2))
+            }
         }
     }
 }

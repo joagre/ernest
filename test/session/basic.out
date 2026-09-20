@@ -101,8 +101,8 @@ it : List(Int)
 > Commands, which any prefix of the name selects:
   :type e         the type of e, which is not run
   :browse Module  the exports of Module with their types
-  :load Module    not built yet
-  :reload         not built yet
+  :load Module    the module by its namespace, compiled from its source
+  :reload         every loaded module whose source has changed
   :quit           leave, as C-d on an empty line does
   :doc Name       the documentation of Name, which GHCi calls :info
   :help           this text

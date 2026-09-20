@@ -139,6 +139,9 @@ kill(Addr) ->
 reason(normal) -> 'Returned';
 reason({ern, killed}) -> 'Killed';
 reason({ern, program_end}) -> 'ProgramEnd';
+%% report §7.3, §11.2: a process still in a version of a module the shell
+%% has replaced twice
+reason({ern, code_replaced}) -> {'Fault', <<"its code was replaced">>};
 reason({ern, fault, Msg}) -> {'Fault', Msg};
 reason(noproc) -> {'Fault', <<"died before monitor">>};
 reason(Other) -> {'Fault', format("~p", [Other])}.

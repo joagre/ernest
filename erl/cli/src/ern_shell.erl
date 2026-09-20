@@ -9,7 +9,7 @@
 
 -export([loaded/1, start/0, program/0, check/2, type_text/1, declared/1, run/3, show/3]).
 -export([bindings/1, forget/2, browse/2, doc/2]).
--export([deaths/1, mine/0, faults/0, processes/0]).
+-export([deaths/1, mine/0, faults/0, processes/0, load/2, reload/1]).
 -export([is_terminal/0, write/1, screen/1, to_screen/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -22,7 +22,10 @@
 %% interfaces of the modules behind the session, and the scope those
 %% modules make (report §11.2), which the checker takes as its fourth
 %% argument.
--record(env, {roots = [], source_root = ".", n = 0, ifaces = [], session = #{}, beams = #{}}).
+-record(env, {roots = [], source_root = ".", n = 0, ifaces = [], session = #{}, beams = #{},
+              modules = #{}}).
+%% modules: the namespace of a module the session has loaded, to the hash
+%% of the source it was compiled from, which `:reload` compares (§11.2)
 %% beams: the namespace of an input that declared, to its compiled module,
 %% which `:doc` reads the documentation of (report §11.2, §11.4)
 %% A checked input: the module it became, its typed tree, its type.
@@ -42,9 +45,11 @@ loaded(What) ->
 -spec start() -> #env{}.
 start() ->
     What = persistent_term:get({?MODULE, loaded}, #{}),
+    Loaded = maps:get(ifaces, What, []),
     #env{roots = maps:get(roots, What, []),
          source_root = maps:get(source_root, What, "."),
-         ifaces = maps:get(ifaces, What, [])}.
+         ifaces = [I || {I, _} <- Loaded],
+         modules = maps:from_list([{I#iface.namespace, H} || {I, H} <- Loaded])}.
 
 %% Report §11.2, §8.1: the file's entry point, spawned beside the prompt and
 %% not entered, and nothing where the shell was started with no file. The
@@ -191,13 +196,17 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
                      ern_rt:send(To, Outcome)
                  end, Site)).
 
-%% An input's own fault is its answer, so the watcher leaves it out.
 input_process(Pid) ->
+    quiet(Pid),
+    Pid.
+
+%% A death the shell does not report, having reported it another way.
+quiet(Pid) ->
     case persistent_term:get({?MODULE, watcher}, undefined) of
         undefined -> ok;
-        Watcher -> Watcher ! {input, Pid}
+        Watcher -> Watcher ! {quiet, Pid}
     end,
-    Pid.
+    ok.
 
 %% An input that declares runs its initializers and nothing else. Report
 %% §8.5: a module's top-level values are computed by them, which the runner
@@ -417,24 +426,26 @@ deaths(To) ->
     ern_rt:deaths(Watcher),
     'Unit'.
 
-watch(To, Inputs, Faults) ->
+watch(To, Quiet, Faults) ->
     receive
         {death, Pid, Site, {'Fault', _} = Reason} ->
-            case lists:member(Pid, Inputs ++ own()) of
+            case lists:member(Pid, Quiet ++ own()) of
                 true ->
-                    watch(To, Inputs, Faults);
+                    watch(To, Quiet, Faults);
                 false ->
                     Down = {'Down', Site, Reason},
                     ern_rt:send(To, Down),
-                    watch(To, Inputs, lists:sublist([Down | Faults], ?FAULTS))
+                    watch(To, Quiet, lists:sublist([Down | Faults], ?FAULTS))
             end;
         {death, _, _, _} ->
-            watch(To, Inputs, Faults);
-        {input, Pid} ->
-            watch(To, [Pid | Inputs], Faults);
+            watch(To, Quiet, Faults);
+        %% an input's own fault is its answer, and a process `:reload` ends
+        %% is named by `:reload` itself
+        {quiet, Pid} ->
+            watch(To, [Pid | Quiet], Faults);
         {faults, From, Ref} ->
             From ! {Ref, lists:reverse(Faults)},
-            watch(To, Inputs, Faults)
+            watch(To, Quiet, Faults)
     end.
 
 %% Report §11.2: a process of the shell's own, the session, the screen and
@@ -469,6 +480,196 @@ faults() ->
 processes() ->
     Own = [ern_rt:self() | own()],
     lists:sort([Site || {Pid, Site} <- ern_rt:live(), not lists:member(Pid, Own)]).
+
+%% Report §11.2: `:load` takes a module by its namespace. Its source under
+%% the source root is compiled as `ernc` would compile it and nothing is
+%% written; a module with no source there is loaded from its compiled
+%% form, on the load path. Afterwards it is in scope by its qualified
+%% name, as every loaded module is (§4.2).
+-spec load(#env{}, binary()) -> {'Left', binary()} | {'Right', {#env{}, binary()}}.
+load(Env, Text) ->
+    Ns = namespace(Text),
+    Name = unicode:characters_to_binary(qname_text(Ns)),
+    case source_of(Env, Ns) of
+        {ok, File} ->
+            case compile_source(Env, File) of
+                {ok, Ns2, Beam, Hash} when Ns2 =:= Ns ->
+                    {'Right', {install(Env, Ns, Beam, Hash),
+                               <<Name/binary, ", compiled from ",
+                                 (list_to_binary(relative(File, Env)))/binary>>}};
+                {ok, Ns2, _, _} ->
+                    {'Left', <<(list_to_binary(qname_text(Ns2)))/binary, " is declared in ",
+                               (list_to_binary(relative(File, Env)))/binary,
+                               ", which is not where ", Name/binary, " belongs">>};
+                {error, Diags} ->
+                    {'Left', Diags}
+            end;
+        none ->
+            case compiled_of(Env, Ns) of
+                {ok, File, Beam, Hash} ->
+                    {'Right', {install(Env, Ns, Beam, Hash),
+                               <<Name/binary, ", from ",
+                                 (list_to_binary(relative(File, Env)))/binary>>}};
+                none ->
+                    {'Left', <<"no module ", Name/binary, " under the source root or on the"
+                               " load path">>}
+            end
+    end.
+
+%% Report §11.2: every module the session loaded whose source has changed,
+%% compiled and loaded again. A process still in the previous version, and
+%% a binding that holds a function of it, keep it; the reload that needs
+%% that version ends them, and the one before names them.
+-spec reload(#env{}) -> {'Left', binary()} | {'Right', {#env{}, [binary()]}}.
+reload(#env{modules = Modules} = Env) ->
+    Changed = [{Ns, File, Hash}
+               || {Ns, Loaded} <- lists:sort(maps:to_list(Modules)),
+                  {ok, File} <- [source_of(Env, Ns)],
+                  {ok, Hash} <- [source_hash(File)],
+                  Hash =/= Loaded],
+    case Changed of
+        [] ->
+            {'Right', {Env, [<<"no source has changed">>]}};
+        _ ->
+            case lists:foldl(fun reload_one/2, {Env, [], ok}, Changed) of
+                {_, _, {error, Text}} -> {'Left', Text};
+                {Env1, Lines, ok} -> {'Right', {Env1, lists:reverse(Lines)}}
+            end
+    end.
+
+reload_one(_, {Env, Lines, {error, _} = Stop}) ->
+    {Env, Lines, Stop};
+reload_one({Ns, File, _Hash}, {Env, Lines, ok}) ->
+    Mod = ern_emitter:module_atom(Ns),
+    Name = unicode:characters_to_binary(qname_text(Ns)),
+    {Ended, Env1} = case erlang:check_old_code(Mod) of
+                        true -> end_previous(Env, Mod);
+                        false -> {[], Env}
+                    end,
+    code:purge(Mod),
+    case compile_source(Env1, File) of
+        {ok, _, Beam, Hash2} ->
+            Env2 = install(Env1, Ns, Beam, Hash2),
+            Waiting = in_previous(Env2, Mod),
+            {Env2, waiting_line(Name, Waiting) ++ ended_lines(Name, Ended)
+                   ++ [<<Name/binary, ", compiled again">> | Lines], ok};
+        {error, Diags} ->
+            {Env1, Lines, {error, Diags}}
+    end.
+
+ended_lines(_, []) ->
+    [];
+ended_lines(Name, Ended) ->
+    [<<Name/binary, ": ended ", (what(Ended))/binary, " in the previous version">>].
+
+waiting_line(_, []) ->
+    [];
+waiting_line(Name, Waiting) ->
+    [<<Name/binary, ": ", (what(Waiting))/binary, " in the previous version; a further reload"
+       " of it ends them">>].
+
+what(Items) ->
+    unicode:characters_to_binary(lists:join(", ", Items)).
+
+%% Report §11.2: what is left in the version a reload replaced, a process
+%% by its spawn site (§6.9) and a binding by its name.
+in_previous(Env, Mod) ->
+    [<<Site/binary, ", a process">> || {Pid, Site} <- ern_rt:live(),
+                                       erlang:check_process_code(Pid, Mod)]
+        ++ [<<(atom_to_binary(Name))/binary, ", a binding">>
+            || {Name, _} <- bindings_of(Env, Mod)].
+
+%% Report §7.3, §11.2: the processes still in it end with the cause the
+%% report gives them, and the bindings that hold a function of it are
+%% forgotten; the fault reports leave out a process ended here, `:reload`
+%% being the one that says so.
+end_previous(#env{session = S} = Env, Mod) ->
+    Processes = [{Pid, Site} || {Pid, Site} <- ern_rt:live(),
+                                erlang:check_process_code(Pid, Mod)],
+    lists:foreach(fun({Pid, _}) ->
+                      quiet(Pid),
+                      exit(Pid, {ern, code_replaced})
+                  end, Processes),
+    Bindings = bindings_of(Env, Mod),
+    Values = maps:without([Key || {_, Key} <- Bindings], maps:get(values, S, #{})),
+    {[<<Site/binary, ", a process">> || {_, Site} <- Processes]
+     ++ [<<(atom_to_binary(Name))/binary, ", a binding">> || {Name, _} <- Bindings],
+     Env#env{session = S#{values => Values}}}.
+
+%% The session's bindings whose value holds a function of the module.
+bindings_of(#env{session = S}, Mod) ->
+    [{name_atom(Key), Key}
+     || {Key, Q} <- maps:to_list(maps:get(values, S, #{})),
+        holds_fun(value_of(Q), Mod)].
+
+name_atom({_, Name}) -> Name;
+name_atom(Name) -> Name.
+
+value_of(Q) ->
+    Holder = ern_emitter:module_atom(lists:droplast(Q)),
+    persistent_term:get({Holder, lists:last(Q)}, undefined).
+
+holds_fun(F, Mod) when is_function(F) ->
+    element(2, erlang:fun_info(F, module)) =:= Mod;
+holds_fun([H | T], Mod) -> holds_fun(H, Mod) orelse holds_fun(T, Mod);
+holds_fun(T, Mod) when is_tuple(T) -> holds_fun(tuple_to_list(T), Mod);
+holds_fun(M, Mod) when is_map(M) -> holds_fun(maps:to_list(M), Mod);
+holds_fun(_, _) -> false.
+
+install(#env{ifaces = Ifaces, modules = Modules} = Env, Ns, Beam, Hash) ->
+    Mod = ern_emitter:module_atom(Ns),
+    {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), Beam),
+    {ok, #{iface := Iface}} = ern_emitter:read_interface(Beam),
+    Env#env{ifaces = [I || I <- Ifaces, I#iface.namespace =/= Ns] ++ [Iface],
+            modules = Modules#{Ns => Hash},
+            beams = maps:put(Ns, Beam, Env#env.beams)}.
+
+compile_source(#env{source_root = Root} = Env, File) ->
+    case ern_cli:compile_source(File, Root, out_dir(Env)) of
+        {ok, Ns, Beam, Hash} ->
+            {ok, Ns, Beam, Hash};
+        {error, _, [Text]} when is_list(Text) ->
+            {error, unicode:characters_to_binary([Text, "\n"])};
+        {error, _, Diags} ->
+            {ok, Source} = file:read_file(File),
+            {error, unicode:characters_to_binary(
+                      [ern_diag:format(File, Source, D) || D <- Diags])}
+    end.
+
+out_dir(#env{roots = [Root | _]}) -> Root;
+out_dir(#env{source_root = Root}) -> Root.
+
+source_of(#env{source_root = Root}, Ns) ->
+    File = filename:join(Root, ern_cli:module_path(Ns) ++ ".ern"),
+    case filelib:is_regular(File) of
+        true -> {ok, File};
+        false -> none
+    end.
+
+compiled_of(#env{roots = Roots}, Ns) ->
+    Rel = ern_cli:module_path(Ns) ++ ".erc",
+    case [F || R <- Roots, F <- [filename:join(R, Rel)], filelib:is_regular(F)] of
+        [File | _] ->
+            {ok, Bin} = file:read_file(File),
+            case ern_emitter:read_interface(Bin) of
+                {ok, #{source_hash := Hash}} -> {ok, File, Bin, Hash};
+                {error, _} -> none
+            end;
+        [] ->
+            none
+    end.
+
+source_hash(File) ->
+    case file:read_file(File) of
+        {ok, Source} -> {ok, crypto:hash(sha256, Source)};
+        {error, _} -> none
+    end.
+
+relative(File, #env{source_root = Root}) ->
+    case string:prefix(filename:absname(File), filename:absname(Root) ++ "/") of
+        nomatch -> File;
+        Rel -> Rel
+    end.
 
 %% Report §11.2: the shell edits a line when it has a terminal and reads
 %% lines when it has not.

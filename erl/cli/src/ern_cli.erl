@@ -3,7 +3,8 @@
 %% tests can call it. Each entry point returns the exit status.
 -module(ern_cli).
 
--export([main/2, ernc/1, ernc/2, ern/1, ern/2, namespace/1, module_path/1]).
+-export([main/2, ernc/1, ernc/2, ern/1, ern/2, namespace/1, module_path/1,
+         compile_source/3]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -516,6 +517,8 @@ ern_options() ->
      {load_path, undefined, "load-path", string, "a root of compiled modules; may be repeated"},
      {main, undefined, "main", string, "the entry point, a qualified exported function"},
      {shell, undefined, "shell", undefined, "add an interactive shell to the running program"},
+     {source_root, undefined, "source-root", string,
+      "where the shell finds a module's source; default the working directory"},
      {test, undefined, "test", undefined, "run the module's tests instead of its entry point"},
      {create_config_dir, undefined, "create-config-dir", string,
       "create dir/.ernest with a configuration and a private key, and stop"},
@@ -553,7 +556,8 @@ shell(Opts, Rest, Err) ->
     end,
     Init = case Rest of
                [] ->
-                   ern_shell:loaded(#{roots => [], source_root => source_root(Opts, ".", "."),
+                   ern_shell:loaded(#{roots => [absolute(D) || {load_path, D} <- Opts],
+                                      source_root => source_root(Opts, ".", "."),
                                       ifaces => [], entry => none}),
                    fun() -> ok end;
                [File] ->
@@ -608,12 +612,41 @@ program(File, Opts) ->
     {Ns, Roots, load(Ns, Roots, [])}.
 
 %% Report §11.2: the interfaces of the modules loaded, which the shell puts
-%% in the session's scope; each is the `ErnI` chunk of the `.erc` it came
-%% from (§11.1).
+%% in the session's scope, each with the hash of the source it was compiled
+%% from, which `:reload` compares against the source it finds; both are in
+%% the `ErnI` chunk of the `.erc` it came from (§11.1).
 ifaces(Loaded) ->
-    [I || Mod <- lists:reverse(Loaded),
-          {ok, Bin} <- [file:read_file(code:which(Mod))],
-          {ok, #{iface := I}} <- [ern_emitter:read_interface(Bin)]].
+    [{I, H} || Mod <- lists:reverse(Loaded),
+               {ok, Bin} <- [file:read_file(code:which(Mod))],
+               {ok, #{iface := I, source_hash := H}} <- [ern_emitter:read_interface(Bin)]].
+
+%% Report §11.2: a module compiled from its source for the shell, as
+%% `ernc` would compile it but in memory, since `:load` and `:reload`
+%% write nothing. `Root` is the source root and `OutDir` where the
+%% dependencies' interfaces are read from.
+-spec compile_source(file:filename(), file:filename(), file:filename()) ->
+          {ok, [atom()], binary(), binary()} | {error, file:filename(), [term()]}.
+compile_source(File, Root, OutDir) ->
+    try
+        [#mod{ns = Ns, rel = Rel, decls = Decls, deps = Deps}] =
+            compile_order([module_of(absolute(File), Root)], Root),
+        DepIfaces = [I || D <- Deps, {_, I} <- [dep_iface(D, #{}, OutDir)]],
+        {ok, Source} = file:read_file(File),
+        Hash = crypto:hash(sha256, Source),
+        case ern_typecheck:check(Ns, Decls, DepIfaces) of
+            {ok, Typed, Iface, Env} ->
+                Build = #{source_hash => Hash, deps => [],
+                          source => list_to_binary(filename:basename(Rel))},
+                case ern_emitter:compile(Ns, Typed, Iface, Env, Build) of
+                    {ok, _, Beam} -> {ok, Ns, Beam, Hash};
+                    {error, Errors} -> {error, File, Errors}
+                end;
+            {error, Errors} ->
+                {error, File, Errors}
+        end
+    catch
+        throw:{cli_error, Message} -> {error, File, [Message]}
+    end.
 
 %% Report §8.6: a signal from outside ends the program as returning from
 %% main does, and the runtime prints nothing of its own about it. The host

@@ -553,17 +553,19 @@ without_footer(Doc) ->
 %% the code refuses
 mvp_refusals_in_readme_test() ->
     {ok, Readme} = file:read_file("../../../README.md"),
+    Pattern = "\"([^\"\n]*\\bin MVP [0-9][^\"\n]*)\"",
+    Find = fun(Text) ->
+               case re:run(Text, Pattern, [global, {capture, all_but_first, binary}]) of
+                   {match, Ms} -> [M || [M] <- Ms];
+                   nomatch -> []
+               end
+           end,
+    %% the scan itself, on a sample, since every refusal may be lifted and
+    %% a pattern that finds nothing would otherwise pass
+    ?assertEqual([<<"x is not here yet; it arrives in MVP 9">>],
+                 Find("fail(\"x is not here yet; it arrives in MVP 9\")")),
     Sources = filelib:wildcard("../../*/src/*.erl") ++ filelib:wildcard("../../../shell/*.ern"),
-    Texts = lists:usort(lists:append(
-                          [begin
-                               {ok, Src} = file:read_file(F),
-                               case re:run(Src, "\"([^\"\n]*\\bin MVP [0-9][^\"\n]*)\"",
-                                           [global, {capture, all_but_first, binary}]) of
-                                   {match, Ms} -> [M || [M] <- Ms];
-                                   nomatch -> []
-                               end
-                           end || F <- Sources])),
-    ?assert(length(Texts) >= 1),
+    Texts = lists:usort(lists:append([Find(element(2, file:read_file(F))) || F <- Sources])),
     Missing = [T || T <- Texts, binary:match(Readme, binary:part(T, 0, min(40, byte_size(T))))
                                 =:= nomatch],
     ?assertEqual([], Missing).

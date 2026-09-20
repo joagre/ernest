@@ -39,6 +39,59 @@ program() ->
     {ok, Expected} = file:read_file("session/program.out"),
     ?assertEqual(Expected, Out).
 
+%% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
+%% under the source root and puts it in scope; `:reload` compiles again
+%% what has changed, names what is still in the previous version, and ends
+%% it on the reload that needs that version. The session rewrites the
+%% source itself, with `Fs.write`, so the test needs no second process.
+reload_test_() ->
+    {timeout, 60, fun reload/0}.
+
+reload() ->
+    Unique = integer_to_list(erlang:unique_integer([positive])),
+    Dir = filename:join("/tmp", "ern_reload_" ++ Unique),
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(filename:join(Dir, "demo.ern"), demo(1)),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, [":load Demo\n",
+                              "Demo.answer()\n",
+                              "spawn(Local, fn() = Demo.tick())\n",
+                              write_demo(Dir, 2),
+                              ":reload\n",
+                              "Demo.answer()\n",
+                              write_demo(Dir, 3),
+                              ":reload\n",
+                              "Demo.answer()\n",
+                              ":processes\n"]),
+    {0, Out} = sh("../bin/ern --shell --source-root " ++ Dir ++ " --load-path " ++ Dir
+                  ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"Demo, compiled from demo.ern">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"1 : Int">>)),
+    %% the first reload names what is still in the version it replaced
+    ?assertMatch({_, _}, binary:match(Out, <<"a process in the previous version; a further"
+                                             " reload of it ends them">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)),
+    %% the second ends it, and says so
+    ?assertMatch({_, _}, binary:match(Out, <<"ended ">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"3 : Int">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"no process of the session's is running">>)).
+
+demo(N) ->
+    ["export fn answer() -> Int = ", integer_to_list(N), "\n\n",
+     "export fn tick() -> Unit with Unit = {\n",
+     "    Clock.alarm(50, fn(_) = Unit);\n",
+     "    receive { _ -> Unit };\n",
+     "    tick()\n",
+     "}\n"].
+
+%% An input that rewrites the module's source, so that the session is what
+%% changes it (E.17).
+write_demo(Dir, N) ->
+    Text = lists:flatten(demo(N)),
+    Escaped = lists:flatten([case C of $\n -> "\\n"; $" -> "\\\""; _ -> C end || C <- Text]),
+    ["Fs.write(Path(\"", filename:join(Dir, "demo.ern"), "\"), String.toUtf8(\"", Escaped,
+     "\"), 2000)\n"].
+
 %% report §11.2: on a terminal the shell reads keys, echoes what is typed,
 %% takes Backspace and C-d, and reads the interrupt as a key, which kills a
 %% running input and leaves the session standing

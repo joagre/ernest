@@ -3213,6 +3213,20 @@ The shell prints a line for each process that faults, and `:processes` and `:fau
 
 **A golden session must not race the prompt.** The fixture program printed at startup, and whether that line beat the shell's first prompt depended on load, the shell's startup writing several `persistent_term` keys and each write scanning the node. The fixture now prints from a worker at a known moment instead, and the session is the same on every run.
 
+## Loading and Reloading a Module, 2026-09-20
+
+`:load Module` and `:reload`, and the rule §7.3 already pointed at.
+
+**§11.2 states the reload rule, which §7.3 was pointing at.** §7.3 lists "the replacement of a process's code under it (§11.2)" among the causes of a fault, and §11.2 said nothing about replacing code: a pointer with nothing at the end of it. It now says that two versions of a module are in the session, that a process still in the previous one keeps it as §6.10 requires, as does a binding that holds a function of it, and that a further reload of that module ends them while the reload before names them.
+
+**The hash decides what has changed, not the clock.** A compiled module carries the hash of the source it was compiled from (§11.1), so `:reload` reads the source, hashes it, and compares. A modification time would have needed a rule for a clock that goes backwards and for a file restored from a copy.
+
+**`--source-root` was in the report and not in the runner.** §11.2 has had it since the shell's core was written; the option list never gained it, and the code that reads it could not have been reached. Found by using it.
+
+**A death `:reload` causes is reported once.** The fault reports name every process that faults, and `:reload` names the processes it ends: the same line twice. The front end tells the watcher to stay quiet about a process it is about to end, which is the same door an input's own process goes through, and `:reload` is left as the one that says so.
+
+**What this found, to be fixed next.** A `let` whose value is a function compiles to a getter alone, and the emitter emits a call of a qualified name as a direct remote call, so `M.g()` answers the function instead of calling it, and `M.h(2)` raises `undef` in a module that calls it. At the prompt the same defect reaches a zero-argument binding, `let g = fn() = 1` answering a function from `g()`. The cause is that an interface records a name's type and not whether it was declared with `fn` or with `let`, and the emitter guesses from the type. It is the next item, and it changes the interface chunk.
+
 ## Later
 
 Planned or considered, not in the language today.
