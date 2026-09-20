@@ -37,10 +37,21 @@ The shell is an Ernest program. Its parts:
 - **A large value is printed to a depth and a length,** the rest as `...`. The defaults are open; `:set` changes them.
 - **An input that does not check is shown as `ernc` shows an error** (§11.5), the input as the source and the span underlined. Nothing is run.
 - **A fault in an input is printed as `fault: ` and its text,** an interruption as `Killed`.
-- **A process spawned at the prompt that faults is reported** with its spawn site and cause: `a process spawned at input 3 faulted: division by zero`.
+- **A process that faults is reported** with its spawn site and cause: `Counter.worker:23 faulted: division by zero`. Which deaths are reported, and how the shell learns of them, is "Failing processes".
 - **With timing on, each result is followed by its elapsed time.**
 - **Colour:** types dimmed, errors red, the history suggestion greyed. None when output is not a terminal or `NO_COLOR` is set.
 - **Output from another process while a line is being typed** is printed above it, and the prompt and the partial line are drawn again below.
+
+## Failing processes
+
+A program that loses a worker to a fault says nothing: there is no automatic supervision, and a program learns of a death only by monitoring (§6.9). At the prompt that silence is wrong, since a person is watching and a fault that vanishes is the hardest kind to find. The shell reports it; a compiled program keeps its silence, and `monitor` stays the one way a program learns.
+
+- **The shell cannot monitor what it cannot address.** There is no registry, and a process is reached only through an address someone holds (§6.3). The shell holds the address of the process it starts for each input and nothing deeper, so monitoring is not the mechanism.
+- **The runtime already knows.** It remembers how every process it started ended (§6.9), and `Down` carries the spawn site with its line. Erlang needs `proc_lib` to carry that much, because it keeps no record of who spawned what; Ernest has it in the report. What is missing is a way for the shell to be told, which is a prerequisite below.
+- **Faults only.** `Returned`, `Killed`, and `ProgramEnd` are not news, and a program that spawns a process for each connection would scroll the session away.
+- **The processes of the program the shell is running**, not the shell's own; a fault inside the shell is a defect in the shell and is reported as one.
+- **One line, through `Sys.stdout`**, printed as output from another process is printed and the line redrawn below it (Output), so its order against the program's own printing is the order every other print has.
+- **The last faults are kept** and `:faults` prints them. How many is open.
 
 ## Line editing
 
@@ -76,7 +87,7 @@ GNU Readline's Emacs bindings.
 
 ## Commands
 
-A command is `:` and a name; it is not an Ernest function. Any prefix of a name selects the command, and an ambiguous prefix selects the first in the order below: `:t` is `:type`, `:b` `:browse`, `:l` `:load`, `:r` `:reload`, `:q` `:quit`, `:d` `:doc`, `:f` `:forget`.
+A command is `:` and a name; it is not an Ernest function. Any prefix of a name selects the command, and an ambiguous prefix selects the first in the order below: `:t` is `:type`, `:b` `:browse`, `:l` `:load`, `:r` `:reload`, `:q` `:quit`, `:d` `:doc`, `:f` `:forget`, `:fa` `:faults`.
 
 - **`:type e`**: the type of `e`, which is not run.
 - **`:browse Module`**: the exports of `Module` with their types.
@@ -88,6 +99,7 @@ A command is `:` and a name; it is not an Ernest function. Any prefix of a name 
 - **`:forget x`**: forgets the binding `x`; without a name, all bindings.
 - **`:bindings`**: the bindings, with their types.
 - **`:processes`**: the live processes with their spawn sites (§6.9).
+- **`:faults`**: the faults reported since the session began, oldest first.
 - **`:set depth n`**, **`:set length n`**, **`:set timing on`** and **`off`**.
 
 A program is started by calling it; there is no command for it. A module meant for the shell exports a function that spawns its processes and returns. Modules are not imported: every module on the load path is in scope by its qualified name (§4.2).
@@ -134,12 +146,14 @@ Delivered before the shell, each report first.
 - **The terminal's width**, for redrawing a wrapped line and laying out candidates. Not in the report; it lands with the shell, report first (MVP 2.6).
 - **Whether input is a terminal**, for line mode. Not in the report; it lands with the shell, report first (MVP 2.6).
 - **A notice that another process printed**, for redrawing the line. Not in the report; it lands with the shell, report first (MVP 2.6).
+- **A notice that a process died with a fault**, for "Failing processes". The runtime holds the fact (§6.9); the shell needs a system reference and a message type to be told it. Not in the report; it lands with the shell, report first (MVP 2.6).
 - **Documentation in the `.erc`**, with each function's parameters as written, for `:doc` and `Shift-Tab` (MVP 2.5, step 6).
 - **The report's §11.2** states the shell's normative core: types on every result, a module and a process per input, bindings that survive a fault, the commands and their prefix rule, and line mode (MVP 2.6).
 
 ## Open
 
 - **The depth and length defaults.**
+- **How many faults the buffer keeps.**
 - **How the line editor measures wide characters.**
 - **The exact foreign interface.**
 

@@ -2932,6 +2932,18 @@ Three of the four paper programs run until they are stopped, so stopping one is 
 
 The note is logged at notice level, not info, which is why raising the level to notice left it in place; the runner now runs with the host's log handler at warning, so a warning or an error from the host still reaches the terminal and its chatter does not. Asking the host to handle the signal is what makes the end orderly, and what output a program has written is written before the node stops; the syncer's test asserts both halves, the line it printed and nothing else.
 
+## The Shell Reports a Fault, 2026-09-20
+
+Ernest has no logger, its own or a shim over Erlang's, and needs none for this. A program that loses a worker to a fault says nothing, since there is no automatic supervision and `monitor` is how a program learns (§6.9). At a prompt that silence is wrong: a person is watching, and a fault that vanishes is the hardest kind to find.
+
+Erlang answers this with `proc_lib:spawn`, whose crash report carries the parent and the start function because Erlang keeps no record of who spawned what. Ernest's `Down` already carries the spawn site with its line, so the fact is in the report and a logger would only be a way of moving it.
+
+The shell cannot monitor its way to it. There is no registry, and a process is reached only through an address someone holds (§6.3), so the shell sees the process it starts for an input and nothing deeper. The runtime does know, since it remembers how every process it started ended, so what the shell needs is a door to be told, a system reference and a message type, which is now a prerequisite in the design note and in the plan's MVP 2.6 entry.
+
+Four rules keep it from becoming a second error mechanism, which principle 2 forbids. Only faults are reported, since a normal return is not news and a program that spawns a process for each connection would scroll the session away. Only the running program's processes, not the shell's own. One line through `Sys.stdout`, so that its order against the program's printing is the order every print has. And the report is the shell's, not the runtime's: a compiled program keeps its silence, and `monitor` remains the one way a program learns.
+
+If a logger is ever wanted it is a library and not Appendix E, by E.0's line: levels, handlers, and formatting are policy, and a namespace with policy inside is a library however useful.
+
 ## Later
 
 Planned or considered, not in the language today.
