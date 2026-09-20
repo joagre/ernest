@@ -51,10 +51,12 @@ The shell is an Ernest program of three processes over a front end. Its source i
 An input is a block: the prompt is `main`. It may declare anything a module may, and its `let`s and expressions behave as they would in `main`.
 
 - **A `let` binds as a block `let` does**, monomorphic and allowed to be effectful, which is what `let a = Chat.start()` and `let a = spawn(Local, f)` need. A top-level `let` would be neither: §4.6 generalizes it and requires a pure initializer.
+- **An input that binds with `let` declares nothing else.** A block has one value, and the input's is what its `let` binds; a second `let`, or a `let` beside a declaration, would be a top-level `let`. The error says to run it on an input of its own. `let T.name` is a member declaration and is none of this.
+- **Every declaration an input makes is exported**, since the session is what it is declared for; `export` at the prompt adds nothing.
 - **A `fn` declaration generalizes** as a `fn` does anywhere (§3.9). So `fn id(x) = x` is polymorphic and `let id = fn(x) = x` is not; when a `let`-bound function is used at a second type, the error says to declare it with `fn`.
 - **A declaration or a `let` binds for the inputs after it.** A later declaration of a name is seen by later inputs; a function or closure made before it keeps the one it was compiled against.
 - **The session is a scope, and §11.2 says so, not §4.2.** An unqualified name is looked up in the input's own declarations, then the type-member namespace of the enclosing declaration, then the session's declarations, then the prelude. A prompt declaration may shadow a prelude name exactly as a module's may.
-- **A type declared in the session prints unqualified**, where §11.5 prints another module's qualified.
+- **A type declared in the session prints unqualified**, where §11.5 prints another module's qualified. One a later declaration of its name has shadowed prints under the input that declared it, `Input1.T`, since two types of one name printing alike would give `expected T, found T`; it is §11.5's rule for a type that shadows a prelude name, applied to the session.
 - **A member of an abstract type is declared with the type.** Two inputs are two modules and §4 keeps a type's members in the module that owns it, so a later input cannot add one.
 - **The value of the last expression is bound to `it`.** It is the one binding a person did not write, and principle 3 is satisfied: a binding must be visible where its name appears at the use site, and `it` is written at its use site. `:bindings` lists it and `:help` says it.
 - **Bindings survive a fault and an interruption.** Only `:forget` removes them.
@@ -78,7 +80,8 @@ The front end owns the session's state and the shell holds it as one opaque `Env
 
 Settled by the spike of 2026-09-20, which ran it end to end before any of this was built.
 
-- **The checker takes the session as a fourth argument**, a map from an unqualified name to the qualified name of the input that declared it, seeded where a module's own declarations go. That is §11.2's order for nothing: the input's own declarations overwrite the seeds as they are registered, and the prelude is looked at after both. Types and constructors declared at the prompt are seeded the same way.
+- **The checker takes the session as a fourth argument**, three maps, one for values, one for types and one for constructors, each from an unqualified name to the qualified name of the input that declared it. It is a scope of its own, looked in after the input's own declarations and before the prelude, which is §11.2's order, and not the module's own maps seeded with the session's.
+- **A declaration the session made is refused where a module's would be.** An abstract type's constructor is its input's alone (§4.4), so a later input neither builds with it nor matches on it.
 - **Resolution rewrites the reference.** A name the session declared is rewritten, as it is typed, to the input that declared it, so that everything downstream sees an ordinary cross-module value. Without it the emitter meets a bare name it has no declaration for and refuses to emit; with it the emitter needs to know nothing about a session at all.
 - **A value lives where a module's own values live.** The emitter already compiles a module-level value to a getter over the runtime's store, keyed by the module and the name, and a reference from another module to a call of that getter. A session binding is one of those, so reading one needs no new mechanism.
 - **What is new is publishing.** A `let` at the prompt is a block `let`, so its value is computed in the input's process and not by the module's initializers (§8.5); the input's module writes it to the store as it ends, which is the initializers' own act moved to where the value is made.
@@ -96,7 +99,7 @@ It does not hold the shell's settings, which are ordinary Ernest values; the his
 
 ## Output
 
-- **An expression prints its value and its type**, the type as the checker prints it (§11.5): `3 : Int`. An expression of type `Unit` prints nothing, so `Io.println("hi")` answers `hi` and not `hi` then `Unit : Unit`. A declaration prints its name and type, `double : (Int) -> Int`; a `let` its name and type, `xs : List(Int)`.
+- **An expression prints its value and its type**, the type as the checker prints it (§11.5): `3 : Int`. An expression of type `Unit` prints nothing, so `Io.println("hi")` answers `hi` and not `hi` then `Unit : Unit`. A declaration prints its name and type, `double : (Int) -> Int`; a `let` its name and type, `xs : List(Int)`; a type declaration its keyword and its name, `type Shape`. An input that declares several prints a line for each, in the order they were written.
 - **A value is printed as `Io.debug` prints it** (E.1), by its type. The shell and `Io.debug` share one printer, `ern_show`, which takes a depth and a length that `Io.debug` passes unbounded; E.1 is unchanged, a program's `debug` printing the value.
 - **A large value is printed to that depth and length**, the rest as `...`. The defaults are open; `:set` changes them.
 - **An input that does not check is shown as `ernc` shows an error** (§11.5), the input as the source and the span underlined. Nothing is run.

@@ -1,11 +1,12 @@
 //
 // The Ernest shell (report §11.2), designed in docs/shell_design.md.
 //
-// Checkpoint 0: expressions only. An input is checked, compiled as a module
-// of its own and run in a process of its own; its value is printed with its
-// type. Three processes: the session holds the state, the reader owns the
-// keys, and the screen is the only writer, which is what the sinks are
-// bound to. When input is not a terminal the shell reads lines instead.
+// An input is checked against the session, compiled as a module of its own
+// and run in a process of its own; its value is printed with its type, or
+// what it declared is. Three processes: the session holds the state, the
+// reader owns the keys, and the screen is the only writer, which is what
+// the sinks are bound to. When input is not a terminal the shell reads
+// lines instead.
 //
 
 //
@@ -23,7 +24,7 @@ foreign fn start(loadPath : String, sourceRoot : String) -> Env with m =
 foreign fn check(env : Env, input : String) -> Either(String, #(Env, Checked)) with m =
     "ern_shell:check/2"
 foreign fn typeText(c : Checked) -> String = "ern_shell:type_text/1"
-foreign fn declared(c : Checked) -> List(#(String, String)) = "ern_shell:declared/1"
+foreign fn declared(c : Checked) -> List(String) = "ern_shell:declared/1"
 foreign fn run(env : Env, c : Checked, to : Address(Outcome)) -> Address(Never) with m =
     "ern_shell:run/3"
 foreign fn show(v : Value) -> String = "ern_shell:show/1"
@@ -76,7 +77,7 @@ fn await(
         match declared(checked) {
             [] -> if shown == "Unit" then Unit
                   else send(screen, Print(show(value) <> " : " <> shown <> "\n"))
-          | #(name, shape) :: _ -> send(screen, Print(name <> " : " <> shape <> "\n"))
+          | lines -> printLines(screen, lines)
         };
         env2
     }
@@ -84,6 +85,17 @@ fn await(
   | Interrupted -> { kill(child); send(screen, Print("Killed\n")); env }
   | Typed(_) or Eof -> await(env, screen, checked, child)
 }
+
+// What the input declared, a line for each, in the order they were written
+// (report §11.2).
+fn printLines(screen : Address(ScreenMsg), lines : List(String)) -> Unit with m =
+    match lines {
+        [] -> Unit
+      | line :: rest -> {
+            send(screen, Print(line <> "\n"));
+            printLines(screen, rest)
+        }
+    }
 
 //
 // The screen: the only process that writes to the terminal

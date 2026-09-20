@@ -8,7 +8,7 @@
          resolve/2, zonk/2, unify/3, occurs_free/2,
          generalize/2, generalize/3, instantiate/2, mono/1, free_vars/2,
          value_vars/1, effect_vars/1, mismatch_pair/3,
-         format/2, format_scheme/2, format_error/1, set_scope/3]).
+         format/2, format_scheme/2, format_error/1, set_scope/4]).
 
 -export_type([st/0, type/0, effect/0, qname/0, id/0, flags/0]).
 
@@ -21,9 +21,12 @@
 -type type() :: {tvar, id()} | {tcon, qname(), [type()]} | {ttuple, [type()]}
               | {tfn, [type()], effect(), type()}.
 
--record(st, {next = 1, level = 0, subst = #{}, vars = #{}, ns = [], shadows = []}).
-%% ns, shadows: the module being checked and its type names that shadow
-%% prelude names, for printing (report §11.5)
+-record(st, {next = 1, level = 0, subst = #{}, vars = #{}, ns = [], session = [],
+             shadows = []}).
+%% ns, session, shadows: the module being checked, whose types print
+%% unqualified; the session's types that print so too, each the latest
+%% declaration of its name (report §11.2); and the module's type names that
+%% shadow prelude names, which print qualified (report §11.5)
 -opaque st() :: #st{}.
 
 %%
@@ -342,18 +345,19 @@ value_positions({ttuple, Es}, Acc) -> lists:foldl(fun value_positions/2, Acc, Es
 value_positions({tfn, Ps, _E, R}, Acc) -> lists:foldl(fun value_positions/2, Acc, Ps ++ [R]);
 value_positions(pure, Acc) -> Acc.
 
-%% The module whose types print unqualified, and its type names that
+%% The module being checked, the session's types, and the type names that
 %% shadow prelude names, which print qualified (report §11.5).
--spec set_scope(st(), qname(), [atom()]) -> st().
-set_scope(St, Ns, Shadows) ->
-    St#st{ns = Ns, shadows = Shadows}.
+-spec set_scope(st(), qname(), [qname()], [atom()]) -> st().
+set_scope(St, Ns, Session, Shadows) ->
+    St#st{ns = Ns, session = Session, shadows = Shadows}.
 
 %% Report §11.5: a type name as the module would write it.
 type_name([Name], _St) ->
     atom_to_list(Name);
-type_name(QName, #st{ns = Ns, shadows = Shadows}) ->
+type_name(QName, #st{ns = Ns, session = Session, shadows = Shadows}) ->
     Name = lists:last(QName),
-    case lists:droplast(QName) =:= Ns andalso not lists:member(Name, Shadows) of
+    Own = lists:droplast(QName) =:= Ns orelse lists:member(QName, Session),
+    case Own andalso not lists:member(Name, Shadows) of
         true -> atom_to_list(Name);
         false -> qname(QName)
     end.

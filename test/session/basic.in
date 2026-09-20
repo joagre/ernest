@@ -12,4 +12,19 @@ let x = 100
 f(0)
 { let y = 5; let y = y * 2; y }
 it
+fn double(n) = n * 2
+double(21)
+fn double(n) = n * 3
+double(21)
+type Shape = Dot | Box(w : Int, h : Int)
+fn area(s) = match s { Dot -> 0 | Box(w = w, h = h) -> w * h }
+let box = Box(w = 2, h = 3)
+area(box)
+fn id(a) = a
+#(id(1), id("a"))
+abstract type Stack = S(List(Int)) with { empty : Stack; push : (Stack, Int) -> Stack } let Stack.empty = S([]) fn Stack.push(s, n) = match s { S(ns) -> S(n :: ns) }
+Stack.push(Stack.empty, 4)
+S([])
+fn f() = 1 let y = 2
+type Pair = P(Int, Int)
 :quit

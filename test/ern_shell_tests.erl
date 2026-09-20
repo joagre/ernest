@@ -1,13 +1,18 @@
 %% The shell (report §11.2), through a session: a file of inputs in line
 %% mode against a file of expected output, which is what the design note
-%% calls a session golden test. Checkpoint 0 is expressions only.
+%% calls a session golden test.
 -module(ern_shell_tests).
 
 -include_lib("eunit/include/eunit.hrl").
 
 %% report §11.2, §11.5: an expression prints its value and its type, one of
 %% type Unit prints nothing, an input that does not check shows the error
-%% ernc shows, and a fault is reported without ending the session
+%% ernc shows, and a fault is reported without ending the session; a `let`
+%% binds for the inputs after it and `it` is the last value; an input
+%% declares what a module may, a later declaration of a name shadowing the
+%% one before it, and what it declared is printed a line for each; and
+%% report §4.4, an abstract type's constructor is the input's that declared
+%% it
 session_test_() ->
     {timeout, 60, fun session/0}.
 
@@ -24,14 +29,16 @@ terminal_test_() ->
 
 terminal() ->
     Long = "List.foldLeft(List.range(1, 200000000), 0, fn(a, b) = a + b)",
+    %% the gaps are wide because each input is checked and compiled before
+    %% it runs, and the interrupt must arrive while the long one is running
     Screen = pty("../bin/ern --shell",
                  [{800, hex("1 + 5")},
                   {1200, hex([127]) ++ hex("2\r")},     % Backspace, then 2, Enter
                   {2000, hex(Long ++ "\r")},
-                  {3200, "03"},                         % the interrupt
-                  {4000, hex("1 + 1\r")},
-                  {5000, "04"}],                        % C-d on an empty line
-                 8),
+                  {4500, "03"},                         % the interrupt
+                  {5500, hex("1 + 1\r")},
+                  {7000, "04"}],                        % C-d on an empty line
+                 11),
     ?assertMatch({_, _}, binary:match(Screen, <<"3 : Int">>)),
     ?assertMatch({_, _}, binary:match(Screen, <<"Killed">>)),
     ?assertMatch({_, _}, binary:match(Screen, <<"2 : Int">>)),

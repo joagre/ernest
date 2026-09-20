@@ -1,9 +1,10 @@
 %% The shell's front end (report §11.2, plan MVP 2.6): the toolchain behind
-%% the foreign interface the shell in `shell/` calls. Checkpoint 0 is
-%% expressions only, so an input is wrapped as the entry point of a module
-%% of its own, `Input<n>`, checked against the load path, compiled, and run
-%% in a process of its own; the value is printed by E.1's printer, which
-%% `Io.debug` uses, over the descriptor of the input's type.
+%% the foreign interface the shell in `shell/` calls. An input is a module
+%% of its own, `Input<n>`, checked against the load path and the session,
+%% compiled, and run in a process of its own; the value is printed by E.1's
+%% printer, which `Io.debug` uses, over the descriptor of the input's type.
+%% An expression and a `let` are the module's entry point, and what the
+%% input declares is the module's declarations.
 -module(ern_shell).
 
 -export([start/2, check/2, type_text/1, declared/1, run/3, show/1]).
@@ -11,14 +12,18 @@
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
+-include_lib("lexer/include/ern_diag.hrl").
 
-%% The session so far. Checkpoint 0 keeps no bindings, so it is the roots to
-%% look in and the count of inputs seen.
--record(env, {roots = [], source_root = ".", n = 0, bindings = #{}}).
-%% bindings: name => {the holder module's namespace, its scheme}
+-define(UNIT, {tcon, ['Unit'], []}).
+
+%% The session so far: the roots to look in, the count of inputs seen, the
+%% interfaces of the modules behind the session, and the scope those
+%% modules make (report §11.2), which the checker takes as its fourth
+%% argument.
+-record(env, {roots = [], source_root = ".", n = 0, ifaces = [], session = #{}}).
 %% A checked input: the module it became, its typed tree, its type.
--record(checked, {ns, typed, iface, env, type, binds}).
-%% binds: the name this input binds, or `it` for an expression
+-record(checked, {ns, typed, decls, iface, env, type, binds}).
+%% binds: the name a `let` binds, `it` for an expression, or `decls`
 %% A value with the descriptor of its type, so it prints as E.1 prints it.
 -record(value, {term, desc}).
 
@@ -35,42 +40,97 @@ check(#env{n = N} = Env, Input) ->
     case input(Input) of
         {ok, Binds, Expr} ->
             check_module(Env#env{n = N + 1}, Ns, Input, entry(Expr), Binds);
+        {decls, Decls} ->
+            check_module(Env#env{n = N + 1}, Ns, Input, Decls, decls);
         {error, Diag} ->
             {'Left', diagnostic(Input, [Diag])}
     end.
 
-%% Report §11.2: an input is an expression, whose value is `it`, or a `let`,
-%% whose value is the name it binds. A `let` at the prompt is a block `let`
-%% (§4.6 is for a module's), so it is the entry point's body and the name is
-%% bound to what the input answers.
+%% Report §11.2: an input is an expression, whose value is `it`; a `let`,
+%% whose value is the name it binds; or declarations. A `let` at the prompt
+%% is a block `let` (§4.6 is for a module's), so it is the entry point's
+%% body and the name is bound to what the input answers.
 input(Text) ->
     case ern_parser:parse_expr(Text) of
         {ok, Expr} ->
             {ok, it, Expr};
         {error, Diag} ->
             case ern_parser:parse_string(Text) of
-                {ok, [#let_decl{name = Name, body = Body}]} -> {ok, Name, Body};
-                _ -> {error, Diag}
+                {ok, [#let_decl{owner = undefined, name = Name, body = Body}]} -> {ok, Name, Body};
+                {ok, Decls} -> declarations(Decls);
+                {error, DeclDiag} -> {error, which(Text, Diag, DeclDiag)}
             end
     end.
+
+%% Report §11.5: an input that begins where only a declaration may begin is
+%% a declaration a person got wrong, and the declaration parser's error is
+%% the one that names what is wrong; anything else is an expression, whose
+%% error names it. `fn` begins a lambda as well, and begins a declaration
+%% only when a name follows it.
+which(Text, Diag, DeclDiag) ->
+    case ern_lexer:tokenize(Text) of
+        {ok, Tokens} ->
+            case declaration_start(Tokens) of
+                true -> DeclDiag;
+                false -> Diag
+            end;
+        _ ->
+            Diag
+    end.
+
+declaration_start([{'fn', _}, {ident, _, _} | _]) -> true;
+declaration_start([{Word, _} | _]) -> lists:member(Word, [type, abstract, foreign, export, 'let']);
+declaration_start(_) -> false.
+
+%% Report §11.2: what an input declares is the session's from then on, so
+%% every declaration of an input is exported; a later input reaches it as it
+%% reaches another module's declaration (§4.3).
+declarations(Decls) ->
+    case [P || #let_decl{owner = undefined, pos = P} <- Decls] of
+        [] -> {decls, [exported(D) || D <- Decls]};
+        [_, Second | _] -> {error, one_let(Second)};
+        [Pos] -> {error, one_let(Pos)}
+    end.
+
+%% Report §11.2: a `let` at the prompt is a block `let`, and a block has one
+%% of them per input; a `let` beside a declaration would be a top-level
+%% `let`, which §4.6 generalizes and requires to be pure. A `let` that
+%% declares a type member, `let T.name`, is a declaration and not this.
+one_let(Pos) ->
+    #diag{span = ern_diag:span(Pos),
+          message = "a `let` at the prompt is an input of its own",
+          help = "run this `let` on an input of its own, or make it a `let`"
+                 " inside a declaration's body"}.
+
+exported(#type_decl{} = D) -> D#type_decl{export = true};
+exported(#abstract_decl{} = D) -> D#abstract_decl{export = true};
+exported(#foreign_type_decl{} = D) -> D#foreign_type_decl{export = true};
+exported(#fn_decl{} = D) -> D#fn_decl{export = true};
+exported(#let_decl{} = D) -> D#let_decl{export = true};
+exported(#foreign_fn_decl{} = D) -> D#foreign_fn_decl{export = true};
+exported(D) -> D.
 
 %% `export fn main() -> a with m = <the input>`, the entry point of §8.1.
 entry(Expr) ->
     [#fn_decl{pos = {1, 1, {1, 1}}, export = true, name = main, params = [], body = Expr}].
 
-check_module(#env{bindings = Bs} = Env, Ns, Input, Decls, Binds) ->
-    Session = maps:map(fun(Name, {Holder, _}) -> Holder ++ [Name] end, Bs),
-    Ifaces = [#iface{namespace = Holder,
-                     values = #{Holder ++ [Name] => Scheme}}
-              || {Name, {Holder, Scheme}} <- maps:to_list(Bs)],
+check_module(#env{ifaces = Ifaces, session = Session} = Env, Ns, Input, Decls, Binds) ->
     case ern_typecheck:check(Ns, Decls, Ifaces, Session) of
         {ok, Typed, Iface, TEnv} ->
-            [#fn_decl{type = Scheme}] = [D || #fn_decl{name = main} = D <- Typed],
-            {'Right', {Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv,
-                                     type = result_type(Scheme), binds = Binds}}};
+            {'Right', {Env, #checked{ns = Ns, typed = Typed, decls = Decls, iface = Iface,
+                                     env = TEnv, type = input_type(Typed, Binds),
+                                     binds = Binds}}};
         {error, Diags} ->
             {'Left', diagnostic(Input, Diags)}
     end.
+
+%% An input that declares has no value; report §11.2 prints what it
+%% declared, as an input of type Unit prints nothing.
+input_type(_Typed, decls) ->
+    ?UNIT;
+input_type(Typed, _Binds) ->
+    [#fn_decl{type = Scheme}] = [D || #fn_decl{name = main} = D <- Typed],
+    result_type(Scheme).
 
 result_type(#scheme{type = {tfn, [], _, Result}}) -> Result;
 result_type(#scheme{type = T}) -> T.
@@ -94,8 +154,8 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
     ern_rt:spawn('Local',
                  fun() ->
                      Outcome = try
-                                   V = Mod:main(),
-                                   {'Ok', bind(Env, Binds, Ns, V, T, TEnv),
+                                   V = value(Mod, Binds),
+                                   {'Ok', bind(Env, Binds, Ns, V, T, TEnv, Iface),
                                     #value{term = V, desc = Desc}}
                                catch
                                    throw:{ern, fault, Msg} -> {'Failed', Msg};
@@ -103,6 +163,17 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
                                end,
                      ern_rt:send(To, Outcome)
                  end, Site).
+
+%% An input that declares runs its initializers and nothing else. Report
+%% §8.5: a module's top-level values are computed by them, which the runner
+%% does when it loads a module; an input's module is loaded here, so they
+%% run here, in the input's own process. Its value is Unit, which prints
+%% nothing (report §11.2).
+value(Mod, decls) ->
+    erlang:function_exported(Mod, '$init', 0) andalso Mod:'$init'(),
+    'Unit';
+value(Mod, _Binds) ->
+    Mod:main().
 
 fault_text(error, badarith) -> <<"division by zero">>;
 fault_text(Class, Reason) ->
@@ -150,14 +221,41 @@ to_screen(Bin) ->
 %% value is held by a module of its own, as a module's own value is
 %% (§8.5's store), so a later input reads it with the call the emitter
 %% already makes for another module's value.
-bind(#env{n = N, bindings = Bs} = Env, Name, _Ns, Value, Type, TEnv) ->
+bind(Env, decls, _Ns, _Value, _Type, _TEnv, Iface) ->
+    session(Env, Iface);
+bind(#env{n = N} = Env, Name, _Ns, Value, Type, TEnv, _Iface) ->
     Holder = [list_to_atom("Bindings" ++ integer_to_list(N))],
     Mod = ern_emitter:module_atom(Holder),
     persistent_term:put({Mod, Name}, Value),
     Zonked = ern_types:zonk(Type, ern_typecheck:type_state(TEnv)),
     {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), holder(Mod, Name, arity(Zonked))),
     Scheme = ern_types:mono(Zonked),
-    Env#env{bindings = Bs#{Name => {Holder, Scheme}}}.
+    session(Env, #iface{namespace = Holder, values = #{Holder ++ [Name] => Scheme}}).
+
+%% Report §11.2: the session is a scope of its own. The interface behind an
+%% input joins the ones the checker is given, and what it declares joins the
+%% scope under the unqualified name, which a later declaration of that name
+%% overwrites.
+session(#env{ifaces = Ifaces, session = S} = Env, #iface{} = Iface) ->
+    #iface{namespace = Ns, types = Ts, values = Vs} = Iface,
+    Values = maps:merge(maps:get(values, S, #{}),
+                        maps:from_list([{value_key(Ns, Q), Q} || Q <- maps:keys(Vs)])),
+    Types = maps:merge(maps:get(types, S, #{}),
+                       maps:from_list([{lists:last(Q), Q} || Q <- maps:keys(Ts)])),
+    Cons = maps:merge(maps:get(cons, S, #{}),
+                      maps:from_list([{lists:last(CQ), CQ}
+                                      || #tinfo{constructors = Cs} <- maps:values(Ts),
+                                         #cinfo{qname = CQ} <- Cs])),
+    Env#env{ifaces = Ifaces ++ [Iface],
+            session = S#{values => Values, types => Types, cons => Cons}}.
+
+%% A name as an input after this one writes it: a type member under the
+%% type that owns it (report §4.2), anything else under its own name.
+value_key(Ns, Q) ->
+    case lists:nthtail(length(Ns), Q) of
+        [Name] -> Name;
+        [Owner, Name] -> {Owner, Name}
+    end.
 
 arity({tfn, Params, _, _}) -> length(Params);
 arity(_) -> none.
@@ -186,7 +284,45 @@ holder(Mod, Name, Arity) ->
     {ok, _, Bin} = compile:forms([erl_syntax:revert(F) || F <- Forms], [return_errors]),
     Bin.
 
-%% Report §11.2: what an input declares, for the line the shell prints.
--spec declared(#checked{}) -> [{binary(), binary()}].
-declared(#checked{binds = it}) -> [];
-declared(#checked{binds = Name} = C) -> [{atom_to_binary(Name), type_text(C)}].
+%% Report §11.2: what an input declares, a line for each, in the order they
+%% were written. A value is its name and its type, a type its keyword and
+%% its name.
+-spec declared(#checked{}) -> [binary()].
+declared(#checked{binds = it}) ->
+    [];
+declared(#checked{binds = decls, ns = Ns, decls = Decls, iface = Iface, env = TEnv}) ->
+    [line(D, Ns, Iface, TEnv) || D <- Decls, kind(D) =/= other];
+declared(#checked{binds = Name} = C) ->
+    [<<(atom_to_binary(Name))/binary, " : ", (type_text(C))/binary>>].
+
+kind(#type_decl{}) -> <<"type">>;
+kind(#abstract_decl{}) -> <<"abstract type">>;
+kind(#foreign_type_decl{}) -> <<"foreign type">>;
+kind(#fn_decl{}) -> value;
+kind(#foreign_fn_decl{}) -> value;
+kind(#let_decl{}) -> value;
+kind(_) -> other.
+
+line(D, Ns, #iface{values = Vs}, TEnv) ->
+    case kind(D) of
+        value ->
+            {Owner, Name} = declared_name(D),
+            Scheme = maps:get(Ns ++ Owner ++ [Name], Vs),
+            Text = ern_types:format_scheme(Scheme, ern_typecheck:type_state(TEnv)),
+            unicode:characters_to_binary([owned(Owner, Name), " : ", Text]);
+        Keyword ->
+            {_, Name} = declared_name(D),
+            <<Keyword/binary, " ", (atom_to_binary(Name))/binary>>
+    end.
+
+declared_name(#fn_decl{owner = undefined, name = N}) -> {[], N};
+declared_name(#fn_decl{owner = Owner, name = N}) -> {[Owner], N};
+declared_name(#foreign_fn_decl{owner = undefined, name = N}) -> {[], N};
+declared_name(#foreign_fn_decl{owner = Owner, name = N}) -> {[Owner], N};
+declared_name(#let_decl{owner = Owner, name = N}) -> {[Owner], N};
+declared_name(#type_decl{name = N}) -> {[], N};
+declared_name(#abstract_decl{type = #type_decl{name = N}}) -> {[], N};
+declared_name(#foreign_type_decl{name = N}) -> {[], N}.
+
+owned([], Name) -> atom_to_list(Name);
+owned([Owner], Name) -> [atom_to_list(Owner), ".", atom_to_list(Name)].

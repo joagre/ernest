@@ -3118,6 +3118,26 @@ With it, the rule the note states works as written: `let x = 1`, then `let g = f
 
 Block shadowing inside one input is the language's own and needed nothing: `{ let y = 5; let y = y * 2; y }` answers 10, and a block may shadow a session name without disturbing it.
 
+## Declarations at the Prompt, 2026-09-20
+
+An input may declare what a module may, which is what the shell's note says the session is. What that took, and what it corrected.
+
+**The session became a scope of its own.** The spike seeded the session's names where a module's own declarations go, which held while a `let` at the prompt was the only binding: nothing was registered beside them. A declaration registers, and those maps are what the duplicate checks read, so a redeclaration of a name the session already had was refused as declared twice where §11.2 shadows. The three maps, values and types and constructors, are now a scope looked in after the input's own declarations and before the prelude. That is §11.2's order stated once rather than arrived at by overwriting, and the checks read only what this input declared.
+
+**A declaration the session made is refused where a module's would be.** An input is a module, so an abstract type's constructor is its input's alone (§4.4): `B(1)` after the input that declared `abstract type Box` is refused, in an expression and in a pattern alike. The first version looked a constructor up through the session without that check and let it through.
+
+**A type member is a cross-module call.** `Box.of` written at a later prompt typed correctly and then faulted with `undef`: the name resolved to the input that declared it, but the reference still read `Box.of`, which the emitter compiled as this input's own member. The rewrite the spike found for an unqualified name was needed for a qualified member too.
+
+**Every declaration is exported.** The session is what a prompt declaration is made for, so the front end marks each one exported before checking; a later input then reaches it as it reaches any other module's declaration, and the emitter emits it as one. `export` at the prompt is therefore a word that adds nothing, which §11.2 now says.
+
+**One `let` to an input.** A `let` at the prompt is a block `let` (§11.2), and a block has one value. A second `let`, or a `let` beside a declaration, would be a top-level `let`, generalized and pure by §4.6, which is not what a person at a prompt means; the input is refused with the error naming the fix. `let T.name` declares a member and is a declaration like any other, which is how an abstract type's value member is written in the one input that must hold the whole type.
+
+**A shadowed type prints under its input.** A type the session declares prints unqualified, which read well until a type was declared twice: `v == w` answered "expected T, found T", two names for two types that are not the same. A session type prints unqualified only while it is the latest declaration of its name; the one before it prints `Input1.T`. It is §11.5's rule for a type that shadows a prelude name, applied to the session, and it was found by reading the shell's own output rather than by a test.
+
+**A type declaration prints its keyword and its name.** §11.2 had a declaration printing its name and its type, which a type declaration has not. `type Shape` is what it prints, and an input that declares several prints a line for each in the order written.
+
+**The declaration parser's error is the one shown.** An input is parsed as an expression first and as declarations second, and the expression's error was reported whichever the input was: `type Pair = P(Int, Int)` answered "expected an expression instead of `type`" rather than naming the second positional field (§3.5). The input's first token decides which error helps, `fn` counting as a declaration only when a name follows it, since `fn(x) = x` is a lambda.
+
 ## Later
 
 Planned or considered, not in the language today.

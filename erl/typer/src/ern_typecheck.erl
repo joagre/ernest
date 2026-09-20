@@ -17,17 +17,19 @@
 -export([is_reply_carrying/2, resolve_type/2, lookup_type/2, lookup_con/4, type_state/1,
          set_type_state/2, node_type/1, foreign_impl/1, segment_spec/1]).
 
--export_type([env/0]).
+-export_type([env/0, session/0]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
 -include_lib("lexer/include/ern_diag.hrl").
 
 -record(env, {ns = [], types = #{}, cons = #{}, globals = #{},
-              local_types = #{}, local_cons = #{}, local_values = #{},
+              local_types = #{}, local_cons = #{}, local_values = #{}, session = #{},
               vars = #{}, effect = pure, st, pending = [], deferred = [],
               ann_vars = #{}, rigid = [], effect_origin = undefined,
               groups = #{}, typed = [], errs = []}).
+%% session: the shell's session, a scope between this module's own
+%% declarations and the prelude (report §11.2), empty in every other module
 %% groups: qname => the dependency group not yet checked that declares it,
 %% checked on first demand (a reference, or an operator resolving to it);
 %% typed: the groups checked so far; errs: their errors
@@ -37,6 +39,9 @@
 -opaque env() :: #env{}.
 
 -type error() :: ern_diag:diag().
+-type key() :: atom() | {atom(), atom()}.
+-type session() :: #{values => #{key() => [atom()]}, types => #{atom() => [atom()]},
+                     cons => #{atom() => [atom()]}}.
 
 -define(INT, {tcon, ['Int'], []}).
 -define(FLOAT, {tcon, ['Float'], []}).
@@ -61,23 +66,26 @@
 check(Ns, Decls0, Ifaces) ->
     check(Ns, Decls0, Ifaces, #{}).
 
-%% Report §11.2: the shell's session is a scope between the input's own
-%% declarations and the prelude. Its names are seeded where a module's own
-%% go, so the input's own overwrite them as they are registered and the
-%% prelude is looked at after both; each is the qualified name of the input
-%% that declared it.
--spec check([atom()], [tuple()], [#iface{}], #{atom() => [atom()]}) ->
+%% Report §11.2: the shell's session is a scope of its own, looked in after
+%% the input's own declarations and before the prelude. Its three maps take
+%% an unqualified name, as a module's own do, to the qualified name of the
+%% input that declared it.
+-spec check([atom()], [tuple()], [#iface{}], session()) ->
           {ok, [tuple()], #iface{}, env()} | {error, [error()]}.
 check(Ns, Decls0, Ifaces, Session) ->
     Decls = builtin_operators(Ns, Decls0),
     Seeded = lists:foldl(fun add_iface/2, (prelude_env())#env{ns = Ns}, Ifaces),
-    Env0 = Seeded#env{local_values = Session},
+    Env0 = Seeded#env{session = Session},
     try
         {Env1a, Errs1} = declare_types(Decls, Env0),
         %% report §11.5: the module's types print unqualified, except those
         %% that shadow a prelude name
         Shadows = [N || N <- maps:keys(Env1a#env.local_types), is_map_key([N], Env1a#env.types)],
-        Env1 = mark_abstract(Decls, Env1a#env{st = ern_types:set_scope(Env1a#env.st, Ns, Shadows)}),
+        %% report §11.2: a session type prints unqualified, except one a
+        %% later input has shadowed, which prints as the input that declared it
+        SessionTypes = maps:values(maps:get(types, Session, #{})),
+        St1 = ern_types:set_scope(Env1a#env.st, Ns, SessionTypes, Shadows),
+        Env1 = mark_abstract(Decls, Env1a#env{st = St1}),
         {Typed, Env2, Errs2} = check_values(Decls, Env1),
         Errs3 = check_signatures(Decls, Env2),
         case lists:sort(Errs1 ++ Errs2 ++ Errs3) of
@@ -243,13 +251,17 @@ ann_list(Syntaxes, VarMap, Env) ->
                     {Acc ++ [T], VM1, St1}
                 end, {[], VarMap, Env#env.st}, Syntaxes).
 
-lookup_type_name(Pos, [], Name, #env{local_types = LT, types = Ts}) ->
+lookup_type_name(Pos, [], Name, #env{local_types = LT, types = Ts} = Env) ->
     case LT of
         #{Name := Q} -> {Q, length((maps:get(Q, Ts))#tinfo.params)};
         _ ->
-            case Ts of
-                #{[Name] := #tinfo{params = Ps}} -> {[Name], length(Ps)};
-                _ -> fail(Pos, "unknown type " ++ atom_to_list(Name))
+            case session(types, Name, Env) of
+                {ok, Q} -> {Q, length((maps:get(Q, Ts))#tinfo.params)};
+                error ->
+                    case Ts of
+                        #{[Name] := #tinfo{params = Ps}} -> {[Name], length(Ps)};
+                        _ -> fail(Pos, "unknown type " ++ atom_to_list(Name))
+                    end
             end
     end;
 lookup_type_name(Pos, Path, Name, #env{types = Ts}) ->
@@ -511,14 +523,26 @@ decl_key(D) -> {other, element(2, D)}.
 
 %% Report §11.2: an unqualified name the session declared names another
 %% module, the input that declared it; anything else is left as written.
-session_name(E, [], Name, #env{ns = Ns, vars = Vs, local_values = LV}) ->
-    case {maps:is_key(Name, Vs), LV} of
-        {false, #{Name := Q}} when length(Q) > 1 ->
-            case lists:droplast(Q) of
-                Ns -> {E, []};
-                Owner -> {E#e_var{path = Owner}, Owner}
-            end;
-        _ -> {E, []}
+session_name(E, [], Name, #env{vars = Vs, local_values = LV} = Env) ->
+    case maps:is_key(Name, Vs) orelse maps:is_key(Name, LV) of
+        true -> {E, []};
+        false ->
+            case session(values, Name, Env) of
+                {ok, Q} -> Owner = lists:droplast(Q), {E#e_var{path = Owner}, Owner};
+                error -> {E, []}
+            end
+    end;
+%% Report §4.2: a type member is written under the type that owns it, so a
+%% member the session declared names that input's type.
+session_name(E, [Owner] = Path, Name, #env{local_types = LT, local_values = LV} = Env) ->
+    case maps:is_key(Owner, LT) orelse maps:is_key({Owner, Name}, LV) of
+        true ->
+            {E, Path};
+        false ->
+            case session(values, {Owner, Name}, Env) of
+                {ok, Q} -> Q1 = lists:droplast(Q), {E#e_var{path = Q1}, Q1};
+                error -> {E, Path}
+            end
     end;
 session_name(E, Path, _Name, _Env) ->
     {E, Path}.
@@ -2121,16 +2145,24 @@ lookup_value(Pos, [], Name, #env{vars = Vs, local_values = LV} = Env) ->
             case LV of
                 #{Name := Q} -> local_global(Q, Env);
                 _ ->
-                    case Env#env.globals of
-                        #{[Name] := Scheme} -> {Scheme, Env};
-                        _ -> fail(Pos, "unknown name " ++ atom_to_list(Name))
+                    case session(values, Name, Env) of
+                        {ok, Q} -> local_global(Q, Env);
+                        error ->
+                            case Env#env.globals of
+                                #{[Name] := Scheme} -> {Scheme, Env};
+                                _ -> fail(Pos, "unknown name " ++ atom_to_list(Name))
+                            end
                     end
             end
     end;
 lookup_value(Pos, [Owner] = Path, Name, #env{local_values = LV} = Env) ->
     case LV of
         #{{Owner, Name} := Q} -> local_global(Q, Env);
-        _ -> lookup_global(Pos, Path ++ [Name], Env)
+        _ ->
+            case session(values, {Owner, Name}, Env) of
+                {ok, Q} -> local_global(Q, Env);
+                error -> lookup_global(Pos, Path ++ [Name], Env)
+            end
     end;
 lookup_value(Pos, Path, Name, #env{ns = Ns, local_values = LV} = Env) ->
     %% report §4.2: a module may name its own declarations qualified
@@ -2147,6 +2179,25 @@ lookup_value(Pos, Path, Name, #env{ns = Ns, local_values = LV} = Env) ->
             end
     end.
 
+%% Report §4.4: an abstract type's constructor is its module's alone, and
+%% each input of a session is a module of its own (report §11.2).
+session_con(Pos, Q, #env{cons = Cs, types = Ts}) ->
+    #cinfo{type_qname = TQ} = CI = maps:get(Q, Cs),
+    case Ts of
+        #{TQ := #tinfo{abstract = true}} ->
+            fail(Pos, format_qname(Q) ++ " is the constructor of an abstract type and is"
+                      " not visible outside its module");
+        _ ->
+            CI
+    end.
+
+%% Report §11.2: what the session declared under this unqualified name.
+session(Which, Name, #env{session = Session}) ->
+    case maps:get(Which, Session, #{}) of
+        #{Name := Q} -> {ok, Q};
+        _ -> error
+    end.
+
 local_global(Q, Env) ->
     Env1 = demand(Q, Env),
     {maps:get(Q, Env1#env.globals), Env1}.
@@ -2157,13 +2208,17 @@ lookup_global(Pos, Q, #env{globals = Gs} = Env) ->
         _ -> fail(Pos, "unknown name " ++ format_qname(Q))
     end.
 
-lookup_con(Pos, [], Name, #env{local_cons = LC, cons = Cs}) ->
+lookup_con(Pos, [], Name, #env{local_cons = LC, cons = Cs} = Env) ->
     case LC of
         #{Name := Q} -> maps:get(Q, Cs);
         _ ->
-            case Cs of
-                #{[Name] := CI} -> CI;
-                _ -> fail(Pos, "unknown constructor " ++ atom_to_list(Name))
+            case session(cons, Name, Env) of
+                {ok, Q} -> session_con(Pos, Q, Env);
+                error ->
+                    case Cs of
+                        #{[Name] := CI} -> CI;
+                        _ -> fail(Pos, "unknown constructor " ++ atom_to_list(Name))
+                    end
             end
     end;
 lookup_con(Pos, Path, Name, #env{cons = Cs, types = Types, local_types = LT}) ->

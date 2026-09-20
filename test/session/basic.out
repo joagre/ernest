@@ -16,4 +16,28 @@ Ernest 0.1.0. :quit, or C-d on an empty line, to leave.
 > 21 : Int
 > 10 : Int
 > 10 : Int
+> double : (Int) -> Int
+> 42 : Int
+> double : (Int) -> Int
+> 63 : Int
+> type Shape
+> area : (Shape) -> Int
+> box : Shape
+> 6 : Int
+> id : (a) -> a
+> #(1, "a") : #(Int, String)
+> abstract type Stack
+Stack.empty : Stack
+Stack.push : (Stack, Int) -> Stack
+> <abstract> : Stack
+> input:1:1: Input24.S is the constructor of an abstract type and is not visible outside its module
+1 | S([])
+  | ^^^^^
+> input:1:12: a `let` at the prompt is an input of its own
+1 | fn f() = 1 let y = 2
+  |            ^^^^^^^^^
+  | = help: run this `let` on an input of its own, or make it a `let` inside a declaration's body
+> input:1:18: expected `)` instead of `,`
+1 | type Pair = P(Int, Int)
+  |                  ^
 > 
