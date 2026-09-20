@@ -40,6 +40,8 @@ Measured on OTP 27, with `ERL_LIBS` pointing at our applications:
 one thing are named alike: `ernest@tcp` is the `Tcp` module, `ernest_tcp` is its Erlang
 side.
 
+Directories and modules use whole words: `runtime`, not `rt`; `emitter`, not `codegen`.
+
 The directory says which layer a module belongs to, so the module name does not repeat it.
 `erl/typer/src/ernest_types.erl` needs no `typer` in the file name. `make` fails on a
 duplicate module name, so uniqueness keeps itself.
@@ -78,14 +80,14 @@ bin/ build/ docs/ test/
 | `lib/type_system/include/ern_types.hrl` | `erl/typer/include/ernest_types.hrl` |
 | `lib/compiler/` | `erl/emitter/` |
 | `lib/compiler/src/ern_compiler.erl` | `erl/emitter/src/ernest_emitter.erl` |
-| `lib/runtime/` | `erl/rt/` |
-| `lib/runtime/src/ern_rt.erl` | `erl/rt/src/ernest_rt.erl` |
-| `lib/runtime/src/ern_check.erl` | `erl/rt/src/ernest_foreign.erl` |
-| `lib/runtime/src/ern_bits.erl` | `erl/rt/src/ernest_bits.erl` |
-| `lib/runtime/src/ern_show.erl` | `erl/rt/src/ernest_show.erl` |
-| `lib/runtime/src/ern_fs.erl` | `erl/rt/src/ernest_fs.erl` |
-| `lib/runtime/src/ern_keys.erl` | `erl/rt/src/ernest_keys.erl` |
-| `lib/runtime/src/ern_tcp.erl` | `erl/rt/src/ernest_tcp.erl` |
+| `lib/runtime/` | `erl/runtime/` |
+| `lib/runtime/src/ern_rt.erl` | `erl/runtime/src/ernest_runtime.erl` |
+| `lib/runtime/src/ern_check.erl` | `erl/runtime/src/ernest_boundary.erl` |
+| `lib/runtime/src/ern_bits.erl` | `erl/runtime/src/ernest_bits.erl` |
+| `lib/runtime/src/ern_show.erl` | `erl/runtime/src/ernest_show.erl` |
+| `lib/runtime/src/ern_fs.erl` | `erl/runtime/src/ernest_fs.erl` |
+| `lib/runtime/src/ern_keys.erl` | `erl/runtime/src/ernest_keys.erl` |
+| `lib/runtime/src/ern_tcp.erl` | `erl/runtime/src/ernest_tcp.erl` |
 | `lib/cli/src/ern_cli.erl` | `erl/cli/src/ernest_cli.erl` |
 | `lib/utils/src/getopt.erl` | `erl/utils/src/getopt.erl`, unchanged: vendored, and `THIRD_PARTY_LICENSES` names it |
 | `lib/ern_stdlib/` | `erl/estdlib/` |
@@ -101,8 +103,10 @@ Unchanged: `bin/ernc` and `bin/ern`; `stdlib/*.ern`; `examples/*.ern`; `build/st
 the compiled `ernest@<namespace>.beam` names, which report §11.1 fixes.
 
 Two renames carry an argument rather than a convention. `ern_check` becomes
-`ernest_foreign`, since it is the foreign boundary of §8.4 and nothing about it is a
-"check" in the sense the type checker uses that word. And `ern_compiler` becomes
+`ernest_boundary`, since it is the foreign boundary of §8.4 and nothing about it is a
+"check" in the sense the type checker uses that word; it cannot be `ernest_foreign`,
+which the standard library's `Foreign` already takes, and that near miss is what the
+uniqueness rule is for. And `ern_compiler` becomes
 `ernest_emitter`, because `ernc` is the compiler, the whole chain of CLI, lexer, parser,
 typer, and this; the application that turns a typed tree into Erlang forms is the emitter,
 which is what the plan and the architecture note have called it all along.
@@ -135,7 +139,7 @@ design.
 4. **Simple to parse**, read as "simple to find": a name is `ernest_` and a word, so a
    grep for `ernest_` finds our code and nothing else.
 5. **Small.** Nine directories under `erl/`, one prefix, thirty-five modules that each say
-   one thing. `ernest_rt_tcp` said two, and the second was in the path already.
+   one thing. `ernest_runtime_tcp` said two, and the second was in the path already.
 
 ## Migration, in discrete steps
 
@@ -143,13 +147,18 @@ Each step ends green, with `make test` and `make xref` passing, and is its own c
 
 1. `lib/` to `erl/`, directory rename only, the Makefile and `ERL_LIBS` with it.
 2. Directory renames inside `erl/`: `type_system` to `typer`, `compiler` to `emitter`,
-   `runtime` to `rt`, `ern_stdlib` to `estdlib`.
+   `ern_stdlib` to `estdlib`; `runtime` keeps its name.
 3. One application's modules at a time, headers with them, leaves first: `utils`, `lexer`,
-   `parser`, `typer`, `emitter`, `rt`, `estdlib`, `cli`.
+   `parser`, `typer`, `emitter`, `runtime`, `estdlib`, `cli`.
 4. Test modules, each with its subject.
-5. The emitted names. `ernest_emitter` writes calls to `ernest_rt` and to the standard
-   library's modules, so `make golden` runs here and every golden file changes.
+5. The emitted names and the library's own sources. `ernest_emitter` writes calls to
+   `ernest_runtime` and to the standard library's modules, so `make golden` runs here and
+   every golden file changes; and seventy-four `foreign fn` targets in `stdlib/*.ern`
+   name Erlang modules as text, so the Ernest sources are part of this step, their pages
+   with them.
 6. The documents: the README's layout, the architecture note, the plan, CLAUDE.md, and the
    style guide, which is where the rule lands.
 7. `libs/`, `build/libs/`, and `erl/elibs/` are created when the first library is written,
    not before.
+8. A test that fails on any file or module named `ern_*`, so the rename's completion is a
+   fact the suite checks rather than a claim.
