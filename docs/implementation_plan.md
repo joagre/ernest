@@ -1,401 +1,535 @@
-# Ernest Compiler: Implementation Plan
+# Ernest Implementation Plan
 
-Target architecture: an Erlang-based compiler, `ernc`, that reads `.ern` files, type-checks them, and produces `.erc` files (BEAM under the hood), and a runner, `ern`, that starts a program, with a shell on request. One person, about nine working weeks for MVP 1 according to the budget below. The language was called Actorson until 12 September 2026. MVP 1 is done, 2026-09-18, tag `mvp1`; MVP 2 is done, 2026-09-19; the current phase is MVP 2.5 under "Later MVPs", in the order written there; steps 0 to 4 are done, and what is left of it is step 5's table, step 6's documentation chunk, running the four paper programs under test, and the manual `Keys` check.
+The roadmap: what will be built, in what order, and what is built already. Why anything is
+the way it is belongs in [`decisions.md`](decisions.md); what the language is belongs in
+[`ernest_report.md`](../ernest_report.md); how the code is arranged belongs in
+[`architecture.md`](architecture.md). This document points at them rather than repeating
+them.
 
-**MVP 1 (done):** prove the chain parser, types, BEAM, with the report's language, syntax, and semantics unchanged. MVP 1 accepts a subset and checks less: `Int` but no `Float`, no ownership rule for abstract types, no foreign code, no `Tcp`, no distribution — `spawn(Peer, ...)` and `remote` are MVP 3. Exhaustiveness checking is in: it is the check that shaped `receive` and `if`, and a first user should not form habits the report forbids. Every program MVP 1 accepts is a valid Ernest program or one the report already says is wrong. One Erlang module per `.ern` file.
+Read "Where we are" first. The milestones follow in order, then the standing gaps, then what
+is done, then the tables worth keeping.
 
-Later MVPs at the end of the document.
-
-## Architecture
-
-```
-.ern → Parser → AST → Type checker → typed AST → Compiler → Erlang abstract format → compile:forms → .erc → BEAM
-```
-
-The compiler is written in Erlang and runs on BEAM. The type checker is the source of truth. The compiler is a mechanical transformation of the typed AST into Erlang's abstract format via `erl_syntax`, and `compile:forms` builds `.beam` in memory. No `.erl` text, no `erlc`. `erl_prettypr` prints the text when debugging. No type checking in the compiler.
-
-Each `.ern` file is compiled on its own against the interfaces its dependencies' `.erc` files carry; definitions have full names (`Net.Http.parse`). One Erlang module per file, functions with the full name as atom (`'Net.Http.parse'/1`); a cross-file call names the dependency's module. Tail position is preserved: the last expression of a block, a `match` clause, and a `receive` clause becomes the last expression of the emitted Erlang clause.
-
-## Repository Layout
-
-The layout and the build are the README's. Decided here: one Erlang application per compiler stage under `erl/`, so a stage can be tested alone; module names with the `ern_` prefix, since Erlang's module namespace is flat; a generic `src/Makefile` per application with `erlc -MMD` header tracking and a top-level `Makefile` that runs them; no rebar3, no OTP behaviours; the standard library as Erlang under `erl/runtime/src` until MVP 2.5, then Ernest source under `stdlib/`, so `stdlib/io.ern` is `Io`.
-
-## Phase 1: Type Checker (4 weeks)
-
-**Goal:** read `.ern` files, infer types, output a typed AST.
-
-### 1.1 Parser (3 days)
-
-- Lexer, hand-written (not leex: `/* */` nests and `///` blocks must be joined). Braces, `;` as separator, whitespace means nothing, `//` and `/* */` dropped. Seventeen reserved words in MVP 1, eighteen since `or` on 2026-09-19, `true` and `false` among them as literals; `export` marks cross-module visibility. Tokens are plain tuples in yecc's shape, `{Category, Pos, Value}` and `{Symbol, Pos}`, with no parser fields; `Pos` is `{Line, Col, End, Before}`, the token's end and the end of the token before it, since 2026-09-18, so the parser can close every node's span (3.4). Every nonterminal is decided by its first token, and the parser never re-reads. Three spots need one more token: the constructor-fields peek documented in Appendix A (`T(ident =` vs `T(ident :` vs `T(expr`), the FnType-vs-ParenType decision (parse the parenthesized type list, then look for `->`), and `fn` followed by an identifier (declaration) or `(` (lambda). No backtracking. Qualified references (`Net.Http.parse`, `ServerMsg.Get`, `Int.+`) are one loop: after an uppercase token, `.` continues, anything else ends; an operator as the final segment must be a `userop` and must be qualified.
-- The grammar is in Appendix A of the report. The lambda's extent, `fn(x) = e` up to the next delimiter at the same level, is expressed there; the parser tests it. If it fails, lambda bodies must be required in braces. Patterns are parsed by a second small precedence loop with `::` as its only infix operator, right-associative, and `as ident` as an optional postfix on the whole.
-- Expressions: a direct precedence-climbing loop over the token list, threading `{Node, RestTokens}`; the operator table is §2.6's. No generic Pratt engine and no yecc: the hand parser is the executable test of principle 4, and the two mandated diagnostics below need it. Recursive descent for declarations (`type`, `abstract type ... with { }`, `fn`, `let`, `foreign`). Error messages in the `Expected 'a', 'b' or 'c' instead of X` style, rendered as §11.5 says.
-- `let x <- e;` as a binding in a block: parsed as a binding form; the checker defers which of `Either` and `Optional` it is until inference has typed `e` (report §5.5), and the compiler emits it as a `case` whose second clause holds the rest of the block. Both forms from MVP 1.
-- Block `{ ... }` is an expression form. `match e { P -> e | ... }` and `receive { P -> e | ... | after millis -> e }`, guards with `when`. `if then else`. Calls `f(x, y)`, n-ary functions, no currying: too few arguments is an arity error on the line, with a suggestion of the tuple reading.
-- Constructors: no field, one field `T(e)`, or named fields `T(f = e)`; partial patterns `T(f = p)`, base `T(..e, f = e)`. Positional or named is decided by whether `=` or `:` follows the first identifier. Named fields in canonical (field-name) order, report §3.5; compiled to tuples. `fn` definitions allowed in blocks, recursive and generalized; `let` bindings monomorphic.
-- AST as Erlang records with a span on every node: line, column, and the end.
-- Error message with its own text for a function written with two clauses, Haskell-style: "a function has one clause", with the help line "write one clause whose body is a `match`". Three paper programs out of three made the mistake. Its own text also for `f x` where `f(x)` was meant, since that is the first thing a Unison or Haskell reader writes; for a trailing `;` before `}` ("a block ends with an expression"); for `if` without `else`; and for `let p <- e` at top level ("`<-` is a block form").
-- Doc comments. `///` to end of line, consecutive `///` lines form a doc block, attached to the following declaration when there is no blank line between. Lexer emits a doc-comment token; parser records the joined block as an optional field on the declaration's AST node. Approximately 0.5 days.
-
-**Output:** `erl/lexer/src/ern_lexer.erl`, `erl/parser/src/ern_parser.erl`, AST records in `erl/parser/include/ern_ast.hrl`.
-
-### 1.2 Type Inference (13 days)
-
-- Hindley-Milner algorithm: W or J. Unification via a substitution register. Function types are n-ary: `(A, B) -> C` is a type with an argument list, not two arrows; unification requires the same length, and a length mismatch is reported as an arity error with a suggestion of the tuple reading. `fn` generalizes, `let` does not.
-- Typing environment: `#{var => type}`, generalization with forced parameters.
-- Pattern matching is type-checked, with exhaustiveness checking on `match`; `receive` is exempt by the report. Two days. Uniqueness: a variable at most once per pattern, checked in the type checker, since the grammar cannot. Also checked there: type and constructor names unique within a module (a module may shadow prelude names, §4.2); under `Never`, a `receive` with only an `after` clause is legal and any pattern clause is a type error (§6.8).
-- Reply-carrying types (report §6.6). A type is reply-carrying if it is `Reply(a)` or transitively contains one. Reply-carrying values are linear: at each binding site (function parameter, receive-bound variable, spawn-lambda capture, pattern-bound field, or the result of a call whose return type is reply-carrying), every path from the binding must consume the value exactly once, by one of: `answer`, passing to a function whose parameter is reply-carrying, sending with `send`, placing into a constructor or tuple of reply-carrying type, returning from a function whose declared return type is reply-carrying, or capturing in a spawn-lambda. Pattern-match on a reply-carrying scrutinee transfers the obligation to its pattern-bound reply-carrying fields; a nullary case discharges the obligation; a `let` transfers it to the variables it binds; an `if`, `match`, `receive`, or block with a reply-carrying value carries the obligation to where that value is bound or consumed. The check is compositional per function definition; compiled interfaces carry the obligation. `Address.call`'s `mk` callback is the canonical case: its `Reply` parameter is consumed by placement into the reply-carrying message it returns, and the returned value's obligation is discharged by `Address.call`'s runtime. MVP 1 restriction, lifted in MVP 2: when a spawn-lambda captures a reply-carrying value, the spawn's second argument must be a direct `fn() = ...` at the call site (no `let`-bound intermediate), so the checker does not have to follow function values around. Approximately 5 days.
-- The mailbox effect as part of the function type, report §3.9: the arrow constructor has three parameters — arguments, effect, result — represented `Arrow(args, E, result)`. The effect slot holds one of three things: the distinguished value `pure`, a mailbox type, or an effect variable. An annotation without `with` puts `pure` in the slot; an annotation `with M` puts `M`; an unannotated function gets a fresh effect variable. Unification is component-wise. An effect variable unifies with anything; `pure` unifies only with `pure` or an unrestricted variable; two different mailbox types, or a mailbox type against `pure`, is a type error. An effect variable is *process-only* when it also occurs in a value position (`self : () -> Address(m) with m`) or belongs to a process primitive (`send`, `spawn`, `Address.call`, `answer`, `monitor`, `kill`, `remote`, and foreign functions declared `with M`); a process-only variable does not unify with `pure`, and the flag is part of the type scheme. A free effect variable at generalization is generalized like any other, which is effect polymorphism: `List.map` runs a pure or a process callback in the caller's process. The only departure from textbook HM is `pure` as a non-type value in the slot and the process-only flag.
-- Base types `Int`, `Bool`, `Char`, `String`, `Bytes`, `Unit`; `Float` was MVP 2 and its arithmetic refused meanwhile. Operators resolve on the operand type, in MVP 1 in one post-inference pass, since MVP 2 during inference: the `userop` operators (`+` to `Int.+`, `Money.+` on user types since MVP 2), `==` (a type error on types containing functions or addresses), `<`, `<=`, `>`, `>=` (to the operand type's `compare`, a type error without one), and `<-` by the type of `e`. `/` and `%` on `Int` fault on zero (`badarith` becomes a `Fault`); `Int.div` and `Int.mod` return `Optional(Int)`.
-
-**Code:** `ern_types.erl` for the type representation, `ern_typecheck.erl` for inference.
-
-**Output:** a type checker that takes an AST and returns `{ok, TypedAst, Iface, Env}` or `{error, Errors}`.
-
-Local `fn`s in a block are generalized only once every later local `fn` they reference, transitively, is checked; until then they are monomorphic, as any recursive reference is. Generalizing at the definition would close the scheme over variables a later `fn` still pins, and accept `a("s")` for `fn a(x) = b(x); fn b(x) = x + 1`.
-
-### 1.3 Abstract Types (1 day)
-
-- `abstract type ... with` is parsed and the signature type-checked against the definitions. The ownership rule (constructor only in the owner set) is MVP 2; in MVP 1 an abstract type is an ordinary type with a signature.
-
-**Output:** a type checker that checks signatures against definitions.
-
-### 1.4 Standard Types (2 days)
-
-- Built-in: `Int`, `Bool`, `String`, `Bytes`, `Char`, `Unit`, `List(a)`, `Map(k, v)`, `Optional(a)`, `Either(e, a)`. Structural `==` on all data values; `Int.compare` and `String.compare`, no universal ordering.
-- `Address(m)`, `Reply(a)`, `Never`.
-
-**Output:** the prelude in the type checker.
-
-**Test:** `examples/counter.ern`, `examples/upgrade.ern`, `examples/pingpong.ern`, `examples/stack.ern`, `examples/hello.ern`, and `examples/kvparser.ern`, a parser with three failing steps over `Either` with `let x <- e`.
+The toolchain is `ernc`, which compiles `.ern` to `.erc`, and `ern`, which runs a `.erc` and
+adds a shell on request. Written in Erlang on OTP 29, one person. The language was called
+Actorson until 12 September 2026.
 
 ---
 
-## Phase 2: Compiler and Runtime (2 weeks)
+## Where we are
 
-**Goal:** typed AST → Erlang code that runs on BEAM.
+**MVP 2.6, the shell, checkpoint 4.** Checkpoints 0 to 3 are done: the loop and the terminal
+harness, bindings and the commands, the live region, and the line editor with history,
+multi-line input and paste. What is left of the milestone is in "MVP 2.6" below: completion,
+a guide chapter, the closing sweep, and a session of real use.
 
-**Order of work, with status.** (1) The runtime `ern_rt` and the hand-written target modules `test/target/{hello,counter}.erl`, run by the runtime's tests: done 2026-09-17. (2) Two tables in 2.1 below, decided before any emitter code: every record of `ern_ast.hrl` to its Erlang shape, and every prelude name of report §9.4 to §9.6 to what is emitted for it; with a test asserting that the AST record tags occurring in `examples/` equal the tags declared in `ern_ast.hrl`, minus `e_bits` and `p_bits`, which no example uses (gap, 2026-09-19), so the examples corpus exercises every construct the emitter must handle. (3) The three pre-passes, (4) the emitter `erl/emitter/src/ern_emitter.erl`, golden-tested against the target modules, and (5) the stdlib modules of Appendix E as Erlang: done 2026-09-17, one traversal doing the pre-passes on the way. (6) Every MVP 1 example compiles and runs under the compiler's tests and, through `ernc` and `ern`, the integration tests of 3.2: done 2026-09-17.
-
-### 2.1 Compiler Architecture (2 days)
-
-- Two tables, decided before the emitter was written and kept as its specification. Values follow report §8.4 throughout.
-
-  **AST record to Erlang.** Types are erased: `type_decl`, `abstract_decl`, `foreign_type_decl`, `signature`, `field`, and the `t_*` records produce no code; the interface chunk carries them.
-
-  | Record | Erlang |
-  |---|---|
-  | `constructor` | nullary: the quoted atom; positional: `{'C', V}`; named: `{'C', V1, ..., Vn}` in canonical field order |
-  | `fn_decl`, top level | a function clause; exported if `export`; a type member is `'Stack.push'` |
-  | `fn_decl`, in a block | lifted to a module function with its free variables as leading parameters; the name is bound to a closure over them |
-  | `let_decl` | `name/0`, reading a value the module's `'$init'/0` computed once in dependency order before `main` (§8.5) |
-  | `foreign_fn_decl` | a clause calling the named `M:F/A` |
-  | `param` | the pattern in the clause head |
-  | `e_lit` | integer, float, or char literal; string as a binary; bool as an atom |
-  | `e_var` | a local: the Erlang variable; a top-level fn as a value: `fun f/N`; a top-level let: `name()`; a prelude name: table below |
-  | `e_con` | as `constructor`; a single-positional constructor as a value: `fun(V) -> {'C', V} end` |
-  | `field_set` | its value at its canonical position |
-  | `e_tuple`, `e_list` | tuple, list |
-  | `e_bits`, `bit_seg` | bit syntax, each value checked by `ern_bits` |
-  | `e_block` | a sequence; `binding` with `=` as `Pat = Expr`; `binding` with `<-` as a `case` on `Left`/`Right` or `None`/`Some` with the rest of the block in the second clause (§5.5) |
-  | `e_call` | `F(Args)` for a local; `f(Args)` or `'ern@m':f(Args)` for a known function; a prelude name: table below |
-  | `e_neg` | `-E`; on `Float`, `0.0 - E`, so that no negative zero arises (report §3.1) |
-  | `e_binop` | `Int`: `+ - * div rem` (`/` is `div`, `%` is `rem`; a zero divisor's `badarith` becomes `Fault("division by zero")` in the runtime); `<>`: binary append for `String` and `Bytes`, `++` for `List`; `==`, `!=`: `=:=`, `=/=`; `<`, `<=`, `>`, `>=` on `Int`, `Float`, `Char`, `String`: the native operators, since binaries compare by code point; `&&`, `||`: `andalso`, `orelse`; `::`: `[H \| T]` |
-  | `e_lambda` | `fun(Pats) -> Body end` |
-  | `e_if` | `case C of true -> T; false -> E end` |
-  | `e_match`, `clause` | `case`; a clause whose guard is not an Erlang guard expression falls through by a continuation: `Rest = fun() -> <remaining clauses> end` and `case G of true -> B; false -> Rest() end`, so no code is duplicated |
-  | `e_receive`, `after_clause` | `receive ... after T -> B end`; guards: see 2.2 |
-  | `p_wild`, `p_var`, `p_lit` | `_`, a variable, a literal (a string as a binary) |
-  | `p_con`, `field_pat` | as `constructor`, an omitted named field as `_` |
-  | `p_tuple`, `p_list`, `p_cons` | tuple, list, `[H \| T]` |
-  | `p_as` | `Var = Pat` |
-  | `p_bits` | bit syntax |
-
-  **Prelude name to Erlang** (report §9.4 to §9.7, Appendix E). Called, or taken as a value with `fun M:F/A`.
-
-  | Name | Erlang |
-  |---|---|
-  | `self` | `ern_rt:self/0` |
-  | `send`, `answer`, `via`, `monitor`, `kill` | `ern_rt:send/2`, `answer/2`, `via/2`, `monitor/2`, `kill/1` |
-  | `spawn` | `ern_rt:spawn/3`, the third argument the spawn site for `Down` (§6.9) |
-  | `Address.call`, `Address.callForever` | `ern_rt:call/3`, `call_forever/2` |
-  | `remote`, `parallelRemote` | MVP 3; until then `ern_rt:remote/1` answers `Left(NoRemotePeer)` |
-  | `Int.+` and the other `userop`s on `Int`, `Int.negate` | the inline operators above |
-  | `Float.*` | inline, the operands bound first and the operation's own `badarith` caught and raised as the §7.4 fault |
-  | `String.<>`, `List.<>`, `Bytes.<>` | inline as above |
-  | `Int.div`, `Int.mod`, `*.compare`, `Int.toString`, ... | `'ern@int':'div'/2` and so on: the namespace's module |
-  | `todo` | `ern_rt:fault(<<"todo: ...">>)` |
-  | `Sys.stdout`, `Sys.clock` | `ern_rt:sys(stdout)`, `ern_rt:sys(clock)` |
-  | `Sys.stdin`, `Sys.keys`, `Sys.fs`, `Sys.tcp` | `ern_rt:sys(stdin)` and so on; `Io.readLine`, `Keys.*`, `Fs.*`, `Tcp.*` are the namespace's module |
-  | `Clock.*`, `Path.*`, `Random.*` | `'ern@clock':alarm/2` and so on: the namespace's module |
-  | `Io.*`, `List.*`, ... | `'ern@io':println/1` and so on |
-
-- Typed AST → Erlang's abstract format with `erl_syntax`, `erl_syntax:revert`, `compile:forms`.
-- Three pre-passes, done inside the emitter's one traversal (2.1): unique variable names, since Ernest shadows and Erlang does not; lambda lifting of local `fn`s to module-level functions with their free variables as leading parameters, which handles self- and mutual recursion uniformly; and the `<-` desugaring of report §5.5, choosing Either or Optional from the type the checker left on the node. The checker returns its environment so the compiler has the layouts of private types.
-- Functions become Erlang functions. Blocks become sequences in a function clause; bindings become `=`.
-- Processes become recursive functions.
-- `send(addr, msg)` becomes `ern_rt:send/2`, which is `!`.
-
-**Code:** `ern_emitter.erl`.
-
-**Output:** BEAM in memory, written by `ernc` as `.erc` under the build directory (report §11.1).
-
-### 2.2 Processes (3 days)
-
-- `spawn(Local, f)` becomes `ern_rt:spawn('Local', F, Site)` with the spawn site for `Down` (report §6.9); `spawn(Peer(name), f)` and `remote` are MVP 3, `remote` answering `Left(NoRemotePeer)` meanwhile; `self()` becomes `ern_rt:self()`. Functions with n arguments become Erlang functions of arity n, directly.
-- `receive { P -> e | ... }` becomes `receive P -> E; ... end`, and `receive { ... | after T -> e }` becomes `receive ... after T -> E end`; an `after`-only receive becomes `receive after T -> E end`. `monitor` and `kill` go through the runtime of 2.4, which delivers at once for a dead target with its recorded cause (§6.9) and kills asynchronously as §6.9 says. Clauses are translated like `match` clauses. **Omission, 2026-09-17:** report §5.9 allows any pure `Bool` expression as a guard, but BEAM tests a receive guard before taking the message and so admits only Erlang guard expressions. In MVP 1 a `receive` guard had to be a comparison, or `&&`/`||` of comparisons, over pattern variables, enclosing variables, and literals, refused otherwise with a text naming MVP 4. **Resolved 2026-09-19:** §5.9 now states that rule as the language's, a *guard expression*, so the checker enforces it as a type error and the compiler emits it as an Erlang guard; `match` guards stay general by the continuation in 2.1. No mailbox scanning.
-
-**Code:** translation of patterns and guards into Erlang patterns and guards, shared with `match`.
-
-**Output:** processes as recursive Erlang functions with `receive`.
-
-### 2.3 Abstract Types (0 days)
-
-- Nothing to do in MVP 1: an abstract type compiles as an ordinary type, `Stack.push` becomes the function `'Stack.push'/2` in the Erlang module compiled from the Ernest module that defines it, which is also how it stays: §11.2 finds a type member through the interface of the file that owns the type, one module per file. The constructor-visibility check is MVP 2.
-
-### 2.4 Standard Library (3 days)
-
-- The representation of values on BEAM, the ABI that foreign code sees: `Int` integer, `Float` float, `String` UTF-8 binary, `Char` integer code point, `Bytes` binary, `Bool` `true | false`, tuples tuples, `List(a)` list, a nullary constructor the quoted atom of its name (`Stop` is `'Stop'`, `Unit` is `'Unit'`), a single-field constructor `{'Tag', V}`, named fields `{'Tag', F1, F2, ...}` in canonical field-name order (`None` is `'None'`, `Some(v)` is `{'Some', V}`, `Left`/`Right` `{'Left', E}`/`{'Right', V}`), as report §8.4, `Address(m)` a pid, `Reply(a)` a process alias (2.4), a function a fun, a `foreign type` value whatever the implementation returns. Erlang functions whose conventions differ (`{ok, V} | {error, R}`) get a wrapper module, as Gleam's `gleam_stdlib.erl`. `List`, `String`, `Int` as wrappers around Erlang's; `Map` as Erlang's `maps` (structural equality on keys, no ordering). `sort` takes `compare`. Total: `Int.div` and `Int.mod` return `{'Some', N}` or `'None'`, `List.get` and `List.last` likewise. No built-in function may let an Erlang exception reach the process, except `/` and `%` on zero, whose `badarith` the runtime turns into `Fault("division by zero")`.
-- **The three layers.** Language (built-ins), prelude (always imported, minimal — report §9), stdlib (default on the load path — report Appendix E). A namespace is an Erlang module named by its path with `@` for `/` and the prefix `ern@` (`ern@net@http`, `ern@list`), as Gleam names `gleam@list`: lowercase, one-to-one with the path since a segment never contains `@`, compilable by `erlc` from a file of the same name, and never a bare name in the BEAM's flat module namespace (rejected the same day: bare `'Io'`, which claims a name any BEAM library might want, and `'Ernest.Io'`, which `erlc` cannot compile from a lowercase file without a forms-compiling build step); functions keep their local names and type members their prefix (`'Stack.push'/2`). MVP 1 ships the prelude and Appendix E signatures as the checker's tables (`ern_prelude`) and the modules of Appendix E as hand-written Erlang modules, `ern@io` and so on, exporting Appendix E under the ABI, since Ernest source for them needed `foreign fn`, which arrived 2026-09-18; the rewrite is MVP 2.5 step 3. Generated code calls `ern@list:map/2` the same way whether the module is Erlang or Ernest, so rewriting a stdlib module in Ernest later changes nothing for callers. `Io.print`/`println` send to `Sys.stdout`; `Sys.stdout` and `Sys.clock` are top-level values the launcher wires per-node (report §8). A type the stdlib declares, `Random.Seed`, is a fourth table of `ern_prelude`, Ernest source by namespace, declared under that namespace when the checker builds the prelude environment; it prints qualified like any other module's type (report §11.5). A module's `#iface{}` is stored in its `.erc` as an extra BEAM chunk, readable with `beam_lib` without loading, together with a hash of the module's source and, per dependency, the hash of the interface it was compiled against; `ernc` recompiles a module when its own hash or a dependency's current interface hash differs from what is recorded (report §11.1), so a body-only edit never cascades. For the hashes to mean anything an interface must be canonical: quantified type variables renumbered in order of appearance, their annotation names left out of the hash (report §11.5 keeps them for printing), and sorted lists rather than maps. The chunk carries a format number; a chunk of another version reads as stale. The dependency graph comes from a parse-only scan of the qualified names in each source; a cycle is reported as §11.1 requires.
-- System processes `stdout` and `clock` are started by the launcher, and their addresses are bound to the `Sys.*` top-level references (report §8); no named processes. `stdin`, `keys`, `fs`, and `tcp` are MVP 2.5, as foreign processes: Erlang modules that speak the types of report §9.3, bound to `Sys.stdin`, `Sys.keys`, `Sys.fs`, and `Sys.tcp`, and used through the Appendix E modules `Io.readLine`, `Keys`, `Fs`, and `Tcp`, never by `send` (E.0).
-- Runtime, `ern_rt`: an `Address` is a pid, or, for one seen through a function, the pair of the function and the address (§6.5, since 2026-09-20), so `send` applies the functions where the sending happens and `self()` is `self()`. `monitor` is the reaper's, which holds the wrap. The foreign boundary's checking proxy, one per address and mailbox type, is the only proxy process, so a generated `receive` never sees a foreign message shape. `Reply(a)` is a process alias made with `alias([reply])`, which deactivates after the first answer; `unalias` after a timeout drops late ones, which is report §6.6 for free. The runtime wraps every process body so an exception becomes an exit reason the monitor proxy turns into `Down(reason = Fault(...), function = ...)`; `badarith` maps to `Fault("division by zero")`; a compiled `badarith` carries no operands, so each `Float` operation is compiled inline with its own catch, which faults with `Fault("float arithmetic error")` (2.1's table, `float_op/5`).
-- Launcher: starts the system processes, binds their addresses to the `Sys.*` top-level references, runs every module's `'$init'/0` (report §8.5, so a top-level `let` may name `Sys.stdout`), calls `main()`; when `main` returns all *local* processes are killed with `ProgramEnd` and the node stops (remote workers on peers survive under their own runtime; this only matters from MVP 3 when peers exist). If `main`'s declared mailbox is polymorphic (`with m`), the runtime instantiates it to `Never`. Deadlock detection (`Deadlock`) is MVP 2: it requires the runtime to know whether all processes are waiting without `after` and no timers are active.
-
-**Output:** the launcher as `ern_rt:run_main/3`, called by `ern` (3.1), and the Erlang stdlib modules; `stdlib/*.ern` for the Ernest-facing surface is MVP 2.5.
-
-### 2.5 Code Generation (1 day)
-
-- Module header, export of the exported declarations, `compile:forms` with `[return_errors, debug_info]` and the interface chunk, written as `.erc`.
-- Erlang errors from `compile:forms` are mapped back to Ernest lines via node positions.
-
-**Code:** part of `ern_emitter.erl`.
-
-**Test:** `examples/pingpong.ern`, `examples/upgrade.ern`, and `examples/kvparser.ern` run on BEAM.
+**The rhythm.** One item a turn, with its tests, its documents, its conformance section and
+its commit; then a stop for review before the next. The user reads the plan and not the log,
+so a decision they must see goes here.
 
 ---
 
-## Phase 3: Assembly (1 week)
+## Milestones
 
-**Goal:** `ernc hello.ern` produces `hello.erc`, and `ern hello.erc` runs it.
-
-### 3.1 Integration (3 days)
-
-- Two escripts, `bin/ernc` and `bin/ern`, committed as escript source files that put `erl/*/ebin`, found relative to the script, on the code path; no escriptize step and no build product under `bin/`. Options are long only, report §11; short aliases come later as additions. `ernc [--source-root dir] [--out-dir dir] [--emit erl] [--no-clean] foo.ern` reads, parses, type-checks, compiles, writes `foo.erc`; `--emit erl` writes the pretty-printed Erlang source instead. `ern [--config-dir <dir>] [--load-path <dir> ...] [--main Q.name] foo.erc` loads the module and its dependencies by namespace, calls each module's `'$init'/0` dependencies first, starts the system processes, binds their addresses to the `Sys.*` top-level references, calls `main()`; `ern --create-config-dir <dir>` creates `<dir>/.ernest/` with `ernest.conf` (JSON: this node's address and public key, an empty peer list) and a private key readable only by the owner, and does nothing else. `--config-dir` defaults to `./.ernest`. **Deferred, 2026-09-17:** `--shell` needs an incremental checker and is MVP 2; until then it errored with "the shell is not in MVP 1". `--config-dir` is accepted and unread until peers exist in MVP 3.
-- Errors as §11.5 says: `file:line:column: message`, then the source with the span underlined; `--errors short` for the first line alone. One `#diag{}` record from every stage, rendered by `ern_diag`, with labels and help placed as 3.4 says.
-- `erl/cli/src/ern_cli.erl` orchestrates everything; the escripts are thin.
-
-**Output:** `bin/ernc` and `bin/ern`. Done 2026-09-17, with `--shell` deferred to MVP 2.
-
-### 3.2 Testing (2 days)
-
-- The MVP 1 programs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`, which is also the golden-file set. The rest of `examples/` is type-checked only, each file's header naming what it waits for: `filesync`, `repl`, `snake`, `echo`, and `webserver` are compiled by the `COMPILES` macro beside them; the four paper programs need their system processes, MVP 2.5 step 4, which adds their expected-output files.
-- Compile: `ernc program.ern`. Run: `ern program.erc`.
-- These are the tests for the runtime sections of the report, §6.4 and §6.10, which no unit test cites; `make sections` lists the sections still without a citing test.
-- Smoke test in a top-level `test/`: every listed program compiles and runs, output compared against an expected-output file of the same name. The comparison treats output as a multiset of lines, since the interleaving of prints from different processes (ping-pong) is scheduling-dependent.
-- The four paper programs run in MVP 2.5, when their system processes exist.
-- Done 2026-09-17: `test/ern_integration_tests.erl`, run by `make test` after the unit tests, with `test/expected/<name>.out`; the program list is in the test module.
-- Golden files, 2026-09-17: `test/golden/*.erl` holds the Erlang source the compiler emits for every MVP 1 example, as `--emit erl` writes it; the compiler's tests compare against them and write a `.new` beside a differing file; `make golden` rewrites them after an intended emitter change. The hand-written targets under `test/target/` remain the two tests that are not self-referential.
-- Sections `make sections` lists, 2026-09-17: §3.11, §8.3, §8.7, all MVP 3 and unimplemented; anything else it prints is a gap.
-- Thin sections, 2026-09-17: `make coverage` listed §5.7, §6.5, §6.10, §6.8, §9.5, and §7.3 with one citing test each. Read against their tests the same day: added the pipe's precedence and lambda cases and its type rule (§5.7), the `with Never` root's callers (§6.8), and kill, fault, via, and parallelRemote through compiled code (§6.5, §7.3, §9.5); §6.10 is the upgrade example end to end.
-
-### 3.3 Documentation (3 days)
-
-- User readme: how to write Ernest, which constructs are supported. Done 2026-09-17: the guide is the first half; the README's "What the toolchain accepts" table is the second; the guide's code blocks were run through the checker and agree with it. The guide still owes the idioms the log's "Later" lists, links and supervisors and parallel `remote`, written when MVP 2.5's paper programs run (gap, 2026-09-19).
-- Internal architecture notes for the next phase. Done 2026-09-17: `docs/architecture.md`.
-- `ernc --doc file.ern` type-checks the module and writes Markdown to stdout: every exported and every documented declaration with its type, printed by the checker's printer so the §11.5 marks appear, and its doc comment. Done 2026-09-17.
-
-### 3.4 Type error placement (2 days)
-
-**Diagnostics first, done 2026-09-18.** One record for every stage, `#diag{span, message, labels, help}` in `ern_diag.hrl`, and one renderer, `ern_diag`, in the lexer's application since positions are the lexer's type: `short/2` is the first line a tool parses, `format/3` the source with a gutter, the spans underlined, the labels, and the help line, as §11.5 says; `ernc --errors short` prints the first line alone. Spans: a token's position is `{Line, Col, End, Before}`, its own end and the end of the token before it, and the parser sets every node's position to `{Line, Col, End}` with `w/1` from the token before the rest, so a call spans callee to closing paren and a declaration its whole body. The lexer, parser, checker, and compiler return diagnostics instead of `{Line, Col, Msg}` triples; golden files are unchanged since positions do not reach the emitted Erlang. The labels and the help are the placement below. No colour until an editor renders through an LSP, when the JSON form is a second renderer of the same record; no error codes. Not done: a label at the first use of the variable whose type the mismatch names (gap, 2026-09-18).
-
-**Placement, done 2026-09-18.** `ern_typecheck:check/5` takes an expected type, a context sentence, and an origin, and pushes the expectation into `if` branches, `match` and `receive` clauses, and a block's last statement, so the mismatch is reported at the leaf as §11.5 now states; `infer/2` for those forms is `check` with a fresh variable. The call sites: a body against its return annotation, each argument against the parameter type of a known callee, an annotated `let`, a constructor field, the `if` condition, a right operand against the left, a list element against the first, a pattern against the value matched. The origin becomes the label; the first branch, clause, or element is the origin when nothing outside fixed the type. The message keeps both whole types, and when they differ inside, `ern_types:mismatch_pair/3` gives the help line, "the types differ at Int and String". Effect errors: the environment carries what is pure and why (`effect_origin`: the function's `->` without `with`, a top-level `let`, a guard, a lambda's own annotation), and the error names the callee, labels the annotation, and helps with `with`. The parser's mandated diagnostics are now message and help, the rule and the fix, through `fail/3`. An operator expression's span starts at its left operand. The checker's tests pin the spans, labels, and help of each placement; a body without a return annotation gets no "declared return type" context.
-
-### 3.5 Paring the report (1 day)
-
-Done 2026-09-18. Sections 0 to 11 without code blocks or tables went from 13,084 words to under 8,000, thirty-three pages to twenty, in one pass, the exact count in the decisions log's "Measure": every heading kept, every code block kept byte for byte, every cut inside a section, so every `§x.y` citation and `make sections` still hold; the mirror tests proved the grammar and the prelude did not move, and `make test` that no cited rule changed meaning. Rationale went to the decisions log, one entry listing what left by section. What remains is rules, 81 sections at a median of 76 words, the longest 548, so the measure was revised rather than the report cut past it: the log's "Measure" said under 8,000 words and no section over 600, and since 2026-09-19 states the aim instead of a limit, measured the same way after every pass.
-
-Read back 2026-09-19 against the pre-paring text: the paring had lost five rules, made twelve sentences ambiguous, and cut thirty examples a first reader needs, and had compressed 86 sentences past easy reading; all restored or rewritten that day, the log's "The Paring Read Back" has the list. The standing rule for edits, from here on: a change to the report is made inside its heading, in the report's register, clear before short; a section that passes 600 words is read for restating.
+| | What | State |
+|---|---|---|
+| MVP 1 | the chain: parser, types, BEAM | done 2026-09-18, tag `mvp1` |
+| MVP 2 | the rest of the report on one node | done 2026-09-19 |
+| MVP 2.5 | a complete standard library | done 2026-09-20 |
+| **MVP 2.6** | **the shell** | **checkpoints 0–3 done; checkpoint 4 next** |
+| MVP 2.65 | the language and the toolchain read back | after 2.6 |
+| MVP 2.7 | the first libraries and the network stack | |
+| MVP 2.8 | four more libraries | |
+| MVP 2.9 | an Emacs major mode | |
+| MVP 3.0 | peers | |
+| MVP 3.1 | content addressing | |
 
 ---
 
-## Tools and Environment
+## MVP 2.6 (the shell), about two weeks
 
-Erlang, OTP 29, Makefiles (see Repository Layout); no rebar3, no OTP behaviours. EUnit per module under `erl/*/test`; integration tests under `test/` run `ernc` on the example programs and compare output against expected. The compiler is distributed as the escript sources in `bin/`.
+The program that exercises everything at once, and the whole milestone: the libraries moved
+to 2.7 on 2026-09-20 so that one large thing is measured rather than two. Designed in
+[`shell_design.md`](shell_design.md), which owns the design; §11.2 owns what a user may rely
+on. The source is a tree of its own, `shell/`, compiled by `make` into `build/shell/`, since
+the shell is neither standard library nor library but the toolchain's own program.
+
+**The checkpoints**, each a stop for review.
+
+| | What | State |
+|---|---|---|
+| 0 | expressions only: the three processes, the foreign interface, an input checked, compiled, run, printed | done 2026-09-20 |
+| 1 | bindings, `it`, timing, declarations at the prompt, the commands, fault reports, `:load`/`:reload`, the startup files | done 2026-09-20 |
+| 2 | the terminal and the live region, `:output <path>` | done 2026-09-21 |
+| 3 | the line editor: editing, history and its search, multi-line input, bracketed paste | done 2026-09-21 |
+| 4 | completion and documentation | **next** |
+
+**What is left.**
+
+- **Checkpoint 4, completion and documentation.** `Tab` completing a qualified name segment
+  by segment, a second `Tab` listing candidates with their types, matching by prefix and by
+  abbreviation; what completes by position, bindings and modules and constructors in an
+  expression, types after `:`, a constructor's remaining fields, a command and then its
+  argument; `Shift-Tab` for documentation, the type and first sentence and `since`, a second
+  press for the `:doc` section, and inside a call the signature with the parameter at the
+  cursor marked. The design note has the detail. It is where the `foreign` rule is tested a
+  second time: the compiled interfaces are the host's, the matching and the ranking are not.
+- **A guide chapter on the shell.** `ernest_guide.md` does not mention it. The report states
+  the rules and the note holds the design, but the document that teaches says nothing about
+  the tool a user lives in. Found 2026-09-21.
+- **The closing sweep**, as the working rules require at the end of a plan step: the guide
+  read against the report, then every other document against the report and the code.
+- **A session of real use.** The user works in the shell and reports what it is like; what
+  that finds is fixed before the milestone closes or recorded in the design note. Nothing so
+  far has been driven by hand — every test goes through the pseudo-terminal harness, which
+  tests what was thought of.
+
+**Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
+`Crypto`, `Uri`, `Zlib`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.
+Field selection and the names of the toolchain's options moved to 2.65 on 2026-09-21.
+
+**What the shell has changed so far**, one line each, the arguments in the log.
+
+- **Before any of it**, 2026-09-20: `test/ern_pty.py`, a pseudo-terminal harness, since
+  Erlang cannot open one; `make test` needs python3. It tests §8.2's rules and drives snake.
+  Rewritten the same week to wait for what it expects on the screen rather than to send at
+  fixed times, which had failed about one run in ten.
+- **§9.3 and §8.2 gained what the shell needs**, 2026-09-20: the terminal's interrupt as a
+  key for the terminal's holder, the terminal's size, whether input is a terminal, and the
+  runtime's record of how every process ended as a door for the shell alone.
+- **Incremental checking was the estimate's risk and is not**, 2026-09-20: the checker takes
+  the session as a fourth argument and resolution rewrites a session name to the input that
+  declared it, so nothing downstream knows of a session. Two small changes.
+- **`Keys` became `Terminal`**, 2026-09-20, one module for the resource; `io_ansi:scan` was
+  measured twice and refused, being a capability scanner.
+- **The panes became a live region**, 2026-09-21: the transcript is written into the terminal
+  and scrolled by it, and the shell paints only the bottom rows. `Key` folded into one flat
+  `Event`; the pane routing went in the same commit.
+- **The pure parts became modules of their own**, 2026-09-21: `Shell.Editor`, `Shell.History`
+  and `Shell.Region`, each tested by `ern --test` as top-level `Test` values — the first use
+  of §9.3's `Test` here. Each split was forced by a name collision, which is the namespace
+  rule doing the pushing; the log's entries say so.
+- **The rule for `foreign`**, 2026-09-21, now in CLAUDE.md: a door is admitted for what the
+  host alone can do, and everything else is written in Ernest. Its first sweep found one
+  door of twenty-three in breach, `startup/0`.
+- **Report changes it forced**, all 2026-09-21 unless dated otherwise: §11.2's whole core,
+  the live region, `:output`, the history file, multi-line input, and the paste; §9.3's
+  `Event` and `Pasted`; §8.2's bracketed paste and the answered subscription; §4.2's
+  exported-declaration rule and the sentence on reaching a child module from its parent; E.5
+  `indexOf`, `lastIndexOf`, and what a character is.
+- **Defects it found, none of them the shell's**: `ernc` crashing on an exported declaration
+  naming a private type; a binding compiled inside an unmarked foreign call, which fired
+  `Deadlock`; a `let` of function type emitted as a `fn`; a subscription answered before the
+  mode was set; the terminal process counting its source after `stty`, which fired `Deadlock`
+  under load; `process_of/1` answering a checking proxy's own pid; the key decoder reading
+  `\e[2` as `Escape` and two characters; and initializers running in alphabetical order
+  rather than §8.5's dependency order.
 
 ---
 
-## Risk and Uncertainty
+## MVP 2.65 (the language and the toolchain read back after the shell), about four days
 
-**The mailbox effect.** HM with an effect slot per arrow is a small extension of the textbook, but not zero: the slot admits `pure`, which is not a type, and effect variables carry a process-only flag (1.2 above, report §3.9). Unification is component-wise; a free effect variable is generalized like any other, which lets `List.map` run a process lambda. No wrapping type constructor, no rows, no effect system beyond the slot. Risk: `let`-bound lambdas fix their mailbox slot at first use (standard let-monomorphism, but easy to trip on if generalization gets attached to `let` by accident); and every arrow in the AST must carry a mailbox slot from day one, including arrows that look pure, so that higher-order pure functions like `List.map` accept process callbacks without a special case.
-
-**What MVP 1 does not prove.** The ownership rule for abstract types, foreign code, and everything past one node.
-
----
-
-## Decisions Before Start
-
-Decided: hand-written lexer and a direct precedence-climbing parser over a token list (no yecc, no generic Pratt engine, decided 2026-09-17); yecc-shaped tokens; Erlang's abstract format via `erl_syntax` and `compile:forms`; OTP 29, raised from 27 on 2026-09-20; Makefiles, no rebar3, no OTP behaviours; the `erl/` layout above; the error format of §11.5, whose first line is `file:line:column: message`; one Erlang module per Ernest module, named `ern@` and its path (2.4).
-
-Nothing open.
-
----
-
-## Time Budget
-
-| Phase | Parts | Days | Weeks |
-|-------|-------|------|-------|
-| 1     | Parser, type check, abstract, stdlib types | 24.5 | 4.9 |
-| 2     | Compiler, processes, stdlib, codegen | 9 | 1.8 |
-| 3     | Integration, tests, docs, error placement, paring | 11 | 2.2 |
-| **Total** | | **44.5** | **8.9 weeks** |
-
-One person full-time: about nine working weeks. Half-time: three to four calendar months.
-
----
-
-## Later MVPs
-
-**MVP 2 (the whole report on one node), about five weeks.** Done 2026-09-19, in two days, with `--shell` moved to MVP 2.6, where it is written in Ernest. Each item is a report rule MVP 1 refuses or does not check; the README's table names the refusal it lifts. The order below is the order of work, audited 2026-09-18: what MVP 2.5's standard library needs comes first (`Float` for `Float`'s module, operators for the types the stdlib declares, `foreign fn` for every shim, bitstrings for `Bytes`), then the checks and runtime rules that touch no other item, and the shell last, since it runs everything else.
-
-- **`Float`, and operators on user types** (§3.1, §4.8, §3.10, §5.1). Done 2026-09-18. Resolution is in inference: `ern_typecheck:operator_result/4` looks the operator up as soon as the operand type is known, `Int`, `Float`, `String`, `Char`, `List`, `Bytes` by table, a user type by its member `T.+` or `T.compare`, instantiated like a reference and unified with `(T, T) -> r`, its effect used like a call's; an operand still a variable is a `{operator, ...}` entry in the definition's deferred list, solved with the `<-` bindings at the end, and "annotate it" if still unknown. The result is the operator's, so `Vec.* : (Vec, Vec) -> Float` gives `(a * b) + 1.0` its Float, and one consequence is deliberate: the operand type comes from the operands, never from where the result goes, so `fn cat(a, b) = a <> b <> "!"` now asks for an annotation where MVP 1's `(t, t) -> t` guess accepted it. The reference graph that orders definitions names only what a body refers to by name; an operator's member is checked on demand, the first time inference resolves an operator to it, or a reference reaches a name whose group has not run (`run_group`, `demand`), with the demanding definition's scope set aside meanwhile; a member and a helper that use each other meet through the in-progress group's placeholders, as any recursion does; the §8.5 cycle check runs after typing over the whole module (`let_cycles`), reading an operator's member off the typed AST, so a `let` cycle through an operator is the §8.5 error (2026-09-19; on 2026-09-18 the graph over-approximated instead and the cycle check ran per group on names, missing that cycle). The compiler emits Erlang's operators for `Int` and the four ordered prelude types, inline operations with their own catch for `Float`, the member for a user operator, and `T.compare(a, b) =:= Less` and its three variants for an ordering; a receive guard that orders a user type is a type error by §5.9; the `$init` order sees through an operator to the member's lets. Prefix `-` resolves to `negate` in the operand type's namespace, `Int`, `Float`, or a user type's `T.negate`, §5.1 as changed the same day.
-- **`foreign fn` and `foreign type`** (§4.7, §8.4). Done 2026-09-18. As planned below, with these choices: the check is data, a descriptor term the compiler builds from the declared type (`any`, `int`, `string`, `{list, D}`, `{con, [{Tag, [D]}]}`, `{mu, Id, D}` for a recursive type, and the rest) and `ern_boundary` in the runtime interprets, one `$type_N` function per distinct descriptor per module, so a recursive or imported type needs no runtime table; a type variable in a declared type checks nothing; the reply of `Address.call` and `callForever` is checked as a message is, since a foreign process may answer; a message from a foreign process is checked by a proxy the runtime hands foreign code in place of every Ernest address among a `foreign fn`'s arguments, found by the parameter descriptors, so an Ernest-to-Ernest message costs nothing (since 2026-09-19; before that every receive clause checked its message); an Ernest fault raised inside foreign code passes through as itself; the checker validates the implementation name `module:function/arity` against the parameter count, §8.4 now stating the shape. Found on the way and fixed: a function named like an auto-imported BIF, `size`, `max`, could not be called by its name, since Erlang refuses the ambiguity; the module now switches the auto-import off for those names. The three fault texts are in §7.4. Plan text before the work: The compiler generates the check from the type: `Int` is an integer, `Float` a float, `Bool` `true` or `false`, `Char` a code point, `String` a binary of valid UTF-8, `Bytes` a binary, a tuple and a list checked element by element, a constructor by its tag and arity with its fields checked, `Map` and `Set` by their handles with keys and values checked, and `Foreign`, `Address`, `Reply`, and function values by shape only, since Ernest does not inspect them. A `foreign type` value is not checked. A mismatch is `Fault("foreign return does not match ...")` naming the declared type. Messages from a foreign process are checked the same way by the `receive` that binds them, generated per mailbox type, until MVP 4's runtime mailbox takes it over. The check is linear in the value's size and runs once, at the boundary. 4 days.
-- **Bitstrings** (§5.11). Done 2026-09-18; the lexer and parser had them since MVP 1. The checker types each segment by its specifiers (`ern_typecheck:segment_spec/1` folds them with the defaults and refuses a conflict, a utf size, a float width other than 16, 32, 64, a `bits` or `bytes` width that is not whole bytes, a unit outside the runtime's 1 to 256), a size expression in a pattern in the scope of the earlier segments and pure, and a constant bit count that is not a multiple of 8, a segment with a dynamic size and a unit not divisible by 8 leaving the count open. The compiler emits the runtime's bit syntax: `ern_bits` checks each value against its width, since Erlang truncates an `Int`, rounds a `Float` to infinity, and takes a prefix of a binary where §7.4 faults; a `badarg` is the overflow fault; an open count is checked for alignment after construction; a `bits` segment in a pattern is bound and guarded `is_binary`, so an unaligned rest fails the match. Two rules the runtime forced went into the report first: a segment pattern is a variable, `_`, or a literal, since the bit syntax has no nested patterns, and a match on bitstring patterns ends with a wildcard, since coverage of bitstrings is not decided (`ern_exhaust` treats a bitstring pattern as never complete). A size expression in a pattern was refused until MVP 4 unless it was an Erlang guard expression; on 2026-09-19 §5.11 made that shape the rule, a variable, a literal, or `+`, `-`, `*` of them, checked by the checker. Original estimate 4 days.
-- **Pattern alternatives** (§5.9, Appendix A). Done 2026-09-19, a language addition the log's entry of that name explains. The parser builds `#p_or{}` for a clause with more than one pattern; the checker types each alternative, requires the same variables (`alternatives_differ`) at the same types (`alternatives_agree`, after the clause meets the value's type), and `ern_exhaust` expands a clause into a row per alternative; the compiler emits one Erlang clause per alternative calling a body fun bound before the `case` or `receive` (`ern_emitter:alternatives/3`). `examples/patterns.ern` and snake use it; the guide's §2.6 shows it.
-- **`Io.debug`** (Appendix E.1). Done 2026-09-19: `'ern@io':debug/1` rendered any term by the §8.4 representation; the same day it became `debug/2`, printing by the argument's type at the call through `ern_show`, the representation only where that type is a variable or foreign. The log's two entries have the reasons.
-- **Raw strings** (§2.5). Done 2026-09-19, after the `mvp2` tag: text between backticks, no escapes, may span lines; `ern_lexer:raw_body/6`; the log's entry of that name has the reasons, and why there are no regex literals.
-- **Abstract-type ownership** (§4.4). Done 2026-09-19: `ern_typecheck:ownership/2`, a walk over each definition before typing in `check_values`, rejects a constructor of an abstract type in any definition the signature does not name, one error per definition; `lookup_con` rejects the constructor from another module, the interface's `#tinfo.abstract` deciding. The plan text before the work: the constructor-visibility check in the checker, in `check_values`, rejecting a constructor of an abstract type in any definition the signature does not name; the signature's types checked against the definitions as today. No compiler change: a type member lives in the Erlang module of the file that owns the type, as §11.2 says, and the earlier idea of one Erlang module per type is dropped, since the loader never looks for one. Before the standard library is written in Ernest, so its abstract types are checked under the final rule. 2 days.
-- **The reply discipline through function values** (§6.6). Done 2026-09-19, narrower than the text below: the lambda is reply-carrying as a value, tracked by `ern_reply` as `{lambda, Name}` once bound by `let`, consumed by a call or as `spawn`'s direct argument and legal nowhere else; a reply-carrying function *type*, which passing or returning such a lambda would need, is not taken, since it needs a linear-parameter restriction no program has asked for; the log's entry has the reasons. The plan text before the work, lifting 1.2's spawn-lambda restriction. Report first: §6.6 says a lambda that captures a reply-carrying value is itself a reply-carrying value, a function type being reply-carrying when its captures are, and is consumed exactly once, by `spawn` or by a call, so `let f = fn() = worker(r); spawn(Local, f)` is legal and `let f = ...; spawn(Local, f); f()` is a type error. The checker then follows the value as it follows any other binding, with no special case for `spawn`'s argument; `ern_reply` drops its direct-argument rule. Decisions log to match. 3 days.
-- **`Deadlock`** (§8.6). Done 2026-09-19 in a day: global quiescence, not a wait-for graph, as the log's entry explains; the reaper checks every hundred milliseconds by two equal snapshots of status and reductions, a timed `receive` and `Address.call` count themselves in the process table, the clock counts its alarms, and `ern_boundary:foreign` marks a process inside foreign code; `ern` prints `error: Deadlock` and exits 1. The plan text before the work: the reaper tracks waiting processes and timers. 2 days.
-- **Nine points from the consistency pass of 2026-09-19.** Done the same day; the log's entry of that name has the reasons. E.0 rule 8 names `Clock.now`, `Tcp.listen`, and `Io.readLine` as taking no milliseconds; §4.8 makes `let T.op` an error, refused in `ern_typecheck:register_value_name`; §4.6 says `let _` requires no variable of the expression's type to resolve; §4.2 makes a module namespace that coincides with a type namespace of its parent module an error, `ern_cli:namespace_clash`, checked from either file in either mode; §8.2 loses "assumptions"; Appendix E's header makes E.0 normative; Appendix D's prose is in the register. The reply-capture error loses its "MVP 1" tag and its README row, since §6.6 states the rule; the report has no word limit since 2026-09-19, the log's "Measure" states the aim, Wirth's register, short.
-
-The system processes and the paper programs as their tests are MVP 2.5.
-
-**MVP 2.5 (a complete standard library for one node), done 2026-09-20.** What makes Ernest useful to someone else for a single-node project, before distribution. Appendix E is the shape, with its rules in E.0; the MVP 1 programs compile against it, and the four paper programs lack only the processes behind E.16 to E.18 and E.1's `readLine`, and the `Ets` library. A function is written in Ernest unless E.0's first rule admits a shim: pure Ernest are `Optional`, `Either`, `Bool`, `List`, `Path`, `Char.fromInt`, and the system modules `Io`, `Clock`, `Keys`, `Fs`, `Tcp`, each a `send` or an `Address.call` to its `Sys.*` reference; shims over `foreign fn` are `Map` and `Set` over Erlang maps, `String` and `Char` for Unicode, `Int.toString` and `Float.toString`, the conversions between `Int`, `Float`, and `Char`, the bit operations, `Foreign` and `Erl.atom`, and `Random` over `rand`. In order:
-
-0. **The shape of a module's documentation**. Done 2026-09-19, the day it was decided, and first because every module written after it is documented to it: `docs/module_doc_template.md` is generated from `examples/template.ern` and two CLI tests keep it equal, type-check its examples, and run every example that ends in `// => v`, comparing `Io.debug`'s rendering with `v`; `ern_parser` attaches doc blocks to constructors, fields, signature entries, and the module (`#module_doc{}`); `ern_cli:doc_text/2` renders, `doc_dir/2` a directory. Report first: §2.2 says a doc block is CommonMark and names the version, and a doc block at the top of a file, before the first declaration and separated from it by a blank line, is the module's documentation; §11.4 states what `ernc --doc` emits, the heading per declaration, the type as a code block, the doc text; a `///` line before a constructor, a named field, or a signature entry documents it. The amount is the man page's, section 3, mapped onto what Ernest already generates: NAME and SYNOPSIS are the heading and the type; RETURN VALUE is the type plus what E.0 rule 6 says the comment adds; ERRORS is "none" by E.0 rule 4 except where §7.4 names a fault; a human writes DESCRIPTION, as Erlang's manual does, a free paragraph on what the module is for with its central examples, then one sentence per declaration and examples as E.0 rule 6 requires; EXAMPLES beyond that and SEE ALSO are optional. The template is a fictive module under `examples/`, its `ernc --doc` output checked in under `docs/` with each heading marked mandatory or optional, and a test keeping the two equal, so the template is also the specification of the output. The examples in doc blocks are code: a test extracts every fenced Ernest block from the standard library's documentation and type-checks it against the module, so an example cannot rot as manual examples do. `ernc --doc src-dir` writes one document per module and an index.
-1. **Report first.** Done 2026-09-19. Appendix E gains a section for `Erl`, E.19, written as `stdlib/erl.ern` the same day. `Ets`'s section moved to step 4: its signatures in Appendix E give the namespace `Ets` to the standard library, which refused `examples/ets.ern` until `Ets` moved into `stdlib/` there in step 4. §4.2's rule that a module namespace may not coincide with a prelude namespace gets the exception that the standard library's source root defines them, since `stdlib/list.ern` must be `List`. Two further items, decided 2026-09-19. The `Test` type, which the log decided on 2026-09-13 as a value the toolchain discovers by type and deferred to MVP 1 Phase 3, where it was never settled: the `Test` and `TestResult` types in §9.3, so user programs and the standard library test the same way. The layout: `stderl/*.ern` the standard library in Ernest; `erl/runtime/src/` its Erlang halves, a helper `ern_<name>` such as `ern_char` only where a `foreign fn` cannot call OTP directly, since `ern@list` is the name the Ernest module compiles to; `erl/runtime/test/` the ABI tests; `stdlib/test/` the tests in Ernest. The Erlang halves are part of the runtime application, since they are what a compiled program calls, and the compiled modules are build output under `build/stdlib/`. Decisions log to match.
-2. **The checker reads the standard library's compiled interfaces** as it reads any dependency's. Done 2026-09-19, except the stdlib types table, which leaves `ern_prelude` with `Random` in step 3. With it: `ern --test` runs every top-level binding of type `Test` in the modules it is given and reports each by name, `Failed(text)` and a fault both failing; the ABI tests, `ern_stdlib_tests`, live in `erl/runtime/test/`. `ern_prelude` shrinks to §9: the built-in types, the declared types, the built-in and process functions, the operators, `todo`, `Sys.*`; its stdlib types table goes with the modules, `Random.Seed` becoming `foreign type Seed` in `stdlib/random.ern`.
-3. **Rewrite Appendix E module by module, pure modules first**, in this order, each proving something before the next builds on it: `Bool`, `Optional`, `Either`, which prove the pipeline end to end; `Int`, `Float`, `Char`, which prove the shims; `List`; `String`; `Map` and `Set`; `Path`; `Foreign` and `Random`; `Io` and `Clock`. A module is: `stdlib/<name>.ern` written with its documentation, a helper in `erl/runtime/src/` where needed, tests in `erl/runtime/test/` where its doc examples leave a case uncovered, its Erlang original deleted, and the ABI tests and `ern --test` green. Each is written and documented in one pass to `docs/module_doc_template.md`; after each module its rendered page is read against the template before the next starts, together with every place where writing it felt against a principle, and what the reading changes goes into the template, E.0 rule 6, or the report first, the user and Claude reading together as the working rule says. The Erlang modules of MVP 1 export Appendix E under the ABI and `ern_stdlib_tests` tests them by that ABI, so the same tests run against the Ernest-compiled modules unchanged; a module is done when its Erlang original is deleted with the tests green. `ernc` in directory mode on `stdlib/` builds it; `make` runs that. From then on a rule, not a milestone: a shim exists only where E.0's first rule admits it, and a shim that stops meeting that test is rewritten in Ernest when noticed. `Map` and `Set` stay over Erlang's `maps`, which share structure on update; that meets the log's requirement of persistent data structures, and a rewrite that would copy on update is not admitted.
-   **Progress, 2026-09-20.** `Bool`, `Erl`, `Optional`, `Either`, `Int`, `Float`, `Char`, `List`, `Bytes`, `String`, `Map`, `Set`, `Path`, `Foreign`, `Random`, `Io`, and `Clock` are in Ernest, which empties `ern_prelude`'s stdlib types table and finishes step 2, and step 3 with it: every module of Appendix E that does not wait for a system process of step 4 is written in Ernest. Closed 2026-09-21, the day a `let` first read another module's: every compiled module declares the modules it depends on as `'$deps'/0`, and `ern_rt:init_stdlib/0` runs the installed modules' initializers in that order, §8.5's dependency order, the runner's own modules having been ordered by the load all along. Begun with `Bool`, the first module in Ernest, and with the parts of steps 1 and 2 it needs: §4.2's exception for the standard library's root; `make` compiling `stdlib/` and installing each module as `build/stdlib/ern@<name>.beam`; the checker reading the installed interfaces (`ern_prelude:stdlib_ifaces/0`) and a rewritten module leaving `ern_prelude`'s table; the ABI tests reading the installed modules; the documentation checks run over `stdlib/`. Then the rest of steps 1 and 2 the same day: the `Test` type in §9.3 and `ern --test` in §11.2, the compiler listing a module's tests in `'$tests'/0` and `ern_cli:run_tests/3` running each in its own process; `Erl`, E.19, a type and a `foreign fn`; a user module refused for taking a compiled standard library namespace; the mirror tests reading compiled types. A user module's build record holds one hash over the installed standard library's interfaces, so any change to one recompiles it (§11.1, `ern_cli:stdlib_hash/1`). The first pages led to one language change: the not-reply-carrying mark is not inferred on a variable that is also a container's element (§3.9). `Int`, `Float`, and `Char` led to another: the module of a built-in type declares its operators as a user type's module does, `fn Float.+` in `float.ern` (§4.8). The prelude's operations in those namespaces are defined in the modules now, their §9.6 types kept in `ern_prelude`'s table, which types them before any module is installed, and a mirror test keeps the two equal. Their shims' helpers are `ern_int`, `ern_float`, and `ern_char` in `erl/runtime/src/`. `Float`'s operators are compiled inline, as `Int`'s are, and `float.ern` writes them in Ernest. The read-back of these three modules changed the language and toolchain before `List`: integer literals in hexadecimal, octal, and binary, and `_` between digits (§2.5); no negative zero (§3.1); `Io.debug` printing by the argument's type through `ern_show`, which the shell will share (E.1); E.0 rule 1 naming the conversions it admits; and `make doc`, which writes the standard library's pages to `build/stdlib/`. Every workaround in the modules so far is gone: the `Char` examples print characters, and `char.ern` writes code points in hexadecimal.
-4. **The system processes**, 4 days, moved here from MVP 2, built with the shell of MVP 2.6 in mind: its design note's "Prerequisites" names the additions to settle here, the terminal's width, whether input is a terminal, and a way to learn that another process printed: `Sys.stdin` (done 2026-09-20, with `Io.readLine` in `stdlib/io.ern`), `Sys.fs` (done 2026-09-20, `ern_fs` and `stdlib/fs.ern`), `Sys.keys` (done 2026-09-20, `ern_keys` and `stdlib/keys.ern`), `Sys.tcp` (done 2026-09-20, `ern_tcp` and `stdlib/tcp.ern`) as runtime processes bound by the launcher, each speaking its §9.3 type, with `Keys`, `Fs`, `Tcp` over them as Appendix E has them, `Keys` reading the terminal in raw mode with echo off through `prim_tty` or `shell:start_interactive`, the one process whose Erlang side is not an existing module and so the risk of the step; `ern_emitter:refused/1`, `mvp1/2`, the README's table row for those names, and the test that keeps the two equal went with the last door, 2026-09-20, as the step's last act; only the shell's own refusal remains, naming MVP 2.6. `Ets` under `stdlib/` as Appendix D has it (done 2026-09-20, Appendix E.21 and `stdlib/ets.ern`), moved here from step 1, its helper rewriting `{ok, V} | {error, R}` into `Erl.Result` (E.19, done in step 1) as Appendix D and guide §7.5 describe. `filesync`, `repl`, `snake`, and `webserver` compile since 2026-09-20, which `test/ern_integration_tests.erl` checks. `repl`, `filesync`, and `webserver` run under test since 2026-09-20, each with fixed input and a bounded run: the REPL reads a prepared input and ends at end of input; the syncer is given two directories, run, stopped, and its directories read back; the server is started, asked twice over one session, and stopped. Writing them out found three defects, one in the report: an `Entry`'s path was unstated (E.17 now says it is the directory's joined with the name), the REPL read an earlier child's `Down` as this child's news, and the syncer joined a listed path with its own directory. `snake` stays compiled-only: it wants a terminal, which no test can give it. Two defects found on 2026-09-20 when the terminal was first driven: raw mode through `shell:start_interactive({noshell, raw})` stopped delivering after the bytes buffered at start-up, so `ern_keys` sets it with `stty` on a port that inherits the runtime's input; and a lone `Escape` waited forever for a sequence that never came, so an escape alone for fifty milliseconds is now the key. §8.2 says both. The reading itself came under test on 2026-09-20, when MVP 2.6's harness was built before the rest of the shell. **Manual check, done 2026-09-20:** `snake` was played in a real terminal: the arrows steer, `Escape` leaves and ends the game, an ordinary character is ignored, eating an apple grows the snake and scores, echo is off while it runs, and the terminal is itself afterwards. No test can press a key, and the `Keys` page stays type-checked only (E.0 rule 6). Two deliverables belong to the step rather than to intentions: `examples/echo.ern`, whose numbers decide `Tcp.write`'s transport and go into this entry; and a temporary directory for the documentation harness, so `Fs` pages carry examples that run, while `Tcp` and `Keys` pages stay type-checked only as E.0 rule 6 allows. `Tcp` is processes first: `Sys.tcp` answers `Listen` and `Connect`, each socket is a process speaking `SockMsg` over its `gen_tcp` port, so every socket is an address that `monitor`, `kill`, and `via` accept and that dies with the connection. Measured 2026-09-20 with `examples/echo.ern`: 2,000 round trips over loopback take 160 ms through socket processes and 90 ms in raw Erlang, so the design costs 35 microseconds a round trip, 1.8 times raw. The verdict is to keep the processes and leave `Tcp.read` and `Tcp.write` as they are; the foreign fast path stays available under E.0 rule 1's line between how an operation is carried out and what a value is, if a program ever shows it matters. The caveat to weigh then, 2026-09-20: `gen_tcp:send` may be called from any process, but a passive `recv` must come from the socket's controlling process, so `write` is the fast path that costs nothing, while a direct `read` would move ownership between processes and put Erlang's hidden ownership back in, which principle 3 refuses. The decision is the echo server's numbers for `write`, and `read` stays a round trip unless the numbers are damning.
-5. **What "complete" means beyond that is decided by programs.** Erlang's standard library was read module by module on 2026-09-18, and this table is the result for the roadmap; the reasons are in the decisions log. Every user-facing OTP module is a row; what is not a row is OTP's own machinery, which Ernest's concepts or toolchain replace. A function is in Appendix E when E.0's four rules admit it, report first; nothing waits for a program to ask, which decides nothing (2026-09-20). What waits is what needs a runtime door or a whole MVP, and the column says which.
-
-   | Erlang | Ernest | In Appendix E | Waiting, and when | Out, and why |
-   |---|---|---|---|---|
-   | `erlang` BIFs | the language; `Int`, `Float`, `String`, `Char` | `spawn`, `self`, `send`, `monitor` as §9.4 and §9.5; `abs`, `min`, `max`, rounding, `toString`, `toFloat`, the bit operations | an exit status for §8.6, `Sys.args`, `Sys.env`, MVP 2.6 with the command-line program | `register`, `whereis`: §6.5 has no registry. `link`, `exit`, `throw`, `catch`: §7 and §6.9. `term_to_binary`: MVP 3's transport. `phash2`, `md5`: a hashing library. `make_ref`: identity is a `Reply` or an address, §6.5. `iolist_to_binary`: `String.fromList`, `<>`. `memory`, `system_info`: the runtime's |
-   | `lists` | `List` | E.2, thirty-one functions and `<>` | | `first`, `rest`, `flatten`, `count`, `map2`, `sum`, `max`, `min`: one pipe each, rule 4. `scan`, `mapFold`, `window`, `chunk`: a `foldLeft` with an accumulator, and each hides a choice about the ends. `permutations`, `transpose`, `combinations`: specialities. `key*`: `Map` |
-   | `maps`, `dict`, `orddict`, `gb_trees`, `proplists` | `Map` | E.3 | | the four alternatives: history |
-   | `sets`, `ordsets`, `gb_sets` | `Set` | E.4 | | `symmetric_difference`, `is_disjoint`: compositions |
-   | `string`, `unicode` | `String`, `Char` | E.5, E.6 | | the list-based half of `string`; graphemes, since a `Char` is a code point |
-   | `io`, `io_lib` | `Io` | E.1: `print`, `println`, `printError`, `printlnError`, `debug`, and `readLine` from step 4 | | `format`: no format strings, `<>` and `toString` are the one way |
-   | `file`, `filelib` | `Fs` | E.17, nine functions | `watch`, and the working directory with absolute paths, MVP 2.6 with the command-line program | `wildcard`: a glob library. `fold_files`: five lines over `list` |
-   | `filename` | `Path` | E.14, eight functions | | `absname`, `expand`: `Fs`'s, they read the working directory. `nativename`: a `Path` is in the runtime's syntax |
-   | `timer` | `Clock` | `now`, `alarm`, `alarmAt` | `Clock.monotonic`, MVP 2.6 | `send_interval`, `cancel`: E.15's positions. `sleep`: `receive { after ms -> Unit }`. `seconds`, `minutes`: arithmetic |
-   | `rand` | `Random` | E.13: `seed`, `next`, `nextFloat` | | |
-   | `math` | `Float` | the operators, `abs`, `min`, `max`, `round`, `floor`, `ceil`, `truncate`, `toString`, `sqrt`, `pow`, `exp`, `log`, the trigonometry | | `looselyEquals`: the tolerance is the program's. `toPrecision`: a format, and §9.6 has no format strings |
-   | `gen_tcp`, `inet`, `socket`, `ssl` | `Tcp` | E.18 | `Udp` as its own module, a later MVP: its door is `Tcp`'s shape | socket options: tuning is a library's. TLS: a library whose `listen`, `accept`, and `connect` return the same `Address(SockMsg)`, the encryption inside the socket process, so a program's `Tcp.read` and `Tcp.write` do not change |
-   | `ets` | `Ets` | Appendix D; its E section is step 4 | | match specifications, `qlc`: `Ets` is a key-value table |
-   | `os` | `Sys` | | `Sys.env`, `Sys.args`, MVP 2.6 | `cmd`: running a command is a door to the system a program opens itself, MVP 3 at the earliest |
-   | `calendar` | `Time` | | a `Time` type and its parts, a later MVP | formatting: a format is the program's, rule 3 |
-   | `binary` | `Bytes` | E.20, and `<>` | | `split`, `match`, `replace`, `encode_unsigned`: `<<...>>` and the `Int` operations |
-   | `array`, `queue` | | | | `List` and `Map` give both, rule 4; a persistent array is a library |
-   | `eunit` | `Test` | §9.3's `Test` and `TestResult`, run by `ern --test` (§11.2) | | |
-   | `base64`, `json`, `uri_string`, `re`, `crypto`, `zlib`, `dets`, `digraph`, `sofs`, `erl_tar`, `zip`, `disk_log`; the applications `ssl`, `inets`, `xmerl`, `public_key`, `asn1`, `mnesia`, `snmp` | libraries | | | each a namespace of its own on Appendix D's pattern, never stdlib |
-   | `observer`, `dbg`, `cover`, `debugger`, `dialyzer`, `edoc`, `common_test`, `syntax_tools`, `parsetools`, `argparse`, `escript` | | | | tooling: `ernc --doc`, Ernest's own types, the compiler, `ern`; a command-line program parses `Sys.args` itself, an argument parser being a library |
-   | `gen_*`, `supervisor`, `proc_lib`, `sys`, `logger`, `application`, `code`, `rpc`, `erpc`, `global`, `pg`, `net_kernel`, `persistent_term`, `atomics`, `counters`, `init`, `heart`, `os_mon`, `wx`, `erl_*`, the shell | | | | a function with a mailbox type, fifteen lines of `spawn` and `monitor`, `send` to a sink, MVP 3's own distribution, the runtime's internals, `ernc` and `ern` |
-
-   Gleam's `gleam_stdlib` v1.0.5, Elixir's core, and Haskell's `base` were read the same way, and what they have that the table does not take is a position, not a gap: `gleam/order` (`Ordering.reverse` is `fn(a, b) = compare(b, a)`), `gleam/pair` and `gleam/function` (patterns and compositions), `string_tree` and `bytes_tree` (builders BEAM's binary append makes unnecessary), `gleam/uri` (a library), `dynamic/decode` (`Foreign` and a JSON library between them), `string.inspect` (no universal printer; `toString` per type), `bool.guard` (`<-`); `Optional.orElse` and `Either.orElse` are in, rule 3, 2026-09-20; Elixir's `Stream` (§5.1 is strict, a lazy source is a process), grapheme strings (a `Char` is a code point), `Keyword` lists (`Map`); Haskell's type classes (`toString` per type, `==` structural, `compare` per type, §3.10 and §4.8).
-
-6. **Documentation in the `.erc`**, decided 2026-09-19, done 2026-09-20. `ernc` writes each module's doc blocks, and each function's parameter list as written, into a chunk of its `.erc`, after Erlang's `Docs` chunk (EEP 48) so Erlang's own tools can read it, and `ernc --doc` on a compiled module reads the chunk rather than the source. Report first: §11.1 and §11.4 say that a compiled module carries its documentation. The shell's `:doc` and `Shift-Tab` depend on it (its design note, "Completion" and "Commands"). The recompile rule is unchanged, since a change to a doc block changes the source hash. The chunk is written by the compile that makes the code and read from the `.erc`, never from the source; completion reads only the interface, already in memory. A deployment that wants lean files gets `ernc --no-docs` when it asks; nothing has asked, so it is not built. As built: the chunk is EEP 48's `Docs`, so `code:get_doc/1` and `h/1` read an Ernest module, and it carries each declaration's signature as the page shows it, since the interface chunk holds only the exported values and §11.4 documents private declarations too. `--doc` on a source compiles it in memory, so asking for a page writes nothing.
-
-The standard library is then the first Ernest program of size, and the compiler's first user other than the examples. Done 2026-09-20: twenty-one modules in Ernest, every system door open, the four paper programs written out and three of them under test, the documentation in the `.erc`, and the manual terminal check made. Next is MVP 2.6.
-
-**The naming of the toolchain**, a detour taken between steps 4 and 5 and done 2026-09-20. Every Erlang module is `ern_<thing>`, every module compiled from Ernest `ern@<namespace>`, `lib/` became `erl/` so the top level says which language a tree is in, the standard library's Erlang half joined the runtime and its compiled modules became build output under `build/stdlib/`, and two wrong names were fixed: `ern_compiler` to `ern_emitter` and `ern_check` to `ern_boundary`. The rule is in the style guide, the record in `docs/naming.md`, the arguments in the log. What remains of it: `libs/` and `build/libs/` are created with the first library in MVP 2.6.
-
-**MVP 2.6 (the shell), about two weeks.** The shell is the program that exercises everything at once, and it is the whole milestone: the libraries moved to 2.7 on 2026-09-20, so that one large thing is measured rather than two. Its estimate is the least certain in this plan, since incremental checking is a type-system feature wearing a user interface's clothes, and the checkpoint before the first is there to find that out early.
-
-- **A harness that gives a program a terminal, first of all.** Done 2026-09-20, before anything else of the shell's: `test/ern_pty.py` opens a pseudo-terminal, runs a command on it, sends bytes at chosen moments and hands the screen back, and `test/ern_terminal_tests.erl` drives it. It is python3 because Erlang cannot open a pseudo-terminal and has no ioctl to do it by hand; `make test` now needs python3, which the README says. Under test with it: §8.2's rules, that a character and an arrow arrive as they are pressed and are not echoed, that an arrow is not split into an `Escape` and two characters, that an `Escape` alone arrives once no sequence can follow it, and that line mode with echo is restored when the program ends; and `snake`, steered by the arrows, left by `Escape`, its rows each starting at the left, which full raw mode broke.
-- **What the shell needs of §8.2 and §9.3**, left open when step 4 closed on 2026-09-20 and settled here, report first: one `Key` value for the terminal's interrupt, delivered to the terminal's holder, `Shift-Tab` and `Meta` needing none since §8.2 delivers an unknown sequence as `Escape` and its characters; the terminal's width; whether input is a terminal; and a notice that a process died with a fault, so that a worker lost at the prompt is seen. The runtime already remembers how every process it started ended (§6.9) and `Down` names the spawn site, so what is missing is the door, not the fact; a compiled program stays silent, `monitor` remaining the one way a program learns. The shell's design note lists them under "Prerequisites" and the last under "Failing processes".
-- **The shell, in Ernest** (§11.2), moved here from MVP 2 on 2026-09-19, designed in [`docs/shell_design.md`](shell_design.md), its source a tree of its own, `shell/`, compiled by `make` into `build/shell/`, since it is neither standard library nor a library but the toolchain's own program, built in the note's four checkpoints, each a stop for review, the first of them expressions only so that the loop and the harness are proved before incremental checking begins. Checkpoint 0, half done 2026-09-20: §11.2 states the shell's core and §9.3's `Key` has `Interrupt`; `shell/` is a tree with a `make` rule into `build/shell`; `ern_shell` is the front end and `shell/shell.ern` the shell; and in line mode an input is checked, compiled as `Input<n>`, run in a process of its own, and its value printed with its type, a type error shown as `ernc` shows it, a fault reported without ending the session, and a `Unit` value printed as nothing. A session golden test holds it. The terminal half followed the same day: three processes, the session, the reader over `Keys` with the floor of characters and `Backspace` and `Enter` and `C-d` and the interrupt, and the screen, which the sinks are bound to and which is the only writer; the terminal's holder recorded so that §8.2 faults anything else that asks for keys; and `Interrupt` delivered, the mode dropping the signal for the holder alone. Checkpoint 0 is done, under test in both modes; the spike that answers how an input sees the bindings before it was run on 2026-09-20, before any of the shell: the checker takes the session as a fourth argument, resolution rewrites a session name to the input that declared it so that nothing downstream knows of a session, and a value needs no new mechanism, a module-level value already being a getter over the runtime's store. What is new is publishing, since a prompt `let` is a block `let` whose value is made in the input's process rather than by the initializers of §8.5. Two small changes, in `ern_typecheck` and `ern_emitter`, so incremental checking is no longer the estimate's risk; the editor and the protocol are. Report first: §11.2 gains the shell's normative core from the note, every result printed with its type, one module and one process per input, bindings that survive a fault, the commands and their prefix rule, and line mode when input is not a terminal; the note keeps the key bindings, completion, the foreign interface, and the testing: `ern --shell` adds a shell process to the running program, or starts one over the standard library alone, with every loaded module in scope. The shell is an Ernest program over `Keys`, with its own line editor (the design note has the bindings), the first real program on the standard library; the one part that cannot be Ernest, the checker's incremental `check` that keeps an environment between inputs, is reached through a `foreign fn` (§8.4). Each line is parsed as a declaration or an expression, checked against the loaded interfaces and the shell's bindings so far, compiled as a throwaway module, and run in the shell process, whose mailbox type is the entry point's; a `let` at the shell binds for the lines after it. Checkpoint 1, begun 2026-09-20: a `let` binds for the inputs after it, held by a module of its own that exports the value and, when it holds a function, the call as well, so that a closure made before a redeclaration keeps the binding it was compiled against; `it` is the last expression's value; and an input declares what a module may, `fn`, `type`, `abstract type` with its members, and `foreign`, the session's three maps of values and types and constructors being a scope of their own between the input's own declarations and the prelude. The eight commands that need no new door followed on the same day: `:type`, `:browse`, `:doc`, `:help`, `:forget`, `:bindings`, `:set` with the printing depth and length and timing, and `:quit`, with `:load`, `:reload`, `:processes` and `:faults` named in `:help` and refused, so that the prefix rule reads the whole order from the start; the printer of E.1 gained the depth and the length, `Io.debug` passing neither, and `ernc --doc`'s renderer moved to `ern_page`, which `:doc` calls for one declaration. `ern --shell file.erc` followed: the runner loads the module and its dependencies, runs their initializers and hands the front end their interfaces, and the shell spawns the file's entry point and monitors it, so a fault in the program is reported at the prompt; a session golden test drives a program from the prompt. Two defects it found are fixed: `ernc` crashed on an exported declaration whose type named a private type, which §4.2 now refuses, and a binding compiled inside an unmarked foreign call, which made `Deadlock` fire over a value being bound. Fault reports followed, with `:processes` and `:faults`: §11.2 says the shell prints a line for each process that faults, with the spawn site and cause of §6.9, and that this is the runtime's record read by the shell and not by a program; `ern_rt` gained the door, a watcher told of every death and the live rows by spawn site, and the front end decides which deaths are news, leaving out its own processes, which say so from inside themselves, and the input's, whose fault is its answer. The last hundred faults are kept. `:load` and `:reload` followed: `--source-root`, which §11.2 has and the runner's options did not, now exists; `ern_cli` compiles a module from its source in memory, as `ernc` would and writing nothing; `:reload` compares the source's hash against the one the compiled module carries, and §11.2 states the two versions of §6.10, the reload that names what is still in the previous one and the reload that ends it with §7.3's cause. The startup file closed checkpoint 1: §11.2 says the shell runs the inputs of `$HOME/.ernest/startup` and then the configuration directory's, a line an input, after the file's entry point is spawned and before the first prompt; a value is not printed and a failure names the file it came from. The person's runs first and the node's after it, so a node overrides what a person always wants, which is what `--config-dir` moves. Checkpoint 1 is done. The defect that found, a `let` whose value is a function emitted as though it were a `fn`, is fixed: the interface now says which exported names are values, the chunk format is 2, and the emitter reaches a `let` through its getter and calls one by applying what the getter answers; the shell's holder lost the second export it needed for the old convention. The harness that sent bytes at fixed times, and so failed about one run in ten under a full `make test`, now waits for what it expects on the screen: its steps are `expect`, `send` and `sleep`, read from a file, since a step's text holds whatever a program prints and no shell should read that. It found a race of its own, which §8.2 now settles: a subscription is answered once the terminal is in the mode the keys need, so nothing typed after `subscribe` returns is echoed. Checkpoint 2 became the terminal and its panes, decided 2026-09-20 and ahead of the line editor, which is now checkpoint 3 and completion checkpoint 4. Its first half is done, 2026-09-20: `Keys` is `Terminal`, `Sys.keys` is `Sys.terminal`, and §9.3 has `Size`, `Event`, `TerminalMsg` with `Subscribe` and `Measure`, and `PageUp` and `PageDown` in `Key`; the runtime takes the host's raw mode, which is what makes `io:rows` answer, and puts `opost` back; a resize is noticed by asking five times a second and sent as `Resized`; snake takes the window it was given as its board. `io_ansi:scan` was measured a second time and refused: it scans terminal capabilities, naming `\e[F` `cursor_previous_line`, and hands back the page keys as raw sequences. The panes followed the same day and closed the checkpoint:  the shell splits the screen, a small upper pane for everything written through `Sys.stdout` and `Sys.stderr` and the rest for the shell's own output, fault reports included. It brings three report changes, which come before its code: `Keys` becomes `Terminal`, one module for the resource rather than one for the keyboard, with `Terminal.size` answering `Size(rows, columns)` and `Event = Key(Key) | Resized(Size)` on the stream a subscriber already receives; §9.3's `Key` grows to the keys the panes and the editor need, `PageUp` and `PageDown` first, decoded by OTP 29's `io_ansi:scan` in place of the eight-key decoder of MVP 2.5; and §11.2 says where a program's output goes. The terminal's own scrollback is the price, since lines leaving a repainted viewport are kept by nothing, and the shell gives scrolling back over each pane's buffer. Decided 2026-09-21 and the first work of the next day: the panes become a live region at the bottom, the transcript written into the terminal and scrolled there rather than painted, the shell painting only the line being typed and a tail of what programs write above it, which is how Claude's own terminal program behaves. The buffers, the painting, `Terminal.size` and `Resized`, the reader that no longer echoes and `:set output n` carry over; the pane routing, about a hundred lines, goes. §11.2's pane sentences change with the code, and the pane routing goes in the same commit rather than after it. Both open questions were settled on 2026-09-21: a line that ages out of the tail is committed into the transcript, so the terminal's scrollback holds every line in arrival order; and §9.3's `Key` folds into `Event`, one type where there were two, with `PageUp` and `PageDown` removed, since the panes occasioned them and nothing uses them. Built 2026-09-21: the live region, with the pane code deleted in the same commit, and `:output <path>`, which points the sinks at another terminal or a file so that a second window shows what programs write; `:set output n` sets the tail's rows and `0` interleaves. Checkpoint 3 began the same day with its first step, the editor itself: `Shell.Editor` in `shell/shell/editor.ern`, a module of its own, since the shell's constructor namespace was full and a name chosen to dodge a collision is a wart; moving, deleting, killing and yanking, `M-b`, `M-f` and `M-d`, `C-l` for a clean screen, the interrupt, and `C-d` on an empty line, with what is killed outliving the line. Fourteen tests as top-level `Test` values, the first use of §9.3's `Test` in this repository, run by `ern --test` and by `make test` with it, and two tests through the terminal for the wiring the pure ones cannot reach. One defect in the checker: a module under another's namespace, `Shell.Editor` under `Shell`, was read as a type member of the parent and the module never looked for; §4.2 forbids those two namespaces to coincide, so resolution now takes the member where the parent declares that type and the child module otherwise. Step 2, the history, followed the same day: `$HOME/.ernest/history` in §11.2, one input a line with a newline written `\n`, the last thousand kept, a blank input and a repeated one not kept, appended as each input is taken so a session that faults keeps it, and read by no session whose input is not a terminal; the arrows and `C-p`/`C-n` walk it, `M-<` and `M->` reach its ends, and `C-r`, `C-s` and `C-g` search it incrementally. It set the rule for the foreign boundary, which completion will ask again: `foreign` is what the host alone can do, so the front end offers `historyFile() -> Optional(String)` and the reading, the escaping and the trim are `Shell.History`, Ernest over `Fs` with its own tests. One finding for the standard library's next pass: `String` has no `indexOf`, which the search needs, and the editor carries a local one. The rule's first sweep followed: of the shell's twenty-three doors only `startup/0` broke it, and the front end now answers `startupFiles()` with the two paths while the shell reads them and splits them itself. `String.indexOf` and `String.lastIndexOf` are in E.5, admitted by E.0's rule 2, and E.5 now says what a character is: an extended grapheme cluster, which is what `size`, `slice`, and the index functions count, while `toList` is code points. Two runtime defects the terminal tests found under load, neither the shell's: the terminal process counted its source after setting the mode, so §8.6 fired while `stty` ran, and `process_of/1` answered the checking proxy's own pid, so the terminal's holder was compared against a proxy and the reader was ended. Step 3, multi-line input, followed: §11.2 says that at a terminal an input may span lines, `Enter` taking another line where the parser cannot finish the input and running it where it can, `M-Enter` taking one whatever the parser says, and `Enter` on an empty line running what there is. The parser marks a diagnostic `incomplete` where it stopped at the end of the input, and the lexer where it ended inside a raw string or a block comment, the two things that may span lines (§2.5); the front end's `needsMore` asks both readings, as `input/1` tries them. The region grows a row for each line, prompted `... `, the cursor resting on the row it is typed on, and a multi-line input comes back from the history whole. The screen gained `Noted`, a line written while an input is being typed, which keeps the prompt where `Said` takes it. Step 4 closed the checkpoint the same day: §9.3's `Event` gains `Pasted(String)`, §8.2 says the runtime asks the terminal to bracket a paste while a program is subscribed and that a paste arrives as one event with its line endings as line feeds, and §11.2 that the shell puts a paste in the line at the cursor. `ern_tty` sets the mode with the keys' and puts it back with them, and its decoder keeps what has arrived of a sequence until the rest comes, which the one-character reads had made it wrong to assume: `\e[2` was read as `Escape` and two characters before a paste could ever begin. A paste of tab-indented code then found the region placing its cursor by characters where a terminal places a tab by columns: the region paints a tab as the spaces to the next stop of eight and measures the row it has painted, while what is committed keeps the tab. `expand` is where one-character-one-column now lives, so the wide-glyph question, the note's one open item, has a single function to change. Checkpoint 3 is done; completion is checkpoint 4. 3 days.
-- **Field selection, moved to MVP 2.65 on 2026-09-21**, which is the discussion after the shell that this bullet asked for, with the rest of what writing the shell found.
-- **The names of the options to `ernc` and `ern`, moved to MVP 2.65 on 2026-09-21**, which reads the toolchain back after the shell as it reads the language.
-- **Out of 2.6:** every library, which is MVP 2.7 with the paper program that needs them; `Regex`, `Crypto`, `Uri`, `Zlib`, which are MVP 2.8; the library fetcher, which is MVP 3.1; an HTTP server, which is never.
-
-**MVP 2.65 (the language and the toolchain read back after the shell), about four days.**
 The shell is the first program of size written in Ernest by the people who designed it, and
-what it felt is written down in [`docs/language_feedback.md`](language_feedback.md), which
-owns that list. This item is where each entry is decided rather than collected: the language
-questions first, field selection at their head, then what belongs to Appendix E, then the
-names of the toolchain's options, then what is recorded and left alone.
+what it felt is in [`language_feedback.md`](language_feedback.md), which owns that list.
+This item decides each entry rather than collecting it: the language questions first, field
+selection at their head, then what belongs to Appendix E, then the names of the toolchain's
+options, then what is recorded and left alone.
 
-- **Each entry is judged on §0's five principles, and a standard library entry on E.0's four
-  rules**, one by one and in writing. How many sites in the shell felt it is an argument in
-  the discussion and never the gate.
-- **The outcome of an entry is one of three things:** a report change, made before any code;
-  an entry in the decisions log under "Later" that states the verdict and what would change
-  it; or a line saying it was weighed and left as it is. Nothing is left undecided, since
-  the next program will feel the same things and a second collection is not a decision.
-- **The two the note puts forward as candidates** are field selection, which has three
-  witnesses in the shell and Gleam's totality rule to copy, and some way to name a prelude
-  constructor that a module has shadowed, which the note itself calls tentative. The rest of
-  its list the note would record and leave alone; that recommendation is the starting point,
-  not the conclusion.
-- **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at a time and the set has never been read as a whole. Under review: the three words for a directory, `--source-root`, `--out-dir`, `--config-dir` and `--load-path`, and whether the rule that tells them apart is worth stating; the options that are modes rather than modifiers, `--doc`, `--test`, `--emit`, `--shell` and `--create-config-dir`, and whether a mode is a subcommand; `--create-config-dir`, which is a whole job wearing an option's clothes and names the same directory as `--config-dir`; `--no-clean`, the only negative; and `--errors short`, a value option with one value. The names are in the report, §11.1 to §11.4, so each is a report change and worth deciding once rather than twice.
+- **Each entry is judged on §0's five principles**, and a standard library entry on E.0's
+  four rules, one by one and in writing. How many sites in the shell felt it is an argument,
+  never the gate.
+- **Every entry ends in one of three things:** a report change, made before any code; an
+  entry in the log under "Later" stating the verdict and what would change it; or a line
+  saying it was weighed and left alone. Nothing is left open, since the next program will
+  feel the same things and a second collection is not a decision.
+- **The two candidates the note puts forward** are field selection, `s.upper`, with three
+  witnesses in the shell and Gleam's totality rule to copy — a field read with a dot when
+  every constructor of the type has a field of that name and type — and, tentatively, some
+  way to name a prelude constructor a module has shadowed. Against the first is principle 2,
+  a pattern already reading a field; for it, that Ernest took `..` for update from the family
+  whose readers expect `.` for read. The report changes first if it is taken: §3.5 for the
+  rule, Appendix A for the production, §11.5 for what a selector on an absent field says.
+- **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
+  a time and the set has never been read whole. Under review: the three words for a
+  directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the
+  rule that tells them apart is worth stating; the options that are modes rather than
+  modifiers, `--doc`, `--test`, `--emit`, `--shell`, `--create-config-dir`, and whether a
+  mode is a subcommand; `--create-config-dir`, a whole job in an option's clothes that names
+  the same directory as `--config-dir`; `--no-clean`, the only negative; and `--errors
+  short`, a value option with one value. The names are in §11.1 to §11.4, so each is a report
+  change and worth deciding once.
 
-**MVP 2.7 (the first libraries and the network stack), about two weeks.** Appendix D has been written to once, for `Ets`, and a pattern tried once is a guess: four libraries written to it confirm or correct it before anyone outside writes to one, and they are the compiler's second real user. `libs/` and `build/libs/` are created here, which is the last step of the 2026-09-20 rename. Being first-party changes nothing about the tier, since a library is not on the load path unless a program puts it there.
+---
 
-- **Report first**, for what a command-line program needs of the runtime: `Sys.args` and `Sys.env` in §8.2 and §9.7 as runtime-bound values, an exit status in §8.6, and `Time` in Appendix E over the clock's milliseconds, for the report's timestamp. They came back here on 2026-09-20 when the shell's colour went later and took its reason for wanting the environment with it. Decisions log to match.
-- **`libs/json`**, pure Ernest: a `Json` type, a parser over `String` returning `Either`, a printer; the first test of `<-`, `tryMap`, and `tryFold` at size.
-- **`libs/base64`**, a shim over `base64`: the smallest one there is, so Appendix D's pattern is written a second time, in a library, before the two large ones are. HTTP authentication needs it.
-- **`libs/tls`**, a shim over `ssl` and `public_key`, written with their manual pages open: `Tls.listen`, `accept`, `connect` returning `Address(SockMsg)` with the encryption inside the socket process, so `Tcp.read`, `write`, and `close` serve both. Certificate verification is the caller's to ask for.
-- **`libs/http`**, Ernest over `Tcp` and `Tls`: request and response types, a client. No server; that is the webserver example's job, and the plan's position on HTTP servers stands.
-- **The paper program:** `examples/fetch.ern`, a command-line tool that fetches JSON over HTTPS and prints a report to stdout, errors to stderr, with an exit status. A paper program travels with the stack it needs: MVP 2.5 taught that a program which only compiles proves little.
-- Each library is an Ernest source root under `libs/<name>/` that a program adds with `--load-path`, with tests under the same discipline as `stdlib/`, a README of its own, and no entry in Appendix E. Their own repositories later, when there is a package story. Appendix D is corrected where the four disagree with it, report first.
-- **The report lists them.** A new informative appendix, "First-party libraries", one section per library with its exported signatures and their contracts, as Appendix E lists the standard library, and a mirror test holding each library's compiled interface equal to it, as `ern_prelude_tests` holds the prelude tables to Appendix E. Third-party libraries are not listed; Appendix D is what they follow.
+## MVP 2.7 (the first libraries and the network stack), about two weeks
 
-**MVP 2.8 (four more libraries), about two weeks.** `libs/regex`, a shim over `re`, a library and never syntax: `Regex.compile : (String) -> Either(RegexError, Regex)` with `Regex` a foreign type over `re`'s compiled pattern, so a bad pattern is a value the program handles, as Gleam's `gleam_regexp` does; `libs/crypto`, a shim over `crypto` for hashes, HMAC, and random bytes, the key and cipher surface waiting for a program; `libs/uri`, pure Ernest or a shim over `uri_string`, parsing, building, and percent-encoding; `libs/zlib`, a shim over `zlib` for compress, decompress, and gzip. Each is written and documented in one pass to `docs/module_doc_template.md`, and its executed doc examples are its first user, so no paper program is required (decided 2026-09-19; the log's entry has the reasons). Each gets an informative appendix section beside MVP 2.6's four.
+Appendix D has been written to once, for `Ets`, and a pattern tried once is a guess: four
+libraries written to it confirm or correct it before anyone outside writes to one, and they
+are the compiler's second real user. `libs/` and `build/libs/` are created here, the last
+step of the 2026-09-20 rename. Being first-party changes nothing about the tier: a library is
+not on the load path unless a program puts it there.
 
-**MVP 2.9 (an Emacs major mode), about three days.** `.ern` files are edited in
-`fundamental-mode` today. [`docs/emacs_mode.md`](emacs_mode.md) states what is wanted and
-owns the detail; this item is its place in the order. `editor/emacs/ernest-mode.el`, derived
-from `prog-mode` and not from `cc-mode`, since Ernest is expression-structured and CC Mode's
+- **Report first**, for what a command-line program needs: `Sys.args` and `Sys.env` in §8.2
+  and §9.7 as runtime-bound values, an exit status in §8.6, and `Time` in Appendix E over the
+  clock's milliseconds. They came back here on 2026-09-20 when the shell's colour went later.
+- **`libs/json`**, pure Ernest: a `Json` type, a parser over `String` returning `Either`, a
+  printer; the first test of `<-`, `tryMap` and `tryFold` at size.
+- **`libs/base64`**, a shim over `base64`: the smallest there is, so Appendix D's pattern is
+  written a second time before the two large ones.
+- **`libs/tls`**, a shim over `ssl` and `public_key` with their manual pages open: `listen`,
+  `accept`, `connect` returning `Address(SockMsg)` with the encryption inside the socket
+  process, so `Tcp.read`, `write` and `close` serve both. Certificate verification is the
+  caller's to ask for.
+- **`libs/http`**, Ernest over `Tcp` and `Tls`: request and response types, a client. No
+  server; that is the webserver example's job.
+- **The paper program:** `examples/fetch.ern`, a command-line tool that fetches JSON over
+  HTTPS and prints a report, errors to stderr, with an exit status. A paper program travels
+  with the stack it needs; MVP 2.5 taught that a program which only compiles proves little.
+- **Each library** is an Ernest source root under `libs/<name>/` that a program adds with
+  `--load-path`, with `stdlib/`'s test discipline, a README of its own, and no entry in
+  Appendix E. Own repositories later, when there is a package story.
+- **The report lists them** in a new informative appendix, one section per library with its
+  signatures and contracts, and a mirror test holding each compiled interface equal to it, as
+  `ern_prelude_tests` holds the prelude to Appendix E. Third-party libraries are not listed;
+  Appendix D is what they follow.
+
+---
+
+## MVP 2.8 (four more libraries), about two weeks
+
+`libs/regex`, a shim over `re`, a library and never syntax: `Regex.compile : (String) ->
+Either(RegexError, Regex)` with `Regex` a foreign type, so a bad pattern is a value the
+program handles, as Gleam's `gleam_regexp` does. `libs/crypto`, a shim over `crypto` for
+hashes, HMAC and random bytes, the key and cipher surface waiting for a program. `libs/uri`,
+pure Ernest or a shim over `uri_string`. `libs/zlib`, a shim over `zlib`. Each is written and
+documented in one pass to [`module_doc_template.md`](module_doc_template.md), and its
+executed doc examples are its first user, so no paper program is required (decided
+2026-09-19). Each gets an appendix section beside 2.7's four.
+
+---
+
+## MVP 2.9 (an Emacs major mode), about three days
+
+`.ern` files are edited in `fundamental-mode` today. [`emacs_mode.md`](emacs_mode.md) owns
+the detail; this item is its place in the order. `editor/emacs/ernest-mode.el`, derived from
+`prog-mode` and not from `cc-mode`, since Ernest is expression-structured and CC Mode's
 engine assumes C's statements: a syntax table for `//`, `/* */`, `///` with a face of its
 own, strings, raw strings that span lines, and a `syntax-propertize-function` for char
 literals so an apostrophe cannot unbalance a buffer; font-lock from §2's lexical rules;
-four-space indentation with `match` and `receive` arms led by `|` and no alignment padding,
-which the style guide forbids; `compilation-error-regexp-alist` for `file:line:col: message`
-so `M-x compile` over `ernc` jumps to the diagnostic; and `auto-mode-alist`. A `comint` mode
-over `ern --shell` and completion are out of it.
+four-space indentation, `match` and `receive` arms led by `|`, and no alignment padding,
+which the style guide forbids; `compilation-error-regexp-alist` for `file:line:col: message`;
+`auto-mode-alist`. A `comint` mode over `ern --shell` and completion are out of it.
 
 - **The reserved words and the operators restate Appendix A**, so the item carries a mirror
-  test keeping the mode's lists equal to the lexer's, as the README's and the report's
-  mirrors do. A restatement without one is a wart.
-- **Elisp is a fourth language in the repository**, and the only file of it. `docs/style.md`
-  gains the rule it needs, lines of at most 100 characters and no tabs, and says so; the
-  README's layout section gains `editor/`.
+  test keeping the mode's lists equal to the lexer's. A restatement without one is a wart.
+- **Elisp is a fourth language here**, and this is the only file of it: `docs/style.md` gains
+  the rule it needs, lines of at most 100 characters and no tabs, and the README's layout
+  gains `editor/`.
 - **Tree-sitter waits for a second editor.** `ernest-ts-mode` over a grammar built from
-  Appendix A would give structural highlighting and indentation, and would serve Neovim,
-  Helix and Zed from one grammar; against it, the grammar is a second statement of Appendix A
-  in a fourth language, and no mirror test can be written between EBNF and a tree-sitter
-  grammar, which is exactly the restatement the rules refuse. It also adds a C toolchain and
-  a compiled object per platform to a repository that has neither. The plain mode costs
-  heuristic indentation and font-lock that a pathological line can confuse; that is the price
-  until a second editor is asked for, and then the grammar is written once and both are built
-  on it.
+  Appendix A would give structural highlighting and serve Neovim, Helix and Zed too; against
+  it, the grammar is a second statement of Appendix A in a fourth language with no mirror
+  test writable between EBNF and it, and it adds a C toolchain and a compiled object per
+  platform. The plain mode costs heuristic indentation and font-lock a pathological line can
+  confuse; that is the price until a second editor is asked for.
 
-**MVP 3.0 (peers), about three weeks.** Nodes that reach each other, and the four operations of §8.7 between them, with code shipping restricted to nodes running the same build: identical definitions have identical hashes, which is §8.7 satisfied in its easiest case. A peer whose build differs is refused with an error naming 3.1, as every deferral here is. Split from 3.1 on 2026-09-20, since content addressing proper is the larger half and peers are the useful one.
+---
 
-- `spawn(Peer(name), f)` and `remote(f)` over the peers in `ernest.conf`, authenticated with the configured keys: the node-to-node connection is `ssl` with the peer's public key from `ernest.conf` as the only trust, read with `public_key`, inside `ern`, and a program never sees either module. `remote` picks among peers flagged `"remote-peer": true` by load, criterion to be chosen then.
-- Peer loss as §10 says: every process on the lost peer dead with `Fault("peer lost")`, monitors delivered, pending `remote` calls `Left(PeerLost)`; a peer that reappears is a new instance.
-- **An adapted address across a node** is open, and report first when it is taken. `via(f, addr)` has been the pair of the function and the address since 2026-09-20 (§6.5, log entry "`via` Is a Value"), so an `Address` that leaves a node may carry a function, which is the same question as a message that carries one: the hash goes with it and the receiving node fetches what it lacks. What §6.5 says of the fault in `f` names a target that may then be on another node; whether the function travels or the adaptation stays behind on the sending node is the decision.
+## MVP 3.0 (peers), about three weeks
 
-**MVP 3.1 (content addressing), about four weeks.** §8.7's identity in full, and the first decision is what "normalized definition" means, since two nodes must agree exactly: the typed tree or the untyped one, whether local names are erased, and what becomes of the effect variables, which are inferred and never written. `ern_emitter:iface_hash/1` already hashes a canonical interface; whether it grows into the definition hash or a second scheme stands beside it is part of that decision, and the cheaper answer is the first. Then modules named by hash, a registry per node, a node fetching from the sender what it lacks, and the library fetcher, which rides on all of it.
+Nodes that reach each other and the four operations of §8.7 between them, with code shipping
+restricted to nodes running the same build: identical definitions have identical hashes,
+which is §8.7 in its easiest case. A peer whose build differs is refused with an error naming
+3.1. Split from 3.1 on 2026-09-20, since content addressing proper is the larger half and
+peers are the useful one.
 
-- Every definition gets a hash of its typed AST; modules are named by hash; a registry per node `{Hash -> Module}`. A message with a function carries the hash, and a node that lacks it fetches the code from the sender. Erlang's module distribution is not used.
-- Two nodes with different versions of one type: reject at send, each message carrying its type hash and an unknown hash refused with a fault or `Left`; fetch on receipt is the alternative, decided when peers exist and the two can be measured. The decisions log has the two shapes.
-- The library fetcher, decided 2026-09-19: `ern fetch name url` fetches a library's source tree from a git URL into a directory on the load path, compiles it, and records the hashes of its definitions, the identity content addressing gives, so two versions of a library are two sets of hashes that coexist. No resolver, no semver, no lockfile beyond those hashes, and no registry; discovery by name is a tooling question for later.
+- `spawn(Peer(name), f)` and `remote(f)` over the peers in `ernest.conf`, authenticated with
+  the configured keys: the connection is `ssl` with the peer's public key from `ernest.conf`
+  as the only trust, read with `public_key`, inside `ern`, and a program never sees either
+  module. `remote` picks among peers flagged `"remote-peer": true` by load, criterion chosen
+  then.
+- Peer loss as §10 says: every process on the lost peer dead with `Fault("peer lost")`,
+  monitors delivered, pending `remote` calls `Left(PeerLost)`; a peer that reappears is a new
+  instance.
+- **An adapted address across a node** is open, and report first when it is taken. `via(f,
+  addr)` has been the pair of the function and the address since 2026-09-20 (§6.5), so an
+  `Address` that leaves a node may carry a function, which is the same question as a message
+  that carries one. Whether the function travels or the adaptation stays behind is the
+  decision.
 
-**Toolchain and runtime, no MVP yet.** A canonical formatter, `ernc --format`, one style and no configuration, mechanical over the grammar; it lands before a second person writes Ernest. `Slot(a)`, a one-shot credit parallel to `Reply(a)` for backpressure, is out on principles 2 and 5: `Reply(a)` is the language's one-shot, and a credit is a protocol a program writes from the messages it already has; the decisions log has its shape if the verdict is revisited. String interpolation is declined for now on principles 2, 3, and 4; the log's "Later" says what would reopen it. Erlang scheduling hints, `process_flag(priority, ...)`, wait for a program that needs them; they were MVP 4 until 2026-09-19, when the runtime mailbox and the general receive guards had left it and one optimization is not a phase.
+---
 
-No HTTP server, ever, and no database connectors are planned; those are libraries for others to write on the foreign-library pattern of Appendix D, as MVP 2.5 step 5 lists. MVP 2.6 writes the first four libraries, JSON among them, to prove the pattern.
+## MVP 3.1 (content addressing), about four weeks
 
-MVP 1 is about nine working weeks and shows that the chain holds, not that the design holds. The latter is decided beforehand, on paper.
+§8.7's identity in full. The first decision is what "normalized definition" means, since two
+nodes must agree exactly: the typed tree or the untyped one, whether local names are erased,
+and what becomes of the effect variables, which are inferred and never written.
+`ern_emitter:iface_hash/1` already hashes a canonical interface; whether it grows into the
+definition hash or a second scheme stands beside it is part of that decision, and the cheaper
+answer is the first.
+
+- Every definition gets a hash of its typed AST; modules are named by hash; a registry per
+  node `{Hash -> Module}`. A message with a function carries the hash, and a node that lacks
+  it fetches the code from the sender. Erlang's module distribution is not used.
+- Two nodes with different versions of one type: reject at send, each message carrying its
+  type hash; fetch on receipt is the alternative, decided when peers exist and the two can be
+  measured. The log has both shapes.
+- The library fetcher, decided 2026-09-19: `ern fetch name url` fetches a library's source
+  tree from a git URL into a directory on the load path, compiles it, and records the hashes
+  of its definitions. No resolver, no semver, no lockfile beyond those hashes, and no
+  registry; discovery by name is a tooling question for later.
+
+---
+
+## Not in any MVP
+
+A canonical formatter, `ernc --format`, one style and no configuration, mechanical over the
+grammar; it lands before a second person writes Ernest. `Slot(a)`, a one-shot credit parallel
+to `Reply(a)`, is out on principles 2 and 5; the log holds its shape if the verdict is
+revisited. String interpolation is declined for now on principles 2, 3 and 4. Erlang
+scheduling hints wait for a program that needs them. No HTTP server, ever, and no database
+connectors: those are libraries for others to write on Appendix D's pattern.
+
+---
+
+## Standing gaps
+
+- **§3.11, §8.3 and §8.7 have no citing test**, which `make sections` lists. All three are
+  MVP 3.0 and 3.1 material and unimplemented; anything else that appears there is a gap.
+- **How the region measures a wide character.** A tab is settled — painted as the spaces to
+  the next stop of eight — but a wide glyph is one column to the region and two to the
+  terminal, and nothing in the runtime knows a glyph's width. `expand` in
+  `shell/shell/region.ern` is the one function that has to learn it. The design note's only
+  open item.
+- **The guide owes the idioms** the log's "Later" lists, links and supervisors and parallel
+  `remote`, and a chapter on the shell (MVP 2.6 above).
+- **`e_bits` and `p_bits` are in no example**, so the AST coverage test excludes them
+  (2026-09-19).
+- **A label at the first use of the variable whose type a mismatch names** was planned for
+  §3.4's placement work and not built (2026-09-18).
+
+---
+
+## Done
+
+### MVP 1 — the chain (done 2026-09-18, tag `mvp1`)
+
+Prove parser, types and BEAM with the report's language unchanged, accepting a subset: `Int`
+but no `Float`, no ownership rule for abstract types, no foreign code, no `Tcp`, no
+distribution. Exhaustiveness checking was in from the start, being the check that shaped
+`receive` and `if`. What still binds:
+
+- **A hand-written lexer and a direct precedence-climbing parser** over a token list, no yecc
+  and no generic Pratt engine: the hand parser is the executable test of principle 4. Tokens
+  are yecc-shaped, `{Category, Pos, Value}`, with `Pos` carrying the token's end and the
+  previous token's end so the parser can close every node's span. Three places need one more
+  token: the constructor-fields peek, `FnType` against `ParenType`, and `fn` before an
+  identifier or `(`. No backtracking.
+- **Hindley-Milner with an effect slot**, §3.9: the arrow is `Arrow(args, E, result)`, the
+  slot holding `pure`, a mailbox type, or an effect variable; unification is component-wise;
+  an effect variable that also occurs in a value position or belongs to a process primitive
+  is *process-only* and does not unify with `pure`. A free effect variable generalizes, which
+  is what lets `List.map` run a process callback. The only departures from the textbook are
+  `pure` as a non-type in the slot and that flag.
+- **The reply discipline**, §6.6: a reply-carrying value is consumed exactly once on every
+  path from its binding, the obligation passing through patterns, blocks and constructors;
+  compiled interfaces carry it. `Address.call`'s `mk` callback is the canonical case.
+- **Local `fn`s generalize late**, once every later local `fn` they reference has been
+  checked, so `fn a(x) = b(x); fn b(x) = x + 1` does not accept `a("s")`.
+- **One Erlang module per Ernest module**, `ern@` and the path with `@` for `/`, functions
+  keeping their local names and type members their prefix (`'Stack.push'/2`). The reasons for
+  the name are in [`naming.md`](naming.md).
+- **Three pre-passes inside the emitter's one traversal**: unique variable names, lambda
+  lifting of local `fn`s with their free variables as leading parameters, and the `<-`
+  desugaring of §5.5 from the type the checker left on the node.
+- **Diagnostics**, 3.4 below and §11.5: one `#diag{span, message, labels, help}` from every
+  stage and one renderer, `ern_diag`; `ern_typecheck:check/5` pushes an expected type into
+  `if` branches, `match` and `receive` clauses and a block's last statement, so a mismatch is
+  reported at the leaf, with the origin as the label. No colour until an editor renders
+  through an LSP; no error codes.
+- **Testing**: the MVP 1 programs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`
+  and the golden set; `test/golden/*.erl` holds the Erlang the emitter writes, rewritten by
+  `make golden`; `test/target/*.erl` holds the two hand-written targets, the only tests that
+  are not self-referential. Output is compared as a multiset of lines, since interleaving is
+  scheduling-dependent.
+- **The report was pared** on 2026-09-18, 13,084 words to under 8,000 in one pass, and read
+  back on 2026-09-19: the paring had lost five rules and compressed 86 sentences past easy
+  reading, all restored. The standing rule since: a change is made inside its heading, in the
+  report's register, clear before short, and a section past 600 words is read for restating.
+
+### MVP 2 — the rest of the report on one node (done 2026-09-19)
+
+Each item was a rule MVP 1 refused or did not check; the README's table named the refusal it
+lifted. In the order worked, with what the log's entries explain in full: `Float` and
+operators on user types, resolved during inference from the operand type (§3.1, §4.8, §5.1);
+`foreign fn` and `foreign type`, the check a descriptor term the compiler builds and
+`ern_boundary` interprets, with a checking proxy standing in front of every Ernest address a
+foreign function is given (§4.7, §8.4); bitstrings, with `ern_bits` checking each value
+against its width (§5.11); pattern alternatives (§5.9); `Io.debug` printing by the argument's
+type through `ern_show` (E.1); raw strings (§2.5); abstract-type ownership (§4.4); the reply
+discipline through function values, narrower than planned — a lambda is reply-carrying as a
+value, and a reply-carrying function *type* is not taken (§6.6); `Deadlock` as global
+quiescence rather than a wait-for graph (§8.6); and nine points from the consistency pass of
+2026-09-19.
+
+### MVP 2.5 — a complete standard library (done 2026-09-20)
+
+Twenty-one modules in Ernest, every system door open, four paper programs written and three
+under test, documentation in the `.erc`, and the manual terminal check made. Appendix E is
+the shape and E.0 the rules; **a shim exists only where E.0's first rule admits it**, which
+is a standing rule and not a milestone. The steps, in the order done:
+
+0. **The shape of a module's documentation**, 2026-09-19, first because every module after it
+   is written to it: [`module_doc_template.md`](module_doc_template.md) is generated from
+   `examples/template.ern` and two tests keep them equal, type-check its examples, and run
+   every example ending in `// => v` against `Io.debug`'s rendering. §2.2 and §11.4 say what
+   a doc block is and what `ernc --doc` emits.
+1. **Report first**, 2026-09-19: E.19 `Erl`; §4.2's exception for the standard library's own
+   source root; the `Test` and `TestResult` types in §9.3; and the layout, `stdlib/*.ern`
+   with its Erlang halves in `erl/runtime/src/` and its ABI tests in `erl/runtime/test/`.
+2. **The checker reads the standard library's compiled interfaces** as it reads any
+   dependency's, 2026-09-19, which shrank `ern_prelude` to §9. `ern --test` runs every
+   top-level `Test` in the modules it is given (§11.2).
+3. **Appendix E rewritten module by module**, pure modules first, each done when its Erlang
+   original is deleted with the ABI tests and `ern --test` green. `Map` and `Set` stay over
+   Erlang's `maps`, which share structure on update. Read-backs of the first modules changed
+   the language: based literals and digit separators (§2.5), no negative zero (§3.1), the
+   not-reply-carrying mark not inferred on a container's element (§3.9), and the module of a
+   built-in type declaring its own operators (§4.8).
+4. **The system processes**, 2026-09-20: `Sys.stdin`, `Sys.fs`, `Sys.keys` and `Sys.tcp` as
+   runtime processes bound by the launcher, each speaking its §9.3 type and used through its
+   Appendix E module, never by `send` (E.0 rule 8); `Ets` under `stdlib/` as Appendix D has
+   it. `Tcp` is processes first: every socket is a process, so `monitor`, `kill` and `via`
+   accept it. **Measured** with `examples/echo.ern`: 2,000 round trips over loopback take
+   160 ms through socket processes against 90 ms in raw Erlang, 35 µs a round trip, 1.8
+   times raw — the verdict is to keep the processes; a foreign fast path stays available
+   under E.0 rule 1 if a program ever shows it matters, and `read` would move socket
+   ownership between processes, which principle 3 refuses. Writing the paper programs found
+   three defects, one of them in the report (E.17 now says what an `Entry`'s path is). Two
+   terminal defects went into §8.2: raw mode set with `stty` on an inheriting port, and an
+   escape alone for fifty milliseconds being the key. `snake` stays compiled-only and was
+   checked by hand, since no test can press a key.
+5. **What "complete" means beyond that**: Erlang's standard library read module by module on
+   2026-09-18; the table is under "Reference". A function enters Appendix E when E.0's rules
+   admit it, report first; nothing waits for a program to ask.
+6. **Documentation in the `.erc`**, 2026-09-20: `ernc` writes each module's doc blocks and
+   each function's parameters as written into EEP 48's `Docs` chunk, so `code:get_doc/1`
+   reads an Ernest module and `ernc --doc` on a compiled module reads the chunk. §11.1 and
+   §11.4 say so. The shell's `:doc` and `Shift-Tab` depend on it.
+
+**The naming of the toolchain**, a detour between steps 4 and 5, done 2026-09-20: every
+Erlang module `ern_<thing>`, every compiled Ernest module `ern@<namespace>`, `lib/` became
+`erl/`, the standard library's Erlang half joined the runtime, and two wrong names were fixed
+(`ern_compiler` to `ern_emitter`, `ern_check` to `ern_boundary`). The rule is in the style
+guide, the record in [`naming.md`](naming.md). What remains of it is `libs/` in MVP 2.7.
+
+---
+
+## Reference
+
+### The emitter's two tables
+
+Decided before the emitter was written and kept as its specification; the code is the truth
+now, and these are what a change to it is read against. Values follow §8.4 throughout. Types
+are erased: `type_decl`, `abstract_decl`, `foreign_type_decl`, `signature`, `field` and the
+`t_*` records produce no code, the interface chunk carrying them.
+
+| Record | Erlang |
+|---|---|
+| `constructor` | nullary: the quoted atom; positional: `{'C', V}`; named: `{'C', V1, ..., Vn}` in canonical field order |
+| `fn_decl`, top level | a function clause; exported if `export`; a type member is `'Stack.push'` |
+| `fn_decl`, in a block | lifted to a module function with its free variables as leading parameters; the name is bound to a closure over them |
+| `let_decl` | `name/0`, reading a value the module's `'$init'/0` computed once in dependency order before `main` (§8.5) |
+| `foreign_fn_decl` | a clause calling the named `M:F/A` |
+| `param` | the pattern in the clause head |
+| `e_lit` | integer, float, or char literal; string as a binary; bool as an atom |
+| `e_var` | a local: the Erlang variable; a top-level fn as a value: `fun f/N`; a top-level let: `name()`; a prelude name: table below |
+| `e_con` | as `constructor`; a single-positional constructor as a value: `fun(V) -> {'C', V} end` |
+| `field_set` | its value at its canonical position |
+| `e_tuple`, `e_list` | tuple, list |
+| `e_bits`, `bit_seg` | bit syntax, each value checked by `ern_bits` |
+| `e_block` | a sequence; `binding` with `=` as `Pat = Expr`; `binding` with `<-` as a `case` on `Left`/`Right` or `None`/`Some` with the rest of the block in the second clause (§5.5) |
+| `e_call` | `F(Args)` for a local; `f(Args)` or `'ern@m':f(Args)` for a known function; a prelude name: table below |
+| `e_neg` | `-E`; on `Float`, `0.0 - E`, so that no negative zero arises (§3.1) |
+| `e_binop` | `Int`: `+ - * div rem` (`/` is `div`, `%` is `rem`; a zero divisor's `badarith` becomes `Fault("division by zero")`); `<>`: binary append for `String` and `Bytes`, `++` for `List`; `==`, `!=`: `=:=`, `=/=`; `<`, `<=`, `>`, `>=` on `Int`, `Float`, `Char`, `String`: the native operators, since binaries compare by code point; `&&`, `\|\|`: `andalso`, `orelse`; `::`: `[H \| T]` |
+| `e_lambda` | `fun(Pats) -> Body end` |
+| `e_if` | `case C of true -> T; false -> E end` |
+| `e_match`, `clause` | `case`; a clause whose guard is not an Erlang guard expression falls through by a continuation: `Rest = fun() -> <remaining clauses> end`, so no code is duplicated |
+| `e_receive`, `after_clause` | `receive ... after T -> B end`; a receive guard is §5.9's guard expression and is emitted as an Erlang guard |
+| `p_wild`, `p_var`, `p_lit` | `_`, a variable, a literal (a string as a binary) |
+| `p_con`, `field_pat` | as `constructor`, an omitted named field as `_` |
+| `p_tuple`, `p_list`, `p_cons` | tuple, list, `[H \| T]` |
+| `p_as` | `Var = Pat` |
+| `p_bits` | bit syntax |
+
+**Prelude name to Erlang** (§9.4 to §9.7, Appendix E). Called, or taken as a value with
+`fun M:F/A`.
+
+| Name | Erlang |
+|---|---|
+| `self` | `ern_rt:self/0` |
+| `send`, `answer`, `via`, `monitor`, `kill` | `ern_rt:send/2`, `answer/2`, `via/2`, `monitor/2`, `kill/1` |
+| `spawn` | `ern_rt:spawn/3`, the third argument the spawn site for `Down` (§6.9) |
+| `Address.call`, `Address.callForever` | `ern_rt:call/3`, `call_forever/2` |
+| `remote`, `parallelRemote` | MVP 3; until then `ern_rt:remote/1` answers `Left(NoRemotePeer)` |
+| `Int.+` and the other `userop`s on `Int`, `Int.negate` | the inline operators above |
+| `Float.*` | inline, the operands bound first and the operation's own `badarith` caught and raised as the §7.4 fault |
+| `String.<>`, `List.<>`, `Bytes.<>` | inline as above |
+| `Int.div`, `Int.mod`, `*.compare`, `Int.toString`, ... | `'ern@int':'div'/2` and so on: the namespace's module |
+| `todo` | `ern_rt:fault(<<"todo: ...">>)` |
+| `Sys.stdout`, `Sys.clock`, `Sys.stdin`, `Sys.terminal`, `Sys.fs`, `Sys.tcp` | `ern_rt:sys(stdout)` and so on; `Io`, `Terminal`, `Fs`, `Tcp` are the namespaces' modules |
+| `Clock.*`, `Path.*`, `Random.*`, `Io.*`, `List.*`, ... | `'ern@clock':alarm/2`, `'ern@io':println/1`: the namespace's module |
+
+### Erlang's standard library, read module by module (2026-09-18)
+
+Every user-facing OTP module is a row; what is not a row is OTP's own machinery, which
+Ernest's concepts or toolchain replace.
+
+| Erlang | Ernest | In Appendix E | Waiting, and when | Out, and why |
+|---|---|---|---|---|
+| `erlang` BIFs | the language; `Int`, `Float`, `String`, `Char` | `spawn`, `self`, `send`, `monitor` as §9.4 and §9.5; `abs`, `min`, `max`, rounding, `toString`, `toFloat`, the bit operations | an exit status for §8.6, `Sys.args`, `Sys.env`, MVP 2.7 | `register`, `whereis`: §6.5 has no registry. `link`, `exit`, `throw`, `catch`: §7 and §6.9. `term_to_binary`: MVP 3's transport. `phash2`, `md5`: a hashing library. `make_ref`: identity is a `Reply` or an address. `iolist_to_binary`: `String.fromList`, `<>`. `memory`, `system_info`: the runtime's |
+| `lists` | `List` | E.2, thirty-one functions and `<>` | | `first`, `rest`, `flatten`, `count`, `map2`, `sum`, `max`, `min`: one pipe each, rule 4. `scan`, `mapFold`, `window`, `chunk`: a `foldLeft` with an accumulator, and each hides a choice about the ends. `permutations`, `transpose`, `combinations`: specialities. `key*`: `Map` |
+| `maps`, `dict`, `orddict`, `gb_trees`, `proplists` | `Map` | E.3 | | the four alternatives: history |
+| `sets`, `ordsets`, `gb_sets` | `Set` | E.4 | | `symmetric_difference`, `is_disjoint`: compositions |
+| `string`, `unicode` | `String`, `Char` | E.5, E.6 | | the list-based half of `string` |
+| `io`, `io_lib` | `Io` | E.1: `print`, `println`, `printError`, `printlnError`, `debug`, `readLine` | | `format`: no format strings, `<>` and `toString` are the one way |
+| `file`, `filelib` | `Fs` | E.17, nine functions | `watch`, and the working directory with absolute paths, MVP 2.7 | `wildcard`: a glob library. `fold_files`: five lines over `List` |
+| `filename` | `Path` | E.14, eight functions | | `absname`, `expand`: `Fs`'s, they read the working directory. `nativename`: a `Path` is in the runtime's syntax |
+| `timer` | `Clock` | `now`, `alarm`, `alarmAt` | `Clock.monotonic` | `send_interval`, `cancel`: E.15's positions. `sleep`: `receive { after ms -> Unit }`. `seconds`, `minutes`: arithmetic |
+| `rand` | `Random` | E.13: `seed`, `next`, `nextFloat` | | |
+| `math` | `Float` | the operators, `abs`, `min`, `max`, `round`, `floor`, `ceil`, `truncate`, `toString`, `sqrt`, `pow`, `exp`, `log`, the trigonometry | | `looselyEquals`: the tolerance is the program's. `toPrecision`: a format, and §9.6 has no format strings |
+| `gen_tcp`, `inet`, `socket`, `ssl` | `Tcp` | E.18 | `Udp` as its own module, a later MVP | socket options: tuning is a library's. TLS: `libs/tls` in MVP 2.7, returning the same `Address(SockMsg)` |
+| `ets` | `Ets` | E.21 and Appendix D | | match specifications, `qlc`: `Ets` is a key-value table |
+| `os` | `Sys` | | `Sys.env`, `Sys.args`, MVP 2.7 | `cmd`: a door to the system a program opens itself, MVP 3 at the earliest |
+| `calendar` | `Time` | | a `Time` type and its parts, MVP 2.7 | formatting: a format is the program's, rule 3 |
+| `binary` | `Bytes` | E.20, and `<>` | | `split`, `match`, `replace`, `encode_unsigned`: `<<...>>` and the `Int` operations |
+| `array`, `queue` | | | | `List` and `Map` give both, rule 4; a persistent array is a library |
+| `eunit` | `Test` | §9.3's `Test` and `TestResult`, run by `ern --test` (§11.2) | | |
+| `base64`, `json`, `uri_string`, `re`, `crypto`, `zlib`, `dets`, `digraph`, `sofs`, `erl_tar`, `zip`, `disk_log`; the applications `ssl`, `inets`, `xmerl`, `public_key`, `asn1`, `mnesia`, `snmp` | libraries | | | each a namespace of its own on Appendix D's pattern, never stdlib |
+| `observer`, `dbg`, `cover`, `debugger`, `dialyzer`, `edoc`, `common_test`, `syntax_tools`, `parsetools`, `argparse`, `escript` | | | | tooling: `ernc --doc`, Ernest's own types, the compiler, `ern`; an argument parser is a library |
+| `gen_*`, `supervisor`, `proc_lib`, `sys`, `logger`, `application`, `code`, `rpc`, `erpc`, `global`, `pg`, `net_kernel`, `persistent_term`, `atomics`, `counters`, `init`, `heart`, `os_mon`, `wx`, `erl_*`, the shell | | | | a function with a mailbox type, fifteen lines of `spawn` and `monitor`, `send` to a sink, MVP 3's distribution, the runtime's internals, `ernc` and `ern` |
+
+Gleam's `gleam_stdlib` v1.0.5, Elixir's core and Haskell's `base` were read the same way, and
+what they have that this table does not take is a position, not a gap: `gleam/order`,
+`gleam/pair` and `gleam/function` (patterns and compositions), `string_tree` (a builder
+BEAM's binary append makes unnecessary), `gleam/uri` (a library), `dynamic/decode` (`Foreign`
+and a JSON library), `string.inspect` (no universal printer), `bool.guard` (`<-`); Elixir's
+`Stream` (§5.1 is strict, a lazy source is a process) and `Keyword` lists (`Map`); Haskell's
+type classes (`toString` per type, `==` structural, `compare` per type).
+
+### Tools, and what was decided before the start
+
+Erlang, OTP 29 (raised from 27 on 2026-09-20), Makefiles, no rebar3, no OTP behaviours; EUnit
+per application under `erl/*/test`, integration tests under `test/`; the toolchain shipped as
+the escript sources in `bin/`, which put `erl/*/ebin` on the code path with no escriptize
+step. Also decided before the start and unchanged: the `erl/` layout, one Erlang application
+per stage; the error format of §11.5; one Erlang module per Ernest module.
+
+### The MVP 1 time budget
+
+| Phase | Parts | Days |
+|---|---|---|
+| 1 | parser, type inference, abstract types, standard types | 24.5 |
+| 2 | compiler, processes, standard library, code generation | 9 |
+| 3 | integration, tests, documentation, error placement, paring | 11 |
+| **Total** | | **44.5, about nine working weeks** |
+
+The actual: MVP 1 done 2026-09-18, MVP 2 the day after, MVP 2.5 the day after that.
