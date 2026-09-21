@@ -30,3 +30,17 @@ The `Shell.Editor.fresh` resolution failure and the three runtime races were imp
 
 What I would actually put to you as candidate language changes: field selection (already queued for MVP 2.6) and, much more tentatively, some way to name a prelude constructor a module has shadowed. The rest I would record and leave alone.
 ```
+
+## Found while writing completion, 2026-09-21
+
+9. **A fault in a foreign function's *return* is silent to the caller's caller.** `fields_of`
+   answered Erlang strings where the ABI wants binaries, so §8.4's boundary faulted the
+   reader — correctly — and the shell became a zombie that painted but never read a key. The
+   fault was right; nothing said it. The shell now monitors its reader and says so, but the
+   general shape is worth a thought: a process that dies of a boundary fault takes its
+   silence with it unless someone monitors it.
+
+10. **Typing ahead while an input runs looks wrong** (found by a test that sent a second
+    input before the first had finished; the second never produced a result within thirty
+    seconds). Not yet diagnosed, and the shell's own, not the language's — recorded here so
+    it is not lost, and it belongs to the hands-on session that closes MVP 2.6.

@@ -13,7 +13,7 @@
 %% Errors are collected per definition; checking continues with the next.
 -module(ern_typecheck).
 
--export([check/3, check/4, check_string/2, prelude_env/0]).
+-export([check/3, check/4, check_string/2, prelude_env/0, prelude_names/0]).
 -export([is_reply_carrying/2, resolve_type/2, lookup_type/2, lookup_con/4, type_state/1,
          set_type_state/2, node_type/1, foreign_impl/1, segment_spec/1, is_value/2]).
 
@@ -142,6 +142,13 @@ set_type_state(St, Env) -> Env#env{st = St}.
 %%
 %% The prelude
 %%
+
+%% Report §11.2: the types and constructors the prelude declares, for
+%% the shell's completion, which offers them as it offers a module's.
+-spec prelude_names() -> {[[atom()]], [[atom()]]}.
+prelude_names() ->
+    #env{types = Ts, cons = Cs} = prelude_env(),
+    {maps:keys(Ts), maps:keys(Cs)}.
 
 -spec prelude_env() -> env().
 prelude_env() ->

@@ -11,7 +11,7 @@
          needs_more/1, check/3,
          type_text/1, declared/1, run/3,
          show/3]).
--export([bindings/1, forget/2, browse/2, doc/2, names/0]).
+-export([bindings/1, forget/2, browse/2, doc/2, names/0, context/1]).
 -export([deaths/1, mine/0, faults/0, processes/0, load/2, reload/1, output/1]).
 -export([is_terminal/0, write/1, screen/1, to_screen/1]).
 
@@ -58,7 +58,8 @@ start() ->
 %% completion reads. The reader asks for the names while an input runs,
 %% when the session is busy answering nothing, so it cannot be a message
 %% to the session; the front end keeps the latest, as it keeps what the
-%% runner loaded.
+%% runner loaded. An input's declarations join the session when it has
+%% run, not when it is checked, so this is set in both places.
 remember(Env) ->
     persistent_term:put({?MODULE, env}, Env),
     Env.
@@ -237,7 +238,7 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
                  fun() ->
                      Outcome = try
                                    V = value(Mod, Binds),
-                                   {'Ok', bind(Env1, Binds, Ns, V, T, TEnv, Iface),
+                                   {'Ok', remember(bind(Env1, Binds, Ns, V, T, TEnv, Iface)),
                                     #value{term = V, desc = Desc}}
                                catch
                                    throw:{ern, fault, Msg} -> {'Faulted', Msg};
@@ -299,6 +300,46 @@ bindings(#env{session = S} = Env) ->
                                          {ok, Scheme} <- [scheme(Q, Env)]])],
     Types ++ Values.
 
+%% Report §11.2: what may stand where the cursor is, which the parser
+%% knows and nothing else does: it says what it wanted where it stopped
+%% (§11.5's diagnostic carries the tag). Both readings are tried, as
+%% `input/1` tries them. Completion decides for itself which kinds of
+%% name a context admits; this only answers the context.
+-spec context(binary()) -> atom() | {'Fields', [binary()]}.
+context(Before) ->
+    case [What || {true, What} <- [wanted(ern_parser:parse_expr(Before)),
+                                   wanted(ern_parser:parse_string(Before))],
+                  What =/= undefined] of
+        [What | _] -> where(What);
+        [] -> 'Expression'
+    end.
+
+wanted({error, #diag{incomplete = Incomplete, expected = What}}) -> {Incomplete, What};
+wanted(_) -> {false, undefined}.
+
+where(expression) -> 'Expression';
+where(typename) -> 'TypeName';
+where(pattern) -> 'Pattern';
+where(declaration) -> 'Declaration';
+where({field, Con}) -> {'Fields', fields_of(Con)};
+%% the parser could not tell a field's name from a value; the
+%% constructor's type can, and only a named constructor has fields
+where({field_or_value, Con}) ->
+    case fields_of(Con) of
+        [] -> 'Expression';
+        Fields -> {'Fields', Fields}
+    end.
+
+%% The fields of a constructor in scope, which the interfaces carry.
+fields_of(Con) ->
+    Env = persistent_term:get({?MODULE, env}, #env{}),
+    case [Fs || #iface{types = Ts} <- Env#env.ifaces ++ ern_prelude:stdlib_ifaces(),
+                {_, #tinfo{constructors = Cs}} <- maps:to_list(Ts),
+                #cinfo{name = N, fields = {named, Fs}} <- Cs, N =:= Con] of
+        [Fields | _] -> [unicode:characters_to_binary(atom_to_list(F)) || F <- Fields];
+        [] -> []
+    end.
+
 %% Report §11.2: every name completion may reach — the session's, the
 %% prelude's, and each module in scope with its exports — as
 %% `Shell.Complete.Name`, whose fields are in canonical order (§3.5):
@@ -316,8 +357,11 @@ names(#env{ifaces = Ifaces, session = S} = Env) ->
             || {N, _} <- maps:to_list(maps:get(types, S, #{}))]
         ++ [name('Constructor', atom_to_list(N), atom_to_list(N))
             || {N, _} <- maps:to_list(maps:get(cons, S, #{}))],
+    {TypeQs, ConQs} = ern_typecheck:prelude_names(),
     Prelude = [name('Value', qname_text(Q), qname_text(Q) ++ " : " ++ Type)
-               || {Q, Type} <- ern_prelude:values()],
+               || {Q, Type} <- ern_prelude:values()]
+        ++ [name('Type', qname_text(Q), "type " ++ qname_text(Q)) || Q <- TypeQs]
+        ++ [name('Constructor', qname_text(Q), qname_text(Q)) || Q <- ConQs],
     Modules = lists:append([module_names(I, St) || I <- Ifaces ++ ern_prelude:stdlib_ifaces()]),
     lists:usort(Session ++ Prelude ++ Modules).
 

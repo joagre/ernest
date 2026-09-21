@@ -369,6 +369,39 @@ completion() ->
     %% and the line being typed is still there, completed to what they share
     ?assert(lists:any(fun(L) -> binary:match(L, <<"> List.filter">>) =/= nomatch end, Lines)).
 
+%% report §11.2: what may stand at the cursor decides what completes,
+%% and the parser is what knows: after `:` a type, inside a named
+%% constructor its fields, and everywhere else the values,
+%% constructors and modules in scope
+context_test_() ->
+    {timeout, 90, fun context/0}.
+
+context() ->
+    Screen = screen(alone("../bin/ern --shell"),
+                    [{expect, "> "},
+                     {send, hex("type Zebra = Zebra(width : Int, height : Int)\r")},
+                     %% the echo of a declaration holds its own name, so
+                     %% no text marks that it has run; this is one of the
+                     %% moments the harness has to wait out
+                     {sleep, 1500},
+                     {send, hex("let z : Ze") ++ "09"},          % a type position
+                     {expect, "let z : Zebra"},
+                     {send, hex(" = Zebra(w") ++ "09"},          % a field position
+                     {expect, "Zebra(width"},
+                     {send, hex(" = 1, hei") ++ "09"},           % the other field
+                     {expect, "height"},
+                     {send, hex(" = 2)\r")},
+                     {expect, "z : Zebra"},
+                     {sleep, 300},
+                     {send, "04"}],
+                    30, "16x70"),
+    Lines = [L || L <- binary:split(Screen, <<"\n">>, [global]), L =/= <<>>],
+    Text = iolist_to_binary(Lines),
+    %% the input the completions built ran and bound
+    ?assertMatch({_, _}, binary:match(Text, <<"z : Zebra">>)),
+    %% a type position offered the type, not the constructor's value
+    ?assertMatch({_, _}, binary:match(Text, <<"let z : Zebra = Zebra(width = 1, height = 2)">>)).
+
 %% report §11.2: the parser says when more input could finish what was
 %% typed, and the shell asks it for each reading it would try
 needs_more_test() ->

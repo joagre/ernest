@@ -39,6 +39,9 @@ foreign fn needsMore(input : String) -> Bool = "ern_shell:needs_more/1"
 // Reading the compiled interfaces is the host's; the matching is
 // `Shell.Complete`'s.
 foreign fn names() -> List(Shell.Complete.Name) with m = "ern_shell:names/0"
+// Report §11.2: what may stand at the cursor, which the parser knows,
+// since it says what it wanted where it stopped.
+foreign fn context(before : String) -> Shell.Complete.Where with m = "ern_shell:context/1"
 foreign fn check(env : Env, from : String, input : String) -> Either(String, #(Env, Checked))
     with m = "ern_shell:check/3"
 // The host's alone: where the startup files are, the person's first and
@@ -64,7 +67,8 @@ foreign fn holdTerminal(reader : Address(a)) -> Unit with m = "ern_rt:hold_termi
 // The session
 //
 
-type ShellMsg = Typed(String) | Eof | Interrupted | Done(Outcome) | Died(Down) | Ready
+type ShellMsg = Typed(String) | Eof | Interrupted | Done(Outcome) | Died(Down)
+              | ReaderDied(Down) | Ready
 
 // What the session carries between inputs: the front end's environment and
 // the settings `:set` changes, which are ordinary values.
@@ -112,6 +116,10 @@ export fn main() -> Unit with ShellMsg = {
                                          keeping = true, hinted = false, tabbed = false))
         });
         holdTerminal(reader);
+        // report §11.2: an editor that cannot read keys is no shell, so
+        // the reader's death is said and the session ends with it; it is
+        // the shell's own process, which a fault report leaves out
+        monitor(reader, ReaderDied);
         // report §8.2: the prompt waits for the reader to hold the
         // keyboard, since until then the terminal is still echoing lines
         receive { Ready -> Unit };
@@ -569,14 +577,19 @@ fn completing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading 
               state : Shell.Editor.State) -> Unit with ReaderMsg = {
     let Reading(tabbed = tabbed) = reading;
     let Shell.Editor.State(text = line, at = at) = state;
-    if String.isEmpty(Shell.Complete.word(String.slice(line, 0, at))) then
+    let typed = Shell.Complete.word(String.slice(line, 0, at));
+    if String.isEmpty(typed) then
         // report §11.2: nothing before the cursor to complete, so `Tab`
         // indents. Four spaces and no tab: the style guide's rule, and
         // a tab in the line is invisible where spaces are what they
         // look like (§0, principle 3)
         showing(session, screen, reading, indented(state, line, at))
     else {
-        let completion = Shell.Complete.complete(line, at, names());
+        // the parser is asked about the text before the word being
+        // completed: with the word there it has been read already, and
+        // what may stand at the cursor is what may stand in its place
+        let where = context(String.slice(line, 0, at - String.size(typed)));
+        let completion = Shell.Complete.complete(line, at, names(), where);
         let #(text, next) = Shell.Complete.applied(line, at, completion);
         if tabbed then listing(screen, completion) else Unit;
         let shown = Shell.Editor.typed(state, text, next);
@@ -690,6 +703,11 @@ fn keyLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = r
   | Eof -> finish(screen, "\n")
   | Interrupted -> { prompt(screen); keyLoop(state, screen) }
   | Died(down) -> { reportDeath(screen, down); keyLoop(state, screen) }
+  | ReaderDied(down) -> match down {
+        Down(reason = Returned) -> finish(screen, "")
+      | other -> finish(screen, "the shell stopped reading the keyboard: "
+                                    <> faultLine(other) <> "\n")
+    }
   | Done(_) -> keyLoop(state, screen)
 }
 

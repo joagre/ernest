@@ -162,7 +162,8 @@ declaration(Ts) ->
         [{fn, _} | _] -> fn_decl(Ts2, Doc, Export);
         [{'let', _} | _] -> let_decl(Ts2, Doc, Export);
         [{foreign, _} | _] -> foreign_decl(Ts2, Doc, Export);
-        [T | _] -> fail(pos(T), "expected a declaration (type, abstract, fn, let, foreign)"
+        [T | _] -> wanted(declaration, pos(T),
+                          "expected a declaration (type, abstract, fn, let, foreign)"
                                 " instead of " ++ describe(T))
     end.
 
@@ -401,7 +402,7 @@ type([{typename, Pos, _} | _] = Ts) ->
 type([{ident, Pos, Name} | R]) ->
     w({#t_var{pos = Pos, name = Name}, R});
 type([T | _]) ->
-    fail(pos(T), "expected a type instead of " ++ describe(T)).
+    wanted(typename, pos(T), "expected a type instead of " ++ describe(T)).
 
 %% {typename "."} followed by a final segment. Returns {con, Path, Name} for
 %% an uppercase final, {value, Path, Name} for an ident or userop final.
@@ -607,22 +608,28 @@ primary([{'_', Pos} | _]) ->
 primary([{Kw, Pos} | _]) when Kw =:= 'if'; Kw =:= match; Kw =:= 'receive'; Kw =:= fn ->
     fail(Pos, "`" ++ atom_to_list(Kw) ++ "` is not an operand", "parenthesize it");
 primary([T | _]) ->
-    fail(pos(T), "expected an expression instead of " ++ describe(T)).
+    wanted(expression, pos(T), "expected an expression instead of " ++ describe(T)).
 
 constructor_expr(Pos, Path, Name, [{'(', _} | R]) ->
     case R of
         [{'..', _} | R1] ->
             {Base, R2} = expr(R1),
-            {Sets, R3} = sep_by(expect(R2, ','), ',', fun field_set/1),
+            {Sets, R3} = sep_by(expect(R2, ','), ',', field_of(Name)),
             w({#e_con{pos = Pos, path = Path, name = Name, args = {named, Base, Sets}},
                expect(R3, ')')});
         [{ident, _, _}, {'=', _} | _] ->
-            {Sets, R1} = sep_by(R, ',', fun field_set/1),
+            {Sets, R1} = sep_by(R, ',', field_of(Name)),
             w({#e_con{pos = Pos, path = Path, name = Name, args = {named, undefined, Sets}},
                expect(R1, ')')});
         [{')', P} | _] ->
             fail(P, "a constructor's fields are listed inside the parentheses",
                  "a nullary constructor takes none: write it without parentheses");
+        [{eof, P} | _] ->
+            %% report §11.2: the input ends where the constructor's first
+            %% argument would stand, and positional or named is not
+            %% decided yet: what may stand here is a value or a field's
+            %% name, and only the constructor's type tells which
+            wanted({field_or_value, Name}, P, "expected an expression instead of end of input");
         _ ->
             {E, R1} = expr(R),
             w({#e_con{pos = Pos, path = Path, name = Name, args = {positional, E}},
@@ -631,10 +638,14 @@ constructor_expr(Pos, Path, Name, [{'(', _} | R]) ->
 constructor_expr(Pos, Path, Name, Ts) ->
     w({#e_con{pos = Pos, path = Path, name = Name}, Ts}).
 
-field_set(Ts) ->
-    {Name, Pos, R} = expect_ident_pos(Ts),
-    {E, R1} = expr(expect(R, '=')),
-    w({#field_set{pos = Pos, name = Name, expr = E}, R1}).
+%% Report §11.2: a field of this constructor, which the tag names, so
+%% that completion knows which fields may stand at the cursor.
+field_of(Con) ->
+    fun(Ts) ->
+        {Name, Pos, R} = tagging({field, Con}, fun() -> expect_ident_pos(Ts) end),
+        {E, R1} = expr(expect(R, '=')),
+        w({#field_set{pos = Pos, name = Name, expr = E}, R1})
+    end.
 
 %%
 %% Blocks
@@ -746,7 +757,7 @@ atompat([{'<<', Pos} | R]) ->
     {Segs, R1} = bit_segments(R, fun pattern/1),
     w({#p_bits{pos = Pos, segments = Segs}, R1});
 atompat([T | _]) ->
-    fail(pos(T), "expected a pattern instead of " ++ describe(T)).
+    wanted(pattern, pos(T), "expected a pattern instead of " ++ describe(T)).
 
 constructor_pat(Pos, Path, Name, [{'(', _} | R]) ->
     case R of
@@ -835,7 +846,8 @@ expect_typename(Ts) ->
     {Name, R}.
 
 expect_typename_pos([{typename, Pos, Name} | R]) -> {Name, Pos, R};
-expect_typename_pos([T | _]) -> fail(pos(T), "expected a type name instead of " ++ describe(T)).
+expect_typename_pos([T | _]) ->
+    wanted(typename, pos(T), "expected a type name instead of " ++ describe(T)).
 
 sym(T) -> element(1, T).
 pos(T) -> element(2, T).
@@ -865,6 +877,21 @@ describe({Sym, _}) -> "`" ++ atom_to_list(Sym) ++ "`".
 
 fail(Pos, Message) ->
     fail(Pos, Message, undefined).
+
+%% Report §11.2: what the parser wanted here, for the shell's
+%% completion, which asks what may stand at the cursor. Only the
+%% categories completion acts on are marked; every other failure leaves
+%% the field alone.
+wanted(What, Pos, Message) ->
+    tagging(What, fun() -> fail(Pos, Message) end).
+
+%% What a failure inside this call wanted, where the caller knows it and
+%% the failing code does not: a field name belongs to its constructor.
+tagging(What, Parse) ->
+    try Parse()
+    catch throw:{parse_error, #diag{expected = undefined} = D} ->
+        throw({parse_error, D#diag{expected = What}})
+    end.
 
 %% Report §11.5: the message states the rule, the help line the fix.
 fail(Pos, Message, Help) ->

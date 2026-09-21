@@ -10,6 +10,11 @@
 
 export type Kind = Value | Type | Constructor | Module
 
+// Report §11.2: what may stand where the cursor is, which the parser
+// answers by saying what it wanted where it stopped. Each admits its
+// own kinds of name, which is what a completion is filtered by.
+export type Where = Expression | TypeName | Pattern | Declaration | Fields(List(String))
+
 // A name the shell can complete to: as it is typed, what it is, and the
 // line a listing shows, which carries its type.
 export type Name = Name(text : String, kind : Kind, shown : String)
@@ -26,9 +31,10 @@ export let nothing = Completion(word = "", candidates = [])
 // Report §11.2: the word before the cursor completes against the names
 // in scope, segment by segment, so `Li` gives `List.` and `List.ma`
 // gives `List.map`.
-export fn complete(text : String, at : Int, names : List(Name)) -> Completion = {
+export fn complete(text : String, at : Int, names : List(Name), where : Where)
+    -> Completion = {
     let typed = word(String.slice(text, 0, at));
-    match matches(typed, names) {
+    match matches(typed, admitted(names, where)) {
         [] -> nothing
       | [only] -> Completion(word = whole(only), candidates = [])
       | many -> {
@@ -67,6 +73,22 @@ fn whole(name : Name) -> String = match name {
     Name(text = text, kind = Module) -> text <> "."
   | Name(text = text) -> text
 }
+
+// Report §11.2: what a context admits. An expression takes values,
+// constructors and the modules they are in; a type takes types and
+// modules; a pattern takes constructors and modules; a field position
+// takes the fields of its constructor and nothing else. A declaration
+// is where an input may also be an expression, so it admits both.
+fn admitted(names : List(Name), where : Where) -> List(Name) = match where {
+    Fields(fields) ->
+        List.map(fields, fn(field) = Name(text = field, kind = Value, shown = field))
+  | TypeName -> List.filter(names, fn(name) = isKind(name, Type) || isKind(name, Module))
+  | Pattern ->
+        List.filter(names, fn(name) = isKind(name, Constructor) || isKind(name, Module))
+  | _ -> List.filter(names, fn(name) = !isKind(name, Type))
+}
+
+fn isKind(name : Name, kind : Kind) -> Bool = match name { Name(kind = own) -> own == kind }
 
 // The line a completion leaves, and where the cursor lands in it: the
 // word before the cursor is replaced, since an abbreviation is no
@@ -148,33 +170,33 @@ fn shareds(a : String, b : String, upTo : Int) -> String =
 //
 
 let only = Test(name = "one candidate completes to the whole of itself", run = fn() =
-    becomes(complete("List.ma", 7, library()), "List.map"))
+    becomes(complete("List.ma", 7, library(), Expression), "List.map"))
 
 let module = Test(name = "a module completes to its name and a dot", run = fn() =
-    becomes(complete("Li", 2, library()), "List."))
+    becomes(complete("Li", 2, library(), Expression), "List."))
 
 let sharing = Test(name = "several candidates give what they share", run = fn() =
-    becomes(complete("List.f", 6, library()), "List.filter"))
+    becomes(complete("List.f", 6, library(), Expression), "List.filter"))
 
 let abbreviation = Test(name = "an abbreviation reaches a name by its word starts",
                         run = fn() =
-    becomes(complete("List.fM", 7, library()), "List.filterMap"))
+    becomes(complete("List.fM", 7, library(), Expression), "List.filterMap"))
 
 let shortModule = Test(name = "a segment is abbreviated too", run = fn() =
-    becomes(complete("L.fm", 4, library()), "List.filterMap"))
+    becomes(complete("L.fm", 4, library(), Expression), "List.filterMap"))
 
 let prefixFirst = Test(name = "a prefix is listed before an abbreviation", run = fn() =
-    match complete("List.f", 6, library()) {
+    match complete("List.f", 6, library(), Expression) {
         Completion(candidates = Name(text = first) :: _) ->
             if first == "List.filter" then Passed else Failed(first)
       | _ -> Failed("no candidates")
     })
 
 let noneAtAll = Test(name = "a word that reaches nothing completes to nothing", run = fn() =
-    becomes(complete("Zz", 2, library()), ""))
+    becomes(complete("Zz", 2, library(), Expression), ""))
 
 let inTheMiddle = Test(name = "the word before the cursor is what completes", run = fn() =
-    becomes(complete("List.ma(xs)", 7, library()), "List.map"))
+    becomes(complete("List.ma(xs)", 7, library(), Expression), "List.map"))
 
 let words = Test(name = "a word ends where a name cannot go on", run = fn() = {
     let seen = word("1 + List.ma");
@@ -183,10 +205,20 @@ let words = Test(name = "a word ends where a name cannot go on", run = fn() = {
 
 let applying = Test(name = "a completion replaces the word and moves the cursor",
                     run = fn() = {
-    let #(text, at) = applied("1 + L.fm(xs)", 8, complete("1 + L.fm(xs)", 8, library()));
+    let #(text, at) = applied("1 + L.fm(xs)", 8, complete("1 + L.fm(xs)", 8, library(), Expression));
     if text == "1 + List.filterMap(xs)" && at == 18 then Passed
     else Failed("\"" <> text <> "\" at " <> Int.toString(at))
 })
+
+let inAType = Test(name = "a type position takes types and modules only", run = fn() =
+    becomes(complete("In", 2, library(), TypeName), "Int"))
+
+let inAPattern = Test(name = "a pattern position takes constructors", run = fn() =
+    becomes(complete("So", 2, library(), Pattern), "Some"))
+
+let inFields = Test(name = "a field position takes the fields of its constructor",
+                    run = fn() =
+    becomes(complete("na", 2, library(), Fields(["name", "level"])), "name"))
 
 fn library() -> List(Name) = [
     Name(text = "List", kind = Module, shown = "module List"),
