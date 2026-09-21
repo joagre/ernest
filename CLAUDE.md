@@ -28,7 +28,7 @@ The rules below are in the order of work: what is authoritative, the repository,
 ## Before code
 
 - **The report changes first.** An anomaly found while implementing changes the report, then the decisions log, then the code.
-- **Ask before scaffolding** when a decision affects the report or the plan.
+- **A change to the report or the plan is stated before it is made, not asked about.** Give the change and the argument for it, make it, and report it in the conformance section. Stop and wait only where the answer decides what gets built and guessing would throw the work away; that case is rare, and everything else is stated and done.
 - **List the report sections a module implements before writing it.**
 - **Quote the exact section or grammar rule** when touching normative material.
 
@@ -49,6 +49,7 @@ The rules below are in the order of work: what is authoritative, the repository,
 ### Correctness
 
 - **No warts.** Never leave an approximation, a silent deviation from the report, or an unstated semantic choice in the code.
+- **A test written after the code is a regression test.** Say so, and name what it does not cover. A test that passed on its first run has confirmed the code, not discovered anything; what has actually found defects here is the terminal harness under load, a read-back of the resulting code, and the user.
 - **A known defect is fixed when found**, however few programs it has misled. A gap too large to fix now goes in the plan with a date, never in a comment.
 - **Where the report is silent, add the sentence to the report or reject the input with an error.** Never accept it silently, and state the choice to the user when it is made.
 - **A refusal made for a later MVP's sake names that MVP in its error text.** A test checks that the README's table lists it.
