@@ -613,25 +613,52 @@ dependency_groups(Values, Env) ->
 %% so the graph that orders the groups holds names only and a member is
 %% checked on demand (run_group); after it, the typed AST names every
 %% member, which the §8.5 cycle rule reads.
+references(#fn_decl{params = Ps} = D, Env) ->
+    lists:usort(refs(body_of(D), Env, [], binds_params(Ps, #{})));
 references(D, Env) ->
-    lists:usort(refs(body_of(D), Env, [])).
+    lists:usort(refs(body_of(D), Env, [], #{})).
 
 body_of(#fn_decl{body = B}) -> B;
 body_of(#let_decl{body = B}) -> B;
 body_of(_) -> undefined.
 
-refs(#e_var{path = [], name = N}, _Env, Acc) -> [{undefined, N} | Acc];
-refs(#e_var{path = Ns, name = N}, #env{ns = Ns} = Env, Acc) when Ns =/= [] ->
+%% Report §8.5: what a definition refers to, with the names bound inside
+%% it left out. A lambda's parameter, a pattern's variable, or a block's
+%% binding shadows a top-level name (§4.2), and counting it as a
+%% reference made a definition depend on a `let` it never reads, which
+%% the cycle check then reported as a cycle.
+refs(#e_lambda{params = Ps, body = Body}, Env, Acc, B) ->
+    refs(Body, Env, Acc, binds_params(Ps, B));
+refs(#clause{pattern = P, guard = G, body = Body}, Env, Acc, B) ->
+    B1 = binds(P, B),
+    refs(Body, Env, refs(G, Env, refs_in_pattern(P, Env, Acc, B), B1), B1);
+refs(#e_block{stmts = Stmts}, Env, Acc, B) ->
+    %% a local `fn` is in scope for the whole block, a binding from the
+    %% statement after it
+    B0 = lists:foldl(fun(#fn_decl{owner = undefined, name = N}, Bs) -> Bs#{N => true};
+                        (_, Bs) -> Bs
+                     end, B, Stmts),
+    {Acc1, _} = lists:foldl(fun(#binding{pattern = P, expr = E}, {A, Bs}) ->
+                                {refs(E, Env, A, Bs), binds(P, Bs)};
+                               (#fn_decl{params = Ps, body = Body}, {A, Bs}) ->
+                                {refs(Body, Env, A, binds_params(Ps, Bs)), Bs};
+                               (Stmt, {A, Bs}) ->
+                                {refs(Stmt, Env, A, Bs), Bs}
+                            end, {Acc, B0}, Stmts),
+    Acc1;
+refs(#e_var{path = [], name = N}, _Env, Acc, B) when is_map_key(N, B) -> Acc;
+refs(#e_var{path = [], name = N}, _Env, Acc, _B) -> [{undefined, N} | Acc];
+refs(#e_var{path = Ns, name = N}, #env{ns = Ns} = Env, Acc, B) when Ns =/= [] ->
     %% the module's own qualified name (report §4.2)
-    refs(#e_var{path = [], name = N}, Env, Acc);
-refs(#e_var{path = [Owner], name = N}, #env{local_types = LT}, Acc) ->
+    refs(#e_var{path = [], name = N}, Env, Acc, B);
+refs(#e_var{path = [Owner], name = N}, #env{local_types = LT}, Acc, _B) ->
     case maps:is_key(Owner, LT) of true -> [{Owner, N} | Acc]; false -> Acc end;
-refs(#e_var{path = P} = V, #env{ns = Ns} = Env, Acc) when length(P) > 1 ->
+refs(#e_var{path = P} = V, #env{ns = Ns} = Env, Acc, B) when length(P) > 1 ->
     case lists:prefix(Ns, P) andalso length(P) =:= length(Ns) + 1 of
-        true -> refs(V#e_var{path = [lists:last(P)]}, Env, Acc);
+        true -> refs(V#e_var{path = [lists:last(P)]}, Env, Acc, B);
         false -> Acc
     end;
-refs(#e_binop{op = Op, left = L, right = R}, Env, Acc) when is_atom(Op) ->
+refs(#e_binop{op = Op, left = L, right = R}, Env, Acc, B) when is_atom(Op) ->
     Member = case lists:member(Op, ?ORDER) of
                  true -> compare;
                  false -> case lists:member(Op, ?ARITH) orelse Op =:= '<>' of
@@ -639,16 +666,40 @@ refs(#e_binop{op = Op, left = L, right = R}, Env, Acc) when is_atom(Op) ->
                               false -> none
                           end
              end,
-    refs(R, Env, refs(L, Env, operator_ref(Member, L, Env) ++ Acc));
-refs(#e_not{expr = X}, Env, Acc) ->
-    refs(X, Env, Acc);
-refs(#e_neg{expr = X}, Env, Acc) ->
-    refs(X, Env, operator_ref(negate, X, Env) ++ Acc);
-refs(T, Env, Acc) when is_tuple(T) ->
-    lists:foldl(fun(X, A) -> refs(X, Env, A) end, Acc, tl(tuple_to_list(T)));
-refs(L, Env, Acc) when is_list(L) ->
-    lists:foldl(fun(X, A) -> refs(X, Env, A) end, Acc, L);
-refs(_, _, Acc) -> Acc.
+    refs(R, Env, refs(L, Env, operator_ref(Member, L, Env) ++ Acc, B), B);
+refs(#e_not{expr = X}, Env, Acc, B) ->
+    refs(X, Env, Acc, B);
+refs(#e_neg{expr = X}, Env, Acc, B) ->
+    refs(X, Env, operator_ref(negate, X, Env) ++ Acc, B);
+refs(T, Env, Acc, B) when is_tuple(T) ->
+    lists:foldl(fun(X, A) -> refs(X, Env, A, B) end, Acc, tl(tuple_to_list(T)));
+refs(L, Env, Acc, B) when is_list(L) ->
+    lists:foldl(fun(X, A) -> refs(X, Env, A, B) end, Acc, L);
+refs(_, _, Acc, _B) -> Acc.
+
+%% A pattern binds its variables; an expression inside it, a bitstring
+%% segment's size, refers as any expression does.
+binds(P, B) ->
+    case P of
+        #p_var{name = N} -> B#{N => true};
+        _ when is_tuple(P) -> lists:foldl(fun binds/2, B, tl(tuple_to_list(P)));
+        _ when is_list(P) -> lists:foldl(fun binds/2, B, P);
+        _ -> B
+    end.
+
+binds_params(Ps, B) ->
+    lists:foldl(fun(#param{pattern = P}, Bs) -> binds(P, Bs) end, B, Ps).
+
+refs_in_pattern(P, Env, Acc, B) ->
+    case P of
+        #bit_seg{specs = Specs} -> refs(Specs, Env, Acc, B);
+        _ when is_tuple(P) ->
+            lists:foldl(fun(X, A) -> refs_in_pattern(X, Env, A, B) end, Acc,
+                        tl(tuple_to_list(P)));
+        _ when is_list(P) ->
+            lists:foldl(fun(X, A) -> refs_in_pattern(X, Env, A, B) end, Acc, P);
+        _ -> Acc
+    end.
 
 %% The member an operator on Operand calls, once typed and of a local type.
 operator_ref(none, _, _) -> [];

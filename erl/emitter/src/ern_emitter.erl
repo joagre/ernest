@@ -457,8 +457,13 @@ let_order(Lets, Decls) ->
                       lists:foreach(fun(R) -> digraph:add_edge(G, {O, N}, R) end,
                                     [R || R <- closure(refs(B), Fns, []), lists:member(R, Keys)])
                   end, Lets),
-    Order = lists:reverse(digraph_utils:topsort(G)),
+    Sorted = digraph_utils:topsort(G),
     digraph:delete(G),
+    %% report §8.5: the checker rejects a cycle among top-level lets, so
+    %% one here means the two disagree, which is a defect and not a
+    %% program's error
+    false =/= Sorted orelse error({let_cycle, Keys}),
+    Order = lists:reverse(Sorted),
     ByKey = maps:from_list([{{O, N}, D} || #let_decl{owner = O, name = N} = D <- Lets]),
     [maps:get(K, ByKey) || K <- Order].
 
@@ -476,9 +481,31 @@ closure([R | Rest], Fns, Seen) ->
             closure(More ++ Rest, Fns, [R | Seen])
     end.
 
-refs(#e_var{path = [], name = N}) -> [{undefined, N}];
-refs(#e_var{path = [O], name = N}) -> [{O, N}];
-refs(#e_binop{op = Op, left = L, right = R}) ->
+%% Report §8.5: as in the checker, a name bound inside the body is not a
+%% reference to a top-level one of that name (`references/2` there).
+refs(Node) -> refs(Node, #{}).
+
+refs(#e_lambda{params = Ps, body = Body}, B) ->
+    refs(Body, binds_params(Ps, B));
+refs(#clause{pattern = P, guard = G, body = Body}, B) ->
+    B1 = binds(P, B),
+    refs(G, B1) ++ refs(Body, B1);
+refs(#e_block{stmts = Stmts}, B) ->
+    B0 = lists:foldl(fun(#fn_decl{owner = undefined, name = N}, Bs) -> Bs#{N => true};
+                        (_, Bs) -> Bs
+                     end, B, Stmts),
+    {Refs, _} = lists:foldl(fun(#binding{pattern = P, expr = E}, {A, Bs}) ->
+                                {A ++ refs(E, Bs), binds(P, Bs)};
+                               (#fn_decl{params = Ps, body = Body}, {A, Bs}) ->
+                                {A ++ refs(Body, binds_params(Ps, Bs)), Bs};
+                               (Stmt, {A, Bs}) ->
+                                {A ++ refs(Stmt, Bs), Bs}
+                            end, {[], B0}, Stmts),
+    Refs;
+refs(#e_var{path = [], name = N}, B) when is_map_key(N, B) -> [];
+refs(#e_var{path = [], name = N}, _B) -> [{undefined, N}];
+refs(#e_var{path = [O], name = N}, _B) -> [{O, N}];
+refs(#e_binop{op = Op, left = L, right = R}, B) ->
     %% an operator on a local type calls its member (report §4.8, §3.10)
     Member = case ern_typecheck:node_type(L) of
                  {tcon, Q, _} when length(Q) > 1 ->
@@ -488,17 +515,28 @@ refs(#e_binop{op = Op, left = L, right = R}) ->
                      end;
                  _ -> []
              end,
-    Member ++ refs(L) ++ refs(R);
-refs(#e_not{expr = X}) ->
-    refs(X);
-refs(#e_neg{expr = X}) ->
+    Member ++ refs(L, B) ++ refs(R, B);
+refs(#e_not{expr = X}, B) ->
+    refs(X, B);
+refs(#e_neg{expr = X}, B) ->
     case ern_typecheck:node_type(X) of
-        {tcon, Q, _} when length(Q) > 1 -> [{lists:last(Q), negate} | refs(X)];
-        _ -> refs(X)
+        {tcon, Q, _} when length(Q) > 1 -> [{lists:last(Q), negate} | refs(X, B)];
+        _ -> refs(X, B)
     end;
-refs(T) when is_tuple(T) -> lists:append([refs(X) || X <- tl(tuple_to_list(T))]);
-refs(L) when is_list(L) -> lists:append([refs(X) || X <- L]);
-refs(_) -> [].
+refs(T, B) when is_tuple(T) -> lists:append([refs(X, B) || X <- tl(tuple_to_list(T))]);
+refs(L, B) when is_list(L) -> lists:append([refs(X, B) || X <- L]);
+refs(_, _B) -> [].
+
+binds(P, B) ->
+    case P of
+        #p_var{name = N} -> B#{N => true};
+        _ when is_tuple(P) -> lists:foldl(fun binds/2, B, tl(tuple_to_list(P)));
+        _ when is_list(P) -> lists:foldl(fun binds/2, B, P);
+        _ -> B
+    end.
+
+binds_params(Ps, B) ->
+    lists:foldl(fun(#param{pattern = P}, Bs) -> binds(P, Bs) end, B, Ps).
 
 %%
 %% Expressions: expr(E, Cx) -> {Form, Cx}

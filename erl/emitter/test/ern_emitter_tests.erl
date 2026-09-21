@@ -1160,3 +1160,13 @@ deps_test() ->
     {ok, Mod2, Bin2} = ern_emitter:compile(['N'], Typed2, Iface2, Env2),
     {module, Mod2} = code:load_binary(Mod2, "test", Bin2),
     ?assertNot(erlang:function_exported(Mod2, '$deps', 0)).
+
+%% report §8.5: the emitter orders the top-level lets by what they
+%% reference, and a name bound inside a function body is not one of
+%% them; before that, a program like this crashed the emitter, since its
+%% graph held a cycle the checker had not seen
+shadowed_name_in_init_order_test() ->
+    ?assertEqual({ok, <<"3\n">>},
+                 run("let three = pick([3])\n"
+                     "fn pick(xs : List(Int)) -> Int = match xs { [three] -> three | _ -> 0 }\n"
+                     "export fn main() -> Unit with m = Io.println(Int.toString(three))\n")).

@@ -1107,3 +1107,20 @@ bitstring_size_shape_test() ->
     ?assertEqual("a size in a pattern is a variable, an Int literal, or `+`, `-`, `*` of them",
                  err("fn f(b : Bytes) = match b { <<n, rest:size(n / 2)-bytes>> -> rest"
                      " | _ -> b }")).
+
+%% report §8.5, §4.2: a name bound inside a body — a pattern's variable,
+%% a lambda's parameter, a block's binding — shadows a top-level one, so
+%% it is no reference to it and makes no cycle. A `let` that calls such a
+%% function was reported as depending on itself.
+shadowed_name_is_no_reference_test() ->
+    ?assertMatch({ok, _, _, _},
+                 check("let one = pick([1])\n"
+                       "fn pick(xs : List(Int)) -> Int ="
+                       " match xs { [one] -> one | _ -> 0 }\n")),
+    ?assertMatch({ok, _, _, _},
+                 check("let twice = apply(fn(n) = n * 2)\n"
+                       "fn apply(f : (Int) -> Int) -> Int = f(21)\n"
+                       "fn other() -> Int = { let twice = 2; twice }\n")),
+    %% a real cycle is still a cycle
+    ?assertEqual("the initializer of a depends on itself, through b",
+                 err("let a = b()\nfn b() -> Int = a\n")).

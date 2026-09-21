@@ -1,0 +1,182 @@
+//
+// Completion (report §11.2), designed in docs/shell_design.md: what
+// `Tab` puts in the line, and what a second `Tab` lists.
+//
+// A pure function from what is typed and the names in scope. The names
+// come from the compiled interfaces, which only the front end can read,
+// and the matching and the ranking are here, which is where the rule in
+// CLAUDE.md puts them.
+//
+
+export type Kind = Value | Type | Constructor | Module
+
+// A name the shell can complete to: as it is typed, what it is, and the
+// line a listing shows, which carries its type.
+export type Name = Name(text : String, kind : Kind, shown : String)
+
+// What a `Tab` does: the word that stands in place of the one before
+// the cursor, and the names it could still be, which a second `Tab`
+// lists. The word replaces rather than extends, since an abbreviation
+// is no prefix of what it reaches: `L.fm` becomes `List.filterMap`.
+// An empty word changes nothing.
+export type Completion = Completion(word : String, candidates : List(Name))
+
+export let nothing = Completion(word = "", candidates = [])
+
+// Report §11.2: the word before the cursor completes against the names
+// in scope, segment by segment, so `Li` gives `List.` and `List.ma`
+// gives `List.map`.
+export fn complete(text : String, at : Int, names : List(Name)) -> Completion = {
+    let typed = word(String.slice(text, 0, at));
+    match matches(typed, names) {
+        [] -> nothing
+      | [only] -> Completion(word = whole(only), candidates = [])
+      | many -> {
+            let shared = common(List.map(many, fn(name) = whole(name)));
+            // what they share is never shorter than what was typed
+            // where they were reached by prefix, and stands for the
+            // word either way
+            Completion(word = shared, candidates = many)
+        }
+    }
+}
+
+// The word being completed: the qualified name the cursor stands at the
+// end of. A name is letters, digits, `_`, and the `.` between segments.
+export fn word(before : String) -> String = {
+    let size = String.size(before);
+    String.slice(before, start(before, size), size - start(before, size))
+}
+
+fn start(before : String, at : Int) -> Int =
+    if at <= 0 then 0
+    else if inName(String.slice(before, at - 1, 1)) then start(before, at - 1)
+    else at
+
+fn inName(c : String) -> Bool =
+    c == "." || c == "_" || String.toList(c) != [] && isNameChar(c)
+
+fn isNameChar(c : String) -> Bool = match String.toList(c) {
+    [ch] -> Char.isAlpha(ch) || Char.isDigit(ch)
+  | _ -> false
+}
+
+// A module completes to its name and a dot, since the next `Tab`
+// completes inside it; everything else to its name.
+fn whole(name : Name) -> String = match name {
+    Name(text = text, kind = Module) -> text <> "."
+  | Name(text = text) -> text
+}
+
+//
+// Matching: what is typed reaches a name by prefix or by abbreviation,
+// segment by segment. `List.fm` and `L.fM` both reach `List.filterMap`;
+// a prefix is the better match and is listed first.
+//
+
+fn matches(typed : String, names : List(Name)) -> List(Name) =
+    if String.isEmpty(typed) then []
+    else {
+        let parts = String.split(typed, ".");
+        let exact = List.filter(names, fn(name) = reaches(parts, name, true));
+        let loose = List.filter(names, fn(name) = reaches(parts, name, false)
+                                                  && !reaches(parts, name, true));
+        exact <> loose
+    }
+
+fn reaches(parts : List(String), name : Name, exact : Bool) -> Bool = {
+    let segments = String.split(whole(name), ".");
+    List.size(parts) <= List.size(segments) && every(parts, segments, exact)
+}
+
+// Each segment of what is typed against the segment of the name in the
+// same place; the last may be unfinished, the ones before it are whole.
+fn every(parts : List(String), segments : List(String), exact : Bool) -> Bool =
+    match #(parts, segments) {
+        #([], _) -> true
+      | #([last], segment :: _) -> segment == last || begins(segment, last, exact)
+      | #(part :: rest, segment :: more) ->
+            (segment == part || begins(segment, part, exact)) && every(rest, more, exact)
+      | #(_, []) -> false
+    }
+
+fn begins(segment : String, part : String, exact : Bool) -> Bool =
+    if exact then String.startsWith(segment, part)
+    else abbreviates(String.toList(part), String.toList(segment), true)
+
+// An abbreviation matches the starts of the words inside a name:
+// `fM` and `fm` both reach `filterMap`, `m` alone does not.
+fn abbreviates(part : List(Char), segment : List(Char), atStart : Bool) -> Bool =
+    match #(part, segment) {
+        #([], _) -> true
+      | #(_, []) -> false
+      | #(p :: parts, s :: rest) ->
+            if (atStart || Char.isUpper(s)) && Char.toLower(p) == Char.toLower(s) then
+                abbreviates(parts, rest, false)
+            else abbreviates(part, rest, false)
+    }
+
+// The longest text every candidate begins with, which a first `Tab`
+// puts in even where the name is still ambiguous.
+fn common(texts : List(String)) -> String = match texts {
+    [] -> ""
+  | first :: rest -> List.foldLeft(rest, first, fn(shared, text) = shareds(shared, text, 0))
+}
+
+fn shareds(a : String, b : String, upTo : Int) -> String =
+    if upTo >= String.size(a) || upTo >= String.size(b) then String.slice(a, 0, upTo)
+    else if String.slice(a, upTo, 1) == String.slice(b, upTo, 1) then shareds(a, b, upTo + 1)
+    else String.slice(a, 0, upTo)
+
+//
+// The tests (report §9.3), run by `ern --test`, which `make test` does.
+//
+
+let only = Test(name = "one candidate completes to the whole of itself", run = fn() =
+    becomes(complete("List.ma", 7, library()), "List.map"))
+
+let module = Test(name = "a module completes to its name and a dot", run = fn() =
+    becomes(complete("Li", 2, library()), "List."))
+
+let sharing = Test(name = "several candidates give what they share", run = fn() =
+    becomes(complete("List.f", 6, library()), "List.filter"))
+
+let abbreviation = Test(name = "an abbreviation reaches a name by its word starts",
+                        run = fn() =
+    becomes(complete("List.fM", 7, library()), "List.filterMap"))
+
+let shortModule = Test(name = "a segment is abbreviated too", run = fn() =
+    becomes(complete("L.fm", 4, library()), "List.filterMap"))
+
+let prefixFirst = Test(name = "a prefix is listed before an abbreviation", run = fn() =
+    match complete("List.f", 6, library()) {
+        Completion(candidates = Name(text = first) :: _) ->
+            if first == "List.filter" then Passed else Failed(first)
+      | _ -> Failed("no candidates")
+    })
+
+let noneAtAll = Test(name = "a word that reaches nothing completes to nothing", run = fn() =
+    becomes(complete("Zz", 2, library()), ""))
+
+let inTheMiddle = Test(name = "the word before the cursor is what completes", run = fn() =
+    becomes(complete("List.ma(xs)", 7, library()), "List.map"))
+
+let words = Test(name = "a word ends where a name cannot go on", run = fn() = {
+    let seen = word("1 + List.ma");
+    if seen == "List.ma" then Passed else Failed(seen)
+})
+
+fn library() -> List(Name) = [
+    Name(text = "List", kind = Module, shown = "module List"),
+    Name(text = "List.map", kind = Value, shown = "List.map : ..."),
+    Name(text = "List.filter", kind = Value, shown = "List.filter : ..."),
+    Name(text = "List.filterMap", kind = Value, shown = "List.filterMap : ..."),
+    Name(text = "Int", kind = Type, shown = "type Int"),
+    Name(text = "Some", kind = Constructor, shown = "Some : (a) -> Optional(a)")
+]
+
+fn becomes(completion : Completion, text : String) -> TestResult = match completion {
+    Completion(word = word) ->
+        if word == text then Passed
+        else Failed("\"" <> word <> "\" instead of \"" <> text <> "\"")
+}
