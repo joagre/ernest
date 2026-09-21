@@ -69,7 +69,7 @@ fn asked(s : Search, text : String) -> String = match s {
 }
 
 fn missing(query : String, text : String) -> String =
-    if String.isEmpty(query) || indexOf(text, query, 0) != None then "" else "failed "
+    if String.isEmpty(query) || String.indexOf(text, query) != None then "" else "failed "
 
 fn direction(forward : Bool) -> String = if forward then "i-search" else "reverse-i-search"
 
@@ -242,26 +242,19 @@ fn matched(state : State, s : Search, n : Int) -> State = {
           search = Some(Search(..s, back = n)))
 }
 
-fn matchAt(text : String, query : String) -> Int = match indexOf(text, query, 0) {
+fn matchAt(text : String, query : String) -> Int = match String.indexOf(text, query) {
     Some(i) -> i
   | None -> String.size(text)
 }
 
 fn find(history : List(String), query : String, from : Int, step : Int) -> Optional(Int) =
     if from < 1 || from > List.size(history) then None
-    else if indexOf(entry(history, from), query, 0) != None then Some(from)
+    else if String.indexOf(entry(history, from), query) != None then Some(from)
     else find(history, query, from + step, step)
 
 fn step(s : Search) -> Int = match s {
     Search(forward = forward) -> if forward then -1 else 1
 }
-
-// Where `part` begins in `text` at or after `from`. The standard library
-// has no such function (E.5).
-fn indexOf(text : String, part : String, from : Int) -> Optional(Int) =
-    if from + String.size(part) > String.size(text) then None
-    else if String.slice(text, from, String.size(part)) == part then Some(from)
-    else indexOf(text, part, from + 1)
 
 //
 // Editing a line: each is a pure function of the text and the cursor,

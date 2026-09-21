@@ -64,6 +64,18 @@ export foreign fn compare(a : String, b : String) -> Ordering = "ern_string:comp
 /// ```
 export foreign fn contains(s : String, part : String) -> Bool = "ern_string:contains/2"
 
+/// Where the second begins in the first, and `None` where it is not
+/// there. An empty second is at 0.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.indexOf("hello", "ll"), String.indexOf("hello", "x"))
+/// // => #(Some(2), None)
+/// ```
+export foreign fn indexOf(s : String, part : String) -> Optional(Int) =
+    "ern_string:index_of/2"
+
 /// `true` when the string begins with the second.
 ///
 /// ### Examples

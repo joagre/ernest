@@ -1211,6 +1211,7 @@ A `String` is not a container: operations on its characters go through `toList`.
 String.size : (String) -> Int // code points
 String.isEmpty : (String) -> Bool
 String.contains : (String, String) -> Bool // substring
+String.indexOf : (String, String) -> Optional(Int) // where the second begins, None where it is not there; an empty second is 0
 String.startsWith : (String, String) -> Bool
 String.endsWith : (String, String) -> Bool
 String.replace : (String, String, String) -> String // every occurrence of the second by the third; an empty second changes nothing

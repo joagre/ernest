@@ -4,12 +4,21 @@
 %% itself and comparison is Erlang's on binaries, which is by code point.
 -module(ern_string).
 
--export([contains/2, starts_with/2, ends_with/2, replace/3, slice/3, trim/1, to_lower/1,
+-export([contains/2, index_of/2, starts_with/2, ends_with/2, replace/3, slice/3, trim/1, to_lower/1,
          to_upper/1, to_int_base/2, to_float/1, to_list/1, from_list/1, from_utf8/1, to_utf8/1,
          split/2, copy/2, compare/2]).
 
 -spec contains(binary(), binary()) -> boolean().
 contains(S, Sub) -> string:find(S, Sub) =/= nomatch.
+
+%% Appendix E.5: in the characters `string:length/1` counts, as `slice`
+%% takes them, so that the answer indexes the same string `slice` does.
+-spec index_of(binary(), binary()) -> 'None' | {'Some', integer()}.
+index_of(S, Part) ->
+    case string:find(S, Part) of
+        nomatch -> 'None';
+        Suffix -> {'Some', string:length(S) - string:length(Suffix)}
+    end.
 
 -spec starts_with(binary(), binary()) -> boolean().
 starts_with(S, Prefix) -> string:prefix(S, Prefix) =/= nomatch.

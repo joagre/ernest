@@ -126,6 +126,8 @@ string_test() ->
     ?assertEqual(2, S:size(<<"hé"/utf8>>)),
     ?assertEqual(true, S:isEmpty(<<>>)),
     ?assertEqual(true, S:contains(<<"hello">>, <<"ell">>)),
+    ?assertEqual({'Some', 2}, S:indexOf(<<"hello">>, <<"ll">>)),
+    ?assertEqual('None', S:indexOf(<<"hello">>, <<"x">>)),
     ?assertEqual(true, S:startsWith(<<"hello">>, <<"he">>)),
     ?assertEqual(false, S:startsWith(<<"hello">>, <<"lo">>)),
     ?assertEqual(true, S:endsWith(<<"héllo"/utf8>>, <<"llo">>)),
