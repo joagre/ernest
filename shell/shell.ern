@@ -32,7 +32,10 @@ foreign fn reload(env : Env) -> Either(String, #(Env, List(String))) with m =
 foreign fn output(path : String) -> Either(String, String) with m = "ern_shell:output/1"
 foreign fn check(env : Env, from : String, input : String) -> Either(String, #(Env, Checked))
     with m = "ern_shell:check/3"
-foreign fn startupInputs() -> List(#(String, String)) with m = "ern_shell:startup/0"
+// The host's alone: where the startup files are, the person's first and
+// then the node's. Whether they are there, and what they hold, is read
+// here (report §11.2).
+foreign fn startupFiles() -> List(String) with m = "ern_shell:startup_files/0"
 foreign fn typeText(c : Checked) -> String = "ern_shell:type_text/1"
 foreign fn declared(c : Checked) -> List(String) = "ern_shell:declared/1"
 foreign fn spawnInput(env : Env, c : Checked, to : Address(Outcome)) -> Address(Never) with m =
@@ -135,9 +138,25 @@ fn run(
     }
 }
 
-// The inputs of the startup files, in the order the front end gives them.
+// Report §11.2: the inputs of the startup files, the person's first and
+// then the node's, a line an input, each with the file it came from so
+// that a failure names it rather than `input`.
 fn startup(state : State, screen : Address(ScreenMsg)) -> State with ShellMsg =
-    fromFiles(state, screen, startupInputs())
+    fromFiles(state, screen,
+              List.flatMap(startupFiles(), fn(file) = fileInputs(screen, file)))
+
+// A file that is not there is no error; one that cannot be read is said
+// and the session goes on.
+fn fileInputs(screen : Address(ScreenMsg), file : String)
+    -> List(#(String, String)) with m = match Fs.read(Path(file), fileWait) {
+    Left(NotFound) -> []
+  | Left(why) -> { say(screen, file <> " could not be read: " <> trouble(why)); [] }
+  | Right(bytes) -> {
+        let text = Optional.withDefault(String.fromUtf8(bytes), "");
+        let lines = List.filter(String.lines(text), fn(line) = !String.isEmpty(String.trim(line)));
+        List.map(lines, fn(line) = #(file, line))
+    }
+}
 
 fn fromFiles(state : State, screen : Address(ScreenMsg), inputs : List(#(String, String)))
     -> State with ShellMsg = match inputs {
@@ -435,6 +454,9 @@ type Screen = Screen(
 // Report §11.2: the tail's rows, which `:set output n` sets and `0` takes
 // away.
 let tailRows = 5
+
+// How long to wait for the file system, which is a local file.
+let fileWait = 5000
 
 type ScreenMsg = Said(String)                        // the shell's own
                | Wrote(String)                       // a program's

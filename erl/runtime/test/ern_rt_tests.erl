@@ -225,6 +225,24 @@ via_is_not_a_process_test() ->
     {Before, After} = wait(counts2),
     ?assertEqual(Before, After).
 
+%% report §8.4, §6.3: an address handed to a foreign function arrives as
+%% the checking proxy, and the proxy names the process behind it, so what
+%% the runtime holds of a process, its terminal (§11.2) among it, is the
+%% process and not the proxy
+proxy_names_its_process_test() ->
+    Me = self(),
+    Desc = {pid, string, <<"a String">>},
+    ok = ern_rt:run_main(
+           fun() ->
+               Mine = ern_rt:self(),
+               Proxy = ern_boundary:foreign(erlang, hd, [[Mine]], [{list, Desc}], Desc,
+                                            <<"a String">>),
+               Me ! {proxy, {Proxy, ern_rt:process_of(Proxy), Mine}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {Proxy, Behind, Mine} = wait(proxy),
+    ?assertNotEqual(Mine, Proxy),
+    ?assertEqual(Mine, Behind).
+
 %% report §6.5, §7.4: a fault in the function is the target's, and the
 %% process that sent the message goes on
 via_fault_test() ->

@@ -104,9 +104,14 @@ start_reader(undefined) ->
     Tty = self(),
     case ern_rt:own_terminal(keys) of
         ok ->
-            raw_mode(),
-            %% report §8.6: a subscription is a source that can still deliver
+            %% report §8.6: a subscription is a source that can still
+            %% deliver, and it is counted before the mode is set rather
+            %% than after: setting the mode runs `stty`, and while this
+            %% process waits for it, it is waiting with an empty mailbox
+            %% and would be read as quiet, though the answer to Subscribe
+            %% is a computation whose completion delivers a message
             ern_rt:source_begin(),
+            raw_mode(),
             erlang:spawn(fun() -> read_loop(Tty) end);
         taken ->
             %% the program is already ending with the fault (report §8.2)

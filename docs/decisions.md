@@ -3379,13 +3379,16 @@ member where it declares that type, the child module otherwise.
 
 ## Where `foreign` Stops, 2026-09-21
 
-A rule, since every door the shell opens asks the question again and completion will ask it
-in checkpoint 4.
+The rule is in CLAUDE.md, since every door the shell opens asks the question again and
+completion will ask it in checkpoint 4. Why it reads as it does:
 
-**`foreign` is what the host alone can do.** The environment, the command line, the
+**The line is what the host alone can do.** The environment, the command line, the
 compiler's own structures, the sinks a program's output is bound to, and the terminal write
 that has to bypass them. Everything else is ordinary programming and is written in Ernest,
-over `Fs`, `String` and `List`, where `ern --test` reaches it.
+over `Fs`, `String` and `List`, where `ern --test` reaches it. The standard library is the
+other side of the same line: there the runtime owns the representation, which is what E.0
+rule 1 says, and a shim is how the operation is carried out rather than a way around
+Ernest.
 
 **The history is the first case it decided.** The front end offers
 `historyFile() -> Optional(String)` and nothing more, since only the person's home directory
@@ -3431,6 +3434,36 @@ writes it, which is also what keeps a test run out of the person's own.
 `(reverse-i-search)`; ours shows it after `> `, because the alternative is a second way to
 set the prompt, one for the session and one for the reader, for a difference of two
 characters.
+
+## Two Races the Shell's Startup Found, 2026-09-21
+
+Both were found by running the terminal tests under a loaded machine, six busy cores against
+eight, where the shell died at start with `error: Deadlock` about one run in five. Neither is
+the shell's.
+
+**A system process inside a host program looks quiet.** `quiet/1` reads a process as quiet
+when it waits with an empty mailbox, which is what a process does while a port answers.
+The terminal process set the terminal's mode with `stty` and counted its source only after,
+so in that window nothing was counted: the reader waited for the answer to `Subscribe`, the
+session waited for the reader, the screen waited, and §8.6's rule fired although the answer
+was on its way. §8.6 already covers it, a system process holding "a computation whose
+completion would deliver a message", so the code was wrong and not the report: the source is
+counted before the mode is set.
+
+**A proxy is not the process behind it.** An address handed to a foreign function arrives as
+the checking proxy of §8.4, and `process_of/1` answered the proxy's own pid. The shell holds
+the terminal by address, so under load, when the reader subscribed after the session had
+taken the terminal for it, the terminal process compared the proxy against the holder, found
+them different, and ended the reader with "the shell holds the terminal". `process_of/1` now
+resolves a proxy to the process behind it, which is what every use of it wants, the terminal,
+`monitor`, and `kill` alike. Addresses have no equality in the language (§6.3), so this is
+the runtime's own answer to its own question.
+
+**A test's home must be its own run's.** The terminal tests give each session a home under
+`/tmp` named by a counter, and the counter starts again in every run: a session read the
+history an earlier run had left and the test failed on entries it had never typed. The name
+carries the operating system's pid now. It cost an hour of looking at the shell for a defect
+that was in the test.
 
 ## Later
 

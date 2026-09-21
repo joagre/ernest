@@ -624,16 +624,17 @@ ifaces(Loaded) ->
                {ok, Bin} <- [file:read_file(code:which(Mod))],
                {ok, #{iface := I, source_hash := H}} <- [ern_emitter:read_interface(Bin)]].
 
-%% Report §11.2: the startup files the shell runs at start, the person's
-%% first and then the node's, and only those that exist. The node's is in
-%% the configuration directory of §11.3, which `--config-dir` names.
+%% Report §11.2: where the startup files are, the person's first and then
+%% the node's; the shell reads them and finds out whether they are there.
+%% The node's is in the configuration directory of §11.3, which
+%% `--config-dir` names.
 startups(Opts) ->
     Config = proplists:get_value(config_dir, Opts, ".ernest"),
     Home = case os:getenv("HOME") of
                false -> [];
                Dir -> [filename:join([Dir, ".ernest", "startup"])]
            end,
-    [F || F <- Home ++ [filename:join(Config, "startup")], filelib:is_regular(F)].
+    Home ++ [filename:join(Config, "startup")].
 
 %% Report §11.2: where the person's history is kept. Only where it is is
 %% the host's to say; the shell reads and writes it in Ernest.

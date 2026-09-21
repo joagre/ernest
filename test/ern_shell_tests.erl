@@ -327,8 +327,12 @@ terminal() ->
 alone(Command) ->
     "HOME=" ++ fresh_home() ++ " " ++ Command.
 
+%% The operating system's pid as well as the counter: the counter starts
+%% again in every run, so a home named by it alone would hold the history
+%% an earlier run left, and a session would read it as its own.
 fresh_home() ->
-    Home = filename:join("/tmp", "ern_home_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    Home = filename:join("/tmp", "ern_home_" ++ os:getpid() ++ "_"
+                         ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = filelib:ensure_path(Home),
     Home.
 

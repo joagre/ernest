@@ -149,7 +149,8 @@ expose(_, V, _) -> V.
 %% would have.
 proxy(Target, D, B, Text) ->
     Key = {Target, D, B},
-    ern_rt:proxy_for(Key, fun() -> start_proxy(Key, Target, D, B, Text) end).
+    ern_rt:proxy_for(Key, ern_rt:process_of(Target),
+                     fun() -> start_proxy(Key, Target, D, B, Text) end).
 
 start_proxy(Key, Target, D, B, Text) ->
     erlang:spawn(fun() ->
@@ -160,7 +161,7 @@ start_proxy(Key, Target, D, B, Text) ->
 proxy_loop(Key, Target, MRef, D, B, Text) ->
     receive
         {'DOWN', MRef, process, _, _} ->
-            ern_rt:proxy_forget(Key),
+            ern_rt:proxy_forget(Key, erlang:self()),
             ok;
         Msg ->
             case chk(D, Msg, B) of

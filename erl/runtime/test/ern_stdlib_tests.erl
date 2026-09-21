@@ -128,6 +128,7 @@ string_test() ->
     ?assertEqual(true, S:contains(<<"hello">>, <<"ell">>)),
     ?assertEqual({'Some', 2}, S:indexOf(<<"hello">>, <<"ll">>)),
     ?assertEqual('None', S:indexOf(<<"hello">>, <<"x">>)),
+    ?assertEqual({'Some', 3}, S:lastIndexOf(<<"hello">>, <<"l">>)),
     ?assertEqual(true, S:startsWith(<<"hello">>, <<"he">>)),
     ?assertEqual(false, S:startsWith(<<"hello">>, <<"lo">>)),
     ?assertEqual(true, S:endsWith(<<"héllo"/utf8>>, <<"llo">>)),

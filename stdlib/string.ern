@@ -1,8 +1,10 @@
-/// Operations on `String`, a sequence of Unicode code points (report §3.1).
-/// A `String` is not a container: its characters are reached through
-/// `toList`, which gives a `List(Char)`. `size` counts code points, and the
-/// operations that fold case or trim space follow Unicode, which the
-/// runtime decides (report Appendix E.0, rule 1).
+/// Operations on `String`, a Unicode string (report §3.1). A `String` is
+/// not a container: its characters are reached through `toList`, which
+/// gives a `List(Char)`. A character is an extended grapheme cluster, and
+/// `size`, `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd`
+/// count and index in those; `toList` and `fromList` are code points, a
+/// `Char` being one. The operations that fold case or trim space follow
+/// Unicode, which the runtime decides (report Appendix E.0, rule 1).
 ///
 /// ## Examples
 ///
@@ -31,13 +33,21 @@
 /// The characters of the first, then those of the second.
 export fn String.<>(a : String, b : String) -> String = a <> b
 
-/// The number of code points, which is not the number of octets.
+/// The number of characters, which is neither the number of octets nor
+/// the number of code points: a character is an extended grapheme
+/// cluster, and `e` with a combining acute is one character of two code
+/// points.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// #(String.size("héj"), String.isEmpty(""))
 /// // => #(3, true)
+/// ```
+///
+/// ```ernest
+/// #(String.size("e\u{301}"), List.size(String.toList("e\u{301}")))
+/// // => #(1, 2)
 /// ```
 export foreign fn size(s : String) -> Int = "string:length/1"
 
@@ -75,6 +85,18 @@ export foreign fn contains(s : String, part : String) -> Bool = "ern_string:cont
 /// ```
 export foreign fn indexOf(s : String, part : String) -> Optional(Int) =
     "ern_string:index_of/2"
+
+/// Where the second begins last in the first, and `None` where it is not
+/// there. An empty second is at the first's size.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.lastIndexOf("hello", "l"), String.lastIndexOf("hello", "x"))
+/// // => #(Some(3), None)
+/// ```
+export foreign fn lastIndexOf(s : String, part : String) -> Optional(Int) =
+    "ern_string:last_index_of/2"
 
 /// `true` when the string begins with the second.
 ///

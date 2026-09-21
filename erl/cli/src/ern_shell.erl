@@ -7,7 +7,7 @@
 %% input declares is the module's declarations.
 -module(ern_shell).
 
--export([loaded/1, start/0, program/0, startup/0, history_file/0, check/3,
+-export([loaded/1, start/0, program/0, startup_files/0, history_file/0, check/3,
          type_text/1, declared/1, run/3,
          show/3]).
 -export([bindings/1, forget/2, browse/2, doc/2]).
@@ -65,17 +65,13 @@ program() ->
             'None'
     end.
 
-%% Report §11.2, §8.1: the inputs of the startup files, the person's first
-%% and then the node's, each line an input, with the file it came from, so
-%% that a failure names it rather than `input`.
--spec startup() -> [{binary(), binary()}].
-startup() ->
+%% Report §11.2, §8.1: where the startup files are, the person's first
+%% and then the node's. The shell reads them itself, in Ernest: only
+%% where they are is the host's to say.
+-spec startup_files() -> [binary()].
+startup_files() ->
     What = persistent_term:get({?MODULE, loaded}, #{}),
-    [{unicode:characters_to_binary(File), Line}
-     || File <- maps:get(startups, What, []),
-        {ok, Text} <- [file:read_file(File)],
-        Line <- binary:split(Text, <<"\n">>, [global]),
-        string:trim(Line) =/= <<>>].
+    [unicode:characters_to_binary(File) || File <- maps:get(startups, What, [])].
 
 %% Report §11.2: where the person's history is kept, and none where the
 %% environment names no home. The shell does the reading and the writing

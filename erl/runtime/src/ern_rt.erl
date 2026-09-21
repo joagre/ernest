@@ -23,7 +23,7 @@
 -export([send/2, spawn/3, self/0, via/2, call/3, call_forever/2, answer/2, monitor/2,
          kill/1, sys/1, run_main/2, run_main/3, fault/1, remote/1, parallel_remote/1,
          todo/1, timed/0, untimed/0, in_foreign/1, init_stdlib/0, own_terminal/1,
-         source_begin/0, source_end/0, process_of/1, proxy_for/2, proxy_forget/1,
+         source_begin/0, source_end/0, process_of/1, proxy_for/3, proxy_forget/2,
          hold_terminal/1, terminal_holder/0, deaths/1, live/0]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
@@ -57,10 +57,21 @@ deliver({via, F, Target}, Msg) ->
 deliver(Pid, Msg) ->
     Pid ! Msg.
 
-%% The process an address names, through any number of adaptations.
+%% The process an address names, through any number of adaptations and
+%% through the checking proxy of §8.4: an address that has crossed into
+%% foreign code comes back as the proxy in front of it, and what the
+%% runtime holds of a process, its terminal, its monitors, its death,
+%% must be the process itself.
 -spec process_of(address()) -> pid().
 process_of({via, _, Target}) -> process_of(Target);
-process_of(Pid) -> Pid.
+process_of(Pid) -> behind(Pid).
+
+behind(Pid) ->
+    try ets:lookup(?PROCESSES, {behind, Pid}) of
+        [{_, Real}] -> Real;
+        _ -> Pid
+    catch _:_ -> Pid
+    end.
 
 %% Site names the spawning function for Down (report §6.9); the compiler
 %% supplies it, so this is spawn/3 where the report's spawn takes two.
@@ -272,8 +283,8 @@ snapshot(Pids) ->
 %% foreign code is one per address and mailbox type, not one per call: two
 %% proxies checking the same messages for the same process are two of the
 %% same thing. The loser of a race is killed and the winner used.
--spec proxy_for(term(), fun(() -> pid())) -> pid().
-proxy_for(Key, Start) ->
+-spec proxy_for(term(), pid(), fun(() -> pid())) -> pid().
+proxy_for(Key, Behind, Start) ->
     case ets:lookup(?PROCESSES, {proxy, Key}) of
         [{_, Pid}] ->
             Pid;
@@ -281,6 +292,7 @@ proxy_for(Key, Start) ->
             Pid = Start(),
             case ets:insert_new(?PROCESSES, {{proxy, Key}, Pid}) of
                 true ->
+                    ets:insert(?PROCESSES, {{behind, Pid}, Behind}),
                     Pid;
                 false ->
                     exit(Pid, kill),
@@ -289,10 +301,14 @@ proxy_for(Key, Start) ->
             end
     end.
 
--spec proxy_forget(term()) -> ok.
-proxy_forget(Key) ->
+-spec proxy_forget(term(), pid()) -> ok.
+proxy_forget(Key, Proxy) ->
     %% the table is gone once the program has ended (report §8.6)
-    try ets:delete(?PROCESSES, {proxy, Key}) catch _:_ -> true end,
+    try
+        ets:delete(?PROCESSES, {proxy, Key}),
+        ets:delete(?PROCESSES, {behind, Proxy})
+    catch _:_ -> true
+    end,
     ok.
 
 %% Report §8.6: what a system process holds that can still deliver, a

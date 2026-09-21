@@ -4,7 +4,8 @@
 %% itself and comparison is Erlang's on binaries, which is by code point.
 -module(ern_string).
 
--export([contains/2, index_of/2, starts_with/2, ends_with/2, replace/3, slice/3, trim/1, to_lower/1,
+-export([contains/2, index_of/2, last_index_of/2, starts_with/2, ends_with/2,
+         replace/3, slice/3, trim/1, to_lower/1,
          to_upper/1, to_int_base/2, to_float/1, to_list/1, from_list/1, from_utf8/1, to_utf8/1,
          split/2, copy/2, compare/2]).
 
@@ -16,6 +17,17 @@ contains(S, Sub) -> string:find(S, Sub) =/= nomatch.
 -spec index_of(binary(), binary()) -> 'None' | {'Some', integer()}.
 index_of(S, Part) ->
     case string:find(S, Part) of
+        nomatch -> 'None';
+        Suffix -> {'Some', string:length(S) - string:length(Suffix)}
+    end.
+
+%% Appendix E.5: the last occurrence, and the string's size for an empty
+%% part, which `string:find/3` answers as the first.
+-spec last_index_of(binary(), binary()) -> 'None' | {'Some', integer()}.
+last_index_of(S, <<>>) ->
+    {'Some', string:length(S)};
+last_index_of(S, Part) ->
+    case string:find(S, Part, trailing) of
         nomatch -> 'None';
         Suffix -> {'Some', string:length(S) - string:length(Suffix)}
     end.
