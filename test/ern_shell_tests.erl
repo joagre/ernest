@@ -242,8 +242,9 @@ history_lines(File) ->
 %% where it can, `M-Enter` takes one whatever the parser says, and
 %% `Enter` on an empty line runs what there is, error and all. The first
 %% such input of a session says how it is run, once, above the region.
-%% The rows after the first are prompted `... `, and a multi-line input
-%% comes back from the history whole
+%% The rows after the first are prompted `... `, `Tab` indents where
+%% there is nothing to complete, and a multi-line input comes back from
+%% the history whole
 multiline_test_() ->
     {timeout, 90, fun multiline/0}.
 
@@ -253,7 +254,8 @@ multiline() ->
                     [{expect, "> "},
                      {send, hex("1 +\r")},                % the parser wants more
                      {expect, "... "},
-                     {send, hex("2\r")},
+                     %% nothing before the cursor to complete, so Tab indents
+                     {send, "09" ++ hex("2\r")},
                      {expect, "3 : Int"},
                      {send, hex("40 + 2")},
                      {expect, "40 + 2"},
@@ -274,14 +276,14 @@ multiline() ->
     %% the hint is above the region and the prompt it was typed under stays
     ?assertEqual(1, count(Text, <<"M-Enter adds a line, Enter runs.">>)),
     ?assertMatch({_, _}, binary:match(Text, <<"> 1 +">>)),
-    ?assertMatch({_, _}, binary:match(Text, <<"... 2">>)),
+    ?assertMatch({_, _}, binary:match(Text, <<"...     2">>)),
     %% `M-Enter` took a line the parser would have run
     ?assertMatch({_, _}, binary:match(Text, <<"42 : Int">>)),
     %% the blank line ran an input that cannot parse, and its error names
     %% the line the input was typed on
     ?assertMatch({_, _}, binary:match(Text, <<"expected a pattern">>)),
     %% the history brought the multi-line input back whole
-    ?assertEqual([<<"1 +\\n2">>, <<"40 + 2\\n    + 0">>, <<"fn f(\\n">>],
+    ?assertEqual([<<"1 +\\n    2">>, <<"40 + 2\\n    + 0">>, <<"fn f(\\n">>],
                  history_lines(filename:join([Home, ".ernest", "history"]))),
     %% the screen is rendered without the spaces at a row's end
     ?assertMatch({_, _}, binary:match(lists:last(Lines), <<"...">>)).

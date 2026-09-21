@@ -569,15 +569,31 @@ fn completing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading 
               state : Shell.Editor.State) -> Unit with ReaderMsg = {
     let Reading(tabbed = tabbed) = reading;
     let Shell.Editor.State(text = line, at = at) = state;
-    let completion = Shell.Complete.complete(line, at, names());
-    let #(text, next) = Shell.Complete.applied(line, at, completion);
-    if tabbed then listing(screen, completion) else Unit;
-    let shown = Shell.Editor.typed(state, text, next);
-    let said = hint(screen, reading, shown);
-    send(screen, typing(shown));
-    readLoop(session, screen,
-             Reading(..reading, editing = shown, hinted = said, tabbed = true))
+    if String.isEmpty(Shell.Complete.word(String.slice(line, 0, at))) then
+        // report §11.2: nothing before the cursor to complete, so `Tab`
+        // indents. Four spaces and no tab: the style guide's rule, and
+        // a tab in the line is invisible where spaces are what they
+        // look like (§0, principle 3)
+        showing(session, screen, reading, indented(state, line, at))
+    else {
+        let completion = Shell.Complete.complete(line, at, names());
+        let #(text, next) = Shell.Complete.applied(line, at, completion);
+        if tabbed then listing(screen, completion) else Unit;
+        let shown = Shell.Editor.typed(state, text, next);
+        let said = hint(screen, reading, shown);
+        send(screen, typing(shown));
+        readLoop(session, screen,
+                 Reading(..reading, editing = shown, hinted = said, tabbed = true))
+    }
 }
+
+let indent = "    "
+
+fn indented(state : Shell.Editor.State, line : String, at : Int) -> Shell.Editor.State =
+    Shell.Editor.typed(state,
+                       String.slice(line, 0, at) <> indent
+                           <> String.slice(line, at, String.size(line) - at),
+                       at + String.size(indent))
 
 // Report §11.2: the candidates, a line each with the type they carry,
 // committed above the region as anything the shell says is.

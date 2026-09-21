@@ -174,6 +174,7 @@ GNU Readline's Emacs bindings.
   - after `:` in a type annotation, types;
   - inside a named constructor, in construction, update (`Player(..p, `), or pattern, its remaining fields;
   - at the start of an input, after `:`, a command; after a command, its argument: names for `:type` and `:doc`, modules for `:browse` and `:load`, the bindings for `:forget`, `depth`, `length`, `output`, and `timing` for `:set`.
+- **`Tab` with nothing to complete indents**, four spaces, which is the style guide's rule and what a person does on a continuation row. A tab character is never inserted: in a line it is invisible, where spaces are what they look like (§0, principle 3), and the region would have to paint it to a stop. The two jobs never contend, since the cursor either has a word before it or it has not.
 - **Reserved words and operators do not complete.**
 - **Completion reads the compiled interfaces**, held in memory once read. The front end keeps the session's environment as each input is checked and answers `names()` from it, since the reader completes while an input runs, when the session is answering nothing. Reading the interfaces is the host's; the matching and the ranking are `Shell.Complete`, which is pure and tested by `ern --test`.
 - **`Shift-Tab` shows documentation.** On a name: its type, its first sentence, and its `Since`; a second `Shift-Tab`, the section `:doc` prints. Inside a call: the signature with its parameters as declared, `circle(centre : Point, radius : Int) -> Shape`, the parameter at the cursor marked.
