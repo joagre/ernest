@@ -81,11 +81,11 @@ fn drain(world : World, n : Int) -> World with GameMsg =
 
 // One process per player: translates keys into Input.
 fn player(id : Int, game : Address(GameMsg)) -> Unit with Event = receive {
-    Key(ArrowUp) -> { send(game, In(Turn(id = id, dir = N))); player(id, game) }
-  | Key(ArrowDown) -> { send(game, In(Turn(id = id, dir = S))); player(id, game) }
-  | Key(ArrowLeft) -> { send(game, In(Turn(id = id, dir = W))); player(id, game) }
-  | Key(ArrowRight) -> { send(game, In(Turn(id = id, dir = E))); player(id, game) }
-  | Key(Escape) -> send(game, In(Leave(id)))
+    ArrowUp -> { send(game, In(Turn(id = id, dir = N))); player(id, game) }
+  | ArrowDown -> { send(game, In(Turn(id = id, dir = S))); player(id, game) }
+  | ArrowLeft -> { send(game, In(Turn(id = id, dir = W))); player(id, game) }
+  | ArrowRight -> { send(game, In(Turn(id = id, dir = E))); player(id, game) }
+  | Escape -> send(game, In(Leave(id)))
   | _ -> player(id, game)
 }
 

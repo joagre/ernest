@@ -691,35 +691,26 @@ type ReaderMsg = K(Event)
 
 fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), line : String,
             meta : Bool) -> Unit with ReaderMsg = receive {
-    K(Key(Enter)) -> {
+    K(Enter) -> {
         send(screen, Entered);
         send(session, Typed(line));
         readLoop(session, screen, "", false)
     }
-  | K(Key(Interrupt)) -> {
+  | K(Interrupt) -> {
         // what was typed stays in the transcript, abandoned
         send(screen, Entered);
         send(session, Interrupted);
         readLoop(session, screen, "", false)
     }
-  | K(Key(PageUp)) -> {
-        // the offset counts back from the newest, so going back adds to it
-        send(screen, Scroll(pane = pane(meta), pages = 1));
-        readLoop(session, screen, line, false)
-    }
-  | K(Key(PageDown)) -> {
-        send(screen, Scroll(pane = pane(meta), pages = -1));
-        readLoop(session, screen, line, false)
-    }
   | K(Resized(_)) -> {
         send(screen, Resize);
         readLoop(session, screen, line, meta)
     }
-  | K(Key(Escape)) ->
+  | K(Escape) ->
         // report §8.2: an Escape and the key after it are Meta and that
         // key, which is how the panes are told apart
         readLoop(session, screen, line, true)
-  | K(Key(Char(c))) ->
+  | K(Char(c)) ->
         if c == '\u{4}' then
             if String.isEmpty(line) then send(session, Eof)
             else readLoop(session, screen, line, false)
@@ -737,10 +728,6 @@ fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), line : Str
         }
   | K(_) -> readLoop(session, screen, line, false)
 }
-
-// Report §11.2: `PageUp` and `PageDown` scroll the transcript, and with
-// `Meta` the pane a program writes to.
-fn pane(meta : Bool) -> Which = if meta then Upper else Lower
 
 fn keyLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = receive {
     Typed(line) -> match String.trim(line) {

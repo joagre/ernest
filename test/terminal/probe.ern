@@ -20,16 +20,14 @@ fn sizeText() -> String with m = match Terminal.size() {
 }
 
 fn loop() -> Unit with Msg = receive {
-    E(Key(Escape)) -> Io.println("escape")
-  | E(Key(ArrowUp)) -> { Io.println("up"); loop() }
-  | E(Key(ArrowDown)) -> { Io.println("down"); loop() }
-  | E(Key(ArrowLeft)) -> { Io.println("left"); loop() }
-  | E(Key(ArrowRight)) -> { Io.println("right"); loop() }
-  | E(Key(PageUp)) -> { Io.println("pageup"); loop() }
-  | E(Key(PageDown)) -> { Io.println("pagedown"); loop() }
-  | E(Key(Enter)) -> { Io.println("enter"); loop() }
-  | E(Key(Interrupt)) -> { Io.println("interrupt"); loop() }
-  | E(Key(Char(c))) -> { Io.println("char " <> Char.toString(c)); loop() }
+    E(Escape) -> Io.println("escape")
+  | E(ArrowUp) -> { Io.println("up"); loop() }
+  | E(ArrowDown) -> { Io.println("down"); loop() }
+  | E(ArrowLeft) -> { Io.println("left"); loop() }
+  | E(ArrowRight) -> { Io.println("right"); loop() }
+  | E(Enter) -> { Io.println("enter"); loop() }
+  | E(Interrupt) -> { Io.println("interrupt"); loop() }
+  | E(Char(c)) -> { Io.println("char " <> Char.toString(c)); loop() }
   | E(Resized(Size(rows = rows, columns = columns))) -> {
         Io.println("resized " <> Int.toString(rows) <> "x" <> Int.toString(columns));
         loop()

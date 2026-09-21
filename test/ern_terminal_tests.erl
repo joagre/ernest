@@ -26,10 +26,6 @@ keys() ->
                        {expect, "up"},
                        {send, "1b5b42"},    % ArrowDown
                        {expect, "down"},
-                       {send, "1b5b357e"},  % PageUp
-                       {expect, "pageup"},
-                       {send, "1b5b367e"},  % PageDown
-                       {expect, "pagedown"},
                        {resize, "30x100"},
                        {expect, "resized"},
                        {send, "1b"}],       % Escape, alone
@@ -37,8 +33,8 @@ keys() ->
     Lines = lines(Screen),
     %% report §9.3: the size the program was given, its keys, and the new
     %% size when the window changed
-    ?assertEqual([<<"ready 24x80">>, <<"char x">>, <<"up">>, <<"down">>, <<"pageup">>,
-                  <<"pagedown">>, <<"resized 30x100">>, <<"escape">>], Lines),
+    ?assertEqual([<<"ready 24x80">>, <<"char x">>, <<"up">>, <<"down">>,
+                  <<"resized 30x100">>, <<"escape">>], Lines),
     %% nothing was echoed: an echoed key would stand in a line of its own
     %% or before the line the program printed, and the lines above are all
     %% of them

@@ -116,28 +116,6 @@ panes() ->
     ?assertMatch({_, _}, binary:match(Transcript, <<"2 : Int">>)),
     ?assertEqual(nomatch, binary:match(Transcript, <<"line 30">>)).
 
-%% report §11.2: the panes scroll on their own, since the terminal's
-%% scrollback is what the split costs
-scrolling_test_() ->
-    {timeout, 60, fun scrolling/0}.
-
-scrolling() ->
-    Print = "spawn(Local, fn() = List.foreach(List.range(1, 30),"
-            " fn(n) = Io.println(\"line \" <> Int.toString(n))))\r",
-    Screen = screen("../bin/ern --shell",
-                    [{expect, "> "},
-                     {send, hex(Print)},
-                     {sleep, 900},
-                     %% Meta-PageUp: an Escape, then the sequence that is
-                     %% PageUp, which is how §8.2 delivers Meta
-                     {send, hex([16#1b]) ++ hex([16#1b]) ++ hex("[5~")},
-                     {sleep, 400},
-                     {send, "04"}],
-                    20, "20x60"),
-    %% a page back, so the newest is gone and an older line is there
-    ?assertEqual(nomatch, binary:match(Screen, <<"line 30">>)),
-    ?assertMatch({_, _}, binary:match(Screen, <<"line 20">>)).
-
 %% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
 %% under the source root and puts it in scope; `:reload` compiles again
 %% what has changed, names what is still in the previous version, and ends

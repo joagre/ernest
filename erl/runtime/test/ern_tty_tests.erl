@@ -21,10 +21,10 @@ partial_sequence_test() ->
     ?assertEqual({[], "\e["}, ern_tty:decode("\e[")),
     {[], Rest} = ern_tty:decode("\e["),
     ?assertEqual({['ArrowUp'], []}, ern_tty:decode(Rest ++ "A")),
-    %% report §9.3: the page keys, whose sequences are four bytes, wait the
-    %% same way
-    ?assertEqual({[], "\e[5"}, ern_tty:decode("\e[5")),
-    ?assertEqual({['PageUp', 'PageDown'], []}, ern_tty:decode("\e[5~\e[6~")).
+    %% report §9.3: a sequence §9.3 does not name is the Escape key and the
+    %% characters after it, which is how Meta and the page keys arrive
+    ?assertEqual({['Escape', {'Char', $[}, {'Char', $5}, {'Char', $~}], []},
+                 ern_tty:decode("\e[5~")).
 
 %% report §8.2: Escape is delivered once no escape sequence can still
 %% follow it, so what waits is flushed when the pause passes
@@ -51,8 +51,8 @@ escape_pause_test() ->
                Tty ! {chars, "\e"},
                receive K2 -> Me ! {k2, K2} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({'Key', 'ArrowUp'}, wait(k1)),
-    ?assertEqual({'Key', 'Escape'}, wait(k2)).
+    ?assertEqual('ArrowUp', wait(k1)),
+    ?assertEqual('Escape', wait(k2)).
 
 wait(Tag) ->
     receive {Tag, V} -> V after 2000 -> timeout end.

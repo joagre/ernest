@@ -63,10 +63,10 @@ loop(Subscribers, Reader, Pending, Size) ->
             loop(Subscribers, Reader, Pending, Size);
         {chars, Chars} ->
             {Decoded, Left} = decode(Pending ++ Chars),
-            deliver([{'Key', K} || K <- Decoded], Subscribers),
+            deliver(Decoded, Subscribers),
             loop(Subscribers, Reader, Left, Size)
     after Pause ->
-        deliver([{'Key', K} || K <- flush(Pending)], Subscribers),
+        deliver(flush(Pending), Subscribers),
         %% report §8.2: a size that has changed is news to every subscriber
         case size_now() of
             Size -> loop(Subscribers, Reader, [], Size);
@@ -171,10 +171,11 @@ read_loop(Keys) ->
             read_loop(Keys)
     end.
 
-%% Report §9.3: Key = Char(Char) | ArrowUp | ArrowDown | ArrowLeft
-%% | ArrowRight | PageUp | PageDown | Enter | Escape | Interrupt. An escape
-%% sequence that is none of those is the Escape key and the characters
-%% after it, which is how Meta and Shift-Tab reach a program (§8.2).
+%% Report §9.3: Event = Char(Char) | ArrowUp | ArrowDown | ArrowLeft
+%% | ArrowRight | Enter | Escape | Interrupt | Resized(Size), one list of
+%% what the terminal sent. An escape sequence that is none of those is the
+%% Escape key and the characters after it, which is how Meta and Shift-Tab
+%% reach a program (§8.2).
 -spec decode([char()]) -> {[term()], [char()]}.
 decode(Chars) ->
     decode(Chars, []).
@@ -197,12 +198,6 @@ decode([$\e], Acc) ->
     {lists:reverse(Acc), [$\e]};
 decode([$\e, $[], Acc) ->
     {lists:reverse(Acc), [$\e, $[]};
-decode([$\e, $[, $5], Acc) ->
-    {lists:reverse(Acc), [$\e, $[, $5]};
-decode([$\e, $[, $6], Acc) ->
-    {lists:reverse(Acc), [$\e, $[, $6]};
-decode([$\e, $[, $5, $~ | Rest], Acc) -> decode(Rest, ['PageUp' | Acc]);
-decode([$\e, $[, $6, $~ | Rest], Acc) -> decode(Rest, ['PageDown' | Acc]);
 decode([$\e, $[, $A | Rest], Acc) -> decode(Rest, ['ArrowUp' | Acc]);
 decode([$\e, $[, $B | Rest], Acc) -> decode(Rest, ['ArrowDown' | Acc]);
 decode([$\e, $[, $C | Rest], Acc) -> decode(Rest, ['ArrowRight' | Acc]);
