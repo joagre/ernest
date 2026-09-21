@@ -22,7 +22,7 @@ The shell is an Ernest program of three processes over a front end. Its source i
 - **An input cannot reach a process the program spawned.** There is no registry (§6.3), so the prompt has a running program's modules, its output, and its faults. A program meant to be driven from the prompt returns an address from the function that starts it.
 - **At start the shell prints one line**, the version and how to leave, `:quit` or `C-d`, with `:help` for the rest.
 - **Then it runs the startup inputs**, the person's and then the node's, after the file's entry point has been spawned, so a startup input sees what is running, and before the first prompt. On a terminal it waits for the reader to hold the keyboard first, so that a startup input which reads keys is refused as any other program would be (§8.2). A startup input that fails is reported as any input is and the session goes on.
-- **On `:quit`, or `C-d` on an empty line**, the history is saved and every process the session spawned ends with `ProgramEnd`.
+- **On `:quit`, or `C-d` on an empty line**, every process the session spawned ends with `ProgramEnd`. The history is already on disk, each input appended as it was taken.
 
 ## The terminal
 
@@ -155,7 +155,8 @@ GNU Readline's Emacs bindings.
 - **Moving:** `C-a`, `C-e` to the start and end of the line; `C-b`, `C-f` a character; `M-b`, `M-f` a word; the arrow keys.
 - **Deleting:** `Backspace` and `C-h` back, `C-d` forward; on an empty line `C-d` quits.
 - **Killing:** `C-k` to the end of the line, `C-u` to the start, `C-w` and `M-Backspace` the word before, `M-d` the word after; `C-y` yanks the last kill, which outlives the line it was killed from.
-- **History:** `C-p`, `C-n`, up and down step through earlier inputs, a multi-line one coming back whole, its lines under their continuation prompts and the cursor at the end; `M-<` and `M->` go to the first and the current; `C-r` searches back incrementally, `C-s` forward, `C-g` abandons the search.
+- **History:** `C-p`, `C-n`, up and down step through earlier inputs, a multi-line one coming back whole, its lines under their continuation prompts and the cursor at the end; `M-<` and `M->` go to the first and the current; `C-r` searches back incrementally, `C-s` forward, `C-g` abandons the search and puts back the line it began from. A search shows Readline's prompt and the input it found in place of the line, after the shell's own `> `, with the cursor on the match; one that matches nothing says `failed` and keeps the input it last found.
+- **The history file is the person's**, `$HOME/.ernest/history` (report §11.2), read at start and appended to as each input is taken, an input abandoned with the interrupt among them. `Shell.History` is the module: only the path is `foreign`, and the reading, the escaping and the trim are Ernest over `Fs` ([`decisions.md`](decisions.md)).
 - **Adding a line:** `M-Enter`, when the input parses complete and is not.
 - **Interrupting:** `C-c` kills the running evaluation when there is one, and abandons the input being typed, every line of it, only when there is not. The bindings and the partial line survive, and the text goes to the history to recall and mend. A queued input is dropped with the evaluation it waited for.
 - **`C-l`** clears the screen and keeps the line being typed. What was committed before it stays in the terminal's scrollback.

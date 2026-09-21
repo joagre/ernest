@@ -1,0 +1,120 @@
+//
+// The shell's history (report §11.2): the inputs of the sessions before
+// this one, kept in `$HOME/.ernest/history`, one input a line with a
+// newline written `\n` and a backslash `\\`.
+//
+// Only the path is the host's. The reading, the appending, the escaping
+// and the trimming are ordinary Ernest over `Fs`, `String` and `List`,
+// which is where the line between Ernest and `foreign` runs
+// (docs/decisions.md).
+//
+
+// Report §11.2: how many inputs the file keeps.
+let kept = 1000
+
+// How long to wait for the file system, which is a local file.
+let wait = 5000
+
+// The host's alone: the person's home directory, and none where the
+// environment names none.
+foreign fn historyFile() -> Optional(String) with m = "ern_shell:history_file/0"
+
+// The inputs of the sessions before this one, newest first. A file that
+// holds more than the last thousand is trimmed to them as it is read.
+export fn read() -> Either(IoError, List(String)) with m = match historyFile() {
+    None -> Right([])
+  | Some(name) -> {
+        let path = Path(name);
+        match Fs.read(path, wait) {
+            // no file yet: a first session has no history and makes none
+            Left(NotFound) -> Right([])
+          | Left(why) -> Left(why)
+          | Right(bytes) -> trimmed(path, inputs(bytes))
+        }
+    }
+}
+
+// Newest first is the order the editor walks; the file is oldest first,
+// as a person reading it expects.
+fn trimmed(path : Path, inputs : List(String)) -> Either(IoError, List(String)) with m = {
+    let extra = List.size(inputs) - kept;
+    if extra <= 0 then Right(List.reverse(inputs))
+    else {
+        let last = List.drop(inputs, extra);
+        Either.map(Fs.write(path, String.toUtf8(text(last)), wait),
+                   fn(_) = List.reverse(last))
+    }
+}
+
+fn inputs(bytes : Bytes) -> List(String) = {
+    let lines = String.lines(Optional.withDefault(String.fromUtf8(bytes), ""));
+    List.map(List.filter(lines, fn(line) = !String.isEmpty(line)), decode)
+}
+
+fn text(inputs : List(String)) -> String =
+    String.join(List.map(inputs, fn(input) = encode(input) <> "\n"), "")
+
+// One input, appended as the shell takes it. The directory is made when
+// it is not there, as it is not before a first session.
+export fn add(input : String) -> Either(IoError, Unit) with m = match historyFile() {
+    None -> Right(Unit)
+  | Some(name) -> {
+        let path = Path(name);
+        match made(path) {
+            Left(why) -> Left(why)
+          | Right(_) -> Fs.append(path, String.toUtf8(encode(input) <> "\n"), wait)
+        }
+    }
+}
+
+fn made(path : Path) -> Either(IoError, Unit) with m = match Path.parent(path) {
+    None -> Right(Unit)
+  | Some(dir) -> Fs.makeDir(dir, wait)
+}
+
+//
+// Report §11.2: an input is one line whatever it holds, so a newline in
+// it is written `\n` and a backslash `\\`.
+//
+
+export fn encode(input : String) -> String =
+    String.replace(String.replace(input, "\\", "\\\\"), "\n", "\\n")
+
+// Left to right, since `\\n` is a backslash and an `n` and not a
+// newline; two passes of `String.replace` would read it as one.
+export fn decode(line : String) -> String = undo(line, "")
+
+fn undo(rest : String, done : String) -> String =
+    if String.isEmpty(rest) then done
+    else {
+        let head = String.slice(rest, 0, 1);
+        let next = String.slice(rest, 1, 1);
+        if head == "\\" && next == "n" then undo(from(rest, 2), done <> "\n")
+        else if head == "\\" && next == "\\" then undo(from(rest, 2), done <> "\\")
+        else undo(from(rest, 1), done <> head)
+    }
+
+fn from(s : String, n : Int) -> String = String.slice(s, n, String.size(s) - n)
+
+//
+// The tests (report §9.3), run by `ern --test`, which `make test` does.
+// The file itself is tested through the shell, in `test/`.
+//
+
+let plain = Test(name = "an input without a newline is written as it is", run = fn() =
+    same("1 + 2"))
+
+let newlines = Test(name = "a newline is written as an escape and read back", run = fn() =
+    if encode("a\nb") == "a\\nb" then same("a\nb") else Failed(encode("a\nb")))
+
+let backslash = Test(name = "a backslash is doubled, so `\\n` is not a newline", run = fn() =
+    if encode("a\\nb") == "a\\\\nb" then same("a\\nb") else Failed(encode("a\\nb")))
+
+let both = Test(name = "a backslash before a newline reads back whole", run = fn() =
+    same("let s = \"\\\\\";\nlet t = 2"))
+
+let empty = Test(name = "an empty input reads back empty", run = fn() = same(""))
+
+fn same(input : String) -> TestResult =
+    if decode(encode(input)) == input then Passed
+    else Failed("\"" <> encode(input) <> "\" read back as \"" <> decode(encode(input)) <> "\"")

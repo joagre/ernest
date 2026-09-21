@@ -7,7 +7,8 @@
 %% input declares is the module's declarations.
 -module(ern_shell).
 
--export([loaded/1, start/0, program/0, startup/0, check/3, type_text/1, declared/1, run/3,
+-export([loaded/1, start/0, program/0, startup/0, history_file/0, check/3,
+         type_text/1, declared/1, run/3,
          show/3]).
 -export([bindings/1, forget/2, browse/2, doc/2]).
 -export([deaths/1, mine/0, faults/0, processes/0, load/2, reload/1, output/1]).
@@ -75,6 +76,17 @@ startup() ->
         {ok, Text} <- [file:read_file(File)],
         Line <- binary:split(Text, <<"\n">>, [global]),
         string:trim(Line) =/= <<>>].
+
+%% Report §11.2: where the person's history is kept, and none where the
+%% environment names no home. The shell does the reading and the writing
+%% itself, in Ernest.
+-spec history_file() -> 'None' | {'Some', binary()}.
+history_file() ->
+    What = persistent_term:get({?MODULE, loaded}, #{}),
+    case maps:get(history, What, none) of
+        none -> 'None';
+        File -> {'Some', unicode:characters_to_binary(File)}
+    end.
 
 %% Report §11.2: an input is checked before it is run; a failure is §11.5's
 %% text, as `ernc` shows it, under the name of where the input came from:

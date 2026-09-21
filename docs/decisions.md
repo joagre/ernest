@@ -3377,6 +3377,61 @@ coincide with a type-member namespace, which `ern_cli:namespace_clash/2` already
 enforces, so only one of the two can exist and resolution follows: the module's own
 member where it declares that type, the child module otherwise.
 
+## Where `foreign` Stops, 2026-09-21
+
+A rule, since every door the shell opens asks the question again and completion will ask it
+in checkpoint 4.
+
+**`foreign` is what the host alone can do.** The environment, the command line, the
+compiler's own structures, the sinks a program's output is bound to, and the terminal write
+that has to bypass them. Everything else is ordinary programming and is written in Ernest,
+over `Fs`, `String` and `List`, where `ern --test` reaches it.
+
+**The history is the first case it decided.** The front end offers
+`historyFile() -> Optional(String)` and nothing more, since only the person's home directory
+is the host's to know. Reading the file, splitting it into lines, the escape pair, the trim
+to a thousand and the append are `Shell.History`, a hundred lines of Ernest with its own
+tests. Completion will divide the same way: the compiled interfaces are the host's, the
+matching and the ranking are not.
+
+**The reason is not purity.** The shell is the first real program on this standard library,
+and `Fs` had no user in it; a standard library nothing uses is one nobody has felt. Where
+the standard library does not cover what the shell needs, that is a finding to report rather
+than a thing to work around.
+
+**What writing it found.** `Fs` covered the work: `read`, `write`, `append`, `makeDir` that
+makes the parents, and `Path.parent`. `IoError` reads well at the call, and `Left(NotFound)`
+earns a clause of its own, since a first session has no file and that is not an error.
+`String` has no `indexOf`, which the incremental search needs to put the cursor on the match;
+the editor has a local one, and whether E.5 should have it is a question for the standard
+library's next pass.
+
+## The History, and Walking It, 2026-09-21
+
+**The list is newest first and the walk is an index into it**, `0` being the line being
+typed, which is kept while the walk is away from it and comes back with `M->`. Edits to a
+recalled input are not kept when the walk moves on; Readline keeps them for the session, and
+that is state per entry for a gain a person rarely asks for.
+
+**What is not kept:** a blank input, and one equal to the input before it. The rule is one
+function, `Shell.Editor.keeps`, used both for the list in memory and for the file, so the two
+cannot drift.
+
+**The file is appended as the shell takes an input**, not written at quit: a session that
+ends in a fault keeps its history, and two shells at once interleave rather than overwrite.
+It is trimmed to the last thousand when it is read.
+
+**An input abandoned with the interrupt is kept.** It was typed and may be worth recalling
+and mending, which is what the design note said before it was built.
+
+**A session whose input is not a terminal has no history.** It neither reads the file nor
+writes it, which is also what keeps a test run out of the person's own.
+
+**The search keeps the shell's prompt.** Readline replaces the whole prompt with
+`(reverse-i-search)`; ours shows it after `> `, because the alternative is a second way to
+set the prompt, one for the session and one for the reader, for a difference of two
+characters.
+
 ## Later
 
 Planned or considered, not in the language today.

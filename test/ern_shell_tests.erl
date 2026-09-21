@@ -97,7 +97,7 @@ live_region_test_() ->
 live_region() ->
     Print = "spawn(Local, fn() = List.foreach(List.range(1, 12),"
             " fn(n) = Io.println(\"line \" <> Int.toString(n))))\r",
-    Screen = screen("../bin/ern --shell",
+    Screen = screen(alone("../bin/ern --shell"),
                     [{expect, "> "},
                      {send, hex("1 + 1\r")},
                      {expect, "2 : Int"},
@@ -119,14 +119,16 @@ live_region() ->
     ?assertMatch({_, _}, binary:match(Text, <<"2 : Int">>)),
     ?assertEqual(<<">">>, lists:last(Lines)).
 
-%% report §11.2, §9.3: the line editor's own tests, the pure function from
-%% a line and an event to what the reader must do, run by `ern --test` as
-%% the shell is built; the editor is Shell.Editor, its own module
+%% report §11.2, §9.3: the pure parts of the shell test themselves, the
+%% editor's function from a line and an event to what the reader must do
+%% and the history file's escaping, run by `ern --test` as the shell is
+%% built; they are Shell.Editor and Shell.History, modules of their own
 editor_test_() ->
     {timeout, 60, fun editor/0}.
 
 editor() ->
-    {Status, Out} = sh("../bin/ern --test ../build/shell/shell/editor.erc"),
+    {Status, Out} = sh("../bin/ern --test ../build/shell/shell/editor.erc"
+                       " && ../bin/ern --test ../build/shell/shell/history.erc"),
     Lines = [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
     ?assertEqual([], [L || L <- Lines, binary:match(L, <<": passed">>) =:= nomatch]),
     ?assert(length(Lines) >= 10),
@@ -140,7 +142,7 @@ editing_test_() ->
     {timeout, 60, fun editing/0}.
 
 editing() ->
-    Screen = pty("../bin/ern --shell",
+    Screen = pty(alone("../bin/ern --shell"),
                  [{expect, "> "},
                   {send, hex("1 + 22222")},
                   {expect, "22222"},
@@ -167,7 +169,7 @@ clear_test_() ->
     {timeout, 60, fun clear/0}.
 
 clear() ->
-    Screen = screen("../bin/ern --shell",
+    Screen = screen(alone("../bin/ern --shell"),
                     [{expect, "> "},
                      {send, hex("111 + 111\r")},
                      {expect, "222 : Int"},
@@ -183,6 +185,56 @@ clear() ->
     ?assertMatch({_, _}, binary:match(Screen, <<"14 : Int">>)),
     %% what was on the screen before it is gone
     ?assertEqual(nomatch, binary:match(Screen, <<"222 : Int">>)).
+
+%% report §11.2: the inputs of a session are kept in the person's history
+%% file, one a line, and the session after it walks them with the arrows
+%% and searches them with `C-r`; a blank input and one repeated are not
+%% kept, and a session whose input is not a terminal leaves the file alone
+history_test_() ->
+    {timeout, 90, fun history/0}.
+
+history() ->
+    Home = fresh_home(),
+    File = filename:join([Home, ".ernest", "history"]),
+    _ = pty("HOME=" ++ Home ++ " ../bin/ern --shell",
+            [{expect, "> "},
+             {send, hex("11 + 11\r")},
+             {expect, "22 : Int"},
+             {send, hex("33 + 33\r")},
+             {expect, "66 : Int"},
+             %% a blank input and the same input again are not kept
+             {send, hex("\r")},
+             {send, hex("33 + 33\r")},
+             {expect, "66 : Int"},
+             {send, "04"}],
+            20),
+    ?assertEqual([<<"11 + 11">>, <<"33 + 33">>], history_lines(File)),
+    %% the session after it: the arrow recalls the last input, and `C-r`
+    %% searches back for an older one
+    Screen = pty("HOME=" ++ Home ++ " ../bin/ern --shell",
+                 [{expect, "> "},
+                  {send, "1b5b41"},                 % ArrowUp
+                  {expect, "33 + 33"},
+                  {send, hex("\r")},
+                  {expect, "66 : Int"},
+                  {send, "12"},                     % C-r
+                  {send, hex("11")},
+                  {expect, "11 + 11"},
+                  {send, hex("\r")},
+                  {expect, "22 : Int"},
+                  {send, "04"}],
+                 20),
+    ?assertMatch({_, _}, binary:match(Screen, <<"reverse-i-search">>)),
+    %% what the second session took is appended, and the input it repeated
+    %% is not
+    ?assertEqual([<<"11 + 11">>, <<"33 + 33">>, <<"11 + 11">>], history_lines(File)),
+    %% a session that is not a terminal neither reads the file nor writes it
+    {0, _} = sh("HOME=" ++ Home ++ " ../bin/ern --shell < session/basic.in"),
+    ?assertEqual([<<"11 + 11">>, <<"33 + 33">>, <<"11 + 11">>], history_lines(File)).
+
+history_lines(File) ->
+    {ok, Text} = file:read_file(File),
+    [L || L <- binary:split(Text, <<"\n">>, [global]), L =/= <<>>].
 
 %% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
 %% under the source root and puts it in scope; `:reload` compiles again
@@ -250,7 +302,7 @@ terminal() ->
            " fn(a, b) = a + b) }",
     %% every step waits for what the screen shows, so that a shell slower
     %% under load is waited for rather than raced
-    Screen = pty("../bin/ern --shell",
+    Screen = pty(alone("../bin/ern --shell"),
                  [{expect, "> "},
                   {send, hex("1 + 5")},
                   {expect, "1 + 5"},
@@ -269,6 +321,16 @@ terminal() ->
     ?assertMatch({_, _}, binary:match(Screen, <<"2 : Int">>)),
     %% the interrupt reached the shell as a key; the session was not ended
     ?assertMatch({_, _}, binary:match(Screen, <<"Killed">>)).
+
+%% A terminal session with a home of its own, so that a test neither
+%% reads nor writes the person's startup files or history (report §11.2).
+alone(Command) ->
+    "HOME=" ++ fresh_home() ++ " " ++ Command.
+
+fresh_home() ->
+    Home = filename:join("/tmp", "ern_home_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Home),
+    Home.
 
 hex(Text) ->
     lists:flatten([io_lib:format("~2.16.0b", [C]) || C <- Text]).

@@ -559,7 +559,8 @@ shell(Opts, Rest, Err) ->
                    ern_shell:loaded(#{roots => [absolute(D) || {load_path, D} <- Opts],
                                       source_root => source_root(Opts, ".", "."),
                                       ifaces => [], entry => none,
-                                      startups => startups(Opts)}),
+                                      startups => startups(Opts),
+                                      history => history_file()}),
                    fun() -> ok end;
                [File] ->
                    {Ns, Roots, Loaded} = program(File, Opts),
@@ -568,7 +569,8 @@ shell(Opts, Rest, Err) ->
                                       source_root => source_root(Opts, File, "."),
                                       ifaces => ifaces(Loaded1),
                                       entry => {EntryMod, EntryFn, entry_site(EntryMod, EntryFn)},
-                                      startups => startups(Opts)}),
+                                      startups => startups(Opts),
+                                      history => history_file()}),
                    init_fun(Loaded1);
                _ ->
                    usage_fail("--shell takes at most one .erc file")
@@ -632,6 +634,14 @@ startups(Opts) ->
                Dir -> [filename:join([Dir, ".ernest", "startup"])]
            end,
     [F || F <- Home ++ [filename:join(Config, "startup")], filelib:is_regular(F)].
+
+%% Report §11.2: where the person's history is kept. Only where it is is
+%% the host's to say; the shell reads and writes it in Ernest.
+history_file() ->
+    case os:getenv("HOME") of
+        false -> none;
+        Dir -> filename:join([Dir, ".ernest", "history"])
+    end.
 
 %% Report §11.2: a module compiled from its source for the shell, as
 %% `ernc` would compile it but in memory, since `:load` and `:reload`

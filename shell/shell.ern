@@ -81,11 +81,19 @@ export fn main() -> Unit with ShellMsg = {
     };
     if isTerminal() then {
         let me = self();
+        // report §11.2: the inputs of the sessions before this one
+        let earlier = match Shell.History.read() {
+            Right(inputs) -> inputs
+          | Left(why) -> {
+                say(screen, "the history could not be read: " <> trouble(why));
+                []
+            }
+        };
         let reader = spawn(Local, fn() = {
             mine();
             Terminal.subscribe(K);
             send(me, Ready);
-            readLoop(me, screen, Shell.Editor.fresh)
+            readLoop(me, screen, Shell.Editor.start(earlier), true)
         });
         holdTerminal(reader);
         // report §8.2: the prompt waits for the reader to hold the
@@ -614,43 +622,73 @@ fn drain(screen : Address(ScreenMsg)) -> Unit with m =
 
 type ReaderMsg = K(Event)
 
+// `keeping` is false once the history file has refused a line, so that a
+// session says so once and goes on without one (report §11.2).
 fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg),
-            line : Shell.Editor.Line) -> Unit with ReaderMsg = receive {
+            editing : Shell.Editor.State, keeping : Bool) -> Unit with ReaderMsg = receive {
     K(Resized(_)) -> {
         send(screen, Resize);
-        readLoop(session, screen, line)
+        readLoop(session, screen, editing, keeping)
     }
-  | K(event) -> match Shell.Editor.edit(line, event) {
+  | K(event) -> match Shell.Editor.edit(editing, event) {
         Shell.Editor.Typing(next) -> {
             send(screen, typing(next));
-            readLoop(session, screen, next)
+            readLoop(session, screen, next, keeping)
         }
       | Shell.Editor.Submit(next) -> {
+            let kept = remember(screen, next, keeping);
             send(screen, Entered);
             send(session, Typed(text(next)));
-            readLoop(session, screen, Shell.Editor.next(next))
+            readLoop(session, screen, Shell.Editor.next(next), kept)
         }
       | Shell.Editor.Cancel -> {
-            // what was typed stays in the transcript, abandoned
+            // what was typed stays in the transcript, abandoned, and in
+            // the history to recall and mend
+            let kept = remember(screen, editing, keeping);
             send(screen, Entered);
             send(session, Interrupted);
-            readLoop(session, screen, Shell.Editor.next(line))
+            readLoop(session, screen, Shell.Editor.next(editing), kept)
         }
       | Shell.Editor.Clear(next) -> {
             send(screen, Clear);
             send(screen, typing(next));
-            readLoop(session, screen, next)
+            readLoop(session, screen, next, keeping)
         }
       | Shell.Editor.Leave -> send(session, Eof)
     }
 }
 
-fn typing(line : Shell.Editor.Line) -> ScreenMsg = match line {
-    Shell.Editor.Line(text = text, at = at) -> Typing(text = text, at = at)
+// Report §11.2: an input the history keeps is appended as the shell
+// takes it.
+fn remember(screen : Address(ScreenMsg), editing : Shell.Editor.State, keeping : Bool)
+    -> Bool with m = {
+    let line = text(editing);
+    if !keeping || !Shell.Editor.keeps(editing, line) then keeping
+    else match Shell.History.add(line) {
+        Right(_) -> true
+      | Left(why) -> {
+            say(screen, "the history is not kept: " <> trouble(why));
+            false
+        }
+    }
 }
 
-fn text(line : Shell.Editor.Line) -> String =
-    match line { Shell.Editor.Line(text = text) -> text }
+fn trouble(why : IoError) -> String = match why {
+    NotFound -> "the file is not there"
+  | Denied -> "permission was denied"
+  | Refused -> "the file system refused"
+  | Closed -> "the file was closed"
+  | Timeout -> "the file system did not answer"
+  | Other(text) -> text
+}
+
+// What the reader shows is the editor's, since a search shows its own
+// prompt and the input it found rather than the line (report §11.2).
+fn typing(editing : Shell.Editor.State) -> ScreenMsg =
+    Typing(text = Shell.Editor.shown(editing), at = Shell.Editor.cursor(editing))
+
+fn text(editing : Shell.Editor.State) -> String =
+    match editing { Shell.Editor.State(text = text) -> text }
 
 fn keyLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = receive {
     Typed(line) -> match String.trim(line) {
