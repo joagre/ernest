@@ -42,6 +42,10 @@ foreign fn names() -> List(Shell.Complete.Name) with m = "ern_shell:names/0"
 // Report §11.2: what may stand at the cursor, which the parser knows,
 // since it says what it wanted where it stopped.
 foreign fn context(before : String) -> Shell.Complete.Where with m = "ern_shell:context/1"
+// Report §11.2: the page for a name, which `Shift-Tab` shows a first
+// sentence of and then the whole of.
+foreign fn documentation(name : String) -> Optional(String) with m =
+    "ern_shell:documentation/1"
 foreign fn check(env : Env, from : String, input : String) -> Either(String, #(Env, Checked))
     with m = "ern_shell:check/3"
 // The host's alone: where the startup files are, the person's first and
@@ -113,7 +117,7 @@ export fn main() -> Unit with ShellMsg = {
             Terminal.subscribe(K);
             send(me, Ready);
             readLoop(me, screen, Reading(editing = Shell.Editor.start(earlier),
-                                         keeping = true, hinted = false, tabbed = false))
+                                         keeping = true, hinted = false, last = Ordinary))
         });
         holdTerminal(reader);
         // report §11.2: an editor that cannot read keys is no shell, so
@@ -525,7 +529,11 @@ type ReaderMsg = K(Event)
 // the history file still takes what is typed, and whether this session
 // has said how a multi-line input is run (report §11.2).
 type Reading = Reading(editing : Shell.Editor.State, keeping : Bool, hinted : Bool,
-                       tabbed : Bool)
+                       last : Last)
+
+// What the key before this one did, since `Tab` twice lists and
+// `Shift-Tab` twice shows the whole page (report §11.2).
+type Last = Ordinary | Tabbed | Documented
 
 fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading)
     -> Unit with ReaderMsg = {
@@ -548,7 +556,7 @@ fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : 
                     send(session, Typed(text(next)));
                     readLoop(session, screen,
                              Reading(..reading, editing = Shell.Editor.next(next),
-                                     keeping = kept, tabbed = false))
+                                     keeping = kept, last = Ordinary))
                 }
           | Shell.Editor.Cancel -> {
                 // what was typed stays in the transcript, abandoned, and
@@ -558,13 +566,14 @@ fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : 
                 send(session, Interrupted);
                 readLoop(session, screen,
                          Reading(..reading, editing = Shell.Editor.next(editing),
-                                 keeping = kept, tabbed = false))
+                                 keeping = kept, last = Ordinary))
             }
           | Shell.Editor.Clear(next) -> {
                 send(screen, Clear);
                 showing(session, screen, reading, next)
             }
           | Shell.Editor.Completing(next) -> completing(session, screen, reading, next)
+          | Shell.Editor.Documenting(next) -> documenting(session, screen, reading, next)
           | Shell.Editor.Leave -> send(session, Eof)
         }
     }
@@ -575,10 +584,17 @@ fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : 
 // transcript keeps it and the region stays the size it was.
 fn completing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading,
               state : Shell.Editor.State) -> Unit with ReaderMsg = {
-    let Reading(tabbed = tabbed) = reading;
+    let Reading(last = last) = reading;
     let Shell.Editor.State(text = line, at = at) = state;
     let typed = Shell.Complete.word(String.slice(line, 0, at));
-    if String.isEmpty(typed) then
+    if String.startsWith(line, ":") && at <= commandEnd(line) then
+        // report §11.2: a command is the shell's own word, not the
+        // language's, so the parser is not asked about it
+        offering(session, screen, reading,
+                 Shell.Complete.complete(String.slice(line, 0, commandEnd(line)),
+                                         commandNames(), Shell.Complete.Expression),
+                 String.slice(line, 0, commandEnd(line)), state)
+    else if String.isEmpty(typed) then
         // report §11.2: nothing before the cursor to complete, so `Tab`
         // indents. Four spaces and no tab: the style guide's rule, and
         // a tab in the line is invisible where spaces are what they
@@ -589,16 +605,40 @@ fn completing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading 
         // completed: with the word there it has been read already, and
         // what may stand at the cursor is what may stand in its place
         let where = context(String.slice(line, 0, at - String.size(typed)));
-        let completion = Shell.Complete.complete(line, at, names(), where);
-        let #(text, next) = Shell.Complete.applied(line, at, completion);
-        if tabbed then listing(screen, completion) else Unit;
-        let shown = Shell.Editor.typed(state, text, next);
-        let said = hint(screen, reading, shown);
-        send(screen, typing(shown));
-        readLoop(session, screen,
-                 Reading(..reading, editing = shown, hinted = said, tabbed = true))
+        let completion = Shell.Complete.complete(typed, names(), where);
+        offering(session, screen, reading, completion, typed, state)
     }
 }
+
+// What a completion does to the line: the word it gives stands in
+// place of the one typed, and a second `Tab` lists what is left.
+fn offering(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading,
+            completion : Shell.Complete.Completion, typed : String,
+            state : Shell.Editor.State) -> Unit with ReaderMsg = {
+    let Reading(last = last) = reading;
+    let Shell.Editor.State(text = line, at = at) = state;
+    let #(text, next) = Shell.Complete.applied(line, at, typed, completion);
+    if last == Tabbed then listing(screen, completion) else Unit;
+    let shown = Shell.Editor.typed(state, text, next);
+    let said = hint(screen, reading, shown);
+    send(screen, typing(shown));
+    readLoop(session, screen,
+             Reading(..reading, editing = shown, hinted = said, last = Tabbed))
+}
+
+// Report §11.2: a command's own word is everything up to the first
+// space, which is where its argument begins.
+fn commandEnd(line : String) -> Int = match String.indexOf(line, " ") {
+    None -> String.size(line)
+  | Some(i) -> i
+}
+
+fn commandNames() -> List(Shell.Complete.Name) =
+    List.map(commands, fn(entry) = match entry {
+        Entry(name = name, about = about) ->
+            Shell.Complete.Name(text = ":" <> name, kind = Shell.Complete.Value,
+                                shown = ":" <> name <> about)
+    })
 
 let indent = "    "
 
@@ -607,6 +647,33 @@ fn indented(state : Shell.Editor.State, line : String, at : Int) -> Shell.Editor
                        String.slice(line, 0, at) <> indent
                            <> String.slice(line, at, String.size(line) - at),
                        at + String.size(indent))
+
+// Report §11.2: `Shift-Tab` says what the name at the cursor is: its
+// type and the first sentence about it, and the whole page when it is
+// pressed again. Above the region, as a listing is.
+fn documenting(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading,
+               state : Shell.Editor.State) -> Unit with ReaderMsg = {
+    let Reading(last = last) = reading;
+    let Shell.Editor.State(text = line, at = at) = state;
+    let name = Shell.Complete.word(String.slice(line, 0, at));
+    match documentation(name) {
+        None -> Unit
+      | Some(page) ->
+            List.foreach(if last == Documented then String.lines(page) else brief(page),
+                         fn(row) = send(screen, Noted(row)))
+    };
+    send(screen, typing(state));
+    readLoop(session, screen, Reading(..reading, editing = state, last = Documented))
+}
+
+// The type and the first sentence of a page, which is its code block
+// and the first line of prose after it.
+fn brief(page : String) -> List(String) = {
+    let rows = List.filter(String.lines(page), fn(row) = !String.isEmpty(String.trim(row))
+                                                        && !String.startsWith(row, "#")
+                                                        && row != "```ernest" && row != "```");
+    List.take(rows, 2)
+}
 
 // Report §11.2: the candidates, a line each with the type they carry,
 // committed above the region as anything the shell says is.
@@ -629,8 +696,17 @@ fn showing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : R
            next : Shell.Editor.State) -> Unit with ReaderMsg = {
     let said = hint(screen, reading, next);
     send(screen, typing(next));
+    // a key that only begins a sequence, `Escape` and the `[` after
+    // it, leaves the last key as it was: `Shift-Tab` twice is two
+    // presses, not six keys (report §8.2)
+    let Reading(last = last) = reading;
     readLoop(session, screen, Reading(..reading, editing = next, hinted = said,
-                                      tabbed = false))
+                                      last = if midSequence(next) then last else Ordinary))
+}
+
+fn midSequence(state : Shell.Editor.State) -> Bool = match state {
+    Shell.Editor.State(pending = Shell.Editor.Plain) -> false
+  | _ -> true
 }
 
 // Report §11.2: the first input of a session to take a second line says

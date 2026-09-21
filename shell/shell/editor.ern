@@ -10,13 +10,19 @@
 //
 
 // What is being edited: the line and the cursor, what was last killed,
-// whether the key before this one was `Escape`, the inputs before this
-// one with how far back through them the person has walked, the line
-// they were typing when they began to walk, and the search when one is
+// what the keys before this one have begun, the inputs before this one
+// with how far back through them the person has walked, the line they
+// were typing when they began to walk, and the search when one is
 // running.
-export type State = State(text : String, at : Int, kill : String, meta : Bool,
+export type State = State(text : String, at : Int, kill : String, pending : Pending,
                           history : List(String), back : Int, saved : String,
                           search : Optional(Search))
+
+// Report §8.2: a sequence the terminal sends that §9.3 does not name
+// arrives as `Escape` and the characters after it, so the editor reads
+// one: `Escape` begins a Meta key, and `Escape [` begins the rest of a
+// sequence, of which `Escape [ Z` is `Shift-Tab`.
+export type Pending = Plain | Meta | Bracket
 
 // An incremental search: what has been typed to search for, where in the
 // history the match is, where the walk stood and what was being typed
@@ -25,10 +31,10 @@ export type Search = Search(query : String, back : Int, from : Int, before : Str
                             forward : Bool)
 
 export type Edit = Typing(State) | Submit(State) | Cancel | Clear(State)
-                 | Completing(State) | Leave
+                 | Completing(State) | Documenting(State) | Leave
 
 // Nothing typed yet and nothing behind it.
-export let fresh = State(text = "", at = 0, kill = "", meta = false, history = [],
+export let fresh = State(text = "", at = 0, kill = "", pending = Plain, history = [],
                          back = 0, saved = "", search = None)
 
 // A session's first line, after the inputs of the sessions before it,
@@ -84,9 +90,18 @@ fn missing(query : String, text : String) -> String =
 fn direction(forward : Bool) -> String = if forward then "i-search" else "reverse-i-search"
 
 export fn edit(state : State, event : Event) -> Edit = match state {
-    State(search = Some(s)) -> searching(State(..state, meta = false), s, event)
-  | State(meta = true) -> meta(State(..state, meta = false), event)
-  | State(meta = false) -> plain(state, event)
+    State(search = Some(s)) -> searching(State(..state, pending = Plain), s, event)
+  | State(pending = Meta) -> meta(State(..state, pending = Plain), event)
+  | State(pending = Bracket) -> bracket(State(..state, pending = Plain), event)
+  | State(pending = Plain) -> plain(state, event)
+}
+
+// Report §11.2: `Shift-Tab`, which the terminal sends as `Escape [ Z`,
+// shows what the name at the cursor is. Any other sequence is the
+// `Escape` key and the characters after it, as §8.2 delivers it.
+fn bracket(state : State, event : Event) -> Edit = match event {
+    Char('Z') -> Documenting(state)
+  | other -> plain(state, other)
 }
 
 fn plain(state : State, event : Event) -> Edit = {
@@ -94,7 +109,7 @@ fn plain(state : State, event : Event) -> Edit = {
     match event {
         Enter -> Submit(state)
       | Interrupt -> Cancel
-      | Escape -> Typing(State(..state, meta = true))
+      | Escape -> Typing(State(..state, pending = Meta))
       | ArrowLeft -> Typing(State(..state, at = Int.max(0, at - 1)))
       | ArrowRight -> Typing(State(..state, at = Int.min(String.size(text), at + 1)))
       | ArrowUp -> Typing(walk(state, 1))
@@ -139,6 +154,9 @@ fn meta(state : State, event : Event) -> Edit = {
         // report §11.2: another line, though the parser could run what
         // is typed
         Enter -> Typing(newline(state))
+      // report §8.2: `Escape [` begins a sequence §9.3 does not name,
+      // of which `Escape [ Z` is `Shift-Tab`
+      | Char('[') -> Typing(State(..state, pending = Bracket))
       | Char('<') -> Typing(walkTo(state, List.size(behind(state))))
       | Char('>') -> Typing(walkTo(state, 0))
       | Char('b') -> Typing(State(..state, at = wordLeft(text, at)))
@@ -410,6 +428,17 @@ let asksToComplete = Test(name = "Tab asks the reader to complete", run = fn() =
       | other -> Failed(said(other))
     })
 
+let asksToDocument = Test(name = "Shift-Tab asks the reader for documentation",
+                          run = fn() =
+    match play(keys("List.map") <> [Escape] <> keys("[Z")) {
+        Documenting(State(text = "List.map")) -> Passed
+      | other -> Failed(said(other))
+    })
+
+let escapeThenBracket = Test(name = "Escape and a bracket that is no sequence types on",
+                             run = fn() =
+    reads(play(keys("a") <> [Escape] <> keys("[b")), "ab", 2))
+
 let walks = Test(name = "the arrows walk back through the inputs", run = fn() =
     reads(plays(start(["two", "one"]), [ArrowUp, ArrowUp, ArrowUp]), "one", 3))
 
@@ -503,6 +532,7 @@ fn shows(edited : Edit) -> String = match edited {
 fn said(edited : Edit) -> String = match edited {
     Typing(State(text = text)) -> "typing \"" <> text <> "\""
   | Completing(_) -> "completing"
+  | Documenting(_) -> "documenting"
   | Submit(State(text = text)) -> "submitted \"" <> text <> "\""
   | Cancel -> "cancelled"
   | Clear(_) -> "cleared"

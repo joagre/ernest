@@ -11,7 +11,8 @@
          needs_more/1, check/3,
          type_text/1, declared/1, run/3,
          show/3]).
--export([bindings/1, forget/2, browse/2, doc/2, names/0, context/1]).
+-export([bindings/1, forget/2, browse/2, doc/2, names/0, context/1,
+         documentation/1]).
 -export([deaths/1, mine/0, faults/0, processes/0, load/2, reload/1, output/1]).
 -export([is_terminal/0, write/1, screen/1, to_screen/1]).
 
@@ -477,6 +478,17 @@ doc(Env, Text) ->
     case doc_of(Env, Segments) of
         {ok, Page} -> {'Right', unicode:characters_to_binary(Page)};
         none -> {'Left', <<"no documentation for ", Text/binary>>}
+    end.
+
+%% Report §11.2: the page for a name, as the session stands, for
+%% `Shift-Tab`. The reader asks while an input runs, so it reads the
+%% environment the front end keeps rather than asking the session.
+-spec documentation(binary()) -> 'None' | {'Some', binary()}.
+documentation(Text) ->
+    Env = persistent_term:get({?MODULE, env}, #env{}),
+    case doc_of(Env, namespace(Text)) of
+        {ok, Page} -> {'Some', unicode:characters_to_binary(Page)};
+        none -> 'None'
     end.
 
 doc_of(Env, Segments) ->

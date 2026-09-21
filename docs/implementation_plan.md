@@ -76,9 +76,15 @@ the shell is neither standard library nor library but the toolchain's own progra
   expression, types after `:`, a constructor's remaining fields, a command and then its
   argument; `Shift-Tab` for documentation, the type and first sentence and `since`, a second
   press for the `:doc` section, and inside a call the signature with the parameter at the
-  cursor marked — step 4, and it needs the editor to read `Escape [ Z` as one key, which it
-  cannot today. Command completion is unbuilt too: `:br` does not become `:browse`. The
-  design note has the detail.
+  cursor marked. Step 4 is half done, 2026-09-21: the editor reads `Escape [ Z` as one key,
+  `Shift-Tab` shows a name's type and first sentence and the whole page when pressed again,
+  and a command completes as a word of the shell's own, `:br` to `:browse`, with a second
+  `Tab` listing them all. **Left of step 4:** the signature with the parameter at the cursor
+  marked, which wants a parser tag for "inside a call's argument n" as the field position
+  got one; a declaration's own `since`, which the page does not carry per declaration; and
+  a terminal test for `Shift-Tab` and command completion — the editor's own tests cover the
+  key, and the behaviour was checked by hand, but the pty test written for it raced its own
+  output and was taken out rather than left failing.
 - **Typing ahead while an input runs looks wrong.** A test that sent a second input before
   the first had finished never saw the second's result. Found 2026-09-21, not diagnosed, and
   recorded in the language note; it belongs with the session of real use below.

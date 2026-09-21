@@ -6,7 +6,11 @@ Field selection is the biggest issue, and the shell has now given it three witne
 
 ## Language proper
 
-1. **A local constructor name hides the prelude's, with no way to reach past it.** §4.2 says a module may declare a constructor with a prelude name and the name then means the local one *throughout the module*. Types have namespaces, but prelude constructors have none, so there is no `TestResult.Failed` to fall back on. That is what made the region's tests impossible inside `shell.ern` until `Outcome.Failed` became `Faulted`. The rename was an improvement, so nothing was lost this time — but the rule has no escape hatch, and the next collision may not have a better name waiting.
+1. **A local constructor name hides the prelude's, with no way to reach past it.** Four
+   witnesses now: `Outcome.Failed` against `TestResult.Failed`, and, on 2026-09-21, a
+   `Last = Other | Tabbed | Documented` in the shell that hid `IoError.Other` in a function
+   twenty lines away, which the compiler caught as "Other takes no fields". The rename was
+   again an improvement, and again the rule offered no way out but a rename. §4.2 says a module may declare a constructor with a prelude name and the name then means the local one *throughout the module*. Types have namespaces, but prelude constructors have none, so there is no `TestResult.Failed` to fall back on. That is what made the region's tests impossible inside `shell.ern` until `Outcome.Failed` became `Faulted`. The rename was an improvement, so nothing was lost this time — but the rule has no escape hatch, and the next collision may not have a better name waiting.
 
 2. **Constructor names unique across a module's types.** Felt three times: the `Output2` dodge, the editor's `Typing`/`Clear`/`Cancel` wanting names the screen had, and the `Failed` case above. Each time the right answer was to split a module, which is a good outcome — but it means the namespace rule, not the design, is doing the pushing.
 
