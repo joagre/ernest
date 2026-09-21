@@ -638,3 +638,23 @@ bitstrings_test() ->
                    " | _ -> 0 }")),
     ?assertEqual("unknown bitstring specifier `word`", err_expr("<<1:word>>")),
     ?assertEqual("`unit` takes an integer in parentheses", err_expr("<<1:unit>>")).
+
+%% report §11.2, §2.5: an input the parser cannot finish is marked, so
+%% that the shell takes another line for it. It ran out of tokens where
+%% more were expected, or the lexer ended inside a raw string or a block
+%% comment, both of which may span lines; a string or a char literal may
+%% not, so an unfinished one is an error whatever follows.
+incomplete_test() ->
+    Expr = fun(Text) -> {error, D} = ern_parser:parse_expr(Text), D#diag.incomplete end,
+    Decls = fun(Text) -> {error, D} = ern_parser:parse_string(Text), D#diag.incomplete end,
+    ?assert(Expr("1 + ")),
+    ?assert(Expr("{ 1")),
+    ?assert(Expr("match x {")),
+    ?assert(Expr("`a raw string")),
+    ?assertNot(Expr("1 + * 2")),
+    ?assertNot(Expr("\"a string")),
+    ?assertNot(Expr("'c")),
+    ?assert(Decls("fn f() =")),
+    ?assert(Decls("type T = A | ")),
+    ?assert(Decls("/* a comment")),
+    ?assertMatch({ok, _}, ern_parser:parse_string("fn f() = 1")).

@@ -26,7 +26,20 @@ parse(Tokens) ->
         Decls = program(prune_docs(Tokens1), undefined, []),
         {ok, case ModDoc of undefined -> Decls; _ -> [ModDoc | Decls] end}
     catch
-        throw:{parse_error, #diag{} = D} -> {error, D}
+        throw:{parse_error, #diag{} = D} -> {error, at_end(Tokens, D)}
+    end.
+
+%% Report §11.2: the parser stopped at the end of the input, so more input
+%% could finish it and the shell takes another line. The parser is the one
+%% that knows; no other reader of a diagnostic looks at the flag.
+at_end(Tokens, #diag{span = Span} = D) ->
+    case lists:last(Tokens) of
+        {eof, Pos} ->
+            case ern_diag:span(Pos) of
+                Span -> D#diag{incomplete = true};
+                _ -> D
+            end;
+        _ -> D
     end.
 
 -spec parse_string(unicode:chardata()) -> {ok, [tuple()]} | {error, error()}.
@@ -48,7 +61,7 @@ parse_expr(Text) ->
                     [T | _] -> fail(pos(T), "expected end of input instead of " ++ describe(T))
                 end
             catch
-                throw:{parse_error, #diag{} = D} -> {error, D}
+                throw:{parse_error, #diag{} = D} -> {error, at_end(Tokens, D)}
             end;
         {error, _} = E ->
             E

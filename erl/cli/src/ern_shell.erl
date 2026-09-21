@@ -7,7 +7,8 @@
 %% input declares is the module's declarations.
 -module(ern_shell).
 
--export([loaded/1, start/0, program/0, startup_files/0, history_file/0, check/3,
+-export([loaded/1, start/0, program/0, startup_files/0, history_file/0,
+         needs_more/1, check/3,
          type_text/1, declared/1, run/3,
          show/3]).
 -export([bindings/1, forget/2, browse/2, doc/2]).
@@ -83,6 +84,17 @@ history_file() ->
         none -> 'None';
         File -> {'Some', unicode:characters_to_binary(File)}
     end.
+
+%% Report §11.2: at a terminal the shell takes another line where the
+%% parser cannot finish the input. Both readings are tried, the expression
+%% and the declarations, as `input/1` tries them: an input that could
+%% still become either is unfinished.
+-spec needs_more(binary()) -> boolean().
+needs_more(Text) ->
+    unfinished(ern_parser:parse_expr(Text)) orelse unfinished(ern_parser:parse_string(Text)).
+
+unfinished({error, #diag{incomplete = Incomplete}}) -> Incomplete;
+unfinished(_) -> false.
 
 %% Report §11.2: an input is checked before it is run; a failure is §11.5's
 %% text, as `ernc` shows it, under the name of where the input came from:
@@ -214,8 +226,8 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
                                    {'Ok', bind(Env1, Binds, Ns, V, T, TEnv, Iface),
                                     #value{term = V, desc = Desc}}
                                catch
-                                   throw:{ern, fault, Msg} -> {'Failed', Msg};
-                                   Class:Reason -> {'Failed', fault_text(Class, Reason)}
+                                   throw:{ern, fault, Msg} -> {'Faulted', Msg};
+                                   Class:Reason -> {'Faulted', fault_text(Class, Reason)}
                                end,
                      ern_rt:send(To, Outcome)
                  end, Site)).

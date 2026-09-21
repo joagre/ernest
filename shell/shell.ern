@@ -17,7 +17,9 @@ foreign type Env
 foreign type Checked
 foreign type Value
 
-type Outcome = Ok(env : Env, value : Value) | Failed(String)
+// What running an input came to: its value, or the cause of the fault
+// that ended it (report §11.2, §6.9).
+type Outcome = Ok(env : Env, value : Value) | Faulted(String)
 
 foreign fn start() -> Env with m = "ern_shell:start/0"
 foreign fn program() -> Optional(Address(Never)) with m = "ern_shell:program/0"
@@ -30,6 +32,9 @@ foreign fn load(env : Env, name : String) -> Either(String, #(Env, String)) with
 foreign fn reload(env : Env) -> Either(String, #(Env, List(String))) with m =
     "ern_shell:reload/1"
 foreign fn output(path : String) -> Either(String, String) with m = "ern_shell:output/1"
+// Report §11.2: the parser cannot finish what is typed, so another line
+// may. The parser is the compiler's, and only it knows.
+foreign fn needsMore(input : String) -> Bool = "ern_shell:needs_more/1"
 foreign fn check(env : Env, from : String, input : String) -> Either(String, #(Env, Checked))
     with m = "ern_shell:check/3"
 // The host's alone: where the startup files are, the person's first and
@@ -96,7 +101,8 @@ export fn main() -> Unit with ShellMsg = {
             mine();
             Terminal.subscribe(K);
             send(me, Ready);
-            readLoop(me, screen, Shell.Editor.start(earlier), true)
+            readLoop(me, screen, Reading(editing = Shell.Editor.start(earlier),
+                                         keeping = true, hinted = false))
         });
         holdTerminal(reader);
         // report §8.2: the prompt waits for the reader to hold the
@@ -188,7 +194,7 @@ fn await(
         } else Unit;
         State(..state, env = env2)
     }
-  | Done(Failed(text)) -> {
+  | Done(Faulted(text)) -> {
         say(screen, "fault: " <> text);
         let State(settings = settings) = state;
         if showValue then timed(screen, settings, started) else Unit;
@@ -441,7 +447,7 @@ type Screen = Screen(
     prompt : String,
     typed : String,
     at : Int,
-    painted : Int,
+    resting : Int,
     output : Int,
     size : Optional(Size),
     live : Bool
@@ -458,7 +464,11 @@ let tailRows = 5
 // How long to wait for the file system, which is a local file.
 let fileWait = 5000
 
+// Report §11.2: the rows of an input after its first.
+let continuation = "... "
+
 type ScreenMsg = Said(String)                        // the shell's own
+               | Noted(String)                       // and while an input is typed
                | Wrote(String)                       // a program's
                | Typing(text : String, at : Int)     // the line being typed, and the cursor
                | Entered                             // and now it is finished
@@ -468,12 +478,13 @@ type ScreenMsg = Said(String)                        // the shell's own
                | Flush(reply : Reply(Unit))
 
 fn newScreen() -> Screen with m =
-    Screen(tail = [], writing = "", prompt = "", typed = "", at = 0, painted = 0,
+    Screen(tail = [], writing = "", prompt = "", typed = "", at = 0, resting = 0,
            output = tailRows, size = Terminal.size(), live = isTerminal())
 
 fn screenLoop(s : Screen) -> Unit with ScreenMsg = {
     let s2 = receive {
         Said(text) -> said(s, text)
+      | Noted(text) -> noted(s, text)
       | Wrote(text) -> wrote(s, text)
       | Typing(text = text, at = at) -> refresh(Screen(..s, typed = text, at = at), [])
       | Entered -> entered(s)
@@ -497,6 +508,15 @@ fn said(s : Screen, text : String) -> Screen with m = match s {
         // lines were written
         refresh(Screen(..s, prompt = rest, tail = []), tail <> lines)
     }
+}
+
+// Report §11.2: a line the shell writes while an input is being typed.
+// It joins the transcript above the region and the prompt stays, since
+// the input that prompt belongs to is still being typed; what the
+// session says takes the prompt with it, an input having finished.
+fn noted(s : Screen, text : String) -> Screen with m = match s {
+    Screen(live = false) -> { write(text <> "\n"); s }
+  | Screen(live = true, tail = tail) -> refresh(Screen(..s, tail = []), tail <> [text])
 }
 
 // What a program writes goes to the tail. A line the tail no longer has
@@ -527,9 +547,9 @@ fn aged(s : Screen, commits : List(String)) -> Screen with m = {
 // prompt it was typed after, and the screen stops drawing it.
 fn entered(s : Screen) -> Screen with m = match s {
     Screen(live = false) -> s
-  | Screen(live = true, prompt = prompt, typed = typed, tail = tail) ->
-        refresh(Screen(..s, prompt = "", typed = "", tail = []),
-                tail <> [prompt <> typed])
+  | Screen(live = true, tail = tail) ->
+        refresh(Screen(..s, prompt = "", typed = "", at = 0, tail = []),
+                tail <> inputRows(s))
 }
 
 // The text up to each line feed, and what is left without one.
@@ -555,8 +575,9 @@ fn refresh(s : Screen, commits : List(String)) -> Screen with m = match s {
     Screen(live = false) -> { write(written(commits)); s }
   | Screen(live = true) -> {
         let rows = rowsOf(s);
-        write(erase(s) <> written(commits) <> paint(rows, column(s)));
-        Screen(..s, painted = List.size(rows))
+        let resting = resting(s);
+        write(erase(s) <> written(commits) <> paint(rows, resting, column(s)));
+        Screen(..s, resting = resting)
     }
 }
 
@@ -566,27 +587,40 @@ fn cleared(s : Screen) -> Screen with m = match s {
     Screen(live = false) -> s
   | Screen(live = true) -> {
         write("\u{1b}[2J\u{1b}[H");
-        refresh(Screen(..s, painted = 0), [])
+        refresh(Screen(..s, resting = 0), [])
     }
 }
 
 fn erase(s : Screen) -> String = match s {
-    Screen(painted = n) -> "\r" <> up(n - 1) <> "\u{1b}[0J"
+    Screen(resting = n) -> "\r" <> up(n) <> "\u{1b}[0J"
 }
 
 fn written(lines : List(String)) -> String =
     String.join(List.map(lines, fn(line) = line <> "\n"), "")
 
-fn paint(rows : List(String), at : Int) -> String =
-    String.join(rows, "\n") <> "\r" <> right(at - 1)
+fn paint(rows : List(String), resting : Int, at : Int) -> String =
+    String.join(rows, "\n") <> up(List.size(rows) - 1 - resting) <> "\r" <> right(at - 1)
 
-// The region's rows: the tail, then the row the input is typed on.
-fn rowsOf(s : Screen) -> List(String) = {
-    let Screen(tail = tail, writing = writing, prompt = prompt, typed = typed) = s;
+// The region's rows: the tail, then the rows the input is typed on.
+fn rowsOf(s : Screen) -> List(String) =
+    List.map(tailRowsOf(s) <> inputRows(s), fn(line) = clip(line, width(s)))
+
+fn tailRowsOf(s : Screen) -> List(String) = {
+    let Screen(tail = tail, writing = writing) = s;
     let all = if String.isEmpty(writing) then tail else tail <> [writing];
-    let height = height(s);
-    let shown = List.drop(all, Int.max(0, List.size(all) - height));
-    List.map(shown, fn(line) = clip(line, width(s))) <> [clip(prompt <> typed, width(s))]
+    List.drop(all, Int.max(0, List.size(all) - height(s)))
+}
+
+// Report §11.2: an input may span lines, the first typed after the
+// prompt and the rest after `... `. `String.lines` is not this split: a
+// text that ends in a line feed is being typed on a new empty row, and
+// that row is shown.
+fn inputRows(s : Screen) -> List(String) = {
+    let Screen(prompt = prompt, typed = typed) = s;
+    match String.split(typed, "\n") {
+        [] -> [prompt]
+      | first :: rest -> (prompt <> first) :: List.map(rest, fn(line) = continuation <> line)
+    }
 }
 
 // The tail's height: what `:set output` asks for, and never more than the
@@ -602,11 +636,22 @@ fn width(s : Screen) -> Int = match s {
   | Screen(size = Some(Size(columns = columns))) -> columns
 }
 
-// The column the cursor rests in: the prompt, and where in the line the
-// editor has it.
+// The row of the region the cursor rests on: the tail's rows, and then
+// one for each line feed the cursor has before it.
+fn resting(s : Screen) -> Int = {
+    let Screen(typed = typed, at = at) = s;
+    List.size(tailRowsOf(s)) + List.size(String.split(String.slice(typed, 0, at), "\n")) - 1
+}
+
+// The column the cursor rests in: the prompt the row carries, and where
+// in that line the editor has the cursor.
 fn column(s : Screen) -> Int = {
-    let Screen(prompt = prompt, at = at) = s;
-    Int.min(width(s), String.size(prompt) + at + 1)
+    let Screen(prompt = prompt, typed = typed, at = at) = s;
+    let before = String.slice(typed, 0, at);
+    match String.lastIndexOf(before, "\n") {
+        None -> Int.min(width(s), String.size(prompt) + at + 1)
+      | Some(i) -> Int.min(width(s), String.size(continuation) + String.size(before) - i)
+    }
 }
 
 fn clip(line : String, columns : Int) -> String =
@@ -644,40 +689,85 @@ fn drain(screen : Address(ScreenMsg)) -> Unit with m =
 
 type ReaderMsg = K(Event)
 
-// `keeping` is false once the history file has refused a line, so that a
-// session says so once and goes on without one (report §11.2).
-fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg),
-            editing : Shell.Editor.State, keeping : Bool) -> Unit with ReaderMsg = receive {
-    K(Resized(_)) -> {
-        send(screen, Resize);
-        readLoop(session, screen, editing, keeping)
+// What the reader carries between keys: the line being edited, whether
+// the history file still takes what is typed, and whether this session
+// has said how a multi-line input is run (report §11.2).
+type Reading = Reading(editing : Shell.Editor.State, keeping : Bool, hinted : Bool)
+
+fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading)
+    -> Unit with ReaderMsg = {
+    let Reading(editing = editing, keeping = keeping) = reading;
+    receive {
+        K(Resized(_)) -> {
+            send(screen, Resize);
+            readLoop(session, screen, reading)
+        }
+      | K(event) -> match Shell.Editor.edit(editing, event) {
+            Shell.Editor.Typing(next) -> showing(session, screen, reading, next)
+          | Shell.Editor.Submit(next) ->
+                // report §11.2: another line where the parser cannot
+                // finish the input, and the input where it can
+                if continues(text(next)) then
+                    showing(session, screen, reading, Shell.Editor.newline(next))
+                else {
+                    let kept = remember(screen, next, keeping);
+                    send(screen, Entered);
+                    send(session, Typed(text(next)));
+                    readLoop(session, screen,
+                             Reading(..reading, editing = Shell.Editor.next(next), keeping = kept))
+                }
+          | Shell.Editor.Cancel -> {
+                // what was typed stays in the transcript, abandoned, and
+                // in the history to recall and mend
+                let kept = remember(screen, editing, keeping);
+                send(screen, Entered);
+                send(session, Interrupted);
+                readLoop(session, screen,
+                         Reading(..reading, editing = Shell.Editor.next(editing), keeping = kept))
+            }
+          | Shell.Editor.Clear(next) -> {
+                send(screen, Clear);
+                showing(session, screen, reading, next)
+            }
+          | Shell.Editor.Leave -> send(session, Eof)
+        }
     }
-  | K(event) -> match Shell.Editor.edit(editing, event) {
-        Shell.Editor.Typing(next) -> {
-            send(screen, typing(next));
-            readLoop(session, screen, next, keeping)
-        }
-      | Shell.Editor.Submit(next) -> {
-            let kept = remember(screen, next, keeping);
-            send(screen, Entered);
-            send(session, Typed(text(next)));
-            readLoop(session, screen, Shell.Editor.next(next), kept)
-        }
-      | Shell.Editor.Cancel -> {
-            // what was typed stays in the transcript, abandoned, and in
-            // the history to recall and mend
-            let kept = remember(screen, editing, keeping);
-            send(screen, Entered);
-            send(session, Interrupted);
-            readLoop(session, screen, Shell.Editor.next(editing), kept)
-        }
-      | Shell.Editor.Clear(next) -> {
-            send(screen, Clear);
-            send(screen, typing(next));
-            readLoop(session, screen, next, keeping)
-        }
-      | Shell.Editor.Leave -> send(session, Eof)
-    }
+}
+
+// The screen is told what is being typed, and the session is told once
+// how a multi-line input is run.
+fn showing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading,
+           next : Shell.Editor.State) -> Unit with ReaderMsg = {
+    let said = hint(screen, reading, next);
+    send(screen, typing(next));
+    readLoop(session, screen, Reading(..reading, editing = next, hinted = said))
+}
+
+// Report §11.2: the first input of a session to take a second line says
+// how it is run, once, above the region rather than on the prompt, where
+// it would move the column the input is typed in.
+fn hint(screen : Address(ScreenMsg), reading : Reading, next : Shell.Editor.State)
+    -> Bool with m = match reading {
+    Reading(hinted = true) -> true
+  | Reading(hinted = false) ->
+        if String.contains(text(next), "\n") then {
+            send(screen, Noted("M-Enter adds a line, Enter runs."));
+            true
+        } else false
+}
+
+// Report §11.2: `Enter` takes another line where the parser cannot
+// finish the input, and runs what there is on an empty line, so that an
+// input that cannot parse is shown its error rather than asked for more.
+// An input with nothing in it runs, though the parser cannot finish it:
+// `Enter` at an empty prompt has always given a new one.
+fn continues(input : String) -> Bool =
+    !String.isEmpty(String.trim(input)) && !lastLineBlank(input) && needsMore(input)
+
+fn lastLineBlank(input : String) -> Bool = match String.lastIndexOf(input, "\n") {
+    None -> false
+  | Some(i) ->
+        String.isEmpty(String.trim(String.slice(input, i + 1, String.size(input) - i - 1)))
 }
 
 // Report §11.2: an input the history keeps is appended as the shell
@@ -762,3 +852,39 @@ fn lineLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = 
         }
     }
 }
+
+//
+// The tests (report §9.3) of the region's geometry, which is the pure
+// part of the screen: what rows an input takes and where the cursor
+// rests in them. `ern --test build/shell/shell.erc` runs them, and
+// `make test` with it.
+//
+
+let spansRows = Test(name = "an input takes a row for each of its lines", run = fn() =
+    rowsAre(inputRows(screenWith("a\nb", 3)), ["> a", "... b"]))
+
+let showsTheEmptyRow = Test(name = "a text that ends in a line feed shows its empty row",
+                            run = fn() =
+    rowsAre(inputRows(screenWith("a\n", 2)), ["> a", "... "]))
+
+let restsWhereTyped = Test(name = "the cursor rests on the row and column it is typed at",
+                           run = fn() = {
+    let s = screenWith("a\nbc", 4);
+    if resting(s) == 1 && column(s) == 7 then Passed
+    else Failed("row " <> Int.toString(resting(s)) <> ", column " <> Int.toString(column(s)))
+})
+
+let restsOnTheFirstRow = Test(name = "a one-line input rests after its prompt", run = fn() = {
+    let s = screenWith("abc", 2);
+    if resting(s) == 0 && column(s) == 5 then Passed
+    else Failed("row " <> Int.toString(resting(s)) <> ", column " <> Int.toString(column(s)))
+})
+
+// A screen with nothing written and an input being typed, which is what
+// the geometry is about.
+fn screenWith(text : String, at : Int) -> Screen =
+    Screen(tail = [], writing = "", prompt = "> ", typed = text, at = at, resting = 0,
+           output = tailRows, size = Some(Size(rows = 24, columns = 80)), live = true)
+
+fn rowsAre(rows : List(String), expected : List(String)) -> TestResult =
+    if rows == expected then Passed else Failed(String.join(rows, " | "))

@@ -3465,6 +3465,35 @@ history an earlier run had left and the test failed on entries it had never type
 carries the operating system's pid now. It cost an hour of looking at the shell for a defect
 that was in the test.
 
+## An Input That Spans Lines, 2026-09-21
+
+**The parser marks the diagnostic; nothing else could tell.** An input is unfinished when the
+parser stopped at the end of the input, or the lexer ended inside a raw string or a block
+comment, the two things §2.5 lets span lines. A string and a char literal may not, so an
+unfinished one is an error whatever follows, which is the line between "take another line"
+and "show the error". The mark is a field on `#diag{}` rather than a second entry point: the
+parser has the diagnostic in hand, and a shell that counted brackets itself would be a second
+parser, to disagree with the first.
+
+**Both readings are asked.** `needsMore` tries the expression and the declarations, as
+`input/1` does, since `fn f() =` is no expression at all and `1 +` is no declaration; an
+input that could still become either is unfinished.
+
+**An empty input runs.** The parser cannot finish `""` either, so the first rule would have
+taken a line for it and `Enter` at an empty prompt would have stopped giving a new prompt.
+The test that caught it was the history's, which types a blank line to prove a blank input is
+not kept.
+
+**`Said` and `Noted` are two acts.** What the session says takes the prompt with it, an input
+having finished, which is what puts a value on the line after its prompt. A line written
+while an input is being typed, the hint that `M-Enter` adds a line, must leave the prompt
+where it is; the first attempt used `Said` and the input lost its `> `. Two messages, because
+a screen cannot guess which of the two a line is.
+
+**`Outcome.Failed` became `Outcome.Faulted`.** The name was in the way of the prelude's
+`TestResult.Failed` once the screen's geometry had tests, and §4.2 gives the local name the
+module. `Faulted` is the better name anyway: the text it carries is a fault's cause (§6.9).
+
 ## Later
 
 Planned or considered, not in the language today.

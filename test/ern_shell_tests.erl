@@ -120,15 +120,16 @@ live_region() ->
     ?assertEqual(<<">">>, lists:last(Lines)).
 
 %% report §11.2, §9.3: the pure parts of the shell test themselves, the
-%% editor's function from a line and an event to what the reader must do
-%% and the history file's escaping, run by `ern --test` as the shell is
-%% built; they are Shell.Editor and Shell.History, modules of their own
+%% editor's function from a line and an event to what the reader must do,
+%% the history file's escaping, and the region's geometry, run by
+%% `ern --test` as the shell is built
 editor_test_() ->
     {timeout, 60, fun editor/0}.
 
 editor() ->
     {Status, Out} = sh("../bin/ern --test ../build/shell/shell/editor.erc"
-                       " && ../bin/ern --test ../build/shell/shell/history.erc"),
+                       " && ../bin/ern --test ../build/shell/shell/history.erc"
+                       " && ../bin/ern --test ../build/shell/shell.erc"),
     Lines = [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
     ?assertEqual([], [L || L <- Lines, binary:match(L, <<": passed">>) =:= nomatch]),
     ?assert(length(Lines) >= 10),
@@ -235,6 +236,67 @@ history() ->
 history_lines(File) ->
     {ok, Text} = file:read_file(File),
     [L || L <- binary:split(Text, <<"\n">>, [global]), L =/= <<>>].
+
+%% report §11.2: at a terminal an input may span lines. `Enter` takes
+%% another line where the parser cannot finish the input and runs it
+%% where it can, `M-Enter` takes one whatever the parser says, and
+%% `Enter` on an empty line runs what there is, error and all. The first
+%% such input of a session says how it is run, once, above the region.
+%% The rows after the first are prompted `... `, and a multi-line input
+%% comes back from the history whole
+multiline_test_() ->
+    {timeout, 90, fun multiline/0}.
+
+multiline() ->
+    Home = fresh_home(),
+    Screen = screen("HOME=" ++ Home ++ " ../bin/ern --shell",
+                    [{expect, "> "},
+                     {send, hex("1 +\r")},                % the parser wants more
+                     {expect, "... "},
+                     {send, hex("2\r")},
+                     {expect, "3 : Int"},
+                     {send, hex("40 + 2")},
+                     {expect, "40 + 2"},
+                     {send, "1b0d"},                      % M-Enter on a complete input
+                     {expect, "... "},
+                     {send, hex("    + 0\r")},
+                     {expect, "42 : Int"},
+                     {send, hex("fn f(\r")},              % cannot parse, and unfinished
+                     {sleep, 300},
+                     {send, hex("\r")},                   % the blank line runs it
+                     {expect, "expected a pattern"},
+                     {send, "1b5b41"},                    % ArrowUp: the input back, whole
+                     {sleep, 400},
+                     {send, "04"}],
+                    30, "16x46"),
+    Lines = [L || L <- binary:split(Screen, <<"\n">>, [global]), L =/= <<>>],
+    Text = iolist_to_binary(Lines),
+    %% the hint is above the region and the prompt it was typed under stays
+    ?assertEqual(1, count(Text, <<"M-Enter adds a line, Enter runs.">>)),
+    ?assertMatch({_, _}, binary:match(Text, <<"> 1 +">>)),
+    ?assertMatch({_, _}, binary:match(Text, <<"... 2">>)),
+    %% `M-Enter` took a line the parser would have run
+    ?assertMatch({_, _}, binary:match(Text, <<"42 : Int">>)),
+    %% the blank line ran an input that cannot parse, and its error names
+    %% the line the input was typed on
+    ?assertMatch({_, _}, binary:match(Text, <<"expected a pattern">>)),
+    %% the history brought the multi-line input back whole
+    ?assertEqual([<<"1 +\\n2">>, <<"40 + 2\\n    + 0">>, <<"fn f(\\n">>],
+                 history_lines(filename:join([Home, ".ernest", "history"]))),
+    %% the screen is rendered without the spaces at a row's end
+    ?assertMatch({_, _}, binary:match(lists:last(Lines), <<"...">>)).
+
+%% report §11.2: the parser says when more input could finish what was
+%% typed, and the shell asks it for each reading it would try
+needs_more_test() ->
+    ?assert(ern_shell:needs_more(<<"1 +">>)),
+    ?assert(ern_shell:needs_more(<<"fn f() =">>)),
+    ?assert(ern_shell:needs_more(<<"type Shape = Dot |">>)),
+    ?assert(ern_shell:needs_more(<<"`a raw string">>)),
+    ?assertNot(ern_shell:needs_more(<<"1 + 2">>)),
+    ?assertNot(ern_shell:needs_more(<<"fn f() = 1">>)),
+    ?assertNot(ern_shell:needs_more(<<"1 + * 2">>)),
+    ?assertNot(ern_shell:needs_more(<<"\"a string">>)).
 
 %% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
 %% under the source root and puts it in scope; `:reload` compiles again

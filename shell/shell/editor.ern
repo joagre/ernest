@@ -53,6 +53,10 @@ export fn keeps(state : State, text : String) -> Bool = match state {
 // What the reader shows on the line and where the cursor stands in it:
 // the line itself, or, while a search runs, Readline's search prompt
 // with the match after it.
+// Report §11.2: another line of the same input, which `M-Enter` asks
+// for and `Enter` does where the parser cannot finish what is typed.
+export fn newline(state : State) -> State = insert(state, "\n")
+
 export fn shown(state : State) -> String = match state {
     State(search = None, text = text) -> text
   | State(search = Some(s), text = text) -> asked(s, text) <> text
@@ -119,12 +123,14 @@ fn character(state : State, c : Char) -> Edit = {
     }
 }
 
-// `Escape` and then the key: Readline's Meta bindings. `M-Enter` adds a
-// line once multi-line input is built (plan, MVP 2.6).
+// `Escape` and then the key: Readline's Meta bindings.
 fn meta(state : State, event : Event) -> Edit = {
     let State(text = text, at = at) = state;
     match event {
-        Char('<') -> Typing(walkTo(state, List.size(behind(state))))
+        // report §11.2: another line, though the parser could run what
+        // is typed
+        Enter -> Typing(newline(state))
+      | Char('<') -> Typing(walkTo(state, List.size(behind(state))))
       | Char('>') -> Typing(walkTo(state, 0))
       | Char('b') -> Typing(State(..state, at = wordLeft(text, at)))
       | Char('f') -> Typing(State(..state, at = wordRight(text, at)))
@@ -380,6 +386,9 @@ let clears = Test(name = "C-l clears the screen and keeps the line", run = fn() 
         Clear(State(text = "hi", at = 2)) -> Passed
       | other -> Failed(said(other))
     })
+
+let addsLine = Test(name = "M-Enter adds a line at the cursor", run = fn() =
+    reads(play(keys("ab") <> [Escape, Enter] <> keys("c")), "ab\nc", 4))
 
 let walks = Test(name = "the arrows walk back through the inputs", run = fn() =
     reads(plays(start(["two", "one"]), [ArrowUp, ArrowUp, ArrowUp]), "one", 3))

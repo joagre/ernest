@@ -47,7 +47,8 @@ tokenize(Data) ->
                 Tokens -> {ok, Tokens}
             catch
                 throw:{lex_error, Line, Col, Message} ->
-                    {error, #diag{span = {Line, Col, {Line, Col + 1}}, message = Message}}
+                    {error, #diag{span = {Line, Col, {Line, Col + 1}}, message = Message,
+                                  incomplete = unfinished(Message)}}
             end;
         _ ->
             {error, #diag{span = {1, 1, {1, 2}}, message = "input is not valid UTF-8"}}
@@ -351,3 +352,10 @@ symbol(S, [Sym | Syms]) ->
 
 error_at(L, C, Message) ->
     throw({lex_error, L, C, lists:flatten(Message)}).
+
+%% Report §11.2, §2.5: a raw string and a block comment may span lines, so
+%% more input can finish one; a string or a char literal may not, and an
+%% unfinished one is an error whatever follows.
+unfinished("unterminated raw string") -> true;
+unfinished("unterminated block comment") -> true;
+unfinished(_) -> false.
