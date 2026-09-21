@@ -282,7 +282,7 @@ Delivered before the shell. Those marked report first are written into the repor
 
 ## Open
 
-- **How the line editor measures wide characters.**
+- **How the region measures a wide character.** A tab is settled: the region paints it as the spaces to the next stop of eight and places the cursor by the columns a row takes, since a tab's width depends on where it falls and the terminal's own stops are not the region's to trust. What is committed keeps the tab. A wide glyph is still one column to the region and two to the terminal, and `expand` in `shell.ern` is the one function that has to learn it; nothing in the runtime knows a glyph's width.
 
 Settled since this list was written: the depth and length defaults are 10 and 100; a hundred faults are kept; `:load` compiles in memory and writes nothing, so there is no output to place; and the foreign interface is what `shell/shell.ern` declares.
 

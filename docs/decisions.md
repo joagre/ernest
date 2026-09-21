@@ -3521,6 +3521,23 @@ characters and was complete before the gap could be seen.
 at a prompt has not felt it, and the shape to reach for, if one ever does, is a reader that
 hands over what it has rather than one character.
 
+## A Tab Is Painted, Not Written, 2026-09-21
+
+A paste of tab-indented code found it: the region placed the cursor by counting the
+characters before it, and a terminal advances a tab to the next stop, so the caret sat left
+of the text and every redraw after it was off by the difference. The text was right
+throughout; only the drawing was wrong.
+
+**The region paints the spaces itself.** The alternative was to model the terminal's tab
+stops in the cursor arithmetic, which trusts a setting the region does not own; painting the
+spaces means the region writes what it has measured, which is the same reasoning that keeps
+it from addressing a row. What is committed keeps the tab the person typed, so the
+scrollback holds the text and not our spaces, and the terminal expands it to the same stop.
+
+**One character is one column, still.** `expand` is where that assumption now lives, so the
+wide-glyph question has one function to change rather than two arithmetics. Nothing in the
+runtime knows a glyph's width, which is why the question is still open.
+
 ## Later
 
 Planned or considered, not in the language today.

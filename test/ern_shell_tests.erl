@@ -312,6 +312,27 @@ paste() ->
     %% nothing ran before the paste was whole: `1 +` alone is an error
     ?assertEqual(nomatch, binary:match(Text, <<"expected an expression">>)).
 
+%% report §11.2: a tab is painted as the spaces to the next stop, so
+%% that the cursor is placed by the columns the row takes and not by the
+%% characters in it; what is committed keeps the tab the person typed
+tabs_test_() ->
+    {timeout, 90, fun tabs/0}.
+
+tabs() ->
+    Screen = pty(alone("../bin/ern --shell"),
+                 [{expect, "> "},
+                  %% \e[200~ a <TAB> b \e[201~, which no key could send
+                  {send, "1b5b3230307e" ++ hex("a\tb") ++ "1b5b3230317e"},
+                  {sleep, 500},
+                  {send, "03"},                       % abandon the line
+                  {sleep, 300},
+                  {send, "04"}],
+                 30),
+    %% "> " is two columns and "a" a third, so the tab paints five spaces
+    ?assertMatch({_, _}, binary:match(Screen, <<"> a     b">>)),
+    %% the line that joined the transcript holds the tab itself
+    ?assertMatch({_, _}, binary:match(Screen, <<"> a\tb">>)).
+
 %% report §11.2: the parser says when more input could finish what was
 %% typed, and the shell asks it for each reading it would try
 needs_more_test() ->

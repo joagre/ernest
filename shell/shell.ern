@@ -467,6 +467,10 @@ let fileWait = 5000
 // Report §11.2: the rows of an input after its first.
 let continuation = "... "
 
+// A tab moves to the next multiple of this, which is every terminal's
+// default and the only stop the region assumes.
+let tabStop = 8
+
 type ScreenMsg = Said(String)                        // the shell's own
                | Noted(String)                       // and while an input is typed
                | Wrote(String)                       // a program's
@@ -602,8 +606,10 @@ fn paint(rows : List(String), resting : Int, at : Int) -> String =
     String.join(rows, "\n") <> up(List.size(rows) - 1 - resting) <> "\r" <> right(at - 1)
 
 // The region's rows: the tail, then the rows the input is typed on.
+// Each is painted with its tabs already spaces, since a row is placed
+// by its columns and a tab's width depends on where it falls.
 fn rowsOf(s : Screen) -> List(String) =
-    List.map(tailRowsOf(s) <> inputRows(s), fn(line) = clip(line, width(s)))
+    List.map(tailRowsOf(s) <> inputRows(s), fn(line) = clip(expand(line), width(s)))
 
 fn tailRowsOf(s : Screen) -> List(String) = {
     let Screen(tail = tail, writing = writing) = s;
@@ -643,15 +649,31 @@ fn resting(s : Screen) -> Int = {
     List.size(tailRowsOf(s)) + List.size(String.split(String.slice(typed, 0, at), "\n")) - 1
 }
 
-// The column the cursor rests in: the prompt the row carries, and where
-// in that line the editor has the cursor.
+// The column the cursor rests in: what the row holds before the cursor,
+// tabs and all, is as many columns as it paints.
 fn column(s : Screen) -> Int = {
     let Screen(prompt = prompt, typed = typed, at = at) = s;
     let before = String.slice(typed, 0, at);
-    match String.lastIndexOf(before, "\n") {
-        None -> Int.min(width(s), String.size(prompt) + at + 1)
-      | Some(i) -> Int.min(width(s), String.size(continuation) + String.size(before) - i)
-    }
+    let head = match String.lastIndexOf(before, "\n") {
+        None -> prompt <> before
+      | Some(i) -> continuation <> String.slice(before, i + 1, String.size(before) - i - 1)
+    };
+    Int.min(width(s), String.size(expand(head)) + 1)
+}
+
+// Report §11.2: a tab is painted as the spaces to the next stop. The
+// region places its rows and its cursor by column, so it writes what it
+// has measured rather than leaving the tab to the terminal's own stops.
+// One character is one column here, which a wide glyph is not; that is
+// the note's open question, and this is the one function it changes.
+fn expand(row : String) -> String = expanding(String.toList(row), "")
+
+fn expanding(chars : List(Char), done : String) -> String = match chars {
+    [] -> done
+  | c :: rest ->
+        if c == '\t' then
+            expanding(rest, done <> String.repeat(" ", tabStop - String.size(done) % tabStop))
+        else expanding(rest, done <> Char.toString(c))
 }
 
 fn clip(line : String, columns : Int) -> String =
@@ -872,6 +894,14 @@ let restsWhereTyped = Test(name = "the cursor rests on the row and column it is 
     let s = screenWith("a\nbc", 4);
     if resting(s) == 1 && column(s) == 7 then Passed
     else Failed("row " <> Int.toString(resting(s)) <> ", column " <> Int.toString(column(s)))
+})
+
+let expandsTabs = Test(name = "a tab is painted to the next stop", run = fn() =
+    rowsAre([expand("> a\tb"), expand("\t.")], ["> a     b", "        ."]))
+
+let restsAfterATab = Test(name = "the cursor rests where the tab left it", run = fn() = {
+    let s = screenWith("a\tb", 2);
+    if column(s) == 9 then Passed else Failed(Int.toString(column(s)))
 })
 
 let restsOnTheFirstRow = Test(name = "a one-line input rests after its prompt", run = fn() = {
