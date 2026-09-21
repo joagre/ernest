@@ -336,7 +336,7 @@ distribution. Exhaustiveness checking was in from the start, being the check tha
   checked, so `fn a(x) = b(x); fn b(x) = x + 1` does not accept `a("s")`.
 - **One Erlang module per Ernest module**, `ern@` and the path with `@` for `/`, functions
   keeping their local names and type members their prefix (`'Stack.push'/2`). The reasons for
-  the name are in [`naming.md`](naming.md).
+  the name are in the log's *One Token for the Project*.
 - **Three pre-passes inside the emitter's one traversal**: unique variable names, lambda
   lifting of local `fn`s with their free variables as leading parameters, and the `<-`
   desugaring of §5.5 from the type the checker left on the node.
@@ -419,7 +419,7 @@ is a standing rule and not a milestone. The steps, in the order done:
 Erlang module `ern_<thing>`, every compiled Ernest module `ern@<namespace>`, `lib/` became
 `erl/`, the standard library's Erlang half joined the runtime, and two wrong names were fixed
 (`ern_compiler` to `ern_emitter`, `ern_check` to `ern_boundary`). The rule is in the style
-guide, the record in [`naming.md`](naming.md). What remains of it is `libs/` in MVP 2.7.
+guide, the record in the log's *One Token for the Project*. What remains of it is `libs/` in MVP 2.7.
 
 ---
 

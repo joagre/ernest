@@ -2924,7 +2924,30 @@ Earlier entries keep the names they were written with, since an entry records an
 
 Two uses of the full name in code were weighed after the rename. The tag an Ernest process dies with, `{ernest, fault, Text}` and its two siblings, became `{ern, ...}` and moved into the report: §8.4 already gives the BEAM ABI value by value, foreign code can observe a death, and a tag the report does not name is something invisible, which principle 3 refuses. The configuration directory `.ernest/` and `ernest.conf` stay as they are. They are normative in §11.2 and §11.3 and they are user-facing: a directory listing should say which language owns the directory, as `.git` and `.cargo` do, and that is the language's name rather than the toolchain's.
 
-[`naming.md`](naming.md) is the record; the rule itself lives in the style guide.
+**What the runtime allows**, measured on OTP 27 with `ERL_LIBS` pointing at our
+applications, which is what the rule was built on. An application directory may take an
+Erlang application's name — `lib/compiler` did, and both `ebin` directories stayed on the
+code path — but the duplicate wins `code:lib_dir/1`, so anything resolving an application by
+name gets ours. A module name must never clash: modules are global and our directories
+precede Erlang's on the path, so a module of ours named `sets` or `compile` would shadow
+Erlang's for the whole node, and an Ernest program shares its node with whatever foreign code
+it calls. Of the names in play, only `compiler` and `stdlib` existed in the distribution.
+
+**Against the principles**, which are the language's (§0) but were written for design, and
+this is design. Least surprise: one token in the command, the extension, the Erlang modules
+and the compiled ones, so a reader who has run `ernc` predicts the rest; what is left to
+surprise is that a module name does not say its layer, which the directory says. One way:
+one prefix and one exception, a borrowed file, where there had been three conventions and no
+rule. Nothing invisible: the tree says which language each part is written in, which the
+earlier layout hid. Simple to parse, read as simple to find: a grep for `ern_` finds our
+Erlang and nothing else, `ern@` our Ernest. Small: one prefix, one token, against an earlier
+draft's `ernest_<app>_<thing>`, `estdlib` and `elibs`, which said in a name what the path
+already said.
+
+The prose keeps the language's full name, since it is about the language rather than the
+toolchain: `ernest_report.md`, `ernest_guide.md`. The rule itself lives in the style guide;
+this entry is the record of why, `docs/naming.md` having been folded into it on 2026-09-21,
+its migration steps done and its map of old names to new kept in the paragraphs above.
 
 ## Documentation in the Compiled Module, 2026-09-20
 

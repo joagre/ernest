@@ -4,7 +4,7 @@ A functional language for explicit process protocols. Mailbox effects and linear
 
 ## Status
 
-The toolchain is written in Erlang: lexer, parser, type checker, runtime, the compiler to BEAM, and the two programs `ernc` and `ern` under `bin/`, with every example program the toolchain runs compiled and run as a test. Where the project stands and what comes next is the first paragraph of [`docs/implementation_plan.md`](docs/implementation_plan.md).
+The toolchain is written in Erlang: lexer, parser, type checker, runtime, the compiler to BEAM, and the two programs `ernc` and `ern` under `bin/`, with every example program the toolchain runs compiled and run as a test. Where the project stands and what comes next is "Where we are" in [`docs/implementation_plan.md`](docs/implementation_plan.md).
 
 ## Reading order
 
@@ -55,8 +55,8 @@ Four layers:
 VERSION            the toolchain's version, read at build time
 ernest_report.md   the language report (normative)
 ernest_guide.md    the reading guide
-docs/              decisions log, implementation plan, architecture note, style guides, naming record,
-                   module documentation template, shell design
+docs/              decisions log, implementation plan, architecture note, style guides,
+                   module documentation template, shell design, language feedback, Emacs mode
 examples/          Ernest programs: the paper programs and the small ones
 erl/               the toolchain, as Erlang applications: lexer, parser,
                    typer, runtime, emitter, cli, utils (vendored getopt);
@@ -67,7 +67,8 @@ test/              what spans applications: the hand-written target modules,
 bin/               ernc and ern, as escript sources
 stdlib/            the standard library as Ernest source
 shell/             the shell as Ernest source, from MVP 2.6
-build/             build products, not in git: build/stdlib/ from make and make doc
+build/             build products, not in git: build/stdlib/ and build/shell/ from make,
+                   the standard library's pages from make doc
 libs/              the first-party libraries, each a source root, from MVP 2.7
 ```
 
@@ -102,7 +103,16 @@ bin/ernc --emit erl examples/hello.ern       # the Erlang source, for reading
 bin/ernc --doc stdlib/list.ern                           # the module's documentation as CommonMark
 bin/ernc --errors short examples/hello.ern  # the first line of each error only
 bin/ern --create-config-dir .                # .ernest/ with a key pair
+bin/ern --shell                              # a shell over the standard library
+bin/ern --shell build/main.erc               # a shell beside a running program
+bin/ern --test build/stdlib/list.erc         # the module's tests
 ```
+
+At a terminal the shell edits the line with Readline's Emacs keys, keeps a history in
+`$HOME/.ernest/history`, takes another line where the parser cannot finish an input, and
+shows what programs write in a region at the foot of the screen; `:help` lists its commands.
+Report §11.2 states what it does and [`docs/shell_design.md`](docs/shell_design.md) how it is
+built.
 
 ## What the toolchain accepts
 
