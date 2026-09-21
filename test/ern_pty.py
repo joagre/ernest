@@ -101,6 +101,12 @@ def rendered(data, rows, columns):
     i = 0
     while i < len(text):
         if text[i] == "\x1b":
+            # a private mode, such as bracketed paste: the terminal takes
+            # it and shows nothing
+            private = re.match(r"\x1b\[\?\d+[hl]", text[i:])
+            if private:
+                i += private.end()
+                continue
             match = re.match(r"\x1b\[(\d*);?(\d*)([A-Za-z])", text[i:])
             if not match:
                 i += 1

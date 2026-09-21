@@ -28,6 +28,10 @@ fn loop() -> Unit with Msg = receive {
   | E(Enter) -> { Io.println("enter"); loop() }
   | E(Interrupt) -> { Io.println("interrupt"); loop() }
   | E(Char(c)) -> { Io.println("char " <> Char.toString(c)); loop() }
+  | E(Pasted(text)) -> {
+        Io.println("pasted " <> String.replace(text, "\n", "|"));
+        loop()
+    }
   | E(Resized(Size(rows = rows, columns = columns))) -> {
         Io.println("resized " <> Int.toString(rows) <> "x" <> Int.toString(columns));
         loop()

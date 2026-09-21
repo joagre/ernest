@@ -3494,6 +3494,33 @@ a screen cannot guess which of the two a line is.
 `TestResult.Failed` once the screen's geometry had tests, and §4.2 gives the local name the
 module. `Faulted` is the better name anyway: the text it carries is a fault's cause (§6.9).
 
+## A Paste Is One Event, 2026-09-21
+
+**`Pasted(String)` rather than a bracket pair.** The alternative was two events, a beginning
+and an end, with the characters between them, which makes every program that reads keys
+reassemble what the runtime already had whole. One event carries the text; a program that
+does not care about pastes treats it as text, and one that does can refuse it. §0.5.
+
+**The line endings are line feeds.** A terminal sends what a paste held with its own line
+endings, and a carriage return is what `Enter` sends, so a paste of two lines would otherwise
+arrive as a line and a key that runs it. The runtime gives the text as Ernest writes it
+(§2.5), which is also what makes a pasted block one input.
+
+**A terminal that does not bracket is not an error.** The request is ignored and the
+characters arrive as typing, which no program can tell apart. Nothing in the report promises
+more, and there is nothing sensible to do about it.
+
+**The defect it found: a sequence that is still arriving.** The reader reads one character at
+a time, so the decoder saw `\e`, then `\e[`, then `\e[2`, and the third had no clause and
+was read as `Escape` and two characters. The two explicit waiting clauses were doing by hand
+what one rule does: what has arrived waits while it is a prefix of a sequence the decoder
+knows. Bracketed paste was the first sequence long enough to expose it; an arrow is three
+characters and was complete before the gap could be seen.
+
+**A paste is rescanned as it grows**, since each character decodes the buffer again. A paste
+at a prompt has not felt it, and the shape to reach for, if one ever does, is a reader that
+hands over what it has rather than one character.
+
 ## Later
 
 Planned or considered, not in the language today.

@@ -286,6 +286,32 @@ multiline() ->
     %% the screen is rendered without the spaces at a row's end
     ?assertMatch({_, _}, binary:match(lists:last(Lines), <<"...">>)).
 
+%% report §11.2, §8.2: a paste goes into the line at the cursor and its
+%% line feeds add lines, so a pasted two-line input is one input and runs
+%% when `Enter` is pressed after it
+paste_test_() ->
+    {timeout, 90, fun paste/0}.
+
+paste() ->
+    Screen = screen(alone("../bin/ern --shell"),
+                    [{expect, "> "},
+                     %% \e[200~ 1 + <CR> 2 \e[201~
+                     {send, "1b5b3230307e" ++ hex("1 +") ++ "0d" ++ hex("2") ++ "1b5b3230317e"},
+                     {expect, "... 2"},
+                     {send, hex("\r")},
+                     {expect, "3 : Int"},
+                     {sleep, 300},
+                     {send, "04"}],
+                    30, "12x40"),
+    Lines = [L || L <- binary:split(Screen, <<"\n">>, [global]), L =/= <<>>],
+    Text = iolist_to_binary(Lines),
+    %% the paste took a row for its second line rather than running the first
+    ?assertMatch({_, _}, binary:match(Text, <<"> 1 +">>)),
+    ?assertMatch({_, _}, binary:match(Text, <<"... 2">>)),
+    ?assertEqual(1, count(Text, <<"3 : Int">>)),
+    %% nothing ran before the paste was whole: `1 +` alone is an error
+    ?assertEqual(nomatch, binary:match(Text, <<"expected an expression">>)).
+
 %% report §11.2: the parser says when more input could finish what was
 %% typed, and the shell asks it for each reading it would try
 needs_more_test() ->

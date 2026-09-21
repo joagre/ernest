@@ -94,6 +94,8 @@ fn plain(state : State, event : Event) -> Edit = {
       | ArrowUp -> Typing(walk(state, 1))
       | ArrowDown -> Typing(walk(state, -1))
       | Resized(_) -> Typing(state)
+      // report §11.2: a paste goes in at the cursor, line feeds and all
+      | Pasted(text) -> Typing(insert(state, text))
       | Char(c) -> character(state, c)
     }
 }
@@ -136,7 +138,9 @@ fn meta(state : State, event : Event) -> Edit = {
       | Char('f') -> Typing(State(..state, at = wordRight(text, at)))
       | Char('d') -> Typing(killFrom(state, wordRight(text, at)))
       | Char('\u{8}') or Char('\u{7f}') -> Typing(killTo(state, wordLeft(text, at)))
-      | _ -> Typing(state)
+      | Char(_) -> Typing(state) // an unbound Meta key does nothing
+      // every other key does what it does, `Escape` before it or not
+      | other -> plain(state, other)
     }
 }
 
@@ -389,6 +393,9 @@ let clears = Test(name = "C-l clears the screen and keeps the line", run = fn() 
 
 let addsLine = Test(name = "M-Enter adds a line at the cursor", run = fn() =
     reads(play(keys("ab") <> [Escape, Enter] <> keys("c")), "ab\nc", 4))
+
+let pastes = Test(name = "a paste goes in at the cursor, line feeds and all", run = fn() =
+    reads(play(keys("ab") <> [ArrowLeft, Pasted("x\ny")]), "ax\nyb", 4))
 
 let walks = Test(name = "the arrows walk back through the inputs", run = fn() =
     reads(plays(start(["two", "one"]), [ArrowUp, ArrowUp, ArrowUp]), "one", 3))

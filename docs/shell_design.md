@@ -160,6 +160,7 @@ GNU Readline's Emacs bindings.
 - **The history file is the person's**, `$HOME/.ernest/history` (report §11.2), read at start and appended to as each input is taken, an input abandoned with the interrupt among them. `Shell.History` is the module: only the path is `foreign`, and the reading, the escaping and the trim are Ernest over `Fs` ([`decisions.md`](decisions.md)).
 - **Adding a line:** `M-Enter`, when the input parses complete and is not.
 - **Interrupting:** `C-c` kills the running evaluation when there is one, and abandons the input being typed, every line of it, only when there is not. The bindings and the partial line survive, and the text goes to the history to recall and mend. A queued input is dropped with the evaluation it waited for.
+- **A paste is one event.** The runtime asks the terminal to bracket a paste while a program reads keys (§8.2), so pasted text arrives as `Pasted` with its line endings as line feeds; the editor puts it in the line at the cursor, and its line feeds add rows rather than running the input. A terminal that does not bracket a paste sends the characters, and each line feed in them runs what is typed so far, as typing does.
 - **`C-l`** clears the screen and keeps the line being typed. What was committed before it stays in the terminal's scrollback.
 - **Later:** colour and the suggestion, which go together since grey is how a suggestion is told from what was typed; and the kill ring with `M-y` cycling, `C-t` and `M-t` transposing, `M-u`, `M-l`, `M-c` for case.
 
@@ -291,6 +292,7 @@ Settled since this list was written: the depth and length defaults are 10 and 10
 - **The line editor is tested on its own**, being the one part of the shell with no processes in it: its tests are top-level `Test` values in `Shell.Editor`, key lists played onto a fresh line with the text and the cursor read off, run by `ern --test` (§9.3) and by `make test` with it. The history file's escaping and the region's geometry, what rows an input takes and where the cursor rests in them, are tested the same way.
 - **Completion is tested on the foreign entries' answers:** a prefix and an environment in, candidates out.
 - **What is painted is asserted on the screen, not on the writes.** The harness renders the writes onto a grid of the terminal's size with `--screen`, since a shell that repaints writes a line many times over.
+- **A paste is read a character at a time like everything else**, so the decoder keeps what has arrived until the terminal's end marker comes; the cost is that a very large paste is rescanned as it grows, which no paste at a prompt has felt.
 - **The terminal itself is tested through the harness**, `test/ern_pty.py`, which gives a program a pseudo-terminal, sends keystrokes when the screen says the program is ready for them, and reads the screen back; built 2026-09-20, before the shell, and holding §8.2's rules, the shell's own keys, and `snake` under test. A test waits for what it expects on the screen before it sends; a wait on the clock is left only where no text marks the moment, such as letting the game run a few ticks.
 
 ## Checkpoints

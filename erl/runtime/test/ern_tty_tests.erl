@@ -62,3 +62,21 @@ wait(Tag) ->
 subscribe(Tty) ->
     Me = ern_rt:self(),
     ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Reply, Me} end, 5000).
+
+%% report §8.2, §9.3: a paste is one event and not the keys of its
+%% characters, its line endings are line feeds whichever the terminal
+%% sends, and what has arrived of a paste waits for the end the terminal
+%% puts after it, however small the pieces the reader hands over
+paste_test() ->
+    ?assertEqual({[{'Pasted', <<"ab">>}], []}, ern_tty:decode("\e[200~ab\e[201~")),
+    ?assertEqual({[{'Pasted', <<"a\nb">>}], []}, ern_tty:decode("\e[200~a\rb\e[201~")),
+    ?assertEqual({[{'Pasted', <<"a\nb">>}], []}, ern_tty:decode("\e[200~a\r\nb\e[201~")),
+    %% what follows a paste is read as keys again
+    ?assertEqual({[{'Pasted', <<"x">>}, 'Enter'], []}, ern_tty:decode("\e[200~x\e[201~\r")),
+    %% the reader reads a character at a time, so each piece waits
+    Pending = lists:foldl(fun(C, Buffer) ->
+                              {[], Left} = ern_tty:decode(Buffer ++ [C]),
+                              Left
+                          end, [], "\e[200~hi"),
+    ?assertEqual("\e[200~hi", Pending),
+    ?assertEqual({[{'Pasted', <<"hi">>}], []}, ern_tty:decode(Pending ++ "\e[201~")).

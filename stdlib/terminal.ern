@@ -1,7 +1,8 @@
 /// The terminal through `Sys.terminal`, the system process that reads it
-/// (report §8.2). A subscriber is sent every key pressed from then on and
-/// the new size whenever the window changes, wrapped for its own mailbox,
-/// as `monitor` and `Clock.alarm` deliver. The terminal read as keys and
+/// (report §8.2). A subscriber is sent every key pressed from then on,
+/// the text of a paste as one `Pasted`, and the new size whenever the
+/// window changes, wrapped for its own mailbox, as `monitor` and
+/// `Clock.alarm` deliver. The terminal read as keys and
 /// the terminal read as lines are the same one, so a program subscribes
 /// here or reads lines with `Io.readLine`, never both.
 ///

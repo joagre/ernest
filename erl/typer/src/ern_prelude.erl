@@ -34,7 +34,7 @@ declared_types() ->
     "type Where = Local | Peer(String)\n"
     "type Size = Size(rows : Int, columns : Int)\n"
     "type Event = Char(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter\n"
-    "           | Escape | Interrupt | Resized(Size)\n"
+    "           | Escape | Interrupt | Pasted(String) | Resized(Size)\n"
     "type TerminalMsg = Subscribe(to : Address(Event), reply : Reply(Unit))\n"
     "                 | Measure(reply : Reply(Optional(Size)))\n"
     "type StdinMsg = ReadLine(reply : Reply(Optional(String)))\n"

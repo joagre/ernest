@@ -35,6 +35,13 @@
 %% long after an escape means the key itself.
 -define(ESCAPE_PAUSE, 50).
 
+%% Report §8.2: bracketed paste. The terminal is asked for it while a
+%% program is subscribed, and wraps pasted text in these.
+-define(PASTE_ON, "\e[?2004h").
+-define(PASTE_OFF, "\e[?2004l").
+-define(PASTE_BEGIN, "\e[200~").
+-define(PASTE_END, "\e[201~").
+
 -spec loop() -> no_return().
 loop() ->
     loop([], undefined, [], none).
@@ -66,21 +73,38 @@ loop(Subscribers, Reader, Pending, Size) ->
             deliver(Decoded, Subscribers),
             loop(Subscribers, Reader, Left, Size)
     after Pause ->
-        deliver(flush(Pending), Subscribers),
+        %% report §8.2: a paste may take longer to arrive than an escape
+        %% sequence, and what has come of it is not keys
+        Left = case pasting(Pending) of
+                   true -> Pending;
+                   false -> deliver(flush(Pending), Subscribers), []
+               end,
         %% report §8.2: a size that has changed is news to every subscriber
         case size_now() of
-            Size -> loop(Subscribers, Reader, [], Size);
+            Size -> loop(Subscribers, Reader, Left, Size);
             Now ->
                 deliver([{'Resized', Now} || Now =/= none], Subscribers),
-                loop(Subscribers, Reader, [], Now)
+                loop(Subscribers, Reader, Left, Now)
         end
     end.
+
+pasting(?PASTE_BEGIN ++ _) -> true;
+pasting(_) -> false.
+
+%% An escape alone may still grow into an arrow, and `\e[2` into the start
+%% of a paste; `flush/1` is what ends the waiting when nothing follows.
+growing(Chars) ->
+    lists:prefix(Chars, "\e[") orelse lists:prefix(Chars, ?PASTE_BEGIN).
 
 %% An escape waits only as long as a sequence may still follow it; a
 %% subscriber's terminal is asked for its size between times.
 pause([], []) -> infinity;
 pause(_, []) -> ?RESIZE_PAUSE;
-pause(_, _) -> ?ESCAPE_PAUSE.
+pause(_, Pending) ->
+    case pasting(Pending) of
+        true -> ?RESIZE_PAUSE;
+        false -> ?ESCAPE_PAUSE
+    end.
 
 deliver(Events, Subscribers) ->
     lists:foreach(fun(Event) ->
@@ -124,12 +148,15 @@ start_reader(Reader) ->
 %% terminal in charge, which is what makes the size askable. The host's raw
 %% mode also stops the terminal turning a line feed into a carriage return
 %% and a line feed, and a program that draws would climb the screen a
-%% column at a time, so `opost` goes back.
+%% column at a time, so `opost` goes back. A paste is asked to be
+%% bracketed, so that pasted text is one `Pasted` and not the keys of its
+%% characters; a terminal that does not know the request ignores it.
 %% Report §11.2: the shell reads the terminal's interrupt as a key, so its
 %% signal is turned off for the shell and for nobody else.
 raw_mode() ->
     shell:start_interactive({noshell, raw}),
-    stty(["opost" | interrupt_mode()]).
+    stty(["opost" | interrupt_mode()]),
+    write(?PASTE_ON).
 
 interrupt_mode() ->
     case ern_rt:terminal_holder() of
@@ -146,7 +173,16 @@ held_by_another(Address) ->
 %% Report §8.6: the terminal is the one the program found.
 -spec restore() -> ok.
 restore() ->
+    write(?PASTE_OFF),
     stty(["sane"]).
+
+%% Report §8.2: the terminal's own mode, written past the sinks a program's
+%% output is bound to, since it is the terminal that is being spoken to.
+write(Text) ->
+    case terminal() of
+        true -> io:put_chars(standard_io, Text);
+        false -> ok
+    end.
 
 %% stty acts on its own standard input, and a port opened with nouse_stdio
 %% inherits the runtime's, which is the terminal. Nothing is done when the
@@ -198,17 +234,35 @@ flush(Chars) ->
 
 decode([], Acc) ->
     {lists:reverse(Acc), []};
-decode([$\e], Acc) ->
-    %% an escape alone may still grow into an arrow, so it waits
-    {lists:reverse(Acc), [$\e]};
-decode([$\e, $[], Acc) ->
-    {lists:reverse(Acc), [$\e, $[]};
+
+%% report §8.2: a paste is one event, and its line endings are line feeds
+decode(?PASTE_BEGIN ++ Rest, Acc) ->
+    case pasted(Rest, []) of
+        {ok, Text, After} -> decode(After, [{'Pasted', Text} | Acc]);
+        more -> {lists:reverse(Acc), ?PASTE_BEGIN ++ Rest}
+    end;
 decode([$\e, $[, $A | Rest], Acc) -> decode(Rest, ['ArrowUp' | Acc]);
 decode([$\e, $[, $B | Rest], Acc) -> decode(Rest, ['ArrowDown' | Acc]);
 decode([$\e, $[, $C | Rest], Acc) -> decode(Rest, ['ArrowRight' | Acc]);
 decode([$\e, $[, $D | Rest], Acc) -> decode(Rest, ['ArrowLeft' | Acc]);
-decode([$\e | Rest], Acc) -> decode(Rest, ['Escape' | Acc]);
+decode([$\e | Rest] = Chars, Acc) ->
+    %% what has arrived may still grow into a sequence the terminal is in
+    %% the middle of sending, and the reader reads a character at a time
+    case growing(Chars) of
+        true -> {lists:reverse(Acc), Chars};
+        false -> decode(Rest, ['Escape' | Acc])
+    end;
 decode([3 | Rest], Acc) -> decode(Rest, ['Interrupt' | Acc]);
 decode([$\n | Rest], Acc) -> decode(Rest, ['Enter' | Acc]);
 decode([$\r | Rest], Acc) -> decode(Rest, ['Enter' | Acc]);
 decode([C | Rest], Acc) -> decode(Rest, [{'Char', C} | Acc]).
+
+%% The text of a paste, up to the end the terminal puts after it. A
+%% terminal sends the line endings of what was pasted, and a program is
+%% given the text as Ernest writes it (report §2.5).
+pasted(?PASTE_END ++ Rest, Text) ->
+    {ok, unicode:characters_to_binary(lists:reverse(Text)), Rest};
+pasted([$\r, $\n | Rest], Text) -> pasted(Rest, [$\n | Text]);
+pasted([$\r | Rest], Text) -> pasted(Rest, [$\n | Text]);
+pasted([C | Rest], Text) -> pasted(Rest, [C | Text]);
+pasted([], _Text) -> more.

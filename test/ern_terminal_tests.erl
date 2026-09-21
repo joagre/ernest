@@ -12,7 +12,9 @@
 %% report §8.2, §9.3: every key pressed reaches the subscriber, a character
 %% as itself, an arrow whole rather than as Escape and two characters, and
 %% an Escape that stands alone as the key; nothing is echoed. The terminal
-%% answers its size, and a window that changes arrives as `Resized`.
+%% answers its size, and a window that changes arrives as `Resized`. A
+%% paste arrives as one `Pasted` with its line endings as line feeds, not
+%% as the keys of its characters.
 keys_test_() ->
     {timeout, 60, fun keys/0}.
 
@@ -28,13 +30,17 @@ keys() ->
                        {expect, "down"},
                        {resize, "30x100"},
                        {expect, "resized"},
+                       %% a paste, its two lines separated as a terminal
+                       %% sends them, between the brackets §8.2 asks for
+                       {send, "1b5b3230307e61" ++ "0d" ++ "621b5b3230317e"},
+                       {expect, "pasted"},
                        {send, "1b"}],       % Escape, alone
                       15),
     Lines = lines(Screen),
     %% report §9.3: the size the program was given, its keys, and the new
     %% size when the window changed
     ?assertEqual([<<"ready 24x80">>, <<"char x">>, <<"up">>, <<"down">>,
-                  <<"resized 30x100">>, <<"escape">>], Lines),
+                  <<"resized 30x100">>, <<"pasted a|b">>, <<"escape">>], Lines),
     %% nothing was echoed: an echoed key would stand in a line of its own
     %% or before the line the program printed, and the lines above are all
     %% of them
@@ -133,7 +139,12 @@ status(<<"timeout">>) -> timeout;
 status(Bin) -> binary_to_integer(Bin).
 
 lines(Screen) ->
-    [L || L <- binary:split(Screen, <<"\r\n">>, [global]), L =/= <<>>].
+    [L || L <- binary:split(modeless(Screen), <<"\r\n">>, [global]), L =/= <<>>].
+
+%% Report §8.2: what the runtime says to the terminal itself, the
+%% bracketed-paste mode, which a terminal takes and shows nothing of.
+modeless(Screen) ->
+    re:replace(Screen, "\e\\[\\?[0-9]+[hl]", "", [global, {return, binary}]).
 
 count(Haystack, Needle) ->
     length(binary:matches(Haystack, Needle)).
