@@ -65,14 +65,23 @@ the shell is neither standard library nor library but the toolchain's own progra
 
 **What is left.**
 
-- **Checkpoint 4, completion and documentation.** `Tab` completing a qualified name segment
+- **Checkpoint 4, completion and documentation.** Steps 1 to 3 are done, 2026-09-21:
+  `Shell.Complete`, pure and tested, matching by prefix and by abbreviation segment by
+  segment; `Tab` replacing the word before the cursor and indenting four spaces where there
+  is none; a second `Tab` listing the candidates with their types above the region, forty at
+  most; and the parser saying what may stand at the cursor, which filters the candidates by
+  kind. What is left of the checkpoint: `Tab` completing a qualified name segment
   by segment, a second `Tab` listing candidates with their types, matching by prefix and by
   abbreviation; what completes by position, bindings and modules and constructors in an
   expression, types after `:`, a constructor's remaining fields, a command and then its
   argument; `Shift-Tab` for documentation, the type and first sentence and `since`, a second
   press for the `:doc` section, and inside a call the signature with the parameter at the
-  cursor marked. The design note has the detail. It is where the `foreign` rule is tested a
-  second time: the compiled interfaces are the host's, the matching and the ranking are not.
+  cursor marked — step 4, and it needs the editor to read `Escape [ Z` as one key, which it
+  cannot today. Command completion is unbuilt too: `:br` does not become `:browse`. The
+  design note has the detail.
+- **Typing ahead while an input runs looks wrong.** A test that sent a second input before
+  the first had finished never saw the second's result. Found 2026-09-21, not diagnosed, and
+  recorded in the language note; it belongs with the session of real use below.
 - **A guide chapter on the shell.** `ernest_guide.md` does not mention it. The report states
   the rules and the note holds the design, but the document that teaches says nothing about
   the tool a user lives in. Found 2026-09-21.
