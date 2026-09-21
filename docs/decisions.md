@@ -3313,11 +3313,25 @@ The split screen was built on 2026-09-20 and is replaced the day after, by the s
 
 **What it gives up.** Two independently scrolling regions. A terminal has one screen and one scrollback, so the transcript is the terminal's or the shell's and not both, and it is worth more to the terminal.
 
-**Open, and the second thing to settle: `PageUp` and `PageDown` in §9.3.** They entered `Key` for the panes, and with the terminal doing the scrolling neither the shell nor the editor's bindings use them, which is the shape principle 5 removes. The argument for keeping them is that `Key` is the terminal's vocabulary and not the shell's: arrows are in it for a game, and a full-screen program wants the page keys as plainly, where the alternative is every such program decoding `Escape`, `[`, `5`, `~` for itself, which is what `Key` exists to prevent. On that reading the panes occasioned them rather than needed them.
-
-**Open, and the first thing to settle.** What becomes of a line that ages out of the tail: gone, so that the tail is a window onto the newest output alone; or written into the transcript as it ages, so that the scrollback holds everything in arrival order. The second loses nothing and interleaves program output into the transcript a tail's height late; the first is simpler and drops output a person may have wanted.
+**Both open questions were settled the same evening**, under "One Event, and the Page Keys Go": the aged-out line is committed into the transcript, and the page keys go with the panes.
 
 **What it cost to learn.** About a hundred lines of the shell exist only because there are two panes, and they go: the pane selector, the scrolling, the split's appearing and unsplitting, the layout. What carries over is the larger half and the part that was hard: the buffer model, the painting, the reader that no longer echoes and tells the screen the line instead, `Terminal.size` and `Resized`, `:set output n` as the tail's height, and the harness that renders a screen for a test to assert on. Two defects the panes flushed out stay fixed, a subscription that returned before the terminal's mode was set and a prompt printed before the reader held the keyboard. The lesson is not in the code: this shape was preferred here before the panes were chosen and was not pressed hard enough at the time, and an alternative that is already in the arguments should be put again before a day is spent, not after.
+
+## One Event, and the Page Keys Go, 2026-09-21
+
+§9.3's `Key` folds into `Event`, one type where there were two, and `PageUp` and `PageDown` leave with the panes that occasioned them. Decided on the principles, which is what was asked of them.
+
+**Principle 5.** Two types become one and every pattern loses a level; nothing a program can express is lost.
+
+**Principle 2.** `Key` and `Event` both answer "what the terminal sent", and the wrapper `Key(k)` carries nothing: it exists to say "not a resize". That is two concepts overlapping, where `Down(reason, function)` is a record whose field happens to be an enum and is not.
+
+**Principle 1, whose test is the resulting code.** `E(Key(Char(c)))` against `E(Char(c))`, in every receive in the shell, in snake and in the probe. A reader told to subscribe to the terminal and handle what arrives writes the second.
+
+**What is lost, and why it is not much.** No type means "a key and not a resize", so a helper cannot be written as `fn handle(k : Key)`. Nothing in the repository writes one. For a program that draws, being made to meet a resize in the same list as the keys is a gain: snake ignoring them becomes a choice a reader sees rather than an omission.
+
+**The page keys.** They entered for the panes, and the live region leaves them without a user. Removing them states the membership rule of `Event` plainly: it holds what a program has needed, and everything else arrives as `Escape` and the characters after it, which is already how `Meta`, `Shift-Tab` and the function keys arrive. They come back the day a program wants them, which is a smaller change than carrying them unused.
+
+**The line that ages out of the tail is committed.** It is written into the transcript as it leaves the live region, so the terminal's scrollback holds every line in arrival order and nothing a program printed is lost. The cost is that program output reaches the transcript a tail's height late, which is one sentence to state; the alternative loses output that a person may have wanted, to save that sentence.
 
 ## Later
 
