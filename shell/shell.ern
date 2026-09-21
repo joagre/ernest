@@ -85,7 +85,7 @@ export fn main() -> Unit with ShellMsg = {
             mine();
             Terminal.subscribe(K);
             send(me, Ready);
-            readLoop(me, screen, "")
+            readLoop(me, screen, Shell.Editor.fresh)
         });
         holdTerminal(reader);
         // report §8.2: the prompt waits for the reader to hold the
@@ -413,6 +413,7 @@ type Screen = Screen(
     writing : String,
     prompt : String,
     typed : String,
+    at : Int,
     painted : Int,
     output : Int,
     size : Optional(Size),
@@ -429,23 +430,25 @@ let tailRows = 5
 
 type ScreenMsg = Said(String)                        // the shell's own
                | Wrote(String)                       // a program's
-               | Typing(String)                      // the line being typed
+               | Typing(text : String, at : Int)     // the line being typed, and the cursor
                | Entered                             // and now it is finished
                | Resize
+               | Clear                               // `C-l`, a clean screen
                | Height(Int)                         // `:set output n`
                | Flush(reply : Reply(Unit))
 
 fn newScreen() -> Screen with m =
-    Screen(tail = [], writing = "", prompt = "", typed = "", painted = 0,
+    Screen(tail = [], writing = "", prompt = "", typed = "", at = 0, painted = 0,
            output = tailRows, size = Terminal.size(), live = isTerminal())
 
 fn screenLoop(s : Screen) -> Unit with ScreenMsg = {
     let s2 = receive {
         Said(text) -> said(s, text)
       | Wrote(text) -> wrote(s, text)
-      | Typing(text) -> refresh(Screen(..s, typed = text), [])
+      | Typing(text = text, at = at) -> refresh(Screen(..s, typed = text, at = at), [])
       | Entered -> entered(s)
       | Resize -> aged(Screen(..s, size = Terminal.size()), [])
+      | Clear -> cleared(s)
       | Height(n) -> aged(Screen(..s, output = Int.max(0, n)), [])
       | Flush(reply = reply) -> { answer(reply, Unit); s }
     };
@@ -527,6 +530,16 @@ fn refresh(s : Screen, commits : List(String)) -> Screen with m = match s {
     }
 }
 
+// Report §11.2: `C-l` gives a clean screen. What is committed stays in
+// the terminal's scrollback; the region is painted again at the top.
+fn cleared(s : Screen) -> Screen with m = match s {
+    Screen(live = false) -> s
+  | Screen(live = true) -> {
+        write("\u{1b}[2J\u{1b}[H");
+        refresh(Screen(..s, painted = 0), [])
+    }
+}
+
 fn erase(s : Screen) -> String = match s {
     Screen(painted = n) -> "\r" <> up(n - 1) <> "\u{1b}[0J"
 }
@@ -559,10 +572,11 @@ fn width(s : Screen) -> Int = match s {
   | Screen(size = Some(Size(columns = columns))) -> columns
 }
 
-// The column the cursor rests in, after what has been typed.
+// The column the cursor rests in: the prompt, and where in the line the
+// editor has it.
 fn column(s : Screen) -> Int = {
-    let Screen(prompt = prompt, typed = typed) = s;
-    Int.min(width(s), String.size(prompt <> typed) + 1)
+    let Screen(prompt = prompt, at = at) = s;
+    Int.min(width(s), String.size(prompt) + at + 1)
 }
 
 fn clip(line : String, columns : Int) -> String =
@@ -577,7 +591,7 @@ fn right(n : Int) -> String = if n <= 0 then "" else "\u{1b}[" <> Int.toString(n
 fn finish(screen : Address(ScreenMsg), text : String) -> Unit with m = {
     send(screen, Said(text));
     send(screen, Height(0));
-    send(screen, Typing(""));
+    send(screen, Typing(text = "", at = 0));
     send(screen, Said("\n"));
     drain(screen)
 }
@@ -593,48 +607,50 @@ fn drain(screen : Address(ScreenMsg)) -> Unit with m =
     match Address.call(screen, fn(r) = Flush(reply = r), 5000) { _ -> Unit }
 
 //
-// The reader, on a terminal: the floor of checkpoint 0, characters and
-// Backspace and Enter and C-d and the interrupt. The line editor is
-// checkpoint 2.
+// The reader, on a terminal: it owns the keys and the line being edited,
+// and draws nothing itself. What a key does is `edit`, a pure function;
+// the reader sends the screen the line and the session what was entered.
 //
 
 type ReaderMsg = K(Event)
 
-fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), line : String)
-    -> Unit with ReaderMsg = receive {
-    K(Enter) -> {
-        send(screen, Entered);
-        send(session, Typed(line));
-        readLoop(session, screen, "")
-    }
-  | K(Interrupt) -> {
-        // what was typed stays in the transcript, abandoned
-        send(screen, Entered);
-        send(session, Interrupted);
-        readLoop(session, screen, "")
-    }
-  | K(Resized(_)) -> {
+fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg),
+            line : Shell.Editor.Line) -> Unit with ReaderMsg = receive {
+    K(Resized(_)) -> {
         send(screen, Resize);
         readLoop(session, screen, line)
     }
-  | K(Char(c)) ->
-        if c == '\u{4}' then
-            if String.isEmpty(line) then send(session, Eof)
-            else readLoop(session, screen, line)
-        else if c == '\u{7f}' || c == '\u{8}' then
-            if String.isEmpty(line) then readLoop(session, screen, line)
-            else {
-                let shorter = String.slice(line, 0, String.size(line) - 1);
-                send(screen, Typing(shorter));
-                readLoop(session, screen, shorter)
-            }
-        else {
-            let longer = line <> Char.toString(c);
-            send(screen, Typing(longer));
-            readLoop(session, screen, longer)
+  | K(event) -> match Shell.Editor.edit(line, event) {
+        Shell.Editor.Typing(next) -> {
+            send(screen, typing(next));
+            readLoop(session, screen, next)
         }
-  | K(_) -> readLoop(session, screen, line)
+      | Shell.Editor.Submit(next) -> {
+            send(screen, Entered);
+            send(session, Typed(text(next)));
+            readLoop(session, screen, Shell.Editor.next(next))
+        }
+      | Shell.Editor.Cancel -> {
+            // what was typed stays in the transcript, abandoned
+            send(screen, Entered);
+            send(session, Interrupted);
+            readLoop(session, screen, Shell.Editor.next(line))
+        }
+      | Shell.Editor.Clear(next) -> {
+            send(screen, Clear);
+            send(screen, typing(next));
+            readLoop(session, screen, next)
+        }
+      | Shell.Editor.Leave -> send(session, Eof)
+    }
 }
+
+fn typing(line : Shell.Editor.Line) -> ScreenMsg = match line {
+    Shell.Editor.Line(text = text, at = at) -> Typing(text = text, at = at)
+}
+
+fn text(line : Shell.Editor.Line) -> String =
+    match line { Shell.Editor.Line(text = text) -> text }
 
 fn keyLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = receive {
     Typed(line) -> match String.trim(line) {

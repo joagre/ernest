@@ -1,0 +1,233 @@
+//
+// The shell's line editor (report §11.2), designed in
+// docs/shell_design.md: a pure function from the line being edited and an
+// event to what the reader must do next. GNU Readline's Emacs bindings;
+// `Escape` and the key after it are `Meta` and that key (§8.2).
+//
+// A module of its own, because it is the one part of the shell that is
+// pure and can therefore be tested on its own: the tests at the foot of
+// this file are what `ern --test` runs (§9.3).
+//
+
+export type Line = Line(text : String, at : Int, kill : String, meta : Bool)
+
+export type Edit = Typing(Line) | Submit(Line) | Cancel | Clear(Line) | Leave
+
+// A line with nothing typed yet.
+export let fresh = Line(text = "", at = 0, kill = "", meta = false)
+
+// The line to type after this one, which keeps what was killed: what is
+// killed outlives the line it was killed from, as Readline's does.
+export fn next(line : Line) -> Line = match line {
+    Line(kill = kill) -> Line(..fresh, kill = kill)
+}
+
+export fn edit(line : Line, event : Event) -> Edit = match line {
+    Line(meta = true) -> meta(Line(..line, meta = false), event)
+  | Line(meta = false) -> plain(line, event)
+}
+
+fn plain(line : Line, event : Event) -> Edit = {
+    let Line(text = text, at = at) = line;
+    match event {
+        Enter -> Submit(line)
+      | Interrupt -> Cancel
+      | Escape -> Typing(Line(..line, meta = true))
+      | ArrowLeft -> Typing(Line(..line, at = Int.max(0, at - 1)))
+      | ArrowRight -> Typing(Line(..line, at = Int.min(String.size(text), at + 1)))
+      | ArrowUp -> Typing(line)
+      | ArrowDown -> Typing(line)
+      | Resized(_) -> Typing(line)
+      | Char(c) -> character(line, c)
+    }
+}
+
+// A character typed, which is Readline's control key where it is one.
+fn character(line : Line, c : Char) -> Edit = {
+    let Line(text = text, at = at, kill = kill) = line;
+    match c {
+        '\u{1}' -> Typing(Line(..line, at = 0)) // C-a
+      | '\u{5}' -> Typing(Line(..line, at = String.size(text))) // C-e
+      | '\u{2}' -> Typing(Line(..line, at = Int.max(0, at - 1))) // C-b
+      | '\u{6}' -> Typing(Line(..line, at = Int.min(String.size(text), at + 1))) // C-f
+      | '\u{4}' -> // C-d, and on an empty line it leaves
+            if String.isEmpty(text) then Leave else Typing(deleteAt(line, at))
+      | '\u{8}' or '\u{7f}' -> Typing(back(line)) // Backspace and C-h
+      | '\u{b}' -> Typing(killFrom(line, String.size(text))) // C-k
+      | '\u{15}' -> Typing(killTo(line, 0)) // C-u
+      | '\u{17}' -> Typing(killTo(line, wordLeft(text, at))) // C-w
+      | '\u{19}' -> Typing(insert(line, kill)) // C-y
+      | '\u{c}' -> Clear(line) // C-l
+        // every other control character is not bound and does nothing
+      | _ -> if c < ' ' then Typing(line) else Typing(insert(line, Char.toString(c)))
+    }
+}
+
+// `Escape` and then the key: Readline's Meta bindings. `M-Enter` adds a
+// line once multi-line input is built (plan, MVP 2.6).
+fn meta(line : Line, event : Event) -> Edit = {
+    let Line(text = text, at = at) = line;
+    match event {
+        Char('b') -> Typing(Line(..line, at = wordLeft(text, at)))
+      | Char('f') -> Typing(Line(..line, at = wordRight(text, at)))
+      | Char('d') -> Typing(killFrom(line, wordRight(text, at)))
+      | Char('\u{8}') or Char('\u{7f}') -> Typing(killTo(line, wordLeft(text, at)))
+      | _ -> Typing(line)
+    }
+}
+
+//
+// Editing a line: each is a pure function of the text and the cursor,
+// which is what makes the editor testable on its own.
+//
+
+fn insert(line : Line, what : String) -> Line = {
+    let Line(text = text, at = at) = line;
+    Line(..line, text = String.slice(text, 0, at) <> what <> from(text, at),
+         at = at + String.size(what))
+}
+
+fn back(line : Line) -> Line = match line {
+    Line(at = 0) -> line
+  | Line(text = text, at = at) ->
+        Line(..line, text = String.slice(text, 0, at - 1) <> from(text, at), at = at - 1)
+}
+
+fn deleteAt(line : Line, at : Int) -> Line = {
+    let Line(text = text) = line;
+    if at >= String.size(text) then line
+    else Line(..line, text = String.slice(text, 0, at) <> from(text, at + 1))
+}
+
+// Kill back to `to`, keeping what was killed for `C-y`.
+fn killTo(line : Line, to : Int) -> Line = {
+    let Line(text = text, at = at) = line;
+    Line(..line, text = String.slice(text, 0, to) <> from(text, at), at = to,
+         kill = String.slice(text, to, at - to))
+}
+
+// Kill forward to `to`.
+fn killFrom(line : Line, to : Int) -> Line = {
+    let Line(text = text, at = at) = line;
+    Line(..line, text = String.slice(text, 0, at) <> from(text, to),
+         kill = String.slice(text, at, to - at))
+}
+
+fn from(text : String, at : Int) -> String = String.slice(text, at, String.size(text) - at)
+
+// The start of the word before the cursor: over the spaces before it,
+// then over the word itself.
+fn wordLeft(text : String, at : Int) -> Int = overWord(text, overSpace(text, at, -1), -1)
+
+// The end of the word after the cursor.
+fn wordRight(text : String, at : Int) -> Int = overWord(text, overSpace(text, at, 1), 1)
+
+fn overSpace(text : String, at : Int, step : Int) -> Int =
+    if stop(text, at, step) then at
+    else if space(text, at + Int.min(step, 0)) then overSpace(text, at + step, step)
+    else at
+
+fn overWord(text : String, at : Int, step : Int) -> Int =
+    if stop(text, at, step) then at
+    else if space(text, at + Int.min(step, 0)) then at
+    else overWord(text, at + step, step)
+
+// The character a step away is off the line, so the walk stops.
+fn stop(text : String, at : Int, step : Int) -> Bool =
+    at + Int.min(step, 0) < 0 || at + Int.max(step, 0) > String.size(text)
+
+fn space(text : String, i : Int) -> Bool = String.slice(text, i, 1) == " "
+
+//
+// The tests (report §9.3), run by `ern --test build/shell/shell/editor.erc`,
+// which `make test` does. Each plays a list of events onto a fresh line
+// and reads off the text and the cursor.
+//
+
+let typing = Test(name = "typing inserts at the cursor", run = fn() =
+    reads(play(keys("abc") <> [ArrowLeft] <> keys("X")), "abXc", 3))
+
+let ends = Test(name = "C-a and C-e go to the ends of the line", run = fn() =
+    reads(play(keys("abc") <> [ctrl('a')] <> keys("X") <> [ctrl('e')] <> keys("Y")),
+          "XabcY", 5))
+
+let backspace = Test(name = "backspace deletes what is before the cursor", run = fn() =
+    reads(play(keys("abc") <> [Char('\u{7f}')]), "ab", 2))
+
+let forwardDelete = Test(name = "C-d deletes what is under the cursor", run = fn() =
+    reads(play(keys("abc") <> [ctrl('a'), ctrl('d')]), "bc", 0))
+
+let killAndYank = Test(name = "C-k kills to the end and C-y puts it back", run = fn() =
+    reads(play(keys("abcdef") <> [ArrowLeft, ArrowLeft, ctrl('k'), ctrl('a'), ctrl('y')]),
+          "efabcd", 2))
+
+let killLine = Test(name = "C-u kills back to the start of the line", run = fn() =
+    reads(play(keys("one two") <> [ctrl('u')]), "", 0))
+
+let killWord = Test(name = "C-w kills the word before the cursor", run = fn() =
+    reads(play(keys("one two") <> [ctrl('w')]), "one ", 4))
+
+let wordsBack = Test(name = "M-b goes to the start of the word before", run = fn() =
+    reads(play(keys("one two") <> [Escape] <> keys("b")), "one two", 4))
+
+let wordsForward = Test(name = "M-f goes to the end of the word after", run = fn() =
+    reads(play(keys("one two") <> [ctrl('a'), Escape] <> keys("f")), "one two", 3))
+
+let killWordForward = Test(name = "M-d kills the word after the cursor", run = fn() =
+    reads(play(keys("one two") <> [ctrl('a'), Escape] <> keys("d")), " two", 0))
+
+let submits = Test(name = "Enter submits what was typed", run = fn() =
+    match play(keys("hi") <> [Enter]) {
+        Submit(Line(text = "hi")) -> Passed
+      | other -> Failed(said(other))
+    })
+
+let cancels = Test(name = "C-c abandons the line", run = fn() =
+    match play(keys("hi") <> [Interrupt]) {
+        Cancel -> Passed
+      | other -> Failed(said(other))
+    })
+
+let leaves = Test(name = "C-d on an empty line leaves the shell", run = fn() =
+    match play([ctrl('d')]) {
+        Leave -> Passed
+      | other -> Failed(said(other))
+    })
+
+let clears = Test(name = "C-l clears the screen and keeps the line", run = fn() =
+    match play(keys("hi") <> [ctrl('l')]) {
+        Clear(Line(text = "hi", at = 2)) -> Passed
+      | other -> Failed(said(other))
+    })
+
+// Every event of a text typed a character at a time.
+fn keys(text : String) -> List(Event) = List.map(String.toList(text), fn(c) = Char(c))
+
+// A control key as the terminal sends it: `C-a` is 1 (§8.2).
+fn ctrl(c : Char) -> Event = match Char.fromInt(Char.toInt(c) - 96) {
+    Some(k) -> Char(k)
+  | None -> Char(c)
+}
+
+// The events in order, from a fresh line; an event after the line ended
+// changes nothing, so the first ending is what a test reads.
+fn play(events : List(Event)) -> Edit =
+    List.foldLeft(events, Typing(fresh), fn(state, event) = match state {
+        Typing(line) -> edit(line, event)
+      | ended -> ended
+    })
+
+fn reads(state : Edit, text : String, at : Int) -> TestResult = match state {
+    Typing(Line(text = typed, at = cursor)) ->
+        if typed == text && cursor == at then Passed
+        else Failed("\"" <> typed <> "\" at " <> Int.toString(cursor))
+  | other -> Failed(said(other))
+}
+
+fn said(state : Edit) -> String = match state {
+    Typing(Line(text = text)) -> "typing \"" <> text <> "\""
+  | Submit(Line(text = text)) -> "submitted \"" <> text <> "\""
+  | Cancel -> "cancelled"
+  | Clear(_) -> "cleared"
+  | Leave -> "left"
+}

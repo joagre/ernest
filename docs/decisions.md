@@ -3345,6 +3345,38 @@ The screen was rewritten in a morning and the pane code went with it. Three thin
 
 **`:output <path>` is thirty lines and answers what a single terminal cannot.** A file is appended to and never truncated, and the device is not opened `raw`, since a raw device belongs to the process that opened it and what writes to it is the sink's process. That is the whole of the second window: the terminal on the other end does the scrolling, the searching and the copying.
 
+## The Editor Is Its Own Module, 2026-09-21
+
+**A numbered name is a dodge.** The line editor wanted `Output` for the command that
+points the sinks at a file, and the screen's messages already had one; the first
+attempt called the command `Output2`. A name with a number in it records that a name
+was taken, not what the thing is, and the user refused it. The collision was the
+message: `Print` and `Output` were both vague, and the screen's two messages are
+`Said`, what the shell itself says, and `Wrote`, what a program wrote, which is what
+their handlers were already called.
+
+**The second collision was the editor's, and numbering would not have saved it
+either.** Constructor names are unique across a module's types (§4.2), and the editor
+wanted `Typing`, `Clear`, and `Cancel`, all of which the screen or the commands had.
+A crowded namespace is a module that holds two things. The editor is now
+`shell/shell/editor.ern`, namespace `Shell.Editor`, and it takes the names it wants.
+Under the shell's own namespace rather than a top-level `Editor`, which would squat a
+word a user's program will want; the Erlang modules are `ern@shell` and
+`ern@shell@editor`, which is the naming rule unchanged.
+
+**The split is where the tests come from.** The editor is the one part of the shell
+with no processes in it: a pure function from the line and an event to `Typing`,
+`Submit`, `Cancel`, `Clear`, or `Leave`. Its fourteen tests are top-level `Test`
+values that `ern --test` runs, the first use in this repository of §9.3's `Test`,
+which until now had nothing to run.
+
+**The defect it found is in the checker.** Inside module `Shell`, `Shell.Editor.fresh`
+was read as a type member `Editor.fresh` of the module's own and never looked for the
+module `Shell.Editor`. §4.2 keeps the two apart by forbidding a module namespace to
+coincide with a type-member namespace, which `ern_cli:namespace_clash/2` already
+enforces, so only one of the two can exist and resolution follows: the module's own
+member where it declares that type, the child module otherwise.
+
 ## Later
 
 Planned or considered, not in the language today.

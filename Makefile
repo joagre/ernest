@@ -30,8 +30,9 @@ shell: stdlib
 	   || [ ! -f build/shell/.built ]; then rm -rf build/shell; fi
 	@bin/ernc --out-dir build/shell shell
 	@touch build/shell/.built
-	@for f in build/shell/*.erc; do \
-	  cp $$f build/shell/ern@$$(basename $$f .erc).beam; done
+	@find build/shell -name '*.erc' | while read f; do \
+	  m=$${f#build/shell/}; \
+	  cp $$f build/shell/ern@$$(echo $${m%.erc} | tr / @).beam; done
 
 # The standard library's pages, one per module beside its .erc in
 # build/stdlib, and index.md listing them (report §11.4).

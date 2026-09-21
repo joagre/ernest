@@ -221,6 +221,22 @@ namespace_clash_test() ->
     ?assertEqual(1, ernc_err(Single ++ [Dir ++ "/src/main.ern"])),
     ?assertEqual(1, ernc_err(Single ++ [Dir ++ "/src/main/stack.ern"])).
 
+%% report §4.2: where no type of the parent's clashes with it, a module
+%% under the parent's namespace is reached from the parent by its whole
+%% qualified name, its functions, its types, and its constructors alike
+nested_module_test() ->
+    Dir = tmp(),
+    write(Dir, "src/main/stack.ern",
+          "export type Item = Item(Int)\n"
+          "export fn push(i : Item) -> Int = match i { Item(n) -> n + 1 }\n"),
+    write(Dir, "src/main.ern",
+          "fn count(i : Main.Stack.Item) -> Int = Main.Stack.push(i)\n"
+          "export fn main() -> Unit with m =\n"
+          "    Io.println(Int.toString(count(Main.Stack.Item(1))))\n"),
+    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"2\n">>, iolist_to_binary(?capturedOutput)).
+
 %% report §8.6, §11.2: ern reports Deadlock as an error and exits 1
 deadlock_test() ->
     Dir = tmp(),

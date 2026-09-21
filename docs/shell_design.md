@@ -150,14 +150,15 @@ The shell reports a process that faults; a compiled program keeps its silence, a
 
 GNU Readline's Emacs bindings.
 
+- **The editor is a module of its own**, `Shell.Editor` in `shell/shell/editor.ern`: a pure function from the line being edited and an event to what the reader must do, `Typing`, `Submit`, `Cancel`, `Clear`, or `Leave`. The reader sends the screen the line and the session what was entered; the editor writes nothing.
 - **`Escape` and `Meta`:** §8.2 delivers `Escape` alone once no sequence can follow it, so an `Escape` followed at once by a character is `Meta` and an `Escape` that stands alone is the key. `M-b` arrives as `Escape` then `Char('b')`, and `Shift-Tab` as `Escape` and its bytes.
 - **Moving:** `C-a`, `C-e` to the start and end of the line; `C-b`, `C-f` a character; `M-b`, `M-f` a word; the arrow keys.
 - **Deleting:** `Backspace` and `C-h` back, `C-d` forward; on an empty line `C-d` quits.
-- **Killing:** `C-k` to the end of the line, `C-u` to the start, `C-w` and `M-Backspace` the word before, `M-d` the word after; `C-y` yanks the last kill.
+- **Killing:** `C-k` to the end of the line, `C-u` to the start, `C-w` and `M-Backspace` the word before, `M-d` the word after; `C-y` yanks the last kill, which outlives the line it was killed from.
 - **History:** `C-p`, `C-n`, up and down step through earlier inputs, a multi-line one coming back whole, its lines under their continuation prompts and the cursor at the end; `M-<` and `M->` go to the first and the current; `C-r` searches back incrementally, `C-s` forward, `C-g` abandons the search.
 - **Adding a line:** `M-Enter`, when the input parses complete and is not.
 - **Interrupting:** `C-c` kills the running evaluation when there is one, and abandons the input being typed, every line of it, only when there is not. The bindings and the partial line survive, and the text goes to the history to recall and mend. A queued input is dropped with the evaluation it waited for.
-- **`C-l`** clears the screen.
+- **`C-l`** clears the screen and keeps the line being typed. What was committed before it stays in the terminal's scrollback.
 - **Later:** colour and the suggestion, which go together since grey is how a suggestion is told from what was typed; and the kill ring with `M-y` cycling, `C-t` and `M-t` transposing, `M-u`, `M-l`, `M-c` for case.
 
 ## Completion
@@ -285,7 +286,7 @@ Settled since this list was written: the depth and length defaults are 10 and 10
 ## Testing
 
 - **A session is a golden test:** a file of inputs run in line mode, `ern --shell < session.ern`, against a file of expected output, under `test/`. A session that drives a program is not one: where a fault report lands among the inputs depends on when the process faults, so that session asserts what must be true of it instead.
-- **The line editor is a pure function** from a state and a key to a new state and what to draw; tests feed key lists and compare line, cursor, and output.
+- **The line editor is tested on its own**, being the one part of the shell with no processes in it: its tests are top-level `Test` values in `Shell.Editor`, key lists played onto a fresh line with the text and the cursor read off, run by `ern --test` (§9.3) and by `make test` with it.
 - **Completion is tested on the foreign entries' answers:** a prefix and an environment in, candidates out.
 - **What is painted is asserted on the screen, not on the writes.** The harness renders the writes onto a grid of the terminal's size with `--screen`, since a shell that repaints writes a line many times over.
 - **The terminal itself is tested through the harness**, `test/ern_pty.py`, which gives a program a pseudo-terminal, sends keystrokes when the screen says the program is ready for them, and reads the screen back; built 2026-09-20, before the shell, and holding §8.2's rules, the shell's own keys, and `snake` under test. A test waits for what it expects on the screen before it sends; a wait on the clock is left only where no text marks the moment, such as letting the game run a few ticks.

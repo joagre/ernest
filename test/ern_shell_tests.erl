@@ -119,6 +119,71 @@ live_region() ->
     ?assertMatch({_, _}, binary:match(Text, <<"2 : Int">>)),
     ?assertEqual(<<">">>, lists:last(Lines)).
 
+%% report §11.2, §9.3: the line editor's own tests, the pure function from
+%% a line and an event to what the reader must do, run by `ern --test` as
+%% the shell is built; the editor is Shell.Editor, its own module
+editor_test_() ->
+    {timeout, 60, fun editor/0}.
+
+editor() ->
+    {Status, Out} = sh("../bin/ern --test ../build/shell/shell/editor.erc"),
+    Lines = [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
+    ?assertEqual([], [L || L <- Lines, binary:match(L, <<": passed">>) =:= nomatch]),
+    ?assert(length(Lines) >= 10),
+    ?assertEqual(0, Status).
+
+%% report §11.2: the editor through the terminal, which is the wiring the
+%% pure tests cannot reach: `C-w` kills the word before the cursor, `C-a`
+%% and `C-e` go to the ends of the line, and what is typed goes in at the
+%% cursor rather than at the end
+editing_test_() ->
+    {timeout, 60, fun editing/0}.
+
+editing() ->
+    Screen = pty("../bin/ern --shell",
+                 [{expect, "> "},
+                  {send, hex("1 + 22222")},
+                  {expect, "22222"},
+                  {send, hex([23])},                    % C-w kills the word
+                  {send, hex("2\r")},
+                  {expect, "3 : Int"},
+                  {send, hex("0 + 2")},
+                  {expect, "0 + 2"},
+                  {send, hex([1]) ++ hex("4")},         % C-a, then a digit
+                  {expect, "40 + 2"},
+                  {send, hex([5]) ++ hex(" + 0\r")},    % C-e, then the rest
+                  {expect, "42 : Int"},
+                  {send, "04"}],
+                 20),
+    ?assertMatch({_, _}, binary:match(Screen, <<"3 : Int">>)),
+    ?assertMatch({_, _}, binary:match(Screen, <<"42 : Int">>)),
+    %% the word was killed rather than the line: `1 + ` stayed
+    ?assertEqual(nomatch, binary:match(Screen, <<"1 + 22222\r\n">>)).
+
+%% report §11.2: `C-l` gives a clean screen and keeps the line being
+%% typed; what was committed before it is the terminal's scrollback and
+%% not on the screen any more
+clear_test_() ->
+    {timeout, 60, fun clear/0}.
+
+clear() ->
+    Screen = screen("../bin/ern --shell",
+                    [{expect, "> "},
+                     {send, hex("111 + 111\r")},
+                     {expect, "222 : Int"},
+                     {send, hex("7 + 7")},
+                     {expect, "7 + 7"},
+                     {send, "0c"},                      % C-l
+                     {sleep, 500},
+                     {send, hex("\r")},
+                     {expect, "14 : Int"},
+                     {send, "04"}],
+                    20, "10x40"),
+    %% the line being typed survived the clear and ran
+    ?assertMatch({_, _}, binary:match(Screen, <<"14 : Int">>)),
+    %% what was on the screen before it is gone
+    ?assertEqual(nomatch, binary:match(Screen, <<"222 : Int">>)).
+
 %% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
 %% under the source root and puts it in scope; `:reload` compiles again
 %% what has changed, names what is still in the previous version, and ends

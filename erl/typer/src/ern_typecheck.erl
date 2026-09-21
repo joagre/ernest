@@ -2181,10 +2181,21 @@ lookup_value(Pos, Path, Name, #env{ns = Ns, local_values = LV} = Env) ->
                 _ -> lookup_global(Pos, Path ++ [Name], Env)
             end;
         false ->
-            case lists:prefix(Ns, Path) andalso length(Path) =:= length(Ns) + 1 of
-                true -> lookup_value(Pos, [lists:last(Path)], Name, Env);
-                false -> lookup_global(Pos, Path ++ [Name], Env)
+            %% report §4.2: `M.T.name` in module M is M's own member where M
+            %% declares T, and the module M.T's `name` otherwise; only one of
+            %% the two can exist, a module namespace may not coincide with a
+            %% type-member namespace
+            case lists:prefix(Ns, Path) andalso length(Path) =:= length(Ns) + 1
+                 andalso own_member(lists:last(Path), Name, Env) of
+                {ok, Q} -> local_global(Q, Env);
+                _ -> lookup_global(Pos, Path ++ [Name], Env)
             end
+    end.
+
+own_member(Owner, Name, #env{local_values = LV} = Env) ->
+    case LV of
+        #{{Owner, Name} := Q} -> {ok, Q};
+        _ -> session(values, {Owner, Name}, Env)
     end.
 
 %% Report §4.4: an abstract type's constructor is its module's alone, and
