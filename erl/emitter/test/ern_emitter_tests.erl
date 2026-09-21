@@ -1144,3 +1144,19 @@ sys_stdout_test() ->
     {ok, Out} = run("export fn main() -> Unit with Never = send(Sys.stdout, \"hi\\n\")\n"),
     ?assertEqual(<<"hi\n">>, Out).
 
+
+%% report §8.5: a compiled module declares the modules it depends on, as
+%% `'$deps'/0`, so that the runtime can evaluate top-level bindings in
+%% dependency order without reading a compiled file; a module that
+%% depends on none declares none
+deps_test() ->
+    {ok, Typed, Iface, Env} = ern_typecheck:check_string(['M'], "export let one = 1\n"),
+    Build = #{source_hash => <<>>, deps => [{['Net', 'Http'], <<"hash">>}]},
+    {ok, Mod, Bin} = ern_emitter:compile(['M'], Typed, Iface, Env, Build),
+    {module, Mod} = code:load_binary(Mod, "test", Bin),
+    ?assert(erlang:function_exported(Mod, '$deps', 0)),
+    ?assertEqual(['ern@net@http'], Mod:'$deps'()),
+    {ok, Typed2, Iface2, Env2} = ern_typecheck:check_string(['N'], "export let one = 1\n"),
+    {ok, Mod2, Bin2} = ern_emitter:compile(['N'], Typed2, Iface2, Env2),
+    {module, Mod2} = code:load_binary(Mod2, "test", Bin2),
+    ?assertNot(erlang:function_exported(Mod2, '$deps', 0)).

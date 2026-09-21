@@ -1,0 +1,307 @@
+//
+// The shell's live region (report §11.2), designed in
+// docs/shell_design.md: the bottom rows of the terminal, a tail of what
+// programs have written and the input being typed under it. Everything
+// above it is the transcript, written into the terminal and scrolled by
+// it.
+//
+// A pure function from the region and what happened to the region after
+// it and the bytes to write. The screen process in `shell.ern` writes
+// them and holds nothing else, which is what makes the drawing testable:
+// the tests at the foot of this file read the bytes.
+//
+
+// What the region shows: the tail of what programs wrote, the part of a
+// line that has arrived without its line feed, the prompt and the input
+// being typed after it with the cursor in it, the row the cursor was
+// left on, how many rows the tail may take, the terminal's size, and
+// whether there is a terminal at all.
+export type Region = Region(
+    tail : List(String),
+    writing : String,
+    prompt : String,
+    typed : String,
+    at : Int,
+    resting : Int,
+    output : Int,
+    size : Optional(Size),
+    live : Bool
+)
+
+// Report §11.2: the tail's rows to begin with, which `:set output n`
+// changes and `0` takes away.
+export let tailRows = 5
+
+// Report §11.2: the rows of an input after its first.
+let continuation = "... "
+
+// A tab moves to the next multiple of this, which is every terminal's
+// default and the only stop the region assumes.
+let tabStop = 8
+
+// A region at the foot of a terminal of that size, or none where the
+// program's output is not a terminal at all.
+export fn new(size : Optional(Size), live : Bool) -> Region =
+    Region(tail = [], writing = "", prompt = "", typed = "", at = 0, resting = 0,
+           output = tailRows, size = size, live = live)
+
+// What the session says is committed as it is produced; what it leaves
+// without a line feed is the prompt, which the input is typed after.
+export fn said(r : Region, text : String) -> #(Region, String) = match r {
+    // no terminal, no region: the text is the transcript, as it arrives
+    Region(live = false) -> #(r, text)
+  | Region(live = true, prompt = prompt, tail = tail) -> {
+        let #(lines, rest) = split(prompt <> text);
+        // report §11.2: what the tail holds is committed before what the
+        // session says, so that the scrollback reads in the order the
+        // lines were written
+        painted(Region(..r, prompt = rest, tail = []), tail <> lines)
+    }
+}
+
+// Report §11.2: a line the shell writes while an input is being typed.
+// It joins the transcript above the region and the prompt stays, since
+// the input that prompt belongs to is still being typed; what the
+// session says takes the prompt with it, an input having finished.
+export fn noted(r : Region, text : String) -> #(Region, String) = match r {
+    Region(live = false) -> #(r, text <> "\n")
+  | Region(live = true, tail = tail) -> painted(Region(..r, tail = []), tail <> [text])
+}
+
+// What a program writes goes to the tail. A line the tail no longer has
+// room for is committed as it leaves, so the terminal's scrollback holds
+// every line in the order it was written.
+export fn wrote(r : Region, text : String) -> #(Region, String) = match r {
+    Region(live = false) -> #(r, text)
+  | Region(live = true, tail = tail, writing = writing) -> {
+        let #(lines, rest) = split(writing <> text);
+        aged(Region(..r, tail = tail <> lines, writing = rest), [])
+    }
+}
+
+// The line being typed, and where the cursor is in it.
+export fn typing(r : Region, text : String, at : Int) -> #(Region, String) =
+    painted(Region(..r, typed = text, at = at), [])
+
+// The input is finished: it joins the transcript, a row for each of its
+// lines with the prompt each was typed after, and the region stops
+// drawing it.
+export fn entered(r : Region) -> #(Region, String) = match r {
+    Region(live = false) -> #(r, "")
+  | Region(live = true, tail = tail) ->
+        painted(Region(..r, prompt = "", typed = "", at = 0, tail = []),
+                tail <> inputRows(r))
+}
+
+// The window has changed; the tail may no longer fit.
+export fn resized(r : Region, size : Optional(Size)) -> #(Region, String) =
+    aged(Region(..r, size = size), [])
+
+// Report §11.2: `:set output n` gives the tail n rows, and 0 takes the
+// tail away, which interleaves what programs write with the transcript.
+export fn output(r : Region, rows : Int) -> #(Region, String) =
+    aged(Region(..r, output = Int.max(0, rows)), [])
+
+// Report §11.2: `C-l` gives a clean screen. What is committed stays in
+// the terminal's scrollback; the region is painted again at the top.
+export fn cleared(r : Region) -> #(Region, String) = match r {
+    Region(live = false) -> #(r, "")
+  | Region(live = true) -> {
+        let #(r2, bytes) = painted(Region(..r, resting = 0), []);
+        #(r2, "\u{1b}[2J\u{1b}[H" <> bytes)
+    }
+}
+
+//
+// Committing and drawing
+//
+
+// A line the tail no longer has room for is committed as it leaves, so
+// that a tail made shorter, or a window made smaller, loses nothing.
+fn aged(r : Region, commits : List(String)) -> #(Region, String) = {
+    let Region(tail = tail) = r;
+    let over = List.size(tail) - height(r);
+    if over <= 0 then painted(r, commits)
+    else painted(Region(..r, tail = List.drop(tail, over)),
+                 commits <> List.take(tail, over))
+}
+
+// Erase the region, commit what has left it, paint it again: one write,
+// so that a redraw is never seen half done.
+fn painted(r : Region, commits : List(String)) -> #(Region, String) = match r {
+    // no terminal, no region: there is nothing to erase and nothing to
+    // paint, and what is committed is the transcript itself
+    Region(live = false) -> #(r, written(commits))
+  | Region(live = true) -> {
+        let rows = rowsOf(r);
+        let row = resting(r);
+        #(Region(..r, resting = row),
+          erase(r) <> written(commits) <> paint(rows, row, column(r)))
+    }
+}
+
+fn erase(r : Region) -> String = match r {
+    Region(resting = n) -> "\r" <> up(n) <> "\u{1b}[0J"
+}
+
+fn written(lines : List(String)) -> String =
+    String.join(List.map(lines, fn(line) = line <> "\n"), "")
+
+fn paint(rows : List(String), row : Int, at : Int) -> String =
+    String.join(rows, "\n") <> up(List.size(rows) - 1 - row) <> "\r" <> right(at - 1)
+
+// The region's rows: the tail, then the rows the input is typed on.
+// Each is painted with its tabs already spaces, since a row is placed by
+// its columns and a tab's width depends on where it falls.
+export fn rowsOf(r : Region) -> List(String) =
+    List.map(tailRowsOf(r) <> inputRows(r), fn(line) = clip(expand(line), width(r)))
+
+fn tailRowsOf(r : Region) -> List(String) = {
+    let Region(tail = tail, writing = writing) = r;
+    let all = if String.isEmpty(writing) then tail else tail <> [writing];
+    List.drop(all, Int.max(0, List.size(all) - height(r)))
+}
+
+// Report §11.2: an input may span lines, the first typed after the
+// prompt and the rest after `... `. `String.lines` is not this split: a
+// text that ends in a line feed is being typed on a new empty row, and
+// that row is shown.
+export fn inputRows(r : Region) -> List(String) = {
+    let Region(prompt = prompt, typed = typed) = r;
+    match String.split(typed, "\n") {
+        [] -> [prompt]
+      | first :: rest -> (prompt <> first) :: List.map(rest, fn(line) = continuation <> line)
+    }
+}
+
+// The tail's height: what `:set output` asks for, and never more than
+// the screen has room for, the input having the last word.
+fn height(r : Region) -> Int = match r {
+    Region(output = output, size = None) -> Int.min(output, 5)
+  | Region(output = output, size = Some(Size(rows = rows))) ->
+        Int.min(output, Int.max(0, rows / 2 - 1))
+}
+
+fn width(r : Region) -> Int = match r {
+    Region(size = None) -> 80
+  | Region(size = Some(Size(columns = columns))) -> columns
+}
+
+// The row of the region the cursor rests on: the tail's rows, and then
+// one for each line feed the cursor has before it.
+export fn resting(r : Region) -> Int = {
+    let Region(typed = typed, at = at) = r;
+    List.size(tailRowsOf(r)) + List.size(String.split(String.slice(typed, 0, at), "\n")) - 1
+}
+
+// The column the cursor rests in: what the row holds before the cursor,
+// tabs and all, is as many columns as it paints.
+export fn column(r : Region) -> Int = {
+    let Region(prompt = prompt, typed = typed, at = at) = r;
+    let before = String.slice(typed, 0, at);
+    let head = match String.lastIndexOf(before, "\n") {
+        None -> prompt <> before
+      | Some(i) -> continuation <> String.slice(before, i + 1, String.size(before) - i - 1)
+    };
+    Int.min(width(r), String.size(expand(head)) + 1)
+}
+
+// Report §11.2: a tab is painted as the spaces to the next stop. The
+// region places its rows and its cursor by column, so it writes what it
+// has measured rather than leaving the tab to the terminal's own stops.
+// One character is one column here, which a wide glyph is not; that is
+// the design note's open question, and this is the function it changes.
+export fn expand(row : String) -> String = expanding(String.toList(row), "")
+
+fn expanding(chars : List(Char), done : String) -> String = match chars {
+    [] -> done
+  | c :: rest ->
+        if c == '\t' then
+            expanding(rest, done <> String.repeat(" ", tabStop - String.size(done) % tabStop))
+        else expanding(rest, done <> Char.toString(c))
+}
+
+fn clip(line : String, columns : Int) -> String =
+    if String.size(line) <= columns then line else String.slice(line, 0, columns)
+
+fn up(n : Int) -> String = if n <= 0 then "" else "\u{1b}[" <> Int.toString(n) <> "A"
+
+fn right(n : Int) -> String = if n <= 0 then "" else "\u{1b}[" <> Int.toString(n) <> "C"
+
+// The text up to each line feed, and what is left without one.
+fn split(text : String) -> #(List(String), String) = match String.split(text, "\n") {
+    [] -> #([], "")
+  | parts -> #(List.dropLast(parts), lastOr(parts))
+}
+
+fn lastOr(parts : List(String)) -> String = match List.last(parts) {
+    None -> ""
+  | Some(text) -> text
+}
+
+//
+// The tests (report §9.3), run by `ern --test`, which `make test` does.
+// The region is pure, so a test reads the bytes it would have written.
+//
+
+let spansRows = Test(name = "an input takes a row for each of its lines", run = fn() =
+    rowsAre(inputRows(typed("a\nb", 3)), ["> a", "... b"]))
+
+let showsTheEmptyRow = Test(name = "a text that ends in a line feed shows its empty row",
+                            run = fn() =
+    rowsAre(inputRows(typed("a\n", 2)), ["> a", "... "]))
+
+let restsWhereTyped = Test(name = "the cursor rests on the row and column it is typed at",
+                           run = fn() = at(typed("a\nbc", 4), 1, 7))
+
+let restsOnTheFirstRow = Test(name = "a one-line input rests after its prompt", run = fn() =
+    at(typed("abc", 2), 0, 5))
+
+let expandsTabs = Test(name = "a tab is painted to the next stop", run = fn() =
+    rowsAre([expand("> a\tb"), expand("\t.")], ["> a     b", "        ."]))
+
+let restsAfterATab = Test(name = "the cursor rests where the tab left it", run = fn() =
+    at(typed("a\tb", 2), 0, 9))
+
+let paintsTheLine = Test(name = "typing erases the region and paints it again", run = fn() = {
+    let #(_, bytes) = typing(prompted(), "hi", 2);
+    // the region is one row, so nothing is climbed; the cursor is put
+    // after the prompt and what is typed
+    same(bytes, "\r\u{1b}[0J> hi\r\u{1b}[4C")
+})
+
+let commitsWhatIsEntered = Test(name = "an input entered joins the transcript, a row a line",
+                                run = fn() = {
+    let #(typing, _) = typing(prompted(), "a\nb", 3);
+    let #(_, bytes) = entered(typing);
+    same(bytes, "\r\u{1b}[1A\u{1b}[0J> a\n... b\n\r")
+})
+
+let saysWithoutATerminal = Test(name = "without a terminal what is said is the transcript",
+                                run = fn() = {
+    let #(_, bytes) = said(new(None, false), "1 : Int\n");
+    same(bytes, "1 : Int\n")
+})
+
+// A region with a prompt written, which is where an input is typed.
+fn prompted() -> Region = {
+    let #(r, _) = said(new(Some(Size(rows = 24, columns = 80)), true), "> ");
+    r
+}
+
+// A region with an input being typed in it, without the bytes that drew
+// it: the geometry is what these tests read.
+fn typed(text : String, at : Int) -> Region = {
+    let #(r, _) = typing(prompted(), text, at);
+    r
+}
+
+fn rowsAre(rows : List(String), expected : List(String)) -> TestResult =
+    if rows == expected then Passed else Failed(String.join(rows, " | "))
+
+fn at(r : Region, row : Int, wanted : Int) -> TestResult =
+    if resting(r) == row && column(r) == wanted then Passed
+    else Failed("row " <> Int.toString(resting(r)) <> ", column " <> Int.toString(column(r)))
+
+fn same(bytes : String, expected : String) -> TestResult =
+    if bytes == expected then Passed else Failed(String.replace(bytes, "\u{1b}", "ESC"))

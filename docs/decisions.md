@@ -3538,6 +3538,33 @@ scrollback holds the text and not our spaces, and the terminal expands it to the
 wide-glyph question has one function to change rather than two arithmetics. Nothing in the
 runtime knows a glyph's width, which is why the question is still open.
 
+## The Region Is a Pure Function, 2026-09-21
+
+`shell.ern` had grown to hold two things: the session and its processes, and the drawing of
+the live region. The drawing is pure, so it is the part that can be tested, and it could not
+be tested where it was: the module's own `Outcome.Failed` hides the prelude's
+`TestResult.Failed` (§4.2), so a test in that file cannot say what failed. The rename to
+`Faulted` bought the tests a day; the split is the answer.
+
+**The shape is the editor's.** `Shell.Region` is a function from the region and what
+happened to the region after it and the bytes to write; the screen process receives a
+message, calls one function, writes what it answers, and holds nothing else. Nine tests read
+the bytes, the escapes among them, which no test could do while the drawing wrote for
+itself. `shell.ern` lost two hundred and fifty lines.
+
+**The defect it found is the one the plan predicted.** `Shell.Region.tailRows` is a top-level
+`let` that `shell.ern` reads, the first `let` in this repository to cross a module, and
+`ern_rt:init_stdlib/0` ran the installed modules' initializers in alphabetical order:
+`ern@shell` before `ern@shell@region`, so the shell asked for a value that had not been
+evaluated. §8.5 says dependency order and has all along.
+
+**The order comes from the compiled module, not from a compiled file.** The emitter writes
+`'$deps'/0` into every module that has dependencies, from the list the build record already
+holds, and the runtime sorts the installed modules with it. The alternative, having the
+runtime read each `.erc`'s interface chunk, would have put the compiler under the runtime,
+which is the wrong way round: the runtime is built before the emitter and knows nothing of
+chunks. A module declaring what it needs is also the shape that works whoever calls `$init`.
+
 ## Later
 
 Planned or considered, not in the language today.

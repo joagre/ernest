@@ -289,6 +289,7 @@ Settled since this list was written: the depth and length defaults are 10 and 10
 ## Testing
 
 - **A session is a golden test:** a file of inputs run in line mode, `ern --shell < session.ern`, against a file of expected output, under `test/`. A session that drives a program is not one: where a fault report lands among the inputs depends on when the process faults, so that session asserts what must be true of it instead.
+- **The region is a pure function**, `Shell.Region`: the region and what happened in, the region after it and the bytes to write out. The screen process writes them and holds nothing else, so a test reads the bytes a redraw would have written.
 - **The line editor is tested on its own**, being the one part of the shell with no processes in it: its tests are top-level `Test` values in `Shell.Editor`, key lists played onto a fresh line with the text and the cursor read off, run by `ern --test` (§9.3) and by `make test` with it. The history file's escaping and the region's geometry, what rows an input takes and where the cursor rests in them, are tested the same way.
 - **Completion is tested on the foreign entries' answers:** a prefix and an environment in, candidates out.
 - **What is painted is asserted on the screen, not on the writes.** The harness renders the writes onto a grid of the terminal's size with `--screen`, since a shell that repaints writes a line many times over.

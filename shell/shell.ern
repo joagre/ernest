@@ -70,11 +70,14 @@ type Settings = Settings(depth : Int, length : Int, timing : Bool, output : Int)
 // Report §11.2: a value is printed to a depth and a length, and 0 is
 // neither. The defaults print what a prompt is used for whole and stop a
 // value that would scroll the session away.
-let defaults = Settings(depth = 10, length = 100, timing = false, output = tailRows)
+let defaults = Settings(depth = 10, length = 100, timing = false, output = Shell.Region.tailRows)
 
 export fn main() -> Unit with ShellMsg = {
     mine();
-    let screen = spawn(Local, fn() = { mine(); screenLoop(newScreen()) });
+    let screen = spawn(Local, fn() = {
+        mine();
+        screenLoop(Shell.Region.new(Terminal.size(), isTerminal()))
+    });
     // report §11.2: what a program writes goes to the tail, what the
     // session says is committed to the transcript
     setScreen(via(Wrote, screen));
@@ -441,36 +444,9 @@ fn help() -> List(String) =
 // paints again. With no terminal there is no region at all and the text
 // is written as it arrives.
 
-type Screen = Screen(
-    tail : List(String),
-    writing : String,
-    prompt : String,
-    typed : String,
-    at : Int,
-    resting : Int,
-    output : Int,
-    size : Optional(Size),
-    live : Bool
-)
-// tail: the newest program lines, oldest first, never more than the tail's
-// height; writing: a program's incomplete line; prompt: the session's,
-// which is the row the input is typed on; painted: the rows the region
-// takes on the screen now
-
-// Report §11.2: the tail's rows, which `:set output n` sets and `0` takes
-// away.
-let tailRows = 5
-
-// How long to wait for the file system, which is a local file.
-let fileWait = 5000
-
-// Report §11.2: the rows of an input after its first.
-let continuation = "... "
-
-// A tab moves to the next multiple of this, which is every terminal's
-// default and the only stop the region assumes.
-let tabStop = 8
-
+// Report §11.2: the messages the region takes. The screen process holds
+// the region of `Shell.Region` and writes what it answers; the region
+// itself is pure and draws nothing.
 type ScreenMsg = Said(String)                        // the shell's own
                | Noted(String)                       // and while an input is typed
                | Wrote(String)                       // a program's
@@ -481,207 +457,24 @@ type ScreenMsg = Said(String)                        // the shell's own
                | Height(Int)                         // `:set output n`
                | Flush(reply : Reply(Unit))
 
-fn newScreen() -> Screen with m =
-    Screen(tail = [], writing = "", prompt = "", typed = "", at = 0, resting = 0,
-           output = tailRows, size = Terminal.size(), live = isTerminal())
+// How long to wait for the file system, which is a local file.
+let fileWait = 5000
 
-fn screenLoop(s : Screen) -> Unit with ScreenMsg = {
-    let s2 = receive {
-        Said(text) -> said(s, text)
-      | Noted(text) -> noted(s, text)
-      | Wrote(text) -> wrote(s, text)
-      | Typing(text = text, at = at) -> refresh(Screen(..s, typed = text, at = at), [])
-      | Entered -> entered(s)
-      | Resize -> aged(Screen(..s, size = Terminal.size()), [])
-      | Clear -> cleared(s)
-      | Height(n) -> aged(Screen(..s, output = Int.max(0, n)), [])
-      | Flush(reply = reply) -> { answer(reply, Unit); s }
+fn screenLoop(r : Shell.Region.Region) -> Unit with ScreenMsg = {
+    let #(next, bytes) = receive {
+        Said(text) -> Shell.Region.said(r, text)
+      | Noted(text) -> Shell.Region.noted(r, text)
+      | Wrote(text) -> Shell.Region.wrote(r, text)
+      | Typing(text = text, at = at) -> Shell.Region.typing(r, text, at)
+      | Entered -> Shell.Region.entered(r)
+      | Resize -> Shell.Region.resized(r, Terminal.size())
+      | Clear -> Shell.Region.cleared(r)
+      | Height(rows) -> Shell.Region.output(r, rows)
+      | Flush(reply = reply) -> { answer(reply, Unit); #(r, "") }
     };
-    screenLoop(s2)
+    write(bytes);
+    screenLoop(next)
 }
-
-// What the session says is committed as it is produced; what it leaves
-// without a line feed is the prompt, which the input is typed after.
-fn said(s : Screen, text : String) -> Screen with m = match s {
-    // no terminal, no region: the text is the transcript, as it arrives
-    Screen(live = false) -> { write(text); s }
-  | Screen(live = true, prompt = prompt, tail = tail) -> {
-        let #(lines, rest) = split(prompt <> text);
-        // report §11.2: what the tail holds is committed before what the
-        // session says, so that the scrollback reads in the order the
-        // lines were written
-        refresh(Screen(..s, prompt = rest, tail = []), tail <> lines)
-    }
-}
-
-// Report §11.2: a line the shell writes while an input is being typed.
-// It joins the transcript above the region and the prompt stays, since
-// the input that prompt belongs to is still being typed; what the
-// session says takes the prompt with it, an input having finished.
-fn noted(s : Screen, text : String) -> Screen with m = match s {
-    Screen(live = false) -> { write(text <> "\n"); s }
-  | Screen(live = true, tail = tail) -> refresh(Screen(..s, tail = []), tail <> [text])
-}
-
-// What a program writes goes to the tail. A line the tail no longer has
-// room for is committed as it leaves, so the terminal's scrollback holds
-// every line in the order it was written.
-fn wrote(s : Screen, text : String) -> Screen with m = match s {
-    Screen(live = false) -> { write(text); s }
-  | Screen(live = true) -> toTail(s, text)
-}
-
-fn toTail(s : Screen, text : String) -> Screen with m = {
-    let Screen(tail = tail, writing = writing) = s;
-    let #(lines, rest) = split(writing <> text);
-    aged(Screen(..s, tail = tail <> lines, writing = rest), [])
-}
-
-// A line the tail no longer has room for is committed as it leaves, so
-// that a tail made shorter, or a window made smaller, loses nothing.
-fn aged(s : Screen, commits : List(String)) -> Screen with m = {
-    let Screen(tail = tail) = s;
-    let over = List.size(tail) - height(s);
-    if over <= 0 then refresh(s, commits)
-    else refresh(Screen(..s, tail = List.drop(tail, over)),
-                 commits <> List.take(tail, over))
-}
-
-// The line being typed is finished: it joins the transcript, with the
-// prompt it was typed after, and the screen stops drawing it.
-fn entered(s : Screen) -> Screen with m = match s {
-    Screen(live = false) -> s
-  | Screen(live = true, tail = tail) ->
-        refresh(Screen(..s, prompt = "", typed = "", at = 0, tail = []),
-                tail <> inputRows(s))
-}
-
-// The text up to each line feed, and what is left without one.
-fn split(text : String) -> #(List(String), String) = match String.split(text, "\n") {
-    [] -> #([], "")
-  | parts -> #(List.dropLast(parts), lastOr(parts))
-}
-
-fn lastOr(parts : List(String)) -> String = match List.last(parts) {
-    None -> ""
-  | Some(text) -> text
-}
-
-//
-// Drawing
-//
-
-// Erase the region, commit what has left it, paint it again, all in one
-// write so that a redraw is never seen half done.
-fn refresh(s : Screen, commits : List(String)) -> Screen with m = match s {
-    // no terminal, no region: there is nothing to erase and nothing to
-    // paint, and what is committed has been written already
-    Screen(live = false) -> { write(written(commits)); s }
-  | Screen(live = true) -> {
-        let rows = rowsOf(s);
-        let resting = resting(s);
-        write(erase(s) <> written(commits) <> paint(rows, resting, column(s)));
-        Screen(..s, resting = resting)
-    }
-}
-
-// Report §11.2: `C-l` gives a clean screen. What is committed stays in
-// the terminal's scrollback; the region is painted again at the top.
-fn cleared(s : Screen) -> Screen with m = match s {
-    Screen(live = false) -> s
-  | Screen(live = true) -> {
-        write("\u{1b}[2J\u{1b}[H");
-        refresh(Screen(..s, resting = 0), [])
-    }
-}
-
-fn erase(s : Screen) -> String = match s {
-    Screen(resting = n) -> "\r" <> up(n) <> "\u{1b}[0J"
-}
-
-fn written(lines : List(String)) -> String =
-    String.join(List.map(lines, fn(line) = line <> "\n"), "")
-
-fn paint(rows : List(String), resting : Int, at : Int) -> String =
-    String.join(rows, "\n") <> up(List.size(rows) - 1 - resting) <> "\r" <> right(at - 1)
-
-// The region's rows: the tail, then the rows the input is typed on.
-// Each is painted with its tabs already spaces, since a row is placed
-// by its columns and a tab's width depends on where it falls.
-fn rowsOf(s : Screen) -> List(String) =
-    List.map(tailRowsOf(s) <> inputRows(s), fn(line) = clip(expand(line), width(s)))
-
-fn tailRowsOf(s : Screen) -> List(String) = {
-    let Screen(tail = tail, writing = writing) = s;
-    let all = if String.isEmpty(writing) then tail else tail <> [writing];
-    List.drop(all, Int.max(0, List.size(all) - height(s)))
-}
-
-// Report §11.2: an input may span lines, the first typed after the
-// prompt and the rest after `... `. `String.lines` is not this split: a
-// text that ends in a line feed is being typed on a new empty row, and
-// that row is shown.
-fn inputRows(s : Screen) -> List(String) = {
-    let Screen(prompt = prompt, typed = typed) = s;
-    match String.split(typed, "\n") {
-        [] -> [prompt]
-      | first :: rest -> (prompt <> first) :: List.map(rest, fn(line) = continuation <> line)
-    }
-}
-
-// The tail's height: what `:set output` asks for, and never more than the
-// screen has room for, the line being typed having the last word.
-fn height(s : Screen) -> Int = match s {
-    Screen(output = output, size = None) -> Int.min(output, 5)
-  | Screen(output = output, size = Some(Size(rows = rows))) ->
-        Int.min(output, Int.max(0, rows / 2 - 1))
-}
-
-fn width(s : Screen) -> Int = match s {
-    Screen(size = None) -> 80
-  | Screen(size = Some(Size(columns = columns))) -> columns
-}
-
-// The row of the region the cursor rests on: the tail's rows, and then
-// one for each line feed the cursor has before it.
-fn resting(s : Screen) -> Int = {
-    let Screen(typed = typed, at = at) = s;
-    List.size(tailRowsOf(s)) + List.size(String.split(String.slice(typed, 0, at), "\n")) - 1
-}
-
-// The column the cursor rests in: what the row holds before the cursor,
-// tabs and all, is as many columns as it paints.
-fn column(s : Screen) -> Int = {
-    let Screen(prompt = prompt, typed = typed, at = at) = s;
-    let before = String.slice(typed, 0, at);
-    let head = match String.lastIndexOf(before, "\n") {
-        None -> prompt <> before
-      | Some(i) -> continuation <> String.slice(before, i + 1, String.size(before) - i - 1)
-    };
-    Int.min(width(s), String.size(expand(head)) + 1)
-}
-
-// Report §11.2: a tab is painted as the spaces to the next stop. The
-// region places its rows and its cursor by column, so it writes what it
-// has measured rather than leaving the tab to the terminal's own stops.
-// One character is one column here, which a wide glyph is not; that is
-// the note's open question, and this is the one function it changes.
-fn expand(row : String) -> String = expanding(String.toList(row), "")
-
-fn expanding(chars : List(Char), done : String) -> String = match chars {
-    [] -> done
-  | c :: rest ->
-        if c == '\t' then
-            expanding(rest, done <> String.repeat(" ", tabStop - String.size(done) % tabStop))
-        else expanding(rest, done <> Char.toString(c))
-}
-
-fn clip(line : String, columns : Int) -> String =
-    if String.size(line) <= columns then line else String.slice(line, 0, columns)
-
-fn up(n : Int) -> String = if n <= 0 then "" else "\u{1b}[" <> Int.toString(n) <> "A"
-
-fn right(n : Int) -> String = if n <= 0 then "" else "\u{1b}[" <> Int.toString(n) <> "C"
 
 // Report §11.2: on quitting, the region goes and the cursor is left on a
 // fresh line, so the terminal is as the shell found it.
@@ -874,47 +667,3 @@ fn lineLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = 
         }
     }
 }
-
-//
-// The tests (report §9.3) of the region's geometry, which is the pure
-// part of the screen: what rows an input takes and where the cursor
-// rests in them. `ern --test build/shell/shell.erc` runs them, and
-// `make test` with it.
-//
-
-let spansRows = Test(name = "an input takes a row for each of its lines", run = fn() =
-    rowsAre(inputRows(screenWith("a\nb", 3)), ["> a", "... b"]))
-
-let showsTheEmptyRow = Test(name = "a text that ends in a line feed shows its empty row",
-                            run = fn() =
-    rowsAre(inputRows(screenWith("a\n", 2)), ["> a", "... "]))
-
-let restsWhereTyped = Test(name = "the cursor rests on the row and column it is typed at",
-                           run = fn() = {
-    let s = screenWith("a\nbc", 4);
-    if resting(s) == 1 && column(s) == 7 then Passed
-    else Failed("row " <> Int.toString(resting(s)) <> ", column " <> Int.toString(column(s)))
-})
-
-let expandsTabs = Test(name = "a tab is painted to the next stop", run = fn() =
-    rowsAre([expand("> a\tb"), expand("\t.")], ["> a     b", "        ."]))
-
-let restsAfterATab = Test(name = "the cursor rests where the tab left it", run = fn() = {
-    let s = screenWith("a\tb", 2);
-    if column(s) == 9 then Passed else Failed(Int.toString(column(s)))
-})
-
-let restsOnTheFirstRow = Test(name = "a one-line input rests after its prompt", run = fn() = {
-    let s = screenWith("abc", 2);
-    if resting(s) == 0 && column(s) == 5 then Passed
-    else Failed("row " <> Int.toString(resting(s)) <> ", column " <> Int.toString(column(s)))
-})
-
-// A screen with nothing written and an input being typed, which is what
-// the geometry is about.
-fn screenWith(text : String, at : Int) -> Screen =
-    Screen(tail = [], writing = "", prompt = "> ", typed = text, at = at, resting = 0,
-           output = tailRows, size = Some(Size(rows = 24, columns = 80)), live = true)
-
-fn rowsAre(rows : List(String), expected : List(String)) -> TestResult =
-    if rows == expected then Passed else Failed(String.join(rows, " | "))

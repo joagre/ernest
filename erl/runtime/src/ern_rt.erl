@@ -583,14 +583,38 @@ run_main(Main, Site, Opts) ->
 %% path.
 -spec init_stdlib() -> ok.
 init_stdlib() ->
-    Files = lists:append([filelib:wildcard(filename:join(D, "ern@*.beam"))
-                          || D <- code:get_path()]),
-    lists:foreach(fun(File) ->
-                      Mod = list_to_atom(filename:basename(File, ".beam")),
-                      code:ensure_loaded(Mod),
+    Files = lists:usort(lists:append([filelib:wildcard(filename:join(D, "ern@*.beam"))
+                                      || D <- code:get_path()])),
+    Mods = [list_to_atom(filename:basename(File, ".beam")) || File <- Files],
+    lists:foreach(fun(Mod) -> code:ensure_loaded(Mod) end, Mods),
+    lists:foreach(fun(Mod) ->
                       erlang:function_exported(Mod, '$init', 0) andalso Mod:'$init'()
-                  end, lists:usort(Files)),
+                  end, ordered(Mods)),
     ok.
+
+%% Report §8.5: dependency order, which each compiled module declares as
+%% `'$deps'/0`; the order within an independent set is unspecified, and
+%% is the alphabetical one the code path gives.
+ordered(Mods) ->
+    {Order, _} = lists:foldl(fun(Mod, Acc) -> visit(Mod, Mods, Acc) end, {[], #{}}, Mods),
+    lists:reverse(Order).
+
+visit(Mod, Mods, {Order, Seen}) ->
+    case Seen of
+        #{Mod := _} ->
+            {Order, Seen};
+        _ ->
+            Deps = [D || D <- deps_of(Mod), lists:member(D, Mods)],
+            {Order1, Seen1} = lists:foldl(fun(D, Acc) -> visit(D, Mods, Acc) end,
+                                          {Order, Seen#{Mod => true}}, Deps),
+            {[Mod | Order1], Seen1}
+    end.
+
+deps_of(Mod) ->
+    case erlang:function_exported(Mod, '$deps', 0) of
+        true -> Mod:'$deps'();
+        false -> []
+    end.
 
 stop(Pid) ->
     Ref = erlang:monitor(process, Pid),

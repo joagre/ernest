@@ -56,7 +56,7 @@ compile(Ns, Decls, Iface, Env) ->
           {ok, atom(), binary()} | {error, [error()]}.
 compile(Ns, Decls, Iface, Env, Build) ->
     try
-        Forms = forms(Ns, Decls, Env),
+        Forms = forms(Ns, Decls, Env, [D || {D, _} <- maps:get(deps, Build, [])]),
         Iface0 = maps:remove(source, Build),
         Chunk = term_to_binary(Iface0#{format => ?CHUNK_FORMAT, iface => canonical_iface(Iface)}),
         Docs = term_to_binary(docs(Ns, Decls, Env, maps:get(source, Build, <<>>))),
@@ -74,14 +74,23 @@ compile(Ns, Decls, Iface, Env, Build) ->
 %% The abstract forms, for the golden tests and erl_prettypr.
 -spec forms([atom()], [tuple()], ern_typecheck:env()) -> [erl_parse:abstract_form()].
 forms(Ns, Decls, Env) ->
+    forms(Ns, Decls, Env, []).
+
+%% Report §8.5: with the modules this one depends on, which it declares
+%% as `'$deps'/0` so that the runtime can evaluate top-level bindings in
+%% dependency order without reading a compiled file.
+-spec forms([atom()], [tuple()], ern_typecheck:env(), [[atom()]]) ->
+          [erl_parse:abstract_form()].
+forms(Ns, Decls, Env, Deps) ->
     Mod = module_atom(Ns),
     Cx0 = #cx{ns = Ns, mod = Mod, env = Env, tops = top_names(Decls)},
     {Funs, Cx1} = lists:mapfoldl(fun decl/2, Cx0, Decls),
     Lets = [D || #let_decl{} = D <- Decls],
     {Init, Cx2} = init_fun(Lets, Decls, Cx1),
     Tests = tests_fun(Lets),
+    DepsFun = deps_fun(Deps),
     Exports = [export(D) || D <- Decls, exported(D)] ++ [{'$init', 0} || Lets =/= []]
-        ++ [{'$tests', 0} || Tests =/= []],
+        ++ [{'$tests', 0} || Tests =/= []] ++ [{'$deps', 0} || DepsFun =/= []],
     %% an Ernest function named like an auto-imported BIF, `size`, `max`,
     %% is called by its own name: the auto-import is switched off for it
     Clashes = [{F, A} || {F, A} <- maps:fold(fun({O, N}, Arity, Acc) when is_integer(Arity) ->
@@ -101,7 +110,7 @@ forms(Ns, Decls, Env) ->
                                      [erl_syntax:list([erl_syntax:arity_qualifier(
                                                          erl_syntax:atom(F), erl_syntax:integer(A))
                                                        || {F, A} <- Exports])])],
-    Functions = lists:append(Funs) ++ Init ++ Tests ++ lists:reverse(Cx2#cx.lifted),
+    Functions = lists:append(Funs) ++ Init ++ Tests ++ DepsFun ++ lists:reverse(Cx2#cx.lifted),
     erl_syntax:revert_forms(Attrs ++ Functions).
 
 %% Report §9.3, §11.2: '$tests'/0 lists the module's tests, every top-level
@@ -116,6 +125,15 @@ tests_fun(Lets) ->
             [erl_syntax:function(erl_syntax:atom('$tests'),
                                  [erl_syntax:clause([], none, [erl_syntax:list(Calls)])])]
     end.
+
+%% Report §8.5: the modules this one depends on, whose top-level
+%% bindings are evaluated before its own.
+deps_fun([]) ->
+    [];
+deps_fun(Deps) ->
+    Mods = erl_syntax:list([erl_syntax:atom(module_atom(D)) || D <- Deps]),
+    [erl_syntax:function(erl_syntax:atom('$deps'),
+                         [erl_syntax:clause([], none, [Mods])])].
 
 %% The module as Erlang source, for --emit erl (report §11.1).
 -spec erl_source([atom()], [tuple()], ern_typecheck:env()) -> iolist().
