@@ -29,6 +29,7 @@ foreign fn load(env : Env, name : String) -> Either(String, #(Env, String)) with
     "ern_shell:load/2"
 foreign fn reload(env : Env) -> Either(String, #(Env, List(String))) with m =
     "ern_shell:reload/1"
+foreign fn output(path : String) -> Either(String, String) with m = "ern_shell:output/1"
 foreign fn check(env : Env, from : String, input : String) -> Either(String, #(Env, Checked))
     with m = "ern_shell:check/3"
 foreign fn startupInputs() -> List(#(String, String)) with m = "ern_shell:startup/0"
@@ -68,8 +69,8 @@ export fn main() -> Unit with ShellMsg = {
     let screen = spawn(Local, fn() = { mine(); screenLoop(newScreen()) });
     // report §11.2: what a program writes goes to the tail, what the
     // session says is committed to the transcript
-    setScreen(via(Output, screen));
-    send(screen, Print("Ernest 0.1.0. :help for the commands, :quit to leave.\n"));
+    setScreen(via(Wrote, screen));
+    send(screen, Said("Ernest 0.1.0. :help for the commands, :quit to leave.\n"));
     let state = State(env = start(), settings = defaults);
     // report §11.2: a process that faults is news at the prompt, whichever
     // it is; the watcher is in place before the program's entry point runs
@@ -91,7 +92,7 @@ export fn main() -> Unit with ShellMsg = {
         // keyboard, since until then the terminal is still echoing lines
         receive { Ready -> Unit };
         let state2 = startup(state, screen);
-        send(screen, Print("> "));
+        send(screen, Said("> "));
         keyLoop(state2, screen)
     } else lineLoop(startup(state, screen), screen)
 }
@@ -116,7 +117,7 @@ fn run(
 ) -> State with ShellMsg = {
     let State(env = env) = state;
     match check(env, from, input) {
-        Left(text) -> { send(screen, Print(text)); state }
+        Left(text) -> { send(screen, Said(text)); state }
       | Right(#(env2, checked)) -> {
             // report §11.2: the run is what timing measures, not the check
             let started = Clock.now();
@@ -184,7 +185,7 @@ fn timed(screen : Address(ScreenMsg), settings : Settings, started : Int) -> Uni
     }
 
 fn say(screen : Address(ScreenMsg), text : String) -> Unit with m =
-    send(screen, Print(text <> "\n"))
+    send(screen, Said(text <> "\n"))
 
 // What the input declared, a line for each, in the order they were written
 // (report §11.2).
@@ -192,7 +193,7 @@ fn printLines(screen : Address(ScreenMsg), lines : List(String)) -> Unit with m 
     match lines {
         [] -> Unit
       | line :: rest -> {
-            send(screen, Print(line <> "\n"));
+            send(screen, Said(line <> "\n"));
             printLines(screen, rest)
         }
     }
@@ -207,7 +208,7 @@ fn printLines(screen : Address(ScreenMsg), lines : List(String)) -> Unit with m 
 // what a command takes after its name, and the line `:help` prints, so
 // that they cannot drift apart.
 type Command = Type | Browse | Load | Reload | Quit | Doc | Help | Forget
-             | Bindings | Processes | Faults | Set
+             | Bindings | Processes | Faults | Output | Set
 
 type Entry = Entry(name : String, command : Command, takes : Optional(String), about : String)
 
@@ -236,6 +237,8 @@ let commands = [
           about = "      the live processes of the session, by spawn site"),
     Entry(name = "faults", command = Faults, takes = None,
           about = "         the faults reported since the session began"),
+    Entry(name = "output", command = Output, takes = None,
+          about = "         a path, so a second window shows what programs write; - for the tail"),
     Entry(name = "set", command = Set, takes = None,
           about = "            depth n, length n, timing on or off; :set alone shows them")
 ]
@@ -283,7 +286,7 @@ fn obey(state : State, screen : Address(ScreenMsg), c : Command, arg : String)
           | lines -> { printLines(screen, lines); Continue(state) }
         }
       | Type -> match check(env, "input", arg) {
-            Left(text) -> { send(screen, Print(text)); Continue(state) }
+            Left(text) -> { send(screen, Said(text)); Continue(state) }
           | Right(#(env2, checked)) -> {
                 say(screen, arg <> " : " <> typeText(checked));
                 Continue(State(..state, env = env2))
@@ -299,7 +302,11 @@ fn obey(state : State, screen : Address(ScreenMsg), c : Command, arg : String)
         }
       | Doc -> match doc(env, arg) {
             Left(text) -> { say(screen, text); Continue(state) }
-          | Right(text) -> { send(screen, Print(text)); Continue(state) }
+          | Right(text) -> { send(screen, Said(text)); Continue(state) }
+        }
+      | Output -> match output(arg) {
+            Left(text) -> { say(screen, text); Continue(state) }
+          | Right(text) -> { say(screen, text); Continue(state) }
         }
       | Set -> Continue(State(..state, settings = set(screen, settings, arg)))
       | Processes -> match processes() {
@@ -311,14 +318,14 @@ fn obey(state : State, screen : Address(ScreenMsg), c : Command, arg : String)
           | downs -> { printLines(screen, List.map(downs, faultLine)); Continue(state) }
         }
       | Load -> match load(env, arg) {
-            Left(text) -> { send(screen, Print(text)); Continue(state) }
+            Left(text) -> { send(screen, Said(text)); Continue(state) }
           | Right(#(env2, line)) -> {
                 say(screen, line);
                 Continue(State(..state, env = env2))
             }
         }
       | Reload -> match reload(env) {
-            Left(text) -> { send(screen, Print(text)); Continue(state) }
+            Left(text) -> { send(screen, Said(text)); Continue(state) }
           | Right(#(env2, lines)) -> {
                 printLines(screen, lines);
                 Continue(State(..state, env = env2))
@@ -420,8 +427,8 @@ type Screen = Screen(
 // away.
 let tailRows = 5
 
-type ScreenMsg = Print(String)                       // the shell's own
-               | Output(String)                      // a program's
+type ScreenMsg = Said(String)                        // the shell's own
+               | Wrote(String)                       // a program's
                | Typing(String)                      // the line being typed
                | Entered                             // and now it is finished
                | Resize
@@ -434,8 +441,8 @@ fn newScreen() -> Screen with m =
 
 fn screenLoop(s : Screen) -> Unit with ScreenMsg = {
     let s2 = receive {
-        Print(text) -> said(s, text)
-      | Output(text) -> printed(s, text)
+        Said(text) -> said(s, text)
+      | Wrote(text) -> wrote(s, text)
       | Typing(text) -> refresh(Screen(..s, typed = text), [])
       | Entered -> entered(s)
       | Resize -> aged(Screen(..s, size = Terminal.size()), [])
@@ -462,7 +469,7 @@ fn said(s : Screen, text : String) -> Screen with m = match s {
 // What a program writes goes to the tail. A line the tail no longer has
 // room for is committed as it leaves, so the terminal's scrollback holds
 // every line in the order it was written.
-fn printed(s : Screen, text : String) -> Screen with m = match s {
+fn wrote(s : Screen, text : String) -> Screen with m = match s {
     Screen(live = false) -> { write(text); s }
   | Screen(live = true) -> toTail(s, text)
 }
@@ -509,10 +516,15 @@ fn lastOr(parts : List(String)) -> String = match List.last(parts) {
 
 // Erase the region, commit what has left it, paint it again, all in one
 // write so that a redraw is never seen half done.
-fn refresh(s : Screen, commits : List(String)) -> Screen with m = {
-    let rows = rowsOf(s);
-    write(erase(s) <> written(commits) <> paint(rows, column(s)));
-    Screen(..s, painted = List.size(rows))
+fn refresh(s : Screen, commits : List(String)) -> Screen with m = match s {
+    // no terminal, no region: there is nothing to erase and nothing to
+    // paint, and what is committed has been written already
+    Screen(live = false) -> { write(written(commits)); s }
+  | Screen(live = true) -> {
+        let rows = rowsOf(s);
+        write(erase(s) <> written(commits) <> paint(rows, column(s)));
+        Screen(..s, painted = List.size(rows))
+    }
 }
 
 fn erase(s : Screen) -> String = match s {
@@ -563,10 +575,10 @@ fn right(n : Int) -> String = if n <= 0 then "" else "\u{1b}[" <> Int.toString(n
 // Report §11.2: on quitting, the region goes and the cursor is left on a
 // fresh line, so the terminal is as the shell found it.
 fn finish(screen : Address(ScreenMsg), text : String) -> Unit with m = {
-    send(screen, Print(text));
+    send(screen, Said(text));
     send(screen, Height(0));
     send(screen, Typing(""));
-    send(screen, Print("\n"));
+    send(screen, Said("\n"));
     drain(screen)
 }
 
@@ -574,7 +586,7 @@ fn finish(screen : Address(ScreenMsg), text : String) -> Unit with m = {
 // processes sent in: the screen is drained first.
 fn prompt(screen : Address(ScreenMsg)) -> Unit with m = {
     drain(screen);
-    send(screen, Print("> "))
+    send(screen, Said("> "))
 }
 
 fn drain(screen : Address(ScreenMsg)) -> Unit with m =

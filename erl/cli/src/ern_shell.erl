@@ -10,7 +10,7 @@
 -export([loaded/1, start/0, program/0, startup/0, check/3, type_text/1, declared/1, run/3,
          show/3]).
 -export([bindings/1, forget/2, browse/2, doc/2]).
--export([deaths/1, mine/0, faults/0, processes/0, load/2, reload/1]).
+-export([deaths/1, mine/0, faults/0, processes/0, load/2, reload/1, output/1]).
 -export([is_terminal/0, write/1, screen/1, to_screen/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -711,9 +711,54 @@ screen(Address) ->
 
 -spec to_screen(binary()) -> ok.
 to_screen(Bin) ->
-    case persistent_term:get({?MODULE, screen}, undefined) of
-        undefined -> io:put_chars(Bin);
-        Address -> ern_rt:send(Address, Bin)
+    case persistent_term:get({?MODULE, output}, undefined) of
+        undefined ->
+            case persistent_term:get({?MODULE, screen}, undefined) of
+                undefined -> io:put_chars(Bin);
+                Address -> ern_rt:send(Address, Bin)
+            end;
+        {_, Device} ->
+            %% report §11.2: a program's output goes where `:output` sent
+            %% it, which is another terminal and its own scrolling
+            file:write(Device, Bin),
+            ok
+    end.
+
+%% Report §11.2: where a program's output goes. A path is another terminal
+%% or a file, `-` is the tail again, and nothing is where it goes now. The
+%% front end opens it, so the shell gains no file system of its own.
+-spec output(binary()) -> {'Left', binary()} | {'Right', binary()}.
+output(<<>>) ->
+    {'Right', <<"output goes to ", (where_output())/binary>>};
+output(<<"-">>) ->
+    close_output(),
+    {'Right', <<"output goes to the tail">>};
+output(Path) ->
+    Name = unicode:characters_to_list(Path),
+    %% not `raw`: a raw device belongs to the process that opened it, and
+    %% what writes to it is the sink's process, not this one
+    case file:open(Name, [append]) of
+        {ok, Device} ->
+            close_output(),
+            persistent_term:put({?MODULE, output}, {Path, Device}),
+            {'Right', <<"output goes to ", Path/binary>>};
+        {error, Reason} ->
+            {'Left', <<"cannot write to ", Path/binary, ": ",
+                       (unicode:characters_to_binary(file:format_error(Reason)))/binary>>}
+    end.
+
+where_output() ->
+    case persistent_term:get({?MODULE, output}, undefined) of
+        undefined -> <<"the tail">>;
+        {Path, _} -> Path
+    end.
+
+close_output() ->
+    case persistent_term:get({?MODULE, output}, undefined) of
+        undefined -> ok;
+        {_, Device} ->
+            file:close(Device),
+            persistent_term:erase({?MODULE, output})
     end.
 
 %% Report §11.2: the name an input binds is the session's from then on. Its

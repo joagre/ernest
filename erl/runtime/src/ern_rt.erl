@@ -534,8 +534,15 @@ run_main(Main, Site, Opts) ->
                   end, ets:tab2list(?PROCESSES)),
     lists:foreach(fun(Sink) ->
                       FlushRef = make_ref(),
+                      Mon = erlang:monitor(process, Sink),
                       Sink ! {flush, erlang:self(), FlushRef},
-                      receive {FlushRef, flushed} -> ok end
+                      %% a sink that died has nothing left to flush, and
+                      %% waiting for it would hold the program open
+                      receive
+                          {FlushRef, flushed} -> ok;
+                          {'DOWN', Mon, process, _, _} -> ok
+                      end,
+                      erlang:demonitor(Mon, [flush])
                   end, [Stdout, Stderr]),
     %% each ended before the table goes, which the reaper reads
     lists:foreach(fun stop/1, [Stdout, Stderr, Stdin, Fs, Tty, Tcp, Clock, Reaper]),

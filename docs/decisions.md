@@ -3333,6 +3333,18 @@ The split screen was built on 2026-09-20 and is replaced the day after, by the s
 
 **The line that ages out of the tail is committed.** It is written into the transcript as it leaves the live region, so the terminal's scrollback holds every line in arrival order and nothing a program printed is lost. The cost is that program output reaches the transcript a tail's height late, which is one sentence to state; the alternative loses output that a person may have wanted, to save that sentence.
 
+## What the Live Region Cost to Build, 2026-09-21
+
+The screen was rewritten in a morning and the pane code went with it. Three things worth keeping.
+
+**Ordering needed a rule the design did not have.** A line that ages out of the tail is committed, which was decided; what was missed is that the tail must also be committed *before* anything the session says. Without it a program's last lines are committed at the end, after the values and prompts that came later, and the scrollback reads out of order. The first test showed it as five lines below the final prompt. The tail now holds only what has arrived since the shell last spoke.
+
+**The cursor rests where the caret is, not at the region's home.** The note said home; the code moves up from the caret to erase and returns to it, because a person looks for the caret between keystrokes and a terminal that hides it there is wrong. The note says what the code does.
+
+**Two defects the work found, neither in the shell.** The harness killed the child at timeout and then waited for it without reading the terminal: a program still printing fills the buffer, blocks in its write, and never reaches the signal, so both sides wait. It now reads while it waits and falls back to `kill -9`. And a sink that dies left `run_main` waiting for a flush that would never come, which hung the program: the flush now takes the sink's death for an answer, a dead sink having nothing left to flush.
+
+**`:output <path>` is thirty lines and answers what a single terminal cannot.** A file is appended to and never truncated, and the device is not opened `raw`, since a raw device belongs to the process that opened it and what writes to it is the sink's process. That is the whole of the second window: the terminal on the other end does the scrolling, the searching and the copying.
+
 ## Later
 
 Planned or considered, not in the language today.

@@ -55,4 +55,10 @@ x
 :forget *
 :bindings
 :help
+:output /tmp/ern-output-test.log
+Io.println("to the file")
+:output
+:output -
+Io.println("to the tail")
+:output nosuchdir/x.log
 :quit
