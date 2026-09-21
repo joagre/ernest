@@ -62,7 +62,7 @@ zero : () -> Int
 > depth 10
 length 100
 timing off
-output auto
+output 5
 > > > [[..., ...], [...]] : List(List(List(Int)))
 > > > [1, 2, ...] : List(Int)
 > > > input:1:1: unknown name x
@@ -121,4 +121,4 @@ zero : () -> Int
   :faults         the faults reported since the session began
   :set            depth n, length n, timing on or off; :set alone shows them
 The value of the last expression is `it`.
-> 
+> [0J[0J

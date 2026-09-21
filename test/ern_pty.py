@@ -106,14 +106,29 @@ def rendered(data, rows, columns):
                 i += 1
                 continue
             first, second, kind = match.group(1), match.group(2), match.group(3)
+            count = int(first or 1)
             if kind == "H":
-                row, column = int(first or 1) - 1, int(second or 1) - 1
+                row, column = count - 1, int(second or 1) - 1
+            elif kind == "A":
+                row = max(0, row - count)
+            elif kind == "B":
+                row = min(rows - 1, row + count)
+            elif kind == "C":
+                column = min(columns - 1, column + count)
+            elif kind == "D":
+                column = max(0, column - count)
             elif kind == "K":
                 for x in range(column, columns):
                     grid[row][x] = " "
             elif kind == "J":
-                grid = [[" "] * columns for _ in range(rows)]
-                row = column = 0
+                if first in ("", "0"):      # from the cursor to the end
+                    for x in range(column, columns):
+                        grid[row][x] = " "
+                    for y in range(row + 1, rows):
+                        grid[y] = [" "] * columns
+                else:
+                    grid = [[" "] * columns for _ in range(rows)]
+                    row = column = 0
             i += match.end()
             continue
         character = text[i]
@@ -130,6 +145,24 @@ def rendered(data, rows, columns):
             column += 1
         i += 1
     return "\n".join("".join(line).rstrip() for line in grid)
+
+
+# Signal the child and wait for it, reading all the while.
+def ended_by(pid, screen, signal, grace):
+    try:
+        os.kill(pid, signal)
+    except ProcessLookupError:
+        return "timeout"
+    until = time.monotonic() + grace
+    while time.monotonic() < until:
+        screen.read(0.05)
+        try:
+            ended, wait_status = os.waitpid(pid, os.WNOHANG)
+        except ChildProcessError:
+            return "timeout"
+        if ended:
+            return os.waitstatus_to_exitcode(wait_status)
+    return None
 
 
 def run(command, steps, timeout, size):
@@ -171,16 +204,17 @@ def run(command, steps, timeout, size):
             status = os.waitstatus_to_exitcode(wait_status)
             break
     if status is None:
-        try:
-            os.kill(pid, 15)
-        except ProcessLookupError:
-            pass
-        try:
-            _, wait_status = os.waitpid(pid, 0)
-            status = os.waitstatus_to_exitcode(wait_status)
-        except ChildProcessError:
+        # the screen is read while the child is ending: a program that is
+        # still printing fills the terminal's buffer, blocks in its write,
+        # and never reaches the signal, so waiting without reading is a
+        # deadlock between the two of us
+        status = ended_by(pid, screen, 15, 2.0)
+        if status is None:
+            status = ended_by(pid, screen, 9, 2.0)
+        if status is None:
             status = "timeout"
-    while not screen.eof:            # whatever the program wrote as it ended
+    stop = time.monotonic() + 1.0    # whatever the program wrote as it ended
+    while not screen.eof and time.monotonic() < stop:
         before = len(screen.seen)
         screen.read(0.2)
         if len(screen.seen) == before:

@@ -41,15 +41,17 @@ A line the shell has finished with is *committed*: written into the terminal, sc
 
 - **The live region is the line being typed, and above it a tail of what programs have written.** Everything else — inputs, values, diagnostics, command output, fault reports — is committed to the transcript as it is produced.
 - **The shell never addresses a row.** It did not clear the screen, so it does not know where on it the region sits, and never asks. Four operations do all the drawing:
-  - **home**, where the cursor rests between messages: the region's first row, column 1;
-  - **erase**, `\r` then `ESC[0J`, which clears the region and everything below it, and is correct because nothing is written below it;
-  - **paint**, the region's rows separated by line feeds, the terminal scrolling if the region sits at the bottom, then `\r` and `ESC[nA` back to home, and the visible cursor placed down and right from there, where the input cursor belongs;
-  - **commit**, which is erase, the line and its line feed, and paint again.
+  - **erase**: `\r`, then `ESC[nA` up from the row the input is typed on to the region's first row, then `ESC[0J`, which clears the region and everything below it — correct because nothing is written below it;
+  - **paint**: the region's rows separated by line feeds, the terminal scrolling if the region sits at the bottom, then `\r` and `ESC[nC` to put the cursor after what has been typed, which is the row the painting ended on;
+  - **commit**: erase, the line and its line feed, paint again;
+  - and the count of rows painted, which is what the next erase moves up by.
+  Between messages the cursor rests where the caret belongs, after the line being typed, since that is where a person looks for it.
 - **The terminal's width is the only measurement.** It clips a row that would wrap; `Terminal.size` answers it and `Resized` says when it changed, which repaints the region.
 - **The tail is five rows by default.** It is a window and not a pane: a line that leaves it is committed, so a small one costs nothing and keeps the prompt near the bottom. `:set output n` sets the rows, and `:set output 0` is no tail at all, a program's output committed as it arrives and interleaved with the transcript in the order it was written.
 - **The region never takes more than half the screen.** The tail shrinks to what is left when the window is short or the input is long, since the line being typed must be visible; `:set output n` asks for rows and does not command them.
 - **The tail keeps no scrollback of its own**, and no offset. The terminal holds the history, a person scrolls it with the terminal, and the shell's own `PageUp` has nothing left to do.
-- **A program's partial line waits in the tail.** A write that does not end in a line feed is the tail's last row until the line feed comes, and is committed when the line is complete or when it ages out of the tail.
+- **A program's partial line waits in the tail.** A write that does not end in a line feed is the tail's last row until the line feed comes.
+- **The tail is committed before the session says anything.** A line of the transcript is written after whatever the tail holds, so the terminal's scrollback reads in the order the lines were written and the tail holds only what has arrived since the last thing the shell said.
 - **The reader does not echo.** It tells the screen the line being typed, and the screen paints it, since a region that is repainted must draw that line again. It is also what the line editor needs.
 - **A fault report is the shell speaking**, so it is committed to the transcript like the session's other lines.
 - **With no terminal there is no live region.** Everything is written as it arrives, which is what a session read from a pipe wants, and what the session golden tests read.

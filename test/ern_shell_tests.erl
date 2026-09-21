@@ -86,35 +86,38 @@ startup() ->
     %% what a startup input answered was not printed
     ?assertEqual(nomatch, binary:match(Out, <<"1 : Int">>)).
 
-%% report §11.2: the screen is two panes on a terminal. What a program
-%% writes through `Sys.stdout` is painted above, the shell's own output
-%% below, and the split appears with the first program output; `PageUp`
-%% scrolls the transcript and `Meta-PageUp` the pane above it; `:set
-%% output 0` takes the split away and gives the terminal's scrolling back
-panes_test_() ->
-    {timeout, 60, fun panes/0}.
+%% report §11.2: on a terminal the shell commits its transcript to the
+%% terminal and paints only the live region, the tail of what programs
+%% write and the line being typed under it. What a program writes is
+%% never mixed into the line being typed, and the transcript reads in the
+%% order the lines were written
+live_region_test_() ->
+    {timeout, 60, fun live_region/0}.
 
-panes() ->
+live_region() ->
+    Print = "spawn(Local, fn() = List.foreach(List.range(1, 12),"
+            " fn(n) = Io.println(\"line \" <> Int.toString(n))))\r",
     Screen = screen("../bin/ern --shell",
                     [{expect, "> "},
                      {send, hex("1 + 1\r")},
                      {expect, "2 : Int"},
-                     {send, hex("spawn(Local, fn() = List.foreach(List.range(1, 30),"
-                                " fn(n) = Io.println(\"line \" <> Int.toString(n))))\r")},
-                     {sleep, 900},
+                     {send, hex(Print)},
+                     {sleep, 800},
+                     {send, hex("2 + 2\r")},
+                     {expect, "4 : Int"},
                      {send, "04"}],
                     20, "20x60"),
-    Lines = [L || L <- binary:split(Screen, <<"\n">>, [global])],
-    Rules = fun(L) -> binary:match(L, <<"─"/utf8>>) =:= nomatch end,
-    {Above, [Rule | Below]} = lists:splitwith(Rules, Lines),
-    ?assertMatch({_, _}, binary:match(Rule, <<"────"/utf8>>)),
-    %% the program's newest lines are above, and nothing of the shell's
-    ?assertMatch({_, _}, binary:match(iolist_to_binary(Above), <<"line 30">>)),
-    ?assertEqual(nomatch, binary:match(iolist_to_binary(Above), <<"2 : Int">>)),
-    %% the session's own is below, and none of the program's
-    Transcript = iolist_to_binary(Below),
-    ?assertMatch({_, _}, binary:match(Transcript, <<"2 : Int">>)),
-    ?assertEqual(nomatch, binary:match(Transcript, <<"line 30">>)).
+    Lines = [L || L <- binary:split(Screen, <<"\n">>, [global]), L =/= <<>>],
+    Text = iolist_to_binary(Lines),
+    %% every line the program wrote reached the terminal, and in order
+    ?assertMatch({_, _}, binary:match(Text, <<"line 1">>)),
+    ?assertMatch({_, _}, binary:match(Text, <<"line 12">>)),
+    {At12, _} = binary:match(Text, <<"line 12">>),
+    {AtFour, _} = binary:match(Text, <<"4 : Int">>),
+    ?assert(At12 < AtFour),
+    %% the shell's own is there too, and the region is left as one prompt
+    ?assertMatch({_, _}, binary:match(Text, <<"2 : Int">>)),
+    ?assertEqual(<<">">>, lists:last(Lines)).
 
 %% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
 %% under the source root and puts it in scope; `:reload` compiles again
