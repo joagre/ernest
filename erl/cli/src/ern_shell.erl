@@ -11,7 +11,7 @@
          needs_more/1, check/3,
          type_text/1, declared/1, run/3,
          show/3]).
--export([bindings/1, forget/2, browse/2, doc/2]).
+-export([bindings/1, forget/2, browse/2, doc/2, names/0]).
 -export([deaths/1, mine/0, faults/0, processes/0, load/2, reload/1, output/1]).
 -export([is_terminal/0, write/1, screen/1, to_screen/1]).
 
@@ -49,10 +49,19 @@ loaded(What) ->
 start() ->
     What = persistent_term:get({?MODULE, loaded}, #{}),
     Loaded = maps:get(ifaces, What, []),
-    #env{roots = maps:get(roots, What, []),
-         source_root = maps:get(source_root, What, "."),
-         ifaces = [I || {I, _} <- Loaded],
-         modules = maps:from_list([{I#iface.namespace, H} || {I, H} <- Loaded])}.
+    remember(#env{roots = maps:get(roots, What, []),
+                  source_root = maps:get(source_root, What, "."),
+                  ifaces = [I || {I, _} <- Loaded],
+                  modules = maps:from_list([{I#iface.namespace, H} || {I, H} <- Loaded])}).
+
+%% Report §11.2: the session's environment as it stands, which
+%% completion reads. The reader asks for the names while an input runs,
+%% when the session is busy answering nothing, so it cannot be a message
+%% to the session; the front end keeps the latest, as it keeps what the
+%% runner loaded.
+remember(Env) ->
+    persistent_term:put({?MODULE, env}, Env),
+    Env.
 
 %% Report §11.2, §8.1: the file's entry point, spawned beside the prompt and
 %% not entered, and nothing where the shell was started with no file. The
@@ -106,12 +115,17 @@ check(#env{n = N} = Env, From, Input) ->
     Ns = [list_to_atom("Input" ++ integer_to_list(N + 1))],
     case input(Input) of
         {ok, Binds, Expr} ->
-            check_module(Env#env{n = N + 1}, Ns, From, Input, entry(Expr), Binds);
+            checked(check_module(Env#env{n = N + 1}, Ns, From, Input, entry(Expr), Binds));
         {decls, Decls} ->
-            check_module(Env#env{n = N + 1}, Ns, From, Input, Decls, decls);
+            checked(check_module(Env#env{n = N + 1}, Ns, From, Input, Decls, decls));
         {error, Diag} ->
             {'Left', diagnostic(From, Input, [Diag])}
     end.
+
+checked({'Right', {Env, Checked}}) ->
+    {'Right', {remember(Env), Checked}};
+checked(Other) ->
+    Other.
 
 %% Report §11.2: an input is an expression, whose value is `it`; a `let`,
 %% whose value is the name it binds; or declarations. A `let` at the prompt
@@ -284,6 +298,50 @@ bindings(#env{session = S} = Env) ->
                                       || {Key, Q} <- maps:to_list(maps:get(values, S, #{})),
                                          {ok, Scheme} <- [scheme(Q, Env)]])],
     Types ++ Values.
+
+%% Report §11.2: every name completion may reach — the session's, the
+%% prelude's, and each module in scope with its exports — as
+%% `Shell.Complete.Name`, whose fields are in canonical order (§3.5):
+%% kind, the line a listing shows, the text as it is typed. Only the
+%% reading of the interfaces is the host's; the matching is Ernest's.
+-spec names() -> [{'Name', atom(), binary(), binary()}].
+names() ->
+    names(persistent_term:get({?MODULE, env}, #env{})).
+
+names(#env{ifaces = Ifaces, session = S} = Env) ->
+    St = session_state(Env),
+    Session = [name('Value', name_text(Key), scheme_line(name_text(Key), Q, Env, St))
+               || {Key, Q} <- maps:to_list(maps:get(values, S, #{}))]
+        ++ [name('Type', atom_to_list(N), "type " ++ atom_to_list(N))
+            || {N, _} <- maps:to_list(maps:get(types, S, #{}))]
+        ++ [name('Constructor', atom_to_list(N), atom_to_list(N))
+            || {N, _} <- maps:to_list(maps:get(cons, S, #{}))],
+    Prelude = [name('Value', qname_text(Q), qname_text(Q) ++ " : " ++ Type)
+               || {Q, Type} <- ern_prelude:values()],
+    Modules = lists:append([module_names(I, St) || I <- Ifaces ++ ern_prelude:stdlib_ifaces()]),
+    lists:usort(Session ++ Prelude ++ Modules).
+
+%% A module in scope: the module itself, its exported values and types,
+%% and the constructors of those types, each by the name a person types.
+module_names(#iface{namespace = Ns, types = Ts, values = Vs}, St) ->
+    [name('Module', qname_text(Ns), "module " ++ qname_text(Ns))]
+        ++ [name('Value', qname_text(Q),
+                 qname_text(Q) ++ " : " ++ ern_types:format_scheme(Sc, St))
+            || {Q, Sc} <- maps:to_list(Vs)]
+        ++ lists:append(
+             [[name('Type', qname_text(Q), abstract_text(TI) ++ "type " ++ qname_text(Q))
+               | [name('Constructor', qname_text(lists:droplast(Q) ++ [CN]), atom_to_list(CN))
+                  || #cinfo{name = CN} <- Cs, not TI#tinfo.abstract]]
+              || {Q, #tinfo{constructors = Cs} = TI} <- maps:to_list(Ts)]).
+
+name(Kind, Text, Shown) ->
+    {'Name', Kind, unicode:characters_to_binary(Shown), unicode:characters_to_binary(Text)}.
+
+scheme_line(Text, Q, Env, St) ->
+    case scheme(Q, Env) of
+        {ok, Sc} -> Text ++ " : " ++ ern_types:format_scheme(Sc, St);
+        none -> Text
+    end.
 
 tinfo(Q, #env{ifaces = Ifaces}) ->
     case [TI || #iface{types = Ts} <- Ifaces, #{Q := TI} <- [Ts]] of

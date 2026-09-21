@@ -35,6 +35,10 @@ foreign fn output(path : String) -> Either(String, String) with m = "ern_shell:o
 // Report §11.2: the parser cannot finish what is typed, so another line
 // may. The parser is the compiler's, and only it knows.
 foreign fn needsMore(input : String) -> Bool = "ern_shell:needs_more/1"
+// Report §11.2: every name completion may reach, as the session stands.
+// Reading the compiled interfaces is the host's; the matching is
+// `Shell.Complete`'s.
+foreign fn names() -> List(Shell.Complete.Name) with m = "ern_shell:names/0"
 foreign fn check(env : Env, from : String, input : String) -> Either(String, #(Env, Checked))
     with m = "ern_shell:check/3"
 // The host's alone: where the startup files are, the person's first and
@@ -105,7 +109,7 @@ export fn main() -> Unit with ShellMsg = {
             Terminal.subscribe(K);
             send(me, Ready);
             readLoop(me, screen, Reading(editing = Shell.Editor.start(earlier),
-                                         keeping = true, hinted = false))
+                                         keeping = true, hinted = false, tabbed = false))
         });
         holdTerminal(reader);
         // report §8.2: the prompt waits for the reader to hold the
@@ -460,6 +464,11 @@ type ScreenMsg = Said(String)                        // the shell's own
 // How long to wait for the file system, which is a local file.
 let fileWait = 5000
 
+// Report §11.2: how many candidates a second `Tab` lists before it
+// stops, since a listing is committed and a long one scrolls the
+// transcript away.
+let listRows = 40
+
 fn screenLoop(r : Shell.Region.Region) -> Unit with ScreenMsg = {
     let #(next, bytes) = receive {
         Said(text) -> Shell.Region.said(r, text)
@@ -507,7 +516,8 @@ type ReaderMsg = K(Event)
 // What the reader carries between keys: the line being edited, whether
 // the history file still takes what is typed, and whether this session
 // has said how a multi-line input is run (report §11.2).
-type Reading = Reading(editing : Shell.Editor.State, keeping : Bool, hinted : Bool)
+type Reading = Reading(editing : Shell.Editor.State, keeping : Bool, hinted : Bool,
+                       tabbed : Bool)
 
 fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading)
     -> Unit with ReaderMsg = {
@@ -529,7 +539,8 @@ fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : 
                     send(screen, Entered);
                     send(session, Typed(text(next)));
                     readLoop(session, screen,
-                             Reading(..reading, editing = Shell.Editor.next(next), keeping = kept))
+                             Reading(..reading, editing = Shell.Editor.next(next),
+                                     keeping = kept, tabbed = false))
                 }
           | Shell.Editor.Cancel -> {
                 // what was typed stays in the transcript, abandoned, and
@@ -538,16 +549,50 @@ fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : 
                 send(screen, Entered);
                 send(session, Interrupted);
                 readLoop(session, screen,
-                         Reading(..reading, editing = Shell.Editor.next(editing), keeping = kept))
+                         Reading(..reading, editing = Shell.Editor.next(editing),
+                                 keeping = kept, tabbed = false))
             }
           | Shell.Editor.Clear(next) -> {
                 send(screen, Clear);
                 showing(session, screen, reading, next)
             }
+          | Shell.Editor.Completing(next) -> completing(session, screen, reading, next)
           | Shell.Editor.Leave -> send(session, Eof)
         }
     }
 }
+
+// Report §11.2: `Tab` completes the word before the cursor; a second
+// `Tab` lists what it could still be, above the region, where the
+// transcript keeps it and the region stays the size it was.
+fn completing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading,
+              state : Shell.Editor.State) -> Unit with ReaderMsg = {
+    let Reading(tabbed = tabbed) = reading;
+    let Shell.Editor.State(text = line, at = at) = state;
+    let completion = Shell.Complete.complete(line, at, names());
+    let #(text, next) = Shell.Complete.applied(line, at, completion);
+    if tabbed then listing(screen, completion) else Unit;
+    let shown = Shell.Editor.typed(state, text, next);
+    let said = hint(screen, reading, shown);
+    send(screen, typing(shown));
+    readLoop(session, screen,
+             Reading(..reading, editing = shown, hinted = said, tabbed = true))
+}
+
+// Report §11.2: the candidates, a line each with the type they carry,
+// committed above the region as anything the shell says is.
+fn listing(screen : Address(ScreenMsg), completion : Shell.Complete.Completion) -> Unit with m =
+    match completion {
+        Shell.Complete.Completion(candidates = []) -> Unit
+      | Shell.Complete.Completion(candidates = [_]) -> Unit
+      | Shell.Complete.Completion(candidates = candidates) -> {
+            List.foreach(List.take(candidates, listRows), fn(name) =
+                match name { Shell.Complete.Name(shown = shown) -> send(screen, Noted(shown)) });
+            let left = List.size(candidates) - listRows;
+            if left > 0 then send(screen, Noted("and " <> Int.toString(left) <> " more"))
+            else Unit
+        }
+    }
 
 // The screen is told what is being typed, and the session is told once
 // how a multi-line input is run.
@@ -555,7 +600,8 @@ fn showing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : R
            next : Shell.Editor.State) -> Unit with ReaderMsg = {
     let said = hint(screen, reading, next);
     send(screen, typing(next));
-    readLoop(session, screen, Reading(..reading, editing = next, hinted = said))
+    readLoop(session, screen, Reading(..reading, editing = next, hinted = said,
+                                      tabbed = false))
 }
 
 // Report §11.2: the first input of a session to take a second line says

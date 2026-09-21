@@ -333,6 +333,40 @@ tabs() ->
     %% the line that joined the transcript holds the tab itself
     ?assertMatch({_, _}, binary:match(Screen, <<"> a\tb">>)).
 
+%% report §11.2: `Tab` completes the word before the cursor to what the
+%% names in scope share, matching by prefix and by abbreviation, and a
+%% second `Tab` lists the candidates with their types above the region,
+%% where the transcript keeps them; the line being typed stays where it
+%% is, and a completed name runs like any other
+completion_test_() ->
+    {timeout, 90, fun completion/0}.
+
+completion() ->
+    Screen = screen(alone("../bin/ern --shell"),
+                    [{expect, "> "},
+                     {send, hex("List.ma") ++ "09"},          % Tab: one candidate
+                     {expect, "List.map"},
+                     {send, hex("([1], fn(n) = n * 2)\r")},
+                     {expect, "[2] : List(Int)"},
+                     {send, hex("List.fil") ++ "09"},         % Tab: what they share
+                     {expect, "> List.filter"},
+                     {send, "09"},                            % Tab again: the listing
+                     {expect, "List.filterMap :"},
+                     {sleep, 300},
+                     {send, "03"},
+                     {sleep, 200},
+                     {send, "04"}],
+                    30, "16x74"),
+    Lines = [L || L <- binary:split(Screen, <<"\n">>, [global]), L =/= <<>>],
+    Text = iolist_to_binary(Lines),
+    %% the completed name ran
+    ?assertMatch({_, _}, binary:match(Text, <<"[2] : List(Int)">>)),
+    %% both candidates were listed, with their types, above the region
+    ?assertMatch({_, _}, binary:match(Text, <<"List.filter : (List(a)">>)),
+    ?assertMatch({_, _}, binary:match(Text, <<"List.filterMap : (List(a)">>)),
+    %% and the line being typed is still there, completed to what they share
+    ?assert(lists:any(fun(L) -> binary:match(L, <<"> List.filter">>) =/= nomatch end, Lines)).
+
 %% report §11.2: the parser says when more input could finish what was
 %% typed, and the shell asks it for each reading it would try
 needs_more_test() ->

@@ -167,7 +167,7 @@ GNU Readline's Emacs bindings.
 ## Completion
 
 - **`Tab` completes a qualified name segment by segment:** `Li` to `List.`, `List.ma` to `List.map`.
-- **A second `Tab` lists the candidates**; at `List.` it lists the exports of `List` with their types.
+- **A second `Tab` lists the candidates**, each with its type, committed above the region as anything the shell says is: the terminal keeps them, they scroll with everything else, and the region stays the size it was. A listing painted inside the region would resize it on every `Tab`. Forty lines at most, and a line saying how many were left.
 - **Candidates are matched by prefix and by abbreviation:** `L.fM` and `List.fm` complete to `List.filterMap`, matching capitals and segment starts.
 - **What completes, by position:**
   - in an expression, the bindings, the modules on the load path, and their values and constructors;
@@ -175,7 +175,7 @@ GNU Readline's Emacs bindings.
   - inside a named constructor, in construction, update (`Player(..p, `), or pattern, its remaining fields;
   - at the start of an input, after `:`, a command; after a command, its argument: names for `:type` and `:doc`, modules for `:browse` and `:load`, the bindings for `:forget`, `depth`, `length`, `output`, and `timing` for `:set`.
 - **Reserved words and operators do not complete.**
-- **Completion reads the compiled interfaces**, held in memory once read.
+- **Completion reads the compiled interfaces**, held in memory once read. The front end keeps the session's environment as each input is checked and answers `names()` from it, since the reader completes while an input runs, when the session is answering nothing. Reading the interfaces is the host's; the matching and the ranking are `Shell.Complete`, which is pure and tested by `ern --test`.
 - **`Shift-Tab` shows documentation.** On a name: its type, its first sentence, and its `Since`; a second `Shift-Tab`, the section `:doc` prints. Inside a call: the signature with its parameters as declared, `circle(centre : Point, radius : Int) -> Shape`, the parameter at the cursor marked.
 - **Later, by type**, once the checker can check an unfinished input:
   - at `match e {`, `Tab` inserts one clause per constructor of `e`'s type, each body `todo("")`, and in a partial `match` the clauses the exhaustiveness check finds missing (§5.9);

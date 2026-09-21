@@ -68,6 +68,21 @@ fn whole(name : Name) -> String = match name {
   | Name(text = text) -> text
 }
 
+// The line a completion leaves, and where the cursor lands in it: the
+// word before the cursor is replaced, since an abbreviation is no
+// prefix of what it reaches.
+export fn applied(text : String, at : Int, completion : Completion) -> #(String, Int) =
+    match completion {
+        Completion(word = "") -> #(text, at)
+      | Completion(word = new) -> {
+            let typed = word(String.slice(text, 0, at));
+            let start = at - String.size(typed);
+            #(String.slice(text, 0, start) <> new
+                  <> String.slice(text, at, String.size(text) - at),
+              start + String.size(new))
+        }
+    }
+
 //
 // Matching: what is typed reaches a name by prefix or by abbreviation,
 // segment by segment. `List.fm` and `L.fM` both reach `List.filterMap`;
@@ -164,6 +179,13 @@ let inTheMiddle = Test(name = "the word before the cursor is what completes", ru
 let words = Test(name = "a word ends where a name cannot go on", run = fn() = {
     let seen = word("1 + List.ma");
     if seen == "List.ma" then Passed else Failed(seen)
+})
+
+let applying = Test(name = "a completion replaces the word and moves the cursor",
+                    run = fn() = {
+    let #(text, at) = applied("1 + L.fm(xs)", 8, complete("1 + L.fm(xs)", 8, library()));
+    if text == "1 + List.filterMap(xs)" && at == 18 then Passed
+    else Failed("\"" <> text <> "\" at " <> Int.toString(at))
 })
 
 fn library() -> List(Name) = [
