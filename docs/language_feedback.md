@@ -48,3 +48,37 @@ What I would actually put to you as candidate language changes: field selection 
     input before the first had finished; the second never produced a result within thirty
     seconds). Not yet diagnosed, and the shell's own, not the language's — recorded here so
     it is not lost, and it belongs to the hands-on session that closes MVP 2.6.
+
+## The standard library's shims, 2026-09-23
+
+11. **Does the standard library follow a different rule from the rest of the Ernest we
+    write, and should it?** Where it is written: E.0 rule 1 in the report is the normative
+    one; CLAUDE.md states the rule for everything else and points at E.0 as the other side
+    of the same line; the log has *Shims Where the Runtime Owns the Representation*
+    (2026-09-20) and *Where `foreign` Stops* (2026-09-21).
+
+    They are one principle, not two: a shim exists only where the **runtime owns the
+    representation**. The counts bear that out. `list.ern` has one shim in thirty-two
+    exports; `io.ern` one in six. The shim-heavy modules are `String` (20 of 28), `Float`
+    (18 of 25), `Map` (16 of 20), `Set` (14 of 19), `Int` (12 of 22) and `Char` (10 of 11) —
+    binaries, doubles, Erlang maps and sets, bignums and Unicode tables, none of which
+    Ernest can build or fold case on.
+
+    Two places where the rule is looser than it should be, and both should go the way of
+    "write it in Ernest, measure later":
+
+    - **E.0 rule 1's second clause, "or the runtime's implementation is the one to trust",**
+      is the only opening in the library for an argument from performance, and it covers
+      exactly one function: `List.sort`. A merge sort is twenty lines of Ernest and its
+      stability is a property the section states rather than one we trust `lists:sort` for.
+      Cutting the clause and rewriting `sort` leaves rule 1 saying one thing only: the
+      runtime owns the representation.
+    - **`path.ern` is seven shims of eight exports** over `filename:`, and a path is a
+      `String`, whose content the language owns. `join`, `split`, `parent`, `name`,
+      `extension`, `withExtension` and `isAbsolute` are string surgery that `String.split`,
+      `String.indexOf` and `String.slice` can do. They are shims because `filename:` was
+      there, which is the reason the rule exists to refuse.
+
+    Performance is not a reason for a shim. If a measurement ever demands one, it comes back
+    as a decision with numbers beside it, as `Tcp`'s socket processes did at 1.8 times raw
+    Erlang and were kept.

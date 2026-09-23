@@ -151,7 +151,10 @@ selection at their head, then what belongs to Appendix E, then the names of the 
 options, then what is recorded and left alone.
 
 - **Each entry is judged on §0's five principles**, and a standard library entry on E.0's
-  four rules, one by one and in writing. How many sites in the shell felt it is an argument,
+  four rules, one by one and in writing. The note's last entry asks one of E.0 itself: rule
+  1's second clause, "the runtime's implementation is the one to trust", is the library's
+  only opening for an argument from performance and covers one function, `List.sort`, and
+  `path.ern` is seven shims over what is string surgery. Both are decided here. How many sites in the shell felt it is an argument,
   never the gate.
 - **Every entry ends in one of three things:** a report change, made before any code; an
   entry in the log under "Later" stating the verdict and what would change it; or a line
