@@ -81,7 +81,7 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 
 - **`Int`** — arbitrary precision. Literals: `42`, and in another base `0xFF`, `0o644`, `0b1010`, the prefix lowercase. An `_` between two digits groups them, in any number: `1_000_000`, `0xFFFF_FFFF`, `3.141_592`. A letter or digit right after a number is an error, so `12px` and `0b102` are rejected, and so is an `_` anywhere but between two digits, as in `1_` or `0x_FF`.
 - **`Float`** — IEEE 754 binary64, finite range only, with one zero: `0.0 * -1.0` is `0.0`. Literal: `3.14`.
-- **`Char`** — one Unicode code point. Literal: `'a'`.
+- **`Char`** — one Unicode scalar value, a code point other than a surrogate. Literal: `'a'`.
 - **`String`** — a Unicode string. Literal: `"hello"`. Escapes: `\n`, `\r`, `\t`, `\\`, `\"`, `\'`, `\u{1F600}`. A raw string is written between backticks; see below.
 - **`Bytes`** — sequence of octets. Literal: `<<0, 1, 2>>` (a bitstring, §7.6 below; report §5.11).
 - **`Bool`** — `true` or `false`. `&&` and `||` short-circuit, `!` negates, and `Bool.not` is `!` as a function, the way `Int.negate` is prefix `-`.
@@ -454,9 +454,9 @@ A process holds state, receives messages, and answers requests. This section bui
 ### 4.1 Message type and receive loop
 
 ```
-type CounterMsg
-    = Inc(Int)
-    | Get(reply : Reply(Int))
+type CounterMsg =
+    Inc(Int)
+  | Get(reply : Reply(Int))
 
 fn counter(n : Int) -> Unit with CounterMsg = receive {
     Inc(k) -> counter(n + k)
@@ -570,10 +570,10 @@ Ernest processes can update their code without restart. The mechanism is a proto
 Extend the counter declared in §4.1 with an `Upgrade` constructor (this replaces both the type and the function above):
 
 ```
-type CounterMsg
-    = Inc(Int)
-    | Get(reply : Reply(Int))
-    | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
+type CounterMsg =
+    Inc(Int)
+  | Get(reply : Reply(Int))
+  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
 fn counter(n : Int) -> Unit with CounterMsg = receive {
     Inc(k) -> counter(n + k)
