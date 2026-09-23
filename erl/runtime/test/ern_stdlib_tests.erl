@@ -495,8 +495,7 @@ path_test() ->
 
 %% report §6.7: no peer is configured in MVP 1
 remote_test() ->
-    ?assertEqual({'Left', 'NoRemotePeer'}, ern_rt:remote(fun() -> 1 end)),
-    ?assertEqual([{'Left', 'NoRemotePeer'}], ern_rt:parallel_remote([fun() -> 1 end])).
+    ?assertEqual({'Left', 'NoRemotePeer'}, ern_rt:remote(fun() -> 1 end)).
 
 %% report §7.4
 todo_test() ->

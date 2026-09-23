@@ -202,6 +202,8 @@ options, then what is recorded and left alone.
   - A type's hash includes its qualified name, so the wire means what the checker means
     (§8.7), as `code_distribution.md` section 3.4 has it; §8.7 had also called identity
     structural. "Code version" is now the hash of a binding's definition.
+  - `parallelRemote` leaves the prelude: several `remote` calls run at once from processes
+    of their own, which the guide shows (§6.7).
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the
@@ -592,7 +594,7 @@ are erased: `type_decl`, `abstract_decl`, `foreign_type_decl`, `signature`, `fie
 | `send`, `answer`, `via`, `monitor`, `kill` | `ern_rt:send/2`, `answer/2`, `via/2`, `monitor/2`, `kill/1` |
 | `spawn` | `ern_rt:spawn/3`, the third argument the spawn site for `Down` (§6.9) |
 | `Address.call`, `Address.callForever` | `ern_rt:call/3`, `call_forever/2` |
-| `remote`, `parallelRemote` | MVP 3; until then `ern_rt:remote/1` answers `Left(NoRemotePeer)` |
+| `remote` | MVP 3; until then `ern_rt:remote/1` answers `Left(NoRemotePeer)` |
 | `Int.+` and the other `userop`s on `Int`, `Int.negate` | the inline operators above |
 | `Float.*` | inline, the operands bound first and the operation's own `badarith` caught and raised as the §7.4 fault |
 | `String.<>`, `List.<>`, `Bytes.<>` | inline as above |

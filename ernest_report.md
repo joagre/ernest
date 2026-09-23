@@ -526,12 +526,11 @@ The check is per function and crosses no call boundary. It is static: every path
 ### 6.7 Remote computation
 
 ```
-remote         : (() -> a) -> Either(RemoteError, a) with m
-parallelRemote : (List(() -> a)) -> List(Either(RemoteError, a)) with m
+remote : (() -> a) -> Either(RemoteError, a) with m
 type RemoteError = NoRemotePeer | PeerLost
 ```
 
-`remote(f)` evaluates the pure function `f` on a peer the runtime chooses among those configured for remote computation and returns `Right(v)`. It returns `Left(NoRemotePeer)` when no such peer is configured, and `Left(PeerLost)` when the peer is lost before the value returns. A fault in `f` faults the caller with the same cause, as `f()` would. A resolution failure on the peer faults the caller with `Fault("peer resolution failed: ...")` (§8.7). Effectful work on a peer goes through `spawn(Peer(...), ...)`. `parallelRemote(fs)` runs the functions on peers in parallel and returns their results in input order, one `Either` each; a fault in any of them faults the caller as `remote` does. Both carry a mailbox effect and are called from process code only.
+`remote(f)` evaluates the pure function `f` on a peer the runtime chooses among those configured for remote computation and returns `Right(v)`. It returns `Left(NoRemotePeer)` when no such peer is configured, and `Left(PeerLost)` when the peer is lost before the value returns. A fault in `f` faults the caller with the same cause, as `f()` would. A resolution failure on the peer faults the caller with `Fault("peer resolution failed: ...")` (§8.7). Effectful work on a peer goes through `spawn(Peer(...), ...)`. `remote` carries a mailbox effect and is called from process code only; several computations run at once from processes of their own, each calling `remote`.
 
 ### 6.8 `Never`
 
@@ -741,7 +740,6 @@ Address.call        : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
 Address.callForever : (Address(m), (Reply(a)) -> m) -> a with n
 answer              : (Reply(a), a) -> Unit with m
 remote              : (() -> a) -> Either(RemoteError, a) with m
-parallelRemote      : (List(() -> a)) -> List(Either(RemoteError, a)) with m
 monitor             : (Address(a), (Down) -> m) -> Unit with m
 kill                : (Address(a)) -> Unit with m
 ```
@@ -1496,7 +1494,7 @@ Every technical term this report introduces, with the section that defines it. P
 - **pure function** — a function without a mailbox type; result depends only on arguments. §0, §6.1.
 - **qualified name** — a name with a dotted namespace prefix, `Net.Http.parse`. §2.3, §4.2.
 - **`receive`** — a match over the mailbox. §6.3.
-- **remote computation** — `remote(f)` and `parallelRemote(fs)` evaluate pure functions on peers. §6.7.
+- **remote computation** — `remote(f)` evaluates a pure function on a peer. §6.7.
 - **`Reply(a)`** — a one-shot address for the answer to a request. §3.7, §6.6.
 - **reply-carrying** — a type that transitively contains a `Reply`. §6.6.
 - **reserved word** — one of eighteen keywords. §2.4.

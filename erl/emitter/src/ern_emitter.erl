@@ -869,8 +869,6 @@ prelude_call(Pos, ['Address', callForever], _, Args, #e_var{type = T}, Cx) ->
                           Cx),
     {at(Pos, Form), Cx1};
 prelude_call(Pos, [remote], _, Args, _, Cx) -> {at(Pos, call_remote(ern_rt, remote, Args)), Cx};
-prelude_call(Pos, [parallelRemote], _, Args, _, Cx) ->
-    {at(Pos, call_remote(ern_rt, parallel_remote, Args)), Cx};
 prelude_call(Pos, [todo], _, [Msg], _, Cx) ->
     {at(Pos, call_remote(ern_rt, todo, [Msg])), Cx};
 prelude_call(Pos, ['Int', Op], [L | _], [LF, RF], _, Cx) when Op =:= '+'; Op =:= '-'; Op =:= '*';
@@ -934,7 +932,6 @@ prelude_value(Pos, [Name], T) ->
                  monitor -> {ern_rt, monitor};
                  kill -> {ern_rt, kill};
                  remote -> {ern_rt, remote};
-                 parallelRemote -> {ern_rt, parallel_remote};
                  todo -> {ern_rt, todo};
                  _ -> fail(Pos, "no emission for " ++ atom_to_list(Name))
              end,

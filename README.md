@@ -125,7 +125,7 @@ The toolchain is the report on one node; the plan's MVPs lift the table row by r
 | Construct | Until | What you see today |
 |---|---|---|
 | `spawn(Peer(...))`, peers, `--config-dir` (§6.2, §8.3) | MVP 3 | `spawn` faults with `peer unreachable`; the configuration is not read |
-| `remote`, `parallelRemote` (§6.7) | MVP 3 | `Left(NoRemotePeer)` |
+| `remote` (§6.7) | MVP 3 | `Left(NoRemotePeer)` |
 
 Every refusal the toolchain makes for a later MVP's sake names in its error text the MVP that brings the thing, and a test in `erl/cli/test` fails when such a text is missing from this table. Runtime behaviour that stands in for a later MVP, the peer fault and `Left(NoRemotePeer)`, is listed by hand. `make sections` lists the report sections no test cites; the three it prints are MVP 3 material. `make coverage` lists every section with how many tests cite it and its length, thinnest first: a long section with one citation is where a rule can hide untested.
 

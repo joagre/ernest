@@ -21,7 +21,7 @@
 -module(ern_rt).
 
 -export([send/2, spawn/3, self/0, via/2, call/3, call_forever/2, answer/2, monitor/2,
-         kill/1, sys/1, run_main/2, run_main/3, fault/1, remote/1, parallel_remote/1,
+         kill/1, sys/1, run_main/2, run_main/3, fault/1, remote/1,
          todo/1, timed/0, untimed/0, in_foreign/1, init_stdlib/0, own_terminal/1,
          source_begin/0, source_end/0, process_of/1, proxy_for/3, proxy_forget/2,
          hold_terminal/1, terminal_holder/0, deaths/1, live/0]).
@@ -363,10 +363,6 @@ count(Pos, D) ->
 -spec remote(fun(() -> term())) -> {'Left', 'NoRemotePeer'}.
 remote(_F) ->
     {'Left', 'NoRemotePeer'}.
-
--spec parallel_remote([fun(() -> term())]) -> [{'Left', 'NoRemotePeer'}].
-parallel_remote(Fs) ->
-    [remote(F) || F <- Fs].
 
 %%
 %% Report §7.4: todo faults if reached

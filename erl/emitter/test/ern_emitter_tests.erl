@@ -1119,7 +1119,6 @@ prelude_target(Q, Text) ->
         [monitor] -> {ern_rt, monitor, 2};
         [kill] -> {ern_rt, kill, 1};
         [remote] -> {ern_rt, remote, 1};
-        [parallelRemote] -> {ern_rt, parallel_remote, 1};
         [todo] -> {ern_rt, todo, 1};
         ['Address', call] -> {ern_rt, call, 3};
         ['Address', callForever] -> {ern_rt, call_forever, 2};
@@ -1130,8 +1129,8 @@ prelude_target(Q, Text) ->
     end.
 
 %% report §6.5, §6.9, §7.3, §9.5: kill is a Down with Killed, a fault a
-%% Down with its cause, via adapts a message, parallelRemote answers
-%% Left(NoRemotePeer) per function, all through compiled code
+%% Down with its cause, via adapts a message, remote answers
+%% Left(NoRemotePeer) with no peer, all through compiled code
 process_functions_test() ->
     {ok, Out} = run(
         "type Msg = Died(Down) | Tick\n"
@@ -1153,10 +1152,13 @@ process_functions_test() ->
         "    };\n"
         "    send(via(fn(u : Unit) = Tick, self()), Unit);\n"
         "    receive { Tick -> Io.println(\"tick\") | _ -> Io.println(\"other\") };\n"
-        "    let rs = parallelRemote([fn() = 1, fn() = 2]);\n"
-        "    Io.println(Int.toString(List.size(List.filter(rs, Either.isLeft))))\n"
+        "    Io.println(match remote(fn() = 1) {\n"
+        "        Left(NoRemotePeer) -> \"no peer\"\n"
+        "      | Left(PeerLost) -> \"lost\"\n"
+        "      | Right(_) -> \"answered\"\n"
+        "    })\n"
         "}\n"),
-    ?assertEqual(<<"killed\ndivision by zero\ntick\n2\n">>, Out).
+    ?assertEqual(<<"killed\ndivision by zero\ntick\nno peer\n">>, Out).
 
 %% report §8.2, §9.7: Sys.stdout is a value
 sys_stdout_test() ->

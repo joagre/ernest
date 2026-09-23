@@ -69,7 +69,7 @@ stdlib_types() ->
 -spec process_only() -> [[atom()]].
 process_only() ->
     [[send], [spawn], ['Address', call], ['Address', callForever], [answer], [monitor],
-     [kill], [remote], [parallelRemote],
+     [kill], [remote],
      ['Clock', now], ['Clock', alarm], ['Clock', alarmAt]].
 
 %% Type variables that carry the equality constraint (report §3.10): Map
@@ -97,7 +97,6 @@ values() ->
      {['Address', callForever], "(Address(m), (Reply(a)) -> m) -> a with n"},
      {[answer], "(Reply(a), a) -> Unit with m"},
      {[remote], "(() -> a) -> Either(RemoteError, a) with m"},
-     {[parallelRemote], "(List(() -> a)) -> List(Either(RemoteError, a)) with m"},
      {[monitor], "(Address(a), (Down) -> m) -> Unit with m"},
      {[kill], "(Address(a)) -> Unit with m"},
      %% §9.6 operations required by the language

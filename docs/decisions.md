@@ -3710,6 +3710,10 @@ The report did not say what a negative time does, and the runtime answered three
 
 §8.7 said structurally identical definitions share a hash and that an abstract type's hash includes its qualified name, which left a concrete type's name out of its identity: two types with the same constructors under different names would have been one type between nodes, while the checker holds them apart. `code_distribution.md` had decided the other way, hashing every declared type with its name, and rejected structural type hashes because they make the wire more lenient than the checker. The report now says what that note says: a type's hash includes its qualified name, and an abstract type's also its signature. Functions are still hashed by their definition, and reference types by those types' hashes, so a function's identity follows its types' names. The undefined "code version" of a top-level binding shipped to a peer is the hash of the binding's definition. None of §8.7 is built, so only the text changed.
 
+## One Primitive for Remote Computation, 2026-09-24
+
+The prelude had `remote(f)` and `parallelRemote(fs)`, and the second is the first run from processes: one local process per function, each calling `remote`, the answers collected in order. This log's own list of idioms already said so, "ten at once are ten local processes each calling `remote`", while the prelude shipped it as a primitive. Principle 2 holds in the prelude, so `parallelRemote` went, and the guide shows the eight lines that replace it. That the runtime could place a batch better than independent calls was the argument for keeping it, and it does not hold: `remote` already lets the runtime choose a peer on each call.
+
 ## Later
 
 Planned or considered, not in the language today.

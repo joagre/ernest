@@ -423,7 +423,7 @@ Inferred type: `((a) -> b with e, a) -> b with e`. The callback's mailbox effect
 
 An effect variable that appears *only* in effect position (like `e` above) may bind to a mailbox type or to *pure*. An effect variable that also appears in a value position (like `m` in `self : () -> Address(m) with m`) can only bind to a real mailbox type — pure is not a type, so it cannot appear inside `Address(_)`.
 
-Process operations that require a process context — `self`, `send`, `spawn`, `Address.call`, `Address.callForever`, `answer`, `monitor`, `kill`, `remote`, `parallelRemote`, a `foreign fn` whose effect is its own, and the `receive` expression form — are *process-only*: they require the enclosing function's mailbox effect to be a real mailbox type, so pure code cannot use any of them. A `foreign fn` whose effect variable is also one of its parameters' callback effect is not one of them: the effect is the callback's, so the function is pure when the callback is (report §3.9).
+Process operations that require a process context — `self`, `send`, `spawn`, `Address.call`, `Address.callForever`, `answer`, `monitor`, `kill`, `remote`, a `foreign fn` whose effect is its own, and the `receive` expression form — are *process-only*: they require the enclosing function's mailbox effect to be a real mailbox type, so pure code cannot use any of them. A `foreign fn` whose effect variable is also one of its parameters' callback effect is not one of them: the effect is the callback's, so the function is pure when the callback is (report §3.9).
 
 `ping`'s `m` in §5 is polymorphic but process-only: any real mailbox is admissible, but pure is not.
 
@@ -866,22 +866,33 @@ Answer: no. Access is granted by the signature, not by the module. The helper ca
 
 Two ways Ernest reaches outside a single node's Ernest code: to peers over the network, and to foreign code on the same node.
 
-### 7.1 `remote` and `parallelRemote`
+### 7.1 `remote`
 
 Run a pure computation on some peer:
 
 ```
-remote         : (() -> a) -> Either(RemoteError, a) with m
-parallelRemote : (List(() -> a)) -> List(Either(RemoteError, a)) with m
+remote : (() -> a) -> Either(RemoteError, a) with m
 
 type RemoteError = NoRemotePeer | PeerLost
 ```
 
 `remote(f)` hands `f` to the runtime, which picks a peer and runs `f()` there. `f` is pure by `remote`'s design — `remote` is a one-shot compute-and-return, not a process; effectful work on a peer goes through `spawn(Peer(...), ...)`.
 
-Both operations have a mailbox effect: `Left(NoRemotePeer)` when no peer is configured, `Left(PeerLost)` when the peer is lost before the value returns. A fault in the callback faults the caller with the same cause, as calling it locally would: `remote` computes elsewhere and catches nothing. A peer-side resolution failure faults the caller too, with `Fault("peer resolution failed: ...")`, as it does `spawn(Peer(...), ...)`. Work whose fault should not end the caller runs in a process of its own, monitored.
+`remote` has a mailbox effect: `Left(NoRemotePeer)` when no peer is configured, `Left(PeerLost)` when the peer is lost before the value returns. A fault in the callback faults the caller with the same cause, as calling it locally would: `remote` computes elsewhere and catches nothing. A peer-side resolution failure faults the caller too, with `Fault("peer resolution failed: ...")`, as it does `spawn(Peer(...), ...)`. Work whose fault should not end the caller runs in a process of its own, monitored.
 
-`parallelRemote` preserves input order in the result list. Each callback is pure; the batch call has a mailbox effect. The signature has no timeout; a callback that does not return keeps the call from returning.
+`remote` waits for its answer, so several computations run at once from processes of their own, each calling `remote` and answering when asked. The answers come back in the order they were asked for:
+
+```
+type Ask(a) = Ask(reply : Reply(Either(RemoteError, a)))
+
+fn inParallel(fs : List(() -> a)) -> List(Either(RemoteError, a)) with m = {
+    let workers = List.map(fs, fn(f) = spawn(Local, fn() -> Unit with Ask(a) = {
+        let v = remote(f);
+        receive { Ask(reply = r) -> answer(r, v) }
+    }));
+    List.map(workers, fn(w) = Address.callForever(w, fn(r) = Ask(reply = r)))
+}
+```
 
 A minimal program that submits a computation:
 
