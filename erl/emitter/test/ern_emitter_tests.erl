@@ -517,12 +517,13 @@ terminal_is_lines_or_keys_test() ->
                   "}\n"),
     ?assertEqual({fault, <<"the terminal is already read as lines">>}, R1).
 
-%% report §8.6: a program whose every process waits forever ends with
-%% Deadlock; a timed receive is a source and ends by itself
+%% report §8.6, §7.4: a program whose every process waits forever ends
+%% with the entry process's fault, `deadlock`; a timed receive is a source
+%% and ends by itself
 deadlock_test() ->
     {R1, _} = run("type Msg = Ping\n"
                   "export fn main() -> Unit with Msg = receive { Ping -> Unit }\n"),
-    ?assertEqual(deadlock, R1),
+    ?assertEqual({fault, <<"deadlock">>}, R1),
     {R2, Out} = run("type Msg = Ping\n"
                     "export fn main() -> Unit with Msg = receive {\n"
                     "    Ping -> Unit\n"

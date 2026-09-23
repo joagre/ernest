@@ -178,6 +178,9 @@ options, then what is recorded and left alone.
     Appendix E goes, and with it the checker's special case for `Ets.Table`'s key (§3.10).
     `ernc` takes `--load-path`, so a program compiles against a library's interface
     (§11.1). The webserver keeps its sessions in a process that owns a `Map`.
+  - A fault is a death with `Fault(cause)`; `Killed` and `ProgramEnd` are not faults
+    (§6.9, §7.3), and every cause is listed in §7.4. A deadlock is the entry process's
+    fault, `Fault("deadlock")` (§8.6), and `ern` reports `fault: deadlock`.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the

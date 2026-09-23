@@ -695,9 +695,9 @@ kill : (Address(a)) -> Unit with m
 
 `kill(addr)` requests termination of the process at `addr`; anyone monitoring receives `Down(reason = Killed, ...)`. It is a scheduling event, not an instantaneous halt — the target may run briefly before the runtime interrupts it. The REPL paper program combines `monitor` and `kill` into a supervised-child pattern that gives up after a timeout.
 
-### 5.4 `Deadlock` as a safety net
+### 5.4 Deadlock as a safety net
 
-The runtime ends a program with the error `Deadlock` when forward progress is impossible: every live process waits in `receive` without `after`, no message is in flight, and no live system process or connected peer holds a subscription, a timer, a pending I/O, or a computation that could deliver a message. Pending `after`s, network listeners, keyboard subscribers, and running peer computations that owe this node a reply all count as such a source, so an idle server waiting on external events is not deadlocked. Detection is per node; a distributed deadlock across peers may not be detected.
+When forward progress is impossible, the entry process faults with `Fault("deadlock")`, and the program ends as on any fault of the entry process, reporting `fault: deadlock`. Progress is impossible when every live process waits in `receive` without `after`, no message is in flight, and no live system process or connected peer holds a subscription, a timer, a pending I/O, or a computation that could deliver a message. Pending `after`s, network listeners, keyboard subscribers, and running peer computations that owe this node a reply all count as such a source, so an idle server waiting on external events is not deadlocked. Detection is per node; a distributed deadlock across peers may not be detected.
 
 ### 5.5 Adapting messages with `via`
 

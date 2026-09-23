@@ -54,14 +54,15 @@ call_timeout_test() ->
     receive {result, R} -> ?assertEqual('None', R) after 1000 -> ?assert(false) end.
 
 %% report §8.6: every live process blocked in an untimed receive, with no
-%% timed receive, clock alarm, or foreign call pending, is Deadlock; each
+%% timed receive, clock alarm, or foreign call pending, is a deadlock, the
+%% entry process's fault `deadlock` (§7.4); each
 %% of those is a source that can still deliver, and the program then ends
 %% by itself
 deadlock_test() ->
     Quiet = #{stdout => fun(_) -> ok end},
-    ?assertEqual(deadlock,
+    ?assertEqual({fault, <<"deadlock">>},
                  ern_rt:run_main(fun() -> receive never -> ok end end, <<"main">>, Quiet)),
-    ?assertEqual(deadlock,
+    ?assertEqual({fault, <<"deadlock">>},
                  ern_rt:run_main(fun() ->
                                      _ = ern_rt:spawn('Local', fun() -> receive x -> ok end end,
                                                       <<"s">>),

@@ -499,15 +499,17 @@ clock_loop(Pending) ->
 %%
 
 %% Runs Main as the entry process and returns ok, or {fault, Message} if it
-%% faulted. Every local process is then ended with ProgramEnd and stdout
+%% faulted, a deadlock among the faults (report §8.6: the entry process
+%% faults with `Fault("deadlock")`). Every local process is then ended with
+%% ProgramEnd and stdout
 %% is flushed. Opts: init => a function run in main's process before Main,
 %% after the Sys.* references are bound, for the top-level lets (report
 %% §8.5); stdout => fun((binary()) -> any()) for tests.
--spec run_main(fun(() -> term()), binary()) -> ok | {fault, binary()} | deadlock.
+-spec run_main(fun(() -> term()), binary()) -> ok | {fault, binary()}.
 run_main(Main, Site) ->
     run_main(Main, Site, #{}).
 
--spec run_main(fun(() -> term()), binary(), map()) -> ok | {fault, binary()} | deadlock.
+-spec run_main(fun(() -> term()), binary(), map()) -> ok | {fault, binary()}.
 run_main(Main, Site, Opts) ->
     ets:new(?PROCESSES, [named_table, public, set]),
     %% report §8.6: the sources a system process holds, counted while held
@@ -542,7 +544,9 @@ run_main(Main, Site, Opts) ->
     Reaper ! {await, MainPid, erlang:self(), fun(Down) -> {main_down, Run, Down} end},
     Result = receive
                  {main_down, Run, {'Down', _, Reason}} -> Reason;
-                 {deadlock, Run} -> deadlock;
+                 {deadlock, Run} ->
+                     exit(MainPid, {ern, fault, <<"deadlock">>}),
+                     {'Fault', <<"deadlock">>};
                  {terminal, Run, Text} -> {'Fault', Text}
              end,
     lists:foreach(fun({Pid, _, alive, _, _}) -> exit(Pid, {ern, program_end});
@@ -572,7 +576,6 @@ run_main(Main, Site, Opts) ->
     case Result of
         'Returned' -> ok;
         {'Fault', Msg} -> {fault, Msg};
-        deadlock -> deadlock;
         Other -> {fault, format("~p", [Other])}
     end.
 

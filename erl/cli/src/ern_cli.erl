@@ -605,9 +605,6 @@ shell(Opts, Rest, Err) ->
         ok -> 0;
         {fault, Msg} ->
             io:format(Err, "fault: ~s~n", [Msg]),
-            1;
-        deadlock ->
-            io:format(Err, "error: Deadlock~n", []),
             1
     end.
 
@@ -743,9 +740,6 @@ run_tests(Ns, Loaded, Err) ->
             end;
         {fault, Msg} ->
             io:format(Err, "fault: ~s~n", [Msg]),
-            1;
-        deadlock ->
-            io:format(Err, "error: Deadlock~n", []),
             1
     end.
 
@@ -778,11 +772,8 @@ run_entry(Opts, Ns, Roots, Loaded, Err) ->
     case ern_rt:run_main(fun() -> EntryMod:EntryFn() end, Site, #{init => Init}) of
         ok -> 0;
         {fault, Msg} ->
+            %% report §8.6: a deadlock is the entry process's fault
             io:format(Err, "fault: ~s~n", [Msg]),
-            1;
-        deadlock ->
-            %% report §8.6
-            io:format(Err, "error: Deadlock~n", []),
             1
     end.
 

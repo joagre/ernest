@@ -144,7 +144,7 @@ The shell reports a process that faults; a compiled program keeps its silence, a
 - **The program's processes, not the shell's own.** The shell cannot tell them apart, addresses having no equality (§6.3). Each of the shell's own processes says so from inside itself, since an address handed to a foreign function arrives as the checking proxy in front of it (§8.4) and the process behind it is not what the front end would hold. The input's own process is left out by the front end, which made it, its fault being the outcome already. So an input's fault is reported once.
 - **One line, written by the screen**, as all output is.
 - **The last hundred faults are kept** and `:faults` prints them, oldest first.
-- **`Deadlock` does not fire under `--shell`** (§8.6): the shell always holds a subscription to the keys, or a read outstanding in line mode, and a system process holding one is a source that can still deliver. A program whose processes all block gets no report, and `:processes` lists them as live with no hint.
+- **A deadlock is not detected under `--shell`** (§8.6): the shell always holds a subscription to the keys, or a read outstanding in line mode, and a system process holding one is a source that can still deliver. A program whose processes all block gets no report, and `:processes` lists them as live with no hint.
 - **Reporting the program's own quiescence is later**, on the door built for the faults and the live list.
 
 ## Line editing

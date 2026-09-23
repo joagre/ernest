@@ -3680,6 +3680,12 @@ Two things went with it. The checker named `Ets.Table` to give its key the equal
 
 The webserver kept its sessions in the table. They are now a process that owns a `Map` and answers `Visit` with the count, forgetting every ten minutes, which is §10's answer to state that processes share, and the value-versus-process-versus-table progression the program was written to show ends at the process.
 
+## A Fault Is a Death With `Fault`, and a Deadlock Is One, 2026-09-24
+
+"Fault" had two meanings. §7.3 defined it as any death whose `Reason` is not `Returned`, which made a killed process and one ended with the program faulted; the same section listed `kill` as a cause of a fault, and §6.9 counted `kill` and a fault as different deaths. It now means one thing, a death with `Fault(cause)`, and `Killed` and `ProgramEnd` are deaths that are not faults. Each fault's cause text is in §7.4, the one place a program looks them up: two were elsewhere, `Fault("peer lost")` in §10 and `Fault("its code was replaced")` only in the runtime.
+
+`Deadlock` was "the error `Deadlock`", neither a `Reason` nor a fault, and the runtime printed it as a third way for a program to end, `error: Deadlock`. It is now the entry process's fault, `Fault("deadlock")`, and the program ends as §8.6 says it ends on a fault. A third outcome beside returning and faulting would have said the same with one concept more; principle 5 decided.
+
 ## Later
 
 Planned or considered, not in the language today.
