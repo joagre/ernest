@@ -214,6 +214,9 @@ options, then what is recorded and left alone.
   - Weighed and left: a remote `send` that fails to resolve faults the sender later, and
     `Tcp.write` is a send. E.18 now says where a failed write shows, and §8.7 what a faulting
     initializer does on a peer.
+  - §9 states what makes a type the prelude's: the language's rules name it, its module is
+    named after it, or a system reference speaks it. The system types stay in the prelude;
+    moving them would take `Sys.*` with them. This decides language_feedback.md's entry 12.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the

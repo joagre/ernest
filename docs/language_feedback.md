@@ -92,7 +92,8 @@ What I would actually put to you as candidate language changes: field selection 
     as a decision with numbers beside it, as `Tcp`'s socket processes did at 1.8 times raw
     Erlang and were kept.
 
-12. **Should `Map` be in the prelude at all?** It is, with `Set` and `List`, in
+12. **Decided 2026-09-24: §9 states the rule (report §9).**
+    **Should `Map` be in the prelude at all?** It is, with `Set` and `List`, in
     `ern_prelude:builtin_types/0`, and the answer is yes — but the rule that decides it has
     never been written down. `Map` has no syntax: no literal, no pattern, nothing in the
     grammar. What keeps it in the prelude is that **its module is named after it**. A

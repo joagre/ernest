@@ -657,6 +657,8 @@ Four operations ship a closure or payload, and the code it depends on, to a peer
 
 The prelude is what this report names. Everything else is the standard library, Appendix E: the container, string, and numeric operations and the output helpers. A prelude operation in a type's namespace, `Int.compare`, is provided by that type's standard library module.
 
+A type is the prelude's when the language's rules name it, as `Optional` for `<-` and `Down` for `monitor`; when the module of its operations is named after it, as `Map` and `Int`; or when a system reference speaks it (§9.7), as `FsMsg` and `IoError`. `Test` and `TestResult` are the prelude's for `ern --test` (§11.2). Any other type a module provides is the module's, as `Random.Seed`.
+
 ### 9.1 Built-in types (§3)
 
 ```
