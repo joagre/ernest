@@ -1,0 +1,2 @@
+let usage = `ern [--shell] file.erc
+    --shell   add an interactive shell

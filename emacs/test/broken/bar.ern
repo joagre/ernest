@@ -1,0 +1,3 @@
+fn loop(state : State) -> Unit with Msg = receive {
+    Tick(at) -> loop(state)
+  |

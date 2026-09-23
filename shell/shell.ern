@@ -75,7 +75,7 @@ foreign fn holdTerminal(reader : Address(a)) -> Unit with m = "ern_rt:hold_termi
 //
 
 type ShellMsg = Typed(String) | Eof | Interrupted | Done(Outcome) | Died(Down)
-              | ReaderDied(Down) | Ready
+  | ReaderDied(Down) | Ready
 
 // What the session carries between inputs: the front end's environment and
 // the settings `:set` changes, which are ordinary values.
@@ -120,7 +120,7 @@ export fn main() -> Unit with ShellMsg = {
             Terminal.subscribe(K);
             send(me, Ready);
             readLoop(me, screen, Reading(editing = Shell.Editor.start(earlier),
-                                         keeping = true, hinted = false, last = Ordinary))
+                keeping = true, hinted = false, last = Ordinary))
         });
         holdTerminal(reader);
         // report §11.2: an editor that cannot read keys is no shell, so
@@ -171,7 +171,7 @@ fn run(
 // that a failure names it rather than `input`.
 fn startup(state : State, screen : Address(ScreenMsg)) -> State with ShellMsg =
     fromFiles(state, screen,
-              List.flatMap(startupFiles(), fn(file) = fileInputs(screen, file)))
+        List.flatMap(startupFiles(), fn(file) = fileInputs(screen, file)))
 
 // A file that is not there is no error; one that cannot be read is said
 // and the session goes on.
@@ -209,13 +209,13 @@ fn await(
         if showValue then {
             match declared(checked) {
                 [] -> if shown == "Unit" then Unit
-                      else {
-                          say(screen, show(value, depth, length) <> " : " <> shown);
-                          if unbound(checked) then
-                              say(screen, "`it` is unchanged: this input did not determine"
-                                          <> " the type of its value")
-                          else Unit
-                      }
+                else {
+                    say(screen, show(value, depth, length) <> " : " <> shown);
+                    if unbound(checked) then
+                        say(screen, "`it` is unchanged: this input did not determine"
+                            <> " the type of its value")
+                    else Unit
+                }
               | lines -> printLines(screen, lines)
             };
             timed(screen, settings, started)
@@ -242,7 +242,7 @@ fn timed(screen : Address(ScreenMsg), settings : Settings, started : Int) -> Uni
     match settings {
         Settings(timing = false) -> Unit
       | Settings(timing = true) -> say(screen, "(" <> Int.toString(Clock.now() - started)
-                                                <> " ms)")
+            <> " ms)")
     }
 
 fn say(screen : Address(ScreenMsg), text : String) -> Unit with m =
@@ -269,7 +269,7 @@ fn printLines(screen : Address(ScreenMsg), lines : List(String)) -> Unit with m 
 // what a command takes after its name, and the line `:help` prints, so
 // that they cannot drift apart.
 type Command = Type | Browse | Load | Reload | Quit | Doc | Help | Forget
-             | Bindings | Processes | Faults | Output | Set
+  | Bindings | Processes | Faults | Output | Set
 
 type Entry = Entry(name : String, command : Command, takes : Optional(String), about : String)
 
@@ -277,31 +277,31 @@ type Next = Continue(State) | Leave
 
 let commands = [
     Entry(name = "type", command = Type, takes = Some("an expression"),
-          about = " e         the type of e, which is not run"),
+        about = " e         the type of e, which is not run"),
     Entry(name = "browse", command = Browse, takes = Some("a module"),
-          about = " Module  the exports of Module with their types"),
+        about = " Module  the exports of Module with their types"),
     Entry(name = "load", command = Load, takes = Some("a module"),
-          about = " Module    the module by its namespace, compiled from its source"),
+        about = " Module    the module by its namespace, compiled from its source"),
     Entry(name = "reload", command = Reload, takes = None,
-          about = "         every loaded module whose source has changed"),
+        about = "         every loaded module whose source has changed"),
     Entry(name = "quit", command = Quit, takes = None,
-          about = "           leave, as C-d on an empty line does"),
+        about = "           leave, as C-d on an empty line does"),
     Entry(name = "doc", command = Doc, takes = Some("a name"),
-          about = " Name       the documentation of Name, which GHCi calls :info"),
+        about = " Name       the documentation of Name, which GHCi calls :info"),
     Entry(name = "help", command = Help, takes = None,
-          about = "           this text"),
+        about = "           this text"),
     Entry(name = "forget", command = Forget, takes = Some("a name, or * for all of them"),
-          about = " name    forget a name the session declared, or * for all of them"),
+        about = " name    forget a name the session declared, or * for all of them"),
     Entry(name = "bindings", command = Bindings, takes = None,
-          about = "       what the session declares, with their types"),
+        about = "       what the session declares, with their types"),
     Entry(name = "processes", command = Processes, takes = None,
-          about = "      the live processes of the session, by spawn site"),
+        about = "      the live processes of the session, by spawn site"),
     Entry(name = "faults", command = Faults, takes = None,
-          about = "         the faults reported since the session began"),
+        about = "         the faults reported since the session began"),
     Entry(name = "output", command = Output, takes = None,
-          about = "         a path, so a second window shows what programs write; - for the tail"),
+        about = "         a path, so a second window shows what programs write; - for the tail"),
     Entry(name = "set", command = Set, takes = None,
-          about = "            depth n, length n, timing on or off; :set alone shows them")
+        about = "            depth n, length n, timing on or off; :set alone shows them")
 ]
 
 // An input is a command or Ernest.
@@ -412,10 +412,10 @@ fn set(screen : Address(ScreenMsg), settings : Settings, arg : String) -> Settin
         // report §11.2: the rows the tail takes, and none at 0
         match String.toInt(rest) {
             Some(n) -> if n < 0 then { say(screen, "a height is 0 or more"); settings }
-                       else {
-                           send(screen, Height(n));
-                           Settings(..settings, output = n)
-                       }
+            else {
+                send(screen, Height(n));
+                Settings(..settings, output = n)
+            }
           | None -> { say(screen, ":set output takes a number of rows"); settings }
         }
     else { say(screen, ":set takes depth, length, timing, or output"); settings }
@@ -428,15 +428,15 @@ fn number(
     f : (Int) -> Settings
 ) -> Settings with m = match String.toInt(text) {
     Some(n) -> if n < 0 then { say(screen, "a depth and a length are 0 or more"); settings }
-               else f(n)
+    else f(n)
   | None -> { say(screen, "that is not a number"); settings }
 }
 
 fn settingLines(settings : Settings) -> List(String) = match settings {
     Settings(depth = d, length = l, timing = t, output = o) ->
         ["depth " <> Int.toString(d), "length " <> Int.toString(l),
-         "timing " <> (if t then "on" else "off"),
-         "output " <> Int.toString(o)]
+            "timing " <> (if t then "on" else "off"),
+            "output " <> Int.toString(o)]
 }
 
 // The first word of a line and what follows it, trimmed.
@@ -473,14 +473,14 @@ fn help() -> List(String) =
 // the region of `Shell.Region` and writes what it answers; the region
 // itself is pure and draws nothing.
 type ScreenMsg = Said(String)                        // the shell's own
-               | Noted(String)                       // and while an input is typed
-               | Wrote(String)                       // a program's
-               | Typing(text : String, at : Int)     // the line being typed, and the cursor
-               | Entered                             // and now it is finished
-               | Resize
-               | Clear                               // `C-l`, a clean screen
-               | Height(Int)                         // `:set output n`
-               | Flush(reply : Reply(Unit))
+  | Noted(String)                       // and while an input is typed
+  | Wrote(String)                       // a program's
+  | Typing(text : String, at : Int)     // the line being typed, and the cursor
+  | Entered                             // and now it is finished
+  | Resize
+  | Clear                               // `C-l`, a clean screen
+  | Height(Int)                         // `:set output n`
+  | Flush(reply : Reply(Unit))
 
 // How long to wait for the file system, which is a local file.
 let fileWait = 5000
@@ -538,7 +538,7 @@ type ReaderMsg = K(Event)
 // the history file still takes what is typed, and whether this session
 // has said how a multi-line input is run (report §11.2).
 type Reading = Reading(editing : Shell.Editor.State, keeping : Bool, hinted : Bool,
-                       last : Last)
+    last : Last)
 
 // What the key before this one did, since `Tab` twice lists and
 // `Shift-Tab` twice shows the whole page (report §11.2).
@@ -564,8 +564,8 @@ fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : 
                     send(screen, Entered);
                     send(session, Typed(text(next)));
                     readLoop(session, screen,
-                             Reading(..reading, editing = Shell.Editor.next(next),
-                                     keeping = kept, last = Ordinary))
+                        Reading(..reading, editing = Shell.Editor.next(next),
+                            keeping = kept, last = Ordinary))
                 }
           | Shell.Editor.Cancel -> {
                 // what was typed stays in the transcript, abandoned, and
@@ -574,8 +574,8 @@ fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : 
                 send(screen, Entered);
                 send(session, Interrupted);
                 readLoop(session, screen,
-                         Reading(..reading, editing = Shell.Editor.next(editing),
-                                 keeping = kept, last = Ordinary))
+                    Reading(..reading, editing = Shell.Editor.next(editing),
+                        keeping = kept, last = Ordinary))
             }
           | Shell.Editor.Clear(next) -> {
                 send(screen, Clear);
@@ -592,7 +592,7 @@ fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : 
 // `Tab` lists what it could still be, above the region, where the
 // transcript keeps it and the region stays the size it was.
 fn completing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading,
-              state : Shell.Editor.State) -> Unit with ReaderMsg = {
+    state : Shell.Editor.State) -> Unit with ReaderMsg = {
     let Reading(last = last) = reading;
     let Shell.Editor.State(text = line, at = at) = state;
     let typed = Shell.Complete.word(String.slice(line, 0, at));
@@ -600,9 +600,9 @@ fn completing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading 
         // report §11.2: a command is the shell's own word, not the
         // language's, so the parser is not asked about it
         offering(session, screen, reading,
-                 Shell.Complete.complete(String.slice(line, 0, commandEnd(line)),
-                                         commandNames(), Shell.Complete.Expression),
-                 String.slice(line, 0, commandEnd(line)), state)
+            Shell.Complete.complete(String.slice(line, 0, commandEnd(line)),
+                commandNames(), Shell.Complete.Expression),
+            String.slice(line, 0, commandEnd(line)), state)
     else if String.isEmpty(typed) then
         // report §11.2: nothing before the cursor to complete, so `Tab`
         // indents. Four spaces and no tab: the style guide's rule, and
@@ -622,8 +622,8 @@ fn completing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading 
 // What a completion does to the line: the word it gives stands in
 // place of the one typed, and a second `Tab` lists what is left.
 fn offering(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading,
-            completion : Shell.Complete.Completion, typed : String,
-            state : Shell.Editor.State) -> Unit with ReaderMsg = {
+    completion : Shell.Complete.Completion, typed : String,
+    state : Shell.Editor.State) -> Unit with ReaderMsg = {
     let Reading(last = last) = reading;
     let Shell.Editor.State(text = line, at = at) = state;
     let #(text, next) = Shell.Complete.applied(line, at, typed, completion);
@@ -632,7 +632,7 @@ fn offering(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : 
     let said = hint(screen, reading, shown);
     send(screen, typing(shown));
     readLoop(session, screen,
-             Reading(..reading, editing = shown, hinted = said, last = Tabbed))
+        Reading(..reading, editing = shown, hinted = said, last = Tabbed))
 }
 
 // Report §11.2: a command's own word is everything up to the first
@@ -646,22 +646,22 @@ fn commandNames() -> List(Shell.Complete.Name) =
     List.map(commands, fn(entry) = match entry {
         Entry(name = name, about = about) ->
             Shell.Complete.Name(text = ":" <> name, kind = Shell.Complete.Value,
-                                shown = ":" <> name <> about)
+                shown = ":" <> name <> about)
     })
 
 let indent = "    "
 
 fn indented(state : Shell.Editor.State, line : String, at : Int) -> Shell.Editor.State =
     Shell.Editor.typed(state,
-                       String.slice(line, 0, at) <> indent
-                           <> String.slice(line, at, String.size(line) - at),
-                       at + String.size(indent))
+        String.slice(line, 0, at) <> indent
+        <> String.slice(line, at, String.size(line) - at),
+        at + String.size(indent))
 
 // Report §11.2: `Shift-Tab` says what the name at the cursor is: its
 // type and the first sentence about it, and the whole page when it is
 // pressed again. Above the region, as a listing is.
 fn documenting(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading,
-               state : Shell.Editor.State) -> Unit with ReaderMsg = {
+    state : Shell.Editor.State) -> Unit with ReaderMsg = {
     let Reading(last = last) = reading;
     let Shell.Editor.State(text = line, at = at) = state;
     let name = Shell.Complete.word(String.slice(line, 0, at));
@@ -669,7 +669,7 @@ fn documenting(session : Address(ShellMsg), screen : Address(ScreenMsg), reading
         None -> Unit
       | Some(page) ->
             List.foreach(if last == Documented then String.lines(page) else brief(page),
-                         fn(row) = send(screen, Noted(row)))
+                fn(row) = send(screen, Noted(row)))
     };
     send(screen, typing(state));
     readLoop(session, screen, Reading(..reading, editing = state, last = Documented))
@@ -679,8 +679,8 @@ fn documenting(session : Address(ShellMsg), screen : Address(ScreenMsg), reading
 // and the first line of prose after it.
 fn brief(page : String) -> List(String) = {
     let rows = List.filter(String.lines(page), fn(row) = !String.isEmpty(String.trim(row))
-                                                        && !String.startsWith(row, "#")
-                                                        && row != "```ernest" && row != "```");
+        && !String.startsWith(row, "#")
+        && row != "```ernest" && row != "```");
     List.take(rows, 2)
 }
 
@@ -702,7 +702,7 @@ fn listing(screen : Address(ScreenMsg), completion : Shell.Complete.Completion) 
 // The screen is told what is being typed, and the session is told once
 // how a multi-line input is run.
 fn showing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading,
-           next : Shell.Editor.State) -> Unit with ReaderMsg = {
+    next : Shell.Editor.State) -> Unit with ReaderMsg = {
     let said = hint(screen, reading, next);
     send(screen, typing(next));
     // a key that only begins a sequence, `Escape` and the `[` after
@@ -710,7 +710,7 @@ fn showing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : R
     // presses, not six keys (report §8.2)
     let Reading(last = last) = reading;
     readLoop(session, screen, Reading(..reading, editing = next, hinted = said,
-                                      last = if midSequence(next) then last else Ordinary))
+        last = if midSequence(next) then last else Ordinary))
 }
 
 fn midSequence(state : Shell.Editor.State) -> Bool = match state {
@@ -791,7 +791,7 @@ fn keyLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = r
   | ReaderDied(down) -> match down {
         Down(reason = Returned) -> finish(screen, "")
       | other -> finish(screen, "the shell stopped reading the keyboard: "
-                                    <> faultLine(other) <> "\n")
+            <> faultLine(other) <> "\n")
     }
   | Done(_) -> keyLoop(state, screen)
 }

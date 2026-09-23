@@ -43,12 +43,12 @@ export fn listen(port : Int) -> Either(IoError, Address(ListenerMsg)) with m =
 /// }
 /// ```
 export fn accept(listener : Address(ListenerMsg), ms : Int) ->
-        Either(IoError, Address(SockMsg)) with m =
+    Either(IoError, Address(SockMsg)) with m =
     answered(Address.call(listener, fn(r) = Accept(reply = r), ms))
 
 /// A connection to that host and port.
 export fn connect(host : String, port : Int, ms : Int) ->
-        Either(IoError, Address(SockMsg)) with m =
+    Either(IoError, Address(SockMsg)) with m =
     answered(Address.call(Sys.tcp, fn(r) = Connect(host = host, port = port, reply = r), ms))
 
 /// What has arrived, at least one octet, or `Left(Closed)` when the peer

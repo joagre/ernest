@@ -9,7 +9,8 @@
 %% Erlang and in Ernest alike; the vendored getopt keeps its upstream form
 line_length_test() ->
     Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "test/*.erl", "stdlib/**/*.ern",
-                "examples/**/*.ern", "test/**/*.ern", "test/*.py"],
+                "examples/**/*.ern", "shell/**/*.ern", "test/**/*.ern", "test/*.py",
+                "emacs/*.el", "emacs/test/*.el"],
     Files = [F || P <- Patterns, F <- filelib:wildcard(P, ?ROOT),
                   filename:basename(F) =/= "getopt.erl",
                   not editor_artifact(filename:basename(F))],
@@ -41,6 +42,57 @@ module_name_test() ->
 
 %% THIRD_PARTY_LICENSES names every borrowed file, so the exception is checked
 %% rather than listed twice.
+%% docs/emacs_mode.md: the Emacs mode restates Appendix A's reserved words
+%% and a subset of its symbols, so a test keeps the two equal. It found `=>`
+%% and `do`, which the mode painted and the language does not have.
+%% report §2.4, Appendix A
+emacs_mode_mirrors_the_lexer_test() ->
+    Lexer = read("erl/lexer/src/ern_lexer.erl"),
+    Mode = read("emacs/ernest-mode.el"),
+    ?assertEqual(lists:sort(atoms_of(Lexer, "-define(RESERVED,")),
+                 lists:sort(strings_of(Mode, "(defconst ernest-reserved-words"))),
+    Symbols = strings_of(Lexer, "-define(SYMBOLS,"),
+    ?assert(length(Symbols) > 20),
+    Painted = strings_of(Mode, "(defconst ernest-operators"),
+    ?assert(length(Painted) > 5),
+    ?assertEqual([], Painted -- Symbols).
+
+%% The strings, or the atoms, of the list that opens at Marker: the same
+%% two shapes in Erlang and in Elisp.
+strings_of(Text, Marker) ->
+    case re:run(body(Text, Marker), "\"([^\"]*)\"", [global, {capture, all_but_first, list}]) of
+        {match, Found} -> [S || [S] <- Found];
+        nomatch -> []
+    end.
+
+atoms_of(Text, Marker) ->
+    [string:trim(T, both, "' \n\t") || T <- string:split(body(Text, Marker), ",", all)].
+
+%% From the list that opens after Marker to the bracket that closes it. A
+%% bracket inside a string is not one: the symbol table lists "(" and ")".
+body(Text, Marker) ->
+    Rest = string:find(Text, Marker),
+    ?assertNotEqual(nomatch, Rest),
+    {_, [Open | Body]} = string:take(string:slice(Rest, length(Marker)), "[(", true),
+    Close = case Open of $[ -> $]; $( -> $) end,
+    scan(Body, Open, Close, 0, []).
+
+scan([], _, _, _, Acc) -> lists:reverse(Acc);
+scan([$" | T], O, C, D, Acc) -> in_string(T, O, C, D, [$" | Acc]);
+scan([Ch | T], O, C, D, Acc) when Ch =:= O -> scan(T, O, C, D + 1, [Ch | Acc]);
+scan([Ch | _], _, C, 0, Acc) when Ch =:= C -> lists:reverse(Acc);
+scan([Ch | T], O, C, D, Acc) when Ch =:= C -> scan(T, O, C, D - 1, [Ch | Acc]);
+scan([Ch | T], O, C, D, Acc) -> scan(T, O, C, D, [Ch | Acc]).
+
+in_string([$\\, Ch | T], O, C, D, Acc) -> in_string(T, O, C, D, [Ch, $\\ | Acc]);
+in_string([$" | T], O, C, D, Acc) -> scan(T, O, C, D, [$" | Acc]);
+in_string([Ch | T], O, C, D, Acc) -> in_string(T, O, C, D, [Ch | Acc]);
+in_string([], _, _, _, Acc) -> lists:reverse(Acc).
+
+read(Rel) ->
+    {ok, Bin} = file:read_file(filename:join(?ROOT, Rel)),
+    unicode:characters_to_list(Bin).
+
 vendored(Name) ->
     {ok, Bin} = file:read_file(filename:join(?ROOT, "THIRD_PARTY_LICENSES")),
     string:find(Bin, Name ++ ".erl") =/= nomatch.

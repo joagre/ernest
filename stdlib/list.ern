@@ -393,14 +393,14 @@ fn halves(xs : List(a)) -> #(List(a), List(a)) = {
 
 fn merge(left : List(a), right : List(a), compare : (a, a) -> Ordering with e)
     -> List(a) with e = match #(left, right) {
-        #([], _) -> right
-      | #(_, []) -> left
-      | #(l :: ls, r :: rs) ->
-            match compare(l, r) {
-                Greater -> r :: merge(left, rs, compare)
-              | _ -> l :: merge(ls, right, compare)
-            }
-    }
+    #([], _) -> right
+  | #(_, []) -> left
+  | #(l :: ls, r :: rs) ->
+        match compare(l, r) {
+            Greater -> r :: merge(left, rs, compare)
+          | _ -> l :: merge(ls, right, compare)
+        }
+}
 
 /// The pairs of elements at the same index, to the length of the shorter
 /// list.
@@ -489,7 +489,7 @@ export fn tryMap(xs : List(a), f : (a) -> Either(e, b) with x) -> Either(e, List
 /// // => Left("big")
 /// ```
 export fn tryFold(xs : List(a), acc : b, f : (b, a) -> Either(e, b) with x) ->
-        Either(e, b) with x =
+    Either(e, b) with x =
     match xs {
         [] -> Right(acc)
       | y :: rest -> {

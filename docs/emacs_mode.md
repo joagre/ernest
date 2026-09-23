@@ -1,16 +1,80 @@
-Ernest is the functional language for concurrent programs designed in this repository: two concepts, pure functions with Hindley–Milner types and processes with typed mailboxes. `ernest_report.md` is the normative document and Appendix A is its grammar; the toolchain is Erlang/OTP 29 (`ernc` compiles, `ern` runs), source files end in `.ern`, and `docs/style.md` sets the style for both languages. What I want now is **an Emacs major mode for Ernest**, so that `.ern` files are edited with highlighting, indentation and jump-to-error instead of in `fundamental-mode`.
+# The Emacs mode
 
-Write it as `ernest-mode` in `editor/emacs/ernest-mode.el`, derived from `prog-mode` and not from `cc-mode`: Ernest is expression-structured (`fn f(x : Int) -> Int = expr`, `match e { P -> e | P -> e }`, `{ let x = 1; e }` where `;` sequences rather than terminates), and CC Mode's engine assumes C's statements and declarations.
+`ernest-mode` edits `.ern` files: colouring, indentation and jump-to-error. It lives in
+`emacs/` and is the only Elisp in the repository. `docs/implementation_plan.md` holds its
+place in the roadmap, MVP 2.9.
 
-Scope for this step:
-- syntax table: `//` and `/* */` comments, `///` doc comments with a face of their own, `"` strings, backtick raw strings that may span lines, and a `syntax-propertize-function` for char literals (`'a'`, `'\n'`, `'\u{...}'`) so an apostrophe in prose cannot unbalance a buffer;
-- font-lock from the report's lexical rules (§2): reserved words, uppercase-initial names as types and constructors, lowercase as values, qualified names such as `Net.Http.parse`, operators, and the numeric literals of §2.5 with their based forms and digit separators;
-- indentation: four spaces, no tabs, `fill-column` 100, `match` and `receive` arms led by `|`, bodies after `->` and `=`. Keep it simple, and add no alignment padding of `->`, `=` or trailing comments, which `docs/style.md` forbids;
-- `compilation-error-regexp-alist` for `file:line:col: message`, so `M-x compile` over `ernc` jumps to the diagnostic;
+## What it is
+
+Derived from `prog-mode`, not from CC Mode: Ernest is expression-structured, where CC Mode's
+engine assumes C's statements and declarations.
+
+- A syntax table for `//` and `/* */` comments, `///` doc comments with a face of their own,
+  `"` strings, backtick raw strings that may span lines, and a `syntax-propertize-function`
+  for char literals, so an apostrophe in prose cannot unbalance a buffer.
+- Font lock from the report's §2: reserved words, uppercase-initial names as types and
+  constructors, lowercase as values, qualified names, operators, and the numeric literals of
+  §2.5 with their based forms and digit separators.
+- Indentation to `docs/style.md`, which owns it.
+- `compilation-error-regexp-alist` for `file:line:col: message`, so `M-x compile` over `ernc`
+  jumps to the diagnostic.
 - `auto-mode-alist` for `.ern`.
 
 Not in this step: a `comint` mode over `ern --shell`, and completion.
 
-Rules that apply. The report does not change; this is a tool, not the language. The reserved-word and operator lists restate Appendix A, so add a test keeping them equal to the lexer's, as the other mirror tests do — a restatement without one is a wart. `docs/style.md` covers Erlang, Python and Ernest but not Elisp: add the one rule that file needs (lines ≤ 100, no tabs) and say the mode is the only Elisp in the repository. Put the file in the README's layout section and the item in the plan with its date.
+**The mode never calls `ernc` to indent or colour.** A per-keystroke call on a broken buffer
+cannot work. `ernc` is reached through `M-x compile`, and `compilation-error-regexp-alist` is
+all that needs.
 
-Before writing code, answer two things. Where does this belong in the roadmap — a detour now, or an item after MVP 2.6? And would you rather write a tree-sitter grammar with `ernest-ts-mode`, given that Appendix A is already complete EBNF and §0.4 keeps the grammar recursive-descent-shaped with bounded lookahead? If tree-sitter is the better long-run answer, say what the plain mode costs in the meantime.
+## How it is judged
+
+The mode is used almost only on broken code: between keystrokes a buffer is unbalanced, a
+clause is half typed, a string is open. Two corpora settle it, and both are independent of
+the technique.
+
+1. **The repository's own sources**, which are written to `docs/style.md`. Reindenting one
+   must leave it unchanged. `emacs/test/reindent.el`.
+2. **Broken buffers**: a `match` with no closing brace, a bare `|`, a line ending in `->` or
+   `=`, a trailing comma, a missing `}`, an unclosed raw string, an unclosed block comment,
+   an apostrophe in prose. Each keeps its indentation, and a fresh line at the end takes the
+   column a person expects. `emacs/test/broken.el` over `emacs/test/broken/`, and
+   `emacs/test/typing.el`, which cuts every source in the repository at every third line and
+   reindents what survives.
+
+Colouring cannot be measured against the repository, so it is pinned by
+`emacs/test/colour.el`, one check for each kind of face.
+
+## What the corpora measured
+
+23 September 2026, on the regexp and syntax-table mode.
+
+| Corpus | Result |
+| --- | --- |
+| The repository's sources | 0 of 6,090 lines moved |
+| Broken buffers | 8 of 8 held |
+| Sources cut at every third line | 1 line over 2,005 cuts, the harness's own edge |
+| Colour | passes after two defects were fixed |
+
+The first run of corpus 1 said 624 lines, and every rule that closed part of the gap made
+another file worse. The cause was not the mode: the corpus held four constructs two ways
+each. `docs/style.md` gained four rules, the sources were reindented to them, and three of
+the four rules took a special case out of the mode.
+
+The two colour defects were invisible to any indentation run: every face was named as a
+variable where Emacs 31 has only the face, so font lock raised an error on every buffer, and
+the two rules for a declaration's own name used a substring that cut one character too many,
+so they had never matched.
+
+**Verdict: the regexp and syntax-table mode holds both corpora, and tree-sitter is not
+bought.** What a grammar would still give is `Foo` as a type in one position and a
+constructor in another, which regexps cannot reach. It costs a grammar restating Appendix A
+in a fourth language with no mirror test, a C toolchain and a per-platform object. That one
+distinction does not buy it. Revisit if a second reason appears.
+
+## What remains
+
+- A test keeping the mode's reserved-word and operator lists equal to the lexer's. Until it
+  exists those lists are an unmirrored restatement of Appendix A, which is a wart.
+- The Elisp rule in `docs/style.md`: lines ≤ 100, no tabs, and the mode is the only Elisp
+  here.
+- `emacs/` in the README's layout section.

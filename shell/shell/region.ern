@@ -43,7 +43,7 @@ let tabStop = 8
 // program's output is not a terminal at all.
 export fn new(size : Optional(Size), live : Bool) -> Region =
     Region(tail = [], writing = "", prompt = "", typed = "", at = 0, resting = 0,
-           output = tailRows, size = size, live = live)
+        output = tailRows, size = size, live = live)
 
 // What the session says is committed as it is produced; what it leaves
 // without a line feed is the prompt, which the input is typed after.
@@ -90,7 +90,7 @@ export fn entered(r : Region) -> #(Region, String) = match r {
     Region(live = false) -> #(r, "")
   | Region(live = true, tail = tail) ->
         painted(Region(..r, prompt = "", typed = "", at = 0, tail = []),
-                tail <> inputRows(r))
+            tail <> inputRows(r))
 }
 
 // The window has changed; the tail may no longer fit.
@@ -123,7 +123,7 @@ fn aged(r : Region, commits : List(String)) -> #(Region, String) = {
     let over = List.size(tail) - height(r);
     if over <= 0 then painted(r, commits)
     else painted(Region(..r, tail = List.drop(tail, over)),
-                 commits <> List.take(tail, over))
+        commits <> List.take(tail, over))
 }
 
 // Erase the region, commit what has left it, paint it again: one write,
@@ -136,7 +136,7 @@ fn painted(r : Region, commits : List(String)) -> #(Region, String) = match r {
         let rows = rowsOf(r);
         let row = resting(r);
         #(Region(..r, resting = row),
-          erase(r) <> written(commits) <> paint(rows, row, column(r)))
+            erase(r) <> written(commits) <> paint(rows, row, column(r)))
     }
 }
 
@@ -248,11 +248,11 @@ let spansRows = Test(name = "an input takes a row for each of its lines", run = 
     rowsAre(inputRows(typed("a\nb", 3)), ["> a", "... b"]))
 
 let showsTheEmptyRow = Test(name = "a text that ends in a line feed shows its empty row",
-                            run = fn() =
-    rowsAre(inputRows(typed("a\n", 2)), ["> a", "... "]))
+    run = fn() =
+        rowsAre(inputRows(typed("a\n", 2)), ["> a", "... "]))
 
 let restsWhereTyped = Test(name = "the cursor rests on the row and column it is typed at",
-                           run = fn() = at(typed("a\nbc", 4), 1, 7))
+    run = fn() = at(typed("a\nbc", 4), 1, 7))
 
 let restsOnTheFirstRow = Test(name = "a one-line input rests after its prompt", run = fn() =
     at(typed("abc", 2), 0, 5))
@@ -271,17 +271,17 @@ let paintsTheLine = Test(name = "typing erases the region and paints it again", 
 })
 
 let commitsWhatIsEntered = Test(name = "an input entered joins the transcript, a row a line",
-                                run = fn() = {
-    let #(typing, _) = typing(prompted(), "a\nb", 3);
-    let #(_, bytes) = entered(typing);
-    same(bytes, "\r\u{1b}[1A\u{1b}[0J> a\n... b\n\r")
-})
+    run = fn() = {
+        let #(typing, _) = typing(prompted(), "a\nb", 3);
+        let #(_, bytes) = entered(typing);
+        same(bytes, "\r\u{1b}[1A\u{1b}[0J> a\n... b\n\r")
+    })
 
 let saysWithoutATerminal = Test(name = "without a terminal what is said is the transcript",
-                                run = fn() = {
-    let #(_, bytes) = said(new(None, false), "1 : Int\n");
-    same(bytes, "1 : Int\n")
-})
+    run = fn() = {
+        let #(_, bytes) = said(new(None, false), "1 : Int\n");
+        same(bytes, "1 : Int\n")
+    })
 
 // A region with a prompt written, which is where an input is typed.
 fn prompted() -> Region = {

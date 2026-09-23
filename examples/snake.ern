@@ -136,7 +136,7 @@ fn applyInput(world : World, input : Input) -> World = {
 fn collide(ps : Map(Int, Player), p : Player) -> Player = match p {
     Player(body = head :: _, alive = true) ->
         if List.any(Map.values(ps), fn(q) = List.contains(tailOf(q), head))
-        then Player(..p, alive = false) else p
+    then Player(..p, alive = false) else p
   | _ -> p
 }
 
@@ -172,7 +172,7 @@ fn taken(World(players = ps, apples = apples) : World, pos : Pos) -> Bool =
 fn render(world : World) -> String = {
     let World(w = w, h = h, players = ps, apples = apples, tick = t) = world;
     let row = fn(y) = String.fromList(List.map(List.range(0, w - 1),
-                                               fn(x) = cell(ps, apples, Pos(x = x, y = y))));
+        fn(x) = cell(ps, apples, Pos(x = x, y = y))));
     let rows = List.map(List.range(0, h - 1), row);
     "\u{1b}[H\u{1b}[2J" <> String.join(rows, "\n") <> "\n" <> status(ps, t) <> "\n"
 }
@@ -185,12 +185,12 @@ fn cell(ps : Map(Int, Player), apples : List(Pos), pos : Pos) -> Char =
 
 fn status(ps : Map(Int, Player), t : Int) -> String =
     "tick " <> Int.toString(t) <> "   "
-        <> String.join(List.map(Map.values(ps), scoreText), "   ")
-        <> "   (arrows steer, Escape leaves)"
+    <> String.join(List.map(Map.values(ps), scoreText), "   ")
+    <> "   (arrows steer, Escape leaves)"
 
 fn scoreText(Player(id = id, score = s, alive = alive) : Player) -> String =
     "player " <> Int.toString(id) <> ": " <> Int.toString(s)
-        <> (if alive then "" else " (dead)")
+    <> (if alive then "" else " (dead)")
 
 fn bodyOf(Player(body = b) : Player) -> List(Pos) = b
 

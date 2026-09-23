@@ -1,0 +1,4 @@
+fn insert(state : State, what : String) -> State = {
+    let State(text = text, at = at) = state;
+    State(..state, text = what,
+        at = at + String.size(what))

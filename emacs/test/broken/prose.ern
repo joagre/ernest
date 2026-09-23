@@ -1,0 +1,6 @@
+// The person's own history, and the node's. It isn't read twice.
+fn historyOf(who : String) -> List(String) =
+    match Fs.read(Path(who), never) {
+        Left(_) -> []
+      | Right(bytes) -> decode(bytes)
+    }

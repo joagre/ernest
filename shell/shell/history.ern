@@ -42,7 +42,7 @@ fn trimmed(path : Path, inputs : List(String)) -> Either(IoError, List(String)) 
     else {
         let last = List.drop(inputs, extra);
         Either.map(Fs.write(path, String.toUtf8(text(last)), wait),
-                   fn(_) = List.reverse(last))
+            fn(_) = List.reverse(last))
     }
 }
 

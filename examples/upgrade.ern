@@ -10,8 +10,8 @@
 
 type CounterMsg
     = Inc(Int)
-    | Get(reply : Reply(Int))
-    | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
+  | Get(reply : Reply(Int))
+  | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
 export fn main() -> Unit with m = {
     let c = spawn(Local, fn() = counter(0));

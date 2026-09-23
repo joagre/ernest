@@ -95,14 +95,14 @@ fn isKind(name : Name, kind : Kind) -> Bool = match name { Name(kind = own) -> o
 // prefix of what it reaches.
 export fn applied(text : String, at : Int, typed : String, completion : Completion)
     -> #(String, Int) = match completion {
-        Completion(word = "") -> #(text, at)
-      | Completion(word = new) -> {
-            let start = at - String.size(typed);
-            #(String.slice(text, 0, start) <> new
-                  <> String.slice(text, at, String.size(text) - at),
-              start + String.size(new))
-        }
+    Completion(word = "") -> #(text, at)
+  | Completion(word = new) -> {
+        let start = at - String.size(typed);
+        #(String.slice(text, 0, start) <> new
+            <> String.slice(text, at, String.size(text) - at),
+            start + String.size(new))
     }
+}
 
 //
 // Matching: what is typed reaches a name by prefix or by abbreviation,
@@ -116,7 +116,7 @@ fn matches(typed : String, names : List(Name)) -> List(Name) =
         let parts = String.split(typed, ".");
         let exact = List.filter(names, fn(name) = reaches(parts, name, true));
         let loose = List.filter(names, fn(name) = reaches(parts, name, false)
-                                                  && !reaches(parts, name, true));
+            && !reaches(parts, name, true));
         exact <> loose
     }
 
@@ -178,8 +178,8 @@ let sharing = Test(name = "several candidates give what they share", run = fn() 
     becomes(complete(word("List.f"), library(), Expression), "List.filter"))
 
 let abbreviation = Test(name = "an abbreviation reaches a name by its word starts",
-                        run = fn() =
-    becomes(complete(word("List.fM"), library(), Expression), "List.filterMap"))
+    run = fn() =
+        becomes(complete(word("List.fM"), library(), Expression), "List.filterMap"))
 
 let shortModule = Test(name = "a segment is abbreviated too", run = fn() =
     becomes(complete(word("L.fm"), library(), Expression), "List.filterMap"))
@@ -203,12 +203,12 @@ let words = Test(name = "a word ends where a name cannot go on", run = fn() = {
 })
 
 let applying = Test(name = "a completion replaces the word and moves the cursor",
-                    run = fn() = {
-    let #(text, at) = applied("1 + L.fm(xs)", 8, "L.fm",
-                              complete("L.fm", library(), Expression));
-    if text == "1 + List.filterMap(xs)" && at == 18 then Passed
-    else Failed("\"" <> text <> "\" at " <> Int.toString(at))
-})
+    run = fn() = {
+        let #(text, at) = applied("1 + L.fm(xs)", 8, "L.fm",
+            complete("L.fm", library(), Expression));
+        if text == "1 + List.filterMap(xs)" && at == 18 then Passed
+        else Failed("\"" <> text <> "\" at " <> Int.toString(at))
+    })
 
 let inAType = Test(name = "a type position takes types and modules only", run = fn() =
     becomes(complete(word("In"), library(), TypeName), "Int"))
@@ -217,8 +217,8 @@ let inAPattern = Test(name = "a pattern position takes constructors", run = fn()
     becomes(complete(word("So"), library(), Pattern), "Some"))
 
 let inFields = Test(name = "a field position takes the fields of its constructor",
-                    run = fn() =
-    becomes(complete("na", library(), Fields(["name", "level"])), "name"))
+    run = fn() =
+        becomes(complete("na", library(), Fields(["name", "level"])), "name"))
 
 fn library() -> List(Name) = [
     Name(text = "List", kind = Module, shown = "module List"),

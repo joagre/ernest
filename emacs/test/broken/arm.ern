@@ -1,0 +1,3 @@
+fn key(e : Event, state : State) -> Edit = match e {
+    Enter -> Submit(state)
+  | ArrowLeft ->

@@ -3616,6 +3616,42 @@ runtime read each `.erc`'s interface chunk, would have put the compiler under th
 which is the wrong way round: the runtime is built before the emitter and knows nothing of
 chunks. A module declaring what it needs is also the shape that works whoever calls `$init`.
 
+## The Emacs Mode Was Settled by Measurement, 2026-09-23
+
+Two techniques were open for `ernest-mode`: a regexp and syntax-table mode, and a
+tree-sitter grammar with `ernest-ts-mode`. The argument for the grammar was that a buffer
+being edited is broken most of the time and only a parser with error recovery knows where a
+half-typed clause sits. The argument was not settled on paper, because it is a question
+about behaviour and behaviour can be measured: two corpora were written first, the
+repository's own sources and the same sources cut mid-expression, and the plain mode was
+built against them. `emacs_mode.md` holds what they measured.
+
+The plain mode held both. What is left to the grammar is `Foo` as a type in one position and
+a constructor in another, which a regexp cannot reach; against that, the grammar restates
+Appendix A in a fourth language with no mirror test writable between EBNF and it, and it
+brings a C toolchain and a per-platform object. One positional distinction does not buy
+that. Two arguments made for the grammar turned out not to hold here: `treesit-simple-indent-rules`
+is a hand-written table too, so the special cases move rather than leave, and the mode's
+worst special cases were not the technique's at all.
+
+They were the corpus's. The first run moved 624 of 6,089 lines, and every rule that closed
+part of the gap made another file worse, because seventeen sources held four constructs two
+ways each: `else` under its `if` and under the `if`'s line, an argument list aligned under
+its bracket and stepped in, a broken signature at one step and at two, a type's alternatives
+carried on by a bar aligned under the `=`. No indenter of any technique reproduces a corpus
+that contradicts itself. `docs/style.md` gained the four rules, the sources were reindented,
+and three of the four took a special case out of the mode: with alignment forbidden, a
+bracket's content is a step from the line its opener begins on and nothing looks at what
+follows the bracket. The rule removed the code, which is the usual sign that the rule was
+the thing missing.
+
+Measuring the colouring, which no indentation run touches, found two defects that had been
+there from the first line: every face was named as a variable where Emacs 31 has only the
+face, so font lock raised an error on every buffer, and the two rules for a declaration's
+own name used a substring that cut one character too many and had never matched. The mirror
+test written afterwards found two more, `=>` and `do`, operators the mode painted and the
+language does not have.
+
 ## Later
 
 Planned or considered, not in the language today.

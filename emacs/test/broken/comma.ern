@@ -1,0 +1,4 @@
+let commands = [
+    Entry(name = "type", command = Type,
+        about = " e   the type of e"),
+    Entry(name = "load",

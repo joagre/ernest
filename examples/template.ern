@@ -54,7 +54,7 @@ export type Point = Point(
 export type Shape =
     /// A point alone; its area is zero.
     Dot(Point)
-    /// A circle by its centre and radius.
+  /// A circle by its centre and radius.
   | Circle(centre : Point, radius : Int)
 
 /// Shapes in the order they were pushed, most recent on top. The

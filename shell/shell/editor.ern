@@ -15,8 +15,8 @@
 // were typing when they began to walk, and the search when one is
 // running.
 export type State = State(text : String, at : Int, kill : String, pending : Pending,
-                          history : List(String), back : Int, saved : String,
-                          search : Optional(Search))
+    history : List(String), back : Int, saved : String,
+    search : Optional(Search))
 
 // Report §8.2: a sequence the terminal sends that §9.3 does not name
 // arrives as `Escape` and the characters after it, so the editor reads
@@ -28,14 +28,14 @@ export type Pending = Plain | Meta | Bracket
 // history the match is, where the walk stood and what was being typed
 // when the search began, and its direction.
 export type Search = Search(query : String, back : Int, from : Int, before : String,
-                            forward : Bool)
+    forward : Bool)
 
 export type Edit = Typing(State) | Submit(State) | Cancel | Clear(State)
-                 | Completing(State) | Documenting(State) | Leave
+  | Completing(State) | Documenting(State) | Leave
 
 // Nothing typed yet and nothing behind it.
 export let fresh = State(text = "", at = 0, kill = "", pending = Plain, history = [],
-                         back = 0, saved = "", search = None)
+    back = 0, saved = "", search = None)
 
 // A session's first line, after the inputs of the sessions before it,
 // newest first.
@@ -47,7 +47,7 @@ export fn start(history : List(String)) -> State = State(..fresh, history = hist
 export fn next(state : State) -> State = match state {
     State(text = text, kill = kill, history = history) ->
         State(..fresh, kill = kill,
-              history = if keeps(state, text) then text :: history else history)
+            history = if keeps(state, text) then text :: history else history)
 }
 
 // Report §11.2: a blank input and one equal to the input before it are
@@ -142,7 +142,7 @@ fn character(state : State, c : Char) -> Edit = {
       | '\u{e}' -> Typing(walk(state, -1)) // C-n
       | '\u{12}' -> Typing(search(state, false)) // C-r
       | '\u{13}' -> Typing(search(state, true)) // C-s
-        // every other control character is not bound and does nothing
+      // every other control character is not bound and does nothing
       | _ -> if c < ' ' then Typing(state) else Typing(insert(state, Char.toString(c)))
     }
 }
@@ -208,7 +208,7 @@ fn behind(state : State) -> List(String) = match state { State(history = history
 fn search(state : State, forward : Bool) -> State = match state {
     State(text = text, back = back) ->
         State(..state, search = Some(Search(query = "", back = back, from = back,
-                                            before = text, forward = forward)))
+            before = text, forward = forward)))
 }
 
 fn searching(state : State, s : Search, event : Event) -> Edit = match event {
@@ -254,7 +254,7 @@ fn shorten(state : State, s : Search) -> State = {
     let narrower = Search(..s, query = shorter, back = from);
     if String.isEmpty(shorter) then
         State(..state, text = before, at = String.size(before), back = from,
-              search = Some(narrower))
+            search = Some(narrower))
     else match find(behind(state), shorter, from + step(s), step(s)) {
         Some(n) -> matched(state, narrower, n)
       | None -> State(..state, search = Some(narrower))
@@ -274,7 +274,7 @@ fn matched(state : State, s : Search, n : Int) -> State = {
     let Search(query = query) = s;
     let text = entry(behind(state), n);
     State(..state, text = text, at = matchAt(text, query), back = n,
-          search = Some(Search(..s, back = n)))
+        search = Some(Search(..s, back = n)))
 }
 
 fn matchAt(text : String, query : String) -> Int = match String.indexOf(text, query) {
@@ -299,7 +299,7 @@ fn step(s : Search) -> Int = match s {
 fn insert(state : State, what : String) -> State = {
     let State(text = text, at = at) = state;
     State(..state, text = String.slice(text, 0, at) <> what <> from(text, at),
-         at = at + String.size(what))
+        at = at + String.size(what))
 }
 
 fn back(state : State) -> State = match state {
@@ -318,14 +318,14 @@ fn deleteAt(state : State, at : Int) -> State = {
 fn killTo(state : State, to : Int) -> State = {
     let State(text = text, at = at) = state;
     State(..state, text = String.slice(text, 0, to) <> from(text, at), at = to,
-         kill = String.slice(text, to, at - to))
+        kill = String.slice(text, to, at - to))
 }
 
 // Kill forward to `to`.
 fn killFrom(state : State, to : Int) -> State = {
     let State(text = text, at = at) = state;
     State(..state, text = String.slice(text, 0, at) <> from(text, to),
-         kill = String.slice(text, at, to - at))
+        kill = String.slice(text, at, to - at))
 }
 
 fn from(text : String, at : Int) -> String = String.slice(text, at, String.size(text) - at)
@@ -365,7 +365,7 @@ let typing = Test(name = "typing inserts at the cursor", run = fn() =
 
 let ends = Test(name = "C-a and C-e go to the ends of the line", run = fn() =
     reads(play(keys("abc") <> [ctrl('a')] <> keys("X") <> [ctrl('e')] <> keys("Y")),
-          "XabcY", 5))
+        "XabcY", 5))
 
 let backspace = Test(name = "backspace deletes what is before the cursor", run = fn() =
     reads(play(keys("abc") <> [Char('\u{7f}')]), "ab", 2))
@@ -375,7 +375,7 @@ let forwardDelete = Test(name = "C-d deletes what is under the cursor", run = fn
 
 let killAndYank = Test(name = "C-k kills to the end and C-y puts it back", run = fn() =
     reads(play(keys("abcdef") <> [ArrowLeft, ArrowLeft, ctrl('k'), ctrl('a'), ctrl('y')]),
-          "efabcd", 2))
+        "efabcd", 2))
 
 let killLine = Test(name = "C-u kills back to the start of the line", run = fn() =
     reads(play(keys("one two") <> [ctrl('u')]), "", 0))
@@ -429,15 +429,15 @@ let asksToComplete = Test(name = "Tab asks the reader to complete", run = fn() =
     })
 
 let asksToDocument = Test(name = "Shift-Tab asks the reader for documentation",
-                          run = fn() =
-    match play(keys("List.map") <> [Escape] <> keys("[Z")) {
-        Documenting(State(text = "List.map")) -> Passed
-      | other -> Failed(said(other))
-    })
+    run = fn() =
+        match play(keys("List.map") <> [Escape] <> keys("[Z")) {
+            Documenting(State(text = "List.map")) -> Passed
+          | other -> Failed(said(other))
+        })
 
 let escapeThenBracket = Test(name = "Escape and a bracket that is no sequence types on",
-                             run = fn() =
-    reads(play(keys("a") <> [Escape] <> keys("[b")), "ab", 2))
+    run = fn() =
+        reads(play(keys("a") <> [Escape] <> keys("[b")), "ab", 2))
 
 let walks = Test(name = "the arrows walk back through the inputs", run = fn() =
     reads(plays(start(["two", "one"]), [ArrowUp, ArrowUp, ArrowUp]), "one", 3))
@@ -449,31 +449,31 @@ let walksByKey = Test(name = "C-p and C-n walk as the arrows do", run = fn() =
     reads(plays(start(["two", "one"]), [ctrl('p'), ctrl('p'), ctrl('n')]), "two", 3))
 
 let walksToEnds = Test(name = "M-< goes to the oldest input and M-> back to the line",
-                       run = fn() =
-    reads(plays(start(["two", "one"]), [Escape] <> keys("<") <> [Escape] <> keys(">")), "", 0))
+    run = fn() =
+        reads(plays(start(["two", "one"]), [Escape] <> keys("<") <> [Escape] <> keys(">")), "", 0))
 
 let searches = Test(name = "C-r finds the newest input holding what is typed", run = fn() =
     reads(plays(start(["print two", "let x = 1"]), [ctrl('r')] <> keys("two")),
-          "print two", 6))
+        "print two", 6))
 
 let searchesOn = Test(name = "C-r again finds the one before it", run = fn() =
     reads(plays(start(["print two", "print one"]), [ctrl('r')] <> keys("print") <> [ctrl('r')]),
-          "print one", 0))
+        "print one", 0))
 
 let searchShows = Test(name = "a search shows its prompt and what it found", run = fn() =
     if shows(plays(start(["print two"]), [ctrl('r')] <> keys("two")))
-       == "(reverse-i-search)`two\': print two" then Passed
+    == "(reverse-i-search)`two\': print two" then Passed
     else Failed(shows(plays(start(["print two"]), [ctrl('r')] <> keys("two")))))
 
 let searchFails = Test(name = "a search that matches nothing says so and keeps the line",
-                       run = fn() =
-    if String.startsWith(shows(plays(start(["print two"]), [ctrl('r')] <> keys("zz"))),
-                         "(failed reverse-i-search)") then Passed
-    else Failed(shows(plays(start(["print two"]), [ctrl('r')] <> keys("zz")))))
+    run = fn() =
+        if String.startsWith(shows(plays(start(["print two"]), [ctrl('r')] <> keys("zz"))),
+            "(failed reverse-i-search)") then Passed
+        else Failed(shows(plays(start(["print two"]), [ctrl('r')] <> keys("zz")))))
 
 let searchAbandoned = Test(name = "C-g puts back the line the search began from", run = fn() =
     reads(plays(start(["print two"]), keys("abc") <> [ctrl('r')] <> keys("two") <> [ctrl('g')]),
-          "abc", 3))
+        "abc", 3))
 
 let searchAccepted = Test(name = "Enter takes the input the search found", run = fn() =
     match plays(start(["print two"]), [ctrl('r')] <> keys("two") <> [Enter]) {
@@ -482,8 +482,9 @@ let searchAccepted = Test(name = "Enter takes the input the search found", run =
     })
 
 let searchLeft = Test(name = "a key the search does not use ends it and then does its work",
-                      run = fn() =
-    reads(plays(start(["print two"]), [ctrl('r')] <> keys("two") <> [ctrl('a')]), "print two", 0))
+    run = fn() =
+        reads(plays(start(["print two"]), [ctrl('r')] <> keys("two") <> [ctrl('a')]),
+            "print two", 0))
 
 let kept = Test(name = "the line just taken joins the history", run = fn() =
     match next(State(..start(["one"]), text = "two")) {
@@ -493,7 +494,7 @@ let kept = Test(name = "the line just taken joins the history", run = fn() =
 
 let notKept = Test(name = "a blank input and one repeated are not kept", run = fn() =
     if !keeps(start(["one"]), "  ") && !keeps(start(["one"]), "one")
-       && keeps(start(["one"]), "two") then Passed
+    && keeps(start(["one"]), "two") then Passed
     else Failed("the history kept what it should not"))
 
 // Every event of a text typed a character at a time.

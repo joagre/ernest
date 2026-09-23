@@ -25,11 +25,11 @@ type LexError = BadChar(c : Char, at : Int)
 
 type Expr
     = Lit(Int)
-    | Var(String)
-    | Bin(op : Char, l : Expr, r : Expr)
-    | Let(name : String, value : Expr)
-    | Fun(param : String, body : Expr)
-    | App(f : Expr, arg : Expr)
+  | Var(String)
+  | Bin(op : Char, l : Expr, r : Expr)
+  | Let(name : String, value : Expr)
+  | Fun(param : String, body : Expr)
+  | App(f : Expr, arg : Expr)
 
 type ParseError = Unexpected(Token) | Eof
 
@@ -40,7 +40,7 @@ type TryError = Eval(EvalError) | Crashed | Timeout
 
 type ReplMsg
     = Result(run : Int, value : Either(EvalError, Value))
-    | Died(run : Int, down : Down)
+  | Died(run : Int, down : Down)
 
 //
 // Program

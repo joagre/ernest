@@ -40,7 +40,7 @@ so a decision they must see goes here.
 | MVP 2.66 | introduce a supervisor behaviour? | after 2.6 |
 | MVP 2.7 | the first libraries and the network stack | |
 | MVP 2.8 | four more libraries | |
-| MVP 2.9 | an Emacs major mode | |
+| MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | MVP 3.0 | peers | |
 | MVP 3.1 | content addressing | |
 
@@ -263,29 +263,26 @@ executed doc examples are its first user, so no paper program is required (decid
 
 ---
 
-## MVP 2.9 (an Emacs major mode), about three days
+## MVP 2.9 (an Emacs major mode), done 2026-09-23
 
-`.ern` files are edited in `fundamental-mode` today. [`emacs_mode.md`](emacs_mode.md) owns
-the detail; this item is its place in the order. `editor/emacs/ernest-mode.el`, derived from
-`prog-mode` and not from `cc-mode`, since Ernest is expression-structured and CC Mode's
-engine assumes C's statements: a syntax table for `//`, `/* */`, `///` with a face of its
-own, strings, raw strings that span lines, and a `syntax-propertize-function` for char
-literals so an apostrophe cannot unbalance a buffer; font-lock from §2's lexical rules;
-four-space indentation, `match` and `receive` arms led by `|`, and no alignment padding,
-which the style guide forbids; `compilation-error-regexp-alist` for `file:line:col: message`;
-`auto-mode-alist`. A `comint` mode over `ern --shell` and completion are out of it.
+Taken out of order, between checkpoints of MVP 2.6, because `.ern` files were edited in
+`fundamental-mode`. [`emacs_mode.md`](emacs_mode.md) owns the mode: what it is, the two
+corpora that judge it, and what they measured. `emacs/ernest-mode.el` and its harnesses
+under `emacs/test/`.
 
-- **The reserved words and the operators restate Appendix A**, so the item carries a mirror
-  test keeping the mode's lists equal to the lexer's. A restatement without one is a wart.
-- **Elisp is a fourth language here**, and this is the only file of it: `docs/style.md` gains
-  the rule it needs, lines of at most 100 characters and no tabs, and the README's layout
-  gains `editor/`.
-- **Tree-sitter waits for a second editor.** `ernest-ts-mode` over a grammar built from
-  Appendix A would give structural highlighting and serve Neovim, Helix and Zed too; against
-  it, the grammar is a second statement of Appendix A in a fourth language with no mirror
-  test writable between EBNF and it, and it adds a C toolchain and a compiled object per
-  platform. The plain mode costs heuristic indentation and font-lock a pathological line can
-  confuse; that is the price until a second editor is asked for.
+- **The technique was settled by measurement, not by argument.** The regexp and syntax-table
+  mode holds both corpora: 0 of 6,090 lines on the repository's own sources, and 1 line over
+  2,005 cuts on the same sources truncated mid-expression. Tree-sitter is not bought; the
+  one thing it would add is `Foo` as a type in one position and a constructor in another.
+- **The corpus disagreed with itself, and `docs/style.md` gained four rules**: indentation is
+  a step and never an alignment; `else` returns to the line its `if` begins on; a broken
+  signature continues one step in; a clause bar sits two spaces left of its arms. The
+  seventeen sources that held a construct two ways were reindented to them.
+- **The mirror test is `emacs_mode_mirrors_the_lexer_test`** in `test/ern_style_tests.erl`:
+  the mode's reserved words equal the lexer's and its painted operators are a subset of the
+  lexer's symbols. It found `=>` and `do`, which the mode painted and Ernest does not have.
+- **Left for a second editor.** A `comint` mode over `ern --shell` and completion in the
+  buffer, neither of which the mode needs to be useful; they return when someone asks.
 
 ---
 

@@ -27,9 +27,9 @@ type Ack = Stored | Conflict | Failed(IoError)
 
 type SyncMsg
     = Link(Address(SyncMsg))
-    | Tick
-    | Listed(Either(IoError, List(Entry)))
-    | Put(path : Path, mtime : Int, bytes : Bytes, ack : Reply(Ack))
+  | Tick
+  | Listed(Either(IoError, List(Entry)))
+  | Put(path : Path, mtime : Int, bytes : Bytes, ack : Reply(Ack))
 
 //
 // Program

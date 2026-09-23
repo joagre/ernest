@@ -19,13 +19,46 @@ For the toolchain's own code under `erl/`.
 
 One file only, `test/ern_pty.py`, the pseudo-terminal the terminal tests need and Erlang cannot open. It keeps the repository's name, `ern_`, and its lines are ≤ 100 characters like everything else; `test/ern_style_tests.erl` checks the length.
 
+## Elisp
+
+One file only, `emacs/ernest-mode.el`, the Emacs mode. Lines ≤ 100 characters, no tabs, and the conventions of an Emacs major mode over these rules.
+
 ## Ernest style guide
 
 Ernest is order-independent at top level; these are style choices, not correctness. Follow them consistently.
 
 - **Top-down layout.** Types first. Then `main` (in program modules) or exported functions (in library modules). Each root's helpers follow immediately below it, before the next root. Shared helpers go with the first user, or in a bottom utilities section if genuinely shared.
 - **Four-space indent, no tabs.**
-- **No alignment padding, anywhere.** Don't add spaces to align tokens across lines: `->`, `=`, trailing `//` comments, anything. Structural indentation (block bodies, clause separators) isn't padding — that stays. One space where a space is needed.
+- **Indentation is a step, never an alignment.** A body, a continuation and an argument list broken over lines are each one step in from the line the construct begins on. Never line a token up under a bracket, an `->`, an `=` or a trailing comment.
+
+      let commands = [
+          Entry(name = "type", command = Type,
+              about = " e   the type of e, which is not run"),
+      ]
+
+- **`else` returns to the line its `if` begins on.**
+
+      if from < 1 || from > List.size(history) then None
+      else if String.indexOf(entry(history, from), query) != None then Some(from)
+      else find(history, query, from + step, step)
+
+- **A signature broken over lines continues one step in**, which is where its body goes too.
+
+      fn merge(left : List(a), right : List(a), compare : (a, a) -> Ordering with e)
+          -> List(a) with e =
+          match #(left, right) { ... }
+
+- **A clause bar sits two spaces left of its arms.** A type whose alternatives run past the line breaks after the `=`.
+
+      match xs {
+          [] -> None
+        | y :: rest -> get(rest, i - 1)
+      }
+
+      type ShellMsg =
+          Typed(String) | Eof | Interrupted | Done(Outcome) | Died(Down)
+        | ReaderDied(Down) | Ready
+
 - **Code lines ≤ 100 characters,** which `test/ern_style_tests.erl` checks. Split long expressions rather than let one line run wide. Prose in markdown can be longer.
 - **Block-comment banners for sections.** Open with `//` on its own line, one or more `// text` lines, close with `//` on its own line. Blank line before the opening, blank line after the closing. Not `// Section ----------`.
 - **A module with a doc block has no header banner.** The module's `///` block is its header (report §2.2); a banner in such a file marks a section, never the file.

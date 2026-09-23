@@ -1,0 +1,3 @@
+/* A note that was never closed.
+fn forgotten(x : Int) -> Int =
+    x + 1
