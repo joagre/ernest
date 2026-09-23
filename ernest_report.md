@@ -1420,10 +1420,9 @@ Tcp.close : (Address(SockMsg)) -> Unit with m
 
 ### Appendix E.19. `erl.ern` (namespace `Erl`)
 
-What a shim over an Erlang API needs from Erlang's conventions (rule 1).
+What a shim over an Erlang API needs from Erlang's conventions (rule 1). An API that answers `{ok, V}` or `{error, R}` needs an Erlang helper that rewrites the answer to `Either`'s encoding, `{'Right', V}` or `{'Left', R}` (§8.4).
 
 ```
-type Result(v, r) = Ok(v) | Error(r) // Erlang's {ok, V} and {error, R}, rewritten by the shim's helper
 Erl.atom : (String) -> Foreign // the Erlang atom of the text
 ```
 

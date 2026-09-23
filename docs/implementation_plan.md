@@ -204,6 +204,8 @@ options, then what is recorded and left alone.
     structural. "Code version" is now the hash of a binding's definition.
   - `parallelRemote` leaves the prelude: several `remote` calls run at once from processes
     of their own, which the guide shows (§6.7).
+  - `Erl.Result` leaves the standard library: a shim's Erlang helper rewrites `{ok, V}` and
+    `{error, R}` to `Either` (E.19).
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the

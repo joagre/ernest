@@ -3714,6 +3714,10 @@ The report did not say what a negative time does, and the runtime answered three
 
 The prelude had `remote(f)` and `parallelRemote(fs)`, and the second is the first run from processes: one local process per function, each calling `remote`, the answers collected in order. This log's own list of idioms already said so, "ten at once are ten local processes each calling `remote`", while the prelude shipped it as a primitive. Principle 2 holds in the prelude, so `parallelRemote` went, and the guide shows the eight lines that replace it. That the runtime could place a batch better than independent calls was the argument for keeping it, and it does not hold: `remote` already lets the runtime choose a peer on each call.
 
+## `Erl.Result` Goes, 2026-09-24
+
+E.19 declared `Result(v, r) = Ok(v) | Error(r)` for shims over Erlang's `{ok, V}` and `{error, R}`. A shim over such an API needs an Erlang helper whatever the result type, since `{ok, V}` encodes no Ernest constructor (§8.4), and a helper that rewrites can rewrite to `Either`'s `{'Right', V}` and `{'Left', R}` as easily as to `{'Ok', V}`. `Result` was a second success-or-failure type beside `Either` (principle 2), and nothing in the repository used it. E.19 keeps `Erl.atom`, the one thing a shim cannot write, and says what the helper rewrites to.
+
 ## Later
 
 Planned or considered, not in the language today.

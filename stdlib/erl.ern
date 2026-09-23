@@ -1,6 +1,7 @@
 /// What a shim over an Erlang API needs from Erlang's conventions: an atom
-/// made from text, and `Result`, the shape of Erlang's `{ok, V}` and
-/// `{error, R}` once the shim's Erlang helper has rewritten them.
+/// made from text. An API that answers `{ok, V}` or `{error, R}` needs an
+/// Erlang helper that rewrites the answer to `Either`'s encoding,
+/// `{'Right', V}` or `{'Left', R}` (report §8.4).
 ///
 /// ## Examples
 ///
@@ -9,23 +10,7 @@
 /// // => ready
 /// ```
 ///
-/// ```ernest
-/// Erl.Ok(1)
-/// // => Ok(1)
-/// ```
-///
 /// since 0.1.0
-
-/// Erlang's `{ok, V}` and `{error, R}`, as a shim's Erlang helper rewrites
-/// them into `{'Ok', V}` and `{'Error', R}` (report §8.4).
-///
-/// ### Examples
-///
-/// ```ernest
-/// Erl.Error("closed")
-/// // => Error("closed")
-/// ```
-export type Result(v, r) = Ok(v) | Error(r)
 
 /// The Erlang atom of the text.
 export foreign fn atom(text : String) -> Foreign = "erlang:binary_to_atom/1"
