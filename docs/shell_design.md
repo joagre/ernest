@@ -86,7 +86,7 @@ An input is a block: the prompt is `main`. It may declare anything a module may,
 - **A member of an abstract type is declared with the type.** Two inputs are two modules and §4 keeps a type's members in the module that owns it, so a later input cannot add one.
 - **The value of the last expression is bound to `it`.** It is the one binding a person did not write, and principle 3 is satisfied: a binding must be visible where its name appears at the use site, and `it` is written at its use site. `:bindings` lists it and `:help` says it.
 - **Bindings survive a fault and an interruption.** Only `:forget` removes them.
-- **An input whose value is reply-carrying does not check** (§6.6): such a value neither bound nor consumed is a type error, and the prompt drops an input's value once it is printed. So `it` is never one.
+- **An input whose value is reply-carrying does not check** (§6.6, §11.2): the prompt drops an input's value once it is printed, and a `let` at the prompt binds for every later input. So `it` is never one, and no session binding is.
 - **`self()` names the input's own process**, which ends with the input. An address bound to it reaches no one on a later input.
 
 ### The environment

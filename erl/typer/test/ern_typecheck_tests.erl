@@ -288,6 +288,22 @@ local_fn_names_are_plain_test() ->
                  " plain name",
                  err("type T = T\nfn f() = { fn T.g() = 1; 2 }")).
 
+%% report §5.4, §11.5: an expression that is not a block's last statement
+%% has type Unit, so an Either an error would ride on is not dropped unseen;
+%% `let _ =` discards on purpose, and a statement of any Unit type passes
+statement_is_unit_test() ->
+    Check = "fn check(n : Int) -> Either(String, Int) =\n"
+            "    if n > 0 then Right(n) else Left(\"neg\")\n",
+    ?assertEqual("this statement's value is discarded: expected Unit,"
+                 " found Either(String, Int)",
+                 err(Check ++ "fn f() = { check(-1); 1 }")),
+    {error, [#diag{help = Help} | _]} = check(Check ++ "fn f() = { check(-1); 1 }"),
+    ?assertEqual("`let _ = ...` discards it on purpose", Help),
+    ?assertEqual(ok, ok(Check ++ "fn f() = { let _ = check(-1); 1 }")),
+    ?assertEqual(ok, ok("fn f(a : Address(Int)) -> Int with m = { send(a, 1); 2 }")),
+    %% a statement whose type is still open is settled at Unit
+    ?assertEqual(ok, ok("fn f() -> Int = { todo(\"later\"); 1 }")).
+
 %% report §5.4
 local_fn_forward_reference_test() ->
     %% a is generalized only after b, which it references, is checked
@@ -527,8 +543,9 @@ reply_test() ->
 %% report §6.6, §3.9, §4.4, §4.7
 warts_audit_test() ->
     Msg = "type Req = Get(reply : Reply(Int)) | Stop\n",
-    %% a reply-carrying expression neither bound nor consumed
-    ?assertEqual("a reply-carrying value is discarded; it must be consumed",
+    %% a reply-carrying expression neither bound nor consumed: a statement
+    %% has type Unit (§5.4), which carries no reply
+    ?assertEqual("this statement's value is discarded: expected Unit, found Req",
                  err(Msg ++ "fn f(r : Reply(Int)) = { Get(reply = r); Unit }")),
     ?assertEqual("`_` would discard a reply-carrying value",
                  err(Msg ++ "fn f(r : Reply(Int)) = { let _ = Get(reply = r); Unit }")),

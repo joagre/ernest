@@ -214,7 +214,7 @@ check_module(#env{ifaces = Ifaces, session = Session} = Env, Ns, From, Input, De
     case ern_typecheck:check(Ns, Decls, Ifaces, Session) of
         {ok, Typed, Iface, TEnv} ->
             Type = input_type(Typed, Binds),
-            case undetermined(Type, TEnv, Binds, Typed) of
+            case refused(Type, TEnv, Binds, Typed) of
                 none ->
                     {'Right', {Env, #checked{ns = Ns, typed = Typed, decls = Decls,
                                              iface = Iface, env = TEnv, type = Type,
@@ -232,6 +232,30 @@ check_module(#env{ifaces = Ifaces, session = Session} = Env, Ns, From, Input, De
 %% type is still open is refused with the annotation that would settle
 %% it, rather than entering the session as a scheme whose variables mean
 %% nothing to the inputs after it.
+refused(Type, TEnv, Binds, Typed) ->
+    case carries_reply(Type, TEnv, Binds, Typed) of
+        none -> undetermined(Type, TEnv, Binds, Typed);
+        Refused -> Refused
+    end.
+
+%% Report §6.6, §11.2: an input's value is printed and dropped, and what a
+%% `let` at the prompt binds is the session's, for any later input to use,
+%% so neither may carry a reply, which is consumed exactly once.
+carries_reply(_Type, _TEnv, decls, _Typed) ->
+    none;
+carries_reply(Type, TEnv, _Binds, Typed) ->
+    case ern_typecheck:is_reply_carrying(Type, TEnv) of
+        false ->
+            none;
+        true ->
+            St = ern_typecheck:type_state(TEnv),
+            {open, #diag{span = input_span(Typed),
+                         message = "an input's value cannot carry a reply, which is consumed"
+                                   " exactly once; this one is "
+                                   ++ ern_types:format(Type, St),
+                         help = "answer the reply within the input"}}
+    end.
+
 undetermined(_Type, _TEnv, decls, _Typed) ->
     none;
 undetermined(_Type, _TEnv, it, _Typed) ->

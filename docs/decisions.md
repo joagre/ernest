@@ -3666,6 +3666,12 @@ condition began. The alternative, `then` a step in as a continuation, puts the t
 of one `if` at two columns. The operator rule was already in the guide as "a continuation is
 one step in"; it gained an example, since the sources held it three ways.
 
+## A Statement Is Unit, 2026-09-24
+
+§5.4 said a statement may be "an expression evaluated for its effect" and said nothing of its type, and the checker took any. `{ check(-1); Io.println("done") }` compiled with `check` returning `Either`, and the `Left` went nowhere: a failure visible neither in the code nor in a type, against principle 3. An expression that is not a block's last statement now has type `Unit`, and a value is discarded with `let _ = e`, which the language already had. Principle 2 gives the same answer from the other side: `let _ =` becomes the one way to discard, where there were two. OCaml takes this rule under `-strict-sequence`; Standard ML, and OCaml by default, take any type, the one with a warning. Ernest has no warnings, so the choice was between the rule and silence. Requiring `Unit` only of `Either` and `Optional` was the alternative, and was refused: it names two types in a typing rule, and a dropped `Address` or `Map` is lost as silently.
+
+The rule cost the repository nothing: the standard library, the shell, the examples, and the test programs already wrote `let _ =` wherever they dropped a value. It took one rule away. §6.6's "a reply-carrying value neither bound nor consumed" was, in a block, a special case of it, since `Unit` carries no reply; the reply checker's own pass over statements could no longer fire and was removed. Where the old sentence reached further, to an input at the shell prompt, the shell had never enforced it: an input that received a message holding a reply printed it and dropped the reply. §11.2 now refuses an input whose value, or whose `let`, is reply-carrying.
+
 ## Later
 
 Planned or considered, not in the language today.

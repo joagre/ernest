@@ -113,7 +113,7 @@ let x = 5;
 let y = x + 1        // y is 6
 ```
 
-A block groups statements between `{` and `}`, separated by `;`. Its value is the last statement, which must be an expression — no trailing semicolon. Evaluation is strict and left-to-right: each `;` runs its statement to completion before the next.
+A block groups statements between `{` and `}`, separated by `;`. Its value is the last statement, which must be an expression — no trailing semicolon. Evaluation is strict and left-to-right: each `;` runs its statement to completion before the next. Every statement before the last is a `Unit`: a value you mean to drop is dropped with `let _ = e`, so `check(-1);` on an `Either` is a type error rather than a lost failure.
 
 ```
 let area = {
@@ -481,7 +481,7 @@ Six ways to consume:
 5. Returning from a function whose declared return type is reply-carrying — shifts to the caller.
 6. Capturing in a lambda. The lambda is then reply-carrying itself: consumed exactly once, by a call or as `spawn`'s direct argument, and it may be bound with `let` but appear nowhere else, since its type does not show the capture. `let g = fn() = worker(r); spawn(Local, g)` is fine; calling `g()` after that is consuming it twice.
 
-A reply-carrying value neither bound nor consumed is a type error: `Get(reply = r); Unit` consumes `r` into a message and then drops the message.
+A statement has type `Unit`, so a reply-carrying value is never dropped by one: `Get(reply = r); Unit` is a type error.
 
 Consumptions 4 and 5 are why the builder passed to `Address.call` (§4.4) is legal: `fn(r) = Get(reply = r)` places `r` in `Get`, and returning the reply-carrying `CounterMsg` hands the obligation to `Address.call`. `Address.call` in turn consumes the message by sending it to the recipient, transferring the obligation to whichever `receive` clause on the recipient's side eventually binds it. Only `answer(r, v)` finally discharges the underlying `Reply`.
 

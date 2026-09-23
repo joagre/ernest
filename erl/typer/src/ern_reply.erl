@@ -103,19 +103,6 @@ position(#p_wild{pos = Pos, type = T}, Env) ->
         true -> throw({type_error, Pos, "`_` would discard a reply-carrying value"});
         false -> ok
     end;
-position(#e_block{stmts = Stmts}, Env) ->
-    %% every statement but the last is discarded
-    lists:foreach(fun(#binding{}) -> ok;
-                     (#fn_decl{}) -> ok;
-                     (X) ->
-                          T = ern_typecheck:node_type(X),
-                          case ern_typecheck:is_reply_carrying(T, Env) of
-                              true -> throw({type_error, element(2, X),
-                                             "a reply-carrying value is discarded; it must be"
-                                             " consumed"});
-                              false -> ok
-                          end
-                  end, lists:droplast(Stmts));
 position(#p_as{pos = Pos, type = T}, Env) ->
     case ern_typecheck:is_reply_carrying(T, Env) of
         true -> throw({type_error, Pos, "`as` on a reply-carrying value would duplicate it"});

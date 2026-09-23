@@ -1883,8 +1883,20 @@ infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '<-', expr = X} =
     Env6 = Env5#env{deferred = [{bind_arrow, BPos, XT, PT, RestT} | Env5#env.deferred]},
     {lists:reverse(Acc) ++ [B#binding{pattern = TypedP, expr = TypedX} | TypedRest], RestT, Env6};
 infer_stmts([X | Rest], Pos, Expect, Env, Fns, Acc) ->
-    {TypedX, _T, Env1} = infer(X, Env),
-    infer_stmts(Rest, Pos, Expect, Env1, Fns, [TypedX | Acc]).
+    {TypedX, T, Env1} = infer(X, Env),
+    Env2 = statement_unit(X, T, Env1),
+    infer_stmts(Rest, Pos, Expect, Env2, Fns, [TypedX | Acc]).
+
+%% Report §5.4: an expression that is not a block's last statement has type
+%% Unit, so no value is dropped unseen; §11.5 reports it whole.
+statement_unit(X, T, #env{st = St} = Env) ->
+    case ern_types:unify(?UNIT, T, St) of
+        {ok, St1} -> Env#env{st = St1};
+        {error, _} ->
+            fail(node_span(X), "this statement's value is discarded: expected Unit, found "
+                               ++ ern_types:format(T, St), [],
+                 "`let _ = ...` discards it on purpose")
+    end.
 
 %%
 %% Patterns: check_pattern(P, Env) -> {TypedP, Type, Bindings, Env}

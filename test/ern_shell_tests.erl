@@ -441,6 +441,25 @@ open_binding() ->
     ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"badkey">>)).
 
+%% report §6.6, §11.2: an input's value is printed and dropped, and a `let`
+%% at the prompt binds for every later input, so neither may carry a reply.
+%% A regression test: the shell printed such a value and dropped the reply.
+reply_input_test_() ->
+    {timeout, 60, fun reply_input/0}.
+
+reply_input() ->
+    In = filename:join("/tmp", "ern_reply_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    Take = "receive { Get(reply = r) -> Get(reply = r) | Stop -> Stop | after 0 -> Stop }",
+    ok = file:write_file(In, ["type Req = Get(reply : Reply(Int)) | Stop\n",
+                              Take, "\n",
+                              "let x = ", Take, "\n",
+                              "1 + 1\n"]),
+    {0, Out} = sh("../bin/ern --shell < " ++ In),
+    Refused = binary:matches(Out, <<"an input's value cannot carry a reply">>),
+    ?assertEqual(2, length(Refused)),
+    ?assertEqual(nomatch, binary:match(Out, <<"Stop : Req">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)).
+
 %% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
 %% under the source root and puts it in scope; `:reload` compiles again
 %% what has changed, names what is still in the previous version, and ends

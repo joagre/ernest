@@ -167,6 +167,12 @@ options, then what is recorded and left alone.
   a pattern already reading a field; for it, that Ernest took `..` for update from the family
   whose readers expect `.` for read. The report changes first if it is taken: §3.5 for the
   rule, Appendix A for the production, §11.5 for what a selector on an absent field says.
+- **A standalone reading of the report, 2026-09-23**, as a Wirth report and against §0.
+  Its errors that asked for no decision are fixed. Its other issues are decided one at a
+  time, and each decision is listed here as it is made:
+  - A statement other than a block's last has type `Unit`, and a value is discarded with
+    `let _ = e` (§5.4). The shell refuses an input whose value or `let` carries a reply
+    (§11.2), which it had never enforced.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the
