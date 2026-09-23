@@ -438,32 +438,6 @@ tcp_test() ->
     ?assertEqual([{'Right', <<"ping">>}, {'Right', <<"pong">>}, {'Left', 'Closed'}],
                  collect(tcp, [])).
 
-%% report Appendix E.21, Appendix D: a table of the runtime, its entries
-%% and its life
-ets_test() ->
-    E = 'ern@ets',
-    Me = self(),
-    Result = ern_rt:run_main(
-               fun() ->
-                   T = E:new(),
-                   E:insert(T, <<"a">>, 1),
-                   E:insert(T, <<"b">>, 2),
-                   E:insert(T, <<"a">>, 3),
-                   Me ! {ets, E:lookup(T, <<"a">>)},
-                   Me ! {ets, E:lookup(T, <<"z">>)},
-                   Me ! {ets, E:member(T, <<"b">>)},
-                   Me ! {ets, E:size(T)},
-                   Me ! {ets, lists:sort(E:toList(T))},
-                   E:delete(T, <<"b">>),
-                   Me ! {ets, E:size(T)},
-                   E:clear(T),
-                   Me ! {ets, E:size(T)},
-                   E:drop(T)
-               end, <<"ets_test">>, #{}),
-    ?assertEqual(ok, Result),
-    ?assertEqual([{'Some', 3}, 'None', true, 2, [{<<"a">>, 3}, {<<"b">>, 2}], 1, 0],
-                 collect(ets, [])).
-
 %% report Appendix E.12, §3.8, §8.4
 foreign_test() ->
     F = 'ern@foreign',

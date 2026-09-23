@@ -59,7 +59,9 @@ examples() ->
 
 stdlib() ->
     [filename:join("stdlib", F)
-     || F <- filelib:wildcard("*.ern", filename:join(?ROOT, "stdlib"))].
+     || F <- filelib:wildcard("*.ern", filename:join(?ROOT, "stdlib"))]
+    ++ [filename:join("libs", F)
+        || F <- filelib:wildcard("*/*.ern", filename:join(?ROOT, "libs"))].
 
 %% "3.9", "3", "Appendix A", "E.12" for the headings of a document.
 headings(Bin) ->

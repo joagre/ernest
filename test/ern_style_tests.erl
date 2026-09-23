@@ -10,7 +10,7 @@
 line_length_test() ->
     Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "test/*.erl", "stdlib/**/*.ern",
                 "examples/**/*.ern", "shell/**/*.ern", "test/**/*.ern", "test/*.py",
-                "emacs/*.el", "emacs/test/*.el"],
+                "emacs/*.el", "emacs/test/*.el", "libs/**/*.ern"],
     Files = [F || P <- Patterns, F <- filelib:wildcard(P, ?ROOT),
                   filename:basename(F) =/= "getopt.erl",
                   not editor_artifact(filename:basename(F))],
@@ -25,7 +25,7 @@ no_tab_test() ->
     Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "erl/*/include/*.hrl", "test/*.erl",
                 "stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern", "test/**/*.ern",
                 "test/*.py", "emacs/*.el", "emacs/test/*.el", "emacs/test/broken/*.ern",
-                "*.md", "docs/*.md"],
+                "libs/**/*.ern", "libs/*/*.md", "*.md", "docs/*.md"],
     Files = [F || P <- Patterns, F <- filelib:wildcard(P, ?ROOT),
                  filename:basename(F) =/= "getopt.erl",
                  not editor_artifact(filename:basename(F))],

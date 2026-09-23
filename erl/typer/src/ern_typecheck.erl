@@ -242,7 +242,6 @@ ann(#t_con{pos = Pos, path = Path, name = Name, args = Args}, VarMap, Env) ->
                       case {QName, ArgTs} of
                           {['Map'], [K, _]} -> [K];
                           {['Set'], [A]} -> [A];
-                          {['Ets', 'Table'], [K, _]} -> [K];
                           _ -> []
                       end),
     {{tcon, QName, ArgTs}, VarMap1, St1};

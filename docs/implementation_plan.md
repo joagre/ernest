@@ -173,6 +173,11 @@ options, then what is recorded and left alone.
   - A statement other than a block's last has type `Unit`, and a value is discarded with
     `let _ = e` (§5.4). The shell refuses an input whose value or `let` carries a reply
     (§11.2), which it had never enforced.
+  - `Ets` leaves the standard library for `libs/ets`, the first library: a table is state
+    processes share, which §10 and E.0 rule 1 refuse the standard library. Its section of
+    Appendix E goes, and with it the checker's special case for `Ets.Table`'s key (§3.10).
+    `ernc` takes `--load-path`, so a program compiles against a library's interface
+    (§11.1). The webserver keeps its sessions in a process that owns a `Map`.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the
@@ -226,9 +231,10 @@ tests it by writing one, and decides what it should be, if anything.
 
 Appendix D has been written to once, for `Ets`, and a pattern tried once is a guess: four
 libraries written to it confirm or correct it before anyone outside writes to one, and they
-are the compiler's second real user. `libs/` and `build/libs/` are created here, the last
-step of the 2026-09-20 rename. Being first-party changes nothing about the tier: a library is
-not on the load path unless a program puts it there.
+are the compiler's second real user. `libs/` and `build/libs/` exist since 2026-09-24, when
+`Ets` left the standard library for `libs/ets` and `ernc` took `--load-path`. Being
+first-party changes nothing about the tier: a library is not on the load path unless a
+program puts it there.
 
 - **Report first**, for what a command-line program needs: `Sys.args` and `Sys.env` in §8.2
   and §9.7 as runtime-bound values, an exit status in §8.6, and `Time` in Appendix E over the
@@ -488,7 +494,7 @@ is a standing rule and not a milestone. The steps, in the order done:
 4. **The system processes**, 2026-09-20: `Sys.stdin`, `Sys.fs`, `Sys.keys` and `Sys.tcp` as
    runtime processes bound by the launcher, each speaking its §9.3 type and used through its
    Appendix E module, never by `send` (E.0 rule 8); `Ets` under `stdlib/` as Appendix D has
-   it. `Tcp` is processes first: every socket is a process, so `monitor`, `kill` and `via`
+   it, moved to `libs/ets` on 2026-09-24. `Tcp` is processes first: every socket is a process, so `monitor`, `kill` and `via`
    accept it. **Measured** with `examples/echo.ern`: 2,000 round trips over loopback take
    160 ms through socket processes against 90 ms in raw Erlang, 35 µs a round trip, 1.8
    times raw — the verdict is to keep the processes; a foreign fast path stays available
@@ -588,7 +594,7 @@ Ernest's concepts or toolchain replace.
 | `rand` | `Random` | E.13: `seed`, `next`, `nextFloat` | | |
 | `math` | `Float` | the operators, `abs`, `min`, `max`, `round`, `floor`, `ceil`, `truncate`, `toString`, `sqrt`, `pow`, `exp`, `log`, the trigonometry | | `looselyEquals`: the tolerance is the program's. `toPrecision`: a format, and §9.6 has no format strings |
 | `gen_tcp`, `inet`, `socket`, `ssl` | `Tcp` | E.18 | `Udp` as its own module, a later MVP | socket options: tuning is a library's. TLS: `libs/tls` in MVP 2.7, returning the same `Address(SockMsg)` |
-| `ets` | `Ets` | E.21 and Appendix D | | match specifications, `qlc`: `Ets` is a key-value table |
+| `ets` | `libs/ets` | Appendix D | | match specifications, `qlc`: `Ets` is a key-value table |
 | `os` | `Sys` | | `Sys.env`, `Sys.args`, MVP 2.7 | `cmd`: a door to the system a program opens itself, MVP 3 at the earliest |
 | `calendar` | `Time` | | a `Time` type and its parts, MVP 2.7 | formatting: a format is the program's, rule 3 |
 | `binary` | `Bytes` | E.20, and `<>` | | `split`, `match`, `replace`, `encode_unsigned`: `<<...>>` and the `Int` operations |

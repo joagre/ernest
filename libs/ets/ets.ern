@@ -1,8 +1,10 @@
-/// Tables of the runtime, keyed by a value of type `k` (report Appendix
-/// E.21). A table belongs to the process that made it and dies with it, or
-/// with `drop`, and every operation on a table that is gone faults. The key
-/// type needs equality (report §3.10). Appendix D of the report is this
-/// library written out, as its example of a shim.
+/// Tables of the runtime, keyed by a value of type `k`. A table belongs to
+/// the process that made it and dies with it, or with `drop`, and every
+/// operation on a table that is gone faults. Any process on the node that
+/// holds a table reads and writes it: a table is state that processes share,
+/// which is why this is a library and not the standard library's (report
+/// §10). Keys are compared as the runtime compares its terms. Appendix D of
+/// the report is this library written out, as its example of a shim.
 ///
 /// ## Examples
 ///

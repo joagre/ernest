@@ -824,25 +824,11 @@ modules_example_test() ->
 %% report Appendix B, examples/
 examples_test_() ->
     Files = filelib:wildcard("../../../examples/*.ern"),
-    Checks = ["counter", "upgrade", "hello", "pingpong", "remote", "stack", "patterns",
-              "kvparser", "filesync", "repl", "snake", "template", "echo",
-              "webserver"],
     [{F, fun() ->
               {ok, Bin} = file:read_file(F),
               Base = filename:basename(F, ".ern"),
               Ns = [list_to_atom(string:titlecase(Base))],
-              Result = ern_typecheck:check_string(Ns, Bin),
-              case lists:member(Base, Checks) of
-                  true -> ?assertMatch({ok, _, _, _}, Result);
-                  false ->
-                      %% the webserver fails only on Ets, the library of
-                      %% Appendix D, which it assumes
-                      {error, Errs} = Result,
-                      lists:foreach(fun(#diag{message = Msg}) ->
-                                        ?assertMatch("unknown " ++ _, Msg),
-                                        ?assert(string:find(Msg, "Ets.") =/= nomatch)
-                                    end, Errs)
-              end
+              ?assertMatch({ok, _, _, _}, ern_typecheck:check_string(Ns, Bin))
           end} || F <- Files].
 
 %% report §5.4, §4.6: a local fn sees the bindings in force at its

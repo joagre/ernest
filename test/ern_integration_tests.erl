@@ -98,8 +98,8 @@ run_for(Dir, Cmd, Seconds) ->
 %% Paper program 1 (plan, MVP 2.5 step 4): the server serves until it is
 %% stopped, so the harness starts it, makes two requests over one session,
 %% and stops it. The second request carries the cookie the first set, and
-%% the visit count proves the session table survived between connections.
-%% report §8.2 (Sys.tcp), Appendix E.18 (Tcp), Appendix E.21 (Ets)
+%% the visit count proves the session store kept it between connections.
+%% report §8.2 (Sys.tcp), Appendix E.18 (Tcp), §6.6 (the store's request-reply)
 webserver_test_() ->
     {timeout, 60, fun webserver/0}.
 

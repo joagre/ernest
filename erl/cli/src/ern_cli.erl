@@ -61,6 +61,8 @@ ernc_options() ->
       "the directory whose layout yields namespaces"},
      {out_dir, undefined, "out-dir", string,
       "where the compiled tree goes; default: the source root"},
+     {load_path, undefined, "load-path", string,
+      "a root of compiled modules a module may use; may be repeated"},
      {emit, undefined, "emit", string, "erl: write the module's Erlang source instead of .erc"},
      {no_clean, undefined, "no-clean", undefined,
       "keep stale .erc files under the build directory"},
@@ -105,10 +107,11 @@ ernc_compile(Opts, Path, Err) ->
                 false -> [Path]
             end,
     Modules = [module_of(absolute(F), Root) || F <- Files],
+    Dirs = [OutDir | load_path(Opts)],
     try
-        Order = compile_order(Modules, Root),
+        Order = compile_order(Modules, Root, load_path(Opts)),
         Std = stdlib_hash(Root),
-        lists:foldl(fun(M, Ifaces) -> build(M, Ifaces, OutDir, Emit, Std) end, #{}, Order),
+        lists:foldl(fun(M, Ifaces) -> build(M, Ifaces, Dirs, Emit, Std) end, #{}, Order),
         case DirMode andalso Emit =:= erc andalso not lists:member(no_clean, Opts) of
             true -> sweep(absolute(Path), Root, OutDir);
             false -> ok
@@ -188,7 +191,10 @@ module_path(Ns) ->
 %% Parse every module, find its dependencies, and order them; a cycle is
 %% an error naming the modules in it (§11.1).
 compile_order(Modules, Root) ->
-    Parsed = [parse_module(M, Root) || M <- Modules],
+    compile_order(Modules, Root, []).
+
+compile_order(Modules, Root, LoadPath) ->
+    Parsed = [parse_module(M, Root, LoadPath) || M <- Modules],
     G = digraph:new(),
     lists:foreach(fun(#mod{ns = Ns}) -> digraph:add_vertex(G, Ns) end, Parsed),
     lists:foreach(fun(#mod{ns = Ns, deps = Deps}) ->
@@ -208,13 +214,13 @@ compile_order(Modules, Root) ->
     ByNs = maps:from_list([{Ns, M} || #mod{ns = Ns} = M <- Parsed]),
     [maps:get(Ns, ByNs) || Ns <- Order, is_map_key(Ns, ByNs)].
 
-parse_module(#mod{file = File} = M, Root) ->
+parse_module(#mod{file = File} = M, Root, LoadPath) ->
     {ok, Bin} = file:read_file(File),
     case ern_parser:parse_string(Bin) of
         {ok, Decls} ->
             namespace_clash(M#mod{decls = Decls}, Root),
             %% a module naming itself qualified (report §4.2) depends on nothing by it
-            M#mod{decls = Decls, deps = deps(Decls, Root) -- [M#mod.ns]};
+            M#mod{decls = Decls, deps = deps(Decls, Root, LoadPath) -- [M#mod.ns]};
         {error, E} -> throw({errors, File, [E]})
     end.
 
@@ -260,14 +266,14 @@ local_types(Decls) ->
 %% The modules a source refers to: every qualified name whose first
 %% segment is neither a type of this module nor a prelude namespace, and
 %% whose longest prefix names an existing .ern under the root.
-deps(Decls, Root) ->
+deps(Decls, Root, LoadPath) ->
     %% in the standard library's root its own namespaces are dependencies
     Skip = case is_stdlib_root(Root) of
                true -> local_types(Decls);
                false -> local_types(Decls) ++ prelude_namespaces()
            end,
     Paths = lists:usort([P || P <- paths(Decls), P =/= [], not lists:member(hd(P), Skip)]),
-    lists:usort(lists:filtermap(fun(P) -> module_prefix(P, Root) end, Paths)).
+    lists:usort(lists:filtermap(fun(P) -> module_prefix(P, Root, LoadPath) end, Paths)).
 
 paths(#e_var{path = P}) -> [P];
 paths(#e_con{path = P, args = A}) -> [P | paths(A)];
@@ -277,12 +283,17 @@ paths(T) when is_tuple(T) -> lists:append([paths(X) || X <- tuple_to_list(T)]);
 paths(L) when is_list(L) -> lists:append([paths(X) || X <- L]);
 paths(_) -> [].
 
-module_prefix([], _Root) ->
+%% Report §11.1: a prefix of a qualified name is a module when the source
+%% root holds its source or a --load-path root its compiled module.
+module_prefix([], _Root, _LoadPath) ->
     false;
-module_prefix(Path, Root) ->
-    case filelib:is_regular(filename:join(Root, module_path(Path) ++ ".ern")) of
+module_prefix(Path, Root, LoadPath) ->
+    Rel = module_path(Path),
+    case filelib:is_regular(filename:join(Root, Rel ++ ".ern"))
+        orelse lists:any(fun(D) -> filelib:is_regular(filename:join(D, Rel ++ ".erc")) end,
+                         LoadPath) of
         true -> {true, Path};
-        false -> module_prefix(lists:droplast(Path), Root)
+        false -> module_prefix(lists:droplast(Path), Root, LoadPath)
     end.
 
 %% Report §4.2: the standard library's source root, `stdlib/` beside the
@@ -332,9 +343,9 @@ prelude_namespaces() ->
 %% Type-check and compile one module against its dependencies'
 %% interfaces, unless its .erc is current (§11.1). Returns the interfaces
 %% with this module's added.
-build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces, OutDir, Emit,
-      Std) ->
-    DepIfaces = [dep_iface(D, Ifaces, OutDir) || D <- Deps],
+build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces,
+      [OutDir | _] = Dirs, Emit, Std) ->
+    DepIfaces = [dep_iface(D, Ifaces, Dirs) || D <- Deps],
     DepHashes = lists:sort([{D, ern_emitter:iface_hash(I)} || {D, I} <- DepIfaces]),
     {ok, Source} = file:read_file(File),
     SourceHash = crypto:hash(sha256, Source),
@@ -381,16 +392,27 @@ stdlib_hash(Root) ->
             crypto:hash(sha256, term_to_binary(Hashes))
     end.
 
-dep_iface(D, Ifaces, OutDir) ->
+%% Report §11.1: a module outside the source root is found by its namespace
+%% under the build directory, then under each --load-path root in order.
+dep_iface(D, Ifaces, [OutDir | _] = Dirs) ->
     case Ifaces of
         #{D := I} -> {D, I};
         _ ->
-            Erc = filename:join(OutDir, module_path(D) ++ ".erc"),
+            Found = [E || Dir <- Dirs,
+                          E <- [filename:join(Dir, module_path(D) ++ ".erc")],
+                          filelib:is_regular(E)],
+            Erc = case Found of
+                      [First | _] -> First;
+                      [] -> filename:join(OutDir, module_path(D) ++ ".erc")
+                  end,
             case read_erc(Erc) of
                 {ok, #{iface := I}} -> {D, I};
                 {error, Why} -> fail("compile " ++ qname(D) ++ " first: " ++ Erc ++ ": " ++ Why)
             end
     end.
+
+load_path(Opts) ->
+    [absolute(D) || {load_path, D} <- Opts].
 
 %% Report §11.1: current when the source, every dependency's interface, the
 %% standard library's interfaces, and the compiler's version are those the
@@ -474,8 +496,9 @@ beam_of(_Opts, Path) ->
             Root = source_root(_Opts, Path, "."),
             OutDir = out_dir(_Opts, Root),
             [#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}] =
-                compile_order([module_of(absolute(Path), Root)], Root),
-            DepIfaces = [I || D <- Deps, {_, I} <- [dep_iface(D, #{}, OutDir)]],
+                compile_order([module_of(absolute(Path), Root)], Root, load_path(_Opts)),
+            DepIfaces = [I || D <- Deps,
+                              {_, I} <- [dep_iface(D, #{}, [OutDir | load_path(_Opts)])]],
             case ern_typecheck:check(Ns, Decls, DepIfaces) of
                 {ok, Typed, Iface, Env} ->
                     Build = #{source_hash => <<>>, deps => [],
@@ -654,7 +677,7 @@ compile_source(File, Root, OutDir) ->
     try
         [#mod{ns = Ns, rel = Rel, decls = Decls, deps = Deps}] =
             compile_order([module_of(absolute(File), Root)], Root),
-        DepIfaces = [I || D <- Deps, {_, I} <- [dep_iface(D, #{}, OutDir)]],
+        DepIfaces = [I || D <- Deps, {_, I} <- [dep_iface(D, #{}, [OutDir])]],
         {ok, Source} = file:read_file(File),
         Hash = crypto:hash(sha256, Source),
         case ern_typecheck:check(Ns, Decls, DepIfaces) of

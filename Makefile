@@ -7,6 +7,7 @@ all:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -s stdlib
 	@$(MAKE) -s shell
+	@$(MAKE) -s libs
 
 # The standard library written in Ernest: stdlib/ compiled by ernc into
 # build/stdlib under its Erlang module name, where the tools put it on the
@@ -33,6 +34,17 @@ shell: stdlib
 	@find build/shell -name '*.erc' | while read f; do \
 	  m=$${f#build/shell/}; \
 	  cp $$f build/shell/ern@$$(echo $${m%.erc} | tr / @).beam; done
+
+# The libraries (plan, MVP 2.7): each libs/<name>/ is a source root of its
+# own, compiled into build/libs/<name>, which a program adds with
+# --load-path. Rebuilt when a compiler beam is newer, as the standard
+# library is.
+libs: stdlib
+	@for d in libs/*/; do n=$$(basename $$d); \
+	  if [ -n "$$(find erl -name '*.beam' -newer build/libs/$$n/.built 2>/dev/null)" ] \
+	     || [ ! -f build/libs/$$n/.built ]; then rm -rf build/libs/$$n; fi; \
+	  bin/ernc --source-root $$d --out-dir build/libs/$$n $$d || exit 1; \
+	  touch build/libs/$$n/.built; done
 
 # The standard library's pages, one per module beside its .erc in
 # build/stdlib, and index.md listing them (report §11.4).
@@ -62,7 +74,7 @@ emacs-mode:
 clean:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -C test $@
-	@rm -rf build/stdlib build/shell examples/*.erc examples/**/*.erc
+	@rm -rf build/stdlib build/shell build/libs examples/*.erc examples/**/*.erc
 
 # Rewrite test/golden/*.erl, the Erlang source the compiler emits for every
 # MVP 1 example, after an intended change to the emitter.
@@ -97,6 +109,6 @@ clean-emacs:
 	  | xargs -0 rm -f
 
 EMACS_CORPUS = ../stdlib/*.ern ../shell/*.ern ../shell/shell/*.ern ../examples/*.ern \
-		../examples/modules/*.ern ../examples/modules/*/*.ern ../test/*/*.ern
+		../examples/modules/*.ern ../examples/modules/*/*.ern ../test/*/*.ern ../libs/*/*.ern
 
-.PHONY: all test clean clean-emacs emacs-mode sections coverage golden xref stdlib shell doc
+.PHONY: all libs test clean clean-emacs emacs-mode sections coverage golden xref stdlib shell doc

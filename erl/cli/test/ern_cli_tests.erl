@@ -126,25 +126,46 @@ parse_error_test() ->
                    " end of input\n1 | export fn f() -> Int = \n2 | \n  | ^\n\n">>,
                  Out).
 
-%% report Appendix E.21, §4.7, §8.4: a program uses the standard library's
-%% Ets through its interface, tables and all
-ets_library_test() ->
+%% report Appendix D, §11.1, §11.2, §4.7: the foreign library Appendix D
+%% writes out is compiled as a root of its own, a program is compiled
+%% against its interface with --load-path and run with it, and prints what
+%% the appendix's main says
+appendix_d_library_test() ->
     Dir = tmp(),
-    write(Dir, "src/main.ern",
-          "export fn main() -> Unit with Never = {\n"
-          "    let t = Ets.new();\n"
-          "    Ets.insert(t, \"a\", 1);\n"
-          "    Ets.insert(t, \"b\", 2);\n"
-          "    match Ets.lookup(t, \"b\") {\n"
-          "        Some(n) -> Io.println(Int.toString(n))\n"
-          "      | None -> Io.println(\"none\")\n"
-          "    };\n"
-          "    Io.println(Int.toString(Ets.size(t)));\n"
-          "    Io.println(Bool.toString(Ets.member(t, \"c\")))\n"
-          "}\n"),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
-    ?assertEqual(<<"2\n2\nfalse\n">>, iolist_to_binary(?capturedOutput)).
+    [Lib, Main | _] = appendix_d_blocks(),
+    write(Dir, "lib/ets.ern", Lib),
+    write(Dir, "src/main.ern", Main),
+    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build/lib", Dir ++ "/lib"])),
+    ?assertEqual(0, ern_cli:ernc(["--load-path", Dir ++ "/build/lib", "--out-dir",
+                                  Dir ++ "/build/src", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["--load-path", Dir ++ "/build/lib",
+                                 Dir ++ "/build/src/main.erc"])),
+    ?assertEqual(<<"1\n">>, iolist_to_binary(?capturedOutput)).
+
+%% report §11.1: without the root that holds a module's dependency, the
+%% dependency is an unknown name
+load_path_needed_test() ->
+    Dir = tmp(),
+    [Lib, Main | _] = appendix_d_blocks(),
+    write(Dir, "lib/ets.ern", Lib),
+    write(Dir, "src/main.ern", Main),
+    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build/lib", Dir ++ "/lib"])),
+    ?assertEqual(1, ernc_err(["--out-dir", Dir ++ "/build/src", Dir ++ "/src"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      <<"unknown name Ets.new">>)).
+
+%% The fenced code blocks of Appendix D, in order.
+appendix_d_blocks() ->
+    {ok, Report} = file:read_file("../../../ernest_report.md"),
+    [_, AfterD] = binary:split(Report, <<"## Appendix D.">>),
+    [D | _] = binary:split(AfterD, <<"## Appendix E.">>),
+    Parts = binary:split(D, <<"```">>, [global]),
+    [strip_fence_line(P) || {I, P} <- lists:zip(lists:seq(1, length(Parts)), Parts),
+                            I rem 2 =:= 0].
+
+strip_fence_line(Block) ->
+    [_Info, Code] = binary:split(Block, <<"\n">>),
+    Code.
 
 %% report §4.8, §3.10, §4.2: an operator and an ordering on a type of a
 %% compiled module resolve through its interface and call into its module;

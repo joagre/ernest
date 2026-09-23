@@ -1,6 +1,7 @@
 %% The documentation rules of report §2.2 and Appendix E.0 rule 6, checked
-%% over every standard library module written in Ernest and over the
-%% fictive module that docs/module_doc_template.md shows.
+%% over every standard library module written in Ernest, every library
+%% under libs/, which keeps the standard library's discipline (plan, MVP
+%% 2.7), and the fictive module that docs/module_doc_template.md shows.
 -module(ern_doc_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -9,11 +10,13 @@
 
 -define(ROOT, "../../..").
 
-%% The modules checked: the template and every file under stdlib/.
+%% The modules checked: the template, every file under stdlib/, and every
+%% library's top module under libs/.
 modules() ->
     [{['Template'], filename:join(?ROOT, "examples/template.ern")}
      | [{[list_to_atom(string:titlecase(filename:basename(F, ".ern")))], F}
-        || F <- filelib:wildcard(filename:join(?ROOT, "stdlib/*.ern"))]].
+        || F <- filelib:wildcard(filename:join(?ROOT, "stdlib/*.ern"))
+               ++ filelib:wildcard(filename:join(?ROOT, "libs/*/*.ern"))]].
 
 %% Appendix E.0 rule 6: the standard library is checked, not only the template
 stdlib_present_test() ->

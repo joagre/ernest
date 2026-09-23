@@ -95,9 +95,8 @@ What I would actually put to you as candidate language changes: field selection 
     `ern_prelude:builtin_types/0`, and the answer is yes — but the rule that decides it has
     never been written down. `Map` has no syntax: no literal, no pattern, nothing in the
     grammar. What keeps it in the prelude is that **its module is named after it**. A
-    standard library type whose module is not — `Random.Seed`, `Ets.Table` — is declared by
-    its module and read from the compiled interface, and §3.10 already names `Ets.Table` by
-    its section for the equality constraint, so the machinery is there. Moving `Map` out
+    standard library type whose module is not — `Random.Seed` — is declared by its module
+    and read from the compiled interface, so the machinery is there. Moving `Map` out
     would make it `Map.Map(String, Int)` in every annotation, which is the wart the rule
     avoids.
 
@@ -129,5 +128,5 @@ What I would actually put to you as candidate language changes: field selection 
     `toUpper`, `trim` (Unicode tables); `Float`'s mathematics and `Int`'s bit operations
     (no primitives beneath them); every conversion `toString`, `inBase`, `toFloat`,
     `toUtf`, `fromUtf`, `toList`, `fromList` (rule 1 names them); `Random` (the generator's
-    state is the runtime's); `Ets` (a runtime resource); `Foreign` (the boundary itself);
+    state is the runtime's); `Foreign` (the boundary itself);
     `Io.debug` (the runtime's printer and the compiler's descriptor).

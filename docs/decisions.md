@@ -3672,6 +3672,14 @@ one step in"; it gained an example, since the sources held it three ways.
 
 The rule cost the repository nothing: the standard library, the shell, the examples, and the test programs already wrote `let _ =` wherever they dropped a value. It took one rule away. §6.6's "a reply-carrying value neither bound nor consumed" was, in a block, a special case of it, since `Unit` carries no reply; the reply checker's own pass over statements could no longer fire and was removed. Where the old sentence reached further, to an input at the shell prompt, the shell had never enforced it: an input that received a message holding a reply printed it and dropped the reply. §11.2 now refuses an input whose value, or whose `let`, is reply-carrying.
 
+## Ets Is a Library, 2026-09-24
+
+`Ets.Table` is a foreign value, and §3.8 lets any process on its node hold, pass and send one, so two processes mutate one table. That contradicted §10, "processes share no memory", and E.0 rule 1, the standard library's own admission rule: "where a value's identity, lifetime, or failure is the program's concern, it is a process, and no shim stands in for one." A table has an identity and a lifetime; the rule refused `Ets`, and E.21 admitted it. Making tables private removes the sharing and leaves what a `Map` in a process loop already gives, except speed, which rule 1 also refuses. So `Ets` left the standard library and became the first library, `libs/ets`, which Appendix D already wrote out as its example of a foreign library. A foreign function with a mailbox type may do anything (§4.7), sharing state among them; a library a program adds itself may use that, and the standard library does not.
+
+Two things went with it. The checker named `Ets.Table` to give its key the equality constraint §3.10 described in prose, the one type in the language whose constraint came from a sentence rather than from code; a library cannot declare one, and the host compares its terms itself, so the constraint and the special case are gone. And `ernc` had no `--load-path`: §11.1 spoke of it, `ern` took it, but a program outside a library's source root could not be compiled against the library at all. `ernc` now reads a dependency's interface from each `--load-path` root after its build directory.
+
+The webserver kept its sessions in the table. They are now a process that owns a `Map` and answers `Visit` with the count, forgetting every ten minutes, which is §10's answer to state that processes share, and the value-versus-process-versus-table progression the program was written to show ends at the process.
+
 ## Later
 
 Planned or considered, not in the language today.

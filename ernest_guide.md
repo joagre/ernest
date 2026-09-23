@@ -218,7 +218,7 @@ let s = Set.fromList([1, 2, 3])
 
 `Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call.
 
-Map keys, set elements, and the keys of an `Ets` table require equality. Ernest's `==` is defined for every type *except* those containing functions or addresses (report §3.10) — that includes tuples, sums, and constructor fields that transitively contain either. `Map(Address(m), v)` is a type error at the first `Map` operation on it; so is `xs == ys` when `xs` is `List(Address(m))` or any type containing one.
+Map keys and set elements require equality. Ernest's `==` is defined for every type *except* those containing functions or addresses (report §3.10) — that includes tuples, sums, and constructor fields that transitively contain either. `Map(Address(m), v)` is a type error at the first `Map` operation on it; so is `xs == ys` when `xs` is `List(Address(m))` or any type containing one.
 
 Ordering is separate from equality: `a < b` goes through the type's `compare` function, and only `Int`, `Float`, `String`, and `Char` have one in the prelude. `<` on a type without `compare` is a type error (report §3.10).
 
@@ -330,14 +330,14 @@ Ernest's stdlib is subject-first. `|>` reads left-to-right:
 
 ### 2.9 The standard library
 
-Report Appendix E lists the library: a module per namespace, mostly one per type, `List`, `Map`, `Set`, `String`, `Char`, `Bytes`, `Bool`, `Int`, `Float`, `Optional`, `Either`, `Foreign`, `Random`, `Path`, `Ets` for tables of the runtime, `Erl` for what a shim needs from Erlang, and one per system process, `Io`, `Clock`, `Terminal`, `Fs`, `Tcp`. It is on the load path by default. Its rules, in Appendix E.0, are what let you guess a name before looking it up:
+Report Appendix E lists the library: a module per namespace, mostly one per type, `List`, `Map`, `Set`, `String`, `Char`, `Bytes`, `Bool`, `Int`, `Float`, `Optional`, `Either`, `Foreign`, `Random`, `Path`, `Erl` for what a shim needs from Erlang, and one per system process, `Io`, `Clock`, `Terminal`, `Fs`, `Tcp`. It is on the load path by default. Its rules, in Appendix E.0, are what let you guess a name before looking it up:
 
 - **One verb per operation, in every module that has it.** `empty`, `size`, `isEmpty`, `contains`, `get` for lookup by index or key, `put` for insertion, `remove`, `map`, `filter`, `filterMap`, `foldLeft`, `foreach`, `any`, `all`, `find`, `fromList`, `toList`. A sum type has `withDefault`, `map`, and `andThen`. `Map.get(m, k)` and `List.get(xs, 0)` are the same verb; `Map.put` and `Set.put` likewise. A list adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, and `tryMap` and `tryFold` for a step over `Either` that can fail. A path adds its segments: `join`, `split`, `parent`, `name`, `extension`, `withExtension`, `isAbsolute`. A filesystem adds files and directories: `read`, `write`, `append`, `list`, `stat`, `makeDir`, `remove`, `rename`, `copy`.
 - **Subject first, callbacks last, accumulator between**, so the pipe works: `xs |> List.foldLeft(0, fn(acc, x) = acc + x)`.
 - **Conversions are named by the other type and live in the subject's module.** `String.toInt`, `Int.toString`, `String.fromList`. Several policies are several names: `Float.round`, `Float.floor`, `Float.ceil`, `Float.truncate`. A conversion to text has its inverse where the text form is unambiguous and the type has no other way in, which is why `String.toBool` and `String.toIntBase` stand beside `Bool.toString` and `Int.toStringBase`, and why a `Char` needs none, `String.toList` being its way in.
 - **A type a module declares is named for what it is within the module**, never for the module: `Random.Seed`, not `Random.RandomSeed`.
 - **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get`, `Map.get`, `String.toInt`, `Char.fromInt` return `Optional`. Nothing in the library faults beyond what report §7.4 lists.
-- **Pure unless the value lives in a process or in the runtime.** The system modules `Io`, `Clock`, `Terminal`, `Fs`, and `Tcp` carry `with m`, and so does `Ets`, whose tables the runtime holds; every other module is pure, and every function that takes a function is effect-polymorphic (§3.5).
+- **Pure unless the value lives in a process.** The system modules `Io`, `Clock`, `Terminal`, `Fs`, and `Tcp` carry `with m`; every other module is pure, and every function that takes a function is effect-polymorphic (§3.5).
 - **A `String` is not a container.** Its characters are reached through `String.toList`: `List.all(String.toList(t), Char.isDigit)`. A character is an extended grapheme cluster, which is what `String.size` counts and `String.slice` indexes, while `String.toList` gives code points. Text has its own operations instead: `startsWith`, `endsWith`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `trim`, `toLower`, `toUpper`; a `Char` has its predicates and its case, `isDigit`, `isAlpha`, `isSpace`, `isUpper`, `isLower`, `toUpper`, `toLower`.
 - **`Random` has a pure interface.** `Random.next(seed, n)` returns a draw between 0 and `n` inclusive and the next seed; `Random.seed(42)` makes a seed, `Random.nextFloat(seed)` draws above 0.0 and below 1.0, and the same seed gives the same sequence.
 - **A system process is used through its module, never by `send`.** `Clock.alarm(100, fn(_) = Tick)`, `Fs.read(path, 5000)`, `Tcp.accept(listener, 60000)`. A function that waits takes the milliseconds last and answers `Left(Timeout)`; `Clock.now`, `Tcp.listen`, and `Io.readLine` take none, the first two answer at once and the third waits for the user. One that delivers later takes a function to your mailbox type, as `monitor` does (§5.2). `Terminal.subscribe` and `Io.readLine` are the same terminal: a program uses one or the other, and one that uses both ends with `Fault("the terminal is already read as lines")`, or `as keys` (report §8.2). `Terminal.subscribe` answers once the terminal is in the mode the keys need, so what is typed after it returns is never echoed; a prompt printed before it would be a promise the program cannot keep. While a program is subscribed each key arrives as it is pressed and nothing is echoed, and the terminal goes back to line mode with echo when the program ends. `Escape` arrives once no escape sequence can still follow it, so a terminal that sends an arrow as three bytes never delivers a spurious `Escape` first. A socket is an `Address(SockMsg)`, a process, so it can be monitored, killed, and adapted with `via` like any other.
@@ -912,7 +912,7 @@ Peer loss is *terminal from this node's view*. Once this node declares a peer lo
 ### 7.3 Foreign types and functions
 
 ```
-// cache.ern
+// ets.ern
 export foreign type Table(k, v)
 
 export foreign fn member(t : Table(k, v), key : k) -> Bool with m = "ets:member/2"
@@ -944,7 +944,7 @@ Programs that need to share table-like state across nodes serialize the contents
 
 ### 7.5 The shim pattern
 
-Erlang's `ets:lookup` returns a list because the key might match zero or one entry. Both declarations below live in `cache.ern` (namespace `Cache`), a module of your own:
+Erlang's `ets:lookup` returns a list because the key might match zero or one entry. Both declarations below live in `ets.ern` (namespace `Ets`), a module of your own:
 
 ```
 // ets.ern
@@ -980,7 +980,7 @@ export foreign fn lookup(key : String) -> Either(String, Int) with m = "store_he
 
 If `find/1` returns reasons of another shape (an atom, a nested tuple), the Erlang helper must convert them to the declared Ernest form before returning; the Ernest side does not paper over ABI-shape breaches. In the other direction, a `foreign fn` that takes a `Foreign` is given one by `Foreign.from(value)`, which is the value as the runtime already holds it (Appendix E.12), and `Erl.atom(name)` builds the atoms such an API expects. Where a shim keeps Erlang's convention as a type, it declares the result `Erl.Result(v, r)`, which is `Ok(v) | Error(r)`, and its helper rewrites `{ok, V}` and `{error, R}` to those constructors (report Appendix E.19).
 
-Report Appendix D walks the standard library's own `ets.ern` (namespace `Ets`, Appendix E.21) as its worked example of a shim. Its foreign calls happen to already match Ernest's ABI (`[{K, V}]` maps to `List(#(k, v))`, `Bool` to `true`/`false`), so it needs no Erlang wrapper. This is also the shape of every library outside the standard library: JSON, TLS, regular expressions, HTTP are not in Appendix E, by E.0's rules, since each is a namespace of its own with policy inside; they are written as `Ets` is written, by anyone, under a namespace Appendix E does not take, and put on the load path when a program wants them. Which are first-party, and when, is the plan's.
+Report Appendix D walks `ets.ern` (namespace `Ets`), a library outside the standard library, as its worked example of a shim; the repository ships it under `libs/ets`, and a program adds it with `--load-path` (report §11.1). Its foreign calls happen to already match Ernest's ABI (`[{K, V}]` maps to `List(#(k, v))`, `Bool` to `true`/`false`), so it needs no Erlang wrapper. This is also the shape of every library outside the standard library: JSON, TLS, regular expressions, HTTP are not in Appendix E, by E.0's rules, since each is a namespace of its own with policy inside; they are written as `Ets` is written, by anyone, under a namespace Appendix E does not take, and put on the load path when a program wants them. A foreign library may also hold what the standard library does not: an `Ets` table is state that every process holding it reads and writes (report §4.7), where the standard library keeps report §10's promise that processes share no memory. Which are first-party, and when, is the plan's.
 
 ### 7.6 Bitstrings
 
@@ -1066,9 +1066,9 @@ The four paper programs, in ascending complexity:
 - [`examples/snake.ern`](examples/snake.ern) — snake game with tick-based updates; `..` record updates, one process per player, `Clock`, `Terminal`, `Random`.
 - [`examples/repl.ern`](examples/repl.ern) — small read-eval-print loop; `<-` for chained parsing, `monitor` + `kill` for aborting slow evaluation, `Io.readLine`.
 - [`examples/filesync.ern`](examples/filesync.ern) — file sync between two nodes; mutual-address setup, one process per file operation, `Fs`.
-- [`examples/webserver.ern`](examples/webserver.ern) — HTTP server with sessions in the standard library's `Ets`; `foreign fn`, abstract types, `Tcp`.
+- [`examples/webserver.ern`](examples/webserver.ern) — HTTP server with sessions in a process that owns a `Map`; request-reply, abstract types, `Tcp`.
 
-Beyond `Io.println` and `Clock`, the paper programs use `Fs`, `Terminal`, `Tcp`, `Io.readLine`, and `Ets` (Appendix E.21), all of which the toolchain has.
+Beyond `Io.println` and `Clock`, the paper programs use `Fs`, `Terminal`, `Tcp`, and `Io.readLine`, all of which the toolchain has.
 
 For the language rules themselves, [`ernest_report.md`](ernest_report.md) is the authority. Appendix F glosses every technical term.
 

@@ -5,8 +5,8 @@
 // sessions.
 //
 // Assumptions. Tcp and Clock are the standard library's system modules (report
-// Appendix E) over Sys.tcp and Sys.clock (§8.2). The Ets module is the
-// standard library's, Appendix E.21, which report Appendix D writes out.
+// Appendix E) over Sys.tcp and Sys.clock (§8.2). The sessions are a process
+// that owns a Map, since state shared by processes is a process (§10).
 // errorText is a hand-written rendering for stdout, todo("on paper") here.
 // main runs the acceptor itself so the program keeps running (report §8.6).
 //
@@ -22,8 +22,9 @@
 type Request = Request(method : String, path : String, headers : List(#(String, String)))
 type Response = Response(status : StatusCode, headers : List(#(String, String)), body : String)
 type ParseError = BadEncoding | BadRequestLine | BadHeader(String)
-type Session = Session(Int) // number of visits
-type Tick = Tick
+type SessionMsg =
+    Visit(id : SessionId, reply : Reply(Int)) // the session's visits, this one counted
+  | Forget
 
 abstract type StatusCode = StatusCode(Int) with {
     ok : StatusCode;
@@ -42,8 +43,7 @@ abstract type SessionId = SessionId(String) with {
 //
 
 export fn main() -> Unit with Never = {
-    let sessions = Ets.new();
-    let _ = spawn(Local, fn() = sweeper(sessions));
+    let sessions = spawn(Local, fn() = sessionStore());
     match Tcp.listen(8080) {
         Right(listener) -> acceptor(sessions, 0, listener)
       | Left(e) -> Io.println("cannot listen: " <> errorText(e))
@@ -54,16 +54,24 @@ export fn main() -> Unit with Never = {
 // Processes
 //
 
-// The sweeper: clears the session table every ten minutes.
-fn sweeper(sessions : Ets.Table(SessionId, Session)) -> Unit with Tick = {
-    Clock.alarm(600000, fn(_) = Tick);
-    receive { Tick -> Ets.clear(sessions) };
-    sweeper(sessions)
+// The session store: the visits of each session, forgotten every ten minutes.
+fn sessionStore() -> Unit with SessionMsg = {
+    Clock.alarm(600000, fn(_) = Forget);
+    store(Map.empty)
+}
+
+fn store(counts : Map(SessionId, Int)) -> Unit with SessionMsg = receive {
+    Visit(id = id, reply = r) -> {
+        let n = Optional.withDefault(Map.get(counts, id), 0) + 1;
+        answer(r, n);
+        store(Map.put(counts, id, n))
+    }
+  | Forget -> sessionStore()
 }
 
 // The acceptor: one handler process per connection.
 fn acceptor(
-    sessions : Ets.Table(SessionId, Session),
+    sessions : Address(SessionMsg),
     seq : Int,
     listener : Address(ListenerMsg)
 ) -> Unit with Never =
@@ -78,7 +86,7 @@ fn acceptor(
 
 // One process per connection: reads a request, writes a response, closes.
 fn handler(
-    sessions : Ets.Table(SessionId, Session),
+    sessions : Address(SessionMsg),
     seq : Int,
     sock : Address(SockMsg)
 ) -> Unit with m = {
@@ -94,11 +102,7 @@ fn handler(
                     Some(sid) -> sid
                   | None -> SessionId.fresh(seq)
                 };
-                let visits = match Ets.lookup(sessions, id) {
-                    Some(Session(n)) -> n + 1
-                  | None -> 1
-                };
-                Ets.insert(sessions, id, Session(visits));
+                let visits = Address.callForever(sessions, fn(r) = Visit(id = id, reply = r));
                 let body = "Visit number " <> Int.toString(visits);
                 let bytes = Response(status = StatusCode.ok, headers = [], body = body)
                     |> withCookie("sid", SessionId.text(id))
