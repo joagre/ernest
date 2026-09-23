@@ -1,0 +1,3 @@
+let usage = if verbose then `ern [--shell] file.erc
+fn fake() = 1`
+else "ern file.erc"

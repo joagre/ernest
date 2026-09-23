@@ -172,7 +172,7 @@ That is a binary operator of report section 2.6, or the `->', `=' or
 and `<<' and `>>' are brackets.")
 
 (defun ernest--line-empty-p ()
-  "Whether the current line holds only whitespace."
+  "Whether the current line is only whitespace."
   (save-excursion
     (beginning-of-line)
     (looking-at-p "[ \t]*$")))
@@ -184,7 +184,7 @@ and `<<' and `>>' are brackets.")
        (not (eq (char-before) ?|))))
 
 (defun ernest--line-base ()
-  "The column this line's content starts at, a leading clause bar skipped.
+  "The column of this line's content, a leading clause bar skipped.
 A brace opened on a clause's line belongs to the clause and not to the
 bar, so `| x -> {' anchors its body at `x'."
   (save-excursion
@@ -337,16 +337,19 @@ alignment, so nothing here looks at what follows the bracket."
 (defun ernest--declaration-start ()
   "The start of the declaration the line point is on belongs to.
 A line opening a declaration outside every bracket starts one itself.
-Otherwise the nearest line above in column zero does, which is the one
-thing a broken buffer still says plainly.  The line's own indentation
-is not read, so a line typed in column zero is placed as any other."
+Otherwise the nearest line above whose code begins in column zero does,
+which is the one thing a broken buffer still says plainly; a line of a
+string or a comment there does not.  The line's own indentation is not
+read, so a line typed in column zero is placed as any other."
   (save-excursion
     (back-to-indentation)
     (if (and (zerop (car (syntax-ppss))) (ernest--declaration-p))
         (line-beginning-position)
       (beginning-of-line)
       (while (and (not (bobp))
-                  (progn (forward-line -1) (not (looking-at-p "[^ \t\n]")))))
+                  (progn (forward-line -1)
+                         (or (not (looking-at-p "[^ \t\n]"))
+                             (nth 8 (save-excursion (syntax-ppss (point))))))))
       (point))))
 
 (defun ernest--matching-if-base (limit depth word)
@@ -436,22 +439,38 @@ A line whose place cannot be decided keeps the indentation it has."
 
 ;;; Moving over declarations
 
+(defun ernest--next-declaration (backward)
+  "Move to the next line in column zero that opens a declaration.
+Move back instead when BACKWARD, and return non-nil when there is one.
+A line inside a string or a comment opens none, though a raw string's
+line may begin in column zero with `fn'."
+  (let ((re (concat "^" ernest--declaration-re))
+        (case-fold-search nil)
+        (found nil))
+    (while (and (not found)
+                (if backward
+                    (re-search-backward re nil 'move)
+                  (re-search-forward re nil 'move)))
+      (goto-char (match-beginning 0))
+      (if (and (not (nth 8 (save-excursion (syntax-ppss (point)))))
+               (ernest--declaration-p))
+          (setq found t)
+        (unless backward (end-of-line))))
+    found))
+
 (defun ernest-beginning-of-defun (&optional count)
   "Move back to the start of a declaration, COUNT of them.
 A negative COUNT moves forward.  Return non-nil when every one was found."
   (interactive "p")
-  (let ((re (concat "^" ernest--declaration-re))
-        (count (or count 1))
-        (case-fold-search nil)
+  (let ((count (or count 1))
         (found t))
     (if (< count 0)
         (dotimes (_ (- count))
           (end-of-line)
-          (if (re-search-forward re nil 'move)
-              (goto-char (match-beginning 0))
+          (unless (ernest--next-declaration nil)
             (setq found nil)))
       (dotimes (_ count)
-        (unless (re-search-backward re nil 'move)
+        (unless (ernest--next-declaration t)
           (setq found nil))))
     found))
 
@@ -460,10 +479,8 @@ A negative COUNT moves forward.  Return non-nil when every one was found."
 A doc block or a blank line before the next declaration belongs to it,
 not to this one."
   (forward-line 1)
-  (if (not (let ((case-fold-search nil))
-             (re-search-forward (concat "^" ernest--declaration-re) nil 'move)))
+  (if (not (ernest--next-declaration nil))
       (goto-char (point-max))
-    (goto-char (match-beginning 0))
     (while (and (not (bobp))
                 (save-excursion
                   (forward-line -1)

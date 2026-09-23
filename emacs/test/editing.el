@@ -67,6 +67,23 @@
         (setq ernest-editing--failures (1+ ernest-editing--failures))
         (message "FAIL imenu has no %s" want)))))
 
+;; a raw string's line in column zero is not a declaration, though it
+;; opens with `fn'
+(with-temp-buffer
+  (insert "let usage = `ern file.erc\nfn fake() = 1\n`\n\nfn real(x : Int) -> Int =\n"
+          "    x\n")
+  (ernest-mode)
+  (goto-char (point-max))
+  (ernest-editing--want "the declaration after a raw string" (ernest-current-defun) "real")
+  (ernest-beginning-of-defun 2)
+  (ernest-editing--want "C-M-a over a raw string" (looking-at-p "let usage") t)
+  (goto-char (point-min))
+  (ernest-end-of-defun)
+  (ernest-editing--want "C-M-e over a raw string" (line-number-at-pos) 4)
+  (let ((names (mapcar #'car (cdr (assoc "Function" (imenu--generic-function
+                                                      ernest-imenu-generic-expression))))))
+    (ernest-editing--want "imenu over a raw string" names '("real"))))
+
 ;; the diagnostic `ernc' prints, read the way `M-x compile' reads it
 (let* ((entry (assq 'ernest compilation-error-regexp-alist-alist))
        (re (nth 1 entry))

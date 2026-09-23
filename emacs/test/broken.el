@@ -26,6 +26,7 @@
     ("pipe.ern" . "4")                  ; lines an operator carries on
     ("prose.ern" . "0")                 ; an apostrophe in a comment
     ("raw.ern" . "kept")                ; an unclosed raw string
+    ("rawif.ern" . "0")                 ; a raw string's line in column zero
     ("then.ern" . "4"))                 ; a then under its if
   "The column a fresh line at the end of each buffer must be given.
 `kept' means the mode decides nothing and the line stays where it is,

@@ -47,13 +47,17 @@ test: all
 
 # The Emacs mode's tests (docs/emacs_mode.md). It is an editor and not
 # part of the toolchain, so a machine without Emacs skips them; they are
-# the only tests `make test` will run and not have built.
+# the only tests `make test` will run and not have built. EMACS names the
+# Emacs to run them under: `make emacs-mode EMACS=/opt/emacs-29/bin/emacs`.
+EMACS ?= emacs
 EMACS_TESTS = lint colour editing broken reindent flatten typing
 emacs-mode:
-	@if ! command -v emacs >/dev/null 2>&1; then \
-	  echo "  Emacs not installed; the mode's tests were skipped."; exit 0; fi
+	@if ! command -v $(EMACS) >/dev/null 2>&1; then \
+	  if [ "$(origin EMACS)" = file ]; then \
+	    echo "  Emacs not installed; the mode's tests were skipped."; exit 0; fi; \
+	  echo "  $(EMACS): no such Emacs"; exit 1; fi
 	@cd emacs && for t in $(EMACS_TESTS); do \
-	  emacs -Q -batch -l test/$$t.el $(EMACS_CORPUS) || exit 1; done
+	  $(EMACS) -Q -batch -l test/$$t.el $(EMACS_CORPUS) || exit 1; done
 
 clean:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done

@@ -1,8 +1,8 @@
 # The Emacs mode
 
 `ernest-mode` edits `.ern` files. It is in `emacs/`, the only Elisp in the repository, and
-its own header says how to load it. It needs Emacs 29.1 or later, the first with
-`font-lock-operator-face`; it is tested on Emacs 31 alone. The roadmap entry is MVP 2.9 in
+its own header says how to load it. It needs Emacs 29 or later, the first with
+`font-lock-operator-face`, and its tests pass on Emacs 29.3 and 31.1. The roadmap entry is MVP 2.9 in
 [`implementation_plan.md`](implementation_plan.md); the arguments that settled it are in
 [`decisions.md`](decisions.md).
 
@@ -54,7 +54,8 @@ lexer's symbols.
 ## How it is judged
 
 Seven tests under `emacs/test/`. `make emacs-mode` runs them and `make test` runs them last;
-a machine without Emacs skips them. Each prints what it measured.
+a machine without Emacs skips them. `make emacs-mode EMACS=path` runs them under another
+Emacs. Each prints what it measured.
 
 | Test | What must hold |
 | --- | --- |
