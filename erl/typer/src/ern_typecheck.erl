@@ -273,6 +273,14 @@ lookup_type_name(Pos, [], Name, #env{local_types = LT, types = Ts} = Env) ->
                     end
             end
     end;
+lookup_type_name(Pos, ['Prelude'], Name, #env{types = Ts}) ->
+    %% report §4.2: `Prelude.T` is the prelude's T, whatever the module declares
+    case Ts of
+        #{[Name] := #tinfo{params = Ps}} -> {[Name], length(Ps)};
+        _ -> fail(Pos, "the prelude declares no type " ++ atom_to_list(Name))
+    end;
+lookup_type_name(Pos, ['Prelude' | _] = Path, Name, _Env) ->
+    prelude_one(Pos, Path, Name);
 lookup_type_name(Pos, Path, Name, #env{types = Ts}) ->
     Q = Path ++ [Name],
     case Ts of
@@ -320,6 +328,9 @@ type_decl_of(#type_decl{} = TD) -> [TD];
 type_decl_of(#abstract_decl{type = TD}) -> [TD];
 type_decl_of(_) -> [].
 
+check_unique_type(Pos, 'Prelude', _Env) ->
+    %% report §4.2: `Prelude.X` names the prelude's X, so no type is Prelude
+    fail(Pos, "Prelude names the prelude, and a type may not take it");
 check_unique_type(Pos, Name, #env{local_types = LT}) ->
     case LT of
         #{Name := _} -> fail(Pos, "type " ++ atom_to_list(Name) ++ " is declared twice");
@@ -2232,6 +2243,14 @@ lookup_value(Pos, [], Name, #env{vars = Vs, local_values = LV} = Env) ->
                     end
             end
     end;
+lookup_value(Pos, ['Prelude'], Name, #env{globals = Gs} = Env) ->
+    %% report §4.2: `Prelude.x` is the prelude's x, whatever the module declares
+    case Gs of
+        #{[Name] := Scheme} -> {Scheme, Env};
+        _ -> fail(Pos, "the prelude declares no " ++ atom_to_list(Name))
+    end;
+lookup_value(Pos, ['Prelude' | _] = Path, Name, _Env) ->
+    prelude_one(Pos, Path, Name);
 lookup_value(Pos, [Owner] = Path, Name, #env{local_values = LV} = Env) ->
     case LV of
         #{{Owner, Name} := Q} -> local_global(Q, Env);
@@ -2260,6 +2279,12 @@ lookup_value(Pos, Path, Name, #env{ns = Ns, local_values = LV} = Env) ->
                 _ -> lookup_global(Pos, Path ++ [Name], Env)
             end
     end.
+
+%% Report §4.2: `Prelude.` takes one name the prelude declares; what is
+%% below a namespace of its own is reached by that namespace.
+prelude_one(Pos, Path, Name) ->
+    fail(Pos, format_qname(Path ++ [Name]) ++ ": Prelude takes one name the prelude declares,"
+              " as `Prelude.Close`").
 
 own_member(Owner, Name, #env{local_values = LV} = Env) ->
     case LV of
@@ -2309,6 +2334,14 @@ lookup_con(Pos, [], Name, #env{local_cons = LC, cons = Cs} = Env) ->
                     end
             end
     end;
+lookup_con(Pos, ['Prelude'], Name, #env{cons = Cs}) ->
+    %% report §4.2: `Prelude.C` is the prelude's C, whatever the module declares
+    case Cs of
+        #{[Name] := CI} -> CI;
+        _ -> fail(Pos, "the prelude declares no constructor " ++ atom_to_list(Name))
+    end;
+lookup_con(Pos, ['Prelude' | _] = Path, Name, _Env) ->
+    prelude_one(Pos, Path, Name);
 lookup_con(Pos, Path, Name, #env{cons = Cs, types = Types, local_types = LT}) ->
     Q = Path ++ [Name],
     case Cs of

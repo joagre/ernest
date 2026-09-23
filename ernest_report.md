@@ -263,7 +263,7 @@ fn helper(x) = ...        // private to net/http.ern
 
 **Type members.** A type `T` declared in a module, concrete or abstract, is a nested namespace. Its members are declared with the single prefix `T.`, as in `fn Distance.+` and `let Stack.empty`, and are exported at `Module.T.member`. The namespace belongs to the file that declares the type. A module namespace may not coincide with it: `main/stack.ern` is an error when `main.ern` declares `Stack`. In `main.ern`, `Main.Stack.push` is therefore its own member where it declares `Stack`, and the module `Main.Stack`'s `push` where it does not. Type names that differ only in case are permitted. For an abstract type, only the definitions in its signature may name the constructor (§4.4).
 
-**Unqualified lookup.** An unqualified name in a body is looked up in the module's declarations, exported or not, then in the type-member namespace of the enclosing declaration, then in the prelude. A name not found there is written qualified. A module may declare a type or constructor with a prelude name, and the name then means the local one throughout the module. Within a module, type names are unique and constructor names are unique across its types.
+**Unqualified lookup.** An unqualified name in a body is looked up in the module's declarations, exported or not, then in the type-member namespace of the enclosing declaration, then in the prelude. A name not found there is written qualified. A module may declare a type or constructor with a prelude name, and the name then means the local one throughout the module. `Prelude` names the prelude's own namespace, so `Prelude.Close` is the prelude's `Close` in a module that declares its own. It takes one name the prelude declares. No module and no type is named `Prelude`. Within a module, type names are unique and constructor names are unique across its types.
 
 ### 4.3 Type declarations
 
@@ -1490,6 +1490,7 @@ Every technical term this report introduces, with the section that defines it. P
 - **positional field** — a field on a constructor identified by position, not name. §3.5.
 - **precedence** — the binding tightness of a binary operator. §2.6.
 - **prelude** — the small set of names the language requires to exist. §9.
+- **`Prelude`** — the prelude's own namespace, `Prelude.Close`, for a name a module has shadowed. §4.2.
 - **process** — an execution of a function with a mailbox. §6.
 - **process-only** — a function whose effect variable cannot be pure. §3.9.
 - **pure function** — a function without a mailbox type; result depends only on arguments. §0, §6.1.

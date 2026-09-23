@@ -155,6 +155,10 @@ arity({tuple, N}, _) -> N;
 arity(cons, _) -> 2;
 arity(_, _) -> 0.
 
+%% Q is qualified, so a name of one segment is the prelude's, even where the
+%% module declares its own (report §4.2)
+con_info([Name], Env) ->
+    ern_typecheck:lookup_con({0, 0}, ['Prelude'], Name, Env);
 con_info(Q, Env) ->
     Name = lists:last(Q),
     ern_typecheck:lookup_con({0, 0}, lists:droplast(Q), Name, Env).

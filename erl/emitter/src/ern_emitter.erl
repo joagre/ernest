@@ -684,6 +684,9 @@ var_ref(Pos, [], Name, T, #cx{vars = Vars, locals = Locals, tops = Tops} = Cx) -
                     end
             end
     end;
+var_ref(Pos, ['Prelude'], Name, T, Cx) ->
+    %% report §4.2: the prelude's, past anything the module declares
+    {prelude_value(Pos, [Name], T, Cx), Cx};
 var_ref(Pos, ['Io'], debug, T, Cx) ->
     %% Appendix E.1: as a value too, the descriptor of the argument's type
     {prelude_value(Pos, ['Io', debug], T, Cx), Cx};
@@ -783,6 +786,10 @@ call(Pos, #e_var{path = [], name = Name} = Callee, Args, Cx) ->
                     end
             end
     end;
+call(Pos, #e_var{path = ['Prelude'], name = Name} = Callee, Args, Cx) ->
+    %% report §4.2: the prelude's, past anything the module declares
+    {ArgForms, Cx1} = exprs(Args, Cx),
+    prelude_call(Pos, [Name], Args, ArgForms, Callee, Cx1);
 call(Pos, #e_var{path = ['Io'], name = debug}, [A], Cx) ->
     %% Appendix E.1: printed by the argument's type at the call, whether Io
     %% is the prelude's or, once written in Ernest, the standard library's

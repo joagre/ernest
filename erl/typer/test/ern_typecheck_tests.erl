@@ -856,6 +856,32 @@ local_fn_annotation_before_use_test() ->
                  check("fn m() -> Int with Never = { let b = 5; let early = k();"
                        " fn k() -> Int = b + 1; early }\n")).
 
+%% report §4.2: `Prelude.X` is the prelude's X past a module's own X, as a
+%% constructor, a pattern, a type, and a value; a match on the prelude's
+%% type is checked against the prelude's constructors; `Prelude.` takes one
+%% name, and no type takes the name
+prelude_namespace_test() ->
+    Shadow = "type Last = Other | Tabbed\ntype Entry = Entry(name : String)\n"
+             "fn send(n : Int) -> Int = n\n",
+    ?assertEqual("(IoError) -> String",
+                 type_of(Shadow ++ "export fn describe(e : Prelude.IoError) = match e {"
+                         " Prelude.Other(t) -> t | _ -> \"known\" }", describe)),
+    ?assertEqual("(Entry) -> Int",
+                 type_of(Shadow ++ "export fn size(e : Prelude.Entry) ="
+                         " match e { Prelude.Entry(size = n) -> n }", size)),
+    ?assertEqual("() -> IoError",
+                 type_of(Shadow ++ "export fn other() = Prelude.Other(\"x\")", other)),
+    ?assertEqual(ok, ok(Shadow ++ "fn f(a : Address(String)) -> Unit with m ="
+                        " Prelude.send(a, \"x\")")),
+    %% the module's own names are untouched
+    ?assertEqual(ok, ok(Shadow ++ "fn g() -> Int = send(1)\nfn h() -> Last = Other")),
+    ?assertEqual("Prelude.Io.println: Prelude takes one name the prelude declares,"
+                 " as `Prelude.Close`",
+                 err("fn f() -> Unit with m = Prelude.Io.println(\"x\")")),
+    ?assertEqual("the prelude declares no constructor Nope", err("fn f() = Prelude.Nope")),
+    ?assertEqual("Prelude names the prelude, and a type may not take it",
+                 err("type Prelude = P")).
+
 %% report §11.5, §4.2: a type prints as the module writes it: its own and
 %% the prelude's types bare, another module's qualified, a local type
 %% that shadows a prelude name qualified

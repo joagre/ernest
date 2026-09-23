@@ -801,6 +801,8 @@ Directory mode compiles in dependency order automatically, creates missing subdi
 
 **External references use the qualified name.** A caller outside `net/http.ern` writes `Net.Http.parse`. Inside `net/http.ern`, unqualified `parse` refers to the local declaration, and `Net.Http.parse` works there too (report §4.2), which is how a documentation example is written.
 
+**A module's own name hides the prelude's.** A module may declare its own `Close` or `Entry`, and the name then means its own throughout the module. `Prelude.Close` still names the prelude's, in a pattern, a construction, or a type (report §4.2).
+
 **Testing a module.** A test is a top-level `let` of the prelude type `Test`, a name and a function returning `Passed` or `Failed(text)`:
 
 ```

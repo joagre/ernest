@@ -6,7 +6,8 @@ Field selection is the biggest issue, and the shell has now given it three witne
 
 ## Language proper
 
-1. **A local constructor name hides the prelude's, with no way to reach past it.** Four
+1. **Decided 2026-09-24: `Prelude.Close` reaches past it (report §4.2).**
+   **A local constructor name hides the prelude's, with no way to reach past it.** Four
    witnesses now: `Outcome.Failed` against `TestResult.Failed`, and, on 2026-09-21, a
    `Last = Other | Tabbed | Documented` in the shell that hid `IoError.Other` in a function
    twenty lines away, which the compiler caught as "Other takes no fields". The rename was

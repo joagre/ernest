@@ -226,7 +226,28 @@ prelude_namespace_test() ->
     write(Dir, "src/io.ern", "export fn println(s : String) -> Unit with m = Unit\n"),
     write(Dir, "src/main.ern", hello()),
     ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertNot(filelib:is_regular(Dir ++ "/build/main.erc")).
+    ?assertNot(filelib:is_regular(Dir ++ "/build/main.erc")),
+    %% nor the name of the prelude itself, which `Prelude.X` reaches
+    Dir2 = tmp(),
+    write(Dir2, "src/prelude.ern", "export fn f() -> Int = 1\n"),
+    ?assertEqual(1, ernc_err(["--out-dir", Dir2 ++ "/build", Dir2 ++ "/src"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      <<"takes the prelude namespace Prelude">>)).
+
+%% report §4.2: `Prelude.send` is the prelude's `send` at run time too, past
+%% a function of the module's own by that name
+prelude_value_runs_test() ->
+    Dir = tmp(),
+    write(Dir, "src/main.ern",
+          "fn send(n : Int) -> Int = n\n"
+          "export fn main() -> Unit with m = {\n"
+          "    let say = Prelude.send;\n"
+          "    Prelude.send(Sys.stdout, Int.toString(send(1)) <> \"\\n\");\n"
+          "    say(Sys.stdout, \"two\\n\")\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"1\ntwo\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §4.2: a module namespace may not coincide with a type namespace
 %% of its parent module, found from either file and in either mode

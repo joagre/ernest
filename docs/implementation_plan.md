@@ -185,6 +185,9 @@ options, then what is recorded and left alone.
     cause, and a resolution failure faults it as `spawn(Peer(...), ...)` does. `PeerLost`
     means only that the peer was lost (§6.7, §8.7). `remote` is MVP 3's; today it returns
     `Left(NoRemotePeer)`, so only the report and the example changed.
+  - `Prelude` names the prelude's namespace, so `Prelude.Close` reaches a prelude name a
+    module has shadowed (§4.2). It takes one name, and no module or type takes `Prelude`.
+    This decides the second of the two candidates above; field selection remains.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the

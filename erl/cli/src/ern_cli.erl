@@ -332,9 +332,11 @@ stdlib_root() ->
     Repo = filename:dirname(filename:dirname(filename:dirname(filename:dirname(Here)))),
     absolute(filename:join(Repo, "stdlib")).
 
+%% Report §4.2: `Prelude` among them, the name of the prelude itself.
 prelude_namespaces() ->
     {ok, Decls} = ern_parser:parse_string(ern_prelude:declared_types()),
-    lists:usort([N || {N, _} <- ern_prelude:builtin_types()]
+    lists:usort(['Prelude']
+                ++ [N || {N, _} <- ern_prelude:builtin_types()]
                 ++ [N || #type_decl{name = N} <- Decls]
                 ++ [hd(Ns) || {Ns, _} <- ern_prelude:stdlib_types()]
                 ++ [hd(Q) || {Q, _} <- ern_prelude:values(), length(Q) > 1]
