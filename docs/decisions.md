@@ -3726,6 +3726,10 @@ Both came from Erlang with the bit syntax. Erlang's `bits` exists for bitstrings
 
 Appendix E.5 called an extended grapheme cluster a "character", §3.1 called a `Char` one scalar value, and §2.5 used "character" for a code point in a literal. `String.size : (String) -> Int // characters` then read as counting `Char`s, which it does not: `e` with a combining accent is one of the one and two of the other. The unit of `size`, `slice`, `indexOf`, `lastIndexOf`, `padStart` and `padEnd` is now named a grapheme, and "character" is left to §2.5's lexical grammar. The module's own documentation had the same confusion in code: `padStart` said it padded to a length in code points while it padded to one in graphemes. Counting code points instead would have made the words agree and the counts wrong for a reader, which entry 8 of language_feedback.md had already settled.
 
+## Three Failures Principle 3 Answers For, 2026-09-24
+
+Three rules looked like failure out of sight. A `send` to a remote address whose code the peer cannot resolve faults the sender after `send` has returned; that stays, since a fault is unseen by the code by definition and arrives where it arrives, as `kill` does, and the sender's `Down` names it; dropping the message would hide a deployment error, and faulting the receiver would blame the process that did nothing. `Tcp.write` returns `Unit`; that stays too, since a socket is a process and a write is a send, as `Io.println` is. A synchronous write returning `Either` would have made the socket the one process a program calls rather than sends to, at a round trip a write, and would have promised less than its type, the host's own `ok` meaning only that the kernel took the bytes. E.18 now says where the failure shows: the socket's death to a monitor, and `Left(Closed)` from the next read. And a top-level binding is evaluated before `main` at home and on first use on a peer, which no pure initializer can observe except by faulting; §8.7 now says a faulting initializer there faults the process that first uses it, where it had said nothing.
+
 ## Later
 
 Planned or considered, not in the language today.

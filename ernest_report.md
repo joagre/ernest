@@ -651,7 +651,7 @@ Four operations ship a closure or payload, and the code it depends on, to a peer
 
 **Identity.** Types are identified by hash. Two nodes with identical declarations under the same qualified name interoperate. Two nodes with different declarations under one name hold distinct types. A shipped closure that mentions the sender's `FooMsg` uses the sender's `FooMsg` on the peer; the peer's own `FooMsg` is unrelated to it. An abstract type's hash also includes its signature: two `Stack(a)` declarations with the same name and representation are one type only if their signatures match.
 
-**Bindings.** A `Sys.*` name in shipped code resolves on the peer that runs it: a shipped `Io.println` writes on the peer. An address captured by the closure is shipped as a value and still names the process it named on the sender: an `Address` captured from the sender's `Sys.stdout` still names the sender's stdout. A top-level binding referenced by shipped code is evaluated on the peer on first use, in the peer's environment, at most once per node for each hash of its definition: `let output = Sys.stdout` is the peer's stdout when evaluated on the peer. Foreign declarations are not shipped: a shipped closure that references one requires a compatible definition under the same qualified name on the peer, and a missing or incompatible one is a fault at resolution.
+**Bindings.** A `Sys.*` name in shipped code resolves on the peer that runs it: a shipped `Io.println` writes on the peer. An address captured by the closure is shipped as a value and still names the process it named on the sender: an `Address` captured from the sender's `Sys.stdout` still names the sender's stdout. A top-level binding referenced by shipped code is evaluated on the peer on first use, in the peer's environment, at most once per node for each hash of its definition: `let output = Sys.stdout` is the peer's stdout when evaluated on the peer. An initializer that faults there faults the process that first uses it. Foreign declarations are not shipped: a shipped closure that references one requires a compatible definition under the same qualified name on the peer, and a missing or incompatible one is a fault at resolution.
 
 ## 9. Prelude
 
@@ -1406,7 +1406,7 @@ Fs.copy : (Path, Path, Int) -> Either(IoError, Unit) with m // a file, the first
 
 ### Appendix E.18. `tcp.ern` (namespace `Tcp`)
 
-Over `Sys.tcp`. A socket is a process: its address can be sent, monitored, and killed like any other, and it dies with the connection. There are no options; framing is bitstrings (§5.11). The last argument of a function that waits is the milliseconds.
+Over `Sys.tcp`. A socket is a process: its address can be sent, monitored, and killed like any other, and it dies with the connection. `Tcp.write` is a send: it returns at once, and a connection that fails shows as the socket's death to a monitor and as `Left(Closed)` from the next `Tcp.read`. There are no options; framing is bitstrings (§5.11). The last argument of a function that waits is the milliseconds.
 
 ```
 Tcp.listen : (Int) -> Either(IoError, Address(ListenerMsg)) with m // the port

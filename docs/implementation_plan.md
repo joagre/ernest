@@ -211,6 +211,9 @@ options, then what is recorded and left alone.
     foreign boundary.
   - A `String`'s unit is named a grapheme in E.5, the module and the guide; "character" is
     left to §2.5's lexical grammar.
+  - Weighed and left: a remote `send` that fails to resolve faults the sender later, and
+    `Tcp.write` is a send. E.18 now says where a failed write shows, and §8.7 what a faulting
+    initializer does on a peer.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the
