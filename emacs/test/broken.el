@@ -20,6 +20,7 @@
     ("brace.ern" . "4")                 ; a block whose } is missing
     ("comma.ern" . "8")                 ; a constructor with a trailing comma
     ("comment.ern" . "0")               ; a comment before a closing brace
+    ("constructor.ern" . "0")           ; constructors spelled as reserved words
     ("equals.ern" . "4")                ; a line ending in =
     ("minus.ern" . "4")                 ; a negative element after a comma
     ("pipe.ern" . "4")                  ; lines an operator carries on

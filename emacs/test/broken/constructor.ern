@@ -1,0 +1,4 @@
+type Expr =
+    Let(name : String, value : Expr)
+  | If(test : Expr, yes : Expr, no : Expr)
+  | Else

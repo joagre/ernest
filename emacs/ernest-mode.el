@@ -54,6 +54,16 @@
   '("true" "false")
   "The literals that read as words (report section 2.5).")
 
+(defconst ernest--userop-re "\\(?:<>\\|[-+*/%]\\)"
+  "An operator a type may declare, `userop' in report section 2.6.")
+
+(defconst ernest--decl-name-re
+  (concat "\\(?:[a-z_][A-Za-z0-9_]*"
+          "\\|[A-Z][A-Za-z0-9_]*\\.\\(?:[a-z_][A-Za-z0-9_]*\\|" ernest--userop-re "\\)\\)")
+  "The name a `fn' or a `let' declares, `DeclName' in Appendix A.
+It is an identifier, or a type name, a dot, and an identifier or an
+operator: `merge', `Int.+', `Distance.<>'.")
+
 ;;; Syntax
 
 (defvar ernest-mode-syntax-table
@@ -115,10 +125,12 @@ A comment opening with `///' is a doc comment (report section 2.2)."
 (defconst ernest-font-lock-keywords
   (let ((upper "[A-Z][A-Za-z0-9_]*")
         (lower "[a-z_][A-Za-z0-9_]*"))
-    `(;; a declaration's name, so the eye finds definitions
-      (,(concat "\\_<fn\\_>[ \t]+\\(" lower "\\)")
+    `(;; a declaration's name, so the eye finds definitions; in `Int.+'
+      ;; the type is painted as a type, below
+      (,(concat "\\_<fn\\_>[ \t]+\\(?:" upper "\\.\\)?\\(" lower "\\|"
+                ernest--userop-re "\\)")
        1 'font-lock-function-name-face)
-      (,(concat "\\_<let\\_>[ \t]+\\(" lower "\\)")
+      (,(concat "\\_<let\\_>[ \t]+\\(?:" upper "\\.\\)?\\(" lower "\\)")
        1 'font-lock-variable-name-face)
       (,(concat "\\_<\\(?:abstract[ \t]+\\|foreign[ \t]+\\)?type\\_>[ \t]+\\("
                 upper "\\)")
@@ -359,10 +371,13 @@ or a comment, is skipped, and so is one an earlier WORD has taken."
       base)))
 
 (defun ernest-calculate-indent ()
-  "The column this line belongs at, or nil when it cannot be decided."
+  "The column this line belongs at, or nil when it cannot be decided.
+Case decides between a word and a constructor, `let' and `Let', so the
+regexps here match it whatever `case-fold-search' the user has."
   (save-excursion
     (back-to-indentation)
-    (let* ((state (syntax-ppss (point)))
+    (let* ((case-fold-search nil)
+           (state (syntax-ppss (point)))
            (open (nth 1 state))
            (first (char-after))
            (content (ernest--content-column open)))
@@ -427,6 +442,7 @@ A negative COUNT moves forward.  Return non-nil when every one was found."
   (interactive "p")
   (let ((re (concat "^" ernest--declaration-re))
         (count (or count 1))
+        (case-fold-search nil)
         (found t))
     (if (< count 0)
         (dotimes (_ (- count))
@@ -444,7 +460,8 @@ A negative COUNT moves forward.  Return non-nil when every one was found."
 A doc block or a blank line before the next declaration belongs to it,
 not to this one."
   (forward-line 1)
-  (if (not (re-search-forward (concat "^" ernest--declaration-re) nil 'move))
+  (if (not (let ((case-fold-search nil))
+             (re-search-forward (concat "^" ernest--declaration-re) nil 'move)))
       (goto-char (point-max))
     (goto-char (match-beginning 0))
     (while (and (not (bobp))
@@ -459,16 +476,18 @@ not to this one."
 `add-log' and `which-function-mode' ask for this."
   (save-excursion
     (ernest-beginning-of-defun)
-    (when (looking-at (concat "^" ernest--declaration-re "[ \t]+\\([A-Za-z_][A-Za-z0-9_]*\\)"))
+    (when (let ((case-fold-search nil))
+            (looking-at (concat "^" ernest--declaration-re "[ \t]+\\("
+                                ernest--decl-name-re "\\|[A-Z][A-Za-z0-9_]*\\)")))
       (match-string-no-properties 1))))
 
 (defconst ernest-imenu-generic-expression
   (let ((exported "^\\(?:export[ \t]+\\)?")
-        (lower "\\([a-z_][A-Za-z0-9_]*\\)")
+        (name (concat "\\(" ernest--decl-name-re "\\)"))
         (upper "\\([A-Z][A-Za-z0-9_]*\\)"))
-    `(("Function" ,(concat exported "\\(?:foreign[ \t]+\\)?fn[ \t]+" lower) 1)
+    `(("Function" ,(concat exported "\\(?:foreign[ \t]+\\)?fn[ \t]+" name) 1)
       ("Type" ,(concat exported "\\(?:abstract[ \t]+\\|foreign[ \t]+\\)?type[ \t]+" upper) 1)
-      ("Value" ,(concat exported "let[ \t]+" lower) 1)))
+      ("Value" ,(concat exported "let[ \t]+" name) 1)))
   "What `imenu' offers: the declarations, by kind.")
 
 ;;; The mode

@@ -28,6 +28,8 @@ export fn merge(left : List(a), right : List(a)) -> List(a) =
     let upper = 0X1F;
     let raw = `C:\\`;
     merge(left, right)
+
+export fn Int.<>(a : Int, b : Int) -> Int = a
 "
   "A buffer holding one of everything the keywords claim to paint.")
 
@@ -57,6 +59,9 @@ export fn merge(left : List(a), right : List(a)) -> List(a) =
   (ernest-colour--check "\"circle\"" 'font-lock-string-face)
   (ernest-colour--check "true" 'font-lock-constant-face)
   (ernest-colour--check "0x1F_2A" 'font-lock-constant-face)
+  ;; an operator a type declares, report section 4.8
+  (ernest-colour--check "Int.<>" 'font-lock-type-face)
+  (ernest-colour--check "<>(a" 'font-lock-function-name-face)
   ;; the prefix is lowercase, report section 2.5
   (ernest-colour--check "0X1F" nil)
   (ernest-colour--check "`C:" 'font-lock-string-face)

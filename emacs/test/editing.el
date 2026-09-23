@@ -51,6 +51,22 @@
         (setq ernest-editing--failures (1+ ernest-editing--failures))
         (message "FAIL imenu has no %s" want)))))
 
+;; an operator a type declares is a declaration like any other, report
+;; section 4.8 and Appendix A's DeclName
+(with-temp-buffer
+  (insert-file-contents "../stdlib/int.ern")
+  (ernest-mode)
+  (goto-char (point-min))
+  (search-forward "export fn Int.+(")
+  (end-of-line)
+  (ernest-editing--want "the declaration at an operator" (ernest-current-defun) "Int.+")
+  (let* ((index (imenu--generic-function ernest-imenu-generic-expression))
+         (names (mapcar #'car (cdr (assoc "Function" index)))))
+    (dolist (want '("Int.+" "Int.-" "abs"))
+      (unless (member want names)
+        (setq ernest-editing--failures (1+ ernest-editing--failures))
+        (message "FAIL imenu has no %s" want)))))
+
 ;; the diagnostic `ernc' prints, read the way `M-x compile' reads it
 (let* ((entry (assq 'ernest compilation-error-regexp-alist-alist))
        (re (nth 1 entry))
