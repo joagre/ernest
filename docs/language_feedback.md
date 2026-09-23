@@ -82,3 +82,21 @@ What I would actually put to you as candidate language changes: field selection 
     Performance is not a reason for a shim. If a measurement ever demands one, it comes back
     as a decision with numbers beside it, as `Tcp`'s socket processes did at 1.8 times raw
     Erlang and were kept.
+
+12. **Should `Map` be in the prelude at all?** It is, with `Set` and `List`, in
+    `ern_prelude:builtin_types/0`, and the answer is yes — but the rule that decides it has
+    never been written down. `Map` has no syntax: no literal, no pattern, nothing in the
+    grammar. What keeps it in the prelude is that **its module is named after it**. A
+    standard library type whose module is not — `Random.Seed`, `Ets.Table` — is declared by
+    its module and read from the compiled interface, and §3.10 already names `Ets.Table` by
+    its section for the equality constraint, so the machinery is there. Moving `Map` out
+    would make it `Map.Map(String, Int)` in every annotation, which is the wart the rule
+    avoids.
+
+    So: a type whose module is named after it is the language's, and a type a module merely
+    provides is the module's. Worth a sentence in §9 or E.0, since it is the rule behind
+    `Int`, `Float`, `Char`, `String`, `Bytes`, `Bool`, `List`, `Map` and `Set` being built
+    in, and nothing states it.
+
+    The worry underneath the question is the shims, and that is entry 11: the operations
+    being the runtime's is the representation decision, not a prelude decision.
