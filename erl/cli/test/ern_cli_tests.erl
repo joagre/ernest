@@ -581,7 +581,11 @@ mvp_refusals_in_readme_test() ->
     ?assertEqual([<<"x is not here yet; it arrives in MVP 9">>],
                  Find("fail(\"x is not here yet; it arrives in MVP 9\")")),
     Sources = filelib:wildcard("../../*/src/*.erl") ++ filelib:wildcard("../../../shell/*.ern"),
-    Texts = lists:usort(lists:append([Find(element(2, file:read_file(F))) || F <- Sources])),
+    %% a name the wildcard matches may not be a readable file: an editor's
+    %% lock is a dangling symlink beside the file it locks, and a person
+    %% with a source open should not see a red suite
+    Texts = lists:usort(lists:append([Find(Text) || F <- Sources,
+                                                    {ok, Text} <- [file:read_file(F)]])),
     Missing = [T || T <- Texts, binary:match(Readme, binary:part(T, 0, min(40, byte_size(T))))
                                 =:= nomatch],
     ?assertEqual([], Missing).

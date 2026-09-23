@@ -54,6 +54,9 @@ foreign fn check(env : Env, from : String, input : String) -> Either(String, #(E
 foreign fn startupFiles() -> List(String) with m = "ern_shell:startup_files/0"
 foreign fn typeText(c : Checked) -> String = "ern_shell:type_text/1"
 foreign fn declared(c : Checked) -> List(String) = "ern_shell:declared/1"
+// Report §11.2: the value is printed, and `it` is left as it was when
+// this input did not settle its type.
+foreign fn unbound(c : Checked) -> Bool = "ern_shell:unbound/1"
 foreign fn spawnInput(env : Env, c : Checked, to : Address(Outcome)) -> Address(Never) with m =
     "ern_shell:run/3"
 foreign fn show(v : Value, depth : Int, length : Int) -> String = "ern_shell:show/3"
@@ -206,7 +209,13 @@ fn await(
         if showValue then {
             match declared(checked) {
                 [] -> if shown == "Unit" then Unit
-                      else say(screen, show(value, depth, length) <> " : " <> shown)
+                      else {
+                          say(screen, show(value, depth, length) <> " : " <> shown);
+                          if unbound(checked) then
+                              say(screen, "`it` is unchanged: this input did not determine"
+                                          <> " the type of its value")
+                          else Unit
+                      }
               | lines -> printLines(screen, lines)
             };
             timed(screen, settings, started)

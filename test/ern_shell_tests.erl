@@ -106,7 +106,7 @@ live_region() ->
                      {send, hex("2 + 2\r")},
                      {expect, "4 : Int"},
                      {send, "04"}],
-                    20, "20x60"),
+                    20, "30x60"),
     Lines = [L || L <- binary:split(Screen, <<"\n">>, [global]), L =/= <<>>],
     Text = iolist_to_binary(Lines),
     %% every line the program wrote reached the terminal, and in order
@@ -413,6 +413,33 @@ needs_more_test() ->
     ?assertNot(ern_shell:needs_more(<<"fn f() = 1">>)),
     ?assertNot(ern_shell:needs_more(<<"1 + * 2">>)),
     ?assertNot(ern_shell:needs_more(<<"\"a string">>)).
+
+%% report §11.2, §6.9: a `let` at the prompt carries its annotation, so
+%% a binding whose type its input cannot settle is settled by one; and
+%% an input that binds a name whose type is still open is refused with
+%% the annotation that would settle it, rather than entering the session
+%% and breaking every input after it
+open_binding_test_() ->
+    {timeout, 60, fun open_binding/0}.
+
+open_binding() ->
+    In = filename:join("/tmp", "ern_open_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = file:write_file(In,
+                         "let p = spawn(Local, fn() = receive { _ -> Unit })\n"
+                         "let q : Address(Int) = spawn(Local, fn() = receive { _ -> Unit })\n"
+                         "send(q, 1)\n"
+                         "kill(q)\n"
+                         "1 + 1\n"),
+    {0, Out} = sh("../bin/ern --shell < " ++ In),
+    %% the open binding is refused, and says what would settle it
+    ?assertMatch({_, _}, binary:match(Out, <<"the type of p is not determined">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"bind it with an annotation">>)),
+    %% the annotated one is taken, and `kill` reaches it
+    ?assertMatch({_, _}, binary:match(Out, <<"q : Address(Int)">>)),
+    %% and the session goes on, which it did not before: a scheme with a
+    %% free variable used to break every input after it
+    ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"badkey">>)).
 
 %% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
 %% under the source root and puts it in scope; `:reload` compiles again

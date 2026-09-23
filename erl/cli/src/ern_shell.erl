@@ -7,7 +7,7 @@
 %% input declares is the module's declarations.
 -module(ern_shell).
 
--export([loaded/1, start/0, program/0, startup_files/0, history_file/0,
+-export([loaded/1, start/0, program/0, startup_files/0, history_file/0, unbound/1,
          needs_more/1, check/3,
          type_text/1, declared/1, run/3,
          show/3]).
@@ -116,8 +116,9 @@ unfinished(_) -> false.
 check(#env{n = N} = Env, From, Input) ->
     Ns = [list_to_atom("Input" ++ integer_to_list(N + 1))],
     case input(Input) of
-        {ok, Binds, Expr} ->
-            checked(check_module(Env#env{n = N + 1}, Ns, From, Input, entry(Expr), Binds));
+        {ok, Binds, Expr, Ann} ->
+            checked(check_module(Env#env{n = N + 1}, Ns, From, Input,
+                                 input_entry(Expr, Ann), Binds));
         {decls, Decls} ->
             checked(check_module(Env#env{n = N + 1}, Ns, From, Input, Decls, decls));
         {error, Diag} ->
@@ -136,10 +137,11 @@ checked(Other) ->
 input(Text) ->
     case ern_parser:parse_expr(Text) of
         {ok, Expr} ->
-            {ok, it, Expr};
+            {ok, it, Expr, undefined};
         {error, Diag} ->
             case ern_parser:parse_string(Text) of
-                {ok, [#let_decl{owner = undefined, name = Name, body = Body}]} -> {ok, Name, Body};
+                {ok, [#let_decl{owner = undefined, name = Name, body = Body, ann = Ann}]} ->
+                    {ok, Name, Body, Ann};
                 {ok, Decls} -> declarations(Decls);
                 {error, DeclDiag} -> {error, which(Text, Diag, DeclDiag)}
             end
@@ -194,18 +196,68 @@ exported(#foreign_fn_decl{} = D) -> D#foreign_fn_decl{export = true};
 exported(D) -> D.
 
 %% `export fn main() -> a with m = <the input>`, the entry point of §8.1.
-entry(Expr) ->
-    [#fn_decl{pos = {1, 1, {1, 1}}, export = true, name = main, params = [], body = Expr}].
+%% Report §11.2: a `let` at the prompt may carry an annotation, and it
+%% is the entry point's return type, so the checker holds the input to
+%% it as it would hold a `let` in a block.
+input_entry(Expr, Ann) ->
+    %% the effect stays a variable: an input runs in a process, whose
+    %% mailbox is the entry point's (§11.2), so a return annotation must
+    %% not make it pure
+    Effect = case Ann of
+                 undefined -> undefined;
+                 _ -> #t_var{pos = {1, 1, {1, 1}}, name = m}
+             end,
+    [#fn_decl{pos = {1, 1, {1, 1}}, export = true, name = main, params = [], body = Expr,
+              ret = Ann, effect = Effect}].
 
 check_module(#env{ifaces = Ifaces, session = Session} = Env, Ns, From, Input, Decls, Binds) ->
     case ern_typecheck:check(Ns, Decls, Ifaces, Session) of
         {ok, Typed, Iface, TEnv} ->
-            {'Right', {Env, #checked{ns = Ns, typed = Typed, decls = Decls, iface = Iface,
-                                     env = TEnv, type = input_type(Typed, Binds),
-                                     binds = Binds}}};
+            Type = input_type(Typed, Binds),
+            case undetermined(Type, TEnv, Binds, Typed) of
+                none ->
+                    {'Right', {Env, #checked{ns = Ns, typed = Typed, decls = Decls,
+                                             iface = Iface, env = TEnv, type = Type,
+                                             binds = Binds}}};
+                {open, Diag} ->
+                    {'Left', diagnostic(From, Input, [Diag])}
+            end;
         {error, Diags} ->
             {'Left', diagnostic(From, Input, Diags)}
     end.
+
+%% Report §11.2: an input is compiled and run on its own, so what it
+%% binds must have a type by the time it runs; a later input cannot
+%% settle it, as a later statement of a block would. A binding whose
+%% type is still open is refused with the annotation that would settle
+%% it, rather than entering the session as a scheme whose variables mean
+%% nothing to the inputs after it.
+undetermined(_Type, _TEnv, decls, _Typed) ->
+    none;
+undetermined(_Type, _TEnv, it, _Typed) ->
+    %% a bare expression runs and prints whatever its type; what it
+    %% cannot do is bind `it`, which `declared/1` says
+    none;
+undetermined(Type, TEnv, Name, Typed) ->
+    St = ern_typecheck:type_state(TEnv),
+    case ern_types:free_value_vars(ern_types:zonk(Type, St), St) of
+        [] ->
+            none;
+        _ ->
+            Text = ern_types:format(Type, St),
+            {open, #diag{span = input_span(Typed),
+                         message = lists:flatten(
+                                     io_lib:format("the type of ~s is not determined by this"
+                                                   " input; it is ~ts",
+                                                   [atom_to_list(Name), Text])),
+                         help = "bind it with an annotation that settles the variable,"
+                                " as in `let xs : List(Int) = []`"}}
+    end.
+
+input_span([#fn_decl{pos = Pos} | _]) -> ern_diag:span(Pos);
+input_span(_) -> {1, 1, {1, 2}}.
+
+
 
 %% An input that declares has no value; report §11.2 prints what it
 %% declared, as an input of type Unit prints nothing.
@@ -901,7 +953,30 @@ close_output() ->
 %% already makes for another module's value.
 bind(Env, decls, _Ns, _Value, _Type, _TEnv, Iface) ->
     session(Env, Iface);
-bind(#env{n = N} = Env, Name, _Ns, Value, Type, TEnv, _Iface) ->
+bind(Env, it, _Ns, Value, Type, TEnv, _Iface) ->
+    case open(Type, TEnv) of
+        true -> Env;
+        false -> bound(Env, it, Value, Type, TEnv)
+    end;
+bind(Env, Name, _Ns, Value, Type, TEnv, _Iface) ->
+    bound(Env, Name, Value, Type, TEnv).
+
+%% Report §11.2: whether the input's value was left unbound, its type
+%% not being determined by the input itself.
+-spec unbound(#checked{}) -> boolean().
+unbound(#checked{binds = it, type = Type, env = TEnv}) -> open(Type, TEnv);
+unbound(#checked{}) -> false.
+
+%% Report §11.2: a value whose type its own input did not settle is
+%% printed but not bound, since a scheme with a variable of that input's
+%% type state means nothing to the inputs after it. A named binding is
+%% refused outright when it is checked; `it` is the one this can still
+%% reach, and `declared/1` says that it was not bound.
+open(Type, TEnv) ->
+    St = ern_typecheck:type_state(TEnv),
+    ern_types:free_value_vars(ern_types:zonk(Type, St), St) =/= [].
+
+bound(#env{n = N} = Env, Name, Value, Type, TEnv) ->
     Holder = [list_to_atom("Bindings" ++ integer_to_list(N))],
     Mod = ern_emitter:module_atom(Holder),
     persistent_term:put({Mod, Name}, Value),
