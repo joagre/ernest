@@ -110,7 +110,8 @@ call(Addr, Mk, Ms) ->
         {Alias, V} ->
             untimed(),
             {'Some', V}
-    after Ms ->
+    %% report §6.6: a time below 0 is 0
+    after max(0, Ms) ->
         untimed(),
         erlang:unalias(Alias),
         'None'
@@ -476,7 +477,8 @@ clock_loop(Pending) ->
     receive
         {'After', Ms, To} ->
             source_begin(),
-            erlang:send_after(Ms, erlang:self(), {fire, To}),
+            %% Appendix E.0 rule 8: a time below 0 is 0
+            erlang:send_after(max(0, Ms), erlang:self(), {fire, To}),
             clock_loop(Pending + 1);
         {'At', At, To} ->
             source_begin(),

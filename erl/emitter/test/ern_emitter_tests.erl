@@ -531,6 +531,24 @@ deadlock_test() ->
                     "}\n"),
     ?assertEqual({ok, <<"timeout\n">>}, {R2, Out}).
 
+%% report §6.3, §6.6, Appendix E.0 rule 8: a time below 0 is 0, in `after`,
+%% in `Address.call`, and in `Clock.alarm`. A regression test: the first two
+%% faulted with the host's `timeout_value`, and the alarm crashed the clock,
+%% which left the program waiting for ever
+negative_time_test() ->
+    {ok, Out} = run("type M = M | Get(reply : Reply(Int))
+"
+                    "export fn main() -> Unit with M = {\n"
+                    "    receive { Get(reply = r) -> answer(r, 1) | after 0 - 5 ->"
+                    " Io.println(\"after\") };\n"
+                    "    let quiet = spawn(Local, fn() -> Unit with M = receive { M -> Unit });\n"
+                    "    let asked = Address.call(quiet, fn(r) = Get(reply = r), 0 - 1);\n"
+                    "    Io.println(match asked { Some(_) -> \"some\" | None -> \"none\" });\n"
+                    "    Clock.alarm(0 - 10, fn(_) = M);\n"
+                    "    receive { M -> Io.println(\"alarm\") | Get(reply = r) -> answer(r, 0) }\n"
+                    "}\n"),
+    ?assertEqual(<<"after\nnone\nalarm\n">>, Out).
+
 %% report §5.9, §6.3: alternatives in a receive clause select either message
 receive_or_pattern_test() ->
     {ok, Out} = run(

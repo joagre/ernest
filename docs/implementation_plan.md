@@ -196,6 +196,9 @@ options, then what is recorded and left alone.
     module, and MVP 3.1 lifts it.
   - A parenthesized right-hand side of `|>` is a value, applied to the left: `x |> (f(a))`
     is `f(a)(x)` (§5.7), where it was `f(x, a)`.
+  - A time below 0 is 0 in `after`, `Address.call`, and every library function that waits
+    or delivers later (§6.3, §6.6, E.0 rule 8). Each had faulted with the host's error, and
+    a negative `Clock.alarm` crashed the clock.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the

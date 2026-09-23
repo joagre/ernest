@@ -3702,6 +3702,10 @@ A module may declare a type or constructor with a prelude name, and the name the
 
 §5.7 said a parenthesized call is a plain call, so `x |> (f(a))` was `f(x, a)`, while the same section had a parenthesized lambda be a value the pipe applies. Parentheses meant two things at one place, and a function that a call returns could not be piped into at all: `10 |> (adder(3))` was refused for an argument too many. The rule came from the parser, where parentheses produce no node, and the report described it. A parenthesized right-hand side is now a value, applied to the left: `x |> (f(a))` is `f(a)(x)`, and a lambda needs no rule of its own. The parser looks at the tokens for this one case; everywhere else parentheses still produce no node. Keeping the old reading and naming it honestly was the other way, and it kept the two meanings.
 
+## A Time Below 0 Is 0, 2026-09-24
+
+The report did not say what a negative time does, and the runtime answered three ways: `after -5` and `Address.call(a, mk, -1)` faulted with the host's `timeout_value`, and `Clock.alarm(-10, ...)` crashed the clock process, which left the program waiting for ever. A time below 0 is now 0: `after` does not wait, the call answers `None` unless the reply is already there, and the alarm fires at once, as `alarmAt` with a past moment already did. The standard library had the rule for counts, `List.take`, `List.repeat` and `String.repeat` taking a count below 0 as 0, and a time is the same kind of quantity; a deadline already past, `deadline - Clock.now()`, is an ordinary value and not an error. A fault for a negative time was the other way, a second policy beside the library's.
+
 ## Later
 
 Planned or considered, not in the language today.

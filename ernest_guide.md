@@ -515,7 +515,7 @@ fn waitForData() -> Optional(Int) with Inbox = receive {
 }
 ```
 
-`after N` gives a millisecond timeout that fires if no clause matches within that window. `after 0` scans without waiting for new messages. Without `after`, the process waits indefinitely. A `receive` with only an `after` clause is a timed wait, and is the one `receive` a `Never` process may use.
+`after N` gives a millisecond timeout that fires if no clause matches within that window. `after 0` scans without waiting for new messages, and so does any time below 0, so a deadline that has already passed, `deadline - Clock.now()`, needs no check. Without `after`, the process waits indefinitely. A `receive` with only an `after` clause is a timed wait, and is the one `receive` a `Never` process may use.
 
 If a `Wake` is already in the mailbox, `waitForData` skips it — leaves it queued — and waits for a `Data`. Some later `receive` can handle `Wake`.
 

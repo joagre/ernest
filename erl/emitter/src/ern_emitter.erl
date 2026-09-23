@@ -624,7 +624,10 @@ expr(#e_receive{pos = Pos, clauses = Clauses, 'after' = After}, Cx) ->
         #after_clause{timeout = T, body = B} ->
             %% report §8.6: a timed receive counts itself in before, and out
             %% first in every body, so the reaper knows it is not waiting
-            {TF, Cx2} = expr(T, Cx1),
+            {TF0, Cx2} = expr(T, Cx1),
+            %% report §6.3: a time below 0 is 0
+            TF = erl_syntax:application(erl_syntax:atom(max),
+                                        [erl_syntax:integer(0), TF0]),
             {BF, Cx3} = body(B, Cx2),
             Untimed = call_remote(ern_rt, untimed, []),
             Timed = [erl_syntax:clause(erl_syntax:clause_patterns(C), erl_syntax:clause_guard(C),
