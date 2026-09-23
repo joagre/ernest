@@ -199,6 +199,9 @@ options, then what is recorded and left alone.
   - A time below 0 is 0 in `after`, `Address.call`, and every library function that waits
     or delivers later (§6.3, §6.6, E.0 rule 8). Each had faulted with the host's error, and
     a negative `Clock.alarm` crashed the clock.
+  - A type's hash includes its qualified name, so the wire means what the checker means
+    (§8.7), as `code_distribution.md` section 3.4 has it; §8.7 had also called identity
+    structural. "Code version" is now the hash of a binding's definition.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the
@@ -371,11 +374,8 @@ the trust model, and the atom-leak restart. Marked tentative, and two things in 
 code as it stands. Its section 11 asks MVP 1 for a named IR stage with locals numbered by
 position: there is none, since `ern_emitter` goes from the typed AST to Erlang's abstract
 format in one traversal, so the choice is to introduce an IR here or to canonicalise the
-typed AST, which is the decision below either way. And its section 3.4 hashes every
-declared type nominally, name included, where §8.7 says structurally identical definitions
-share a hash and only an abstract type's hash carries its name — the note is right that the
-wire should mean what the checker means, and §8.7 is already in two minds about it, so this
-is a report change to make here.
+typed AST, which is the decision below either way. Its section 3.4 hashes every declared
+type nominally, name included, which §8.7 says too since 2026-09-24.
 
 Hash modules never change, so versions coexist on a node for as long as a process runs one
 ([`code_distribution.md`](code_distribution.md) section 8). The shell's reload then ends

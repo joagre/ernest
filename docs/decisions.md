@@ -3706,6 +3706,10 @@ A module may declare a type or constructor with a prelude name, and the name the
 
 The report did not say what a negative time does, and the runtime answered three ways: `after -5` and `Address.call(a, mk, -1)` faulted with the host's `timeout_value`, and `Clock.alarm(-10, ...)` crashed the clock process, which left the program waiting for ever. A time below 0 is now 0: `after` does not wait, the call answers `None` unless the reply is already there, and the alarm fires at once, as `alarmAt` with a past moment already did. The standard library had the rule for counts, `List.take`, `List.repeat` and `String.repeat` taking a count below 0 as 0, and a time is the same kind of quantity; a deadline already past, `deadline - Clock.now()`, is an ordinary value and not an error. A fault for a negative time was the other way, a second policy beside the library's.
 
+## A Type's Identity on the Wire Is Nominal, 2026-09-24
+
+§8.7 said structurally identical definitions share a hash and that an abstract type's hash includes its qualified name, which left a concrete type's name out of its identity: two types with the same constructors under different names would have been one type between nodes, while the checker holds them apart. `code_distribution.md` had decided the other way, hashing every declared type with its name, and rejected structural type hashes because they make the wire more lenient than the checker. The report now says what that note says: a type's hash includes its qualified name, and an abstract type's also its signature. Functions are still hashed by their definition, and reference types by those types' hashes, so a function's identity follows its types' names. The undefined "code version" of a top-level binding shipped to a peer is the hash of the binding's definition. None of §8.7 is built, so only the text changed.
+
 ## Later
 
 Planned or considered, not in the language today.
