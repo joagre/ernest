@@ -281,8 +281,12 @@ under `emacs/test/`.
 - **The mirror test is `emacs_mode_mirrors_the_lexer_test`** in `test/ern_style_tests.erl`:
   the mode's reserved words equal the lexer's and its painted operators are a subset of the
   lexer's symbols. It found `=>` and `do`, which the mode painted and Ernest does not have.
-- **Left for a second editor.** A `comint` mode over `ern --shell` and completion in the
-  buffer, neither of which the mode needs to be useful; they return when someone asks.
+- **`make emacs-mode` runs its five corpora**, and `make test` runs them last; a machine
+  without Emacs skips them. They are the only tests `make test` runs and has not built.
+- **What the mode does not do is listed in `emacs_mode.md`**, so that nobody looks for it:
+  a constructor painted as a type, no `eldoc`, no `xref`, no completion, no `comint` over
+  `ern --shell`. None of it is needed for the mode to be worth using, and each returns when
+  someone asks.
 
 ---
 

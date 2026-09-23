@@ -38,11 +38,15 @@ the technique.
    `=`, a trailing comma, a missing `}`, an unclosed raw string, an unclosed block comment,
    an apostrophe in prose. Each keeps its indentation, and a fresh line at the end takes the
    column a person expects. `emacs/test/broken.el` over `emacs/test/broken/`, and
-   `emacs/test/typing.el`, which cuts every source in the repository at every third line and
-   reindents what survives.
+   `emacs/test/typing.el`, which cuts every source in the repository and reindents what
+   survives.
 
 Colouring cannot be measured against the repository, so it is pinned by
-`emacs/test/colour.el`, one check for each kind of face.
+`emacs/test/colour.el`, one check for each kind of face, and what the mode gives beyond
+colour and indentation by `emacs/test/editing.el`.
+
+`make emacs-mode` runs all five, and `make test` runs them last. A machine without Emacs
+skips them and says so.
 
 ## What the corpora measured
 
@@ -70,6 +74,23 @@ bought.** What a grammar would still give is `Foo` as a type in one position and
 constructor in another, which regexps cannot reach. It costs a grammar restating Appendix A
 in a fourth language with no mirror test, a C toolchain and a per-platform object. That one
 distinction does not buy it. Revisit if a second reason appears.
+
+## What it does not do
+
+Stated so that nobody looks for it.
+
+- **A constructor is painted as a type.** Both are uppercase and the difference is
+  positional, which is what a regexp cannot see. This is the one thing a grammar would add.
+- **Nothing knows the language, only its shape.** No `eldoc`, no `xref`, no completion in the
+  buffer, no jump to a definition in another module. `imenu`, `C-M-a` and `C-M-e` work inside
+  the file, from the declarations' own shape. What a name means is `M-x compile`'s answer.
+- **No `comint` mode over `ern --shell`.** The shell is run in a terminal.
+- **No folding**, no `prettify-symbols`, no bindings of its own: the mode adds no keymap and
+  takes `prog-mode`'s.
+- **It is installed by path, not as a package.** No `Version:` or `Package-Requires:`
+  headers, and it is not on MELPA; the three lines that load it are in the file's header.
+- **Indentation is line by line.** There is no `indent-region-function`, which costs three
+  seconds over the six thousand lines of this repository.
 
 ## What remains
 

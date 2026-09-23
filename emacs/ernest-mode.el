@@ -1,5 +1,7 @@
 ;;; ernest-mode.el --- Major mode for Ernest  -*- lexical-binding: t; -*-
 
+;;; Commentary:
+
 ;; The mode for `.ern' files, designed in docs/emacs_mode.md.  It is
 ;; derived from `prog-mode' and not from CC Mode: Ernest is
 ;; expression-structured, where CC Mode's engine assumes C's statements
@@ -363,13 +365,55 @@ at; an `if' deeper in brackets, or in a string or a comment, is skipped."
   "Indent the current line as Ernest.
 A line whose place cannot be decided keeps the indentation it has."
   (interactive)
-  (let ((indent (ernest-calculate-indent))
-        (offset (- (point) (save-excursion (back-to-indentation) (point)))))
+  (let ((indent (ernest-calculate-indent)))
     (when indent
-      (save-excursion
-        (indent-line-to indent))
-      (when (> offset 0)
-        (goto-char (+ (save-excursion (back-to-indentation) (point)) offset))))))
+      ;; point in the indentation ends up at the first word, as everywhere
+      (if (<= (current-column) (current-indentation))
+          (indent-line-to indent)
+        (save-excursion (indent-line-to indent))))))
+
+;;; Moving over declarations
+
+(defun ernest-beginning-of-defun (&optional count)
+  "Move back to the start of a declaration, COUNT of them."
+  (interactive "p")
+  (let ((left (or count 1)))
+    (while (and (> left 0)
+                (re-search-backward (concat "^" ernest--declaration-re) nil 'move))
+      (goto-char (match-beginning 0))
+      (setq left (1- left)))))
+
+(defun ernest-end-of-defun ()
+  "Move past the end of the declaration point is at.
+A doc block or a blank line before the next declaration belongs to it,
+not to this one."
+  (forward-line 1)
+  (if (not (re-search-forward (concat "^" ernest--declaration-re) nil 'move))
+      (goto-char (point-max))
+    (goto-char (match-beginning 0))
+    (while (and (not (bobp))
+                (save-excursion
+                  (forward-line -1)
+                  (or (ernest--line-empty-p)
+                      (progn (back-to-indentation) (looking-at-p "//")))))
+      (forward-line -1))))
+
+(defun ernest-current-defun ()
+  "The name of the declaration point is in, or nil.
+`add-log' and `which-function-mode' ask for this."
+  (save-excursion
+    (ernest-beginning-of-defun)
+    (when (looking-at (concat "^" ernest--declaration-re "[ \t]+\\([A-Za-z_][A-Za-z0-9_]*\\)"))
+      (match-string-no-properties 1))))
+
+(defconst ernest-imenu-generic-expression
+  (let ((exported "^\\(?:export[ \t]+\\)?")
+        (lower "\\([a-z_][A-Za-z0-9_]*\\)")
+        (upper "\\([A-Z][A-Za-z0-9_]*\\)"))
+    `(("Function" ,(concat exported "\\(?:foreign[ \t]+\\)?fn[ \t]+" lower) 1)
+      ("Type" ,(concat exported "\\(?:abstract[ \t]+\\|foreign[ \t]+\\)?type[ \t]+" upper) 1)
+      ("Value" ,(concat exported "let[ \t]+" lower) 1)))
+  "What `imenu' offers: the declarations, by kind.")
 
 ;;; The mode
 
@@ -392,13 +436,17 @@ A line whose place cannot be decided keeps the indentation it has."
   (setq-local tab-width ernest-indent-offset)
   (setq-local fill-column 100)
   (setq-local electric-indent-chars
-              (append '(?} ?\) ?\] ?|) electric-indent-chars)))
+              (append '(?} ?\) ?\] ?|) electric-indent-chars))
+  (setq-local beginning-of-defun-function #'ernest-beginning-of-defun)
+  (setq-local end-of-defun-function #'ernest-end-of-defun)
+  (setq-local add-log-current-defun-function #'ernest-current-defun)
+  (setq-local imenu-generic-expression ernest-imenu-generic-expression))
 
 ;;;###autoload
-(with-eval-after-load 'compile
-  (add-to-list 'compilation-error-regexp-alist-alist
-               '(ernest "^\\([^ \n:]+\\):\\([0-9]+\\):\\([0-9]+\\): " 1 2 3))
-  (add-to-list 'compilation-error-regexp-alist 'ernest))
+(add-to-list 'compilation-error-regexp-alist-alist
+             '(ernest "^\\([^:\n]+\\):\\([0-9]+\\):\\([0-9]+\\): " 1 2 3))
+;;;###autoload
+(add-to-list 'compilation-error-regexp-alist 'ernest)
 
 (provide 'ernest-mode)
 

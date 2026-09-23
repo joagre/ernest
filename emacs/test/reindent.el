@@ -25,7 +25,7 @@
       (ernest-mode)
       (let* ((before (split-string (buffer-string) "\n"))
              (was moved))
-        (indent-region (point-min) (point-max))
+        (let ((inhibit-message t)) (indent-region (point-min) (point-max)))
         (let ((after (split-string (buffer-string) "\n"))
               (line 0))
           (setq total (+ total (length before)) files (1+ files))
@@ -40,6 +40,7 @@
                                (- (length a) (length (string-trim-left a)))
                                (string-trim-left a))))
         (unless (= was moved) (setq dirty (1+ dirty))))))
-  (message "%d of %d lines moved, %d of %d files touched" moved total dirty files))
+  (message "%d of %d lines moved, %d of %d files touched" moved total dirty files)
+  (unless (zerop moved) (kill-emacs 1)))
 
 ;;; reindent.el ends here

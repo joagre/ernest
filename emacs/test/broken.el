@@ -1,19 +1,37 @@
-;;; broken.el --- Indent half-typed Ernest and say what happens  -*- lexical-binding: t; -*-
+;;; broken.el --- Indent half-typed Ernest and check what happens  -*- lexical-binding: t; -*-
 
 ;; The second corpus of docs/emacs_mode.md.  Each file under test/broken
 ;; is a buffer caught mid-keystroke, written with the indentation a
-;; person would expect.  For each one this reports the lines the mode
-;; would move, which should be none, and the column a fresh line at the
-;; end would be given, which is what the person feels when they press
-;; RET.  Run from `emacs/':
+;; person would expect.  The mode must leave every line where it is, and
+;; must give a fresh line at the end the column below.  Run from `emacs/':
 ;;
-;;     emacs -Q -batch -l test/broken.el test/broken/*.ern
+;;     emacs -Q -batch -l test/broken.el
 
 ;;; Code:
 
 (require 'cl-lib)
 (add-to-list 'load-path (expand-file-name "."))
 (require 'ernest-mode)
+
+(defconst ernest-broken-expected
+  '(("arm.ern" . "8")                   ; a match with no closing brace
+    ("bar.ern" . "4")                   ; a receive whose next line is a bare |
+    ("block.ern" . "kept")              ; an unclosed block comment
+    ("brace.ern" . "4")                 ; a block whose } is missing
+    ("comma.ern" . "8")                 ; a constructor with a trailing comma
+    ("equals.ern" . "4")                ; a line ending in =
+    ("prose.ern" . "4")                 ; an apostrophe in a comment
+    ("raw.ern" . "kept"))               ; an unclosed raw string
+  "The column a fresh line at the end of each buffer must be given.
+`kept' means the mode decides nothing and the line stays where it is,
+which is the answer inside an unclosed string or comment.")
+
+(defvar ernest-broken--failures 0)
+
+(defun ernest-broken--fail (format &rest args)
+  "Count a failure and say it, FORMAT and ARGS as `message' takes them."
+  (setq ernest-broken--failures (1+ ernest-broken--failures))
+  (apply #'message (concat "FAIL " format) args))
 
 (defun ernest-broken--next-column ()
   "The column a fresh line at the end of the buffer would be given."
@@ -22,20 +40,35 @@
   (let ((indent (ernest-calculate-indent)))
     (if indent (number-to-string indent) "kept")))
 
-(dolist (file command-line-args-left)
-  (with-temp-buffer
-    (insert-file-contents file)
-    (ernest-mode)
-    (let ((before (buffer-string)) (moved 0))
-      (indent-region (point-min) (point-max))
-      (cl-loop for b in (split-string before "\n")
-               for a in (split-string (buffer-string) "\n")
-               unless (string= a b) do (setq moved (1+ moved)))
-      ;; a quote in prose must not leave the rest of the buffer in a string
-      (let ((poisoned (cl-loop for pos from (point-min) below (point-max)
-                               count (nth 3 (syntax-ppss pos)))))
-        (message "%-12s %d moved, next line at %s, %d chars in a string"
-                 (file-name-nondirectory file) moved
-                 (ernest-broken--next-column) poisoned)))))
+(dolist (want ernest-broken-expected)
+  (let ((file (expand-file-name (car want) "test/broken")))
+    (with-temp-buffer
+      (insert-file-contents file)
+      (ernest-mode)
+      (let ((before (buffer-string)) (moved 0))
+        (let ((inhibit-message t)) (indent-region (point-min) (point-max)))
+        (cl-loop for b in (split-string before "\n")
+                 for a in (split-string (buffer-string) "\n")
+                 unless (string= a b) do (setq moved (1+ moved)))
+        (unless (zerop moved)
+          (ernest-broken--fail "%s: %d lines moved" (car want) moved))
+        (let ((got (ernest-broken--next-column)))
+          (unless (equal got (cdr want))
+            (ernest-broken--fail "%s: a fresh line at %s, wanted %s"
+                                 (car want) got (cdr want))))))))
+
+;; the apostrophe in prose.ern's comment must not leave the rest in a string
+(with-temp-buffer
+  (insert-file-contents (expand-file-name "prose.ern" "test/broken"))
+  (ernest-mode)
+  (goto-char (point-min))
+  (search-forward "decode(bytes)")
+  (when (nth 3 (syntax-ppss (match-beginning 0)))
+    (ernest-broken--fail "an apostrophe in prose left the buffer in a string")))
+
+(message "%s" (if (zerop ernest-broken--failures)
+                  "broken: all checks passed"
+                (format "broken: %d checks failed" ernest-broken--failures)))
+(unless (zerop ernest-broken--failures) (kill-emacs 1))
 
 ;;; broken.el ends here

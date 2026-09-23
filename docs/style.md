@@ -21,7 +21,7 @@ One file only, `test/ern_pty.py`, the pseudo-terminal the terminal tests need an
 
 ## Elisp
 
-One file only, `emacs/ernest-mode.el`, the Emacs mode. Lines ≤ 100 characters, no tabs, and the conventions of an Emacs major mode over these rules.
+One file only, `emacs/ernest-mode.el`, the Emacs mode, with its corpora under `emacs/test/`. Lines ≤ 100 characters, no tabs, and the conventions of an Emacs major mode over these rules: `lexical-binding`, an `ernest-` prefix on every name and `ernest--` on the private ones, a docstring on everything, and the file byte-compiles and passes `checkdoc` without a warning.
 
 ## Ernest style guide
 

@@ -66,5 +66,6 @@ export fn merge(left : List(a), right : List(a)) -> List(a) =
 (message "%s" (if (zerop ernest-colour--failures)
                   "colour: all checks passed"
                 (format "colour: %d checks failed" ernest-colour--failures)))
+(unless (zerop ernest-colour--failures) (kill-emacs 1))
 
 ;;; colour.el ends here

@@ -1,6 +1,6 @@
 # Ernest Toolchain: Architecture Notes
 
-How the toolchain is built. Written from the code on 2026-09-17, revised 2026-09-20; the code wins any conflict. The report is the specification, the plan says what was built when, the decisions log why; this says where things are and what flows between them.
+How the toolchain is built. Written from the code on 2026-09-17, revised 2026-09-23; the code wins any conflict. The report is the specification, the plan says what was built when, the decisions log why; this says where things are and what flows between them.
 
 ## The pipeline
 
@@ -15,6 +15,8 @@ One Ernest module goes through the stages below, Erlang applications under `erl/
 | runtime | `ern_rt`, `ern_boundary`, `ern_bits`, `ern_show`, `ern_fs`, `ern_tty`, `ern_tcp`, and the standard library's shims | | what compiled code calls |
 | diagnostics | `ern_diag`, in the lexer's application | a `#diag{}` from any stage, the source | the text of §11.5, or its first line |
 | cli | `ern_cli` with `ern_shell`, the shell's front end, and `ern_page`, §11.4's renderer | command lines, and the shell's inputs | `ernc` and `ern`, and a session |
+
+`emacs/` is outside this pipeline: the Emacs mode reads `.ern` files and never calls the toolchain, and [`emacs_mode.md`](emacs_mode.md) owns it.
 
 `VERSION` at the top of the repository is the toolchain's version; every application's Makefile passes it to `erlc` as the macro `VERSION`, which `ern_cli` prints for `--version` and in a documentation page's last line. `utils` holds the vendored `getopt`. The escripts in `bin/` add `erl/*/ebin` to the code path relative to their own location and call `ern_cli:main/2`.
 
