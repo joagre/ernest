@@ -265,28 +265,19 @@ executed doc examples are its first user, so no paper program is required (decid
 
 ## MVP 2.9 (an Emacs major mode), done 2026-09-23
 
-Taken out of order, between checkpoints of MVP 2.6, because `.ern` files were edited in
-`fundamental-mode`. [`emacs_mode.md`](emacs_mode.md) owns the mode: what it is, the two
-corpora that judge it, and what they measured. `emacs/ernest-mode.el` and its harnesses
-under `emacs/test/`.
+Taken out of order, between checkpoints of MVP 2.6. [`emacs_mode.md`](emacs_mode.md) owns
+the mode and [`decisions.md`](decisions.md) the arguments. `emacs/ernest-mode.el`, its five
+corpora under `emacs/test/`, run by `make emacs-mode` and last in `make test`.
 
-- **The technique was settled by measurement, not by argument.** The regexp and syntax-table
-  mode holds both corpora: 0 of 6,090 lines on the repository's own sources, and 1 line over
-  2,005 cuts on the same sources truncated mid-expression. Tree-sitter is not bought; the
-  one thing it would add is `Foo` as a type in one position and a constructor in another.
-- **The corpus disagreed with itself, and `docs/style.md` gained four rules**: indentation is
-  a step and never an alignment; `else` returns to the line its `if` begins on; a broken
-  signature continues one step in; a clause bar sits two spaces left of its arms. The
-  seventeen sources that held a construct two ways were reindented to them.
-- **The mirror test is `emacs_mode_mirrors_the_lexer_test`** in `test/ern_style_tests.erl`:
-  the mode's reserved words equal the lexer's and its painted operators are a subset of the
-  lexer's symbols. It found `=>` and `do`, which the mode painted and Ernest does not have.
-- **`make emacs-mode` runs its five corpora**, and `make test` runs them last; a machine
-  without Emacs skips them. They are the only tests `make test` runs and has not built.
-- **What the mode does not do is listed in `emacs_mode.md`**, so that nobody looks for it:
-  a constructor painted as a type, no `eldoc`, no `xref`, no completion, no `comint` over
-  `ern --shell`. None of it is needed for the mode to be worth using, and each returns when
-  someone asks.
+Two decisions of the milestone reach beyond it:
+
+- **`docs/style.md` gained four indentation rules**, and the seventeen sources that held a
+  construct two ways were reindented to them: indentation is a step and never an alignment;
+  `else` returns to the line its `if` begins on; a broken signature continues one step in; a
+  clause bar sits two spaces left of its arms.
+- **The mode's word and operator lists are mirrored** by
+  `emacs_mode_mirrors_the_lexer_test` in `test/ern_style_tests.erl`, since they restate
+  Appendix A.
 
 ---
 

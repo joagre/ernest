@@ -2,14 +2,12 @@
 
 ;;; Commentary:
 
-;; The mode for `.ern' files, designed in docs/emacs_mode.md.  It is
-;; derived from `prog-mode' and not from CC Mode: Ernest is
-;; expression-structured, where CC Mode's engine assumes C's statements
-;; and declarations.
+;; The mode for `.ern' files.  docs/emacs_mode.md designs it, and says
+;; what it does and what it does not do.
 ;;
-;; Nothing here calls `ernc'.  A buffer being edited is broken most of
-;; the time, so colouring and indentation are the buffer's own work;
-;; `ernc' is reached through `M-x compile', and
+;; Nothing here calls the compiler.  A buffer being edited is broken most
+;; of the time, so colouring and indentation are the buffer's own work;
+;; the compiler is reached through `M-x compile', and
 ;; `compilation-error-regexp-alist' takes its diagnostics.
 
 ;;; Installation:
