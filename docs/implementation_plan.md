@@ -176,6 +176,43 @@ options, then what is recorded and left alone.
 
 ---
 
+## MVP 2.66 (a supervisor, or the argument that none is needed), about three days
+
+The claim has stood since 2026-09-13 and has never been tested: a supervisor is fifteen
+lines of `spawn`, `monitor` and `receive`, so Ernest needs no behaviour for it. This item
+tests it by writing one, and decides what it should be, if anything.
+
+- **Not in the language.** §6.9 gives monitors and no links, and §0's fifth principle keeps the surface
+  small; a behaviour would be a second way to structure processes beside the three
+  primitives. Nothing here proposes a report change.
+- **Not in the standard library either, by E.0 rule 3.** A supervisor is policy and almost
+  nothing else: which strategy, how many restarts in what time, in what order children stop.
+  Rule 3 refuses a function whose result depends on a choice the library makes for the
+  program. If it is written at all it is a library under `libs/`, on Appendix D's pattern,
+  where a program that disagrees writes its own.
+- **The experiment first:** `examples/supervisor.ern`, a supervisor of three workers with
+  restart on fault and a restart-intensity limit, written with nothing but `spawn`,
+  `monitor` and `receive`, and read back against the claim. If it is fifteen lines and reads
+  as a program a person would write, the answer is the guide's idiom section and no code. If
+  it is sixty and every program would write the same sixty, that is the argument for
+  `libs/supervisor`.
+- **Two things it will run into, and they are the content of the discussion.**
+  - **A restarted child has a new address, and §6.3 has no registry**, so nobody who held
+    the old one can reach it. A supervisor that restarts children is therefore a name
+    service for them, or its children are unreachable after the first fault. This is the
+    same hole the node protocol note's open question 8 names, and it is queued for MVP
+    2.65; the supervisor is the second witness for it.
+  - **Stopping a child needs `kill` or a protocol message.** `kill` is asynchronous and
+    gives the child no chance to finish (§6.9); a message means the child's mailbox type
+    carries a stop case, which is the child's business and cannot be imposed by a library.
+    OTP solves this with exit signals and a shutdown timeout, which Ernest refuses.
+- **What no-links costs, and the idiom that answers it.** A supervisor that dies leaves its
+  children running, where OTP's would take them with it. The answer within the language is
+  the reverse monitor: each child monitors its supervisor and returns when it dies. Whether
+  that belongs in the guide beside the supervisor idiom is part of this item.
+
+---
+
 ## MVP 2.7 (the first libraries and the network stack), about two weeks
 
 Appendix D has been written to once, for `Ets`, and a pattern tried once is a guess: four
