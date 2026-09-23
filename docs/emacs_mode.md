@@ -24,6 +24,28 @@ Derived from `prog-mode`, not from CC Mode.
 
 It never calls the compiler; `M-x compile` does.
 
+## What it leaves to the user
+
+A major mode sets buffer-local variables and turns nothing else on. `fill-column` is 100 and
+`indent-tabs-mode` is nil, so the mode's own indentation writes no tab. A tab pasted in, or a
+line past 100 characters, is shown only by what the user enables. These lines in an init
+file show both:
+
+```elisp
+(add-hook 'ernest-mode-hook #'display-fill-column-indicator-mode)
+(add-hook 'ernest-mode-hook
+          (lambda ()
+            (setq-local whitespace-style '(face tabs lines-tail)
+                        whitespace-line-column nil)
+            (whitespace-mode)))
+```
+
+The indicator stands at `fill-column`. `whitespace-line-column` nil makes `whitespace-mode`
+mark lines past `fill-column` rather than past its default of 80. Nothing converts a tab on
+save: `untabify` would also rewrite a tab inside a string, which is part of the string's
+value (report §2.5). `no_tab_test` and `line_length_test` in `test/ern_style_tests.erl`
+enforce both rules in the repository.
+
 The mode's reserved words and operators restate Appendix A, so
 `emacs_mode_mirrors_the_lexer_test` in `test/ern_style_tests.erl` checks them against the
 lexer: the reserved words are the lexer's, and every operator the mode paints is one of the
@@ -60,3 +82,5 @@ Stated so that nobody looks for it.
 - **It is installed by path, not as a package.** No `Version:` or `Package-Requires:`
   headers, and it is not on MELPA.
 - **Indentation is line by line.** There is no `indent-region-function`.
+- **It never changes the buffer on its own.** Nothing runs on save, and no minor mode is
+  turned on.
