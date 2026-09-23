@@ -3698,6 +3698,10 @@ A module may declare a type or constructor with a prelude name, and the name the
 
 §6.10 says a process changes its code only by a message carrying the new loop, and that the language has no other mechanism. The shell's reload looked like a second one, and §7.3 called it that: "the replacement of a process's code under it", with the cause text `its code was replaced`. What the reload does is different. New calls get the new code, a running process keeps the version it runs, and a second reload of the same module ends the processes still on the oldest version, because the BEAM keeps two versions of a module and no more. Nothing is replaced under a process; a process is ended, after the first reload has named it. §6.10 now says so, §7.3 names the cause the unloading of the code a process runs, and the text is `its code was unloaded`. Refusing the second reload until those processes are gone was the other way, and it would have made a long-lived server block every reload. The limit is the BEAM's, and content addressing lifts it: hash modules never change, so versions coexist for as long as a process runs one, and in MVP 3.1 the reload ends nothing.
 
+## Parentheses After a Pipe Make a Value, 2026-09-24
+
+§5.7 said a parenthesized call is a plain call, so `x |> (f(a))` was `f(x, a)`, while the same section had a parenthesized lambda be a value the pipe applies. Parentheses meant two things at one place, and a function that a call returns could not be piped into at all: `10 |> (adder(3))` was refused for an argument too many. The rule came from the parser, where parentheses produce no node, and the report described it. A parenthesized right-hand side is now a value, applied to the left: `x |> (f(a))` is `f(a)(x)`, and a lambda needs no rule of its own. The parser looks at the tokens for this one case; everywhere else parentheses still produce no node. Keeping the old reading and naming it honestly was the other way, and it kept the two meanings.
+
 ## Later
 
 Planned or considered, not in the language today.

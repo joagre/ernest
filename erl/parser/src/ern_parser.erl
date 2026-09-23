@@ -512,7 +512,14 @@ binexpr_loop(Left, [{Op, Pos} | R] = Ts, Min) ->
         {P, Assoc} when P >= Min ->
             NextMin = case Assoc of left -> P + 1; right -> P end,
             {Right, R1} = binexpr(R, NextMin),
-            {Node, _} = w({combine(Op, start_of(Left, Pos), Left, Right), R1}),
+            Start = start_of(Left, Pos),
+            Combined = case Op =:= '|>' andalso parenthesized(R, R1) of
+                           %% report §5.7: a parenthesized right-hand side is a
+                           %% value, applied to the left
+                           true -> #e_call{pos = Start, callee = Right, args = [Left]};
+                           false -> combine(Op, Start, Left, Right)
+                       end,
+            {Node, _} = w({Combined, R1}),
             binexpr_loop(Node, R1, Min);
         _ ->
             {Left, Ts}
@@ -537,6 +544,14 @@ prec('&&') -> {3, left};
 prec('||') -> {2, left};
 prec('|>') -> {1, left};
 prec(_) -> none.
+
+%% Whether the tokens from Ts to Rest are one parenthesized expression and
+%% nothing more; parentheses produce no node, so only the tokens can say.
+parenthesized([{'(', _} | _] = Ts, Rest) ->
+    {_, AfterParen} = primary(Ts),
+    length(AfterParen) =:= length(Rest);
+parenthesized(_, _) ->
+    false.
 
 %% `x |> f(a)` is `f(x, a)`; `x |> f` is `f(x)`.
 combine('|>', Pos, X, #e_call{callee = C, args = A}) ->

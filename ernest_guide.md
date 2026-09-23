@@ -324,7 +324,7 @@ Ernest's stdlib is subject-first. `|>` reads left-to-right:
 "abc" |> String.toList |> List.reverse |> String.fromList      // "cba"
 ```
 
-`x |> f` is `f(x)`. `x |> f(a, b)` is `f(x, a, b)` — pipe inserts as the first argument. `x |> f(a)(b)` is `f(a)(x, b)`, inserted into the *outermost* call. A parenthesized call is a plain call: `x |> (f(a))` is `f(x, a)`.
+`x |> f` is `f(x)`. `x |> f(a, b)` is `f(x, a, b)` — pipe inserts as the first argument. `x |> f(a)(b)` is `f(a)(x, b)`, inserted into the *outermost* call. Parentheses make a value, which the pipe applies: `x |> (adder(3))` is `adder(3)(x)`, the function `adder(3)` returns applied to `x`.
 
 **A lambda after `|>` must be parenthesized:** `x |> (fn(y) = y + 1)`. Without parens, the lambda's body extends greedily and swallows the rest of the expression.
 

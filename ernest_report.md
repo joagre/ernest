@@ -397,7 +397,7 @@ A nullary constructor is a value. A single-positional constructor is a function 
 let words = input |> String.trim |> String.toLower |> String.toList
 ```
 
-`|>` is left-associative and binds loosest, below `||`: `a + b |> f` is `f(a + b)`, `a |> b |> c` is `c(b(a))`. The right-hand side is a name, a qualified name, a parenthesized lambda, or a call whose first-argument slot the pipe fills; a lambda must be parenthesized, `x |> (fn(y) = y + 1)`. In a chained call the pipe fills the outermost call: `x |> f(a)(b)` is `f(a)(x, b)`. A parenthesized call is a plain call: `x |> (f(a))` is `f(x, a)`. The type of `x` is the target's first parameter type.
+`|>` is left-associative and binds loosest, below `||`: `a + b |> f` is `f(a + b)`, `a |> b |> c` is `c(b(a))`. The right-hand side is a name, a qualified name, a call whose first-argument slot the pipe fills, or a parenthesized expression, whose value is applied to `x`. A lambda must be parenthesized, `x |> (fn(y) = y + 1)`. In a chained call the pipe fills the outermost call: `x |> f(a)(b)` is `f(a)(x, b)`. A parenthesized call is a value: `x |> (f(a))` is `f(a)(x)`. The type of `x` is the target's first parameter type.
 
 ### 5.8 Conditional
 

@@ -194,6 +194,8 @@ options, then what is recorded and left alone.
     with `Fault("its code was unloaded")`, and §6.10 says the shell never changes a
     running process's code (§7.3, §7.4, §11.2). The limit is the BEAM's two versions of a
     module, and MVP 3.1 lifts it.
+  - A parenthesized right-hand side of `|>` is a value, applied to the left: `x |> (f(a))`
+    is `f(a)(x)` (§5.7), where it was `f(x, a)`.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the

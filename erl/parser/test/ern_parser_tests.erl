@@ -119,8 +119,15 @@ pipe_rewrite_test() ->
     ?assertMatch(#e_call{callee = #e_call{callee = #e_var{name = f}, args = [#e_var{name = a}]},
                          args = [#e_var{name = x}, #e_var{name = b}]},
                  e("x |> f(a)(b)")),
-    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}, #e_var{name = a}]},
+    %% a parenthesized right-hand side is a value, applied to the left; a
+    %% call on a parenthesized callee is a call, and the pipe fills its slot
+    ?assertMatch(#e_call{callee = #e_call{callee = #e_var{name = f}, args = [#e_var{name = a}]},
+                         args = [#e_var{name = x}]},
                  e("x |> (f(a))")),
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}, #e_var{name = a}]},
+                 e("x |> (f)(a)")),
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}]},
+                 e("x |> (f)")),
     ?assertMatch(#e_call{callee = #e_var{name = c},
                          args = [#e_call{callee = #e_var{name = b}, args = [#e_var{name = a}]}]},
                  e("a |> b |> c")),
