@@ -1,9 +1,9 @@
 /// Operations on `String`, a Unicode string (report §3.1). A `String` is
-/// not a container: its characters are reached through `toList`, which
-/// gives a `List(Char)`. A character is an extended grapheme cluster, and
-/// `size`, `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd`
-/// count and index in those; `toList` and `fromList` are code points, a
-/// `Char` being one. The operations that fold case or trim space follow
+/// not a container: its `Char`s are reached through `toList`. `size`,
+/// `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and
+/// index in graphemes, extended grapheme clusters, each what a reader sees
+/// as one letter; `toList` and `fromList` are `Char`s, one scalar value
+/// each. The operations that fold case or trim space follow
 /// Unicode, which the runtime decides (report Appendix E.0, rule 1).
 ///
 /// ## Examples
@@ -30,13 +30,12 @@
 ///
 /// since 0.1.0
 
-/// The characters of the first, then those of the second.
+/// The first, then the second.
 export fn String.<>(a : String, b : String) -> String = a <> b
 
-/// The number of characters, which is neither the number of octets nor
-/// the number of code points: a character is an extended grapheme
-/// cluster, and `e` with a combining acute is one character of two code
-/// points.
+/// The number of graphemes, extended grapheme clusters, which is neither
+/// the number of octets nor the number of `Char`s: `e` with a combining
+/// acute is one grapheme of two `Char`s.
 ///
 /// ### Examples
 ///
@@ -138,8 +137,8 @@ export fn slice(s : String, from : Int, count : Int) -> String =
 
 foreign fn part(s : String, from : Int, count : Int) -> String = "ern_string:slice/3"
 
-/// The character in front until the string is at least that many code
-/// points long.
+/// The `Char` in front until the string is at least that many graphemes
+/// long.
 ///
 /// ### Examples
 ///
@@ -149,8 +148,8 @@ foreign fn part(s : String, from : Int, count : Int) -> String = "ern_string:sli
 /// ```
 export fn padStart(s : String, length : Int, c : Char) -> String = padding(s, length, c) <> s
 
-/// The character at the end until the string is at least that many code
-/// points long.
+/// The `Char` at the end until the string is at least that many graphemes
+/// long.
 export fn padEnd(s : String, length : Int, c : Char) -> String = s <> padding(s, length, c)
 
 fn padding(s : String, length : Int, c : Char) -> String =

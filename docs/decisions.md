@@ -3722,6 +3722,10 @@ E.19 declared `Result(v, r) = Ok(v) | Error(r)` for shims over Erlang's `{ok, V}
 
 Both came from Erlang with the bit syntax. Erlang's `bits` exists for bitstrings that are not whole octets; Ernest's `Bytes` is a sequence of octets (§3.1), §5.11 already required a `bits` segment to be a byte multiple, and `bits` was `bytes` with a unit of one bit, two specifiers for one job (principle 2). Sub-octet fields inside a whole of octets are `int` segments of any size, which cover protocol and format parsing; a stream built bit by bit, as a Huffman or deflate encoder builds one, is an `Int` and a count. `Bytes` stays octets, and `bits` goes; `bytes-unit(1)` writes a width in bits. `native` read the byte order of the node that evaluated it. Formats and protocols state their byte order, so `big` and `little` serve them; data in the host's own order, a dump or a C library's struct, comes through foreign code, which is written in Erlang and converts it at the boundary where host detail belongs. Keeping `native` with a sentence making it node-dependent, as `Sys.*` is in shipped code, was sound, and it was weighed as not useful enough to hold a place in the language.
 
+## A `String` Counts Graphemes, and Says So, 2026-09-24
+
+Appendix E.5 called an extended grapheme cluster a "character", §3.1 called a `Char` one scalar value, and §2.5 used "character" for a code point in a literal. `String.size : (String) -> Int // characters` then read as counting `Char`s, which it does not: `e` with a combining accent is one of the one and two of the other. The unit of `size`, `slice`, `indexOf`, `lastIndexOf`, `padStart` and `padEnd` is now named a grapheme, and "character" is left to §2.5's lexical grammar. The module's own documentation had the same confusion in code: `padStart` said it padded to a length in code points while it padded to one in graphemes. Counting code points instead would have made the words agree and the counts wrong for a reader, which entry 8 of language_feedback.md had already settled.
+
 ## Later
 
 Planned or considered, not in the language today.

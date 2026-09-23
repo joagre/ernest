@@ -209,6 +209,8 @@ options, then what is recorded and left alone.
   - The bit syntax drops `bits` and `native` (§5.11, Appendix A): `Bytes` stays octets, so
     `bits` was `bytes` with another unit, and a byte order is stated or converted at the
     foreign boundary.
+  - A `String`'s unit is named a grapheme in E.5, the module and the guide; "character" is
+    left to §2.5's lexical grammar.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the

@@ -27,7 +27,7 @@ Field selection is the biggest issue, and the shell has now given it three witne
 
 7. **`String.lines` is not the split a text editor wants** — it drops the empty last line, so the region had to use `String.split(typed, "\n")` to show the empty row you are typing on. Both are documented and correct; the obvious-looking one is the wrong one.
 
-8. **What a "character" is** — the report said code points, the code counts extended grapheme clusters, and `toList` gives code points. Settled in favour of the code. Display width is still open: a wide glyph is one grapheme and two columns, and nothing in the runtime knows it.
+8. **What a "character" is** — the report said code points, the code counts extended grapheme clusters, and `toList` gives code points. Settled in favour of the code, and since 2026-09-24 the unit is named a grapheme, so the word "character" no longer means a `Char` in one place and a grapheme in another (report E.5). Display width is still open: a wide glyph is one grapheme and two columns, and nothing in the runtime knows it.
 
 ## Neither — worth separating out
 

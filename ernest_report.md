@@ -1206,10 +1206,10 @@ Set.isSubset : (Set(a), Set(a)) -> Bool // every element of the first is in the 
 
 ### Appendix E.5. `string.ern` (namespace `String`)
 
-A `String` is not a container: operations on its characters go through `toList`. A character is an extended grapheme cluster, and `size`, `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and index in those. `toList` and `fromList` are code points, a `Char` being one, so a string holding a combining mark has more code points than characters. `String.compare` and `String.<>` are the prelude's, §9.6; this module provides them (§9).
+A `String` is not a container: operations on its `Char`s go through `toList`. `size`, `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and index in graphemes, extended grapheme clusters, each what a reader sees as one letter. `toList` and `fromList` are `Char`s, one scalar value each, so a string holding a combining mark has more `Char`s than graphemes. `String.compare` and `String.<>` are the prelude's, §9.6; this module provides them (§9).
 
 ```
-String.size : (String) -> Int // characters
+String.size : (String) -> Int // graphemes
 String.isEmpty : (String) -> Bool
 String.contains : (String, String) -> Bool // substring
 String.indexOf : (String, String) -> Optional(Int) // where the second begins, None where it is not there; an empty second is 0
@@ -1217,9 +1217,9 @@ String.lastIndexOf : (String, String) -> Optional(Int) // where the second begin
 String.startsWith : (String, String) -> Bool
 String.endsWith : (String, String) -> Bool
 String.replace : (String, String, String) -> String // every occurrence of the second by the third; an empty second changes nothing
-String.slice : (String, Int, Int) -> String // from the index, that many characters, clipped to the string; a negative index or count is 0
-String.padStart : (String, Int, Char) -> String // the character in front until the length is at least the second
-String.padEnd : (String, Int, Char) -> String // the character at the end until the length is at least the second
+String.slice : (String, Int, Int) -> String // from the index, that many graphemes, clipped to the string; a negative index or count is 0
+String.padStart : (String, Int, Char) -> String // the Char in front until the size is at least the second
+String.padEnd : (String, Int, Char) -> String // the Char at the end until the size is at least the second
 String.repeat : (String, Int) -> String // n times; n below 0 is 0
 String.trim : (String) -> String // without leading and trailing whitespace
 String.toLower : (String) -> String
