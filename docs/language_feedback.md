@@ -108,3 +108,26 @@ What I would actually put to you as candidate language changes: field selection 
 
     The worry underneath the question is the shims, and that is entry 11: the operations
     being the runtime's is the representation decision, not a prelude decision.
+
+13. **The rest of the shims, audited 2026-09-23.** Against the one rule — a shim only where
+    Ernest cannot express the work given the modules beneath it — the library divides three
+    ways.
+
+    **Gone the same day:** `Int.abs`, `Int.min`, `Int.max`, `Float.abs`, `Float.min`,
+    `Float.max`, six one-line shims over `erlang:abs/1`, `min/2` and `max/2` where the
+    language already has `<`, `>` and prefix `-` on both types.
+
+    **Should go, and are for MVP 2.65 with `path`:** `String.startsWith`, `endsWith`,
+    `contains`, `parts`, `copy` and `replace`, all of which are `indexOf`, `slice` and
+    `size` away from being Ernest, those three staying shims because they count extended
+    grapheme clusters and nothing beneath `String` can. `Bytes.at`, `toList` and `pack` are
+    a weaker case of the same: the bit syntax of §5.11 is beneath them, so they can be
+    written, and only `size` and `part` need the runtime.
+
+    **Staying, and why:** the `Map` and `Set` operations (the representation is Erlang's,
+    which is its own decision); `Char`'s predicates and case, `String.compare`, `toLower`,
+    `toUpper`, `trim` (Unicode tables); `Float`'s mathematics and `Int`'s bit operations
+    (no primitives beneath them); every conversion `toString`, `inBase`, `toFloat`,
+    `toUtf`, `fromUtf`, `toList`, `fromList` (rule 1 names them); `Random` (the generator's
+    state is the runtime's); `Ets` (a runtime resource); `Foreign` (the boundary itself);
+    `Io.debug` (the runtime's printer and the compiler's descriptor).

@@ -77,7 +77,7 @@ export fn compare(a : Float, b : Float) -> Ordering =
     if a < b then Less else if a > b then Greater else Equal
 
 /// The magnitude.
-export foreign fn abs(x : Float) -> Float = "erlang:abs/1"
+export fn abs(x : Float) -> Float = if x < 0.0 then -x else x
 
 /// The smaller.
 ///
@@ -87,10 +87,10 @@ export foreign fn abs(x : Float) -> Float = "erlang:abs/1"
 /// #(Float.min(1.0, 2.0), Float.max(1.0, 2.0))
 /// // => #(1.0, 2.0)
 /// ```
-export foreign fn min(a : Float, b : Float) -> Float = "erlang:min/2"
+export fn min(a : Float, b : Float) -> Float = if a < b then a else b
 
 /// The larger.
-export foreign fn max(a : Float, b : Float) -> Float = "erlang:max/2"
+export fn max(a : Float, b : Float) -> Float = if a > b then a else b
 
 /// The shortest decimal that reads back as the same value, always with a
 /// fraction: `100.0`, not `100`.
