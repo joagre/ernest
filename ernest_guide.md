@@ -877,7 +877,7 @@ type RemoteError = NoRemotePeer | PeerLost
 
 `remote(f)` hands `f` to the runtime, which picks a peer and runs `f()` there. `f` is pure by `remote`'s design — `remote` is a one-shot compute-and-return, not a process; effectful work on a peer goes through `spawn(Peer(...), ...)`.
 
-Both operations have a mailbox effect: `Left(NoRemotePeer)` when no peer is configured, `Left(PeerLost)` when the peer becomes unreachable *or* when peer-side dependency resolution fails *or* when the callback faults on the peer. `PeerLost` signals that this specific operation did not complete; it does not invalidate other `Address` values held for the same peer (which only die on actual peer-loss detection).
+Both operations have a mailbox effect: `Left(NoRemotePeer)` when no peer is configured, `Left(PeerLost)` when the peer is lost before the value returns. A fault in the callback faults the caller with the same cause, as calling it locally would: `remote` computes elsewhere and catches nothing. A peer-side resolution failure faults the caller too, with `Fault("peer resolution failed: ...")`, as it does `spawn(Peer(...), ...)`. Work whose fault should not end the caller runs in a process of its own, monitored.
 
 `parallelRemote` preserves input order in the result list. Each callback is pure; the batch call has a mailbox effect. The signature has no timeout; a callback that does not return keeps the call from returning.
 
@@ -889,7 +889,7 @@ fn heavy(a : Int, b : Int) -> Int = a * a + b * b
 export fn main() -> Unit with m = match remote(fn() = heavy(3, 4)) {
     Right(n) -> Io.println("remote returned " <> Int.toString(n))
   | Left(NoRemotePeer) -> Io.println("no remote peer configured")
-  | Left(PeerLost) -> Io.println("peer lost or callback failed")
+  | Left(PeerLost) -> Io.println("peer lost")
 }
 ```
 
@@ -907,7 +907,7 @@ Some consequences the code sees:
 - `send` to a remote address returns immediately; a peer-side resolution failure faults the sender *asynchronously*, after `send` has already returned.
 - Foreign definitions must be available and compatible on the peer.
 
-Peer loss is *terminal from this node's view*. Once this node declares a peer lost, it treats the processes on that peer as dead. Their existing addresses do not become usable again if the same peer name reappears — a re-appearing peer is a new node instance. Monitors on remote addresses report `Down(reason = Fault("peer lost"), ...)`, and pending `remote` calls return `Left(PeerLost)`. Remote sends are best-effort: in-flight messages can be dropped at peer loss without a delivery notification, and returning from `send` is not evidence that the recipient processed the message. A callback or resolution failure that returned `PeerLost` does not, on its own, invalidate unrelated addresses for the same peer — only *actual* peer-loss detection has that effect.
+Peer loss is *terminal from this node's view*. Once this node declares a peer lost, it treats the processes on that peer as dead. Their existing addresses do not become usable again if the same peer name reappears — a re-appearing peer is a new node instance. Monitors on remote addresses report `Down(reason = Fault("peer lost"), ...)`, and pending `remote` calls return `Left(PeerLost)`. Remote sends are best-effort: in-flight messages can be dropped at peer loss without a delivery notification, and returning from `send` is not evidence that the recipient processed the message. A resolution failure does not, on its own, invalidate unrelated addresses for the same peer — only *actual* peer-loss detection has that effect.
 
 ### 7.3 Foreign types and functions
 

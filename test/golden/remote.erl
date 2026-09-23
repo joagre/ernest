@@ -9,8 +9,7 @@ main() ->
                              (ern@int:toString(N_1))/binary>>);
         {'Left', 'NoRemotePeer'} ->
             ern@io:println(<<"no remote peer configured">>);
-        {'Left', 'PeerLost'} ->
-            ern@io:println(<<"peer lost or callback failed">>)
+        {'Left', 'PeerLost'} -> ern@io:println(<<"peer lost">>)
     end.
 
 heavy(A_2, B_3) -> A_2 * A_2 + B_3 * B_3.

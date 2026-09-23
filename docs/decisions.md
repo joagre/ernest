@@ -3686,6 +3686,10 @@ The webserver kept its sessions in the table. They are now a process that owns a
 
 `Deadlock` was "the error `Deadlock`", neither a `Reason` nor a fault, and the runtime printed it as a third way for a program to end, `error: Deadlock`. It is now the entry process's fault, `Fault("deadlock")`, and the program ends as §8.6 says it ends on a fault. A third outcome beside returning and faulting would have said the same with one concept more; principle 5 decided.
 
+## `remote` Catches Nothing, 2026-09-24
+
+`remote(f)` returned `Left(PeerLost)` when the peer was lost, when resolution failed on it, and when `f` faulted there. The name was wrong for two of the three, and the third made `remote` a way to catch a fault: run `f` on a peer and a fault comes back as a value, where §7.3 says nothing is caught and principle 2 allows one mechanism for failure. A fault in `f` now faults the caller with the same cause, as `f()` would locally, and a resolution failure faults the caller as it already did for `spawn(Peer(...), ...)`. `PeerLost` means the peer was lost. Adding `Faulted(String)` to `RemoteError` was the other way, and it named things honestly, but it was the catch. Work whose fault should not end its caller runs in a process of its own and is monitored, as everywhere else.
+
 ## Later
 
 Planned or considered, not in the language today.

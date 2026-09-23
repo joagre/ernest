@@ -12,7 +12,7 @@
 export fn main() -> Unit with m = match remote(fn() = heavy(3, 4)) {
     Right(n) -> Io.println("remote returned " <> Int.toString(n))
   | Left(NoRemotePeer) -> Io.println("no remote peer configured")
-  | Left(PeerLost) -> Io.println("peer lost or callback failed")
+  | Left(PeerLost) -> Io.println("peer lost")
 }
 
 fn heavy(a : Int, b : Int) -> Int = a * a + b * b

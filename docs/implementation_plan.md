@@ -181,6 +181,10 @@ options, then what is recorded and left alone.
   - A fault is a death with `Fault(cause)`; `Killed` and `ProgramEnd` are not faults
     (§6.9, §7.3), and every cause is listed in §7.4. A deadlock is the entry process's
     fault, `Fault("deadlock")` (§8.6), and `ern` reports `fault: deadlock`.
+  - `remote` catches nothing: a fault in its callback faults the caller with the same
+    cause, and a resolution failure faults it as `spawn(Peer(...), ...)` does. `PeerLost`
+    means only that the peer was lost (§6.7, §8.7). `remote` is MVP 3's; today it returns
+    `Left(NoRemotePeer)`, so only the report and the example changed.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the
