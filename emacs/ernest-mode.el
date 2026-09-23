@@ -88,7 +88,9 @@ escapes (report section 2.5)."
     ("\\('\\)\\(?:\\\\u{[[:xdigit:]]+}\\|\\\\.\\|[^'\\\\\n]\\)\\('\\)"
      (1 "\"") (2 "\""))
     ("\\\\"
-     (0 (when (eq (nth 3 (save-excursion (syntax-ppss (match-beginning 0)))) ?`)
+     (0 (when (eq (nth 3 (save-excursion
+                            (save-match-data (syntax-ppss (match-beginning 0)))))
+                  ?`)
           (string-to-syntax ".")))))
    start end))
 
@@ -255,7 +257,7 @@ the line starts an element rather than carrying the line above on."
     (let ((found nil) (depth (car (syntax-ppss start))))
       (while (and (not found) (re-search-forward "[^=<>!+*/%-]=[^=]" end t))
         (goto-char (1- (point)))
-        (let ((state (syntax-ppss (1- (point)))))
+        (let ((state (save-excursion (syntax-ppss (1- (point))))))
           (when (and (not (nth 8 state)) (= (car state) depth))
             (setq found t))))
       found)))
@@ -321,14 +323,19 @@ alignment, so nothing here looks at what follows the bracket."
         0))))
 
 (defun ernest--declaration-start ()
-  "The start of the nearest declaration at or above point.
-A declaration begins in column zero, which is the one thing a broken
-buffer still says plainly."
+  "The start of the declaration the line point is on belongs to.
+A line opening a declaration outside every bracket starts one itself.
+Otherwise the nearest line above in column zero does, which is the one
+thing a broken buffer still says plainly.  The line's own indentation
+is not read, so a line typed in column zero is placed as any other."
   (save-excursion
-    (beginning-of-line)
-    (while (and (not (bobp)) (not (looking-at-p "[^ \t\n]")))
-      (forward-line -1))
-    (point)))
+    (back-to-indentation)
+    (if (and (zerop (car (syntax-ppss))) (ernest--declaration-p))
+        (line-beginning-position)
+      (beginning-of-line)
+      (while (and (not (bobp))
+                  (progn (forward-line -1) (not (looking-at-p "[^ \t\n]")))))
+      (point))))
 
 (defun ernest--matching-if-base (limit depth word)
   "The base column of the `if' this WORD belongs to, or nil.
@@ -339,9 +346,12 @@ or a comment, is skipped, and so is one an earlier WORD has taken."
     (let ((pending 0) (base nil)
           (re (concat "\\_<\\(if\\|" word "\\)\\_>")))
       (while (and (null base) (re-search-backward re limit t))
-        (let ((state (syntax-ppss (point))))
+        ;; the word is read before `syntax-ppss', which may propertize
+        ;; and so change the match data
+        (let* ((found (match-string 1))
+               (state (save-excursion (syntax-ppss (point)))))
           (unless (or (nth 8 state) (/= (car state) depth))
-            (if (equal (match-string 1) word)
+            (if (equal found word)
                 (setq pending (1+ pending))
               (if (> pending 0)
                   (setq pending (1- pending))

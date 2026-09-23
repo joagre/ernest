@@ -48,7 +48,7 @@ test: all
 # The Emacs mode's tests (docs/emacs_mode.md). It is an editor and not
 # part of the toolchain, so a machine without Emacs skips them; they are
 # the only tests `make test` will run and not have built.
-EMACS_TESTS = lint colour editing broken reindent typing
+EMACS_TESTS = lint colour editing broken reindent flatten typing
 emacs-mode:
 	@if ! command -v emacs >/dev/null 2>&1; then \
 	  echo "  Emacs not installed; the mode's tests were skipped."; exit 0; fi

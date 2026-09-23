@@ -53,19 +53,20 @@ lexer's symbols.
 
 ## How it is judged
 
-Six tests under `emacs/test/`. `make emacs-mode` runs them and `make test` runs them last;
+Seven tests under `emacs/test/`. `make emacs-mode` runs them and `make test` runs them last;
 a machine without Emacs skips them. Each prints what it measured.
 
 | Test | What must hold |
 | --- | --- |
 | `lint.el` | the mode byte-compiles and passes `checkdoc` without a warning, as the Erlang builds with `-Werror` |
 | `reindent.el` | every `.ern` source in the repository reindents unchanged |
+| `flatten.el` | the same sources, every line moved to column zero, reindent to what they were, so no line's place depends on the indentation it has |
 | `typing.el` | the same sources, cut every 25 lines (`STEP` sets it), keep every line above the cut |
 | `broken.el` over `broken/` | each half-typed buffer keeps its indentation, and a fresh line at its end takes the column a person expects |
 | `colour.el` | one check for each kind of face, and what must not be painted |
 | `editing.el` | `imenu`, declaration movement, the diagnostic regexp |
 
-`reindent.el` cannot find a defect in a line the mode itself placed. A case in `broken/`,
+`reindent.el` and `flatten.el` cannot find a defect in a line the mode itself placed. A case in `broken/`,
 written to [`style.md`](style.md) by hand, can.
 
 ## What it does not do
