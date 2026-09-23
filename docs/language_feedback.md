@@ -73,11 +73,19 @@ What I would actually put to you as candidate language changes: field selection 
       in Ernest now, twenty lines, stable by taking the left element when two compare
       `Equal`; `ern_list.erl` is deleted, and rule 1 says one thing only, with "speed is not
       a reason for a shim" added. Measured after: twenty thousand elements in 17 ms.
-    - **`path.ern` is seven shims of eight exports** over `filename:`, and a path is a
-      `String`, whose content the language owns. `join`, `split`, `parent`, `name`,
-      `extension`, `withExtension` and `isAbsolute` are string surgery that `String.split`,
-      `String.indexOf` and `String.slice` can do. They are shims because `filename:` was
-      there, which is the reason the rule exists to refuse.
+    - **`path.ern` is seven shims of eight exports** over `filename:`, and the reason is in
+      the report: E.14 opens with "a `Path` is in the runtime's syntax", so what a segment,
+      a parent and a root are is the host's, and rule 1 admits the shims. That is a real
+      host dependency, unlike `sort`'s: a separator is `/` here and `\` with drive letters
+      elsewhere. What it does not justify is the surgery built on those facts. The rewrite
+      to aim for keeps **two** shims, the host's separator and whether a path is absolute,
+      which drive letters make more than a leading separator, and writes `join`, `split`,
+      `parent`, `name`, `extension` and `withExtension` in Ernest over `String.split`,
+      `String.lastIndexOf` and `String.slice`. Five shims go, and the host dependency is
+      named in two functions instead of spread through seven. It is left for this item
+      rather than done beside `sort`, since E.14's contracts have edge cases — a trailing
+      separator, an absolute second operand, an empty extension — that want tests written
+      with care rather than a quick rewrite.
 
     Performance is not a reason for a shim. If a measurement ever demands one, it comes back
     as a decision with numbers beside it, as `Tcp`'s socket processes did at 1.8 times raw
