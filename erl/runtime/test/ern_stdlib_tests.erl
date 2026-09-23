@@ -216,7 +216,6 @@ char_test() ->
     ?assertEqual(16#E9, C:toInt(16#E9)),
     ?assertEqual('Greater', C:compare($b, $a)).
 
-%% report Appendix E.7
 %% report Appendix E.20
 bytes_test() ->
     B = 'ern@bytes',
@@ -237,6 +236,7 @@ bytes_test() ->
 erl_test() ->
     ?assertEqual(ready, 'ern@erl':atom(<<"ready">>)).
 
+%% report Appendix E.7
 bool_test() ->
     ?assertEqual(false, 'ern@bool':'not'(true)),
     ?assertEqual(<<"true">>, 'ern@bool':toString(true)).

@@ -3652,6 +3652,20 @@ own name used a substring that cut one character too many and had never matched.
 test written afterwards found two more, `=>` and `do`, operators the mode painted and the
 language does not have.
 
+A read-back the same day found what the corpus could not. The sources had been reindented
+with the mode, so where the mode was wrong the corpus agreed with it, and `0 of 6,090 lines`
+measured the mode against itself. Three defects hid there: the regexp for a line opening with
+an operator was written with single backslashes and matched nothing, `|>` passed for a clause
+bar, and a `then` leading a line fell back to the block's column, left of its own `if`.
+A corpus reindented by the tool it measures confirms the tool, so what the mode places is
+now also pinned by hand-written cases in `emacs/test/broken/`.
+
+`then` returns to the line its `if` begins on, as `else` does, so the three parts of a
+conditional broken over lines begin at one column and a reader finds the branches where the
+condition began. The alternative, `then` a step in as a continuation, puts the two branches
+of one `if` at two columns. The operator rule was already in the guide as "a continuation is
+one step in"; it gained an example, since the sources held it three ways.
+
 ## Later
 
 Planned or considered, not in the language today.

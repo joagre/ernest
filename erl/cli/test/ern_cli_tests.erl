@@ -115,6 +115,8 @@ default_root_test() ->
         file:set_cwd(Cwd)
     end.
 
+%% report §11.5: a parse error is its position, its message, and the source
+%% under it with the span marked
 parse_error_test() ->
     Dir = tmp(),
     File = write(Dir, "a.ern", "export fn f() -> Int = \n"),

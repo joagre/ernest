@@ -45,10 +45,10 @@ test: all
 	@$(MAKE) -C test $@
 	@$(MAKE) -s emacs-mode
 
-# The Emacs mode's four corpora (docs/emacs_mode.md). It is an editor and
-# not part of the toolchain, so a machine without Emacs skips them; they
-# are the only tests `make test` will run and not have built.
-EMACS_TESTS = colour editing broken reindent typing
+# The Emacs mode's tests (docs/emacs_mode.md). It is an editor and not
+# part of the toolchain, so a machine without Emacs skips them; they are
+# the only tests `make test` will run and not have built.
+EMACS_TESTS = lint colour editing broken reindent typing
 emacs-mode:
 	@if ! command -v emacs >/dev/null 2>&1; then \
 	  echo "  Emacs not installed; the mode's tests were skipped."; exit 0; fi
@@ -92,6 +92,7 @@ clean-emacs:
 	find . -path ./.git -prune -o \( -name '*~' -o -name '#*#' -o -name '.#*' \) -print0 \
 	  | xargs -0 rm -f
 
-EMACS_CORPUS = ../stdlib/*.ern ../shell/*.ern ../shell/shell/*.ern ../examples/*.ern
+EMACS_CORPUS = ../stdlib/*.ern ../shell/*.ern ../shell/shell/*.ern ../examples/*.ern \
+		../examples/modules/*.ern ../examples/modules/*/*.ern ../test/*/*.ern
 
 .PHONY: all test clean clean-emacs emacs-mode sections coverage golden xref stdlib shell doc

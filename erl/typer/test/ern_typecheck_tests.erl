@@ -737,6 +737,8 @@ builtin_type_operators_test() ->
                  ern_typecheck:check_string(['Float'],
                                             "export fn Float.abs(x : Float) -> Float = x")).
 
+%% report §4.1, §4.2: a module's interface holds its exports under its
+%% namespace, and another module reaches them by the qualified name
 interface_test() ->
     Http = "export type Request = Request(method : String, path : String)\n"
            "export fn parse(s : String) -> Optional(Request) =\n"

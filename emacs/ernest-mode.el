@@ -38,7 +38,8 @@
   :group 'ernest)
 
 ;;; Words and operators.  These restate Appendix A, so
-;;; test/ernest-mode-tests.el keeps them equal to the lexer's.
+;;; `emacs_mode_mirrors_the_lexer_test' in test/ern_style_tests.erl
+;;; checks them against the lexer's.
 
 (defconst ernest-reserved-words
   '("type" "abstract" "with" "foreign" "match" "when" "receive" "after" "or"
@@ -75,15 +76,20 @@
   "Syntax table for `ernest-mode'.")
 
 (defun ernest-syntax-propertize (start end)
-  "Mark the quotes of char literals between START and END as string quotes.
-An apostrophe is punctuation otherwise, so prose in a comment cannot
-unbalance a buffer.  A quote marked inside a comment or a string is
-harmless: a scanner already in one ignores it."
+  "Give char literals and raw strings between START and END their syntax.
+An apostrophe is punctuation until it is found to quote a char literal,
+so prose in a comment cannot unbalance a buffer.  A quote marked inside
+a comment or a string is harmless: a scanner already in one ignores it.
+A backslash in a raw string is punctuation, since a raw string has no
+escapes (report section 2.5)."
   (funcall
    (syntax-propertize-rules
     ;; a char literal, report section 2.5: 'a', '\n', '\u{1b}'
     ("\\('\\)\\(?:\\\\u{[[:xdigit:]]+}\\|\\\\.\\|[^'\\\\\n]\\)\\('\\)"
-     (1 "\"") (2 "\"")))
+     (1 "\"") (2 "\""))
+    ("\\\\"
+     (0 (when (eq (nth 3 (save-excursion (syntax-ppss (match-beginning 0)))) ?`)
+          (string-to-syntax ".")))))
    start end))
 
 ;;; Colour
@@ -110,7 +116,7 @@ A comment opening with `///' is a doc comment (report section 2.2)."
     `(;; a declaration's name, so the eye finds definitions
       (,(concat "\\_<fn\\_>[ \t]+\\(" lower "\\)")
        1 'font-lock-function-name-face)
-      (,(concat "\\_<\\(?:let\\|foreign[ \t]+fn\\)\\_>[ \t]+\\(" lower "\\)")
+      (,(concat "\\_<let\\_>[ \t]+\\(" lower "\\)")
        1 'font-lock-variable-name-face)
       (,(concat "\\_<\\(?:abstract[ \t]+\\|foreign[ \t]+\\)?type\\_>[ \t]+\\("
                 upper "\\)")
@@ -121,9 +127,9 @@ A comment opening with `///' is a doc comment (report section 2.2)."
       ;; a qualified name: every uppercase segment is a namespace or a type
       (,(concat "\\_<" upper "\\(?:\\." upper "\\)*") . 'font-lock-type-face)
       ;; the numeric literals of section 2.5, with digit separators
-      ("\\_<0[xX][0-9a-fA-F_]+\\_>" . 'font-lock-constant-face)
-      ("\\_<0[oO][0-7_]+\\_>" . 'font-lock-constant-face)
-      ("\\_<0[bB][01_]+\\_>" . 'font-lock-constant-face)
+      ("\\_<0x[0-9a-fA-F_]+\\_>" . 'font-lock-constant-face)
+      ("\\_<0o[0-7_]+\\_>" . 'font-lock-constant-face)
+      ("\\_<0b[01_]+\\_>" . 'font-lock-constant-face)
       ("\\_<[0-9][0-9_]*\\(?:\\.[0-9][0-9_]*\\)?\\(?:[eE][-+]?[0-9]+\\)?\\_>"
        . 'font-lock-constant-face)
       ;; the operators a reader looks for
@@ -144,9 +150,12 @@ A comment opening with `///' is a doc comment (report section 2.2)."
   "What a line ends with when a body follows on the next line.")
 
 (defconst ernest--continuation-re
-  (concat "\(?:->\|<-\|<>\|||\||>\|&&\|::\|[-+*/%.]\|=[^=]"
-          "\|\_<with\_>\|\_<then\_>\)")
-  "What a line opens with when it carries the line above on.")
+  (concat "\\(?:[-+*%=]\\|/[^/*]\\|<[^<]\\|>[^>]\\|!=\\|&&\\|||\\||>\\|::"
+          "\\|\\_<with\\_>\\)")
+  "What a line opens with when it carries the line above on.
+That is a binary operator of report section 2.6, or the `->', `=' or
+`with' of a signature broken over lines.  `//' and `/*' open comments,
+and `<<' and `>>' are brackets.")
 
 (defun ernest--line-empty-p ()
   "Whether the current line holds only whitespace."
@@ -155,9 +164,9 @@ A comment opening with `///' is a doc comment (report section 2.2)."
     (looking-at-p "[ \t]*$")))
 
 (defun ernest--clause-bar-p ()
-  "Whether point is on a `|' that leads a clause, and not on `||'."
+  "Whether point is on a `|' that leads a clause, and not on `||' or `|>'."
   (and (eq (char-after) ?|)
-       (not (eq (char-after (1+ (point))) ?|))
+       (not (memq (char-after (1+ (point))) '(?| ?>)))
        (not (eq (char-before) ?|))))
 
 (defun ernest--line-base ()
@@ -172,24 +181,17 @@ bar, so `| x -> {' anchors its body at `x'."
     (current-column)))
 
 (defun ernest--code-line-end ()
-  "The end of the code on this line, comments and strings left out."
+  "The end of the code on this line, a trailing comment left out."
   (save-excursion
     (let* ((start (line-beginning-position))
            (limit (line-end-position))
            (state (syntax-ppss start))
            (end limit))
-      (goto-char start)
-      ;; `parse-partial-sexp' stops where a comment or a string opens, so
-      ;; the line is walked in a few jumps and not a character at a time
-      (catch 'done
-        (while (< (point) limit)
-          (setq state (parse-partial-sexp (point) limit nil nil state t))
-          (cond ((nth 4 state)                  ; a comment opens: code ends
-                 (setq end (nth 8 state))
-                 (throw 'done nil))
-                ((nth 3 state)                  ; a string opens: walk past it
-                 nil)
-                (t (throw 'done nil)))))
+      ;; `parse-partial-sexp' stops just inside the first comment to open,
+      ;; and a string on the way is walked past
+      (setq state (parse-partial-sexp start limit nil nil state t))
+      (when (nth 4 state)
+        (setq end (nth 8 state)))
       (goto-char end)
       (skip-chars-backward " \t")
       (point))))
@@ -217,6 +219,22 @@ bar, so `| x -> {' anchors its body at `x'."
                         (nth 8 (syntax-ppss (point))))))
         (setq found t)))
     found))
+
+(defun ernest--closer-p ()
+  "Whether this line opens with a closing bracket."
+  (save-excursion
+    (back-to-indentation)
+    (memq (char-after) '(?\) ?\] ?\}))))
+
+(defun ernest--after-separator-p ()
+  "Whether the code line above ends where a new element begins.
+After `,', `;' or an opening bracket a leading `-' is a negation, and
+the line starts an element rather than carrying the line above on."
+  (save-excursion
+    (and (ernest--previous-code-line)
+         (let ((end (ernest--code-line-end)))
+           (and (> end (line-beginning-position))
+                (memq (char-before end) '(?, ?\; ?\( ?\[ ?\{)))))))
 
 (defun ernest--opens-body-p ()
   "Whether the code on this line ends where a body or a continuation follows."
@@ -263,16 +281,25 @@ logical line, one step in."
   (save-excursion
     (back-to-indentation)
     (or (and (looking-at-p ernest--continuation-re)
-             (not (ernest--clause-bar-p)))
+             (not (ernest--clause-bar-p))
+             (not (ernest--after-separator-p)))
         (ernest--in-head-p))))
 
-(defun ernest--anchor-base ()
+(defun ernest--declaration-p ()
+  "Whether point, at a line's first token, opens a declaration.
+`fn' before a bracket opens a lambda, not a declaration."
+  (and (looking-at-p ernest--declaration-re)
+       (not (looking-at-p "fn[ \t]*("))))
+
+(defun ernest--anchor-base (&optional carried)
   "The base column of the logical line point is on.
-A continuation is anchored where the line it continues begins, so a
-signature broken over lines does not carry its body out to the right."
+A declaration's head broken over lines is one logical line, so its body
+is not carried out to the right.  With CARRIED, so is a line an operator
+carries on, which puts every such line at one step; a bracket opened on
+one steps in from where it stands."
   (save-excursion
     (let ((seen 0))
-      (while (and (ernest--continues-p)
+      (while (and (if carried (ernest--continues-p) (ernest--in-head-p))
                   (< seen 100)                  ; a broken buffer ends the walk
                   (save-excursion (ernest--previous-code-line)))
         (setq seen (1+ seen))
@@ -303,17 +330,18 @@ buffer still says plainly."
       (forward-line -1))
     (point)))
 
-(defun ernest--matching-if-base (limit depth)
-  "The base column of the `if' this `else' belongs to, or nil.
-LIMIT bounds the search and DEPTH is the bracket depth the `else' sits
-at; an `if' deeper in brackets, or in a string or a comment, is skipped."
+(defun ernest--matching-if-base (limit depth word)
+  "The base column of the `if' this WORD belongs to, or nil.
+WORD is \"then\" or \"else\".  LIMIT bounds the search and DEPTH is the
+bracket depth WORD sits at; an `if' deeper in brackets, or in a string
+or a comment, is skipped, and so is one an earlier WORD has taken."
   (save-excursion
-    (let ((pending 0) (base nil))
-      (while (and (null base)
-                  (re-search-backward "\\_<\\(if\\|else\\)\\_>" limit t))
+    (let ((pending 0) (base nil)
+          (re (concat "\\_<\\(if\\|" word "\\)\\_>")))
+      (while (and (null base) (re-search-backward re limit t))
         (let ((state (syntax-ppss (point))))
           (unless (or (nth 8 state) (/= (car state) depth))
-            (if (equal (match-string 1) "else")
+            (if (equal (match-string 1) word)
                 (setq pending (1+ pending))
               (if (> pending 0)
                   (setq pending (1- pending))
@@ -333,31 +361,42 @@ at; an `if' deeper in brackets, or in a string or a comment, is skipped."
        ;; line's indentation is the author's business
        ((nth 3 state) nil)
        ((nth 4 state) nil)
-       ;; a comment goes where the code it introduces goes
+       ;; a comment goes where the code it introduces goes; before a
+       ;; closing bracket it stays with the content it follows
        ((and (looking-at-p "//")
-             (save-excursion (ernest--next-code-line)))
+             (save-excursion
+               (and (ernest--next-code-line) (not (ernest--closer-p)))))
         (save-excursion (ernest--next-code-line) (ernest-calculate-indent)))
+       ;; a declaration begins in column zero
+       ((and (null open) (ernest--declaration-p)) 0)
        ;; a closing bracket returns to the line its opener began on
        ((and open (memq first '(?\) ?\] ?\})))
         (save-excursion (goto-char open) (ernest--anchor-base)))
        ;; a clause's bar sits two spaces to the left of its arms
        ((ernest--clause-bar-p)
         (max 0 (- content ernest-clause-offset)))
-       ;; an `else' returns to its `if'
-       ((looking-at-p "\\_<else\\_>")
-        (or (ernest--matching-if-base (or open (ernest--declaration-start))
-                                      (car state))
-            content))
-       ;; a body or a continuation opened on the line before, or this line
-       ;; opens with an operator and carries the line above on
-       ((or (ernest--continues-p)
-            (save-excursion
-              (and (ernest--previous-code-line)
-                   (or (null open) (> (point) open))
-                   (ernest--opens-body-p))))
+       ;; a `then' or an `else' returns to its `if'
+       ((looking-at "\\_<\\(then\\|else\\)\\_>")
+        (let ((word (match-string 1)))
+          (or (ernest--matching-if-base (or open (ernest--declaration-start))
+                                        (car state) word)
+              content)))
+       ;; an operator or a broken head carries the line above on, a step
+       ;; in from where that line's expression begins
+       ((ernest--continues-p)
+        (+ (save-excursion (ernest--previous-code-line) (ernest--anchor-base t))
+           ernest-indent-offset))
+       ;; a body opened at the end of the line before
+       ((save-excursion
+          (and (ernest--previous-code-line)
+               (or (null open) (> (point) open))
+               (ernest--opens-body-p)))
         (+ (save-excursion (ernest--previous-code-line) (ernest--anchor-base))
            ernest-indent-offset))
-       (t content)))))
+       ;; inside a bracket, its content; outside every bracket, with no
+       ;; body or continuation pending, the next declaration
+       (open content)
+       (t 0)))))
 
 (defun ernest-indent-line ()
   "Indent the current line as Ernest.
@@ -373,13 +412,22 @@ A line whose place cannot be decided keeps the indentation it has."
 ;;; Moving over declarations
 
 (defun ernest-beginning-of-defun (&optional count)
-  "Move back to the start of a declaration, COUNT of them."
+  "Move back to the start of a declaration, COUNT of them.
+A negative COUNT moves forward.  Return non-nil when every one was found."
   (interactive "p")
-  (let ((left (or count 1)))
-    (while (and (> left 0)
-                (re-search-backward (concat "^" ernest--declaration-re) nil 'move))
-      (goto-char (match-beginning 0))
-      (setq left (1- left)))))
+  (let ((re (concat "^" ernest--declaration-re))
+        (count (or count 1))
+        (found t))
+    (if (< count 0)
+        (dotimes (_ (- count))
+          (end-of-line)
+          (if (re-search-forward re nil 'move)
+              (goto-char (match-beginning 0))
+            (setq found nil)))
+      (dotimes (_ count)
+        (unless (re-search-backward re nil 'move)
+          (setq found nil))))
+    found))
 
 (defun ernest-end-of-defun ()
   "Move past the end of the declaration point is at.
@@ -433,17 +481,19 @@ not to this one."
   (setq-local indent-tabs-mode nil)
   (setq-local tab-width ernest-indent-offset)
   (setq-local fill-column 100)
+  ;; `>' places a line again once `|' has become `|>'
   (setq-local electric-indent-chars
-              (append '(?} ?\) ?\] ?|) electric-indent-chars))
+              (append '(?} ?\) ?\] ?| ?>) electric-indent-chars))
   (setq-local beginning-of-defun-function #'ernest-beginning-of-defun)
   (setq-local end-of-defun-function #'ernest-end-of-defun)
   (setq-local add-log-current-defun-function #'ernest-current-defun)
   (setq-local imenu-generic-expression ernest-imenu-generic-expression))
 
-;;;###autoload
+;; Emacs's own `gnu' entry refuses a file name with a space in it.  A `|'
+;; before the first colon is the source gutter under a diagnostic, not a
+;; file name (report section 11.5).
 (add-to-list 'compilation-error-regexp-alist-alist
-             '(ernest "^\\([^:\n]+\\):\\([0-9]+\\):\\([0-9]+\\): " 1 2 3))
-;;;###autoload
+             '(ernest "^\\([^:|\n]+\\):\\([0-9]+\\):\\([0-9]+\\): " 1 2 3))
 (add-to-list 'compilation-error-regexp-alist 'ernest)
 
 (provide 'ernest-mode)

@@ -101,8 +101,8 @@ fn handler(
                 Ets.insert(sessions, id, Session(visits));
                 let body = "Visit number " <> Int.toString(visits);
                 let bytes = Response(status = StatusCode.ok, headers = [], body = body)
-              |> withCookie("sid", SessionId.text(id))
-              |> render;
+                    |> withCookie("sid", SessionId.text(id))
+                    |> render;
                 Tcp.write(sock, bytes);
                 Tcp.close(sock)
             }

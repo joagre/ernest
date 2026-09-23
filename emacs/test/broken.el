@@ -19,9 +19,13 @@
     ("block.ern" . "kept")              ; an unclosed block comment
     ("brace.ern" . "4")                 ; a block whose } is missing
     ("comma.ern" . "8")                 ; a constructor with a trailing comma
+    ("comment.ern" . "0")               ; a comment before a closing brace
     ("equals.ern" . "4")                ; a line ending in =
-    ("prose.ern" . "4")                 ; an apostrophe in a comment
-    ("raw.ern" . "kept"))               ; an unclosed raw string
+    ("minus.ern" . "4")                 ; a negative element after a comma
+    ("pipe.ern" . "4")                  ; lines an operator carries on
+    ("prose.ern" . "0")                 ; an apostrophe in a comment
+    ("raw.ern" . "kept")                ; an unclosed raw string
+    ("then.ern" . "4"))                 ; a then under its if
   "The column a fresh line at the end of each buffer must be given.
 `kept' means the mode decides nothing and the line stays where it is,
 which is the answer inside an unclosed string or comment.")
@@ -56,6 +60,17 @@ which is the answer inside an unclosed string or comment.")
           (unless (equal got (cdr want))
             (ernest-broken--fail "%s: a fresh line at %s, wanted %s"
                                  (car want) got (cdr want))))))))
+
+;; a declaration typed a step in, after the one above has closed, goes
+;; back to column zero
+(with-temp-buffer
+  (insert "fn f() = {\n    1\n}\n\n    fn g() = 2\n")
+  (ernest-mode)
+  (goto-char (point-min))
+  (search-forward "fn g")
+  (ernest-indent-line)
+  (unless (zerop (current-indentation))
+    (ernest-broken--fail "a declaration a step in stays at %d" (current-indentation))))
 
 ;; the apostrophe in prose.ern's comment must not leave the rest in a string
 (with-temp-buffer

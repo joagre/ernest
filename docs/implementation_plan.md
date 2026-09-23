@@ -266,8 +266,8 @@ executed doc examples are its first user, so no paper program is required (decid
 ## MVP 2.9 (an Emacs major mode), done 2026-09-23
 
 Taken out of order, between checkpoints of MVP 2.6. [`emacs_mode.md`](emacs_mode.md) owns
-the mode and [`decisions.md`](decisions.md) the arguments. `emacs/ernest-mode.el`, its five
-corpora under `emacs/test/`, run by `make emacs-mode` and last in `make test`.
+the mode and [`decisions.md`](decisions.md) the arguments. `emacs/ernest-mode.el`, its tests
+under `emacs/test/`, run by `make emacs-mode` and last in `make test`.
 
 Two decisions of the milestone reach beyond it:
 
@@ -275,6 +275,12 @@ Two decisions of the milestone reach beyond it:
   construct two ways were reindented to them: indentation is a step and never an alignment;
   `else` returns to the line its `if` begins on; a broken signature continues one step in; a
   clause bar sits two spaces left of its arms.
+- **A review the same day found the mode had placed lines against the guide**, and the
+  sources had been reindented to follow it: a line opening with an operator never carried
+  on, `|>` was taken for a clause bar, and a `then` leading a line fell to the block's
+  column. Eleven lines in four sources were moved back to the guide, whitespace only.
+  `docs/style.md` gained two rules: a line opening with a binary operator is one step in,
+  and `then` returns to the line its `if` begins on, as `else` does.
 - **The mode's word and operator lists are mirrored** by
   `emacs_mode_mirrors_the_lexer_test` in `test/ern_style_tests.erl`, since they restate
   Appendix A.

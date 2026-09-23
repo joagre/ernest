@@ -449,8 +449,8 @@ fn splitWord(s : String, i : Int) -> #(String, String) =
 // Report §11.2: the commands and their prefixes, from the one list.
 fn help() -> List(String) =
     ["Commands, which any prefix of the name selects:"]
-    <> List.map(commands, fn(e) = match e { Entry(name = n, about = a) -> "  :" <> n <> a })
-    <> ["The value of the last expression is `it`."]
+        <> List.map(commands, fn(e) = match e { Entry(name = n, about = a) -> "  :" <> n <> a })
+        <> ["The value of the last expression is `it`."]
 
 //
 // The screen: the only process that writes to the terminal
@@ -654,7 +654,7 @@ let indent = "    "
 fn indented(state : Shell.Editor.State, line : String, at : Int) -> Shell.Editor.State =
     Shell.Editor.typed(state,
         String.slice(line, 0, at) <> indent
-        <> String.slice(line, at, String.size(line) - at),
+            <> String.slice(line, at, String.size(line) - at),
         at + String.size(indent))
 
 // Report §11.2: `Shift-Tab` says what the name at the cursor is: its

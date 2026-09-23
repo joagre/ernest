@@ -31,6 +31,13 @@
   (ernest-beginning-of-defun)
   (ernest-editing--want "beginning-of-defun"
                         (buffer-substring (point) (+ (point) 16)) "export fn get(xs")
+  ;; C-M-a with a negative count moves forward, to the next declaration
+  (save-excursion
+    (ernest-beginning-of-defun -1)
+    (ernest-editing--want "beginning-of-defun -1"
+                          (and (bolp) (looking-at-p "export fn ")
+                               (not (looking-at-p "export fn get(")))
+                          t))
   ;; C-M-e stops before the next declaration's doc block
   (ernest-end-of-defun)
   (forward-line -1)
@@ -57,7 +64,9 @@
     (ernest-editing--want "the file" (match-string 1 line)
                           "/home/a person/src/ernest/stdlib/list.ern")
     (ernest-editing--want "the line" (match-string 2 line) "2")
-    (ernest-editing--want "the column" (match-string 3 line) "13")))
+    (ernest-editing--want "the column" (match-string 3 line) "13"))
+  ;; the source gutter under a diagnostic is not a file name
+  (ernest-editing--want "a gutter line" (string-match re "1 | fn f(a:1:2: x)") nil))
 
 (message "%s" (if (zerop ernest-editing--failures)
                   "editing: all checks passed"

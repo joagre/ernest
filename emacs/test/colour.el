@@ -25,14 +25,16 @@ export fn merge(left : List(a), right : List(a)) -> List(a) =
     let name = \"circle\";
     let flag = true;
     let size = 0x1F_2A;
+    let upper = 0X1F;
+    let raw = `C:\\`;
     merge(left, right)
 "
   "A buffer holding one of everything the keywords claim to paint.")
 
 (defun ernest-colour--check (text want)
-  "Check that the first occurrence of TEXT is painted WANT."
+  "Check that the first occurrence of TEXT, in its case, is painted WANT."
   (goto-char (point-min))
-  (if (not (search-forward text nil t))
+  (if (not (let ((case-fold-search nil)) (search-forward text nil t)))
       (progn (setq ernest-colour--failures (1+ ernest-colour--failures))
              (message "FAIL %-16s is not in the source" text))
     (let ((got (get-text-property (match-beginning 0) 'face)))
@@ -55,13 +57,16 @@ export fn merge(left : List(a), right : List(a)) -> List(a) =
   (ernest-colour--check "\"circle\"" 'font-lock-string-face)
   (ernest-colour--check "true" 'font-lock-constant-face)
   (ernest-colour--check "0x1F_2A" 'font-lock-constant-face)
-  ;; the apostrophe in the comment above must not leave the rest of the
-  ;; buffer inside a string
+  ;; the prefix is lowercase, report section 2.5
+  (ernest-colour--check "0X1F" nil)
+  (ernest-colour--check "`C:" 'font-lock-string-face)
+  ;; neither the apostrophe in the comment above nor the backslash that
+  ;; ends the raw string may leave the rest of the buffer inside a string
   (goto-char (point-min))
   (search-forward "merge(left, right)")
   (when (nth 3 (syntax-ppss (match-beginning 0)))
     (setq ernest-colour--failures (1+ ernest-colour--failures))
-    (message "FAIL an apostrophe in prose left the buffer in a string")))
+    (message "FAIL the buffer was left in a string")))
 
 (message "%s" (if (zerop ernest-colour--failures)
                   "colour: all checks passed"

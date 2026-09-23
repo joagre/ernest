@@ -1,7 +1,8 @@
 # The Emacs mode
 
 `ernest-mode` edits `.ern` files. It is in `emacs/`, the only Elisp in the repository, and
-its own header says how to load it. The roadmap entry is MVP 2.9 in
+its own header says how to load it. It needs Emacs 29.1 or later, the first with
+`font-lock-operator-face`; it is tested on Emacs 31 alone. The roadmap entry is MVP 2.9 in
 [`implementation_plan.md`](implementation_plan.md); the arguments that settled it are in
 [`decisions.md`](decisions.md).
 
@@ -13,32 +14,37 @@ Derived from `prog-mode`, not from CC Mode.
   strings, backtick raw strings that may span lines, and a `syntax-propertize-function` for
   char literals.
 - Font lock from report §2: reserved words, uppercase-initial names as types and
-  constructors, lowercase as values, qualified names, operators, and the numeric literals of
-  §2.5.
+  constructors, the name a declaration introduces, qualified names, operators, and the
+  numeric literals of §2.5.
 - Indentation to [`style.md`](style.md), which owns it.
 - `imenu`, `beginning-of-defun`, `end-of-defun`, `add-log-current-defun-function`.
-- `compilation-error-regexp-alist` for `file:line:col: message`.
+- `compilation-error-regexp-alist` for `file:line:col: message`, since Emacs's own `gnu`
+  entry refuses a file name with a space in it.
 - `auto-mode-alist` for `.ern`.
 
-It never calls the compiler; `M-x compile` does. It byte-compiles and passes `checkdoc`
-without a warning, as the Erlang builds with `-Werror`.
+It never calls the compiler; `M-x compile` does.
 
 The mode's reserved words and operators restate Appendix A, so
-`emacs_mode_mirrors_the_lexer_test` in `test/ern_style_tests.erl` keeps them equal to the
-lexer's.
+`emacs_mode_mirrors_the_lexer_test` in `test/ern_style_tests.erl` checks them against the
+lexer: the reserved words are the lexer's, and every operator the mode paints is one of the
+lexer's symbols.
 
 ## How it is judged
 
-Five corpora under `emacs/test/`. `make emacs-mode` runs them and `make test` runs them
-last; a machine without Emacs skips them.
+Six tests under `emacs/test/`. `make emacs-mode` runs them and `make test` runs them last;
+a machine without Emacs skips them. Each prints what it measured.
 
-| Corpus | What it holds | Result |
-| --- | --- | --- |
-| `reindent.el` | the repository's sources reindent unchanged | 0 of 6,090 lines |
-| `typing.el` | the same sources, cut mid-expression, still hold | 0 lines over 1,141 cuts |
-| `broken.el` over `broken/` | eight half-typed buffers keep their indentation, and a fresh line at the end takes the column a person expects | 8 of 8 |
-| `colour.el` | one check for each kind of face | passes |
-| `editing.el` | `imenu`, declaration movement, the diagnostic regexp | passes |
+| Test | What must hold |
+| --- | --- |
+| `lint.el` | the mode byte-compiles and passes `checkdoc` without a warning, as the Erlang builds with `-Werror` |
+| `reindent.el` | every `.ern` source in the repository reindents unchanged |
+| `typing.el` | the same sources, cut every 25 lines (`STEP` sets it), keep every line above the cut |
+| `broken.el` over `broken/` | each half-typed buffer keeps its indentation, and a fresh line at its end takes the column a person expects |
+| `colour.el` | one check for each kind of face, and what must not be painted |
+| `editing.el` | `imenu`, declaration movement, the diagnostic regexp |
+
+`reindent.el` cannot find a defect in a line the mode itself placed. A case in `broken/`,
+written to [`style.md`](style.md) by hand, can.
 
 ## What it does not do
 

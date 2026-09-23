@@ -20,6 +20,19 @@ line_length_test() ->
                       string:length(Line) > 100],
     ?assertEqual([], Long).
 
+%% docs/style.md: no file holds a tab; the vendored getopt keeps its upstream form
+no_tab_test() ->
+    Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "erl/*/include/*.hrl", "test/*.erl",
+                "stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern", "test/**/*.ern",
+                "test/*.py", "emacs/*.el", "emacs/test/*.el", "emacs/test/broken/*.ern",
+                "*.md", "docs/*.md"],
+    Files = [F || P <- Patterns, F <- filelib:wildcard(P, ?ROOT),
+                 filename:basename(F) =/= "getopt.erl",
+                 not editor_artifact(filename:basename(F))],
+    ?assert(length(Files) > 20),
+    ?assertEqual([], [{F, N} || F <- Files, {N, Line} <- numbered(F),
+                                lists:member($\t, Line)]).
+
 %% docs/style.md: every Erlang module is ern_<thing>, unique across the
 %% repository, and a module compiled from an Ernest source is ern@<namespace>;
 %% the one exception is a vendored file, which THIRD_PARTY_LICENSES names
@@ -40,8 +53,6 @@ module_name_test() ->
     ?assert(length(Ern) > 10),
     ?assertEqual([], [F || F <- Ern, not compiled_as(F)]).
 
-%% THIRD_PARTY_LICENSES names every borrowed file, so the exception is checked
-%% rather than listed twice.
 %% docs/emacs_mode.md: the Emacs mode restates Appendix A's reserved words
 %% and a subset of its symbols, so a test keeps the two equal. It found `=>`
 %% and `do`, which the mode painted and the language does not have.
@@ -93,6 +104,8 @@ read(Rel) ->
     {ok, Bin} = file:read_file(filename:join(?ROOT, Rel)),
     unicode:characters_to_list(Bin).
 
+%% THIRD_PARTY_LICENSES names every borrowed file, so the exception is checked
+%% rather than listed twice.
 vendored(Name) ->
     {ok, Bin} = file:read_file(filename:join(?ROOT, "THIRD_PARTY_LICENSES")),
     string:find(Bin, Name ++ ".erl") =/= nomatch.

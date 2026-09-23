@@ -68,7 +68,7 @@ test/              what spans applications: the hand-written target modules,
 bin/               ernc and ern, as escript sources
 stdlib/            the standard library as Ernest source
 shell/             the shell as Ernest source, from MVP 2.6
-emacs/             ernest-mode.el, the Emacs major mode, and its corpora under test/
+emacs/             ernest-mode.el, the Emacs major mode, and its tests under test/
 build/             build products, not in git: build/stdlib/ and build/shell/ from make,
                    the standard library's pages from make doc
 libs/              the first-party libraries, each a source root, from MVP 2.7
@@ -78,12 +78,12 @@ A module path segment is one lowercase word (report §11.1); a multi-word module
 
 ## Building
 
-Erlang/OTP 29 and GNU make. No rebar3, no OTP behaviours. `make test` also needs python3, for the pseudo-terminal the terminal tests run a program under; Erlang cannot open one. Emacs is optional: without it the mode's corpora are skipped and the rest runs.
+Erlang/OTP 29 and GNU make. No rebar3, no OTP behaviours. `make test` also needs python3, for the pseudo-terminal the terminal tests run a program under; Erlang cannot open one. Emacs is optional: without it the mode's tests are skipped and the rest runs.
 
 ```
 make              compile every application into its ebin/, then stdlib/
 make test         build, run the EUnit tests, the tests in test/, then the Emacs mode's
-make emacs-mode   the Emacs mode's corpora alone (docs/emacs_mode.md)
+make emacs-mode   the Emacs mode's tests alone (docs/emacs_mode.md)
 make doc          write the standard library's pages to build/stdlib/, with index.md
 make sections     list the report sections no test cites
 make xref         check that every section citation in the documents resolves

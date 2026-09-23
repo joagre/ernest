@@ -1,0 +1,4 @@
+fn collide(ps : Map(Int, Player), p : Player) -> Player = match p {
+    Player(body = head :: _, alive = true) ->
+        if List.any(Map.values(ps), fn(q) = List.contains(tailOf(q), head))
+        then Player(..p, alive = false) else p

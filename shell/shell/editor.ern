@@ -462,7 +462,7 @@ let searchesOn = Test(name = "C-r again finds the one before it", run = fn() =
 
 let searchShows = Test(name = "a search shows its prompt and what it found", run = fn() =
     if shows(plays(start(["print two"]), [ctrl('r')] <> keys("two")))
-    == "(reverse-i-search)`two\': print two" then Passed
+        == "(reverse-i-search)`two\': print two" then Passed
     else Failed(shows(plays(start(["print two"]), [ctrl('r')] <> keys("two")))))
 
 let searchFails = Test(name = "a search that matches nothing says so and keeps the line",
@@ -494,7 +494,7 @@ let kept = Test(name = "the line just taken joins the history", run = fn() =
 
 let notKept = Test(name = "a blank input and one repeated are not kept", run = fn() =
     if !keeps(start(["one"]), "  ") && !keeps(start(["one"]), "one")
-    && keeps(start(["one"]), "two") then Passed
+        && keeps(start(["one"]), "two") then Passed
     else Failed("the history kept what it should not"))
 
 // Every event of a text typed a character at a time.

@@ -1,0 +1,4 @@
+fn shape(x : Int) -> String = match x {
+    0 -> "none"
+    // the rest are not named yet
+}
