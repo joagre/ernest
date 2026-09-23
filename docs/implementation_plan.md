@@ -37,6 +37,7 @@ so a decision they must see goes here.
 | MVP 2.5 | a complete standard library | done 2026-09-20 |
 | **MVP 2.6** | **the shell** | **checkpoints 0–3 done; checkpoint 4 next** |
 | MVP 2.65 | the language and the toolchain read back | after 2.6 |
+| MVP 2.66 | introduce a supervisor behaviour? | after 2.6 |
 | MVP 2.7 | the first libraries and the network stack | |
 | MVP 2.8 | four more libraries | |
 | MVP 2.9 | an Emacs major mode | |
@@ -250,6 +251,12 @@ which the style guide forbids; `compilation-error-regexp-alist` for `file:line:c
 
 ## MVP 3.0 (peers), about three weeks
 
+Designed in [`node_protocol.md`](node_protocol.md), which owns the protocol: node identity
+as the hash of the TLS key, incarnations, addresses, spawning, monitors, ordering,
+connections and the wire encoding. It is marked tentative, and it is written against an
+older spelling of the language; the report changes it implies are listed at the end of this
+section and are decided before any of it is built.
+
 Nodes that reach each other and the four operations of §8.7 between them, with code shipping
 restricted to nodes running the same build: identical definitions have identical hashes,
 which is §8.7 in its easiest case. A peer whose build differs is refused with an error naming
@@ -264,6 +271,19 @@ peers are the useful one.
 - Peer loss as §10 says: every process on the lost peer dead with `Fault("peer lost")`,
   monitors delivered, pending `remote` calls `Left(PeerLost)`; a peer that reappears is a new
   instance.
+- **What the protocol note asks of the report**, each to be decided before it is built:
+  `Down` gains `Unreachable` and a cause for an address that never had a process, since a
+  watcher must tell a lost connection from a death (§9.3, §6.9); §6.4 gains that what
+  arrives is an unbroken prefix of what was sent and that a sender is told nothing of a
+  drop; and the note's `spawn_at(node, f)`, `MonitorRef` with `demonitor`, and a name
+  registry are surface the report does not have — `spawn(Peer(name), f)` is one primitive
+  with a placement argument (§9.4), `monitor` is one message and no handle (§9.5), and
+  §6.3 refuses a registry outright. The registry is the one of these that is a language
+  question rather than a protocol question, and it belongs with MVP 2.65's list: without
+  one, a service another node started cannot be reached, since only spawning or being sent
+  an address gives you one. The note's open question 11, a way to stop an uncooperative
+  process, is already answered: `kill` is the language's (§6.9), asynchronous, and a killed
+  process's monitors see `Killed`; across nodes it needs a frame the note's table lacks.
 - **An adapted address across a node** is open, and report first when it is taken. `via(f,
   addr)` has been the pair of the function and the address since 2026-09-20 (§6.5), so an
   `Address` that leaves a node may carry a function, which is the same question as a message
@@ -273,6 +293,18 @@ peers are the useful one.
 ---
 
 ## MVP 3.1 (content addressing), about four weeks
+
+Designed in [`code_distribution.md`](code_distribution.md), which owns it: what is hashed,
+names as a build product, the loader beside `code_server`, have/want before every message,
+the trust model, and the atom-leak restart. Marked tentative, and two things in it meet the
+code as it stands. Its section 11 asks MVP 1 for a named IR stage with locals numbered by
+position: there is none, since `ern_emitter` goes from the typed AST to Erlang's abstract
+format in one traversal, so the choice is to introduce an IR here or to canonicalise the
+typed AST, which is the decision below either way. And its section 3.4 hashes every
+declared type nominally, name included, where §8.7 says structurally identical definitions
+share a hash and only an abstract type's hash carries its name — the note is right that the
+wire should mean what the checker means, and §8.7 is already in two minds about it, so this
+is a report change to make here.
 
 §8.7's identity in full. The first decision is what "normalized definition" means, since two
 nodes must agree exactly: the typed tree or the untyped one, whether local names are erased,

@@ -56,7 +56,8 @@ VERSION            the toolchain's version, read at build time
 ernest_report.md   the language report (normative)
 ernest_guide.md    the reading guide
 docs/              decisions log, implementation plan, architecture note, style guides,
-                   module documentation template, shell design, language feedback, Emacs mode
+                   module documentation template, shell design, language feedback, Emacs mode,
+                   node protocol, code distribution, killer app
 examples/          Ernest programs: the paper programs and the small ones
 erl/               the toolchain, as Erlang applications: lexer, parser,
                    typer, runtime, emitter, cli, utils (vendored getopt);
