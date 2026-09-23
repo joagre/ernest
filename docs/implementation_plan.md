@@ -190,6 +190,10 @@ options, then what is recorded and left alone.
     This decides the second of the two candidates above; field selection remains.
   - Types are inferred except where an operator's operand type must be named (§0, §3.9,
     §4.8); "full inference" is no longer claimed.
+  - The shell's second reload of a module ends the processes still on its oldest version
+    with `Fault("its code was unloaded")`, and §6.10 says the shell never changes a
+    running process's code (§7.3, §7.4, §11.2). The limit is the BEAM's two versions of a
+    module, and MVP 3.1 lifts it.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the
@@ -367,6 +371,11 @@ declared type nominally, name included, where §8.7 says structurally identical 
 share a hash and only an abstract type's hash carries its name — the note is right that the
 wire should mean what the checker means, and §8.7 is already in two minds about it, so this
 is a report change to make here.
+
+Hash modules never change, so versions coexist on a node for as long as a process runs one
+([`code_distribution.md`](code_distribution.md) section 8). The shell's reload then ends
+nothing: §7.3's unloading cause, §7.4's `Fault("its code was unloaded")`, and §11.2's
+second-reload rule go in this MVP, with the test that pins them.
 
 §8.7's identity in full. The first decision is what "normalized definition" means, since two
 nodes must agree exactly: the typed tree or the untyped one, whether local names are erased,

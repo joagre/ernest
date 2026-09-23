@@ -814,7 +814,7 @@ end_previous(#env{session = S} = Env, Mod) ->
                                 erlang:check_process_code(Pid, Mod)],
     lists:foreach(fun({Pid, _}) ->
                       quiet(Pid),
-                      exit(Pid, {ern, code_replaced})
+                      exit(Pid, {ern, code_unloaded})
                   end, Processes),
     Bindings = bindings_of(Env, Mod),
     Values = maps:without([Key || {_, Key} <- Bindings], maps:get(values, S, #{})),

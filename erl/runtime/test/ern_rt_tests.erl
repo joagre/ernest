@@ -105,6 +105,20 @@ monitor_test() ->
     ?assertEqual({'Down', <<"Main.main:5">>, {'Fault', <<"division by zero">>}}, wait(d2)),
     ?assertEqual({'Down', <<"Main.main:7">>, 'Killed'}, wait(d3)).
 
+%% report §7.3, §7.4, §11.2: a process whose code the shell unloads dies
+%% with the fault that says so; the shell ends it as `exit/2` does here
+unloaded_code_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Old = ern_rt:spawn('Local', fun() -> receive never -> ok end end,
+                                  <<"Main.main:3">>),
+               ern_rt:monitor(Old, fun(D) -> {down, D} end),
+               exit(Old, {ern, code_unloaded}),
+               receive {down, D} -> Me ! {d, D} end
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({'Down', <<"Main.main:3">>, {'Fault', <<"its code was unloaded">>}}, wait(d)).
+
 %% report §6.5: via adapts a message on its way to the target
 via_test() ->
     Me = self(),
