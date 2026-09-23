@@ -67,12 +67,12 @@ What I would actually put to you as candidate language changes: field selection 
     Two places where the rule is looser than it should be, and both should go the way of
     "write it in Ernest, measure later":
 
-    - **E.0 rule 1's second clause, "or the runtime's implementation is the one to trust",**
-      is the only opening in the library for an argument from performance, and it covers
-      exactly one function: `List.sort`. A merge sort is twenty lines of Ernest and its
-      stability is a property the section states rather than one we trust `lists:sort` for.
-      Cutting the clause and rewriting `sort` leaves rule 1 saying one thing only: the
-      runtime owns the representation.
+    - **Done 2026-09-23.** E.0 rule 1's second clause, "or the runtime's implementation is
+      the one to trust", was the only opening in the library for an argument from
+      performance, and it covered exactly one function: `List.sort`. `sort` is a merge sort
+      in Ernest now, twenty lines, stable by taking the left element when two compare
+      `Equal`; `ern_list.erl` is deleted, and rule 1 says one thing only, with "speed is not
+      a reason for a shim" added. Measured after: twenty thousand elements in 17 ms.
     - **`path.ern` is seven shims of eight exports** over `filename:`, and a path is a
       `String`, whose content the language owns. `join`, `split`, `parent`, `name`,
       `extension`, `withExtension` and `isAbsolute` are string surgery that `String.split`,

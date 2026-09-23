@@ -366,8 +366,41 @@ export fn reverse(xs : List(a)) -> List(a) = foldLeft(xs, [], fn(acc, y) = y :: 
 
 /// The elements in the order `compare` gives, stable: two elements it calls
 /// `Equal` keep the order they had.
-export foreign fn sort(xs : List(a), compare : (a, a) -> Ordering with e) -> List(a) with e =
-    "ern_list:sort/2"
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.sort([3, 1, 2], Int.compare)
+/// // => [1, 2, 3]
+/// ```
+export fn sort(xs : List(a), compare : (a, a) -> Ordering with e) -> List(a) with e =
+    match xs {
+        [] -> xs
+      | [_] -> xs
+      | _ -> {
+            let #(left, right) = halves(xs);
+            merge(sort(left, compare), sort(right, compare), compare)
+        }
+    }
+
+// A merge sort: the halves are sorted and then merged, and a merge that
+// takes the left element when the two compare `Equal` is what makes the
+// sort stable.
+fn halves(xs : List(a)) -> #(List(a), List(a)) = {
+    let half = size(xs) / 2;
+    #(take(xs, half), drop(xs, half))
+}
+
+fn merge(left : List(a), right : List(a), compare : (a, a) -> Ordering with e)
+    -> List(a) with e = match #(left, right) {
+        #([], _) -> right
+      | #(_, []) -> left
+      | #(l :: ls, r :: rs) ->
+            match compare(l, r) {
+                Greater -> r :: merge(left, rs, compare)
+              | _ -> l :: merge(ls, right, compare)
+            }
+    }
 
 /// The pairs of elements at the same index, to the length of the shorter
 /// list.
