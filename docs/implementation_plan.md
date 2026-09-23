@@ -188,6 +188,8 @@ options, then what is recorded and left alone.
   - `Prelude` names the prelude's namespace, so `Prelude.Close` reaches a prelude name a
     module has shadowed (§4.2). It takes one name, and no module or type takes `Prelude`.
     This decides the second of the two candidates above; field selection remains.
+  - Types are inferred except where an operator's operand type must be named (§0, §3.9,
+    §4.8); "full inference" is no longer claimed.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the
