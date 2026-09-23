@@ -26,8 +26,8 @@
 %% Emission context, threaded through everything.
 -record(cx, {ns, mod, env, fname, vars = #{}, counter = 0, locals = #{}, lifted = [],
              tops = #{}, descs = #{}, pat_guards = []}).
-%% pat_guards: Erlang guard forms a pattern needs on its clause, a `bits`
-%% segment's is_binary (report §5.11), taken by the clause that uses them
+%% pat_guards: Erlang guard forms a pattern needs on its clause, a float
+%% segment's zero (report §3.1), taken by the clause that uses them
 %% descs: descriptor term => the name of the module function returning it
 -record(local, {lifted, own, extra, refs, snap = pending}).
 %% vars: Ernest name => Erlang variable name; locals: local fn name =>
@@ -1593,8 +1593,8 @@ pattern(#p_as{pos = Pos, pattern = P, name = N}, Cx) ->
     {at(Pos, erl_syntax:match_expr(erl_syntax:variable(V), PF)), Cx2};
 pattern(#p_bits{pos = Pos, segments = Segs}, Cx) ->
     %% report §5.11: a size expression must be an Erlang guard expression
-    %% here; a `bits` segment is bound to a variable and guarded is_binary,
-    %% so an unaligned rest fails the match
+    %% here; a `bytes` segment is Erlang's `binary`, so an unaligned rest
+    %% fails the match
     {Fields, Cx1} =
         lists:mapfoldl(fun(#bit_seg{value = V, specs = Specs}, C) ->
                            {ok, Spec} = ern_typecheck:segment_spec(Specs),
@@ -1604,15 +1604,6 @@ pattern(#p_bits{pos = Pos, segments = Segs}, Cx) ->
                        end, Cx, Segs),
     {at(Pos, erl_syntax:binary(Fields)), Cx1}.
 
-bits_pattern_value(#{kind := bits}, V, Cx) ->
-    {VF, Cx1} = case V of
-                    #p_wild{pos = Pos} ->
-                        {[N], C} = fresh_vars(1, "B", Cx),
-                        {at(Pos, erl_syntax:variable(N)), C};
-                    _ -> pattern(V, Cx)
-                end,
-    Guard = call_remote(erlang, is_binary, [VF]),
-    {VF, Cx1#cx{pat_guards = Cx1#cx.pat_guards ++ [Guard]}};
 bits_pattern_value(#{kind := float}, #p_var{pos = Pos, name = Name}, Cx) ->
     {V, Cx1} = bind(Name, Cx),
     {at(Pos, erl_syntax:variable(V)), Cx1#cx{vars = (Cx1#cx.vars)#{Name => {zero, V}}}};
@@ -1656,9 +1647,6 @@ segment_value(#{kind := float} = Spec, VF, SizeF) ->
 segment_value(#{kind := bytes, size := none}, VF, _) -> VF;
 segment_value(#{kind := bytes} = Spec, VF, SizeF) ->
     call_remote(ern_bits, bytes, [VF, bits_form(Spec, SizeF)]);
-segment_value(#{kind := bits, size := none}, VF, _) -> VF;
-segment_value(#{kind := bits} = Spec, VF, SizeF) ->
-    call_remote(ern_bits, bits, [VF, bits_form(Spec, SizeF)]);
 segment_value(_, VF, _) -> VF.
 
 %% A dynamic size with a unit that is not a multiple of 8 leaves the bit
@@ -1668,7 +1656,7 @@ open(_) -> false.
 
 type_specs(#{kind := Kind, unit := Unit, endian := Endian, sign := Sign, size := Size}) ->
     Type = case Kind of
-               int -> integer; bits -> bitstring; bytes -> binary; K -> K
+               int -> integer; bytes -> binary; K -> K
            end,
     Utf = lists:member(Kind, [utf8, utf16, utf32]),
     [erl_syntax:atom(Type)]

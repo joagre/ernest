@@ -350,9 +350,9 @@ AtomPat   = "_" | ident | literal | "-" ( int | float )
 BitPat    = "<<" [ BitSegP { "," BitSegP } ] ">>" .
 BitSegP   = Pattern [ ":" BitSpec { "-" BitSpec } ] .
 BitSpec   = "size" "(" Expr ")" | "unit" "(" int ")"
-          | "bits" | "bytes" | "int" | "float"
+          | "bytes" | "int" | "float"
           | "utf8" | "utf16" | "utf32"
-          | "big" | "little" | "native"
+          | "big" | "little"
           | "signed" | "unsigned" .
 FieldPats = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 ```
@@ -423,16 +423,15 @@ Each variable appears at most once in a pattern; equality is written in a guard.
 |-----------------------------|-------------------------------------------------------------|
 | `size(N)`                   | segment width, in units                                     |
 | `unit(N)`                   | bits per size unit (default 1)                              |
-| `bits`                      | segment is a nested `Bytes` value; unit is 1 bit            |
 | `bytes`                     | segment is a nested byte-aligned `Bytes` value; unit is 8 bits |
 | `int`, `float`              | numeric segment (defaults: 8-bit, 64-bit)                   |
 | `utf8`, `utf16`, `utf32`    | text encoding                                               |
-| `big`, `little`, `native`   | endianness                                                  |
+| `big`, `little`             | endianness                                                  |
 | `signed`, `unsigned`        | sign                                                        |
 
-A segment without specifiers is `int` of size 8. `int` binds to `Int`, `float` to `Float`, the `utf` forms to `Char`, `bits` and `bytes` to `Bytes`. `unit` is 1 to 256. A `float` segment is 16, 32, or 64 bits. A `utf` segment has no size. A `bits` or `bytes` segment without a size takes the rest of the value and is the last segment. The specifier names are ordinary identifiers outside a bitstring.
+A segment without specifiers is `int` of size 8. `int` binds to `Int`, `float` to `Float`, the `utf` forms to `Char`, `bytes` to `Bytes`. `unit` is 1 to 256. A `float` segment is 16, 32, or 64 bits. A `utf` segment has no size. A `bytes` segment without a size takes the rest of the value and is the last segment. The specifier names are ordinary identifiers outside a bitstring.
 
-A construction's total bit count is a multiple of 8. A `bits` or `bytes` segment has a byte-multiple size; a sub-octet field is `int`: `x:size(3)-bits` is an error, a 3-bit field is `x:size(3)-int`. A violation the compiler can see is a compile-time error; one that depends on a dynamic size faults at construction (§7.4) or fails to match. A segment pattern is a variable, `_`, or a literal of the segment's type. `size(Expr)` in a pattern is a variable bound by an earlier segment or by the enclosing function, an `Int` literal, or `+`, `-`, or `*` applied to these. Any other segment pattern or size expression is a type error. A negative or out-of-range size fails the match. Construction evaluates the segments left to right; a value that does not fit its width is a fault. `<<>>` is the empty `Bytes`.
+A construction's total bit count is a multiple of 8. A `bytes` segment has a byte-multiple size, whatever its unit; a sub-octet field is `int`: `x:size(3)-bytes-unit(1)` is an error, a 3-bit field is `x:size(3)-int`. A violation the compiler can see is a compile-time error; one that depends on a dynamic size faults at construction (§7.4) or fails to match. A segment pattern is a variable, `_`, or a literal of the segment's type. `size(Expr)` in a pattern is a variable bound by an earlier segment or by the enclosing function, an `Int` literal, or `+`, `-`, or `*` applied to these. Any other segment pattern or size expression is a type error. A negative or out-of-range size fails the match. Construction evaluates the segments left to right; a value that does not fit its width is a fault. `<<>>` is the empty `Bytes`.
 
 ```
 fn frame(len : Int, body : Bytes) -> Bytes =
@@ -894,9 +893,9 @@ AtomPat     = "_" | ident | literal | "-" ( int | float )
 BitPat      = "<<" [ BitSegP { "," BitSegP } ] ">>" .
 BitSegP     = Pattern [ ":" BitSpec { "-" BitSpec } ] .
 BitSpec     = "size" "(" Expr ")" | "unit" "(" int ")"
-            | "bits" | "bytes" | "int" | "float"
+            | "bytes" | "int" | "float"
             | "utf8" | "utf16" | "utf32"
-            | "big" | "little" | "native"
+            | "big" | "little"
             | "signed" | "unsigned" .
 FieldPats   = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 ```

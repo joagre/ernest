@@ -886,7 +886,7 @@ bif_names_test() ->
 
 %% report §5.11: the report's frame round trip, sub-octet fields, utf8,
 %% float and signed and little segments, a dynamic size in a pattern, and
-%% an unaligned `bits` rest that fails the match
+%% an unaligned rest that fails the match
 bitstrings_test() ->
     {ok, Out} = run(
         "fn frame(len : Int, body : Bytes) -> Bytes = <<len:size(16)-big, body:bytes>>\n"
@@ -904,7 +904,7 @@ bitstrings_test() ->
         "  | _ -> \"\"\n"
         "}\n"
         "fn tail(n : Int, b : Bytes) -> String = match b {\n"
-        "    <<_:size(n)-bits, rest:bits>> -> show(rest)\n"
+        "    <<_:size(n)-bytes-unit(1), rest:bytes>> -> show(rest)\n"
         "  | _ -> \"no\"\n"
         "}\n"
         "export fn main() -> Unit with Never = {\n"
@@ -939,7 +939,7 @@ bitstring_faults_test() ->
               {"<<1.0e300:size(32)-float>>", <<"segment overflow">>},
               {"<<(<<1, 2, 3>>):size(2)-bytes>>", <<"segment overflow">>},
               {"<<7:size(three())>>", <<"bitstring not byte-aligned">>},
-              {"<<(<<1>>):size(three())-bits>>", <<"bitstring not byte-aligned">>}],
+              {"<<(<<1>>):size(three())-bytes-unit(1)>>", <<"bitstring not byte-aligned">>}],
     lists:foreach(fun({Bits, Cause}) ->
                       {R, _} = run(Three ++ Main ++ "{ let _ = " ++ Bits ++ "; Unit }\n"),
                       ?assertEqual({fault, Cause}, R)

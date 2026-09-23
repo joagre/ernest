@@ -3718,6 +3718,10 @@ The prelude had `remote(f)` and `parallelRemote(fs)`, and the second is the firs
 
 E.19 declared `Result(v, r) = Ok(v) | Error(r)` for shims over Erlang's `{ok, V}` and `{error, R}`. A shim over such an API needs an Erlang helper whatever the result type, since `{ok, V}` encodes no Ernest constructor (§8.4), and a helper that rewrites can rewrite to `Either`'s `{'Right', V}` and `{'Left', R}` as easily as to `{'Ok', V}`. `Result` was a second success-or-failure type beside `Either` (principle 2), and nothing in the repository used it. E.19 keeps `Erl.atom`, the one thing a shim cannot write, and says what the helper rewrites to.
 
+## `bits` and `native` Leave the Bit Syntax, 2026-09-24
+
+Both came from Erlang with the bit syntax. Erlang's `bits` exists for bitstrings that are not whole octets; Ernest's `Bytes` is a sequence of octets (§3.1), §5.11 already required a `bits` segment to be a byte multiple, and `bits` was `bytes` with a unit of one bit, two specifiers for one job (principle 2). Sub-octet fields inside a whole of octets are `int` segments of any size, which cover protocol and format parsing; a stream built bit by bit, as a Huffman or deflate encoder builds one, is an `Int` and a count. `Bytes` stays octets, and `bits` goes; `bytes-unit(1)` writes a width in bits. `native` read the byte order of the node that evaluated it. Formats and protocols state their byte order, so `big` and `little` serve them; data in the host's own order, a dump or a C library's struct, comes through foreign code, which is written in Erlang and converts it at the boundary where host detail belongs. Keeping `native` with a sentence making it node-dependent, as `Sys.*` is in shipped code, was sound, and it was weighed as not useful enough to hold a place in the language.
+
 ## Later
 
 Planned or considered, not in the language today.

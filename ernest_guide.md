@@ -1013,22 +1013,21 @@ Specifiers, joined with `-`:
 
 - **`size(N)`** — width in units.
 - **`unit(N)`** — bits per size unit; default 1.
-- **`bits`** — segment is a nested `Bytes` value; unit is 1 bit.
 - **`bytes`** — segment is a nested byte-aligned `Bytes` value; unit is 8 bits.
 - **`int`**, **`float`** — numeric (defaults: 8-bit `int`, 64-bit `float`).
 - **`utf8`**, **`utf16`**, **`utf32`** — text encoding.
-- **`big`**, **`little`**, **`native`** — endianness.
+- **`big`**, **`little`** — endianness. A format states its byte order; data in the host's own order comes through foreign code, which converts it.
 - **`signed`**, **`unsigned`** — sign.
 
-A segment without specifiers is `int` of size 8, which is why `<<0, 1, 2>>` is three bytes. `int` binds to `Int`, `float` to `Float`, the `utf` forms to `Char`, `bits` and `bytes` to `Bytes`.
+A segment without specifiers is `int` of size 8, which is why `<<0, 1, 2>>` is three bytes. `int` binds to `Int`, `float` to `Float`, the `utf` forms to `Char`, `bytes` to `Bytes`.
 
 **Alignment and range rules:**
 
 - A bitstring produces a `Bytes` value; the total bit count must be a multiple of 8.
-- A `bits` or `bytes` segment binding to a `Bytes` value must itself be byte-multiple. Sub-octet fields use the `int` specifier (binding to `Int`).
+- A `bytes` segment must itself be byte-multiple, whatever its unit. Sub-octet fields use the `int` specifier (binding to `Int`).
 - Compile-time-constant alignment violations are compile-time errors. Dynamic-size violations fault in construction and fail matching in patterns.
 - A segment value that does not fit its specified width — an `Int` too large for `size(N)-int` at construction — is a fault.
-- Four fixed limits (report §5.11): `unit` is 1 to 256; a `float` segment is 16, 32, or 64 bits; a `utf` segment takes no size; a sizeless `bits` or `bytes` segment is the last one.
+- Four fixed limits (report §5.11): `unit` is 1 to 256; a `float` segment is 16, 32, or 64 bits; a `utf` segment takes no size; a sizeless `bytes` segment is the last one.
 
 What a `Bytes` value holds is read with the `Bytes` module (Appendix E.20): `Bytes.size` and `Bytes.isEmpty`, `Bytes.get` for one octet, `Bytes.slice`, and `Bytes.toList` and `Bytes.fromList` between a `Bytes` and a `List(Int)`. A `Bytes` is not a container, so its octets go through `toList`, as a `String`'s characters do. Text crosses with `String.toUtf8` and `String.fromUtf8`.
 

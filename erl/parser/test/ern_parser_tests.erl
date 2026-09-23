@@ -523,6 +523,9 @@ misc_errors_test() ->
     ?assertEqual("expected `->` after a parameter list instead of `=`",
                  err("let f : (A, B) = x")),
     ?assertEqual("unknown bitstring specifier `bogus`", err_expr("<<x:bogus>>")),
+    %% report §5.11: `bits` and `native` are Erlang's, not Ernest's
+    ?assertEqual("unknown bitstring specifier `bits`", err_expr("<<x:bits>>")),
+    ?assertEqual("unknown bitstring specifier `native`", err_expr("<<x:size(32)-native>>")),
     ?assertEqual("expected a number after `-` in a pattern instead of identifier `x`",
                  err_expr("match y { -x -> 1 }")),
     ?assertEqual("expected a type name; a qualified type ends in an uppercase name",

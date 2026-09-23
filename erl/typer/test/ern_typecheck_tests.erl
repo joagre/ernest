@@ -1063,8 +1063,8 @@ bitstring_construction_test() ->
     ?assertEqual("unit is 1 to 256 on this runtime", err("fn f() = <<1:unit(0)>>")),
     ?assertEqual("a utf segment has no size or unit", err("fn f() = <<'a':utf8-size(8)>>")),
     ?assertEqual("a float segment is 16, 32, or 64 bits", err("fn f() = <<1.0:size(8)-float>>")),
-    ?assertEqual("a `bits` segment is a whole number of bytes, not 12 bits",
-                 err("fn f(b : Bytes) = <<b:size(12)-bits>>")).
+    ?assertEqual("a `bytes` segment is a whole number of bytes, not 12 bits",
+                 err("fn f(b : Bytes) = <<b:size(12)-bytes-unit(1)>>")).
 
 %% report §5.11: a pattern binds each segment at its type; a size sees the
 %% earlier segments and is pure; a segment pattern is a variable, `_`, or
@@ -1075,7 +1075,7 @@ bitstring_pattern_test() ->
                          " <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> ->"
                          " Some(#(len, body, rest)) | _ -> None }", parse)),
     ?assertEqual("(Bytes) -> Optional(#(Char, Float))",
-                 type_of("export fn f(b) = match b { <<c:utf8, x:size(32)-float, _:bits>> ->"
+                 type_of("export fn f(b) = match b { <<c:utf8, x:size(32)-float, _:bytes>> ->"
                          " Some(#(c, x)) | _ -> None }", f)),
     ?assertEqual("the size of a segment: expected Int, found Bytes",
                  err("fn f(b : Bytes) = match b { <<n:bytes, x:size(n)>> -> x | _ -> 0 }")),
@@ -1131,7 +1131,7 @@ receive_guard_test() ->
 %% of them
 bitstring_size_shape_test() ->
     ?assertEqual(ok, ok("fn f(b : Bytes, n : Int) = match b {"
-                        " <<k, rest:size(k * 8 + n - 1)-bits>> -> rest | _ -> b }")),
+                        " <<k, rest:size(k * 8 + n - 1)-bytes-unit(1)>> -> rest | _ -> b }")),
     ?assertEqual("a size in a pattern is a variable, an Int literal, or `+`, `-`, `*` of them",
                  err("fn f(b : Bytes) = match b {"
                      " <<n, rest:size(List.size([n]))-bytes>> -> rest | _ -> b }")),

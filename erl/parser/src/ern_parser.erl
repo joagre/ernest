@@ -16,8 +16,7 @@
 -type error() :: ern_diag:diag().
 
 -define(DECL_START, [export, type, abstract, fn, 'let', foreign]).
--define(SPECS, [bits, bytes, int, float, utf8, utf16, utf32, big, little, native,
-                signed, unsigned]).
+-define(SPECS, [bytes, int, float, utf8, utf16, utf32, big, little, signed, unsigned]).
 
 -spec parse([ern_lexer:token()]) -> {ok, [tuple()]} | {error, error()}.
 parse(Tokens) ->

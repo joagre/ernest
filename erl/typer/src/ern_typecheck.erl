@@ -2140,8 +2140,8 @@ segment_spec(Specs) ->
         case {Kind, Size} of
             {float, {const, N}} when N =/= 16, N =/= 32, N =/= 64 ->
                 throw("a float segment is 16, 32, or 64 bits");
-            {K, {const, N}} when (K =:= bits orelse K =:= bytes), (N * Unit) rem 8 =/= 0 ->
-                throw("a `" ++ atom_to_list(K) ++ "` segment is a whole number of bytes, not "
+            {bytes, {const, N}} when (N * Unit) rem 8 =/= 0 ->
+                throw("a `bytes` segment is a whole number of bytes, not "
                       ++ integer_to_list(N * Unit) ++ " bits");
             _ -> ok
         end,
@@ -2154,10 +2154,10 @@ segment_spec(Specs) ->
 spec_fold({size, #e_lit{kind = int, value = N}}, Spec) -> once(size, {const, N}, Spec);
 spec_fold({size, E}, Spec) -> once(size, {expr, E}, Spec);
 spec_fold({unit, N}, Spec) -> once(unit, N, Spec);
-spec_fold(K, Spec) when K =:= int; K =:= float; K =:= bits; K =:= bytes; K =:= utf8;
-                        K =:= utf16; K =:= utf32 ->
+spec_fold(K, Spec) when K =:= int; K =:= float; K =:= bytes; K =:= utf8; K =:= utf16;
+                        K =:= utf32 ->
     once(kind, K, Spec);
-spec_fold(E, Spec) when E =:= big; E =:= little; E =:= native -> once(endian, E, Spec);
+spec_fold(E, Spec) when E =:= big; E =:= little -> once(endian, E, Spec);
 spec_fold(S, Spec) when S =:= signed; S =:= unsigned -> once(sign, S, Spec).
 
 once(Key, Value, Spec) ->
@@ -2192,14 +2192,14 @@ alignment(Pos, Segs, What) ->
         false -> ok
     end.
 
-%% A `bits` or `bytes` segment without a size takes the rest, so it is last.
+%% A `bytes` segment without a size takes the rest, so it is last.
 last_sizeless([]) -> ok;
 last_sizeless([_]) -> ok;
 last_sizeless([#bit_seg{pos = Pos, specs = Specs} | Rest]) ->
     case segment_spec(Specs) of
-        {ok, #{kind := K, size := none}} when K =:= bits; K =:= bytes ->
-            fail(Pos, "a `" ++ atom_to_list(K) ++ "` segment without a size takes the rest, so"
-                      " it is the last segment");
+        {ok, #{kind := bytes, size := none}} ->
+            fail(Pos, "a `bytes` segment without a size takes the rest, so it is the last"
+                      " segment");
         _ -> last_sizeless(Rest)
     end.
 
