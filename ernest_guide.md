@@ -113,7 +113,7 @@ let x = 5;
 let y = x + 1        // y is 6
 ```
 
-A block groups statements between `{` and `}`, separated by `;`. Its value is the last statement, which must be an expression — no trailing semicolon. Evaluation is strict and left-to-right: each `;` runs its statement to completion before the next. Every statement before the last is a `Unit`: a value you mean to drop is dropped with `let _ = e`, so `check(-1);` on an `Either` is a type error rather than a lost failure.
+A block groups statements between `{` and `}`, separated by `;`. Its value is the last statement, which must be an expression — no trailing semicolon. Evaluation is strict and left-to-right: each `;` runs its statement to completion before the next. Every expression statement before the last is a `Unit`: a value you mean to drop is dropped with `let _ = e`, so `check(-1);` on an `Either` is a type error rather than a lost failure.
 
 ```
 let area = {
@@ -155,7 +155,7 @@ fn opposite(d : Direction) -> Direction = match d {
 
 The compiler checks that clauses cover every case; a missing case is a type error.
 
-That rule has a shape you will meet again. Principles 2 to 5 of the report each turn an omission into a statement: exhaustiveness makes you say what every constructor does; `let _ = e` says a value is ignored on purpose; the reply discipline says where each `Reply` is consumed (§4); `export` says what crosses a module's boundary; `with m` says a function acts through a process; a qualified name says which module a name comes from. Several of these tell the compiler nothing it could not work out for itself. What they add is that the decision is written down, where a reader meets it. Principle 1, least surprise, then audits the result. It is programming on purpose, to borrow P.J. Plauger's phrase for designing deliberately rather than by accident — his subject is the whole of software design and broader than any of these rules (*Programming on Purpose: Essays on Software Design*, Prentice Hall, 1993).
+That rule has a shape you will meet again. The report's principle 3, nothing invisible, turns an omission into a statement: exhaustiveness makes you say what every constructor does; `let _ = e` says a value is ignored on purpose; the reply discipline says where each `Reply` is consumed (§4); `export` says what crosses a module's boundary; `with m` says a function acts through a process; a qualified name says which module a name comes from. Several of these tell the compiler nothing it could not work out for itself. What they add is that the decision is written down, where a reader meets it. Principle 1, least surprise, then audits the result. It is programming on purpose, to borrow P.J. Plauger's phrase for designing deliberately rather than by accident — his subject is the whole of software design and broader than any of these rules (*Programming on Purpose: Essays on Software Design*, Prentice Hall, 1993).
 
 Constructors can carry data. `Optional(a)` is the standard example:
 
@@ -271,7 +271,7 @@ A postfix `as ident` binds the whole match alongside its destructured parts: `So
 
 Guards are pure `Bool` expressions with no mailbox effect. A guard that evaluates to `false` falls through to the next clause. A guard that *faults* faults the enclosing process; it never turns into a silent `false`.
 
-A `receive` guard is narrower, because it selects a message without taking it out of the mailbox. It is a *guard expression*: comparisons of variables, literals, and nullary constructors, joined by `&&` and `||`, with the orderings on `Int`, `Float`, `String`, and `Char` only, and no calls (report §5.9). When you need more, receive the message and `match` it.
+A `receive` guard is narrower, because it selects a message without taking it out of the mailbox. It is a *guard expression*: comparisons of variables, literals, and nullary constructors, joined by `&&` and `||`, with the orderings on `Int`, `Float`, `String`, and `Char` only, and no calls (report §6.3). When you need more, receive the message and `match` it.
 
 Guards do not count toward `match` exhaustiveness. A clause with a guard still needs an unguarded fallback, typically a wildcard `_` clause, so the compiler can prove coverage.
 
@@ -336,11 +336,11 @@ Report Appendix E lists the library: a module per namespace, mostly one per type
 - **Subject first, callbacks last, accumulator between**, so the pipe works: `xs |> List.foldLeft(0, fn(acc, x) = acc + x)`.
 - **Conversions are named by the other type and live in the subject's module.** `String.toInt`, `Int.toString`, `String.fromList`. Several policies are several names: `Float.round`, `Float.floor`, `Float.ceil`, `Float.truncate`. A conversion to text has its inverse where the text form is unambiguous and the type has no other way in, which is why `String.toBool` and `String.toIntBase` stand beside `Bool.toString` and `Int.toStringBase`, and why a `Char` needs none, `String.toList` being its way in.
 - **A type a module declares is named for what it is within the module**, never for the module: `Random.Seed`, not `Random.RandomSeed`.
-- **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get`, `Map.get`, `String.toInt`, `Char.fromInt` return `Optional`. Nothing in the library faults beyond what report §7.4 lists.
+- **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get`, `Map.get`, `String.toInt`, `Char.fromInt` return `Optional`. Nothing in the library faults beyond what report §7.4 lists or the function's own entry says.
 - **Pure unless the value lives in a process.** The system modules `Io`, `Clock`, `Terminal`, `Fs`, and `Tcp` carry `with m`; every other module is pure, and every function that takes a function is effect-polymorphic (§3.5).
-- **A `String` is not a container.** Its `Char`s are reached through `String.toList`: `List.all(String.toList(t), Char.isDigit)`. `String.size` counts and `String.slice` indexes graphemes, extended grapheme clusters, each what a reader sees as one letter, while `String.toList` gives `Char`s, one scalar value each: `e` with a combining accent is one grapheme of two `Char`s. Text has its own operations instead: `startsWith`, `endsWith`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `trim`, `toLower`, `toUpper`; a `Char` has its predicates and its case, `isDigit`, `isAlpha`, `isSpace`, `isUpper`, `isLower`, `toUpper`, `toLower`.
-- **`Random` has a pure interface.** `Random.next(seed, n)` returns a draw between 0 and `n` inclusive and the next seed; `Random.seed(42)` makes a seed, `Random.nextFloat(seed)` draws above 0.0 and below 1.0, and the same seed gives the same sequence.
-- **A system process is used through its module, never by `send`.** `Clock.alarm(100, fn(_) = Tick)`, `Fs.read(path, 5000)`, `Tcp.accept(listener, 60000)`. A function that waits takes the milliseconds last and answers `Left(Timeout)`; `Clock.now`, `Tcp.listen`, and `Io.readLine` take none, the first two answer at once and the third waits for the user. One that delivers later takes a function to your mailbox type, as `monitor` does (§5.2). `Terminal.subscribe` and `Io.readLine` are the same terminal: a program uses one or the other, and one that uses both ends with `Fault("the terminal is already read as lines")`, or `as keys` (report §8.2). `Terminal.subscribe` answers once the terminal is in the mode the keys need, so what is typed after it returns is never echoed; a prompt printed before it would be a promise the program cannot keep. While a program is subscribed each key arrives as it is pressed and nothing is echoed, and the terminal goes back to line mode with echo when the program ends. `Escape` arrives once no escape sequence can still follow it, so a terminal that sends an arrow as three bytes never delivers a spurious `Escape` first. A socket is an `Address(SockMsg)`, a process, so it can be monitored, killed, and adapted with `via` like any other.
+- **A `String` is not a container.** Its `Char`s are reached through `String.toList`: `List.all(String.toList(t), Char.isDigit)`. `String.size`, `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and index graphemes, extended grapheme clusters, each what a reader sees as one letter, while `String.toList` gives `Char`s, one scalar value each: `e` with a combining accent is one grapheme of two `Char`s. Text has its own operations instead: `startsWith`, `endsWith`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `trim`, `toLower`, `toUpper`; a `Char` has its predicates and its case, `isDigit`, `isAlpha`, `isSpace`, `isUpper`, `isLower`, `toUpper`, `toLower`.
+- **`Random` has a pure interface.** `Random.next(seed, n)` returns a draw between 0 and `n` inclusive and the next seed; `Random.seed(42)` makes a seed, `Random.nextFloat(seed)` draws above 0.0 and below 1.0, and the same seed gives the same sequence on one runtime version.
+- **A system process is used through its module, never by `send`.** `Clock.alarm(100, fn(_) = Tick)`, `Fs.read(path, 5000)`, `Tcp.accept(listener, 60000)`. A function that waits takes the milliseconds last and answers `Left(Timeout)`, a time below 0 being 0 and a moment already past being now; `Clock.now`, `Tcp.listen`, and `Io.readLine` take none, the first two answer at once and the third waits for the user. One that delivers later takes a function to your mailbox type, as `monitor` does (§5.2). `Terminal.subscribe` and `Io.readLine` are the same terminal: a program uses one or the other, and one that uses both ends with `Fault("the terminal is already read as lines")`, or `as keys` (report §8.2). `Terminal.subscribe` answers once the terminal is in the mode the keys need, so what is typed after it returns is never echoed; a prompt printed before it would be a promise the program cannot keep. While a program is subscribed each key arrives as it is pressed and nothing is echoed, and the terminal goes back to line mode with echo when the program ends. `Escape` arrives once no escape sequence can still follow it, so a terminal that sends an arrow as three bytes never delivers a spurious `Escape` first. A socket is an `Address(SockMsg)`, a process, so it can be monitored, killed, and adapted with `via` like any other.
 
 What the type does not say, the comment on the signature in Appendix E says: `List.remove` removes the first occurrence, `Map.toList` has no order, `List.sort` is stable.
 
@@ -534,7 +534,7 @@ match Address.call(c, fn(r) = Get(reply = r), 1000) {
 
 Four rules:
 
-1. **The deadline starts at invocation.** Build time and send time count against it.
+1. **The deadline starts at invocation.** Build time and send time count against it, and a deadline below 0 is 0.
 2. **`None` does not cancel the recipient's work.** The recipient may still be computing; retrying a state-changing request can repeat its effect.
 3. **Late answers are silently discarded, and so are second answers.** They never enter the caller's ordinary mailbox. A reply arriving exactly at the deadline may be delivered or discarded — no deterministic tiebreak.
 4. **The reply mechanism is private.** `Address.call` works in a process whose declared mailbox is `Never` or any other type; the fresh Reply identifier is separate from the declared mailbox, and reply values never appear there.
@@ -559,7 +559,7 @@ export fn main() -> Unit with m = {
 
 `spawn(Local, fn() = counter(0))` starts a new process on the current node, running the lambda; the returned `Address(CounterMsg)` is bound to `c`. `Local` versus `Peer("name")` selects where the process runs; peers are in §7. Inside the spawned lambda, `self()` returns the *child's* address, not the parent's — a parent that wants to hand its own address to the child must capture `self()` before spawning: `let me = self(); spawn(Local, fn() = child(me))`.
 
-After the two `send`s and the answered call, `main` returns and the program ends. When `main` returns, the runtime kills every *local* process with cause `ProgramEnd`, flushes pending output from system processes, and stops. A program stopped from outside, with the terminal's interrupt or the host's termination signal, ends the same way, and the runtime says nothing of its own about it (report §8.6). Workers spawned on peer nodes are unaffected — they run under their peer's runtime.
+After the two `send`s and the answered call, `main` returns and the program ends. When `main` returns, every *local* process dies with the reason `ProgramEnd`, which is not a fault; the runtime flushes pending output from system processes and stops. A program stopped from outside, with the terminal's interrupt or the host's termination signal, ends the same way, and the runtime says nothing of its own about it (report §8.6). Workers spawned on peer nodes are unaffected — they run under their peer's runtime.
 
 If the call succeeds, it returns 8: the same sender's two `Inc` messages arrive in order (per-sender FIFO), then `Get` returns the accumulated state, and `main` prints `count is 8`. If the 1000 ms deadline expires before the reply, `main` prints `counter did not answer` — the timeout branch is not dead code.
 
@@ -685,7 +685,7 @@ monitor(child, fn(d) = Died(run = run, down = d));
 
 A message whose run is not the one being waited for is an earlier worker's, and is ignored. This is what the report means by identity being expressed in the protocol: the protocol is yours, and the wrap is where you put the identity in it.
 
-A fault in one process does not affect another (no automatic supervision). Two exceptions: a fault in `main` ends the program and terminates its local processes with `ProgramEnd`, and a fault in a function adapting an address ends the process that address names (§5.5).
+A fault in one process does not affect another (no automatic supervision). Three exceptions: a fault in `main` ends the program and terminates its local processes with `ProgramEnd`, a fault in a function adapting an address ends the process that address names (§5.5), and a fault in `remote`'s callback faults the process that called `remote` (§7.1). A process that is killed, or that ends with the program, has not faulted.
 
 ### 5.3 `kill`
 
@@ -697,7 +697,7 @@ kill : (Address(a)) -> Unit with m
 
 ### 5.4 Deadlock as a safety net
 
-When forward progress is impossible, the entry process faults with `Fault("deadlock")`, and the program ends as on any fault of the entry process, reporting `fault: deadlock`. Progress is impossible when every live process waits in `receive` without `after`, no message is in flight, and no live system process or connected peer holds a subscription, a timer, a pending I/O, or a computation that could deliver a message. Pending `after`s, network listeners, keyboard subscribers, and running peer computations that owe this node a reply all count as such a source, so an idle server waiting on external events is not deadlocked. Detection is per node; a distributed deadlock across peers may not be detected.
+When forward progress is impossible, the entry process faults with `Fault("deadlock")`, and the program ends as on any fault of the entry process, reporting `fault: deadlock`. Progress is impossible when every live process waits in `receive` without `after`, no message is in flight, no monitor waits on a process the runtime did not start, and no system process or connected peer holds a subscription, a timer, a pending I/O, or a computation whose completion would deliver a message. Pending `after`s, network listeners, keyboard subscribers, and a process this node spawned on a peer, while it runs, all count as such a source, so an idle server waiting on external events is not deadlocked. Detection is per node; a distributed deadlock across peers may not be detected.
 
 ### 5.5 Adapting messages with `via`
 
@@ -746,7 +746,7 @@ Answer: no. Per-sender FIFO orders messages from ping to pong and pong to ping, 
 
 ## 6. Organize code
 
-An Ernest program is one or more modules. A module is a `.ern` source file; its path *is* its namespace.
+An Ernest program is one or more modules. A module is a `.ern` source file; its path *is* its namespace. Modules may not depend on each other in a cycle; a cycle is a compile-time error (report §4.1).
 
 ### 6.1 Modules and namespaces
 
@@ -812,7 +812,7 @@ let addsTwo = Test(name = "adds two", run = fn() -> TestResult with Never =
 
 `ern --test module.erc` runs every test of the module, exported or not, each in a process of its own, and prints each as passed, failed with its text, or faulted with its cause. A test runs as a process root, `with Never`, so it may spawn, send, and call; `ern --test` exits 1 unless every test passed; one that needs `receive` spawns a process for it (report §9.3, report §11.2).
 
-**Documenting a module.** A `///` block documents what follows it on the next line: a declaration, a constructor, a named field, or a signature entry. A `///` block first in the file, with a blank line after it, documents the module. The text is CommonMark, and `ernc --doc` renders the module as a page: the title, each declaration's type in a code block, and the text. The documentation travels in the compiled module, so `--doc` reads a `.erc` as well as a `.ern` (report §11.1). An example in a doc block ends with `// => v`, the value `Io.debug` prints, and the standard library's tests run it and compare. An example that cannot run where the page's examples run, because its value is of an abstract type, because it reads a file or a socket, or because it needs a mailbox of its own, carries no such line and is only type-checked. What a module's documentation must contain is Appendix E.0 rule 6 of the report; [`docs/module_doc_template.md`](docs/module_doc_template.md) shows it on a fictive module, generated and kept true by a test (report §2.2 and report §11.4).
+**Documenting a module.** A `///` block documents what follows it on the next line: a declaration, a constructor, a named field, or a signature entry. A `///` block first in the file, with a blank line after it, documents the module. The text is CommonMark, and `ernc --doc` renders the module as a page: the title, each declaration's type in a code block, and the text. The documentation travels in the compiled module, so `--doc` reads a `.erc` as well as a `.ern` (report §11.4). An example in a doc block ends with `// => v`, the value `Io.debug` prints, and the standard library's tests run it and compare. An example that cannot run where the page's examples run, because its value is of an abstract type, because it reads a file or a socket, or because it needs a mailbox of its own, carries no such line and is only type-checked. What a module's documentation must contain is Appendix E.0 rule 6 of the report; [`docs/module_doc_template.md`](docs/module_doc_template.md) shows it on a fictive module, generated and kept true by a test (report §2.2 and report §11.4).
 
 **Entry point.** `ern main.erc` looks up `export fn main` in the loaded module and invokes it. `main` is a naming convention, not a reserved specialness — any exported function with the entry-point shape `() -> Unit with M` can be selected. If `tools.ern` exports a `check` function of that shape, run it as:
 
@@ -878,7 +878,7 @@ type RemoteError = NoRemotePeer | PeerLost
 
 `remote(f)` hands `f` to the runtime, which picks a peer and runs `f()` there. `f` is pure by `remote`'s design — `remote` is a one-shot compute-and-return, not a process; effectful work on a peer goes through `spawn(Peer(...), ...)`.
 
-`remote` has a mailbox effect: `Left(NoRemotePeer)` when no peer is configured, `Left(PeerLost)` when the peer is lost before the value returns. A fault in the callback faults the caller with the same cause, as calling it locally would: `remote` computes elsewhere and catches nothing. A peer-side resolution failure faults the caller too, with `Fault("peer resolution failed: ...")`, as it does `spawn(Peer(...), ...)`. Work whose fault should not end the caller runs in a process of its own, monitored.
+`remote` has a mailbox effect: `Left(NoRemotePeer)` when no peer is configured for remote computation (`"remote-peer": true`), `Left(PeerLost)` when the peer is lost before the value returns. A fault in the callback faults the caller with the same cause, as calling it locally would: `remote` computes elsewhere and catches nothing. A peer-side resolution failure faults the caller too, with `Fault("peer resolution failed: ...")`, as it does `spawn(Peer(...), ...)`. Work whose fault should not end the caller runs in a process of its own, monitored.
 
 `remote` waits for its answer, so several computations run at once from processes of their own, each calling `remote` and answering when asked. The answers come back in the order they were asked for:
 
@@ -910,7 +910,7 @@ This program needs `ernest.conf` to list at least one peer with `"remote-peer": 
 
 ### 7.2 Code shipping
 
-Four operations ship a closure or payload and the code it depends on: `spawn(Peer(name), f)`, `remote(f)` and the return of its result, `send` to a remote address, and `answer(r, v)` to a caller on another node. The peer resolves each referenced hash — it uses cached code if present, or fetches from the sender. Types, functions, and constructors are identified across nodes by content hash; two nodes with structurally identical definitions agree on identity.
+Four operations ship a closure or payload and the code it depends on: `spawn(Peer(name), f)`, `remote(f)` and the return of its result, `send` to a remote address, and `answer(r, v)` to a caller on another node. The peer resolves each referenced hash — it uses cached code if present, or fetches from the sender. Types, functions, and constructors are identified across nodes by content hash; two nodes with identical definitions under the same qualified names agree on identity, and a type's name is part of its identity.
 
 Some consequences the code sees:
 
@@ -1071,7 +1071,7 @@ Ernest is n-ary: every function has a specific number of arguments recorded in i
 
 ## 9. Reading further
 
-Which programs under `examples/` the toolchain runs today is the `PROGRAMS` macro in `test/ern_integration_tests.erl`. The four paper programs below compile today. They are not run under test yet: two run until stopped, one waits for a terminal, and one serves until a client stops coming, so running them needs fixed input and a bounded run.
+Which programs under `examples/` the toolchain runs today is the `PROGRAMS` macro in `test/ern_integration_tests.erl`. The four paper programs below compile today. Three run under test, with fixed input and a bounded run: the REPL, the file sync, and the web server. The snake game waits for a terminal, which no test can give it, so it is only compiled.
 
 The four paper programs, in ascending complexity:
 
