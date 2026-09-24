@@ -19,15 +19,11 @@ Actorson until 12 September 2026.
 
 **MVP 2.6, the shell, checkpoint 4.** Checkpoints 0 to 3 are done: the loop and the terminal
 harness, bindings and the commands, the live region, and the line editor with history,
-multi-line input and paste. What is left of the milestone is in "MVP 2.6" below: completion
-and the prelude's documentation, the closing sweep, and a session of real use.
+multi-line input and paste. What is left of the milestone is in "MVP 2.6" below, in order.
 
-**MVP 2.61, the guide, done 2026-09-24, out of order.** A newcomer reads the guide and not
-the report, so the guide was rewritten to teach Ernest on its own; the steps are in "MVP
-2.61" below. MVP 2.6 resumes at checkpoint 4.
-
-**CLAUDE.md was rewritten for clarity on 2026-09-24**, every rule kept and each stated once,
-in the order of work.
+**Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23, and MVP 2.61, the
+guide as the user's document, on 2026-09-24, after which CLAUDE.md was rewritten for
+clarity, every rule kept. Both are under "Done".
 
 **The rhythm.** One item a turn, with its tests, its documents, its conformance section and
 its commit; then a stop for review before the next. The user reads the plan and not the log,
@@ -74,68 +70,47 @@ the shell is neither standard library nor library but the toolchain's own progra
 
 **What is left.**
 
-- **Checkpoint 4, completion and documentation.** Steps 1 to 3 are done, 2026-09-21:
-  `Shell.Complete`, pure and tested, matching by prefix and by abbreviation segment by
-  segment; `Tab` replacing the word before the cursor and indenting four spaces where there
-  is none; a second `Tab` listing the candidates with their types above the region, forty at
-  most; and the parser saying what may stand at the cursor, which filters the candidates by
-  kind. What is left of the checkpoint: what completes by position, bindings and modules and constructors in an
-  expression, types after `:`, a constructor's remaining fields, a command and then its
-  argument; `Shift-Tab` for documentation, the type and first sentence and `since`, a second
-  press for the `:doc` section, and inside a call the signature with the parameter at the
-  cursor marked. Step 4 is half done, 2026-09-21: the editor reads `Escape [ Z` as one key,
-  `Shift-Tab` shows a name's type and first sentence and the whole page when pressed again,
-  and a command completes as a word of the shell's own, `:br` to `:browse`, with a second
-  `Tab` listing them all. **Left of step 4:** the signature with the parameter at the cursor
-  marked, which wants a parser tag for "inside a call's argument n" as the field position
-  got one; a declaration's own `since`, which the page does not carry per declaration; and
-  a terminal test for `Shift-Tab` and command completion — the editor's own tests cover the
-  key, and the behaviour was checked by hand, but the pty test written for it raced its own
-  output and was taken out rather than left failing.
-- **Done 2026-09-24: an Erlang module of one's own is loaded from the load path.** A
-  `foreign fn` could name `store_helper:lookup/1`, and nothing put a user's `.beam` where the
-  host found it. Report §11.2 now says that such a module is the host's own or a `.beam` in a
-  directory of the load path, the host's own first, and `ern` adds the load path to the
-  host's code path. The guide's §8.5 helper is a complete module the guide test compiles with
-  `erlc` and runs. MVP 2.7's libraries build their Erlang modules into their own directory
-  under `build/libs/`, which `--load-path` already names.
-- **`ern_shell_tests`' program session is timed, and failed once.** Found 2026-09-24: it
-  failed in one `make test` and passed in the next two, alone eight times, and twelve at
-  once, so the failing assertion was not captured. The session's asserts rest on two waits
-  of 400 ms against faults due at 100 and 150 ms, so a slow moment lets a fault report land
-  after `:faults` or after `:quit`. Fixed in this checkpoint, with the harness work: the
-  inputs wait on the faults, not on time, by monitoring the worker they spawn and by a
-  command or a wait that ends when the program's entry point has ended.
-- **`:type` of a name prints its instance, so its variables lose their names.** Found
-  2026-09-24 by the guide's cold read: `:type Io.readLine` prints `with e` where `:browse Io`
-  prints `with m`, since an instance's variables carry no names (`ern_types:instantiate/2`,
-  report §11.5). Right for an expression, surprising for a name (principle 1). **Decided
-  2026-09-24:** `:type` of an input that is one name, qualified or not, prints that name's
-  declared type, as `:browse`, `:doc` and `Shift-Tab` do, and report §11.2 says so; any
-  other expression prints its type as now. Built with the prelude's documentation below,
-  which needs the same lookup of a prelude name's declared type.
-- **`:doc` knows nothing of the prelude.** Found 2026-09-24: `:doc monitor`, `:doc Down`,
-  `:doc Optional` and `:doc IoError` print "no documentation", so the names a program uses
-  most are the ones the shell cannot explain, and `Shift-Tab` shows nothing on them. The
-  prelude is a table in `erl/typer/src/ern_prelude.erl` whose source is report §9, kept
-  equal to it by `ern_prelude_tests`, and no doc block exists for it. **Decided
-  2026-09-24:** each entry of the table carries its documentation, written by E.0 rule 6
-  as a standard library export's is, since the table is the prelude's one source in code
-  and a `stdlib/prelude.ern` cannot declare `spawn` or `Int`. Report §9 gains the sentence
-  that the prelude's names are documented as the standard library's are; `:doc`,
-  `Shift-Tab`, and `ernc --doc` of a page named `Prelude` read it, and a test fails on a
-  name without it. Built in checkpoint 4, before the in-call signature, since that
-  signature shows the prelude's calls too. The guide's declarations of `Down`, `Reason` and
-  `RemoteError`, fragments until then, then become `:doc` sessions the guide test checks.
+- **Checkpoint 4, completion and documentation.** Built, 2026-09-21: `Shell.Complete`, pure
+  and tested, matching by prefix and by abbreviation segment by segment and filtering by what
+  may stand at the cursor, types after `:`, constructors in a pattern, a constructor's
+  fields; `Tab` replacing the word and indenting four spaces where there is none; a second
+  `Tab` listing the candidates with their types, forty at most; a command completing as a
+  word of the shell's own; `Shift-Tab` showing a name's type and first sentence, and its page
+  when pressed again. **Left, in this order:**
+  1. **The prelude's documentation.** `:doc monitor`, `:doc Down`, `:doc Optional` and
+     `:doc IoError` print "no documentation" (found 2026-09-24), so the names a program uses
+     most are the ones the shell cannot explain. Decided 2026-09-24: each entry of
+     `ern_prelude`'s table, the prelude's one source in code, kept equal to report §9 by
+     `ern_prelude_tests`, carries its documentation, written by E.0 rule 6 as a standard
+     library export's is; a `stdlib/prelude.ern` cannot declare `spawn` or `Int`. Report §9
+     gains the sentence; `:doc`, `Shift-Tab`, and `ernc --doc` of a page named `Prelude`
+     read it, and a test fails on a name without it. The guide's declarations of `Down`,
+     `Reason` and `RemoteError`, its last unchecked blocks, then become `:doc` sessions.
+  2. **`:type` of a name prints its declared type.** `:type Io.readLine` prints `with e`
+     where `:browse Io` prints `with m`, since an instance's variables carry no names
+     (`ern_types:instantiate/2`, report §11.5): right for an expression, surprising for a
+     name (principle 1; found by the guide's cold read, 2026-09-24). Decided 2026-09-24:
+     `:type` of an input that is one name, qualified or not, prints the name's declared
+     type, as `:browse`, `:doc` and `Shift-Tab` do, and §11.2 says so. It needs the same
+     lookup of a prelude name's type as step 1.
+  3. **The signature inside a call**, with the parameter at the cursor marked, which wants a
+     parser tag for "inside a call's argument n" as the field position got one; and a
+     declaration's own `since`, which the page does not carry per declaration.
+  4. **The program session waits on its faults, not on time.** `ern_shell_tests`' program
+     session failed once in `make test` on 2026-09-24 and passed alone eight times and twelve
+     at once; its asserts rest on two waits of 400 ms against faults due at 100 and 150 ms.
+     The inputs monitor the worker they spawn, and wait for the program's entry point to end.
+  5. **A terminal test for `Shift-Tab` and command completion.** The editor's own tests cover
+     the keys and the behaviour was checked by hand, but the first pty test raced its own
+     output and was taken out rather than left failing.
 - **Typing ahead while an input runs looks wrong.** A test that sent a second input before
   the first had finished never saw the second's result. Found 2026-09-21, not diagnosed, and
   recorded in the language note; it belongs with the session of real use below.
 - **The closing sweep**, as the working rules require at the end of a plan step: the guide
-  read against the report, then every other document against the report and the code.
-  **Decided 2026-09-24:** report §11.2 states `Tab` completion and `Shift-Tab`
-  documentation as it states the editing keys, since they are the shell's behaviour and
-  §11 owns the toolchain's; `docs/shell_design.md` keeps how they are built. Written in
-  this sweep, once checkpoint 4 has finished them.
+  read against the report, then every other document against the report and the code. It
+  writes into report §11.2 `Tab` completion and `Shift-Tab` documentation, as it states the
+  editing keys, since §11 owns what the toolchain does (decided 2026-09-24);
+  `docs/shell_design.md` keeps how they are built.
 - **A session of real use.** The user works in the shell and reports what it is like; what
   that finds is fixed before the milestone closes or recorded in the design note. Nothing so
   far has been driven by hand — every test goes through the pseudo-terminal harness, which
@@ -184,85 +159,6 @@ Field selection and the names of the toolchain's options moved to 2.65 on 2026-0
 
 ---
 
-## MVP 2.61 (the guide as the user's document), taken 2026-09-24
-
-A reading of `ernest_guide.md` as a newcomer's document found it accurate against the report
-and written as its companion: framed for reading rather than writing, heavy with the report's
-corners, and without a reason to learn the language. A newcomer does not read the report, so
-the guide must teach Ernest on its own, in Wirth's register, and sell it on its merits,
-without boasting. Each step is a stop.
-
-1. **Done 2026-09-24: the guide's examples are checked mechanically**, as the standard library's are. A
-   complete program in an `ernest` block type-checks; one followed by an `output` block is
-   run and its output compared; an `ernest-rejected` block must fail for a reason of its own.
-   Anything else is a fragment, which nothing checks. `test/ern_guide_tests.erl` owns the
-   convention; 22 examples and one rejected example are checked, and step 5 makes more of the
-   fragments complete.
-2. **Done 2026-09-24: the opening: why Ernest, and a first program.** The guide is
-   *Programming in Ernest*. §0 shows four mistakes `ernc` finds, each as the program and its
-   error: a wrong message to a process, a request left unanswered, a function that acts
-   through a process without saying so, an `Either` dropped by a statement. §1 runs hello
-   world with no configuration, which moves to §7 where peers need it, and opens the
-   shell. The test compares a rejected block's error, and a shell session's output, with the
-   console after it. Writing it found three things, fixed here: `ernc` crashed printing an
-   error whose source line holds a character outside Latin-1, and `ern` printed such text
-   byte by byte; the report did not say which path an error names (§11.5), nor that the
-   shell prints nothing for a `Unit` value (§11.2).
-3. **Done 2026-09-24: §2 and §3 cut to teaching weight.** A rule and an example stay; a
-   corner points to the report in a line. The prose went from 3,532 words to 2,271: the
-   standard library's rules keep one example each instead of Appendix E's lists, and the
-   literal corners, the evaluation order of fields, and the rules for a local `fn` became
-   pointers. The `receive` guard moved to §4.3, where `receive` is taught.
-4. **Done 2026-09-24: the error model gets a section of its own:** a value, a message, or a
-   fault, and nothing is caught. It is §6, *Handle failure*, after process lifetime, since a
-   fault is observed through `monitor`; the sections after it moved up by one. Each of the
-   three has a complete program that the test runs, and the rules on faults that were in
-   §3.4 and §5.2 are said there once. Step 6's supervision joins it.
-5. **Done 2026-09-24: every fragment completed or cut.** An expression became a shell
-   session the test replays, a declaration a complete module, and a signature the shell's
-   `:type`; blocks naming one file are its parts, and a console may run `ern --test`. The
-   guide test checks 57 examples. Two blocks wait, `Down` and `Reason`, and `RemoteError`,
-   on `:doc` for the prelude, MVP 2.6 checkpoint 4; §8.5's Erlang helper, which waited on
-   loading an Erlang module of one's own, is complete since that was built the same day.
-   Completing them found and fixed two defects: the
-   prompt took a name alone in a `let`, where §11.2 makes it a block `let` with a pattern,
-   and a pure callback given to `spawn` was reported as "process code called from a pure
-   function". Split from the running example on 2026-09-24.
-5b. **Done 2026-09-24: one running example through §2 to §5**, a word counter: values at
-   the prompt, functions in `words.ern` tried in the shell, a tally process, and workers
-   that count at once under a monitor, closing the guide's sections 2 to 5, each checked by
-   the test.
-   A block headed `// words.ern, continued` adds to the file as it stood, and a console of
-   `ern --shell words.erc` is a session with the module loaded. Writing it found that the
-   shell refused a file without `main`; §11.2 now loads such a file and spawns nothing.
-6. **Done 2026-09-24: supervision and "let it crash"**, §6.4: a supervisor in fifteen lines
-   of spawn, monitor, and receive that runs a worker per job, reports the job that faulted,
-   and goes on; state that must survive lives in the supervisor, a restarted service has a
-   new address to hand out, and a link is a monitor that returns. MVP 2.66 still decides
-   whether a supervisor becomes a library behaviour.
-7. **Done 2026-09-24: the tools and a bridge.** The guide's section 9 puts `ernc`, `ern`,
-   the shell's commands and keys, and the Emacs mode on one page, teaching report §11; its
-   section 10 says what an Erlang programmer keeps and what differs, from typed mailboxes to
-   the absence of links, atoms, and exceptions. The FAQ and the reading list moved on,
-   to the guide's sections 12 and 14 after step 8.
-8. **Done 2026-09-24: the small things.** The Plauger aside left §2.3 for a closing section,
-   the guide's section 11, on the five principles; the exercises' answers stand apart in its
-   section 13, each naming its exercise; §5.5's game takes `Tick(Int)` from `Clock.alarm`,
-   so the section has one `Tick`; and §0 maps the whole guide, not only its stages.
-9. **Done 2026-09-24: §4 to §8 and the FAQ cut to teaching weight, and read cold.** The
-   sections step 3 did not reach lost a third of their words, and one register holds
-   throughout. A reader new to Ernest then read the guide alone and reported where they got
-   lost; the fixes: the rule for `with Never` against `with m` moved from the FAQ to the first section,
-   with the entry process named and one convention for `main`; reading input got a subsection of its own;
-   `compare` for a type of one's own, the `=` and `!` marks, a queue that keeps pending
-   replies in waiter processes, and how new code reaches a running process are shown; a
-   positional constructor takes one value; the teaser's names are pointed forward. Three
-   findings went further than the guide: `:type` of a name loses its variable names
-   (decided, MVP 2.6 checkpoint 4), a program has no command-line arguments (MVP 2.65),
-   and a type's members cannot come in a later input than the type (feedback item 17).
-
----
-
 ## MVP 2.65 (the language and the toolchain read back after the shell), about four days
 
 The shell is the first program of size written in Ernest by the people who designed it, and
@@ -271,18 +167,8 @@ This item decides each entry rather than collecting it: the language questions f
 selection at their head, then what belongs to Appendix E, then the names of the toolchain's
 options, then what is recorded and left alone.
 
-- **Arguments to a program**, `docs/language_feedback.md` item 16, found 2026-09-24 by the
-  guide's cold read: an entry point takes no arguments (§8.1), and nothing gives a program
-  the command line it was started with, so every program has its inputs written in or read
-  from standard input. Built here, report first. The leading shape, 2026-09-24: the
-  standard library gives the arguments as `Sys.args : List(String)`, ambient as the other
-  `Sys.*` references are, since they are a value the runtime holds and fixes at start
-  (E.0 rule 1), and one way in keeps principle 2; an entry point that takes a
-  `List(String)` is weighed against it and would change §8.1, `--main`, the shell's
-  entry, and `ern --test`. Parsing options from the list is policy, a library outside
-  the standard library by E.0.
 - **Each entry is judged on §0's five principles**, and a standard library entry on E.0's
-  four rules, one by one and in writing. The note's last entry asked two of E.0 itself: rule
+  four admission rules, one by one and in writing. The note's last entry asked two of E.0 itself: rule
   1's second clause, the library's only opening for an argument from performance, went on
   2026-09-23 with `List.sort` written in Ernest; `path.ern`'s shims over string surgery are
   explained in the note and decided here. How many sites in the shell felt it is an argument,
@@ -291,90 +177,21 @@ options, then what is recorded and left alone.
   entry in the log under "Later" stating the verdict and what would change it; or a line
   saying it was weighed and left alone. Nothing is left open, since the next program will
   feel the same things and a second collection is not a decision.
-- **The two candidates the note puts forward** are field selection, `s.upper`, with three
-  witnesses in the shell and Gleam's totality rule to copy — a field read with a dot when
-  every constructor of the type has a field of that name and type — and, tentatively, some
-  way to name a prelude constructor a module has shadowed. Against the first is principle 2,
-  a pattern already reading a field; for it, that Ernest took `..` for update from the family
-  whose readers expect `.` for read. The report changes first if it is taken: §3.5 for the
-  rule, Appendix A for the production, §11.5 for what a selector on an absent field says.
-- **A standalone reading of the report, 2026-09-23**, as a Wirth report and against §0.
-  Its errors that asked for no decision are fixed. Its other issues are decided one at a
-  time, and each decision is listed here as it is made:
-  - A statement other than a block's last has type `Unit`, and a value is discarded with
-    `let _ = e` (§5.4). The shell refuses an input whose value or `let` carries a reply
-    (§11.2), which it had never enforced.
-  - `Ets` leaves the standard library for `libs/ets`, the first library: a table is state
-    processes share, which §10 and E.0 rule 1 refuse the standard library. Its section of
-    Appendix E goes, and with it the checker's special case for `Ets.Table`'s key (§3.10).
-    `ernc` takes `--load-path`, so a program compiles against a library's interface
-    (§11.1). The webserver keeps its sessions in a process that owns a `Map`.
-  - A fault is a death with `Fault(cause)`; `Killed` and `ProgramEnd` are not faults
-    (§6.9, §7.3), and every cause is listed in §7.4. A deadlock is the entry process's
-    fault, `Fault("deadlock")` (§8.6), and `ern` reports `fault: deadlock`.
-  - `remote` catches nothing: a fault in its callback faults the caller with the same
-    cause, and a resolution failure faults it as `spawn(Peer(...), ...)` does. `PeerLost`
-    means only that the peer was lost (§6.7, §8.7). `remote` is MVP 3's; today it returns
-    `Left(NoRemotePeer)`, so only the report and the example changed.
-  - `Prelude` names the prelude's namespace, so `Prelude.Close` reaches a prelude name a
-    module has shadowed (§4.2). It takes one name, and no module or type takes `Prelude`.
-    This decides the second of the two candidates above; field selection remains.
-  - Types are inferred except where an operator's operand type must be named (§0, §3.9,
-    §4.8); "full inference" is no longer claimed.
-  - The shell's second reload of a module ends the processes still on its oldest version
-    with `Fault("its code was unloaded")`, and §6.10 says the shell never changes a
-    running process's code (§7.3, §7.4, §11.2). The limit is the BEAM's two versions of a
-    module, and MVP 3.1 lifts it.
-  - A parenthesized right-hand side of `|>` is a value, applied to the left: `x |> (f(a))`
-    is `f(a)(x)` (§5.7), where it was `f(x, a)`.
-  - A time below 0 is 0 in `after`, `Address.call`, and every library function that waits
-    or delivers later (§6.3, §6.6, E.0 rule 8). Each had faulted with the host's error, and
-    a negative `Clock.alarm` crashed the clock.
-  - A type's hash includes its qualified name, so the wire means what the checker means
-    (§8.7), as `code_distribution.md` section 3.4 has it; §8.7 had also called identity
-    structural. "Code version" is now the hash of a binding's definition.
-  - `parallelRemote` leaves the prelude: several `remote` calls run at once from processes
-    of their own, which the guide shows (§6.7).
-  - `Erl.Result` leaves the standard library: a shim's Erlang helper rewrites `{ok, V}` and
-    `{error, R}` to `Either` (E.19).
-  - The bit syntax drops `bits` and `native` (§5.11, Appendix A): `Bytes` stays octets, so
-    `bits` was `bytes` with another unit, and a byte order is stated or converted at the
-    foreign boundary.
-  - A `String`'s unit is named a grapheme in E.5, the module and the guide; "character" is
-    left to §2.5's lexical grammar.
-  - Weighed and left: a remote `send` that fails to resolve faults the sender later, and
-    `Tcp.write` is a send. E.18 now says where a failed write shows, and §8.7 what a faulting
-    initializer does on a peer.
-  - §9 states what makes a type the prelude's: the language's rules name it, its module is
-    named after it, or a system reference speaks it. The system types stay in the prelude;
-    moving them would take `Sys.*` with them. This decides language_feedback.md's entry 12.
-  - `Float.pow` returns `Optional(Float)`: `None` for a negative base with a fractional
-    exponent and for zero to a negative power, a fault on overflow (E.9).
-  - §8.2 and §11.2 read as short paragraphs under run-in headings, as §11.1 does, and the
-    terminal's lines-and-keys fault joins §7.4's list.
-  - §3.9's effect polymorphism is four paragraphs and E.0 rule 6 three sub-items.
-  - Module acyclicity moves from §11.1 to §4.1, and the `receive` guard's restriction from
-    §5.9 to §6.3.
-  - §4.2 says a function's mailbox type is exempt from the private-type rule, where it said
-    "the effect of a function aside"; §7.2's sentence that stated no rule is cut.
-  - E.0 rule 2 states its no-synonyms constraint instead of requiring a log entry.
-  - An input that reads a line under the shell faults with the subscriber's cause, as §11.2
-    said; it had ended the program at a terminal and taken the shell's line in line mode.
-  - `Event`'s typed character is `Key(Char)`, where it was `Char(Char)` (§9.3).
-  - Weighed and left: `with` for both a mailbox and an abstract type's signature.
-  - `Clock.alarm` and `alarmAt` deliver the time the alarm fired, so a constructor passes as
-    the wrap (§9.3, E.15).
-  - `a<-1` is `a <- 1` by max-munch; §2.6 gives the example, and the parser's error says how
-    to write the comparison (§11.5).
-  - A last reading of the whole report after the day's changes closes the review; it found
-    seams, no new rule. The review is done.
-  - **Done 2026-09-24, before the outside reading:** §6.6 rewritten top-down, the rules unchanged. It
-    opens with the rule a reader needs first, that a `Reply`, and any value that contains
-    one, is used exactly once on every path, by `answer` or by a use that hands the
-    obligation on; then which types contain a reply, where such a value may not go, how
-    branches share the obligation, and one accepted and one rejected example side by side.
-    The report stays one document: splitting out the ABI and the toolchain was weighed
-    against the single source of truth and refused.
+- **Field selection**, `s.upper`, the note's first candidate, with three witnesses in the
+  shell and Gleam's totality rule to copy: a field read with a dot when every constructor of
+  the type has a field of that name and type. Against it is principle 2, a pattern already
+  reading a field; for it, that Ernest took `..` for update from the family whose readers
+  expect `.` for read. The report changes first if it is taken: §3.5 for the rule, Appendix
+  A for the production, §11.5 for what a selector on an absent field says. The note's second
+  candidate, naming a prelude constructor a module has shadowed, was decided in the report's
+  review: `Prelude.Close` (§4.2).
+- **A registry, or the argument that none is needed.** §6.5 refuses one; the node protocol
+  note asks for one (its open question 8), and a restarted service's new address has no
+  other way to reach those who held the old one (MVP 2.66, the guide's §6.4). Decided here,
+  report first: a table per node from name to address, or the argument that addresses handed
+  on in messages suffice.
+- **The entries found in 2026-09-24's guide work**: item 15, a `Map` merge that combines the
+  values of a key both maps hold, and item 17, a type's members at the prompt.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the
@@ -401,12 +218,13 @@ tests it by writing one, and decides what it should be, if anything.
   Rule 3 refuses a function whose result depends on a choice the library makes for the
   program. If it is written at all it is a library under `libs/`, on Appendix D's pattern,
   where a program that disagrees writes its own.
-- **The experiment first:** `examples/supervisor.ern`, a supervisor of three workers with
-  restart on fault and a restart-intensity limit, written with nothing but `spawn`,
-  `monitor` and `receive`, and read back against the claim. If it is fifteen lines and reads
-  as a program a person would write, the answer is the guide's idiom section and no code. If
-  it is sixty and every program would write the same sixty, that is the argument for
-  `libs/supervisor`.
+- **The experiment first.** The guide's §6.4 shows the easy case since 2026-09-24, a
+  supervisor in fifteen lines that runs a worker per job. The experiment is the hard one:
+  `examples/supervisor.ern`, three long-lived workers restarted on fault under a
+  restart-intensity limit, written with nothing but `spawn`, `monitor` and `receive`, and
+  read back against the claim. If it reads as a program a person would write, the guide's
+  section is the answer and no code. If every program would write the same sixty lines, that
+  is the argument for `libs/supervisor`.
 - **Two things it will run into, and they are the content of the discussion.**
   - **A restarted child has a new address, and §6.5 has no registry**, so nobody who held
     the old one can reach it. A supervisor that restarts children is therefore a name
@@ -419,8 +237,8 @@ tests it by writing one, and decides what it should be, if anything.
     OTP solves this with exit signals and a shutdown timeout, which Ernest refuses.
 - **What no-links costs, and the idiom that answers it.** A supervisor that dies leaves its
   children running, where OTP's would take them with it. The answer within the language is
-  the reverse monitor: each child monitors its supervisor and returns when it dies. Whether
-  that belongs in the guide beside the supervisor idiom is part of this item.
+  the reverse monitor: each child monitors its supervisor and returns when it dies, which the
+  guide's §6.4 states. Whether a sentence is enough is part of this item.
 
 ---
 
@@ -433,9 +251,13 @@ are the compiler's second real user. `libs/` and `build/libs/` exist since 2026-
 first-party changes nothing about the tier: a library is not on the load path unless a
 program puts it there.
 
-- **Report first**, for what a command-line program needs: `Sys.args` and `Sys.env` in §8.2
-  and §9.7 as runtime-bound values, an exit status in §8.6, and `Time` in Appendix E over the
-  clock's milliseconds. They came back here on 2026-09-20 when the shell's colour went later.
+- **Report first**, for what a command-line program needs: `Sys.args : List(String)` and
+  `Sys.env` in §8.2 and §9.7 as runtime-bound values, ambient as the other `Sys.*` references
+  are, an exit status in §8.6, and `Time` in Appendix E over the clock's milliseconds. They
+  came back here on 2026-09-20 when the shell's colour went later. The guide's cold read
+  asked for the arguments at once (`language_feedback.md` item 16, 2026-09-24); an entry
+  point that takes a `List(String)` is weighed against `Sys.args` before the report changes,
+  and parsing options from the list is a library's, by E.0.
 - **`libs/json`**, pure Ernest: a `Json` type, a parser over `String` returning `Either`, a
   printer; the first test of `<-`, `tryMap` and `tryFold` at size.
 - **`libs/base64`**, a shim over `base64`: the smallest there is, so Appendix D's pattern is
@@ -450,7 +272,8 @@ program puts it there.
   HTTPS and prints a report, errors to stderr, with an exit status. A paper program travels
   with the stack it needs; MVP 2.5 taught that a program which only compiles proves little.
 - **Each library** is an Ernest source root under `libs/<name>/` that a program adds with
-  `--load-path`, with `stdlib/`'s test discipline, a README of its own, and no entry in
+  `--load-path`, with `stdlib/`'s test discipline, its documentation in its module's doc
+  block, which says how a program adds it, and no entry in
   Appendix E. Own repositories later, when there is a package story.
 - **The report lists them** in a new informative appendix, one section per library with its
   signatures and contracts, and a mirror test holding each compiled interface equal to it, as
@@ -469,30 +292,6 @@ pure Ernest or a shim over `uri_string`. `libs/zlib`, a shim over `zlib`. Each i
 documented in one pass to [`module_doc_template.md`](module_doc_template.md), and its
 executed doc examples are its first user, so no paper program is required (decided
 2026-09-19). Each gets an appendix section beside 2.7's four.
-
----
-
-## MVP 2.9 (an Emacs major mode), done 2026-09-23
-
-Taken out of order, between checkpoints of MVP 2.6. [`emacs_mode.md`](emacs_mode.md) owns
-the mode and [`decisions.md`](decisions.md) the arguments. `emacs/ernest-mode.el`, its tests
-under `emacs/test/`, run by `make emacs-mode` and last in `make test`.
-
-Two decisions of the milestone reach beyond it:
-
-- **`docs/style.md` gained four indentation rules**, and the seventeen sources that held a
-  construct two ways were reindented to them: indentation is a step and never an alignment;
-  `else` returns to the line its `if` begins on; a broken signature continues one step in; a
-  clause bar sits two spaces left of its arms.
-- **A review the same day found the mode had placed lines against the guide**, and the
-  sources had been reindented to follow it: a line opening with an operator never carried
-  on, `|>` was taken for a clause bar, and a `then` leading a line fell to the block's
-  column. Eleven lines in four sources were moved back to the guide, whitespace only.
-  `docs/style.md` gained two rules: a line opening with a binary operator is one step in,
-  and `then` returns to the line its `if` begins on, as `else` does.
-- **The mode's word and operator lists are mirrored** by
-  `emacs_mode_mirrors_the_lexer_test` in `test/ern_style_tests.erl`, since they restate
-  Appendix A.
 
 ---
 
@@ -722,8 +521,8 @@ is a standing rule and not a milestone. The steps, in the order done:
    ownership between processes, which principle 3 refuses. Writing the paper programs found
    three defects, one of them in the report (E.17 now says what an `Entry`'s path is). Two
    terminal defects went into §8.2: raw mode set with `stty` on an inheriting port, and an
-   escape alone for fifty milliseconds being the key. `snake` stays compiled-only and was
-   checked by hand, since no test can press a key.
+   escape alone for fifty milliseconds being the key. `snake` was checked by hand
+   then, and MVP 2.6's terminal harness has played it since.
 5. **What "complete" means beyond that**: Erlang's standard library read module by module on
    2026-09-18; the table is under "Reference". A function enters Appendix E when E.0's rules
    admit it, report first; nothing waits for a program to ask.
@@ -737,6 +536,131 @@ Erlang module `ern_<thing>`, every compiled Ernest module `ern@<namespace>`, `li
 `erl/`, the standard library's Erlang half joined the runtime, and two wrong names were fixed
 (`ern_compiler` to `ern_emitter`, `ern_check` to `ern_boundary`). The rule is in the style
 guide, the record in the log's *One Token for the Project*.
+
+### MVP 2.9 — an Emacs major mode (done 2026-09-23, out of order)
+
+Taken out of order, between checkpoints of MVP 2.6. [`emacs_mode.md`](emacs_mode.md) owns
+the mode and [`decisions.md`](decisions.md) the arguments. `emacs/ernest-mode.el`, its tests
+under `emacs/test/`, run by `make emacs-mode` and last in `make test`.
+
+Three decisions of the milestone reach beyond it:
+
+- **`docs/style.md` gained four indentation rules**, and the seventeen sources that held a
+  construct two ways were reindented to them: indentation is a step and never an alignment;
+  `else` returns to the line its `if` begins on; a broken signature continues one step in; a
+  clause bar sits two spaces left of its arms.
+- **A review the same day found the mode had placed lines against the guide**, and the
+  sources had been reindented to follow it: a line opening with an operator never carried
+  on, `|>` was taken for a clause bar, and a `then` leading a line fell to the block's
+  column. Eleven lines in four sources were moved back to the guide, whitespace only.
+  `docs/style.md` gained two rules: a line opening with a binary operator is one step in,
+  and `then` returns to the line its `if` begins on, as `else` does.
+- **The mode's word and operator lists are mirrored** by
+  `emacs_mode_mirrors_the_lexer_test` in `test/ern_style_tests.erl`, since they restate
+  Appendix A.
+
+### The report read as a Wirth report (done 2026-09-23 and 2026-09-24)
+
+A standalone reading of the report, as a Wirth report and against §0. Its errors that asked
+for no decision were fixed, and its other issues decided one at a time:
+
+- A statement other than a block's last has type `Unit`, and a value is discarded with
+  `let _ = e` (§5.4). The shell refuses an input whose value or `let` carries a reply
+  (§11.2), which it had never enforced.
+- `Ets` leaves the standard library for `libs/ets`, the first library: a table is state
+  processes share, which §10 and E.0 rule 1 refuse the standard library. Its section of
+  Appendix E goes, and with it the checker's special case for `Ets.Table`'s key (§3.10).
+  `ernc` takes `--load-path`, so a program compiles against a library's interface
+  (§11.1). The webserver keeps its sessions in a process that owns a `Map`.
+- A fault is a death with `Fault(cause)`; `Killed` and `ProgramEnd` are not faults
+  (§6.9, §7.3), and every cause is listed in §7.4. A deadlock is the entry process's
+  fault, `Fault("deadlock")` (§8.6), and `ern` reports `fault: deadlock`.
+- `remote` catches nothing: a fault in its callback faults the caller with the same
+  cause, and a resolution failure faults it as `spawn(Peer(...), ...)` does. `PeerLost`
+  means only that the peer was lost (§6.7, §8.7). `remote` is MVP 3's; today it returns
+  `Left(NoRemotePeer)`, so only the report and the example changed.
+- `Prelude` names the prelude's namespace, so `Prelude.Close` reaches a prelude name a
+  module has shadowed (§4.2). It takes one name, and no module or type takes `Prelude`.
+  This decides the second of the two candidates above; field selection remains.
+- Types are inferred except where an operator's operand type must be named (§0, §3.9,
+  §4.8); "full inference" is no longer claimed.
+- The shell's second reload of a module ends the processes still on its oldest version
+  with `Fault("its code was unloaded")`, and §6.10 says the shell never changes a
+  running process's code (§7.3, §7.4, §11.2). The limit is the BEAM's two versions of a
+  module, and MVP 3.1 lifts it.
+- A parenthesized right-hand side of `|>` is a value, applied to the left: `x |> (f(a))`
+  is `f(a)(x)` (§5.7), where it was `f(x, a)`.
+- A time below 0 is 0 in `after`, `Address.call`, and every library function that waits
+  or delivers later (§6.3, §6.6, E.0 rule 8). Each had faulted with the host's error, and
+  a negative `Clock.alarm` crashed the clock.
+- A type's hash includes its qualified name, so the wire means what the checker means
+  (§8.7), as `code_distribution.md` section 3.4 has it; §8.7 had also called identity
+  structural. "Code version" is now the hash of a binding's definition.
+- `parallelRemote` leaves the prelude: several `remote` calls run at once from processes
+  of their own, which the guide shows (§6.7).
+- `Erl.Result` leaves the standard library: a shim's Erlang helper rewrites `{ok, V}` and
+  `{error, R}` to `Either` (E.19).
+- The bit syntax drops `bits` and `native` (§5.11, Appendix A): `Bytes` stays octets, so
+  `bits` was `bytes` with another unit, and a byte order is stated or converted at the
+  foreign boundary.
+- A `String`'s unit is named a grapheme in E.5, the module and the guide; "character" is
+  left to §2.5's lexical grammar.
+- Weighed and left: a remote `send` that fails to resolve faults the sender later, and
+  `Tcp.write` is a send. E.18 now says where a failed write shows, and §8.7 what a faulting
+  initializer does on a peer.
+- §9 states what makes a type the prelude's: the language's rules name it, its module is
+  named after it, or a system reference speaks it. The system types stay in the prelude;
+  moving them would take `Sys.*` with them. This decides language_feedback.md's entry 12.
+- `Float.pow` returns `Optional(Float)`: `None` for a negative base with a fractional
+  exponent and for zero to a negative power, a fault on overflow (E.9).
+- §8.2 and §11.2 read as short paragraphs under run-in headings, as §11.1 does, and the
+  terminal's lines-and-keys fault joins §7.4's list.
+- §3.9's effect polymorphism is four paragraphs and E.0 rule 6 three sub-items.
+- Module acyclicity moves from §11.1 to §4.1, and the `receive` guard's restriction from
+  §5.9 to §6.3.
+- §4.2 says a function's mailbox type is exempt from the private-type rule, where it said
+  "the effect of a function aside"; §7.2's sentence that stated no rule is cut.
+- E.0 rule 2 states its no-synonyms constraint instead of requiring a log entry.
+- An input that reads a line under the shell faults with the subscriber's cause, as §11.2
+  said; it had ended the program at a terminal and taken the shell's line in line mode.
+- `Event`'s typed character is `Key(Char)`, where it was `Char(Char)` (§9.3).
+- Weighed and left: `with` for both a mailbox and an abstract type's signature.
+- `Clock.alarm` and `alarmAt` deliver the time the alarm fired, so a constructor passes as
+  the wrap (§9.3, E.15).
+- `a<-1` is `a <- 1` by max-munch; §2.6 gives the example, and the parser's error says how
+  to write the comparison (§11.5).
+- A last reading of the whole report after the day's changes closes the review; it found
+  seams, no new rule. The review is done.
+- §6.6 was rewritten top-down on 2026-09-24, the rules unchanged. It opens with the rule a reader needs first, that a `Reply`, and any value that contains
+  one, is used exactly once on every path, by `answer` or by a use that hands the
+  obligation on; then which types contain a reply, where such a value may not go, how
+  branches share the obligation, and one accepted and one rejected example side by side.
+  The report stays one document: splitting out the ABI and the toolchain was weighed
+  against the single source of truth and refused.
+
+### MVP 2.61 — the guide as the user's document (done 2026-09-24, out of order)
+
+A newcomer reads the guide and not the report, so the guide was rewritten to teach Ernest on
+its own, in nine steps, each a stop: every example checked by `test/ern_guide_tests.erl`
+(67 at the close: programs with their output, rejected blocks with their errors, shell
+sessions, files in parts, input piped in); an opening that shows four mistakes `ernc`
+finds and credits Erlang, Gleam and Unison; §2 to §8 cut to a rule and an example each;
+failure in a section of its own, with a supervisor; one running example, a word counter,
+through §2 to §5; a page for the tools and a section for the Erlang programmer; a closing
+section on the design; a two-reader sweep; and a cold read by a reader new to Ernest. What
+it changed beyond the guide, each argued in the log:
+
+- **Report §11.2:** the prompt's `let` takes a pattern and `let x <- e` is refused; a `Unit`
+  value prints nothing; a file without `main` is loaded with nothing spawned; an Erlang
+  module a `foreign fn` names is found on the load path. **§11.5:** an error names its file
+  from the working directory.
+- **Defects fixed:** `ernc` crashing on an error whose source line holds a character outside
+  Latin-1, and `ern` printing such text byte by byte; the message for a pure callback given
+  to `spawn`.
+- **Decided and placed:** the prelude's documentation and `:type` of a name (MVP 2.6
+  checkpoint 4); §11.2's `Tab` and `Shift-Tab` (MVP 2.6's closing sweep); the arguments
+  (MVP 2.7); a registry and feedback items 15 and 17 (MVP 2.65); whether `remote` stays
+  (MVP 3.0).
 
 ---
 

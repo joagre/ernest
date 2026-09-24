@@ -174,8 +174,9 @@ What I would actually put to you as candidate language changes: field selection 
 16. **A program cannot read its command-line arguments.** An entry point takes no
     arguments (report §8.1), and neither the prelude nor a system module gives the command
     line, so a program's inputs are written into it or read from standard input. A reader
-    new to the language asked for it at once. Decided in MVP 2.65, on the principles: an
-    entry point `main(args : List(String))`, an operation of a system module, or none.
+    new to the language asked for it at once. Planned since 2026-09-20 in MVP 2.7, which
+    builds `Sys.args` report first and weighs an entry point `main(args : List(String))`
+    against it.
 
 17. **At the prompt, a type's members come in the same input as the type.** A type's
     members belong to the module that declares it, and each input is a module of its own

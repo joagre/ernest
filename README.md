@@ -16,9 +16,9 @@ The toolchain is written in Erlang: lexer, parser, type checker, runtime, the co
 
 ### Then the small programs
 
-The complete programs from the report's Appendix B and D and the guide's checkpoints are collected under [`examples/`](examples/). Each program's header comment says where it comes from and what it needs; `template.ern`, a documented module with no header comment, is described by [`docs/module_doc_template.md`](docs/module_doc_template.md). Together the examples exercise every construct of the grammar except bitstrings, and a test keeps it so.
+The complete programs from the report's Appendix B and D, and some of the guide's, are collected under [`examples/`](examples/). Each program's header comment says where it comes from and what it needs; `template.ern`, a documented module with no header comment, is described by [`docs/module_doc_template.md`](docs/module_doc_template.md). Together the examples exercise every construct of the grammar except bitstrings, and a test keeps it so.
 
-**What the toolchain runs.** The programs `make test` compiles and runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`, with their expected output under `test/expected/` and the Erlang they compile to under `test/golden/`. The `modules` pair runs there too, and the paper programs have tests of their own: `repl` on a fixed input, `filesync` given two directories, and `webserver` asked twice over one session, each stopped when it has shown what it must. `snake` wants a terminal, so `ern_terminal_tests` plays it under a pseudo-terminal, and `echo` is a measurement run by hand; the rest of `examples/` is type-checked only, and each file's header says where it stands.
+**What the toolchain runs.** The guide's own examples are compiled, run, and compared with the output it shows by `test/ern_guide_tests.erl`. The programs under `examples/` that `make test` compiles and runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`, with their expected output under `test/expected/` and the Erlang they compile to under `test/golden/`. The `modules` pair runs there too, and the paper programs have tests of their own: `repl` on a fixed input, `filesync` given two directories, and `webserver` asked twice over one session, each stopped when it has shown what it must. `snake` wants a terminal, so `ern_terminal_tests` plays it under a pseudo-terminal, and `echo` is a measurement run by hand; the rest of `examples/` is type-checked only, and each file's header says where it stands.
 
 ### Then the paper programs
 
@@ -28,7 +28,7 @@ The complete programs from the report's Appendix B and D and the guide's checkpo
 
 - **[`docs/decisions.md`](docs/decisions.md)** — dated design decisions and their rationale. What was tried, what was rejected, why the report says what it says. Not normative — the report wins any conflict. Browse as needed; not intended to be read straight through.
 
-- **[`docs/implementation_plan.md`](docs/implementation_plan.md)** — the roadmap: MVP 1 and MVP 2, done, and the later MVPs.
+- **[`docs/implementation_plan.md`](docs/implementation_plan.md)** — the roadmap: where the project stands, what is done, and what comes next.
 
 - **[`docs/architecture.md`](docs/architecture.md)** — how the toolchain is built: the stages, what flows between them, the checker's passes, the compiler's one traversal, the runtime, the tests, and where MVP 2.5 and later hook in.
 
@@ -57,7 +57,7 @@ ernest_report.md   the language report (normative)
 ernest_guide.md    the guide
 docs/              decisions log, implementation plan, architecture note, style guides,
                    module documentation template, shell design, language feedback, Emacs mode,
-                   node protocol, code distribution, killer app
+                   node protocol, code distribution
 examples/          Ernest programs: the paper programs and the small ones
 erl/               the toolchain, as Erlang applications: lexer, parser,
                    typer, runtime, emitter, cli, utils (vendored getopt);
@@ -105,17 +105,20 @@ bin/ern examples/hello.erc                   # hello, world
 bin/ernc --out-dir build examples/modules    # a source tree, in dependency order
 bin/ern build/main.erc                       # loads net/http.erc by namespace
 bin/ernc --emit erl examples/hello.ern       # the Erlang source, for reading
-bin/ernc --doc stdlib/list.ern                           # the module's documentation as CommonMark
-bin/ernc --errors short examples/hello.ern  # the first line of each error only
+bin/ernc --doc stdlib/list.ern               # the module's documentation as CommonMark
+bin/ernc --errors short examples/hello.ern   # the first line of each error only
 bin/ern --create-config-dir .                # .ernest/ with a key pair
 bin/ern --shell                              # a shell over the standard library
 bin/ern --shell build/main.erc               # a shell beside a running program
 bin/ern --test build/stdlib/list.erc         # the module's tests
+bin/ernc --load-path build/libs/ets --out-dir build/app app   # a program using a library
+bin/ern --load-path build/libs/ets build/app/main.erc         # and run with it
 ```
 
 At a terminal the shell edits the line with Readline's Emacs keys, keeps a history in
-`$HOME/.ernest/history`, takes another line where the parser cannot finish an input, and
-shows what programs write in a region at the foot of the screen; `:help` lists its commands.
+`$HOME/.ernest/history`, takes another line where the parser cannot finish an input,
+completes a name with `Tab` and shows its documentation with `Shift-Tab`, and shows what
+programs write in a region at the foot of the screen; `:help` lists its commands.
 Report §11.2 states what it does and [`docs/shell_design.md`](docs/shell_design.md) how it is
 built.
 
