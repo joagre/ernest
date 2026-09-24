@@ -110,7 +110,9 @@ the shell is neither standard library nor library but the toolchain's own progra
   read against the report, then every other document against the report and the code. It
   writes into report §11.2 `Tab` completion and `Shift-Tab` documentation, as it states the
   editing keys, since §11 owns what the toolchain does (decided 2026-09-24);
-  `docs/shell_design.md` keeps how they are built.
+  `docs/shell_design.md` keeps how they are built. §11.2 is then read for restating: it was
+  1,254 words on 2026-09-24, over twice the 600 at which a section is read, most of it the
+  shell's rules.
 - **A session of real use.** The user works in the shell and reports what it is like; what
   that finds is fixed before the milestone closes or recorded in the design note. Nothing so
   far has been driven by hand — every test goes through the pseudo-terminal harness, which
@@ -192,6 +194,13 @@ options, then what is recorded and left alone.
   on in messages suffice.
 - **The entries found in 2026-09-24's guide work**: item 15, a `Map` merge that combines the
   values of a key both maps hold, and item 17, a type's members at the prompt.
+- **The report read cold, by an implementer.** A reader who has not seen Ernest reads the
+  report alone, as someone who must implement it, and reports every place where two
+  readings are possible, where a rule is missing that an implementation needs, or where
+  they had to guess. The guide's cold read on 2026-09-24 found more than every check
+  against the report had, and the report has had no such reading; Wirth's measure of a
+  report is that it suffices to implement the language. What it finds is decided here,
+  report first.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the
