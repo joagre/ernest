@@ -91,14 +91,12 @@ notes.ern:2:5: this statement's value is discarded: expected Unit, found Either(
   | = help: `let _ = ...` discards it on purpose
 ```
 
-These rules come from one design, and each part of it exists in some language already. Ernest puts the parts together, for the Erlang runtime, whose processes, faults, and distribution it keeps:
+These rules come from one design, and most of its parts exist already. The Erlang runtime gives processes, faults delivered as messages to the processes that watch, and code replaced while a program runs. Gleam showed that a statically typed language fits that runtime, and Ernest follows it in much: Hindley-Milner inference, `fn` and the pipe `|>`, the update `Con(..x, f = v)`, and foreign types and functions as the way to Erlang code. Unison identifies code by a hash of its definition and ships to a peer what it lacks. What Ernest adds is where the parts meet:
 
-- **Inferred types.** The compiler infers types, so an annotation is written where it helps the reader or where the compiler asks for one (§3.3), and is then checked.
-- **Typed mailboxes.** The type of the messages a process receives is part of its function's type, `with CounterMsg`, and an address carries it, so every `send` is checked against its receiver.
-- **Checked replies.** A request carries a `Reply`, answered exactly once on every path. `Address.call` waits with a deadline, so an answer that never comes is a case the program handles.
-- **Effects in the type.** `with` separates the functions that may send or receive from those that cannot, and a pure function stays pure.
-- **Faults as messages.** A process that fails dies. The processes that watch it receive a message saying why, and nothing is caught (§5).
-- **Distribution, planned.** The same types are to hold between nodes: a type is known by its definition, and code a peer lacks follows the message to it (§7).
+- **The mailbox in the function's type.** A process receives one type of message, and the functions it runs say so, `with CounterMsg`. An address carries the same type, so every `send` is checked against its receiver. Gleam types the channel a message travels on; Ernest types the process.
+- **Checked replies.** A request carries a `Reply`, answered exactly once on every path, which the compiler checks as it checks types. `Address.call` waits with a deadline, so an answer that never comes is a case the program handles.
+- **Purity in the type.** `with` separates the functions that may send or receive from those that cannot. A pure function computes and returns, and the compiler holds it to that.
+- **Distribution by content, planned.** Unison's content addressing, on the Erlang runtime. Every function and type is known by a hash of its definition, a type's name included, so a message is checked across nodes as it is within one. Code travels with what uses it: a closure sent to a peer brings the definitions it needs, and the peer fetches what it has not seen. Two nodes need not run the same version of a program, and two versions of a type are two types, never one type read two ways (§7).
 
 The rest of the guide is seven stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, organize code, and cross boundaries. Each builds on the ones before it and ends with an exercise. A complete program is shown whole; a fragment is part of the program around it.
 
