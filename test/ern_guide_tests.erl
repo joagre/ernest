@@ -10,7 +10,8 @@
 %% the next fenced
 %% block is a `console` block, the program its `$ ern` line names is run,
 %% with the options the line gives, and its output compared with the
-%% console's lines that are not commands. A block marked `ernest-rejected`
+%% console's lines that are not commands; `$ printf 'a\nb\n' | ern x.erc`
+%% gives the program those lines on standard input. A block marked `ernest-rejected`
 %% fails to compile, and for a reason of its own: not a parse error and not
 %% an unknown name. When a console follows it, its `$ ernc` line names the
 %% file and the error is compared whole. A console whose command is
@@ -193,15 +194,17 @@ file_of(Code) ->
 run([{_, <<"console">>, _, Lines} | _]) ->
     Commands = [L || <<"$ ", _/binary>> = L <- Lines],
     Output = [L || L <- Lines, not lists:member(L, Commands)],
-    Runs = [{Flags, M} || C <- Commands,
-                          {match, [Flags, M]} <- [re:run(C, "^\\$ ern ((?:--[a-z]+ )*)(?:\\S*/)?"
-                                                          "([a-z0-9]+\\.erc)",
-                                                          [{capture, all_but_first, list}])]],
+    Runs = [{Piped, Flags, M}
+            || C <- Commands,
+               {match, [Piped, Flags, M]}
+                   <- [re:run(C, "^\\$ (?:printf '([^']*)' \\| )?ern ((?:--[a-z]+ )*)(?:\\S*/)?"
+                                 "([a-z0-9]+\\.erc)", [{capture, all_but_first, list}])]],
     case Runs of
-        [{"--shell " = Flags, Module} | _] ->
+        [{_, "--shell " = Flags, Module} | _] ->
             {Flags, Module, inputs(Output), session_shown(Output)};
-        [{Flags, Module} | _] ->
-            {Flags, Module, [], join(Output)};
+        [{Piped, Flags, Module} | _] ->
+            Stdin = [L || L <- string:split(Piped, "\\n", all), L =/= ""],
+            {Flags, Module, Stdin, join(Output)};
         [] ->
             none
     end;

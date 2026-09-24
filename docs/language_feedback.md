@@ -168,3 +168,19 @@ What I would actually put to you as candidate language changes: field selection 
     Erlang has `maps:merge_with/3` and Gleam `dict.combine`, and whether E.0's rules admit
     a `Map.mergeWith(m, other, f)` is weighed in MVP 2.65's read-back of the standard
     library.
+
+## Found by the guide's cold read, 2026-09-24
+
+16. **A program cannot read its command-line arguments.** An entry point takes no
+    arguments (report §8.1), and neither the prelude nor a system module gives the command
+    line, so a program's inputs are written into it or read from standard input. A reader
+    new to the language asked for it at once. Decided in MVP 2.65, on the principles: an
+    entry point `main(args : List(String))`, an operation of a system module, or none.
+
+17. **At the prompt, a type's members come in the same input as the type.** A type's
+    members belong to the module that declares it, and each input is a module of its own
+    (report §11.2), so `type Money = Money(Int)` and then `fn Money.compare(...)` in the
+    next input is refused with "Money is not a type declared in this module". Consistent
+    with the module rule, and surprising at a prompt, where a person adds to what is there.
+    Judged in MVP 2.65: whether the session may add members to a type it declared, or the
+    message says to declare them together.

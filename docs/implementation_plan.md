@@ -22,9 +22,9 @@ harness, bindings and the commands, the live region, and the line editor with hi
 multi-line input and paste. What is left of the milestone is in "MVP 2.6" below: completion
 and the prelude's documentation, the closing sweep, and a session of real use.
 
-**MVP 2.61, the guide, taken out of order 2026-09-24, at step 9.** A newcomer reads the
-guide and not the report, so the guide is rewritten to teach Ernest on its own; the steps are
-in "MVP 2.61" below. MVP 2.6 resumes after step 9 and the rewrite of CLAUDE.md.
+**MVP 2.61, the guide, done 2026-09-24, out of order.** A newcomer reads the guide and not
+the report, so the guide was rewritten to teach Ernest on its own; the steps are in "MVP
+2.61" below. MVP 2.6 resumes after the rewrite of CLAUDE.md.
 
 **After MVP 2.61, CLAUDE.md is rewritten for clarity**, every rule kept: the working rules
 read in the order of work, each stated once. Asked for 2026-09-24; the rule that nothing
@@ -44,7 +44,7 @@ so a decision they must see goes here.
 | MVP 2 | the rest of the report on one node | done 2026-09-19 |
 | MVP 2.5 | a complete standard library | done 2026-09-20 |
 | **MVP 2.6** | **the shell** | **checkpoints 0–3 done; checkpoint 4 next** |
-| **MVP 2.61** | **the guide as the user's document** | **taken 2026-09-24, out of order; step 9** |
+| MVP 2.61 | the guide as the user's document | done 2026-09-24, out of order |
 | MVP 2.65 | the language and the toolchain read back | after 2.6 |
 | MVP 2.66 | introduce a supervisor behaviour? | after 2.6 |
 | MVP 2.7 | the first libraries and the network stack | |
@@ -107,6 +107,14 @@ the shell is neither standard library nor library but the toolchain's own progra
   after `:faults` or after `:quit`. Fixed in this checkpoint, with the harness work: the
   inputs wait on the faults, not on time, by monitoring the worker they spawn and by a
   command or a wait that ends when the program's entry point has ended.
+- **`:type` of a name prints its instance, so its variables lose their names.** Found
+  2026-09-24 by the guide's cold read: `:type Io.readLine` prints `with e` where `:browse Io`
+  prints `with m`, since an instance's variables carry no names (`ern_types:instantiate/2`,
+  report §11.5). Right for an expression, surprising for a name (principle 1). **Decided
+  2026-09-24:** `:type` of an input that is one name, qualified or not, prints that name's
+  declared type, as `:browse`, `:doc` and `Shift-Tab` do, and report §11.2 says so; any
+  other expression prints its type as now. Built with the prelude's documentation below,
+  which needs the same lookup of a prelude name's declared type.
 - **`:doc` knows nothing of the prelude.** Found 2026-09-24: `:doc monitor`, `:doc Down`,
   `:doc Optional` and `:doc IoError` print "no documentation", so the names a program uses
   most are the ones the shell cannot explain, and `Shift-Tab` shows nothing on them. The
@@ -242,12 +250,17 @@ without boasting. Each step is a stop.
    the guide's section 11, on the five principles; the exercises' answers stand apart in its
    section 13, each naming its exercise; §5.5's game takes `Tick(Int)` from `Clock.alarm`,
    so the section has one `Tick`; and §0 maps the whole guide, not only its stages.
-9. **§4 to §8 and the FAQ cut to teaching weight, and read cold.** Step 3's treatment for
-   the sections it did not reach: a rule and an example stay, a corner points to the report
-   in a line, and the prose is brought to one register. Then a reader who knows another
-   language but not Ernest reads the guide from the start, and where they got lost is
-   fixed. Added 2026-09-24, since the sweep checked the guide against the report and
-   nothing yet had checked that it teaches.
+9. **Done 2026-09-24: §4 to §8 and the FAQ cut to teaching weight, and read cold.** The
+   sections step 3 did not reach lost a third of their words, and one register holds
+   throughout. A reader new to Ernest then read the guide alone and reported where they got
+   lost; the fixes: the rule for `with Never` against `with m` moved from the FAQ to the first section,
+   with the entry process named and one convention for `main`; reading input got a subsection of its own;
+   `compare` for a type of one's own, the `=` and `!` marks, a queue that keeps pending
+   replies in waiter processes, and how new code reaches a running process are shown; a
+   positional constructor takes one value; the teaser's names are pointed forward. Three
+   findings went further than the guide: `:type` of a name loses its variable names
+   (decided, MVP 2.6 checkpoint 4), a program has no command-line arguments (MVP 2.65),
+   and a type's members cannot come in a later input than the type (feedback item 17).
 
 ---
 
@@ -259,6 +272,16 @@ This item decides each entry rather than collecting it: the language questions f
 selection at their head, then what belongs to Appendix E, then the names of the toolchain's
 options, then what is recorded and left alone.
 
+- **Arguments to a program**, `docs/language_feedback.md` item 16, found 2026-09-24 by the
+  guide's cold read: an entry point takes no arguments (§8.1), and nothing gives a program
+  the command line it was started with, so every program has its inputs written in or read
+  from standard input. Built here, report first. The leading shape, 2026-09-24: the
+  standard library gives the arguments as `Sys.args : List(String)`, ambient as the other
+  `Sys.*` references are, since they are a value the runtime holds and fixes at start
+  (E.0 rule 1), and one way in keeps principle 2; an entry point that takes a
+  `List(String)` is weighed against it and would change §8.1, `--main`, the shell's
+  entry, and `ern --test`. Parsing options from the list is policy, a library outside
+  the standard library by E.0.
 - **Each entry is judged on §0's five principles**, and a standard library entry on E.0's
   four rules, one by one and in writing. The note's last entry asked two of E.0 itself: rule
   1's second clause, the library's only opening for an argument from performance, went on

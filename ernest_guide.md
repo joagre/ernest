@@ -33,7 +33,7 @@ message.ern:10:13: the argument does not fit send: expected CounterMsg, found St
    |             ^^^^^^^^^^^
 ```
 
-Every error in a program has this form: the position as `file:line:column`, the message, and the source with the error's span underlined with `^`. A span the error depends on is underlined with `-` and labelled, here the type of `send`, whose two arguments must agree.
+Every error in a program has this form: the position as `file:line:column`, the message, and the source with the error's span underlined with `^`. A span the error depends on is underlined with `-` and labelled, here the type of `send`, whose two arguments must agree. The names in these examples, `spawn`, `send`, `Reply`, and `with`, are taught in §1 to §4; here only the errors matter.
 
 **A request left unanswered.** A `Get` carries a `Reply(Int)`, in which the counter puts its answer. A reply is answered exactly once on every path. This counter forgets to, and whoever asked would wait.
 
@@ -73,7 +73,7 @@ area.ern:2:5: Io.println needs a process, and area is pure
   | = help: give area a mailbox type with `with`
 ```
 
-**A failure dropped.** `Fs.write` returns `Either(IoError, Unit)`: the file was written, or the reason it was not. A statement in a block must be `Unit`, so the failure cannot pass unseen. `let _ = ...` discards it where that is meant.
+**A failure dropped.** `Fs.write` returns `Either(IoError, Unit)`: the file was written, or the reason it was not. Its last argument, `1000`, is how many milliseconds it may take. A statement in a block must be `Unit`, so the failure cannot pass unseen. `let _ = ...` discards it where that is meant.
 
 ```ernest-rejected
 export fn main() -> Unit with Never = {
@@ -96,7 +96,7 @@ These rules come from one design, and most of its parts exist already. The Erlan
 - **The mailbox in the function's type.** A process receives one type of message, and the functions it runs say so, `with CounterMsg`. An address carries the same type, so every `send` is checked against its receiver. Gleam types the channel a message travels on; Ernest types the process.
 - **Checked replies.** A request carries a `Reply`, answered exactly once on every path, which the compiler checks as it checks types. `Address.call` waits with a deadline, so an answer that never comes is a case the program handles.
 - **Purity in the type.** `with` separates the functions that may send or receive from those that cannot. A pure function computes and returns, and the compiler holds it to that.
-- **Distribution by content, planned.** Unison's content addressing, on the Erlang runtime. Every function and type is known by a hash of its definition, a type's name included, so a message is checked across nodes as it is within one. Code travels with what uses it: a closure sent to a peer brings the definitions it needs, and the peer fetches what it has not seen. Two nodes need not run the same version of a program, and two versions of a type are two types, never one type read two ways (§8).
+- **Distribution by content, planned and not yet built.** Unison's content addressing, on the Erlang runtime. Every function and type is known by a hash of its definition, a type's name included, so a message is checked across nodes as it is within one. Code travels with what uses it: a closure sent to a peer brings the definitions it needs, and the peer fetches what it has not seen. Two nodes need not run the same version of a program, and two versions of a type are two types, never one type read two ways (§8).
 
 Sections 1 to 8 are eight stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, handle failure, organize code, and cross boundaries. Each builds on the ones before it and ends with an exercise, whose answer is in §13. A complete program is shown whole; a fragment is part of the program around it. After the stages come the tools (§9), a word for the Erlang programmer (§10), the design behind the rules (§11), and questions a reader asks (§12).
 
@@ -124,7 +124,9 @@ hello, world
 
 `-> Unit` is the result type. `Unit` is a type with one value, also written `Unit`, the result of a function whose work is its effect.
 
-`with Never` names the mailbox. Every function that sends or receives runs in a process whose mailbox takes one type of message, and says so with `with`. `Never` is the type with no values, so `main`'s mailbox receives nothing, which is right for a `main` that only sends.
+`with Never` names the mailbox. A function that sends or receives runs in a process, whose mailbox takes one type of message, and its type says which with `with`. `main` runs in the program's first process, the *entry process*. `Never` is the type with no values, so a process whose mailbox is `Never` receives nothing, which suits a `main` that only sends.
+
+Two ways of writing `with` follow, and the guide's programs use both. A function that starts a process that never receives, such as `main` or the function a spawned process runs, is written `with Never`; a lambda spawned for such a process is written `fn() -> Unit with Never = ...`, since no `receive` in it settles its mailbox type. A function that only sends, such as `Io.println`, is written `with m`, a type variable, so that a process with any mailbox may call it.
 
 `Io.println` sends its text to `Sys.stdout`, a process the runtime provides, which writes it. `Io.printlnError` sends to `Sys.stderr`, so a program whose output another program reads can still report trouble. Sending to a process of the runtime is one of the two ways a program reaches the world; the other is `foreign fn` (§8).
 
@@ -155,7 +157,26 @@ A value of type `Unit` prints nothing, so the last input shows only what it wrot
 
 At a terminal the shell edits the line with Readline's Emacs keys, and keeps a history across sessions that `C-r` searches. `Tab` completes the word before the cursor, by its prefix or by its word starts, `L.fM` to `List.filterMap`, and offers only what may stand there: a type after `:`, a constructor in a pattern, a field inside a constructor's parentheses. `Shift-Tab` shows the type and first sentence of the name at the cursor, and pressed again its documentation. An input the parser cannot finish takes another line. What programs write appears in a region at the foot of the screen, apart from the inputs, and a process that faults is reported at the prompt with the place it was spawned. `:reload` compiles and loads a module whose source has changed, and processes running the old version go on running it.
 
-### 1.3 Prediction exercise
+### 1.3 Reading input
+
+`Io.readLine()` waits for a line of standard input and answers `Some(line)`, or `None` at its end. A program that reads its input to the end loops:
+
+```ernest
+export fn main() -> Unit with Never = match Io.readLine() {
+    Some(line) -> { Io.println(String.toUpper(line)); main() }
+  | None -> Unit
+}
+```
+
+```console
+$ printf 'hello\nworld\n' | ern upper.erc
+HELLO
+WORLD
+```
+
+An entry point takes no arguments, so a program's input comes on standard input. A program reads lines or single keys, not both: `Terminal.subscribe` gives keys as they are pressed (report §8.2).
+
+### 1.4 Prediction exercise
 
 Consider two variations on hello-world, (a) with no annotation:
 
@@ -180,7 +201,7 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 - **`Int`** — arbitrary precision. Literals: `42`, and in another base `0xFF`, `0o644`, `0b1010`. An `_` between digits groups them: `1_000_000`.
 - **`Float`** — IEEE 754 binary64, finite values only. Literal: `3.14`.
 - **`Char`** — one Unicode code point. Literal: `'a'`.
-- **`String`** — Unicode text. Literal: `"hello"`, with the escapes `\n`, `\t`, `\\`, `\"`, and `\u{1F600}` among them (report §2.5).
+- **`String`** — Unicode text. Literal: `"hello"`, with the escapes `\n`, `\t`, `\\`, `\"`, and `\u{1F600}` among them (report §2.5). `<>` joins two strings, and a type's `toString` makes its text: `"n = " <> Int.toString(3)`. There is no interpolation.
 - **`Bytes`** — a sequence of octets. Literal: `<<0, 1, 2>>` (§8.6).
 - **`Bool`** — `true` or `false`. `&&` and `||` short-circuit, and `!` negates.
 - **`Unit`** — one value, also called `Unit`.
@@ -259,7 +280,7 @@ type Optional(a) = None | Some(a)
 Three shapes of constructor, with different usage:
 
 - **Nullary** (`None`, `North`): an ordinary value. Referenced by name.
-- **Positional with one field** (`Some(a)`): also a function value of type `(a) -> Optional(a)`. You can pass it: `List.map(xs, Some)` produces `List(Optional(a))`.
+- **Positional** (`Some(a)`): one value, and the constructor is also a function, `(a) -> Optional(a)`, so it can be passed: `List.map(xs, Some)`. A constructor takes one positional value or named fields; several values without names are a tuple, `Point(#(Int, Int))`.
 - **Named fields** (`Person(name : String, age : Int)`): construction uses the field syntax (`Person(name = "Alice", age = 30)`). Not a function value.
 
 ### 2.4 Named fields and `..` update
@@ -285,7 +306,7 @@ The fields may be given in any order, and are evaluated in the order written. Th
 
 ### 2.5 Lists, tuples, maps, sets
 
-**Lists** are `List(a)`, with `[]` for the empty list and `::`, right-associative, to add an element in front. **Tuples** are `#(...)`, of fixed size and positional. **Maps and sets** have no literal syntax and are built with functions:
+**Lists** are `List(a)`, with `[]` for the empty list and `::`, right-associative, to add an element in front. **Tuples** are `#(...)`, of fixed size and positional. **Maps and sets** have no literal syntax and are built with functions. In the session, `|>` passes a value on as the first argument (§2.8), and `fn(v) = ...` is a function written in place (§3.2):
 
 ```console
 $ ern --shell
@@ -311,11 +332,27 @@ Set.fromList([1, 2, 3]) : Set(Int)
 
 `Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call.
 
-Map keys and set elements need equality. `==` is defined on every type except one that contains a function or an address, so a map keyed by addresses is a type error. Ordering is separate: `<` needs a `compare` function for the type, which `Int`, `Float`, `String`, and `Char` have (report §3.10).
+Map keys and set elements need equality. `==` is defined on every type except one that contains a function or an address, so a map keyed by addresses is a type error. In a printed type, a variable that needs equality is marked `=`: `List.contains : (List(a=), a=) -> Bool`.
+
+Ordering is separate: `a < b` asks the type's `compare`, which answers `Less`, `Equal`, or `Greater`. `Int`, `Float`, `String`, and `Char` have one, and a type of your own gets one by declaring it in its module. A function named `Money.compare` is a member of the type `Money` (§7.2):
+
+```ernest
+type Money = Money(Int)
+
+fn Money.compare(Money(a) : Money, Money(b) : Money) -> Ordering = Int.compare(a, b)
+
+export fn main() -> Unit with Never =
+    Io.println(if Money(3) < Money(5) then "cheaper" else "not cheaper")
+```
+
+```console
+$ ern money.erc
+cheaper
+```
 
 ### 2.6 Patterns and irrefutability
 
-The same patterns appear in `match` clauses, `let` bindings, and function parameters. A `let` and a parameter need an *irrefutable* pattern, one that cannot fail to match: a name, `_`, a tuple of irrefutable patterns, the only constructor of its type with irrefutable fields, or an irrefutable pattern with `as`.
+The same patterns appear in `match` clauses, `let` bindings, and function parameters. A `let` and a parameter need an *irrefutable* pattern, one that cannot fail to match: a name, `_`, a tuple of irrefutable patterns, the only constructor of its type with irrefutable fields, or an irrefutable pattern with `as`, which comes below.
 
 ```console
 $ ern --shell
@@ -503,7 +540,7 @@ addN : (Int) -> Int
 
 `addN` captures `n`: a lambda closes over the bindings it names.
 
-A lambda's body runs as far as it can: to the `,`, `;`, `|`, or closing bracket of the form around it, or to a `then` or `else`.
+A lambda's body extends as far as the text allows: to the `,`, `;`, `|`, or closing bracket of the form around it, or to a `then` or `else`.
 
 ### 3.3 Type inference and its limits
 
@@ -519,7 +556,7 @@ fn double(n) = n * 2       // inferred (Int) -> Int
 fn twice(n) = n + n        // n's type ambiguous — annotate: (n : Int) or (n : Float)
 ```
 
-Without a source that fixes the type, `n + n` is a type error. Once it is fixed, `+` is that type's: `Int.+` for an `Int`, `Distance.+` for a user type that declares it, and `Int.+` is also a function value, as in `List.foldLeft(xs, 0, Int.+)` (report §4.8, report §5.6).
+Without a source that fixes the type, `n + n` is a type error. Once it is fixed, `+` is that type's: `Int.+` for an `Int`, `Distance.+` for a user type that declares it as a member, `fn Distance.+`, and `Int.+` is also a function value, as in `List.foldLeft(xs, 0, Int.+)` (report §4.8, report §5.6).
 
 Other limits worth knowing:
 
@@ -540,11 +577,11 @@ fn apply(f, x) = f(x)
 
 The inferred type is `((a) -> b with e, a) -> b with e`: `apply` has the effect of the function it is given, so `apply(f, x)` is pure when `f` is. `List.map`, `List.foreach`, and every other function of the standard library that takes a function are the same.
 
-An effect variable such as `e` may stand for a mailbox type or for pure. One that also names a type, as `m` does in `self : () -> Address(m) with m`, stands for a mailbox type only, since pure is not a type an address could take.
+An effect variable may stand for a mailbox type or for pure. One that also appears inside `Address`, as in `self : () -> Address(a) with a`, stands for a mailbox type only, since an address needs one. The letters in a printed type mean nothing of their own.
 
 The process operations, `self`, `send`, `spawn`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, `kill`, and `remote`, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
 
-So `ping`'s `m` in §5 may be any mailbox type, but not pure.
+
 
 ### 3.6 One spawn corner: pure callbacks
 
@@ -635,7 +672,7 @@ A `Reply` is an obligation: whoever holds one answers it exactly once, on every 
 
 The check is on paths, not on time. A path that faults or waits for ever never answers, and no compiler can see that; the caller's deadline covers it (§4.4).
 
-Since each reply is counted, a reply-carrying value is never copied or dropped. It cannot be an element of a `List`, a `Map`, or an `Optional`, and `_` cannot stand for one in a pattern. A server with many requests pending keeps each in a process of its own. In a printed type, a variable marked `!` is one that may not hold a reply, as in `dup : (a!) -> #(a!, a!)` for a function that copies its argument. Report §6.6 gives the whole discipline.
+Since each reply is counted, a reply-carrying value is never copied or dropped. It cannot be an element of a `List`, a `Map`, or an `Optional`, and `_` cannot stand for one in a pattern. A server with many requests pending keeps each reply in a process of its own, as the queue of §4.4 does. In a printed type, a variable marked `!` is one that may not hold a reply, as in `dup : (a!) -> #(a!, a!)` for a function that copies its argument. Report §6.6 gives the whole discipline.
 
 Sending a request twice consumes its reply twice:
 
@@ -688,6 +725,48 @@ Address.call : (Address(a), (Reply(b)) -> a, Int) -> Optional(b) with e
 
 `Address.call(c, fn(r) = Get(reply = r), 1000)` makes a fresh `Reply`, gives it to the function that builds the request, sends the request to `c`, and waits up to 1000 ms. It returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6). `Address.callForever` waits without a deadline and returns the answer itself; if none comes, the caller waits for ever.
 
+A server that cannot answer at once keeps the reply in a small process that answers later, since a reply-carrying value cannot wait in a list (§4.2). A queue answers a `Take` with an item it has, or spawns a waiter that holds the reply until a `Put` brings one:
+
+```ernest
+type QueueMsg = Put(Int) | Take(reply : Reply(Int))
+type WaiterMsg = Item(Int)
+type MainMsg = Took(Int)
+
+// Items no one has asked for yet, and the callers waiting for an item, each
+// a process that holds its caller's reply.
+fn queue(items : List(Int), waiters : List(Address(WaiterMsg))) -> Unit with QueueMsg =
+    receive {
+        Put(x) -> match waiters {
+            w :: rest -> { send(w, Item(x)); queue(items, rest) }
+          | [] -> queue(items <> [x], [])
+        }
+      | Take(reply = r) -> match items {
+            x :: rest -> { answer(r, x); queue(rest, waiters) }
+          | [] -> {
+                let w = spawn(Local, fn() -> Unit with WaiterMsg =
+                    receive { Item(x) -> answer(r, x) });
+                queue([], waiters <> [w])
+            }
+        }
+    }
+
+export fn main() -> Unit with MainMsg = {
+    let q = spawn(Local, fn() = queue([], []));
+    let me = self();
+    let _ = spawn(Local, fn() -> Unit with Never =
+        send(me, Took(Address.callForever(q, fn(r) = Take(reply = r)))));
+    send(q, Put(7));
+    receive { Took(x) -> Io.println("took " <> Int.toString(x)) }
+}
+```
+
+```console
+$ ern queue.erc
+took 7
+```
+
+The waiter's lambda captures `r` and is given straight to `spawn`, which hands the obligation to the new process. The queue keeps the waiters' addresses, which may be in a list.
+
 ### 4.5 Running the counter
 
 The counter of §4.1 with a `main` that uses it, in `counter.ern`:
@@ -700,7 +779,7 @@ fn counter(n : Int) -> Unit with CounterMsg = receive {
   | Get(reply = r) -> { answer(r, n); counter(n) }
 }
 
-export fn main() -> Unit with m = {
+export fn main() -> Unit with Never = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
@@ -725,7 +804,7 @@ The count is 8 because messages from one sender arrive in the order sent: both `
 
 ### 4.6 Explicit code replacement
 
-A process can change its code while it runs, keeping its address and its state. The new code arrives in a message that the process's type provides for.
+A process can change its code while it runs, keeping its address and its state. The new code arrives in a message that the process's type provides for, as a function value: here one compiled into the program, in the shell one from a module that `:reload` compiled again, and with peers one shipped from another node (§8.2).
 
 The counter of §4.5 gains an `Upgrade` constructor. The program is three parts of one file, `counter.ern`, which replaces the one of §4.5:
 
@@ -760,7 +839,7 @@ And a `main` that upgrades after the first `Get`:
 
 ```ernest
 // counter.ern
-export fn main() -> Unit with m = {
+export fn main() -> Unit with Never = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
@@ -930,7 +1009,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 kill : (Address(a)) -> Unit with e
 ```
 
-`kill(addr)` ends the process at `addr`, and its monitors receive `Down(reason = Killed, ...)`. The process may run a little before it stops. The REPL of `examples/repl.ern` kills an evaluation that runs too long.
+`kill(addr)` ends the process at `addr`, and its monitors receive `Down(reason = Killed, ...)`. The process may run a little before it stops. The REPL of [`examples/repl.ern`](examples/repl.ern) kills an evaluation that runs too long.
 
 ### 5.4 Deadlock
 
@@ -1018,7 +1097,7 @@ and 2
 cat 2
 ```
 
-Each worker counts one text and sends the map to `main`, not to the tally. Messages are ordered per sender only (§5.1), so an `Add` a worker sent to the tally could arrive after the `Top` that `main` sends; sent by `main`, they arrive in order. `main` monitors every worker, so one that faults is counted as done and reported. `collect` passes over the `Down` of a worker that returned, whose `Counted` has already counted it.
+Each worker counts one text and sends the map to `main`, not to the tally. Messages are ordered per sender only (§5.1), so an `Add` a worker sent to the tally could arrive after the `Top` that `main` sends; sent by `main`, they arrive in order. `main` monitors every worker, so one that faults is counted as done and reported. A worker that returned is counted by its `Counted`, so `collect` passes over its `Down`, whichever of the two arrives first.
 
 ### 5.7 Prediction exercise
 
@@ -1153,8 +1232,8 @@ fn supervise(jobs : List(Int)) -> Unit with SupMsg = match jobs {
 }
 
 // The worker's answer, or the fault that ended it. A worker that returned
-// sent its answer first, so its end is taken with the answer and is not
-// left for the next worker.
+// has sent its answer, so after its end the answer is taken too, whichever
+// arrived first, and neither is left for the next worker.
 fn outcome() -> String with SupMsg = receive {
     Ended(Down(reason = Fault(cause), function = _)) -> "failed, " <> cause
   | Ended(_) -> receive { Result(n) -> Int.toString(n) }
@@ -1363,7 +1442,7 @@ A minimal program that submits a computation:
 ```ernest
 fn heavy(a : Int, b : Int) -> Int = a * a + b * b
 
-export fn main() -> Unit with m = match remote(fn() = heavy(3, 4)) {
+export fn main() -> Unit with Never = match remote(fn() = heavy(3, 4)) {
     Right(n) -> Io.println("remote returned " <> Int.toString(n))
   | Left(NoRemotePeer) -> Io.println("no remote peer configured")
   | Left(PeerLost) -> Io.println("peer lost")
@@ -1588,17 +1667,13 @@ Principle 3 turns an omission into a statement. Exhaustiveness makes you say wha
 
 ## 12. Frequently asked questions
 
-**When is a mailbox `Never`, and when `with m`?**
-
-`Never` is the type with no values, so a process whose mailbox is `Never` receives nothing. It is written on a function that starts a process which never receives, such as `main` or the function a spawned process runs. A helper that only sends, as `Io.println` does, is written `with m`, so that any process may call it; a function with mailbox `Never` could be called only from a process whose mailbox is `Never`.
-
 **Why is there no `import`?**
 
 A name from another module is always written in full, `Net.Http.parse`, so a reader sees where it comes from (principle 3), and a module's path says what its names are. An `import` would add a second way to write each of them.
 
 **Why is a lambda after `|>` in parentheses?**
 
-A lambda's body runs as far as it can, so `x |> fn(y) = y + 1 |> f` would take `|> f` into the body. The parentheses end it.
+A lambda's body extends as far as the text allows, so `x |> fn(y) = y + 1 |> f` would take `|> f` into the body. The parentheses end it.
 
 **Why `fn(x) = ...` for a lambda, and not `x -> ...`?**
 
@@ -1606,7 +1681,7 @@ A function's number of arguments is part of its type, and `fn(x, y)` shows it wh
 
 ## 13. Answers to the exercises
 
-**§1.3.** (a) compiles: inference gives `main` a mailbox effect from the call of `Io.println`. (b) does not compile: `-> Unit` with no `with` declares `main` pure, and a pure function cannot call `Io.println`, which sends. It is the mistake of `area` in §0. The `with Never` of hello-world says that `main` runs in a process whose mailbox will never receive. Omitting an annotation is not the same as declaring purity.
+**§1.4.** (a) compiles: inference gives `main` a mailbox effect from the call of `Io.println`. (b) does not compile: `-> Unit` with no `with` declares `main` pure, and a pure function cannot call `Io.println`, which sends. It is the mistake of `area` in §0. The `with Never` of hello-world says that `main` runs in a process whose mailbox will never receive. Omitting an annotation is not the same as declaring purity.
 
 **§2.11.** No. Ernest has no assignment. `q` is a separate `Person` value; `p` is still `Person(name = "Alice", age = 30)`.
 
