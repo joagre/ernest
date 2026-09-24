@@ -334,6 +334,18 @@ stdlib_file_takes_its_root_test() ->
     ?assertEqual(1, ern_cli:ernc(["--source-root", "../../..", "--out-dir", Dir,
                                   "../../../stdlib/optional.ern"])).
 
+%% report §11.2: a failed test's text prints as it was written (a
+%% regression test: text outside ASCII printed as its UTF-8 bytes)
+test_runner_unicode_test() ->
+    Dir = tmp(),
+    write(Dir, "src/checks.ern",
+          <<"let dash = Test(name = \"dash\", run = fn() -> TestResult with Never =\n"
+            "    Failed(\"a — b\"))\n"/utf8>>),
+    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_cli:ern(["--test", Dir ++ "/build/checks.erc"])),
+    Out = unicode:characters_to_binary(?capturedOutput),
+    ?assertMatch({_, _}, binary:match(Out, <<"dash: failed: a — b\n"/utf8>>)).
+
 %% report §9.3, §11.2: ern --test runs every top-level let of type Test,
 %% exported or not, each in its own process, reports each, and exits 1
 %% unless every one passed
@@ -473,6 +485,30 @@ errors_short_test() ->
     ?assertEqual(<<(list_to_binary(File))/binary, ":1:50: the argument does not fit Io.println:"
                    " expected String, found Int\n">>,
                  iolist_to_binary(?capturedOutput)).
+
+%% report §11.5: an error prints its source line whole, whatever the line
+%% holds (a regression test: a character outside Latin-1 crashed ernc)
+error_on_unicode_line_test() ->
+    Dir = tmp(),
+    File = write(Dir, "twice.ern", <<"fn twice(n) = n + n  // Int — or Float\n"/utf8>>),
+    ?assertEqual(1, ernc_err(["--source-root", Dir, File])),
+    Out = unicode:characters_to_binary(?capturedOutput),
+    Line = <<"1 | fn twice(n) = n + n  // Int — or Float\n"/utf8>>,
+    ?assertMatch({_, _}, binary:match(Out, Line)).
+
+%% report §11.5: an error names its file by the path from the working
+%% directory when the file lies under it
+error_names_file_from_cwd_test() ->
+    Dir = tmp(),
+    write(Dir, "bad.ern", "export fn main() -> Unit with Never = Io.println(1)\n"),
+    {ok, Cwd} = file:get_cwd(),
+    ok = file:set_cwd(Dir),
+    try
+        ?assertEqual(1, ernc_err(["--errors", "short", "bad.ern"])),
+        ?assertMatch(<<"bad.ern:1:50: ", _/binary>>, iolist_to_binary(?capturedOutput))
+    after
+        file:set_cwd(Cwd)
+    end.
 
 %% report §8.6, §7.4: a fault in main is reported on stderr with its
 %% cause, status 1

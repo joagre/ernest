@@ -27,7 +27,7 @@ column({_, C, _}) -> C.
 %% The first line alone: what a tool parses.
 -spec short(string(), diag()) -> string().
 short(File, #diag{span = {L, C, _}, message = Message}) ->
-    lists:flatten(io_lib:format("~s:~B:~B: ~s", [File, L, C, Message])).
+    lists:flatten(io_lib:format("~ts:~B:~B: ~ts", [File, L, C, Message])).
 
 %% The first line, then the source with the spans underlined, the primary
 %% with `^`, each label's with `-` followed by the label, and the help line.

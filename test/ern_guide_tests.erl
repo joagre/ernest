@@ -5,8 +5,11 @@
 %% next fenced block is a `console` block, the program its `$ ern` line names
 %% is run and its output compared with the console's lines that are not
 %% commands. A block marked `ernest-rejected` fails to compile, and for a
-%% reason of its own: not a parse error and not an unknown name. Any other
-%% block is a fragment, which nothing checks.
+%% reason of its own: not a parse error and not an unknown name. When a
+%% console follows it, its `$ ernc` line names the file and the error is
+%% compared whole. A console whose command is `$ ern --shell` is a session:
+%% its `> ` lines are the inputs, and the rest is what the shell prints. Any
+%% other block is a fragment, which nothing checks.
 -module(ern_guide_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -18,7 +21,7 @@
 guide_has_checked_examples_test() ->
     {Modules, Rejected} = lists:partition(fun({K, _}) -> K =/= rejected end, units()),
     ?assert(length(Modules) >= 15),
-    ?assert(length(Rejected) >= 1).
+    ?assert(length(Rejected) >= 5).
 
 %% ernest_guide.md: every complete example compiles, and every example with
 %% its output shown prints that output
@@ -43,14 +46,26 @@ check({modules, #{files := Files, run := Run}}) ->
             {0, Printed} = sh("../bin/ern " ++ filename:join(Build, Module)),
             ?assertEqual(Expected, Printed)
     end;
-check({rejected, #{files := [{F, Code}]}}) ->
+check({rejected, #{files := [{F, Code}], shown := Shown}}) ->
     Dir = tmp(),
     ok = write(filename:join(Dir, F), Code),
-    {Status, Out} = sh("../bin/ernc --errors short --source-root " ++ Dir ++ " --out-dir "
-                       ++ filename:join(Dir, "build") ++ " " ++ filename:join(Dir, F)),
-    ?assertEqual(1, Status),
+    {Status, Out} = sh("cd " ++ Dir ++ " && " ++ filename:absname("../bin/ernc") ++ " " ++ F),
+    ?assertMatch({1, _}, {Status, Out}),
     %% rejected for its own reason, not for a slip in the example
-    ?assertEqual(nomatch, re:run(Out, ": (expected |unknown )")).
+    ?assertEqual(nomatch, re:run(Out, "^[^:\\s]+:[0-9]+:[0-9]+: (expected |unknown name)",
+                                 [multiline])),
+    case Shown of
+        none -> ok;
+        Expected -> ?assertEqual(trim(Expected), trim(Out))
+    end;
+check({session, #{inputs := Inputs, shown := Expected}}) ->
+    Dir = tmp(),
+    In = filename:join(Dir, "inputs"),
+    ok = write(In, [[I, <<"\n">>] || I <- Inputs]),
+    {0, Out} = sh("cd " ++ Dir ++ " && HOME=" ++ Dir ++ " " ++ filename:absname("../bin/ern")
+                  ++ " --shell < " ++ In),
+    %% a session not at a terminal echoes no input, and ends at the last prompt
+    ?assertEqual(trim(Expected), trim(string:trim(trim(Out), trailing, ">"))).
 
 %% The checked units of the guide, in order: {modules, Unit} for one module
 %% or a heading's source tree, {rejected, Unit} for an example that must
@@ -81,7 +96,16 @@ fence(_) -> false.
 group([]) ->
     [];
 group([{N, <<"ernest-rejected">>, _, Code} | Rest]) ->
-    [{rejected, #{line => N, files => [{file_of(Code), join(Code)}]}} | group(Rest)];
+    {File, Shown} = case compiled(Rest) of
+                        {F, Text} -> {F, Text};
+                        none -> {file_of(Code), none}
+                    end,
+    [{rejected, #{line => N, files => [{File, join(Code)}], shown => Shown}} | group(Rest)];
+group([{N, <<"console">>, _, [<<"$ ern --shell">> | Lines]} | Rest]) ->
+    Inputs = [I || <<"> ", I/binary>> <- Lines],
+    %% the prompt stays; the input after it is the terminal's echo
+    Shown = [case L of <<"> ", _/binary>> -> <<"> ">>; _ -> [L, <<"\n">>] end || L <- Lines],
+    [{session, #{line => N, inputs => Inputs, shown => iolist_to_binary(Shown)}} | group(Rest)];
 group([{N, <<"ernest">>, Heading, Code} = B | Rest]) ->
     case named(Code) of
         none ->
@@ -133,12 +157,28 @@ run([{_, <<"console">>, _, Lines} | _]) ->
 run(_) ->
     none.
 
+%% The next fenced block, when it is a console whose command is `$ ernc`:
+%% the file it compiles, and the lines it shows.
+compiled([{_, <<"console">>, _, [Command | Lines]} | _]) ->
+    case re:run(Command, "^\\$ ernc ([a-z0-9]+\\.ern)$", [{capture, all_but_first, list}]) of
+        {match, [File]} -> {File, join(Lines)};
+        nomatch -> none
+    end;
+compiled(_) ->
+    none.
+
+trim(Text) ->
+    string:trim(Text, trailing).
+
 join(Lines) ->
     iolist_to_binary([[L, <<"\n">>] || L <- Lines]).
 
+%% A fresh directory: the counter restarts with each run, so one left by an
+%% earlier run is removed first.
 tmp() ->
     Unique = integer_to_list(erlang:unique_integer([positive])),
     Dir = filename:join("/tmp", "ern_guide_" ++ Unique),
+    _ = file:del_dir_r(Dir),
     ok = filelib:ensure_path(Dir),
     Dir.
 
@@ -147,7 +187,8 @@ write(Path, Code) ->
     file:write_file(Path, Code).
 
 sh(Cmd) ->
-    Port = open_port({spawn, Cmd}, [exit_status, stderr_to_stdout, binary]),
+    Port = open_port({spawn_executable, "/bin/sh"},
+                     [{args, ["-c", Cmd]}, exit_status, stderr_to_stdout, binary]),
     collect(Port, []).
 
 collect(Port, Acc) ->

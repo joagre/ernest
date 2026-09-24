@@ -12,7 +12,7 @@ The toolchain is written in Erlang: lexer, parser, type checker, runtime, the co
 
 - **[`ernest_report.md`](ernest_report.md)** — the language report. Normative. Everything else in this repo defers to it. About twenty pages of rules in twelve numbered sections, 0 through 11, in the register of a Wirth report, no rationale and no restating, plus six appendices: grammar (A), examples (B), configuration (C), a foreign-library walk-through (D), the standard library (E), and a glossary (F). The reasons are in the decisions log.
 
-- **[`ernest_guide.md`](ernest_guide.md)** — a reading guide for a first-time reader. Walks through hello world, types (including abstract), functions, one process (a counter), two processes talking (ping-pong), watching processes (`monitor`, `kill`), adapting messages with `via`, the `<-` chaining idiom, remote computation, foreign types and functions, bitstrings, and the toolchain. Closes with a short FAQ and pointers to the paper programs.
+- **[`ernest_guide.md`](ernest_guide.md)** — the guide, *Programming in Ernest*: the language taught to a programmer who knows another, with examples the tests compile and run.
 
 ### Then the small programs
 
@@ -54,7 +54,7 @@ Four layers:
 ```
 VERSION            the toolchain's version, read at build time
 ernest_report.md   the language report (normative)
-ernest_guide.md    the reading guide
+ernest_guide.md    the guide
 docs/              decisions log, implementation plan, architecture note, style guides,
                    module documentation template, shell design, language feedback, Emacs mode,
                    node protocol, code distribution, killer app

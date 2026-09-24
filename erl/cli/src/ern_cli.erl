@@ -38,11 +38,11 @@ tool(Tool, Spec, Positional, Args, Fun, Err) ->
         end
     catch
         throw:{cli_usage, Msg} ->
-            io:format(Err, "~s: ~s~n", [Tool, Msg]),
+            io:format(Err, "~s: ~ts~n", [Tool, Msg]),
             usage(Spec, Tool, Positional, Err),
             1;
         throw:{cli_error, Msg} ->
-            io:format(Err, "~s: ~s~n", [Tool, Msg]),
+            io:format(Err, "~s: ~ts~n", [Tool, Msg]),
             1
     end.
 
@@ -122,19 +122,25 @@ ernc_compile(Opts, Path, Err) ->
     end.
 
 %% Report §11.5: each error as ern_diag renders it, the first line alone
-%% under --errors short; status 1.
+%% under --errors short; status 1. The file is named from the working
+%% directory when it lies under it.
 report_errors(Opts, File, Errors, Err) ->
     Short = proplists:get_value(errors, Opts) =:= "short",
     Source = case file:read_file(File) of
                  {ok, Bin} -> Bin;
                  _ -> <<>>
              end,
+    {ok, Cwd} = file:get_cwd(),
+    Shown = case relative(File, Cwd) of
+                outside -> absolute(File);
+                Rel -> Rel
+            end,
     lists:foreach(fun(D) ->
                       Text = case Short of
-                                 true -> ern_diag:short(File, D);
-                                 false -> ern_diag:format(File, Source, D)
+                                 true -> ern_diag:short(Shown, D);
+                                 false -> ern_diag:format(Shown, Source, D)
                              end,
-                      io:format(Err, "~s~n", [Text])
+                      io:format(Err, "~ts~n", [Text])
                   end, Errors),
     1.
 
@@ -606,7 +612,7 @@ shell(Opts, Rest, Err) ->
                          #{stdout => Sink, stderr => Sink, init => Init}) of
         ok -> 0;
         {fault, Msg} ->
-            io:format(Err, "fault: ~s~n", [Msg]),
+            io:format(Err, "fault: ~ts~n", [Msg]),
             1
     end.
 
@@ -734,14 +740,14 @@ run_tests(Ns, Loaded, Err) ->
         ok ->
             Results = receive {ern_tests, R} -> R after 0 -> [] end,
             lists:foreach(fun({Name, Outcome}) ->
-                              io:format("~s: ~s~n", [Name, Outcome])
+                              io:format("~ts: ~ts~n", [Name, Outcome])
                           end, Results),
             case [N || {N, Outcome} <- Results, Outcome =/= <<"passed">>] of
                 [] -> 0;
                 _ -> 1
             end;
         {fault, Msg} ->
-            io:format(Err, "fault: ~s~n", [Msg]),
+            io:format(Err, "fault: ~ts~n", [Msg]),
             1
     end.
 
@@ -775,7 +781,7 @@ run_entry(Opts, Ns, Roots, Loaded, Err) ->
         ok -> 0;
         {fault, Msg} ->
             %% report §8.6: a deadlock is the entry process's fault
-            io:format(Err, "fault: ~s~n", [Msg]),
+            io:format(Err, "fault: ~ts~n", [Msg]),
             1
     end.
 

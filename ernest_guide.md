@@ -1,29 +1,110 @@
-# Ernest: A Reading Guide
+# Programming in Ernest
 
-A crash course for a programmer who wants to read Ernest and predict what a fragment does. It is not the language report — [`ernest_report.md`](ernest_report.md) is where the rules live. This guide surveys the central mechanisms with runnable checkpoints; where a rule has subtlety, it points into the report.
+This guide teaches Ernest to a programmer who knows another language, and it needs nothing beside it. Each complete program in it compiles as shown, and prints what is shown after it. The language is defined by [`ernest_report.md`](ernest_report.md), to which the guide points where a question turns on a detail.
 
-## 0. Orientation
+## 0. Why Ernest
 
-Ernest is a functional language for concurrent programs. Two organizing ideas run through it:
+Ernest is a functional language for concurrent programs, built on two ideas. A pure function computes a value from its arguments and does nothing else, and the compiler infers its type. A process runs a function and receives messages of one type in its mailbox, and processes are how a program acts on the world. A function that sends or receives says so in its type, and runs only in a process. Every other rule says how the two appear in each other's code.
 
-- **Functions** with Hindley-Milner types the compiler figures out for you.
-- **Processes** with typed mailboxes, as the language's way to affect the world.
+The rules let the compiler find, before the program runs, the mistakes concurrent programs are prone to. Four follow, each as a program and what `ernc`, the compiler, says about it.
 
-Everything else is a rule for how functions and processes appear in each other's code.
+**A message the process does not take.** The counter receives `CounterMsg`, so the address `spawn` returns takes a `CounterMsg` and nothing else.
 
-The guide is arranged as seven stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, organize code, cross boundaries. A complete runnable program appears at selected checkpoints (hello, the counter, the module example, the remote example). The complete programs are collected as files under [`examples/`](examples/); §9 says which of them the toolchain runs today. Other snippets are illustrative fragments — assembling them into files is left to the reader. Each stage ends with a short prediction exercise. Read the stages in order; each builds on what came before.
+```ernest-rejected
+type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
+
+fn counter(n : Int) -> Unit with CounterMsg = receive {
+    Inc(k) -> counter(n + k)
+  | Get(reply = r) -> { answer(r, n); counter(n) }
+}
+
+export fn main() -> Unit with Never = {
+    let c = spawn(Local, fn() = counter(0));
+    send(c, "increment")
+}
+```
+
+```console
+$ ernc message.ern
+message.ern:10:13: the argument does not fit send: expected CounterMsg, found String
+ 9 |     let c = spawn(Local, fn() = counter(0));
+10 |     send(c, "increment")
+   |     ---- send : (Address(a), a) -> Unit with e
+   |             ^^^^^^^^^^^
+```
+
+Every error in a program has this form: the position as `file:line:column`, the message, and the source with the error's span underlined with `^`. A span the error depends on is underlined with `-` and labelled, here the type of `send`, whose two arguments must agree.
+
+**A request left unanswered.** A `Get` carries a `Reply(Int)`, in which the counter puts its answer. A reply is answered exactly once on every path. This counter forgets to, and whoever asked would wait.
+
+```ernest-rejected
+type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
+
+fn counter(n : Int) -> Unit with CounterMsg = receive {
+    Inc(k) -> counter(n + k)
+  | Get(reply = r) -> counter(n)
+}
+```
+
+```console
+$ ernc forgot.ern
+forgot.ern:5:5: the reply-carrying value r is never consumed
+4 |     Inc(k) -> counter(n + k)
+5 |   | Get(reply = r) -> counter(n)
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+**Work through a process, in a function that says it does none.** The terminal is a process, so printing is sending it a message. `area` is declared pure, `-> Int` with nothing after it, and the compiler holds it to that. A function that sends or receives says so with `with`, as the help line says.
+
+```ernest-rejected
+fn area(w : Int, h : Int) -> Int = {
+    Io.println("computing an area");
+    w * h
+}
+```
+
+```console
+$ ernc area.ern
+area.ern:2:5: Io.println needs a process, and area is pure
+1 | fn area(w : Int, h : Int) -> Int = {
+  |                              --- `-> Int` with no `with` declares area pure
+2 |     Io.println("computing an area");
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | = help: give area a mailbox type with `with`
+```
+
+**A failure dropped.** `Fs.write` returns `Either(IoError, Unit)`: the file was written, or the reason it was not. A statement in a block must be `Unit`, so the failure cannot pass unseen. `let _ = ...` discards it where that is meant.
+
+```ernest-rejected
+export fn main() -> Unit with Never = {
+    Fs.write(Path("notes.txt"), String.toUtf8("buy milk"), 1000);
+    Io.println("saved")
+}
+```
+
+```console
+$ ernc notes.ern
+notes.ern:2:5: this statement's value is discarded: expected Unit, found Either(IoError, Unit)
+1 | export fn main() -> Unit with Never = {
+2 |     Fs.write(Path("notes.txt"), String.toUtf8("buy milk"), 1000);
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | = help: `let _ = ...` discards it on purpose
+```
+
+These rules come from one design, and each part of it exists in some language already. Ernest puts the parts together, for the Erlang runtime, whose processes, faults, and distribution it keeps:
+
+- **Inferred types.** The compiler infers types, so an annotation is written where it helps the reader or where the compiler asks for one (§3.3), and is then checked.
+- **Typed mailboxes.** The type of the messages a process receives is part of its function's type, `with CounterMsg`, and an address carries it, so every `send` is checked against its receiver.
+- **Checked replies.** A request carries a `Reply`, answered exactly once on every path. `Address.call` waits with a deadline, so an answer that never comes is a case the program handles.
+- **Effects in the type.** `with` separates the functions that may send or receive from those that cannot, and a pure function stays pure.
+- **Faults as messages.** A process that fails dies. The processes that watch it receive a message saying why, and nothing is caught (§5).
+- **Distribution, planned.** The same types are to hold between nodes: a type is known by its definition, and code a peer lacks follows the message to it (§7).
+
+The rest of the guide is seven stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, organize code, and cross boundaries. Each builds on the ones before it and ends with an exercise. A complete program is shown whole; a fragment is part of the program around it.
 
 ## 1. Run a program
 
-For these examples, first create a configuration in a fresh working directory. This step runs once; the command fails if the configuration directory already exists:
-
-```console
-$ ern --create-config-dir .
-```
-
-That generates `./.ernest/` with `ernest.conf` (network address, public key, empty peer list) and the private key. Local examples like the ones below leave the peer list empty; programs that use peers or remote computation edit `ernest.conf` before running.
-
-Now the program itself, `hello.ern`:
+A program is a module that exports a function `main`. Put this line in `hello.ern`:
 
 ```ernest
 export fn main() -> Unit with Never = Io.println("hello, world")
@@ -51,7 +132,32 @@ hello, world
 
 For development output, `Io.debug(x)` prints any value and returns it, so it wraps an expression in place: `let n = Io.debug(f(x))`. It prints the value as the source writes it, by the argument's type: `Io.debug('a')` prints `'a'`, and a named constructor prints with its field names. An address prints as `<address>`, a reply as `<reply>`, and a function as `<function>`. A value of an abstract type prints as `<abstract>` outside its module. Inside a generic function, where the type is a variable, and for a foreign type, it can only go by the runtime's representation, so a `Char` there prints as its code point (report Appendix E.1). It carries `with m` like `Io.println`, so it cannot hide in pure code.
 
-### 1.2 Prediction exercise
+### 1.2 The shell
+
+`ern --shell` starts a shell. An input is an expression or a declaration; it is checked and run when it is entered, and its value is printed with its type.
+
+```console
+$ ern --shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> 1 + 2
+3 : Int
+> let xs = [3, 1, 2]
+xs : List(Int)
+> List.sort(xs, Int.compare)
+[1, 2, 3] : List(Int)
+> fn square(n : Int) -> Int = n * n
+square : (Int) -> Int
+> List.map(xs, square)
+[9, 1, 4] : List(Int)
+> Io.println("hello")
+hello
+```
+
+A value of type `Unit` prints nothing, so the last input shows only what it wrote. A command begins with `:`. `:type e` prints the type of `e` without running it, `:doc List.sort` prints the documentation of `List.sort`, and `:help` lists the rest. `ern --shell hello.erc` starts the shell with `hello`'s module in scope and its `main` running beside it.
+
+At a terminal the shell edits the line with Readline's Emacs keys, and keeps a history across sessions that `C-r` searches. `Tab` completes the word before the cursor, by its prefix or by its word starts, `L.fM` to `List.filterMap`, and offers only what may stand there: a type after `:`, a constructor in a pattern, a field inside a constructor's parentheses. `Shift-Tab` shows the type and first sentence of the name at the cursor, and pressed again its documentation. An input the parser cannot finish takes another line. What programs write appears in a region at the foot of the screen, apart from the inputs, and a process that faults is reported at the prompt with the place it was spawned. `:reload` compiles and loads a module whose source has changed, and processes running the old version go on running it.
+
+### 1.3 Prediction exercise
 
 Consider two variations on hello-world:
 
@@ -62,16 +168,7 @@ export fn main() -> Unit = Io.println("hello, world")     // (b) declared pure
 
 Which of these compile?
 
-Answer: (a) compiles — inference gives `main` a fresh mailbox effect from `Io.println`'s call. (b) does not compile — the explicit `-> Unit` (without `with M`) declares the function *pure*, and a pure function cannot call `Io.println` (which sends). `ernc` says so in the form every error takes (report §11.5): the file, line, and column, the message, then the source with the offending span underlined, the annotation that caused it labelled, and a help line:
-
-```console
-hello.ern:1:28: Io.println needs a process, and main is pure
-1 | export fn main() -> Unit = Io.println("hello, world")
-  |                     ---- `-> Unit` with no `with` declares main pure
-  |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  | = help: give main a mailbox type with `with`
-```
- The `with Never` in the actual hello-world declaration says "this process has a mailbox, but it will never receive." Omitting an annotation is not the same as declaring purity.
+Answer: (a) compiles: inference gives `main` a mailbox effect from the call of `Io.println`. (b) does not compile: `-> Unit` with no `with` declares `main` pure, and a pure function cannot call `Io.println`, which sends. It is the mistake of `area` in §0. The `with Never` of hello-world says that `main` runs in a process whose mailbox will never receive. Omitting an annotation is not the same as declaring purity.
 
 ## 2. Compute with immutable values
 
@@ -870,6 +967,8 @@ Answer: no. Access is granted by the signature, not by the module. The helper ca
 ## 7. Cross boundaries
 
 Two ways Ernest reaches outside a single node's Ernest code: to peers over the network, and to foreign code on the same node.
+
+A node that talks to peers has a configuration, which a node running alone does not need. `ern --create-config-dir .` creates it, once, in `./.ernest/`: `ernest.conf`, with this node's network address, its public key and an empty list of peers, and the private key beside it. The command fails if `./.ernest` exists. A peer is added to the list by editing `ernest.conf` (report Appendix C), and its name is what `Peer(name)` refers to.
 
 ### 7.1 `remote`
 

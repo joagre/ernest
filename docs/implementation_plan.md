@@ -159,11 +159,16 @@ without boasting. Each step is a stop.
    Anything else is a fragment, which nothing checks. `test/ern_guide_tests.erl` owns the
    convention; 22 examples and one rejected example are checked, and step 5 makes more of the
    fragments complete.
-2. **The opening: why Ernest, and a first program.** §0 shows what Ernest catches that its
-   neighbours do not, each as the bug and `ernc`'s message: a wrong message to a process, a
-   request left unanswered, a function that acts through a process without saying so, an
-   `Either` dropped by a statement. §1 runs hello world with no configuration, which moves
-   to §7 where peers need it, and opens the shell.
+2. **Done 2026-09-24: the opening: why Ernest, and a first program.** The guide is
+   *Programming in Ernest*. §0 shows four mistakes `ernc` finds, each as the program and its
+   error: a wrong message to a process, a request left unanswered, a function that acts
+   through a process without saying so, an `Either` dropped by a statement. §1 runs hello
+   world with no configuration, which moves to §7 where peers need it, and opens the
+   shell. The test compares a rejected block's error, and a shell session's output, with the
+   console after it. Writing it found three things, fixed here: `ernc` crashed printing an
+   error whose source line holds a character outside Latin-1, and `ern` printed such text
+   byte by byte; the report did not say which path an error names (§11.5), nor that the
+   shell prints nothing for a `Unit` value (§11.2).
 3. **§2 and §3 cut to teaching weight.** A rule and an example stay; a corner points to the
    report in a line.
 4. **The error model gets a section of its own:** a value, a message, or a fault, and
