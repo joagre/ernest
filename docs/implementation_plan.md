@@ -186,6 +186,13 @@ the shell is neither standard library nor library but the toolchain's own progra
      `:set`'s four words; and `Tab` never indents in an argument, listing what may stand
      there when nothing is typed. The closing sweep's line leaving `:set`'s words out goes,
      since one rule for every argument is no second vocabulary. §11.2 first.
+  3. **The commands in alphabetical order, and an ambiguous prefix refused.** Found
+     2026-09-25: the listing's order is §11.2's priority for an ambiguous prefix, which a
+     reader of `:help` cannot see and did not predict. Decided, by principles 1 and 3:
+     `:help` and the listing give the commands alphabetically, and a prefix that selects
+     more than one is refused with what it could be, `:b is :bindings or :browse`. Only
+     `:b` and `:f` were ambiguous; they take a second letter. §11.2 first, and the log's
+     2026-09-21 entry on the prefix order is answered.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.
