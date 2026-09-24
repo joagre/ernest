@@ -139,15 +139,18 @@ live_region() ->
 
 %% report §11.2, §9.3: the pure parts of the shell test themselves, the
 %% editor's function from a line and an event to what the reader must do,
-%% the history file's escaping, and the region's geometry, run by
-%% `ern --test` as the shell is built
+%% the history file's escaping, the region's geometry, completion's
+%% matching, and the colours, run by `ern --test` as the shell is built
 editor_test_() ->
     {timeout, 60, fun editor/0}.
 
 editor() ->
-    {Status, Out} = sh("../bin/ern --test ../build/shell/shell/editor.erc"
-                       " && ../bin/ern --test ../build/shell/shell/history.erc"
-                       " && ../bin/ern --test ../build/shell/shell.erc"),
+    %% every compiled module of the shell, so that a module's tests run
+    %% from the day it is written; region's and complete's had not
+    Modules = filelib:wildcard("../build/shell/**/*.erc"),
+    ?assert(length(Modules) >= 6),
+    Runs = ["../bin/ern --test " ++ M || M <- Modules],
+    {Status, Out} = sh(lists:flatten(lists:join(" && ", Runs))),
     Lines = [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
     ?assertEqual([], [L || L <- Lines, binary:match(L, <<": passed">>) =:= nomatch]),
     ?assert(length(Lines) >= 10),
@@ -441,7 +444,7 @@ shift_tab_colour_test_() ->
     {timeout, 60, fun shift_tab_colour/0}.
 
 shift_tab_colour() ->
-    Raw = pty(alone("../bin/ern --shell"),
+    Raw = raw(alone("../bin/ern --shell"),
               [{expect, "> "},
                {send, hex("List.map([1], ") ++ "1b5b5a"},
                {expect, "xs : List(a)"},
@@ -776,7 +779,17 @@ pty(Command, Steps, Seconds) ->
 screen(Command, Steps, Seconds, Size) ->
     pty(Command, Steps, Seconds, " --screen --size " ++ Size).
 
+%% What the terminal was sent, as a reader sees it: the sequences that only
+%% colour the text are left out. `raw/3` keeps them, for a test of the
+%% colour itself.
 pty(Command, Steps, Seconds, Extra) ->
+    re:replace(raw(Command, Steps, Seconds, Extra), "\e\\[[0-9;]*m", "",
+               [global, {return, binary}]).
+
+raw(Command, Steps, Seconds) ->
+    raw(Command, Steps, Seconds, "").
+
+raw(Command, Steps, Seconds, Extra) ->
     File = steps_file(Steps),
     {0, Out} = sh("./ern_pty.py --timeout " ++ integer_to_list(Seconds) ++ " --steps " ++ File
                   ++ Extra ++ " -- " ++ Command),

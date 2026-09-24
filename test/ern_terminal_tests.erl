@@ -71,8 +71,10 @@ snake_test_() ->
 snake() ->
     ok = compile("../examples/snake.ern", "../examples"),
     %% the board is drawn before the first key, and a move is given a few
-    %% ticks to show: the game's own clock is what those sleeps wait for
-    {0, Screen} = pty("../bin/ern build/snake.erc",
+    %% ticks to show: the game's own clock is what those sleeps wait for.
+    %% It runs the program compiled here, not one another suite left in
+    %% build/, which a run of this area alone does not have
+    {0, Screen} = pty("../bin/ern build/examples/snake.erc",
                       [{expect, "tick "},
                        {send, "1b5b42"},    % ArrowDown
                        {sleep, 1500},

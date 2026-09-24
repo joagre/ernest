@@ -15,7 +15,8 @@ program prints, `>` among it, and no shell should read that.  A blank
 line and a line beginning with # are skipped.
 
     expect:TEXT   wait until TEXT appears on the screen, after whatever
-                  the previous expect matched
+                  the previous expect matched; a colour sequence, ESC [ ... m,
+                  is not part of the text, as a reader does not see it
     send:HEX      write those bytes to the terminal
     resize:RxC    give the terminal a new size, as a window manager does
     sleep:MS      wait that long, reading whatever arrives
@@ -68,6 +69,10 @@ class Screen:
     def __init__(self, fd):
         self.fd = fd
         self.seen = bytearray()
+        # what has been shown as it reads, without the sequences that only
+        # colour it; a sequence a read cut short waits for the next read
+        self.plain = bytearray()
+        self.partial = b""
         self.cursor = 0
         self.eof = False
 
@@ -81,11 +86,16 @@ class Screen:
             data = b""
         if data:
             self.seen.extend(data)
+            chunk = self.partial + data
+            cut = re.search(rb"\x1b(\[[0-9;]*)?$", chunk)
+            self.partial = chunk[cut.start():] if cut else b""
+            chunk = chunk[:cut.start()] if cut else chunk
+            self.plain.extend(re.sub(rb"\x1b\[[0-9;]*m", b"", chunk))
         else:
             self.eof = True
 
     def find(self, text):
-        at = self.seen.find(text, self.cursor)
+        at = self.plain.find(text, self.cursor)
         if at < 0:
             return False
         self.cursor = at + len(text)

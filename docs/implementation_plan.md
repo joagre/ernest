@@ -130,14 +130,19 @@ the shell is neither standard library nor library but the toolchain's own progra
      `Since`, the page on a second press, the signature inside a call, `:br` completed to
      `:browse`, and the listing a second `Tab` gives; `shift_tab_colour_test_` reads the raw
      output for the cyan around the parameter at the cursor. Six runs at once passed.
-  7. **Colour where it carries meaning, at a terminal only, and never with `NO_COLOR` set.**
-     Agreed 2026-09-24, after the signature's parameter became cyan in step 4: a fault
-     report and a diagnostic's first line in red, the type after a printed value dimmed so
-     the value stands out, the suggestion in grey when it comes, and a name bold in a
-     completion listing and a `Shift-Tab` brief. No syntax highlighting of what is typed,
-     which would take a second lexer in the editor and tell an Ernest reader nothing.
-     `ernc`'s diagnostics stay plain, since a tool reads them. Report §11.2 states it in the
-     closing sweep; step 6's terminal test checks the escapes.
+  7. **Done 2026-09-24: colour where it carries meaning, at a terminal only, and never with
+     `NO_COLOR` set.** `Shell.Style`, pure and tested by `ern --test`: a fault report, a
+     fault's `fault:` line, and a diagnostic's first line in red; the type after a printed
+     value dimmed; a name bold in a completion listing and a `Shift-Tab` brief; the
+     parameter at the cursor in cyan. No syntax highlighting of what is typed; `ernc`'s
+     diagnostics stay plain. The front end answers whether to colour, from the terminal and
+     `NO_COLOR`, until `Sys.env` (MVP 2.7) lets the shell read the environment itself. The
+     harness waits on text with its colour sequences left out, stripping them once per read,
+     and the shell's tests read the terminal's output the same way, one colour test raw.
+     Running the shell's area alone found two things the full suite hid: the pure modules
+     `region.ern` and `complete.ern` had tests `make test` never ran, and the snake test ran
+     a program another suite had left in `build/`; every shell module's tests run now, and
+     snake runs what its own test compiled.
 - **Typing ahead while an input runs loses the second input's result.** Found 2026-09-21,
   reproduced 2026-09-24: in the pseudo-terminal, `send(c, Counter.Add(7))` and then, while
   it runs, `Address.call(...)` typed and entered shows the second input echoed and no result
@@ -303,7 +308,8 @@ program puts it there.
   came back here on 2026-09-20 when the shell's colour went later. The guide's cold read
   asked for the arguments at once (`language_feedback.md` item 16, 2026-09-24); an entry
   point that takes a `List(String)` is weighed against `Sys.args` before the report changes,
-  and parsing options from the list is a library's, by E.0.
+  and parsing options from the list is a library's, by E.0. With `Sys.env`, the shell reads
+  `NO_COLOR` in Ernest, where its front end reads it today.
 - **`libs/json`**, pure Ernest: a `Json` type, a parser over `String` returning `Either`, a
   printer; the first test of `<-`, `tryMap` and `tryFold` at size.
 - **`libs/base64`**, a shim over `base64`: the smallest there is, so Appendix D's pattern is

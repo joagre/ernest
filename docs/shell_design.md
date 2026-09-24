@@ -162,7 +162,8 @@ GNU Readline's Emacs bindings.
 - **Interrupting:** `C-c` kills the running evaluation when there is one, and abandons the input being typed, every line of it, only when there is not. The bindings and the partial line survive, and the text goes to the history to recall and mend. A queued input is dropped with the evaluation it waited for.
 - **A paste is one event.** The runtime asks the terminal to bracket a paste while a program reads keys (§8.2), so pasted text arrives as `Pasted` with its line endings as line feeds; the editor puts it in the line at the cursor, and its line feeds add rows rather than running the input. A terminal that does not bracket a paste sends the characters, and each line feed in them runs what is typed so far, as typing does.
 - **`C-l`** clears the screen and keeps the line being typed. What was committed before it stays in the terminal's scrollback.
-- **Later:** the suggestion, in grey, which is how it is told from what was typed; colour's first use is the marked parameter of `Shift-Tab`'s signature, so the region already measures a row without its escape sequences; and the kill ring with `M-y` cycling, `C-t` and `M-t` transposing, `M-u`, `M-l`, `M-c` for case.
+- **Colour**, from `Shell.Style`, at a terminal and never with `NO_COLOR` set: a fault and a diagnostic's first line red, a printed value's type dimmed, a name bold in a listing and a brief, the parameter at the cursor cyan. The region measures a row without its escape sequences.
+- **Later:** the suggestion, in grey, which is how it is told from what was typed; and the kill ring with `M-y` cycling, `C-t` and `M-t` transposing, `M-u`, `M-l`, `M-c` for case.
 
 ## Completion
 

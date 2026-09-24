@@ -3874,6 +3874,10 @@ Colour, first used for the parameter `Shift-Tab` marks, goes where it carries me
 
 The first terminal test of `Shift-Tab` was taken out on 2026-09-21 because it raced its own output: it waited for a name the input itself echoes, so the wait was met before the answer came. The rule that fixes it is general to the harness: a step waits for text only the answer can hold, the first sentence of a page, a parameter's declared name in a signature, `:browse` after `:br` was typed. The rendered screen, which shows each row as the reader sees it, is where the lines are counted; the raw output, which holds every escape, is where the colour is read.
 
+## Colour, Built, 2026-09-24
+
+The colours are one pure module, `Shell.Style`, each function taking whether colour is on and giving the text unchanged when it is not, so that what the shell says reads the same without them and each rule is a test. Whether colour is on is one question, a terminal and no `NO_COLOR`, which the front end answers until `Sys.env` lets the shell ask in Ernest. Two parts of the test harness had to learn what a reader sees: a wait on text leaves colour sequences out, since a dimmed type would otherwise split `2 : Int`, and it strips them once per read rather than over the whole transcript on every wait, which made snake's long output quadratic. Running the shell's area alone, which the test areas made possible, showed two defects the full suite had hidden by its order: the pure modules added after the first three had tests that nothing ran, and the snake test ran a program the integration suite happened to leave behind.
+
 ## Later
 
 Planned or considered, not in the language today.

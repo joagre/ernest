@@ -14,7 +14,7 @@
 -export([bindings/1, forget/2, browse/2, doc/2, names/0, context/1,
          documentation/1]).
 -export([deaths/1, mine/0, faults/0, processes/0, load/2, reload/1, output/1]).
--export([is_terminal/0, write/1, screen/1, to_screen/1]).
+-export([is_terminal/0, colours/0, write/1, screen/1, to_screen/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -1077,6 +1077,13 @@ is_terminal() ->
     try prim_tty:isatty(stdin) =:= true
     catch _:_ -> false
     end.
+
+%% Report §11.2: the shell colours what it says at a terminal, and not where
+%% the environment sets NO_COLOR to anything, as that convention asks. The
+%% environment is the host's until `Sys.env` (plan, MVP 2.7).
+-spec colours() -> boolean().
+colours() ->
+    is_terminal() andalso os:getenv("NO_COLOR", "") =:= "".
 
 %% The screen writes to the terminal itself: `Sys.stdout` is the screen's,
 %% so a screen that printed through it would print to itself.
