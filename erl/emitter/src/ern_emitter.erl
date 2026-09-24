@@ -25,7 +25,9 @@
 
 %% Emission context, threaded through everything.
 -record(cx, {ns, mod, env, fname, vars = #{}, counter = 0, locals = #{}, lifted = [],
-             tops = #{}, descs = #{}, pat_guards = []}).
+             tops = #{}, descs = #{}, pat_guards = [], session = false}).
+%% session: the module is an input of the shell's session (report §11.2),
+%% whose spawn sites are written as the session writes names
 %% pat_guards: Erlang guard forms a pattern needs on its clause, a float
 %% segment's zero (report §3.1), taken by the clause that uses them
 %% descs: descriptor term => the name of the module function returning it
@@ -49,15 +51,18 @@ compile(Ns, Decls, Iface, Env) ->
     compile(Ns, Decls, Iface, Env, #{source_hash => <<>>, deps => []}).
 
 %% Build: the source hash and the dependencies' interface hashes go into
-%% the chunk beside the interface.
+%% the chunk beside the interface; `session` marks an input of the shell,
+%% which is compiled and not written, and is not kept.
 -spec compile([atom()], [tuple()], #iface{}, ern_typecheck:env(),
               #{source_hash := binary(), deps := [{[atom()], binary()}],
-                compiler => binary(), stdlib => binary() | none, source => binary()}) ->
+                compiler => binary(), stdlib => binary() | none, source => binary(),
+                session => boolean()}) ->
           {ok, atom(), binary()} | {error, [error()]}.
 compile(Ns, Decls, Iface, Env, Build) ->
     try
-        Forms = forms(Ns, Decls, Env, [D || {D, _} <- maps:get(deps, Build, [])]),
-        Iface0 = maps:remove(source, Build),
+        Forms = forms(Ns, Decls, Env, [D || {D, _} <- maps:get(deps, Build, [])],
+                      maps:get(session, Build, false)),
+        Iface0 = maps:without([source, session], Build),
         Chunk = term_to_binary(Iface0#{format => ?CHUNK_FORMAT, iface => canonical_iface(Iface)}),
         Docs = term_to_binary(docs(Ns, Decls, Env, maps:get(source, Build, <<>>))),
         case compile:forms(Forms, [return_errors, debug_info,
@@ -74,16 +79,16 @@ compile(Ns, Decls, Iface, Env, Build) ->
 %% The abstract forms, for the golden tests and erl_prettypr.
 -spec forms([atom()], [tuple()], ern_typecheck:env()) -> [erl_parse:abstract_form()].
 forms(Ns, Decls, Env) ->
-    forms(Ns, Decls, Env, []).
+    forms(Ns, Decls, Env, [], false).
 
 %% Report §8.5: with the modules this one depends on, which it declares
 %% as `'$deps'/0` so that the runtime can evaluate top-level bindings in
 %% dependency order without reading a compiled file.
--spec forms([atom()], [tuple()], ern_typecheck:env(), [[atom()]]) ->
+-spec forms([atom()], [tuple()], ern_typecheck:env(), [[atom()]], boolean()) ->
           [erl_parse:abstract_form()].
-forms(Ns, Decls, Env, Deps) ->
+forms(Ns, Decls, Env, Deps, Session) ->
     Mod = module_atom(Ns),
-    Cx0 = #cx{ns = Ns, mod = Mod, env = Env, tops = top_names(Decls)},
+    Cx0 = #cx{ns = Ns, mod = Mod, env = Env, tops = top_names(Decls), session = Session},
     {Funs, Cx1} = lists:mapfoldl(fun decl/2, Cx0, Decls),
     Lets = [D || #let_decl{} = D <- Decls],
     {Init, Cx2} = init_fun(Lets, Decls, Cx1),
@@ -950,9 +955,17 @@ prelude_value(_Pos, [Ns | Rest], T) when Rest =/= [] ->
 prelude_value(Pos, QName, _) ->
     fail(Pos, "no emission for " ++ qname(QName)).
 
-site(Pos, #cx{ns = Ns, fname = F}) ->
-    Line = element(1, Pos),
-    string_binary(unicode:characters_to_binary(qname(Ns ++ [F]) ++ ":" ++ integer_to_list(Line))).
+%% Report §6.9: the function that called `spawn`, qualified, and the line.
+%% Report §11.2: in the session, as the session writes names: a function an
+%% input declares by its own name, and the input's expression as `input`.
+site(Pos, #cx{ns = Ns, fname = F, session = Session}) ->
+    Line = integer_to_list(element(1, Pos)),
+    Where = case {Session, F} of
+                {true, '$input'} -> "input";
+                {true, _} -> qname([F]);
+                {false, _} -> qname(Ns ++ [F])
+            end,
+    string_binary(unicode:characters_to_binary(Where ++ ":" ++ Line)).
 
 %%
 %% Operators, report §4.8 and plan 2.1

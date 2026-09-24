@@ -824,7 +824,8 @@ modules_example_test() ->
 
 %% report Appendix B, examples/
 examples_test_() ->
-    Files = filelib:wildcard("../../../examples/*.ern"),
+    Files = [F || F <- filelib:wildcard("../../../examples/*.ern"),
+                  hd(filename:basename(F)) =/= $.], % editor artifacts, report §11.1
     [{F, fun() ->
               {ok, Bin} = file:read_file(F),
               Base = filename:basename(F, ".ern"),

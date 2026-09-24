@@ -34,7 +34,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 Stack.empty : Stack
 Stack.push : (Stack, Int) -> Stack
 > <abstract> : Stack
-> input:1:1: Input28.S is the constructor of an abstract type and is not visible outside its module
+> input:1:1: S is the constructor of an abstract type and is not visible outside the input that declared it
 1 | S([])
   | ^^^^^
 > input:1:12: a `let` at the prompt is an input of its own

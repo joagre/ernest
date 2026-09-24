@@ -23,6 +23,12 @@
 
 -define(UNIT, {tcon, ['Unit'], []}).
 
+%% The function an expression input is wrapped in. No Ernest identifier is
+%% spelled so, so the wrapper never shadows a name the session declares,
+%% `main` among them (report §11.2's scope), and the emitter knows a site
+%% inside it for the input's own.
+-define(ENTRY, '$input').
+
 %% The session so far: the roots to look in, the count of inputs seen, the
 %% interfaces of the modules behind the session, and the scope those
 %% modules make (report §11.2), which the checker takes as its fourth
@@ -224,7 +230,7 @@ exported(#let_decl{} = D) -> D#let_decl{export = true};
 exported(#foreign_fn_decl{} = D) -> D#foreign_fn_decl{export = true};
 exported(D) -> D.
 
-%% `export fn main() -> a with m = <the input>`, the entry point of §8.1.
+%% `export fn '$input'() -> a with m = <the input>`, the entry point of §8.1.
 %% Report §11.2: a `let` at the prompt may carry an annotation, and it
 %% is the entry point's return type, so the checker holds the input to
 %% it as it would hold a `let` in a block.
@@ -236,7 +242,7 @@ input_entry(Expr, Ann) ->
                  undefined -> undefined;
                  _ -> #t_var{pos = {1, 1, {1, 1}}, name = m}
              end,
-    [#fn_decl{pos = {1, 1, {1, 1}}, export = true, name = main, params = [], body = Expr,
+    [#fn_decl{pos = {1, 1, {1, 1}}, export = true, name = ?ENTRY, params = [], body = Expr,
               ret = Ann, effect = Effect}].
 
 check_module(#env{ifaces = Ifaces, session = Session} = Env, Ns, From, Input, Decls, Binds) ->
@@ -327,7 +333,7 @@ input_span(_) -> {1, 1, {1, 2}}.
 input_type(_Typed, decls) ->
     ?UNIT;
 input_type(Typed, _Binds) ->
-    [#fn_decl{type = Scheme}] = [D || #fn_decl{name = main} = D <- Typed],
+    [#fn_decl{type = Scheme}] = [D || #fn_decl{name = ?ENTRY} = D <- Typed],
     result_type(Scheme).
 
 result_type(#scheme{type = {tfn, [], _, Result}}) -> Result;
@@ -351,7 +357,7 @@ type_text(#checked{typed = Typed, type = T, env = Env}) ->
 %% Report §11.2: an input that is one name is printed with the name's
 %% declared type, its variables named as the declaration names them.
 one_name(Typed) ->
-    case [B || #fn_decl{name = main, body = B} <- Typed] of
+    case [B || #fn_decl{name = ?ENTRY, body = B} <- Typed] of
         [#e_var{path = Path, name = Name}] -> {Path, Name};
         _ -> none
     end.
@@ -363,10 +369,11 @@ one_name(Typed) ->
 run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
                   binds = Binds}, To) ->
     Desc = ern_emitter:descriptor(T, TEnv),
-    {ok, Mod, Beam} = ern_emitter:compile(Ns, Typed, Iface, TEnv),
+    {ok, Mod, Beam} = ern_emitter:compile(Ns, Typed, Iface, TEnv,
+                                          #{source_hash => <<>>, deps => [], session => true}),
     {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), Beam),
     Env1 = Env#env{beams = maps:put(Ns, Beam, Env#env.beams)},
-    Site = unicode:characters_to_binary(lists:flatten(io_lib:format("~s.main:1", [hd(Ns)]))),
+    Site = <<"input:1">>,
     input_process(ern_rt:spawn('Local',
                  fun() ->
                      Outcome = try
@@ -401,7 +408,7 @@ value(Mod, decls) ->
     erlang:function_exported(Mod, '$init', 0) andalso Mod:'$init'(),
     'Unit';
 value(Mod, _Binds) ->
-    Mod:main().
+    Mod:?ENTRY().
 
 fault_text(error, badarith) -> <<"division by zero">>;
 fault_text(Class, Reason) ->

@@ -211,6 +211,16 @@ the shell is neither standard library nor library but the toolchain's own progra
      the start, which is now the answer. A name that is not a module's, `aaaa`, is refused
      as such by `:load` and `:browse`, rather than looked for. The golden session checks
      all three.
+  7. **Done 2026-09-25: the session's names in spawn sites, and `main` at the prompt.**
+     `:processes` showed a process spawned at the prompt as `Input2.main:1`, the input's
+     internal module and its wrapper. §11.2 now says a site in the session is written as
+     the session writes names, `input:1` in an input's expression and `start:1` in a
+     function it declares; the emitter writes it so for an input, the `Down` a monitor
+     gives included. The wrapper was named `main`, and §11.2's scope looks in the input's
+     own declarations first, so `main()` after `fn main` called the wrapper forever; it is
+     `'$input'` now, which no identifier is spelled as. A constructor's refusal named
+     `Input28.S`; it names `S` and the input that declared it. `session_names_test_` is
+     the regression test.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, `Markdown`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.

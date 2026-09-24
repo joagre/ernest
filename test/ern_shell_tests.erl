@@ -55,12 +55,12 @@ program() ->
                      {send, hex(":browse Counter\r")},
                      {expect, "Counter.start : () -> Address(Msg) with m"},
                      {send, hex("spawn(Local, fn() = Counter.boom())\r")},
-                     {expect, "main:1 faulted: division by zero"},
+                     {expect, "input:1 faulted: division by zero"},
                      {send, hex(":processes\r")},
                      {expect, "Counter.start:10"},
                      {send, hex(":faults\r")},
                      {expect, "Counter.main faulted: division by zero"},
-                     {expect, "main:1 faulted: division by zero"},
+                     {expect, "input:1 faulted: division by zero"},
                      {send, "04"}],
                     30, "60x100"),
     %% what the program printed reached the screen
@@ -68,8 +68,8 @@ program() ->
     %% the program's entry point and a process spawned at the prompt, each
     %% reported once as it faults and once by `:faults`
     ?assertEqual(2, count(Screen, <<"Counter.main faulted: division by zero">>)),
-    ?assertEqual(2, count(Screen, <<"main:1 faulted: division by zero">>) -
-                        count(Screen, <<"Counter.main:1 faulted">>)),
+    %% (report §11.2: a site in an input's own expression is `input:1`)
+    ?assertEqual(2, count(Screen, <<"input:1 faulted: division by zero">>)),
     %% `:processes` leaves the shell's own out
     ?assertEqual(nomatch, binary:match(Screen, <<"Shell.main">>)).
 
@@ -802,6 +802,28 @@ doc_every_name() ->
                                              "\n\nA colour.">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> Ernest module M\n\n*Since 0.1.0.*\n\n"
                                              "A little module.">>)).
+
+%% report §11.2, §6.9: a spawn site in the session is written as the
+%% session writes names, `input:1` in an input's own expression and
+%% `start:1` in a function an input declares, and the input's own wrapper
+%% shadows no name the session declares. A regression test for findings
+%% of the session of real use: `:processes` showed `Input2.main:1`, a name
+%% the session shows only for a shadowed type, and `main()` after `fn main` called the
+%% wrapper, which was named `main`, forever
+session_names_test_() ->
+    {timeout, 60, fun session_names/0}.
+
+session_names() ->
+    In = filename:join("/tmp", "ern_names_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    Wait = "receive { n -> Io.println(Int.toString(n)) }",
+    ok = file:write_file(In, ["fn main() -> Int = 1\n", "main()\n",
+                              "fn start() -> Address(Int) with m = spawn(Local, fn() = ", Wait,
+                              ")\n", "start()\n", "spawn(Local, fn() = ", Wait, ")\n",
+                              ":processes\n"]),
+    {0, Out} = sh(alone("../bin/ern --shell") ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"> 1 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"input:1\nstart:1\n">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"Input">>)).
 
 %% report §11.2, Appendix E.0 rule 6: `Shift-Tab`'s two answers from the
 %% front end. Inside a call, the callee's signature with its parameters as

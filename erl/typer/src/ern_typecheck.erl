@@ -2324,8 +2324,10 @@ session_con(Pos, Q, #env{cons = Cs, types = Ts}) ->
     #cinfo{type_qname = TQ} = CI = maps:get(Q, Cs),
     case Ts of
         #{TQ := #tinfo{abstract = true}} ->
-            fail(Pos, format_qname(Q) ++ " is the constructor of an abstract type and is"
-                      " not visible outside its module");
+            %% report §11.2: the session writes its names unqualified, and
+            %% an input, not a module, is what the constructor belongs to
+            fail(Pos, atom_to_list(lists:last(Q)) ++ " is the constructor of an abstract type"
+                      " and is not visible outside the input that declared it");
         _ ->
             CI
     end.
