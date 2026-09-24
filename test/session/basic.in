@@ -52,6 +52,9 @@ x
 :f
 :t
 :browse Nope
+:load aaaa
+:load Nope
+:load List
 :doc Nope.nope
 :bindings
 :forget *

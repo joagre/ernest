@@ -15,7 +15,9 @@
 %% it. The commands are here too: `:type`, `:browse`, `:doc`, `:help`,
 %% `:forget`, `:bindings`, `:set` with the depth and the length a value is
 %% printed to, a prefix of any of them, a prefix that begins two names
-%% refused with both, and `:help` in alphabetical order
+%% refused with both, and `:help` in alphabetical order; `:load` refusing a
+%% name that is not a module's and one it cannot find, each on a line of its
+%% own, and answering a standard library module as in scope already
 session_test_() ->
     {timeout, 60, fun session/0}.
 

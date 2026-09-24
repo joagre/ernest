@@ -90,6 +90,9 @@ Examples
 > :f is :faults or :forget
 > :type takes an expression
 > no module Nope is in scope
+> aaaa is not a module name: each segment of one begins with a capital letter
+> no module Nope under the source root or on the load path
+> List is the standard library's, in scope from the start
 > no documentation for Nope.nope
 > type Shape
 abstract type Stack

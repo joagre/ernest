@@ -204,6 +204,13 @@ the shell is neither standard library nor library but the toolchain's own progra
      rendered; then `libs/markdown` was written (under "Done") and the shell renders every
      page with it, `:doc`, the page on a second `Shift-Tab`, and the brief. §11.2 states
      what is rendered and how it is coloured.
+  6. **Done 2026-09-25: `:load`'s refusals.** `:load aaaa` left the prompt on its answer's
+     line, since the front end's refusals had no line feed where the compiler's
+     diagnostics do; they end in one now. `:load List` said there was no module `List`,
+     where §4.2 makes a standard library namespace taken and the module is in scope from
+     the start, which is now the answer. A name that is not a module's, `aaaa`, is refused
+     as such by `:load` and `:browse`, rather than looked for. The golden session checks
+     all three.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, `Markdown`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.

@@ -593,8 +593,13 @@ constructors(Q, Cons, #env{ifaces = Ifaces}) ->
 %% Report §11.2, §4.2: the exports of a module in scope, its types and then
 %% its values, each with its type as §11.5 prints it.
 -spec browse(#env{}, binary()) -> {'Left', binary()} | {'Right', [binary()]}.
-browse(#env{ifaces = Ifaces}, Text) ->
-    Ns = namespace(Text),
+browse(#env{ifaces = Ifaces} = Env, Text) ->
+    case module_name(Text) of
+        {ok, Ns} -> browse(Env, Text, Ns, Ifaces);
+        {error, Why} -> {'Left', Why}
+    end.
+
+browse(_Env, Text, Ns, Ifaces) ->
     case [I || #iface{namespace = N} = I <- Ifaces ++ ern_prelude:stdlib_ifaces(), N =:= Ns] of
         [] ->
             {'Left', <<"no module ", Text/binary, " is in scope">>};
@@ -617,6 +622,18 @@ qname_text(Q) -> lists:join(".", [atom_to_list(S) || S <- Q]).
 
 namespace(Text) ->
     [binary_to_atom(S) || S <- binary:split(Text, <<".">>, [global]), S =/= <<>>].
+
+%% Report §4.2: a module is named by its namespace, each segment of which
+%% begins with a capital letter, `Http.Parser` for `http/parser.ern`; a
+%% name that is not one is refused rather than looked for.
+module_name(Text) ->
+    Segments = binary:split(Text, <<".">>, [global]),
+    case lists:all(fun(<<C, _/binary>>) -> C >= $A andalso C =< $Z; (_) -> false end,
+                   Segments) of
+        true -> {ok, namespace(Text)};
+        false -> {error, <<Text/binary, " is not a module name: each segment of one begins"
+                           " with a capital letter">>}
+    end.
 
 %% Report §11.2, §11.4: the documentation of one declaration, as
 %% `ernc --doc` renders it, read from the module that declares it: an input
@@ -969,7 +986,23 @@ processes() ->
 %% name, as every loaded module is (§4.2).
 -spec load(#env{}, binary()) -> {'Left', binary()} | {'Right', {#env{}, binary()}}.
 load(Env, Text) ->
-    Ns = namespace(Text),
+    case module_name(Text) of
+        {ok, Ns} ->
+            case lists:any(fun(#iface{namespace = N}) -> N =:= Ns end,
+                           ern_prelude:stdlib_ifaces()) of
+                %% report §4.2: a standard library namespace is taken, and
+                %% the module has been in scope since the session began
+                true -> {'Right', {Env, <<Text/binary, " is the standard library's, in scope"
+                                          " from the start">>}};
+                false -> load(Env, Text, Ns)
+            end;
+        {error, Why} ->
+            {'Left', <<Why/binary, "\n">>}
+    end.
+
+%% A refusal ends in a line feed, as a diagnostic the compiler gives does,
+%% since the shell prints both alike.
+load(Env, _Text, Ns) ->
     Name = unicode:characters_to_binary(qname_text(Ns)),
     case source_of(Env, Ns) of
         {ok, File} ->
@@ -981,7 +1014,7 @@ load(Env, Text) ->
                 {ok, Ns2, _, _} ->
                     {'Left', <<(list_to_binary(qname_text(Ns2)))/binary, " is declared in ",
                                (list_to_binary(relative(File, Env)))/binary,
-                               ", which is not where ", Name/binary, " belongs">>};
+                               ", which is not where ", Name/binary, " belongs\n">>};
                 {error, Diags} ->
                     {'Left', Diags}
             end;
@@ -993,7 +1026,7 @@ load(Env, Text) ->
                                  (list_to_binary(relative(File, Env)))/binary>>}};
                 none ->
                     {'Left', <<"no module ", Name/binary, " under the source root or on the"
-                               " load path">>}
+                               " load path\n">>}
             end
     end.
 

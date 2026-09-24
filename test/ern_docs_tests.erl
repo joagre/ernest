@@ -53,9 +53,12 @@ read(Rel) ->
     {ok, Bin} = file:read_file(filename:join(?ROOT, Rel)),
     Bin.
 
+%% A name that begins with a dot is no module (report §11.1's path shape),
+%% and an editor's lock file, `.#main.ern`, is one that may not be readable.
 examples() ->
     [filename:join("examples", F)
-     || F <- filelib:wildcard("**/*.ern", filename:join(?ROOT, "examples"))].
+     || F <- filelib:wildcard("**/*.ern", filename:join(?ROOT, "examples")),
+        hd(filename:basename(F)) =/= $.].
 
 stdlib() ->
     [filename:join("stdlib", F)
