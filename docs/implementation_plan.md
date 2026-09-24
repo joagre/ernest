@@ -39,12 +39,12 @@ so a decision they must see goes here.
 | MVP 1 | the chain: parser, types, BEAM | done 2026-09-18, tag `mvp1` |
 | MVP 2 | the rest of the report on one node | done 2026-09-19 |
 | MVP 2.5 | a complete standard library | done 2026-09-20 |
-| **MVP 2.6** | **the shell** | **checkpoints 0–4 done; the closing sweep next** |
+| **MVP 2.6** | **the shell** | **checkpoints 0–4 and the closing sweep done; a session of real use** |
 | MVP 2.61 | the guide as the user's document | done 2026-09-24, out of order |
 | MVP 2.65 | the language and the toolchain read back | after 2.6 |
 | MVP 2.66 | introduce a supervisor behaviour? | after 2.6 |
 | MVP 2.7 | the first libraries and the network stack | |
-| MVP 2.8 | four more libraries | |
+| MVP 2.8 | five more libraries | |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | MVP 3.0 | peers | |
 | MVP 3.1 | content addressing | |
@@ -201,11 +201,11 @@ the shell is neither standard library nor library but the toolchain's own progra
   5. **Decided 2026-09-25: documentation is shown as CommonMark, unrendered.** Asked of
      `:doc`'s `##` and fences. A doc block is any CommonMark (§2.2), so rendering only what
      §11.4 writes would leave pages half rendered, and a whole renderer is a library. §11.2
-     states it; a CommonMark renderer in the standard library would reopen it (the log's
-     entry of the day).
+     states it; `libs/markdown`, planned in MVP 2.8, reopens it (the log's entry of the
+     day).
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
-`Crypto`, `Uri`, `Zlib`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.
+`Crypto`, `Uri`, `Zlib`, `Markdown`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.
 Field selection and the names of the toolchain's options moved to 2.65 on 2026-09-21.
 
 **What the shell has changed so far**, one line each, the arguments in the log.
@@ -378,7 +378,7 @@ program puts it there.
 
 ---
 
-## MVP 2.8 (four more libraries), about two weeks
+## MVP 2.8 (five more libraries), about two weeks
 
 `libs/regex`, a shim over `re`, a library and never syntax: `Regex.compile : (String) ->
 Either(RegexError, Regex)` with `Regex` a foreign type, so a bad pattern is a value the
@@ -388,6 +388,28 @@ pure Ernest or a shim over `uri_string`. `libs/zlib`, a shim over `zlib`. Each i
 documented in one pass to [`module_doc_template.md`](module_doc_template.md), and its
 executed doc examples are its first user, so no paper program is required (decided
 2026-09-19). Each gets an appendix section beside 2.7's four.
+
+`libs/markdown`, pure Ernest: CommonMark parsed into a document type, and that document
+rendered as text for a terminal.
+
+- **Why.** The shell shows `:doc` and `Shift-Tab` pages as the CommonMark §11.4 writes,
+  unrendered, `##` headings and ```` ```ernest ```` fences included (decided 2026-09-25).
+  A doc block may hold any CommonMark (§2.2), so rendering only §11.4's own markup would
+  leave a page half rendered, and a renderer of the whole is too large to be a part of the
+  shell. With this library the shell shows a page as text, as Erlang's `h/1`, `pydoc` and
+  `ri` do. It is a library and not the standard library by E.0: how a heading or a link
+  looks at a terminal is policy inside a namespace of its own. It is also the second
+  parser written in Ernest at size, after `Json`, where the language is felt, and any
+  command-line program that shows Markdown, its own help among it, has a use for it.
+- **Simple.** The blocks: headings, paragraphs, fenced and indented code, lists, block
+  quotes, and thematic breaks. The inlines: code spans, emphasis, strong emphasis, and
+  links shown as their text and address. What it does not render, raw HTML among it, is
+  shown as written, and the module's doc block lists it. Rendered to a width, with colour
+  where the caller asks for it, as `Shell.Style` takes it.
+- **Then the shell uses it.** `make` compiles the shell with `libs/markdown` on its load
+  path, and `:doc` and the page on a second `Shift-Tab` are rendered. §11.2's sentence
+  that the shell shows documentation unrendered changes first, and the log's entry of
+  2026-09-25 is answered.
 
 ---
 
