@@ -24,11 +24,10 @@ and the prelude's documentation, the closing sweep, and a session of real use.
 
 **MVP 2.61, the guide, done 2026-09-24, out of order.** A newcomer reads the guide and not
 the report, so the guide was rewritten to teach Ernest on its own; the steps are in "MVP
-2.61" below. MVP 2.6 resumes after the rewrite of CLAUDE.md.
+2.61" below. MVP 2.6 resumes at checkpoint 4.
 
-**After MVP 2.61, CLAUDE.md is rewritten for clarity**, every rule kept: the working rules
-read in the order of work, each stated once. Asked for 2026-09-24; the rule that nothing
-routes around a defect, in code or in a document, is already in it.
+**CLAUDE.md was rewritten for clarity on 2026-09-24**, every rule kept and each stated once,
+in the order of work.
 
 **The rhythm.** One item a turn, with its tests, its documents, its conformance section and
 its commit; then a stop for review before the next. The user reads the plan and not the log,
