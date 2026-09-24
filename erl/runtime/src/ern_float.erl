@@ -8,8 +8,8 @@
 -spec to_string(float()) -> binary().
 to_string(F) -> float_to_binary(F, [short]).
 
-%% Report §3.1: a result the finite range cannot hold, or one that is not a
-%% number, is the float fault, not Erlang's badarith
+%% Report §3.1: a result the finite range cannot hold is the float fault,
+%% not Erlang's badarith; Float.pow keeps the domain out before it gets here
 -spec pow(float(), float()) -> float().
 pow(Base, Exponent) -> arith(fun() -> math:pow(Base, Exponent) end).
 

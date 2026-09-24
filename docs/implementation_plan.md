@@ -217,6 +217,8 @@ options, then what is recorded and left alone.
   - §9 states what makes a type the prelude's: the language's rules name it, its module is
     named after it, or a system reference speaks it. The system types stay in the prelude;
     moving them would take `Sys.*` with them. This decides language_feedback.md's entry 12.
+  - `Float.pow` returns `Optional(Float)`: `None` for a negative base with a fractional
+    exponent and for zero to a negative power, a fault on overflow (E.9).
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the

@@ -1297,7 +1297,7 @@ Float.truncate : (Float) -> Int // toward zero
 Float.floor : (Float) -> Int
 Float.ceil : (Float) -> Int
 Float.sqrt : (Float) -> Optional(Float) // None below zero
-Float.pow : (Float, Float) -> Float
+Float.pow : (Float, Float) -> Optional(Float) // None for a negative base with a fractional exponent, and for zero to a negative power
 Float.exp : (Float) -> Float
 Float.log : (Float) -> Optional(Float) // the natural logarithm; None at zero and below
 Float.sin : (Float) -> Float // radians, as the other trigonometric functions

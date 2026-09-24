@@ -132,20 +132,26 @@ export fn sqrt(x : Float) -> Optional(Float) =
 
 foreign fn squareRoot(x : Float) -> Float = "math:sqrt/1"
 
-/// `base` raised to `exponent`.
+/// `base` raised to `exponent`, or `None` where no real number is: a
+/// negative base with a fractional exponent, and zero to a negative power.
 ///
 /// ### Errors
 ///
-/// Faults with `Fault("float arithmetic error")` when the result is not
-/// finite or is not a number, as `Float.exp` does (report §3.1).
+/// Faults with `Fault("float arithmetic error")` when the result is too
+/// large to be finite, as `Float.exp` does (report §3.1).
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// Float.pow(2.0, 10.0)
-/// // => 1024.0
+/// #(Float.pow(2.0, 10.0), Float.pow(-8.0, 0.5), Float.pow(0.0, -1.0))
+/// // => #(Some(1024.0), None, None)
 /// ```
-export foreign fn pow(base : Float, exponent : Float) -> Float = "ern_float:pow/2"
+export fn pow(base : Float, exponent : Float) -> Optional(Float) =
+    if base < 0.0 && Int.toFloat(truncate(exponent)) != exponent then None
+    else if base == 0.0 && exponent < 0.0 then None
+    else Some(power(base, exponent))
+
+foreign fn power(base : Float, exponent : Float) -> Float = "ern_float:pow/2"
 
 /// `e` raised to `x`.
 ///

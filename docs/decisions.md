@@ -3734,6 +3734,10 @@ Three rules looked like failure out of sight. A `send` to a remote address whose
 
 Twenty-two types are in §9.3 and the rule that put them there was written nowhere. Three rules describe the prelude as it is. A type is the prelude's when the language's rules name it, `Optional` for `<-` and `Down` for `monitor`; when the module of its operations is named after it, `Map` and `Int`, since `Map.Map(String, Int)` in every annotation is the wart the rule avoids; or when a system reference speaks it, `FsMsg` and `IoError`. Any other type a module provides is the module's, `Random.Seed`. Moving the system types into their modules was weighed, for principle 5 and for the constructors they put in every module's scope. It fails on layering: `Sys.fs : Address(FsMsg)` is a prelude value, and a prelude that named `Fs.Msg` would depend on the library above it, so the move would take `Sys.*` out of the prelude too. It would also qualify `Terminal.ArrowUp` and `Fs.Entry` at every use, and since `Prelude.X` a collision costs one qualifier.
 
+## `Float.pow` Is Partial in Its Type, 2026-09-24
+
+E.9 made `Float.sqrt`, `Float.log`, `asin` and `acos` return `Optional` for their domain, as E.0 rule 4 asks of a partial operation, and left `Float.pow` typed as total, faulting for a negative base with a fractional exponent and for zero to a negative power. Those are domain gaps of the kind `sqrt` and `log` answer with `None`; overflow is the range, which §3.1 makes a fault for every float operation, `*` among them. `Float.pow` now returns `Optional(Float)`, `None` for the two gaps, and still faults on overflow. The guard is two comparisons in Ernest in front of the shim, as `sqrt` has one.
+
 ## Later
 
 Planned or considered, not in the language today.

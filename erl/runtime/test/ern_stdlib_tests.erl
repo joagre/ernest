@@ -295,7 +295,13 @@ float_test() ->
     ?assertEqual(-2, F:truncate(-2.7)),
     ?assertEqual({'Some', 3.0}, F:sqrt(9.0)),
     ?assertEqual('None', F:sqrt(-1.0)),
-    ?assertEqual(1024.0, F:pow(2.0, 10.0)),
+    ?assertEqual({'Some', 1024.0}, F:pow(2.0, 10.0)),
+    %% Appendix E.9: the domain is None, as for sqrt and log, and an
+    %% integral exponent keeps a negative base in it; overflow still faults
+    ?assertEqual('None', F:pow(-8.0, 0.5)),
+    ?assertEqual('None', F:pow(0.0, -1.0)),
+    ?assertEqual({'Some', -8.0}, F:pow(-2.0, 3.0)),
+    ?assertEqual({'Some', 1.0}, F:pow(0.0, 0.0)),
     ?assertThrow({ern, fault, <<"float arithmetic error">>}, F:pow(10.0, 400.0)),
     ?assertEqual(1.0, F:exp(0.0)),
     ?assertThrow({ern, fault, <<"float arithmetic error">>}, F:exp(1000.0)),
