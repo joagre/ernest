@@ -49,7 +49,8 @@ foreign fn documentation(name : String) -> Optional(String) with m =
 // Report §11.2: the signature of the call the input stops inside, with the
 // parameter at the cursor marked, which `Shift-Tab` shows where no name
 // before the cursor is documented.
-foreign fn signature(before : String) -> Optional(String) with m = "ern_shell:signature/1"
+foreign fn signature(before : String) -> Optional(#(String, String, String)) with m =
+    "ern_shell:signature/1"
 foreign fn check(env : Env, from : String, input : String) -> Either(String, #(Env, Checked))
     with m = "ern_shell:check/3"
 // The host's alone: where the startup files are, the person's first and
@@ -684,13 +685,18 @@ fn documenting(session : Address(ShellMsg), screen : Address(ScreenMsg), reading
                 fn(row) = send(screen, Noted(row)))
       | None ->
             match signature(before) {
-                Some(shown) -> send(screen, Noted(shown))
+                Some(#(head, marked, rest)) -> send(screen, Noted(head <> emphasis(marked) <> rest))
               | None -> Unit
             }
     };
     send(screen, typing(state));
     readLoop(session, screen, Reading(..reading, editing = state, last = Documented))
 }
+
+// Report §11.2: the parameter at the cursor, in the terminal's cyan, which
+// its theme chooses, so that it reads on a dark screen and a light one.
+fn emphasis(text : String) -> String =
+    if String.isEmpty(text) then text else "\u{1b}[36m" <> text <> "\u{1b}[0m"
 
 // The type, the first line of prose, and the version a page's declaration
 // appeared in: its code block, the line after it, and its `Since` line.

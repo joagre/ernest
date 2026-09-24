@@ -130,7 +130,7 @@ format_test() ->
     ?assertEqual("(a!) -> #(a!, a!)", ern_types:format({tfn, [B], pure, {ttuple, [B, B]}}, St5)).
 
 %% report §11.2, §11.5: a signature inside a call, each parameter under
-%% its declared name, the one at the cursor between asterisks, the
+%% its declared name, in three parts around the one at the cursor, the
 %% variables named once across the whole
 format_call_test() ->
     St0 = ern_types:new(),
@@ -138,11 +138,14 @@ format_call_test() ->
     {B, St2} = ern_types:fresh(St1),
     {E, St3} = ern_types:fresh(St2),
     {Scheme, _} = ern_types:generalize({tfn, [list(A), {tfn, [A], E, B}], E, list(B)}, St3),
-    ?assertEqual("(xs : List(a), *f : (a) -> b with e*) -> List(b) with e",
+    ?assertEqual({"(xs : List(a), ", "f : (a) -> b with e", ") -> List(b) with e"},
                  ern_types:format_call(Scheme, [xs, f], 1, St3)),
-    ?assertEqual("(*List(a)*, (a) -> b with e) -> List(b) with e",
+    ?assertEqual({"(", "List(a)", ", (a) -> b with e) -> List(b) with e"},
                  ern_types:format_call(Scheme, [], 0, St3)),
-    ?assertEqual("Int", ern_types:format_call(#scheme{type = int()}, [], 0, St3)).
+    %% an argument past the last parameter marks nothing
+    ?assertEqual({"(List(a), (a) -> b with e) -> List(b) with e", "", ""},
+                 ern_types:format_call(Scheme, [], 2, St3)),
+    ?assertEqual({"Int", "", ""}, ern_types:format_call(#scheme{type = int()}, [], 0, St3)).
 
 %% report §11.5
 format_error_test() ->

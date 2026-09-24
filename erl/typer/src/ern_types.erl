@@ -394,11 +394,12 @@ scheme_state(#scheme{vars = Vars, names = Names}, #st{vars = Vs} = St) ->
     St#st{vars = Vs1}.
 
 %% Report §11.2: a function's signature as `Shift-Tab` shows it inside a
-%% call: each parameter under the name its declaration gives it, where it
-%% gives one, and the parameter at the cursor, counted from 0, between
-%% asterisks, the emphasis of the markdown the shell's pages are written
-%% in; the variables are named once across the whole signature.
--spec format_call(#scheme{}, [atom()], non_neg_integer(), st()) -> string().
+%% call, each parameter under the name its declaration gives it, where it
+%% gives one, and the variables named once across the whole: the text
+%% before the parameter at the cursor, counted from 0, that parameter, and
+%% the text after it, so that whoever paints it can mark the middle part.
+-spec format_call(#scheme{}, [atom()], non_neg_integer(), st()) ->
+          {string(), string(), string()}.
 format_call(#scheme{type = T} = Scheme, Params, Marked, St) ->
     St1 = scheme_state(Scheme, St),
     case zonk(T, St1) of
@@ -406,28 +407,28 @@ format_call(#scheme{type = T} = Scheme, Params, Marked, St) ->
             Names0 = #{effect_only => effect_only_vars(T1), values => 0, effects => 0,
                        taken => []},
             {Shown, Names1} = lists:mapfoldl(fun(P, N) -> fmt(P, St1, N) end, Names0, Ps),
-            Named = [parameter(I, Name, S, Marked)
-                     || {I, Name, S} <- lists:zip3(lists:seq(0, length(Ps) - 1),
-                                                   padded(Params, length(Ps)), Shown)],
+            Named = [parameter(Name, S) || {Name, S} <- lists:zip(padded(Params, length(Ps)),
+                                                                   Shown)],
             {Rs, Names2} = fmt_ret(R, St1, Names1),
             Effect = case E of
                          pure -> [];
                          _ -> [" with ", element(1, fmt(E, St1, Names2))]
                      end,
-            lists:flatten(["(", lists:join(", ", Named), ") -> ", Rs, Effect]);
+            Tail = [") -> ", Rs, Effect],
+            case Marked < length(Named) of
+                true ->
+                    {Left, [This | Right]} = lists:split(Marked, Named),
+                    {lists:flatten(["(", [[P, ", "] || P <- Left]]), lists:flatten(This),
+                     lists:flatten([[[", ", P] || P <- Right], Tail])};
+                false ->
+                    {lists:flatten(["(", lists:join(", ", Named), Tail]), "", ""}
+            end;
         _ ->
-            format_scheme(Scheme, St)
+            {format_scheme(Scheme, St), "", ""}
     end.
 
-parameter(I, Name, Type, Marked) ->
-    Text = case Name of
-               '_' -> Type;
-               _ -> [atom_to_list(Name), " : ", Type]
-           end,
-    case I =:= Marked of
-        true -> ["*", Text, "*"];
-        false -> Text
-    end.
+parameter('_', Type) -> Type;
+parameter(Name, Type) -> [atom_to_list(Name), " : ", Type].
 
 padded(Params, N) when length(Params) =:= N -> Params;
 padded(_, N) -> lists:duplicate(N, '_').

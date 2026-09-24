@@ -568,13 +568,15 @@ one_name_type() ->
 
 %% report §11.2, Appendix E.0 rule 6: `Shift-Tab`'s two answers from the
 %% front end. Inside a call, the callee's signature with its parameters as
-%% declared and the one at the cursor marked, the prelude's too, without
+%% declared, in three parts around the one at the cursor, which the shell
+%% colours; the prelude's too, without
 %% names it does not declare; nothing outside a call. On a name, its page
 %% with the version it appeared in, its own or its module's
 signature_test() ->
-    ?assertEqual({'Some', <<"List.map(xs : List(a), *f : (a) -> b with e*) -> List(b) with e">>},
+    ?assertEqual({'Some', {<<"List.map(xs : List(a), ">>, <<"f : (a) -> b with e">>,
+                           <<") -> List(b) with e">>}},
                  ern_shell:signature(<<"List.map([1], ">>)),
-    ?assertEqual({'Some', <<"send(Address(a), *a*) -> Unit with m">>},
+    ?assertEqual({'Some', {<<"send(Address(a), ">>, <<"a">>, <<") -> Unit with m">>}},
                  ern_shell:signature(<<"send(a, ">>)),
     ?assertEqual('None', ern_shell:signature(<<"1 + ">>)),
     {'Some', Map} = ern_shell:documentation(<<"List.map">>),

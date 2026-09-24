@@ -110,11 +110,13 @@ the shell is neither standard library nor library but the toolchain's own progra
   4. **Done 2026-09-24: the signature inside a call, and a declaration's `since`.** Where
      no name before the cursor is documented and the cursor is inside a call, `Shift-Tab`
      shows the callee's signature, its parameters under their declared names and the one at
-     the cursor between asterisks: `List.map(xs : List(a), *f : (a) -> b with e*) -> List(b)
-     with e`. The parser's diagnostic carries the innermost call and argument index
-     (`within`), `ern_types:format_call/4` prints the signature, and the parameter names come
-     from the `Docs` entry; a prelude function shows types alone. The brief on a name ends
-     with its `Since`, its own or its module's.
+     the cursor in the terminal's cyan: `List.map(xs : List(a), f : (a) -> b with e) ->
+     List(b) with e`, `f` coloured. The parser's diagnostic carries the innermost call and
+     argument index (`within`), `ern_types:format_call/4` prints the signature in three
+     parts around it, and the parameter names come from the `Docs` entry; a prelude function
+     shows types alone. The region learned escape sequences: they take no column, and a row
+     cut short resets its colour. The brief on a name ends with its `Since`, its own or its
+     module's.
   5. **The program session waits on its faults, not on time.** `ern_shell_tests`' program
      session failed once in `make test` on 2026-09-24 and passed alone eight times and twelve
      at once; its asserts rest on two waits of 400 ms against faults due at 100 and 150 ms.

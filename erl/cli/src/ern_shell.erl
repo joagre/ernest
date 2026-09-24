@@ -631,13 +631,10 @@ documentation(Text) ->
     end.
 
 since_line(Segments) ->
-    V = try
-            case module_of_name(Segments) of
-                none -> undefined;
-                prelude -> ern_page:since(prelude);
-                Beam -> ern_page:since(Beam)
-            end
-        catch _:_ -> undefined
+    V = case module_of_name(Segments) of
+            none -> undefined;
+            prelude -> ern_page:since(prelude);
+            Beam -> ern_page:since(Beam)
         end,
     case V of
         undefined -> [];
@@ -660,30 +657,34 @@ prelude_or_none(Segments) ->
     end.
 
 %% Report §11.2: inside a call, `Shift-Tab` shows the callee's signature
-%% with its parameters as declared and the one at the cursor marked. The
+%% with its parameters as declared and the one at the cursor marked, which
+%% the shell does, in three parts: before, the parameter, after. The
 %% parser says which call the unfinished input stops inside; the callee is
 %% checked as an input of one name, without entering the session, and its
 %% declared type is printed with the parameter names its documentation
 %% carries.
--spec signature(binary()) -> 'None' | {'Some', binary()}.
+-spec signature(binary()) -> 'None' | {'Some', {binary(), binary(), binary()}}.
 signature(Before) ->
     case within(Before) of
         {Path, Name, N} ->
             Env = persistent_term:get({?MODULE, env}, #env{}),
             Text = unicode:characters_to_binary(
                      lists:join(".", [atom_to_list(S) || S <- Path ++ [Name]])),
-            try
-                {ok, Binds, Expr, Ann} = input(Text),
-                {'Right', {_, #checked{typed = Typed, env = TEnv}}} =
-                    check_module(Env#env{n = Env#env.n + 1}, ['Signature'], <<"signature">>,
-                                 Text, input_entry(Expr, Ann), Binds),
-                {P, Nm} = one_name(Typed),
-                {ok, Scheme} = ern_typecheck:declared_scheme(TEnv, P, Nm),
-                Params = parameters(Env, Path, Name),
-                Shown = ern_types:format_call(Scheme, Params, N, ern_typecheck:type_state(TEnv)),
-                {'Some', unicode:characters_to_binary([Text, Shown])}
-            catch
-                _:_ -> 'None'
+            {ok, Binds, Expr, Ann} = input(Text),
+            %% a callee that does not check, a name not in scope, has none
+            case check_module(Env#env{n = Env#env.n + 1}, ['Signature'], <<"signature">>, Text,
+                              input_entry(Expr, Ann), Binds) of
+                {'Right', {_, #checked{typed = Typed, env = TEnv}}} ->
+                    {P, Nm} = one_name(Typed),
+                    {ok, Scheme} = ern_typecheck:declared_scheme(TEnv, P, Nm),
+                    {Head, Marked, Rest} =
+                        ern_types:format_call(Scheme, parameters(Env, Path, Name), N,
+                                              ern_typecheck:type_state(TEnv)),
+                    {'Some', {unicode:characters_to_binary([Text, Head]),
+                              unicode:characters_to_binary(Marked),
+                              unicode:characters_to_binary(Rest)}};
+                {'Left', _} ->
+                    'None'
             end;
         none ->
             'None'
@@ -703,14 +704,19 @@ parameters(Env, Path, Name) ->
                none when Path =/= [] -> beam_of(Path);
                B -> B
            end,
-    try
-        {ok, {docs_v1, _, _, _, _, _, Entries}} = ern_emitter:read_docs(Beam),
-        %% a module's function by its local name, a type's member as `Type.name`
-        Keys = [Name | [list_to_atom(atom_to_list(lists:last(Path)) ++ "." ++ atom_to_list(Name))
-                        || Path =/= []]],
-        hd([Ps || {{function, K, _}, _, _, _, #{params := Ps}} <- Entries, lists:member(K, Keys)])
-    catch
-        _:_ -> []
+    %% a module's function by its local name, a type's member as `Type.name`
+    Keys = [Name | [list_to_atom(atom_to_list(lists:last(Path)) ++ "." ++ atom_to_list(Name))
+                    || Path =/= []]],
+    case Beam of
+        none ->
+            [];
+        _ ->
+            {ok, {docs_v1, _, _, _, _, _, Entries}} = ern_emitter:read_docs(Beam),
+            case [Ps || {{function, K, _}, _, _, _, #{params := Ps}} <- Entries,
+                        lists:member(K, Keys)] of
+                [Ps | _] -> Ps;
+                [] -> []
+            end
     end.
 
 session_beam(#env{session = S, beams = Beams}, Path, Name) ->
@@ -799,10 +805,7 @@ beam_of(Ns) ->
     end.
 
 entry(none, _) -> none;
-entry(Beam, Name) ->
-    try ern_page:declaration(Beam, Name)
-    catch _:_ -> none
-    end.
+entry(Beam, Name) -> ern_page:declaration(Beam, Name).
 
 diagnostic(From, Input, Diags) ->
     unicode:characters_to_binary(

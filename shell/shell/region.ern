@@ -203,7 +203,7 @@ export fn column(r : Region) -> Int = {
         None -> prompt <> before
       | Some(i) -> continuation <> String.slice(before, i + 1, String.size(before) - i - 1)
     };
-    Int.min(width(r), String.size(expand(head)) + 1)
+    Int.min(width(r), columns(expand(head)) + 1)
 }
 
 // Report §11.2: a tab is painted as the spaces to the next stop. The
@@ -217,12 +217,45 @@ fn expanding(chars : List(Char), done : String) -> String = match chars {
     [] -> done
   | c :: rest ->
         if c == '\t' then
-            expanding(rest, done <> String.repeat(" ", tabStop - String.size(done) % tabStop))
+            expanding(rest, done <> String.repeat(" ", tabStop - columns(done) % tabStop))
         else expanding(rest, done <> Char.toString(c))
 }
 
-fn clip(line : String, columns : Int) -> String =
-    if String.size(line) <= columns then line else String.slice(line, 0, columns)
+// Report §11.2: an escape sequence, `ESC [` and what follows up to its
+// final character, sets how the terminal paints what comes after it and
+// takes no column. A row the shell colours is measured without them.
+export fn columns(row : String) -> Int = counting(String.toList(row), 0)
+
+fn counting(chars : List(Char), n : Int) -> Int = match chars {
+    [] -> n
+  | '\u{1b}' :: '[' :: rest -> counting(afterSequence(rest), n)
+  | _ :: rest -> counting(rest, n + 1)
+}
+
+fn afterSequence(chars : List(Char)) -> List(Char) = match chars {
+    [] -> []
+  | c :: rest -> if final(c) then rest else afterSequence(rest)
+}
+
+// The character that ends a sequence, `m` among them.
+fn final(c : Char) -> Bool = Char.toInt(c) >= 0x40 && Char.toInt(c) <= 0x7E
+
+// A row cut to the window's width keeps its escape sequences whole, and
+// one cut short after a sequence ends with the reset, so the colour of
+// what was cut off does not run on into the next row.
+fn clip(line : String, width : Int) -> String =
+    if columns(line) <= width then line else clipping(String.toList(line), width, "", false)
+
+fn clipping(chars : List(Char), left : Int, done : String, styled : Bool) -> String =
+    match chars {
+        '\u{1b}' :: '[' :: rest -> {
+            let tail = afterSequence(rest);
+            let sequence = String.fromList(List.take(chars, List.size(chars) - List.size(tail)));
+            clipping(tail, left, done <> sequence, true)
+        }
+      | c :: rest when left > 0 -> clipping(rest, left - 1, done <> Char.toString(c), styled)
+      | _ -> if styled then done <> "\u{1b}[0m" else done
+    }
 
 fn up(n : Int) -> String = if n <= 0 then "" else "\u{1b}[" <> Int.toString(n) <> "A"
 
@@ -256,6 +289,16 @@ let restsWhereTyped = Test(name = "the cursor rests on the row and column it is 
 
 let restsOnTheFirstRow = Test(name = "a one-line input rests after its prompt", run = fn() =
     at(typed("abc", 2), 0, 5))
+
+let escapesTakeNoColumn = Test(name = "an escape sequence takes no column", run = fn() =
+    if columns("a\u{1b}[36mbc\u{1b}[0md") == 4 then Passed
+    else Failed(Int.toString(columns("a\u{1b}[36mbc\u{1b}[0md"))))
+
+let clipKeepsSequences = Test(name = "a row cut short keeps its sequences and resets", run = fn() =
+    same(clip("ab\u{1b}[36mcdef\u{1b}[0m", 4), "ab\u{1b}[36mcd\u{1b}[0m"))
+
+let tabsAfterSequences = Test(name = "a tab stop is counted without escape sequences",
+    run = fn() = same(expand("\u{1b}[36ma\u{1b}[0m\tb"), "\u{1b}[36ma\u{1b}[0m       b"))
 
 let expandsTabs = Test(name = "a tab is painted to the next stop", run = fn() =
     rowsAre([expand("> a\tb"), expand("\t.")], ["> a     b", "        ."]))
