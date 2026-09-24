@@ -33,7 +33,7 @@ Field selection is the biggest issue, and the shell has now given it three witne
 
 The `Shell.Editor.fresh` resolution failure and the three runtime races were implementation defects, not language warts; they only showed that the report was silent on a consequence (§4.2 gained one sentence).
 
-What I would actually put to you as candidate language changes: field selection (already queued for MVP 2.6) and, much more tentatively, some way to name a prelude constructor a module has shadowed. The rest I would record and leave alone.
+What I would actually put to you as candidate language changes: field selection (already queued for MVP 2.6) and, much more tentatively, some way to name a prelude constructor a module has shadowed, decided on 2026-09-24 as `Prelude.X`. The rest I would record and leave alone.
 ```
 
 ## Found while writing completion, 2026-09-21
@@ -59,7 +59,7 @@ What I would actually put to you as candidate language changes: field selection 
     (2026-09-20) and *Where `foreign` Stops* (2026-09-21).
 
     They are one principle, not two: a shim exists only where the **runtime owns the
-    representation**. The counts bear that out. `list.ern` has one shim in thirty-two
+    representation**. The counts bear that out. `list.ern` has none in thirty-two
     exports; `io.ern` one in six. The shim-heavy modules are `String` (20 of 28), `Float`
     (18 of 25), `Map` (16 of 20), `Set` (14 of 19), `Int` (12 of 22) and `Char` (10 of 11) —
     binaries, doubles, Erlang maps and sets, bignums and Unicode tables, none of which

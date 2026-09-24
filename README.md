@@ -18,7 +18,7 @@ The toolchain is written in Erlang: lexer, parser, type checker, runtime, the co
 
 The complete programs from the report's Appendix B and D and the guide's checkpoints are collected under [`examples/`](examples/). Each program's header comment says where it comes from and what it needs; `template.ern`, a documented module with no header comment, is described by [`docs/module_doc_template.md`](docs/module_doc_template.md). Together the examples exercise every construct of the grammar except bitstrings, and a test keeps it so.
 
-**What the toolchain runs.** The programs `make test` compiles and runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`, with their expected output under `test/expected/` and the Erlang they compile to under `test/golden/`. The `modules` pair runs there too, and the paper programs have tests of their own: `repl` on a fixed input, `filesync` given two directories, and `webserver` asked twice over one session, each stopped when it has shown what it must. `snake` wants a terminal, so it is compiled by its test and played by hand, and `echo` is a measurement run by hand; the rest of `examples/` is type-checked only, and each file's header says where it stands.
+**What the toolchain runs.** The programs `make test` compiles and runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`, with their expected output under `test/expected/` and the Erlang they compile to under `test/golden/`. The `modules` pair runs there too, and the paper programs have tests of their own: `repl` on a fixed input, `filesync` given two directories, and `webserver` asked twice over one session, each stopped when it has shown what it must. `snake` wants a terminal, so `ern_terminal_tests` plays it under a pseudo-terminal, and `echo` is a measurement run by hand; the rest of `examples/` is type-checked only, and each file's header says where it stands.
 
 ### Then the paper programs
 
@@ -46,8 +46,8 @@ Four layers:
 
 - **Language.** The rules in `ernest_report.md`: syntax, types, processes, evaluation. Small and stable.
 - **Prelude.** What the report requires to exist, §9: the built-in and declared types, the process functions, the operations the operators resolve to, and the system references. A prelude operation in a type's namespace is provided by that type's standard library module.
-- **Standard library** (Appendix E). On the load path by default: one module per namespace of Appendix E, mostly one per type and one per system process, which is the way a program uses a `Sys.*` reference. Appendix E.0 has the rules for what enters and how it is named. Where the modules live and when they move to Ernest under `stdlib/` is the plan's MVP 2.5.
-- **Libraries.** Everything else, `Json`, `Tls`, `Regex`, `Http`, and the rest: written on the foreign-library pattern of Appendix D, by anyone, added to a program's load path when wanted. Which are first-party under `libs/`, and when, is the plan's MVP 2.6 and 2.7. The line between the standard library and a library is Appendix E.0: a namespace of its own with policy inside is a library, however useful.
+- **Standard library** (Appendix E). On the load path by default: one module per namespace of Appendix E, mostly one per type and one per system process, which is the way a program uses a `Sys.*` reference. Appendix E.0 has the rules for what enters and how it is named. The modules are Ernest under `stdlib/`, since the plan's MVP 2.5.
+- **Libraries.** Everything else, `Json`, `Tls`, `Regex`, `Http`, and the rest: written on the foreign-library pattern of Appendix D, by anyone, added to a program's load path when wanted. Which are first-party under `libs/`, and when, is the plan's MVP 2.7 and 2.8; `libs/ets` is the first. The line between the standard library and a library is Appendix E.0: a namespace of its own with policy inside is a library, however useful.
 
 ## Layout of the repository
 
@@ -82,7 +82,7 @@ A module path segment is one lowercase word (report §11.1); a multi-word module
 Erlang/OTP 29 and GNU make. No rebar3, no OTP behaviours. `make test` also needs python3, for the pseudo-terminal the terminal tests run a program under; Erlang cannot open one. Emacs is optional: without it the mode's tests are skipped and the rest runs.
 
 ```
-make              compile every application into its ebin/, then stdlib/
+make              compile every application into its ebin/, then stdlib/, shell/, libs/
 make test         build, run the EUnit tests, the tests in test/, then the Emacs mode's
 make emacs-mode   the Emacs mode's tests alone (docs/emacs_mode.md)
 make doc          write the standard library's pages to build/stdlib/, with index.md

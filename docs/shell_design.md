@@ -8,7 +8,7 @@ The shell is an Ernest program of three processes over a front end. Its source i
 
 - **The session** is the entry process (§8.1). It holds the `Env`, the queue of inputs, the settings, and the faults `:faults` prints. It receives inputs from the reader and outcomes and fault notices from the front end, and sends the screen what to print. It runs no user code.
 - **The reader** owns the terminal's keys and edits the input. It stays live while an evaluation runs. It sends a submitted input, and the interrupt, to the session; it draws nothing itself.
-- **The screen** is the only process that writes to the terminal, and the session drains it before it prompts and before it returns: the screen writes to the terminal itself, so the runtime's flush at the end of a program (§8.6) does not reach it, and the prompt must come after what an input printed whatever order two processes sent in. Its mailbox carries what a program printed, what the session prints, and the line and cursor the reader draws, so its type is the shell's own and not `String`; the runner binds `Sys.stdout` and `Sys.stderr` to `via(Output, screen)`, which §9.7's `Address(String)` requires and which costs no process (§6.5). What arrives there goes to the tail; what the session sends is committed to the transcript. A program's output and the shell's own reach one mailbox and are handled in its order, and the screen draws the line being typed again below whatever it has just written.
+- **The screen** is the only process that writes to the terminal, and the session drains it before it prompts and before it returns: the screen writes to the terminal itself, so the runtime's flush at the end of a program (§8.6) does not reach it, and the prompt must come after what an input printed whatever order two processes sent in. Its mailbox carries what a program printed, what the session prints, and the line and cursor the reader draws, so its type is the shell's own and not `String`; `Sys.stdout` and `Sys.stderr` stay the runtime's sink processes, and the session points them at `via(Wrote, screen)` with `setScreen`, so what a program writes arrives in the screen's mailbox as §9.7's `Address(String)` requires. What arrives there goes to the tail; what the session sends is committed to the transcript. A program's output and the shell's own reach one mailbox and are handled in its order, and the screen draws the line being typed again below whatever it has just written.
 - **The front end** is the Erlang toolchain behind the foreign interface: checking, compiling, running, printing, exports, documentation, and the fault notices.
 
 ## Starting and quitting
@@ -19,14 +19,14 @@ The shell is an Ernest program of three processes over a front end. Its source i
 - **`ern --shell file.erc`** loads the module and its dependencies and spawns its entry point beside the prompt, every loaded module in scope. The runner loads them, runs their initializers (§8.5), and hands the front end their interfaces; the shell spawns the entry point itself, so that it can monitor it.
 - **The shell is the entry process** (§8.1); the file's entry point is spawned, not entered. §8.6 then reads as it always did, of the shell: the spawned entry returning ends nothing, its processes keep running, a fault in it is one more fault reported at the prompt, and `--main Q.name` names the function to spawn rather than the one to be.
 - **The program's processes are the session's.** `:processes` sees them, `:faults` reports their faults, `:quit` ends them with `ProgramEnd` (§8.6). Until the door onto what the runtime knows about processes is built, the shell reports the entry point's own fault, which it monitors, and no other death.
-- **An input cannot reach a process the program spawned.** There is no registry (§6.3), so the prompt has a running program's modules, its output, and its faults. A program meant to be driven from the prompt returns an address from the function that starts it.
+- **An input cannot reach a process the program spawned.** There is no registry (§6.5), so the prompt has a running program's modules, its output, and its faults. A program meant to be driven from the prompt returns an address from the function that starts it.
 - **At start the shell prints one line**, the version and how to leave, `:quit` or `C-d`, with `:help` for the rest.
 - **Then it runs the startup inputs**, the person's and then the node's, after the file's entry point has been spawned, so a startup input sees what is running, and before the first prompt. On a terminal it waits for the reader to hold the keyboard first, so that a startup input which reads keys is refused as any other program would be (§8.2). A startup input that fails is reported as any input is and the session goes on.
 - **On `:quit`, or `C-d` on an empty line**, every process the session spawned ends with `ProgramEnd`. The history is already on disk, each input appended as it was taken.
 
 ## The terminal
 
-- **One module owns the terminal, `Terminal`.** It replaces `Keys`, which spoke for the keyboard alone: the terminal is the resource, and it sends two kinds of event. `Terminal.subscribe(wrap)` delivers `Event`, §9.3's one list of what the terminal sent — the characters and keys, and `Resized(Size)` — and `Terminal.size()` answers `Size(rows, columns)` now. §8.2's system process is the same one renamed, and `Sys.keys` becomes `Sys.terminal`.
+- **One module owns the terminal, `Terminal`.** It replaces `Keys`, which spoke for the keyboard alone: the terminal is the resource, and it sends two kinds of event. `Terminal.subscribe(wrap)` delivers `Event`, §9.3's one list of what the terminal sent — the characters and keys, and `Resized(Size)` — and `Terminal.size()` answers the size now, `Some(Size(rows, columns))`, or `None` where there is no terminal (E.16). §8.2's system process is the same one renamed, and `Sys.keys` becomes `Sys.terminal`.
 - **The shell owns it, and the runner records the holder.** The runner starts the session's processes, so it marks the reader as the terminal's holder before anything else runs. `Terminal.subscribe` and `Io.readLine` from any other process end the caller with `Fault("the shell holds the terminal; run the program with ern to give it the keyboard")`. §8.2 gains no notion of a shell: a holder is recorded, and the runner is the one that can record it, because it made the process. The shell reads through `Terminal` and `Io.readLine` as any program does.
 - **In line mode the holder holds standard input**, and the fault is the same. Line mode is what the reader uses when input is not a terminal: `Io.readLine`, no editing.
 - **A program under the shell prints and nothing more.** Its terminal fault is reported like any other, so a person who types `Snake.main()` is told why it will not run here and how to run it.
@@ -138,10 +138,10 @@ It does not hold the shell's settings, which are ordinary Ernest values; the his
 
 The shell reports a process that faults; a compiled program keeps its silence, and `monitor` stays the one way a program learns (§6.9).
 
-- **The shell cannot monitor what it cannot address.** There is no registry, and a process is reached only through an address someone holds (§6.3).
+- **The shell cannot monitor what it cannot address.** There is no registry, and a process is reached only through an address someone holds (§6.5).
 - **The front end is told instead.** The runtime remembers how every process it started ended, and `Down` carries the spawn site with its line (§6.9); the front end registers a watcher, which is told of every death and decides which are news.
 - **Faults only.** `Returned`, `Killed`, and `ProgramEnd` are not news, and a program that spawns a process for each connection would scroll the session away.
-- **The program's processes, not the shell's own.** The shell cannot tell them apart, addresses having no equality (§6.3). Each of the shell's own processes says so from inside itself, since an address handed to a foreign function arrives as the checking proxy in front of it (§8.4) and the process behind it is not what the front end would hold. The input's own process is left out by the front end, which made it, its fault being the outcome already. So an input's fault is reported once.
+- **The program's processes, not the shell's own.** The shell cannot tell them apart, addresses having no equality (§6.5). Each of the shell's own processes says so from inside itself, since an address handed to a foreign function arrives as the checking proxy in front of it (§8.4) and the process behind it is not what the front end would hold. The input's own process is left out by the front end, which made it, its fault being the outcome already. So an input's fault is reported once.
 - **One line, written by the screen**, as all output is.
 - **The last hundred faults are kept** and `:faults` prints them, oldest first.
 - **A deadlock is not detected under `--shell`** (§8.6): the shell always holds a subscription to the keys, or a read outstanding in line mode, and a system process holding one is a source that can still deliver. A program whose processes all block gets no report, and `:processes` lists them as live with no hint.
@@ -151,7 +151,7 @@ The shell reports a process that faults; a compiled program keeps its silence, a
 
 GNU Readline's Emacs bindings.
 
-- **The editor is a module of its own**, `Shell.Editor` in `shell/shell/editor.ern`: a pure function from the line being edited and an event to what the reader must do, `Typing`, `Submit`, `Cancel`, `Clear`, or `Leave`. The reader sends the screen the line and the session what was entered; the editor writes nothing.
+- **The editor is a module of its own**, `Shell.Editor` in `shell/shell/editor.ern`: a pure function from the line being edited and an event to what the reader must do, `Typing`, `Submit`, `Cancel`, `Clear`, `Completing`, `Documenting`, or `Leave`. The reader sends the screen the line and the session what was entered; the editor writes nothing.
 - **`Escape` and `Meta`:** §8.2 delivers `Escape` alone once no sequence can follow it, so an `Escape` followed at once by a character is `Meta` and an `Escape` that stands alone is the key. `M-b` arrives as `Escape` then `Char('b')`, and `Shift-Tab` as `Escape` and its bytes.
 - **Moving:** `C-a`, `C-e` to the start and end of the line; `C-b`, `C-f` a character; `M-b`, `M-f` a word; the arrow keys.
 - **Deleting:** `Backspace` and `C-h` back, `C-d` forward; on an empty line `C-d` quits.
@@ -202,7 +202,7 @@ A command is `:` and a name; it is not an Ernest function. Any prefix selects th
 - **`:faults`** — the faults reported since the session began, oldest first.
 - **`:output <path>`** — a program's output goes to that terminal or file instead of the tail, so a second window shows it with the terminal's own scrolling; `:output` alone says where it is going, and `:output -` brings it back. The path is opened by the front end and not by an Ernest program, so `Fs` is not involved and the shell gains no file system of its own. A file is appended to, never truncated, and the device is not opened `raw`: what writes to it is the sink's process and not the one that opened it.
 - **`:set depth n`**, **`:set length n`**, **`:set output n`**, **`:set timing on`** and **`off`**; `:set` alone shows what they are. The settings are one Ernest value the session carries, not the front end's.
-- **The order the prefix rule reads is the whole order, whatever is built.** A command built later would otherwise change what a prefix means, `:f` being `:faults` one day and `:forget` the next; every one was in the list and in `:help` from the first, and one not yet built said so and named the checkpoint that brings it. All twelve are built.
+- **The order the prefix rule reads is the whole order, whatever is built.** A command built later would otherwise change what a prefix means, `:f` being `:faults` one day and `:forget` the next; every one was in the list and in `:help` from the first, and one not yet built said so and named the checkpoint that brings it. All thirteen are built.
 
 A program is started by calling it; there is no command for it. A module meant for the shell exports a function that spawns its processes and returns. Modules are not imported: every module the session has loaded is in scope by its qualified name (§4.2), which is the file's own modules and the standard library until `:load` brings in another.
 
@@ -233,6 +233,8 @@ A program is started by calling it; there is no command for it. A module meant f
 ## Foreign interface
 
 A sketch, settled at checkpoint 1. The user's values are handles of distinct foreign types, so the shell cannot pass one kind where another is expected; types reach the shell as text.
+
+The sketch the design started from; `shell/shell.ern` declares what was built.
 
 ```
 foreign type Env      // the session so far: see "The environment"
@@ -269,8 +271,8 @@ foreign fn processes() -> List(#(String, String)) with m = "..."
 Delivered before the shell. Those marked report first are written into the report before the code.
 
 - **`Terminal`** delivers the arrows, the page keys, `Enter`, `Escape`, and characters, and the window's size as `Resized` (§9.3's `Event`). A sequence that is none of those arrives as `Escape` and the characters after it, which is how `Meta` and `Shift-Tab` reach the editor.
-- **`Key` gains one value for the terminal's interrupt** (§9.3), delivered only to the terminal's holder. A subscriber receives `Key` values and nothing else (E.16), so without it the byte cannot arrive. Report first.
-- **§7.3 gains the cause** a process ends with when its code is replaced under it, which `:reload` reports. Report first.
+- **`Event` gains one value for the terminal's interrupt** (§9.3), delivered only to the terminal's holder. A subscriber receives `Event` values and nothing else (E.16), so without it the byte cannot arrive. Report first.
+- **§7.4 gains the cause** a process ends with when the code it runs is unloaded, which `:reload` reports. Report first.
 - **The terminal is the shell's when `--shell` is given** (§11.2), and §8.2 gains the case: subscribing to the terminal and `Io.readLine` from anything else fault with the remedy in the text. Report first.
 - **The shell reads the terminal's interrupt as a key while it reads** (§11.2), which no other program does; §8.6's signal stands for them. Report first.
 - **The terminal's size**, asked for at each redraw, and a notice when it changes: `Terminal.size` and `Resized`, in checkpoint 2. Report first.
@@ -284,7 +286,7 @@ Delivered before the shell. Those marked report first are written into the repor
 
 ## Open
 
-- **How the region measures a wide character.** A tab is settled: the region paints it as the spaces to the next stop of eight and places the cursor by the columns a row takes, since a tab's width depends on where it falls and the terminal's own stops are not the region's to trust. What is committed keeps the tab. A wide glyph is still one column to the region and two to the terminal, and `expand` in `shell.ern` is the one function that has to learn it; nothing in the runtime knows a glyph's width.
+- **How the region measures a wide character.** A tab is settled: the region paints it as the spaces to the next stop of eight and places the cursor by the columns a row takes, since a tab's width depends on where it falls and the terminal's own stops are not the region's to trust. What is committed keeps the tab. A wide glyph is still one column to the region and two to the terminal, and `expand` in `shell/shell/region.ern` is the one function that has to learn it; nothing in the runtime knows a glyph's width.
 
 Settled since this list was written: the depth and length defaults are 10 and 100; a hundred faults are kept; `:load` compiles in memory and writes nothing, so there is no output to place; and the foreign interface is what `shell/shell.ern` declares.
 

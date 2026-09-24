@@ -1,8 +1,8 @@
 # Ernest: Node Protocol
 
-Status: tentative design decisions, 23 September 2026. Target: MVP 3. Companion to `ernest-code-distribution.md`, which covers how code is identified, transferred and loaded.
+Status: tentative design decisions, 23 September 2026. Target: MVP 3. Companion to `code_distribution.md`, which covers how code is identified, transferred and loaded.
 
-> **Tentative.** Everything in this document is a first pass and must be thought through again before it is built. "Decision" here means the current best answer, not a commitment. The language surface in section 11 should be revisited before it enters `ernest.md`.
+> **Tentative.** Everything in this document is a first pass and must be thought through again before it is built. "Decision" here means the current best answer, not a commitment. The language surface in section 11 should be revisited before it enters `ernest_report.md`.
 
 ## 1. Purpose
 
@@ -306,7 +306,7 @@ Whether to set starting values now, marked as adjustable after measurement in MV
 
 Language:
 
-6. The name of the text type in `Crashed(Text)`, to agree with the prelude in `ernest.md`.
+6. The name of the text type in `Crashed(Text)`, to agree with the prelude in `ernest_report.md`.
 7. Whether `Node` has equality. Proposed: yes. Unlike `Address`, a node is not a capability, and code needs to ask whether something is its own node (`node == self_node()`). Equality gives no universal ordering, only equality for this type.
 8. A name registry in the first version. Without one, the only ways to obtain an address are to spawn the process or to be sent the address. A long-running service started by another node's own `main` is then unreachable: nobody can hand over its address, `spawn_at` only creates new processes, and a spawned helper has no way to find the service locally. Proposed: a minimal registry, a local table per node from name to address, with a remote lookup returning `Optional(Address(m))` checked against the type hash. Registration would be a `{Proc m}` operation, and the lookup would need its own frame pair. Durable identity across restarts would still not follow: a name points to an address, and the address dies with its node's incarnation.
 11. A way to stop a process that does not cooperate. Rejecting links (7.5) leaves no way to terminate a process stuck in an endless loop or one that never reads its mailbox. A supervisor can see such a process die but cannot make it die, and "let it crash" needs both. Possible answer: a single `kill(addr)` as a runtime operation, kept out of the message model, with the killed process's monitors reporting `Crashed`. This is a language question more than a protocol question, and it should be settled in `ernest.md`. If `kill` works across nodes, it also needs a frame.

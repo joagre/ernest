@@ -22,8 +22,8 @@ program(Name) ->
     ?assertEqual(expected(Name), lines(Out)).
 
 %% Plan, MVP 2.5 step 4: the paper programs that the doors of step 4 opened.
-%% snake waits for a terminal, which no test can give it, so it is compiled
-%% here and run by hand; the others run below.
+%% snake waits for a terminal, so it is only compiled here and ern_terminal_tests
+%% plays it under a pseudo-terminal; echo is run by hand; the others run below.
 -define(COMPILES, ["filesync", "repl", "snake", "echo", "webserver"]).
 
 compiles_test_() ->

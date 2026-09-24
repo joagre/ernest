@@ -71,9 +71,7 @@ the shell is neither standard library nor library but the toolchain's own progra
   segment; `Tab` replacing the word before the cursor and indenting four spaces where there
   is none; a second `Tab` listing the candidates with their types above the region, forty at
   most; and the parser saying what may stand at the cursor, which filters the candidates by
-  kind. What is left of the checkpoint: `Tab` completing a qualified name segment
-  by segment, a second `Tab` listing candidates with their types, matching by prefix and by
-  abbreviation; what completes by position, bindings and modules and constructors in an
+  kind. What is left of the checkpoint: what completes by position, bindings and modules and constructors in an
   expression, types after `:`, a constructor's remaining fields, a command and then its
   argument; `Shift-Tab` for documentation, the type and first sentence and `since`, a second
   press for the `:doc` section, and inside a call the signature with the parameter at the
@@ -151,10 +149,10 @@ selection at their head, then what belongs to Appendix E, then the names of the 
 options, then what is recorded and left alone.
 
 - **Each entry is judged on §0's five principles**, and a standard library entry on E.0's
-  four rules, one by one and in writing. The note's last entry asks one of E.0 itself: rule
-  1's second clause, "the runtime's implementation is the one to trust", is the library's
-  only opening for an argument from performance and covers one function, `List.sort`, and
-  `path.ern` is seven shims over what is string surgery. Both are decided here. How many sites in the shell felt it is an argument,
+  four rules, one by one and in writing. The note's last entry asked two of E.0 itself: rule
+  1's second clause, the library's only opening for an argument from performance, went on
+  2026-09-23 with `List.sort` written in Ernest; `path.ern`'s shims over string surgery are
+  explained in the note and decided here. How many sites in the shell felt it is an argument,
   never the gate.
 - **Every entry ends in one of three things:** a report change, made before any code; an
   entry in the log under "Later" stating the verdict and what would change it; or a line
@@ -260,7 +258,7 @@ tests it by writing one, and decides what it should be, if anything.
   it is sixty and every program would write the same sixty, that is the argument for
   `libs/supervisor`.
 - **Two things it will run into, and they are the content of the discussion.**
-  - **A restarted child has a new address, and §6.3 has no registry**, so nobody who held
+  - **A restarted child has a new address, and §6.5 has no registry**, so nobody who held
     the old one can reach it. A supervisor that restarts children is therefore a name
     service for them, or its children are unreachable after the first fault. This is the
     same hole the node protocol note's open question 8 names, and it is queued for MVP
@@ -377,12 +375,19 @@ peers are the useful one.
   drop; and the note's `spawn_at(node, f)`, `MonitorRef` with `demonitor`, and a name
   registry are surface the report does not have — `spawn(Peer(name), f)` is one primitive
   with a placement argument (§9.4), `monitor` is one message and no handle (§9.5), and
-  §6.3 refuses a registry outright. The registry is the one of these that is a language
+  §6.5 refuses a registry outright. The registry is the one of these that is a language
   question rather than a protocol question, and it belongs with MVP 2.65's list: without
   one, a service another node started cannot be reached, since only spawning or being sent
   an address gives you one. The note's open question 11, a way to stop an uncooperative
   process, is already answered: `kill` is the language's (§6.9), asynchronous, and a killed
   process's monitors see `Killed`; across nodes it needs a frame the note's table lacks.
+- **Where the two notes disagree with the report, found 2026-09-24**, also to be decided
+  before building: the protocol note encodes values in Ernest's own format where §8.4 uses the
+  runtime's external term format; both notes drop a payload whose code cannot be fetched or
+  resolved where §7.4 and §8.7 fault the caller or the sender; the distribution note hashes no
+  name where §8.7's normalization keeps the qualified names of external references; both write
+  the effect `{Proc m}` where the report writes `with m`; and the protocol note's open question
+  on stopping a process is §6.9's `kill`.
 - **An adapted address across a node** is open, and report first when it is taken. `via(f,
   addr)` has been the pair of the function and the address since 2026-09-20 (§6.5), so an
   `Address` that leaves a node may carry a function, which is the same question as a message
@@ -447,8 +452,8 @@ connectors: those are libraries for others to write on Appendix D's pattern.
   terminal, and nothing in the runtime knows a glyph's width. `expand` in
   `shell/shell/region.ern` is the one function that has to learn it. The design note's only
   open item.
-- **The guide owes the idioms** the log's "Later" lists, links and supervisors and parallel
-  `remote`, and a chapter on the shell (MVP 2.6 above).
+- **The guide owes the idioms** the log's "Later" lists, links and supervisors, and a
+  chapter on the shell (MVP 2.6 above).
 - **`e_bits` and `p_bits` are in no example**, so the AST coverage test excludes them
   (2026-09-19).
 - **A label at the first use of the variable whose type a mismatch names** was planned for
@@ -567,7 +572,7 @@ is a standing rule and not a milestone. The steps, in the order done:
 Erlang module `ern_<thing>`, every compiled Ernest module `ern@<namespace>`, `lib/` became
 `erl/`, the standard library's Erlang half joined the runtime, and two wrong names were fixed
 (`ern_compiler` to `ern_emitter`, `ern_check` to `ern_boundary`). The rule is in the style
-guide, the record in the log's *One Token for the Project*. What remains of it is `libs/` in MVP 2.7.
+guide, the record in the log's *One Token for the Project*.
 
 ---
 
@@ -601,7 +606,7 @@ are erased: `type_decl`, `abstract_decl`, `foreign_type_decl`, `signature`, `fie
 | `e_lambda` | `fun(Pats) -> Body end` |
 | `e_if` | `case C of true -> T; false -> E end` |
 | `e_match`, `clause` | `case`; a clause whose guard is not an Erlang guard expression falls through by a continuation: `Rest = fun() -> <remaining clauses> end`, so no code is duplicated |
-| `e_receive`, `after_clause` | `receive ... after T -> B end`; a receive guard is §5.9's guard expression and is emitted as an Erlang guard |
+| `e_receive`, `after_clause` | `receive ... after T -> B end`; a receive guard is §6.3's guard expression and is emitted as an Erlang guard |
 | `p_wild`, `p_var`, `p_lit` | `_`, a variable, a literal (a string as a binary) |
 | `p_con`, `field_pat` | as `constructor`, an omitted named field as `_` |
 | `p_tuple`, `p_list`, `p_cons` | tuple, list, `[H \| T]` |
@@ -622,7 +627,7 @@ are erased: `type_decl`, `abstract_decl`, `foreign_type_decl`, `signature`, `fie
 | `Float.*` | inline, the operands bound first and the operation's own `badarith` caught and raised as the §7.4 fault |
 | `String.<>`, `List.<>`, `Bytes.<>` | inline as above |
 | `Int.div`, `Int.mod`, `*.compare`, `Int.toString`, ... | `'ern@int':'div'/2` and so on: the namespace's module |
-| `todo` | `ern_rt:fault(<<"todo: ...">>)` |
+| `todo` | `ern_rt:todo/1`, which faults with `todo: ` and the text |
 | `Sys.stdout`, `Sys.clock`, `Sys.stdin`, `Sys.terminal`, `Sys.fs`, `Sys.tcp` | `ern_rt:sys(stdout)` and so on; `Io`, `Terminal`, `Fs`, `Tcp` are the namespaces' modules |
 | `Clock.*`, `Path.*`, `Random.*`, `Io.*`, `List.*`, ... | `'ern@clock':alarm/2`, `'ern@io':println/1`: the namespace's module |
 
