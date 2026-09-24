@@ -22,7 +22,7 @@ The complete programs from the report's Appendix B and D and the guide's checkpo
 
 ### Then the paper programs
 
-[`examples/snake.ern`](examples/snake.ern), [`examples/repl.ern`](examples/repl.ern), [`examples/filesync.ern`](examples/filesync.ern), and [`examples/webserver.ern`](examples/webserver.ern), in that order; guide §10 says what each one shows.
+[`examples/snake.ern`](examples/snake.ern), [`examples/repl.ern`](examples/repl.ern), [`examples/filesync.ern`](examples/filesync.ern), and [`examples/webserver.ern`](examples/webserver.ern), in that order; guide §12 says what each one shows.
 
 ### Then, as reference material
 

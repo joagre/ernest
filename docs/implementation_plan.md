@@ -235,8 +235,11 @@ without boasting. Each step is a stop.
    and goes on; state that must survive lives in the supervisor, a restarted service has a
    new address to hand out, and a link is a monitor that returns. MVP 2.66 still decides
    whether a supervisor becomes a library behaviour.
-7. **The tools and a bridge:** `ernc`, `ern`, `--test`, `--doc`, the shell and the Emacs mode
-   on one page, and a section for the Erlang programmer, what maps and what does not.
+7. **Done 2026-09-24: the tools and a bridge.** The guide's section 9 puts `ernc`, `ern`,
+   the shell's commands and keys, and the Emacs mode on one page, teaching report §11; its
+   section 10 says what an Erlang programmer keeps and what differs, from typed mailboxes to
+   the absence of links, atoms, and exceptions. The FAQ and the reading list moved to the
+   guide's sections 11 and 12.
 8. **The small things:** the Plauger aside moves to a closing section on the design, the
    exercises' answers stand apart from their questions, and §5.5 keeps one `Tick`.
 

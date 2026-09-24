@@ -3828,6 +3828,10 @@ The last stage is where the language taught its own lesson: a worker that sent i
 
 The log listed supervision among the idioms the guide should teach and the report should not: a link is a monitor and a return, and a supervisor is fifteen lines of spawn, monitor, and receive. §6.4 shows the supervisor as a job runner, a worker per job, because a process per unit of work is the restart the language makes cheapest, and because the state that must survive a fault, the jobs, then plainly lives in the process that does not fault. The example has only the supervisor print: a worker's print and the supervisor's go to one process from two senders, which §6.4 of the report does not order, and a guide example whose output depended on an order the language does not promise would teach the wrong thing. Taking a returned worker's `Down` together with its answer keeps the mailbox clean without a demonitor, since a worker that returned has sent its answer first. The restart of a long-lived service is stated rather than shown: its new address has to be handed out, since §6.5 has no registry, and that question stays with MVP 2.65's list.
 
+## The Guide's Tools Page and Its Word to the Erlang Programmer, 2026-09-24
+
+The options of `ernc` and `ern` were taught where each first mattered, which is right for learning and wrong for looking one up; §9 gathers them, with the shell's commands and keys and the Emacs mode, and points at report §11 for the rest. The README keeps the commands that build and test the repository, which are the repository's and not the language's. Ernest's most likely reader knows Erlang, and for that reader the fastest route is what carries over and what does not, so §10 says it in two lists. Each line was checked against the report: `Address.call` has a timeout but `callForever` does not, and a running program replaces its code by a message while the shell's `:reload` does load a new version of a module, both of which a first draft stated too broadly. Distribution is described as planned, as §0 does.
+
 ## Later
 
 Planned or considered, not in the language today.

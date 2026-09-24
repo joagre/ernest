@@ -1587,7 +1587,66 @@ Suppose `send(remoteAddr, msg)` returns immediately, and 50 ms later the peer re
 
 Answer: the runtime faults the sending process asynchronously, after `send` has already returned. Code that followed the `send` may have executed; the fault interrupts the process where it currently is, not at the site of `send`.
 
-## 9. Frequently asked questions
+## 9. Tools
+
+Two commands and a shell, and a mode for Emacs. Report §11 defines each option.
+
+### 9.1 `ernc`, the compiler
+
+- `ernc hello.ern` compiles one module to `hello.erc`, beside it.
+- `ernc --out-dir build src` compiles every module under `src` in dependency order, mirroring the tree into `build`. A module is compiled again only when its source, an interface it depends on, or the compiler has changed, and a `.erc` whose source is gone is removed.
+- `--source-root dir` names the directory a module's namespace is read from, as §7.1 describes. `--load-path dir` adds compiled modules from outside the tree, such as a library.
+- `--errors short` prints the first line of each error only, `file:line:column: message`, for a tool to read.
+- `--doc file.ern` writes the module's documentation as CommonMark, and `--emit erl` writes the Erlang the module compiles to, for reading.
+
+### 9.2 `ern`, the runner
+
+- `ern hello.erc` runs `main` and exits with status 0 when it returns. A fault of the entry process is printed as `fault: ` and its cause, and the status is 1 (§6.3).
+- `--main Module.name` runs another exported function of no arguments instead of `main`.
+- `--load-path dir` adds compiled modules and Erlang `.beam` files the program needs (§8.5).
+- `--test module.erc` runs the module's tests and exits with status 1 unless all passed (§7.1).
+- `--shell`, with or without a file, starts the shell (§1.2). A file's `main` runs beside it.
+- `--create-config-dir .` makes the configuration a node with peers needs (§8).
+
+### 9.3 The shell
+
+An input is an expression, a declaration, or a `let`, and a command begins with `:`. `:help` lists the commands: `:type` and `:doc` explain a name, `:browse` lists a module's exports, `:load` and `:reload` compile a module from its source, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, and `:set` changes how values are printed. A command may be shortened to any prefix of its name.
+
+At a terminal the line is edited with Readline's Emacs keys. `Tab` completes a name, `Shift-Tab` shows its type and documentation, `C-r` searches the history, and `M-Enter` adds a line to the input. The history is kept in `$HOME/.ernest/history`, and the inputs in `$HOME/.ernest/startup` run when the shell starts.
+
+### 9.4 Emacs
+
+`emacs/ernest-mode.el` highlights Ernest, indents it as the style guide does, and lets `M-x compile` with `ernc` jump to each error. [`docs/emacs_mode.md`](docs/emacs_mode.md) says how to load it and what it leaves to your own configuration.
+
+## 10. From Erlang
+
+Ernest runs on the Erlang runtime, and a program in it is processes that send messages, as in Erlang. What an Erlang programmer knows mostly carries over. What differs is where the types reach.
+
+**What carries over.**
+
+- A process is a function that loops by a tail call and keeps its state in its arguments.
+- `receive` selects a message by pattern and leaves the others in the mailbox. `after` gives a timeout in milliseconds.
+- Messages from one sender arrive in the order they were sent.
+- `monitor` delivers a message when a process dies, whatever the reason. `kill` ends a process from outside.
+- `Address.call` is `gen_server:call` with a timeout, and `Address.callForever` is the call without one.
+- Integers are exact and unbounded. On `Int`, `/` is Erlang's `div` and `%` is `rem`.
+- A `foreign fn` calls an Erlang function directly, `"ets:lookup/2"`, and the values cross as report §8.4 lists: a constructor is a tagged tuple or an atom, and a `String` is a UTF-8 binary.
+
+**What differs.**
+
+- A mailbox has a type, so a message the process does not take is a compile error, not a message that sits in the mailbox for ever.
+- A reply is checked: a request's `Reply` is answered exactly once on every path (§4.2).
+- A function says in its type whether it may send or receive (§3.4).
+- There are no exceptions, no `catch`, and no `try`. A failure is a value, a message, or a fault (§6).
+- There are no links and no exit signals, only monitors. A process that must die with another monitors it and returns.
+- There are no registered names, and addresses cannot be compared. A process is reached through an address it was given.
+- There are no atoms in the language: constructors are the tags. `Erl.atom` makes one for a foreign call.
+- There are no OTP behaviours. A server is a `receive` loop with `Reply`, and a supervisor is §6.4's fifteen lines.
+- A running program replaces its code by a message that carries the new function (§4.6). Only the shell's `:reload` loads a new version of a module.
+- ETS is a library outside the standard library, `libs/ets`, since a table is state that processes share.
+- Nodes will talk over Ernest's own protocol and ship code by content, not over Erlang distribution (§8.2).
+
+## 11. Frequently asked questions
 
 **Why is `main`'s mailbox usually `Never`?**
 
@@ -1613,7 +1672,7 @@ A lambda's body is greedy — it extends until the enclosing form's separator. W
 
 Ernest is n-ary: every function has a specific number of arguments recorded in its type. `fn(x)` says "one argument"; `fn(x, y)` says "two." The chosen syntax makes arity visible at the definition site, and the parenthesized form matches ordinary calls.
 
-## 10. Reading further
+## 12. Reading further
 
 Which programs under `examples/` the toolchain runs today is the `PROGRAMS` macro in `test/ern_integration_tests.erl`. The four paper programs below compile today. Three run under test, with fixed input and a bounded run: the REPL, the file sync, and the web server. The snake game waits for a terminal, which no test can give it, so it is only compiled.
 
