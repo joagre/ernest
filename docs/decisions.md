@@ -3800,6 +3800,10 @@ Three silences and defects surfaced in writing it. An error named its file by th
 
 §2 and §3 of the guide had grown with the report: every corner the report settled was restated, from the characters a number may not be followed by to the delimiters that end a lambda's body, and §2.9 restated Appendix E.0 with its lists. A newcomer reads a rule and an example and learns the language; a corner read before the rule it qualifies is noise, and one restated in two places goes stale in one of them. So each subsection keeps its rule and its example, and a corner is cut or becomes a pointer to the report's section. The measure was not a word count but whether a sentence teaches something the reader needs before §4; what remained is 2,271 words of prose where there were 3,532. The `receive` guard, a rule of `receive`, moved to where `receive` is taught.
 
+## The Guide Teaches Failure in One Place, 2026-09-24
+
+The guide taught failure in pieces: faults and the absence of handlers in §3.4, the faults that reach beyond their process in §5.2, `None` from `Address.call` in §4.4, and `Optional` and `Either` in §2.7, so a reader never saw the model whole. The model is short: a failure the caller can act on is a value, one another process must act on is a message, and what nobody expected is a fault that ends its process and is seen through `monitor`; nothing is caught. It now has a section, placed after process lifetime because a fault is observed through `monitor`, which §5 teaches, and before organizing code so that supervision, MVP 2.61 step 6, can join it. Each of the three ways has a complete program with its output, which the guide test runs. The guide's later sections were renumbered; the guide, unlike the report, has no readers who cite its numbers from outside, and the one reference outside it, in the README, moved with it.
+
 ## Later
 
 Planned or considered, not in the language today.

@@ -96,9 +96,9 @@ These rules come from one design, and most of its parts exist already. The Erlan
 - **The mailbox in the function's type.** A process receives one type of message, and the functions it runs say so, `with CounterMsg`. An address carries the same type, so every `send` is checked against its receiver. Gleam types the channel a message travels on; Ernest types the process.
 - **Checked replies.** A request carries a `Reply`, answered exactly once on every path, which the compiler checks as it checks types. `Address.call` waits with a deadline, so an answer that never comes is a case the program handles.
 - **Purity in the type.** `with` separates the functions that may send or receive from those that cannot. A pure function computes and returns, and the compiler holds it to that.
-- **Distribution by content, planned.** Unison's content addressing, on the Erlang runtime. Every function and type is known by a hash of its definition, a type's name included, so a message is checked across nodes as it is within one. Code travels with what uses it: a closure sent to a peer brings the definitions it needs, and the peer fetches what it has not seen. Two nodes need not run the same version of a program, and two versions of a type are two types, never one type read two ways (§7).
+- **Distribution by content, planned.** Unison's content addressing, on the Erlang runtime. Every function and type is known by a hash of its definition, a type's name included, so a message is checked across nodes as it is within one. Code travels with what uses it: a closure sent to a peer brings the definitions it needs, and the peer fetches what it has not seen. Two nodes need not run the same version of a program, and two versions of a type are two types, never one type read two ways (§8).
 
-The rest of the guide is seven stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, organize code, and cross boundaries. Each builds on the ones before it and ends with an exercise. A complete program is shown whole; a fragment is part of the program around it.
+The rest of the guide is eight stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, handle failure, organize code, and cross boundaries. Each builds on the ones before it and ends with an exercise. A complete program is shown whole; a fragment is part of the program around it.
 
 ## 1. Run a program
 
@@ -120,13 +120,13 @@ hello, world
 
 ### 1.1 What the line says
 
-`fn` starts a function definition. `main` is the conventional entry-point name — `ern module.erc` looks for `export fn main` in the loaded module and invokes it. The hello-world program declares one; larger projects can select a different exported entry point with `ern --main Qualified.name module.erc` (see §6.1).
+`fn` starts a function definition. `main` is the conventional entry-point name — `ern module.erc` looks for `export fn main` in the loaded module and invokes it. The hello-world program declares one; larger projects can select a different exported entry point with `ern --main Qualified.name module.erc` (see §7.1).
 
 `-> Unit` is the return type. `Unit` is a type with one value, also called `Unit`; it means "no interesting result." `main` in this program does its work, then returns `Unit`.
 
 `with Never` is the mailbox effect. Every process has a mailbox with a fixed message type; `Never` is the type with no values — a mailbox typed `Never` cannot receive anything. `main` here only sends (through `Io.println`), so `Never` fits.
 
-`Io.println` is a stdlib function that sends its argument to a small `Sys.stdout` process the runtime provides. The stdout process receives the text and writes it. `Io.println` writes to `Sys.stdout` only. Diagnostics go to the other sink the runtime provides, `Sys.stderr`, through `Io.printError` and `Io.printlnError`, so a program whose output something else reads can report trouble without corrupting it. To write a string to any other `Address(String)`, a logger say, send to it directly, `send(logger, "starting\n")`; the library has no second print function for that. Messaging to a runtime service is one of two ways Ernest interacts with the outside world (the other is `foreign fn`, §7).
+`Io.println` is a stdlib function that sends its argument to a small `Sys.stdout` process the runtime provides. The stdout process receives the text and writes it. `Io.println` writes to `Sys.stdout` only. Diagnostics go to the other sink the runtime provides, `Sys.stderr`, through `Io.printError` and `Io.printlnError`, so a program whose output something else reads can report trouble without corrupting it. To write a string to any other `Address(String)`, a logger say, send to it directly, `send(logger, "starting\n")`; the library has no second print function for that. Messaging to a runtime service is one of two ways Ernest interacts with the outside world (the other is `foreign fn`, §8).
 
 For development output, `Io.debug(x)` prints any value and returns it, so it wraps an expression in place: `let n = Io.debug(f(x))`. It prints the value as the source writes it, by the argument's type: `Io.debug('a')` prints `'a'`, and a named constructor prints with its field names. An address prints as `<address>`, a reply as `<reply>`, and a function as `<function>`. A value of an abstract type prints as `<abstract>` outside its module. Inside a generic function, where the type is a variable, and for a foreign type, it can only go by the runtime's representation, so a `Char` there prints as its code point (report Appendix E.1). It carries `with m` like `Io.println`, so it cannot hide in pure code.
 
@@ -178,7 +178,7 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 - **`Float`** — IEEE 754 binary64, finite values only. Literal: `3.14`.
 - **`Char`** — one Unicode code point. Literal: `'a'`.
 - **`String`** — Unicode text. Literal: `"hello"`, with the escapes `\n`, `\t`, `\\`, `\"`, and `\u{1F600}` among them (report §2.5).
-- **`Bytes`** — a sequence of octets. Literal: `<<0, 1, 2>>` (§7.6).
+- **`Bytes`** — a sequence of octets. Literal: `<<0, 1, 2>>` (§8.6).
 - **`Bool`** — `true` or `false`. `&&` and `||` short-circuit, and `!` negates.
 - **`Unit`** — one value, also called `Unit`.
 
@@ -192,7 +192,7 @@ let fixture = `{
 }`
 ```
 
-`Int` division `/` and remainder `%` by zero fault, and so does `Float` arithmetic whose result would not be finite. `Int.div` and `Int.mod` return `Optional(Int)` instead. A fault ends the process (§3.4).
+`Int` division `/` and remainder `%` by zero fault, and so does `Float` arithmetic whose result would not be finite. `Int.div` and `Int.mod` return `Optional(Int)` instead. A fault ends the process (§6).
 
 `Int` and `Float` are separate types, and nothing converts between them implicitly: `1 + 2.0` is a type error. Convert with `Int.toFloat`, or with `Float.round`, `Float.floor`, `Float.ceil`, or `Float.truncate`.
 
@@ -481,7 +481,7 @@ Other limits worth knowing:
 
 A function type without `with M` is *pure*: it cannot perform process operations — no `send`, no `receive`, no `spawn`, no `Address.call`, no effectful `foreign fn`. A function with `with M` may act through a process whose mailbox type is `M`.
 
-Both kinds of function can fault or fail to terminate. `a / b` with `b = 0` faults despite the type being `(Int, Int) -> Int`. `todo("...")` compiles at any type and faults if reached. Ernest has no local exception handler: expected failures are values (`Optional`, `Either`) or protocol messages; a fault terminates the process and is observed by other processes through monitoring (§5).
+Both kinds of function can fault or fail to terminate: `a / b` with `b = 0` faults although its type is `(Int, Int) -> Int`, and `todo("...")` has every type and faults if reached. A fault ends the process; §6 is about what follows.
 
 The mailbox effect says one thing: the function acts through a process. It says nothing about faults.
 
@@ -631,7 +631,7 @@ export fn main() -> Unit with m = {
 }
 ```
 
-`spawn(Local, fn() = counter(0))` starts a new process on the current node, running the lambda; the returned `Address(CounterMsg)` is bound to `c`. `Local` versus `Peer("name")` selects where the process runs; peers are in §7. Inside the spawned lambda, `self()` returns the *child's* address, not the parent's — a parent that wants to hand its own address to the child must capture `self()` before spawning: `let me = self(); spawn(Local, fn() = child(me))`.
+`spawn(Local, fn() = counter(0))` starts a new process on the current node, running the lambda; the returned `Address(CounterMsg)` is bound to `c`. `Local` versus `Peer("name")` selects where the process runs; peers are in §8. Inside the spawned lambda, `self()` returns the *child's* address, not the parent's — a parent that wants to hand its own address to the child must capture `self()` before spawning: `let me = self(); spawn(Local, fn() = child(me))`.
 
 After the two `send`s and the answered call, `main` returns and the program ends. When `main` returns, every *local* process dies with the reason `ProgramEnd`, which is not a fault; the runtime flushes pending output from system processes and stops. A program stopped from outside, with the terminal's interrupt or the host's termination signal, ends the same way, and the runtime says nothing of its own about it (report §8.6). Workers spawned on peer nodes are unaffected — they run under their peer's runtime.
 
@@ -759,7 +759,7 @@ monitor(child, fn(d) = Died(run = run, down = d));
 
 A message whose run is not the one being waited for is an earlier worker's, and is ignored. This is what the report means by identity being expressed in the protocol: the protocol is yours, and the wrap is where you put the identity in it.
 
-A fault in one process does not affect another (no automatic supervision). Three exceptions: a fault in `main` ends the program and terminates its local processes with `ProgramEnd`, a fault in a function adapting an address ends the process that address names (§5.5), and a fault in `remote`'s callback faults the process that called `remote` (§7.1). A process that is killed, or that ends with the program, has not faulted.
+A fault in one process does not affect another, apart from the three cases of §6.3.
 
 ### 5.3 `kill`
 
@@ -823,11 +823,134 @@ Given the ping-pong program, does the runtime guarantee ping and pong's `Io.prin
 
 Answer: no. Per-sender FIFO orders messages from ping to pong and pong to ping, but the two processes both send to `Sys.stdout` — that is fan-in from two senders, and the runtime does not order across senders. Alternation is a *possible* trace, not a guaranteed one.
 
-## 6. Organize code
+## 6. Handle failure
+
+Something goes wrong in one of three ways, and each has its place. A failure the caller can act on is a value. A failure another process must act on is a message. What the program did not expect is a fault, which ends the process it happens in, and the processes that watch it decide what follows. Nothing is caught: there is no exception to throw and no handler to catch one, so the path a failure takes is always in the code.
+
+### 6.1 A value
+
+A failure the caller can act on is returned: `Optional` when absence is the whole story, `Either` when there is a reason. `<-` passes a `Left` on without a line written for it (§2.7), and a statement cannot drop one (§0).
+
+```ernest
+type Config = Config(port : Int, workers : Int)
+
+fn field(text : String, name : String) -> Either(String, Int) = {
+    let n <- Either.fromOptional(String.toInt(text), name <> " is not a number");
+    if n > 0 then Right(n) else Left(name <> " must be positive")
+}
+
+fn parse(port : String, workers : String) -> Either(String, Config) = {
+    let p <- field(port, "port");
+    let w <- field(workers, "workers");
+    Right(Config(port = p, workers = w))
+}
+
+fn show(c : Either(String, Config)) -> String = match c {
+    Right(Config(port = p, workers = w)) ->
+        "port " <> Int.toString(p) <> ", " <> Int.toString(w) <> " workers"
+  | Left(reason) -> "no config: " <> reason
+}
+
+export fn main() -> Unit with Never = {
+    Io.println(show(parse("8080", "4")));
+    Io.println(show(parse("8080", "four")))
+}
+```
+
+```console
+$ ern config.erc
+port 8080, 4 workers
+no config: workers is not a number
+```
+
+`field` checks one number, `parse` chains two checks and stops at the first `Left`, and `show` is the one place that decides what a failure means.
+
+### 6.2 A message
+
+Between processes a failure is part of the protocol. A request whose work can fail is answered with an `Either`, and the process that asked handles a `Left` as it handles any answer. `Address.call` adds a case of its own, `None`, for an answer that did not come in time; a deadline is the only way to tell a slow process from one that will never answer.
+
+```ernest
+type ParserMsg = Parse(text : String, reply : Reply(Either(String, Int)))
+
+fn parser() -> Unit with ParserMsg = receive {
+    Parse(text = t, reply = r) -> {
+        answer(r, Either.fromOptional(String.toInt(t), t <> " is not a number"));
+        parser()
+    }
+}
+
+fn ask(p : Address(ParserMsg), text : String) -> String with m =
+    match Address.call(p, fn(r) = Parse(text = text, reply = r), 1000) {
+        Some(Right(n)) -> "parsed " <> Int.toString(n)
+      | Some(Left(reason)) -> "refused: " <> reason
+      | None -> "no answer in time"
+    }
+
+export fn main() -> Unit with Never = {
+    let p = spawn(Local, fn() = parser());
+    Io.println(ask(p, "42"));
+    Io.println(ask(p, "forty-two"))
+}
+```
+
+```console
+$ ern ask.erc
+parsed 42
+refused: forty-two is not a number
+```
+
+The parser refuses the text and goes on serving. A refusal is an answer, not a failure of the parser.
+
+### 6.3 A fault
+
+A fault is what the program did not expect: a division by zero, a `todo` reached, a `Float` result out of range. Report §7.4 lists them all. A fault ends the process it happens in, and only that process. A process that monitors it receives a `Down` whose reason is `Fault(cause)`:
+
+```ernest
+type MainMsg = WorkerDied(Down)
+
+fn average(total : Int, count : Int) -> Int = total / count
+
+fn worker(count : Int) -> Unit with Never =
+    Io.println(Int.toString(average(100, count)))
+
+export fn main() -> Unit with MainMsg = {
+    let w = spawn(Local, fn() = worker(0));
+    monitor(w, WorkerDied);
+    receive {
+        WorkerDied(Down(reason = Fault(cause), function = site)) ->
+            Io.println("the worker spawned at " <> site <> " faulted: " <> cause)
+      | WorkerDied(_) -> Io.println("the worker ended")
+    }
+}
+```
+
+```console
+$ ern faults.erc
+the worker spawned at Faults.main:9 faulted: division by zero
+```
+
+`average` is pure and still faults. A type says what a function returns when it returns, not that it will. The `function` of a `Down` names the function that spawned the process and the line of the call.
+
+Three faults reach beyond their process. A fault in the entry process ends the program: `ern` prints `fault: ` and the cause, and exits with status 1. A fault in the function of an adapted address (§5.5) is the fault of the process the address names. A fault in the callback of `remote` is the fault of the process that called it (§8.1). A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
+
+### 6.4 Prediction exercise
+
+```
+fn first(xs : List(Int)) -> Int = match xs {
+    x :: _ -> x
+  | [] -> todo("first of an empty list")
+}
+```
+
+What happens when `main` calls `first([])`, and how would you make the empty list the caller's to handle?
+
+Answer: `main` faults with the cause `todo: first of an empty list`, and since it is the entry process the program ends and `ern` prints `fault: todo: first of an empty list`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
+
+## 7. Organize code
 
 An Ernest program is one or more modules. A module is a `.ern` source file; its path *is* its namespace. Modules may not depend on each other in a cycle; a cycle is a compile-time error (report §4.1).
 
-### 6.1 Modules and namespaces
+### 7.1 Modules and namespaces
 
 Two modules:
 
@@ -901,7 +1024,7 @@ $ ern --main Tools.check build/main.erc
 
 `--main` takes a fully qualified name whose final segment is a lowercase function name (`Tools.check`, not `Tools.Check`). This is how a project with multiple entry points — a service main, a migration main, a bench main — keeps each in its own module.
 
-### 6.2 Abstract types
+### 7.2 Abstract types
 
 Abstract types have a private representation and a public signature. Only definitions listed in the `with { ... }` signature can mention the constructor. Any locally declared type — abstract or concrete — creates a nested namespace inside its module, and its members are declared with a single-typename prefix (`fn Stack.push`). Report §4.8 shows the concrete-type variant used for per-type operator overloading (`fn Distance.+`, and so on); an operator is declared with `fn`, never with `let`. From another module an abstract type's constructor is not visible at all: `Main.Stack([])` there is an error, and callers go through the signature.
 
@@ -935,19 +1058,19 @@ An abstract type's representation can change later (a tree, a growable array), a
 
 Two `Stack(a)` declarations on two nodes are one type only when their representation, qualified name, and signature all match (report §8.7). The same signature over a list on one node and a tree on another is two types.
 
-### 6.3 Prediction exercise
+### 7.3 Prediction exercise
 
 Can a helper in the same file as `Stack` — but not listed in the `with { ... }` signature — pattern-match `Stack(xs)`?
 
 Answer: no. Access is granted by the signature, not by the module. The helper can call `Stack.pop`, `Stack.push`, and any other listed operation, but it cannot see the constructor.
 
-## 7. Cross boundaries
+## 8. Cross boundaries
 
 Two ways Ernest reaches outside a single node's Ernest code: to peers over the network, and to foreign code on the same node.
 
 A node that talks to peers has a configuration, which a node running alone does not need. `ern --create-config-dir .` creates it, once, in `./.ernest/`: `ernest.conf`, with this node's network address, its public key and an empty list of peers, and the private key beside it. The command fails if `./.ernest` exists. A peer is added to the list by editing `ernest.conf` (report Appendix C), and its name is what `Peer(name)` refers to.
 
-### 7.1 `remote`
+### 8.1 `remote`
 
 Run a pure computation on some peer:
 
@@ -989,7 +1112,7 @@ export fn main() -> Unit with m = match remote(fn() = heavy(3, 4)) {
 
 This program needs `ernest.conf` to list at least one peer with `"remote-peer": true` before `Right(...)` is possible.
 
-### 7.2 Code shipping
+### 8.2 Code shipping
 
 Four operations ship a closure or payload and the code it depends on: `spawn(Peer(name), f)`, `remote(f)` and the return of its result, `send` to a remote address, and `answer(r, v)` to a caller on another node. The peer resolves each referenced hash — it uses cached code if present, or fetches from the sender. Types, functions, and constructors are identified across nodes by content hash; two nodes with identical definitions under the same qualified names agree on identity, and a type's name is part of its identity.
 
@@ -1003,7 +1126,7 @@ Some consequences the code sees:
 
 Peer loss is *terminal from this node's view*. Once this node declares a peer lost, it treats the processes on that peer as dead. Their existing addresses do not become usable again if the same peer name reappears — a re-appearing peer is a new node instance. Monitors on remote addresses report `Down(reason = Fault("peer lost"), ...)`, and pending `remote` calls return `Left(PeerLost)`. Remote sends are best-effort: in-flight messages can be dropped at peer loss without a delivery notification, and returning from `send` is not evidence that the recipient processed the message. A resolution failure does not, on its own, invalidate unrelated addresses for the same peer — only *actual* peer-loss detection has that effect.
 
-### 7.3 Foreign types and functions
+### 8.3 Foreign types and functions
 
 ```ernest
 // ets.ern
@@ -1025,7 +1148,7 @@ In the other direction, an Ernest process's death is an Erlang exit reason: `nor
 
 A value foreign code made and Ernest does not inspect has the built-in type `Foreign`; `Foreign.toInt` and the rest of Appendix E.12 read it, and `Erl.atom(name)` is how an Erlang atom is passed (report §3.7, Appendix E.19).
 
-### 7.4 Node-local foreign values
+### 8.4 Node-local foreign values
 
 Foreign values are bound to the node that made them. Any cross-node transport of a value that transitively contains one faults with `Fault("foreign value cannot cross nodes")` — including a closure that captures such a value.
 
@@ -1036,7 +1159,7 @@ spawn(Peer("alice"), fn() = Ets.insert(t, "x", 1))   // fault: t is captured
 
 Programs that need to share table-like state across nodes serialize the contents and rebuild on the peer.
 
-### 7.5 The shim pattern
+### 8.5 The shim pattern
 
 Erlang's `ets:lookup` returns a list because the key might match zero or one entry. Both declarations below live in `ets.ern` (namespace `Ets`), a module of your own:
 
@@ -1076,7 +1199,7 @@ If `find/1` returns reasons of another shape (an atom, a nested tuple), the Erla
 
 Report Appendix D walks `ets.ern` (namespace `Ets`), a library outside the standard library, as its worked example of a shim; the repository ships it under `libs/ets`, and a program adds it with `--load-path` (report §11.1). Its foreign calls happen to already match Ernest's ABI (`[{K, V}]` maps to `List(#(k, v))`, `Bool` to `true`/`false`), so it needs no Erlang wrapper. This is also the shape of every library outside the standard library: JSON, TLS, regular expressions, HTTP are not in Appendix E, by E.0's rules, since each is a namespace of its own with policy inside; they are written as `Ets` is written, by anyone, under a namespace Appendix E does not take, and put on the load path when a program wants them. A foreign library may also hold what the standard library does not: an `Ets` table is state that every process holding it reads and writes (report §4.7), where the standard library keeps report §10's promise that processes share no memory. Which are first-party, and when, is the plan's.
 
-### 7.6 Bitstrings
+### 8.6 Bitstrings
 
 Building and parsing binary formats:
 
@@ -1118,13 +1241,13 @@ A segment pattern is a variable, `_`, or a literal; a float literal `0.0` matche
 
 Bitstrings compile to the runtime's bit syntax (report §5.11, report §10).
 
-### 7.7 Prediction exercise
+### 8.7 Prediction exercise
 
 Suppose `send(remoteAddr, msg)` returns immediately, and 50 ms later the peer reports a resolution failure. What happens to the sending process?
 
 Answer: the runtime faults the sending process asynchronously, after `send` has already returned. Code that followed the `send` may have executed; the fault interrupts the process where it currently is, not at the site of `send`.
 
-## 8. Frequently asked questions
+## 9. Frequently asked questions
 
 **Why is `main`'s mailbox usually `Never`?**
 
@@ -1150,7 +1273,7 @@ A lambda's body is greedy — it extends until the enclosing form's separator. W
 
 Ernest is n-ary: every function has a specific number of arguments recorded in its type. `fn(x)` says "one argument"; `fn(x, y)` says "two." The chosen syntax makes arity visible at the definition site, and the parenthesized form matches ordinary calls.
 
-## 9. Reading further
+## 10. Reading further
 
 Which programs under `examples/` the toolchain runs today is the `PROGRAMS` macro in `test/ern_integration_tests.erl`. The four paper programs below compile today. Three run under test, with fixed input and a bounded run: the REPL, the file sync, and the web server. The snake game waits for a terminal, which no test can give it, so it is only compiled.
 

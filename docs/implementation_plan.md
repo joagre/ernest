@@ -177,8 +177,11 @@ without boasting. Each step is a stop.
    standard library's rules keep one example each instead of Appendix E's lists, and the
    literal corners, the evaluation order of fields, and the rules for a local `fn` became
    pointers. The `receive` guard moved to §4.3, where `receive` is taught.
-4. **The error model gets a section of its own:** a value, a message, or a fault, and
-   nothing is caught.
+4. **Done 2026-09-24: the error model gets a section of its own:** a value, a message, or a
+   fault, and nothing is caught. It is §6, *Handle failure*, after process lifetime, since a
+   fault is observed through `monitor`; the sections after it moved up by one. Each of the
+   three has a complete program that the test runs, and the rules on faults that were in
+   §3.4 and §5.2 are said there once. Step 6's supervision joins it.
 5. **One running example through §2 to §5**, and every fragment either completed or cut.
 6. **Supervision and "let it crash"**, the idioms the log lists: a monitor, a restart, a
    supervisor in fifteen lines.
