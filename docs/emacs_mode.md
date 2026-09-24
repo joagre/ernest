@@ -53,8 +53,8 @@ lexer's symbols.
 
 ## How it is judged
 
-Seven tests under `emacs/test/`. `make emacs-mode` runs them and `make test` runs them last;
-a machine without Emacs skips them. `make emacs-mode EMACS=path` runs them under another
+Seven tests under `emacs/test/`. `make test-emacs` runs them and `make test` runs them last;
+a machine without Emacs skips them. `make test-emacs EMACS=path` runs them under another
 Emacs. Each prints what it measured.
 
 | Test | What must hold |

@@ -97,26 +97,16 @@ the shell is neither standard library nor library but the toolchain's own progra
      own type. `ern_typecheck:declared_scheme/3` resolves the name as the checker does and
      gives its scheme, whose variables keep their names. The guide's `:type` sessions were
      regenerated, and a shell test holds the rule.
-  3. **Test areas, and faster suites.** A full `make test` took five minutes on 2026-09-24:
-     the guide's examples 103 s, the shell's sessions 76 s, the integration programs 39 s,
-     the Emacs mode 38 s, the runtime's unit tests 13 s, the terminal 11 s, the other unit
-     tests 19 s, and the documents 2 s. Two parts:
-     - **Targets by area**, with `make test` still running everything: `make test-erl`, and
-       `make test-erl APP=typer` for one application; `make test-guide`; `make test-shell`
-       for the shell's sessions and the terminal; `make test-programs` for the integration
-       programs; `make test-docs` for the citations and the style; and `make test-emacs`,
-       which `make emacs-mode` is today. CLAUDE.md's rule on the check that fits the change
-       gains the map: a change under `erl/<app>` runs that application's tests and the
-       programs; `stdlib/` the runtime's tests and the programs; `shell/` the shell's; the
-       guide its test and the documents'; any other document the documents'; the Emacs mode
-       its own. The whole of `make test` runs once per plan item, before the commit that
-       closes it.
-     - **The slow suites made faster where the time goes.** The guide test starts two Erlang
-       nodes per example, `bin/ernc` and `bin/ern`, 134 starts of about a second; it calls
-       `ern_cli:ernc/2` and `ern_cli:ern/2` in its own node instead, as `ern_cli_tests`
-       does. Independent examples and sessions run in parallel under EUnit's `inparallel`,
-       and the applications' unit tests under `make -j`. The shell's timed waits go with
-       step 5 below.
+  3. **Done 2026-09-24: test areas, and faster suites.** A full `make test` had taken five
+     minutes. `make test` still runs everything, and each area has its own target:
+     `test-erl` (with `APP=` for one application), `test-programs`, `test-docs`,
+     `test-guide`, `test-shell`, and `test-emacs`, which was `emacs-mode`. CLAUDE.md maps a
+     change to the areas it needs, and the whole suite runs once per plan item. Measured
+     after: the guide's examples 103 s to 13 s, compiling and running a module's example in
+     the test's own node and the rest in parallel; the integration programs 39 s to 19 s
+     and the Emacs mode 38 s to 15 s, run side by side; the unit tests side by side under
+     `make -j`. The shell's sessions, 76 s, wait for step 5, whose timed waits are both
+     the flaky test and most of that time.
   4. **The signature inside a call**, with the parameter at the cursor marked, which wants a
      parser tag for "inside a call's argument n" as the field position got one; and a
      declaration's own `since`, which the page does not carry per declaration.
@@ -574,7 +564,7 @@ guide, the record in the log's *One Token for the Project*.
 
 Taken out of order, between checkpoints of MVP 2.6. [`emacs_mode.md`](emacs_mode.md) owns
 the mode and [`decisions.md`](decisions.md) the arguments. `emacs/ernest-mode.el`, its tests
-under `emacs/test/`, run by `make emacs-mode` and last in `make test`.
+under `emacs/test/`, run by `make test-emacs` and last in `make test`.
 
 Three decisions of the milestone reach beyond it:
 

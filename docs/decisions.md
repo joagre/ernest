@@ -3856,6 +3856,10 @@ A full `make test` had grown to five minutes, and it ran after every change, so 
 
 An instance's type variables carry no names, since a name belongs to the annotation that wrote it and not to a use of the value (§11.5), so `:type Io.readLine` printed `with e` while `:browse Io` printed `with m` for the same function. For an expression that is right: `List.map(xs, f)` has a type of its own, and a declaration's names would mean nothing in it. For an input that is one name it surprises, since the question asked is what the name is, and `:browse`, `:doc`, and `Shift-Tab` answer it with the declaration. The rule is kept for expressions and an input of one name prints its declared scheme, whether asked for with `:type` or evaluated, so that one name has one printed type wherever the shell shows it. The checker already resolves a name to its scheme, names and all; the shell asks it for that scheme instead of the instance.
 
+## Test Areas Built, 2026-09-24
+
+The areas are targets now, and `make test` runs them all. The time went where it was spent: the guide's test had started two Erlang nodes for each example, and now compiles and runs a module's example in its own node, as the CLI's tests always did; what cannot share a node, a shell session reading standard input, a program given input, an error named from a working directory, runs in a node of its own and in parallel with the others of its kind. The integration programs, the applications' unit tests, and the Emacs mode's tests are independent of one another and run side by side. The whole suite went from about five minutes to 138 seconds, the guide's part from 103 to 13. The shell's sessions were left as they are, since their time is the clock's, in waits that step 5 replaces with waits on the events themselves, and running them in parallel before then would load the machine under the one test already known to fail under load.
+
 ## Later
 
 Planned or considered, not in the language today.

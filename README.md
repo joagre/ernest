@@ -84,8 +84,14 @@ Erlang/OTP 29 and GNU make. No rebar3, no OTP behaviours. `make test` also needs
 
 ```
 make              compile every application into its ebin/, then stdlib/, shell/, libs/
-make test         build, run the EUnit tests, the tests in test/, then the Emacs mode's
-make emacs-mode   the Emacs mode's tests alone (docs/emacs_mode.md)
+make test         build, then run every area below
+make test-erl     the unit tests of every application under erl/, side by side;
+                  APP=typer for one
+make test-programs  the example programs, compiled and run
+make test-docs    the citations and the style
+make test-guide   the guide's examples
+make test-shell   the shell's sessions and the terminal
+make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md
 make sections     list the report sections no test cites

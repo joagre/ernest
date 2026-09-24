@@ -51,25 +51,55 @@ libs: stdlib
 doc: all
 	@bin/ernc --doc --out-dir build/stdlib stdlib
 
-# The unit tests of every application, then the integration tests in test/.
+# The tests by area (plan, MVP 2.6 checkpoint 4, step 3). `make test` runs
+# every area; a change that touches one area runs that area's target, as
+# CLAUDE.md maps them.
 test: all
-	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
-	@$(MAKE) -C test $@
-	@$(MAKE) -s emacs-mode
+	@$(MAKE) -s test-erl
+	@$(MAKE) -C test test
+	@$(MAKE) -s test-emacs
+
+# The unit tests of the applications under erl/, side by side, or of one
+# with APP=typer.
+APP_TESTS = $(APPS:%=test-app-%)
+ifdef APP
+test-erl: all
+	@$(MAKE) -C erl/$(APP)/src test
+else
+test-erl: all
+	@$(MAKE) -s -j $(APP_TESTS)
+endif
+
+$(APP_TESTS): test-app-%:
+	@$(MAKE) -s -C erl/$*/src test
+
+# The areas under test/: the example programs, the documents and the style,
+# the guide's examples, and the shell with the terminal.
+test-programs: all
+	@$(MAKE) -C test programs
+test-docs:
+	@$(MAKE) -C test docs
+test-guide: all
+	@$(MAKE) -C test guide
+test-shell: all
+	@$(MAKE) -C test shell
 
 # The Emacs mode's tests (docs/emacs_mode.md). It is an editor and not
 # part of the toolchain, so a machine without Emacs skips them; they are
 # the only tests `make test` will run and not have built. EMACS names the
-# Emacs to run them under: `make emacs-mode EMACS=/opt/emacs-29/bin/emacs`.
+# Emacs to run them under: `make test-emacs EMACS=/opt/emacs-29/bin/emacs`.
 EMACS ?= emacs
 EMACS_TESTS = lint colour editing broken reindent flatten typing
-emacs-mode:
+test-emacs:
 	@if ! command -v $(EMACS) >/dev/null 2>&1; then \
 	  if [ "$(origin EMACS)" = file ]; then \
 	    echo "  Emacs not installed; the mode's tests were skipped."; exit 0; fi; \
 	  echo "  $(EMACS): no such Emacs"; exit 1; fi
-	@cd emacs && for t in $(EMACS_TESTS); do \
-	  $(EMACS) -Q -batch -l test/$$t.el $(EMACS_CORPUS) || exit 1; done
+	@$(MAKE) -s -j $(EMACS_TESTS:%=emacs-test-%)
+
+# One Emacs test, each in an Emacs of its own, so they run side by side.
+$(EMACS_TESTS:%=emacs-test-%): emacs-test-%:
+	@cd emacs && $(EMACS) -Q -batch -l test/$*.el $(EMACS_CORPUS)
 
 clean:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
@@ -111,4 +141,5 @@ clean-emacs:
 EMACS_CORPUS = ../stdlib/*.ern ../shell/*.ern ../shell/shell/*.ern ../examples/*.ern \
 		../examples/modules/*.ern ../examples/modules/*/*.ern ../test/*/*.ern ../libs/*/*.ern
 
-.PHONY: all libs test clean clean-emacs emacs-mode sections coverage golden xref stdlib shell doc
+.PHONY: all libs test test-erl test-programs test-docs test-guide test-shell test-emacs \
+        $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref stdlib shell doc

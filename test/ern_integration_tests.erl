@@ -12,8 +12,10 @@
 %% report §8.1, §8.6, §11.1, §11.2, and per program: §6.4 (pingpong),
 %% §6.6 (counter), §6.7 (remote), §6.10 (upgrade), §5.10 (patterns),
 %% §5.5 (kvparser), §4.4 (stack)
+%% Each program is compiled and run apart from the others, so they run in
+%% parallel (plan, MVP 2.6 checkpoint 4, step 3).
 programs_test_() ->
-    [{Name, fun() -> program(Name) end} || Name <- ?PROGRAMS].
+    {inparallel, [{Name, {timeout, 60, fun() -> program(Name) end}} || Name <- ?PROGRAMS]}.
 
 program(Name) ->
     {0, _} = sh("../bin/ernc --source-root ../examples --out-dir build ../examples/" ++ Name
@@ -27,11 +29,11 @@ program(Name) ->
 -define(COMPILES, ["filesync", "repl", "snake", "echo", "webserver"]).
 
 compiles_test_() ->
-    [{Name, fun() ->
+    {inparallel, [{Name, fun() ->
                 {0, _} = sh("../bin/ernc --source-root ../examples --out-dir build ../examples/"
                             ++ Name ++ ".ern"),
                 ?assert(filelib:is_regular("build/" ++ Name ++ ".erc"))
-            end} || Name <- ?COMPILES].
+            end} || Name <- ?COMPILES]}.
 
 %% Paper program 4 (plan, MVP 2.5 step 4): the REPL reads stdin and ends at
 %% end of input, so its run is bounded by its input. The last two lines are

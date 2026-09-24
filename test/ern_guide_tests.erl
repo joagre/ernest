@@ -59,10 +59,21 @@ normalize(D) -> re:replace(string:trim(D), "\\s+", " ", [global, {return, binary
 
 %% ernest_guide.md: every complete example compiles, and every example with
 %% its output shown prints that output
+%%
+%% A unit that needs a node of its own, a shell session, a program given
+%% standard input, or an error named from its own working directory, runs
+%% in parallel with the others of its kind; the rest compile and run in
+%% this node, one after another, since two of them may share a module's
+%% name (plan, MVP 2.6 checkpoint 4, step 3).
 guide_examples_test_() ->
-    [{Name, {timeout, 60, fun() -> check(Unit) end}}
-     || {N, Unit} <- lists:zip(lists:seq(1, length(units())), units()),
-        Name <- [label(N, Unit)]].
+    Named = [{label(N, U), U} || {N, U} <- lists:zip(lists:seq(1, length(units())), units())],
+    {Apart, Here} = lists:partition(fun({_, U}) -> own_node(U) end, Named),
+    [{inparallel, [{Name, {timeout, 60, fun() -> check(U) end}} || {Name, U} <- Apart]}
+     | [{Name, {timeout, 60, fun() -> check(U) end}} || {Name, U} <- Here]].
+
+own_node({modules, #{run := {Flags, _, Inputs, _}}}) -> Flags =:= "--shell " orelse Inputs =/= [];
+own_node({modules, _}) -> false;
+own_node(_) -> true.
 
 label(N, {_, #{line := Line}}) -> "guide example " ++ integer_to_list(N) ++ " at line "
                                   ++ integer_to_list(Line).
@@ -74,12 +85,17 @@ check({modules, #{files := Files, run := Run}}) ->
     ok = filelib:ensure_path(Build),
     [{0, <<>>} = sh("erlc -o " ++ Build ++ " " ++ filename:join(Dir, F))
      || {F, _} <- Files, filename:extension(F) =:= ".erl"],
-    {Status, Out} = sh("../bin/ernc --errors short --source-root " ++ Dir ++ " --out-dir "
-                       ++ Build ++ " " ++ Dir),
-    ?assertEqual({0, <<>>}, {Status, Out}),
+    ?assertEqual(0, ern_cli:ernc(["--errors", "short", "--source-root", Dir, "--out-dir", Build,
+                                  Dir], group_leader())),
+    ?assertEqual(<<>>, iolist_to_binary(?capturedOutput)),
     case Run of
         none ->
             ok;
+        {Flags, Module, [], Expected} when Flags =/= "--shell " ->
+            %% in this node: the program's output is what the test captures
+            Args = string:lexemes(Flags, " ") ++ [filename:join(Build, Module)],
+            ?assertEqual(0, ern_cli:ern(Args, group_leader())),
+            ?assertEqual(trim(Expected), trim(iolist_to_binary(?capturedOutput)));
         {Flags, Module, Inputs, Expected} ->
             In = filename:join(Dir, "inputs"),
             ok = write(In, [[I, <<"\n">>] || I <- Inputs]),

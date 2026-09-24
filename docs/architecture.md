@@ -112,7 +112,9 @@ Ten kinds, all run by `make test`:
 - The documents: `test/ern_docs_tests.erl`, also `make xref`, resolves every section, appendix, and `E.n` citation in the report, guide, README, CLAUDE.md, plan, architecture note, shell design, module documentation template, example headers, and the modules of `stdlib/` and `libs/` against the report's headings, and the guide's own bare citations against the guide.
 - The guide: `test/ern_guide_tests.erl` compiles every `ernest` block, runs every program whose output a console shows, checks every `ernest-rejected` block's error, and replays every shell session; the marks it reads are in its header.
 - The shell: `test/ern_shell_tests.erl` runs sessions in line mode against their expected output, and `test/ern_terminal_tests.erl` drives the shell and the snake game under a pseudo-terminal.
-- The Emacs mode: `make emacs-mode`, last in `make test`, runs the mode's own tests under `emacs/test/` (`docs/emacs_mode.md`).
+- The Emacs mode: `make test-emacs`, last in `make test`, runs the mode's own tests under `emacs/test/`, each in an Emacs of its own and side by side (`docs/emacs_mode.md`).
+
+`make test` runs every kind; each area has a target of its own, `test-erl`, `test-programs`, `test-docs`, `test-guide`, `test-shell`, and `test-emacs`, which CLAUDE.md maps to the changes that need them. The applications' unit tests run side by side under `make -j`; the guide test compiles and runs a module's example in its own node through `ern_cli:ernc/2` and `ern_cli:ern/2`, and runs a shell session, a program given standard input, or a rejected example in a node of its own, those in parallel; the integration programs run in parallel.
 
 ## Where MVP 2.5 and later hook in
 
