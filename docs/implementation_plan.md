@@ -296,6 +296,15 @@ options, then what is recorded and left alone.
   other way to reach those who held the old one (MVP 2.66, the guide's §6.4). Decided here,
   report first: a table per node from name to address, or the argument that addresses handed
   on in messages suffice.
+- **An address's identity, decided with the registry** (feedback item 24), since
+  unregistering needs address equality. Either outcome changes the shell: `:processes`
+  lists three processes spawned by three inputs as `input:1` three times, which tells them
+  apart not at all. If addresses get equality, as *reaches the same process*, §3.10 loses
+  the address half of its exception, `Io.debug` prints the identity (E.1), `<address 3>`,
+  and `:processes` and a fault line show the same one, so a printed address and a row
+  match; the runtime needs equal addresses to be equal terms. If they do not, `Io.debug`
+  keeps `<address>`, and `:processes` and a fault line number each process for the shell
+  alone. Until then `:processes` shows the site and nothing more.
 - **The entries found in 2026-09-24's guide work**: item 15, a `Map` merge that combines the
   values of a key both maps hold, and item 17, a type's members at the prompt.
 - **The entries found writing `libs/markdown`**, 2026-09-25: items 18 to 23, tuple

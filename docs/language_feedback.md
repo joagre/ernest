@@ -216,3 +216,22 @@ meant, read well; the entries are what did not.
     places. Neither owns the other; the question is whether what a row takes at a terminal
     belongs to `Terminal` in Appendix E, which is where the escape sequences come from.
 
+## Found by `:processes`, 2026-09-25
+
+24. **A process has an identity no one can see.** `:processes` lists three processes spawned
+    by three inputs as `input:1` three times, and nothing tells them apart: an address prints
+    as `<address>` (E.1) and has no equality (§3.10), because `via(f, a) == a` was held to
+    have no right answer. Weighed on the principles: §6.3 says an address *identifies* a
+    process, and hiding which one is what principle 3 refuses for communication; dropping
+    the address half of §3.10's exception makes the language smaller (principle 5); a
+    subscriber list that removes a subscriber carries an id in its protocol beside the
+    address it already holds, two ways to say which process (principle 2); and a reader who
+    knows Erlang, or who has seen everything else compare structurally, predicts `a == b`
+    to mean the same process (principle 1). Principle 4 is untouched. The obstacle has an
+    answer: equality as *reaches the same process*, so `via(f, a) == a`. Its cost is in the
+    runtime: an adapted address is `{via, F, Target}`, and Erlang's `==`, which `Map`, `Set`
+    and `List.contains` use, compares `F`, so equal addresses need a representation that is
+    equal as a term, or an equality of the runtime's own. Across nodes the identity names
+    the node, as a pid does. Decided in MVP 2.65 with the registry, since unregistering
+    needs it; the plan states what each outcome changes.
+
