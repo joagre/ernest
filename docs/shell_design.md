@@ -152,7 +152,7 @@ The shell reports a process that faults; a compiled program keeps its silence, a
 GNU Readline's Emacs bindings.
 
 - **The editor is a module of its own**, `Shell.Editor` in `shell/shell/editor.ern`: a pure function from the line being edited and an event to what the reader must do, `Typing`, `Submit`, `Cancel`, `Clear`, `Completing`, `Documenting`, or `Leave`. The reader sends the screen the line and the session what was entered; the editor writes nothing.
-- **`Escape` and `Meta`:** §8.2 delivers `Escape` alone once no sequence can follow it, so an `Escape` followed at once by a character is `Meta` and an `Escape` that stands alone is the key. `M-b` arrives as `Escape` then `Char('b')`, and `Shift-Tab` as `Escape` and its bytes.
+- **`Escape` and `Meta`:** §8.2 delivers `Escape` alone once no sequence can follow it, so an `Escape` followed at once by a character is `Meta` and an `Escape` that stands alone is the key. `M-b` arrives as `Escape` then `Key('b')`, and `Shift-Tab` as `Escape` and its bytes.
 - **Moving:** `C-a`, `C-e` to the start and end of the line; `C-b`, `C-f` a character; `M-b`, `M-f` a word; the arrow keys.
 - **Deleting:** `Backspace` and `C-h` back, `C-d` forward; on an empty line `C-d` quits.
 - **Killing:** `C-k` to the end of the line, `C-u` to the start, `C-w` and `M-Backspace` the word before, `M-d` the word after; `C-y` yanks the last kill, which outlives the line it was killed from.

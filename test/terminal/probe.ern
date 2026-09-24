@@ -27,7 +27,7 @@ fn loop() -> Unit with Msg = receive {
   | E(ArrowRight) -> { Io.println("right"); loop() }
   | E(Enter) -> { Io.println("enter"); loop() }
   | E(Interrupt) -> { Io.println("interrupt"); loop() }
-  | E(Char(c)) -> { Io.println("char " <> Char.toString(c)); loop() }
+  | E(Key(c)) -> { Io.println("char " <> Char.toString(c)); loop() }
   | E(Pasted(text)) -> {
         Io.println("pasted " <> String.replace(text, "\n", "|"));
         loop()

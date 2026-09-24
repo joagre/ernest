@@ -715,7 +715,7 @@ type RemoteError = NoRemotePeer | PeerLost
 type Where = Local | Peer(String) // spawn placement, §6.2
 type Size = Size(rows : Int, columns : Int)
 type Event =
-    Char(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter | Escape
+    Key(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter | Escape
   | Interrupt | Pasted(String) | Resized(Size)
 type TerminalMsg =
     Subscribe(to : Address(Event), reply : Reply(Unit))

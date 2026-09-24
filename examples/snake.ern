@@ -9,7 +9,7 @@
 // source.
 //
 // Assumptions. Terminal, Clock, and Random are the standard library's
-// (report Appendix E); Key, Event, and Size are the prelude's (§9.3).
+// (report Appendix E); Event and Size are the prelude's (§9.3).
 // main runs the game loop itself so that the world is one value in one
 // place, and while it runs the program keeps running (report §8.6).
 //

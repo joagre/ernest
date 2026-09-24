@@ -3762,6 +3762,10 @@ E.0 rule 2 ended "A verb not in this list needs an entry in the decisions log", 
 
 §11.2 said `Io.readLine` from a process other than the shell's faults while a shell holds the terminal, and the shell design said the same, with the cause a subscriber meets. Only the subscription was built. A line read went to `stdin` unchecked: at a terminal it ended the program, shell and all, with "the terminal is already read as keys", and in line mode it took the shell's next line as its answer. The runtime now refuses the read in the reading process, before it reaches `stdin`, with the subscriber's cause, and the shell holds the terminal in line mode too, for the session that reads the lines. The cause text has one home in the runtime, which both refusals use.
 
+## A Typed Character Is `Key(c)`, 2026-09-24
+
+`Event` carried a typed character as `Char(Char)`, a constructor named as the type it holds and in every module's scope, so `Char('a')` read as a `Char` and `fn(c) = Char(c)` as a conversion that did nothing. It is `Key(Char)` now: `Key('a')` reads as the key `a`, beside the named keys `ArrowUp`, `Enter` and `Escape`. `Typed` was the other candidate and read as well, and the shell's own `Typed(String)` would have shadowed it at once.
+
 ## Later
 
 Planned or considered, not in the language today.

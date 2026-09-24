@@ -210,7 +210,7 @@ read_loop(Keys) ->
             read_loop(Keys)
     end.
 
-%% Report §9.3: Event = Char(Char) | ArrowUp | ArrowDown | ArrowLeft
+%% Report §9.3: Event = Key(Char) | ArrowUp | ArrowDown | ArrowLeft
 %% | ArrowRight | Enter | Escape | Interrupt | Resized(Size), one list of
 %% what the terminal sent. An escape sequence that is none of those is the
 %% Escape key and the characters after it, which is how Meta and Shift-Tab
@@ -253,7 +253,7 @@ decode([$\e | Rest] = Chars, Acc) ->
 decode([3 | Rest], Acc) -> decode(Rest, ['Interrupt' | Acc]);
 decode([$\n | Rest], Acc) -> decode(Rest, ['Enter' | Acc]);
 decode([$\r | Rest], Acc) -> decode(Rest, ['Enter' | Acc]);
-decode([C | Rest], Acc) -> decode(Rest, [{'Char', C} | Acc]).
+decode([C | Rest], Acc) -> decode(Rest, [{'Key', C} | Acc]).
 
 %% The text of a paste, up to the end the terminal puts after it. A
 %% terminal sends the line endings of what was pasted, and a program is

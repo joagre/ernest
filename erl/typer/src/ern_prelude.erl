@@ -33,7 +33,7 @@ declared_types() ->
     "type RemoteError = NoRemotePeer | PeerLost\n"
     "type Where = Local | Peer(String)\n"
     "type Size = Size(rows : Int, columns : Int)\n"
-    "type Event = Char(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter\n"
+    "type Event = Key(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter\n"
     "           | Escape | Interrupt | Pasted(String) | Resized(Size)\n"
     "type TerminalMsg = Subscribe(to : Address(Event), reply : Reply(Unit))\n"
     "                 | Measure(reply : Reply(Optional(Size)))\n"

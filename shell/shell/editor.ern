@@ -100,7 +100,7 @@ export fn edit(state : State, event : Event) -> Edit = match state {
 // shows what the name at the cursor is. Any other sequence is the
 // `Escape` key and the characters after it, as §8.2 delivers it.
 fn bracket(state : State, event : Event) -> Edit = match event {
-    Char('Z') -> Documenting(state)
+    Key('Z') -> Documenting(state)
   | other -> plain(state, other)
 }
 
@@ -117,7 +117,7 @@ fn plain(state : State, event : Event) -> Edit = {
       | Resized(_) -> Typing(state)
       // report §11.2: a paste goes in at the cursor, line feeds and all
       | Pasted(text) -> Typing(insert(state, text))
-      | Char(c) -> character(state, c)
+      | Key(c) -> character(state, c)
     }
 }
 
@@ -156,14 +156,14 @@ fn meta(state : State, event : Event) -> Edit = {
         Enter -> Typing(newline(state))
       // report §8.2: `Escape [` begins a sequence §9.3 does not name,
       // of which `Escape [ Z` is `Shift-Tab`
-      | Char('[') -> Typing(State(..state, pending = Bracket))
-      | Char('<') -> Typing(walkTo(state, List.size(behind(state))))
-      | Char('>') -> Typing(walkTo(state, 0))
-      | Char('b') -> Typing(State(..state, at = wordLeft(text, at)))
-      | Char('f') -> Typing(State(..state, at = wordRight(text, at)))
-      | Char('d') -> Typing(killFrom(state, wordRight(text, at)))
-      | Char('\u{8}') or Char('\u{7f}') -> Typing(killTo(state, wordLeft(text, at)))
-      | Char(_) -> Typing(state) // an unbound Meta key does nothing
+      | Key('[') -> Typing(State(..state, pending = Bracket))
+      | Key('<') -> Typing(walkTo(state, List.size(behind(state))))
+      | Key('>') -> Typing(walkTo(state, 0))
+      | Key('b') -> Typing(State(..state, at = wordLeft(text, at)))
+      | Key('f') -> Typing(State(..state, at = wordRight(text, at)))
+      | Key('d') -> Typing(killFrom(state, wordRight(text, at)))
+      | Key('\u{8}') or Key('\u{7f}') -> Typing(killTo(state, wordLeft(text, at)))
+      | Key(_) -> Typing(state) // an unbound Meta key does nothing
       // every other key does what it does, `Escape` before it or not
       | other -> plain(state, other)
     }
@@ -215,11 +215,11 @@ fn searching(state : State, s : Search, event : Event) -> Edit = match event {
     Enter -> Submit(stop(state))
   | Interrupt -> Cancel
   | Resized(_) -> Typing(state)
-  | Char('\u{12}') -> Typing(seek(state, Search(..s, forward = false), 1)) // C-r
-  | Char('\u{13}') -> Typing(seek(state, Search(..s, forward = true), -1)) // C-s
-  | Char('\u{7}') -> Typing(abandon(state, s)) // C-g
-  | Char('\u{8}') or Char('\u{7f}') -> Typing(shorten(state, s)) // Backspace
-  | Char(c) -> if c < ' ' then edit(stop(state), event) else Typing(narrow(state, s, c))
+  | Key('\u{12}') -> Typing(seek(state, Search(..s, forward = false), 1)) // C-r
+  | Key('\u{13}') -> Typing(seek(state, Search(..s, forward = true), -1)) // C-s
+  | Key('\u{7}') -> Typing(abandon(state, s)) // C-g
+  | Key('\u{8}') or Key('\u{7f}') -> Typing(shorten(state, s)) // Backspace
+  | Key(c) -> if c < ' ' then edit(stop(state), event) else Typing(narrow(state, s, c))
   | _ -> edit(stop(state), event)
 }
 
@@ -368,7 +368,7 @@ let ends = Test(name = "C-a and C-e go to the ends of the line", run = fn() =
         "XabcY", 5))
 
 let backspace = Test(name = "backspace deletes what is before the cursor", run = fn() =
-    reads(play(keys("abc") <> [Char('\u{7f}')]), "ab", 2))
+    reads(play(keys("abc") <> [Key('\u{7f}')]), "ab", 2))
 
 let forwardDelete = Test(name = "C-d deletes what is under the cursor", run = fn() =
     reads(play(keys("abc") <> [ctrl('a'), ctrl('d')]), "bc", 0))
@@ -423,7 +423,7 @@ let pastes = Test(name = "a paste goes in at the cursor, line feeds and all", ru
     reads(play(keys("ab") <> [ArrowLeft, Pasted("x\ny")]), "ax\nyb", 4))
 
 let asksToComplete = Test(name = "Tab asks the reader to complete", run = fn() =
-    match play(keys("Li") <> [Char('\t')]) {
+    match play(keys("Li") <> [Key('\t')]) {
         Completing(State(text = "Li")) -> Passed
       | other -> Failed(said(other))
     })
@@ -498,12 +498,12 @@ let notKept = Test(name = "a blank input and one repeated are not kept", run = f
     else Failed("the history kept what it should not"))
 
 // Every event of a text typed a character at a time.
-fn keys(text : String) -> List(Event) = List.map(String.toList(text), fn(c) = Char(c))
+fn keys(text : String) -> List(Event) = List.map(String.toList(text), fn(c) = Key(c))
 
 // A control key as the terminal sends it: `C-a` is 1 (§8.2).
 fn ctrl(c : Char) -> Event = match Char.fromInt(Char.toInt(c) - 96) {
-    Some(k) -> Char(k)
-  | None -> Char(c)
+    Some(k) -> Key(k)
+  | None -> Key(c)
 }
 
 // The events in order, from a fresh line; an event after the line ended
