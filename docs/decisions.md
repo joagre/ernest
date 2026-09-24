@@ -3754,6 +3754,10 @@ That modules may not depend on each other in a cycle was stated only in §11.1, 
 
 §4.2's "the effect of a function aside" meant that a function's mailbox type is exempt from the rule that an exported declaration names no private type, so an exported entry point may receive a private message type; the report now says so, as the guide did. §7.2's "The error type across the boundary is its own, distinct from the function's" constrained nothing a program could break, and a report states rules; it went.
 
+## E.0 Rule 2 States Its Constraint, 2026-09-24
+
+E.0 rule 2 ended "A verb not in this list needs an entry in the decisions log", which made this log a condition in a normative rule, and the log is never normative. What the gate protected was one verb per operation, with no synonym for a verb the list has. The rule now says that itself: a verb not in the list names an operation none of the listed verbs does, and one verb names it in every module that has it. It can be checked against Appendix E alone. The log still records why a verb was chosen, as it records every decision.
+
 ## Later
 
 Planned or considered, not in the language today.
