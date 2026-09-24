@@ -17,9 +17,10 @@ Actorson until 12 September 2026.
 
 ## Where we are
 
-**MVP 2.6, the shell, checkpoint 4.** Checkpoints 0 to 3 are done: the loop and the terminal
-harness, bindings and the commands, the live region, and the line editor with history,
-multi-line input and paste. What is left of the milestone is in "MVP 2.6" below, in order.
+**MVP 2.6, the shell, its closing sweep.** Checkpoints 0 to 4 are done: the loop and the
+terminal harness, bindings and the commands, the live region, the line editor with history,
+multi-line input and paste, and completion and documentation. What is left of the milestone,
+the sweep and a session of real use, is in "MVP 2.6" below, in order.
 
 **Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23, and MVP 2.61, the
 guide as the user's document, on 2026-09-24, after which CLAUDE.md was rewritten for
@@ -38,7 +39,7 @@ so a decision they must see goes here.
 | MVP 1 | the chain: parser, types, BEAM | done 2026-09-18, tag `mvp1` |
 | MVP 2 | the rest of the report on one node | done 2026-09-19 |
 | MVP 2.5 | a complete standard library | done 2026-09-20 |
-| **MVP 2.6** | **the shell** | **checkpoints 0–3 done; checkpoint 4 next** |
+| **MVP 2.6** | **the shell** | **checkpoints 0–4 done; the closing sweep next** |
 | MVP 2.61 | the guide as the user's document | done 2026-09-24, out of order |
 | MVP 2.65 | the language and the toolchain read back | after 2.6 |
 | MVP 2.66 | introduce a supervisor behaviour? | after 2.6 |
@@ -66,7 +67,7 @@ the shell is neither standard library nor library but the toolchain's own progra
 | 1 | bindings, `it`, timing, declarations at the prompt, the commands, fault reports, `:load`/`:reload`, the startup files | done 2026-09-20 |
 | 2 | the terminal and the live region, `:output <path>` | done 2026-09-21 |
 | 3 | the line editor: editing, history and its search, multi-line input, bracketed paste | done 2026-09-21 |
-| 4 | completion and documentation | **next** |
+| 4 | completion and documentation | done 2026-09-24 |
 
 **What is left.**
 
@@ -150,13 +151,21 @@ the shell is neither standard library nor library but the toolchain's own progra
   input was never entered under, is taken away when the session takes that input (the
   screen's `Taken`), so its answer starts a row of its own. `typing_ahead_test_` is the
   regression test, and the program session types its second input ahead again.
-- **The closing sweep**, as the working rules require at the end of a plan step: the guide
-  read against the report, then every other document against the report and the code. It
-  writes into report §11.2 `Tab` completion and `Shift-Tab` documentation, as it states the
-  editing keys, since §11 owns what the toolchain does (decided 2026-09-24);
-  `docs/shell_design.md` keeps how they are built. §11.2 is then read for restating: it was
-  1,254 words on 2026-09-24, over twice the 600 at which a section is read, most of it the
-  shell's rules.
+- **Done 2026-09-24: the closing sweep.** The guide was read against the report, and every
+  other document against the report and the code, by two readers who had not written them.
+  Report §11.2 now states `Tab` completion, `Shift-Tab` documentation, colour, `it`, the
+  file name `input`, the Readline keys, and a missing `HOME`; §11.5 the effect variable
+  printing elides. Read for restating at 1,584 words, every sentence a rule of its own, and
+  kept. Four defects the readers met in the toolchain were fixed, each with a regression
+  test: a timed wait as a session's first input in line mode was a deadlock, from a race
+  at spawn that a program could meet too, and §11.2's rule of no deadlock while a shell
+  holds the terminal had not been built (`spawned_row_test`, `shell_holds_no_deadlock_test`);
+  a prompt `let` with an unsettled effect variable crashed the next input
+  (`effect_variable_test_`); a declared name could print through another input's
+  substitution (the same test); and `:doc` painted a page red. The start line reads
+  `VERSION`, and a session without `HOME` says it keeps no history (`no_home_test_`). The
+  guide, the design note, the README, the architecture note, the feedback list, three
+  example headers, and two test headers were corrected.
 - **A session of real use.** The user works in the shell and reports what it is like; what
   that finds is fixed before the milestone closes or recorded in the design note. Nothing so
   far has been driven by hand — every test goes through the pseudo-terminal harness, which

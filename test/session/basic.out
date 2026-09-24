@@ -120,7 +120,7 @@ zero : () -> Int
   :processes      the live processes of the session, by spawn site
   :faults         the faults reported since the session began
   :output         a path, so a second window shows what programs write; - for the tail
-  :set            depth n, length n, timing on or off; :set alone shows them
+  :set            depth n, length n, output n, timing on or off; :set alone shows them
 The value of the last expression is `it`.
 > output goes to /tmp/ern-output-test.log
 > > output goes to /tmp/ern-output-test.log

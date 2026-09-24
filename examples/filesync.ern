@@ -8,9 +8,8 @@
 //
 // Assumptions. Fs and Clock are the standard library's system modules (report
 // Appendix E) over Sys.fs and Sys.clock (§8.2); Path, Entry, and IoError are
-// the prelude's (§9.3). errorText is a hand-written rendering for stdout,
-// todo("on paper") here. main runs syncer a itself so the program keeps
-// running (report §8.6).
+// the prelude's (§9.3). errorText is a hand-written rendering for stdout.
+// main runs syncer a itself so the program keeps running (report §8.6).
 //
 // Run under test since 2026-09-20: the harness prepares a and b, runs the
 // program for a few seconds, and reads the directories back, since the

@@ -1,4 +1,4 @@
-%% Plan 3.2: the MVP 1 programs compiled with bin/ernc and run with bin/ern
+%% Plan, MVP 1: the programs compiled with bin/ernc and run with bin/ern
 %% as a user would, output compared as a multiset of lines with
 %% expected/<name>.out, since prints from different processes interleave
 %% by scheduling. Run from this directory by its Makefile.

@@ -33,8 +33,7 @@ Field selection is the biggest issue, and the shell has now given it three witne
 
 The `Shell.Editor.fresh` resolution failure and the three runtime races were implementation defects, not language warts; they only showed that the report was silent on a consequence (§4.2 gained one sentence).
 
-What I would actually put to you as candidate language changes: field selection (already queued for MVP 2.6) and, much more tentatively, some way to name a prelude constructor a module has shadowed, decided on 2026-09-24 as `Prelude.X`. The rest I would record and leave alone.
-```
+What I would actually put to you as candidate language changes: field selection (planned for MVP 2.65) and, much more tentatively, some way to name a prelude constructor a module has shadowed, decided on 2026-09-24 as `Prelude.X`. The rest I would record and leave alone.
 
 ## Found while writing completion, 2026-09-21
 
@@ -45,11 +44,10 @@ What I would actually put to you as candidate language changes: field selection 
    general shape is worth a thought: a process that dies of a boundary fault takes its
    silence with it unless someone monitors it.
 
-10. **Fixed 2026-09-24: typing ahead lost the second input (plan, MVP 2.6).**
-    10. **Typing ahead while an input runs looks wrong** (found by a test that sent a second
-    input before the first had finished; the second never produced a result within thirty
-    seconds). Not yet diagnosed, and the shell's own, not the language's — recorded here so
-    it is not lost, and it belongs to the hands-on session that closes MVP 2.6.
+10. **Fixed 2026-09-24: typing ahead lost the second input (plan, MVP 2.6).** Found by a
+    test that sent a second input before the first had finished; the second never produced a
+    result. The session, awaiting the first input's result, took the second out of its mailbox
+    and dropped it. The shell's own defect, not the language's.
 
 ## The standard library's shims, 2026-09-23
 

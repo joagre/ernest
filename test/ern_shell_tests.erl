@@ -597,6 +597,33 @@ pattern_let() ->
     ?assertMatch({_, _}, binary:match(Out, <<"a `let` with `<-` at the prompt has no block">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"the types of e, f are not determined">>)).
 
+%% report §11.2, §3.9, §8.6: a `let` at the prompt is a block `let`, so a
+%% binding whose effect variable nothing settles is refused, as a block
+%% refuses it, and a timed receive is no deadlock in line mode, first
+%% input or not. A declared name prints its own scheme after inputs whose
+%% type state numbers other variables alike. A regression test for three
+%% defects: the effect variable entered the session unbound and crashed
+%% the next input's check, the first input's timed wait was a deadlock,
+%% and the scheme printed through the later input's substitution
+effect_variable_test_() ->
+    {timeout, 60, fun effect_variable/0}.
+
+effect_variable() ->
+    In = filename:join("/tmp", "ern_eff_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = file:write_file(In, "receive { after 300 -> 5 }\n"
+                             "let h = fn() = Io.println(\"x\")\n"
+                             "let f = fn(x : Int) = x + 1\n"
+                             "f(2)\n"
+                             "fn g() -> Int with e = receive { after 5 -> 5 }\n"
+                             ":type g\n"),
+    {0, Out} = sh("../bin/ern --shell < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"> 5 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"the type of h is not determined by this input;"
+                                             " it is () -> Unit with e">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> f : (Int) -> Int\n> 3 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> g : () -> Int with e\n"
+                                             "> g : () -> Int with e\n">>)).
+
 %% report §11.2: a file without an entry point is loaded by the shell and
 %% nothing is spawned, so a library module is put in scope to be tried. A
 %% regression test: the shell refused a module without `main`
@@ -773,6 +800,24 @@ terminal() ->
     ?assertMatch({_, _}, binary:match(Screen, <<"2 : Int">>)),
     %% the interrupt reached the shell as a key; the session was not ended
     ?assertMatch({_, _}, binary:match(Screen, <<"Killed">>)).
+
+%% report §11.2: the start line names the toolchain's version, the one
+%% `VERSION` holds, and a session at a terminal without `HOME` says once
+%% that it keeps no history. A regression test: the version was written
+%% into the shell by hand, and a missing home was passed over in silence
+no_home_test_() ->
+    {timeout, 60, fun no_home/0}.
+
+no_home() ->
+    {ok, Version} = file:read_file("../VERSION"),
+    Screen = pty("env -u HOME ../bin/ern --shell",
+                 [{expect, "HOME is not set"},
+                  {send, hex("1 + 1\r")},
+                  {expect, "2 : Int"},
+                  {send, "04"}],
+                 20),
+    ?assertMatch({_, _}, binary:match(Screen, <<"Ernest ", (string:trim(Version))/binary, ".">>)),
+    ?assertEqual(1, length(binary:matches(Screen, <<"the history is not kept">>))).
 
 %% A terminal session with a home of its own, so that a test neither
 %% reads nor writes the person's startup files or history (report §11.2).

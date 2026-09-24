@@ -14,7 +14,7 @@
 -export([bindings/1, forget/2, browse/2, doc/2, names/0, context/1,
          documentation/1]).
 -export([deaths/1, mine/0, faults/0, processes/0, load/2, reload/1, output/1]).
--export([is_terminal/0, colours/0, write/1, screen/1, to_screen/1]).
+-export([is_terminal/0, version/0, colours/0, write/1, screen/1, to_screen/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -294,7 +294,7 @@ undetermined(_Type, _TEnv, {names, []}, _Typed) ->
     none;
 undetermined(Type, TEnv, Binds, Typed) ->
     St = ern_typecheck:type_state(TEnv),
-    case ern_types:free_value_vars(ern_types:zonk(Type, St), St) of
+    case ern_types:free_vars(ern_types:zonk(Type, St), St) of
         [] ->
             none;
         _ ->
@@ -304,7 +304,8 @@ undetermined(Type, TEnv, Binds, Typed) ->
                                      io_lib:format(undetermined_text(Binds),
                                                    [bound_names(Binds), Text])),
                          help = "bind it with an annotation that settles the variable,"
-                                " as in `let xs : List(Int) = []`"}}
+                                " as in `let xs : List(Int) = []`, or declare a function"
+                                " with `fn`"}}
     end.
 
 undetermined_text({names, [_, _ | _]}) ->
@@ -1078,6 +1079,12 @@ is_terminal() ->
     catch _:_ -> false
     end.
 
+%% The toolchain's version, the top-level VERSION file, passed by the
+%% Makefile.
+-spec version() -> binary().
+version() ->
+    list_to_binary(?VERSION).
+
 %% Report §11.2: the shell colours what it says at a terminal, and not where
 %% the environment sets NO_COLOR to anything, as that convention asks. The
 %% environment is the host's until `Sys.env` (plan, MVP 2.7).
@@ -1190,7 +1197,7 @@ unbound(#checked{}) -> false.
 %% reach, and `declared/1` says that it was not bound.
 open(Type, TEnv) ->
     St = ern_typecheck:type_state(TEnv),
-    ern_types:free_value_vars(ern_types:zonk(Type, St), St) =/= [].
+    ern_types:free_vars(ern_types:zonk(Type, St), St) =/= [].
 
 bound(Env, Name, Value, Type, TEnv) ->
     bound(Env, [{Name, Value, Type}], TEnv).

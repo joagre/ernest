@@ -3,8 +3,10 @@
 #
 # The integration tests: every MVP 1 program compiled with bin/ernc and run
 # with bin/ern, output compared with expected/<name>.out; the document
-# tests, every citation in a live document resolving to a heading; and the
-# style tests, what docs/style.md says a machine can check.
+# tests, every citation in a live document resolving to a heading; the
+# style tests, what docs/style.md says a machine can check; the guide's
+# examples, compiled and run; and the shell and the terminal, driven through
+# the pseudo-terminal.
 
 EBIN = ebin
 ERLC_FLAGS = +debug_info -Werror

@@ -7,8 +7,8 @@
 // Assumptions. Tcp and Clock are the standard library's system modules (report
 // Appendix E) over Sys.tcp and Sys.clock (§8.2). The sessions are a process
 // that owns a Map, since state shared by processes is a process (§10).
-// errorText is a hand-written rendering for stdout, todo("on paper") here.
-// main runs the acceptor itself so the program keeps running (report §8.6).
+// errorText is a hand-written rendering for stdout. main runs the acceptor
+// itself so the program keeps running (report §8.6).
 //
 // Run under test since 2026-09-20: the harness starts the server, makes two
 // requests over one session, and stops it, since the program itself serves

@@ -6,7 +6,7 @@
 -export([new/0, fresh/1, fresh/2, fresh_named/2, fresh_effect/1, flags/2, var_level/2, add_flag/3,
          enter/1, leave/1, level/1,
          resolve/2, zonk/2, unify/3, occurs_free/2,
-         generalize/2, generalize/3, instantiate/2, mono/1, free_vars/2, free_value_vars/2,
+         generalize/2, generalize/3, instantiate/2, mono/1, free_vars/2,
          value_vars/1, effect_vars/1, mismatch_pair/3,
          format/2, format_scheme/2, format_call/4, format_error/1, set_scope/4]).
 
@@ -202,24 +202,6 @@ adjust_levels(Id, T, #st{vars = Vs} = St) ->
 free_vars(T, St) ->
     lists:reverse(free_vars(T, St, [])).
 
-%% Report §3.9: the free variables in value position only, the effect
-%% slot of every arrow left out. A value whose type has one is a value
-%% whose type is not determined; an effect variable is ordinary
-%% polymorphism and determines nothing about the value.
--spec free_value_vars(type() | pure, st()) -> [id()].
-free_value_vars(T, St) ->
-    lists:reverse(free_value_vars(T, St, [])).
-
-free_value_vars(T, St, Acc) ->
-    case resolve(T, St) of
-        {tvar, Id} -> case lists:member(Id, Acc) of true -> Acc; false -> [Id | Acc] end;
-        {tcon, _, Args} -> lists:foldl(fun(A, Ac) -> free_value_vars(A, St, Ac) end, Acc, Args);
-        {ttuple, Es} -> lists:foldl(fun(E, Ac) -> free_value_vars(E, St, Ac) end, Acc, Es);
-        {tfn, Ps, _Effect, R} ->
-            lists:foldl(fun(X, Ac) -> free_value_vars(X, St, Ac) end, Acc, Ps ++ [R]);
-        pure -> Acc
-    end.
-
 free_vars(T, St, Acc) ->
     case resolve(T, St) of
         {tvar, Id} -> case lists:member(Id, Acc) of true -> Acc; false -> [Id | Acc] end;
@@ -386,12 +368,16 @@ format_scheme(#scheme{type = T} = Scheme, St) ->
     format(T, scheme_state(Scheme, St)).
 
 %% The state with a scheme's variables named as its declaration names them.
-scheme_state(#scheme{vars = Vars, names = Names}, #st{vars = Vs} = St) ->
+%% They are the scheme's own, bound by it, so the state's substitution does
+%% not reach them: a scheme another module or an earlier input declared
+%% numbers its variables in a state of its own, where the same id may be
+%% bound here to something else.
+scheme_state(#scheme{vars = Vars, names = Names}, #st{vars = Vs, subst = S} = St) ->
     Vs1 = lists:foldl(fun({Id, Flags}, Acc) ->
                           TV = maps:get(Id, Acc, #tv{id = Id, level = 0}),
                           Acc#{Id => TV#tv{flags = Flags, name = maps:get(Id, Names, undefined)}}
                       end, Vs, Vars),
-    St#st{vars = Vs1}.
+    St#st{vars = Vs1, subst = maps:without([Id || {Id, _} <- Vars], S)}.
 
 %% Report §11.2: a function's signature as `Shift-Tab` shows it inside a
 %% call, each parameter under the name its declaration gives it, where it

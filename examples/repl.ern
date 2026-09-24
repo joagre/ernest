@@ -9,8 +9,8 @@
 //
 // Assumptions. Io.readLine is the standard library's (report Appendix E) over
 // Sys.stdin (§8.2). ParseError.toString and EvalError.toString are hand-written
-// renderings for stdout; both are todo("on paper") here. main runs the loop
-// itself so the program keeps running (report §8.6).
+// renderings for stdout. main runs the loop itself so the program keeps
+// running (report §8.6).
 //
 // Compiles and type-checks since 2026-09-20, and runs under test since the
 // same day on a fixed input, test/input/repl.in, which ends the loop.

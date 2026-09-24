@@ -95,7 +95,7 @@ make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md
 make sections     list the report sections no test cites
-make xref         check that every section citation in the documents resolves
+make xref         check that every section citation and document path in the documents resolves
 make coverage     every section with how many tests cite it, thinnest first
 make golden       rewrite test/golden/, the Erlang the compiler emits per example
 make clean        remove build products
@@ -117,7 +117,7 @@ bin/ernc --errors short examples/hello.ern   # the first line of each error only
 bin/ern --create-config-dir .                # .ernest/ with a key pair
 bin/ern --shell                              # a shell over the standard library
 bin/ern --shell build/main.erc               # a shell beside a running program
-bin/ern --test build/stdlib/list.erc         # the module's tests
+bin/ern --test build/shell/shell/editor.erc  # the module's tests
 bin/ernc --load-path build/libs/ets --out-dir build/app app   # a program using a library
 bin/ern --load-path build/libs/ets build/app/main.erc         # and run with it
 ```

@@ -166,8 +166,11 @@ reason(Other) -> {'Fault', format("~p", [Other])}.
 reaper_loop(Waiters) ->
     receive
         {spawn, From, Ref, Fun, Site} ->
-            {Pid, _MRef} = erlang:spawn_monitor(fun() -> run(Fun) end),
+            %% the process starts once its row is in the table, since a
+            %% timed receive it enters first counts itself there (§8.6)
+            {Pid, _MRef} = erlang:spawn_monitor(fun() -> receive Ref -> run(Fun) end end),
             ets:insert(?PROCESSES, {Pid, Site, alive, 0, 0}),
+            Pid ! Ref,
             From ! {Ref, Pid},
             reaper_loop(Waiters);
         {await, Pid, To, Wrap} ->
@@ -246,10 +249,12 @@ died(Pid, Site, Reason) ->
 %% it is running rather than waiting, and the check sees that. The reaper
 %% is the process making the check, so its own mailbox is what is read of
 %% it. §8.6 leaves a foreign process that can deliver to the runtime, and
-%% the one the shell registers for deaths (§11.2) is counted here.
+%% the one the shell registers for deaths (§11.2) is counted here. Report
+%% §11.2: nothing is a deadlock while a shell holds the terminal.
 deadlocked() ->
     Rows = [{Pid, T, F} || {Pid, _, alive, T, F} <- ets:tab2list(?PROCESSES)],
-    Rows =/= []
+    terminal_holder() =:= undefined
+        andalso Rows =/= []
         andalso lists:all(fun({_, T, F}) -> T =:= 0 andalso F =:= 0 end, Rows)
         andalso sources() =:= 0
         andalso quiet_system()

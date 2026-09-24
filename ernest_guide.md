@@ -134,7 +134,7 @@ Two ways of writing `with` follow, and the guide's programs use both. A function
 
 ### 1.2 The shell
 
-`ern --shell` starts a shell. An input is an expression or a declaration; it is checked and run when it is entered, and its value is printed with its type.
+`ern --shell` starts a shell. An input is an expression, a declaration, or a `let`. It is checked and run when it is entered, after any input still running, and an expression's value is printed with its type and kept as `it`.
 
 ```console
 $ ern --shell
@@ -153,9 +153,13 @@ square : (Int) -> Int
 hello
 ```
 
-A value of type `Unit` prints nothing, so the last input shows only what it wrote. A command begins with `:`. `:type e` prints the type of `e` without running it, `:doc List.sort` prints the documentation of `List.sort`, and `:help` lists the rest. `ern --shell hello.erc` starts the shell with `hello`'s module in scope and its `main` running beside it.
+A value of type `Unit` prints nothing, so the last input shows only what it wrote. A command begins with `:`. `:type e` prints the type of `e` without running it, `:doc List.sort` prints the documentation of `List.sort`, and `:help` lists the rest. `ern --shell hello.erc` starts the shell with `hello`'s module in scope and its `main` running beside it. A module without `main` is put in scope with nothing running, to be tried at the prompt.
 
-At a terminal the shell edits the line with Readline's Emacs keys, and keeps a history across sessions that `C-r` searches. `Tab` completes the word before the cursor, by its prefix or by its word starts, `L.fM` to `List.filterMap`, and offers only what may stand there: a type after `:`, a constructor in a pattern, a field inside a constructor's parentheses. `Shift-Tab` shows the type and first sentence of the name at the cursor, and pressed again its documentation. An input the parser cannot finish takes another line. What programs write appears in a region at the foot of the screen, apart from the inputs, and a process that faults is reported at the prompt with the place it was spawned. `:reload` compiles and loads a module whose source has changed, and processes running the old version go on running it.
+At a terminal the shell edits the line with Readline's Emacs keys, and keeps a history across sessions that `C-r` searches. An input the parser cannot finish takes another line. What programs write appears in a region at the foot of the screen, apart from the inputs, and a process that faults is reported at the prompt with the place it was spawned. A fault and an error are shown in red and a result's type dimmed, unless the environment sets `NO_COLOR`.
+
+`Tab` completes the word before the cursor, by its prefix or by its word starts, `L.fM` to `List.filterMap`. It offers only what may stand there: a command after a leading `:`, a type after `:` in an annotation, a constructor in a pattern, a field inside a named constructor's parentheses. `Shift-Tab` shows the type, the first sentence, and the version of the name at the cursor, and pressed again its documentation. Inside a call it shows the callee's signature, the argument at the cursor in colour.
+
+`:reload` compiles and loads a module whose source has changed. Processes running the old version go on running it until the next reload of that module, which ends them.
 
 ### 1.3 Reading input
 
@@ -456,7 +460,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 
 ### 2.9 The standard library
 
-The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char`, `Bytes`, `Bool`, `Int`, `Float`, `Optional`, `Either`, `Path`, `Random`, and a few more, and one per system process, `Io`, `Clock`, `Terminal`, `Fs`, `Tcp`. It is always on the load path. Its rules let you guess a name before looking it up (report Appendix E.0):
+The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char`, `Bytes`, `Bool`, `Int`, `Float`, `Optional`, `Either`, `Path`, `Random`, and a few more, and the system modules `Io`, `Clock`, `Terminal`, `Fs`, and `Tcp`, through which a program uses the runtime's system processes. It is always on the load path. Its rules let you guess a name before looking it up (report Appendix E.0):
 
 - **One verb per operation, in every module that has it.** `Map.get(m, k)` and `List.get(xs, 0)`; `size`, `isEmpty`, `contains`, `put`, `remove`, `map`, `filter`, `foldLeft`, `find`, `fromList`, `toList` wherever they apply.
 - **Subject first, callbacks last**, so the pipe works: `xs |> List.foldLeft(0, fn(acc, x) = acc + x)`.
@@ -540,7 +544,7 @@ addN : (Int) -> Int
 
 `addN` captures `n`: a lambda closes over the bindings it names.
 
-A lambda's body extends as far as the text allows: to the `,`, `;`, `|`, or closing bracket of the form around it, or to a `then` or `else`.
+A lambda's body extends as far as the text allows: to the `,`, `;`, `|`, `>>`, or closing bracket of the form around it, or to a `then` or `else`.
 
 ### 3.3 Type inference and its limits
 
@@ -565,7 +569,7 @@ Other limits worth knowing:
 
 ### 3.4 Pure functions and functions with a mailbox effect
 
-A function whose type has no `with` is *pure*. It cannot send, receive, spawn, or call a `foreign fn` that has an effect. A function with `with M` may act through a process whose mailbox takes `M`.
+A function whose type has no `with` is *pure*. It cannot send, receive, spawn, ask for its own address, or call a `foreign fn` that has an effect. A function with `with M` may act through a process whose mailbox takes `M`.
 
 Either kind of function can fault or run for ever: `a / b` with `b = 0` faults although its type is `(Int, Int) -> Int`, and `todo("...")` has every type and faults when it is reached. The `with` says only that a function acts through a process, not whether it can fault (§6).
 
@@ -581,11 +585,9 @@ An effect variable may stand for a mailbox type or for pure. One that also appea
 
 The process operations, `self`, `send`, `spawn`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, `kill`, and `remote`, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
 
-
-
 ### 3.6 One spawn corner: pure callbacks
 
-`spawn`'s callback has type `() -> Unit with a`, and the `a` is also the mailbox of the `Address(a)` it returns. A callback declared pure has no mailbox and cannot be spawned. A process that never receives is spawned with the mailbox `Never`:
+`spawn`'s callback has type `() -> Unit with n`, and the `n` is also the mailbox of the `Address(n)` it returns. A callback declared pure has no mailbox and cannot be spawned. A process that never receives is spawned with the mailbox `Never`:
 
 ```console
 $ ern --shell
@@ -672,7 +674,7 @@ A `Reply` is an obligation: whoever holds one answers it exactly once, on every 
 
 The check is on paths, not on time. A path that faults or waits for ever never answers, and no compiler can see that; the caller's deadline covers it (§4.4).
 
-Since each reply is counted, a reply-carrying value is never copied or dropped. It cannot be an element of a `List`, a `Map`, or an `Optional`, and `_` cannot stand for one in a pattern. A server with many requests pending keeps each reply in a process of its own, as the queue of §4.4 does. In a printed type, a variable marked `!` is one that may not hold a reply, as in `dup : (a!) -> #(a!, a!)` for a function that copies its argument. Report §6.6 gives the whole discipline.
+Since each reply is counted, a reply-carrying value is never copied or dropped. It cannot be an element of a `List`, a `Map`, a `Set`, an `Optional`, or an `Either`, nor an operand of `==` or `!=`, and `_` cannot stand for one in a pattern. A server with many requests pending keeps each reply in a process of its own, as the queue of §4.4 does. In a printed type, a variable marked `!` is one that may not hold a reply, as in `dup : (a!) -> #(a!, a!)` for a function that copies its argument. Report §6.6 gives the whole discipline.
 
 Sending a request twice consumes its reply twice:
 
@@ -1183,7 +1185,7 @@ The parser refuses the text and goes on serving. A refusal is an answer, not a f
 
 ### 6.3 A fault
 
-A fault is what the program did not expect: a division by zero, a `todo` reached, a `Float` result out of range. Report §7.4 lists them all. A fault ends the process it happens in, and only that process. A process that monitors it receives a `Down` whose reason is `Fault(cause)`:
+A fault is what the program did not expect: a division by zero, a `todo` reached, a `Float` result out of range. Report §7.4 lists them all, and a failure of the runtime, out of memory among them, is one too (report §7.3). A fault ends the process it happens in, and only that process. A process that monitors it receives a `Down` whose reason is `Fault(cause)`:
 
 ```ernest
 type MainMsg = WorkerDied(Down)
@@ -1312,11 +1314,11 @@ GET /
 
 Directory mode compiles the modules in the order their dependencies need, and a second run compiles again only what changed (§9.1).
 
-**The file's path is its namespace.** A file at `a/b/c.ern` under the source root declares the namespace `A.B.C`: each directory and the file name is one lowercase word, and the namespace capitalizes each. A module of two words is a directory, `http/parser.ern` for `Http.Parser`. The source root is `--source-root dir`, or the directory `ernc` is given. A module may not take a namespace the prelude or the standard library has, so `io.ern` at the root is refused (report §4.2, report §11.1).
+**The file's path is its namespace.** A file at `a/b/c.ern` under the source root declares the namespace `A.B.C`: each directory and the file name is one lowercase word, and the namespace capitalizes each. A module of two words is a directory, `http/parser.ern` for `Http.Parser`. The source root is `--source-root dir`; without it, the directory `ernc` is given, or for a single file the working directory. A module may not take a namespace the prelude or the standard library has, so `io.ern` at the root is refused (report §4.2, report §11.1).
 
 **Declarations use local names.** In `net/http.ern`, `export fn parse(...)` declares `parse`, which the code outside reaches as `Net.Http.parse`, and the code inside by either name.
 
-**`export` marks the boundary.** A declaration with `export` is visible from other modules, and one without is the module's own. There is no `import` and no export list. The constructors of an exported type are exported with it; an abstract type's constructor is visible only to the definitions its signature lists (§7.2). An exported function's type may name only exported types, since a caller could neither build nor print a value of a type it cannot see (report §4.2).
+**`export` marks the boundary.** A declaration with `export` is visible from other modules, and one without is the module's own. There is no `import` and no export list. The constructors of an exported type are exported with it; an abstract type's constructor is visible only to the definitions its signature lists (§7.2). An exported function's type may name only exported types. Its mailbox type is exempt, so an exported `main` may receive a private message type (report §4.2).
 
 **A module's own name hides the prelude's.** A module may declare its own `Close`, which then means its own throughout the module; `Prelude.Close` still names the prelude's (report §4.2).
 
@@ -1335,7 +1337,7 @@ $ ern --test checks.erc
 adds two: passed
 ```
 
-`ern --test` runs every test of the module, each in a process of its own, and prints each as passed, failed with its text, or faulted with its cause. A test runs in a process, so it may spawn and send (report §9.3).
+`ern --test` runs every test of the module, each in a process of its own, and prints each as passed, failed with its text, or faulted with its cause. A test runs in a process, so it may spawn and send (report §11.2).
 
 **Documenting a module.** A `///` block documents the declaration on the line after it, and one first in the file, with a blank line after it, documents the module. The text is CommonMark; `ernc --doc` renders the module as a page, and the shell's `:doc` shows a declaration's part of it. What a module's documentation contains is report Appendix E.0 rule 6, and [`docs/module_doc_template.md`](docs/module_doc_template.md) shows it on an example module.
 
@@ -1473,7 +1475,7 @@ export foreign fn member(t : Table(k, v), key : k) -> Bool with m = "ets:member/
 
 External callers write `Ets.Table` and `Ets.member`. `foreign type` declares a type whose values only foreign functions make and read; Ernest has no constructor for it and cannot match it. `foreign fn` binds a name to a function on the other side, here Erlang's `ets:member/2`.
 
-The foreign side promises the declared types. A return value of the wrong shape faults the Ernest process that receives it, when it first looks at it; an Erlang exception becomes a fault of the calling process; and a message of the wrong type from foreign code faults its receiver on delivery. Purity is not checked: a `foreign fn` declared without `with` is trusted to have no effect (report §8.4).
+The foreign side promises the declared types. A return value of the wrong shape faults the Ernest process that receives it, when it first looks at it; an Erlang exception becomes a fault of the calling process; and a message of the wrong type from foreign code faults its receiver on delivery. Purity is not checked: a `foreign fn` declared without `with` is trusted to have no effect (report §4.7).
 
 In the other direction, an Ernest process's end is an Erlang exit reason, `normal`, `{ern, fault, Text}`, `{ern, killed}`, or `{ern, program_end}`, which Erlang code that monitors it reads (report §8.4).
 
@@ -1604,7 +1606,8 @@ Two commands and a shell, and a mode for Emacs. Report §11 defines each option.
 - `ernc --out-dir build src` compiles every module under `src` in dependency order, mirroring the tree into `build`. A module is compiled again only when its source, an interface it depends on, any interface of the standard library, or the compiler has changed, and a `.erc` whose source is gone is removed.
 - `--source-root dir` names the directory a module's namespace is read from, as §7.1 describes. `--load-path dir` adds compiled modules from outside the tree, such as a library.
 - `--errors short` prints the first line of each error only, `file:line:column: message`, for a tool to read.
-- `--doc file.ern` writes the module's documentation as CommonMark, and `--emit erl` writes the Erlang the module compiles to, for reading.
+- `--doc file.ern` writes the module's documentation as CommonMark. `--doc src` writes a page for each module under `src` and an `index.md`, and for the standard library's root a `prelude.md` as well.
+- `--emit erl` writes the Erlang the module compiles to, for reading.
 
 ### 9.2 `ern`, the runner
 
@@ -1612,14 +1615,14 @@ Two commands and a shell, and a mode for Emacs. Report §11 defines each option.
 - `--main Module.name` runs another exported function of no arguments instead of `main`.
 - `--load-path dir` adds compiled modules and Erlang `.beam` files the program needs (§8.5).
 - `--test module.erc` runs the module's tests and exits with status 1 unless all passed (§7.1).
-- `--shell`, with or without a file, starts the shell (§1.2). A file's `main` runs beside it.
+- `--shell`, with or without a file, starts the shell (§1.2). A file's `main`, or the function `--main` names, runs beside it; a file without either is loaded with nothing running. `--source-root dir` names where `:load` finds a module's source, and `--config-dir dir` the configuration directory.
 - `--create-config-dir .` makes the configuration a node with peers needs (§8).
 
 ### 9.3 The shell
 
-An input is an expression, a declaration, or a `let`, and a command begins with `:`. `:help` lists the commands, among them these: `:type` and `:doc` explain a name, `:browse` lists a module's exports, `:load` and `:reload` compile a module from its source, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, and `:set` changes how values are printed. A command may be shortened to any prefix of its name.
+An input is an expression, a declaration, or a `let`, and a command begins with `:`. `:help` lists the commands, among them these: `:type` and `:doc` explain a name, `:browse` lists a module's exports, `:load` and `:reload` compile a module from its source, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, `:set` sets the depth and length values are printed to and turns timing on and off, and `:output` sends what programs write to another window. A command may be shortened to any prefix of its name. Inputs entered while another runs wait, and run in the order entered.
 
-At a terminal the line is edited with Readline's Emacs keys. `Tab` completes a name, `Shift-Tab` shows its type and documentation, `C-r` searches the history, and `M-Enter` adds a line to the input. The history is kept in `$HOME/.ernest/history`, and the inputs in `$HOME/.ernest/startup` run when the shell starts.
+At a terminal the line is edited with Readline's Emacs keys. `Tab` completes a name, `Shift-Tab` shows its type and documentation, `C-r` searches the history, and `M-Enter` adds a line to the input. At a terminal the history is kept in `$HOME/.ernest/history`. When the shell starts it runs the inputs in `$HOME/.ernest/startup` and then those in the configuration directory's `startup`, `./.ernest` by default.
 
 ### 9.4 Emacs
 

@@ -71,6 +71,8 @@ foreign fn browse(env : Env, name : String) -> Either(String, List(String)) with
     "ern_shell:browse/2"
 foreign fn doc(env : Env, name : String) -> Either(String, String) with m = "ern_shell:doc/2"
 foreign fn isTerminal() -> Bool with m = "ern_shell:is_terminal/0"
+// The toolchain's version, which the host was built with.
+foreign fn version() -> String = "ern_shell:version/0"
 // Report §11.2: whether the shell colours what it says, at a terminal and
 // without `NO_COLOR`.
 foreign fn colours() -> Bool with m = "ern_shell:colours/0"
@@ -104,23 +106,28 @@ export fn main() -> Unit with ShellMsg = {
     // report §11.2: what a program writes goes to the tail, what the
     // session says is committed to the transcript
     setScreen(via(Wrote, screen));
-    send(screen, Said("Ernest 0.1.0. :help for the commands, :quit to leave.\n"));
+    send(screen, Said("Ernest " <> version() <> ". :help for the commands, :quit to leave.\n"));
     let state = State(env = start(), settings = defaults);
     // report §11.2: a process that faults is news at the prompt, whichever
     // it is; the watcher is in place before the program's entry point runs
     watchDeaths(via(Died, self()));
-    match program() {
-        None -> Unit
-      | Some(_) -> Unit
-    };
+    // report §11.2: the file's entry point is spawned beside the prompt,
+    // and its faults reach the watcher as any other process's do
+    let _ = program();
     if isTerminal() then {
         let me = self();
         // report §11.2: the inputs of the sessions before this one
-        let earlier = match Shell.History.read() {
-            Right(inputs) -> inputs
-          | Left(why) -> {
-                say(screen, "the history could not be read: " <> trouble(why));
+        let earlier = match Shell.History.file() {
+            None -> {
+                say(screen, "the history is not kept, since HOME is not set");
                 []
+            }
+          | Some(_) -> match Shell.History.read() {
+                Right(inputs) -> inputs
+              | Left(why) -> {
+                    say(screen, "the history could not be read: " <> trouble(why));
+                    []
+                }
             }
         };
         let reader = spawn(Local, fn() = {
@@ -321,7 +328,7 @@ let commands = [
     Entry(name = "output", command = Output, takes = None,
         about = "         a path, so a second window shows what programs write; - for the tail"),
     Entry(name = "set", command = Set, takes = None,
-        about = "            depth n, length n, timing on or off; :set alone shows them")
+        about = "            depth n, length n, output n, timing on or off; :set alone shows them")
 ]
 
 // An input is a command or Ernest.
@@ -383,7 +390,7 @@ fn obey(state : State, screen : Address(ScreenMsg), c : Command, arg : String)
         }
       | Doc -> match doc(env, arg) {
             Left(text) -> { say(screen, text); Continue(state) }
-          | Right(text) -> { diagnose(screen, text); Continue(state) }
+          | Right(text) -> { send(screen, Said(text)); Continue(state) }
         }
       | Output -> match output(arg) {
             Left(text) -> { say(screen, text); Continue(state) }
@@ -535,7 +542,7 @@ fn screenLoop(r : Shell.Region.Region) -> Unit with ScreenMsg = {
 // Report §11.2: on quitting, the region goes and the cursor is left on a
 // fresh line, so the terminal is as the shell found it.
 fn finish(screen : Address(ScreenMsg), text : String) -> Unit with m = {
-    diagnose(screen, text);
+    send(screen, Said(text));
     send(screen, Height(0));
     send(screen, Typing(text = "", at = 0));
     send(screen, Said("\n"));
@@ -845,8 +852,8 @@ fn taking(state : State, screen : Address(ScreenMsg), line : String) -> Unit wit
 fn readerDied(screen : Address(ScreenMsg), down : Down) -> Unit with ShellMsg =
     match down {
         Down(reason = Returned) -> finish(screen, "")
-      | other -> finish(screen, "the shell stopped reading the keyboard: "
-            <> faultLine(other) <> "\n")
+      | other -> finish(screen, Shell.Style.fault(colours(),
+            "the shell stopped reading the keyboard: " <> faultLine(other)) <> "\n")
     }
 
 // Report §11.2: what died while the session was reading. In line mode the

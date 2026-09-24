@@ -83,6 +83,37 @@ deadlock_test() ->
                                          ern_rt:in_foreign(fun() -> receive after 250 -> ok end end)
                                      end, <<"main">>, Quiet)).
 
+%% report §8.6: a process is in the table before it runs, so a timed
+%% receive it enters first is counted. A regression test for a lost count
+%% that made such a wait a deadlock, first seen at the shell's first input.
+%% Two thousand processes each look for their row first; before the fix
+%% some did not find it. A race can be won by luck, so a pass confirms the
+%% order rather than proving it
+spawned_row_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               [ern_rt:spawn('Local',
+                             fun() -> Me ! {row, ets:lookup(ern_processes, erlang:self())} end,
+                             <<"s">>)
+                || _ <- lists:seq(1, 2000)]
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    Rows = [wait(row) || _ <- lists:seq(1, 2000)],
+    ?assertEqual([], [R || R <- Rows, R =:= []]).
+
+%% report §11.2: while a shell holds the terminal no deadlock is detected;
+%% here a message the runtime cannot see coming arrives after the detector
+%% has looked several times. A regression test: in line mode nothing else
+%% kept the detector away
+shell_holds_no_deadlock_test() ->
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           ern_rt:hold_terminal(ern_rt:self()),
+                           Me = ern_rt:self(),
+                           erlang:spawn(fun() -> timer:sleep(500), Me ! late end),
+                           receive late -> ok end
+                       end, <<"main">>, #{stdout => fun(_) -> ok end})).
+
 %% report §6.9: Down carries the reason and the spawn site
 monitor_test() ->
     Me = self(),

@@ -15,13 +15,13 @@ let kept = 1000
 // How long to wait for the file system, which is a local file.
 let wait = 5000
 
-// The host's alone: the person's home directory, and none where the
-// environment names none.
-foreign fn historyFile() -> Optional(String) with m = "ern_shell:history_file/0"
+// The host's alone: the file in the person's home directory, and none
+// where the environment names no home.
+export foreign fn file() -> Optional(String) with m = "ern_shell:history_file/0"
 
 // The inputs of the sessions before this one, newest first. A file that
 // holds more than the last thousand is trimmed to them as it is read.
-export fn read() -> Either(IoError, List(String)) with m = match historyFile() {
+export fn read() -> Either(IoError, List(String)) with m = match file() {
     None -> Right([])
   | Some(name) -> {
         let path = Path(name);
@@ -56,7 +56,7 @@ fn text(inputs : List(String)) -> String =
 
 // One input, appended as the shell takes it. The directory is made when
 // it is not there, as it is not before a first session.
-export fn add(input : String) -> Either(IoError, Unit) with m = match historyFile() {
+export fn add(input : String) -> Either(IoError, Unit) with m = match file() {
     None -> Right(Unit)
   | Some(name) -> {
         let path = Path(name);

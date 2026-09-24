@@ -2,7 +2,7 @@
 
 The style guides for the two languages of this repository, Erlang and Ernest. CLAUDE.md imports this file; the rules are read every session.
 
-Four rules hold whatever the language, and `test/ern_style_tests.erl` checks the second and the third:
+Four rules hold whatever the language, and `test/ern_style_tests.erl` checks the second, the third, and the fourth's Erlang half:
 
 - A step of indentation is four spaces.
 - No file holds a tab.

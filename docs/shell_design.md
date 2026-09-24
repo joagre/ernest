@@ -6,7 +6,7 @@ The shell of MVP 2.6, `ern --shell` (report §11.2). The plan owns when it is bu
 
 The shell is an Ernest program of three processes over a front end. Its source is a tree of its own, `shell/`, beside `stdlib/` and `examples/`, compiled by `make` into `build/shell/` where `ern --shell` finds it. It is not standard library, which E.0 would not admit it to, and not a library, which `libs/` holds from MVP 2.7; it is the toolchain's own program, written in Ernest.
 
-- **The session** is the entry process (§8.1). It holds the `Env`, the queue of inputs, the settings, and the faults `:faults` prints. It receives inputs from the reader and outcomes and fault notices from the front end, and sends the screen what to print. It runs no user code.
+- **The session** is the entry process (§8.1). It holds the `Env` and the settings; the inputs typed meanwhile wait in its mailbox, and the faults `:faults` prints are the front end's. It receives inputs from the reader and outcomes and fault notices from the front end, and sends the screen what to print. It runs no user code.
 - **The reader** owns the terminal's keys and edits the input. It stays live while an evaluation runs. It sends a submitted input, and the interrupt, to the session; it draws nothing itself.
 - **The screen** is the only process that writes to the terminal, and the session drains it before it prompts and before it returns: the screen writes to the terminal itself, so the runtime's flush at the end of a program (§8.6) does not reach it, and the prompt must come after what an input printed whatever order two processes sent in. Its mailbox carries what a program printed, what the session prints, and the line and cursor the reader draws, so its type is the shell's own and not `String`; `Sys.stdout` and `Sys.stderr` stay the runtime's sink processes, and the session points them at `via(Wrote, screen)` with `setScreen`, so what a program writes arrives in the screen's mailbox as §9.7's `Address(String)` requires. What arrives there goes to the tail; what the session sends is committed to the transcript. A program's output and the shell's own reach one mailbox and are handled in its order, and the screen draws the line being typed again below whatever it has just written.
 - **The front end** is the Erlang toolchain behind the foreign interface: checking, compiling, running, printing, exports, documentation, and the fault notices.
@@ -16,12 +16,12 @@ The shell is an Ernest program of three processes over a front end. Its source i
 `ern [--config-dir dir] [--load-path dir ...] [--main Qualified.name] [--shell] [--source-root dir] [file.erc]` (§11.2). The shell adds the last two: `--shell` takes no argument and makes the file optional; `--source-root` says where `:load` finds a module's source, the working directory by default, as `ernc` defaults it.
 
 - **`ern --shell`** starts the runtime with the standard library and the load path, nothing else running.
-- **`ern --shell file.erc`** loads the module and its dependencies and spawns its entry point beside the prompt, every loaded module in scope. A file with no entry point, and no `--main`, is loaded and nothing is spawned, so a library module is put in scope to be tried. The runner loads them, runs their initializers (§8.5), and hands the front end their interfaces; the shell spawns the entry point itself, so that it can monitor it.
+- **`ern --shell file.erc`** loads the module and its dependencies and spawns its entry point beside the prompt, every loaded module in scope. A file with no entry point, and no `--main`, is loaded and nothing is spawned, so a library module is put in scope to be tried. The runner loads them, runs their initializers (§8.5), and hands the front end their interfaces; the shell spawns the entry point itself, and a fault in it reaches the session through the watcher of deaths, as any process's does.
 - **The shell is the entry process** (§8.1); the file's entry point is spawned, not entered. §8.6 then reads as it always did, of the shell: the spawned entry returning ends nothing, its processes keep running, a fault in it is one more fault reported at the prompt, and `--main Q.name` names the function to spawn rather than the one to be.
 - **The program's processes are the session's.** `:processes` sees them, `:faults` reports their faults, `:quit` ends them with `ProgramEnd` (§8.6).
 - **An input typed while another runs waits for it**, in the session's mailbox, and runs after it in the order entered (§11.2). It was entered with no prompt, the region showing none while an input runs; when the session takes it, the screen's `Taken` removes the prompt said after the previous answer, so the next answer starts a row of its own.
 - **An input cannot reach a process the program spawned.** There is no registry (§6.5), so the prompt has a running program's modules, its output, and its faults. A program meant to be driven from the prompt returns an address from the function that starts it.
-- **At start the shell prints one line**, the version and how to leave, `:quit` or `C-d`, with `:help` for the rest.
+- **At start the shell prints one line**, the version, which `VERSION` holds, and `:quit` to leave, with `:help` for the rest. At a terminal without `HOME` it says, once, that no history is kept (§11.2).
 - **Then it runs the startup inputs**, the person's and then the node's, after the file's entry point has been spawned, so a startup input sees what is running, and before the first prompt. On a terminal it waits for the reader to hold the keyboard first, so that a startup input which reads keys is refused as any other program would be (§8.2). A startup input that fails is reported as any input is and the session goes on.
 - **On `:quit`, or `C-d` on an empty line**, every process the session spawned ends with `ProgramEnd`. The history is already on disk, each input appended as it was taken.
 
@@ -66,8 +66,8 @@ A line the shell has finished with is *committed*: written into the terminal, sc
 - **A blank line always submits**, incomplete or not; what does not parse gives its error. So `Enter` twice is the way out of a multi-line input. An input with nothing in it submits too, though the parser cannot finish it: `Enter` at an empty prompt gives a new prompt, as it always has.
 - **The key decoder is ours.** OTP 29's `io_ansi:scan` scans terminal capabilities rather than keys: `\e[F` comes back as `cursor_previous_line`, which is not what the End key means, and a page key as a raw sequence. The decoder stays the runtime's own, and the measurement is in the decisions log, with the two flags of the host's raw mode that the runtime puts back.
 - **`M-Enter` adds a line to an input the parser thinks is finished**, which `type Shape = Dot` is before its alternatives and an `if` is before its `else`.
-- **The first multi-line input of a session prints `M-Enter adds a line, Enter runs.`** on a line of its own above the `... ` prompt, once; `:help` lists it. Not on the prompt itself: a hint there would shift the input's column for that line only, so the second line of a declaration would not line up with the third.
-- **A paste is one input.** The shell turns on the terminal's bracketed paste; a pasted text, blank lines included, is submitted by the `Enter` after it. It is checkpoint 3's work: `\e[200~` and `\e[201~` have to reach the decoder, which is a §9.3 question when it is built.
+- **The first multi-line input of a session prints `M-Enter adds a line, Enter runs.`** on a line of its own above the `... ` prompt, once. Not on the prompt itself: a hint there would shift the input's column for that line only, so the second line of a declaration would not line up with the third.
+- **A paste is one input.** The shell turns on the terminal's bracketed paste; a pasted text, blank lines included, is submitted by the `Enter` after it, and arrives as §9.3's `Pasted`.
 - **Functions that call each other are entered in one input.**
 - **Each input is compiled as a module of its own**, against the environment so far, and loaded. Its namespace is `Input<n>`, counting from 1 in the session, which a person sees: a fault in a process spawned at the prompt reads `Input3.main:1 faulted: division by zero` (§6.9). A module on the load path called `Input3` is unreachable in a session that has got that far.
 - **The reader stays live while an evaluation runs.** What is typed is echoed and edited; `Enter` queues the input to run when the one before it finishes, and several queue in order.
@@ -121,12 +121,12 @@ It does not hold the shell's settings, which are ordinary Ernest values; the his
 
 - **Each input runs in a fresh process**, whose mailbox type is the input's own inferred effect, a polymorphic one instantiated to `Never` as an entry point's is (§8.1).
 - **The front end starts that process**, since its mailbox type is known only once the input is checked, and answers with its address, which is what `C-c` kills.
-- **The outcome arrives as a message**, `Ok` with the new `Env` and the value, or `Failed` with the fault's text. A fault comes back as an outcome, so nothing needs monitoring.
+- **The outcome arrives as a message**, `Ok` with the new `Env` and the value, or `Faulted` with the fault's text. A fault comes back as an outcome, so nothing needs monitoring.
 - **A fault or an interruption ends that process only.** The session reports it and keeps the bindings. The session process never runs user code.
 
 ## Output
 
-- **An expression prints its value and its type**, the type as the checker prints it (§11.5): `3 : Int`. An expression of type `Unit` prints nothing, so `Io.println("hi")` answers `hi` and not `hi` then `Unit : Unit`. A declaration prints its name and type, `double : (Int) -> Int`; a `let` its name and type, `xs : List(Int)`; a type declaration its keyword and its name, `type Shape`. An input that declares several prints a line for each, in the order they were written.
+- **An expression prints its value and its type**, the type as the checker prints it (§11.5): `3 : Int`. An expression of type `Unit` prints nothing, so `Io.println("hi")` answers `hi` and not `hi` then `Unit : Unit`. An input that is one name prints the name's declared type, under the declaration's variable names (§11.2). A declaration prints its name and type, `double : (Int) -> Int`; a `let` its name and type, `xs : List(Int)`; a type declaration its keyword and its name, `type Shape`. An input that declares several prints a line for each, in the order they were written.
 - **A value is printed as `Io.debug` prints it** (E.1), by its type. The shell and `Io.debug` share one printer, `ern_show`, which takes a depth and a length that `Io.debug` passes unbounded; E.1 is unchanged, a program's `debug` printing the value.
 - **A large value is printed to that depth and length**, the rest as `...`. The defaults are depth 10 and length 100, and `:set depth 0` or `:set length 0` is neither: the defaults print whole what a prompt is used for and stop a value that would scroll the session away. Depth counts the brackets a reader would open, so a number or a string is never `...`.
 - **An input that does not check is shown as `ernc` shows an error** (§11.5), the input as the source and the span underlined. Nothing is run.
@@ -160,7 +160,7 @@ GNU Readline's Emacs bindings.
 - **History:** `C-p`, `C-n`, up and down step through earlier inputs, a multi-line one coming back whole, its lines under their continuation prompts and the cursor at the end; `M-<` and `M->` go to the first and the current; `C-r` searches back incrementally, `C-s` forward, `C-g` abandons the search and puts back the line it began from. A search shows Readline's prompt and the input it found in place of the line, after the shell's own `> `, with the cursor on the match; one that matches nothing says `failed` and keeps the input it last found.
 - **The history file is the person's**, `$HOME/.ernest/history` (report §11.2), read at start and appended to as each input is taken, an input abandoned with the interrupt among them. `Shell.History` is the module: only the path is `foreign`, and the reading, the escaping and the trim are Ernest over `Fs` ([`decisions.md`](decisions.md)).
 - **Adding a line:** `M-Enter`, when the input parses complete and is not.
-- **Interrupting:** `C-c` kills the running evaluation when there is one, and abandons the input being typed, every line of it, only when there is not. The bindings and the partial line survive, and the text goes to the history to recall and mend. A queued input is dropped with the evaluation it waited for.
+- **Interrupting:** `C-c` abandons the input being typed, every line of it, and kills the running evaluation when there is one. The bindings survive, and the abandoned text goes to the history to recall and mend. An input typed ahead is not the running one, so it waits and runs after it (§11.2).
 - **A paste is one event.** The runtime asks the terminal to bracket a paste while a program reads keys (§8.2), so pasted text arrives as `Pasted` with its line endings as line feeds; the editor puts it in the line at the cursor, and its line feeds add rows rather than running the input. A terminal that does not bracket a paste sends the characters, and each line feed in them runs what is typed so far, as typing does.
 - **`C-l`** clears the screen and keeps the line being typed. What was committed before it stays in the terminal's scrollback.
 - **Colour**, from `Shell.Style`, at a terminal and never with `NO_COLOR` set: a fault and a diagnostic's first line red, a printed value's type dimmed, a name bold in a listing and a brief, the parameter at the cursor cyan. The region measures a row without its escape sequences.
@@ -174,8 +174,8 @@ GNU Readline's Emacs bindings.
 - **What completes, by position:**
   - in an expression, the bindings, the modules on the load path, and their values and constructors;
   - after `:` in a type annotation, types;
-  - inside a named constructor, in construction, update (`Player(..p, `), or pattern, its remaining fields;
-  - at the start of an input, after `:`, a command; after a command, its argument: names for `:type` and `:doc`, modules for `:browse` and `:load`, the bindings for `:forget`, `depth`, `length`, `output`, and `timing` for `:set`.
+  - inside a named constructor, in construction, update (`Player(..p, `), or pattern, its fields;
+  - at the start of an input, after `:`, a command; after a command, its argument as in an expression, which holds the names `:type` and `:doc` take, the modules of `:browse` and `:load`, and the bindings of `:forget`. `:set`'s four words are not offered: `:set` alone shows them.
 - **`Tab` with nothing to complete indents**, four spaces, which is the style guide's rule and what a person does on a continuation row. A tab character is never inserted: in a line it is invisible, where spaces are what they look like (§0, principle 3), and the region would have to paint it to a stop. The two jobs never contend, since the cursor either has a word before it or it has not.
 - **Reserved words and operators do not complete.**
 - **Completion reads the compiled interfaces**, held in memory once read. The front end keeps the session's environment as each input is checked and answers `names()` from it, since the reader completes while an input runs, when the session is answering nothing. Reading the interfaces is the host's; the matching and the ranking are `Shell.Complete`, which is pure and tested by `ern --test`.
@@ -210,11 +210,10 @@ A program is started by calling it; there is no command for it. A module meant f
 
 ## Files
 
-- **`$HOME/.ernest/history`** — the history, per user, as a person expects when they type the same thing in two projects. With `HOME` unset nothing is saved and the shell says so once.
+- **`$HOME/.ernest/history`** — the history, per user, as a person expects when they type the same thing in two projects. With `HOME` unset nothing is saved and the shell says so once, at start.
 - **`$HOME/.ernest/startup`, then the configuration directory's `startup`** — the inputs run at start, commands included, a line an input and neither file required. The person's runs first and the node's after it, so a node adds to or overrides what a person always wants; `--config-dir` moves the second. Neither is a module and neither has a `.ern` extension: a `.ern` file under a source root is compiled with the project, and one in the configuration directory breaks the project's build, since `ernc` reads dotted directories and then rejects the path.
 - **A startup input shows nothing unless it fails.** Its value is not printed, a startup file being setup rather than a session; what does not check, or faults, is reported as any input is, under the path of the file it came from rather than `input`.
 - **The configuration directory** (§11.2, §11.3) is the node's, holding its address, its keys, and the node's own startup inputs.
-- **`:load`'s compiled output** goes to a directory of the shell's own, never beside the source, where it would land in the project's build and meet §11.1's cleanup sweep.
 
 ## Not in the shell
 
@@ -234,45 +233,20 @@ A program is started by calling it; there is no command for it. A module meant f
 
 ## Foreign interface
 
-A sketch, settled at checkpoint 1. The user's values are handles of distinct foreign types, so the shell cannot pass one kind where another is expected; types reach the shell as text.
+The front end's functions are what `shell/shell.ern` declares; this section says what shape they share. The user's values are handles of distinct foreign types, `Env`, `Checked`, and `Value`, so the shell cannot pass one kind where another is expected, and types reach the shell as text.
 
-The sketch the design started from; `shell/shell.ern` declares what was built.
-
-```
-foreign type Env      // the session so far: see "The environment"
-foreign type Checked  // a checked input
-foreign type Value    // a result, with its type
-type Outcome = Ok(env : Env, value : Value) | Failed(String)
-type Fault = Fault(site : String, cause : String) // the spawn site of §6.9 and the cause
-
-foreign fn start(loadPath : List(Path), sourceRoot : Path) -> Env with m = "..."
-foreign fn check(env : Env, input : String) -> Either(String, Checked) = "..."
-foreign fn typeText(c : Checked) -> String = "..."
-foreign fn declared(c : Checked) -> List(#(String, String)) = "..."
-foreign fn run(env : Env, c : Checked, to : Address(Outcome)) -> Address(Never) with m = "..."
-foreign fn show(v : Value, depth : Int, length : Int) -> String = "..."
-foreign fn exports(module : String) -> List(#(String, String)) = "..."
-foreign fn doc(name : String) -> Optional(String) = "..."
-foreign fn faults(wrap : (Fault) -> m) -> Unit with m = "..."
-foreign fn isTerminal() -> Bool with m = "..."
-foreign fn write(text : String) -> Unit with m = "..."        // the screen's own
-foreign fn setScreen(to : Address(String)) -> Unit with m = "..."
-foreign fn fields(env : Env, constructor : String) -> List(#(String, String)) = "..."
-
-foreign fn load(env : Env, module : String) -> Either(String, Env) with m = "..."
-foreign fn reload(env : Env) -> Either(String, #(Env, List(String))) with m = "..."
-foreign fn bindings(env : Env) -> List(#(String, String)) = "..."
-foreign fn forget(env : Env, name : String) -> Env = "..."
-foreign fn processes() -> List(#(String, String)) with m = "..."
-```
-
-`start` makes the first `Env`, the load path and the source root in it, and every later one comes from an outcome. `check` returns §11.5's diagnostic text on an error. `run` starts the input's process, answers with its address, and delivers `Ok` or `Failed` when it ends, which is E.0 rule 8's shape for anything that arrives later. It takes the address rather than a wrap, as the sketch had it: §8.4 makes a function value a handle foreign code may pass back but not inspect, and calling one is not passing it back, so the shell wraps at its end, `run(env, c, via(Done, self()))`, and the front end only sends. `typeText` is the type of an expression, for `:type`, which does not run it; `declared` is the names and types an input declares, which the shell prints and cannot read from an opaque `Env`. `exports` gives names with types, `doc` the section `:doc` prints, `faults` subscribes to what "Failing processes" shows. `fields` gives a named constructor's fields with their types, which completion needs and cannot get from `exports`, types crossing as text and the shell owning no parser of its own. The last five are the commands that reach past the shell: `load` and `reload` answer with the environment they made, `reload` also naming the modules it took; `bindings` and `forget` read and shrink the environment the shell cannot look into; `processes` asks the runtime what is alive. The processes `reload` ends need no shape of their own, §7.3 giving them a cause, so they arrive through `faults` as any other end does.
+- **`start` makes the first `Env`**, and every later one comes from an outcome, a `:load`, a `:reload`, or a `:forget`.
+- **`check` answers §11.5's diagnostic text on an error**, and a `Checked` otherwise. `typeText`, `declared`, and `unbound` read a `Checked`: for `:type` and a printed result, for what a declaration prints, and for whether `it` is left as it was.
+- **`spawnInput` starts the input's process**, answers with its address, and delivers `Ok` or `Faulted` when it ends, E.0 rule 8's shape for anything that arrives later. It takes an address rather than a wrap: §8.4 makes a function value a handle foreign code may pass back but not inspect, and calling one is not passing it back, so the shell wraps at its end with `via` and the front end only sends.
+- **Completion and documentation ask what only the front end knows:** `names` every name in reach, `context` what the parser wanted where it stopped, `needsMore` whether it ran out of input, `documentation` a name's page, and `signature` the call the cursor stands in. The matching and the ranking are `Shell.Complete`'s.
+- **The commands that reach past the shell** are `load`, `reload`, `bindings`, `forget`, `browse`, `doc`, `processes`, `faults`, and `output`. `load` and `reload` answer with the environment they made, `reload` also naming the modules it took. The processes a reload ends need no shape of their own, §7.4 giving them a cause, so they arrive through the watcher of deaths as any other end does.
+- **The rest is the host's alone:** `isTerminal`, `colours`, `version`, `startupFiles`, `Shell.History.file`, the screen's `write` and `setScreen`, `holdTerminal`, and `watchDeaths` with `mine`, which tell the session of every death but those of the shell's own processes.
 
 ## Prerequisites
 
 Delivered before the shell. Those marked report first are written into the report before the code.
 
-- **`Terminal`** delivers the arrows, the page keys, `Enter`, `Escape`, and characters, and the window's size as `Resized` (§9.3's `Event`). A sequence that is none of those arrives as `Escape` and the characters after it, which is how `Meta` and `Shift-Tab` reach the editor.
+- **`Terminal`** delivers the arrows, `Enter`, `Escape`, and characters, and the window's size as `Resized` (§9.3's `Event`). A sequence that is none of those arrives as `Escape` and the characters after it, which is how `Meta` and `Shift-Tab` reach the editor.
 - **`Event` gains one value for the terminal's interrupt** (§9.3), delivered only to the terminal's holder. A subscriber receives `Event` values and nothing else (E.16), so without it the byte cannot arrive. Report first.
 - **§7.4 gains the cause** a process ends with when the code it runs is unloaded, which `:reload` reports. Report first.
 - **The terminal is the shell's when `--shell` is given** (§11.2), and §8.2 gains the case: subscribing to the terminal and `Io.readLine` from anything else fault with the remedy in the text. Report first.
@@ -280,7 +254,7 @@ Delivered before the shell. Those marked report first are written into the repor
 - **The terminal's size**, asked for at each redraw, and a notice when it changes: `Terminal.size` and `Resized`, in checkpoint 2. Report first.
 - **Whether input is a terminal**, for line mode. Not in the report; report first.
 - **What the runtime knows about processes** — one system reference for two questions: subscribe me to the faults, and what is alive with its spawn site. The runtime holds both (§6.9); neither hands out an address, so §6.3 stands. Not in the report; report first.
-- **§11.2 states the shell's normative core:** the flag without an argument and the file optional with it; the shell as the entry process (§8.1) with the file's entry point spawned beside it, and what `--main` then names; the session as a scope in §4.2's lookup order, with a session type printed unqualified (§11.5); the terminal's holder; the interrupt read as a key; `Deadlock` not firing while a shell holds a source; types on every result, a module and a process per input, bindings that survive a fault, the commands and their prefix rule, and line mode.
+- **§11.2 states the shell's normative core:** the flag without an argument and the file optional with it; the shell as the entry process (§8.1) with the file's entry point spawned beside it, and what `--main` then names; the session as a scope in §4.2's lookup order, with a session type printed unqualified (§11.5); the terminal's holder; the interrupt read as a key; no deadlock detected while a shell holds the terminal; types on every result, a module and a process per input, bindings that survive a fault, the commands and their prefix rule, and line mode.
 - **`ern_show` takes a depth and a length**, which `Io.debug` passes unbounded, so the shell and E.1 keep one printer. A runtime change, not a report one.
 - **The parser answers that an input is incomplete**, distinctly from a diagnostic: it ran out of input where more was expected. It knows already and does not say. A front-end change; built 2026-09-21 as a flag on the diagnostic, since the parser has the diagnostic in hand and nothing else can tell.
 - **`ern` takes no file when `--shell` is given**, and its usage line grows `--source-root`. A toolchain change, built.
@@ -294,7 +268,7 @@ Settled since this list was written: the depth and length defaults are 10 and 10
 
 ## Testing
 
-- **A session is a golden test:** a file of inputs run in line mode, `ern --shell < session.ern`, against a file of expected output, under `test/`. A session that drives a program is not one: where a fault report lands among the inputs depends on when the process faults, so that session asserts what must be true of it instead.
+- **A session is a golden test:** a file of inputs run in line mode, `ern --shell < test/session/basic.in`, against a file of expected output, under `test/`. A session that drives a program is not one: where a fault report lands among the inputs depends on when the process faults, so that session asserts what must be true of it instead.
 - **The region is a pure function**, `Shell.Region`: the region and what happened in, the region after it and the bytes to write out. The screen process writes them and holds nothing else, so a test reads the bytes a redraw would have written.
 - **The line editor is tested on its own**, being the one part of the shell with no processes in it: its tests are top-level `Test` values in `Shell.Editor`, key lists played onto a fresh line with the text and the cursor read off, run by `ern --test` (§9.3) and by `make test` with it. The history file's escaping and the region's geometry, what rows an input takes and where the cursor rests in them, are tested the same way.
 - **Completion is tested on the foreign entries' answers:** a prefix and an environment in, candidates out.
