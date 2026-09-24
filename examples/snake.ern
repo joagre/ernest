@@ -13,8 +13,9 @@
 // main runs the game loop itself so that the world is one value in one
 // place, and while it runs the program keeps running (report §8.6).
 //
-// Compiled under test since 2026-09-20 and run by hand, since it wants a
-// terminal to read keys from and runs until Escape.
+// Compiled under test since 2026-09-20, and played under a pseudo-terminal by
+// test/ern_terminal_tests.erl since the same day, since it reads keys from a
+// terminal and runs until Escape.
 //
 
 //

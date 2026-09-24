@@ -1,7 +1,7 @@
 //
 // A pure parser
 //
-// From the implementation plan, 1.4: a parser with three failing steps over
+// From MVP 1's test programs: a parser with three failing steps over
 // Either, chained with `<-` (report §5.5). Parses "key=123" into a pair.
 // Expected output: "a 12", "bad key: =1", "expected =: a", "bad number: a=x".
 //

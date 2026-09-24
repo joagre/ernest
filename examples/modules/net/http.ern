@@ -1,7 +1,7 @@
 //
 // Two modules: the library half
 //
-// From the guide, §6.1. This file's path under the source root, net/http.ern,
+// From the guide, §7.1. This file's path under the source root, net/http.ern,
 // gives it the namespace Net.Http; main.ern calls Net.Http.parse. Build the
 // pair with ernc --out-dir build examples/modules and run with
 // ern build/main.erc.

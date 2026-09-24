@@ -1,7 +1,7 @@
 //
 // Two modules: the program half
 //
-// From the guide, §6.1. Calls Net.Http.parse from net/http.ern by its
+// From the guide, §7.1. Calls Net.Http.parse from net/http.ern by its
 // qualified name; there is no import. See net/http.ern for how to build.
 //
 // Needs net/http.ern compiled first; ernc directory mode does both in dependency

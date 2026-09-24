@@ -315,7 +315,7 @@ Map keys and set elements need equality. `==` is defined on every type except on
 
 ### 2.6 Patterns and irrefutability
 
-The same patterns appear in `match` clauses, `let` bindings, and function parameters. A `let` and a parameter need an *irrefutable* pattern, one that cannot fail to match: a name, `_`, a tuple of irrefutable patterns, or the only constructor of its type with irrefutable fields.
+The same patterns appear in `match` clauses, `let` bindings, and function parameters. A `let` and a parameter need an *irrefutable* pattern, one that cannot fail to match: a name, `_`, a tuple of irrefutable patterns, the only constructor of its type with irrefutable fields, or an irrefutable pattern with `as`.
 
 ```console
 $ ern --shell
@@ -503,7 +503,7 @@ addN : (Int) -> Int
 
 `addN` captures `n`: a lambda closes over the bindings it names.
 
-A lambda's body runs as far as it can, to the `,`, `;`, or closing bracket of the form around it.
+A lambda's body runs as far as it can: to the `,`, `;`, `|`, or closing bracket of the form around it, or to a `then` or `else`.
 
 ### 3.3 Type inference and its limits
 
@@ -523,7 +523,7 @@ Without a source that fixes the type, `n + n` is a type error. Once it is fixed,
 
 Other limits worth knowing:
 
-- A `fn` and a top-level `let` are polymorphic; a `let` in a block is not. After `let xs = []` in a block, the element type of `xs` must be settled by an annotation or by a later use in the block.
+- A `fn` and a top-level `let` are polymorphic; a `let` in a block is not. After `let xs = []` in a block, the element type of `xs` must be settled by an annotation, by a later use in the block, or by `xs` reaching the block's result.
 - A `fn` declared in a block is visible in the whole block, but may be used only after the `let`s it reads (report §5.4).
 
 ### 3.4 Pure functions and functions with a mailbox effect
@@ -544,7 +544,7 @@ Inferred type: `((a) -> b with e, a) -> b with e`. The callback's mailbox effect
 
 An effect variable that appears *only* in effect position (like `e` above) may bind to a mailbox type or to *pure*. An effect variable that also appears in a value position (like `m` in `self : () -> Address(m) with m`) can only bind to a real mailbox type — pure is not a type, so it cannot appear inside `Address(_)`.
 
-The process operations, `self`, `send`, `spawn`, `receive`, `answer`, `Address.call`, `monitor`, `kill`, and `remote`, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
+The process operations, `self`, `send`, `spawn`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, `kill`, and `remote`, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
 
 `ping`'s `m` in §5 is polymorphic but process-only: any real mailbox is admissible, but pure is not.
 
@@ -705,7 +705,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 Address.call : (Address(a), (Reply(b)) -> a, Int) -> Optional(b) with e
 ```
 
-`Address.call(c, fn(r) = Get(reply = r), 1000)` allocates a fresh `Reply(a)`, passes it to the builder lambda, sends the resulting message to `c`, and waits up to 1000 ms for the reply; §4.5 uses it. It returns `Some(v)` on success, `None` on timeout.
+`Address.call(c, fn(r) = Get(reply = r), 1000)` allocates a fresh `Reply(b)`, passes it to the builder lambda, sends the resulting message to `c`, and waits up to 1000 ms for the reply; §4.5 uses it. It returns `Some(v)` on success, `None` on timeout.
 
 Four rules:
 
@@ -714,7 +714,7 @@ Four rules:
 3. **Late answers are silently discarded, and so are second answers.** They never enter the caller's ordinary mailbox. A reply arriving exactly at the deadline may be delivered or discarded — no deterministic tiebreak.
 4. **The reply mechanism is private.** `Address.call` works in a process whose declared mailbox is `Never` or any other type; the fresh Reply identifier is separate from the declared mailbox, and reply values never appear there.
 
-For no-timeout callers, `Address.callForever(addr, mk)` waits as long as needed and returns `a` directly (not `Optional(a)`). If the recipient never answers, the caller hangs; that is the point of the name.
+For no-timeout callers, `Address.callForever(addr, mk)` waits as long as needed and returns `b` directly, not `Optional(b)`. If the recipient never answers, the caller hangs; that is the point of the name.
 
 ### 4.5 Running the counter
 
@@ -1269,7 +1269,7 @@ Directory mode compiles in dependency order automatically, creates missing subdi
 
 **`export` marks the boundary.** A declaration prefixed with `export` is visible from other modules; a declaration without `export` is private to its own file. No `import`, no export list, no `pub`. `export` may prefix any top-level declaration: `fn`, `type`, `abstract type`, `let`, `foreign fn`, or `foreign type`. Constructors of an exported concrete type are exported with the type — `export type Optional(a) = None | Some(a)` makes `None` and `Some` visible to other modules; `type Internal = A | B` keeps the type and both constructors private. An abstract type controls constructor visibility through its `with { ... }` signature, not through `export`: the type name is `export`ed, its accessors are separately `export`ed if they should be public, and the constructor stays visible only to the definitions listed in the signature.
 
-**An exported declaration is made of exported types.** The type of an exported declaration may not name a type its own module keeps private: a caller that holds such a value could neither build one nor print it. Export the type with it, or, where the values should cross the boundary but the constructors should not, declare it `abstract type` (report §4.2, §4.4). A function's effect is not part of this, so an entry point may receive a private message type.
+**An exported declaration is made of exported types.** The type of an exported declaration may not name a type its own module keeps private: a caller that holds such a value could neither build one nor print it. Export the type with it, or, where the values should cross the boundary but the constructors should not, declare it `abstract type` (report §4.2, report §4.4). A function's effect is not part of this, so an entry point may receive a private message type.
 
 **External references use the qualified name.** A caller outside `net/http.ern` writes `Net.Http.parse`. Inside `net/http.ern`, unqualified `parse` refers to the local declaration, and `Net.Http.parse` works there too (report §4.2), which is how a documentation example is written.
 
@@ -1359,6 +1359,8 @@ Can a helper in the same file as `Stack` — but not listed in the `with { ... }
 
 Two ways Ernest reaches outside a single node's Ernest code: to peers over the network, and to foreign code on the same node.
 
+Peers are the language's, and the toolchain runs one node until they are built, in MVP 3.0. Until then the configuration is not read, `spawn(Peer(name), f)` faults with `peer unreachable`, and `remote` answers `Left(NoRemotePeer)`; §8.1 and §8.2 describe what peers will do.
+
 A node that talks to peers has a configuration, which a node running alone does not need. `ern --create-config-dir .` creates it, once, in `./.ernest/`: `ernest.conf`, with this node's network address, its public key and an empty list of peers, and the private key beside it. The command fails if `./.ernest` exists. A peer is added to the list by editing `ernest.conf` (report Appendix C), and its name is what `Peer(name)` refers to.
 
 ### 8.1 `remote`
@@ -1406,7 +1408,12 @@ export fn main() -> Unit with m = match remote(fn() = heavy(3, 4)) {
 }
 ```
 
-This program needs `ernest.conf` to list at least one peer with `"remote-peer": true` before `Right(...)` is possible.
+With a peer that `ernest.conf` lists with `"remote-peer": true`, it prints `remote returned 25`. On one node it answers the other case:
+
+```console
+$ ern remote.erc
+no remote peer configured
+```
 
 ### 8.2 Code shipping
 
@@ -1448,7 +1455,7 @@ A value foreign code made and Ernest does not inspect has the built-in type `For
 
 Foreign values are bound to the node that made them. Any cross-node transport of a value that transitively contains one faults with `Fault("foreign value cannot cross nodes")` — including a closure that captures such a value.
 
-A `Random.Seed` is such a value. The closure below captures one, so shipping it to the peer `alice` faults:
+A `Random.Seed` is such a value. The closure below captures one, so shipping it to the peer `alice` faults with that cause; on one node, today, the spawn faults with `peer unreachable` first:
 
 ```ernest
 export fn main() -> Unit with Never = {
@@ -1521,7 +1528,7 @@ found 42
 
 If `find/1` returns reasons of another shape (an atom, a nested tuple), the Erlang helper must convert them to the declared Ernest form before returning; the Ernest side does not paper over ABI-shape breaches. In the other direction, a `foreign fn` that takes a `Foreign` is given one by `Foreign.from(value)`, which is the value as the runtime already holds it (Appendix E.12), and `Erl.atom(name)` builds the atoms such an API expects.
 
-Report Appendix D walks `ets.ern` (namespace `Ets`), a library outside the standard library, as its worked example of a shim; the repository ships it under `libs/ets`, and a program adds it with `--load-path` (report §11.1). Its foreign calls happen to already match Ernest's ABI (`[{K, V}]` maps to `List(#(k, v))`, `Bool` to `true`/`false`), so it needs no Erlang wrapper. This is also the shape of every library outside the standard library: JSON, TLS, regular expressions, HTTP are not in Appendix E, by E.0's rules, since each is a namespace of its own with policy inside; they are written as `Ets` is written, by anyone, under a namespace Appendix E does not take, and put on the load path when a program wants them. A foreign library may also hold what the standard library does not: an `Ets` table is state that every process holding it reads and writes (report §4.7), where the standard library keeps report §10's promise that processes share no memory. Which are first-party, and when, is the plan's.
+Report Appendix D walks `ets.ern` (namespace `Ets`), a library outside the standard library, as its worked example of a shim; the repository ships it under `libs/ets`, and a program adds it with `--load-path` (report §11.1, report §11.2). Its foreign calls happen to already match Ernest's ABI (`[{K, V}]` maps to `List(#(k, v))`, `Bool` to `true`/`false`), so it needs no Erlang wrapper. This is also the shape of every library outside the standard library: JSON, TLS, regular expressions, HTTP are not in Appendix E, by E.0's rules, since each is a namespace of its own with policy inside; they are written as `Ets` is written, by anyone, under a namespace Appendix E does not take, and put on the load path when a program wants them. A foreign library may also hold what the standard library does not: an `Ets` table is state that every process holding it reads and writes (report Appendix D), where the standard library keeps report §10's promise that processes share no memory. Which are first-party, and when, is the plan's.
 
 ### 8.6 Bitstrings
 
@@ -1576,7 +1583,7 @@ Two commands and a shell, and a mode for Emacs. Report §11 defines each option.
 ### 9.1 `ernc`, the compiler
 
 - `ernc hello.ern` compiles one module to `hello.erc`, beside it.
-- `ernc --out-dir build src` compiles every module under `src` in dependency order, mirroring the tree into `build`. A module is compiled again only when its source, an interface it depends on, or the compiler has changed, and a `.erc` whose source is gone is removed.
+- `ernc --out-dir build src` compiles every module under `src` in dependency order, mirroring the tree into `build`. A module is compiled again only when its source, an interface it depends on, any interface of the standard library, or the compiler has changed, and a `.erc` whose source is gone is removed.
 - `--source-root dir` names the directory a module's namespace is read from, as §7.1 describes. `--load-path dir` adds compiled modules from outside the tree, such as a library.
 - `--errors short` prints the first line of each error only, `file:line:column: message`, for a tool to read.
 - `--doc file.ern` writes the module's documentation as CommonMark, and `--emit erl` writes the Erlang the module compiles to, for reading.
@@ -1592,7 +1599,7 @@ Two commands and a shell, and a mode for Emacs. Report §11 defines each option.
 
 ### 9.3 The shell
 
-An input is an expression, a declaration, or a `let`, and a command begins with `:`. `:help` lists the commands: `:type` and `:doc` explain a name, `:browse` lists a module's exports, `:load` and `:reload` compile a module from its source, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, and `:set` changes how values are printed. A command may be shortened to any prefix of its name.
+An input is an expression, a declaration, or a `let`, and a command begins with `:`. `:help` lists the commands, among them these: `:type` and `:doc` explain a name, `:browse` lists a module's exports, `:load` and `:reload` compile a module from its source, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, and `:set` changes how values are printed. A command may be shortened to any prefix of its name.
 
 At a terminal the line is edited with Readline's Emacs keys. `Tab` completes a name, `Shift-Tab` shows its type and documentation, `C-r` searches the history, and `M-Enter` adds a line to the input. The history is kept in `$HOME/.ernest/history`, and the inputs in `$HOME/.ernest/startup` run when the shell starts.
 
@@ -1635,7 +1642,7 @@ Report §0 gives five principles, and the rules of the guide follow from them.
 1. **Least surprise decides.** A rule stays when the code it produces is what a reader who knows the rest of Ernest would write, and changes when it is not. The other four principles build the language, and this one audits the code they produce.
 2. **One way, one job.** The language and the prelude have one way to do each thing: a record is a constructor with named fields, a server is a `receive` loop, a request is a `Reply`.
 3. **Nothing invisible.** Control flow, communication, and failure show in the code or in the type.
-4. **Simple to parse.** Each construct is known by its first token, so a reader, like the parser, never has to look far ahead.
+4. **Simple to parse.** Each construct is known by its first token, or by a later one a bounded way ahead, so a reader, like the parser, never has to look far.
 5. **Small.** Few concepts, few primitives, few reserved words.
 
 Principle 3 turns an omission into a statement. Exhaustiveness makes you say what every constructor does; `let _ = e` says a value is dropped on purpose; the reply discipline says where each `Reply` is consumed; `export` says what crosses a module's boundary; `with` says a function acts through a process; a qualified name says which module a name comes from. Several of these tell the compiler nothing it could not work out for itself. What they add is that the decision is written down, where a reader meets it. It is programming on purpose, to borrow P. J. Plauger's phrase for designing deliberately rather than by accident; his subject is software design as a whole, broader than these rules (*Programming on Purpose: Essays on Software Design*, Prentice Hall, 1993).
@@ -1686,13 +1693,13 @@ Ernest is n-ary: every function has a specific number of arguments recorded in i
 
 ## 14. Reading further
 
-Which programs under `examples/` the toolchain runs today is the `PROGRAMS` macro in `test/ern_integration_tests.erl`. The four paper programs below compile today. Three run under test, with fixed input and a bounded run: the REPL, the file sync, and the web server. The snake game waits for a terminal, which no test can give it, so it is only compiled.
+The four paper programs below compile under test, `COMPILES` in `test/ern_integration_tests.erl`. Three of them run there with fixed input and a bounded run: the REPL, the file sync, and the web server. The snake game is played under a pseudo-terminal by `test/ern_terminal_tests.erl`.
 
 The four paper programs, in ascending complexity:
 
 - [`examples/snake.ern`](examples/snake.ern) — snake game with tick-based updates; `..` record updates, one process per player, `Clock`, `Terminal`, `Random`.
 - [`examples/repl.ern`](examples/repl.ern) — small read-eval-print loop; `<-` for chained parsing, `monitor` + `kill` for aborting slow evaluation, `Io.readLine`.
-- [`examples/filesync.ern`](examples/filesync.ern) — file sync between two nodes; mutual-address setup, one process per file operation, `Fs`.
+- [`examples/filesync.ern`](examples/filesync.ern) — file sync between two directories, whose two sides run on one node and would run the same on two; mutual-address setup, one process per file operation, `Fs`.
 - [`examples/webserver.ern`](examples/webserver.ern) — HTTP server with sessions in a process that owns a `Map`; request-reply, abstract types, `Tcp`.
 
 Beyond `Io.println` and `Clock`, the paper programs use `Fs`, `Terminal`, `Tcp`, and `Io.readLine`, all of which the toolchain has.

@@ -1,11 +1,11 @@
 //
 // Abstract stack
 //
-// The abstract type of the guide, §6.2 (and the report, §4.4), plus a small
+// The abstract type of the guide, §7.2 (and the report, §4.4), plus a small
 // main that uses it. Only the three definitions listed in the signature may
 // name the Stack constructor. The main is not from the guide.
 //
-// Needs MVP 1. The plan lists this as a Phase 1.4 test.
+// Needs MVP 1, and is one of its test programs.
 //
 
 export abstract type Stack(a) = Stack(List(a)) with {

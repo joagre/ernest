@@ -1,7 +1,7 @@
 //
 // Remote computation
 //
-// From the guide, §7.1. Submits a pure computation to a peer. ernest.conf must
+// From the guide, §8.1. Submits a pure computation to a peer. ernest.conf must
 // list at least one peer with "remote-peer": true before Right(...) is
 // possible; without one the program prints "no remote peer configured".
 //

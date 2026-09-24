@@ -248,7 +248,7 @@ Ernest uses its own encoding, not `term_to_binary`:
 
 ## 11. Language surface
 
-Additions to the prelude. All operations are in `{Proc m}`. Signatures in the notation of the language report are written when these enter `ernest.md`.
+Additions to the prelude. All operations are in `{Proc m}`. Signatures in the notation of the language report are written when these enter `ernest_report.md`.
 
 | Name | Kind | Meaning |
 |---|---|---|
@@ -309,13 +309,13 @@ Language:
 6. The name of the text type in `Crashed(Text)`, to agree with the prelude in `ernest_report.md`.
 7. Whether `Node` has equality. Proposed: yes. Unlike `Address`, a node is not a capability, and code needs to ask whether something is its own node (`node == self_node()`). Equality gives no universal ordering, only equality for this type.
 8. A name registry in the first version. Without one, the only ways to obtain an address are to spawn the process or to be sent the address. A long-running service started by another node's own `main` is then unreachable: nobody can hand over its address, `spawn_at` only creates new processes, and a spawned helper has no way to find the service locally. Proposed: a minimal registry, a local table per node from name to address, with a remote lookup returning `Optional(Address(m))` checked against the type hash. Registration would be a `{Proc m}` operation, and the lookup would need its own frame pair. Durable identity across restarts would still not follow: a name points to an address, and the address dies with its node's incarnation.
-11. A way to stop a process that does not cooperate. Rejecting links (7.5) leaves no way to terminate a process stuck in an endless loop or one that never reads its mailbox. A supervisor can see such a process die but cannot make it die, and "let it crash" needs both. Possible answer: a single `kill(addr)` as a runtime operation, kept out of the message model, with the killed process's monitors reporting `Crashed`. This is a language question more than a protocol question, and it should be settled in `ernest.md`. If `kill` works across nodes, it also needs a frame.
+11. A way to stop a process that does not cooperate. Rejecting links (7.5) leaves no way to terminate a process stuck in an endless loop or one that never reads its mailbox. A supervisor can see such a process die but cannot make it die, and "let it crash" needs both. Possible answer: a single `kill(addr)` as a runtime operation, kept out of the message model, with the killed process's monitors reporting `Crashed`. This is a language question more than a protocol question, and it should be settled in `ernest_report.md`. If `kill` works across nodes, it also needs a frame.
 
 Platform and wire format:
 
 9. Key provisioning for diskless nodes. The `NodeId` is the hash of the TLS key and must be stable across restarts, so a node without persistent storage must be given the same private key at every boot. If the key arrives over an unauthenticated boot channel, anyone on the network can take the node's identity. Depends on how the platform is booted (code distribution, open question 6).
 10. Maximum frame size. On the sending side, a single large message or code frame blocks everything queued behind it, heartbeats included, and a slow link can then produce a false `Unreachable`. Proposed: a maximum frame size, large payloads split into chunks, and heartbeats allowed between chunks. Chunks of different payloads are not interleaved, so ordering (section 8) is unaffected.
-12. Encoding of `Node` and `MonitorRef` (section 11). Proposed: `Node` travels as its `NodeId`; the receiver can decode it even when the node is absent from its peer table, and simply cannot reach it (3.4). `MonitorRef` means something only on the node that created it. Proposed: it cannot be sent at all, enforced by the type checker, rather than travelling and becoming inert, since a value known to be useless should not be sent and then fail silently. The rule for which types can cross nodes belongs in `ernest.md`.
+12. Encoding of `Node` and `MonitorRef` (section 11). Proposed: `Node` travels as its `NodeId`; the receiver can decode it even when the node is absent from its peer table, and simply cannot reach it (3.4). `MonitorRef` means something only on the node that created it. Proposed: it cannot be sent at all, enforced by the type checker, rather than travelling and becoming inert, since a value known to be useless should not be sent and then fail silently. The rule for which types can cross nodes belongs in `ernest_report.md`.
 
 ## 15. Risks
 

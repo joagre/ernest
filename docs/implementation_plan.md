@@ -19,12 +19,12 @@ Actorson until 12 September 2026.
 
 **MVP 2.6, the shell, checkpoint 4.** Checkpoints 0 to 3 are done: the loop and the terminal
 harness, bindings and the commands, the live region, and the line editor with history,
-multi-line input and paste. What is left of the milestone is in "MVP 2.6" below: completion,
-a guide chapter, the closing sweep, and a session of real use.
+multi-line input and paste. What is left of the milestone is in "MVP 2.6" below: completion
+and the prelude's documentation, the closing sweep, and a session of real use.
 
-**MVP 2.61, the guide, taken out of order on 2026-09-24.** A newcomer reads the guide and not
-the report, so the guide is rewritten to teach Ernest on its own; the steps are in "MVP 2.61"
-below. MVP 2.6 resumes after it.
+**MVP 2.61, the guide, done 2026-09-24, out of order.** A newcomer reads the guide and not
+the report, so the guide was rewritten to teach Ernest on its own; the steps are in "MVP 2.61"
+below. MVP 2.6 resumes after the rewrite of CLAUDE.md.
 
 **After MVP 2.61, CLAUDE.md is rewritten for clarity**, every rule kept: the working rules
 read in the order of work, each stated once. Asked for 2026-09-24; the rule that nothing
@@ -44,7 +44,7 @@ so a decision they must see goes here.
 | MVP 2 | the rest of the report on one node | done 2026-09-19 |
 | MVP 2.5 | a complete standard library | done 2026-09-20 |
 | **MVP 2.6** | **the shell** | **checkpoints 0–3 done; checkpoint 4 next** |
-| **MVP 2.61** | **the guide as the user's document** | **taken 2026-09-24, out of order** |
+| MVP 2.61 | the guide as the user's document | done 2026-09-24, out of order |
 | MVP 2.65 | the language and the toolchain read back | after 2.6 |
 | MVP 2.66 | introduce a supervisor behaviour? | after 2.6 |
 | MVP 2.7 | the first libraries and the network stack | |
@@ -123,8 +123,6 @@ the shell is neither standard library nor library but the toolchain's own progra
 - **Typing ahead while an input runs looks wrong.** A test that sent a second input before
   the first had finished never saw the second's result. Found 2026-09-21, not diagnosed, and
   recorded in the language note; it belongs with the session of real use below.
-- **A guide chapter on the shell.** Found 2026-09-21. The guide introduces the shell in its first section
-  since MVP 2.61 step 2; the rest is that milestone's step 7, the tools page.
 - **The closing sweep**, as the working rules require at the end of a plan step: the guide
   read against the report, then every other document against the report and the code.
   **Decided 2026-09-24:** report §11.2 states `Tab` completion and `Shift-Tab`
@@ -238,8 +236,8 @@ without boasting. Each step is a stop.
 7. **Done 2026-09-24: the tools and a bridge.** The guide's section 9 puts `ernc`, `ern`,
    the shell's commands and keys, and the Emacs mode on one page, teaching report §11; its
    section 10 says what an Erlang programmer keeps and what differs, from typed mailboxes to
-   the absence of links, atoms, and exceptions. The FAQ and the reading list moved to the
-   guide's sections 11 and 12.
+   the absence of links, atoms, and exceptions. The FAQ and the reading list moved on,
+   to the guide's sections 12 and 14 after step 8.
 8. **Done 2026-09-24: the small things.** The Plauger aside left §2.3 for a closing section,
    the guide's section 11, on the five principles; the exercises' answers stand apart in its
    section 13, each naming its exercise; §5.5's game takes `Tick(Int)` from `Clock.alarm`,
@@ -517,6 +515,12 @@ peers are the useful one.
   answers across nodes, `remote` may be a second way to do what a spawned process that
   answers does. If it goes, §6.7, §9.4, `RemoteError`, the `"remote-peer"` flag and the
   guide's §8.1 go with it, and the bullets above that build it are rewritten.
+- **Two more places the protocol note disagrees with the report, found 2026-09-24 in the
+  closing sweep of MVP 2.61**, also decided before building: the note's `spawn_at` never
+  fails at the call and returns a dead address, where §6.2 faults the caller on an unknown or
+  unreachable peer; and the note's `Down` is `Exited | Crashed(Text) | NoProcess |
+  Unreachable` with no `function`, where §9.3 and §6.9 have `Down(reason, function)` with
+  `Returned`, `Killed`, `ProgramEnd` and `Fault(String)`.
 - **An adapted address across a node** is open, and report first when it is taken. `via(f,
   addr)` has been the pair of the function and the address since 2026-09-20 (§6.5), so an
   `Address` that leaves a node may carry a function, which is the same question as a message
@@ -534,7 +538,12 @@ code as it stands. Its section 11 asks MVP 1 for a named IR stage with locals nu
 position: there is none, since `ern_emitter` goes from the typed AST to Erlang's abstract
 format in one traversal, so the choice is to introduce an IR here or to canonicalise the
 typed AST, which is the decision below either way. Its section 3.4 hashes every declared
-type nominally, name included, which §8.7 says too since 2026-09-24.
+type nominally, name included, which §8.7 says too since 2026-09-24; but it hashes an
+abstract type as it hashes any other, where §8.7 adds the signature to an abstract type's
+hash, and the note is brought to §8.7 before it is built. Its section 6 runs nodes in
+embedded mode, which loads nothing from the code path on demand, where §11.2 since
+2026-09-24 finds a `foreign fn`'s own Erlang module on the load path; which of the two a
+node running hash modules does is decided here, report first.
 
 Hash modules never change, so versions coexist on a node for as long as a process runs one
 ([`code_distribution.md`](code_distribution.md) section 8). The shell's reload then ends
@@ -581,8 +590,6 @@ connectors: those are libraries for others to write on Appendix D's pattern.
   terminal, and nothing in the runtime knows a glyph's width. `expand` in
   `shell/shell/region.ern` is the one function that has to learn it. The design note's only
   open item.
-- **The guide owes the idioms** the log's "Later" lists, links and supervisors, and a
-  chapter on the shell: MVP 2.61, steps 2 and 6.
 - **`e_bits` and `p_bits` are in no example**, so the AST coverage test excludes them
   (2026-09-19).
 - **A label at the first use of the variable whose type a mismatch names** was planned for

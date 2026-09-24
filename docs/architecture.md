@@ -94,13 +94,13 @@ The standard library, Appendix E, is one Erlang module per namespace, `ern@list`
 `ern_cli` is everything; the escripts are two lines.
 
 - **`ernc`**, in file or directory mode: modules from paths (shape rule and namespace, §11.1, §4.2; `namespace_clash` refuses a module namespace that coincides with a type namespace of its parent, from either file), dependencies from a parse-only scan of qualified names resolved against existing `.ern` files with a module's own namespace excluded, a `digraph` for order and cycles. Then per module: the dependencies' interfaces from the build directory, the recompile rule on the source hash, the dependencies' interface hashes, one hash over the installed standard library's interfaces (`stdlib_hash/1`) and the `ernc` version (§11.1); type-check, compile, write `.erc`, or `--emit erl`, or `--doc`. Directory mode sweeps stale `.erc` files unless `--no-clean`.
-- **`ern`** reads the `.erc`, derives the root from its namespace depth, loads dependencies by namespace from the root and the `--load-path` roots, purges and loads each once, runs every module's `'$init'/0` dependencies first, then `run_main` with `main` or `--main`, printing `fault: Msg`, a deadlock among them, and exiting 1 when the program does not return.
+- **`ern`** reads the `.erc`, derives the root from its namespace depth, puts the root and the `--load-path` roots on the host's code path, where a `foreign fn`'s own Erlang module is found (§11.2), loads dependencies by namespace from those roots, purges and loads each once, runs every module's `'$init'/0` dependencies first, then `run_main` with `main` or `--main`, printing `fault: Msg`, a deadlock among them, and exiting 1 when the program does not return.
 - **`ern --test`** runs `run_tests/3` instead: the module's `'$tests'/0`, which the compiler emits listing every top-level `let` of type `Test`, is called in the runtime, and each test runs in a process of its own, monitored, so a fault is reported as the test's.
 - **`ernc --doc`** renders §11.4's document with `ern_page:page/1`; for a directory, `doc_dir/2` writes one page per module and an index after the build. **`ern --create-config-dir`** writes Appendix C's file and an Ed25519 key pair.
 
 ## Tests
 
-Seven kinds, all run by `make test`:
+Ten kinds, all run by `make test`:
 
 - EUnit per application under `erl/*/test`, one test function per behaviour, each citing the report section it tests; `make sections` lists sections no test cites.
 - Golden files under `test/golden`: the Erlang source emitted for every example the toolchain runs, compared as text by the compiler's tests; `make golden` rewrites them after an intended change. The hand-written targets under `test/target` are the two tests that are not self-referential.
@@ -108,7 +108,10 @@ Seven kinds, all run by `make test`:
 - The examples corpus itself: a parser test asserts it exercises every AST record but bitstrings, and the checker's tests type-check every example.
 - Documentation: `docs/module_doc_template.md` is what `ernc --doc` renders for `examples/template.ern`, the footer's version aside, in the CLI's tests; and `erl/runtime/test/ern_doc_tests.erl` checks the template and every module of `stdlib/`: every fenced example type-checks, one ending in `// => v` is run and its `Io.debug` rendering compared with `v`, the module's doc block ends with a `since` and a declaration's own `since`, where it has one, is no newer than `VERSION`; every exported declaration has a doc block; every exported function but an operator is called by some example; and every name under `See also` resolves.
 - Style: `test/ern_style_tests.erl` checks the line limit of `docs/style.md` over the compiler, its tests, `stdlib/`, and `examples/`.
-- The documents: `test/ern_docs_tests.erl`, also `make xref`, resolves every section, appendix, and `E.n` citation in the report, guide, README, CLAUDE.md, plan, architecture note, shell design, and example headers against the report's headings, and the guide's own bare citations against the guide.
+- The documents: `test/ern_docs_tests.erl`, also `make xref`, resolves every section, appendix, and `E.n` citation in the report, guide, README, CLAUDE.md, plan, architecture note, shell design, module documentation template, example headers, and the modules of `stdlib/` and `libs/` against the report's headings, and the guide's own bare citations against the guide.
+- The guide: `test/ern_guide_tests.erl` compiles every `ernest` block, runs every program whose output a console shows, checks every `ernest-rejected` block's error, and replays every shell session; the marks it reads are in its header.
+- The shell: `test/ern_shell_tests.erl` runs sessions in line mode against their expected output, and `test/ern_terminal_tests.erl` drives the shell and the snake game under a pseudo-terminal.
+- The Emacs mode: `make emacs-mode`, last in `make test`, runs the mode's own tests under `emacs/test/` (`docs/emacs_mode.md`).
 
 ## Where MVP 2.5 and later hook in
 

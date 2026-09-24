@@ -63,8 +63,9 @@ erl/               the toolchain, as Erlang applications: lexer, parser,
                    typer, runtime, emitter, cli, utils (vendored getopt);
                    each has src/, include/, ebin/, test/
 test/              what spans applications: the hand-written target modules,
-                   the integration tests, the pseudo-terminal harness,
-                   expected/, golden/, input/, terminal/
+                   the integration tests, the guide's examples, the shell's
+                   sessions, the pseudo-terminal harness, expected/, golden/,
+                   input/, session/, terminal/
 bin/               ernc and ern, as escript sources
 stdlib/            the standard library as Ernest source
 shell/             the shell as Ernest source, from MVP 2.6
@@ -124,7 +125,7 @@ The toolchain is the report on one node; the plan's MVPs lift the table row by r
 
 | Construct | Until | What you see today |
 |---|---|---|
-| `spawn(Peer(...))`, peers, `--config-dir` (§6.2, §8.3) | MVP 3 | `spawn` faults with `peer unreachable`; the configuration is not read |
+| `spawn(Peer(...))`, peers, `ernest.conf` (§6.2, §8.3) | MVP 3 | `spawn` faults with `peer unreachable`; `ernest.conf` is not read, and the configuration directory holds only the shell's `startup` |
 | `remote` (§6.7) | MVP 3 | `Left(NoRemotePeer)` |
 
 Every refusal the toolchain makes for a later MVP's sake names in its error text the MVP that brings the thing, and a test in `erl/cli/test` fails when such a text is missing from this table. Runtime behaviour that stands in for a later MVP, the peer fault and `Left(NoRemotePeer)`, is listed by hand. `make sections` lists the report sections no test cites; the three it prints are MVP 3 material. `make coverage` lists every section with how many tests cite it and its length, thinnest first: a long section with one citation is where a rule can hide untested.
