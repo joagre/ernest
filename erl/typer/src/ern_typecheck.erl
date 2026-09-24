@@ -13,7 +13,8 @@
 %% Errors are collected per definition; checking continues with the next.
 -module(ern_typecheck).
 
--export([check/3, check/4, check_string/2, prelude_env/0, prelude_names/0]).
+-export([check/3, check/4, check_string/2, prelude_env/0, prelude_names/0,
+         prelude_con_type/1]).
 -export([is_reply_carrying/2, resolve_type/2, lookup_type/2, lookup_con/4, type_state/1,
          set_type_state/2, node_type/1, foreign_impl/1, segment_spec/1, is_value/2,
          typed_pattern_bindings/1, declared_scheme/3]).
@@ -150,6 +151,16 @@ set_type_state(St, Env) -> Env#env{st = St}.
 prelude_names() ->
     #env{types = Ts, cons = Cs} = prelude_env(),
     {maps:keys(Ts), maps:keys(Cs)}.
+
+%% Report §11.2: the type a prelude constructor belongs to, whose page
+%% documents it, for the shell's `:doc`.
+-spec prelude_con_type(atom()) -> {ok, [atom()]} | none.
+prelude_con_type(Name) ->
+    #env{cons = Cs} = prelude_env(),
+    case Cs of
+        #{[Name] := #cinfo{type_qname = TQ}} -> {ok, TQ};
+        _ -> none
+    end.
 
 -spec prelude_env() -> env().
 prelude_env() ->

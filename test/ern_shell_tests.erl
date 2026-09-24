@@ -757,6 +757,45 @@ one_name_type() ->
     ?assertMatch({_, _}, binary:match(Out, <<"<function> : () -> Optional(String) with m\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"List.map([1], fn(x) = x) : List(Int)\n">>)).
 
+%% report §11.2, §11.4: every name that completes after `:doc` has
+%% documentation. A constructor's is its type's, the prelude's, the
+%% session's, and a loaded module's alike; a module's is the head of its
+%% page; a name the session declares is shown as the session writes it,
+%% never under the input's namespace; and a `let` at the prompt has its
+%% name and type. A regression test for findings of the session of real
+%% use: `:doc Accept` and `:doc Some` answered no documentation, a session
+%% declaration was headed `Input1.sz`, and `:doc` found nothing in a
+%% module `:load` had compiled, which is loaded from memory
+doc_every_name_test_() ->
+    {timeout, 60, fun doc_every_name/0}.
+
+doc_every_name() ->
+    Root = filename:join("/tmp", "ern_docroot_" ++ os:getpid() ++ "_"
+                         ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "m.ern"),
+                         "/// A little module.\n///\n/// since 0.1.0\n\n"
+                         "/// A colour.\nexport type Colour = Red | Green\n"),
+    In = filename:join(Root, "session.in"),
+    ok = file:write_file(In, ["let zeta = 1\n", "fn sz() -> Int = 1\n",
+                              "type Tree = Leaf | Node(left : Tree, right : Tree)\n",
+                              ":doc zeta\n", ":doc sz\n", ":doc Leaf\n", ":doc Accept\n",
+                              ":doc Some\n", ":doc Fs\n", ":load M\n", ":doc M.Red\n",
+                              ":doc M\n"]),
+    {0, Out} = sh(alone("../bin/ern --shell --source-root " ++ Root) ++ " < " ++ In),
+    ?assertEqual(nomatch, binary:match(Out, <<"no documentation">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"Input">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"## zeta\n\n```ernest\nzeta : Int\n```">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"## sz\n\n```ernest\nsz : () -> Int\n```">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"## Tree\n\n```ernest\ntype Tree = Leaf">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"## ListenerMsg\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"## Optional\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"# Ernest module Fs\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"## M.Colour\n\n```ernest\ntype Colour = Red | Green"
+                                             "\n```\n\nA colour.">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"# Ernest module M\n\n*Since 0.1.0.*\n\n"
+                                             "A little module.">>)).
+
 %% report §11.2, Appendix E.0 rule 6: `Shift-Tab`'s two answers from the
 %% front end. Inside a call, the callee's signature with its parameters as
 %% declared, in three parts around the one at the cursor, which the shell

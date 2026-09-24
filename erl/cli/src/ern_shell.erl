@@ -641,7 +641,7 @@ documentation(Text) ->
             %% Appendix E.0 rule 6: a declaration without a `since` of its
             %% own has its module's, which the brief shows
             Since = case string:find(unicode:characters_to_binary(Page), <<"*Since ">>) of
-                        nomatch -> since_line(Segments);
+                        nomatch -> since_line(Env, Segments);
                         _ -> []
                     end,
             {'Some', unicode:characters_to_binary([Page, Since])};
@@ -649,8 +649,8 @@ documentation(Text) ->
             'None'
     end.
 
-since_line(Segments) ->
-    V = case module_of_name(Segments) of
+since_line(Env, Segments) ->
+    V = case module_of_name(Env, Segments) of
             none -> undefined;
             prelude -> ern_page:since(prelude);
             Beam -> ern_page:since(Beam)
@@ -661,12 +661,12 @@ since_line(Segments) ->
     end.
 
 %% The compiled module a documented name comes from, or the prelude.
-module_of_name(Segments) when length(Segments) >= 2 ->
-    case beam_of(lists:droplast(Segments)) of
+module_of_name(Env, Segments) when length(Segments) >= 2 ->
+    case beam_of(Env, lists:droplast(Segments)) of
         none -> prelude_or_none(Segments);
         Beam -> Beam
     end;
-module_of_name(Segments) ->
+module_of_name(_, Segments) ->
     prelude_or_none(Segments).
 
 prelude_or_none(Segments) ->
@@ -720,7 +720,7 @@ within(Before) ->
 %% session's input or the module that declares it; none for the prelude's.
 parameters(Env, Path, Name) ->
     Beam = case session_beam(Env, Path, Name) of
-               none when Path =/= [] -> beam_of(Path);
+               none when Path =/= [] -> beam_of(Env, Path);
                B -> B
            end,
     %% a module's function by its local name, a type's member as `Type.name`
@@ -750,16 +750,66 @@ session_beam(#env{session = S, beams = Beams}, Path, Name) ->
     end.
 
 %% The session's own names first, then a module's, then the prelude's,
-%% which is where a name no module declares is documented (report §9).
+%% which is where a name no module declares is documented (report §9);
+%% then a constructor, whose documentation is its type's, and a module,
+%% whose documentation is the head of its page (report §11.2).
 doc_of(Env, Segments) ->
-    case session_doc(Env, Segments) of
-        {ok, Page} ->
-            {ok, Page};
+    first([fun() -> session_doc(Env, Segments) end,
+           fun() -> module_doc(Env, Segments) end,
+           fun() -> prelude_doc(Segments) end,
+           fun() -> constructor_doc(Env, Segments) end,
+           fun() -> module_head(Env, Segments) end]).
+
+first([]) ->
+    none;
+first([F | Fs]) ->
+    case F() of
+        {ok, Page} -> {ok, Page};
+        none -> first(Fs)
+    end.
+
+%% Report §11.4: a constructor is documented in its type's section, so its
+%% documentation is its type's: a session constructor's the session's type,
+%% a module's its module's type, and an unqualified one the prelude's.
+constructor_doc(#env{session = S, beams = Beams} = Env, [Name]) ->
+    case maps:get(Name, maps:get(cons, S, #{}), none) of
         none ->
-            case module_doc(Segments) of
-                {ok, Page} -> {ok, Page};
-                none -> prelude_doc(Segments)
+            case ern_typecheck:prelude_con_type(Name) of
+                {ok, TQ} -> prelude_doc(TQ);
+                none -> none
+            end;
+        CQ ->
+            case owner(CQ, Env) of
+                {ok, TQ} ->
+                    T = lists:last(TQ),
+                    {ok, ern_page:session_declaration(beam(TQ, [T], Beams), T, entry)};
+                none ->
+                    none
             end
+    end;
+constructor_doc(Env, Segments) ->
+    case owner(Segments, Env) of
+        {ok, TQ} -> module_doc(Env, TQ);
+        none -> none
+    end.
+
+%% The type a constructor belongs to, from the interfaces in scope.
+owner(CQ, #env{ifaces = Ifaces}) ->
+    Ns = lists:droplast(CQ),
+    Con = lists:last(CQ),
+    case [TQ || #iface{types = Ts} <- Ifaces ++ ern_prelude:stdlib_ifaces(),
+                {TQ, #tinfo{constructors = Cs, abstract = false}} <- maps:to_list(Ts),
+                lists:droplast(TQ) =:= Ns,
+                #cinfo{name = N} <- Cs, N =:= Con] of
+        [TQ | _] -> {ok, TQ};
+        [] -> none
+    end.
+
+%% Report §11.2: a module's documentation is the head of its page.
+module_head(Env, Segments) ->
+    case beam_of(Env, Segments) of
+        none -> none;
+        Beam -> {ok, ern_page:module_head(Beam)}
     end.
 
 prelude_doc([]) ->
@@ -769,8 +819,10 @@ prelude_doc(Segments) ->
     ern_page:prelude_declaration(list_to_atom(Name)).
 
 %% A name the session declared: the beam of the input that declared it, and
-%% the entry under its unqualified name, a member under `Type.name`.
-session_doc(#env{session = S, beams = Beams}, Segments) ->
+%% the entry under its unqualified name, a member under `Type.name`, shown
+%% under the name as the session writes it and with the type the shell
+%% prints (report §11.2).
+session_doc(#env{session = S, beams = Beams} = Env, Segments) ->
     Key = case Segments of
               [Name] -> Name;
               [Owner, Name] -> {Owner, Name};
@@ -782,9 +834,12 @@ session_doc(#env{session = S, beams = Beams}, Segments) ->
         {none, none} ->
             none;
         {none, Q} ->
-            entry(beam(Q, [lists:last(Q)], Beams), lists:last(Q));
+            T = lists:last(Q),
+            {ok, ern_page:session_declaration(beam(Q, [T], Beams), T, entry)};
         {Q, _} ->
-            entry(beam(Q, Segments, Beams), entry_name(Segments))
+            Line = scheme_line(name_text(Key), Q, Env, session_state(Env)),
+            {ok, ern_page:session_declaration(beam(Q, Segments, Beams), entry_name(Segments),
+                                              [Line])}
     end.
 
 %% The input that declared the name: the qualified name without the
@@ -797,25 +852,33 @@ entry_name([Owner, Name]) -> list_to_atom(atom_to_list(Owner) ++ "." ++ atom_to_
 
 %% A module on the load path, `List.map`, or one of its type's members,
 %% `Net.Http.Request.method`.
-module_doc(Segments) when length(Segments) >= 2 ->
+module_doc(Env, Segments) when length(Segments) >= 2 ->
     Name = lists:last(Segments),
-    case entry(beam_of(lists:droplast(Segments)), Name) of
+    case entry(beam_of(Env, lists:droplast(Segments)), Name) of
         {ok, Page} ->
             {ok, Page};
         none when length(Segments) >= 3 ->
             [Owner, Member] = lists:nthtail(length(Segments) - 2, Segments),
-            entry(beam_of(lists:sublist(Segments, length(Segments) - 2)),
+            entry(beam_of(Env, lists:sublist(Segments, length(Segments) - 2)),
                   entry_name([Owner, Member]));
         none ->
             none
     end;
-module_doc(_) ->
+module_doc(_, _) ->
     none.
 
-%% The compiled module behind a namespace, as bytes: the file the runner
-%% loaded it from, an `.erc`, or the `.beam` of a module on the code path,
-%% the standard library's among them. `beam_lib` takes either as a binary.
-beam_of(Ns) ->
+%% The compiled module behind a namespace, as bytes: the one `:load` or
+%% `:reload` compiled, which is loaded from memory and has no file; else the
+%% file the runner loaded it from, an `.erc`, or the `.beam` of a module on
+%% the code path, the standard library's among them. `beam_lib` takes
+%% either as a binary.
+beam_of(#env{beams = Beams}, Ns) ->
+    case Beams of
+        #{Ns := Beam} -> Beam;
+        _ -> beam_on_path(Ns)
+    end.
+
+beam_on_path(Ns) ->
     Mod = ern_emitter:module_atom(Ns),
     Paths = [code:which(Mod), code:where_is_file(atom_to_list(Mod) ++ ".beam")],
     case [Bin || P <- Paths, is_list(P), {ok, Bin} <- [file:read_file(P)]] of

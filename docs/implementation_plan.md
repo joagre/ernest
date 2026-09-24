@@ -191,6 +191,13 @@ the shell is neither standard library nor library but the toolchain's own progra
      reader of `:help` could not see. `:help` and the listing give the commands
      alphabetically, and `:b` answers `:b is :bindings or :browse`; the golden session
      checks both.
+  4. **Done 2026-09-25: every name that completes after `:doc` has documentation.**
+     `:doc Accept` answered none. A constructor now shows its type's section, a module the
+     head of its page, a session declaration its name and type as the session writes them
+     rather than `Input1.sz`, and a `let` at the prompt its name and type. `:doc` on a
+     module `:load` compiled had never worked, since the front end looked for a file; it
+     reads the session's copy. Report §11.2 states it; `doc_every_name_test_` is the
+     regression test.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.
