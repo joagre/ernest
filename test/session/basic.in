@@ -48,6 +48,8 @@ x
 :browse Optional
 :doc String.trim
 :zz
+:b
+:f
 :t
 :browse Nope
 :doc Nope.nope

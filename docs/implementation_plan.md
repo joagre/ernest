@@ -177,22 +177,20 @@ the shell is neither standard library nor library but the toolchain's own progra
      the line lists at once, so `:` and `Tab` shows the commands. Report §11.2 states both;
      `listing_at_once_test_` is the regression test, and the region's own tests cover the
      wrapping and the count.
-  2. **A command's argument completes from what the command takes.** Found 2026-09-25:
-     `:browse` and `Tab` does nothing, `:browse ` and `Tab` indents, and `:browse Li`
-     offers constructors. Decided, by principle 1: a whole command that takes an argument
-     takes its space on `Tab`; the argument completes from what the command's help line
-     names, a module for `:browse`, a module under the source root for `:load`, any name
-     for `:doc`, a name the session declares for `:forget`, an expression for `:type`, and
-     `:set`'s four words; and `Tab` never indents in an argument, listing what may stand
-     there when nothing is typed. The closing sweep's line leaving `:set`'s words out goes,
-     since one rule for every argument is no second vocabulary. §11.2 first.
-  3. **The commands in alphabetical order, and an ambiguous prefix refused.** Found
-     2026-09-25: the listing's order is §11.2's priority for an ambiguous prefix, which a
-     reader of `:help` cannot see and did not predict. Decided, by principles 1 and 3:
-     `:help` and the listing give the commands alphabetically, and a prefix that selects
-     more than one is refused with what it could be, `:b is :bindings or :browse`. Only
-     `:b` and `:f` were ambiguous; they take a second letter. §11.2 first, and the log's
-     2026-09-21 entry on the prefix order is answered.
+  2. **Done 2026-09-25: a command's argument completes from what the command takes.**
+     `:browse` and `Tab` did nothing, `:browse ` and `Tab` indented, and `:browse Li`
+     offered constructors. A whole command that takes an argument takes its space; the
+     argument completes from what the command takes, a module for `:browse` listed by its
+     name alone, a module under the source root for `:load` read a directory at a time,
+     any name for `:doc`, the session's names for `:forget`, an expression for `:type`, and
+     `:set`'s four words; `Tab` never indents after a command. A lone candidate is listed,
+     so `:bindings` and `Tab` shows its help line. `command_argument_test_` is the
+     regression test.
+  3. **Done 2026-09-25: the commands in alphabetical order, and an ambiguous prefix
+     refused.** The listing's order was §11.2's priority for an ambiguous prefix, which a
+     reader of `:help` could not see. `:help` and the listing give the commands
+     alphabetically, and `:b` answers `:b is :bindings or :browse`; the golden session
+     checks both.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.

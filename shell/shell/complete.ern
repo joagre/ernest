@@ -13,7 +13,10 @@ export type Kind = Value | Type | Constructor | Module
 // Report §11.2: what may stand where the cursor is, which the parser
 // answers by saying what it wanted where it stopped. Each admits its
 // own kinds of name, which is what a completion is filtered by.
+// `Anything` is the shell's, for a command's argument, whose names the
+// command has chosen already.
 export type Where = Expression | TypeName | Pattern | Declaration | Fields(List(String))
+  | Anything
 
 // A name the shell can complete to: as it is typed, what it is, and the
 // line a listing shows, which carries its type.
@@ -21,7 +24,7 @@ export type Name = Name(text : String, kind : Kind, shown : String)
 
 // What a `Tab` does: the word that stands in place of the one before
 // the cursor, and the names it could still be, which a second `Tab`
-// lists. The word replaces rather than extends, since an abbreviation
+// lists, a lone one too. The word replaces rather than extends, since an abbreviation
 // is no prefix of what it reaches: `L.fm` becomes `List.filterMap`.
 // An empty word changes nothing.
 export type Completion = Completion(word : String, candidates : List(Name))
@@ -30,14 +33,15 @@ export let nothing = Completion(word = "", candidates = [])
 
 // Report §11.2: the word before the cursor completes against the names
 // in scope, segment by segment, so `Li` gives `List.` and `List.ma`
-// gives `List.map`.
+// gives `List.map`. Nothing typed reaches every name admitted there,
+// which is what a `Tab` after a command lists.
 // The word is the caller's to give, since only it knows what a word is
 // where the cursor stands: the shell's own commands begin with a `:`,
 // which is no part of a name.
 export fn complete(typed : String, names : List(Name), where : Where) -> Completion =
     match matches(typed, admitted(names, where)) {
         [] -> nothing
-      | [only] -> Completion(word = whole(only), candidates = [])
+      | [only] -> Completion(word = whole(only), candidates = [only])
       | many -> {
             let shared = common(List.map(many, fn(name) = whole(name)));
             // what they share is never shorter than what was typed
@@ -82,6 +86,7 @@ fn whole(name : Name) -> String = match name {
 fn admitted(names : List(Name), where : Where) -> List(Name) = match where {
     Fields(fields) ->
         List.map(fields, fn(field) = Name(text = field, kind = Value, shown = field))
+  | Anything -> names
   | TypeName -> List.filter(names, fn(name) = isKind(name, Type) || isKind(name, Module))
   | Pattern ->
         List.filter(names, fn(name) = isKind(name, Constructor) || isKind(name, Module))
@@ -111,7 +116,7 @@ export fn applied(text : String, at : Int, typed : String, completion : Completi
 //
 
 fn matches(typed : String, names : List(Name)) -> List(Name) =
-    if String.isEmpty(typed) then []
+    if String.isEmpty(typed) then names
     else {
         let parts = String.split(typed, ".");
         let exact = List.filter(names, fn(name) = reaches(parts, name, true));
@@ -209,6 +214,18 @@ let applying = Test(name = "a completion replaces the word and moves the cursor"
         if text == "1 + List.filterMap(xs)" && at == 18 then Passed
         else Failed("\"" <> text <> "\" at " <> Int.toString(at))
     })
+
+let nothingTyped = Test(name = "nothing typed reaches every name admitted", run = fn() =
+    match complete("", library(), Expression) {
+        Completion(candidates = candidates) ->
+            if List.size(candidates) == List.size(List.filter(library(), fn(name) =
+                !isKind(name, Type)))
+            then Passed else Failed(Int.toString(List.size(candidates)))
+    })
+
+let anything = Test(name = "a command's own names are all admitted, types among them",
+    run = fn() =
+        becomes(complete(word("In"), library(), Anything), "Int"))
 
 let inAType = Test(name = "a type position takes types and modules only", run = fn() =
     becomes(complete(word("In"), library(), TypeName), "Int"))

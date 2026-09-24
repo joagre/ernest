@@ -14,7 +14,8 @@
 %% report §4.4, an abstract type's constructor is the input's that declared
 %% it. The commands are here too: `:type`, `:browse`, `:doc`, `:help`,
 %% `:forget`, `:bindings`, `:set` with the depth and the length a value is
-%% printed to, and a prefix of any of them
+%% printed to, a prefix of any of them, a prefix that begins two names
+%% refused with both, and `:help` in alphabetical order
 session_test_() ->
     {timeout, 60, fun session/0}.
 
@@ -414,7 +415,7 @@ listing_at_once() ->
                  {send, "04"}],
                 30, " --size 8x80"),
     %% under the line, cut to the eight rows with the count last
-    ?assertMatch({_, _}, binary:match(Bytes, <<"> :\r\n:type e ">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> :\r\n:bindings ">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nand 7 more">>)).
 
 %% report §11.2, Appendix E.0 rule 6: `Shift-Tab` on a name shows its type,
@@ -461,6 +462,61 @@ shift_tab() ->
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :browse">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\n:faults         the faults reported since"
                                                " the session began\r\n">>)).
+
+%% report §11.2: a command that takes an argument, completed whole, is
+%% followed by a space, and what completes after it is what it takes: a
+%% module for `:browse`, listed by its name alone; a setting for `:set`; a
+%% module under the source root for `:load`, a directory at a time; and
+%% nothing after `:output`, where `Tab` neither lists nor indents. A
+%% whole command that takes nothing shows its help line, as a lone
+%% candidate is listed. A regression test for findings of the session of
+%% real use: `:browse` and `Tab` did nothing, `:browse ` and `Tab`
+%% indented, `:browse B` listed `module Bool`, and `:bindings` and `Tab`
+%% showed nothing
+command_argument_test_() ->
+    {timeout, 60, fun command_argument/0}.
+
+command_argument() ->
+    Root = filename:join("/tmp", "ern_root_" ++ os:getpid() ++ "_"
+                         ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(filename:join(Root, "http")),
+    ok = file:write_file(filename:join([Root, "http", "parser.ern"]), "export let one = 1\n"),
+    ok = file:write_file(filename:join(Root, "demo.ern"), "export let two = 2\n"),
+    ok = filelib:ensure_path(filename:join(Root, "Bad")),
+    Bytes = pty(alone("../bin/ern --shell --source-root " ++ Root),
+                [{expect, "> "},
+                 {send, hex(":bindings") ++ "09"},        % whole, and takes nothing
+                 {expect, "what the session declares"},
+                 {send, "03"},
+                 {send, hex(":bro") ++ "09"},
+                 {expect, ":browse "},
+                 {send, hex("B") ++ "09"},
+                 {expect, "Bytes"},
+                 {send, "03"},
+                 {send, hex(":set ") ++ "09"},
+                 {expect, "timing on or off"},
+                 {send, "03"},
+                 {send, hex(":load ") ++ "09"},
+                 {expect, "Http."},
+                 {send, hex("Http.") ++ "09"},
+                 {expect, "Http.Parser"},
+                 {send, "03"},
+                 {send, hex(":output ") ++ "09"},
+                 {sleep, 300},
+                 {send, "03"},
+                 {send, "04"}],
+                30, " --size 30x80"),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> :bindings\r\n:bindings       what the session"
+                                               " declares, with their types">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> :browse B\r\nBool\r\nBytes">>)),
+    ?assertEqual(nomatch, binary:match(Bytes, <<"module Bool">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"\r\ndepth n\r\nlength n\r\n">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nDemo">>)),
+    %% a directory that breaks the path shape is no namespace
+    ?assertEqual(nomatch, binary:match(Bytes, <<"Bad">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> :load Http.Parser">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> :output ">>)),
+    ?assertEqual(nomatch, binary:match(Bytes, <<"> :output     ">>)).
 
 %% report §11.2: the parameter at the cursor is written in the terminal's
 %% cyan, and the colour ends where the parameter does

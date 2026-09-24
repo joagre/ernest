@@ -11,7 +11,8 @@
          needs_more/1, check/3,
          type_text/1, declared/1, run/3, signature/1,
          show/3]).
--export([bindings/1, forget/2, browse/2, doc/2, names/0, context/1,
+-export([bindings/1, forget/2, browse/2, doc/2, names/0, session_names/0, source_root/0,
+         context/1,
          documentation/1]).
 -export([deaths/1, mine/0, faults/0, processes/0, load/2, reload/1, output/1]).
 -export([is_terminal/0, version/0, colours/0, write/1, screen/1, to_screen/1]).
@@ -496,6 +497,23 @@ names(#env{ifaces = Ifaces, session = S} = Env) ->
         ++ [name('Constructor', qname_text(Q), qname_text(Q)) || Q <- ConQs],
     Modules = lists:append([module_names(I, St) || I <- Ifaces ++ ern_prelude:stdlib_ifaces()]),
     lists:usort(Session ++ Prelude ++ Modules).
+
+%% Report §11.2: the names `:forget` takes, the values and the types the
+%% session declares; a member goes with its type.
+-spec session_names() -> [{'Name', atom(), binary(), binary()}].
+session_names() ->
+    #env{session = S} = Env = persistent_term:get({?MODULE, env}, #env{}),
+    St = session_state(Env),
+    lists:usort([name('Value', name_text(Key), scheme_line(name_text(Key), Q, Env, St))
+                 || {Key, Q} <- maps:to_list(maps:get(values, S, #{})), is_atom(Key)]
+                ++ [name('Type', atom_to_list(N), "type " ++ atom_to_list(N))
+                    || N <- maps:keys(maps:get(types, S, #{}))]).
+
+%% Report §11.2: where `:load` finds a module's source, `--source-root`.
+-spec source_root() -> binary().
+source_root() ->
+    #env{source_root = Root} = persistent_term:get({?MODULE, env}, #env{}),
+    unicode:characters_to_binary(Root).
 
 %% A module in scope: the module itself, its exported values and types,
 %% and the constructors of those types, each by the name a person types.

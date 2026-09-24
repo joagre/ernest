@@ -39,6 +39,11 @@ foreign fn needsMore(input : String) -> Bool = "ern_shell:needs_more/1"
 // Reading the compiled interfaces is the host's; the matching is
 // `Shell.Complete`'s.
 foreign fn names() -> List(Shell.Complete.Name) with m = "ern_shell:names/0"
+// Report §11.2: the names the session declares, which `:forget` takes,
+// and the source root `:load` compiles from; the session is the front
+// end's to hold.
+foreign fn sessionNames() -> List(Shell.Complete.Name) with m = "ern_shell:session_names/0"
+foreign fn sourceRoot() -> String with m = "ern_shell:source_root/0"
 // Report §11.2: what may stand at the cursor, which the parser knows,
 // since it says what it wanted where it stopped.
 foreign fn context(before : String) -> Shell.Complete.Where with m = "ern_shell:context/1"
@@ -290,46 +295,57 @@ fn printLines(screen : Address(ScreenMsg), lines : List(String)) -> Unit with m 
 // Commands (report §11.2)
 //
 
-// A command is `:` and a name, and is not an Ernest function. Any prefix
-// of the name selects it, an ambiguous prefix the first in this order,
-// which is the order `:help` gives. One list holds all three, the order,
-// what a command takes after its name, and the line `:help` prints, so
-// that they cannot drift apart.
-type Command = Type | Browse | Load | Reload | Quit | Doc | Help | Forget
-  | Bindings | Processes | Faults | Output | Set
+// A command is `:` and a name, and is not an Ernest function. Its name
+// selects it, and so does a prefix of its name that begins no other
+// command's name; `:help` lists them alphabetically. One list holds it
+// all, the order, what a command takes after its name, what completes
+// there, and the line `:help` prints, so that they cannot drift apart.
+type Command = Bindings | Browse | Doc | Faults | Forget | Help | Load | Output | Processes
+  | Quit | Reload | Set | Type
 
-type Entry = Entry(name : String, command : Command, takes : Optional(String), about : String)
+// Report §11.2: what completes after a command. A path is an argument
+// but does not complete.
+type Argument = NoArgument | AnExpression | AModule | ASourceModule | AName | ASessionName
+  | ASetting | APath
+
+type Entry = Entry(name : String, command : Command, takes : Optional(String),
+    argument : Argument, about : String)
 
 type Next = Continue(State) | Leave
 
 let commands = [
-    Entry(name = "type", command = Type, takes = Some("an expression"),
-        about = " e         the type of e, which is not run"),
-    Entry(name = "browse", command = Browse, takes = Some("a module"),
-        about = " Module  the exports of Module with their types"),
-    Entry(name = "load", command = Load, takes = Some("a module"),
-        about = " Module    the module by its namespace, compiled from its source"),
-    Entry(name = "reload", command = Reload, takes = None,
-        about = "         every loaded module whose source has changed"),
-    Entry(name = "quit", command = Quit, takes = None,
-        about = "           leave, as C-d on an empty line does"),
-    Entry(name = "doc", command = Doc, takes = Some("a name"),
-        about = " Name       the documentation of Name, which GHCi calls :info"),
-    Entry(name = "help", command = Help, takes = None,
-        about = "           this text"),
-    Entry(name = "forget", command = Forget, takes = Some("a name, or * for all of them"),
-        about = " name    forget a name the session declared, or * for all of them"),
-    Entry(name = "bindings", command = Bindings, takes = None,
+    Entry(name = "bindings", command = Bindings, takes = None, argument = NoArgument,
         about = "       what the session declares, with their types"),
-    Entry(name = "processes", command = Processes, takes = None,
-        about = "      the live processes of the session, by spawn site"),
-    Entry(name = "faults", command = Faults, takes = None,
+    Entry(name = "browse", command = Browse, takes = Some("a module"), argument = AModule,
+        about = " Module  the exports of Module with their types"),
+    Entry(name = "doc", command = Doc, takes = Some("a name"), argument = AName,
+        about = " Name       the documentation of Name, which GHCi calls :info"),
+    Entry(name = "faults", command = Faults, takes = None, argument = NoArgument,
         about = "         the faults reported since the session began"),
-    Entry(name = "output", command = Output, takes = None,
+    Entry(name = "forget", command = Forget, takes = Some("a name, or * for all of them"),
+        argument = ASessionName,
+        about = " name    forget a name the session declared, or * for all of them"),
+    Entry(name = "help", command = Help, takes = None, argument = NoArgument,
+        about = "           this text"),
+    Entry(name = "load", command = Load, takes = Some("a module"), argument = ASourceModule,
+        about = " Module    the module by its namespace, compiled from its source"),
+    Entry(name = "output", command = Output, takes = None, argument = APath,
         about = "         a path, so a second window shows what programs write; - for the tail"),
-    Entry(name = "set", command = Set, takes = None,
-        about = "            depth n, length n, output n, timing on or off; :set alone shows them")
+    Entry(name = "processes", command = Processes, takes = None, argument = NoArgument,
+        about = "      the live processes of the session, by spawn site"),
+    Entry(name = "quit", command = Quit, takes = None, argument = NoArgument,
+        about = "           leave, as C-d on an empty line does"),
+    Entry(name = "reload", command = Reload, takes = None, argument = NoArgument,
+        about = "         every loaded module whose source has changed"),
+    Entry(name = "set", command = Set, takes = None, argument = ASetting,
+        about = "            depth n, length n, output n, timing on or off; :set alone shows them"),
+    Entry(name = "type", command = Type, takes = Some("an expression"), argument = AnExpression,
+        about = " e         the type of e, which is not run")
 ]
+
+// Report §11.2: the words `:set` takes first, which complete after it.
+let settings = [#("depth", "depth n"), #("length", "length n"), #("output", "output n"),
+    #("timing", "timing on or off")]
 
 // An input is a command or Ernest.
 fn submit(state : State, screen : Address(ScreenMsg), input : String) -> Next with ShellMsg =
@@ -339,29 +355,54 @@ fn submit(state : State, screen : Address(ScreenMsg), input : String) -> Next wi
 fn perform(state : State, screen : Address(ScreenMsg), input : String) -> Next with ShellMsg = {
     let #(word, arg) = splitWord(input, 0);
     let name = String.slice(word, 1, String.size(word) - 1);
-    match pick(commands, name) {
-        None -> {
+    match pick(name) {
+        Unknown -> {
             say(screen, "no command " <> word <> "; :help lists them");
             Continue(state)
         }
-      | Some(Entry(name = full, command = c, takes = Some(what))) ->
+      | Ambiguous(names) -> {
+            say(screen, word <> " is " <> alternatives(names));
+            Continue(state)
+        }
+      | Picked(Entry(name = full, command = c, takes = Some(what))) ->
             if String.isEmpty(arg) then {
                 say(screen, ":" <> full <> " takes " <> what);
                 Continue(state)
             } else obey(state, screen, c, arg)
-      | Some(Entry(command = c)) -> obey(state, screen, c, arg)
+      | Picked(Entry(command = c)) -> obey(state, screen, c, arg)
     }
 }
 
-fn pick(cs : List(Entry), name : String) -> Optional(Entry) =
-    if String.isEmpty(name) then None
-    else match cs {
-        [] -> None
-      | first :: rest -> match first {
-            Entry(name = full) ->
-                if String.startsWith(full, name) then Some(first) else pick(rest, name)
-        }
+// What a command's name selects: one command, none, or several, which
+// report §11.2 refuses with their names.
+type Picked = Picked(Entry) | Unknown | Ambiguous(List(String))
+
+fn pick(name : String) -> Picked = {
+    let begun = List.filter(commands, fn(e) = String.startsWith(entryName(e), name));
+    match List.filter(begun, fn(e) = entryName(e) == name) {
+        [whole] -> Picked(whole)
+      | _ ->
+            if String.isEmpty(name) then Unknown
+            else match begun {
+                [] -> Unknown
+              | [one] -> Picked(one)
+              | many -> Ambiguous(List.map(many, entryName))
+            }
     }
+}
+
+fn entryName(e : Entry) -> String = match e { Entry(name = name) -> name }
+
+// `:bindings or :browse`, and `:a, :b or :c` for three.
+fn alternatives(names : List(String)) -> String = {
+    let colons = List.map(names, fn(name) = ":" <> name);
+    match List.last(colons) {
+        None -> ""
+      | Some(last) ->
+            if List.size(colons) == 1 then last
+            else String.join(List.dropLast(colons), ", ") <> " or " <> last
+    }
+}
 
 fn obey(state : State, screen : Address(ScreenMsg), c : Command, arg : String)
     -> Next with ShellMsg = {
@@ -479,7 +520,7 @@ fn splitWord(s : String, i : Int) -> #(String, String) =
 
 // Report §11.2: the commands and their prefixes, from the one list.
 fn help() -> List(String) =
-    ["Commands, which any prefix of the name selects:"]
+    ["Commands, which a prefix of the name selects where it begins no other:"]
         <> List.map(commands, fn(e) = match e { Entry(name = n, about = a) -> "  :" <> n <> a })
         <> ["The value of the last expression is `it`."]
 
@@ -625,13 +666,14 @@ fn completing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading 
     let Reading(last = last) = reading;
     let Shell.Editor.State(text = line, at = at) = state;
     let typed = Shell.Complete.word(String.slice(line, 0, at));
-    if String.startsWith(line, ":") && at <= commandEnd(line) then
+    if String.startsWith(line, ":") && at <= commandEnd(line) then {
         // report §11.2: a command is the shell's own word, not the
         // language's, so the parser is not asked about it
-        offering(session, screen, reading,
-            Shell.Complete.complete(String.slice(line, 0, commandEnd(line)),
-                commandNames(), Shell.Complete.Expression),
-            String.slice(line, 0, commandEnd(line)), state)
+        let word = String.slice(line, 0, commandEnd(line));
+        offering(session, screen, reading, commandWord(word, line), word, state)
+    }
+    else if String.startsWith(line, ":") then
+        offering(session, screen, reading, argument(line, at, typed), typed, state)
     else if String.isEmpty(typed) then
         // report §11.2: nothing before the cursor to complete, so `Tab`
         // indents. Four spaces and no tab: the style guide's rule, and
@@ -671,6 +713,110 @@ fn offering(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : 
 fn commandEnd(line : String) -> Int = match String.indexOf(line, " ") {
     None -> String.size(line)
   | Some(i) -> i
+}
+
+// Report §11.2: a command that takes an argument, completed whole, is
+// followed by a space, where the line has none after it already.
+fn commandWord(word : String, line : String) -> Shell.Complete.Completion = {
+    let completion = Shell.Complete.complete(word, commandNames(), Shell.Complete.Anything);
+    match completion {
+        Shell.Complete.Completion(word = whole, candidates = [only]) ->
+            if commandEnd(line) == String.size(line) && takesArgument(whole) then
+                Shell.Complete.Completion(word = whole <> " ", candidates = [only])
+            else completion
+      | _ -> completion
+    }
+}
+
+fn takesArgument(word : String) -> Bool =
+    match pick(String.slice(word, 1, String.size(word) - 1)) {
+        Picked(Entry(argument = NoArgument)) -> false
+      | Picked(_) -> true
+      | _ -> false
+    }
+
+// Report §11.2: after a command, what completes is what the command
+// takes, and after another command nothing. An expression's names are
+// the parser's to choose, as at the start of a line; anything else is
+// one word, the argument's first.
+fn argument(line : String, at : Int, typed : String) -> Shell.Complete.Completion with m = {
+    let end = commandEnd(line);
+    let start = at - String.size(typed);
+    let before = String.slice(line, end, start - end);
+    match pick(String.slice(line, 1, end - 1)) {
+        Picked(Entry(argument = AnExpression)) ->
+            Shell.Complete.complete(typed, names(), context(before))
+      | Picked(Entry(argument = kind)) ->
+            if String.isEmpty(String.trim(before)) then
+                Shell.Complete.complete(typed, argumentNames(kind, typed), Shell.Complete.Anything)
+            else Shell.Complete.nothing
+      | _ -> Shell.Complete.nothing
+    }
+}
+
+fn argumentNames(kind : Argument, typed : String) -> List(Shell.Complete.Name) with m =
+    match kind {
+        // a module completes as it is written, without the dot a name
+        // inside it would need, and is listed by its name alone, since
+        // every candidate here is a module
+        AModule -> List.filterMap(names(), fn(name) = match name {
+            Shell.Complete.Name(text = text, kind = Shell.Complete.Module) ->
+                Some(Shell.Complete.Name(text = text, kind = Shell.Complete.Value, shown = text))
+          | _ -> None
+        })
+      | ASourceModule -> sourceModules(typed)
+      | AName -> names()
+      | ASessionName -> sessionNames()
+      | ASetting -> List.map(settings, fn(#(word, shown)) =
+            Shell.Complete.Name(text = word, kind = Shell.Complete.Value, shown = shown))
+      | _ -> []
+    }
+
+// Report §11.2: the modules `:load` may compile, read from the source
+// root a directory at a time: the one the typed word's finished segments
+// name, so that a large root is never walked whole. A directory is a
+// namespace and a `.ern` file a module, each named by §11.1's path shape.
+fn sourceModules(typed : String) -> List(Shell.Complete.Name) with m = {
+    let finished = List.dropLast(String.split(typed, "."));
+    let dir = List.foldLeft(finished, Path(sourceRoot()),
+        fn(path, segment) = Path.join(path, Path(String.toLower(segment))));
+    let prefix = String.join(List.map(finished, fn(segment) = segment <> "."), "");
+    match Fs.list(dir, fileWait) {
+        Left(_) -> []
+      | Right(entries) -> List.filterMap(entries, fn(entry) = sourceModule(prefix, entry))
+    }
+}
+
+fn sourceModule(prefix : String, entry : Prelude.Entry) -> Optional(Shell.Complete.Name) =
+    match entry {
+        Prelude.Entry(path = path, isDir = true) ->
+            if isPathWord(Path.name(path)) then {
+                let text = prefix <> capital(Path.name(path));
+                Some(Shell.Complete.Name(text = text, kind = Shell.Complete.Module,
+                    shown = text <> "."))
+            } else None
+      | Prelude.Entry(path = path) -> {
+            let stem = Path.name(Path.withExtension(path, ""));
+            if Path.extension(path) == Some("ern") && isPathWord(stem) then {
+                let text = prefix <> capital(stem);
+                Some(Shell.Complete.Name(text = text, kind = Shell.Complete.Value, shown = text))
+            } else None
+        }
+    }
+
+// Report §11.1: a path component is a lowercase letter followed by
+// lowercase letters and digits.
+fn isPathWord(word : String) -> Bool = match String.toList(word) {
+    [] -> false
+  | first :: rest -> within(first, 'a', 'z')
+        && List.all(rest, fn(c) = within(c, 'a', 'z') || within(c, '0', '9'))
+}
+
+fn within(c : Char, low : Char, high : Char) -> Bool = c >= low && c <= high
+
+fn capital(word : String) -> String = match String.toList(word) {
+    [] -> ""
+  | first :: rest -> String.fromList(Char.toUpper(first) :: rest)
 }
 
 fn commandNames() -> List(Shell.Complete.Name) =
@@ -729,13 +875,12 @@ fn brief(page : String) -> List(String) = {
     List.take(rest, 2) <> List.take(since, 1)
 }
 
-// Report §11.2: the candidates, a line each with the type they carry.
-// The region cuts the listing to the rows the screen has.
+// Report §11.2: the candidates, a lone one too, a line each with the
+// type they carry, or a command's help line. The region cuts the listing
+// to the rows the screen has.
 fn listing(completion : Shell.Complete.Completion) -> List(String) with m =
     match completion {
-        Shell.Complete.Completion(candidates = []) -> []
-      | Shell.Complete.Completion(candidates = [_]) -> []
-      | Shell.Complete.Completion(candidates = candidates) ->
+        Shell.Complete.Completion(candidates = candidates) ->
             List.map(candidates, fn(name) = match name {
                 Shell.Complete.Name(shown = shown) -> Shell.Style.named(colours(), shown)
             })

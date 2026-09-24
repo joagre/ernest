@@ -91,6 +91,8 @@ String.trim("  hi\n")
 ```
 
 > no command :zz; :help lists them
+> :b is :bindings or :browse
+> :f is :faults or :forget
 > :type takes an expression
 > no module Nope is in scope
 > no documentation for Nope.nope
@@ -107,20 +109,20 @@ it : List(Int)
 plus : (Int) -> Int
 zero : () -> Int
 > > the session declares nothing yet
-> Commands, which any prefix of the name selects:
-  :type e         the type of e, which is not run
-  :browse Module  the exports of Module with their types
-  :load Module    the module by its namespace, compiled from its source
-  :reload         every loaded module whose source has changed
-  :quit           leave, as C-d on an empty line does
-  :doc Name       the documentation of Name, which GHCi calls :info
-  :help           this text
-  :forget name    forget a name the session declared, or * for all of them
+> Commands, which a prefix of the name selects where it begins no other:
   :bindings       what the session declares, with their types
-  :processes      the live processes of the session, by spawn site
+  :browse Module  the exports of Module with their types
+  :doc Name       the documentation of Name, which GHCi calls :info
   :faults         the faults reported since the session began
+  :forget name    forget a name the session declared, or * for all of them
+  :help           this text
+  :load Module    the module by its namespace, compiled from its source
   :output         a path, so a second window shows what programs write; - for the tail
+  :processes      the live processes of the session, by spawn site
+  :quit           leave, as C-d on an empty line does
+  :reload         every loaded module whose source has changed
   :set            depth n, length n, output n, timing on or off; :set alone shows them
+  :type e         the type of e, which is not run
 The value of the last expression is `it`.
 > output goes to /tmp/ern-output-test.log
 > > output goes to /tmp/ern-output-test.log
