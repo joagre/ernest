@@ -596,11 +596,11 @@ shell(Opts, Rest, Err) ->
                    fun() -> ok end;
                [File] ->
                    {Ns, Roots, Loaded} = program(File, Opts),
-                   {EntryMod, EntryFn, Loaded1} = entry_point(Opts, Ns, Roots, Loaded),
+                   {Entry, Loaded1} = shell_entry(Opts, Ns, Roots, Loaded),
                    ern_shell:loaded(#{roots => Roots,
                                       source_root => source_root(Opts, File, "."),
                                       ifaces => ifaces(Loaded1),
-                                      entry => {EntryMod, EntryFn, entry_site(EntryMod, EntryFn)},
+                                      entry => Entry,
                                       startups => startups(Opts),
                                       history => history_file()}),
                    init_fun(Loaded1);
@@ -790,6 +790,19 @@ run_entry(Opts, Ns, Roots, Loaded, Err) ->
             %% report §8.6: a deadlock is the entry process's fault
             io:format(Err, "fault: ~ts~n", [Msg]),
             1
+    end.
+
+%% Report §11.2: the entry point the shell spawns beside it, or none for a
+%% file without one, which is loaded to be tried.
+shell_entry(Opts, Ns, Roots, Loaded) ->
+    Mod = ern_emitter:module_atom(Ns),
+    case proplists:get_value(main, Opts) =:= undefined
+         andalso not erlang:function_exported(Mod, main, 0) of
+        true ->
+            {none, Loaded};
+        false ->
+            {EntryMod, EntryFn, Loaded1} = entry_point(Opts, Ns, Roots, Loaded),
+            {{EntryMod, EntryFn, entry_site(EntryMod, EntryFn)}, Loaded1}
     end.
 
 %% Report §8.1: the entry point, the loaded module's `main` or the function

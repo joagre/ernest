@@ -2,7 +2,9 @@
 %% 2.61 step 1). A block marked `ernest` is a complete module and compiles;
 %% one whose first line names a file, `// net/http.ern`, is placed there, and
 %% such blocks under one heading compile together as a source tree; blocks
-%% that name the same file are its parts, in order. An `erlang` block that
+%% that name the same file are its parts, in order, and one headed
+%% `// words.ern, continued` adds to the file as it stood before, however
+%% many headings back. An `erlang` block that
 %% begins `-module(name).` joins them as `name.erl`, compiled with `erlc`
 %% beside the compiled modules, where report §11.2 has `ern` find it. When
 %% the next fenced
@@ -13,7 +15,8 @@
 %% an unknown name. When a console follows it, its `$ ernc` line names the
 %% file and the error is compared whole. A console whose command is
 %% `$ ern --shell` is a session: its `> ` lines are the inputs, and the rest
-%% is what the shell prints. Any other block is a fragment, which nothing
+%% is what the shell prints; `$ ern --shell words.erc` after a module is a
+%% session with that module loaded. Any other block is a fragment, which nothing
 %% checks.
 -module(ern_guide_tests).
 
@@ -49,10 +52,15 @@ check({modules, #{files := Files, run := Run}}) ->
                        ++ Build ++ " " ++ Dir),
     ?assertEqual({0, <<>>}, {Status, Out}),
     case Run of
-        none -> ok;
-        {Flags, Module, Expected} ->
-            {0, Printed} = sh("../bin/ern " ++ Flags ++ filename:join(Build, Module)),
-            ?assertEqual(Expected, Printed)
+        none ->
+            ok;
+        {Flags, Module, Inputs, Expected} ->
+            In = filename:join(Dir, "inputs"),
+            ok = write(In, [[I, <<"\n">>] || I <- Inputs]),
+            {0, Printed} = sh("cd " ++ Dir ++ " && HOME=" ++ Dir ++ " "
+                              ++ filename:absname("../bin/ern") ++ " " ++ Flags
+                              ++ filename:join(Build, Module) ++ " < " ++ In),
+            ?assertEqual(trim(Expected), session_end(Printed))
     end;
 check({rejected, #{files := [{F, Code}], shown := Shown}}) ->
     Dir = tmp(),
@@ -72,8 +80,12 @@ check({session, #{inputs := Inputs, shown := Expected}}) ->
     ok = write(In, [[I, <<"\n">>] || I <- Inputs]),
     {0, Out} = sh("cd " ++ Dir ++ " && HOME=" ++ Dir ++ " " ++ filename:absname("../bin/ern")
                   ++ " --shell < " ++ In),
-    %% a session not at a terminal echoes no input, and ends at the last prompt
-    ?assertEqual(trim(Expected), trim(string:trim(trim(Out), trailing, ">"))).
+    ?assertEqual(trim(Expected), session_end(Out)).
+
+%% A session not at a terminal echoes no input, and ends at the last
+%% prompt, which a program's output does not end in.
+session_end(Out) ->
+    trim(string:trim(trim(Out), trailing, ">")).
 
 %% The checked units of the guide, in order: {modules, Unit} for one module
 %% or a heading's source tree, {rejected, Unit} for an example that must
@@ -82,7 +94,7 @@ units() ->
     {ok, Text} = file:read_file(?GUIDE),
     Lines = binary:split(Text, <<"\n">>, [global]),
     Blocks = blocks(lists:zip(lists:seq(1, length(Lines)), Lines), none, []),
-    group(Blocks).
+    group(Blocks, #{}).
 
 %% Every fenced block: {Line, Info, Heading, CodeLines}.
 blocks([], _, Acc) ->
@@ -101,49 +113,59 @@ fence(_) -> false.
 %% `ernest` blocks that name a file join the other such blocks under their
 %% heading; a block that names none is a module of its own, in the file its
 %% console runs, or `example.ern`.
-group([]) ->
+%% Seen: each named file as it stands so far, for a block that continues it.
+group([], _Seen) ->
     [];
-group([{N, <<"ernest-rejected">>, _, Code} | Rest]) ->
+group([{N, <<"ernest-rejected">>, _, Code} | Rest], Seen) ->
     {File, Shown} = case compiled(Rest) of
                         {F, Text} -> {F, Text};
                         none -> {file_of(Code), none}
                     end,
-    [{rejected, #{line => N, files => [{File, join(Code)}], shown => Shown}} | group(Rest)];
-group([{N, <<"console">>, _, [<<"$ ern --shell">> | Lines]} | Rest]) ->
-    Inputs = [I || <<"> ", I/binary>> <- Lines],
-    %% the prompt stays; the input after it is the terminal's echo
-    Shown = [case L of <<"> ", _/binary>> -> <<"> ">>; _ -> [L, <<"\n">>] end || L <- Lines],
-    [{session, #{line => N, inputs => Inputs, shown => iolist_to_binary(Shown)}} | group(Rest)];
-group([{N, Info, Heading, Code} = B | Rest]) when Info =:= <<"ernest">>;
-                                                  Info =:= <<"erlang">> ->
+    [{rejected, #{line => N, files => [{File, join(Code)}], shown => Shown}} | group(Rest, Seen)];
+group([{N, <<"console">>, _, [<<"$ ern --shell">> | Lines]} | Rest], Seen) ->
+    [{session, #{line => N, inputs => inputs(Lines), shown => session_shown(Lines)}}
+     | group(Rest, Seen)];
+group([{N, Info, Heading, Code} = B | Rest], Seen) when Info =:= <<"ernest">>;
+                                                        Info =:= <<"erlang">> ->
     case named(Code) of
         none when Info =:= <<"erlang">> ->
             %% Erlang without a module line is a fragment
-            group(Rest);
+            group(Rest, Seen);
         none ->
             %% a module the console runs is the file the console names
             Run = run(Rest),
             File = case Run of
-                       {_, Module, _} -> filename:rootname(Module) ++ ".ern";
+                       {_, Module, _, _} -> filename:rootname(Module) ++ ".ern";
                        none -> "example.ern"
                    end,
-            [{modules, #{line => N, files => [{File, join(Code)}], run => Run}} | group(Rest)];
+            [{modules, #{line => N, files => [{File, join(Code)}], run => Run}}
+             | group(Rest, Seen)];
         _ ->
             {Same, Others} = lists:splitwith(
                                fun({_, I, H, C}) -> lists:member(I, [<<"ernest">>, <<"erlang">>])
                                                         andalso H =:= Heading
                                                         andalso named(C) =/= none end, Rest),
             Tree = [B | Same],
-            [{modules, #{line => N, files => parts([{named(C), C} || {_, _, _, C} <- Tree]),
-                         run => run(Others)}} | group(Others)]
+            Files = parts([{named(C), C} || {_, _, _, C} <- Tree], Seen),
+            Seen1 = maps:merge(Seen, maps:from_list(Files)),
+            [{modules, #{line => N, files => Files, run => run(Others)}} | group(Others, Seen1)]
     end;
-group([_ | Rest]) ->
-    group(Rest).
+group([_ | Rest], Seen) ->
+    group(Rest, Seen).
 
-%% The files of a source tree, each the blocks that name it joined in order.
-parts(Named) ->
+%% The files of a source tree, each the blocks that name it joined in order,
+%% after the file as it stood when its first block here continues it.
+parts(Named, Seen) ->
     Files = lists:usort([F || {F, _} <- Named]),
-    [{F, join(lists:append([C || {G, C} <- Named, G =:= F]))} || F <- Files].
+    [{F, iolist_to_binary([before(F, Named, Seen)
+                           | [join(C) || {G, C} <- Named, G =:= F]])} || F <- Files].
+
+before(F, Named, Seen) ->
+    [First | _] = [C || {G, C} <- Named, G =:= F],
+    case re:run(hd(First), "^// [a-z0-9/]+\\.ern, continued") of
+        {match, _} -> maps:get(F, Seen);
+        nomatch -> <<>>
+    end.
 
 %% `// net/http.ern  (namespace Net.Http)` names net/http.ern, and
 %% `-module(store_helper).` names store_helper.erl.
@@ -170,14 +192,18 @@ file_of(Code) ->
 %% its `$ ern` line runs, and the lines it shows that are not commands.
 run([{_, <<"console">>, _, Lines} | _]) ->
     Commands = [L || <<"$ ", _/binary>> = L <- Lines],
-    Shown = [[L, <<"\n">>] || L <- Lines, not lists:member(L, Commands)],
+    Output = [L || L <- Lines, not lists:member(L, Commands)],
     Runs = [{Flags, M} || C <- Commands,
                           {match, [Flags, M]} <- [re:run(C, "^\\$ ern ((?:--[a-z]+ )*)(?:\\S*/)?"
                                                           "([a-z0-9]+\\.erc)",
                                                           [{capture, all_but_first, list}])]],
     case Runs of
-        [{Flags, Module} | _] -> {Flags, Module, iolist_to_binary(Shown)};
-        [] -> none
+        [{"--shell " = Flags, Module} | _] ->
+            {Flags, Module, inputs(Output), session_shown(Output)};
+        [{Flags, Module} | _] ->
+            {Flags, Module, [], join(Output)};
+        [] ->
+            none
     end;
 run(_) ->
     none.
@@ -191,6 +217,16 @@ compiled([{_, <<"console">>, _, [Command | Lines]} | _]) ->
     end;
 compiled(_) ->
     none.
+
+%% A session's inputs are its `> ` lines.
+inputs(Lines) ->
+    [I || <<"> ", I/binary>> <- Lines].
+
+%% What a session prints not at a terminal: the prompt stays, and the input
+%% after it, which is the terminal's echo, goes.
+session_shown(Lines) ->
+    iolist_to_binary([case L of <<"> ", _/binary>> -> <<"> ">>; _ -> [L, <<"\n">>] end
+                      || L <- Lines]).
 
 trim(Text) ->
     string:trim(Text, trailing).

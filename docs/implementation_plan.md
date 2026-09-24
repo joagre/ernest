@@ -223,7 +223,13 @@ without boasting. Each step is a stop.
    prompt took a name alone in a `let`, where §11.2 makes it a block `let` with a pattern,
    and a pure callback given to `spawn` was reported as "process code called from a pure
    function". Split from the running example on 2026-09-24.
-5b. **One running example through §2 to §5**, each stage a complete program the test runs.
+5b. **Done 2026-09-24: one running example through §2 to §5**, a word counter: values at
+   the prompt, functions in `words.ern` tried in the shell, a tally process, and workers
+   that count at once under a monitor, closing the guide's sections 2 to 5, each checked by
+   the test.
+   A block headed `// words.ern, continued` adds to the file as it stood, and a console of
+   `ern --shell words.erc` is a session with the module loaded. Writing it found that the
+   shell refused a file without `main`; §11.2 now loads such a file and spawns nothing.
 6. **Supervision and "let it crash"**, the idioms the log lists: a monitor, a restart, a
    supervisor in fifteen lines.
 7. **The tools and a bridge:** `ernc`, `ern`, `--test`, `--doc`, the shell and the Emacs mode

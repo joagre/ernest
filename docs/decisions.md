@@ -3818,6 +3818,12 @@ The prelude has no documentation, so `:doc monitor` and `Shift-Tab` on `spawn` s
 
 §11.2 will state `Tab` and `Shift-Tab`, since it states the editing keys and §11 owns what the toolchain does; the design note keeps how they are built. Whether `remote` stays once peers exist is decided at the start of MVP 3.0, before it is built over them.
 
+## The Guide's Running Example, 2026-09-24
+
+A newcomer learns more from one program that grows than from a new toy in every section, since each stage then shows what the section added to something already understood. A word counter was chosen because each of §2 to §5 has a stage that needs exactly that section: values and a map at the prompt, pure functions and a fold, a process that holds state and answers a request, and workers under a monitor. The counter and ping-pong stay as each section's first, smallest example, and the counter's stages close the sections. The stages are one file, `words.ern`, whose later parts say `continued`, so a reader grows one file as the test does; §3 and §4 try the module in the shell, which §1.2 taught, and only §5 gives it a `main`.
+
+The last stage is where the language taught its own lesson: a worker that sent its counts to the tally directly would race `main`'s request for the result, since messages are ordered per sender only, so the workers send to `main`, which forwards. The shell refused `ern --shell words.erc` for want of a `main`; §11.2 said a file's entry point is spawned beside the shell and nothing of a file without one, and a library module put in scope to be tried is the reason to load a file at all, so such a file is now loaded with nothing spawned. `Map.merge` keeping the second value made totalling two count maps a fold, which reads well and is noted for the standard library's read-back rather than worked around.
+
 ## Later
 
 Planned or considered, not in the language today.

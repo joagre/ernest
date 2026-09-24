@@ -435,7 +435,28 @@ The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char
 
 What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it.
 
-### 2.10 Prediction exercise
+### 2.10 A word counter, by hand
+
+Sections 2 to 5 build one program, a word counter, a stage in each. Here it is values at the prompt: a text, its words, and a count kept in a map.
+
+```console
+$ ern --shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> let text = "the cat and the hat"
+text : String
+> let words = String.split(text, " ")
+words : List(String)
+> words
+["the", "cat", "and", "the", "hat"] : List(String)
+> let counts = Map.update(Map.empty, "the", fn(n) = Optional.withDefault(n, 0) + 1)
+counts : Map(String, Int)
+> Map.update(counts, "the", fn(n) = Optional.withDefault(n, 0) + 1)
+Map.fromList([#("the", 2)]) : Map(String, Int)
+```
+
+`Map.update` counts a word: a word not yet in the map is `None`, and its count starts at 0. Counting every word is a fold over the list with a function, and functions are §3.
+
+### 2.11 Prediction exercise
 
 Given:
 
@@ -551,7 +572,41 @@ input:1:14: the argument does not fit spawn: a pure function where one that runs
 <address> : Address(Never)
 ```
 
-### 3.7 Prediction exercise
+### 3.7 The word counter as functions
+
+The counter becomes functions in a file of its own. A file is a module named after it, so the functions of `words.ern` are `Words.count` and the rest to the code outside it (§7.1).
+
+```ernest
+// words.ern
+export fn words(text : String) -> List(String) =
+    String.split(String.toLower(text), " ") |> List.filter(fn(w) = w != "")
+
+export fn count(text : String) -> Map(String, Int) =
+    words(text) |> List.foldLeft(Map.empty, fn(counts, w) = add(counts, w, 1))
+
+export fn add(counts : Map(String, Int), word : String, n : Int) -> Map(String, Int) =
+    Map.update(counts, word, fn(old) = Optional.withDefault(old, 0) + n)
+
+export fn top(counts : Map(String, Int), n : Int) -> List(#(String, Int)) =
+    Map.toList(counts) |> List.sort(byCount) |> List.take(n)
+
+fn byCount(#(w1, c1) : #(String, Int), #(w2, c2) : #(String, Int)) -> Ordering =
+    if c1 != c2 then Int.compare(c2, c1) else String.compare(w1, w2)
+```
+
+`words` splits on spaces and drops the empty strings two spaces leave. `count` folds the words into a map with `add`. `top` sorts the pairs by count, most first and by word where counts are equal, and keeps `n` of them. `byCount` is not exported, and its parameters are patterns that take the pairs apart. `ern --shell words.erc` loads the module and runs nothing, since it has no `main`:
+
+```console
+$ ernc words.ern
+$ ern --shell words.erc
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> Words.count("the cat and the hat")
+Map.fromList([#("and", 1), #("cat", 1), #("hat", 1), #("the", 2)]) : Map(String, Int)
+> Words.top(Words.count("the cat and the hat"), 2)
+[#("the", 2), #("and", 1)] : List(#(String, Int))
+```
+
+### 3.8 Prediction exercise
 
 Given:
 
@@ -767,7 +822,37 @@ after upgrade: 10
 
 The address `c` is unchanged; the process behind it is now running `doublingCounter`. After the state 8, `Inc(1)` in the doubling loop adds 2, yielding 10.
 
-### 4.7 Prediction exercise
+### 4.7 The word counter as a process
+
+A tally is a process that holds the counts and adds to them. `words.ern` continues:
+
+```ernest
+// words.ern, continued
+export type TallyMsg = Add(Map(String, Int)) | Top(n : Int, reply : Reply(List(#(String, Int))))
+
+export fn tally(counts : Map(String, Int)) -> Unit with TallyMsg = receive {
+    Add(more) -> tally(Map.foldLeft(more, counts, add))
+  | Top(n = n, reply = r) -> { answer(r, top(counts, n)); tally(counts) }
+}
+```
+
+`Add` brings a map of counts, and `Map.foldLeft` adds each word's count in with `add`, which takes the map, a word, and a count, the order the fold gives them. `Top` is a request, so it carries a `Reply`.
+
+```console
+$ ernc words.ern
+$ ern --shell words.erc
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> let t = spawn(Local, fn() = Words.tally(Map.empty))
+t : Address(Words.TallyMsg)
+> send(t, Words.Add(Words.count("the cat and the hat")))
+> send(t, Words.Add(Words.count("the bat")))
+> Address.call(t, fn(r) = Words.Top(n = 2, reply = r), 1000)
+Some([#("the", 3), #("and", 1)]) : Optional(List(#(String, Int)))
+```
+
+A `send` is `Unit`, which the shell does not print.
+
+### 4.8 Prediction exercise
 
 Does `Address.call(c, ..., 1000)` returning `None` guarantee the recipient did no work?
 
@@ -927,7 +1012,55 @@ fn waitForTick(state : World) -> Unit with GameMsg = receive {
 
 `game` schedules exactly one clock request, then hands off to `waitForTick`. Inputs are handled without touching the pending timer; only a `Tick` returns to `game`, which schedules the next one. `step` destructures the world with a pattern; Ernest does not generate field-accessor functions.
 
-### 5.6 Prediction exercise
+### 5.6 The word counter at once
+
+Several texts are counted at once, by a worker each, and the tally totals them. `words.ern` gets its `main`:
+
+```ernest
+// words.ern, continued
+type MainMsg = Counted(Map(String, Int)) | Died(Down)
+
+export fn main() -> Unit with MainMsg = {
+    let totals = spawn(Local, fn() = tally(Map.empty));
+    countAll(totals, ["the cat and the hat", "the bat and the ball", "a cat"]);
+    match Address.call(totals, fn(r) = Top(n = 3, reply = r), 1000) {
+        Some(best) -> List.foreach(best, fn(#(w, c)) = Io.println(w <> " " <> Int.toString(c)))
+      | None -> Io.println("the tally did not answer")
+    }
+}
+
+fn countAll(totals : Address(TallyMsg), texts : List(String)) -> Unit with MainMsg = {
+    let me = self();
+    List.foreach(texts, fn(text) = {
+        let worker = spawn(Local, fn() -> Unit with Never = send(me, Counted(count(text))));
+        monitor(worker, Died)
+    });
+    collect(totals, List.size(texts))
+}
+
+fn collect(totals : Address(TallyMsg), left : Int) -> Unit with MainMsg =
+    if left == 0 then Unit
+    else receive {
+        Counted(counts) -> { send(totals, Add(counts)); collect(totals, left - 1) }
+      | Died(Down(reason = Fault(cause), function = _)) -> {
+            Io.println("a worker faulted: " <> cause);
+            collect(totals, left - 1)
+        }
+      | Died(_) -> collect(totals, left)
+    }
+```
+
+```console
+$ ernc words.ern
+$ ern words.erc
+the 4
+and 2
+cat 2
+```
+
+Each worker counts one text and sends the map to `main`, not to the tally. Messages are ordered per sender only (§5.1), so an `Add` a worker sent to the tally could arrive after the `Top` that `main` sends; sent by `main`, they arrive in order. `main` monitors every worker, so one that faults is counted as done and reported. `collect` passes over the `Down` of a worker that returned, whose `Counted` has already counted it.
+
+### 5.7 Prediction exercise
 
 Given the ping-pong program, does the runtime guarantee ping and pong's `Io.println` output appears in strictly alternating order?
 

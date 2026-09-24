@@ -158,3 +158,13 @@ What I would actually put to you as candidate language changes: field selection 
 
     Planned: decided first in MVP 3.0, before `remote` is built over peers (the plan's
     MVP 3.0 section).
+
+## Found while writing the guide's running example, 2026-09-24
+
+15. **No merge that combines the values of a key both maps hold.** `Map.merge` keeps the
+    second map's value, so totalling two maps of counts is a fold,
+    `Map.foldLeft(more, counts, add)` with `add(counts, word, n)`. The fold is ordinary
+    Ernest and reads well once `add` has the fold's shape, so nothing was worked around;
+    Erlang has `maps:merge_with/3` and Gleam `dict.combine`, and whether E.0's rules admit
+    a `Map.mergeWith(m, other, f)` is weighed in MVP 2.65's read-back of the standard
+    library.

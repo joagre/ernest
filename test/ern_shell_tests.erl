@@ -513,6 +513,23 @@ pattern_let() ->
     ?assertMatch({_, _}, binary:match(Out, <<"a `let` with `<-` at the prompt has no block">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"the types of e, f are not determined">>)).
 
+%% report §11.2: a file without an entry point is loaded by the shell and
+%% nothing is spawned, so a library module is put in scope to be tried. A
+%% regression test: the shell refused a module without `main`
+library_file_test_() ->
+    {timeout, 60, fun library_file/0}.
+
+library_file() ->
+    Dir = filename:join("/tmp", "ern_lib_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(filename:join(Dir, "twice.ern"), "export fn of(n : Int) -> Int = 2 * n\n"),
+    ok = file:write_file(filename:join(Dir, "in"), "Twice.of(21)\n"),
+    {0, _} = sh("../bin/ernc --source-root " ++ Dir ++ " --out-dir " ++ Dir ++ " "
+                ++ filename:join(Dir, "twice.ern")),
+    {0, Out} = sh("HOME=" ++ Dir ++ " ../bin/ern --shell " ++ filename:join(Dir, "twice.erc")
+                  ++ " < " ++ filename:join(Dir, "in")),
+    ?assertMatch({_, _}, binary:match(Out, <<"42 : Int">>)).
+
 %% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
 %% under the source root and puts it in scope; `:reload` compiles again
 %% what has changed, names what is still in the previous version, and ends
