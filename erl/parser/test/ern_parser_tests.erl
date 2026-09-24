@@ -523,6 +523,11 @@ misc_errors_test() ->
     ?assertEqual("expected `->` after a parameter list instead of `=`",
                  err("let f : (A, B) = x")),
     ?assertEqual("unknown bitstring specifier `bogus`", err_expr("<<x:bogus>>")),
+    %% report §2.6, §11.5: max-munch reads `a<-1` as a binding arrow, and the
+    %% error says how to write the comparison
+    ?assertEqual("expected `then` instead of `<-`", err_expr("if a<-1 then 1 else 2")),
+    ?assertEqual("`<-` is one token; write `a < -1` to compare with a negative number",
+                 help_expr("if a<-1 then 1 else 2")),
     %% report §5.11: `bits` and `native` are Erlang's, not Ernest's
     ?assertEqual("unknown bitstring specifier `bits`", err_expr("<<x:bits>>")),
     ?assertEqual("unknown bitstring specifier `native`", err_expr("<<x:size(32)-native>>")),

@@ -3774,6 +3774,10 @@ E.0 rule 2 ended "A verb not in this list needs an entry in the decisions log", 
 
 Every `Clock.alarm` in the repository was written `Clock.alarm(ms, fn(_) = Tick)`, a lambda throwing away the `Unit` E.0 rule 8's shape handed it. Rule 8 is right for `monitor` and `Terminal.subscribe`, whose messages carry a `Down` or an `Event`; the clock's carried nothing, so the function was noise at every use. The alarm now carries the time it fired, in milliseconds as `Clock.now` gives them, so a single-positional constructor passes as the wrap, `Clock.alarm(100, Tick)` with `Tick(Int)`, the shape `monitor(child, Died)` already has, and a tick loop can see how late an alarm came. Rule 8 is unchanged. Taking the message itself, `Clock.alarm(100, Tick)` with a nullary `Tick`, was shorter and was a second delivery shape beside rule 8's. Every existing use still compiles, `fn(_) =` ignoring whatever it is given.
 
+## `a<-1` Is Named, 2026-09-24
+
+Max-munch makes `<-` one token, so `a<-1` is `a <- 1` and not a comparison with a negative number. The parser stopped such a program, with "expected `then` instead of `<-`", which does not say why. §2.6 now gives the example beside the rule, and the error's help line says how the comparison is written. Splitting `<-` after an operand was the other way, and it would make the lexer depend on the parser's state, against principle 4.
+
 ## Later
 
 Planned or considered, not in the language today.

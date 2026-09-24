@@ -231,6 +231,8 @@ options, then what is recorded and left alone.
   - Weighed and left: `with` for both a mailbox and an abstract type's signature.
   - `Clock.alarm` and `alarmAt` deliver the time the alarm fired, so a constructor passes as
     the wrap (§9.3, E.15).
+  - `a<-1` is `a <- 1` by max-munch; §2.6 gives the example, and the parser's error says how
+    to write the comparison (§11.5).
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the

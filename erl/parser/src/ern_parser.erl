@@ -845,6 +845,11 @@ sep_by(Ts, Sep, Parse) ->
 
 expect([{Sym, _} | R], Sym) ->
     R;
+expect([{'<-', _} = T | _], Sym) ->
+    %% report §2.6, §11.5: max-munch makes `a<-1` a binding arrow, which a
+    %% comparison with a negative number was meant as
+    fail(pos(T), "expected `" ++ atom_to_list(Sym) ++ "` instead of " ++ describe(T),
+         "`<-` is one token; write `a < -1` to compare with a negative number");
 expect([T | _], Sym) ->
     fail(pos(T), "expected `" ++ atom_to_list(Sym) ++ "` instead of " ++ describe(T)).
 
