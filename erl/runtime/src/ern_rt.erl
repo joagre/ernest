@@ -24,7 +24,7 @@
          kill/1, sys/1, run_main/2, run_main/3, fault/1, remote/1,
          todo/1, timed/0, untimed/0, in_foreign/1, init_stdlib/0, own_terminal/1,
          source_begin/0, source_end/0, process_of/1, proxy_for/3, proxy_forget/2,
-         hold_terminal/1, terminal_holder/0, deaths/1, live/0]).
+         hold_terminal/1, terminal_holder/0, shell_holds/0, deaths/1, live/0]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -103,6 +103,7 @@ via(F, Target) ->
 
 -spec call(address(), fun((reply()) -> term()), integer()) -> 'None' | {'Some', term()}.
 call(Addr, Mk, Ms) ->
+    line_guard(Addr),
     Alias = erlang:alias([reply]),
     deliver(Addr, Mk(Alias)),
     timed(),
@@ -119,6 +120,7 @@ call(Addr, Mk, Ms) ->
 
 -spec call_forever(address(), fun((reply()) -> term())) -> term().
 call_forever(Addr, Mk) ->
+    line_guard(Addr),
     Alias = erlang:alias([reply]),
     deliver(Addr, Mk(Alias)),
     receive
@@ -425,6 +427,26 @@ hold_terminal(Addr) ->
 -spec terminal_holder() -> pid() | undefined.
 terminal_holder() ->
     persistent_term:get({?MODULE, holder}, undefined).
+
+%% Report §7.4, §11.2: the cause of a process that asks for the terminal
+%% while a shell holds it, a subscriber or a reader of lines alike.
+-spec shell_holds() -> binary().
+shell_holds() ->
+    <<"the shell holds the terminal; run the program with ern to give it the keyboard">>.
+
+%% Report §11.2: while a shell holds the terminal, a line is read by the
+%% holder alone. Anything else that asks faults, in its own process, before
+%% the request reaches stdin, where it would take the shell's next line.
+line_guard(Addr) ->
+    case terminal_holder() of
+        undefined -> ok;
+        Holder ->
+            Stdin = persistent_term:get({?MODULE, stdin}, undefined),
+            case process_of(Addr) =:= Stdin andalso erlang:self() =/= Holder of
+                true -> fault(shell_holds());
+                false -> ok
+            end
+    end.
 
 %% Report §8.2: which way the terminal is being read, keys or lines; a
 %% program does one or the other, and the second to ask ends it.

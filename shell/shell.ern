@@ -133,7 +133,12 @@ export fn main() -> Unit with ShellMsg = {
         let state2 = startup(state, screen);
         send(screen, Said("> "));
         keyLoop(state2, screen)
-    } else lineLoop(startup(state, screen), screen)
+    } else {
+        // report §11.2: in line mode the session reads the lines itself,
+        // and holds the terminal so that no input takes one
+        holdTerminal(self());
+        lineLoop(startup(state, screen), screen)
+    }
 }
 
 // One input, from either reader: checked, run in a process of its own, its

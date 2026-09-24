@@ -54,9 +54,7 @@ loop(Subscribers, Reader, Pending, Size) ->
             case held_by_another(Address) of
                 true ->
                     %% report §11.2: the terminal is the shell's
-                    exit(ern_rt:process_of(Address),
-                         {ern, fault, <<"the shell holds the terminal; run the program with ern "
-                                        "to give it the keyboard">>}),
+                    exit(ern_rt:process_of(Address), {ern, fault, ern_rt:shell_holds()}),
                     loop(Subscribers, Reader, Pending, Size);
                 false ->
                     Reader1 = start_reader(Reader),

@@ -3758,6 +3758,10 @@ That modules may not depend on each other in a cycle was stated only in §11.1, 
 
 E.0 rule 2 ended "A verb not in this list needs an entry in the decisions log", which made this log a condition in a normative rule, and the log is never normative. What the gate protected was one verb per operation, with no synonym for a verb the list has. The rule now says that itself: a verb not in the list names an operation none of the listed verbs does, and one verb names it in every module that has it. It can be checked against Appendix E alone. The log still records why a verb was chosen, as it records every decision.
 
+## An Input That Reads a Line Faults, as §11.2 Said, 2026-09-24
+
+§11.2 said `Io.readLine` from a process other than the shell's faults while a shell holds the terminal, and the shell design said the same, with the cause a subscriber meets. Only the subscription was built. A line read went to `stdin` unchecked: at a terminal it ended the program, shell and all, with "the terminal is already read as keys", and in line mode it took the shell's next line as its answer. The runtime now refuses the read in the reading process, before it reaches `stdin`, with the subscriber's cause, and the shell holds the terminal in line mode too, for the session that reads the lines. The cause text has one home in the runtime, which both refusals use.
+
 ## Later
 
 Planned or considered, not in the language today.

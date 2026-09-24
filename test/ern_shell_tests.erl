@@ -441,6 +441,31 @@ open_binding() ->
     ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"badkey">>)).
 
+%% report §11.2, §7.4: the terminal is the shell's, so an input that reads a
+%% line faults with the cause §7.4 gives and the shell goes on. A
+%% regression test: in line mode the input took the shell's next line, and
+%% at a terminal it ended the program, shell and all
+input_reads_line_test_() ->
+    {timeout, 60, fun input_reads_line/0}.
+
+input_reads_line() ->
+    In = filename:join("/tmp", "ern_read_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = file:write_file(In, "Io.readLine()\n1 + 1\n"),
+    {0, Out} = sh("../bin/ern --shell < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"the shell holds the terminal">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"Some(\"1 + 1\")">>)),
+    Screen = pty(alone("../bin/ern --shell"),
+                 [{expect, "> "},
+                  {send, hex("Io.readLine()\r")},
+                  {expect, "shell holds the terminal"},
+                  {send, hex("1 + 1\r")},
+                  {expect, "2 : Int"},
+                  {send, "04"}],
+                 20),
+    ?assertMatch({_, _}, binary:match(Screen, <<"2 : Int">>)),
+    ?assertEqual(nomatch, binary:match(Screen, <<"already read as">>)).
+
 %% report §6.6, §11.2: an input's value is printed and dropped, and a `let`
 %% at the prompt binds for every later input, so neither may carry a reply.
 %% A regression test: the shell printed such a value and dropped the reply.

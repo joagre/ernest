@@ -225,6 +225,8 @@ options, then what is recorded and left alone.
   - §4.2 says a function's mailbox type is exempt from the private-type rule, where it said
     "the effect of a function aside"; §7.2's sentence that stated no rule is cut.
   - E.0 rule 2 states its no-synonyms constraint instead of requiring a log entry.
+  - An input that reads a line under the shell faults with the subscriber's cause, as §11.2
+    said; it had ended the program at a terminal and taken the shell's line in line mode.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the
