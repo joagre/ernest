@@ -1,9 +1,9 @@
 //
 // The shell's live region (report §11.2), designed in
 // docs/shell_design.md: the bottom rows of the terminal, a tail of what
-// programs have written and the input being typed under it. Everything
-// above it is the transcript, written into the terminal and scrolled by
-// it.
+// programs have written, the input being typed under it, and under that
+// what `Tab` or `Shift-Tab` showed. Everything above it is the
+// transcript, written into the terminal and scrolled by it.
 //
 // A pure function from the region and what happened to the region after
 // it and the bytes to write. The screen process in `shell.ern` writes
@@ -13,15 +13,16 @@
 
 // What the region shows: the tail of what programs wrote, the part of a
 // line that has arrived without its line feed, the prompt and the input
-// being typed after it with the cursor in it, the row the cursor was
-// left on, how many rows the tail may take, the terminal's size, and
-// whether there is a terminal at all.
+// being typed after it with the cursor in it, the rows shown under the
+// input, the row the cursor was left on, how many rows the tail may
+// take, the terminal's size, and whether there is a terminal at all.
 export type Region = Region(
     tail : List(String),
     writing : String,
     prompt : String,
     typed : String,
     at : Int,
+    offered : List(String),
     resting : Int,
     output : Int,
     size : Optional(Size),
@@ -42,7 +43,7 @@ let tabStop = 8
 // A region at the foot of a terminal of that size, or none where the
 // program's output is not a terminal at all.
 export fn new(size : Optional(Size), live : Bool) -> Region =
-    Region(tail = [], writing = "", prompt = "", typed = "", at = 0, resting = 0,
+    Region(tail = [], writing = "", prompt = "", typed = "", at = 0, offered = [], resting = 0,
         output = tailRows, size = size, live = live)
 
 // What the session says is committed as it is produced; what it leaves
@@ -79,17 +80,21 @@ export fn wrote(r : Region, text : String) -> #(Region, String) = match r {
     }
 }
 
-// The line being typed, and where the cursor is in it.
-export fn typing(r : Region, text : String, at : Int) -> #(Region, String) =
-    painted(Region(..r, typed = text, at = at), [])
+// The line being typed, where the cursor is in it, and the rows shown
+// under it. Report §11.2: what `Tab` and `Shift-Tab` show stands under
+// the input until the next key, which says what stands there next,
+// nothing for a key that is neither.
+export fn typing(r : Region, text : String, at : Int, offered : List(String))
+    -> #(Region, String) =
+    painted(Region(..r, typed = text, at = at, offered = offered), [])
 
 // The input is finished: it joins the transcript, a row for each of its
 // lines with the prompt each was typed after, and the region stops
-// drawing it.
+// drawing it and what was shown under it.
 export fn entered(r : Region) -> #(Region, String) = match r {
     Region(live = false) -> #(r, "")
   | Region(live = true, tail = tail) ->
-        painted(Region(..r, prompt = "", typed = "", at = 0, tail = []),
+        painted(Region(..r, prompt = "", typed = "", at = 0, offered = [], tail = []),
             tail <> inputRows(r))
 }
 
@@ -161,11 +166,62 @@ fn written(lines : List(String)) -> String =
 fn paint(rows : List(String), row : Int, at : Int) -> String =
     String.join(rows, "\n") <> up(List.size(rows) - 1 - row) <> "\r" <> right(at - 1)
 
-// The region's rows: the tail, then the rows the input is typed on.
-// Each is painted with its tabs already spaces, since a row is placed by
-// its columns and a tab's width depends on where it falls.
+// The region's rows: the tail, the rows the input is typed on, and what
+// is shown under them. Each is painted with its tabs already spaces,
+// since a row is placed by its columns and a tab's width depends on
+// where it falls.
 export fn rowsOf(r : Region) -> List(String) =
     List.map(tailRowsOf(r) <> inputRows(r), fn(line) = clip(expand(line), width(r)))
+        <> offeredRows(r)
+
+// Report §11.2: what is shown under the input wraps at the window's
+// edge, since a name's type or a sentence cut short says less than it
+// did, and takes the rows the screen has left. A line with no room is
+// counted on the last row instead.
+fn offeredRows(r : Region) -> List(String) = {
+    let Region(offered = offered) = r;
+    let room = screenRows(r) - List.size(tailRowsOf(r)) - List.size(inputRows(r));
+    let lines = List.map(offered, fn(line) = wrapped(expand(line), width(r)));
+    let all = List.flatMap(lines, fn(rows) = rows);
+    if List.size(all) <= room then all
+    else if room < 1 then []
+    else {
+        let shown = fitting(lines, room - 1);
+        let left = List.size(lines) - List.size(shown);
+        List.flatMap(shown, fn(rows) = rows) <> ["and " <> Int.toString(left) <> " more"]
+    }
+}
+
+// The lines, each its rows, that fit in that many rows, from the first.
+fn fitting(lines : List(List(String)), room : Int) -> List(List(String)) = match lines {
+    [] -> []
+  | rows :: rest ->
+        if List.size(rows) > room then []
+        else rows :: fitting(rest, room - List.size(rows))
+}
+
+// A row cut into rows of the window's width. Each continuation begins
+// with every escape sequence the rows before it held, in order, so that
+// it is painted as it would have been unbroken.
+fn wrapped(line : String, width : Int) -> List(String) =
+    if columns(line) <= width || width < 1 then [line]
+    else {
+        let #(sequences, rest) = past(String.toList(line), width, "");
+        clip(line, width) :: wrapped(sequences <> String.fromList(rest), width)
+    }
+
+// The escape sequences among the first columns of a row, and the row
+// after them.
+fn past(chars : List(Char), left : Int, sequences : String) -> #(String, List(Char)) =
+    match chars {
+        '\u{1b}' :: '[' :: rest -> {
+            let tail = afterSequence(rest);
+            let sequence = String.fromList(List.take(chars, List.size(chars) - List.size(tail)));
+            past(tail, left, sequences <> sequence)
+        }
+      | _ :: rest when left > 0 -> past(rest, left - 1, sequences)
+      | _ -> #(sequences, chars)
+    }
 
 fn tailRowsOf(r : Region) -> List(String) = {
     let Region(tail = tail, writing = writing) = r;
@@ -191,6 +247,11 @@ fn height(r : Region) -> Int = match r {
     Region(output = output, size = None) -> Int.min(output, 5)
   | Region(output = output, size = Some(Size(rows = rows))) ->
         Int.min(output, Int.max(0, rows / 2 - 1))
+}
+
+fn screenRows(r : Region) -> Int = match r {
+    Region(size = None) -> 24
+  | Region(size = Some(Size(rows = rows))) -> rows
 }
 
 fn width(r : Region) -> Int = match r {
@@ -328,7 +389,7 @@ let restsAfterATab = Test(name = "the cursor rests where the tab left it", run =
     at(typed("a\tb", 2), 0, 9))
 
 let paintsTheLine = Test(name = "typing erases the region and paints it again", run = fn() = {
-    let #(_, bytes) = typing(prompted(), "hi", 2);
+    let #(_, bytes) = typing(prompted(), "hi", 2, []);
     // the region is one row, so nothing is climbed; the cursor is put
     // after the prompt and what is typed
     same(bytes, "\r\u{1b}[0J> hi\r\u{1b}[4C")
@@ -336,10 +397,51 @@ let paintsTheLine = Test(name = "typing erases the region and paints it again", 
 
 let commitsWhatIsEntered = Test(name = "an input entered joins the transcript, a row a line",
     run = fn() = {
-        let #(typing, _) = typing(prompted(), "a\nb", 3);
+        let #(typing, _) = typing(prompted(), "a\nb", 3, []);
         let #(_, bytes) = entered(typing);
         same(bytes, "\r\u{1b}[1A\u{1b}[0J> a\n... b\n\r")
     })
+
+let offersUnderTheInput = Test(name = "what Tab shows stands under the input, the cursor in it",
+    run = fn() = {
+        let #(r, bytes) = typing(prompted(), "Li", 2, ["List.map : a", "List.size : b"]);
+        // three rows painted, and the cursor climbs the two under it
+        if rowsOf(r) == ["> Li", "List.map : a", "List.size : b"] && resting(r) == 0
+        then same(bytes, "\r\u{1b}[0J> Li\nList.map : a\nList.size : b\u{1b}[2A\r\u{1b}[4C")
+        else Failed(String.join(rowsOf(r), " | "))
+    })
+
+let nextKeyTakesItAway = Test(name = "the next key takes away what Tab showed", run = fn() = {
+    let #(r1, _) = typing(prompted(), "Li", 2, ["List.map : a"]);
+    let #(r2, _) = typing(r1, "Lis", 3, []);
+    rowsAre(rowsOf(r2), ["> Lis"])
+})
+
+let enteredTakesItAway = Test(name = "an input entered takes away what Tab showed",
+    run = fn() = {
+        let #(r1, _) = typing(prompted(), "Li", 2, ["List.map : a"]);
+        let #(r2, bytes) = entered(r1);
+        if rowsOf(r2) == [""] && String.indexOf(bytes, "List.map") == None then Passed
+        else Failed(String.join(rowsOf(r2), " | "))
+    })
+
+let offerWraps = Test(name = "a row shown under the input wraps at the edge", run = fn() = {
+    let #(r1, _) = said(new(Some(Size(rows = 24, columns = 6)), true), "> ");
+    let #(r, _) = typing(r1, "", 0, ["abcdefgh"]);
+    rowsAre(rowsOf(r), ["> ", "abcdef", "gh"])
+})
+
+let wrapKeepsColour = Test(name = "a wrapped row is coloured on as it was", run = fn() =
+    rowsAre(wrapped("\u{1b}[1mabcdefgh\u{1b}[0m", 6),
+        ["\u{1b}[1mabcdef\u{1b}[0m", "\u{1b}[1mgh\u{1b}[0m"]))
+
+let offerCounted = Test(name = "what the screen has no room for is counted", run = fn() = {
+    // six rows: one for the input, four for lines, one for the count
+    let r0 = new(Some(Size(rows = 6, columns = 80)), true);
+    let #(r1, _) = said(r0, "> ");
+    let #(r, _) = typing(r1, "", 0, ["a", "b", "c", "d", "e", "f", "g"]);
+    rowsAre(rowsOf(r), ["> ", "a", "b", "c", "d", "and 3 more"])
+})
 
 let saysWithoutATerminal = Test(name = "without a terminal what is said is the transcript",
     run = fn() = {
@@ -356,7 +458,7 @@ fn prompted() -> Region = {
 // A region with an input being typed in it, without the bytes that drew
 // it: the geometry is what these tests read.
 fn typed(text : String, at : Int) -> Region = {
-    let #(r, _) = typing(prompted(), text, at);
+    let #(r, _) = typing(prompted(), text, at, []);
     r
 }
 

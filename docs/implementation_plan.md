@@ -170,6 +170,13 @@ the shell is neither standard library nor library but the toolchain's own progra
   that finds is fixed before the milestone closes or recorded in the design note. Nothing so
   far has been driven by hand — every test goes through the pseudo-terminal harness, which
   tests what was thought of.
+  1. **Done 2026-09-25: what `Tab` and `Shift-Tab` show stands under the line.** A listing
+     was committed above the region, where it read as the answer before; it is now painted
+     in the region under the input, wrapped, cut to the screen with a count of the rest,
+     and taken away by the next key, as Erlang's shell does. A `Tab` that adds nothing to
+     the line lists at once, so `:` and `Tab` shows the commands. Report §11.2 states both;
+     `listing_at_once_test_` is the regression test, and the region's own tests cover the
+     wrapping and the count.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.

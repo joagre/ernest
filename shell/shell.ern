@@ -506,7 +506,7 @@ fn help() -> List(String) =
 type ScreenMsg = Said(String)                        // the shell's own
   | Noted(String)                       // and while an input is typed
   | Wrote(String)                       // a program's
-  | Typing(text : String, at : Int)     // the line being typed, and the cursor
+  | Typing(text : String, at : Int, offered : List(String)) // the line, and under it
   | Entered                             // and now it is finished
   | Taken                               // the session has taken an input
   | Resize
@@ -517,17 +517,13 @@ type ScreenMsg = Said(String)                        // the shell's own
 // How long to wait for the file system, which is a local file.
 let fileWait = 5000
 
-// Report §11.2: how many candidates a second `Tab` lists before it
-// stops, since a listing is committed and a long one scrolls the
-// transcript away.
-let listRows = 40
-
 fn screenLoop(r : Shell.Region.Region) -> Unit with ScreenMsg = {
     let #(next, bytes) = receive {
         Said(text) -> Shell.Region.said(r, text)
       | Noted(text) -> Shell.Region.noted(r, text)
       | Wrote(text) -> Shell.Region.wrote(r, text)
-      | Typing(text = text, at = at) -> Shell.Region.typing(r, text, at)
+      | Typing(text = text, at = at, offered = offered) ->
+            Shell.Region.typing(r, text, at, offered)
       | Entered -> Shell.Region.entered(r)
       | Taken -> Shell.Region.taken(r)
       | Resize -> Shell.Region.resized(r, Terminal.size())
@@ -544,7 +540,7 @@ fn screenLoop(r : Shell.Region.Region) -> Unit with ScreenMsg = {
 fn finish(screen : Address(ScreenMsg), text : String) -> Unit with m = {
     send(screen, Said(text));
     send(screen, Height(0));
-    send(screen, Typing(text = "", at = 0));
+    send(screen, Typing(text = "", at = 0, offered = []));
     send(screen, Said("\n"));
     drain(screen)
 }
@@ -622,8 +618,8 @@ fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : 
 }
 
 // Report §11.2: `Tab` completes the word before the cursor; a second
-// `Tab` lists what it could still be, above the region, where the
-// transcript keeps it and the region stays the size it was.
+// `Tab` lists what it could still be, under the line, until the next
+// key.
 fn completing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading,
     state : Shell.Editor.State) -> Unit with ReaderMsg = {
     let Reading(last = last) = reading;
@@ -653,17 +649,19 @@ fn completing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading 
 }
 
 // What a completion does to the line: the word it gives stands in
-// place of the one typed, and a second `Tab` lists what is left.
+// place of the one typed, and a second `Tab` lists what is left. Report
+// §11.2: so does a first `Tab` that adds nothing to the line, since a
+// key that changes nothing would say nothing.
 fn offering(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading,
     completion : Shell.Complete.Completion, typed : String,
     state : Shell.Editor.State) -> Unit with ReaderMsg = {
     let Reading(last = last) = reading;
     let Shell.Editor.State(text = line, at = at) = state;
     let #(text, next) = Shell.Complete.applied(line, at, typed, completion);
-    if last == Tabbed then listing(screen, completion) else Unit;
     let shown = Shell.Editor.typed(state, text, next);
     let said = hint(screen, reading, shown);
-    send(screen, typing(shown));
+    let rows = if last == Tabbed || text == line then listing(completion) else [];
+    send(screen, under(shown, rows));
     readLoop(session, screen,
         Reading(..reading, editing = shown, hinted = said, last = Tabbed))
 }
@@ -694,7 +692,7 @@ fn indented(state : Shell.Editor.State, line : String, at : Int) -> Shell.Editor
 // type, the first sentence about it, and the version it appeared in, and
 // the whole page when it is pressed again. Where no name before the cursor
 // is documented and the cursor is inside a call, it shows the call's
-// signature instead. Above the region, as a listing is.
+// signature instead. Under the line, as a listing is.
 fn documenting(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading,
     state : Shell.Editor.State) -> Unit with ReaderMsg = {
     let Reading(last = last) = reading;
@@ -702,23 +700,21 @@ fn documenting(session : Address(ShellMsg), screen : Address(ScreenMsg), reading
     let before = String.slice(line, 0, at);
     let name = Shell.Complete.word(before);
     let page = if String.isEmpty(name) then None else documentation(name);
-    match page {
-        Some(text) -> {
-            let rows = if last == Documented then String.lines(text)
+    let rows = match page {
+        Some(text) ->
+            if last == Documented then String.lines(text)
             else match brief(text) {
                 [] -> []
               | first :: rest -> Shell.Style.named(colours(), first) :: rest
-            };
-            List.foreach(rows, fn(row) = send(screen, Noted(row)))
-        }
+            }
       | None ->
             match signature(before) {
                 Some(#(head, marked, rest)) ->
-                    send(screen, Noted(head <> Shell.Style.emphasis(colours(), marked) <> rest))
-              | None -> Unit
+                    [head <> Shell.Style.emphasis(colours(), marked) <> rest]
+              | None -> []
             }
     };
-    send(screen, typing(state));
+    send(screen, under(state, rows));
     readLoop(session, screen, Reading(..reading, editing = state, last = Documented))
 }
 
@@ -733,22 +729,16 @@ fn brief(page : String) -> List(String) = {
     List.take(rest, 2) <> List.take(since, 1)
 }
 
-// Report §11.2: the candidates, a line each with the type they carry,
-// committed above the region as anything the shell says is.
-fn listing(screen : Address(ScreenMsg), completion : Shell.Complete.Completion) -> Unit with m =
+// Report §11.2: the candidates, a line each with the type they carry.
+// The region cuts the listing to the rows the screen has.
+fn listing(completion : Shell.Complete.Completion) -> List(String) with m =
     match completion {
-        Shell.Complete.Completion(candidates = []) -> Unit
-      | Shell.Complete.Completion(candidates = [_]) -> Unit
-      | Shell.Complete.Completion(candidates = candidates) -> {
-            List.foreach(List.take(candidates, listRows), fn(name) =
-                match name {
-                    Shell.Complete.Name(shown = shown) ->
-                        send(screen, Noted(Shell.Style.named(colours(), shown)))
-                });
-            let left = List.size(candidates) - listRows;
-            if left > 0 then send(screen, Noted("and " <> Int.toString(left) <> " more"))
-            else Unit
-        }
+        Shell.Complete.Completion(candidates = []) -> []
+      | Shell.Complete.Completion(candidates = [_]) -> []
+      | Shell.Complete.Completion(candidates = candidates) ->
+            List.map(candidates, fn(name) = match name {
+                Shell.Complete.Name(shown = shown) -> Shell.Style.named(colours(), shown)
+            })
     }
 
 // The screen is told what is being typed, and the session is told once
@@ -823,8 +813,13 @@ fn trouble(why : IoError) -> String = match why {
 
 // What the reader shows is the editor's, since a search shows its own
 // prompt and the input it found rather than the line (report §11.2).
-fn typing(editing : Shell.Editor.State) -> ScreenMsg =
-    Typing(text = Shell.Editor.shown(editing), at = Shell.Editor.cursor(editing))
+fn typing(editing : Shell.Editor.State) -> ScreenMsg = under(editing, [])
+
+// The line being typed with rows shown under it, which the next key
+// takes away (report §11.2).
+fn under(editing : Shell.Editor.State, rows : List(String)) -> ScreenMsg =
+    Typing(text = Shell.Editor.shown(editing), at = Shell.Editor.cursor(editing),
+        offered = rows)
 
 fn text(editing : Shell.Editor.State) -> String =
     match editing { Shell.Editor.State(text = text) -> text }

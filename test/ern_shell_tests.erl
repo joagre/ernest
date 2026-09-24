@@ -363,43 +363,66 @@ tabs() ->
 
 %% report §11.2: `Tab` completes the word before the cursor to what the
 %% names in scope share, matching by prefix and by abbreviation, and a
-%% second `Tab` lists the candidates with their types above the region,
-%% where the transcript keeps them; the line being typed stays where it
-%% is, and a completed name runs like any other
+%% second `Tab` lists the candidates with their types under the line
+%% being typed, until the next key; a completed name runs like any other
 completion_test_() ->
     {timeout, 90, fun completion/0}.
 
 completion() ->
-    Screen = screen(alone("../bin/ern --shell"),
-                    [{expect, "> "},
-                     {send, hex("List.ma") ++ "09"},          % Tab: one candidate
-                     {expect, "List.map"},
-                     {send, hex("([1], fn(n) = n * 2)\r")},
-                     {expect, "[2] : List(Int)"},
-                     {send, hex("List.fil") ++ "09"},         % Tab: what they share
-                     {expect, "> List.filter"},
-                     {send, "09"},                            % Tab again: the listing
-                     {expect, "List.filterMap :"},
-                     {sleep, 300},
-                     {send, "03"},
-                     {sleep, 200},
-                     {send, "04"}],
-                    30, "16x74"),
+    Steps = [{expect, "> "},
+             {send, hex("List.ma") ++ "09"},          % Tab: one candidate
+             {expect, "List.map"},
+             {send, hex("([1], fn(n) = n * 2)\r")},
+             {expect, "[2] : List(Int)"},
+             {send, hex("List.fil") ++ "09"},         % Tab: what they share
+             {expect, "> List.filter"},
+             {send, "09"},                            % Tab again: the listing
+             {expect, "List.filterMap :"},
+             {sleep, 300},
+             {send, "03"},                            % the next key
+             {sleep, 200},
+             {send, "04"}],
+    Screen = screen(alone("../bin/ern --shell"), Steps, 30, "16x74"),
     Lines = [L || L <- binary:split(Screen, <<"\n">>, [global]), L =/= <<>>],
     Text = iolist_to_binary(Lines),
     %% the completed name ran
     ?assertMatch({_, _}, binary:match(Text, <<"[2] : List(Int)">>)),
-    %% both candidates were listed, with their types, above the region
-    ?assertMatch({_, _}, binary:match(Text, <<"List.filter : (List(a)">>)),
-    ?assertMatch({_, _}, binary:match(Text, <<"List.filterMap : (List(a)">>)),
-    %% and the line being typed is still there, completed to what they share
-    ?assert(lists:any(fun(L) -> binary:match(L, <<"> List.filter">>) =/= nomatch end, Lines)).
+    %% the line being typed is still there, completed to what they share
+    ?assert(lists:any(fun(L) -> binary:match(L, <<"> List.filter">>) =/= nomatch end, Lines)),
+    %% and the listing went with the next key, leaving the transcript
+    %% without it
+    ?assertEqual(nomatch, binary:match(Text, <<"List.filterMap :">>)),
+    %% it was painted under the line, the candidates with their types
+    Bytes = pty(alone("../bin/ern --shell"), Steps, 30, " --size 16x74"),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> List.filter\r\nList.filter : (List(a)">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nList.filterMap : (List(a)">>)).
+
+%% report §11.2: a `Tab` that adds nothing to the line lists the
+%% candidates at once, as a second `Tab` does. A regression test for a
+%% finding of the session of real use: every command begins with `:`, so
+%% the first `Tab` after one did nothing that could be seen. What does
+%% not fit the screen is counted on the last row
+listing_at_once_test_() ->
+    {timeout, 60, fun listing_at_once/0}.
+
+listing_at_once() ->
+    Bytes = pty(alone("../bin/ern --shell"),
+                [{expect, "> "},
+                 {send, hex(":") ++ "09"},                % one Tab
+                 {expect, " more"},
+                 {send, "03"},
+                 {send, "04"}],
+                30, " --size 8x80"),
+    %% under the line, cut to the eight rows with the count last
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> :\r\n:type e ">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nand 7 more">>)).
 
 %% report §11.2, Appendix E.0 rule 6: `Shift-Tab` on a name shows its type,
 %% its first sentence, and the version it appeared in, and its page when
 %% pressed again; inside a call, the callee's signature with the
 %% parameters as declared; and a command completes as a word of the
-%% shell's own, a second `Tab` listing every command. Each step waits for
+%% shell's own, a `Tab` that adds nothing listing every command. Each is
+%% shown under the line and goes at the next key. Each step waits for
 %% text only the answer holds, never for what the input echoes, which is
 %% how the first test of these keys raced its own output
 shift_tab_test_() ->
@@ -407,7 +430,7 @@ shift_tab_test_() ->
 
 shift_tab() ->
     ShiftTab = "1b5b5a",
-    Screen = screen(alone("../bin/ern --shell"),
+    Bytes = pty(alone("../bin/ern --shell"),
                     [{expect, "> "},
                      {send, hex("List.map") ++ ShiftTab},
                      {expect, "The function applied to each element, in order."},
@@ -420,23 +443,24 @@ shift_tab() ->
                      {send, hex(":br") ++ "09"},              % a command completes
                      {expect, ":browse"},
                      {send, "03"},
-                     {send, hex(":") ++ "0909"},              % twice: every command
+                     {send, hex(":") ++ "09"},                % every command
                      {expect, ":processes      the live processes"},
                      {send, "03"},
                      {send, "04"}],
-                    30, "60x90"),
-    Lines = [L || L <- binary:split(Screen, <<"\n">>, [global]), L =/= <<>>],
-    %% the brief, then the page: the type and the sentence twice, the
-    %% heading once, and the version in each
-    ?assertEqual(2, length([L || L <- Lines,
-                                 L =:= <<"The function applied to each element, in order.">>])),
-    ?assertEqual(1, length([L || L <- Lines, L =:= <<"## List.map">>])),
-    ?assertEqual(2, length([L || L <- Lines, L =:= <<"*Since 0.1.0.*">>])),
-    ?assert(lists:member(<<"List.map(xs : List(a), f : (a) -> b with e) -> List(b) with e">>,
-                         Lines)),
-    ?assert(lists:member(<<"> :browse">>, Lines)),
-    ?assert(lists:member(<<":faults         the faults reported since the session began">>,
-                         Lines)).
+                    30, " --size 60x90"),
+    %% the brief under the line: the type, the sentence, the version
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map\r\nList.map : (List(a), (a) -> b with e)"
+                                               " -> List(b) with e\r\n"
+                                               "The function applied to each element, in order.\r\n"
+                                               "*Since 0.1.0.*">>)),
+    %% then the page, under the line in its place
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map\r\n## List.map\r\n">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map([1], \r\n"
+                                               "List.map(xs : List(a), f : (a) -> b with e)"
+                                               " -> List(b) with e">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> :browse">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"\r\n:faults         the faults reported since"
+                                               " the session began\r\n">>)).
 
 %% report §11.2: the parameter at the cursor is written in the terminal's
 %% cyan, and the colour ends where the parameter does
