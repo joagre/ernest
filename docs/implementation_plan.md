@@ -198,6 +198,11 @@ the shell is neither standard library nor library but the toolchain's own progra
      module `:load` compiled had never worked, since the front end looked for a file; it
      reads the session's copy. Report §11.2 states it; `doc_every_name_test_` is the
      regression test.
+  5. **Decided 2026-09-25: documentation is shown as CommonMark, unrendered.** Asked of
+     `:doc`'s `##` and fences. A doc block is any CommonMark (§2.2), so rendering only what
+     §11.4 writes would leave pages half rendered, and a whole renderer is a library. §11.2
+     states it; a CommonMark renderer in the standard library would reopen it (the log's
+     entry of the day).
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.
