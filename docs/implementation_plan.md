@@ -44,7 +44,7 @@ so a decision they must see goes here.
 | MVP 2.65 | the language and the toolchain read back | after 2.6 |
 | MVP 2.66 | introduce a supervisor behaviour? | after 2.6 |
 | MVP 2.7 | the first libraries and the network stack | |
-| MVP 2.8 | five more libraries | |
+| MVP 2.8 | five more libraries | `libs/markdown` done 2026-09-25, out of order |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | MVP 3.0 | peers | |
 | MVP 3.1 | content addressing | |
@@ -198,11 +198,12 @@ the shell is neither standard library nor library but the toolchain's own progra
      module `:load` compiled had never worked, since the front end looked for a file; it
      reads the session's copy. Report §11.2 states it; `doc_every_name_test_` is the
      regression test.
-  5. **Decided 2026-09-25: documentation is shown as CommonMark, unrendered.** Asked of
-     `:doc`'s `##` and fences. A doc block is any CommonMark (§2.2), so rendering only what
-     §11.4 writes would leave pages half rendered, and a whole renderer is a library. §11.2
-     states it; `libs/markdown`, planned in MVP 2.8, reopens it (the log's entry of the
-     day).
+  5. **Done 2026-09-25: documentation is rendered for the terminal.** Asked of `:doc`'s `##`
+     and fences. First decided the same day to stay unrendered, since a doc block is any
+     CommonMark (§2.2) and rendering only what §11.4 writes would leave a page half
+     rendered; then `libs/markdown` was written (under "Done") and the shell renders every
+     page with it, `:doc`, the page on a second `Shift-Tab`, and the brief. §11.2 states
+     what is rendered and how it is coloured.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, `Markdown`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.
@@ -280,6 +281,9 @@ options, then what is recorded and left alone.
   on in messages suffice.
 - **The entries found in 2026-09-24's guide work**: item 15, a `Map` merge that combines the
   values of a key both maps hold, and item 17, a type's members at the prompt.
+- **The entries found writing `libs/markdown`**, 2026-09-25: items 18 to 23, tuple
+  projection, `match` as an operand, `String.trimStart` and `trimEnd`, `String.drop` and
+  `dropWhile` against E.0 rule 4, and where counting a styled row's columns belongs.
 - **The report read cold, by an implementer.** A reader who has not seen Ernest reads the
   report alone, as someone who must implement it, and reports every place where two
   readings are possible, where a rule is missing that an implementation needs, or where
@@ -389,27 +393,8 @@ documented in one pass to [`module_doc_template.md`](module_doc_template.md), an
 executed doc examples are its first user, so no paper program is required (decided
 2026-09-19). Each gets an appendix section beside 2.7's four.
 
-`libs/markdown`, pure Ernest: CommonMark parsed into a document type, and that document
-rendered as text for a terminal.
-
-- **Why.** The shell shows `:doc` and `Shift-Tab` pages as the CommonMark §11.4 writes,
-  unrendered, `##` headings and ```` ```ernest ```` fences included (decided 2026-09-25).
-  A doc block may hold any CommonMark (§2.2), so rendering only §11.4's own markup would
-  leave a page half rendered, and a renderer of the whole is too large to be a part of the
-  shell. With this library the shell shows a page as text, as Erlang's `h/1`, `pydoc` and
-  `ri` do. It is a library and not the standard library by E.0: how a heading or a link
-  looks at a terminal is policy inside a namespace of its own. It is also the second
-  parser written in Ernest at size, after `Json`, where the language is felt, and any
-  command-line program that shows Markdown, its own help among it, has a use for it.
-- **Simple.** The blocks: headings, paragraphs, fenced and indented code, lists, block
-  quotes, and thematic breaks. The inlines: code spans, emphasis, strong emphasis, and
-  links shown as their text and address. What it does not render, raw HTML among it, is
-  shown as written, and the module's doc block lists it. Rendered to a width, with colour
-  where the caller asks for it, as `Shell.Style` takes it.
-- **Then the shell uses it.** `make` compiles the shell with `libs/markdown` on its load
-  path, and `:doc` and the page on a second `Shift-Tab` are rendered. §11.2's sentence
-  that the shell shows documentation unrendered changes first, and the log's entry of
-  2026-09-25 is answered.
+`libs/markdown` was taken out of order and is done (under "Done", 2026-09-25); the other
+four remain.
 
 ---
 
@@ -755,6 +740,37 @@ for no decision were fixed, and its other issues decided one at a time:
   branches share the obligation, and one accepted and one rejected example side by side.
   The report stays one document: splitting out the ABI and the toolchain was weighed
   against the single source of truth and refused.
+
+### `libs/markdown` — a CommonMark renderer (done 2026-09-25, out of MVP 2.8's order)
+
+The shell showed documentation as CommonMark, `##` headings and ```` ```ernest ```` fences
+included, since a doc block may hold any CommonMark (§2.2) and rendering only what §11.4
+writes would have left pages half rendered. `libs/markdown` is the renderer that ruling
+waited for, pure Ernest, about five hundred lines: `Markdown.parse` reads CommonMark 0.31's
+blocks, headings ATX and setext, paragraphs, fenced and indented code, block quotes with
+lazy lines, bullet and ordered lists, thematic breaks, and HTML blocks kept as `Raw`, and
+its inlines, code spans, emphasis, strong emphasis, links, images, autolinks, and hard
+breaks; `Markdown.render` lays them out at a width, with the terminal's styles or as
+written. Where it is simpler than the specification, emphasis by the nearest closing run
+and a run of three marks as text, its doc block says so, and inline HTML, entities, and
+links by reference stay in the text.
+
+- **Why a library.** How a heading or a link looks at a terminal is policy inside a
+  namespace of its own, so E.0 puts it under `libs/` and not in the standard library. It is
+  the second parser written in Ernest at size after `Json` is, and any command-line program
+  that shows Markdown has a use for it.
+- **The shell uses it.** `make` builds `libs/` before the shell, compiles the shell with
+  `--load-path build/libs/markdown`, and ships the compiled library beside the shell's
+  modules. `:doc`, the page on a second `Shift-Tab`, and the brief on the first are
+  rendered at the screen's width, 80 columns where there is no terminal. Report §11.2 states
+  what is rendered and how it is coloured.
+- **Tests.** Its doc examples run in `ern_doc_tests`, as every library's do; 23 `Test`
+  values for the edge cases run by `ern --test` in the new `libs_test_`, which runs every
+  library's. They passed on their first run, so they confirm the code rather than having
+  found anything; the terminal harness and the golden session show the shell's pages.
+- **Not yet:** the report's informative appendix of libraries and its mirror test are MVP
+  2.7's item, and the library joins it there, as `libs/ets` will.
+- **What it felt:** six entries in the feedback list, 18 to 23, judged in MVP 2.65.
 
 ### MVP 2.61 — the guide as the user's document (done 2026-09-24, out of order)
 

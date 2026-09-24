@@ -19,7 +19,7 @@ Field selection is the biggest issue, and the shell has now given it three witne
 
 4. **Qualified constructors are heavy at use sites**, and there is no import or alias (§4.2 is explicit: no export list, no `import`). The reader loop matches five `Shell.Editor.*` constructors in one `match`. Explicit and correct; also the main argument anyone will make for aliases later.
 
-5. **`after` is reserved**, so a natural helper name for "the rest of a string from here" had to become `from`. Trivial, but the kind of thing that accumulates.
+5. **`after` is reserved**, so a natural helper name for "the rest of a string from here" had to become `from`. Trivial, but the kind of thing that accumulates. Felt again on 2026-09-25 in `libs/markdown`, where `after` was the name every scanning function wanted for what follows a match; it became `later` throughout.
 
 ## Standard library, not language
 
@@ -184,3 +184,35 @@ What I would actually put to you as candidate language changes: field selection 
     with the module rule, and surprising at a prompt, where a person adds to what is there.
     Judged in MVP 2.65: whether the session may add members to a type it declared, or the
     message says to declare them together.
+
+## Found writing `libs/markdown`, 2026-09-25
+
+The first parser of size in Ernest, about five hundred lines over `List(Char)`. Reading
+characters as a list with patterns, `'#' :: rest`, and a guard where a set of characters is
+meant, read well; the entries are what did not.
+
+18. **No projection from a tuple.** `List.span` answers a pair, and twice the half wanted was
+    reached for as `.0` or `.1`, which Ernest does not have; `let #(_, rest) = ...` is the
+    one way, a line longer. Principle 2 is for it staying so; recorded because it was felt.
+19. **A `match` is not an operand.** `indent(line) < 4 && match markerOf(s) { ... }` is a
+    parse error that asks for parentheses, three times in the library. The rule keeps the
+    grammar simple (principle 4), and the error's help says what to write; the cost is
+    parentheses that read as noise around a `match` that already has braces.
+20. **No `String.trimStart` or `trimEnd`.** Only `trim` strips both ends. Dropping a line's
+    indentation went through `List.span` over `String.toList` and a `String.slice`, and
+    dropping a heading's closing `#`s reversed a list of characters. Erlang's
+    `string:trim/3` takes a direction and Gleam has `trim_start` and `trim_end`; whether E.0
+    admits them, one by one, is 2.65's.
+21. **No `String.drop`.** The rest of a string from a position is
+    `String.slice(s, n, String.size(s) - n)`, written five times. E.0 rule 4 refuses a
+    composition of two functions already there, which this is; the count is an argument
+    and not the gate, and the verdict may be that it stays.
+22. **`List.span` stands in for `dropWhile`.** `let #(_, rest) = List.span(xs, p)` four
+    times, and the flattening of rows is `List.flatMap(xs, fn(x) = x)` as E.0 rule 4 says.
+    Both are the rule working as written; recorded with 21, since the three are one
+    question about rule 4.
+23. **The columns a styled row takes are counted twice.** `Shell.Region.columns` and the
+    library's `columns` are one function, skipping `ESC [` sequences, written in two
+    places. Neither owns the other; the question is whether what a row takes at a terminal
+    belongs to `Terminal` in Appendix E, which is where the escape sequences come from.
+

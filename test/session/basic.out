@@ -75,21 +75,16 @@ Optional.isSome : (Optional(a)) -> Bool
 Optional.map : (Optional(a), (a) -> b with e) -> Optional(b) with e
 Optional.orElse : (Optional(a), Optional(a)) -> Optional(a)
 Optional.withDefault : (Optional(a), a) -> a
-> ## String.trim
+> String.trim
 
-```ernest
-String.trim : (String) -> String
-```
+    String.trim : (String) -> String
 
 Without leading and trailing whitespace.
 
-### Examples
+Examples
 
-```ernest
-String.trim("  hi\n")
-// => "hi"
-```
-
+    String.trim("  hi\n")
+    // => "hi"
 > no command :zz; :help lists them
 > :b is :bindings or :browse
 > :f is :faults or :forget

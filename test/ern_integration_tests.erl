@@ -151,6 +151,20 @@ cookie_of(Answer) ->
     [Sid | _] = binary:split(After, <<";">>),
     Sid.
 
+%% report §9.3, plan MVP 2.8: every library's own tests, run by `ern --test`
+%% over its compiled modules, as the shell's are
+libs_test_() ->
+    {timeout, 60, fun libs/0}.
+
+libs() ->
+    Modules = filelib:wildcard("../build/libs/*/**/*.erc"),
+    ?assert(lists:any(fun(M) -> filename:basename(M) =:= "markdown.erc" end, Modules)),
+    Runs = ["../bin/ern --test " ++ M || M <- Modules],
+    {Status, Out} = sh(lists:flatten(lists:join(" && ", Runs))),
+    Lines = [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
+    ?assertEqual([], [L || L <- Lines, binary:match(L, <<": passed">>) =:= nomatch]),
+    ?assertEqual(0, Status).
+
 %% report §4.2, §11.1: the two-module pair in directory mode
 modules_test() ->
     {0, _} = sh("../bin/ernc --out-dir build/modules ../examples/modules"),

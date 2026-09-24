@@ -6,8 +6,8 @@ APPS = utils lexer parser typer runtime emitter cli
 all:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -s stdlib
-	@$(MAKE) -s shell
 	@$(MAKE) -s libs
+	@$(MAKE) -s shell
 
 # The standard library written in Ernest: stdlib/ compiled by ernc into
 # build/stdlib under its Erlang module name, where the tools put it on the
@@ -25,15 +25,18 @@ stdlib:
 
 # The shell, written in Ernest (report §11.2, plan MVP 2.6): shell/ compiled
 # by ernc into build/shell, where `ern --shell` finds it on the code path.
-# Rebuilt when a compiler beam is newer, as the standard library is.
-shell: stdlib
+# It renders documentation with libs/markdown, which it is compiled against
+# and which ships beside it. Rebuilt when a compiler beam is newer, as the
+# standard library is.
+shell: stdlib libs
 	@if [ -n "$$(find erl -name '*.beam' -newer build/shell/.built 2>/dev/null)" ] \
 	   || [ ! -f build/shell/.built ]; then rm -rf build/shell; fi
-	@bin/ernc --out-dir build/shell shell
+	@bin/ernc --load-path build/libs/markdown --out-dir build/shell shell
 	@touch build/shell/.built
 	@find build/shell -name '*.erc' | while read f; do \
 	  m=$${f#build/shell/}; \
 	  cp $$f build/shell/ern@$$(echo $${m%.erc} | tr / @).beam; done
+	@cp build/libs/markdown/markdown.erc build/shell/ern@markdown.beam
 
 # The libraries (plan, MVP 2.7): each libs/<name>/ is a source root of its
 # own, compiled into build/libs/<name>, which a program adds with

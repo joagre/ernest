@@ -150,7 +150,9 @@ editor() ->
     %% from the day it is written; region's and complete's had not
     Modules = filelib:wildcard("../build/shell/**/*.erc"),
     ?assert(length(Modules) >= 6),
-    Runs = ["../bin/ern --test " ++ M || M <- Modules],
+    %% the shell renders documentation with libs/markdown, which a run of
+    %% its modules puts on the load path as any program using a library does
+    Runs = ["../bin/ern --load-path ../build/libs/markdown --test " ++ M || M <- Modules],
     {Status, Out} = sh(lists:flatten(lists:join(" && ", Runs))),
     Lines = [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
     ?assertEqual([], [L || L <- Lines, binary:match(L, <<": passed">>) =:= nomatch]),
@@ -436,7 +438,7 @@ shift_tab() ->
                      {send, hex("List.map") ++ ShiftTab},
                      {expect, "The function applied to each element, in order."},
                      {send, ShiftTab},                        % again: the page
-                     {expect, "## List.map"},
+                     {expect, "    List.map : (List(a)"},
                      {send, "03"},
                      {send, hex("List.map([1], ") ++ ShiftTab},
                      {expect, "xs : List(a)"},
@@ -453,9 +455,12 @@ shift_tab() ->
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map\r\nList.map : (List(a), (a) -> b with e)"
                                                " -> List(b) with e\r\n"
                                                "The function applied to each element, in order.\r\n"
-                                               "*Since 0.1.0.*">>)),
-    %% then the page, under the line in its place
-    ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map\r\n## List.map\r\n">>)),
+                                               "Since 0.1.0.">>)),
+    %% then the page, under the line in its place, rendered: the heading as
+    %% its text and the type's code block without its fences
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map\r\nList.map\r\n\r\n"
+                                               "    List.map : (List(a)">>)),
+    ?assertEqual(nomatch, binary:match(Bytes, <<"```">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map([1], \r\n"
                                                "List.map(xs : List(a), f : (a) -> b with e)"
                                                " -> List(b) with e">>)),
@@ -732,10 +737,10 @@ prelude_doc() ->
     In = filename:join("/tmp", "ern_pdoc_" ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = file:write_file(In, ":doc monitor\n:doc Down\n:doc Sys.stdout\n:doc Int.compare\n"),
     {0, Out} = sh("../bin/ern --shell < " ++ In),
-    ?assertMatch({_, _}, binary:match(Out, <<"## monitor\n\n```ernest\nmonitor : ">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> monitor\n\n    monitor : ">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"type Down = Down(reason : Reason">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"## Sys.stdout">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"## Int.compare">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> Sys.stdout\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> Int.compare\n">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"no documentation">>)).
 
 %% report §11.2, §11.5: an input that is one name has its type printed as
@@ -785,15 +790,15 @@ doc_every_name() ->
     {0, Out} = sh(alone("../bin/ern --shell --source-root " ++ Root) ++ " < " ++ In),
     ?assertEqual(nomatch, binary:match(Out, <<"no documentation">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"Input">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"## zeta\n\n```ernest\nzeta : Int\n```">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"## sz\n\n```ernest\nsz : () -> Int\n```">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"## Tree\n\n```ernest\ntype Tree = Leaf">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"## ListenerMsg\n">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"## Optional\n">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"# Ernest module Fs\n">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"## M.Colour\n\n```ernest\ntype Colour = Red | Green"
-                                             "\n```\n\nA colour.">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"# Ernest module M\n\n*Since 0.1.0.*\n\n"
+    ?assertMatch({_, _}, binary:match(Out, <<"> zeta\n\n    zeta : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> sz\n\n    sz : () -> Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> Tree\n\n    type Tree = Leaf">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> ListenerMsg\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> Optional\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> Ernest module Fs\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> M.Colour\n\n    type Colour = Red | Green"
+                                             "\n\nA colour.">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> Ernest module M\n\n*Since 0.1.0.*\n\n"
                                              "A little module.">>)).
 
 %% report §11.2, Appendix E.0 rule 6: `Shift-Tab`'s two answers from the

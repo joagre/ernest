@@ -431,7 +431,7 @@ fn obey(state : State, screen : Address(ScreenMsg), c : Command, arg : String)
         }
       | Doc -> match doc(env, arg) {
             Left(text) -> { say(screen, text); Continue(state) }
-          | Right(text) -> { send(screen, Said(text)); Continue(state) }
+          | Right(text) -> { printLines(screen, rendered(text)); Continue(state) }
         }
       | Output -> match output(arg) {
             Left(text) -> { say(screen, text); Continue(state) }
@@ -847,12 +847,7 @@ fn documenting(session : Address(ShellMsg), screen : Address(ScreenMsg), reading
     let name = Shell.Complete.word(before);
     let page = if String.isEmpty(name) then None else documentation(name);
     let rows = match page {
-        Some(text) ->
-            if last == Documented then String.lines(text)
-            else match brief(text) {
-                [] -> []
-              | first :: rest -> Shell.Style.named(colours(), first) :: rest
-            }
+        Some(text) -> if last == Documented then rendered(text) else brief(text)
       | None ->
             match signature(before) {
                 Some(#(head, marked, rest)) ->
@@ -865,14 +860,40 @@ fn documenting(session : Address(ShellMsg), screen : Address(ScreenMsg), reading
 }
 
 // The type, the first line of prose, and the version a page's declaration
-// appeared in: its code block, the line after it, and its `Since` line.
-fn brief(page : String) -> List(String) = {
-    let rows = List.filter(String.lines(page), fn(row) = !String.isEmpty(String.trim(row))
-        && !String.startsWith(row, "#")
-        && row != "```ernest" && row != "```");
-    let since = List.filter(rows, fn(row) = String.startsWith(row, "*Since "));
-    let rest = List.filter(rows, fn(row) = !String.startsWith(row, "*Since "));
-    List.take(rest, 2) <> List.take(since, 1)
+// appeared in: the first line of its first code block, the first row of
+// its first paragraph, and its `Since` paragraph, the name before the type
+// bold.
+fn brief(text : String) -> List(String) with m = {
+    let blocks = Markdown.parse(text);
+    let types = List.flatMap(blocks, fn(b) = match b {
+        Markdown.Code(lines = lines) -> List.take(lines, 1)
+      | _ -> []
+    });
+    let paragraphs = List.filter(blocks, fn(b) = match b {
+        Markdown.Paragraph(_) -> true
+      | _ -> false
+    });
+    let #(versions, prose) = List.partition(paragraphs, isVersion);
+    List.map(List.take(types, 1), fn(t) = Shell.Style.named(colours(), t))
+        <> List.take(Markdown.render(List.take(prose, 1), screenWidth(), colours()), 1)
+        <> Markdown.render(List.take(versions, 1), screenWidth(), colours())
+}
+
+// The line §11.4 writes for the version a declaration appeared in.
+fn isVersion(b : Markdown.Block) -> Bool = match b {
+    Markdown.Paragraph([Markdown.Emphasis([Markdown.Text(text)])]) ->
+        String.startsWith(text, "Since ")
+  | _ -> false
+}
+
+// Report §11.2: a page of documentation rendered for the terminal, at its
+// width, or at 80 columns where there is no terminal.
+fn rendered(text : String) -> List(String) with m =
+    Markdown.render(Markdown.parse(text), screenWidth(), colours())
+
+fn screenWidth() -> Int with m = match Terminal.size() {
+    Some(Size(columns = columns)) -> columns
+  | None -> 80
 }
 
 // Report §11.2: the candidates, a lone one too, a line each with the
