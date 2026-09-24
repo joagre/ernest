@@ -92,11 +92,14 @@ the shell is neither standard library nor library but the toolchain's own progra
 - **Typing ahead while an input runs looks wrong.** A test that sent a second input before
   the first had finished never saw the second's result. Found 2026-09-21, not diagnosed, and
   recorded in the language note; it belongs with the session of real use below.
-- **A guide chapter on the shell.** `ernest_guide.md` does not mention it. The report states
-  the rules and the note holds the design, but the document that teaches says nothing about
-  the tool a user lives in. Found 2026-09-21.
+- **A guide chapter on the shell.** Found 2026-09-21. The guide introduces the shell in its first section
+  since MVP 2.61 step 2; the rest is that milestone's step 7, the tools page.
 - **The closing sweep**, as the working rules require at the end of a plan step: the guide
   read against the report, then every other document against the report and the code.
+  **Open question for the sweep, 2026-09-24:** report §11.2 says nothing of `Tab` completion
+  or `Shift-Tab` documentation, which `docs/shell_design.md` and the shell have and the
+  guide teaches. Whether §11.2 states them, as it states the editing keys, or they
+  stay the design note's is decided there.
 - **A session of real use.** The user works in the shell and reports what it is like; what
   that finds is fixed before the milestone closes or recorded in the design note. Nothing so
   far has been driven by hand — every test goes through the pseudo-terminal harness, which
