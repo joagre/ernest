@@ -58,7 +58,7 @@ plus : (Int) -> Int
 x : Int
 zero : () -> Int
 > 1 + 2 : Int
-> Io.println : (String) -> Unit with e
+> Io.println : (String) -> Unit with m
 > depth 10
 length 100
 timing off

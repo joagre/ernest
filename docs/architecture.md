@@ -44,7 +44,7 @@ Checking a module runs in this order:
 
 Inside a block, local `fn`s get placeholders shaped by their annotations before any statement, so a use before the declaration type-checks; a local fn is generalized only once every later local fn it references is checked.
 
-The environment is opaque outside the module; `type_state/1`, `resolve_type/2`, `lookup_type/2`, `lookup_con/4`, `node_type/1` are what the compiler reads. `typed_pattern_bindings/1` gives the names a pattern binds, which the shell reads for a `let` with a pattern.
+The environment is opaque outside the module; `type_state/1`, `resolve_type/2`, `lookup_type/2`, `lookup_con/4`, `node_type/1` are what the compiler reads. `typed_pattern_bindings/1` gives the names a pattern binds, which the shell reads for a `let` with a pattern, and `declared_scheme/3` a name's type as its declaration writes it, for an input that is one name (§11.2).
 
 ## The compiler
 

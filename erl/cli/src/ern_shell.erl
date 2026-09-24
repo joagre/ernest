@@ -333,9 +333,26 @@ result_type(#scheme{type = T}) -> T.
 
 %% Report §11.5: the type as the checker prints it.
 -spec type_text(#checked{}) -> binary().
-type_text(#checked{type = T, env = Env}) ->
-    unicode:characters_to_binary(
-      ern_types:format(T, ern_typecheck:type_state(Env))).
+type_text(#checked{typed = Typed, type = T, env = Env}) ->
+    St = ern_typecheck:type_state(Env),
+    Text = case one_name(Typed) of
+               {Path, Name} ->
+                   case ern_typecheck:declared_scheme(Env, Path, Name) of
+                       {ok, Scheme} -> ern_types:format_scheme(Scheme, St);
+                       error -> ern_types:format(T, St)
+                   end;
+               none ->
+                   ern_types:format(T, St)
+           end,
+    unicode:characters_to_binary(Text).
+
+%% Report §11.2: an input that is one name is printed with the name's
+%% declared type, its variables named as the declaration names them.
+one_name(Typed) ->
+    case [B || #fn_decl{name = main, body = B} <- Typed] of
+        [#e_var{path = Path, name = Name}] -> {Path, Name};
+        _ -> none
+    end.
 
 %% Report §11.2: the input runs in a process of its own; the outcome goes to
 %% `To`, so the shell's reader stays live and the address is what an

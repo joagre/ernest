@@ -16,7 +16,7 @@
 -export([check/3, check/4, check_string/2, prelude_env/0, prelude_names/0]).
 -export([is_reply_carrying/2, resolve_type/2, lookup_type/2, lookup_con/4, type_state/1,
          set_type_state/2, node_type/1, foreign_impl/1, segment_spec/1, is_value/2,
-         typed_pattern_bindings/1]).
+         typed_pattern_bindings/1, declared_scheme/3]).
 
 -export_type([env/0, session/0]).
 
@@ -1337,6 +1337,17 @@ undetermined_bindings(Node, FnT, #env{st = St} = Env) ->
             (_, E) -> E
          end, Node, Env),
     ok.
+
+%% Report §11.2: the type of a name as its declaration writes it, for the
+%% shell's input that is one name; the scheme keeps the declaration's
+%% variable names, which an instance does not.
+-spec declared_scheme(env(), [atom()], atom()) -> {ok, #scheme{}} | error.
+declared_scheme(Env, Path, Name) ->
+    try lookup_value({1, 1, {1, 1}}, Path, Name, Env) of
+        {Scheme, _} -> {ok, Scheme}
+    catch
+        _:_ -> error
+    end.
 
 %% The names a pattern binds, with their types, in the order written; the
 %% types are undefined in a pattern not yet checked.

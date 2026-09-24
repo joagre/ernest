@@ -3852,6 +3852,10 @@ The names a program uses most, `spawn`, `send`, `monitor`, `Optional`, were the 
 
 A full `make test` had grown to five minutes, and it ran after every change, so the tests had become the work's pace. Most of the time was in three suites, and in each it went to something other than checking: the guide's test started two Erlang nodes for each of its 67 examples, the shell's sessions waited on the clock, and the Emacs mode started Emacs. Running everything every time buys little, since a change to one area rarely breaks another and the whole suite still runs before the commit that closes a plan item. So the suites become areas with targets of their own and a map from a change to the areas it needs, and the slow suites are made faster at their source, the guide test in one node and independent cases in parallel. Planned as MVP 2.6 checkpoint 4, step 3.
 
+## One Name Prints Its Declared Type, 2026-09-24
+
+An instance's type variables carry no names, since a name belongs to the annotation that wrote it and not to a use of the value (§11.5), so `:type Io.readLine` printed `with e` while `:browse Io` printed `with m` for the same function. For an expression that is right: `List.map(xs, f)` has a type of its own, and a declaration's names would mean nothing in it. For an input that is one name it surprises, since the question asked is what the name is, and `:browse`, `:doc`, and `Shift-Tab` answer it with the declaration. The rule is kept for expressions and an input of one name prints its declared scheme, whether asked for with `:type` or evaluated, so that one name has one printed type wherever the shell shows it. The checker already resolves a name to its scheme, names and all; the shell asks it for that scheme instead of the instance.
+
 ## Later
 
 Planned or considered, not in the language today.

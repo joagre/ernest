@@ -577,7 +577,7 @@ fn apply(f, x) = f(x)
 
 The inferred type is `((a) -> b with e, a) -> b with e`: `apply` has the effect of the function it is given, so `apply(f, x)` is pure when `f` is. `List.map`, `List.foreach`, and every other function of the standard library that takes a function are the same.
 
-An effect variable may stand for a mailbox type or for pure. One that also appears inside `Address`, as in `self : () -> Address(a) with a`, stands for a mailbox type only, since an address needs one. The letters in a printed type mean nothing of their own.
+An effect variable may stand for a mailbox type or for pure. One that also appears inside `Address`, as in `self : () -> Address(m) with m`, stands for a mailbox type only, since an address needs one. The letters in a printed type mean nothing of their own.
 
 The process operations, `self`, `send`, `spawn`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, `kill`, and `remote`, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
 
@@ -591,7 +591,7 @@ The process operations, `self`, `send`, `spawn`, `receive`, `answer`, `Address.c
 $ ern --shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type spawn
-spawn : (Where, () -> Unit with a) -> Address(a) with e
+spawn : (Where, () -> Unit with n) -> Address(n) with m
 > spawn(Local, fn() -> Unit = Unit)
 input:1:14: the argument does not fit spawn: a pure function where one that runs in a process is needed
 1 | spawn(Local, fn() -> Unit = Unit)
@@ -720,7 +720,7 @@ Synchronous request-reply, used from the caller side:
 $ ern --shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type Address.call
-Address.call : (Address(a), (Reply(b)) -> a, Int) -> Optional(b) with e
+Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
 ```
 
 `Address.call(c, fn(r) = Get(reply = r), 1000)` makes a fresh `Reply`, gives it to the function that builds the request, sends the request to `c`, and waits up to 1000 ms. It returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6). `Address.callForever` waits without a deadline and returns the answer itself; if none comes, the caller waits for ever.
@@ -948,7 +948,7 @@ The output is likely `ping 3`, `pong 3`, `ping 2`, and so on, but not certain. M
 $ ern --shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type monitor
-monitor : (Address(a), (Down) -> b) -> Unit with b
+monitor : (Address(a), (Down) -> m) -> Unit with m
 ```
 
 ```ernest-prelude
@@ -1006,7 +1006,7 @@ A fault in one process does not affect another, apart from the three cases of §
 $ ern --shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type kill
-kill : (Address(a)) -> Unit with e
+kill : (Address(a)) -> Unit with m
 ```
 
 `kill(addr)` ends the process at `addr`, and its monitors receive `Down(reason = Killed, ...)`. The process may run a little before it stops. The REPL of [`examples/repl.ern`](examples/repl.ern) kills an evaluation that runs too long.
@@ -1412,7 +1412,7 @@ A node that talks to peers has a configuration, which a node running alone does 
 $ ern --shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type remote
-remote : (() -> a) -> Either(RemoteError, a) with e
+remote : (() -> a) -> Either(RemoteError, a) with m
 ```
 
 ```ernest-prelude

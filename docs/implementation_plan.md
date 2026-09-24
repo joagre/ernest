@@ -89,13 +89,14 @@ the shell is neither standard library nor library but the toolchain's own progra
      page is written. The guide's quotes of `Down`, `Reason`, and `RemoteError` are checked
      against the table, marked `ernest-prelude`, rather than turned into `:doc` sessions,
      whose whole pages would bury the two lines the guide means to show.
-  2. **`:type` of a name prints its declared type.** `:type Io.readLine` prints `with e`
-     where `:browse Io` prints `with m`, since an instance's variables carry no names
-     (`ern_types:instantiate/2`, report §11.5): right for an expression, surprising for a
-     name (principle 1; found by the guide's cold read, 2026-09-24). Decided 2026-09-24:
-     `:type` of an input that is one name, qualified or not, prints the name's declared
-     type, as `:browse`, `:doc` and `Shift-Tab` do, and §11.2 says so. It needs the same
-     lookup of a prelude name's type as step 1.
+  2. **Done 2026-09-24: an input that is one name prints its declared type.** `:type
+     Io.readLine` had printed `with e` where `:browse Io` printed `with m`, since an
+     instance's variables carry no names (found by the guide's cold read). Report §11.2 now
+     says an input that is one name has its type printed as the declaration writes it,
+     whether `:type` asks for it or the input is evaluated; any other expression prints its
+     own type. `ern_typecheck:declared_scheme/3` resolves the name as the checker does and
+     gives its scheme, whose variables keep their names. The guide's `:type` sessions were
+     regenerated, and a shell test holds the rule.
   3. **Test areas, and faster suites.** A full `make test` took five minutes on 2026-09-24:
      the guide's examples 103 s, the shell's sessions 76 s, the integration programs 39 s,
      the Emacs mode 38 s, the runtime's unit tests 13 s, the terminal 11 s, the other unit

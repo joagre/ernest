@@ -547,6 +547,25 @@ prelude_doc() ->
     ?assertMatch({_, _}, binary:match(Out, <<"## Int.compare">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"no documentation">>)).
 
+%% report §11.2, §11.5: an input that is one name has its type printed as
+%% the declaration writes it, under the declaration's variable names, asked
+%% for with `:type` or evaluated; any other expression prints its own type.
+%% A regression test: `:type Io.readLine` printed `with e` where `:browse Io`
+%% printed `with m`
+one_name_type_test_() ->
+    {timeout, 60, fun one_name_type/0}.
+
+one_name_type() ->
+    In = filename:join("/tmp", "ern_name_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = file:write_file(In, ":type Io.readLine\n:type spawn\nIo.readLine\n"
+                             ":type List.map([1], fn(x) = x)\n"),
+    {0, Out} = sh("../bin/ern --shell < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"Io.readLine : () -> Optional(String) with m\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"spawn : (Where, () -> Unit with n) -> Address(n)"
+                                             " with m\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"<function> : () -> Optional(String) with m\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"List.map([1], fn(x) = x) : List(Int)\n">>)).
+
 %% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
 %% under the source root and puts it in scope; `:reload` compiles again
 %% what has changed, names what is still in the previous version, and ends
