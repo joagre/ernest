@@ -235,6 +235,13 @@ options, then what is recorded and left alone.
     to write the comparison (§11.5).
   - A last reading of the whole report after the day's changes closes the review; it found
     seams, no new rule. The review is done.
+  - **Next, before the outside reading:** §6.6 rewritten top-down, the rules unchanged. It
+    opens with the rule a reader needs first, that a `Reply`, and any value that contains
+    one, is used exactly once on every path, by `answer` or by a use that hands the
+    obligation on; then which types contain a reply, where such a value may not go, how
+    branches share the obligation, and one accepted and one rejected example side by side.
+    The report stays one document: splitting out the ABI and the toolchain was weighed
+    against the single source of truth and refused.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the
