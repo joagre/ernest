@@ -392,6 +392,64 @@ completion() ->
     %% and the line being typed is still there, completed to what they share
     ?assert(lists:any(fun(L) -> binary:match(L, <<"> List.filter">>) =/= nomatch end, Lines)).
 
+%% report §11.2, Appendix E.0 rule 6: `Shift-Tab` on a name shows its type,
+%% its first sentence, and the version it appeared in, and its page when
+%% pressed again; inside a call, the callee's signature with the
+%% parameters as declared; and a command completes as a word of the
+%% shell's own, a second `Tab` listing every command. Each step waits for
+%% text only the answer holds, never for what the input echoes, which is
+%% how the first test of these keys raced its own output
+shift_tab_test_() ->
+    {timeout, 90, fun shift_tab/0}.
+
+shift_tab() ->
+    ShiftTab = "1b5b5a",
+    Screen = screen(alone("../bin/ern --shell"),
+                    [{expect, "> "},
+                     {send, hex("List.map") ++ ShiftTab},
+                     {expect, "The function applied to each element, in order."},
+                     {send, ShiftTab},                        % again: the page
+                     {expect, "## List.map"},
+                     {send, "03"},
+                     {send, hex("List.map([1], ") ++ ShiftTab},
+                     {expect, "xs : List(a)"},
+                     {send, "03"},
+                     {send, hex(":br") ++ "09"},              % a command completes
+                     {expect, ":browse"},
+                     {send, "03"},
+                     {send, hex(":") ++ "0909"},              % twice: every command
+                     {expect, ":processes      the live processes"},
+                     {send, "03"},
+                     {send, "04"}],
+                    30, "60x90"),
+    Lines = [L || L <- binary:split(Screen, <<"\n">>, [global]), L =/= <<>>],
+    %% the brief, then the page: the type and the sentence twice, the
+    %% heading once, and the version in each
+    ?assertEqual(2, length([L || L <- Lines,
+                                 L =:= <<"The function applied to each element, in order.">>])),
+    ?assertEqual(1, length([L || L <- Lines, L =:= <<"## List.map">>])),
+    ?assertEqual(2, length([L || L <- Lines, L =:= <<"*Since 0.1.0.*">>])),
+    ?assert(lists:member(<<"List.map(xs : List(a), f : (a) -> b with e) -> List(b) with e">>,
+                         Lines)),
+    ?assert(lists:member(<<"> :browse">>, Lines)),
+    ?assert(lists:member(<<":faults         the faults reported since the session began">>,
+                         Lines)).
+
+%% report §11.2: the parameter at the cursor is written in the terminal's
+%% cyan, and the colour ends where the parameter does
+shift_tab_colour_test_() ->
+    {timeout, 60, fun shift_tab_colour/0}.
+
+shift_tab_colour() ->
+    Raw = pty(alone("../bin/ern --shell"),
+              [{expect, "> "},
+               {send, hex("List.map([1], ") ++ "1b5b5a"},
+               {expect, "xs : List(a)"},
+               {send, "03"},
+               {send, "04"}],
+              30),
+    ?assertMatch({_, _}, binary:match(Raw, <<"xs : List(a), \e[36mf : (a) -> b with e\e[0m)">>)).
+
 %% report §11.2: what may stand at the cursor decides what completes,
 %% and the parser is what knows: after `:` a type, inside a named
 %% constructor its fields, and everywhere else the values,

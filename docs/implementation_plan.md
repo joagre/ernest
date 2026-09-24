@@ -124,9 +124,12 @@ the shell is neither standard library nor library but the toolchain's own progra
      address to monitor. It passed eight runs at once. Timing the shell's area found that
      `multiline` spent 30 s waiting out the harness's timeout, `C-d` leaving only on an
      empty line; it cancels the input first now, and the area went from 76 s to 48 s.
-  6. **A terminal test for `Shift-Tab` and command completion.** The editor's own tests cover
-     the keys and the behaviour was checked by hand, but the first pty test raced its own
-     output and was taken out rather than left failing.
+  6. **Done 2026-09-24: a terminal test for `Shift-Tab` and command completion.** The first
+     attempt had raced its own output, waiting for text the input echoes. `shift_tab_test_`
+     waits only for text the answer holds: the brief on a name with its type, sentence and
+     `Since`, the page on a second press, the signature inside a call, `:br` completed to
+     `:browse`, and the listing a second `Tab` gives; `shift_tab_colour_test_` reads the raw
+     output for the cyan around the parameter at the cursor. Six runs at once passed.
   7. **Colour where it carries meaning, at a terminal only, and never with `NO_COLOR` set.**
      Agreed 2026-09-24, after the signature's parameter became cyan in step 4: a fault
      report and a diagnostic's first line in red, the type after a printed value dimmed so

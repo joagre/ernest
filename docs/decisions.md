@@ -3870,6 +3870,10 @@ The program session had asserted on faults that a 400 ms wait was meant to have 
 
 Colour, first used for the parameter `Shift-Tab` marks, goes where it carries meaning: a fault or an error, which needs the eye in a scrolling transcript; the value over its type; the suggestion, which colour is how it is told from typing; and a name in a listing. Not the syntax of what is typed, which would need a second lexer in the editor to tell a reader what the language's few tokens already tell. Only at a terminal, and never where `NO_COLOR` asks for none; `ernc`'s diagnostics, which tools read, stay plain.
 
+## The Keys Tested at a Terminal, 2026-09-24
+
+The first terminal test of `Shift-Tab` was taken out on 2026-09-21 because it raced its own output: it waited for a name the input itself echoes, so the wait was met before the answer came. The rule that fixes it is general to the harness: a step waits for text only the answer can hold, the first sentence of a page, a parameter's declared name in a signature, `:browse` after `:br` was typed. The rendered screen, which shows each row as the reader sees it, is where the lines are counted; the raw output, which holds every escape, is where the colour is read.
+
 ## Later
 
 Planned or considered, not in the language today.
