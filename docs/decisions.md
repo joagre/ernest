@@ -3778,6 +3778,10 @@ Every `Clock.alarm` in the repository was written `Clock.alarm(ms, fn(_) = Tick)
 
 Max-munch makes `<-` one token, so `a<-1` is `a <- 1` and not a comparison with a negative number. The parser stopped such a program, with "expected `then` instead of `<-`", which does not say why. §2.6 now gives the example beside the rule, and the error's help line says how the comparison is written. Splitting `<-` after an operand was the other way, and it would make the lexer depend on the parser's state, against principle 4.
 
+## The Report Read Again After the Day's Changes, 2026-09-24
+
+A reading of the whole report after the day's changes, against itself, found seams the changes had left and no new rule to decide. §0's first sentence carried an exception that §3.9 states; §3.8 and §3.10 both stated a foreign type's equality; a sentence on printing sat among §3.9's effect rules and belongs to §11.5; §4.2's paragraph on export also held the namespaces a module may not take; §5.9 stated coverage as a fact where it is a requirement; §6.7 ended in advice; §7.3's list of causes had fallen behind §7.4's and now defers to it, §7.4 gaining the adapting function's fault and a heading that fits it; "cause" stood for a `Reason` in §8.6 and §10; Appendix D's use of a library read cryptically; E.0 rule 2 said "character" for a `Char`; and the glossary's `with` named one of its two uses.
+
 ## Later
 
 Planned or considered, not in the language today.

@@ -4,7 +4,7 @@ Revision of 24 September 2026. Rationale, rejected alternatives, and open questi
 
 ## 0. Introduction
 
-Ernest is a functional language for concurrent programs. It has two concepts: functions, with Hindley-Milner types, inferred except where an operator's operand type must be named (§4.8), and processes with typed mailboxes, the only way to affect the world. Everything else in this report is a rule for how the two show up in each other.
+Ernest is a functional language for concurrent programs. It has two concepts: functions, with Hindley-Milner types, and processes with typed mailboxes, the only way to affect the world. Everything else in this report is a rule for how the two show up in each other.
 
 Every function runs inside a process, an execution of a function with a mailbox that receives values of one type. A function that sends, receives, or asks for its own address acts through its process and names its mailbox in its type, `(A) -> B with M`; that is the only mark written on a function type. A function that does not act through its process is pure: its result depends only on its arguments, and it affects nothing. §3 and §6 make this precise; §10 states what the runtime must provide.
 
@@ -198,7 +198,7 @@ A sum type whose constructors may be mentioned only in the definitions of the na
 
 ### 3.8 Foreign types
 
-A type declared `foreign type T` has no constructors: its values are made and used only by foreign functions, §4.7, and can otherwise be held, passed, and sent. Equality on a foreign type is identity.
+A type declared `foreign type T` has no constructors: its values are made and used only by foreign functions, §4.7, and can otherwise be held, passed, and sent. Its equality is §3.10's.
 
 A foreign value is bound to the node that made it: transporting a value that transitively contains one to another node faults with cause `Fault("foreign value cannot cross nodes")`. Transport is `spawn(Peer(...), f)`, `send` to a remote address, the result of `remote(f)`, `answer(r, v)` to a caller on another node, and the captures of any shipped closure.
 
@@ -211,8 +211,6 @@ Types are inferred according to Hindley-Milner. A `fn` definition and a top-leve
 An effect position is the type after `with`. A value position is an argument, a result, a tuple component, or a type argument. A variable that occurs only in effect positions ranges over the mailbox types and pure. A variable that also occurs in a value position ranges over types alone: `m` in `self : () -> Address(m) with m` is never pure. This is the only departure from Hindley-Milner in the form of types. Operator resolution (§4.8) is the one place inference asks for an annotation.
 
 The functions of §9.4 and §9.5 whose type has a `with`, and a `foreign fn` whose effect is its own, are *process-only*: their effect variable is treated as if it occurred in a value position, and pure code cannot call them. A `foreign fn`'s effect is its own unless its effect variable is also the effect of one of its parameters' function types, in which case the effect is that callback's and the function is effect-polymorphic: `foreign fn each(m : Map(k, v), f : (k, v) -> Unit with e) -> Unit with e` is pure when `f` is.
-
-A printed type elides an effect variable bound to pure.
 
 A function has one mailbox effect or none. A function that takes two callbacks with independent effects declares each effect: in `fn callBoth(p : (Int) -> Int, e : (Int) -> Unit with n) -> Unit with n`, `p` is pure, `e` has effect `n`, and the function inherits `n`. Two callbacks whose effects are both variables unify to one effect. Two callbacks with different concrete effects are a type error. The combinators of Appendix E are typed by the same rule, `List.map : (List(a), (a) -> b with e) -> List(b) with e`; a pure callback binds `e` to pure, an effectful one to the caller's mailbox.
 
@@ -258,7 +256,9 @@ A *module* is one source file, ending in `.ern`: the unit of compilation and of 
 
 **Files are namespaces.** A file at `a/b/c.ern` under the source root provides the namespace `A.B.C`. Each segment is the path segment with its first letter uppercased: `http.ern` is `Http`, `httpv2.ern` is `Httpv2`. Path segments are one lowercase word (§11.1), so the mapping is one-to-one. The top of the hierarchy, where the prelude lives, is provided by the runtime, not by user code.
 
-**Declarations are local; `export` marks the boundary.** A declaration is written with its local name. `fn parse` in `net/http.ern` is exported as `Net.Http.parse` when marked `export`; otherwise it is private to its module. The qualified name appears at use sites, in the module itself as well, never at declarations. Two exported declarations with the same qualified name are an error. The type of an exported declaration, and the field types of an exported type, may not name a type the module keeps private. A function's mailbox type is exempt: an exported entry point may receive a private message type. A type whose values cross the boundary but whose constructors do not is an `abstract type` (§4.4). A module namespace may not coincide with a namespace of the prelude or the standard library: `io.ern` at the source root is an error. The standard library's own source root, shipped with the toolchain, is the exception: its files provide those namespaces. A file under it is compiled with it as the source root (§11.1); another source root is an error. There is no export list and no `import`.
+**Declarations are local; `export` marks the boundary.** A declaration is written with its local name. `fn parse` in `net/http.ern` is exported as `Net.Http.parse` when marked `export`; otherwise it is private to its module. The qualified name appears at use sites, in the module itself as well, never at declarations. Two exported declarations with the same qualified name are an error. The type of an exported declaration, and the field types of an exported type, may not name a type the module keeps private. A function's mailbox type is exempt: an exported entry point may receive a private message type. A type whose values cross the boundary but whose constructors do not is an `abstract type` (§4.4). There is no export list and no `import`.
+
+**Taken namespaces.** A module namespace may not coincide with a namespace of the prelude or the standard library: `io.ern` at the source root is an error. The standard library's own source root, shipped with the toolchain, is the exception: its files provide those namespaces. A file under it is compiled with it as the source root (§11.1); another source root is an error.
 
 ```
 // net/http.ern
@@ -411,7 +411,7 @@ let words = input |> String.trim |> String.toLower |> String.toList
 
 ### 5.9 `match`
 
-The value is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. A clause may list several patterns separated by `or`, and matches when any of them does: `Player(alive = false) or Player(body = []) -> #(acc, apples)`. Every alternative binds the same variables at the same types; the guard and the body see them. Alternatives that bind different variables are a type error. The clauses together cover the type; guards do not count as coverage. A guard is a `Bool` expression with no mailbox effect that sees the pattern's variables and the enclosing scope. A guard that is `false` falls through to the next clause; a guard that faults faults the process. A `receive` guard falls through likewise, and is restricted further (§6.3).
+The value is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. A clause may list several patterns separated by `or`, and matches when any of them does: `Player(alive = false) or Player(body = []) -> #(acc, apples)`. Every alternative binds the same variables at the same types; the guard and the body see them. Alternatives that bind different variables are a type error. The clauses together must cover the type, and a `match` that does not is a type error; guards do not count toward coverage. A guard is a `Bool` expression with no mailbox effect that sees the pattern's variables and the enclosing scope. A guard that is `false` falls through to the next clause; a guard that faults faults the process. A `receive` guard falls through likewise, and is restricted further (§6.3).
 
 ### 5.10 Patterns
 
@@ -537,7 +537,7 @@ remote : (() -> a) -> Either(RemoteError, a) with m
 type RemoteError = NoRemotePeer | PeerLost
 ```
 
-`remote(f)` evaluates the pure function `f` on a peer the runtime chooses among those configured for remote computation and returns `Right(v)`. It returns `Left(NoRemotePeer)` when no such peer is configured, and `Left(PeerLost)` when the peer is lost before the value returns. A fault in `f` faults the caller with the same cause, as `f()` would. A resolution failure on the peer faults the caller with `Fault("peer resolution failed: ...")` (§8.7). Effectful work on a peer goes through `spawn(Peer(...), ...)`. `remote` carries a mailbox effect and is called from process code only; several computations run at once from processes of their own, each calling `remote`.
+`remote(f)` evaluates the pure function `f` on a peer the runtime chooses among those configured for remote computation and returns `Right(v)`. It returns `Left(NoRemotePeer)` when no such peer is configured, and `Left(PeerLost)` when the peer is lost before the value returns. A fault in `f` faults the caller with the same cause, as `f()` would. A resolution failure on the peer faults the caller with `Fault("peer resolution failed: ...")` (§8.7). Effectful work on a peer goes through `spawn(Peer(...), ...)`. `remote` carries a mailbox effect and is called from process code only.
 
 ### 6.8 `Never`
 
@@ -582,9 +582,9 @@ The error crosses a process boundary and is in the message: `Either`, or a const
 
 ### 7.3 Faults
 
-A fault ends the process that meets it, with the reason `Fault(cause)` that `Down` carries (§6.9). The code cannot see it, and nothing catches it. Its causes are a prelude operation of §7.4, a broken promise by foreign code (§8.4), a fault in a function adapting an address (§6.5), the loss of the process's node (§10), a deadlock (§8.6), the unloading of the code the process runs (§11.2), and a failure in the runtime, out of memory among them. A process that is killed, or that ends with the program, has not faulted.
+A fault ends the process that meets it, with the reason `Fault(cause)` that `Down` carries (§6.9). The code cannot see it, and nothing catches it. Its causes are those §7.4 lists, each with its text, and a failure in the runtime, out of memory among them. A process that is killed, or that ends with the program, has not faulted.
 
-### 7.4 Prelude operations and faults
+### 7.4 Causes of faults
 
 Partial operations in the prelude return `Optional` or `Either`, except the following, which fault with the cause given. A pure function can fault.
 
@@ -596,7 +596,7 @@ Partial operations in the prelude return `Optional` or `Either`, except the foll
 - `spawn(Peer(...), ...)` with an unknown or unreachable peer: `Fault("peer unreachable")`. `spawn(Peer(...), ...)` or `remote(f)` with a resolution failure on the peer (§8.7): `Fault("peer resolution failed: ...")`. A fault in `remote`'s callback faults the caller with the callback's own cause. `send` to a remote address whose resolution fails faults the sender with the same cause, asynchronously, after `send` returns.
 - A foreign function that raises: `Fault("foreign function m:f/n raised ...")`. A foreign return or a reply that does not match the declared type faults the receiving Ernest process on first observation: `Fault("foreign return does not match T")`, `Fault("reply does not match T")`. A message from a foreign process that does not match the mailbox type faults the receiver on delivery (§8.4): `Fault("message does not match M")`. Each names the declared type.
 
-Five faults come from no prelude operation. The loss of a peer faults every process on it with `Fault("peer lost")` (§10). A deadlock faults the entry process with `Fault("deadlock")` (§8.6). The unloading of the code a process runs faults the process with `Fault("its code was unloaded")` (§11.2). Reading the terminal both as lines and as keys faults the entry process with `Fault("the terminal is already read as lines")`, or `as keys` (§8.2). While a shell holds the terminal, subscribing to it or reading a line from any other process faults that process with `Fault("the shell holds the terminal; run the program with ern to give it the keyboard")` (§11.2).
+These faults come from no prelude operation. A fault in a function adapting an address faults the target with its own cause (§6.5). The loss of a peer faults every process on it with `Fault("peer lost")` (§10). A deadlock faults the entry process with `Fault("deadlock")` (§8.6). The unloading of the code a process runs faults the process with `Fault("its code was unloaded")` (§11.2). Reading the terminal both as lines and as keys faults the entry process with `Fault("the terminal is already read as lines")`, or `as keys` (§8.2). While a shell holds the terminal, subscribing to it or reading a line from any other process faults that process with `Fault("the shell holds the terminal; run the program with ern to give it the keyboard")` (§11.2).
 
 ## 8. Programs
 
@@ -657,7 +657,7 @@ Before `main` runs, the runtime evaluates every top-level `let` in dependency or
 
 ### 8.6 Program termination
 
-The program ends when `main` returns or faults, a fault being reported on the runtime's exit indicator. Live local processes then die with cause `ProgramEnd`, and the runtime flushes the system processes' pending output before it stops. A signal from outside that ends the program, the host's termination or interrupt, ends it the same way, and the runtime prints nothing of its own about the signal. Workers spawned on peers are unaffected and follow their own return, `kill`, or peer loss (§10); peers observe the ending node as lost. A program that is to keep running waits in `main`.
+The program ends when `main` returns or faults, a fault being reported on the runtime's exit indicator. Live local processes then die with the reason `ProgramEnd`, and the runtime flushes the system processes' pending output before it stops. A signal from outside that ends the program, the host's termination or interrupt, ends it the same way, and the runtime prints nothing of its own about the signal. Workers spawned on peers are unaffected and follow their own return, `kill`, or peer loss (§10); peers observe the ending node as lost. A program that is to keep running waits in `main`.
 
 When no forward progress is possible, the entry process faults with `Fault("deadlock")` (§7.4) and the program ends as above. No progress is possible when every live process waits in `receive` without `after`, no message is in flight, no monitor waits on a process the runtime did not start, and no system process or connected peer holds a timer, a subscription, a pending I/O, or a computation whose completion would deliver a message. A process spawned on a peer by this node counts as such a computation while it runs. Detection is per node. Whether a user-provided foreign process counts like a system process here is the runtime's choice.
 
@@ -808,10 +808,10 @@ Each is used through the standard library, §8.2.
 - `Int` has arbitrary precision.
 - Bitstrings are constructed and matched by the runtime's bit syntax (§5.11).
 - The representation of values is fixed and documented.
-- `Down` carries a cause distinguishable from other causes.
+- `Down` carries a reason distinguishable from every other.
 - The runtime detects a deadlock (§8.6).
 - A node ships code to a peer that lacks it, identified by content; dependencies resolve by hash before a shipped closure runs, types are content-addressed, `Sys.*` re-binds to the peer, and foreign code is per node, §8.7.
-- The runtime detects the loss of a peer: every process on it is treated as dead with cause `Fault("peer lost")`, monitors deliver `Down` (§6.9), and pending `remote` calls return `Left(PeerLost)`. Loss is terminal: a peer that reappears under the same name is a new instance, and addresses held before the loss are unrelated to it. `send` to a peer is best-effort; messages in flight at the loss are dropped without notice.
+- The runtime detects the loss of a peer: every process on it is treated as dead with the reason `Fault("peer lost")`, monitors deliver `Down` (§6.9), and pending `remote` calls return `Left(PeerLost)`. Loss is terminal: a peer that reappears under the same name is a new instance, and addresses held before the loss are unrelated to it. `send` to a peer is best-effort; messages in flight at the loss are dropped without notice.
 
 ## 11. Toolchain
 
@@ -867,7 +867,7 @@ An error is reported as `file:line:column: message`, then the source: a gutter o
 
 A type mismatch is reported at the innermost expression whose type is fixed: the last expression of a body or block, a branch or clause after the first, an argument, an operand, an element, or a pattern. The message shows both whole types. The label marks the span that fixed the expectation: an annotation, a callee's type, the first branch, clause, or element, the left operand, or the value matched. The help line names the part in which the types differ. An effect error names the primitive called and the function, `let`, or guard that is pure, and labels the annotation that made it so. An operator whose operand type is not determined (§4.8) is reported with the request to annotate it. A statement whose type is not `Unit` (§5.4) is reported whole, with the help line `let _ =`. A `<-` where the parser expects a delimiter has a help line that names `a < -1` (§2.6).
 
-The compiler shows the three inferred restrictions of §3.9. In a printed type a variable with the equality constraint is `a=` and one that is not reply-carrying `a!`: `equal : (a=, a=) -> Bool`, `discard : (a!) -> Unit`. A process-only effect variable prints unchanged, and its restriction is stated by the message that rejects a pure instantiation. A type name is printed as the module would write it (§4.2). The module's own types and the prelude's are printed unqualified. Other modules' types are printed qualified. A local type that shadows a prelude name is printed qualified. A type variable is printed under its annotation's name; an unnamed one is `a`, `b`, ... for a value variable and `e`, `e1`, ... for an effect variable, avoiding the names in use. An error at a rejected call site names the parameter and the origin of its restriction; `ernc --doc` prints restrictions the same way.
+A printed type elides an effect variable bound to pure (§3.9). The compiler shows the three inferred restrictions of §3.9. In a printed type a variable with the equality constraint is `a=` and one that is not reply-carrying `a!`: `equal : (a=, a=) -> Bool`, `discard : (a!) -> Unit`. A process-only effect variable prints unchanged, and its restriction is stated by the message that rejects a pure instantiation. A type name is printed as the module would write it (§4.2). The module's own types and the prelude's are printed unqualified. Other modules' types are printed qualified. A local type that shadows a prelude name is printed qualified. A type variable is printed under its annotation's name; an unnamed one is `a`, `b`, ... for a value variable and `e`, `e1`, ... for an effect variable, avoiding the names in use. An error at a rejected call site names the parameter and the origin of its restriction; `ernc --doc` prints restrictions the same way.
 
 ## Appendix A. Grammar
 
@@ -1036,7 +1036,7 @@ fn submitter(worker : Address(WorkerMsg)) -> Unit with Never = {
 
 ## Appendix D. A Foreign Library
 
-A library over Erlang's `ets`, tables of type `set`, outside the standard library; a program uses it by its compiled module's root (§11.1, §11.2). Raw bindings are module-local, unqualified; the library is ordinary Ernest over them. The values `ets` returns match the ABI of §8.4 without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and `[{K, V}]` is `List(#(k, v))`. Erlang's `{ok, V} | {error, R}` convention is the encoding of no Ernest constructor, `Left(e)` and `Right(a)` being `{'Left', e}` and `{'Right', a}`; an API that returns it needs a foreign adapter, an Erlang helper that rewrites the term before it crosses the boundary or a declared foreign decoding function. `Foreign` is opaque (E.12) and no pattern decomposes an atom. The `ets` calls below do not use that convention.
+A library over Erlang's `ets`, tables of type `set`, outside the standard library; a program adds its compiled root to the load path (§11.1, §11.2). Raw bindings are module-local, unqualified; the library is ordinary Ernest over them. The values `ets` returns match the ABI of §8.4 without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and `[{K, V}]` is `List(#(k, v))`. Erlang's `{ok, V} | {error, R}` convention is the encoding of no Ernest constructor, `Left(e)` and `Right(a)` being `{'Left', e}` and `{'Right', a}`; an API that returns it needs a foreign adapter, an Erlang helper that rewrites the term before it crosses the boundary or a declared foreign decoding function. `Foreign` is opaque (E.12) and no pattern decomposes an atom. The `ets` calls below do not use that convention.
 
 ```
 // ets.ern  (namespace Ets)
@@ -1119,7 +1119,7 @@ E.0 is normative; a function enters this appendix by its rules before it enters 
 Four rules decide whether a function is in. None of them counts programs: a function enters when a rule admits it, whether or not a program has asked, and a program that wants one the rules refuse writes it itself.
 
 1. Its value lives in the runtime and Ernest cannot compute it, given the modules beneath it: the `Map` and `Set` operations, the Unicode operations on `String` and `Char`, `Int.toString` and `Float.toString`, the conversions between `Int` and `Float` and between `Int` and `Char`, the `Bytes` operations, the bit operations, `Foreign`, `Erl.atom`, `Random`, and the modules over the system references of §8.2. These are shims over `foreign fn` or over a system process, and a shim exists only where this rule applies. The line is ownership: where the runtime owns the representation, a `Map`, a `Set`, a `String`, a `Bytes`, a `Float`, its operations are the runtime's; what the language owns, `[]` and `::` among them, is written in Ernest, `List.sort` among it. Speed is not a reason for a shim; where a measurement ever demands one, it is admitted with the measurement beside it. The rule decides how an operation is carried out, never what a value is: where a value's identity, lifetime, or failure is the program's concern, it is a process (§8.2), and no shim stands in for one.
-2. It follows from the type's structure, and each kind of type has a vocabulary. A container provides the container operations of the vocabulary below, or says in its section which it lacks and why. A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, and `tryMap` and `tryFold` for a step that can fail. Text adds `startsWith`, `endsWith`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `trim`, `toLower`, `toUpper`, and a character `isUpper`, `isLower`, `toUpper`, `toLower`. A path adds its segments: `join`, `split`, `parent`, `name`, `extension`, `withExtension`, `isAbsolute`. A filesystem adds files and directories: `read`, `write`, `append`, `list`, `stat`, `makeDir`, `remove`, `rename`, `copy`. A conversion to text has its inverse where the text form is unambiguous and the type has no other way in; a `Char` has `String.toList` and needs none. A type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote.
+2. It follows from the type's structure, and each kind of type has a vocabulary. A container provides the container operations of the vocabulary below, or says in its section which it lacks and why. A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, and `tryMap` and `tryFold` for a step that can fail. Text adds `startsWith`, `endsWith`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `trim`, `toLower`, `toUpper`, and a `Char` `isUpper`, `isLower`, `toUpper`, `toLower`. A path adds its segments: `join`, `split`, `parent`, `name`, `extension`, `withExtension`, `isAbsolute`. A filesystem adds files and directories: `read`, `write`, `append`, `list`, `stat`, `makeDir`, `remove`, `rename`, `copy`. A conversion to text has its inverse where the text form is unambiguous and the type has no other way in; a `Char` has `String.toList` and needs none. A type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote.
 3. It is a general operation of the type, its definition is the obvious one, and no policy is buried in it: `List.foldRight`, `Float.sqrt`. A function whose result depends on a choice the library would be making for the program, a format, a locale, a tolerance, is refused whatever asks for it.
 4. It is not a composition. A function that is one pipe of two functions already here is not added: `List.concat` is `List.flatMap(xs, fn(x) = x)`, `List.sum` is `List.foldLeft(xs, 0, Int.+)`.
 
@@ -1554,4 +1554,4 @@ Every technical term this report introduces, with the section that defines it. P
 - **`Unit`** — the type with the single value `Unit`. §3.1, §9.3.
 - **`via`** — `via(f, addr)` is the address `addr` seen through `f`. §6.5, §9.5.
 - **wildcard** — the pattern `_`; matches anything, binds nothing. §2.3, §5.10.
-- **`with M`** — the mailbox-type marker on a function type. §3.4, §6.1.
+- **`with`** — the mailbox-type marker on a function type, `with M`, and the start of an abstract type's signature. §3.4, §4.4, §6.1.
