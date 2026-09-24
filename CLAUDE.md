@@ -68,8 +68,10 @@ The rules are in the order of work: what is authoritative and who owns each fact
 - **The report and the guide are tight, in a Wirth language report's register.** State the rule; no rationale, no restating.
 - **Clear before short.** A rule reads easily at first pass, in plain sentences, one rule per sentence, its exception and its example in sentences of their own, never compressed into a cryptic one. A sentence is cut for restating or rationale, never for the count alone.
 - **A report edit updates the revision date** in its line 3.
+- **The report's section numbers never change.** Other documents, the tests, and the code cite them, so an edit stays inside the existing headings, and a new rule goes into the section it belongs to.
+- **A report section over 600 words is read for restating.** There is no word limit; a long section is kept when every sentence states a rule of its own.
 - **Compiler behaviour goes to §11** of the report.
-- **The log records arguments, never who proposed them.** No document or message names who suggested an idea; it states the argument.
+- **The log records arguments, never who proposed them.** No document or message names who suggested an idea, or that person's role; it states the argument.
 
 ## Reading back
 
