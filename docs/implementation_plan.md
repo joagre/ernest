@@ -230,8 +230,11 @@ without boasting. Each step is a stop.
    A block headed `// words.ern, continued` adds to the file as it stood, and a console of
    `ern --shell words.erc` is a session with the module loaded. Writing it found that the
    shell refused a file without `main`; §11.2 now loads such a file and spawns nothing.
-6. **Supervision and "let it crash"**, the idioms the log lists: a monitor, a restart, a
-   supervisor in fifteen lines.
+6. **Done 2026-09-24: supervision and "let it crash"**, §6.4: a supervisor in fifteen lines
+   of spawn, monitor, and receive that runs a worker per job, reports the job that faulted,
+   and goes on; state that must survive lives in the supervisor, a restarted service has a
+   new address to hand out, and a link is a monitor that returns. MVP 2.66 still decides
+   whether a supervisor becomes a library behaviour.
 7. **The tools and a bridge:** `ernc`, `ern`, `--test`, `--doc`, the shell and the Emacs mode
    on one page, and a section for the Erlang programmer, what maps and what does not.
 8. **The small things:** the Plauger aside moves to a closing section on the design, the

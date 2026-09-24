@@ -1176,7 +1176,48 @@ the worker spawned at Faults.main:9 faulted: division by zero
 
 Three faults reach beyond their process. A fault in the entry process ends the program: `ern` prints `fault: ` and the cause, and exits with status 1. A fault in the function of an adapted address (§5.5) is the fault of the process the address names. A fault in the callback of `remote` is the fault of the process that called it (§8.1). A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
 
-### 6.4 Prediction exercise
+### 6.4 Let it crash
+
+A worker need not guard against what it did not expect. It faults, and the process that watches it decides what follows: it tries again, gives up, or ends too. The recovery is written once, in the watcher, and the worker's code is only its work. The watcher is a supervisor, and it is spawn, monitor, and receive:
+
+```ernest
+type SupMsg = Result(Int) | Ended(Down)
+
+fn supervise(jobs : List(Int)) -> Unit with SupMsg = match jobs {
+    [] -> Io.println("all jobs done")
+  | job :: rest -> {
+        let me = self();
+        let worker = spawn(Local, fn() -> Unit with Never = send(me, Result(100 / job)));
+        monitor(worker, Ended);
+        Io.println(Int.toString(job) <> ": " <> outcome());
+        supervise(rest)
+    }
+}
+
+// The worker's answer, or the fault that ended it. A worker that returned
+// sent its answer first, so its end is taken with the answer and is not
+// left for the next worker.
+fn outcome() -> String with SupMsg = receive {
+    Ended(Down(reason = Fault(cause), function = _)) -> "failed, " <> cause
+  | Ended(_) -> receive { Result(n) -> Int.toString(n) }
+}
+
+export fn main() -> Unit with SupMsg = supervise([4, 0, 5])
+```
+
+```console
+$ ern jobs.erc
+4: 25
+0: failed, division by zero
+5: 20
+all jobs done
+```
+
+A process for each job is the restart: the job that faulted ends its own worker, and the next job starts with a fresh one. Only `supervise` prints. A worker's `Io.println` and the supervisor's are two senders to `Sys.stdout`, which the runtime does not order (§5.1), so a worker reports by a message to its supervisor.
+
+What must survive a fault lives in the process that does not fault: here the list of jobs is the supervisor's. A process that restarts a long-lived service gets a new process with a new address, and whoever held the old address must be sent the new one, since there is no registry to look it up in (report §6.5). A process that must not outlive another monitors it and returns when it dies.
+
+### 6.5 Prediction exercise
 
 ```ernest
 fn first(xs : List(Int)) -> Int = match xs {

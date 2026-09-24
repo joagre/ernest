@@ -3824,6 +3824,10 @@ A newcomer learns more from one program that grows than from a new toy in every 
 
 The last stage is where the language taught its own lesson: a worker that sent its counts to the tally directly would race `main`'s request for the result, since messages are ordered per sender only, so the workers send to `main`, which forwards. The shell refused `ern --shell words.erc` for want of a `main`; §11.2 said a file's entry point is spawned beside the shell and nothing of a file without one, and a library module put in scope to be tried is the reason to load a file at all, so such a file is now loaded with nothing spawned. `Map.merge` keeping the second value made totalling two count maps a fold, which reads well and is noted for the standard library's read-back rather than worked around.
 
+## The Guide Shows a Supervisor, 2026-09-24
+
+The log listed supervision among the idioms the guide should teach and the report should not: a link is a monitor and a return, and a supervisor is fifteen lines of spawn, monitor, and receive. §6.4 shows the supervisor as a job runner, a worker per job, because a process per unit of work is the restart the language makes cheapest, and because the state that must survive a fault, the jobs, then plainly lives in the process that does not fault. The example has only the supervisor print: a worker's print and the supervisor's go to one process from two senders, which §6.4 of the report does not order, and a guide example whose output depended on an order the language does not promise would teach the wrong thing. Taking a returned worker's `Down` together with its answer keeps the mailbox clean without a demonitor, since a worker that returned has sent its answer first. The restart of a long-lived service is stated rather than shown: its new address has to be handed out, since §6.5 has no registry, and that question stays with MVP 2.65's list.
+
 ## Later
 
 Planned or considered, not in the language today.
