@@ -96,14 +96,34 @@ the shell is neither standard library nor library but the toolchain's own progra
      `:type` of an input that is one name, qualified or not, prints the name's declared
      type, as `:browse`, `:doc` and `Shift-Tab` do, and §11.2 says so. It needs the same
      lookup of a prelude name's type as step 1.
-  3. **The signature inside a call**, with the parameter at the cursor marked, which wants a
+  3. **Test areas, and faster suites.** A full `make test` took five minutes on 2026-09-24:
+     the guide's examples 103 s, the shell's sessions 76 s, the integration programs 39 s,
+     the Emacs mode 38 s, the runtime's unit tests 13 s, the terminal 11 s, the other unit
+     tests 19 s, and the documents 2 s. Two parts:
+     - **Targets by area**, with `make test` still running everything: `make test-erl`, and
+       `make test-erl APP=typer` for one application; `make test-guide`; `make test-shell`
+       for the shell's sessions and the terminal; `make test-programs` for the integration
+       programs; `make test-docs` for the citations and the style; and `make test-emacs`,
+       which `make emacs-mode` is today. CLAUDE.md's rule on the check that fits the change
+       gains the map: a change under `erl/<app>` runs that application's tests and the
+       programs; `stdlib/` the runtime's tests and the programs; `shell/` the shell's; the
+       guide its test and the documents'; any other document the documents'; the Emacs mode
+       its own. The whole of `make test` runs once per plan item, before the commit that
+       closes it.
+     - **The slow suites made faster where the time goes.** The guide test starts two Erlang
+       nodes per example, `bin/ernc` and `bin/ern`, 134 starts of about a second; it calls
+       `ern_cli:ernc/2` and `ern_cli:ern/2` in its own node instead, as `ern_cli_tests`
+       does. Independent examples and sessions run in parallel under EUnit's `inparallel`,
+       and the applications' unit tests under `make -j`. The shell's timed waits go with
+       step 5 below.
+  4. **The signature inside a call**, with the parameter at the cursor marked, which wants a
      parser tag for "inside a call's argument n" as the field position got one; and a
      declaration's own `since`, which the page does not carry per declaration.
-  4. **The program session waits on its faults, not on time.** `ern_shell_tests`' program
+  5. **The program session waits on its faults, not on time.** `ern_shell_tests`' program
      session failed once in `make test` on 2026-09-24 and passed alone eight times and twelve
      at once; its asserts rest on two waits of 400 ms against faults due at 100 and 150 ms.
      The inputs monitor the worker they spawn, and wait for the program's entry point to end.
-  5. **A terminal test for `Shift-Tab` and command completion.** The editor's own tests cover
+  6. **A terminal test for `Shift-Tab` and command completion.** The editor's own tests cover
      the keys and the behaviour was checked by hand, but the first pty test raced its own
      output and was taken out rather than left failing.
 - **Typing ahead while an input runs looks wrong.** A test that sent a second input before
