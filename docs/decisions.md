@@ -3766,6 +3766,10 @@ E.0 rule 2 ended "A verb not in this list needs an entry in the decisions log", 
 
 `Event` carried a typed character as `Char(Char)`, a constructor named as the type it holds and in every module's scope, so `Char('a')` read as a `Char` and `fn(c) = Char(c)` as a conversion that did nothing. It is `Key(Char)` now: `Key('a')` reads as the key `a`, beside the named keys `ArrowUp`, `Enter` and `Escape`. `Typed` was the other candidate and read as well, and the shell's own `Typed(String)` would have shadowed it at once.
 
+## `with` Keeps Its Two Uses, 2026-09-24
+
+`with` marks a function's mailbox effect, `(A) -> B with M`, and an abstract type's signature, `abstract type Stack(a) = ... with { ... }`. Weighed and left. The two positions never meet: one follows a function type's result, the other a type declaration's constructors, and the declaration's first token says which. Each reads as English, a function with a mailbox and a type with these operations, and principle 5 prefers a word used twice to a word more. Dropping the keyword before the signature needs no new word, since `abstract` announces the form, but the brace block would then read as belonging to the last constructor; `where` would be a nineteenth reserved word, and suggests local definitions to a Haskell reader. What would reopen it: a position where the two could meet.
+
 ## Later
 
 Planned or considered, not in the language today.
