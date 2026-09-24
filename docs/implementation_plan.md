@@ -105,8 +105,8 @@ the shell is neither standard library nor library but the toolchain's own progra
      after: the guide's examples 103 s to 13 s, compiling and running a module's example in
      the test's own node and the rest in parallel; the integration programs 39 s to 19 s
      and the Emacs mode 38 s to 15 s, run side by side; the unit tests side by side under
-     `make -j`. The shell's sessions, 76 s, wait for step 5, whose timed waits are both
-     the flaky test and most of that time.
+     `make -j`. The shell's sessions, 76 s, waited for step 5; most of their time turned out
+     to be one session waiting out the harness's timeout, fixed there.
   4. **Done 2026-09-24: the signature inside a call, and a declaration's `since`.** Where
      no name before the cursor is documented and the cursor is inside a call, `Shift-Tab`
      shows the callee's signature, its parameters under their declared names and the one at
@@ -117,16 +117,29 @@ the shell is neither standard library nor library but the toolchain's own progra
      shows types alone. The region learned escape sequences: they take no column, and a row
      cut short resets its colour. The brief on a name ends with its `Since`, its own or its
      module's.
-  5. **The program session waits on its faults, not on time.** `ern_shell_tests`' program
-     session failed once in `make test` on 2026-09-24 and passed alone eight times and twelve
-     at once; its asserts rest on two waits of 400 ms against faults due at 100 and 150 ms.
-     The inputs monitor the worker they spawn, and wait for the program's entry point to end.
+  5. **Done 2026-09-24: the program session waits on its faults, not on time.** It ran on
+     two waits of 400 ms and had failed once under load. It now runs in the pseudo-terminal
+     and waits on the screen for each fault report and each answer; the program's own fault
+     is awaited before the first input, since nothing at the prompt holds the entry point's
+     address to monitor. It passed eight runs at once. Timing the shell's area found that
+     `multiline` spent 30 s waiting out the harness's timeout, `C-d` leaving only on an
+     empty line; it cancels the input first now, and the area went from 76 s to 48 s.
   6. **A terminal test for `Shift-Tab` and command completion.** The editor's own tests cover
      the keys and the behaviour was checked by hand, but the first pty test raced its own
      output and was taken out rather than left failing.
-- **Typing ahead while an input runs looks wrong.** A test that sent a second input before
-  the first had finished never saw the second's result. Found 2026-09-21, not diagnosed, and
-  recorded in the language note; it belongs with the session of real use below.
+  7. **Colour where it carries meaning, at a terminal only, and never with `NO_COLOR` set.**
+     Agreed 2026-09-24, after the signature's parameter became cyan in step 4: a fault
+     report and a diagnostic's first line in red, the type after a printed value dimmed so
+     the value stands out, the suggestion in grey when it comes, and a name bold in a
+     completion listing and a `Shift-Tab` brief. No syntax highlighting of what is typed,
+     which would take a second lexer in the editor and tell an Ernest reader nothing.
+     `ernc`'s diagnostics stay plain, since a tool reads them. Report §11.2 states it in the
+     closing sweep; step 6's terminal test checks the escapes.
+- **Typing ahead while an input runs loses the second input's result.** Found 2026-09-21,
+  reproduced 2026-09-24: in the pseudo-terminal, `send(c, Counter.Add(7))` and then, while
+  it runs, `Address.call(...)` typed and entered shows the second input echoed and no result
+  for it. Not yet diagnosed; with a reproduction in hand it is diagnosed and fixed in the
+  session of real use below, or sooner if that session is later than this checkpoint.
 - **The closing sweep**, as the working rules require at the end of a plan step: the guide
   read against the report, then every other document against the report and the code. It
   writes into report §11.2 `Tab` completion and `Shift-Tab` documentation, as it states the

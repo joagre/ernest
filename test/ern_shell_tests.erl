@@ -32,25 +32,43 @@ session() ->
 program_test_() ->
     {timeout, 60, fun program/0}.
 
+%% The session waits on the events it asserts, not on the clock (plan, MVP
+%% 2.6 checkpoint 4, step 5): the program's own fault is awaited on the
+%% screen before the first input, since nothing at the prompt holds the
+%% entry point's address to monitor it, and each input waits for its
+%% answer. It ran on two waits of 400 ms before, and once failed under load.
 program() ->
     {0, _} = sh("../bin/ernc --source-root session --out-dir build/session"
                 " session/counter.ern"),
-    {0, Out} = sh("../bin/ern --shell build/session/counter.erc < session/program.in"),
-    %% not a golden: where a fault report lands among the inputs depends on
-    %% when the process faults, and the session is asserted on rather than
-    %% compared byte for byte
-    ?assertMatch({_, _}, binary:match(Out, <<"c : Address(Counter.Msg)">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"Some(7) : Optional(Int)">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"Counter.start : () -> Address(Msg) with m">>)),
+    Screen = screen(alone("../bin/ern --shell build/session/counter.erc"),
+                    [{expect, "Counter.main faulted: division by zero"},
+                     {send, hex("let c = Counter.start()\r")},
+                     {expect, "c : Address(Counter.Msg)"},
+                     %% one input: a second typed while the first runs is the
+                     %% plan's typing-ahead defect, not this test's subject
+                     {send, hex("{ send(c, Counter.Add(7)); "
+                                "Address.call(c, fn(r) = Counter.Get(reply = r), 1000) }\r")},
+                     {expect, "Some(7) : Optional(Int)"},
+                     {send, hex(":browse Counter\r")},
+                     {expect, "Counter.start : () -> Address(Msg) with m"},
+                     {send, hex("spawn(Local, fn() = Counter.boom())\r")},
+                     {expect, "main:1 faulted: division by zero"},
+                     {send, hex(":processes\r")},
+                     {expect, "Counter.start:10"},
+                     {send, hex(":faults\r")},
+                     {expect, "Counter.main faulted: division by zero"},
+                     {expect, "main:1 faulted: division by zero"},
+                     {send, "04"}],
+                    30, "60x100"),
     %% what the program printed reached the screen
-    ?assertMatch({_, _}, binary:match(Out, <<"worker here">>)),
+    ?assertMatch({_, _}, binary:match(Screen, <<"worker here">>)),
     %% the program's entry point and a process spawned at the prompt, each
     %% reported once as it faults and once by `:faults`
-    ?assertEqual(2, count(Out, <<"Counter.main faulted: division by zero">>)),
-    ?assertEqual(2, count(Out, <<"main:1 faulted: division by zero">>)),
-    %% `:processes` leaves the shell's own out, and the counter is still there
-    ?assertMatch({_, _}, binary:match(Out, <<"Counter.start:10">>)),
-    ?assertEqual(nomatch, binary:match(Out, <<"Shell.main">>)).
+    ?assertEqual(2, count(Screen, <<"Counter.main faulted: division by zero">>)),
+    ?assertEqual(2, count(Screen, <<"main:1 faulted: division by zero">>) -
+                        count(Screen, <<"Counter.main:1 faulted">>)),
+    %% `:processes` leaves the shell's own out
+    ?assertEqual(nomatch, binary:match(Screen, <<"Shell.main">>)).
 
 count(Haystack, Needle) ->
     length(binary:matches(Haystack, Needle)).
@@ -269,8 +287,12 @@ multiline() ->
                      {expect, "expected a pattern"},
                      {send, "1b5b41"},                    % ArrowUp: the input back, whole
                      {sleep, 400},
+                     %% C-d leaves only on an empty line: C-c cancels the
+                     %% input brought back, so the session ends rather than
+                     %% waiting out the harness's timeout
+                     {send, "03"},
                      {send, "04"}],
-                    30, "16x46"),
+                    30, "30x46"),
     Lines = [L || L <- binary:split(Screen, <<"\n">>, [global]), L =/= <<>>],
     Text = iolist_to_binary(Lines),
     %% the hint is above the region and the prompt it was typed under stays
@@ -285,8 +307,9 @@ multiline() ->
     %% the history brought the multi-line input back whole
     ?assertEqual([<<"1 +\\n    2">>, <<"40 + 2\\n    + 0">>, <<"fn f(\\n">>],
                  history_lines(filename:join([Home, ".ernest", "history"]))),
-    %% the screen is rendered without the spaces at a row's end
-    ?assertMatch({_, _}, binary:match(lists:last(Lines), <<"...">>)).
+    %% the screen is rendered without the spaces at a row's end: the input
+    %% brought back shows its empty second row as `...` alone
+    ?assert(lists:member(<<"...">>, Lines)).
 
 %% report §11.2, §8.2: a paste goes into the line at the cursor and its
 %% line feeds add lines, so a pasted two-line input is one input and runs

@@ -1,8 +1,8 @@
 //
 // A program for the shell's own tests: a process to drive from the prompt,
-// and an entry point that prints, waits, and faults, so that the shell's
-// report of a fault in the program is under test. The waits make the order
-// of the session's output the same on every run.
+// and an entry point that waits and faults, so that the shell's report of
+// a fault in the program is under test. The test waits for each report on
+// the screen, not for the time these waits take.
 //
 
 export type Msg = Add(Int) | Get(reply : Reply(Int))
