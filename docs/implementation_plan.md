@@ -240,8 +240,10 @@ without boasting. Each step is a stop.
    section 10 says what an Erlang programmer keeps and what differs, from typed mailboxes to
    the absence of links, atoms, and exceptions. The FAQ and the reading list moved to the
    guide's sections 11 and 12.
-8. **The small things:** the Plauger aside moves to a closing section on the design, the
-   exercises' answers stand apart from their questions, and §5.5 keeps one `Tick`.
+8. **Done 2026-09-24: the small things.** The Plauger aside left §2.3 for a closing section,
+   the guide's section 11, on the five principles; the exercises' answers stand apart in its
+   section 13, each naming its exercise; §5.5's game takes `Tick(Int)` from `Clock.alarm`,
+   so the section has one `Tick`; and §0 maps the whole guide, not only its stages.
 
 ---
 

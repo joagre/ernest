@@ -98,7 +98,7 @@ These rules come from one design, and most of its parts exist already. The Erlan
 - **Purity in the type.** `with` separates the functions that may send or receive from those that cannot. A pure function computes and returns, and the compiler holds it to that.
 - **Distribution by content, planned.** Unison's content addressing, on the Erlang runtime. Every function and type is known by a hash of its definition, a type's name included, so a message is checked across nodes as it is within one. Code travels with what uses it: a closure sent to a peer brings the definitions it needs, and the peer fetches what it has not seen. Two nodes need not run the same version of a program, and two versions of a type are two types, never one type read two ways (§8).
 
-The rest of the guide is eight stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, handle failure, organize code, and cross boundaries. Each builds on the ones before it and ends with an exercise. A complete program is shown whole; a fragment is part of the program around it.
+Sections 1 to 8 are eight stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, handle failure, organize code, and cross boundaries. Each builds on the ones before it and ends with an exercise, whose answer is in §13. A complete program is shown whole; a fragment is part of the program around it. After the stages come the tools (§9), a word for the Erlang programmer (§10), the design behind the rules (§11), and questions a reader asks (§12).
 
 ## 1. Run a program
 
@@ -170,8 +170,6 @@ export fn main() -> Unit = Io.println("hello, world")
 ```
 
 Which of these compile?
-
-Answer: (a) compiles: inference gives `main` a mailbox effect from the call of `Io.println`. (b) does not compile: `-> Unit` with no `with` declares `main` pure, and a pure function cannot call `Io.println`, which sends. It is the mistake of `area` in §0. The `with Never` of hello-world says that `main` runs in a process whose mailbox will never receive. Omitting an annotation is not the same as declaring purity.
 
 ## 2. Compute with immutable values
 
@@ -249,8 +247,6 @@ fn opposite(d : Direction) -> Direction = match d {
 ```
 
 The compiler checks that clauses cover every case; a missing case is a type error.
-
-That rule has a shape you will meet again. The report's principle 3, nothing invisible, turns an omission into a statement: exhaustiveness makes you say what every constructor does; `let _ = e` says a value is ignored on purpose; the reply discipline says where each `Reply` is consumed (§4); `export` says what crosses a module's boundary; `with m` says a function acts through a process; a qualified name says which module a name comes from. Several of these tell the compiler nothing it could not work out for itself. What they add is that the decision is written down, where a reader meets it. Principle 1, least surprise, then audits the result. It is programming on purpose, to borrow P.J. Plauger's phrase for designing deliberately rather than by accident — his subject is the whole of software design and broader than any of these rules (*Programming on Purpose: Essays on Software Design*, Prentice Hall, 1993).
 
 Constructors can carry data. `Optional(a)` is the standard example:
 
@@ -473,8 +469,6 @@ q : Person
 
 Does `p` change?
 
-Answer: no. Ernest has no assignment. `q` is a separate `Person` value; `p` is still `Person(name = "Alice", age = 30)`.
-
 ## 3. Pass behavior
 
 Functions are values. This section is about writing them and passing them around.
@@ -615,8 +609,6 @@ fn map2(f, x, y) = #(f(x), f(y))
 ```
 
 What does the compiler infer for `map2` when called as `map2(fn(n) = send(addr, n), 1, 2)`?
-
-Answer: `map2`'s inferred type is `((a) -> b with e, a, a) -> #(b, b) with e`. The call binds `a = Int`, `b = Unit`, and `e` to the mailbox effect of `send` — the same as the enclosing function's.
 
 ## 4. Run a protocol
 
@@ -856,8 +848,6 @@ A `send` is `Unit`, which the shell does not print.
 
 Does `Address.call(c, ..., 1000)` returning `None` guarantee the recipient did no work?
 
-Answer: no. The timeout only bounds the caller's wait. The recipient may still be processing the request or may answer later; the late answer is silently discarded but the work done on the recipient side is not undone.
-
 ## 5. Manage process lifetime
 
 The counter is enough for one process. Two processes need coordination.
@@ -976,7 +966,7 @@ When forward progress is impossible, the entry process faults with `Fault("deadl
 
 ### 5.5 Adapting messages with `via`
 
-`monitor(child, wrap)` takes a function from the runtime's `Down` to your mailbox type. The standard library's system modules use the same shape wherever something arrives later: `Clock.alarm(ms, wrap)` puts `wrap(t)` in your mailbox after `ms` milliseconds, `t` the time it fired, and `Terminal.subscribe(wrap)` puts every key pressed and every resize in it. A constructor with one positional field is a function value, so `Clock.alarm(100, Tick)` delivers `Tick(t)`, and a message that needs no time is made by a lambda that ignores it, `Clock.alarm(100, fn(_) = Tick)`, as the game below does.
+`monitor(child, wrap)` takes a function from the runtime's `Down` to your mailbox type. The standard library's system modules use the same shape wherever something arrives later: `Clock.alarm(ms, wrap)` puts `wrap(t)` in your mailbox after `ms` milliseconds, `t` the time it fired, and `Terminal.subscribe(wrap)` puts every key pressed and every resize in it. A constructor with one positional field is a function value, so `Clock.alarm(100, Tick)` delivers `Tick(t)`, as the game below does. A message that needs no time is made by a lambda that ignores it, `Clock.alarm(100, fn(_) = Refresh)` for a constructor `Refresh` without fields.
 
 Between your own processes the general form is `via`:
 
@@ -994,18 +984,18 @@ An adapted address is the target and the function, not a process, so adapting co
 `Clock.alarm` fires exactly *once*. For a periodic tick, the receiver schedules a new one only after handling the previous. A naive `game` that loops back on every message would create one pending timer per input, so a burst of inputs multiplies the tick rate. Two functions make the boundary explicit:
 
 ```ernest
-type GameMsg = Tick | Input(Char)
+type GameMsg = Tick(Int) | Input(Char)
 type World = World(score : Int)
 
 fn step(World(score = n) : World) -> World = World(score = n + 1)
 
 fn game(state : World) -> Unit with GameMsg = {
-    Clock.alarm(100, fn(_) = Tick);
+    Clock.alarm(100, Tick);
     waitForTick(state)
 }
 
 fn waitForTick(state : World) -> Unit with GameMsg = receive {
-    Tick -> game(step(state))
+    Tick(_) -> game(step(state))
   | Input(_) -> waitForTick(state)
 }
 ```
@@ -1063,8 +1053,6 @@ Each worker counts one text and sends the map to `main`, not to the tally. Messa
 ### 5.7 Prediction exercise
 
 Given the ping-pong program, does the runtime guarantee ping and pong's `Io.println` output appears in strictly alternating order?
-
-Answer: no. Per-sender FIFO orders messages from ping to pong and pong to ping, but the two processes both send to `Sys.stdout` — that is fan-in from two senders, and the runtime does not order across senders. Alternation is a *possible* trace, not a guaranteed one.
 
 ## 6. Handle failure
 
@@ -1228,8 +1216,6 @@ fn first(xs : List(Int)) -> Int = match xs {
 
 What happens when `main` calls `first([])`, and how would you make the empty list the caller's to handle?
 
-Answer: `main` faults with the cause `todo: first of an empty list`, and since it is the entry process the program ends and `ern` prints `fault: todo: first of an empty list`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
-
 ## 7. Organize code
 
 An Ernest program is one or more modules. A module is a `.ern` source file; its path *is* its namespace. Modules may not depend on each other in a cycle; a cycle is a compile-time error (report §4.1).
@@ -1368,8 +1354,6 @@ Two `Stack(a)` declarations on two nodes are one type only when their representa
 ### 7.3 Prediction exercise
 
 Can a helper in the same file as `Stack` — but not listed in the `with { ... }` signature — pattern-match `Stack(xs)`?
-
-Answer: no. Access is granted by the signature, not by the module. The helper can call `Stack.pop`, `Stack.push`, and any other listed operation, but it cannot see the constructor.
 
 ## 8. Cross boundaries
 
@@ -1585,8 +1569,6 @@ Bitstrings compile to the runtime's bit syntax (report §5.11, report §10).
 
 Suppose `send(remoteAddr, msg)` returns immediately, and 50 ms later the peer reports a resolution failure. What happens to the sending process?
 
-Answer: the runtime faults the sending process asynchronously, after `send` has already returned. Code that followed the `send` may have executed; the fault interrupts the process where it currently is, not at the site of `send`.
-
 ## 9. Tools
 
 Two commands and a shell, and a mode for Emacs. Report §11 defines each option.
@@ -1646,7 +1628,19 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - ETS is a library outside the standard library, `libs/ets`, since a table is state that processes share.
 - Nodes will talk over Ernest's own protocol and ship code by content, not over Erlang distribution (§8.2).
 
-## 11. Frequently asked questions
+## 11. The design
+
+Report §0 gives five principles, and the rules of the guide follow from them.
+
+1. **Least surprise decides.** A rule stays when the code it produces is what a reader who knows the rest of Ernest would write, and changes when it is not. The other four principles build the language, and this one audits the code they produce.
+2. **One way, one job.** The language and the prelude have one way to do each thing: a record is a constructor with named fields, a server is a `receive` loop, a request is a `Reply`.
+3. **Nothing invisible.** Control flow, communication, and failure show in the code or in the type.
+4. **Simple to parse.** Each construct is known by its first token, so a reader, like the parser, never has to look far ahead.
+5. **Small.** Few concepts, few primitives, few reserved words.
+
+Principle 3 turns an omission into a statement. Exhaustiveness makes you say what every constructor does; `let _ = e` says a value is dropped on purpose; the reply discipline says where each `Reply` is consumed; `export` says what crosses a module's boundary; `with` says a function acts through a process; a qualified name says which module a name comes from. Several of these tell the compiler nothing it could not work out for itself. What they add is that the decision is written down, where a reader meets it. It is programming on purpose, to borrow P. J. Plauger's phrase for designing deliberately rather than by accident; his subject is software design as a whole, broader than these rules (*Programming on Purpose: Essays on Software Design*, Prentice Hall, 1993).
+
+## 12. Frequently asked questions
 
 **Why is `main`'s mailbox usually `Never`?**
 
@@ -1672,7 +1666,25 @@ A lambda's body is greedy — it extends until the enclosing form's separator. W
 
 Ernest is n-ary: every function has a specific number of arguments recorded in its type. `fn(x)` says "one argument"; `fn(x, y)` says "two." The chosen syntax makes arity visible at the definition site, and the parenthesized form matches ordinary calls.
 
-## 12. Reading further
+## 13. Answers to the exercises
+
+**§1.3.** (a) compiles: inference gives `main` a mailbox effect from the call of `Io.println`. (b) does not compile: `-> Unit` with no `with` declares `main` pure, and a pure function cannot call `Io.println`, which sends. It is the mistake of `area` in §0. The `with Never` of hello-world says that `main` runs in a process whose mailbox will never receive. Omitting an annotation is not the same as declaring purity.
+
+**§2.11.** No. Ernest has no assignment. `q` is a separate `Person` value; `p` is still `Person(name = "Alice", age = 30)`.
+
+**§3.8.** `map2`'s inferred type is `((a) -> b with e, a, a) -> #(b, b) with e`. The call binds `a = Int`, `b = Unit`, and `e` to the mailbox effect of `send` — the same as the enclosing function's.
+
+**§4.8.** No. The timeout only bounds the caller's wait. The recipient may still be processing the request or may answer later; the late answer is silently discarded but the work done on the recipient side is not undone.
+
+**§5.7.** No. Per-sender FIFO orders messages from ping to pong and pong to ping, but the two processes both send to `Sys.stdout` — that is fan-in from two senders, and the runtime does not order across senders. Alternation is a *possible* trace, not a guaranteed one.
+
+**§6.5.** `main` faults with the cause `todo: first of an empty list`, and since it is the entry process the program ends and `ern` prints `fault: todo: first of an empty list`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
+
+**§7.3.** No. Access is granted by the signature, not by the module. The helper can call `Stack.pop`, `Stack.push`, and any other listed operation, but it cannot see the constructor.
+
+**§8.7.** The runtime faults the sending process asynchronously, after `send` has already returned. Code that followed the `send` may have executed; the fault interrupts the process where it currently is, not at the site of `send`.
+
+## 14. Reading further
 
 Which programs under `examples/` the toolchain runs today is the `PROGRAMS` macro in `test/ern_integration_tests.erl`. The four paper programs below compile today. Three run under test, with fixed input and a bounded run: the REPL, the file sync, and the web server. The snake game waits for a terminal, which no test can give it, so it is only compiled.
 
