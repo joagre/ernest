@@ -3750,6 +3750,10 @@ E.9 made `Float.sqrt`, `Float.log`, `asin` and `acos` return `Optional` for thei
 
 That modules may not depend on each other in a cycle was stated only in §11.1, as the compiler's behaviour; it decides which programs can be written, as §4.2's namespace rules do, and is now in §4.1, with §11.1 saying how the compiler reports it. The restriction that a `receive` guard be a guard expression was in §5.9, `match`; guards stay there, since `match` and `receive` share the clause grammar and a guard means the same in both, and the restriction, which follows from `receive` selecting a message without removing it, is now in §6.3.
 
+## Two Cryptic Sentences, 2026-09-24
+
+§4.2's "the effect of a function aside" meant that a function's mailbox type is exempt from the rule that an exported declaration names no private type, so an exported entry point may receive a private message type; the report now says so, as the guide did. §7.2's "The error type across the boundary is its own, distinct from the function's" constrained nothing a program could break, and a report states rules; it went.
+
 ## Later
 
 Planned or considered, not in the language today.

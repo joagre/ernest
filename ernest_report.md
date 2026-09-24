@@ -258,7 +258,7 @@ A *module* is one source file, ending in `.ern`: the unit of compilation and of 
 
 **Files are namespaces.** A file at `a/b/c.ern` under the source root provides the namespace `A.B.C`. Each segment is the path segment with its first letter uppercased: `http.ern` is `Http`, `httpv2.ern` is `Httpv2`. Path segments are one lowercase word (§11.1), so the mapping is one-to-one. The top of the hierarchy, where the prelude lives, is provided by the runtime, not by user code.
 
-**Declarations are local; `export` marks the boundary.** A declaration is written with its local name. `fn parse` in `net/http.ern` is exported as `Net.Http.parse` when marked `export`; otherwise it is private to its module. The qualified name appears at use sites, in the module itself as well, never at declarations. Two exported declarations with the same qualified name are an error. The type of an exported declaration, and the field types of an exported type, may not name a type the module keeps private, the effect of a function aside; a type whose values cross the boundary but whose constructors do not is an `abstract type` (§4.4). A module namespace may not coincide with a namespace of the prelude or the standard library: `io.ern` at the source root is an error. The standard library's own source root, shipped with the toolchain, is the exception: its files provide those namespaces. A file under it is compiled with it as the source root (§11.1); another source root is an error. There is no export list and no `import`.
+**Declarations are local; `export` marks the boundary.** A declaration is written with its local name. `fn parse` in `net/http.ern` is exported as `Net.Http.parse` when marked `export`; otherwise it is private to its module. The qualified name appears at use sites, in the module itself as well, never at declarations. Two exported declarations with the same qualified name are an error. The type of an exported declaration, and the field types of an exported type, may not name a type the module keeps private. A function's mailbox type is exempt: an exported entry point may receive a private message type. A type whose values cross the boundary but whose constructors do not is an `abstract type` (§4.4). A module namespace may not coincide with a namespace of the prelude or the standard library: `io.ern` at the source root is an error. The standard library's own source root, shipped with the toolchain, is the exception: its files provide those namespaces. A file under it is compiled with it as the source root (§11.1); another source root is an error. There is no export list and no `import`.
 
 ```
 // net/http.ern
@@ -578,7 +578,7 @@ The error is part of the function's meaning and is in its result type, `Either(e
 
 ### 7.2 Message errors
 
-The error crosses a process boundary and is in the message: `Either`, or a constructor of the reply type. A missing reply is `None` from `Address.call` (§6.6). The error type across the boundary is its own, distinct from the function's.
+The error crosses a process boundary and is in the message: `Either`, or a constructor of the reply type. A missing reply is `None` from `Address.call` (§6.6).
 
 ### 7.3 Faults
 
