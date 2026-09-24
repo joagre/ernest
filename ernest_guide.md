@@ -1324,23 +1324,41 @@ foreign fn rawLookup(t : Table(k, v), key : k)
 
 Erlang's `{ok, V} | {error, R}` convention does not automatically match an Ernest `Either(e, a)`. Ernest's `Either` constructors are `Left(e)` and `Right(a)`, and under the ABI of report §8.4 they encode as `{'Left', e}` and `{'Right', a}` (quoted, source-preserving). Erlang's `{ok, V}` uses the lowercase atom `ok`, which is a different value.
 
-The cleanest fix is a small Erlang-side helper that produces the Ernest-shaped return. For a foreign call whose Ernest declaration is `Either(String, Int)`, the helper's payloads must already match Ernest's ABI: `V` must be an `Int`-shaped integer, and `R` must be a UTF-8 binary (Ernest `String`). The toolchain cannot yet load an Erlang module of your own, so the helper below is a sketch that waits for it; the implementation plan records the gap:
+The cleanest fix is a small Erlang-side helper that produces the Ernest-shaped return. For a foreign call whose Ernest declaration is `Either(String, Int)`, the helper's payloads must already match Ernest's ABI: `V` an integer, and `R` a UTF-8 binary, Ernest's `String`:
 
 ```erlang
-%% Erlang helper (fragment); requires find/1 to return an integer on {ok, _}
-%% and a UTF-8 binary on {error, _}
+-module(store_helper).
+-export([lookup/1]).
+
 lookup(Key) ->
     case find(Key) of
-        {ok, V}    -> {'Right', V};
+        {ok, V} -> {'Right', V};
         {error, R} -> {'Left', R}
     end.
+
+find(<<"answer">>) -> {ok, 42};
+find(Key) -> {error, <<"no entry for ", Key/binary>>}.
 ```
 
-The Ernest `foreign fn` binds to that helper — the returned term already matches Ernest's ABI, no decoder needed:
+The Ernest `foreign fn` binds to that helper, and the term it returns is already an Ernest `Either`:
 
 ```ernest
 // store.ern (namespace Store)
 export foreign fn lookup(key : String) -> Either(String, Int) with m = "store_helper:lookup/1"
+
+export fn main() -> Unit with Never = match lookup("answer") {
+    Right(n) -> Io.println("found " <> Int.toString(n))
+  | Left(reason) -> Io.println(reason)
+}
+```
+
+`ern` finds an Erlang module of your own as a `.beam` in a directory of its load path, which includes the root of the module it runs (report §11.2):
+
+```console
+$ erlc -o build store_helper.erl
+$ ernc --out-dir build store.ern
+$ ern build/store.erc
+found 42
 ```
 
 If `find/1` returns reasons of another shape (an atom, a nested tuple), the Erlang helper must convert them to the declared Ernest form before returning; the Ernest side does not paper over ABI-shape breaches. In the other direction, a `foreign fn` that takes a `Foreign` is given one by `Foreign.from(value)`, which is the value as the runtime already holds it (Appendix E.12), and `Erl.atom(name)` builds the atoms such an API expects.

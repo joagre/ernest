@@ -142,6 +142,22 @@ appendix_d_library_test() ->
                                  Dir ++ "/build/src/main.erc"])),
     ?assertEqual(<<"1\n">>, iolist_to_binary(?capturedOutput)).
 
+%% report §11.2, §8.4: an Erlang module a `foreign fn` names is found as a
+%% `.beam` in a directory of the load path. A regression test: nothing put a
+%% user's own Erlang module where the host could find it
+foreign_beam_on_load_path_test() ->
+    Dir = tmp(),
+    Erl = write(Dir, "erl/ern_cli_helper.erl",
+                "-module(ern_cli_helper).\n-export([twice/1]).\ntwice(N) -> 2 * N.\n"),
+    ok = filelib:ensure_path(Dir ++ "/beams"),
+    {ok, ern_cli_helper} = compile:file(Erl, [{outdir, Dir ++ "/beams"}]),
+    write(Dir, "src/main.ern",
+          "foreign fn twice(n : Int) -> Int = \"ern_cli_helper:twice/1\"\n"
+          "export fn main() -> Unit with Never = Io.println(Int.toString(twice(21)))\n"),
+    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["--load-path", Dir ++ "/beams", Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"42\n">>, iolist_to_binary(?capturedOutput)).
+
 %% report §11.1: without the root that holds a module's dependency, the
 %% dependency is an unknown name
 load_path_needed_test() ->

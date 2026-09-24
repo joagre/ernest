@@ -26,6 +26,10 @@ a guide chapter, the closing sweep, and a session of real use.
 the report, so the guide is rewritten to teach Ernest on its own; the steps are in "MVP 2.61"
 below. MVP 2.6 resumes after it.
 
+**After MVP 2.61, CLAUDE.md is rewritten for clarity**, every rule kept: the working rules
+read in the order of work, each stated once. Asked for 2026-09-24; the rule that nothing
+routes around a defect, in code or in a document, is already in it.
+
 **The rhythm.** One item a turn, with its tests, its documents, its conformance section and
 its commit; then a stop for review before the next. The user reads the plan and not the log,
 so a decision they must see goes here.
@@ -89,22 +93,33 @@ the shell is neither standard library nor library but the toolchain's own progra
   a terminal test for `Shift-Tab` and command completion — the editor's own tests cover the
   key, and the behaviour was checked by hand, but the pty test written for it raced its own
   output and was taken out rather than left failing.
-- **An Erlang module of one's own cannot be loaded.** Found 2026-09-24: a `foreign fn` may
-  name `store_helper:lookup/1`, and the guide's §8.5 teaches such a helper, but `ern` loads
-  `.erc` modules from the load path and nothing puts a user's `.beam` where the host finds
-  it, so only the host's own modules can stand behind a `foreign fn`. The report is silent on
-  where a foreign function's module comes from. To decide, with MVP 2.7's libraries in view:
-  whether each load-path directory also holds `.beam` files, which `ernc` and `ern` add to
-  the host's code path, or a library carries its Erlang modules in a place of its own.
-  Until then the guide's helper is a fragment and says that it waits.
+- **Done 2026-09-24: an Erlang module of one's own is loaded from the load path.** A
+  `foreign fn` could name `store_helper:lookup/1`, and nothing put a user's `.beam` where the
+  host found it. Report §11.2 now says that such a module is the host's own or a `.beam` in a
+  directory of the load path, the host's own first, and `ern` adds the load path to the
+  host's code path. The guide's §8.5 helper is a complete module the guide test compiles with
+  `erlc` and runs. MVP 2.7's libraries build their Erlang modules into their own directory
+  under `build/libs/`, which `--load-path` already names.
+- **`ern_shell_tests`' program session is timed, and failed once.** Found 2026-09-24: it
+  failed in one `make test` and passed in the next two, alone eight times, and twelve at
+  once, so the failing assertion was not captured. The session's asserts rest on two waits
+  of 400 ms against faults due at 100 and 150 ms, so a slow moment lets a fault report land
+  after `:faults` or after `:quit`. Fixed in this checkpoint, with the harness work: the
+  inputs wait on the faults, not on time, by monitoring the worker they spawn and by a
+  command or a wait that ends when the program's entry point has ended.
 - **`:doc` knows nothing of the prelude.** Found 2026-09-24: `:doc monitor`, `:doc Down`,
   `:doc Optional` and `:doc IoError` print "no documentation", so the names a program uses
   most are the ones the shell cannot explain, and `Shift-Tab` shows nothing on them. The
-  prelude is a table in `erl/typer/src/ern_prelude.erl` whose source is report §9, and no
-  doc block exists for it. To decide: where the prelude's documentation lives, whether a
-  `stdlib/prelude.ern` of declarations and doc blocks kept equal to §9 by a test, or text
-  drawn from §9 itself. When it lands, the guide's declarations of `Down`, `Reason` and
-  `RemoteError`, fragments until then, become `:doc` sessions the guide test checks.
+  prelude is a table in `erl/typer/src/ern_prelude.erl` whose source is report §9, kept
+  equal to it by `ern_prelude_tests`, and no doc block exists for it. **Decided
+  2026-09-24:** each entry of the table carries its documentation, written by E.0 rule 6
+  as a standard library export's is, since the table is the prelude's one source in code
+  and a `stdlib/prelude.ern` cannot declare `spawn` or `Int`. Report §9 gains the sentence
+  that the prelude's names are documented as the standard library's are; `:doc`,
+  `Shift-Tab`, and `ernc --doc` of a page named `Prelude` read it, and a test fails on a
+  name without it. Built in checkpoint 4, before the in-call signature, since that
+  signature shows the prelude's calls too. The guide's declarations of `Down`, `Reason` and
+  `RemoteError`, fragments until then, then become `:doc` sessions the guide test checks.
 - **Typing ahead while an input runs looks wrong.** A test that sent a second input before
   the first had finished never saw the second's result. Found 2026-09-21, not diagnosed, and
   recorded in the language note; it belongs with the session of real use below.
@@ -112,10 +127,10 @@ the shell is neither standard library nor library but the toolchain's own progra
   since MVP 2.61 step 2; the rest is that milestone's step 7, the tools page.
 - **The closing sweep**, as the working rules require at the end of a plan step: the guide
   read against the report, then every other document against the report and the code.
-  **Open question for the sweep, 2026-09-24:** report §11.2 says nothing of `Tab` completion
-  or `Shift-Tab` documentation, which `docs/shell_design.md` and the shell have and the
-  guide teaches. Whether §11.2 states them, as it states the editing keys, or they
-  stay the design note's is decided there.
+  **Decided 2026-09-24:** report §11.2 states `Tab` completion and `Shift-Tab`
+  documentation as it states the editing keys, since they are the shell's behaviour and
+  §11 owns the toolchain's; `docs/shell_design.md` keeps how they are built. Written in
+  this sweep, once checkpoint 4 has finished them.
 - **A session of real use.** The user works in the shell and reports what it is like; what
   that finds is fixed before the milestone closes or recorded in the design note. Nothing so
   far has been driven by hand — every test goes through the pseudo-terminal harness, which
@@ -201,9 +216,10 @@ without boasting. Each step is a stop.
 5. **Done 2026-09-24: every fragment completed or cut.** An expression became a shell
    session the test replays, a declaration a complete module, and a signature the shell's
    `:type`; blocks naming one file are its parts, and a console may run `ern --test`. The
-   guide test checks 56 examples. Three blocks wait, each on a plan item above: `Down` and
-   `Reason`, and `RemoteError`, on `:doc` for the prelude, and §8.5's Erlang helper on
-   loading an Erlang module of one's own. Completing them found and fixed two defects: the
+   guide test checks 57 examples. Two blocks wait, `Down` and `Reason`, and `RemoteError`,
+   on `:doc` for the prelude, MVP 2.6 checkpoint 4; §8.5's Erlang helper, which waited on
+   loading an Erlang module of one's own, is complete since that was built the same day.
+   Completing them found and fixed two defects: the
    prompt took a name alone in a `let`, where §11.2 makes it a block `let` with a pattern,
    and a pure callback given to `spawn` was reported as "process code called from a pure
    function". Split from the running example on 2026-09-24.
@@ -482,6 +498,11 @@ peers are the useful one.
   name where §8.7's normalization keeps the qualified names of external references; both write
   the effect `{Proc m}` where the report writes `with m`; and the protocol note's open question
   on stopping a process is §6.9's `kill`.
+- **Whether `remote` stays**, `docs/language_feedback.md` item 14, decided first in this
+  milestone, before `remote` is built over peers: once `spawn(Peer(name), f)` ships code and
+  answers across nodes, `remote` may be a second way to do what a spawned process that
+  answers does. If it goes, §6.7, §9.4, `RemoteError`, the `"remote-peer"` flag and the
+  guide's §8.1 go with it, and the bullets above that build it are rewritten.
 - **An adapted address across a node** is open, and report first when it is taken. `via(f,
   addr)` has been the pair of the function and the address since 2026-09-20 (§6.5), so an
   `Address` that leaves a node may carry a function, which is the same question as a message

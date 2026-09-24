@@ -2,7 +2,10 @@
 %% 2.61 step 1). A block marked `ernest` is a complete module and compiles;
 %% one whose first line names a file, `// net/http.ern`, is placed there, and
 %% such blocks under one heading compile together as a source tree; blocks
-%% that name the same file are its parts, in order. When the next fenced
+%% that name the same file are its parts, in order. An `erlang` block that
+%% begins `-module(name).` joins them as `name.erl`, compiled with `erlc`
+%% beside the compiled modules, where report §11.2 has `ern` find it. When
+%% the next fenced
 %% block is a `console` block, the program its `$ ern` line names is run,
 %% with the options the line gives, and its output compared with the
 %% console's lines that are not commands. A block marked `ernest-rejected`
@@ -39,6 +42,9 @@ check({modules, #{files := Files, run := Run}}) ->
     Dir = tmp(),
     [ok = write(filename:join(Dir, F), Code) || {F, Code} <- Files],
     Build = filename:join(Dir, "build"),
+    ok = filelib:ensure_path(Build),
+    [{0, <<>>} = sh("erlc -o " ++ Build ++ " " ++ filename:join(Dir, F))
+     || {F, _} <- Files, filename:extension(F) =:= ".erl"],
     {Status, Out} = sh("../bin/ernc --errors short --source-root " ++ Dir ++ " --out-dir "
                        ++ Build ++ " " ++ Dir),
     ?assertEqual({0, <<>>}, {Status, Out}),
@@ -108,8 +114,12 @@ group([{N, <<"console">>, _, [<<"$ ern --shell">> | Lines]} | Rest]) ->
     %% the prompt stays; the input after it is the terminal's echo
     Shown = [case L of <<"> ", _/binary>> -> <<"> ">>; _ -> [L, <<"\n">>] end || L <- Lines],
     [{session, #{line => N, inputs => Inputs, shown => iolist_to_binary(Shown)}} | group(Rest)];
-group([{N, <<"ernest">>, Heading, Code} = B | Rest]) ->
+group([{N, Info, Heading, Code} = B | Rest]) when Info =:= <<"ernest">>;
+                                                  Info =:= <<"erlang">> ->
     case named(Code) of
+        none when Info =:= <<"erlang">> ->
+            %% Erlang without a module line is a fragment
+            group(Rest);
         none ->
             %% a module the console runs is the file the console names
             Run = run(Rest),
@@ -120,7 +130,8 @@ group([{N, <<"ernest">>, Heading, Code} = B | Rest]) ->
             [{modules, #{line => N, files => [{File, join(Code)}], run => Run}} | group(Rest)];
         _ ->
             {Same, Others} = lists:splitwith(
-                               fun({_, I, H, C}) -> I =:= <<"ernest">> andalso H =:= Heading
+                               fun({_, I, H, C}) -> lists:member(I, [<<"ernest">>, <<"erlang">>])
+                                                        andalso H =:= Heading
                                                         andalso named(C) =/= none end, Rest),
             Tree = [B | Same],
             [{modules, #{line => N, files => parts([{named(C), C} || {_, _, _, C} <- Tree]),
@@ -134,11 +145,17 @@ parts(Named) ->
     Files = lists:usort([F || {F, _} <- Named]),
     [{F, join(lists:append([C || {G, C} <- Named, G =:= F]))} || F <- Files].
 
-%% `// net/http.ern  (namespace Net.Http)` names net/http.ern.
+%% `// net/http.ern  (namespace Net.Http)` names net/http.ern, and
+%% `-module(store_helper).` names store_helper.erl.
 named([First | _]) ->
     case re:run(First, "^// ([a-z0-9/]+\\.ern)", [{capture, all_but_first, list}]) of
-        {match, [Path]} -> Path;
-        nomatch -> none
+        {match, [Path]} ->
+            Path;
+        nomatch ->
+            case re:run(First, "^-module\\(([a-z0-9_]+)\\)\\.", [{capture, all_but_first, list}]) of
+                {match, [Mod]} -> Mod ++ ".erl";
+                nomatch -> none
+            end
     end;
 named([]) ->
     none.

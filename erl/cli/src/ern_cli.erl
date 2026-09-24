@@ -587,6 +587,7 @@ shell(Opts, Rest, Err) ->
     end,
     Init = case Rest of
                [] ->
+                   host_path([absolute(D) || {load_path, D} <- Opts]),
                    ern_shell:loaded(#{roots => [absolute(D) || {load_path, D} <- Opts],
                                       source_root => source_root(Opts, ".", "."),
                                       ifaces => [], entry => none,
@@ -641,7 +642,13 @@ program(File, Opts) ->
         fail(File ++ " is not at the path of its namespace " ++ qname(Ns)),
     lists:foreach(fun shape/1, filename:split(filename:rootname(module_path(Ns)))),
     Roots = [Root | [absolute(D) || {load_path, D} <- Opts]],
+    host_path(Roots),
     {Ns, Roots, load(Ns, Roots, [])}.
+
+%% Report §11.2: an Erlang module a `foreign fn` names is the host's own or
+%% a `.beam` in a directory of the load path, the host's own found first.
+host_path(Roots) ->
+    ok = code:add_pathsz(Roots).
 
 %% Report §11.2: the interfaces of the modules loaded, which the shell puts
 %% in the session's scope, each with the hash of the source it was compiled

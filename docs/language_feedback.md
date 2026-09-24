@@ -156,4 +156,5 @@ What I would actually put to you as candidate language changes: field selection 
     in the report's prelude, §9, and the guide's examples, so removing it is a report change
     with the log's *Remote Ergonomics* (2026-09-13) to revisit.
 
-    Undecided; for the discussion before MVP 3.0, when peers are built.
+    Planned: decided first in MVP 3.0, before `remote` is built over peers (the plan's
+    MVP 3.0 section).

@@ -3810,6 +3810,14 @@ A fragment in the guide was code that nothing compiled: it named what a block ab
 
 Completing the fragments tested the shell and the compiler, and two defects came out. The prompt parsed a `let` as a top-level one, taking a name alone, where §11.2 says it is a block `let`; `let #(x, y) = point` was refused. It now binds each name the pattern binds, `let _ = e` binds none, and `let x <- e` is refused with its own message, since no block follows it to end, which §11.2 now states. A pure lambda given to `spawn` was reported as "process code called from a pure function", which describes a different mistake; the unifier's message kept the wording the effect errors had shed on 2026-09-19, and now says "a pure function where one that runs in a process is needed". Two gaps were too large for a guide step and went to the plan: `:doc` knows nothing of the prelude, and `ern` cannot load an Erlang module of the user's own. The three blocks that wait on them say so. The rule that found them, nothing routes around a defect in code or in a document, is now stated once in CLAUDE.md.
 
+## An Erlang Module of One's Own, and the Prelude's Documentation, 2026-09-24
+
+A `foreign fn` names `module:function/arity`, and §8.4 says what the call's arguments and result must be, but nothing said where the module comes from: the host's own modules were found, and a user's could not be, so the guide taught a helper no program could run. The load path is already where `ern` looks for what a program needs, and a library built under `build/libs/<name>` is put on it with `--load-path`, so a `.beam` in a directory of the load path is found there too. The host's own modules are found first, so a user's `lists.beam` cannot replace the host's. The alternative, a place of its own for a library's Erlang modules, is a second path to configure for no gain while a library is a directory.
+
+The prelude has no documentation, so `:doc monitor` and `Shift-Tab` on `spawn` say nothing about the names a program uses most. Its one source in code is `ern_prelude`'s table, kept equal to §9 by a test, and each entry will carry its documentation, written as E.0 rule 6 asks of a standard library export. A `stdlib/prelude.ern` was weighed and refused: the prelude's primitives, `spawn`, `send`, `Int`, have no Ernest declaration to hang a doc block on, so such a file would be a second list of the prelude beside the table.
+
+§11.2 will state `Tab` and `Shift-Tab`, since it states the editing keys and §11 owns what the toolchain does; the design note keeps how they are built. Whether `remote` stays once peers exist is decided at the start of MVP 3.0, before it is built over them.
+
 ## Later
 
 Planned or considered, not in the language today.
