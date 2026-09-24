@@ -3796,6 +3796,10 @@ The guide's reader has not read the report and needs a reason to go on. A list o
 
 Three silences and defects surfaced in writing it. An error named its file by the absolute path, where the guide showed `hello.ern:1:28`; a user who typed `ernc hello.ern` expects the name typed, and Emacs's compilation mode reads either, so §11.5 now names the file by its path from the working directory, or absolutely when it lies outside it. The shell printed nothing for a `Unit` value while §11.2 said every value is printed with its type; printing `Unit : Unit` after every `Io.println` would be noise, so §11.2 states the exception. And `ernc` crashed on an error whose source line held a character outside Latin-1, and `ern` printed a failed test's text and a fault's cause byte by byte, since both wrote with `~s`; the guide's rejected example with an em dash in a comment found it.
 
+## The Guide's First Sections Cut to Teaching Weight, 2026-09-24
+
+§2 and §3 of the guide had grown with the report: every corner the report settled was restated, from the characters a number may not be followed by to the delimiters that end a lambda's body, and §2.9 restated Appendix E.0 with its lists. A newcomer reads a rule and an example and learns the language; a corner read before the rule it qualifies is noise, and one restated in two places goes stale in one of them. So each subsection keeps its rule and its example, and a corner is cut or becomes a pointer to the report's section. The measure was not a word count but whether a sentence teaches something the reader needs before §4; what remained is 2,271 words of prose where there were 3,532. The `receive` guard, a rule of `receive`, moved to where `receive` is taught.
+
 ## Later
 
 Planned or considered, not in the language today.

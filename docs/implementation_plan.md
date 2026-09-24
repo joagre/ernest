@@ -172,8 +172,11 @@ without boasting. Each step is a stop.
    error whose source line holds a character outside Latin-1, and `ern` printed such text
    byte by byte; the report did not say which path an error names (§11.5), nor that the
    shell prints nothing for a `Unit` value (§11.2).
-3. **§2 and §3 cut to teaching weight.** A rule and an example stay; a corner points to the
-   report in a line.
+3. **Done 2026-09-24: §2 and §3 cut to teaching weight.** A rule and an example stay; a
+   corner points to the report in a line. The prose went from 3,532 words to 2,271: the
+   standard library's rules keep one example each instead of Appendix E's lists, and the
+   literal corners, the evaluation order of fields, and the rules for a local `fn` became
+   pointers. The `receive` guard moved to §4.3, where `receive` is taught.
 4. **The error model gets a section of its own:** a value, a message, or a fault, and
    nothing is caught.
 5. **One running example through §2 to §5**, and every fragment either completed or cut.

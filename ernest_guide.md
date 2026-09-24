@@ -174,30 +174,27 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 
 ### 2.1 Scalars, Unit, and literals
 
-- **`Int`** — arbitrary precision. Literals: `42`, and in another base `0xFF`, `0o644`, `0b1010`, the prefix lowercase. An `_` between two digits groups them, in any number: `1_000_000`, `0xFFFF_FFFF`, `3.141_592`. A letter or digit right after a number is an error, so `12px` and `0b102` are rejected, and so is an `_` anywhere but between two digits, as in `1_` or `0x_FF`.
-- **`Float`** — IEEE 754 binary64, finite range only, with one zero: `0.0 * -1.0` is `0.0`. Literal: `3.14`.
-- **`Char`** — one Unicode scalar value, a code point other than a surrogate. Literal: `'a'`.
-- **`String`** — a Unicode string. Literal: `"hello"`. Escapes: `\n`, `\r`, `\t`, `\\`, `\"`, `\'`, `\u{1F600}`. A raw string is written between backticks; see below.
-- **`Bytes`** — sequence of octets. Literal: `<<0, 1, 2>>` (a bitstring, §7.6 below; report §5.11).
-- **`Bool`** — `true` or `false`. `&&` and `||` short-circuit, `!` negates, and `Bool.not` is `!` as a function, the way `Int.negate` is prefix `-`.
+- **`Int`** — arbitrary precision. Literals: `42`, and in another base `0xFF`, `0o644`, `0b1010`. An `_` between digits groups them: `1_000_000`.
+- **`Float`** — IEEE 754 binary64, finite values only. Literal: `3.14`.
+- **`Char`** — one Unicode code point. Literal: `'a'`.
+- **`String`** — Unicode text. Literal: `"hello"`, with the escapes `\n`, `\t`, `\\`, `\"`, and `\u{1F600}` among them (report §2.5).
+- **`Bytes`** — a sequence of octets. Literal: `<<0, 1, 2>>` (§7.6).
+- **`Bool`** — `true` or `false`. `&&` and `||` short-circuit, and `!` negates.
 - **`Unit`** — one value, also called `Unit`.
 
-A raw string, between backticks, is taken exactly as written: a backslash is a backslash, and a line break is a line break. It is the form for text full of backslashes or quotes, and for text over several lines:
+A raw string, between backticks, is taken exactly as written, with no escapes. It is the form for text full of backslashes or quotes, and for text over several lines:
 
 ```
 let number = `\d+(\.\d+)?` // a regular expression, not "\\d+(\\.\\d+)?"
-let path = `C:\Users\ada\notes.txt`
 let fixture = `{
     "name": "ada",
     "tags": ["a", "b"]
 }`
 ```
 
-A raw string has no escapes at all, so it cannot contain a backtick; build such a string from `"..."` pieces with `<>`. A line break inside it is a line feed whatever the file's line endings are (report §2.5). There is no regular expression syntax in the language: a pattern is a raw string given to a library.
+`Int` division `/` and remainder `%` by zero fault, and so does `Float` arithmetic whose result would not be finite. `Int.div` and `Int.mod` return `Optional(Int)` instead. A fault ends the process (§3.4).
 
-`Float` arithmetic that would produce a non-finite result (overflow, division by zero of a non-zero numerator, `0.0 / 0.0`) *faults*. `Int` division `/` or modulo `%` by zero also faults. `Int.div` and `Int.mod` are the total alternatives that return `Optional(Int)`.
-
-`Int` and `Float` are separate types with no implicit conversion — mixing them in an arithmetic expression is a type error. Cross the boundary explicitly with `Int.toFloat`, `Float.round`, `Float.floor`, `Float.ceil`, or `Float.truncate`; each has a contract in Appendix E of the report (`Int.toFloat` faults on integers outside the finite float range, for instance).
+`Int` and `Float` are separate types, and nothing converts between them implicitly: `1 + 2.0` is a type error. Convert with `Int.toFloat`, or with `Float.round`, `Float.floor`, `Float.ceil`, or `Float.truncate`.
 
 ### 2.2 Bindings and blocks
 
@@ -208,7 +205,7 @@ let x = 5;
 let y = x + 1        // y is 6
 ```
 
-A block groups statements between `{` and `}`, separated by `;`. Its value is the last statement, which must be an expression — no trailing semicolon. Evaluation is strict and left-to-right: each `;` runs its statement to completion before the next. Every expression statement before the last is a `Unit`: a value you mean to drop is dropped with `let _ = e`, so `check(-1);` on an `Either` is a type error rather than a lost failure.
+A block groups statements between `{` and `}`, separated by `;`. Its value is the last statement, which must be an expression, with no `;` after it. Statements run in order, each to completion. A statement before the last must be `Unit`, and a value dropped on purpose is dropped with `let _ = e`, as in §0.
 
 ```
 let area = {
@@ -219,7 +216,7 @@ let area = {
 
 Shadowing is allowed: a later `let` with the same name hides the earlier one from the next statement on. The original value is unchanged where it was already used; there is no mutation.
 
-**Constants.** A `let` declaration at the top level (outside any `fn`) is Ernest's constant form. It is evaluated once at program startup and its value is in scope thereafter. Top-level `let` names are lowercase like any other value binding — no `PI`, no `MAX_CONNECTIONS`; case has one job in Ernest, and uppercase is for types and constructors. Add `export` to make a constant visible from other modules.
+**Constants.** A `let` at the top level, outside any `fn`, is a constant, evaluated once before `main` starts. Its name is lowercase like any value's; an uppercase name is a type or a constructor. `export` makes it visible to other modules.
 
 ```
 let pi : Float = 3.14159265358979
@@ -227,7 +224,7 @@ let defaultPort : Int = 8080
 export let helloBanner : String = "hello, world"
 ```
 
-Top-level initializers must be pure — no `send`, no `spawn`, no other process effects. Effectful setup belongs in `main`. Initializers run in dependency order before `main` starts: a top-level `let` that references another is evaluated after the one it references. A cycle among top-level `let`s, within a module or across modules, is a compile-time error. A pure initializer can still fault or fail to terminate, in which case `main` never starts — a fault at startup is observed the same way as one during execution (§3.4).
+A constant's initializer is pure: setup that sends or spawns belongs in `main`. Constants are evaluated in the order their references need, and a cycle among them is an error (report §8.5).
 
 ### 2.3 Sum types and pattern matching
 
@@ -266,8 +263,6 @@ Three shapes of constructor, with different usage:
 - **Positional with one field** (`Some(a)`): also a function value of type `(a) -> Optional(a)`. You can pass it: `List.map(xs, Some)` produces `List(Optional(a))`.
 - **Named fields** (`Person(name : String, age : Int)`): construction uses the field syntax (`Person(name = "Alice", age = 30)`). Not a function value.
 
-`Reply(a)`, which you'll meet in §4, is a built-in one-shot address with its own ownership rules — it is *not* a wrapper type like a user-defined `type UserId = UserId(Int)`, despite the similar shape.
-
 ### 2.4 Named fields and `..` update
 
 For constructors that carry several things, name each field:
@@ -281,7 +276,7 @@ let older = Person(..alice, age = 31)          // "Alice", 31
 
 `..alice` copies unlisted fields; `age = 31` overrides. `alice` is unchanged — the block just names a second `Person` value. Ernest uses `:` for types (`name : String`) and `=` for values (`name = "Alice"`); function result types use `->`.
 
-Field declaration order carries no meaning (report §3.5). The compiler stores fields in canonical order (sorted by name) internally, and evaluates field expressions in source order.
+The fields may be given in any order, and are evaluated in the order written.
 
 ### 2.5 Lists, tuples, maps, sets
 
@@ -313,18 +308,11 @@ let s = Set.fromList([1, 2, 3])
 
 `Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call.
 
-Map keys and set elements require equality. Ernest's `==` is defined for every type *except* those containing functions or addresses (report §3.10) — that includes tuples, sums, and constructor fields that transitively contain either. `Map(Address(m), v)` is a type error at the first `Map` operation on it; so is `xs == ys` when `xs` is `List(Address(m))` or any type containing one.
-
-Ordering is separate from equality: `a < b` goes through the type's `compare` function, and only `Int`, `Float`, `String`, and `Char` have one in the prelude. `<` on a type without `compare` is a type error (report §3.10).
+Map keys and set elements need equality. `==` is defined on every type except one that contains a function or an address, so a map keyed by addresses is a type error. Ordering is separate: `<` needs a `compare` function for the type, which `Int`, `Float`, `String`, and `Char` have (report §3.10).
 
 ### 2.6 Patterns and irrefutability
 
-The same patterns appear in `match` clauses, `let` bindings, and function parameters. Bindings and parameters need *irrefutable* patterns — patterns that always match:
-
-- `_` and identifiers are irrefutable.
-- A tuple pattern is irrefutable iff every component pattern is.
-- A single-constructor type's constructor pattern is irrefutable iff every field pattern is.
-- An irrefutable pattern with `as` is irrefutable.
+The same patterns appear in `match` clauses, `let` bindings, and function parameters. A `let` and a parameter need an *irrefutable* pattern, one that cannot fail to match: a name, `_`, a tuple of irrefutable patterns, or the only constructor of its type with irrefutable fields.
 
 ```
 let #(x, y) = point;                              // irrefutable
@@ -341,7 +329,7 @@ match m {
 }
 ```
 
-Each variable appears at most once in a pattern. Repeated names within one pattern are a type error.
+A name appears at most once in a pattern.
 
 A clause may list several patterns separated by `or`; it matches when any of them does. Every alternative binds the same variables at the same types, so the body uses them whichever alternative matched:
 
@@ -362,17 +350,13 @@ fn step(m : Move) -> Int = match m {
 
 A guard after the alternatives sees the shared variables. The same works in `receive`. `Some(x) or None -> x` is a type error, since `None` binds no `x` (report §5.9).
 
-A postfix `as ident` binds the whole match alongside its destructured parts: `Some(x) as present` binds `x` to the payload *and* `present` to the whole Optional. Useful when both the interior and the aggregate matter. `as` is not allowed on reply-carrying scrutinees (§4.2).
+`as` binds the whole value beside its parts: `Some(x) as present` binds `x` to the payload and `present` to the whole `Optional`.
 
-Guards are pure `Bool` expressions with no mailbox effect. A guard that evaluates to `false` falls through to the next clause. A guard that *faults* faults the enclosing process; it never turns into a silent `false`.
-
-A `receive` guard is narrower, because it selects a message without taking it out of the mailbox. It is a *guard expression*: comparisons of variables, literals, and nullary constructors, joined by `&&` and `||`, with the orderings on `Int`, `Float`, `String`, and `Char` only, and no calls (report §6.3). When you need more, receive the message and `match` it.
-
-Guards do not count toward `match` exhaustiveness. A clause with a guard still needs an unguarded fallback, typically a wildcard `_` clause, so the compiler can prove coverage.
+A guard is a pure `Bool` expression. A guard that is `false` passes to the next clause; one that faults faults the process. A guarded clause does not count toward coverage, so a `match` with guards usually ends in an unguarded clause.
 
 ### 2.7 `if` and `<-`
 
-`if cond then a else b` is an expression. Both branches must have the same type. There is no `if` without `else`. Like `match`, `receive`, and `fn`, it is not an operand: write `1 + (if c then a else b)`, not `1 + if c then a else b`.
+`if cond then a else b` is an expression, and both branches have the same type. There is no `if` without `else`. As an operand it is parenthesized: `1 + (if c then a else b)`.
 
 `<-` short-circuits on `Optional` or `Either`. The prelude defines them as:
 
@@ -407,9 +391,7 @@ fn positiveInt(text : String) -> Either(String, Int) = {
 - `positiveInt("oops")` → `Left("not an integer")` — `String.toInt` returned `None`, `Either.fromOptional` turned it into `Left`, and the chain short-circuits.
 - `positiveInt("0")` → `Left("not positive")` — the parse succeeded but the explicit branch rejects.
 
-The compiler picks Optional or Either from the right-hand side's type or, failing that, from the block's type. One block cannot mix — a block is either an Optional chain or an Either chain, not both.
-
-`<-` works in a block, one step at a time. To run a step that can fail over every element of a list, `List.tryMap(xs, f)` and `List.tryFold(xs, acc, f)` do the same short-circuit: the first `Left` ends them.
+A block is an `Optional` chain or an `Either` chain, never both. To run a step that can fail over every element of a list, `List.tryMap(xs, f)` and `List.tryFold(xs, acc, f)` stop at the first `Left`.
 
 ### 2.8 The pipe operator `|>`
 
@@ -419,25 +401,21 @@ Ernest's stdlib is subject-first. `|>` reads left-to-right:
 "abc" |> String.toList |> List.reverse |> String.fromList      // "cba"
 ```
 
-`x |> f` is `f(x)`. `x |> f(a, b)` is `f(x, a, b)` — pipe inserts as the first argument. `x |> f(a)(b)` is `f(a)(x, b)`, inserted into the *outermost* call. Parentheses make a value, which the pipe applies: `x |> (adder(3))` is `adder(3)(x)`, the function `adder(3)` returns applied to `x`.
-
-**A lambda after `|>` must be parenthesized:** `x |> (fn(y) = y + 1)`. Without parens, the lambda's body extends greedily and swallows the rest of the expression.
+`x |> f` is `f(x)`, and `x |> f(a, b)` is `f(x, a, b)`: the pipe inserts the first argument. A parenthesized right-hand side is a value the pipe applies, so `x |> (adder(3))` is `adder(3)(x)`, and a lambda is written the same way, `x |> (fn(y) = y + 1)`.
 
 ### 2.9 The standard library
 
-Report Appendix E lists the library: a module per namespace, mostly one per type, `List`, `Map`, `Set`, `String`, `Char`, `Bytes`, `Bool`, `Int`, `Float`, `Optional`, `Either`, `Foreign`, `Random`, `Path`, `Erl` for what a shim needs from Erlang, and one per system process, `Io`, `Clock`, `Terminal`, `Fs`, `Tcp`. It is on the load path by default. Its rules, in Appendix E.0, are what let you guess a name before looking it up:
+The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char`, `Bytes`, `Bool`, `Int`, `Float`, `Optional`, `Either`, `Path`, `Random`, and a few more, and one per system process, `Io`, `Clock`, `Terminal`, `Fs`, `Tcp`. It is always on the load path. Its rules let you guess a name before looking it up (report Appendix E.0):
 
-- **One verb per operation, in every module that has it.** `empty`, `size`, `isEmpty`, `contains`, `get` for lookup by index or key, `put` for insertion, `remove`, `map`, `filter`, `filterMap`, `foldLeft`, `foreach`, `any`, `all`, `find`, `fromList`, `toList`. A sum type has `withDefault`, `map`, and `andThen`. `Map.get(m, k)` and `List.get(xs, 0)` are the same verb; `Map.put` and `Set.put` likewise. A list adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, and `tryMap` and `tryFold` for a step over `Either` that can fail. A path adds its segments: `join`, `split`, `parent`, `name`, `extension`, `withExtension`, `isAbsolute`. A filesystem adds files and directories: `read`, `write`, `append`, `list`, `stat`, `makeDir`, `remove`, `rename`, `copy`.
-- **Subject first, callbacks last, accumulator between**, so the pipe works: `xs |> List.foldLeft(0, fn(acc, x) = acc + x)`.
-- **Conversions are named by the other type and live in the subject's module.** `String.toInt`, `Int.toString`, `String.fromList`. Several policies are several names: `Float.round`, `Float.floor`, `Float.ceil`, `Float.truncate`. A conversion to text has its inverse where the text form is unambiguous and the type has no other way in, which is why `String.toBool` and `String.toIntBase` stand beside `Bool.toString` and `Int.toStringBase`, and why a `Char` needs none, `String.toList` being its way in.
-- **A type a module declares is named for what it is within the module**, never for the module: `Random.Seed`, not `Random.RandomSeed`.
-- **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get`, `Map.get`, `String.toInt`, `Char.fromInt` return `Optional`. Nothing in the library faults beyond what report §7.4 lists or the function's own entry says.
-- **Pure unless the value lives in a process.** The system modules `Io`, `Clock`, `Terminal`, `Fs`, and `Tcp` carry `with m`; every other module is pure, and every function that takes a function is effect-polymorphic (§3.5).
-- **A `String` is not a container.** Its `Char`s are reached through `String.toList`: `List.all(String.toList(t), Char.isDigit)`. `String.size`, `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and index graphemes, extended grapheme clusters, each what a reader sees as one letter, while `String.toList` gives `Char`s, one scalar value each: `e` with a combining accent is one grapheme of two `Char`s. Text has its own operations instead: `startsWith`, `endsWith`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `trim`, `toLower`, `toUpper`; a `Char` has its predicates and its case, `isDigit`, `isAlpha`, `isSpace`, `isUpper`, `isLower`, `toUpper`, `toLower`.
-- **`Random` has a pure interface.** `Random.next(seed, n)` returns a draw between 0 and `n` inclusive and the next seed; `Random.seed(42)` makes a seed, `Random.nextFloat(seed)` draws above 0.0 and below 1.0, and the same seed gives the same sequence on one runtime version.
-- **A system process is used through its module, never by `send`.** `Clock.alarm(100, fn(_) = Tick)`, `Fs.read(path, 5000)`, `Tcp.accept(listener, 60000)`. A function that waits takes the milliseconds last and answers `Left(Timeout)`, a time below 0 being 0 and a moment already past being now; `Clock.now`, `Tcp.listen`, and `Io.readLine` take none, the first two answer at once and the third waits for the user. One that delivers later takes a function to your mailbox type, as `monitor` does (§5.2). `Terminal.subscribe` and `Io.readLine` are the same terminal: a program uses one or the other, and one that uses both ends with `Fault("the terminal is already read as lines")`, or `as keys` (report §8.2). `Terminal.subscribe` answers once the terminal is in the mode the keys need, so what is typed after it returns is never echoed; a prompt printed before it would be a promise the program cannot keep. While a program is subscribed each key arrives as it is pressed and nothing is echoed, and the terminal goes back to line mode with echo when the program ends. `Escape` arrives once no escape sequence can still follow it, so a terminal that sends an arrow as three bytes never delivers a spurious `Escape` first. A socket is an `Address(SockMsg)`, a process, so it can be monitored, killed, and adapted with `via` like any other.
+- **One verb per operation, in every module that has it.** `Map.get(m, k)` and `List.get(xs, 0)`; `size`, `isEmpty`, `contains`, `put`, `remove`, `map`, `filter`, `foldLeft`, `find`, `fromList`, `toList` wherever they apply.
+- **Subject first, callbacks last**, so the pipe works: `xs |> List.foldLeft(0, fn(acc, x) = acc + x)`.
+- **A conversion is named by the other type**, in the subject's module: `String.toInt`, `Int.toString`.
+- **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get` and `String.toInt` return `Optional`, `Fs.read` returns `Either(IoError, Bytes)`.
+- **Pure unless the value lives in a process.** Only the system modules carry `with m`, and every function that takes a function is as pure as the function it is given (§3.5).
+- **A `String` is text, not a list.** Its length and positions count what a reader sees as letters; `String.toList` gives its `Char`s.
+- **A system process is used through its module**, never by `send`. A function that waits takes a timeout in milliseconds last and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. One that delivers later takes a function that makes the message: `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired.
 
-What the type does not say, the comment on the signature in Appendix E says: `List.remove` removes the first occurrence, `Map.toList` has no order, `List.sort` is stable.
+What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it.
 
 ### 2.10 Prediction exercise
 
@@ -476,7 +454,7 @@ let n = 10;
 let addN = fn(x) = x + n   // closure captures n
 ```
 
-Lambda body is the longest expression up to the enclosing form's delimiter: `,`, `;`, `|`, `)`, `}`, `]`, `>>`, `then`, or `else`.
+A lambda's body runs as far as it can, to the `,`, `;`, or closing bracket of the form around it.
 
 ### 3.3 Type inference and its limits
 
@@ -496,9 +474,8 @@ Without a source that fixes the type, `n + n` is a type error. Once it is fixed,
 
 Other limits worth knowing:
 
-- `fn` definitions and top-level `let` values generalize over free type variables. Block `let` bindings are monomorphic — a block `let xs = []` types `xs : List(a)` with `a` to be resolved by an annotation, by later use in the block, or by escape through the block's return; a variable none of these resolves is a type error at the binding. `let _ = e` binds no variable, so nothing in the type of `e` needs resolving: `let _ = spawn(Local, fn() = worker())` is legal with the mailbox type unresolved, as ping-pong does in §5.1.
-- Local `fn` names inside a block are visible throughout the block, but you cannot *use* one — call it, obtain it as a value, pass it, store it — before the `let` bindings it references have been evaluated. Passing a local function to another counts as using it: if `g`'s body reads a `let` that comes after `h(g)` but before `g`'s declaration, `h(g)` is the error. A `let` after `g`'s declaration is already an error in `g`'s body (report §5.4).
-- Top-level `let` initializers must be pure — no mailbox effect. Effectful setup (spawning processes, sending initial messages) belongs in `main`. The runtime evaluates top-level `let` bindings in dependency order before `main` runs.
+- A `fn` and a top-level `let` are polymorphic; a `let` in a block is not. After `let xs = []` in a block, the element type of `xs` must be settled by an annotation or by a later use in the block.
+- A `fn` declared in a block is visible in the whole block, but may be used only after the `let`s it reads (report §5.4).
 
 ### 3.4 Pure functions and functions with a mailbox effect
 
@@ -518,7 +495,7 @@ Inferred type: `((a) -> b with e, a) -> b with e`. The callback's mailbox effect
 
 An effect variable that appears *only* in effect position (like `e` above) may bind to a mailbox type or to *pure*. An effect variable that also appears in a value position (like `m` in `self : () -> Address(m) with m`) can only bind to a real mailbox type — pure is not a type, so it cannot appear inside `Address(_)`.
 
-Process operations that require a process context — `self`, `send`, `spawn`, `Address.call`, `Address.callForever`, `answer`, `monitor`, `kill`, `remote`, a `foreign fn` whose effect is its own, and the `receive` expression form — are *process-only*: they require the enclosing function's mailbox effect to be a real mailbox type, so pure code cannot use any of them. A `foreign fn` whose effect variable is also one of its parameters' callback effect is not one of them: the effect is the callback's, so the function is pure when the callback is (report §3.9).
+The process operations, `self`, `send`, `spawn`, `receive`, `answer`, `Address.call`, `monitor`, `kill`, and `remote`, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
 
 `ping`'s `m` in §5 is polymorphic but process-only: any real mailbox is admissible, but pure is not.
 
@@ -611,6 +588,8 @@ fn waitForData() -> Optional(Int) with Inbox = receive {
 ```
 
 `after N` gives a millisecond timeout that fires if no clause matches within that window. `after 0` scans without waiting for new messages, and so does any time below 0, so a deadline that has already passed, `deadline - Clock.now()`, needs no check. Without `after`, the process waits indefinitely. A `receive` with only an `after` clause is a timed wait, and is the one `receive` a `Never` process may use.
+
+A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: it compares variables, literals, and nullary constructors, and calls nothing (report §6.3). For more, receive the message and `match` it.
 
 If a `Wake` is already in the mailbox, `waitForData` skips it — leaves it queued — and waits for a `Data`. Some later `receive` can handle `Wake`.
 
