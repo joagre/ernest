@@ -28,7 +28,7 @@ declared_types() ->
     "type Ordering = Less | Equal | Greater\n"
     "type Down = Down(reason : Reason, function : String)\n"
     "type Reason = Returned | Killed | ProgramEnd | Fault(String)\n"
-    "type ClockMsg = After(ms : Int, to : Address(Unit)) | At(at : Int, to : Address(Unit))"
+    "type ClockMsg = After(ms : Int, to : Address(Int)) | At(at : Int, to : Address(Int))"
     " | Now(reply : Reply(Int))\n"
     "type RemoteError = NoRemotePeer | PeerLost\n"
     "type Where = Local | Peer(String)\n"

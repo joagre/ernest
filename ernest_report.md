@@ -708,8 +708,8 @@ type Ordering = Less | Equal | Greater
 type Down = Down(reason : Reason, function : String)
 type Reason = Returned | Killed | ProgramEnd | Fault(String)
 type ClockMsg = // times in milliseconds
-    After(ms : Int, to : Address(Unit))
-  | At(at : Int, to : Address(Unit))
+    After(ms : Int, to : Address(Int)) // the time it fires is sent to `to`
+  | At(at : Int, to : Address(Int))
   | Now(reply : Reply(Int))
 type RemoteError = NoRemotePeer | PeerLost
 type Where = Local | Peer(String) // spawn placement, §6.2
@@ -1416,8 +1416,8 @@ Over `Sys.clock`. Times are milliseconds since the epoch. An alarm fires once an
 
 ```
 Clock.now : () -> Int with m
-Clock.alarm : (Int, (Unit) -> m) -> Unit with m // after the milliseconds, wrap(Unit) in the caller's mailbox
-Clock.alarmAt : (Int, (Unit) -> m) -> Unit with m // at the time, wrap(Unit) in the caller's mailbox
+Clock.alarm : (Int, (Int) -> m) -> Unit with m // after the milliseconds, wrap(t) in the caller's mailbox, t the time it fired
+Clock.alarmAt : (Int, (Int) -> m) -> Unit with m // at the time, wrap(t) in the caller's mailbox, t the time it fired
 ```
 
 ### Appendix E.16. `terminal.ern` (namespace `Terminal`)

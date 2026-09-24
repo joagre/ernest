@@ -20,24 +20,25 @@
 /// The time now.
 export fn now() -> Int with m = Address.callForever(Sys.clock, fn(r) = Now(reply = r))
 
-/// After that many milliseconds, `wrap(Unit)` arrives in the caller's
-/// mailbox.
+/// After that many milliseconds, `wrap(t)` arrives in the caller's mailbox,
+/// `t` the time it fired. A single-positional constructor passes as
+/// `wrap` directly, `Clock.alarm(100, Tick)` for `Tick(Int)`.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// Clock.alarm(10, fn(_) = Unit)
 /// ```
-export fn alarm(ms : Int, wrap : (Unit) -> m) -> Unit with m =
+export fn alarm(ms : Int, wrap : (Int) -> m) -> Unit with m =
     send(Sys.clock, After(ms = ms, to = via(wrap, self())))
 
-/// At that time, `wrap(Unit)` arrives in the caller's mailbox; a time
-/// already past arrives at once.
+/// At that time, `wrap(t)` arrives in the caller's mailbox, `t` the time it
+/// fired; a time already past arrives at once.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// Clock.alarmAt(Clock.now() + 10, fn(_) = Unit)
 /// ```
-export fn alarmAt(at : Int, wrap : (Unit) -> m) -> Unit with m =
+export fn alarmAt(at : Int, wrap : (Int) -> m) -> Unit with m =
     send(Sys.clock, At(at = at, to = via(wrap, self())))

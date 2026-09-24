@@ -3770,6 +3770,10 @@ E.0 rule 2 ended "A verb not in this list needs an entry in the decisions log", 
 
 `with` marks a function's mailbox effect, `(A) -> B with M`, and an abstract type's signature, `abstract type Stack(a) = ... with { ... }`. Weighed and left. The two positions never meet: one follows a function type's result, the other a type declaration's constructors, and the declaration's first token says which. Each reads as English, a function with a mailbox and a type with these operations, and principle 5 prefers a word used twice to a word more. Dropping the keyword before the signature needs no new word, since `abstract` announces the form, but the brace block would then read as belonging to the last constructor; `where` would be a nineteenth reserved word, and suggests local definitions to a Haskell reader. What would reopen it: a position where the two could meet.
 
+## An Alarm Carries the Time It Fired, 2026-09-24
+
+Every `Clock.alarm` in the repository was written `Clock.alarm(ms, fn(_) = Tick)`, a lambda throwing away the `Unit` E.0 rule 8's shape handed it. Rule 8 is right for `monitor` and `Terminal.subscribe`, whose messages carry a `Down` or an `Event`; the clock's carried nothing, so the function was noise at every use. The alarm now carries the time it fired, in milliseconds as `Clock.now` gives them, so a single-positional constructor passes as the wrap, `Clock.alarm(100, Tick)` with `Tick(Int)`, the shape `monitor(child, Died)` already has, and a tick loop can see how late an alarm came. Rule 8 is unchanged. Taking the message itself, `Clock.alarm(100, Tick)` with a nullary `Tick`, was shorter and was a second delivery shape beside rule 8's. Every existing use still compiles, `fn(_) =` ignoring whatever it is given.
+
 ## Later
 
 Planned or considered, not in the language today.

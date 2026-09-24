@@ -229,6 +229,8 @@ options, then what is recorded and left alone.
     said; it had ended the program at a terminal and taken the shell's line in line mode.
   - `Event`'s typed character is `Key(Char)`, where it was `Char(Char)` (§9.3).
   - Weighed and left: `with` for both a mailbox and an abstract type's signature.
+  - `Clock.alarm` and `alarmAt` deliver the time the alarm fired, so a constructor passes as
+    the wrap (§9.3, E.15).
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the

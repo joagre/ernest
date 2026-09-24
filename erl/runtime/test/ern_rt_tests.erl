@@ -77,7 +77,7 @@ deadlock_test() ->
     ?assertEqual(ok, ern_rt:run_main(fun() ->
                                          Clock = ern_rt:sys(clock),
                                          ern_rt:send(Clock, {'After', 250, ern_rt:self()}),
-                                         receive 'Unit' -> ok end
+                                         receive At when is_integer(At) -> ok end
                                      end, <<"main">>, Quiet)),
     ?assertEqual(ok, ern_rt:run_main(fun() ->
                                          ern_rt:in_foreign(fun() -> receive after 250 -> ok end end)
@@ -144,7 +144,8 @@ clock_test() ->
                Clock = ern_rt:sys(clock),
                {'Some', T} = ern_rt:call(Clock, fun(R) -> {'Now', R} end, 1000),
                ern_rt:send(Clock, {'After', 5, ern_rt:self()}),
-               receive 'Unit' -> Me ! {clock_ok, is_integer(T)} end
+               %% Appendix E.15: the alarm carries the time it fired
+               receive Fired when is_integer(Fired) -> Me ! {clock_ok, Fired >= T} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(true, wait(clock_ok)).
 

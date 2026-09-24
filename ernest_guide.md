@@ -701,11 +701,16 @@ When forward progress is impossible, the entry process faults with `Fault("deadl
 
 ### 5.5 Adapting messages with `via`
 
-`monitor(child, wrap)` takes a function from the runtime's `Down` to your mailbox type. The standard library's system modules use the same shape wherever something arrives later: `Clock.alarm(ms, wrap)` puts `wrap(Unit)` in your mailbox after `ms` milliseconds, and `Terminal.subscribe(wrap)` puts every key pressed and every resize in it.
+`monitor(child, wrap)` takes a function from the runtime's `Down` to your mailbox type. The standard library's system modules use the same shape wherever something arrives later: `Clock.alarm(ms, wrap)` puts `wrap(t)` in your mailbox after `ms` milliseconds, `t` the time it fired, and `Terminal.subscribe(wrap)` puts every key pressed and every resize in it.
 
 ```
-Clock.alarm(100, fn(_) = Tick)
+type Msg = Tick(Int) | Input(Char)
+
+Clock.alarm(100, Tick)          // Tick(t) arrives, t the time it fired
+Clock.alarm(100, fn(_) = Stop)  // a message that needs no time ignores it
 ```
+
+A single-positional constructor is a function value, so it passes as `wrap` directly, as `Died` does to `monitor`.
 
 Between your own processes the general form is `via`:
 

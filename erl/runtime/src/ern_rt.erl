@@ -504,9 +504,9 @@ clock_loop(Pending) ->
                               {fire, To}),
             clock_loop(Pending + 1);
         {fire, To} ->
-            %% report §6.5: the alarm's target may be an address seen
-            %% through a function, and it is delivered as any send is
-            deliver(To, ?UNIT),
+            %% report §6.5, E.15: the alarm's target may be an address seen
+            %% through a function, and it is sent the time it fired
+            deliver(To, erlang:system_time(millisecond)),
             source_end(),
             clock_loop(Pending - 1);
         {'Now', Reply} ->

@@ -549,6 +549,18 @@ negative_time_test() ->
                     "}\n"),
     ?assertEqual(<<"after\nnone\nalarm\n">>, Out).
 
+%% Appendix E.15, §5.6: an alarm carries the time it fired, so a
+%% single-positional constructor passes as its wrap, as `Died` does to
+%% `monitor`
+alarm_time_test() ->
+    {ok, Out} = run("type Msg = Tick(Int)\n"
+                    "export fn main() -> Unit with Msg = {\n"
+                    "    let before = Clock.now();\n"
+                    "    Clock.alarm(5, Tick);\n"
+                    "    receive { Tick(at) -> Io.println(Bool.toString(at >= before)) }\n"
+                    "}\n"),
+    ?assertEqual(<<"true\n">>, Out).
+
 %% report §5.9, §6.3: alternatives in a receive clause select either message
 receive_or_pattern_test() ->
     {ok, Out} = run(
