@@ -177,6 +177,15 @@ the shell is neither standard library nor library but the toolchain's own progra
      the line lists at once, so `:` and `Tab` shows the commands. Report §11.2 states both;
      `listing_at_once_test_` is the regression test, and the region's own tests cover the
      wrapping and the count.
+  2. **A command's argument completes from what the command takes.** Found 2026-09-25:
+     `:browse` and `Tab` does nothing, `:browse ` and `Tab` indents, and `:browse Li`
+     offers constructors. Decided, by principle 1: a whole command that takes an argument
+     takes its space on `Tab`; the argument completes from what the command's help line
+     names, a module for `:browse`, a module under the source root for `:load`, any name
+     for `:doc`, a name the session declares for `:forget`, an expression for `:type`, and
+     `:set`'s four words; and `Tab` never indents in an argument, listing what may stand
+     there when nothing is typed. The closing sweep's line leaving `:set`'s words out goes,
+     since one rule for every argument is no second vocabulary. §11.2 first.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.
