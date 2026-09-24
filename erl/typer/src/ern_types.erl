@@ -8,7 +8,7 @@
          resolve/2, zonk/2, unify/3, occurs_free/2,
          generalize/2, generalize/3, instantiate/2, mono/1, free_vars/2, free_value_vars/2,
          value_vars/1, effect_vars/1, mismatch_pair/3,
-         format/2, format_scheme/2, format_error/1, set_scope/4]).
+         format/2, format_scheme/2, format_call/4, format_error/1, set_scope/4]).
 
 -export_type([st/0, type/0, effect/0, qname/0, id/0, flags/0]).
 
@@ -382,12 +382,55 @@ type_name(QName, #st{ns = Ns, session = Session, shadows = Shadows}) ->
 
 %% The scheme's own flags apply, whatever state it is printed under.
 -spec format_scheme(#scheme{}, st()) -> string().
-format_scheme(#scheme{vars = Vars, type = T, names = Names}, #st{vars = Vs} = St) ->
+format_scheme(#scheme{type = T} = Scheme, St) ->
+    format(T, scheme_state(Scheme, St)).
+
+%% The state with a scheme's variables named as its declaration names them.
+scheme_state(#scheme{vars = Vars, names = Names}, #st{vars = Vs} = St) ->
     Vs1 = lists:foldl(fun({Id, Flags}, Acc) ->
                           TV = maps:get(Id, Acc, #tv{id = Id, level = 0}),
                           Acc#{Id => TV#tv{flags = Flags, name = maps:get(Id, Names, undefined)}}
                       end, Vs, Vars),
-    format(T, St#st{vars = Vs1}).
+    St#st{vars = Vs1}.
+
+%% Report §11.2: a function's signature as `Shift-Tab` shows it inside a
+%% call: each parameter under the name its declaration gives it, where it
+%% gives one, and the parameter at the cursor, counted from 0, between
+%% asterisks, the emphasis of the markdown the shell's pages are written
+%% in; the variables are named once across the whole signature.
+-spec format_call(#scheme{}, [atom()], non_neg_integer(), st()) -> string().
+format_call(#scheme{type = T} = Scheme, Params, Marked, St) ->
+    St1 = scheme_state(Scheme, St),
+    case zonk(T, St1) of
+        {tfn, Ps, E, R} = T1 ->
+            Names0 = #{effect_only => effect_only_vars(T1), values => 0, effects => 0,
+                       taken => []},
+            {Shown, Names1} = lists:mapfoldl(fun(P, N) -> fmt(P, St1, N) end, Names0, Ps),
+            Named = [parameter(I, Name, S, Marked)
+                     || {I, Name, S} <- lists:zip3(lists:seq(0, length(Ps) - 1),
+                                                   padded(Params, length(Ps)), Shown)],
+            {Rs, Names2} = fmt_ret(R, St1, Names1),
+            Effect = case E of
+                         pure -> [];
+                         _ -> [" with ", element(1, fmt(E, St1, Names2))]
+                     end,
+            lists:flatten(["(", lists:join(", ", Named), ") -> ", Rs, Effect]);
+        _ ->
+            format_scheme(Scheme, St)
+    end.
+
+parameter(I, Name, Type, Marked) ->
+    Text = case Name of
+               '_' -> Type;
+               _ -> [atom_to_list(Name), " : ", Type]
+           end,
+    case I =:= Marked of
+        true -> ["*", Text, "*"];
+        false -> Text
+    end.
+
+padded(Params, N) when length(Params) =:= N -> Params;
+padded(_, N) -> lists:duplicate(N, '_').
 
 %% Report §11.5: the annotation's name if the variable has one and it is
 %% not in use for another, else a fresh name that is not in use.

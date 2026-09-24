@@ -46,6 +46,10 @@ foreign fn context(before : String) -> Shell.Complete.Where with m = "ern_shell:
 // sentence of and then the whole of.
 foreign fn documentation(name : String) -> Optional(String) with m =
     "ern_shell:documentation/1"
+// Report §11.2: the signature of the call the input stops inside, with the
+// parameter at the cursor marked, which `Shift-Tab` shows where no name
+// before the cursor is documented.
+foreign fn signature(before : String) -> Optional(String) with m = "ern_shell:signature/1"
 foreign fn check(env : Env, from : String, input : String) -> Either(String, #(Env, Checked))
     with m = "ern_shell:check/3"
 // The host's alone: where the startup files are, the person's first and
@@ -663,30 +667,40 @@ fn indented(state : Shell.Editor.State, line : String, at : Int) -> Shell.Editor
         at + String.size(indent))
 
 // Report §11.2: `Shift-Tab` says what the name at the cursor is: its
-// type and the first sentence about it, and the whole page when it is
-// pressed again. Above the region, as a listing is.
+// type, the first sentence about it, and the version it appeared in, and
+// the whole page when it is pressed again. Where no name before the cursor
+// is documented and the cursor is inside a call, it shows the call's
+// signature instead. Above the region, as a listing is.
 fn documenting(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading,
     state : Shell.Editor.State) -> Unit with ReaderMsg = {
     let Reading(last = last) = reading;
     let Shell.Editor.State(text = line, at = at) = state;
-    let name = Shell.Complete.word(String.slice(line, 0, at));
-    match documentation(name) {
-        None -> Unit
-      | Some(page) ->
-            List.foreach(if last == Documented then String.lines(page) else brief(page),
+    let before = String.slice(line, 0, at);
+    let name = Shell.Complete.word(before);
+    let page = if String.isEmpty(name) then None else documentation(name);
+    match page {
+        Some(text) ->
+            List.foreach(if last == Documented then String.lines(text) else brief(text),
                 fn(row) = send(screen, Noted(row)))
+      | None ->
+            match signature(before) {
+                Some(shown) -> send(screen, Noted(shown))
+              | None -> Unit
+            }
     };
     send(screen, typing(state));
     readLoop(session, screen, Reading(..reading, editing = state, last = Documented))
 }
 
-// The type and the first sentence of a page, which is its code block
-// and the first line of prose after it.
+// The type, the first line of prose, and the version a page's declaration
+// appeared in: its code block, the line after it, and its `Since` line.
 fn brief(page : String) -> List(String) = {
     let rows = List.filter(String.lines(page), fn(row) = !String.isEmpty(String.trim(row))
         && !String.startsWith(row, "#")
         && row != "```ernest" && row != "```");
-    List.take(rows, 2)
+    let since = List.filter(rows, fn(row) = String.startsWith(row, "*Since "));
+    let rest = List.filter(rows, fn(row) = !String.startsWith(row, "*Since "));
+    List.take(rest, 2) <> List.take(since, 1)
 }
 
 // Report §11.2: the candidates, a line each with the type they carry,

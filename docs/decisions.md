@@ -3860,6 +3860,10 @@ An instance's type variables carry no names, since a name belongs to the annotat
 
 The areas are targets now, and `make test` runs them all. The time went where it was spent: the guide's test had started two Erlang nodes for each example, and now compiles and runs a module's example in its own node, as the CLI's tests always did; what cannot share a node, a shell session reading standard input, a program given input, an error named from a working directory, runs in a node of its own and in parallel with the others of its kind. The integration programs, the applications' unit tests, and the Emacs mode's tests are independent of one another and run side by side. The whole suite went from about five minutes to 138 seconds, the guide's part from 103 to 13. The shell's sessions were left as they are, since their time is the clock's, in waits that step 5 replaces with waits on the events themselves, and running them in parallel before then would load the machine under the one test already known to fail under load.
 
+## The Signature Inside a Call, 2026-09-24
+
+`Shift-Tab` inside an unfinished call shows the callee's signature with the argument at the cursor marked. The parser was already the only thing that knew what the cursor stood in, and it told completion through the diagnostic's `expected`; the call is told the same way, in a field of its own, since inside an argument the parser also expects an expression and completion still needs to hear it. The innermost call names itself, because the error it catches first is its own. The mark is asterisks around the parameter, the emphasis of the markdown the shell's pages are already written in, where colour would be a second vocabulary and brackets would read as a list. A prelude primitive has no declared parameter names, so its signature shows types alone rather than invented names. The brief on a name ends with the version it appeared in, which rule 6 gives every declaration, its own `since` or its module's; the page leaves out a module's `since` on each declaration, so the shell adds it.
+
 ## Later
 
 Planned or considered, not in the language today.

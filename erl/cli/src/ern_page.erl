@@ -5,7 +5,7 @@
 %% rendered from a source file.
 -module(ern_page).
 
--export([page/1, declaration/2, prelude_page/0, prelude_declaration/1]).
+-export([page/1, declaration/2, prelude_page/0, prelude_declaration/1, since/1]).
 
 -include_lib("typer/include/ern_types.hrl").
 
@@ -126,6 +126,18 @@ prelude_declaration(Name) ->
         [] -> none;
         [E | _] -> {ok, entry(E, "", #{})}
     end.
+
+%% Appendix E.0 rule 6: the version a module, or the prelude, appeared in,
+%% which a declaration without a `since` of its own shares.
+-spec since(binary() | file:filename() | prelude) -> binary() | undefined.
+since(prelude) ->
+    module_since(ern_prelude:docs());
+since(Beam) ->
+    {ok, Docs} = ern_emitter:read_docs(Beam),
+    module_since(Docs).
+
+module_since({docs_v1, _, _, _, #{<<"en">> := T}, _, _}) -> element(2, split_since(T));
+module_since(_) -> undefined.
 
 qname(Ns) ->
     lists:flatten(lists:join(".", [atom_to_list(S) || S <- Ns])).

@@ -9,7 +9,7 @@
 
 -export([loaded/1, start/0, program/0, startup_files/0, history_file/0, unbound/1,
          needs_more/1, check/3,
-         type_text/1, declared/1, run/3,
+         type_text/1, declared/1, run/3, signature/1,
          show/3]).
 -export([bindings/1, forget/2, browse/2, doc/2, names/0, context/1,
          documentation/1]).
@@ -616,9 +616,112 @@ doc(Env, Text) ->
 -spec documentation(binary()) -> 'None' | {'Some', binary()}.
 documentation(Text) ->
     Env = persistent_term:get({?MODULE, env}, #env{}),
-    case doc_of(Env, namespace(Text)) of
-        {ok, Page} -> {'Some', unicode:characters_to_binary(Page)};
-        none -> 'None'
+    Segments = namespace(Text),
+    case doc_of(Env, Segments) of
+        {ok, Page} ->
+            %% Appendix E.0 rule 6: a declaration without a `since` of its
+            %% own has its module's, which the brief shows
+            Since = case string:find(unicode:characters_to_binary(Page), <<"*Since ">>) of
+                        nomatch -> since_line(Segments);
+                        _ -> []
+                    end,
+            {'Some', unicode:characters_to_binary([Page, Since])};
+        none ->
+            'None'
+    end.
+
+since_line(Segments) ->
+    V = try
+            case module_of_name(Segments) of
+                none -> undefined;
+                prelude -> ern_page:since(prelude);
+                Beam -> ern_page:since(Beam)
+            end
+        catch _:_ -> undefined
+        end,
+    case V of
+        undefined -> [];
+        _ -> ["*Since ", V, ".*\n"]
+    end.
+
+%% The compiled module a documented name comes from, or the prelude.
+module_of_name(Segments) when length(Segments) >= 2 ->
+    case beam_of(lists:droplast(Segments)) of
+        none -> prelude_or_none(Segments);
+        Beam -> Beam
+    end;
+module_of_name(Segments) ->
+    prelude_or_none(Segments).
+
+prelude_or_none(Segments) ->
+    case prelude_doc(Segments) of
+        {ok, _} -> prelude;
+        none -> none
+    end.
+
+%% Report §11.2: inside a call, `Shift-Tab` shows the callee's signature
+%% with its parameters as declared and the one at the cursor marked. The
+%% parser says which call the unfinished input stops inside; the callee is
+%% checked as an input of one name, without entering the session, and its
+%% declared type is printed with the parameter names its documentation
+%% carries.
+-spec signature(binary()) -> 'None' | {'Some', binary()}.
+signature(Before) ->
+    case within(Before) of
+        {Path, Name, N} ->
+            Env = persistent_term:get({?MODULE, env}, #env{}),
+            Text = unicode:characters_to_binary(
+                     lists:join(".", [atom_to_list(S) || S <- Path ++ [Name]])),
+            try
+                {ok, Binds, Expr, Ann} = input(Text),
+                {'Right', {_, #checked{typed = Typed, env = TEnv}}} =
+                    check_module(Env#env{n = Env#env.n + 1}, ['Signature'], <<"signature">>,
+                                 Text, input_entry(Expr, Ann), Binds),
+                {P, Nm} = one_name(Typed),
+                {ok, Scheme} = ern_typecheck:declared_scheme(TEnv, P, Nm),
+                Params = parameters(Env, Path, Name),
+                Shown = ern_types:format_call(Scheme, Params, N, ern_typecheck:type_state(TEnv)),
+                {'Some', unicode:characters_to_binary([Text, Shown])}
+            catch
+                _:_ -> 'None'
+            end;
+        none ->
+            'None'
+    end.
+
+within(Before) ->
+    case [W || {error, #diag{incomplete = true, within = W}} <- [ern_parser:parse_expr(Before)],
+               W =/= undefined] of
+        [W | _] -> W;
+        [] -> none
+    end.
+
+%% The parameter names a function's documentation entry carries, from the
+%% session's input or the module that declares it; none for the prelude's.
+parameters(Env, Path, Name) ->
+    Beam = case session_beam(Env, Path, Name) of
+               none when Path =/= [] -> beam_of(Path);
+               B -> B
+           end,
+    try
+        {ok, {docs_v1, _, _, _, _, _, Entries}} = ern_emitter:read_docs(Beam),
+        %% a module's function by its local name, a type's member as `Type.name`
+        Keys = [Name | [list_to_atom(atom_to_list(lists:last(Path)) ++ "." ++ atom_to_list(Name))
+                        || Path =/= []]],
+        hd([Ps || {{function, K, _}, _, _, _, #{params := Ps}} <- Entries, lists:member(K, Keys)])
+    catch
+        _:_ -> []
+    end.
+
+session_beam(#env{session = S, beams = Beams}, Path, Name) ->
+    Key = case Path of
+              [] -> Name;
+              [Owner] -> {Owner, Name};
+              _ -> none
+          end,
+    case maps:get(Key, maps:get(values, S, #{}), none) of
+        none -> none;
+        Q -> beam(Q, Path ++ [Name], Beams)
     end.
 
 %% The session's own names first, then a module's, then the prelude's,

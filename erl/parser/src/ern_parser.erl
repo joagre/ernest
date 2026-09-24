@@ -601,13 +601,36 @@ postfix(Ts) ->
 calls(Callee, [{'(', _} | R]) ->
     {Args, R1} = case R of
                      [{')', _} | _] -> {[], R};
-                     _ -> sep_by(R, ',', fun expr/1)
+                     _ -> arguments(Callee, R, 0)
                  end,
-    {Call, R2} = w({#e_call{pos = node_pos(Callee), callee = Callee, args = Args},
-                    expect(R1, ')')}),
+    Closed = inside(Callee, max(0, length(Args) - 1), fun() -> expect(R1, ')') end),
+    {Call, R2} = w({#e_call{pos = node_pos(Callee), callee = Callee, args = Args}, Closed}),
     calls(Call, R2);
 calls(E, Ts) ->
     {E, Ts}.
+
+%% A call's arguments, each parsed as the argument it is, so that an input
+%% that stops inside one says which.
+arguments(Callee, Ts, N) ->
+    {X, R} = inside(Callee, N, fun() -> expr(Ts) end),
+    case R of
+        [{',', _} | R1] ->
+            {Xs, R2} = arguments(Callee, R1, N + 1),
+            {[X | Xs], R2};
+        _ ->
+            {[X], R}
+    end.
+
+%% Report §11.2: the call an unfinished input stops inside, its callee and
+%% the argument at the cursor, for `Shift-Tab`. The innermost call is the
+%% first to catch the error, so it is the one that names itself.
+inside(#e_var{path = Path, name = Name}, N, Parse) ->
+    try Parse()
+    catch throw:{parse_error, #diag{within = undefined} = D} ->
+        throw({parse_error, D#diag{within = {Path, Name, N}}})
+    end;
+inside(_, _, Parse) ->
+    Parse().
 
 primary([{Kind, Pos, V} | R]) when Kind =:= int; Kind =:= float; Kind =:= char;
                                    Kind =:= string; Kind =:= bool ->

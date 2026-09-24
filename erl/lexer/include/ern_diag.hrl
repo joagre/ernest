@@ -3,7 +3,7 @@
 -define(ERN_DIAG_HRL, true).
 
 -record(diag, {span, message, labels = [], help, incomplete = false,
-               expected = undefined}).
+               expected = undefined, within = undefined}).
 %% span: ern_diag:span(), the primary span; message: string(), the first
 %% line; labels: [{ern_diag:span(), string()}], secondary spans the message
 %% depends on, each with its label; help: string() | undefined, the one line
@@ -12,6 +12,9 @@
 %% else reads; expected: what the parser wanted where it stopped,
 %% `expression`, `typename`, `pattern`, `declaration` or `{field, Con}`,
 %% which completion reads to know what may stand at the cursor (§11.2)
-%% and which is `undefined` everywhere else
+%% and which is `undefined` everywhere else; within: the innermost call
+%% the input stops inside, `{Path, Name, N}` for its callee and the index
+%% of the argument at the cursor, which `Shift-Tab` reads (§11.2), or
+%% `undefined`
 
 -endif.

@@ -566,6 +566,22 @@ one_name_type() ->
     ?assertMatch({_, _}, binary:match(Out, <<"<function> : () -> Optional(String) with m\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"List.map([1], fn(x) = x) : List(Int)\n">>)).
 
+%% report §11.2, Appendix E.0 rule 6: `Shift-Tab`'s two answers from the
+%% front end. Inside a call, the callee's signature with its parameters as
+%% declared and the one at the cursor marked, the prelude's too, without
+%% names it does not declare; nothing outside a call. On a name, its page
+%% with the version it appeared in, its own or its module's
+signature_test() ->
+    ?assertEqual({'Some', <<"List.map(xs : List(a), *f : (a) -> b with e*) -> List(b) with e">>},
+                 ern_shell:signature(<<"List.map([1], ">>)),
+    ?assertEqual({'Some', <<"send(Address(a), *a*) -> Unit with m">>},
+                 ern_shell:signature(<<"send(a, ">>)),
+    ?assertEqual('None', ern_shell:signature(<<"1 + ">>)),
+    {'Some', Map} = ern_shell:documentation(<<"List.map">>),
+    ?assertMatch({_, _}, binary:match(Map, <<"*Since 0.1.0.*">>)),
+    {'Some', Send} = ern_shell:documentation(<<"send">>),
+    ?assertMatch({_, _}, binary:match(Send, <<"*Since 0.1.0.*">>)).
+
 %% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
 %% under the source root and puts it in scope; `:reload` compiles again
 %% what has changed, names what is still in the previous version, and ends

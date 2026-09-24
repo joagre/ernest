@@ -673,3 +673,18 @@ incomplete_test() ->
     ?assert(Decls("type T = A | ")),
     ?assert(Decls("/* a comment")),
     ?assertMatch({ok, _}, ern_parser:parse_string("fn f() = 1")).
+
+%% report §11.2: an input that stops inside a call says which call and
+%% which argument, the innermost call first, for `Shift-Tab`; `expected`
+%% still says what may stand there, for completion
+within_call_test() ->
+    Within = fun(Text) ->
+                     {error, #diag{incomplete = true, within = W, expected = X}} =
+                         ern_parser:parse_expr(Text),
+                     {W, X}
+             end,
+    ?assertEqual({{['List'], map, 1}, expression}, Within(<<"List.map(xs, ">>)),
+    ?assertEqual({{['List'], map, 0}, expression}, Within(<<"List.map(">>)),
+    ?assertEqual({{[], g, 1}, expression}, Within(<<"f(g(1, ">>)),
+    ?assertMatch({{[], f, 1}, _}, Within(<<"f(1, 2">>)),
+    ?assertMatch({undefined, _}, Within(<<"1 + ">>)).
