@@ -22,9 +22,9 @@ harness, bindings and the commands, the live region, and the line editor with hi
 multi-line input and paste. What is left of the milestone is in "MVP 2.6" below: completion
 and the prelude's documentation, the closing sweep, and a session of real use.
 
-**MVP 2.61, the guide, done 2026-09-24, out of order.** A newcomer reads the guide and not
-the report, so the guide was rewritten to teach Ernest on its own; the steps are in "MVP 2.61"
-below. MVP 2.6 resumes after the rewrite of CLAUDE.md.
+**MVP 2.61, the guide, taken out of order 2026-09-24, at step 9.** A newcomer reads the
+guide and not the report, so the guide is rewritten to teach Ernest on its own; the steps are
+in "MVP 2.61" below. MVP 2.6 resumes after step 9 and the rewrite of CLAUDE.md.
 
 **After MVP 2.61, CLAUDE.md is rewritten for clarity**, every rule kept: the working rules
 read in the order of work, each stated once. Asked for 2026-09-24; the rule that nothing
@@ -44,7 +44,7 @@ so a decision they must see goes here.
 | MVP 2 | the rest of the report on one node | done 2026-09-19 |
 | MVP 2.5 | a complete standard library | done 2026-09-20 |
 | **MVP 2.6** | **the shell** | **checkpoints 0–3 done; checkpoint 4 next** |
-| MVP 2.61 | the guide as the user's document | done 2026-09-24, out of order |
+| **MVP 2.61** | **the guide as the user's document** | **taken 2026-09-24, out of order; step 9** |
 | MVP 2.65 | the language and the toolchain read back | after 2.6 |
 | MVP 2.66 | introduce a supervisor behaviour? | after 2.6 |
 | MVP 2.7 | the first libraries and the network stack | |
@@ -242,6 +242,12 @@ without boasting. Each step is a stop.
    the guide's section 11, on the five principles; the exercises' answers stand apart in its
    section 13, each naming its exercise; §5.5's game takes `Tick(Int)` from `Clock.alarm`,
    so the section has one `Tick`; and §0 maps the whole guide, not only its stages.
+9. **§4 to §8 and the FAQ cut to teaching weight, and read cold.** Step 3's treatment for
+   the sections it did not reach: a rule and an example stay, a corner points to the report
+   in a line, and the prose is brought to one register. Then a reader who knows another
+   language but not Ernest reads the guide from the start, and where they got lost is
+   fixed. Added 2026-09-24, since the sweep checked the guide against the report and
+   nothing yet had checked that it teaches.
 
 ---
 

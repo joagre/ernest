@@ -116,19 +116,19 @@ $ ern hello.erc          # runs main()
 hello, world
 ```
 
-`ernc` compiles one `.ern` file to a `.erc` compiled module. `ern` loads a compiled module, starts the runtime, binds addresses to the `Sys.*` top-level references (report §8.2), and calls `main()`. The standard library is on the load path by default, and so is the root of the module `ern` loads (report §11.2); `--load-path dir` adds more directories.
+`ernc` compiles a `.ern` file to a compiled module, `.erc`. `ern` loads it and the modules it uses, the standard library among them, starts the runtime's processes, and calls `main`. §9 lists both tools' options.
 
 ### 1.1 What the line says
 
-`fn` starts a function definition. `main` is the conventional entry-point name — `ern module.erc` looks for `export fn main` in the loaded module and invokes it. The hello-world program declares one; larger projects can select a different exported entry point with `ern --main Qualified.name module.erc` (see §7.1).
+`fn` begins a function definition, and `export` makes it visible outside the module. `ern` runs the function `main` of the module it loads; `--main` names another (§7.1).
 
-`-> Unit` is the return type. `Unit` is a type with one value, also called `Unit`; it means "no interesting result." `main` in this program does its work, then returns `Unit`.
+`-> Unit` is the result type. `Unit` is a type with one value, also written `Unit`, the result of a function whose work is its effect.
 
-`with Never` is the mailbox effect. Every process has a mailbox with a fixed message type; `Never` is the type with no values — a mailbox typed `Never` cannot receive anything. `main` here only sends (through `Io.println`), so `Never` fits.
+`with Never` names the mailbox. Every function that sends or receives runs in a process whose mailbox takes one type of message, and says so with `with`. `Never` is the type with no values, so `main`'s mailbox receives nothing, which is right for a `main` that only sends.
 
-`Io.println` is a stdlib function that sends its argument to a small `Sys.stdout` process the runtime provides. The stdout process receives the text and writes it. `Io.println` writes to `Sys.stdout` only. Diagnostics go to the other sink the runtime provides, `Sys.stderr`, through `Io.printError` and `Io.printlnError`, so a program whose output something else reads can report trouble without corrupting it. To write a string to any other `Address(String)`, a logger say, send to it directly, `send(logger, "starting\n")`; the library has no second print function for that. Messaging to a runtime service is one of two ways Ernest interacts with the outside world (the other is `foreign fn`, §8).
+`Io.println` sends its text to `Sys.stdout`, a process the runtime provides, which writes it. `Io.printlnError` sends to `Sys.stderr`, so a program whose output another program reads can still report trouble. Sending to a process of the runtime is one of the two ways a program reaches the world; the other is `foreign fn` (§8).
 
-For development output, `Io.debug(x)` prints any value and returns it, so it wraps an expression in place: `let n = Io.debug(f(x))`. It prints the value as the source writes it, by the argument's type: `Io.debug('a')` prints `'a'`, and a named constructor prints with its field names. An address prints as `<address>`, a reply as `<reply>`, and a function as `<function>`. A value of an abstract type prints as `<abstract>` outside its module. Inside a generic function, where the type is a variable, and for a foreign type, it can only go by the runtime's representation, so a `Char` there prints as its code point (report Appendix E.1). It carries `with m` like `Io.println`, so it cannot hide in pure code.
+`Io.debug(x)` prints any value as the source would write it and returns it, so it wraps an expression where it stands: `let n = Io.debug(f(x))`. It sends, as `Io.println` does, so it cannot hide in a pure function (report Appendix E.1).
 
 ### 1.2 The shell
 
@@ -399,8 +399,8 @@ fn positiveInt(text : String) -> Either(String, Int) = {
 ```
 
 - `positiveInt("3")` → `Right(3)`.
-- `positiveInt("oops")` → `Left("not an integer")` — `String.toInt` returned `None`, `Either.fromOptional` turned it into `Left`, and the chain short-circuits.
-- `positiveInt("0")` → `Left("not positive")` — the parse succeeded but the explicit branch rejects.
+- `positiveInt("oops")` → `Left("not an integer")`: `String.toInt` returned `None`, which `Either.fromOptional` turned into a `Left`, and the chain stopped.
+- `positiveInt("0")` → `Left("not positive")`: the parse succeeded, and the `if` refused the value.
 
 A block is an `Optional` chain or an `Either` chain, never both. To run a step that can fail over every element of a list, `List.tryMap(xs, f)` and `List.tryFold(xs, acc, f)` stop at the first `Left`.
 
@@ -528,11 +528,9 @@ Other limits worth knowing:
 
 ### 3.4 Pure functions and functions with a mailbox effect
 
-A function type without `with M` is *pure*: it cannot perform process operations — no `send`, no `receive`, no `spawn`, no `Address.call`, no effectful `foreign fn`. A function with `with M` may act through a process whose mailbox type is `M`.
+A function whose type has no `with` is *pure*. It cannot send, receive, spawn, or call a `foreign fn` that has an effect. A function with `with M` may act through a process whose mailbox takes `M`.
 
-Both kinds of function can fault or fail to terminate: `a / b` with `b = 0` faults although its type is `(Int, Int) -> Int`, and `todo("...")` has every type and faults if reached. A fault ends the process; §6 is about what follows.
-
-The mailbox effect says one thing: the function acts through a process. It says nothing about faults.
+Either kind of function can fault or run for ever: `a / b` with `b = 0` faults although its type is `(Int, Int) -> Int`, and `todo("...")` has every type and faults when it is reached. The `with` says only that a function acts through a process, not whether it can fault (§6).
 
 ### 3.5 Higher-order and effect polymorphism
 
@@ -540,13 +538,13 @@ The mailbox effect says one thing: the function acts through a process. It says 
 fn apply(f, x) = f(x)
 ```
 
-Inferred type: `((a) -> b with e, a) -> b with e`. The callback's mailbox effect `e` flows through — if `f` is pure, so is `apply(f, x)`; if `f` has effect `M`, `apply(f, x)` has effect `M`. `List.map`, `List.foreach`, and the other combinators in Appendix E work the same way.
+The inferred type is `((a) -> b with e, a) -> b with e`: `apply` has the effect of the function it is given, so `apply(f, x)` is pure when `f` is. `List.map`, `List.foreach`, and every other function of the standard library that takes a function are the same.
 
-An effect variable that appears *only* in effect position (like `e` above) may bind to a mailbox type or to *pure*. An effect variable that also appears in a value position (like `m` in `self : () -> Address(m) with m`) can only bind to a real mailbox type — pure is not a type, so it cannot appear inside `Address(_)`.
+An effect variable such as `e` may stand for a mailbox type or for pure. One that also names a type, as `m` does in `self : () -> Address(m) with m`, stands for a mailbox type only, since pure is not a type an address could take.
 
 The process operations, `self`, `send`, `spawn`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, `kill`, and `remote`, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
 
-`ping`'s `m` in §5 is polymorphic but process-only: any real mailbox is admissible, but pure is not.
+So `ping`'s `m` in §5 may be any mailbox type, but not pure.
 
 ### 3.6 One spawn corner: pure callbacks
 
@@ -627,34 +625,17 @@ fn counter(n : Int) -> Unit with CounterMsg = receive {
 }
 ```
 
-`counter` takes its state as the parameter `n`. Its mailbox type is `CounterMsg`. `receive` waits for a matching message and evaluates the clause's expression. Both clauses tail-call `counter` with the new state; Ernest guarantees tail-call optimization.
+`counter` keeps its state in the parameter `n`, and its mailbox takes `CounterMsg`. `receive` waits for a message that matches a clause and evaluates that clause. Both clauses call `counter` again with the new state; a tail call does not grow the stack, so the loop runs for ever.
 
-`Reply(a)` is a built-in one-shot address: someone hands it over with a request; the receiver puts one value in it, exactly once. Unlike `Address(a)`, a `Reply(a)` is *linear*: the compiler checks that every one is consumed exactly once.
+A `Reply(Int)` is where an answer goes. The process that asks puts one in its request, and the process that receives the request answers it with `answer(r, n)`.
 
-### 4.2 Reply is linear
+### 4.2 A reply is answered once
 
-The compiler enforces: **a `Reply(a)` must be consumed exactly once on every path, wherever it is bound: a `receive` clause, a parameter, a pattern, a `let`, a call's result, or a capture.** The rule generalizes to *reply-carrying types* — any type that transitively contains a `Reply`. `CounterMsg` above is reply-carrying because `Get` has a `Reply` field.
+A `Reply` is an obligation: whoever holds one answers it exactly once, on every path, and the compiler checks it, as §0 showed. The obligation moves with the value. Sending a message that carries a reply, passing it to a function, returning it, or putting it in a constructor hands the obligation on; only `answer(r, v)` discharges it. A value that contains a reply is *reply-carrying*, as `CounterMsg` is because of `Get`, and the same rule holds for it.
 
-Six ways to consume:
+The check is on paths, not on time. A path that faults or waits for ever never answers, and no compiler can see that; the caller's deadline covers it (§4.4).
 
-1. `answer(r, v)` — the only primitive that finally discharges the reply.
-2. Passing to a function whose parameter type is reply-carrying (delegates the obligation).
-3. Sending with `send(a, v)` (shifts to the recipient's `receive` clause).
-4. Placing into a constructor or tuple of reply-carrying type — the constructed value inherits the obligation.
-5. Returning from a function whose declared return type is reply-carrying — shifts to the caller.
-6. Capturing in a lambda. The lambda is then reply-carrying itself: consumed exactly once, by a call or as `spawn`'s direct argument, and it may be bound with `let` but appear nowhere else, since its type does not show the capture. `let g = fn() = worker(r); spawn(Local, g)` is fine; calling `g()` after that is consuming it twice.
-
-A statement has type `Unit`, so a reply-carrying value is never dropped by one: `Get(reply = r); Unit` is a type error.
-
-Consumptions 4 and 5 are why the builder passed to `Address.call` (§4.4) is legal: `fn(r) = Get(reply = r)` places `r` in `Get`, and returning the reply-carrying `CounterMsg` hands the obligation to `Address.call`. `Address.call` in turn consumes the message by sending it to the recipient, transferring the obligation to whichever `receive` clause on the recipient's side eventually binds it. Only `answer(r, v)` finally discharges the underlying `Reply`.
-
-The ownership check is static: it verifies that every syntactically reachable path calls `answer` (or delegates, or shifts). It does not guarantee that execution *reaches* that call at runtime — a path that faults, loops, or waits forever bypasses the answer without invalidating the type check. That is why `Address.call` requires a mandatory timeout (§4.4): the caller must plan for the case where the answer never comes. The check is linearity, not liveness. It proves that every path consumes the reply exactly once, as a move checker does. Whether the path is reached is not provable; the timeout is the answer to that. The one place linearity cannot see, foreign code holding a `Reply`, the runtime covers: a second answer to an answered reply is discarded.
-
-Pattern-matching a reply-carrying scrutinee transfers the obligation to the pattern-bound reply-carrying fields; matching a nullary case (like `Stop` in `PongMsg`, §5) discharges the aggregate obligation with no new binding. A `let` passes the obligation along the same way: after `let r2 = r`, it is `r2` that must be consumed.
-
-A wildcard or omitted reply field, and an `as` alias on a reply-carrying scrutinee, are type errors. Reply-carrying values may not appear as elements of `List`, `Map`, `Set`, `Optional`, or `Either`, or as operands of equality. That last rule is what makes the check decidable, and it has a visible cost: a server that must hold pending replies cannot keep them in a `Map`. It keeps each in a process, one per request, which is what filesync does with one process per write.
-
-A generic helper that duplicates or discards its parameter (`fn dup(x) = #(x, x)`, `fn discard(x) = Unit`) infers a *not-reply-carrying* restriction — the parameter cannot be instantiated to a reply-carrying type. `fn identity(x) = x` passes through without duplication and carries no such restriction. The compiler prints the restriction as a mark on the variable: `dup : (a!) -> #(a!, a!)`, and likewise `equal : (a=, a=) -> Bool` for the equality constraint of §2.5. You never write the marks; you see them in error messages and generated documentation, and `first : (a, b!) -> a` tells you at a glance that `first` cannot be handed a reply as its second argument. No mark appears where it could not matter: in `Optional.withDefault : (Optional(a), a) -> a` the variable `a` is also an `Optional`'s element, which can never be a reply.
+Since each reply is counted, a reply-carrying value is never copied or dropped. It cannot be an element of a `List`, a `Map`, or an `Optional`, and `_` cannot stand for one in a pattern. A server with many requests pending keeps each in a process of its own. In a printed type, a variable marked `!` is one that may not hold a reply, as in `dup : (a!) -> #(a!, a!)` for a function that copies its argument. Report §6.6 gives the whole discipline.
 
 Sending a request twice consumes its reply twice:
 
@@ -677,7 +658,7 @@ resend.ern:5:15: the reply-carrying value msg is consumed twice
 
 ### 4.3 Selective receive and `after`
 
-`receive` scans the mailbox for a *matching* message; unmatched messages stay in the mailbox for later. Coverage of the mailbox type is not required (unlike `match`).
+`receive` takes the first message that matches a clause and leaves the others in the mailbox for later. Unlike `match`, it need not cover every case.
 
 ```ernest
 type Inbox = Data(Int) | Wake
@@ -688,11 +669,11 @@ fn waitForData() -> Optional(Int) with Inbox = receive {
 }
 ```
 
-`after N` gives a millisecond timeout that fires if no clause matches within that window. `after 0` scans without waiting for new messages, and so does any time below 0, so a deadline that has already passed, `deadline - Clock.now()`, needs no check. Without `after`, the process waits indefinitely. A `receive` with only an `after` clause is a timed wait, and is the one `receive` a `Never` process may use.
+`after 1000` gives up after 1000 milliseconds with no matching message, and `after 0` looks without waiting. Without `after`, the process waits for as long as it takes. A `receive` with only an `after` clause is a timed wait, the one `receive` a process with mailbox `Never` may use.
 
 A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: it compares variables, literals, and nullary constructors, and calls nothing (report §6.3). For more, receive the message and `match` it.
 
-If a `Wake` is already in the mailbox, `waitForData` skips it — leaves it queued — and waits for a `Data`. Some later `receive` can handle `Wake`.
+If a `Wake` is already in the mailbox, `waitForData` leaves it there and waits for a `Data`; a later `receive` can take the `Wake`.
 
 ### 4.4 `Address.call`
 
@@ -705,16 +686,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 Address.call : (Address(a), (Reply(b)) -> a, Int) -> Optional(b) with e
 ```
 
-`Address.call(c, fn(r) = Get(reply = r), 1000)` allocates a fresh `Reply(b)`, passes it to the builder lambda, sends the resulting message to `c`, and waits up to 1000 ms for the reply; §4.5 uses it. It returns `Some(v)` on success, `None` on timeout.
-
-Four rules:
-
-1. **The deadline starts at invocation.** Build time and send time count against it, and a deadline below 0 is 0.
-2. **`None` does not cancel the recipient's work.** The recipient may still be computing; retrying a state-changing request can repeat its effect.
-3. **Late answers are silently discarded, and so are second answers.** They never enter the caller's ordinary mailbox. A reply arriving exactly at the deadline may be delivered or discarded — no deterministic tiebreak.
-4. **The reply mechanism is private.** `Address.call` works in a process whose declared mailbox is `Never` or any other type; the fresh Reply identifier is separate from the declared mailbox, and reply values never appear there.
-
-For no-timeout callers, `Address.callForever(addr, mk)` waits as long as needed and returns `b` directly, not `Optional(b)`. If the recipient never answers, the caller hangs; that is the point of the name.
+`Address.call(c, fn(r) = Get(reply = r), 1000)` makes a fresh `Reply`, gives it to the function that builds the request, sends the request to `c`, and waits up to 1000 ms. It returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6). `Address.callForever` waits without a deadline and returns the answer itself; if none comes, the caller waits for ever.
 
 ### 4.5 Running the counter
 
@@ -745,15 +717,15 @@ $ ern counter.erc
 count is 8
 ```
 
-`spawn(Local, fn() = counter(0))` starts a new process on the current node, running the lambda; the returned `Address(CounterMsg)` is bound to `c`. `Local` versus `Peer("name")` selects where the process runs; peers are in §8. Inside the spawned lambda, `self()` returns the *child's* address, not the parent's — a parent that wants to hand its own address to the child must capture `self()` before spawning: `let me = self(); spawn(Local, fn() = child(me))`.
+`spawn(Local, fn() = counter(0))` starts a process on this node that runs the lambda, and returns its `Address(CounterMsg)`. `Local` says where the process runs; `Peer(name)` is another node (§8). Inside the lambda, `self()` is the new process's address, so a parent that gives the child its own address takes it first: `let me = self(); spawn(Local, fn() = child(me))`.
 
-After the two `send`s and the answered call, `main` returns and the program ends. When `main` returns, every *local* process dies with the reason `ProgramEnd`, which is not a fault; the runtime flushes pending output from system processes and stops. A program stopped from outside, with the terminal's interrupt or the host's termination signal, ends the same way, and the runtime says nothing of its own about it (report §8.6). Workers spawned on peer nodes are unaffected — they run under their peer's runtime.
+When `main` returns, the program ends: every process on the node ends with the reason `ProgramEnd`, which is not a fault, and output still on its way is written first. A program stopped from outside, by the terminal's interrupt or a signal, ends the same way (report §8.6).
 
-If the call succeeds, it returns 8: the same sender's two `Inc` messages arrive in order (per-sender FIFO), then `Get` returns the accumulated state, and `main` prints `count is 8`. If the 1000 ms deadline expires before the reply, `main` prints `counter did not answer` — the timeout branch is not dead code.
+The count is 8 because messages from one sender arrive in the order sent: both `Inc`s come before the `Get`. Were the counter too slow, `main` would print `counter did not answer`.
 
 ### 4.6 Explicit code replacement
 
-Ernest processes can update their code without restart. The mechanism is a protocol message the type carries explicitly — no automatic redeployment.
+A process can change its code while it runs, keeping its address and its state. The new code arrives in a message that the process's type provides for.
 
 The counter of §4.5 gains an `Upgrade` constructor. The program is three parts of one file, `counter.ern`, which replaces the one of §4.5:
 
@@ -771,7 +743,7 @@ fn counter(n : Int) -> Unit with CounterMsg = receive {
 }
 ```
 
-`Upgrade` carries two functions: `migrate` transforms the current state; `next` is the new loop. `k(m(n))` is a tail call into the new loop with the migrated state. The process and its address continue; only the code changes.
+`Upgrade` carries two functions: `migrate` turns the old state into the new, and `next` is the new loop. `k(m(n))` is a tail call into the new loop with the migrated state.
 
 A replacement loop that doubles each increment:
 
@@ -812,7 +784,7 @@ before upgrade: 8
 after upgrade: 10
 ```
 
-The address `c` is unchanged; the process behind it is now running `doublingCounter`. After the state 8, `Inc(1)` in the doubling loop adds 2, yielding 10.
+The address `c` is unchanged, and the process behind it now runs `doublingCounter`, where `Inc(1)` adds 2.
 
 ### 4.7 The word counter as a process
 
@@ -850,7 +822,7 @@ Does `Address.call(c, ..., 1000)` returning `None` guarantee the recipient did n
 
 ## 5. Manage process lifetime
 
-The counter is enough for one process. Two processes need coordination.
+Two processes that talk must also know when the other is done.
 
 ### 5.1 Ping-pong
 
@@ -885,11 +857,11 @@ fn pong() -> Unit with PongMsg = receive {
 }
 ```
 
-`ping`'s mailbox `m` is polymorphic — ping never `receive`s. It is polymorphic but process-only: `ping` uses `Address.call`, which requires a real mailbox effect. Any concrete `m` works; pure does not.
+`ping` never receives, so its mailbox `m` is any type; it must be a real one, since `Address.call` runs only in a process (§3.5).
 
-The `main` process monitors `pongAddr` and waits for its termination. Returning from `main` immediately after the two spawns *may* terminate the children before their work finishes — the runtime does not order `main`'s return against the children's first send. Waiting for a monitor notification keeps `main` alive until the monitored process ends, whether it returned normally, faulted, or was killed. `PongDone(_)` accepts every death reason.
+`main` monitors pong and waits for it to end. Had `main` returned at once, the program would have ended before the two had played, since returning from `main` ends every process (§4.5).
 
-One possible successful trace of the stdout is: `ping 3`, `pong 3`, `ping 2`, `pong 2`, `ping 1`, `pong 1`. The runtime's FIFO guarantee applies per-sender (ping's messages arrive at pong in send order, and pong's answers arrive at ping in send order), but the two processes' `Io.println` calls come from different senders to `Sys.stdout`, so their interleaving is scheduling-dependent. The alternating trace is one such interleaving.
+The output is likely `ping 3`, `pong 3`, `ping 2`, and so on, but not certain. Messages from one sender arrive in the order sent, so ping's requests reach pong in order. Ping and pong are two senders to `Sys.stdout`, and between senders there is no order.
 
 ### 5.2 `monitor` and `Down`
 
@@ -905,7 +877,7 @@ type Down = Down(reason : Reason, function : String)
 type Reason = Returned | Killed | ProgramEnd | Fault(String)
 ```
 
-`monitor(child, wrap)` asks the runtime to place `wrap(d)` in *your* mailbox when `child` dies, or at once if it is already dead. `wrap` adapts the runtime's `Down` into your mailbox type — in ping-pong, `PongDone` is a constructor of `MainMsg` that carries a `Down`. `PongDone(_)` accepts any death reason; it signals *termination*, not *success* — a faulting pong would still deliver `PongDone(Down(reason = Fault(_), ...))`. `function` in `Down` is the qualified name of the function that called `spawn` for the dead process, with the line of the call, `Counter.main:19`; for the entry process it is the entry point's name (report §6.9).
+`monitor(child, wrap)` puts `wrap(d)` in your mailbox when `child` dies, or at once if it is dead already. `wrap` makes your message from the runtime's `Down`: in ping-pong, `PongDone` is a constructor of `MainMsg` that carries one. A `Down` says the process ended, not that it succeeded; its `reason` says how, and its `function` names the function that spawned it and the line, `Counter.main:19`.
 
 `wrap` is a function, so it can carry what you need to tell one death from another. A process that monitors a worker while waiting for its answer gets two messages, the answer and the death, and takes the answer; the death is still in the mailbox when the next worker is monitored. Addresses have no equality, so a `Down` cannot be asked which worker it is about. Give each worker a number and let the wrap close over it:
 
@@ -945,7 +917,7 @@ run 1: 1
 run 2: 4
 ```
 
-A death whose run is not the one being waited for is an earlier worker's, and `waitFor` passes over it. This is what the report means by identity being expressed in the protocol: the protocol is yours, and the wrap is where you put the identity in it.
+A death whose run is not the one being waited for is an earlier worker's, and `waitFor` passes over it. Identity is part of the protocol you write, and the wrap is where you put it.
 
 A fault in one process does not affect another, apart from the three cases of §6.3.
 
@@ -958,15 +930,15 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 kill : (Address(a)) -> Unit with e
 ```
 
-`kill(addr)` requests termination of the process at `addr`; anyone monitoring receives `Down(reason = Killed, ...)`. It is a scheduling event, not an instantaneous halt — the target may run briefly before the runtime interrupts it. The REPL paper program combines `monitor` and `kill` into a supervised-child pattern that gives up after a timeout.
+`kill(addr)` ends the process at `addr`, and its monitors receive `Down(reason = Killed, ...)`. The process may run a little before it stops. The REPL of `examples/repl.ern` kills an evaluation that runs too long.
 
-### 5.4 Deadlock as a safety net
+### 5.4 Deadlock
 
-When forward progress is impossible, the entry process faults with `Fault("deadlock")`, and the program ends as on any fault of the entry process, reporting `fault: deadlock`. Progress is impossible when every live process waits in `receive` without `after`, no message is in flight, no monitor waits on a process the runtime did not start, and no system process or connected peer holds a subscription, a timer, a pending I/O, or a computation whose completion would deliver a message. Pending `after`s, network listeners, keyboard subscribers, and a process this node spawned on a peer, while it runs, all count as such a source, so an idle server waiting on external events is not deadlocked. Detection is per node; a distributed deadlock across peers may not be detected.
+When every process waits in a `receive` that nothing can ever satisfy, the program ends with `fault: deadlock`. A process waiting for a timer, a key, a socket, or a file is waiting for something that can come, so an idle server is not deadlocked. Report §8.6 gives the exact condition.
 
 ### 5.5 Adapting messages with `via`
 
-`monitor(child, wrap)` takes a function from the runtime's `Down` to your mailbox type. The standard library's system modules use the same shape wherever something arrives later: `Clock.alarm(ms, wrap)` puts `wrap(t)` in your mailbox after `ms` milliseconds, `t` the time it fired, and `Terminal.subscribe(wrap)` puts every key pressed and every resize in it. A constructor with one positional field is a function value, so `Clock.alarm(100, Tick)` delivers `Tick(t)`, as the game below does. A message that needs no time is made by a lambda that ignores it, `Clock.alarm(100, fn(_) = Refresh)` for a constructor `Refresh` without fields.
+`monitor`'s `wrap` is a function to your mailbox type, and the system modules take one wherever something arrives later: `Clock.alarm(ms, wrap)` puts `wrap(t)` in your mailbox after `ms` milliseconds, `t` the time it fired, and `Terminal.subscribe(wrap)` puts every key pressed and every resize in it. A constructor with one positional field is a function value, so `Clock.alarm(100, Tick)` delivers `Tick(t)`, as the game below does. A message that needs no time is made by a lambda that ignores it, `Clock.alarm(100, fn(_) = Refresh)` for a constructor `Refresh` without fields.
 
 Between your own processes the general form is `via`:
 
@@ -977,11 +949,9 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 via : ((a) -> b, Address(b)) -> Address(a)
 ```
 
-`via(convert, target)` returns an `Address(a)` that, on receipt of an `a`, applies `convert` and delivers the resulting `b` to `target`. A worker written to report to an `Address(Either(String, Int))` knows nothing of your `GameMsg`; you hand it `via(Done, self())`, where `Done` is the constructor of `GameMsg` that carries a result, and `Done(r)` arrives in your mailbox. `monitor` and `Clock.alarm` are `via` with `self()` already filled in.
+`via(convert, target)` is an `Address(a)`: an `a` sent to it arrives at `target` as `convert(a)`. A worker written to report to an `Address(Either(String, Int))` knows nothing of your `GameMsg`; you give it `via(Done, self())`, and its result arrives as `Done(r)`. An adapted address is not a process and costs nothing to keep. A fault in `convert` ends the target's process, not the sender's (report §6.5), so keep `convert` to shaping the value.
 
-An adapted address is the target and the function, not a process, so adapting costs nothing to keep. `convert` runs where the sending happens, and a fault in it is the target's: the process behind the address dies of it and the sender goes on (report §6.5). Keep `convert` to shaping the value — a constructor, a small function — and leave the work to the receiver.
-
-`Clock.alarm` fires exactly *once*. For a periodic tick, the receiver schedules a new one only after handling the previous. A naive `game` that loops back on every message would create one pending timer per input, so a burst of inputs multiplies the tick rate. Two functions make the boundary explicit:
+`Clock.alarm` fires once. A periodic tick is scheduled again after each tick is handled, and only then: a loop that scheduled one on every message would add a timer per key pressed. Two functions keep the two apart:
 
 ```ernest
 type GameMsg = Tick(Int) | Input(Char)
@@ -1000,7 +970,7 @@ fn waitForTick(state : World) -> Unit with GameMsg = receive {
 }
 ```
 
-`game` schedules exactly one clock request, then hands off to `waitForTick`. Inputs are handled without touching the pending timer; only a `Tick` returns to `game`, which schedules the next one. `step` destructures the world with a pattern; Ernest does not generate field-accessor functions.
+`game` schedules one alarm and hands over to `waitForTick`, which takes inputs without touching the alarm; only a `Tick` returns to `game`, which schedules the next. `step` reads the world's field with a pattern.
 
 ### 5.6 The word counter at once
 
@@ -1218,7 +1188,7 @@ What happens when `main` calls `first([])`, and how would you make the empty lis
 
 ## 7. Organize code
 
-An Ernest program is one or more modules. A module is a `.ern` source file; its path *is* its namespace. Modules may not depend on each other in a cycle; a cycle is a compile-time error (report §4.1).
+A program is one or more modules. A module is a `.ern` file, and its path is its namespace. Two modules may not depend on each other, directly or through others (report §4.1).
 
 ### 7.1 Modules and namespaces
 
@@ -1242,7 +1212,7 @@ export fn main() -> Unit with Never = match Net.Http.parse("GET /") {
 }
 ```
 
-The `Net.Http.Request` in the pattern is a fully qualified constructor reference — same shape as the one that appears in `Net.Http.parse`'s definition, seen from outside the module.
+`main.ern` names the constructor `Net.Http.Request` by its whole name, as it names the function.
 
 Compile file-by-file and run:
 
@@ -1253,7 +1223,7 @@ $ ern main.erc                   # net/http.erc is found under main.erc's root, 
 GET /
 ```
 
-Or in directory mode — compile the whole tree and put outputs under `build/`:
+Or compile the whole tree at once, into `build/`:
 
 ```console
 $ ernc --out-dir build .         # walks the source tree, writes build/net/http.erc and build/main.erc
@@ -1261,19 +1231,15 @@ $ ern build/main.erc
 GET /
 ```
 
-Directory mode compiles in dependency order automatically, creates missing subdirectories under `build/`, and, after a successful build, removes `.erc` files whose `.ern` is gone and the directories that empties (`--no-clean` disables the sweep; single-file mode never sweeps). It's the recommended pattern once a project has more than one file. A second run rebuilds only what changed: a module whose source changed, whose dependency's interface changed, or that another version of `ernc` built; any change to a standard library interface rebuilds every module. A change to a dependency's bodies alone leaves its dependents as they are (report §11.1).
+Directory mode compiles the modules in the order their dependencies need, and a second run compiles again only what changed (§9.1).
 
-**The file's path is its namespace.** A file at `a/b/c.ern` under the source root provides declarations at namespace `A.B.C`. The source root is `--source-root dir`; without it, the current directory when one file is compiled and the directory passed when a tree is. A file of the standard library's own `stdlib/` always takes that directory as its root (report §4.2, report §11.1). Each path segment is one lowercase word; each namespace segment is the path segment with its first letter uppercased and the rest unchanged (`http.ern` → `Http`, `httpv2.ern` → `Httpv2`). A multi-word module is a nested directory, `http/parser.ern` for `Http.Parser` (report §11.1), so the mapping is one-to-one. A module namespace may not coincide with a namespace of the prelude or the standard library, so `io.ern` at the source root is an error, nor with a type namespace of its parent module: `main/stack.ern` is an error when `main.ern` declares `Stack` (report §4.2). Where the parent declares no such type, the child is reached from it by its whole name, `Main.Stack.push` in `main.ern`.
+**The file's path is its namespace.** A file at `a/b/c.ern` under the source root declares the namespace `A.B.C`: each directory and the file name is one lowercase word, and the namespace capitalizes each. A module of two words is a directory, `http/parser.ern` for `Http.Parser`. The source root is `--source-root dir`, or the directory `ernc` is given. A module may not take a namespace the prelude or the standard library has, so `io.ern` at the root is refused (report §4.2, report §11.1).
 
-**Declarations use local names.** Inside `net/http.ern`, `export fn parse(...)` declares the function at its local name `parse`; the compiler exports it as `Net.Http.parse`. There is no file-namespace prefix on the declaration itself — repeating `Net.Http.` on every line would just restate the file's path.
+**Declarations use local names.** In `net/http.ern`, `export fn parse(...)` declares `parse`, which the code outside reaches as `Net.Http.parse`, and the code inside by either name.
 
-**`export` marks the boundary.** A declaration prefixed with `export` is visible from other modules; a declaration without `export` is private to its own file. No `import`, no export list, no `pub`. `export` may prefix any top-level declaration: `fn`, `type`, `abstract type`, `let`, `foreign fn`, or `foreign type`. Constructors of an exported concrete type are exported with the type — `export type Optional(a) = None | Some(a)` makes `None` and `Some` visible to other modules; `type Internal = A | B` keeps the type and both constructors private. An abstract type controls constructor visibility through its `with { ... }` signature, not through `export`: the type name is `export`ed, its accessors are separately `export`ed if they should be public, and the constructor stays visible only to the definitions listed in the signature.
+**`export` marks the boundary.** A declaration with `export` is visible from other modules, and one without is the module's own. There is no `import` and no export list. The constructors of an exported type are exported with it; an abstract type's constructor is visible only to the definitions its signature lists (§7.2). An exported function's type may name only exported types, since a caller could neither build nor print a value of a type it cannot see (report §4.2).
 
-**An exported declaration is made of exported types.** The type of an exported declaration may not name a type its own module keeps private: a caller that holds such a value could neither build one nor print it. Export the type with it, or, where the values should cross the boundary but the constructors should not, declare it `abstract type` (report §4.2, report §4.4). A function's effect is not part of this, so an entry point may receive a private message type.
-
-**External references use the qualified name.** A caller outside `net/http.ern` writes `Net.Http.parse`. Inside `net/http.ern`, unqualified `parse` refers to the local declaration, and `Net.Http.parse` works there too (report §4.2), which is how a documentation example is written.
-
-**A module's own name hides the prelude's.** A module may declare its own `Close` or `Entry`, and the name then means its own throughout the module. `Prelude.Close` still names the prelude's, in a pattern, a construction, or a type (report §4.2).
+**A module's own name hides the prelude's.** A module may declare its own `Close`, which then means its own throughout the module; `Prelude.Close` still names the prelude's (report §4.2).
 
 **Testing a module.** A test is a top-level `let` of the prelude type `Test`, a name and a function returning `Passed` or `Failed(text)`:
 
@@ -1290,21 +1256,19 @@ $ ern --test checks.erc
 adds two: passed
 ```
 
-`ern --test module.erc` runs every test of the module, exported or not, each in a process of its own, and prints each as passed, failed with its text, or faulted with its cause. A test runs as a process root, `with Never`, so it may spawn, send, and call; `ern --test` exits 1 unless every test passed; one that needs `receive` spawns a process for it (report §9.3, report §11.2).
+`ern --test` runs every test of the module, each in a process of its own, and prints each as passed, failed with its text, or faulted with its cause. A test runs in a process, so it may spawn and send (report §9.3).
 
-**Documenting a module.** A `///` block documents what follows it on the next line: a declaration, a constructor, a named field, or a signature entry. A `///` block first in the file, with a blank line after it, documents the module. The text is CommonMark, and `ernc --doc` renders the module as a page: the title, each declaration's type in a code block, and the text. The documentation travels in the compiled module, so `--doc` reads a `.erc` as well as a `.ern` (report §11.4). An example in a doc block ends with `// => v`, the value `Io.debug` prints, and the standard library's tests run it and compare. An example that cannot run where the page's examples run, because its value is of an abstract type, because it reads a file or a socket, or because it needs a mailbox of its own, carries no such line and is only type-checked. What a module's documentation must contain is Appendix E.0 rule 6 of the report; [`docs/module_doc_template.md`](docs/module_doc_template.md) shows it on a fictive module, generated and kept true by a test (report §2.2 and report §11.4).
+**Documenting a module.** A `///` block documents the declaration on the line after it, and one first in the file, with a blank line after it, documents the module. The text is CommonMark; `ernc --doc` renders the module as a page, and the shell's `:doc` shows a declaration's part of it. What a module's documentation contains is report Appendix E.0 rule 6, and [`docs/module_doc_template.md`](docs/module_doc_template.md) shows it on an example module.
 
-**Entry point.** `ern main.erc` looks up `export fn main` in the loaded module and invokes it. `main` is a naming convention, not a reserved specialness — any exported function with the entry-point shape `() -> Unit with M` can be selected. If `tools.ern` exports a `check` function of that shape, run it as:
+**Entry point.** `ern main.erc` runs `export fn main`, and `--main` runs another exported function that takes no arguments and returns `Unit`. A project with several programs keeps each entry point in a module of its own:
 
 ```console
 $ ern --main Tools.check build/main.erc
 ```
 
-`--main` takes a fully qualified name whose final segment is a lowercase function name (`Tools.check`, not `Tools.Check`). This is how a project with multiple entry points — a service main, a migration main, a bench main — keeps each in its own module.
-
 ### 7.2 Abstract types
 
-Abstract types have a private representation and a public signature. Only definitions listed in the `with { ... }` signature can mention the constructor. Any locally declared type — abstract or concrete — creates a nested namespace inside its module, and its members are declared with a single-typename prefix (`fn Stack.push`). Report §4.8 shows the concrete-type variant used for per-type operator overloading (`fn Distance.+`, and so on); an operator is declared with `fn`, never with `let`. From another module an abstract type's constructor is not visible at all: `Main.Stack([])` there is an error, and callers go through the signature.
+An abstract type has a private representation and a public signature: only the definitions its `with { ... }` lists may name its constructor. A type's operations are declared with its name before theirs, `fn Stack.push`, and the type is then a namespace inside its module; report §4.8 declares operators on a type the same way, `fn Distance.+`.
 
 ```ernest
 // main.ern  (namespace Main)
@@ -1325,7 +1289,7 @@ export fn Stack.isEmpty(s : Stack(a)) -> Bool = match Stack.pop(s) {
 }
 ```
 
-Inside `main.ern` the accessors are written and used with the `Stack.` prefix (`Stack.push(x, s)`). External callers see `Main.Stack` for the type and `Main.Stack.push` for the operation, because `main.ern`'s namespace `Main` prefixes everything the module exports. The type-member namespace is *owned* by the file that declares the type: `Main.Stack.push` is compiled into `main.erc`, not a hypothetical `main/stack.erc`, and the loader consults `main.erc`'s compiled interface to find it.
+Inside `main.ern` the operations are `Stack.push` and the rest; outside, they are `Main.Stack.push`, and `Main.Stack([])` is an error.
 
 `Stack.empty`, `Stack.push`, `Stack.pop` are listed in the `with { ... }` signature, so their bodies may name the `Stack` constructor. `Stack.isEmpty` is not listed, and uses the operations instead. A definition that is not listed and names the constructor is refused, even in the same module:
 
@@ -1347,17 +1311,15 @@ hidden.ern:7:22: the constructor Stack of abstract type Stack may appear only in
   |                      ^^^^^^^^^
 ```
 
-An abstract type's representation can change later (a tree, a growable array), and callers built against the signature continue to work as long as each operation's observable contract is preserved.
-
-Two `Stack(a)` declarations on two nodes are one type only when their representation, qualified name, and signature all match (report §8.7). The same signature over a list on one node and a tree on another is two types.
+The representation may change later, a tree for the list, and callers built against the signature still work.
 
 ### 7.3 Prediction exercise
 
-Can a helper in the same file as `Stack` — but not listed in the `with { ... }` signature — pattern-match `Stack(xs)`?
+Can a helper in the same file as `Stack`, but not listed in its signature, match `Stack(xs)`?
 
 ## 8. Cross boundaries
 
-Two ways Ernest reaches outside a single node's Ernest code: to peers over the network, and to foreign code on the same node.
+A program reaches outside its node's Ernest code in two ways: to peers over the network, and to foreign code on the same node.
 
 Peers are the language's, and the toolchain runs one node until they are built, in MVP 3.0. Until then the configuration is not read, `spawn(Peer(name), f)` faults with `peer unreachable`, and `remote` answers `Left(NoRemotePeer)`; §8.1 and §8.2 describe what peers will do.
 
@@ -1365,7 +1327,7 @@ A node that talks to peers has a configuration, which a node running alone does 
 
 ### 8.1 `remote`
 
-Run a pure computation on some peer:
+`remote` runs a pure function on a peer the runtime chooses:
 
 ```console
 $ ern --shell
@@ -1378,9 +1340,9 @@ remote : (() -> a) -> Either(RemoteError, a) with e
 type RemoteError = NoRemotePeer | PeerLost
 ```
 
-`remote(f)` hands `f` to the runtime, which picks a peer and runs `f()` there. `f` is pure by `remote`'s design — `remote` is a one-shot compute-and-return, not a process; effectful work on a peer goes through `spawn(Peer(...), ...)`.
+`f` is pure, since `remote` computes a value and returns it; work with effects on a peer runs in a process spawned there, `spawn(Peer(name), f)`.
 
-`remote` has a mailbox effect: `Left(NoRemotePeer)` when no peer is configured for remote computation (`"remote-peer": true`), `Left(PeerLost)` when the peer is lost before the value returns. A fault in the callback faults the caller with the same cause, as calling it locally would: `remote` computes elsewhere and catches nothing. A peer-side resolution failure faults the caller too, with `Fault("peer resolution failed: ...")`, as it does `spawn(Peer(...), ...)`. Work whose fault should not end the caller runs in a process of its own, monitored.
+`remote` answers `Left(NoRemotePeer)` when no peer takes remote computation, and `Left(PeerLost)` when the peer is lost before it answers. A fault in `f` faults the caller with the same cause, as a local call would; work whose fault should not end the caller runs in a process of its own, monitored.
 
 `remote` waits for its answer, so several computations run at once from processes of their own, each calling `remote` and answering when asked. The answers come back in the order they were asked for:
 
@@ -1417,17 +1379,9 @@ no remote peer configured
 
 ### 8.2 Code shipping
 
-Four operations ship a closure or payload and the code it depends on: `spawn(Peer(name), f)`, `remote(f)` and the return of its result, `send` to a remote address, and `answer(r, v)` to a caller on another node. The peer resolves each referenced hash — it uses cached code if present, or fetches from the sender. Types, functions, and constructors are identified across nodes by content hash; two nodes with identical definitions under the same qualified names agree on identity, and a type's name is part of its identity.
+A closure or a message sent to a peer takes the code it needs with it: the peer uses the code it has, and fetches from the sender what it lacks. Every function and type is known by a hash of its definition, a type's name included, so two nodes agree on a type exactly when they declare it the same way (report §8.7). A `Sys.*` name in shipped code is the peer's, so a shipped `Io.println` prints on the peer, while an address the closure captured still names the process it named. A `send` to a peer returns at once, and a failure to resolve the code there faults the sender later.
 
-Some consequences the code sees:
-
-- A `Sys.*` name referenced by shipped code resolves *on the peer that runs the code*. A shipped `Io.println` sends to the peer's `Sys.stdout`.
-- A captured address value ships as a value — its target is whichever process it pointed to when the closure was formed, not re-resolved on the peer.
-- Top-level bindings referenced by shipped code are initialized on demand on the peer, in the peer's environment. `let output = Sys.stdout` gives the sender's stdout on the sender and the peer's on the peer.
-- `send` to a remote address returns immediately; a peer-side resolution failure faults the sender *asynchronously*, after `send` has already returned.
-- Foreign definitions must be available and compatible on the peer.
-
-Peer loss is *terminal from this node's view*. Once this node declares a peer lost, it treats the processes on that peer as dead. Their existing addresses do not become usable again if the same peer name reappears — a re-appearing peer is a new node instance. Monitors on remote addresses report `Down(reason = Fault("peer lost"), ...)`, and pending `remote` calls return `Left(PeerLost)`. Remote sends are best-effort: in-flight messages can be dropped at peer loss without a delivery notification, and returning from `send` is not evidence that the recipient processed the message. A resolution failure does not, on its own, invalidate unrelated addresses for the same peer — only *actual* peer-loss detection has that effect.
+A peer that is lost stays lost: its processes are dead to this node, monitors report `Fault("peer lost")`, and a message in flight may be lost without notice (report §10).
 
 ### 8.3 Foreign types and functions
 
@@ -1438,22 +1392,17 @@ export foreign type Table(k, v)
 export foreign fn member(t : Table(k, v), key : k) -> Bool with m = "ets:member/2"
 ```
 
-External callers write `Ets.Table` and `Ets.member`. `foreign type` declares a type whose values are made and used only by foreign functions — no Ernest-side constructor, no pattern match. `foreign fn` binds a name to an implementation on the other side (here, Erlang's `ets:member/2`).
+External callers write `Ets.Table` and `Ets.member`. `foreign type` declares a type whose values only foreign functions make and read; Ernest has no constructor for it and cannot match it. `foreign fn` binds a name to a function on the other side, here Erlang's `ets:member/2`.
 
-Ernest treats the foreign boundary as a *promise*: the declared type is what comes back, the mailbox effect is honest, a pure declaration means no effects. Of the four promises below, three are checked at runtime and purity is not:
+The foreign side promises the declared types. A return value of the wrong shape faults the Ernest process that receives it, when it first looks at it; an Erlang exception becomes a fault of the calling process; and a message of the wrong type from foreign code faults its receiver on delivery. Purity is not checked: a `foreign fn` declared without `with` is trusted to have no effect (report §8.4).
 
-- **Wrong return type.** *Checked at runtime.* The declared type is Ernest's contract; a value the foreign side hands over that does not match faults the *receiving* Ernest process on first observation.
-- **Thrown exception.** *Checked at runtime.* Erlang exits and throws become `Fault` on the calling process.
-- **Wrong message from a foreign process.** *Checked at runtime.* A message that doesn't match the *destination's* declared mailbox type faults the receiver on delivery. Messages from the system processes are not checked (report §8.4). A message between two Ernest processes was already checked by `send`'s type, so nothing is checked at delivery.
-- **Purity.** *Not checked.* Declaring `foreign fn` without `with M` is a promise the foreign side cannot enforce mechanically. Reserve pure declarations for functions that genuinely have no effect.
-
-In the other direction, an Ernest process's death is an Erlang exit reason: `normal` when it returned, `{ern, fault, Text}` when it faulted, `{ern, killed}` and `{ern, program_end}` for the other two ends (report §8.4). Erlang code that monitors an Ernest process reads these.
+In the other direction, an Ernest process's end is an Erlang exit reason, `normal`, `{ern, fault, Text}`, `{ern, killed}`, or `{ern, program_end}`, which Erlang code that monitors it reads (report §8.4).
 
 A value foreign code made and Ernest does not inspect has the built-in type `Foreign`; `Foreign.toInt` and the rest of Appendix E.12 read it, and `Erl.atom(name)` is how an Erlang atom is passed (report §3.7, Appendix E.19).
 
 ### 8.4 Node-local foreign values
 
-Foreign values are bound to the node that made them. Any cross-node transport of a value that transitively contains one faults with `Fault("foreign value cannot cross nodes")` — including a closure that captures such a value.
+A foreign value belongs to the node that made it, and sending one to another node, alone or inside a message or a closure, faults with `Fault("foreign value cannot cross nodes")`.
 
 A `Random.Seed` is such a value. The closure below captures one, so shipping it to the peer `alice` faults with that cause; on one node, today, the spawn faults with `peer unreachable` first:
 
@@ -1472,7 +1421,7 @@ A program that needs such state on another node sends what the state is made of 
 
 ### 8.5 The shim pattern
 
-Erlang's `ets:lookup` returns a list because the key might match zero or one entry. Both declarations below live in `ets.ern` (namespace `Ets`), a module of your own:
+A shim is a private `foreign fn` over an Erlang function and an exported Ernest function that gives it the type Ernest wants. Erlang's `ets:lookup` returns a list, since a key matches no entry or one:
 
 ```ernest
 // ets.ern
@@ -1485,11 +1434,11 @@ foreign fn rawLookup(t : Table(k, v), key : k)
     -> List(#(k, v)) with m = "ets:lookup/2"
 ```
 
-`rawLookup` has no `export`, so it is file-local. `Ets.lookup` is the typed API callers use, by its qualified name.
+`rawLookup` is the module's own, and callers use `Ets.lookup`.
 
-Erlang's `{ok, V} | {error, R}` convention does not automatically match an Ernest `Either(e, a)`. Ernest's `Either` constructors are `Left(e)` and `Right(a)`, and under the ABI of report §8.4 they encode as `{'Left', e}` and `{'Right', a}` (quoted, source-preserving). Erlang's `{ok, V}` uses the lowercase atom `ok`, which is a different value.
+Erlang's `{ok, V}` and `{error, R}` are not an Ernest `Either`, whose values are `{'Right', V}` and `{'Left', R}` (report §8.4).
 
-The cleanest fix is a small Erlang-side helper that produces the Ernest-shaped return. For a foreign call whose Ernest declaration is `Either(String, Int)`, the helper's payloads must already match Ernest's ABI: `V` an integer, and `R` a UTF-8 binary, Ernest's `String`:
+A small Erlang helper returns the Ernest shape, with an integer for `Int` and a UTF-8 binary for `String`:
 
 ```erlang
 -module(store_helper).
@@ -1526,9 +1475,9 @@ $ ern build/store.erc
 found 42
 ```
 
-If `find/1` returns reasons of another shape (an atom, a nested tuple), the Erlang helper must convert them to the declared Ernest form before returning; the Ernest side does not paper over ABI-shape breaches. In the other direction, a `foreign fn` that takes a `Foreign` is given one by `Foreign.from(value)`, which is the value as the runtime already holds it (Appendix E.12), and `Erl.atom(name)` builds the atoms such an API expects.
+A helper converts whatever its Erlang function returns to the declared type; Ernest does not. A `foreign fn` that takes a `Foreign` is given one by `Foreign.from(value)`, and `Erl.atom(name)` makes an atom (report Appendix E.12, report Appendix E.19).
 
-Report Appendix D walks `ets.ern` (namespace `Ets`), a library outside the standard library, as its worked example of a shim; the repository ships it under `libs/ets`, and a program adds it with `--load-path` (report §11.1, report §11.2). Its foreign calls happen to already match Ernest's ABI (`[{K, V}]` maps to `List(#(k, v))`, `Bool` to `true`/`false`), so it needs no Erlang wrapper. This is also the shape of every library outside the standard library: JSON, TLS, regular expressions, HTTP are not in Appendix E, by E.0's rules, since each is a namespace of its own with policy inside; they are written as `Ets` is written, by anyone, under a namespace Appendix E does not take, and put on the load path when a program wants them. A foreign library may also hold what the standard library does not: an `Ets` table is state that every process holding it reads and writes (report Appendix D), where the standard library keeps report §10's promise that processes share no memory. Which are first-party, and when, is the plan's.
+`libs/ets` is such a library, written out in report Appendix D, and a program adds it with `--load-path`. JSON, TLS, regular expressions and HTTP are libraries of the same kind, outside the standard library, since each carries policy of its own (report Appendix E.0).
 
 ### 8.6 Bitstrings
 
@@ -1556,21 +1505,11 @@ Specifiers, joined with `-`:
 
 A segment without specifiers is `int` of size 8, which is why `<<0, 1, 2>>` is three bytes. `int` binds to `Int`, `float` to `Float`, the `utf` forms to `Char`, `bytes` to `Bytes`.
 
-**Alignment and range rules:**
+A bitstring's total width is a whole number of bytes, and a value that does not fit its segment's width faults; report §5.11 has the rest of the rules.
 
-- A bitstring produces a `Bytes` value; the total bit count must be a multiple of 8.
-- A `bytes` segment must itself be byte-multiple, whatever its unit. Sub-octet fields use the `int` specifier (binding to `Int`).
-- Compile-time-constant alignment violations are compile-time errors. Dynamic-size violations fault in construction and fail matching in patterns.
-- A segment value that does not fit its specified width — an `Int` too large for `size(N)-int` at construction — is a fault.
-- Four fixed limits (report §5.11): `unit` is 1 to 256; a `float` segment is 16, 32, or 64 bits; a `utf` segment takes no size; a sizeless `bytes` segment is the last one.
+A `Bytes` value is read with the `Bytes` module: `Bytes.size`, `Bytes.get` for one octet, `Bytes.slice`, and `Bytes.toList` for all of them. Text crosses with `String.toUtf8` and `String.fromUtf8`.
 
-What a `Bytes` value holds is read with the `Bytes` module (Appendix E.20): `Bytes.size` and `Bytes.isEmpty`, `Bytes.get` for one octet, `Bytes.slice`, and `Bytes.toList` and `Bytes.fromList` between a `Bytes` and a `List(Int)`. A `Bytes` is not a container, so its octets go through `toList`, as a `String`'s characters do. Text crosses with `String.toUtf8` and `String.fromUtf8`.
-
-A segment pattern is a variable, `_`, or a literal; a float literal `0.0` matches the bytes of either zero (report §3.1). `size(Expr)` in a pattern is a variable of an earlier segment or the enclosing function, an `Int` literal, or `+`, `-`, `*` of these, evaluated while matching. A `match` over bitstring patterns ends with a `_` or variable clause, as `parseFrame` does: the checker does not decide whether bitstring patterns cover every `Bytes` value.
-
-**Precondition for `frame`/`parseFrame`:** the round trip works when `len` equals `body`'s byte count *and* `len` fits in the length-field width (16 bits, so 0 to 65 535). `parseFrame(frame(1, <<65, 66>>))` returns `Some(#(1, <<65>>, <<66>>))` — a one-byte body and a one-byte remainder, not an error, because `len = 1` was chosen. If `len` doesn't fit the width, `frame` faults at construction.
-
-Bitstrings compile to the runtime's bit syntax (report §5.11, report §10).
+In a pattern, `size(len)` may name a variable bound by an earlier segment. A `match` over bitstrings ends with a clause that takes anything, as `parseFrame` does, since the checker does not decide whether bitstring patterns cover every `Bytes` value.
 
 ### 8.7 Prediction exercise
 
@@ -1649,29 +1588,21 @@ Principle 3 turns an omission into a statement. Exhaustiveness makes you say wha
 
 ## 12. Frequently asked questions
 
-**Why is `main`'s mailbox usually `Never`?**
+**When is a mailbox `Never`, and when `with m`?**
 
-`Never` is the type with no values; a mailbox typed `Never` cannot receive. `main` that only spawns and sends carries `with Never` to say so. If `main` is written with a polymorphic `with m`, the runtime instantiates `m` to `Never`.
-
-**When do I write `with Never` and when `with m`?**
-
-`with Never` is for a process root that never receives: `main`, or the function a spawn lambda calls. A function with mailbox `Never` can only be called where the mailbox is `Never`, so a send-only helper that other process code calls, like `Io.println`, stays polymorphic with `with m` and takes the caller's mailbox type.
-
-**Why can `let Right(x) = e` be a type error?**
-
-`Right(x)` is refutable — it might fail if `e` is `Left(...)`. `let` and function parameters need irrefutable patterns. Use `match` or `<-` for refutable cases.
+`Never` is the type with no values, so a process whose mailbox is `Never` receives nothing. It is written on a function that starts a process which never receives, such as `main` or the function a spawned process runs. A helper that only sends, as `Io.println` does, is written `with m`, so that any process may call it; a function with mailbox `Never` could be called only from a process whose mailbox is `Never`.
 
 **Why is there no `import`?**
 
-Every top-level declaration lives at a namespace determined by its file's path under the source root. A file at `a/b/c.ern` provides declarations at namespace `A.B.C`; the declaration itself is written with a local name, and the compiler exports it (if marked `export`) as `A.B.C.name`. Code anywhere refers to the declaration by its full name. `export` marks visibility outside the module; without it, a declaration is private. No `import`, no export list — the qualified name IS the reference.
+A name from another module is always written in full, `Net.Http.parse`, so a reader sees where it comes from (principle 3), and a module's path says what its names are. An `import` would add a second way to write each of them.
 
-**Why parenthesized lambdas after `|>`?**
+**Why is a lambda after `|>` in parentheses?**
 
-A lambda's body is greedy — it extends until the enclosing form's separator. Without parens, `x |> fn(y) = y + 1 |> f` would either eat the second `|>` into the body or split confusingly. Parens make the boundary explicit.
+A lambda's body runs as far as it can, so `x |> fn(y) = y + 1 |> f` would take `|> f` into the body. The parentheses end it.
 
-**Why write `fn(x) = ...` for lambdas instead of `x -> ...`?**
+**Why `fn(x) = ...` for a lambda, and not `x -> ...`?**
 
-Ernest is n-ary: every function has a specific number of arguments recorded in its type. `fn(x)` says "one argument"; `fn(x, y)` says "two." The chosen syntax makes arity visible at the definition site, and the parenthesized form matches ordinary calls.
+A function's number of arguments is part of its type, and `fn(x, y)` shows it where the lambda is written, in the form a declaration and a call already have.
 
 ## 13. Answers to the exercises
 
@@ -1679,11 +1610,11 @@ Ernest is n-ary: every function has a specific number of arguments recorded in i
 
 **§2.11.** No. Ernest has no assignment. `q` is a separate `Person` value; `p` is still `Person(name = "Alice", age = 30)`.
 
-**§3.8.** `map2`'s inferred type is `((a) -> b with e, a, a) -> #(b, b) with e`. The call binds `a = Int`, `b = Unit`, and `e` to the mailbox effect of `send` — the same as the enclosing function's.
+**§3.8.** `map2`'s inferred type is `((a) -> b with e, a, a) -> #(b, b) with e`. The call binds `a = Int`, `b = Unit`, and `e` to the mailbox effect of `send`, the same as the enclosing function's.
 
 **§4.8.** No. The timeout only bounds the caller's wait. The recipient may still be processing the request or may answer later; the late answer is silently discarded but the work done on the recipient side is not undone.
 
-**§5.7.** No. Per-sender FIFO orders messages from ping to pong and pong to ping, but the two processes both send to `Sys.stdout` — that is fan-in from two senders, and the runtime does not order across senders. Alternation is a *possible* trace, not a guaranteed one.
+**§5.7.** No. Per-sender FIFO orders messages from ping to pong and pong to ping, but the two processes both send to `Sys.stdout`, two senders to one process, and the runtime does not order across senders. Alternation is a *possible* trace, not a guaranteed one.
 
 **§6.5.** `main` faults with the cause `todo: first of an empty list`, and since it is the entry process the program ends and `ern` prints `fault: todo: first of an empty list`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
 
@@ -1706,4 +1637,4 @@ Beyond `Io.println` and `Clock`, the paper programs use `Fs`, `Terminal`, `Tcp`,
 
 For the language rules themselves, [`ernest_report.md`](ernest_report.md) is the authority. Appendix F glosses every technical term.
 
-For why Ernest looks the way it does — what was tried and rejected — [`decisions.md`](docs/decisions.md) records dated design decisions.
+Why Ernest looks as it does, and what was tried and rejected, is in [`decisions.md`](docs/decisions.md), a dated record of the design decisions.
