@@ -45,7 +45,8 @@ What I would actually put to you as candidate language changes: field selection 
    general shape is worth a thought: a process that dies of a boundary fault takes its
    silence with it unless someone monitors it.
 
-10. **Typing ahead while an input runs looks wrong** (found by a test that sent a second
+10. **Fixed 2026-09-24: typing ahead lost the second input (plan, MVP 2.6).**
+    10. **Typing ahead while an input runs looks wrong** (found by a test that sent a second
     input before the first had finished; the second never produced a result within thirty
     seconds). Not yet diagnosed, and the shell's own, not the language's — recorded here so
     it is not lost, and it belongs to the hands-on session that closes MVP 2.6.

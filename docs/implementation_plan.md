@@ -143,11 +143,13 @@ the shell is neither standard library nor library but the toolchain's own progra
      `region.ern` and `complete.ern` had tests `make test` never ran, and the snake test ran
      a program another suite had left in `build/`; every shell module's tests run now, and
      snake runs what its own test compiled.
-- **Typing ahead while an input runs loses the second input's result.** Found 2026-09-21,
-  reproduced 2026-09-24: in the pseudo-terminal, `send(c, Counter.Add(7))` and then, while
-  it runs, `Address.call(...)` typed and entered shows the second input echoed and no result
-  for it. Not yet diagnosed; with a reproduction in hand it is diagnosed and fixed in the
-  session of real use below, or sooner if that session is later than this checkpoint.
+- **Done 2026-09-24: typing ahead while an input runs.** The session, awaiting an input's
+  result, took an input typed meanwhile out of its mailbox and dropped it, so the second
+  was echoed and never answered. It is left in the mailbox now and runs after the first,
+  which report §11.2 states; the prompt said after the first answer, which the typed-ahead
+  input was never entered under, is taken away when the session takes that input (the
+  screen's `Taken`), so its answer starts a row of its own. `typing_ahead_test_` is the
+  regression test, and the program session types its second input ahead again.
 - **The closing sweep**, as the working rules require at the end of a plan step: the guide
   read against the report, then every other document against the report and the code. It
   writes into report §11.2 `Tab` completion and `Shift-Tab` documentation, as it states the

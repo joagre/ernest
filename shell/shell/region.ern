@@ -93,6 +93,17 @@ export fn entered(r : Region) -> #(Region, String) = match r {
             tail <> inputRows(r))
 }
 
+// Report §11.2: the session has taken an input, so the prompt it said is
+// spent. An input typed while another ran was entered with no prompt, and
+// the prompt said after that other's answer is not this input's; it goes,
+// so that what the session says next starts a row of its own. Without a
+// terminal the prompt and the answer share a line, as a transcript does.
+export fn taken(r : Region) -> #(Region, String) = match r {
+    Region(live = true, prompt = prompt) ->
+        if String.isEmpty(prompt) then #(r, "") else painted(Region(..r, prompt = ""), [])
+  | Region(live = false) -> #(r, "")
+}
+
 // The window has changed; the tail may no longer fit.
 export fn resized(r : Region, size : Optional(Size)) -> #(Region, String) =
     aged(Region(..r, size = size), [])
@@ -299,6 +310,16 @@ let clipKeepsSequences = Test(name = "a row cut short keeps its sequences and re
 
 let tabsAfterSequences = Test(name = "a tab stop is counted without escape sequences",
     run = fn() = same(expand("\u{1b}[36ma\u{1b}[0m\tb"), "\u{1b}[36ma\u{1b}[0m       b"))
+
+let takenPrompt = Test(name = "a prompt spent on no input goes before the next answer",
+    run = fn() = {
+        let r0 = new(Some(Size(rows = 24, columns = 80)), true);
+        let #(r1, _) = said(r0, "1 : Int\n> ");
+        let #(r2, _) = taken(r1);
+        let #(_, bytes) = said(r2, "4 : Int\n> ");
+        if String.indexOf(bytes, "> 4 : Int") == None && String.indexOf(bytes, "4 : Int") != None
+        then Passed else Failed(String.replace(bytes, "\u{1b}", "ESC"))
+    })
 
 let expandsTabs = Test(name = "a tab is painted to the next stop", run = fn() =
     rowsAre([expand("> a\tb"), expand("\t.")], ["> a     b", "        ."]))

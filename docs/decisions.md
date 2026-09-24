@@ -3878,6 +3878,10 @@ The first terminal test of `Shift-Tab` was taken out on 2026-09-21 because it ra
 
 The colours are one pure module, `Shell.Style`, each function taking whether colour is on and giving the text unchanged when it is not, so that what the shell says reads the same without them and each rule is a test. Whether colour is on is one question, a terminal and no `NO_COLOR`, which the front end answers until `Sys.env` lets the shell ask in Ernest. Two parts of the test harness had to learn what a reader sees: a wait on text leaves colour sequences out, since a dimmed type would otherwise split `2 : Int`, and it strips them once per read rather than over the whole transcript on every wait, which made snake's long output quadratic. Running the shell's area alone, which the test areas made possible, showed two defects the full suite had hidden by its order: the pure modules added after the first three had tests that nothing ran, and the snake test ran a program the integration suite happened to leave behind.
 
+## Typing Ahead, 2026-09-24
+
+Found on 2026-09-21 and left undiagnosed for want of a reproduction, which the program session's rewrite gave: an input typed while another runs was echoed and never answered. The session's wait for a result had a clause for `Typed` that received the input and discarded it, where selective receive would have left it until the session was ready, which is what an input typed early asks for and what §11.2 now says. The echo then showed a second fault of the same case: the shell says its prompt as text without a line feed, and the next answer continues that row, so a typed-ahead input's answer landed on the prompt that followed the first answer. The prompt was never that input's, since it was entered while none was shown, so the session tells the screen when it takes an input, and a prompt still showing then goes. The transcript reads as typing ahead reads in any terminal: the line where it was typed, then the answers in order.
+
 ## Later
 
 Planned or considered, not in the language today.

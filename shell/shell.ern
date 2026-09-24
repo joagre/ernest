@@ -206,7 +206,8 @@ fn fromFiles(state : State, screen : Address(ScreenMsg), inputs : List(#(String,
 }
 
 // The reader stays live, so an interruption reaches the session while the
-// input runs and kills it (report §11.2).
+// input runs and kills it, and an input typed meanwhile waits in the
+// mailbox for this one to end (report §11.2).
 fn await(
     state : State,
     screen : Address(ScreenMsg),
@@ -247,7 +248,8 @@ fn await(
         reportDeath(screen, down);
         await(state, screen, checked, child, started, showValue)
     }
-  | Typed(_) or Eof -> await(state, screen, checked, child, started, showValue)
+    // an input typed meanwhile, and the end of input, are left in the
+    // mailbox: they wait for this one, and run after it (report §11.2)
 }
 
 // Report §11.2: with timing on, a result is followed by the time the run
@@ -499,6 +501,7 @@ type ScreenMsg = Said(String)                        // the shell's own
   | Wrote(String)                       // a program's
   | Typing(text : String, at : Int)     // the line being typed, and the cursor
   | Entered                             // and now it is finished
+  | Taken                               // the session has taken an input
   | Resize
   | Clear                               // `C-l`, a clean screen
   | Height(Int)                         // `:set output n`
@@ -519,6 +522,7 @@ fn screenLoop(r : Shell.Region.Region) -> Unit with ScreenMsg = {
       | Wrote(text) -> Shell.Region.wrote(r, text)
       | Typing(text = text, at = at) -> Shell.Region.typing(r, text, at)
       | Entered -> Shell.Region.entered(r)
+      | Taken -> Shell.Region.taken(r)
       | Resize -> Shell.Region.resized(r, Terminal.size())
       | Clear -> Shell.Region.cleared(r)
       | Height(rows) -> Shell.Region.output(r, rows)
@@ -819,23 +823,31 @@ fn text(editing : Shell.Editor.State) -> String =
     match editing { Shell.Editor.State(text = text) -> text }
 
 fn keyLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = receive {
-    Typed(line) -> match String.trim(line) {
+    Typed(line) -> { send(screen, Taken); taking(state, screen, line) }
+  | Eof -> finish(screen, "\n")
+  | Interrupted -> { prompt(screen); keyLoop(state, screen) }
+  | Died(down) -> { reportDeath(screen, down); keyLoop(state, screen) }
+  | ReaderDied(down) -> readerDied(screen, down)
+  | Done(_) -> keyLoop(state, screen)
+}
+
+// Report §11.2: an input, which may have been typed while the one before it
+// ran and so waited for it.
+fn taking(state : State, screen : Address(ScreenMsg), line : String) -> Unit with ShellMsg =
+    match String.trim(line) {
         "" -> { prompt(screen); keyLoop(state, screen) }
       | input -> match submit(state, screen, input) {
             Leave -> finish(screen, "")
           | Continue(state2) -> { prompt(screen); keyLoop(state2, screen) }
         }
     }
-  | Eof -> finish(screen, "\n")
-  | Interrupted -> { prompt(screen); keyLoop(state, screen) }
-  | Died(down) -> { reportDeath(screen, down); keyLoop(state, screen) }
-  | ReaderDied(down) -> match down {
+
+fn readerDied(screen : Address(ScreenMsg), down : Down) -> Unit with ShellMsg =
+    match down {
         Down(reason = Returned) -> finish(screen, "")
       | other -> finish(screen, "the shell stopped reading the keyboard: "
             <> faultLine(other) <> "\n")
     }
-  | Done(_) -> keyLoop(state, screen)
-}
 
 // Report §11.2: what died while the session was reading. In line mode the
 // session blocks in `Io.readLine`, so a death is reported before the next

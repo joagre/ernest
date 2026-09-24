@@ -44,10 +44,10 @@ program() ->
                     [{expect, "Counter.main faulted: division by zero"},
                      {send, hex("let c = Counter.start()\r")},
                      {expect, "c : Address(Counter.Msg)"},
-                     %% one input: a second typed while the first runs is the
-                     %% plan's typing-ahead defect, not this test's subject
-                     {send, hex("{ send(c, Counter.Add(7)); "
-                                "Address.call(c, fn(r) = Counter.Get(reply = r), 1000) }\r")},
+                     %% the second is typed while the first may still run,
+                     %% and waits for it (report §11.2)
+                     {send, hex("send(c, Counter.Add(7))\r")},
+                     {send, hex("Address.call(c, fn(r) = Counter.Get(reply = r), 1000)\r")},
                      {expect, "Some(7) : Optional(Int)"},
                      {send, hex(":browse Counter\r")},
                      {expect, "Counter.start : () -> Address(Msg) with m"},
@@ -667,6 +667,26 @@ signature_test() ->
     ?assertMatch({_, _}, binary:match(Map, <<"*Since 0.1.0.*">>)),
     {'Some', Send} = ern_shell:documentation(<<"send">>),
     ?assertMatch({_, _}, binary:match(Send, <<"*Since 0.1.0.*">>)).
+
+%% report §11.2: an input entered while another runs waits, and runs after
+%% it, in the order entered. A regression test: the session took such an
+%% input out of its mailbox while it awaited the first, and dropped it, so
+%% the second was echoed and never answered
+typing_ahead_test_() ->
+    {timeout, 60, fun typing_ahead/0}.
+
+typing_ahead() ->
+    Screen = screen(alone("../bin/ern --shell"),
+                    [{expect, "> "},
+                     {send, hex("receive { after 500 -> 1 }\r")},
+                     {send, hex("2 + 2\r")},             % typed while the first runs
+                     {expect, "1 : Int"},
+                     {expect, "4 : Int"},
+                     {send, "04"}],
+                    30, "20x60"),
+    Lines = [L || L <- binary:split(Screen, <<"\n">>, [global]), L =/= <<>>],
+    Answers = [L || L <- Lines, L =:= <<"1 : Int">> orelse L =:= <<"4 : Int">>],
+    ?assertEqual([<<"1 : Int">>, <<"4 : Int">>], Answers).
 
 %% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
 %% under the source root and puts it in scope; `:reload` compiles again
