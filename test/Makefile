@@ -14,12 +14,13 @@ ERLC_FLAGS = +debug_info -Werror
 # whenever a toolchain beam is newer than the last run, as the standard
 # library's build does.
 test: $(EBIN)/ern_integration_tests.beam $(EBIN)/ern_docs_tests.beam $(EBIN)/ern_style_tests.beam \
+      $(EBIN)/ern_guide_tests.beam \
       $(EBIN)/ern_terminal_tests.beam $(EBIN)/ern_shell_tests.beam
 	@if [ -n "$$(find ../erl -name '*.beam' -newer build/.built 2>/dev/null)" ] \
 	   || [ ! -f build/.built ]; then rm -rf build; fi
 	@mkdir -p build && touch build/.built
 	erl -noshell -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) -eval \
-	  'halt(case eunit:test([ern_integration_tests, ern_docs_tests, ern_style_tests, ern_terminal_tests, ern_shell_tests], []) of ok -> 0; _ -> 1 end).'
+	  'halt(case eunit:test([ern_integration_tests, ern_docs_tests, ern_style_tests, ern_guide_tests, ern_terminal_tests, ern_shell_tests], []) of ok -> 0; _ -> 1 end).'
 
 xref: $(EBIN)/ern_docs_tests.beam
 	erl -noshell -pa $(EBIN) -eval \

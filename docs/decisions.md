@@ -3786,6 +3786,10 @@ A reading of the whole report after the day's changes, against itself, found sea
 
 §6.6 stated the reply discipline bottom-up: the signatures, what "reply-carrying" means, where such a value may appear, what consumes it, and the rule itself in the middle of the fourth paragraph, so a reader rebuilt the purpose from the details. It now opens with the rule, that a `Reply` and every value that contains one is consumed exactly once on every path, by `answer` or by a use that hands the obligation on; then the obligation and the static check; one accepted and one rejected function side by side, both compiled; and after them which types carry a reply, where such a value may stand, and how patterns and branches share the obligation. No rule changed. The report stays one document: moving the ABI and the toolchain out, as a Wirth report would, was weighed against the single source of truth and refused.
 
+## The Guide's Examples Are Checked, 2026-09-24
+
+The guide is the document a user reads instead of the report, so an example that no longer compiles teaches the wrong language without anything noticing. The standard library's examples were already compiled by the tests; the guide's were not. The block's info string now says what it is: `ernest` is a complete module and must compile, `ernest-rejected` must fail and for a reason of its own rather than a slip, and `console` shows a run whose output is compared. Everything else is a fragment and is not checked, so a fragment says so by its marker rather than by failing. The marker is in the fence because that is where a reader of the markdown already looks, and it costs the rendered guide nothing. Blocks that name a file under one heading are one source tree, since the guide's namespace examples are several files. What the check does not do: it does not run a program without a `console` block after it, and it does not read the prose, so a sentence that misstates a rule is still found only by a sweep.
+
 ## Later
 
 Planned or considered, not in the language today.

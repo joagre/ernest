@@ -17,7 +17,7 @@ The guide is arranged as seven stages: run a program, compute with values, pass 
 
 For these examples, first create a configuration in a fresh working directory. This step runs once; the command fails if the configuration directory already exists:
 
-```
+```console
 $ ern --create-config-dir .
 ```
 
@@ -25,13 +25,13 @@ That generates `./.ernest/` with `ernest.conf` (network address, public key, emp
 
 Now the program itself, `hello.ern`:
 
-```
+```ernest
 export fn main() -> Unit with Never = Io.println("hello, world")
 ```
 
 Compile and run:
 
-```
+```console
 $ ernc hello.ern         # produces hello.erc
 $ ern hello.erc          # runs main()
 hello, world
@@ -64,7 +64,7 @@ Which of these compile?
 
 Answer: (a) compiles — inference gives `main` a fresh mailbox effect from `Io.println`'s call. (b) does not compile — the explicit `-> Unit` (without `with M`) declares the function *pure*, and a pure function cannot call `Io.println` (which sends). `ernc` says so in the form every error takes (report §11.5): the file, line, and column, the message, then the source with the offending span underlined, the annotation that caused it labelled, and a help line:
 
-```
+```console
 hello.ern:1:28: Io.println needs a process, and main is pure
 1 | export fn main() -> Unit = Io.println("hello, world")
   |                     ---- `-> Unit` with no `with` declares main pure
@@ -138,7 +138,7 @@ Top-level initializers must be pure — no `send`, no `spawn`, no other process 
 
 Declare a type with named cases:
 
-```
+```ernest
 type Direction = North | South | East | West
 ```
 
@@ -159,7 +159,7 @@ That rule has a shape you will meet again. The report's principle 3, nothing inv
 
 Constructors can carry data. `Optional(a)` is the standard example:
 
-```
+```ernest
 type Optional(a) = None | Some(a)
 ```
 
@@ -250,7 +250,7 @@ Each variable appears at most once in a pattern. Repeated names within one patte
 
 A clause may list several patterns separated by `or`; it matches when any of them does. Every alternative binds the same variables at the same types, so the body uses them whichever alternative matched:
 
-```
+```ernest
 type Direction = North | South | East | West
 type Move = Forward(Int) | Back(Int) | Stay
 
@@ -289,7 +289,7 @@ type Either(e, a) = Left(e) | Right(a)
 
 An Optional chain:
 
-```
+```ernest
 fn parseAndAdd(a : String, b : String) -> Optional(Int) = {
     let x <- String.toInt(a);
     let y <- String.toInt(b);
@@ -301,7 +301,7 @@ If `String.toInt(a)` returns `None`, the whole block evaluates to `None`; the re
 
 An Either chain uses `Left(e)` to short-circuit and `Right(v)` to bind and continue:
 
-```
+```ernest
 fn positiveInt(text : String) -> Either(String, Int) = {
     let n <- Either.fromOptional(String.toInt(text), "not an integer");
     if n > 0 then Right(n) else Left("not positive")
@@ -363,7 +363,7 @@ Functions are values. This section is about writing them and passing them around
 
 ### 3.1 Definitions and arity
 
-```
+```ernest
 fn double(n : Int) -> Int = n * 2
 fn hypotenuseSquared(a : Int, b : Int) -> Int = a * a + b * b
 ```
@@ -387,13 +387,13 @@ Lambda body is the longest expression up to the enclosing form's delimiter: `,`,
 
 Ernest infers types Hindley-Milner style. You can omit annotations on parameters and returns:
 
-```
+```ernest
 fn double(n) = n * 2       // inferred (Int) -> Int
 ```
 
 `*` on `Int` fixes `n : Int`. But **Ernest does not infer a "numeric type" or default to `Int`**:
 
-```
+```ernest-rejected
 fn twice(n) = n + n        // n's type ambiguous — annotate: (n : Int) or (n : Float)
 ```
 
@@ -415,7 +415,7 @@ The mailbox effect says one thing: the function acts through a process. It says 
 
 ### 3.5 Higher-order and effect polymorphism
 
-```
+```ernest
 fn apply(f, x) = f(x)
 ```
 
@@ -439,7 +439,7 @@ spawn(Local, fn() -> Unit with Never = Unit)
 
 Given:
 
-```
+```ernest
 fn map2(f, x, y) = #(f(x), f(y))
 ```
 
@@ -453,7 +453,7 @@ A process holds state, receives messages, and answers requests. This section bui
 
 ### 4.1 Message type and receive loop
 
-```
+```ernest
 type CounterMsg =
     Inc(Int)
   | Get(reply : Reply(Int))
@@ -506,7 +506,7 @@ fn twice(dst : Address(CounterMsg), msg : CounterMsg) -> Unit with m = {
 
 `receive` scans the mailbox for a *matching* message; unmatched messages stay in the mailbox for later. Coverage of the mailbox type is not required (unlike `match`).
 
-```
+```ernest
 type Inbox = Data(Int) | Wake
 
 fn waitForData() -> Optional(Int) with Inbox = receive {
@@ -569,7 +569,7 @@ Ernest processes can update their code without restart. The mechanism is a proto
 
 Extend the counter declared in §4.1 with an `Upgrade` constructor (this replaces both the type and the function above):
 
-```
+```ernest
 type CounterMsg =
     Inc(Int)
   | Get(reply : Reply(Int))
@@ -628,7 +628,7 @@ The counter is enough for one process. Two processes need coordination.
 
 ### 5.1 Ping-pong
 
-```
+```ernest
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 type MainMsg = PongDone(Down)
 
@@ -678,7 +678,7 @@ type Reason = Returned | Killed | ProgramEnd | Fault(String)
 
 `wrap` is a function, so it can carry what you need to tell one death from another. A process that monitors a worker while waiting for its answer gets two messages, the answer and the death, and takes the answer; the death is still in the mailbox when the next worker is monitored. Addresses have no equality, so a `Down` cannot be asked which worker it is about. Give each worker a number and let the wrap close over it:
 
-```ernest
+```
 let child = spawn(Local, fn() -> Unit with Never = send(me, Result(run = run, value = work())));
 monitor(child, fn(d) = Died(run = run, down = d));
 ```
@@ -724,7 +724,7 @@ An adapted address is the target and the function, not a process, so adapting co
 
 `Clock.alarm` fires exactly *once*. For a periodic tick, the receiver schedules a new one only after handling the previous. A naive `game` that loops back on every message would create one pending timer per input, so a burst of inputs multiplies the tick rate. Two functions make the boundary explicit:
 
-```
+```ernest
 type GameMsg = Tick | Input(Char)
 type World = World(score : Int)
 
@@ -757,7 +757,7 @@ An Ernest program is one or more modules. A module is a `.ern` source file; its 
 
 Two modules:
 
-```
+```ernest
 // net/http.ern  (namespace Net.Http)
 export type Request = Request(method : String, path : String)
 
@@ -766,7 +766,7 @@ export fn parse(s : String) -> Optional(Request) =
     else None
 ```
 
-```
+```ernest
 // main.ern  (namespace Main)
 export fn main() -> Unit with Never = match Net.Http.parse("GET /") {
     Some(Net.Http.Request(method = method, path = path)) ->
@@ -779,7 +779,7 @@ The `Net.Http.Request` in the pattern is a fully qualified constructor reference
 
 Compile file-by-file and run:
 
-```
+```console
 $ ernc net/http.ern              # produces net/http.erc
 $ ernc main.ern                  # produces main.erc
 $ ern main.erc                   # net/http.erc is found under main.erc's root, which is on the load path
@@ -788,7 +788,7 @@ GET /
 
 Or in directory mode — compile the whole tree and put outputs under `build/`:
 
-```
+```console
 $ ernc --out-dir build .         # walks the source tree, writes build/net/http.erc and build/main.erc
 $ ern build/main.erc
 GET /
@@ -821,7 +821,7 @@ let addsTwo = Test(name = "adds two", run = fn() -> TestResult with Never =
 
 **Entry point.** `ern main.erc` looks up `export fn main` in the loaded module and invokes it. `main` is a naming convention, not a reserved specialness — any exported function with the entry-point shape `() -> Unit with M` can be selected. If `tools.ern` exports a `check` function of that shape, run it as:
 
-```
+```console
 $ ern --main Tools.check build/main.erc
 ```
 
@@ -831,7 +831,7 @@ $ ern --main Tools.check build/main.erc
 
 Abstract types have a private representation and a public signature. Only definitions listed in the `with { ... }` signature can mention the constructor. Any locally declared type — abstract or concrete — creates a nested namespace inside its module, and its members are declared with a single-typename prefix (`fn Stack.push`). Report §4.8 shows the concrete-type variant used for per-type operator overloading (`fn Distance.+`, and so on); an operator is declared with `fn`, never with `let`. From another module an abstract type's constructor is not visible at all: `Main.Stack([])` there is an error, and callers go through the signature.
 
-```
+```ernest
 // main.ern  (namespace Main)
 export abstract type Stack(a) = Stack(List(a)) with {
     empty : Stack(a);
@@ -887,7 +887,7 @@ type RemoteError = NoRemotePeer | PeerLost
 
 `remote` waits for its answer, so several computations run at once from processes of their own, each calling `remote` and answering when asked. The answers come back in the order they were asked for:
 
-```
+```ernest
 type Ask(a) = Ask(reply : Reply(Either(RemoteError, a)))
 
 fn inParallel(fs : List(() -> a)) -> List(Either(RemoteError, a)) with m = {
@@ -901,7 +901,7 @@ fn inParallel(fs : List(() -> a)) -> List(Either(RemoteError, a)) with m = {
 
 A minimal program that submits a computation:
 
-```
+```ernest
 fn heavy(a : Int, b : Int) -> Int = a * a + b * b
 
 export fn main() -> Unit with m = match remote(fn() = heavy(3, 4)) {
@@ -929,7 +929,7 @@ Peer loss is *terminal from this node's view*. Once this node declares a peer lo
 
 ### 7.3 Foreign types and functions
 
-```
+```ernest
 // ets.ern
 export foreign type Table(k, v)
 
@@ -991,7 +991,7 @@ lookup(Key) ->
 
 The Ernest `foreign fn` binds to that helper — the returned term already matches Ernest's ABI, no decoder needed:
 
-```
+```ernest
 // store.ern (namespace Store)
 export foreign fn lookup(key : String) -> Either(String, Int) with m = "store_helper:lookup/1"
 ```
@@ -1004,7 +1004,7 @@ Report Appendix D walks `ets.ern` (namespace `Ets`), a library outside the stand
 
 Building and parsing binary formats:
 
-```
+```ernest
 fn frame(len : Int, body : Bytes) -> Bytes =
     <<len:size(16)-big, body:bytes>>
 

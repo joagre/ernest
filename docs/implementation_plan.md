@@ -22,6 +22,10 @@ harness, bindings and the commands, the live region, and the line editor with hi
 multi-line input and paste. What is left of the milestone is in "MVP 2.6" below: completion,
 a guide chapter, the closing sweep, and a session of real use.
 
+**MVP 2.61, the guide, taken out of order on 2026-09-24.** A newcomer reads the guide and not
+the report, so the guide is rewritten to teach Ernest on its own; the steps are in "MVP 2.61"
+below. MVP 2.6 resumes after it.
+
 **The rhythm.** One item a turn, with its tests, its documents, its conformance section and
 its commit; then a stop for review before the next. The user reads the plan and not the log,
 so a decision they must see goes here.
@@ -36,6 +40,7 @@ so a decision they must see goes here.
 | MVP 2 | the rest of the report on one node | done 2026-09-19 |
 | MVP 2.5 | a complete standard library | done 2026-09-20 |
 | **MVP 2.6** | **the shell** | **checkpoints 0–3 done; checkpoint 4 next** |
+| **MVP 2.61** | **the guide as the user's document** | **taken 2026-09-24, out of order** |
 | MVP 2.65 | the language and the toolchain read back | after 2.6 |
 | MVP 2.66 | introduce a supervisor behaviour? | after 2.6 |
 | MVP 2.7 | the first libraries and the network stack | |
@@ -137,6 +142,39 @@ Field selection and the names of the toolchain's options moved to 2.65 on 2026-0
   under load; `process_of/1` answering a checking proxy's own pid; the key decoder reading
   `\e[2` as `Escape` and two characters; and initializers running in alphabetical order
   rather than §8.5's dependency order.
+
+---
+
+## MVP 2.61 (the guide as the user's document), taken 2026-09-24
+
+A reading of `ernest_guide.md` as a newcomer's document found it accurate against the report
+and written as its companion: framed for reading rather than writing, heavy with the report's
+corners, and without a reason to learn the language. A newcomer does not read the report, so
+the guide must teach Ernest on its own, in Wirth's register, and sell it on its merits,
+without boasting. Each step is a stop.
+
+1. **Done 2026-09-24: the guide's examples are checked mechanically**, as the standard library's are. A
+   complete program in an `ernest` block type-checks; one followed by an `output` block is
+   run and its output compared; an `ernest-rejected` block must fail for a reason of its own.
+   Anything else is a fragment, which nothing checks. `test/ern_guide_tests.erl` owns the
+   convention; 22 examples and one rejected example are checked, and step 5 makes more of the
+   fragments complete.
+2. **The opening: why Ernest, and a first program.** §0 shows what Ernest catches that its
+   neighbours do not, each as the bug and `ernc`'s message: a wrong message to a process, a
+   request left unanswered, a function that acts through a process without saying so, an
+   `Either` dropped by a statement. §1 runs hello world with no configuration, which moves
+   to §7 where peers need it, and opens the shell.
+3. **§2 and §3 cut to teaching weight.** A rule and an example stay; a corner points to the
+   report in a line.
+4. **The error model gets a section of its own:** a value, a message, or a fault, and
+   nothing is caught.
+5. **One running example through §2 to §5**, and every fragment either completed or cut.
+6. **Supervision and "let it crash"**, the idioms the log lists: a monitor, a restart, a
+   supervisor in fifteen lines.
+7. **The tools and a bridge:** `ernc`, `ern`, `--test`, `--doc`, the shell and the Emacs mode
+   on one page, and a section for the Erlang programmer, what maps and what does not.
+8. **The small things:** the Plauger aside moves to a closing section on the design, the
+   exercises' answers stand apart from their questions, and §5.5 keeps one `Tick`.
 
 ---
 
@@ -470,7 +508,7 @@ connectors: those are libraries for others to write on Appendix D's pattern.
   `shell/shell/region.ern` is the one function that has to learn it. The design note's only
   open item.
 - **The guide owes the idioms** the log's "Later" lists, links and supervisors, and a
-  chapter on the shell (MVP 2.6 above).
+  chapter on the shell: MVP 2.61, steps 2 and 6.
 - **`e_bits` and `p_bits` are in no example**, so the AST coverage test excludes them
   (2026-09-19).
 - **A label at the first use of the variable whose type a mismatch names** was planned for
