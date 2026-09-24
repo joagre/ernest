@@ -3746,6 +3746,10 @@ E.9 made `Float.sqrt`, `Float.log`, `asin` and `acos` return `Optional` for thei
 
 §3.9's paragraph on effect polymorphism stated six rules in 276 words, and E.0 rule 6 the whole documentation discipline in 280. The first is now four paragraphs, effect variables, positions, process-only functions, and printing; the second three sub-items, the module, a declaration, and examples. Rule 6 stays in the report, since it is normative and the documentation tests hold the standard library to it; `module_doc_template.md` shows it and cannot own it.
 
+## Two Rules Move to Where They Are Looked For, 2026-09-24
+
+That modules may not depend on each other in a cycle was stated only in §11.1, as the compiler's behaviour; it decides which programs can be written, as §4.2's namespace rules do, and is now in §4.1, with §11.1 saying how the compiler reports it. The restriction that a `receive` guard be a guard expression was in §5.9, `match`; guards stay there, since `match` and `receive` share the clause grammar and a guard means the same in both, and the restriction, which follows from `receive` selecting a message without removing it, is now in §6.3.
+
 ## Later
 
 Planned or considered, not in the language today.

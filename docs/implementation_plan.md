@@ -222,6 +222,8 @@ options, then what is recorded and left alone.
   - §8.2 and §11.2 read as short paragraphs under run-in headings, as §11.1 does, and the
     terminal's lines-and-keys fault joins §7.4's list.
   - §3.9's effect polymorphism is four paragraphs and E.0 rule 6 three sub-items.
+  - Module acyclicity moves from §11.1 to §4.1, and the `receive` guard's restriction from
+    §5.9 to §6.3.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the

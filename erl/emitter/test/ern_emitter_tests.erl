@@ -566,7 +566,7 @@ receive_or_pattern_test() ->
         "}\n"),
     ?assertEqual(<<"5\n">>, Out).
 
-%% report §5.9: a receive guard is a guard expression, emitted as an Erlang
+%% report §6.3: a receive guard is a guard expression, emitted as an Erlang
 %% guard, tested while the message stays in the mailbox
 receive_guard_test() ->
     {ok, Out} = run(
@@ -584,7 +584,7 @@ receive_guard_test() ->
         "}\n"),
     ?assertEqual(<<"5\n">>, Out).
 
-%% report §5.9: a compound guard expression; a message the guard rejects
+%% report §6.3: a compound guard expression; a message the guard rejects
 %% stays in the mailbox
 receive_guard_compound_test() ->
     {ok, Out} = run(

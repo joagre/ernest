@@ -252,7 +252,7 @@ DeclName    = ident | typename "." ( ident | userop ) .
 
 ### 4.1 Modules
 
-A *module* is one source file, ending in `.ern`: the unit of compilation and of namespace. Every top-level declaration belongs to exactly one module.
+A *module* is one source file, ending in `.ern`: the unit of compilation and of namespace. Every top-level declaration belongs to exactly one module. The modules' dependencies are acyclic; a cycle is a compile-time error.
 
 ### 4.2 Namespaces and visibility
 
@@ -411,7 +411,7 @@ let words = input |> String.trim |> String.toLower |> String.toList
 
 ### 5.9 `match`
 
-The value is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. A clause may list several patterns separated by `or`, and matches when any of them does: `Player(alive = false) or Player(body = []) -> #(acc, apples)`. Every alternative binds the same variables at the same types; the guard and the body see them. Alternatives that bind different variables are a type error. The clauses together cover the type; guards do not count as coverage. A guard is a `Bool` expression with no mailbox effect that sees the pattern's variables and the enclosing scope. A guard that is `false` falls through to the next clause; a guard that faults faults the process. A `receive` guard falls through likewise; it selects a message without removing it (§6.3) and so is a *guard expression*: a comparison of the pattern's variables, the enclosing function's variables, literals, and nullary constructors with `==`, `!=`, `<`, `<=`, `>`, `>=`, the orderings on `Int`, `Float`, `String`, and `Char` only, joined by `&&` and `||`; it calls nothing and cannot fault.
+The value is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. A clause may list several patterns separated by `or`, and matches when any of them does: `Player(alive = false) or Player(body = []) -> #(acc, apples)`. Every alternative binds the same variables at the same types; the guard and the body see them. Alternatives that bind different variables are a type error. The clauses together cover the type; guards do not count as coverage. A guard is a `Bool` expression with no mailbox effect that sees the pattern's variables and the enclosing scope. A guard that is `false` falls through to the next clause; a guard that faults faults the process. A `receive` guard falls through likewise, and is restricted further (§6.3).
 
 ### 5.10 Patterns
 
@@ -486,6 +486,8 @@ type Where = Local | Peer(String)
 ### 6.3 `receive`
 
 `receive { clauses }` matches the mailbox in arrival order. The first message that matches a clause's pattern and guard is removed and the clause is evaluated; the rest remain. If none matches, the process waits. Patterns are typed against the mailbox type. Coverage is not required: a message no clause matches stays in the mailbox.
+
+A guard selects a message without removing it, so a `receive` guard is a *guard expression*: a comparison of the pattern's variables, the enclosing function's variables, literals, and nullary constructors with `==`, `!=`, `<`, `<=`, `>`, `>=`, the orderings on `Int`, `Float`, `String`, and `Char` only, joined by `&&` and `||`. It calls nothing and cannot fault.
 
 A final clause `after t -> e` gives a time limit of `t` milliseconds; `t` is evaluated on entry, and a time below 0 is 0. When the limit passes without a matching message, `e` is evaluated. `after 0` does not wait for a message. Without `after` there is no limit.
 
@@ -817,7 +819,7 @@ Options are long: `--name`, or `--name value` for one that takes a value.
 
 ### 11.1 `ernc` (compiler)
 
-`ernc [--source-root src-root] [--out-dir build-dir] [--load-path dir ...] file.ern` compiles a module to `file.erc`. That file carries the inferred types of the module's exported declarations and which of them are values rather than functions (§4.6); dependent modules are checked against them. It carries the module's documentation too: every doc block of §2.2, each declaration's signature, and each function's parameter list as the module writes it. On the BEAM that is the EEP 48 `Docs` chunk, which the host's own documentation tools read. `ernc [--source-root src-root] [--out-dir build-dir] [--load-path dir ...] src-dir` compiles every `.ern` under `src-dir` in dependency order, mirroring the source tree into `build-dir` and creating directories as needed. The module dependency graph is acyclic; a cycle is a compile-time error naming the modules in it. A module is recompiled when its source has changed, when the interface of a module it depends on has changed, when any interface of the standard library has changed, or when it was compiled by another version of `ernc`; a change confined to a dependency's bodies does not recompile its dependents. A module outside the source root is read from its `.erc` under `build-dir`, then under each `--load-path` root, found by namespace as §11.2 finds it. Cross-module references link at load, against `.erc` files under `build-dir` and the `--load-path` roots. `--emit erl` writes the module's Erlang source as `.erl` instead, for reading; it carries no interface.
+`ernc [--source-root src-root] [--out-dir build-dir] [--load-path dir ...] file.ern` compiles a module to `file.erc`. That file carries the inferred types of the module's exported declarations and which of them are values rather than functions (§4.6); dependent modules are checked against them. It carries the module's documentation too: every doc block of §2.2, each declaration's signature, and each function's parameter list as the module writes it. On the BEAM that is the EEP 48 `Docs` chunk, which the host's own documentation tools read. `ernc [--source-root src-root] [--out-dir build-dir] [--load-path dir ...] src-dir` compiles every `.ern` under `src-dir` in dependency order, mirroring the source tree into `build-dir` and creating directories as needed. A cycle among the modules (§4.1) is reported with the modules in it. A module is recompiled when its source has changed, when the interface of a module it depends on has changed, when any interface of the standard library has changed, or when it was compiled by another version of `ernc`; a change confined to a dependency's bodies does not recompile its dependents. A module outside the source root is read from its `.erc` under `build-dir`, then under each `--load-path` root, found by namespace as §11.2 finds it. Cross-module references link at load, against `.erc` files under `build-dir` and the `--load-path` roots. `--emit erl` writes the module's Erlang source as `.erl` instead, for reading; it carries no interface.
 
 **Source root.** Each file's namespace comes from its path under the source root (§4.2). `--source-root` names it. Without it, a path under the standard library's source root (§4.2) uses that root. Otherwise single-file mode uses the current directory, and directory mode uses the directory passed to `ernc`. Output mirrors the source root, not the directory argument: `ernc --source-root src --out-dir build src/net` writes `src/net/http.ern` to `build/net/http.erc`, not `build/http.erc`. `build-dir` defaults to the source root, and to `build/stdlib` beside the toolchain for the standard library's own source root (§4.2), where its modules are built.
 
@@ -1501,7 +1503,7 @@ Every technical term this report introduces, with the section that defines it. P
 - **foreign type** — declared `foreign type T`; values are made and used only by foreign functions. §3.8, §4.7.
 - **generalization** — quantifying free type variables in a `fn` definition. §3.9.
 - **guard** — a `when` expression on a `match` or `receive` clause. §5.9.
-- **guard expression** — the form of a `receive` guard. §5.9.
+- **guard expression** — the form of a `receive` guard. §6.3.
 - **Hindley-Milner** — the type system Ernest uses, inferred except for an operator's operand type. §3.9, §4.8.
 - **irrefutable pattern** — a pattern that cannot fail; required in `let` and function parameters. §5.10.
 - **lambda** — an anonymous function, `fn(x) = e`. §5.3.

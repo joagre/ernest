@@ -1516,7 +1516,7 @@ alternatives(#clause{pos = Pos, pattern = #p_or{alts = [First | _] = Alts}, guar
                        end, CxB#cx{vars = Cx0#cx.vars}, Alts),
     {{[Bind], Forms}, CxN}.
 
-%% Report §5.9: a receive guard is a guard expression, which the checker
+%% Report §6.3: a receive guard is a guard expression, which the checker
 %% holds it to, so it is an Erlang guard here. A message from a foreign
 %% process was checked by the proxy that delivered it (report §8.4).
 receive_clauses(C, Cx) ->

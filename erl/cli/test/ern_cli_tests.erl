@@ -365,7 +365,7 @@ stdlib_namespace_test() ->
     write(Dir, "src/erl.ern", "export fn atom(s : String) -> String = s\n"),
     ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])).
 
-%% report §11.1: a module cycle is an error naming the modules
+%% report §4.1, §11.1: a module cycle is an error naming the modules
 module_cycle_test() ->
     Dir = tmp(),
     write(Dir, "a.ern", "export fn f() -> Int = B.g()\n"),

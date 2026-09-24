@@ -1562,7 +1562,7 @@ check(E, Expected, Context, Origin, Env) ->
                     Origin),
     {Typed, T, Env2}.
 
-%% Report §5.9: a receive guard is a guard expression, since it selects a
+%% Report §6.3: a receive guard is a guard expression, since it selects a
 %% message without removing it.
 receive_guard(G, Env) ->
     guard_expression(G, Env) orelse

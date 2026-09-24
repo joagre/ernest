@@ -1093,7 +1093,7 @@ bitstring_pattern_test() ->
     ?assertEqual("a `let` pattern must be irrefutable",
                  err("fn f(b : Bytes) = { let <<x>> = b; x }")).
 
-%% report §5.9: a receive guard is a guard expression: comparisons of
+%% report §6.3: a receive guard is a guard expression: comparisons of
 %% variables, literals, and nullary constructors joined by && and ||, no
 %% call, orderings on the four ordered prelude types only; a match guard
 %% is any Bool expression
