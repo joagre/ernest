@@ -473,7 +473,7 @@ names(#env{ifaces = Ifaces, session = S} = Env) ->
             || {N, _} <- maps:to_list(maps:get(cons, S, #{}))],
     {TypeQs, ConQs} = ern_typecheck:prelude_names(),
     Prelude = [name('Value', qname_text(Q), qname_text(Q) ++ " : " ++ Type)
-               || {Q, Type} <- ern_prelude:values()]
+               || {Q, Type, _} <- ern_prelude:values()]
         ++ [name('Type', qname_text(Q), "type " ++ qname_text(Q)) || Q <- TypeQs]
         ++ [name('Constructor', qname_text(Q), qname_text(Q)) || Q <- ConQs],
     Modules = lists:append([module_names(I, St) || I <- Ifaces ++ ern_prelude:stdlib_ifaces()]),
@@ -604,11 +604,24 @@ documentation(Text) ->
         none -> 'None'
     end.
 
+%% The session's own names first, then a module's, then the prelude's,
+%% which is where a name no module declares is documented (report §9).
 doc_of(Env, Segments) ->
     case session_doc(Env, Segments) of
-        {ok, Page} -> {ok, Page};
-        none -> module_doc(Segments)
+        {ok, Page} ->
+            {ok, Page};
+        none ->
+            case module_doc(Segments) of
+                {ok, Page} -> {ok, Page};
+                none -> prelude_doc(Segments)
+            end
     end.
+
+prelude_doc([]) ->
+    none;
+prelude_doc(Segments) ->
+    Name = lists:flatten(lists:join(".", [atom_to_list(S) || S <- Segments])),
+    ern_page:prelude_declaration(list_to_atom(Name)).
 
 %% A name the session declared: the beam of the input that declared it, and
 %% the entry under its unqualified name, a member under `Type.name`.

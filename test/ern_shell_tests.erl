@@ -530,6 +530,23 @@ library_file() ->
                   ++ " < " ++ filename:join(Dir, "in")),
     ?assertMatch({_, _}, binary:match(Out, <<"42 : Int">>)).
 
+%% report §9, §11.2: `:doc` finds a prelude name's documentation, a
+%% function, a type, and a `Sys.*` reference, and still finds an operation
+%% in its type's module. A regression test: the prelude had none, and `:doc
+%% monitor` said "no documentation"
+prelude_doc_test_() ->
+    {timeout, 60, fun prelude_doc/0}.
+
+prelude_doc() ->
+    In = filename:join("/tmp", "ern_pdoc_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = file:write_file(In, ":doc monitor\n:doc Down\n:doc Sys.stdout\n:doc Int.compare\n"),
+    {0, Out} = sh("../bin/ern --shell < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"## monitor\n\n```ernest\nmonitor : ">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"type Down = Down(reason : Reason">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"## Sys.stdout">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"## Int.compare">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"no documentation">>)).
+
 %% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
 %% under the source root and puts it in scope; `:reload` compiles again
 %% what has changed, names what is still in the previous version, and ends

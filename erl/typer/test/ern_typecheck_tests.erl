@@ -650,7 +650,7 @@ prelude_types_test() ->
 %% report §9.4, §9.5, §9.6, §9.7 and Appendix E: every prelude and stdlib
 %% signature parses, and every name resolves to a value
 prelude_values_test() ->
-    lists:foreach(fun({QName, Text}) ->
+    lists:foreach(fun({QName, Text, _}) ->
                       ?assertMatch({ok, _}, ern_parser:parse_type(Text)),
                       Name = lists:flatten(lists:join(".", [atom_to_list(P) || P <- QName])),
                       ?assertEqual(ok, ok("export let v = " ++ Name))

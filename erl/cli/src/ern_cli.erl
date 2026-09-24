@@ -342,10 +342,10 @@ stdlib_root() ->
 prelude_namespaces() ->
     {ok, Decls} = ern_parser:parse_string(ern_prelude:declared_types()),
     lists:usort(['Prelude']
-                ++ [N || {N, _} <- ern_prelude:builtin_types()]
+                ++ [N || {N, _, _} <- ern_prelude:builtin_types()]
                 ++ [N || #type_decl{name = N} <- Decls]
                 ++ [hd(Ns) || {Ns, _} <- ern_prelude:stdlib_types()]
-                ++ [hd(Q) || {Q, _} <- ern_prelude:values(), length(Q) > 1]
+                ++ [hd(Q) || {Q, _, _} <- ern_prelude:values(), length(Q) > 1]
                 ++ [hd(I#iface.namespace) || I <- ern_prelude:stdlib_ifaces()]).
 
 %% Type-check and compile one module against its dependencies'
@@ -534,9 +534,19 @@ doc_dir(Opts, Path) ->
                    ok = file:write_file(Out, unicode:characters_to_binary(ern_page:page(Beam))),
                    ["- [", qname(Ns), "](", Rel, ")\n"]
                end || #mod{ns = Ns} <- lists:sort(Mods)],
+    Prelude = prelude_page(is_stdlib_root(Root), OutDir),
     ok = file:write_file(filename:join(OutDir, "index.md"),
-                         unicode:characters_to_binary(["# Modules\n\n", Entries])),
+                         unicode:characters_to_binary(["# Modules\n\n", Prelude, Entries])),
     0.
+
+%% Report §11.4: the standard library's own source root also gets the
+%% prelude's page, first in the index.
+prelude_page(false, _OutDir) ->
+    [];
+prelude_page(true, OutDir) ->
+    ok = file:write_file(filename:join(OutDir, "prelude.md"),
+                         unicode:characters_to_binary(ern_page:prelude_page())),
+    ["- [Prelude](prelude.md)\n"].
 
 %%
 %% ern, report §11.2 and §11.3

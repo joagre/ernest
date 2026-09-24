@@ -1108,7 +1108,7 @@ sys_in_let_test() ->
 %% checker knows is emitted as a call to a function that exists, with the
 %% arity of its type, so no accepted name can reach the runtime as undef
 prelude_targets_test() ->
-    Missing = [Q || {Q, Text} <- ern_prelude:values(),
+    Missing = [Q || {Q, Text, _} <- ern_prelude:values(),
                     {M, F, A} <- [prelude_target(Q, Text)],
                     code:ensure_loaded(M) =/= {module, M} orelse
                         not erlang:function_exported(M, F, A)],

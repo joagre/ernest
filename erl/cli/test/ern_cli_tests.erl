@@ -627,6 +627,22 @@ docs_chunk_test() ->
     true = code:delete(Mod),
     true = code:del_path(Out).
 
+%% report §9, §11.4: `ernc --doc` of the standard library's own source root
+%% writes the prelude's page, first in the index, beside the modules' pages
+prelude_page_test_() ->
+    {timeout, 120, fun prelude_page/0}.
+
+prelude_page() ->
+    Dir = tmp(),
+    ?assertEqual(0, ern_cli:ernc(["--doc", "--out-dir", Dir, "../../../stdlib"])),
+    {ok, Index} = file:read_file(filename:join(Dir, "index.md")),
+    ?assertMatch(<<"# Modules\n\n- [Prelude](prelude.md)\n", _/binary>>, Index),
+    {ok, Page} = file:read_file(filename:join(Dir, "prelude.md")),
+    ?assertMatch(<<"# Ernest prelude\n\n*Since 0.1.0.*", _/binary>>, Page),
+    [?assertMatch({_, _}, binary:match(Page, <<"\n## ", N/binary, "\n">>))
+     || N <- [<<"send">>, <<"Address.call">>, <<"Optional">>, <<"Sys.tcp">>, <<"Int">>]],
+    ?assertMatch({_, _}, binary:match(Page, <<"from the prelude, report §9."/utf8>>)).
+
 %% report §11.4, Appendix E.0 rule 6: docs/module_doc_template.md is what
 %% `ernc --doc` renders for examples/template.ern, after its marker line
 doc_template_test() ->

@@ -86,7 +86,8 @@ Erlang/OTP 29 and GNU make. No rebar3, no OTP behaviours. `make test` also needs
 make              compile every application into its ebin/, then stdlib/, shell/, libs/
 make test         build, run the EUnit tests, the tests in test/, then the Emacs mode's
 make emacs-mode   the Emacs mode's tests alone (docs/emacs_mode.md)
-make doc          write the standard library's pages to build/stdlib/, with index.md
+make doc          write the standard library's and the prelude's pages to build/stdlib/,
+                  with index.md
 make sections     list the report sections no test cites
 make xref         check that every section citation in the documents resolves
 make coverage     every section with how many tests cite it, thinnest first

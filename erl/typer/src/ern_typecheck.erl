@@ -154,7 +154,7 @@ prelude_names() ->
 -spec prelude_env() -> env().
 prelude_env() ->
     Env0 = #env{st = ern_types:new()},
-    Env1 = lists:foldl(fun({Name, Arity}, E) ->
+    Env1 = lists:foldl(fun({Name, Arity, _Doc}, E) ->
                            Params = lists:seq(1, Arity),
                            add_type(E, #tinfo{qname = [Name], params = Params, foreign = true})
                        end, Env0, ern_prelude:builtin_types()),
@@ -166,7 +166,7 @@ prelude_env() ->
                                                               local_cons = #{}}),
                            E1
                        end, Env2, ern_prelude:stdlib_types()),
-    Env4 = lists:foldl(fun({QName, Text}, E) ->
+    Env4 = lists:foldl(fun({QName, Text, _Doc}, E) ->
                     {ok, Syntax} = ern_parser:parse_type(Text),
                     ProcessOnly = lists:member(QName, ern_prelude:process_only()),
                     {Scheme, E1} = signature_scheme(Syntax, ProcessOnly,

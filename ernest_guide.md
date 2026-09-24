@@ -951,7 +951,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 monitor : (Address(a), (Down) -> b) -> Unit with b
 ```
 
-```
+```ernest-prelude
 type Down = Down(reason : Reason, function : String)
 type Reason = Returned | Killed | ProgramEnd | Fault(String)
 ```
@@ -1415,7 +1415,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 remote : (() -> a) -> Either(RemoteError, a) with e
 ```
 
-```
+```ernest-prelude
 type RemoteError = NoRemotePeer | PeerLost
 ```
 

@@ -4,6 +4,7 @@
 -module(ern_prelude_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("parser/include/ern_ast.hrl").
 
 -define(REPORT, "../../../ernest_report.md").
 
@@ -22,9 +23,38 @@ values_test() ->
     %% a §9.6 operation is in the table, which types it before any module is
     %% installed, and in its module's interface: it counts once when the two
     %% agree, twice and so unequal to the report when they do not
-    Tables = lists:usort([{qname(Q), normalize(T)} || {Q, T} <- ern_prelude:values()]
+    Tables = lists:usort([{qname(Q), normalize(T)} || {Q, T, _} <- ern_prelude:values()]
                          ++ Compiled),
     ?assertEqual(Report, Tables).
+
+%% report §9, Appendix E.0 rule 6: every prelude name is documented, a type
+%% and a value beside its entry, and an operation marked `module` by its
+%% type's module, whose documentation chunk has the entry
+prelude_documented_test() ->
+    [?assert(is_binary(D) andalso byte_size(D) > 0) || {_, _, D} <- ern_prelude:builtin_types()],
+    {ok, Decls} = ern_parser:parse_string(ern_prelude:declared_types()),
+    Undocumented = [N || #type_decl{doc = undefined, name = N} <- Decls],
+    ?assertEqual([], Undocumented),
+    Own = [Q || {Q, _, D} <- ern_prelude:values(), is_binary(D)],
+    ?assert(length(Own) >= 18),
+    ModuleOnly = [Q || {Q, _, module} <- ern_prelude:values()],
+    Missing = [Q || [Ns, Name] = Q <- ModuleOnly, not in_module_docs(Ns, Name)],
+    ?assertEqual([], Missing),
+    %% one entry of the page for every type and every value documented here
+    {docs_v1, _, ernest, _, _, _, Entries} = ern_prelude:docs(),
+    ?assertEqual(length(ern_prelude:builtin_types()) + length(Decls) + length(Own),
+                 length(Entries)).
+
+in_module_docs(Ns, Name) ->
+    Mod = list_to_atom("ern@" ++ string:lowercase(atom_to_list(Ns))),
+    case code:which(Mod) of
+        File when is_list(File) ->
+            {ok, {_, [{"Docs", Chunk}]}} = beam_lib:chunks(File, ["Docs"]),
+            {docs_v1, _, _, _, _, _, Entries} = binary_to_term(Chunk),
+            lists:any(fun({{_, N, _}, _, _, _, _}) -> N =:= Name end, Entries);
+        _ ->
+            false
+    end.
 
 %% report §9.3: the declared types
 declared_types_test() ->
@@ -127,7 +157,8 @@ builtin_types_test() ->
     Named = [{list_to_atom(N), arity(Ps)}
              || L <- code_lines(section("### 9.1", "### 9.3")),
                 [N, Ps] <- [captures(L, "^([A-Z]\\w*)(\\([^)]*\\)|) ")]],
-    ?assertEqual(lists:sort(Base ++ Named), lists:sort(ern_prelude:builtin_types())).
+    ?assertEqual(lists:sort(Base ++ Named),
+                 lists:sort([{N, A} || {N, A, _} <- ern_prelude:builtin_types()])).
 
 %%
 %% Reading the report

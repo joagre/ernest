@@ -32,7 +32,28 @@ doc_examples_test_() ->
 examples(Ns, File) ->
     {ok, Src} = file:read_file(File),
     {ok, Decls} = ern_parser:parse_string(Src),
-    Blocks = [split_result(B) || Doc <- docs(Decls, []), B <- fences(Doc)],
+    check_examples(Ns, Src, docs(Decls, [])).
+
+%% report §9, Appendix E.0 rule 6: the prelude's page is documented as a
+%% module's is, so its examples type-check and those with `// => v` run,
+%% and every function it documents is called by one of them
+prelude_examples_test_() ->
+    {timeout, 60, fun() -> check_examples(['Docprelude'], <<>>, prelude_docs()) end}.
+
+prelude_called_test() ->
+    Fences = iolist_to_binary([B || Doc <- prelude_docs(), B <- fences(Doc)]),
+    Functions = [lists:join(".", [atom_to_list(A) || A <- Q])
+                 || {Q, T, D} <- ern_prelude:values(), is_binary(D), hd(Q) =/= 'Sys',
+                    lists:prefix("(", T)],
+    Uncalled = [F || F <- Functions, binary:match(Fences, list_to_binary([F, "("])) =:= nomatch],
+    ?assertEqual([], Uncalled).
+
+prelude_docs() ->
+    {docs_v1, _, _, _, #{<<"en">> := Mod}, _, Entries} = ern_prelude:docs(),
+    [Mod | [D || {_, _, _, #{<<"en">> := D}, _} <- Entries]].
+
+check_examples(Ns, Src, Docs) ->
+    Blocks = [split_result(B) || Doc <- Docs, B <- fences(Doc)],
     ?assert(Blocks =/= []),
     Numbered = lists:zip(lists:seq(1, length(Blocks)), Blocks),
     lists:foreach(fun({N, {Body, _}}) ->
@@ -205,10 +226,10 @@ see_also(File) ->
     {ok, Decls} = ern_parser:parse_string(Src),
     Known = lists:append([decl_names(D) || D <- Decls])
         ++ [atom_to_list(hd(Ns)) || {Ns, _} <- ern_prelude:stdlib_types()]
-        ++ [atom_to_list(hd(Q)) || {Q, _} <- ern_prelude:values(), length(Q) > 1]
+        ++ [atom_to_list(hd(Q)) || {Q, _, _} <- ern_prelude:values(), length(Q) > 1]
         ++ [atom_to_list(hd(I#iface.namespace)) || I <- ern_prelude:stdlib_ifaces()]
-        ++ [atom_to_list(N) || {N, _} <- ern_prelude:builtin_types()]
-        ++ [qualified(Q) || {Q, _} <- ern_prelude:values()]
+        ++ [atom_to_list(N) || {N, _, _} <- ern_prelude:builtin_types()]
+        ++ [qualified(Q) || {Q, _, _} <- ern_prelude:values()]
         ++ [qualified(Q) || I <- ern_prelude:stdlib_ifaces(), Q <- maps:keys(element(4, I))],
     Named = [N || Doc <- docs(Decls, []),
                   {match, Secs} <- [re:run(Doc, "#+ See also\\n\\n(.*?)(?=\\n#|$)",

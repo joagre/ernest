@@ -77,15 +77,18 @@ the shell is neither standard library nor library but the toolchain's own progra
   `Tab` listing the candidates with their types, forty at most; a command completing as a
   word of the shell's own; `Shift-Tab` showing a name's type and first sentence, and its page
   when pressed again. **Left, in this order:**
-  1. **The prelude's documentation.** `:doc monitor`, `:doc Down`, `:doc Optional` and
-     `:doc IoError` print "no documentation" (found 2026-09-24), so the names a program uses
-     most are the ones the shell cannot explain. Decided 2026-09-24: each entry of
-     `ern_prelude`'s table, the prelude's one source in code, kept equal to report §9 by
-     `ern_prelude_tests`, carries its documentation, written by E.0 rule 6 as a standard
-     library export's is; a `stdlib/prelude.ern` cannot declare `spawn` or `Int`. Report §9
-     gains the sentence; `:doc`, `Shift-Tab`, and `ernc --doc` of a page named `Prelude`
-     read it, and a test fails on a name without it. The guide's declarations of `Down`,
-     `Reason` and `RemoteError`, its last unchecked blocks, then become `:doc` sessions.
+  1. **Done 2026-09-24: the prelude's documentation.** `:doc monitor` had said "no
+     documentation". Each entry of `ern_prelude`'s table now carries its documentation,
+     written by E.0 rule 6: a doc string beside each built-in type and primitive, a doc block
+     above each declared type in its Ernest source, and `module` on an operation its type's
+     module documents, which a test checks that module does. `ern_prelude:docs/0` builds the `Docs` term
+     `ern_page` renders, so `:doc`, `Shift-Tab`, and the prelude's page from `ernc --doc` of
+     the standard library's root share one renderer. The doc tests type-check the page's
+     examples and run those that end in `// => v`. Report §9 says the prelude is documented
+     so, with no example for a type a system reference speaks (rule 8), and §11.4 where the
+     page is written. The guide's quotes of `Down`, `Reason`, and `RemoteError` are checked
+     against the table, marked `ernest-prelude`, rather than turned into `:doc` sessions,
+     whose whole pages would bury the two lines the guide means to show.
   2. **`:type` of a name prints its declared type.** `:type Io.readLine` prints `with e`
      where `:browse Io` prints `with m`, since an instance's variables carry no names
      (`ern_types:instantiate/2`, report §11.5): right for an expression, surprising for a

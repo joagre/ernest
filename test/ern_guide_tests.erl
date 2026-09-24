@@ -17,8 +17,9 @@
 %% file and the error is compared whole. A console whose command is
 %% `$ ern --shell` is a session: its `> ` lines are the inputs, and the rest
 %% is what the shell prints; `$ ern --shell words.erc` after a module is a
-%% session with that module loaded. Any other block is a fragment, which nothing
-%% checks.
+%% session with that module loaded. A block marked `ernest-prelude` holds
+%% the prelude's own declarations, each one of `ern_prelude`'s as written.
+%% Any other block is a fragment, which nothing checks.
 -module(ern_guide_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -31,6 +32,30 @@ guide_has_checked_examples_test() ->
     {Modules, Rejected} = lists:partition(fun({K, _}) -> K =/= rejected end, units()),
     ?assert(length(Modules) >= 15),
     ?assert(length(Rejected) >= 5).
+
+%% report §9.3, ernest_guide.md: a declaration the guide quotes from the
+%% prelude is the prelude's, word for word once spaces are ignored
+guide_prelude_declarations_test() ->
+    {ok, Text} = file:read_file(?GUIDE),
+    Lines = binary:split(Text, <<"\n">>, [global]),
+    Quoted = [normalize(D)
+              || {_, <<"ernest-prelude">>, _, Code} <- blocks(lists:zip(lists:seq(1, length(Lines)),
+                                                                        Lines), none, []),
+                 D <- declarations(Code)],
+    Prelude = [normalize(D) || D <- declarations(
+                                      binary:split(list_to_binary(ern_prelude:declared_types()),
+                                                   <<"\n">>, [global]))],
+    ?assert(length(Quoted) >= 3),
+    ?assertEqual([], Quoted -- Prelude).
+
+%% Each `type` declaration of some lines, with the lines that continue it.
+declarations([]) -> [];
+declarations([<<"type ", _/binary>> = L | Ls]) ->
+    {Cont, Rest} = lists:splitwith(fun(C) -> binary:first(<<C/binary, "x">>) =:= $\s end, Ls),
+    [iolist_to_binary(lists:join(" ", [L | Cont])) | declarations(Rest)];
+declarations([_ | Ls]) -> declarations(Ls).
+
+normalize(D) -> re:replace(string:trim(D), "\\s+", " ", [global, {return, binary}]).
 
 %% ernest_guide.md: every complete example compiles, and every example with
 %% its output shown prints that output
