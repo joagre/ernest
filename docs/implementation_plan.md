@@ -219,6 +219,8 @@ options, then what is recorded and left alone.
     moving them would take `Sys.*` with them. This decides language_feedback.md's entry 12.
   - `Float.pow` returns `Optional(Float)`: `None` for a negative base with a fractional
     exponent and for zero to a negative power, a fault on overflow (E.9).
+  - §8.2 and §11.2 read as short paragraphs under run-in headings, as §11.1 does, and the
+    terminal's lines-and-keys fault joins §7.4's list.
 - **The names of the options to `ernc` and `ern`.** Both tools grew their options one MVP at
   a time and the set has never been read whole. Under review: the three words for a
   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the

@@ -3738,6 +3738,10 @@ Twenty-two types are in §9.3 and the rule that put them there was written nowhe
 
 E.9 made `Float.sqrt`, `Float.log`, `asin` and `acos` return `Optional` for their domain, as E.0 rule 4 asks of a partial operation, and left `Float.pow` typed as total, faulting for a negative base with a fractional exponent and for zero to a negative power. Those are domain gaps of the kind `sqrt` and `log` answer with `None`; overflow is the range, which §3.1 makes a fault for every float operation, `*` among them. `Float.pow` now returns `Optional(Float)`, `None` for the two gaps, and still faults on overflow. The guard is two comparisons in Ernest in front of the shim, as `sqrt` has one.
 
+## §8.2 and §11.2 Split Into Headed Paragraphs, 2026-09-24
+
+§8.2's account of the system processes and §11.2's of the shell had each grown into one paragraph, of 361 and 879 words, which a reader could not find a rule in. Both now read as §11.1 does, short paragraphs under run-in headings, with the substance unchanged. What changed with the form: a rationale clause each went ("since neither side can answer for the other", "the shell being a source that can always deliver", and the reason an input cannot settle a later one's type); §8.2's sentence on the shell's terminal went, since §11.2 states it; and the fault a program meets by reading the terminal both as lines and as keys joined §7.4's list, which has held every cause since the entry above on faults. The terminal's contract stays in §8.2 rather than moving to E.16, since it is the runtime's system process that keeps it, not the library module.
+
 ## Later
 
 Planned or considered, not in the language today.
