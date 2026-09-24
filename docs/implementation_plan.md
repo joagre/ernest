@@ -235,7 +235,7 @@ options, then what is recorded and left alone.
     to write the comparison (§11.5).
   - A last reading of the whole report after the day's changes closes the review; it found
     seams, no new rule. The review is done.
-  - **Next, before the outside reading:** §6.6 rewritten top-down, the rules unchanged. It
+  - **Done 2026-09-24, before the outside reading:** §6.6 rewritten top-down, the rules unchanged. It
     opens with the rule a reader needs first, that a `Reply`, and any value that contains
     one, is used exactly once on every path, by `answer` or by a use that hands the
     obligation on; then which types contain a reply, where such a value may not go, how

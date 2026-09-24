@@ -503,7 +503,7 @@ Addresses have no equality; identity is expressed in the protocol. There is no r
 
 ### 6.6 Request-reply
 
-A `Reply(a)` is a one-shot address for the answer to a request, answered exactly once. It is *linear*: a value of `Reply(a)`, or of any type containing one, is consumed exactly once.
+A request carries a `Reply(a)`, a one-shot address for its answer.
 
 ```
 Address.call        : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
@@ -513,22 +513,35 @@ answer              : (Reply(a), a) -> Unit with m
 
 `Address.call(addr, mk, ms)` allocates a fresh `r : Reply(a)`, sends `mk(r)` to `addr`, and returns `Some(v)` when the recipient answers or `None` after `ms` milliseconds, a time below 0 being 0. The clock starts at the call. A reply that arrives together with the timeout may be delivered or discarded. `Address.callForever(addr, mk)` waits without limit and returns `a`. `answer(r, v)` sends `v` to the caller. A reply travels by an identifier private to the call, never through the caller's mailbox. A late answer, after a timeout or the caller's death, is discarded silently, as is a second answer to a `Reply` already answered. The recipient cannot observe whether the caller still waits.
 
-A type is *reply-carrying* if it is `Reply(a)` or has a constructor field or tuple component of a reply-carrying type. The property is transitive: `type Request = Get(reply : Reply(Int))` is reply-carrying, and so is `type Envelope = Env(msg : Request)`. It is by type, not by constructor: every value of `type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop` is reply-carrying, `Stop` included. A declared type is reply-carrying at an instantiation whose type argument is: `Box(Reply(Int))` for `type Box(a) = Box(a)`. A built-in type is never reply-carrying through its arguments: `Address(PongMsg)` is not.
+**The rule.** A `Reply` is answered exactly once, and so is every value that contains one: on every path from where it is bound, it is *consumed* exactly once. `answer(r, v)` consumes a `Reply` by answering it. Every other consumption hands the obligation on:
 
-A reply-carrying value may appear as a constructor field, a tuple component, a function parameter, a variable bound by `let`, by a pattern, or in a `receive` clause, a capture of a lambda, or the result of a function whose declared result type is reply-carrying. Anywhere else it is a type error, in particular as an element of `List`, `Map`, `Set`, `Optional`, or `Either`, or as an operand of `==` or `!=`. `as` on a reply-carrying scrutinee is a type error. A pattern on a reply-carrying value binds every reply-carrying field; `_` or an omitted field there is a type error. The match consumes the scrutinee. The obligation passes to the variables the pattern binds; a constructor with no reply-carrying field, `Stop` above, discharges it.
+- Passing the value to a function whose parameter is reply-carrying at that instantiation hands it to the callee. A callee that duplicates or discards the parameter rejects the call (§3.9).
+- `send` hands it to the `receive` clause that binds the value.
+- Placing it in a constructor field or tuple component of reply-carrying type hands it to the built value.
+- Returning it from a function whose result type is reply-carrying hands it to the caller.
+- Capturing it in a lambda hands it to the lambda, which is then reply-carrying itself. The lambda is consumed exactly once, by a call or as `spawn`'s direct argument, and may appear nowhere else. `let f = fn() = worker(r); spawn(Local, f)` is legal; with `f()` after the `spawn`, `f` is consumed twice.
 
-Every binding of a reply-carrying value is an obligation: on every path from the binding the value is consumed exactly once. The bindings are a parameter, a `receive` variable, a lambda's capture, a pattern variable, a `let`, and the result of a call. Consumption is one of:
+A value is bound by a parameter, a `let`, a pattern variable, a `receive` variable, a lambda's capture, or the result of a call, and each binding is an *obligation*. The check is per function and crosses no call boundary. It is static: every path makes the consumption, and whether execution reaches it is not checked, since non-termination, a fault, or an indefinite wait may prevent it.
 
-- `answer(r, v)`, the only primitive that discharges a `Reply`.
-- Passing the value to a function whose parameter is reply-carrying at that instantiation. The obligation passes to the callee; a callee that duplicates or discards it rejects the call (§3.9).
-- `send`. The obligation passes to the `receive` clause that binds the value.
-- Placing the value in a constructor field or tuple component of reply-carrying type. The built value carries the obligation.
-- Returning the value from a function whose result type is reply-carrying. The obligation passes to the caller.
-- Capturing the value in a lambda. The lambda is then reply-carrying itself: it is consumed exactly once, by a call or as `spawn`'s direct argument, and may appear nowhere else. `let f = fn() = worker(r); spawn(Local, f)` is legal; with `f()` after the `spawn`, `f` is consumed twice.
+```
+type Request = Get(reply : Reply(Int)) | Stop
 
-An `if`, `match`, `receive`, or block whose value is reply-carrying consumes or passes it on in every branch. A reply-carrying value is never dropped by a statement, since a statement has type `Unit` (§5.4): `Get(reply = r); Unit` is a type error. The `mk` callback of `Address.call` is checked by this rule: `r` is consumed by placement in the message `mk` returns, and `Address.call` discharges the message.
+fn serve(request : Request) -> Unit with m = match request {
+    Get(reply = r) -> answer(r, 42)  // accepted: r is answered on its one path
+  | Stop -> Unit                     // Stop carries no reply
+}
 
-The check is per function and crosses no call boundary. It is static: every path calls the consumption. Whether execution reaches the call is not checked; non-termination, a fault, or an indefinite wait may prevent it. `fn twice(dst : Address(Request), request : Request) = { send(dst, request); send(dst, request) }` is rejected: `request` is consumed by the first `send` and used by the second. `match req { Get() -> ... }` on `Get(reply : Reply(Int))` is rejected: the omitted field would drop a reply.
+fn twice(dst : Address(Request), request : Request) -> Unit with m = {
+    send(dst, request);
+    send(dst, request)               // rejected: request is consumed twice
+}
+```
+
+**Which values contain a reply.** A type is *reply-carrying* if it is `Reply(a)` or has a constructor field or tuple component of a reply-carrying type. The property is transitive: `Request` above is reply-carrying, and so is `type Envelope = Env(msg : Request)`. It is by type, not by constructor: every value of `Request` is reply-carrying, `Stop` included. A declared type is reply-carrying at an instantiation whose type argument is: `Box(Reply(Int))` for `type Box(a) = Box(a)`. A built-in type is never reply-carrying through its arguments: `Address(Request)` is not.
+
+**Where such a value may stand.** A reply-carrying value stands only as a constructor field, a tuple component, a function parameter, a variable bound by `let`, by a pattern, or in a `receive` clause, a capture of a lambda, or the result of a function whose declared result type is reply-carrying. Anywhere else it is a type error, in particular as an element of `List`, `Map`, `Set`, `Optional`, or `Either`, or as an operand of `==` or `!=`. A statement never drops one, since a statement has type `Unit` (§5.4): `Get(reply = r); Unit` is a type error.
+
+**Patterns and branches.** A match consumes its scrutinee, and the obligation passes to the variables the pattern binds. A pattern on a reply-carrying value binds every reply-carrying field, so `_` or an omitted field there is a type error: `match request { Get() -> ... }` would drop a reply. `as` on a reply-carrying scrutinee is a type error. A constructor with no reply-carrying field, `Stop` above, discharges the obligation. An `if`, `match`, `receive`, or block whose value is reply-carrying consumes it or hands it on in every branch. The `mk` callback of `Address.call` is checked by the rule: `r` is consumed by placement in the message `mk` returns, and `Address.call` discharges the message.
 
 ### 6.7 Remote computation
 

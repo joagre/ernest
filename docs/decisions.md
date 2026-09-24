@@ -3782,6 +3782,10 @@ Max-munch makes `<-` one token, so `a<-1` is `a <- 1` and not a comparison with 
 
 A reading of the whole report after the day's changes, against itself, found seams the changes had left and no new rule to decide. §0's first sentence carried an exception that §3.9 states; §3.8 and §3.10 both stated a foreign type's equality; a sentence on printing sat among §3.9's effect rules and belongs to §11.5; §4.2's paragraph on export also held the namespaces a module may not take; §5.9 stated coverage as a fact where it is a requirement; §6.7 ended in advice; §7.3's list of causes had fallen behind §7.4's and now defers to it, §7.4 gaining the adapting function's fault and a heading that fits it; "cause" stood for a `Reason` in §8.6 and §10; Appendix D's use of a library read cryptically; E.0 rule 2 said "character" for a `Char`; and the glossary's `with` named one of its two uses.
 
+## §6.6 Reads Top-Down, 2026-09-24
+
+§6.6 stated the reply discipline bottom-up: the signatures, what "reply-carrying" means, where such a value may appear, what consumes it, and the rule itself in the middle of the fourth paragraph, so a reader rebuilt the purpose from the details. It now opens with the rule, that a `Reply` and every value that contains one is consumed exactly once on every path, by `answer` or by a use that hands the obligation on; then the obligation and the static check; one accepted and one rejected function side by side, both compiled; and after them which types carry a reply, where such a value may stand, and how patterns and branches share the obligation. No rule changed. The report stays one document: moving the ABI and the toolchain out, as a Wirth report would, was weighed against the single source of truth and refused.
+
 ## Later
 
 Planned or considered, not in the language today.
