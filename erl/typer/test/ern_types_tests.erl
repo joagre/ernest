@@ -133,5 +133,5 @@ format_test() ->
 format_error_test() ->
     ?assertEqual("a function of 1 argument where one of 2 was expected",
                  ern_types:format_error({arity, 1, 2})),
-    ?assertEqual("process code called from a pure function",
+    ?assertEqual("a pure function where one that runs in a process is needed",
                  ern_types:format_error(process_only_vs_pure)).

@@ -89,6 +89,22 @@ the shell is neither standard library nor library but the toolchain's own progra
   a terminal test for `Shift-Tab` and command completion — the editor's own tests cover the
   key, and the behaviour was checked by hand, but the pty test written for it raced its own
   output and was taken out rather than left failing.
+- **An Erlang module of one's own cannot be loaded.** Found 2026-09-24: a `foreign fn` may
+  name `store_helper:lookup/1`, and the guide's §8.5 teaches such a helper, but `ern` loads
+  `.erc` modules from the load path and nothing puts a user's `.beam` where the host finds
+  it, so only the host's own modules can stand behind a `foreign fn`. The report is silent on
+  where a foreign function's module comes from. To decide, with MVP 2.7's libraries in view:
+  whether each load-path directory also holds `.beam` files, which `ernc` and `ern` add to
+  the host's code path, or a library carries its Erlang modules in a place of its own.
+  Until then the guide's helper is a fragment and says that it waits.
+- **`:doc` knows nothing of the prelude.** Found 2026-09-24: `:doc monitor`, `:doc Down`,
+  `:doc Optional` and `:doc IoError` print "no documentation", so the names a program uses
+  most are the ones the shell cannot explain, and `Shift-Tab` shows nothing on them. The
+  prelude is a table in `erl/typer/src/ern_prelude.erl` whose source is report §9, and no
+  doc block exists for it. To decide: where the prelude's documentation lives, whether a
+  `stdlib/prelude.ern` of declarations and doc blocks kept equal to §9 by a test, or text
+  drawn from §9 itself. When it lands, the guide's declarations of `Down`, `Reason` and
+  `RemoteError`, fragments until then, become `:doc` sessions the guide test checks.
 - **Typing ahead while an input runs looks wrong.** A test that sent a second input before
   the first had finished never saw the second's result. Found 2026-09-21, not diagnosed, and
   recorded in the language note; it belongs with the session of real use below.
@@ -182,7 +198,16 @@ without boasting. Each step is a stop.
    fault is observed through `monitor`; the sections after it moved up by one. Each of the
    three has a complete program that the test runs, and the rules on faults that were in
    §3.4 and §5.2 are said there once. Step 6's supervision joins it.
-5. **One running example through §2 to §5**, and every fragment either completed or cut.
+5. **Done 2026-09-24: every fragment completed or cut.** An expression became a shell
+   session the test replays, a declaration a complete module, and a signature the shell's
+   `:type`; blocks naming one file are its parts, and a console may run `ern --test`. The
+   guide test checks 56 examples. Three blocks wait, each on a plan item above: `Down` and
+   `Reason`, and `RemoteError`, on `:doc` for the prelude, and §8.5's Erlang helper on
+   loading an Erlang module of one's own. Completing them found and fixed two defects: the
+   prompt took a name alone in a `let`, where §11.2 makes it a block `let` with a pattern,
+   and a pure callback given to `spawn` was reported as "process code called from a pure
+   function". Split from the running example on 2026-09-24.
+5b. **One running example through §2 to §5**, each stage a complete program the test runs.
 6. **Supervision and "let it crash"**, the idioms the log lists: a monitor, a restart, a
    supervisor in fifteen lines.
 7. **The tools and a bridge:** `ernc`, `ern`, `--test`, `--doc`, the shell and the Emacs mode

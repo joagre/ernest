@@ -485,7 +485,7 @@ format_error({arity, N, M}) ->
 format_error({pure_vs_effect, _}) ->
     "a pure function where a function with a mailbox effect was expected, or the reverse";
 format_error(process_only_vs_pure) ->
-    "process code called from a pure function";
+    "a pure function where one that runs in a process is needed";
 format_error({occurs, _, _}) ->
     "a type that would contain itself";
 format_error({mismatch, _, _}) ->

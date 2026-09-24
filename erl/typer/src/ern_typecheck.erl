@@ -15,7 +15,8 @@
 
 -export([check/3, check/4, check_string/2, prelude_env/0, prelude_names/0]).
 -export([is_reply_carrying/2, resolve_type/2, lookup_type/2, lookup_con/4, type_state/1,
-         set_type_state/2, node_type/1, foreign_impl/1, segment_spec/1, is_value/2]).
+         set_type_state/2, node_type/1, foreign_impl/1, segment_spec/1, is_value/2,
+         typed_pattern_bindings/1]).
 
 -export_type([env/0, session/0]).
 
@@ -1337,9 +1338,12 @@ undetermined_bindings(Node, FnT, #env{st = St} = Env) ->
          end, Node, Env),
     ok.
 
+%% The names a pattern binds, with their types, in the order written; the
+%% types are undefined in a pattern not yet checked.
+-spec typed_pattern_bindings(tuple()) -> [{atom(), term()}].
 typed_pattern_bindings(#p_var{name = N, type = T}) -> [{N, T}];
 typed_pattern_bindings(#p_as{name = N, type = T, pattern = P}) ->
-    [{N, T} | typed_pattern_bindings(P)];
+    typed_pattern_bindings(P) ++ [{N, T}];
 typed_pattern_bindings(#p_con{args = {positional, P}}) -> typed_pattern_bindings(P);
 typed_pattern_bindings(#p_con{args = {named, Fs}}) ->
     lists:append([typed_pattern_bindings(P) || #field_pat{pattern = P} <- Fs]);

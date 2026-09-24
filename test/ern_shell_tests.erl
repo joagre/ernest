@@ -485,6 +485,34 @@ reply_input() ->
     ?assertEqual(nomatch, binary:match(Out, <<"Stop : Req">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)).
 
+%% report §11.2, §5.4: a `let` at the prompt is a block `let`, so its
+%% pattern binds each name it holds, in the order written, `let _ = e`
+%% binds none, a refutable pattern is refused as in a block, and `<-` is
+%% refused, having no block to end. A regression test: the prompt took a
+%% name alone, as a top-level `let` does
+pattern_let_test_() ->
+    {timeout, 60, fun pattern_let/0}.
+
+pattern_let() ->
+    In = filename:join("/tmp", "ern_plet_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = file:write_file(In, "let #(a, b) = #(1, \"two\")\n"
+                             "a + 1\n"
+                             "type P = P(name : String, age : Int)\n"
+                             "let P(name = n, age = g) as p = P(name = \"Ada\", age = 36)\n"
+                             "g\n"
+                             "let _ = 5\n"
+                             "let Some(y) = Some(1)\n"
+                             "let x <- Some(1)\n"
+                             "let #(e, f) = #([], [])\n"),
+    {0, Out} = sh("../bin/ern --shell < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"> a : Int\nb : String\n> 2 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"n : String\ng : Int\np : P\n> 36 : Int\n">>)),
+    %% `let _ = 5` prints nothing and binds nothing
+    ?assertMatch({_, _}, binary:match(Out, <<"36 : Int\n> > ">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"a `let` pattern must be irrefutable">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"a `let` with `<-` at the prompt has no block">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"the types of e, f are not determined">>)).
+
 %% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
 %% under the source root and puts it in scope; `:reload` compiles again
 %% what has changed, names what is still in the previous version, and ends

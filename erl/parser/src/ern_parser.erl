@@ -6,7 +6,7 @@
 %% pos is its span, set by w/1 from the end of the token before the rest.
 -module(ern_parser).
 
--export([parse/1, parse_string/1, parse_expr/1, parse_type/1]).
+-export([parse/1, parse_string/1, parse_expr/1, parse_stmt/1, parse_type/1]).
 
 -export_type([error/0]).
 
@@ -57,6 +57,25 @@ parse_expr(Text) ->
                 {E, Rest} = expr(prune_docs(Tokens)),
                 case Rest of
                     [{eof, _}] -> {ok, E};
+                    [T | _] -> fail(pos(T), "expected end of input instead of " ++ describe(T))
+                end
+            catch
+                throw:{parse_error, #diag{} = D} -> {error, at_end(Tokens, D)}
+            end;
+        {error, _} = E ->
+            E
+    end.
+
+%% One statement of a block, for the shell: report §11.2, a `let` at the
+%% prompt is a block `let`.
+-spec parse_stmt(unicode:chardata()) -> {ok, tuple()} | {error, error()}.
+parse_stmt(Text) ->
+    case ern_lexer:tokenize(Text) of
+        {ok, Tokens} ->
+            try
+                {S, Rest} = stmt(prune_docs(Tokens)),
+                case Rest of
+                    [{eof, _}] -> {ok, S};
                     [T | _] -> fail(pos(T), "expected end of input instead of " ++ describe(T))
                 end
             catch

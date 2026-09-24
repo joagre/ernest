@@ -157,11 +157,16 @@ At a terminal the shell edits the line with Readline's Emacs keys, and keeps a h
 
 ### 1.3 Prediction exercise
 
-Consider two variations on hello-world:
+Consider two variations on hello-world, (a) with no annotation:
 
+```ernest
+export fn main() = Io.println("hello, world")
 ```
-export fn main() = Io.println("hello, world")             // (a) no annotation
-export fn main() -> Unit = Io.println("hello, world")     // (b) declared pure
+
+and (b) with `-> Unit`:
+
+```ernest-rejected
+export fn main() -> Unit = Io.println("hello, world")
 ```
 
 Which of these compile?
@@ -182,14 +187,15 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 - **`Bool`** — `true` or `false`. `&&` and `||` short-circuit, and `!` negates.
 - **`Unit`** — one value, also called `Unit`.
 
-A raw string, between backticks, is taken exactly as written, with no escapes. It is the form for text full of backslashes or quotes, and for text over several lines:
+A raw string, between backticks, is taken exactly as written, with no escapes. It is the form for text full of backslashes or quotes, and for text over several lines, since a line break in it is part of the text. The shell prints a string as a `"..."` literal, so it shows what the raw string saved writing:
 
-```
-let number = `\d+(\.\d+)?` // a regular expression, not "\\d+(\\.\\d+)?"
-let fixture = `{
-    "name": "ada",
-    "tags": ["a", "b"]
-}`
+```console
+$ ern --shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> let number = `\d+(\.\d+)?`
+number : String
+> number
+"\\d+(\\.\\d+)?" : String
 ```
 
 `Int` division `/` and remainder `%` by zero fault, and so does `Float` arithmetic whose result would not be finite. `Int.div` and `Int.mod` return `Optional(Int)` instead. A fault ends the process (§6).
@@ -198,27 +204,28 @@ let fixture = `{
 
 ### 2.2 Bindings and blocks
 
-Inside a block:
+At the prompt, as in a block, `let` binds a name:
 
-```
-let x = 5;
-let y = x + 1        // y is 6
+```console
+$ ern --shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> let x = 5
+x : Int
+> let y = x + 1
+y : Int
+> let area = { let side = 5; side * side }
+area : Int
+> area
+25 : Int
 ```
 
 A block groups statements between `{` and `}`, separated by `;`. Its value is the last statement, which must be an expression, with no `;` after it. Statements run in order, each to completion. A statement before the last must be `Unit`, and a value dropped on purpose is dropped with `let _ = e`, as in §0.
-
-```
-let area = {
-    let side = 5;
-    side * side
-}                    // area is 25
-```
 
 Shadowing is allowed: a later `let` with the same name hides the earlier one from the next statement on. The original value is unchanged where it was already used; there is no mutation.
 
 **Constants.** A `let` at the top level, outside any `fn`, is a constant, evaluated once before `main` starts. Its name is lowercase like any value's; an uppercase name is a type or a constructor. `export` makes it visible to other modules.
 
-```
+```ernest
 let pi : Float = 3.14159265358979
 let defaultPort : Int = 8080
 export let helloBanner : String = "hello, world"
@@ -228,15 +235,11 @@ A constant's initializer is pure: setup that sends or spawns belongs in `main`. 
 
 ### 2.3 Sum types and pattern matching
 
-Declare a type with named cases:
+A type declaration names its cases. `Direction` has four *constructors*, and `match` picks between them:
 
 ```ernest
 type Direction = North | South | East | West
-```
 
-Four *constructors*. Pick between them with `match`:
-
-```
 fn opposite(d : Direction) -> Direction = match d {
     North -> South
   | South -> North
@@ -267,43 +270,47 @@ Three shapes of constructor, with different usage:
 
 For constructors that carry several things, name each field:
 
+```console
+$ ern --shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> type Person = Person(name : String, age : Int)
+type Person
+> let alice = Person(name = "Alice", age = 30)
+alice : Person
+> let older = Person(..alice, age = 31)
+older : Person
+> older
+Person(age = 31, name = "Alice") : Person
 ```
-type Person = Person(name : String, age : Int)
 
-let alice = Person(name = "Alice", age = 30);
-let older = Person(..alice, age = 31)          // "Alice", 31
-```
+`..alice` copies the fields not listed, and `age = 31` overrides one. `alice` is unchanged; `older` is a second `Person` value. Ernest uses `:` for types (`name : String`) and `=` for values (`name = "Alice"`); function result types use `->`.
 
-`..alice` copies unlisted fields; `age = 31` overrides. `alice` is unchanged — the block just names a second `Person` value. Ernest uses `:` for types (`name : String`) and `=` for values (`name = "Alice"`); function result types use `->`.
-
-The fields may be given in any order, and are evaluated in the order written.
+The fields may be given in any order, and are evaluated in the order written. The shell prints them in the order of their names.
 
 ### 2.5 Lists, tuples, maps, sets
 
-**Lists** with `List(a)`, `[]` empty, `::` right-associative cons:
+**Lists** are `List(a)`, with `[]` for the empty list and `::`, right-associative, to add an element in front. **Tuples** are `#(...)`, of fixed size and positional. **Maps and sets** have no literal syntax and are built with functions:
 
-```
-let xs = 1 :: [2, 3];               // [1, 2, 3]
-match xs {
-    [] -> "empty"
-  | head :: rest -> "first is " <> Int.toString(head)
-}
-```
-
-**Tuples** with `#(...)` prefix — fixed size, positional:
-
-```
-let point = #(3, 4);                 // #(Int, Int)
-let #(x, y) = point                  // x = 3, y = 4
-```
-
-**Maps and sets** — no literal syntax; build with functions:
-
-```
-let m = Map.empty |> Map.put("a", 1) |> Map.put("b", 2);
-let n = Map.get(m, "a");             // Some(1)
-let c = Map.update(m, "a", fn(v) = Optional.withDefault(v, 0) + 1);   // "a" is 2
-let s = Set.fromList([1, 2, 3])
+```console
+$ ern --shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> let xs = 1 :: [2, 3]
+xs : List(Int)
+> match xs { [] -> "empty" | head :: _ -> "first is " <> Int.toString(head) }
+"first is 1" : String
+> let point = #(3, 4)
+point : #(Int, Int)
+> let #(x, y) = point
+x : Int
+y : Int
+> let m = Map.empty |> Map.put("a", 1) |> Map.put("b", 2)
+m : Map(String, Int)
+> Map.get(m, "a")
+Some(1) : Optional(Int)
+> Map.update(m, "a", fn(v) = Optional.withDefault(v, 0) + 1)
+Map.fromList([#("a", 2), #("b", 2)]) : Map(String, Int)
+> Set.fromList([1, 2, 3])
+Set.fromList([1, 2, 3]) : Set(Int)
 ```
 
 `Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call.
@@ -314,19 +321,33 @@ Map keys and set elements need equality. `==` is defined on every type except on
 
 The same patterns appear in `match` clauses, `let` bindings, and function parameters. A `let` and a parameter need an *irrefutable* pattern, one that cannot fail to match: a name, `_`, a tuple of irrefutable patterns, or the only constructor of its type with irrefutable fields.
 
-```
-let #(x, y) = point;                              // irrefutable
-let #(Some(x), y) = pair                          // type error: Some can fail
-let Rectangle(width = w, height = h) = rect       // irrefutable if Rectangle is the only constructor
+```console
+$ ern --shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> let #(x, y) = #(3, 4)
+x : Int
+y : Int
+> let #(Some(a), b) = #(Some(1), 2)
+input:1:1: a `let` pattern must be irrefutable
+1 | let #(Some(a), b) = #(Some(1), 2)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | = help: use `match` for a pattern that can fail
+> type Shape = Rectangle(width : Int, height : Int)
+type Shape
+> let Rectangle(width = w, height = h) = Rectangle(width = 2, height = 3)
+w : Int
+h : Int
 ```
 
-Identifiers in patterns *introduce fresh bindings* — they do not compare with existing variables. To compare, use a guard:
+A name in a pattern *introduces* a binding; it does not compare with a variable already bound. To compare, use a guard:
 
-```
-match m {
-    n when n == x -> "same as x"
-  | _ -> "different"
-}
+```console
+$ ern --shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> let x = 3
+x : Int
+> match 3 { n when n == x -> "same as x" | _ -> "different" }
+"same as x" : String
 ```
 
 A name appears at most once in a pattern.
@@ -358,13 +379,7 @@ A guard is a pure `Bool` expression. A guard that is `false` passes to the next 
 
 `if cond then a else b` is an expression, and both branches have the same type. There is no `if` without `else`. As an operand it is parenthesized: `1 + (if c then a else b)`.
 
-`<-` short-circuits on `Optional` or `Either`. The prelude defines them as:
-
-```
-// prelude, for reference
-type Optional(a) = None | Some(a)
-type Either(e, a) = Left(e) | Right(a)
-```
+`<-` short-circuits on `Optional`, which is `None | Some(a)` as §2.3 declares it, or on `Either(e, a)`, which is `Left(e) | Right(a)`.
 
 An Optional chain:
 
@@ -397,8 +412,11 @@ A block is an `Optional` chain or an `Either` chain, never both. To run a step t
 
 Ernest's stdlib is subject-first. `|>` reads left-to-right:
 
-```
-"abc" |> String.toList |> List.reverse |> String.fromList      // "cba"
+```console
+$ ern --shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> "abc" |> String.toList |> List.reverse |> String.fromList
+"cba" : String
 ```
 
 `x |> f` is `f(x)`, and `x |> f(a, b)` is `f(x, a, b)`: the pipe inserts the first argument. A parenthesized right-hand side is a value the pipe applies, so `x |> (adder(3))` is `adder(3)(x)`, and a lambda is written the same way, `x |> (fn(y) = y + 1)`.
@@ -421,9 +439,15 @@ What a type does not say, the entry in Appendix E does: `List.sort` is stable, `
 
 Given:
 
-```
-let p = Person(name = "Alice", age = 30);
-let q = Person(..p, age = 31)
+```console
+$ ern --shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> type Person = Person(name : String, age : Int)
+type Person
+> let p = Person(name = "Alice", age = 30)
+p : Person
+> let q = Person(..p, age = 31)
+q : Person
 ```
 
 Does `p` change?
@@ -447,12 +471,22 @@ Function arity is fixed and part of the type. `hypotenuseSquared(3, 4)` is `25`.
 
 ### 3.2 Lambdas and closures
 
+```console
+$ ern --shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> let add1 = fn(x) = x + 1
+add1 : (Int) -> Int
+> add1(5)
+6 : Int
+> let n = 10
+n : Int
+> let addN = fn(x) = x + n
+addN : (Int) -> Int
+> addN(1)
+11 : Int
 ```
-let add1 = fn(x) = x + 1;
-let six = add1(5);         // 6
-let n = 10;
-let addN = fn(x) = x + n   // closure captures n
-```
+
+`addN` captures `n`: a lambda closes over the bindings it names.
 
 A lambda's body runs as far as it can, to the `,`, `;`, or closing bracket of the form around it.
 
@@ -501,10 +535,20 @@ The process operations, `self`, `send`, `spawn`, `receive`, `answer`, `Address.c
 
 ### 3.6 One spawn corner: pure callbacks
 
-`spawn`'s callback has type `() -> Unit with n` where `n` also appears in the returned `Address(n)`. A pure callback (no `with`) cannot be spawned — the callback's mailbox must be a real type. To spawn a process that never receives, annotate:
+`spawn`'s callback has type `() -> Unit with a`, and the `a` is also the mailbox of the `Address(a)` it returns. A callback declared pure has no mailbox and cannot be spawned. A process that never receives is spawned with the mailbox `Never`:
 
-```
-spawn(Local, fn() -> Unit with Never = Unit)
+```console
+$ ern --shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> :type spawn
+spawn : (Where, () -> Unit with a) -> Address(a) with e
+> spawn(Local, fn() -> Unit = Unit)
+input:1:14: the argument does not fit spawn: a pure function where one that runs in a process is needed
+1 | spawn(Local, fn() -> Unit = Unit)
+  | ----- spawn : (Where, () -> Unit with a) -> Address(a) with e
+  |              ^^^^^^^^^^^^^^^^^^^
+> spawn(Local, fn() -> Unit with Never = Unit)
+<address> : Address(Never)
 ```
 
 ### 3.7 Prediction exercise
@@ -565,13 +609,23 @@ A wildcard or omitted reply field, and an `as` alias on a reply-carrying scrutin
 
 A generic helper that duplicates or discards its parameter (`fn dup(x) = #(x, x)`, `fn discard(x) = Unit`) infers a *not-reply-carrying* restriction — the parameter cannot be instantiated to a reply-carrying type. `fn identity(x) = x` passes through without duplication and carries no such restriction. The compiler prints the restriction as a mark on the variable: `dup : (a!) -> #(a!, a!)`, and likewise `equal : (a=, a=) -> Bool` for the equality constraint of §2.5. You never write the marks; you see them in error messages and generated documentation, and `first : (a, b!) -> a` tells you at a glance that `first` cannot be handed a reply as its second argument. No mark appears where it could not matter: in `Optional.withDefault : (Optional(a), a) -> a` the variable `a` is also an `Optional`'s element, which can never be a reply.
 
-An intentional error:
+Sending a request twice consumes its reply twice:
 
-```
+```ernest-rejected
+type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
+
 fn twice(dst : Address(CounterMsg), msg : CounterMsg) -> Unit with m = {
     send(dst, msg);
-    send(dst, msg)      // rejected: msg is reply-carrying, already consumed
+    send(dst, msg)
 }
+```
+
+```console
+$ ernc resend.ern
+resend.ern:5:15: the reply-carrying value msg is consumed twice
+4 |     send(dst, msg);
+5 |     send(dst, msg)
+  |               ^^^
 ```
 
 ### 4.3 Selective receive and `after`
@@ -597,14 +651,14 @@ If a `Wake` is already in the mailbox, `waitForData` skips it — leaves it queu
 
 Synchronous request-reply, used from the caller side:
 
-```
-match Address.call(c, fn(r) = Get(reply = r), 1000) {
-    Some(n) -> Io.println("count is " <> Int.toString(n))
-  | None -> Io.println("counter did not answer")
-}
+```console
+$ ern --shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> :type Address.call
+Address.call : (Address(a), (Reply(b)) -> a, Int) -> Optional(b) with e
 ```
 
-`Address.call` allocates a fresh `Reply(a)`, passes it to the builder lambda, sends the resulting message to `c`, and waits up to 1000 ms for the reply. It returns `Some(v)` on success, `None` on timeout.
+`Address.call(c, fn(r) = Get(reply = r), 1000)` allocates a fresh `Reply(a)`, passes it to the builder lambda, sends the resulting message to `c`, and waits up to 1000 ms for the reply; §4.5 uses it. It returns `Some(v)` on success, `None` on timeout.
 
 Four rules:
 
@@ -617,9 +671,16 @@ For no-timeout callers, `Address.callForever(addr, mk)` waits as long as needed 
 
 ### 4.5 Running the counter
 
-Save the `CounterMsg` type and the `counter` loop from §4.1 together with the following `main` in a single file `counter.ern`. Compile with `ernc counter.ern` and run with `ern counter.erc`.
+The counter of §4.1 with a `main` that uses it, in `counter.ern`:
 
-```
+```ernest
+type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
+
+fn counter(n : Int) -> Unit with CounterMsg = receive {
+    Inc(k) -> counter(n + k)
+  | Get(reply = r) -> { answer(r, n); counter(n) }
+}
+
 export fn main() -> Unit with m = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
@@ -629,6 +690,12 @@ export fn main() -> Unit with m = {
       | None -> Io.println("counter did not answer")
     }
 }
+```
+
+```console
+$ ernc counter.ern
+$ ern counter.erc
+count is 8
 ```
 
 `spawn(Local, fn() = counter(0))` starts a new process on the current node, running the lambda; the returned `Address(CounterMsg)` is bound to `c`. `Local` versus `Peer("name")` selects where the process runs; peers are in §8. Inside the spawned lambda, `self()` returns the *child's* address, not the parent's — a parent that wants to hand its own address to the child must capture `self()` before spawning: `let me = self(); spawn(Local, fn() = child(me))`.
@@ -641,9 +708,10 @@ If the call succeeds, it returns 8: the same sender's two `Inc` messages arrive 
 
 Ernest processes can update their code without restart. The mechanism is a protocol message the type carries explicitly — no automatic redeployment.
 
-Extend the counter declared in §4.1 with an `Upgrade` constructor (this replaces both the type and the function above):
+The counter of §4.5 gains an `Upgrade` constructor. The program is three parts of one file, `counter.ern`, which replaces the one of §4.5:
 
 ```ernest
+// counter.ern
 type CounterMsg =
     Inc(Int)
   | Get(reply : Reply(Int))
@@ -660,7 +728,8 @@ fn counter(n : Int) -> Unit with CounterMsg = receive {
 
 A replacement loop that doubles each increment:
 
-```
+```ernest
+// counter.ern
 fn doublingCounter(n : Int) -> Unit with CounterMsg = receive {
     Inc(k) -> doublingCounter(n + 2 * k)
   | Get(reply = r) -> { answer(r, n); doublingCounter(n) }
@@ -668,24 +737,32 @@ fn doublingCounter(n : Int) -> Unit with CounterMsg = receive {
 }
 ```
 
-And a `main` that upgrades after the first `Get`. This `main` replaces the one from §4.5, just as the `CounterMsg` and `counter` above replace the ones from §4.1. Put the whole file together, recompile, and rerun.
+And a `main` that upgrades after the first `Get`:
 
-```
+```ernest
+// counter.ern
 export fn main() -> Unit with m = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
-        Some(n) -> Io.println("before upgrade: " <> Int.toString(n))    // 8
+        Some(n) -> Io.println("before upgrade: " <> Int.toString(n))
       | None -> Io.println("timeout")
     };
     send(c, Upgrade(migrate = fn(n) = n, next = doublingCounter));
     send(c, Inc(1));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
-        Some(n) -> Io.println("after upgrade: " <> Int.toString(n))     // 10
+        Some(n) -> Io.println("after upgrade: " <> Int.toString(n))
       | None -> Io.println("timeout")
     }
 }
+```
+
+```console
+$ ernc counter.ern
+$ ern counter.erc
+before upgrade: 8
+after upgrade: 10
 ```
 
 The address `c` is unchanged; the process behind it is now running `doublingCounter`. After the state 8, `Inc(1)` in the doubling loop adds 2, yielding 10.
@@ -741,9 +818,14 @@ One possible successful trace of the stdout is: `ping 3`, `pong 3`, `ping 2`, `p
 
 ### 5.2 `monitor` and `Down`
 
+```console
+$ ern --shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> :type monitor
+monitor : (Address(a), (Down) -> b) -> Unit with b
 ```
-monitor : (Address(a), (Down) -> m) -> Unit with m
 
+```
 type Down = Down(reason : Reason, function : String)
 type Reason = Returned | Killed | ProgramEnd | Fault(String)
 ```
@@ -752,19 +834,53 @@ type Reason = Returned | Killed | ProgramEnd | Fault(String)
 
 `wrap` is a function, so it can carry what you need to tell one death from another. A process that monitors a worker while waiting for its answer gets two messages, the answer and the death, and takes the answer; the death is still in the mailbox when the next worker is monitored. Addresses have no equality, so a `Down` cannot be asked which worker it is about. Give each worker a number and let the wrap close over it:
 
-```
-let child = spawn(Local, fn() -> Unit with Never = send(me, Result(run = run, value = work())));
-monitor(child, fn(d) = Died(run = run, down = d));
+```ernest
+type MainMsg = Result(run : Int, value : Int) | Died(run : Int, down : Down)
+
+fn work(n : Int) -> Int = n * n
+
+fn runWorker(run : Int) -> Optional(Int) with MainMsg = {
+    let me = self();
+    let child = spawn(Local, fn() -> Unit with Never =
+        send(me, Result(run = run, value = work(run))));
+    monitor(child, fn(d) = Died(run = run, down = d));
+    waitFor(run)
+}
+
+fn waitFor(run : Int) -> Optional(Int) with MainMsg = receive {
+    Result(run = r, value = v) when r == run -> Some(v)
+  | Died(run = r, down = _) when r == run -> None
+  | Died(run = _, down = _) -> waitFor(run)
+}
+
+fn report(run : Int) -> Unit with MainMsg = match runWorker(run) {
+    Some(v) -> Io.println("run " <> Int.toString(run) <> ": " <> Int.toString(v))
+  | None -> Io.println("run " <> Int.toString(run) <> ": the worker died")
+}
+
+export fn main() -> Unit with MainMsg = {
+    report(1);
+    report(2)
+}
 ```
 
-A message whose run is not the one being waited for is an earlier worker's, and is ignored. This is what the report means by identity being expressed in the protocol: the protocol is yours, and the wrap is where you put the identity in it.
+```console
+$ ern runs.erc
+run 1: 1
+run 2: 4
+```
+
+A death whose run is not the one being waited for is an earlier worker's, and `waitFor` passes over it. This is what the report means by identity being expressed in the protocol: the protocol is yours, and the wrap is where you put the identity in it.
 
 A fault in one process does not affect another, apart from the three cases of §6.3.
 
 ### 5.3 `kill`
 
-```
-kill : (Address(a)) -> Unit with m
+```console
+$ ern --shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> :type kill
+kill : (Address(a)) -> Unit with e
 ```
 
 `kill(addr)` requests termination of the process at `addr`; anyone monitoring receives `Down(reason = Killed, ...)`. It is a scheduling event, not an instantaneous halt — the target may run briefly before the runtime interrupts it. The REPL paper program combines `monitor` and `kill` into a supervised-child pattern that gives up after a timeout.
@@ -775,20 +891,14 @@ When forward progress is impossible, the entry process faults with `Fault("deadl
 
 ### 5.5 Adapting messages with `via`
 
-`monitor(child, wrap)` takes a function from the runtime's `Down` to your mailbox type. The standard library's system modules use the same shape wherever something arrives later: `Clock.alarm(ms, wrap)` puts `wrap(t)` in your mailbox after `ms` milliseconds, `t` the time it fired, and `Terminal.subscribe(wrap)` puts every key pressed and every resize in it.
-
-```
-type Msg = Tick(Int) | Input(Char)
-
-Clock.alarm(100, Tick)          // Tick(t) arrives, t the time it fired
-Clock.alarm(100, fn(_) = Stop)  // a message that needs no time ignores it
-```
-
-A single-positional constructor is a function value, so it passes as `wrap` directly, as `Died` does to `monitor`.
+`monitor(child, wrap)` takes a function from the runtime's `Down` to your mailbox type. The standard library's system modules use the same shape wherever something arrives later: `Clock.alarm(ms, wrap)` puts `wrap(t)` in your mailbox after `ms` milliseconds, `t` the time it fired, and `Terminal.subscribe(wrap)` puts every key pressed and every resize in it. A constructor with one positional field is a function value, so `Clock.alarm(100, Tick)` delivers `Tick(t)`, and a message that needs no time is made by a lambda that ignores it, `Clock.alarm(100, fn(_) = Tick)`, as the game below does.
 
 Between your own processes the general form is `via`:
 
-```
+```console
+$ ern --shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> :type via
 via : ((a) -> b, Address(b)) -> Address(a)
 ```
 
@@ -935,7 +1045,7 @@ Three faults reach beyond their process. A fault in the entry process ends the p
 
 ### 6.4 Prediction exercise
 
-```
+```ernest
 fn first(xs : List(Int)) -> Int = match xs {
     x :: _ -> x
   | [] -> todo("first of an empty list")
@@ -1007,9 +1117,17 @@ Directory mode compiles in dependency order automatically, creates missing subdi
 
 **Testing a module.** A test is a top-level `let` of the prelude type `Test`, a name and a function returning `Passed` or `Failed(text)`:
 
-```
+```ernest
+fn add(a : Int, b : Int) -> Int = a + b
+
 let addsTwo = Test(name = "adds two", run = fn() -> TestResult with Never =
     if add(1, 1) == 2 then Passed else Failed("not two"))
+```
+
+```console
+$ ernc checks.ern
+$ ern --test checks.erc
+adds two: passed
 ```
 
 `ern --test module.erc` runs every test of the module, exported or not, each in a process of its own, and prints each as passed, failed with its text, or faulted with its cause. A test runs as a process root, `with Never`, so it may spawn, send, and call; `ern --test` exits 1 unless every test passed; one that needs `receive` spawns a process for it (report §9.3, report §11.2).
@@ -1040,18 +1158,33 @@ export let Stack.empty : Stack(a) = Stack([])
 export fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) = Stack(x :: xs)
 export fn Stack.pop(Stack(xs) : Stack(a)) -> Optional(#(a, Stack(a))) =
     match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
+
+export fn Stack.isEmpty(s : Stack(a)) -> Bool = match Stack.pop(s) {
+    None -> true
+  | Some(_) -> false
+}
 ```
 
 Inside `main.ern` the accessors are written and used with the `Stack.` prefix (`Stack.push(x, s)`). External callers see `Main.Stack` for the type and `Main.Stack.push` for the operation, because `main.ern`'s namespace `Main` prefixes everything the module exports. The type-member namespace is *owned* by the file that declares the type: `Main.Stack.push` is compiled into `main.erc`, not a hypothetical `main/stack.erc`, and the loader consults `main.erc`'s compiled interface to find it.
 
-`Stack.empty`, `Stack.push`, `Stack.pop` are listed in the `with { ... }` signature, so their bodies may name the `Stack` constructor. Anyone else — including an unlisted helper in the same module — cannot:
+`Stack.empty`, `Stack.push`, `Stack.pop` are listed in the `with { ... }` signature, so their bodies may name the `Stack` constructor. `Stack.isEmpty` is not listed, and uses the operations instead. A definition that is not listed and names the constructor is refused, even in the same module:
 
-```
-export fn Stack.size(Stack(xs) : Stack(a)) -> Int = List.size(xs)   // rejected: Stack.size is not in the signature
-export fn Stack.isEmpty(s : Stack(a)) -> Bool = match Stack.pop(s) { // accepted: uses public operations
-    None -> true
-  | Some(_) -> false
+```ernest-rejected
+export abstract type Stack(a) = Stack(List(a)) with {
+    empty : Stack(a)
 }
+
+export let Stack.empty : Stack(a) = Stack([])
+
+export fn Stack.size(Stack(xs) : Stack(a)) -> Int = List.size(xs)
+```
+
+```console
+$ ernc hidden.ern
+hidden.ern:7:22: the constructor Stack of abstract type Stack may appear only in the definitions its signature names
+6 | 
+7 | export fn Stack.size(Stack(xs) : Stack(a)) -> Int = List.size(xs)
+  |                      ^^^^^^^^^
 ```
 
 An abstract type's representation can change later (a tree, a growable array), and callers built against the signature continue to work as long as each operation's observable contract is preserved.
@@ -1074,9 +1207,14 @@ A node that talks to peers has a configuration, which a node running alone does 
 
 Run a pure computation on some peer:
 
+```console
+$ ern --shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> :type remote
+remote : (() -> a) -> Either(RemoteError, a) with e
 ```
-remote : (() -> a) -> Either(RemoteError, a) with m
 
+```
 type RemoteError = NoRemotePeer | PeerLost
 ```
 
@@ -1152,19 +1290,29 @@ A value foreign code made and Ernest does not inspect has the built-in type `For
 
 Foreign values are bound to the node that made them. Any cross-node transport of a value that transitively contains one faults with `Fault("foreign value cannot cross nodes")` — including a closure that captures such a value.
 
-```
-let t = Ets.new();
-spawn(Peer("alice"), fn() = Ets.insert(t, "x", 1))   // fault: t is captured
+A `Random.Seed` is such a value. The closure below captures one, so shipping it to the peer `alice` faults:
+
+```ernest
+export fn main() -> Unit with Never = {
+    let seed = Random.seed(42);
+    let _ = spawn(Peer("alice"), fn() -> Unit with Never = {
+        let #(n, _) = Random.next(seed, 6);
+        Io.println(Int.toString(n))
+    });
+    Unit
+}
 ```
 
-Programs that need to share table-like state across nodes serialize the contents and rebuild on the peer.
+A program that needs such state on another node sends what the state is made of and rebuilds it there: here the number 42, from which the peer makes its own seed.
 
 ### 8.5 The shim pattern
 
 Erlang's `ets:lookup` returns a list because the key might match zero or one entry. Both declarations below live in `ets.ern` (namespace `Ets`), a module of your own:
 
-```
+```ernest
 // ets.ern
+export foreign type Table(k, v)
+
 export fn lookup(t : Table(k, v), key : k) -> Optional(v) with m =
     match rawLookup(t, key) { [#(_, v)] -> Some(v) | _ -> None }
 
@@ -1176,7 +1324,7 @@ foreign fn rawLookup(t : Table(k, v), key : k)
 
 Erlang's `{ok, V} | {error, R}` convention does not automatically match an Ernest `Either(e, a)`. Ernest's `Either` constructors are `Left(e)` and `Right(a)`, and under the ABI of report §8.4 they encode as `{'Left', e}` and `{'Right', a}` (quoted, source-preserving). Erlang's `{ok, V}` uses the lowercase atom `ok`, which is a different value.
 
-The cleanest fix is a small Erlang-side helper that produces the Ernest-shaped return. For a foreign call whose Ernest declaration is `Either(String, Int)`, the helper's payloads must already match Ernest's ABI: `V` must be an `Int`-shaped integer, and `R` must be a UTF-8 binary (Ernest `String`). The helper is a fragment — the surrounding `find/1`, module name, and export list depend on the caller's setup:
+The cleanest fix is a small Erlang-side helper that produces the Ernest-shaped return. For a foreign call whose Ernest declaration is `Either(String, Int)`, the helper's payloads must already match Ernest's ABI: `V` must be an `Int`-shaped integer, and `R` must be a UTF-8 binary (Ernest `String`). The toolchain cannot yet load an Erlang module of your own, so the helper below is a sketch that waits for it; the implementation plan records the gap:
 
 ```erlang
 %% Erlang helper (fragment); requires find/1 to return an integer on {ok, _}

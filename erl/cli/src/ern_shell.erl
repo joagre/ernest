@@ -34,7 +34,8 @@
 %% which `:doc` reads the documentation of (report §11.2, §11.4)
 %% A checked input: the module it became, its typed tree, its type.
 -record(checked, {ns, typed, decls, iface, env, type, binds}).
-%% binds: the name a `let` binds, `it` for an expression, or `decls`
+%% binds: the name a `let` binds, `{names, Ns}` for the names a `let` with
+%% a pattern binds, `it` for an expression, or `decls`
 %% A value with the descriptor of its type, so it prints as E.1 prints it.
 -record(value, {term, desc}).
 
@@ -143,8 +144,35 @@ input(Text) ->
                 {ok, [#let_decl{owner = undefined, name = Name, body = Body, ann = Ann}]} ->
                     {ok, Name, Body, Ann};
                 {ok, Decls} -> declarations(Decls);
-                {error, DeclDiag} -> {error, which(Text, Diag, DeclDiag)}
+                {error, DeclDiag} ->
+                    case pattern_let(Text) of
+                        none -> {error, which(Text, Diag, DeclDiag)};
+                        Input -> Input
+                    end
             end
+    end.
+
+%% Report §11.2: a `let` whose pattern is not a name binds each name the
+%% pattern binds. It is the block `{ let p = e; #(names) }`, whose value
+%% holds the names in the order the pattern has them; `let _ = e` binds
+%% none, and `<-` is refused, since no block follows it for it to end.
+pattern_let(Text) ->
+    case ern_parser:parse_stmt(Text) of
+        {ok, #binding{op = '<-', pos = Pos}} ->
+            {error, #diag{span = ern_diag:span(Pos),
+                          message = "a `let` with `<-` at the prompt has no block to end",
+                          help = "write it in a block, `{ let x <- e; ... }`"}};
+        {ok, #binding{pos = Pos, pattern = P} = B} ->
+            Names = [N || {N, _} <- ern_typecheck:typed_pattern_bindings(P)],
+            Vars = [#e_var{pos = Pos, name = N} || N <- Names],
+            Last = case Vars of
+                       [] -> #e_con{pos = Pos, name = 'Unit'};
+                       [V] -> V;
+                       _ -> #e_tuple{pos = Pos, elems = Vars}
+                   end,
+            {ok, {names, Names}, #e_block{pos = Pos, stmts = [B, Last]}, undefined};
+        _ ->
+            none
     end.
 
 %% Report §11.5: an input that begins where only a declaration may begin is
@@ -262,7 +290,9 @@ undetermined(_Type, _TEnv, it, _Typed) ->
     %% a bare expression runs and prints whatever its type; what it
     %% cannot do is bind `it`, which `declared/1` says
     none;
-undetermined(Type, TEnv, Name, Typed) ->
+undetermined(_Type, _TEnv, {names, []}, _Typed) ->
+    none;
+undetermined(Type, TEnv, Binds, Typed) ->
     St = ern_typecheck:type_state(TEnv),
     case ern_types:free_value_vars(ern_types:zonk(Type, St), St) of
         [] ->
@@ -271,12 +301,19 @@ undetermined(Type, TEnv, Name, Typed) ->
             Text = ern_types:format(Type, St),
             {open, #diag{span = input_span(Typed),
                          message = lists:flatten(
-                                     io_lib:format("the type of ~s is not determined by this"
-                                                   " input; it is ~ts",
-                                                   [atom_to_list(Name), Text])),
+                                     io_lib:format(undetermined_text(Binds),
+                                                   [bound_names(Binds), Text])),
                          help = "bind it with an annotation that settles the variable,"
                                 " as in `let xs : List(Int) = []`"}}
     end.
+
+undetermined_text({names, [_, _ | _]}) ->
+    "the types of ~s are not determined by this input; together they are ~ts";
+undetermined_text(_) ->
+    "the type of ~s is not determined by this input; it is ~ts".
+
+bound_names({names, Names}) -> lists:join(", ", [atom_to_list(N) || N <- Names]);
+bound_names(Name) -> atom_to_list(Name).
 
 input_span([#fn_decl{pos = Pos} | _]) -> ern_diag:span(Pos);
 input_span(_) -> {1, 1, {1, 2}}.
@@ -982,8 +1019,20 @@ bind(Env, it, _Ns, Value, Type, TEnv, _Iface) ->
         true -> Env;
         false -> bound(Env, it, Value, Type, TEnv)
     end;
+bind(Env, {names, Names}, _Ns, Value, Type, TEnv, _Iface) ->
+    bound(Env, components(Names, Value, Type, TEnv), TEnv);
 bind(Env, Name, _Ns, Value, Type, TEnv, _Iface) ->
     bound(Env, Name, Value, Type, TEnv).
+
+%% Each name a pattern bound, with its value and type: the whole of the
+%% input's value for one name, a component of its tuple for more.
+components([], _Value, _Type, _TEnv) ->
+    [];
+components([Name], Value, Type, _TEnv) ->
+    [{Name, Value, Type}];
+components(Names, Value, Type, TEnv) ->
+    {ttuple, Types} = ern_types:zonk(Type, ern_typecheck:type_state(TEnv)),
+    lists:zip3(Names, tuple_to_list(Value), Types).
 
 %% Report §11.2: whether the input's value was left unbound, its type
 %% not being determined by the input itself.
@@ -1000,15 +1049,23 @@ open(Type, TEnv) ->
     St = ern_typecheck:type_state(TEnv),
     ern_types:free_value_vars(ern_types:zonk(Type, St), St) =/= [].
 
-bound(#env{n = N} = Env, Name, Value, Type, TEnv) ->
+bound(Env, Name, Value, Type, TEnv) ->
+    bound(Env, [{Name, Value, Type}], TEnv).
+
+%% The names an input binds, held by one module, a getter for each.
+bound(Env, [], _TEnv) ->
+    Env;
+bound(#env{n = N} = Env, Bound, TEnv) ->
     Holder = [list_to_atom("Bindings" ++ integer_to_list(N))],
     Mod = ern_emitter:module_atom(Holder),
-    persistent_term:put({Mod, Name}, Value),
-    Zonked = ern_types:zonk(Type, ern_typecheck:type_state(TEnv)),
-    {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), holder(Mod, Name)),
-    Scheme = ern_types:mono(Zonked),
-    session(Env, #iface{namespace = Holder, values = #{Holder ++ [Name] => Scheme},
-                        lets = [Holder ++ [Name]]}).
+    St = ern_typecheck:type_state(TEnv),
+    [persistent_term:put({Mod, Name}, Value) || {Name, Value, _} <- Bound],
+    Names = [Name || {Name, _, _} <- Bound],
+    {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), holder(Mod, Names)),
+    Values = maps:from_list([{Holder ++ [Name], ern_types:mono(ern_types:zonk(Type, St))}
+                             || {Name, _, Type} <- Bound]),
+    session(Env, #iface{namespace = Holder, values = Values,
+                        lets = [Holder ++ [Name] || Name <- Names]}).
 
 %% Report §11.2: the session is a scope of its own. The interface behind an
 %% input joins the ones the checker is given, and what it declares joins the
@@ -1043,20 +1100,25 @@ value_key(Ns, Q) ->
 %% input's process is an Ernest process waiting with it. It is marked as a
 %% foreign call in progress, which is what it is, so that `Deadlock` is not
 %% declared over a binding being made.
-holder(Mod, Name) ->
-    ern_rt:in_foreign(fun() -> holder_beam(Mod, Name) end).
+holder(Mod, Names) ->
+    ern_rt:in_foreign(fun() -> holder_beam(Mod, Names) end).
 
-holder_beam(Mod, Name) ->
-    Get = erl_syntax:application(
-            erl_syntax:module_qualifier(erl_syntax:atom(persistent_term), erl_syntax:atom(get)),
-            [erl_syntax:tuple([erl_syntax:atom(Mod), erl_syntax:atom(Name)])]),
+holder_beam(Mod, Names) ->
+    Get = fun(Name) ->
+              erl_syntax:application(
+                erl_syntax:module_qualifier(erl_syntax:atom(persistent_term),
+                                            erl_syntax:atom(get)),
+                [erl_syntax:tuple([erl_syntax:atom(Mod), erl_syntax:atom(Name)])])
+          end,
     Forms = [erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Mod)]),
              erl_syntax:attribute(erl_syntax:atom(export),
                                   [erl_syntax:list(
                                      [erl_syntax:arity_qualifier(erl_syntax:atom(Name),
-                                                                 erl_syntax:integer(0))])]),
-             erl_syntax:function(erl_syntax:atom(Name),
-                                 [erl_syntax:clause([], none, [Get])])],
+                                                                 erl_syntax:integer(0))
+                                      || Name <- Names])])
+             | [erl_syntax:function(erl_syntax:atom(Name),
+                                    [erl_syntax:clause([], none, [Get(Name)])])
+                || Name <- Names]],
     {ok, _, Bin} = compile:forms([erl_syntax:revert(F) || F <- Forms], [return_errors]),
     Bin.
 
@@ -1068,6 +1130,16 @@ declared(#checked{binds = it}) ->
     [];
 declared(#checked{binds = decls, ns = Ns, decls = Decls, iface = Iface, env = TEnv}) ->
     [line(D, Ns, Iface, TEnv) || D <- Decls, kind(D) =/= other];
+declared(#checked{binds = {names, []}}) ->
+    [];
+declared(#checked{binds = {names, Names}, type = Type, env = TEnv}) ->
+    St = ern_typecheck:type_state(TEnv),
+    Types = case Names of
+                [_] -> [Type];
+                _ -> element(2, ern_types:zonk(Type, St))
+            end,
+    [unicode:characters_to_binary([atom_to_list(N), " : ", ern_types:format(T, St)])
+     || {N, T} <- lists:zip(Names, Types)];
 declared(#checked{binds = Name} = C) ->
     [<<(atom_to_binary(Name))/binary, " : ", (type_text(C))/binary>>].
 

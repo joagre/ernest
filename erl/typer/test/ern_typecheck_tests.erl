@@ -227,7 +227,8 @@ spawn_test() ->
     ?assertEqual(ok, ok("fn work() -> Unit with Never = Unit\n"
                         "fn main() -> Unit with Never = { let _ = spawn(Local, fn() = work());"
                         " Unit }")),
-    ?assertEqual("the argument does not fit spawn: process code called from a pure function",
+    ?assertEqual("the argument does not fit spawn: a pure function where one that runs in a"
+                 " process is needed",
                  err("fn main() -> Unit with Never = { let _ = spawn(Local, fn() -> Unit = Unit);"
                      " Unit }")),
     ?assertEqual("the type of a is not determined (Address(a)); use it, or annotate it",

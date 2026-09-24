@@ -1,15 +1,17 @@
 %% The guide's examples, checked as the standard library's are (plan, MVP
 %% 2.61 step 1). A block marked `ernest` is a complete module and compiles;
 %% one whose first line names a file, `// net/http.ern`, is placed there, and
-%% such blocks under one heading compile together as a source tree. When the
-%% next fenced block is a `console` block, the program its `$ ern` line names
-%% is run and its output compared with the console's lines that are not
-%% commands. A block marked `ernest-rejected` fails to compile, and for a
-%% reason of its own: not a parse error and not an unknown name. When a
-%% console follows it, its `$ ernc` line names the file and the error is
-%% compared whole. A console whose command is `$ ern --shell` is a session:
-%% its `> ` lines are the inputs, and the rest is what the shell prints. Any
-%% other block is a fragment, which nothing checks.
+%% such blocks under one heading compile together as a source tree; blocks
+%% that name the same file are its parts, in order. When the next fenced
+%% block is a `console` block, the program its `$ ern` line names is run,
+%% with the options the line gives, and its output compared with the
+%% console's lines that are not commands. A block marked `ernest-rejected`
+%% fails to compile, and for a reason of its own: not a parse error and not
+%% an unknown name. When a console follows it, its `$ ernc` line names the
+%% file and the error is compared whole. A console whose command is
+%% `$ ern --shell` is a session: its `> ` lines are the inputs, and the rest
+%% is what the shell prints. Any other block is a fragment, which nothing
+%% checks.
 -module(ern_guide_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -42,8 +44,8 @@ check({modules, #{files := Files, run := Run}}) ->
     ?assertEqual({0, <<>>}, {Status, Out}),
     case Run of
         none -> ok;
-        {Module, Expected} ->
-            {0, Printed} = sh("../bin/ern " ++ filename:join(Build, Module)),
+        {Flags, Module, Expected} ->
+            {0, Printed} = sh("../bin/ern " ++ Flags ++ filename:join(Build, Module)),
             ?assertEqual(Expected, Printed)
     end;
 check({rejected, #{files := [{F, Code}], shown := Shown}}) ->
@@ -112,7 +114,7 @@ group([{N, <<"ernest">>, Heading, Code} = B | Rest]) ->
             %% a module the console runs is the file the console names
             Run = run(Rest),
             File = case Run of
-                       {Module, _} -> filename:rootname(Module) ++ ".ern";
+                       {_, Module, _} -> filename:rootname(Module) ++ ".ern";
                        none -> "example.ern"
                    end,
             [{modules, #{line => N, files => [{File, join(Code)}], run => Run}} | group(Rest)];
@@ -121,11 +123,16 @@ group([{N, <<"ernest">>, Heading, Code} = B | Rest]) ->
                                fun({_, I, H, C}) -> I =:= <<"ernest">> andalso H =:= Heading
                                                         andalso named(C) =/= none end, Rest),
             Tree = [B | Same],
-            [{modules, #{line => N, files => [{named(C), join(C)} || {_, _, _, C} <- Tree],
+            [{modules, #{line => N, files => parts([{named(C), C} || {_, _, _, C} <- Tree]),
                          run => run(Others)}} | group(Others)]
     end;
 group([_ | Rest]) ->
     group(Rest).
+
+%% The files of a source tree, each the blocks that name it joined in order.
+parts(Named) ->
+    Files = lists:usort([F || {F, _} <- Named]),
+    [{F, join(lists:append([C || {G, C} <- Named, G =:= F]))} || F <- Files].
 
 %% `// net/http.ern  (namespace Net.Http)` names net/http.ern.
 named([First | _]) ->
@@ -142,16 +149,17 @@ file_of(Code) ->
         Path -> Path
     end.
 
-%% The next fenced block, when it is a console: the module its `$ ern` line
-%% runs, and the lines it shows that are not commands.
+%% The next fenced block, when it is a console: the options and the module
+%% its `$ ern` line runs, and the lines it shows that are not commands.
 run([{_, <<"console">>, _, Lines} | _]) ->
     Commands = [L || <<"$ ", _/binary>> = L <- Lines],
     Shown = [[L, <<"\n">>] || L <- Lines, not lists:member(L, Commands)],
-    Runs = [M || C <- Commands,
-                 {match, [M]} <- [re:run(C, "^\\$ ern (?:\\S*/)?([a-z0-9]+\\.erc)",
-                                         [{capture, all_but_first, list}])]],
+    Runs = [{Flags, M} || C <- Commands,
+                          {match, [Flags, M]} <- [re:run(C, "^\\$ ern ((?:--[a-z]+ )*)(?:\\S*/)?"
+                                                          "([a-z0-9]+\\.erc)",
+                                                          [{capture, all_but_first, list}])]],
     case Runs of
-        [Module | _] -> {Module, iolist_to_binary(Shown)};
+        [{Flags, Module} | _] -> {Flags, Module, iolist_to_binary(Shown)};
         [] -> none
     end;
 run(_) ->

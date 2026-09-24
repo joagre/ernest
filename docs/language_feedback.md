@@ -132,3 +132,28 @@ What I would actually put to you as candidate language changes: field selection 
     `toUtf`, `fromUtf`, `toList`, `fromList` (rule 1 names them); `Random` (the generator's
     state is the runtime's); `Foreign` (the boundary itself);
     `Io.debug` (the runtime's printer and the compiler's descriptor).
+
+## Distribution, 2026-09-24
+
+14. **Is `remote` needed once the node protocol and code distribution exist?** Raised while
+    the guide was being checked, with `docs/node_protocol.md` and `docs/code_distribution.md`
+    in view. `remote(f)` (report §6.7, guide §8.1) runs a pure function on a peer the runtime
+    chooses among those marked `"remote-peer": true`, and answers `Right(v)`,
+    `Left(NoRemotePeer)` or `Left(PeerLost)`; a fault in `f` faults the caller.
+
+    The case for removing it, on the principles. Once `spawn(Peer(name), f)` ships code and
+    answers across nodes, `remote` is a second way to do what a spawned process that answers
+    already does, `spawn` on a peer and `Address.call` for the value (principle 2). It
+    brings a type of its own, `RemoteError`, a configuration flag, and a placement policy
+    the runtime applies where the program cannot see it (principle 3). The guide's
+    `inParallel` already spawns a local process per computation around it, so the
+    primitive does not spare the program the processes it would otherwise write.
+
+    What would be lost, and has to be answered before it goes. A pure computation shipped
+    as a value is simpler to reason about than a process: no mailbox, no reply, a fault
+    that reaches the caller as if the call were local. The runtime's choice of peer is a
+    load-balancing policy that would become a library's or the program's. And `remote` is
+    in the report's prelude, §9, and the guide's examples, so removing it is a report change
+    with the log's *Remote Ergonomics* (2026-09-13) to revisit.
+
+    Undecided; for the discussion before MVP 3.0, when peers are built.
