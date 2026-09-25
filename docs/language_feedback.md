@@ -357,4 +357,14 @@ raised, for MVP 2.65.
     orders initializers by what they reference, and a function value referenced is not a
     function called. The library writes `fn starts()`; whether §8.5 should count only what
     an initializer can call while it runs.
+49. **Where the shell would use abstract types.** `Shell.Editor.State` is the one that
+    pays: its invariant, `0 <= at <= size(text)` and a search's indices inside the history,
+    is kept by the editor alone, and the reader already reads it only through `text`,
+    `at`, `shown`, `cursor` and `midSequence`. Items 32 and 33 are what keep it
+    transparent. The history would be the second, a `Shell.History` type newest first and
+    capped: the file is trimmed to the last thousand inputs as it is read, but the editor's
+    list grows past that within a session, and `keeps` lives in the editor while the trim
+    lives in the file. `Settings`, `Region`, `Completion`, `Name` and `Reading` stay
+    transparent, since their readers match on or build them and no rule spans their
+    fields. Waits on item 32.
 

@@ -93,9 +93,9 @@ options, then what is recorded and left alone.
   alone. Until then `:processes` shows the site and nothing more. Decided with them, item 26: whether `:processes` becomes a prelude or standard library function, the runtime's record of processes a value a program may read.
 - **The entries found in 2026-09-24's guide work**: item 15, a `Map` merge that combines the
   values of a key both maps hold, and item 17, a type's members at the prompt.
-- **The entries found by the review of the Ernest code**, 2026-09-25: items 27 to 47, the
-  review of `shell/`, `stdlib/` and `libs/` against §0 and E.0, abstract types among them
-  (items 32, 33 and 46).
+- **The entries found by the review of the Ernest code**, 2026-09-25: items 27 to 49, the
+  review of `shell/`, `stdlib/` and `libs/` against §0 and E.0, and its reading for
+  abstract types (items 32, 33, 46 and 49).
 - **The entries found writing `libs/markdown`**, 2026-09-25: items 18 to 23, tuple
   projection, `match` as an operand, `String.trimStart` and `trimEnd`, `String.drop` and
   `dropWhile` against E.0 rule 4, and where counting a styled row's columns belongs.
