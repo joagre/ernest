@@ -8,8 +8,8 @@
 -module(ern_shell).
 
 -export([loaded/1, start/0, program/0, startup_files/0, history_file/0, unbound/1,
-         needs_more/1, check/3,
-         type_text/1, declared/1, run/3, signature/1,
+         needs_more/1, check/4,
+         is_unit/1, type_text/1, declared/1, run/3, signature/1,
          show/3]).
 -export([bindings/1, forget/2, browse/2, doc/2, names/0, session_names/0, session_texts/0,
          source_root/0,
@@ -120,18 +120,22 @@ unfinished(_) -> false.
 %% text, as `ernc` shows it, under the name of where the input came from:
 %% `input` for one that was typed, the file's path for one from a startup
 %% file.
--spec check(#env{}, binary(), binary()) ->
+-spec check(#env{}, binary(), pos_integer(), binary()) ->
           {'Left', binary()} | {'Right', {#env{}, #checked{}}}.
-check(#env{n = N} = Env, From, Input) ->
+check(#env{n = N} = Env, From, First, Input) ->
+    Origin = case From of
+                 <<"input">> -> {typed, From};
+                 _ -> {file, From, First}
+             end,
     Ns = [list_to_atom("Input" ++ integer_to_list(N + 1))],
     case input(Input) of
         {ok, Binds, Expr, Ann} ->
-            checked(check_module(Env#env{n = N + 1}, Ns, From, Input,
+            checked(check_module(Env#env{n = N + 1}, Ns, Origin, Input,
                                  input_entry(Expr, Ann), Binds));
         {decls, Decls} ->
-            checked(check_module(Env#env{n = N + 1}, Ns, From, Input, Decls, decls));
+            checked(check_module(Env#env{n = N + 1}, Ns, Origin, Input, Decls, decls));
         {error, Diag} ->
-            {'Left', diagnostic(From, Input, [Diag])}
+            {'Left', diagnostic(Origin, Input, [Diag])}
     end.
 
 checked({'Right', {Env, Checked}}) ->
@@ -341,6 +345,11 @@ result_type(#scheme{type = {tfn, [], _, Result}}) -> Result;
 result_type(#scheme{type = T}) -> T.
 
 %% Report §11.5: the type as the checker prints it.
+%% Report §11.2: a value of type `Unit` prints nothing.
+-spec is_unit(#checked{}) -> boolean().
+is_unit(#checked{type = T, env = Env}) ->
+    ern_typecheck:resolve_type(T, Env) =:= ?UNIT.
+
 -spec type_text(#checked{}) -> binary().
 type_text(#checked{typed = Typed, type = T, env = Env}) ->
     St = ern_typecheck:type_state(Env),
@@ -779,7 +788,7 @@ call_signature(Path, Name, N) ->
     Text = unicode:characters_to_binary(lists:join(".", [atom_to_list(S) || S <- Path ++ [Name]])),
     {ok, Binds, Expr, Ann} = input(Text),
     %% a callee that does not check, a name not in scope, has none
-    case check_module(Env#env{n = Env#env.n + 1}, ['Signature'], <<"signature">>, Text,
+    case check_module(Env#env{n = Env#env.n + 1}, ['Signature'], {typed, <<"signature">>}, Text,
                       input_entry(Expr, Ann), Binds) of
         {'Right', {_, #checked{typed = Typed, env = TEnv}}} ->
             {P, Nm} = one_name(Typed),
@@ -1047,15 +1056,25 @@ beam_on_path(Ns) ->
 entry(none, _) -> none;
 entry(Beam, Name) -> ern_page:declaration(Beam, Name).
 
-%% Report §11.2: an input from a startup file is named by the file, and its
-%% lines are quoted from the file, the input standing at its own line there.
-diagnostic(From, Input, Diags) ->
-    Source = case From =/= <<"input">> andalso file:read_file(From) of
+%% Report §11.2: a typed input is the file `input`; an input from a startup
+%% file is named by the file, its positions moved to the line it stands on
+%% there, and its lines quoted from the file.
+diagnostic({typed, Name}, Input, Diags) ->
+    unicode:characters_to_binary([ern_diag:format(binary_to_list(Name), Input, D) || D <- Diags]);
+diagnostic({file, Path, First}, Input, Diags) ->
+    Source = case file:read_file(Path) of
                  {ok, Text} -> Text;
-                 _ -> Input
+                 {error, _} -> Input
              end,
     unicode:characters_to_binary(
-      [ern_diag:format(binary_to_list(From), Source, D) || D <- Diags]).
+      [ern_diag:format(binary_to_list(Path), Source, down(D, First - 1)) || D <- Diags]).
+
+%% A diagnostic's positions, the line a number of lines further down.
+down(#diag{span = Span, labels = Labels} = D, K) ->
+    D#diag{span = lower(ern_diag:span(Span), K),
+           labels = [{lower(ern_diag:span(S), K), T} || {S, T} <- Labels]}.
+
+lower({L, C, {EL, EC}}, K) -> {L + K, C, {EL + K, EC}}.
 
 %% Report §11.2: the shell reports a process that faults, and the runtime
 %% is what knows. The watcher is told of every death the runtime records
@@ -1337,7 +1356,10 @@ relative(File, #env{source_root = Root}) ->
 %% lines when it has not.
 -spec is_terminal() -> boolean().
 is_terminal() ->
-    try prim_tty:isatty(stdin) =:= true
+    %% report §11.2: the keys are read and the screen painted, so the input
+    %% and the output are both the terminal; a shell whose output goes to a
+    %% file writes it plainly
+    try prim_tty:isatty(stdin) =:= true andalso prim_tty:isatty(stdout) =:= true
     catch _:_ -> false
     end.
 

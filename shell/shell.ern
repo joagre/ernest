@@ -58,13 +58,18 @@ foreign fn documentation(name : String) -> Optional(String) with m =
 // before the cursor is documented.
 foreign fn signature(before : String) -> Optional(#(String, String, String)) with m =
     "ern_shell:signature/1"
-foreign fn check(env : Env, from : String, input : String) -> Either(String, #(Env, Checked))
-    with m = "ern_shell:check/3"
+// Report §11.2: an input checked against the session; a diagnostic names
+// the file it came from and the line it starts on there, `input` and 1 for
+// one typed.
+foreign fn check(env : Env, from : String, line : Int, input : String)
+    -> Either(String, #(Env, Checked)) with m = "ern_shell:check/4"
 // The host's alone: where the startup files are, the person's first and
 // then the node's. Whether they are there, and what they hold, is read
 // here (report §11.2).
 foreign fn startupFiles() -> List(String) with m = "ern_shell:startup_files/0"
 foreign fn typeText(c : Checked) -> String = "ern_shell:type_text/1"
+// Report §11.2: a value of type `Unit` prints nothing.
+foreign fn isUnit(c : Checked) -> Bool = "ern_shell:is_unit/1"
 foreign fn declared(c : Checked) -> List(String) = "ern_shell:declared/1"
 // Report §11.2: the value is printed, and `it` is left as it was when
 // this input did not settle its type.
@@ -170,29 +175,24 @@ export fn main() -> Unit with ShellMsg = {
 // One input, from either reader: checked, run in a process of its own, its
 // value printed with its type. An expression of type Unit prints nothing.
 fn evaluate(state : State, screen : Address(ScreenMsg), input : String) -> State with ShellMsg =
-    run(state, screen, "input", input, true)
+    run(state, screen, "input", 1, input, true)
 
 // Report §11.2: an input from a startup file is checked and run as a typed
 // one, and its value is not printed; what fails is reported with the file
 // it came from.
-fn quietly(state : State, screen : Address(ScreenMsg), from : String, input : String)
-    -> State with ShellMsg = run(state, screen, from, input, false)
+fn quietly(state : State, screen : Address(ScreenMsg), from : String, line : Int,
+    input : String) -> State with ShellMsg = run(state, screen, from, line, input, false)
 
-fn run(
-    state : State,
-    screen : Address(ScreenMsg),
-    from : String,
-    input : String,
-    show : Bool
-) -> State with ShellMsg = {
+fn run(state : State, screen : Address(ScreenMsg), from : String, line : Int, input : String,
+    printing : Bool) -> State with ShellMsg = {
     let State(env = env) = state;
-    match check(env, from, input) {
+    match check(env, from, line, input) {
         Left(text) -> { diagnose(screen, text); state }
       | Right(#(env2, checked)) -> {
             // report §11.2: the run is what timing measures, not the check
             let started = Clock.now();
             let child = spawnInput(env2, checked, via(Done, self()));
-            await(State(..state, env = env2), screen, checked, child, started, show)
+            await(State(..state, env = env2), screen, checked, child, started, printing)
         }
     }
 }
@@ -219,8 +219,8 @@ fn fileInputs(screen : Address(ScreenMsg), file : String)
 }
 
 // Report §11.2: a startup input runs as a typed one, a command among them,
-// and a `:quit` there ends the session. A diagnostic names the line of the
-// file: the input is checked below as many empty lines as come before it.
+// and a `:quit` there ends the session; a diagnostic names its file and
+// line.
 fn fromFiles(state : State, screen : Address(ScreenMsg),
     inputs : List(#(String, Int, String))) -> Next with ShellMsg = match inputs {
     [] -> Continue(state)
@@ -229,8 +229,7 @@ fn fromFiles(state : State, screen : Address(ScreenMsg),
             Continue(state2) -> fromFiles(state2, screen, rest)
           | Leave -> Leave
         }
-        else fromFiles(quietly(state, screen, from, String.repeat("\n", line - 1) <> input),
-            screen, rest)
+        else fromFiles(quietly(state, screen, from, line, input), screen, rest)
 }
 
 // The reader stays live, so an interruption reaches the session while the
@@ -242,15 +241,15 @@ fn await(
     checked : Checked,
     child : Address(Never),
     started : Int,
-    showValue : Bool
+    printing : Bool
 ) -> State with ShellMsg = receive {
     Done(Ok(env = env2, value = value)) -> {
         let State(settings = settings) = state;
         let Settings(depth = depth, length = length) = settings;
         let shown = typeText(checked);
-        if showValue then {
+        if printing then {
             match declared(checked) {
-                [] -> if shown == "Unit" then Unit
+                [] -> if isUnit(checked) then Unit
                 else {
                     say(screen, show(value, depth, length)
                         <> Shell.Style.quiet(colours(), " : " <> shown));
@@ -268,13 +267,13 @@ fn await(
   | Done(Faulted(text)) -> {
         say(screen, Shell.Style.fault(colours(), "fault: " <> text));
         let State(settings = settings) = state;
-        if showValue then timed(screen, settings, started) else Unit;
+        if printing then timed(screen, settings, started) else Unit;
         state
     }
   | Interrupted -> { kill(child); say(screen, "Killed"); state }
   | Died(down) -> {
         reportDeath(screen, down);
-        await(state, screen, checked, child, started, showValue)
+        await(state, screen, checked, child, started, printing)
     }
     // an input typed meanwhile, and the end of input, are left in the
     // mailbox: they wait for this one, and run after it (report §11.2)
@@ -439,7 +438,7 @@ fn obey(state : State, screen : Address(ScreenMsg), c : Command, arg : String)
             [] -> { say(screen, "the session declares nothing yet"); Continue(state) }
           | lines -> { printLines(screen, lines); Continue(state) }
         }
-      | Type -> match check(env, "input", arg) {
+      | Type -> match check(env, "input", 1, arg) {
             Left(text) -> { diagnose(screen, text); Continue(state) }
           | Right(#(env2, checked)) -> {
                 say(screen, arg <> " : " <> typeText(checked));
