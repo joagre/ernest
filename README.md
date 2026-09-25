@@ -81,7 +81,7 @@ A module path segment is one lowercase word (report §11.1); a multi-word module
 
 ## Building
 
-Erlang/OTP 29 and GNU make. No rebar3, no OTP behaviours. `make test` also needs python3, for the pseudo-terminal the terminal tests run a program under; Erlang cannot open one. Emacs is optional: without it the mode's tests are skipped and the rest runs.
+Erlang/OTP 29 and GNU make. The toolchain's Erlang uses no rebar3 and no OTP behaviours, by design; [`docs/style.md`](docs/style.md) says what that covers. `make test` also needs python3, for the pseudo-terminal the terminal tests run a program under; Erlang cannot open one. Emacs is optional: without it the mode's tests are skipped and the rest runs.
 
 ```
 make              compile every application into its ebin/, then stdlib/, libs/, shell/

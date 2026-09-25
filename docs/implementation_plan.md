@@ -372,6 +372,13 @@ connectors: those are libraries for others to write on Appendix D's pattern.
   (2026-09-19).
 - **A label at the first use of the variable whose type a mismatch names** was planned for
   §3.4's placement work and not built (2026-09-18).
+- **A function value that foreign code returns is not checked when it is called**, though
+  §7.4 says its result is checked against its declared result type (found by the cold
+  read's check, 2026-09-25). The fix is the address proxy's shape: the boundary wraps such a
+  value so that each call's result is checked, as a proxy checks each message. With it goes
+  the one way an ill-typed value reaches Ernest arithmetic, where the host's error is
+  reported as `Fault("division by zero")` whatever the operator was; only a zero divisor
+  gives that cause. Built in MVP 2.65's last step, with what was decided.
 
 ---
 
@@ -593,7 +600,7 @@ type classes (`toString` per type, `==` structural, `compare` per type).
 
 ### Tools, and what was decided before the start
 
-Erlang, OTP 29 (raised from 27 on 2026-09-20), Makefiles, no rebar3, no OTP behaviours; EUnit
+Erlang, OTP 29 (raised from 27 on 2026-09-20), Makefiles in the style guide's shape; EUnit
 per application under `erl/*/test`, integration tests under `test/`; the toolchain shipped as
 the escript sources in `bin/`, which put `erl/*/ebin` on the code path with no escriptize
 step. Also decided before the start and unchanged: the `erl/` layout, one Erlang application

@@ -2,6 +2,8 @@
 
 How the toolchain is built. Written from the code on 2026-09-17, revised 2026-09-25; the code wins any conflict. The report is the specification, the plan says what was built when, the decisions log why; this says where things are and what flows between them.
 
+The Erlang follows [`style.md`](style.md), which has no OTP behaviours by design.
+
 ## The pipeline
 
 One Ernest module goes through the stages below, Erlang applications under `erl/` with its own `src/`, `include/`, `ebin/`, `test/`:
@@ -68,9 +70,10 @@ Module atoms are `ern@` and the path with `@` for `/`: `ern@net@http`. Type memb
 
 - **An address** is a pid, or the pair `{via, F, Target}` for one seen through a function (§6.5): `send` applies the functions of any adaptations where the sending happens and puts the message in the target's mailbox, and a fault in one of them ends the target. `process_of/1` is the pid behind an address, through any number of adaptations and through the foreign boundary's proxy, which is what `monitor`, `kill` and the terminal's holder take.
 - **`Reply`** is a process alias made with `alias([reply])`, so a late answer after a timeout is dropped by `unalias`.
+- **A time has no upper bound** (§6.3): `ern_rt:deadline/1` fixes a deadline on the monotonic clock and `remaining/1` gives the wait left, at most the host's longest timer, so the emitted `after`, `call/3`, and the clock's alarms wait again in slices until the deadline.
 - **`monitor`** holds its wrap in the reaper rather than spawning anything, whether or not the runtime started the process. A reaper process `spawn_monitor`s every process and records its exit reason in an ETS table, which is how `monitor` on an already dead process reports its recorded cause (§6.9).
 - **One proxy process is left**, the foreign boundary's, so a generated `receive` never sees a foreign message. There is one per address and mailbox type, kept in the process table under a `{proxy, Key}` row with a `{behind, Pid}` row naming the process it stands for; it removes both before it follows its target.
-- **A deadlock** (§8.6) is the reaper's: every hundred milliseconds it takes two snapshots of every live process's status and reduction count, and equal snapshots with every status `waiting`, no timed receive or foreign call counted in the process table, and no source counted in its `sources` row end the program: the launcher faults the entry process with `deadlock` (§7.4).
+- **A deadlock** (§8.6) is the reaper's: every hundred milliseconds it takes two snapshots of every live process's status and reduction count, and equal snapshots with every status `waiting`, no timed receive or foreign call counted in the process table, and no source counted in its `sources` row end the program: the launcher faults the entry process with `deadlock` (§7.4). A module loaded on its first call is the host's work and counted as a foreign call is: every process the runtime starts has `ern_rt` as its `error_handler`, which loads inside `in_foreign` and hands the call to OTP's own handler.
 - **A source is what §8.6 names**: the clock counts an alarm from `After` until it fires, `stdin` a line from the request until the answer, the terminal its subscription from the moment it takes the terminal's mode, and the reaper a monitor on a process the runtime did not start, until the `Down` is delivered. Counting rather than asking, since a process inside a read cannot answer a question; a timed `receive` and `Address.call` count themselves in before and out first in every body, so tail position holds, and `ern_boundary:foreign` runs the foreign call inside `in_foreign/1`.
 - **`run/1`** wraps every process body so an exception is a fault: `badarith` is `Fault("division by zero")`, a thrown `{ern, fault, Msg}` is `Fault(Msg)`.
 

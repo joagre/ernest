@@ -18,7 +18,7 @@ For the toolchain's own code under `erl/`.
 - **`-spec` on every exported function.** Types shared between modules are `-type`s in the owning module.
 - **Records live in `include/*.hrl`** when shared, else in the module. No macros beyond record definitions and the few constants that need a name.
 - **Tests are EUnit, in `test/<module>_tests.erl`**, one test function per behaviour, named after the behaviour. A comment above each names what it tests: `%% report §x.y` for the report, the document's path for any other.
-- **No OTP behaviours, no rebar3.** `make` builds with `+debug_info -Werror`; a warning is an error.
+- **No OTP behaviour for a process of the toolchain's own, and no rebar3, by design.** A callback module one of OTP's own servers calls, a signal handler, is no such process. The decisions log's *No OTP in the Toolchain* says why. `make` builds with `+debug_info -Werror`; a warning is an error.
 - **Tokens and AST nodes are plain tuples and records**, never closures or ETS state.
 
 ## Ernest style guide

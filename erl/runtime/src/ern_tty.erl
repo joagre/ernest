@@ -13,10 +13,9 @@
 %% key (§11.2). Raw mode is also what makes the size askable, io:rows and
 %% io:columns answering only while the host's terminal is in charge.
 %%
-%% A resize is noticed by asking, five times a second while anything is
-%% subscribed: SIGWINCH is delivered through OTP's signal server, which is
-%% reached by writing a gen_event handler, and this repository has no OTP
-%% behaviours (docs/style.md).
+%% A resize arrives as SIGWINCH, which OTP's signal server hands to
+%% ern_tty_signal, installed with the first subscription; the size is
+%% then asked for once.
 %%
 %% Decoding is decode/1 over the bytes read, and flush/1 for what is left
 %% when nothing follows; both are functions and are what the unit tests
@@ -27,9 +26,8 @@
 
 -export([loop/1, read_char/0, decode/1, flush/1, restore/0]).
 
-%% Report §8.2: how often the terminal is asked for its size while a
-%% program is subscribed, which is how a resize is noticed.
--define(RESIZE_PAUSE, 200).
+%% Report §8.2: how long a paste may take to arrive whole.
+-define(PASTE_PAUSE, 200).
 
 %% Report §8.2: Escape is delivered once no escape sequence can still
 %% follow it. A terminal sends a sequence in one burst, so a pause this
@@ -54,7 +52,7 @@ read_char() ->
     io:get_chars(standard_io, "", 1).
 
 loop(Subscribers, Reader, Pending, Size) ->
-    Pause = pause(Subscribers, Pending),
+    Pause = pause(Pending),
     receive
         %% report §3.5: the fields are in canonical order, `reply` before `to`
         {'Subscribe', Reply, Address} ->
@@ -81,7 +79,15 @@ loop(Subscribers, Reader, Pending, Size) ->
             %% report §8.6: at the end of input no key can come, so the
             %% subscription is no longer a source that can deliver
             ern_rt:source_end(),
-            loop(Subscribers, closed, Pending, Size)
+            loop(Subscribers, closed, Pending, Size);
+        resized ->
+            %% report §8.2: a size that has changed is news to every subscriber
+            case size_now() of
+                Size -> loop(Subscribers, Reader, Pending, Size);
+                Now ->
+                    deliver([{'Resized', Now} || Now =/= none], Subscribers),
+                    loop(Subscribers, Reader, Pending, Now)
+            end
     after Pause ->
         %% report §8.2: a paste may take longer to arrive than an escape
         %% sequence, and what has come of it is not keys
@@ -89,13 +95,7 @@ loop(Subscribers, Reader, Pending, Size) ->
                    true -> Pending;
                    false -> deliver(flush(Pending), Subscribers), []
                end,
-        %% report §8.2: a size that has changed is news to every subscriber
-        case size_now() of
-            Size -> loop(Subscribers, Reader, Left, Size);
-            Now ->
-                deliver([{'Resized', Now} || Now =/= none], Subscribers),
-                loop(Subscribers, Reader, Left, Now)
-        end
+        loop(Subscribers, Reader, Left, Size)
     end.
 
 pasting(?PASTE_BEGIN ++ _) -> true;
@@ -106,13 +106,12 @@ pasting(_) -> false.
 growing(Chars) ->
     lists:prefix(Chars, "\e[") orelse lists:prefix(Chars, ?PASTE_BEGIN).
 
-%% An escape waits only as long as a sequence may still follow it; a
-%% subscriber's terminal is asked for its size between times.
-pause([], []) -> infinity;
-pause(_, []) -> ?RESIZE_PAUSE;
-pause(_, Pending) ->
+%% An escape waits only as long as a sequence may still follow it, and a
+%% paste as long as the rest of it may take to arrive.
+pause([]) -> infinity;
+pause(Pending) ->
     case pasting(Pending) of
-        true -> ?RESIZE_PAUSE;
+        true -> ?PASTE_PAUSE;
         false -> ?ESCAPE_PAUSE
     end.
 
@@ -146,6 +145,9 @@ start_reader({unstarted, Read}) ->
             %% is a computation whose completion delivers a message
             ern_rt:source_begin(),
             raw_mode(),
+            %% one handler, this run's, which restore/0 removes
+            _ = gen_event:delete_handler(erl_signal_server, ern_tty_signal, stop),
+            ok = gen_event:add_handler(erl_signal_server, ern_tty_signal, Tty),
             %% linked, so that the reader ends with the terminal's process
             %% at the program's end and takes no key meant for what follows
             erlang:spawn_link(fun() -> read_loop(Tty, Read) end);
@@ -186,6 +188,7 @@ held_by_another(Address) ->
 %% Report §8.6: the terminal is the one the program found.
 -spec restore() -> ok.
 restore() ->
+    _ = gen_event:delete_handler(erl_signal_server, ern_tty_signal, stop),
     write(?PASTE_OFF),
     stty(["sane"]).
 
