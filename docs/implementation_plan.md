@@ -236,6 +236,11 @@ the shell is neither standard library nor library but the toolchain's own progra
   10. **Done 2026-09-25: `:set timing`'s value completes.** After `timing` the word `on` or
       `off` completes, the one setting whose value is a word; the others take numbers,
       which nothing completes. §11.2 states it; `command_argument_test_` covers it.
+  11. **Done 2026-09-25: `Tab` indents only at a row's start.** `List.map(` and `Tab` put
+      four spaces inside the call, since §11.2 indented wherever nothing was before the
+      cursor to complete. It indents now where only spaces stand before the cursor on its
+      row, and elsewhere lists what may stand there, as after a command. §11.2 states it;
+      `tab_mid_row_test_` is the regression test.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, `Markdown`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.

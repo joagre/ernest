@@ -683,8 +683,8 @@ fn completing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading 
     }
     else if String.startsWith(line, ":") then
         offering(session, screen, reading, argument(line, at, typed), typed, state)
-    else if String.isEmpty(typed) then
-        // report §11.2: nothing before the cursor to complete, so `Tab`
+    else if String.isEmpty(String.trim(rowBefore(line, at))) then
+        // report §11.2: only spaces before the cursor on its row, so `Tab`
         // indents. Four spaces and no tab: the style guide's rule, and
         // a tab in the line is invisible where spaces are what they
         // look like (§0, principle 3)
@@ -859,6 +859,16 @@ fn commandNames() -> List(Shell.Complete.Name) =
     })
 
 let indent = "    "
+
+// The row the cursor is on, up to the cursor: a multi-line input's rows
+// are its lines.
+fn rowBefore(line : String, at : Int) -> String = {
+    let before = String.slice(line, 0, at);
+    match String.lastIndexOf(before, "\n") {
+        None -> before
+      | Some(i) -> String.slice(before, i + 1, String.size(before) - i - 1)
+    }
+}
 
 fn indented(state : Shell.Editor.State, line : String, at : Int) -> Shell.Editor.State =
     Shell.Editor.typed(state,

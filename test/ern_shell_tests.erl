@@ -553,6 +553,25 @@ shift_tab_colour() ->
               30),
     ?assertMatch({_, _}, binary:match(Raw, <<"xs : List(a), \e[36mf : (a) -> b with e\e[0m)">>)).
 
+%% report §11.2: `Tab` indents only where spaces alone stand before the
+%% cursor on its row; after `(`, with nothing to complete, it lists what may
+%% stand there. A regression test for a finding of the session of real use:
+%% `List.map(` and `Tab` put four spaces inside the call
+tab_mid_row_test_() ->
+    {timeout, 60, fun tab_mid_row/0}.
+
+tab_mid_row() ->
+    Bytes = pty(alone("../bin/ern --shell"),
+                [{expect, "> "},
+                 {send, hex("List.map(") ++ "09"},
+                 {expect, " more"},
+                 {send, hex("[1], fn(n) = n)\r")},
+                 {expect, "[1] : List(Int)"},
+                 {send, "04"}],
+                30, " --size 20x80"),
+    ?assertEqual(nomatch, binary:match(Bytes, <<"List.map(    ">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map(\r\n">>)).
+
 %% report §11.2: every refusal of a command is red, as a diagnostic's first
 %% line is, and an answer is plain. A regression test for a finding of the
 %% session of real use: `:load`'s refusal was red and `:set`'s was not, the
