@@ -36,6 +36,16 @@ typenames_test() ->
     ?assertEqual([{typename, 'Int'}, {typename, 'Http_server'}, {typename, 'T1'}],
                  toks("Int Http_server T1")).
 
+%% report §2.3: a name is at most 255 characters long, and a longer one is
+%% refused where it begins. A regression test: the lexer raised system_limit
+%% from list_to_atom before
+name_length_test() ->
+    Long = lists:duplicate(255, $a),
+    ?assertEqual([{ident, list_to_atom(Long)}], toks(Long)),
+    ?assertEqual({1, 3, "a name is at most 255 characters long"}, err("x " ++ Long ++ "a")),
+    ?assertEqual({1, 1, "a name is at most 255 characters long"},
+                 err(lists:duplicate(256, $A))).
+
 %% report §2.3
 qualified_name_test() ->
     ?assertEqual([{typename, 'Net'}, '.', {typename, 'Http'}, '.', {ident, parse}],

@@ -1,0 +1,11 @@
+//
+// A program that waits for one key and nothing else, for the terminal
+// tests (report §8.2, §8.6): at the end of input no key can come.
+//
+
+type Msg = E(Event)
+
+export fn main() -> Unit with Msg = {
+    Terminal.subscribe(E);
+    receive { E(_) -> Io.println("a key") }
+}

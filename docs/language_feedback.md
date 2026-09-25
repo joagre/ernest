@@ -367,4 +367,9 @@ raised, for MVP 2.65.
     lives in the file. `Settings`, `Region`, `Completion`, `Name` and `Reading` stay
     transparent, since their readers match on or build them and no rule spans their
     fields. Waits on item 32.
+50. **A read that timed out loses what arrives after it.** `Tcp.read(sock, 100)` answers
+    `Left(Timeout)`, and the bytes that arrive next go to the reply nobody waits for, which
+    §6.6 discards; the next read waits for the bytes after them. Right for a reply, wrong
+    for a stream. Found by the review of the runtime. Whether E.18's read keeps what came
+    late for the next read, or a timed read is not offered on a stream at all.
 

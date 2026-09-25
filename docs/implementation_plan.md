@@ -23,8 +23,8 @@ use, an independent review, and a last sweep of the documents, all under "Done".
 
 **Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23; MVP 2.61, the
 guide as the user's document, on 2026-09-24, after which CLAUDE.md was rewritten for
-clarity, every rule kept; and `libs/markdown`, from MVP 2.8, on 2026-09-25. All three are
-under "Done".
+clarity, every rule kept; `libs/markdown`, from MVP 2.8, on 2026-09-25; and the code read
+back after the shell, the same day. All four are under "Done".
 
 **The rhythm.** One item a turn, with its tests, its documents, its conformance section and
 its commit; then a stop for review before the next. The user reads the plan and not the log,
@@ -93,9 +93,26 @@ options, then what is recorded and left alone.
   alone. Until then `:processes` shows the site and nothing more. Decided with them, item 26: whether `:processes` becomes a prelude or standard library function, the runtime's record of processes a value a program may read.
 - **The entries found in 2026-09-24's guide work**: item 15, a `Map` merge that combines the
   values of a key both maps hold, and item 17, a type's members at the prompt.
-- **The entries found by the review of the Ernest code**, 2026-09-25: items 27 to 49, the
-  review of `shell/`, `stdlib/` and `libs/` against §0 and E.0, and its reading for
-  abstract types (items 32, 33, 46 and 49).
+- **The entries found by the review of the Ernest code**, 2026-09-25: items 27 to 50, the
+  review of `shell/`, `stdlib/` and `libs/` against §0 and E.0, its reading for abstract
+  types (items 32, 33, 46 and 49), and a timed read on a stream (item 50).
+- **The Erlang code's open questions**, from its review on 2026-09-25, gone through with
+  the user one by one; each is a restructuring or a limit, and none is a defect, which were
+  fixed. Where the code lives and how big it is: splitting `ern_typecheck` (2,600 lines),
+  `ern_emitter` and `ern_shell` (1,700 each); `ern_diag` moving from the lexer to
+  `utils`, since every stage uses it; one AST walker for the copies in `ern_reply`,
+  `ern_exhaust` and `ern_typecheck`; a `#scope` record for the seven fields a definition
+  saves and restores; the standard library's interfaces decoded in two places. How it
+  reads: the parser's `|>`, which parses its right side twice and compares what is left;
+  `Cond orelse fail(...)` in fifteen places; an effect error inside an unannotated lambda,
+  which names the enclosing function. What it holds and for how long: an atom for every
+  identifier the lexer reads, which a long session grows; the process table, which never
+  shrinks; the Tcp waiters and processes that outlive a program; a subscriber subscribed
+  twice; the session's environment in `persistent_term`, and `names()` computed at every
+  `Tab`. What it leans on: `prim_tty` and `pubkey_cert_records`, OTP internals an upgrade
+  may break; `module_info`, which no Ernest function may be called. And three shapes:
+  `compile_source`'s mixed error values, `run/1` dropping the stacktrace, and the owner
+  a qualified name records.
 - **The entries found writing `libs/markdown`**, 2026-09-25: items 18 to 23, tuple
   projection, `match` as an operand, `String.trimStart` and `trimEnd`, `String.drop` and
   `dropWhile` against E.0 rule 4, and where counting a styled row's columns belongs.
@@ -615,6 +632,35 @@ it changed beyond the guide, each argued in the log:
   (MVP 3.0).
 
 ---
+
+### The code read back after the shell (done 2026-09-25)
+
+Every line of Ernest under `shell/`, `stdlib/` and `libs/`, and every line of Erlang under
+`erl/`, read for what goes against the principles, for clumsy code, and for defects. The
+Ernest findings that are not plain fixes are feedback items 27 to 50, decided in MVP 2.65;
+the Erlang code's open questions are an item there too. The shell gained `Shell.Command`,
+one table of its commands, and `shell/README.md`, a guide to reading its code.
+
+- **Defects fixed**, each with a regression test: a tuple type unbalanced the parser's doc
+  comment pruning; an or-pattern's span was its first alternative's; the checker's effect
+  origin leaked out of a nested definition, a deferred operator was checked against the
+  wrong mailbox and lost its restrictions, and a local binding hid the module's own
+  qualified name; a module's own qualified call was emitted as a remote one, and a timed
+  receive could call the module's own `max`; a late reply stayed in the mailbox, a dead
+  system process stopped deadlock detection, a stdin error or an empty line crashed the
+  stdin process, two claims of the terminal could both win, a failed start left the next
+  run unable to begin, the key reader outlived its program, and a Tcp read after a timeout
+  was never answered; `:reload` could load half, the session's own modules could be
+  named, `:load` of a loaded module could kill its processes, completion mixed the fields
+  of two constructors of one name, a long name crashed the shell, `:doc .` crashed, and
+  `ernc` ignored the load path for a dependency.
+- **Decided, report first** (§2.3, §7.4, §11.2; the log's *The Code Read Back*): a name is
+  at most 255 characters; an input's module is `$Input<n>`, which no program can name;
+  `:load` refuses a loaded module and loads what a module uses; `:reload` loads all or
+  nothing; a standard input that cannot be read is a fault of the entry process; a
+  standard library initializer's fault is the program's; at the end of input a key
+  subscription is no longer a source, so a program waiting only for keys ends in a
+  deadlock; a callee that is not a function has no signature.
 
 ### MVP 2.6 — the shell (done 2026-09-25)
 

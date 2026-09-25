@@ -62,23 +62,19 @@ declared_types_test() ->
     Tables = declarations(string:split(ern_prelude:declared_types(), "\n", all)),
     ?assertEqual(Report, Tables).
 
-%% report Appendix E: the types the standard library declares, by namespace
+%% report Appendix E: the types the standard library declares, by
+%% namespace, read from the modules' compiled interfaces, whose parameters
+%% are variables: both sides are compared with the parameters renamed in
+%% order
 stdlib_types_test() ->
     Sections = namespaces(section("## Appendix E.", "## Appendix F")),
     Report = lists:sort(lists:append(
                           [[{Ns, D} || D <- declarations(code_lines(Body))]
                            || {Ns, Body} <- Sections])),
-    Tables = lists:sort(lists:append(
-                          [[{Ns, D} || D <- declarations(string:split(Src, "\n", all))]
-                           || {Ns, Src} <- ern_prelude:stdlib_types()])),
-    %% a module written in Ernest gives its types by its interface, whose
-    %% parameters are variables: both sides are compared with the
-    %% parameters renamed in order
     Compiled = [{Ns, rename(compiled_decl(Ns, TI))}
                 || I <- ern_prelude:stdlib_ifaces(), Ns <- [element(2, I)],
                    TI <- maps:values(element(3, I))],
-    ?assertEqual(lists:sort([{Ns, rename(D)} || {Ns, D} <- Report]),
-                 lists:sort([{Ns, rename(D)} || {Ns, D} <- Tables] ++ Compiled)).
+    ?assertEqual(lists:sort([{Ns, rename(D)} || {Ns, D} <- Report]), lists:sort(Compiled)).
 
 %% A printed type without the marks of the inferred restrictions.
 unmarked(Text) ->

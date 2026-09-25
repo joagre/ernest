@@ -103,11 +103,11 @@ lex([$' | R], L, C, Prev, Acc) ->
     {Ch, Rest, C1} = char_body(R, L, C),
     lex(Rest, L, C1, {L, C1}, [{char, {L, C, {L, C1}, Prev}, Ch} | Acc]);
 lex([Ch | _] = S, L, C, Prev, Acc) when Ch >= $a, Ch =< $z; Ch =:= $_ ->
-    {Name, Rest} = take_word(S),
+    {Name, Rest} = take_word(S, L, C),
     C1 = C + length(Name),
     lex(Rest, L, C1, {L, C1}, [word_token(Name, {L, C, {L, C1}, Prev}) | Acc]);
 lex([Ch | _] = S, L, C, Prev, Acc) when Ch >= $A, Ch =< $Z ->
-    {Name, Rest} = take_word(S),
+    {Name, Rest} = take_word(S, L, C),
     C1 = C + length(Name),
     lex(Rest, L, C1, {L, C1}, [{typename, {L, C, {L, C1}, Prev}, list_to_atom(Name)} | Acc]);
 lex(S, L, C, Prev, Acc) ->
@@ -330,8 +330,13 @@ escape([], L, C) ->
 %% Words: identifiers, type names, reserved words, bool literals, wildcard.
 %%
 
-take_word(S) ->
-    lists:splitwith(fun is_word_char/1, S).
+%% Report §2.3: a word is at most 255 characters long.
+take_word(S, L, C) ->
+    {Name, Rest} = lists:splitwith(fun is_word_char/1, S),
+    case length(Name) =< 255 of
+        true -> {Name, Rest};
+        false -> error_at(L, C, "a name is at most 255 characters long")
+    end.
 
 is_word_char(Ch) -> (Ch >= $a andalso Ch =< $z) orelse (Ch >= $A andalso Ch =< $Z)
                     orelse (Ch >= $0 andalso Ch =< $9) orelse Ch =:= $_.

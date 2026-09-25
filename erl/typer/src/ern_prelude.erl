@@ -7,7 +7,7 @@
 %% compiled interfaces, stdlib_ifaces/0.
 -module(ern_prelude).
 
--export([builtin_types/0, declared_types/0, stdlib_types/0, process_only/0, values/0, docs/0,
+-export([builtin_types/0, declared_types/0, process_only/0, values/0, docs/0,
          stdlib_ifaces/0]).
 
 -include_lib("typer/include/ern_types.hrl").
@@ -339,13 +339,6 @@ declared_types() ->
     /// ```
     type TestResult = Passed | Failed(String)
     """.
-
-%% Types the standard library declares, by namespace (Appendix E.13).
-%% Report Appendix E: a type a standard library module declares, for the
-%% modules not yet written in Ernest; each leaves as its module moves.
--spec stdlib_types() -> [{[atom()], string()}].
-stdlib_types() ->
-    [].
 
 %% The primitives among values/0 whose effect variables are process-only
 %% (report §3.9).

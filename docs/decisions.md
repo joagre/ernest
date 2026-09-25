@@ -3189,7 +3189,7 @@ An input may declare what a module may, which is what the shell's note says the 
 
 **One `let` to an input.** A `let` at the prompt is a block `let` (§11.2), and a block has one value. A second `let`, or a `let` beside a declaration, would be a top-level `let`, generalized and pure by §4.6, which is not what a person at a prompt means; the input is refused with the error naming the fix. `let T.name` declares a member and is a declaration like any other, which is how an abstract type's value member is written in the one input that must hold the whole type.
 
-**A shadowed type prints under its input.** A type the session declares prints unqualified, which read well until a type was declared twice: `v == w` answered "expected T, found T", two names for two types that are not the same. A session type prints unqualified only while it is the latest declaration of its name; the one before it prints `Input1.T`. It is §11.5's rule for a type that shadows a prelude name, applied to the session, and it was found by reading the shell's own output rather than by a test.
+**A shadowed type prints under its input.** A type the session declares prints unqualified, which read well until a type was declared twice: `v == w` answered "expected T, found T", two names for two types that are not the same. A session type prints unqualified only while it is the latest declaration of its name; the one before it prints `$Input1.T`. It is §11.5's rule for a type that shadows a prelude name, applied to the session, and it was found by reading the shell's own output rather than by a test.
 
 **A type declaration prints its keyword and its name.** §11.2 had a declaration printing its name and its type, which a type declaration has not. `type Shape` is what it prints, and an input that declares several prints a line for each in the order written.
 
@@ -3947,6 +3947,26 @@ A finding of the session of real use: `:load hhhh` answered in red and `:set dep
 ## A Function Value Keeps Its Module's Version, 2026-09-25
 
 A finding of the shell's review: `let g = Loop.f`, then `:reload`, and `g()` ran the new code, where §11.2 says a binding holding a function of the reloaded module keeps the previous version. The emitter wrote a function value of another module as `fun M:f/N`, an Erlang external fun, which BEAM always resolves to the newest code; a fun made inside the module, `fun f/N` in `M`, keeps the version that made it until that version is purged. Every module that exports a function now exports `'$fun'/2`, which answers such a fun, and a value naming another module's function is taken through it. The cost is one call where a function value is made, and none where it is called. It holds in a program as in the shell: a function value is of the code it was taken from, which is what §6.10 asks of a closure made from the previous code. The alternative, keeping the external fun and having the shell rewrite bindings at a reload, would have made the rule the shell's alone and left a program's function values moving under it.
+
+## The Code Read Back, 2026-09-25
+
+After the shell, every line of Ernest and of Erlang in the repository was read for what goes against the principles, and what the reading found that the report did not say is now in it.
+
+**A name is at most 255 characters.** The host keeps a name in a table of at most that length, and the lexer raised from deep inside it on a longer one, crashing `ernc` and every path of the shell. §2.3 now states the limit and the lexer refuses the name where it begins. A limit belongs to the language rather than to the host when every implementation needs one and a program can meet it; 255 is generous, and no smaller number has an argument.
+
+**An input's module is `$Input<n>`.** `:load Input1` replaced the first input's module, since both were `ern@input1`, and completion offered `Bindings2`. A name no identifier can spell cannot collide with a program's, which is the argument that made the wrapper `'$input'`. It shows only where a shadowed type prints, so a person reads `$Input1.T` there and nowhere else.
+
+**`:load` of a loaded module is refused.** A second `:load` loaded the module over itself, and a third ended a process running it without a word. Routing it through the reload would make `:load` a second way to reload (principle 2), so it is refused, naming `:reload`. `:load` loads the modules a module uses, as `ern` does, since without them it compiled and then faulted at its first call.
+
+**A reload is all or nothing.** With two changed modules and the second broken, the first's new code was loaded under the session's old interface for it, and a call answered from code the checker had not seen. Every changed module is compiled before any is loaded, and one that fails leaves the session as it was.
+
+**A standard input that cannot be read is a fault of the entry process.** The stdin process crashed and its caller waited for ever. A failure of the runtime has nowhere to go but the program, as the terminal read two ways does (§8.2), so §7.4 names it, with the host's reason.
+
+**A standard library initializer that faults is the program's fault.** §8.5 said so of every initializer, and the standard library's ran in the launcher, where a fault escaped as an Erlang exception. They run in main's process now, before the program's own.
+
+**At the end of input a subscription can deliver nothing.** A program waiting only for keys, run with stdin at its end, waited for ever: the subscription still counted as a source. It stops counting when the reader meets the end, and §8.6's deadlock is reported.
+
+**A callee that is not a function has no signature.** `Shift-Tab` inside `Sys.stdout(` showed `Sys.stdoutAddress(String)`, the name and a type run together; nothing is what a value in call position has to show.
 
 ## Later
 

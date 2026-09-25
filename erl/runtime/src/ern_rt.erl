@@ -554,9 +554,10 @@ clock_loop() ->
 %% faults with `Fault("deadlock")`). Every local process is then ended with
 %% ProgramEnd and stdout is flushed, however the run ended. Opts: init => a
 %% function run in main's process before Main, after the Sys.* references
-%% are bound, for the top-level lets (report §8.5); stdout, stderr =>
-%% fun((binary()) -> any()) and stdin => fun(() -> eof | {error, term()} |
-%% string()) for tests.
+%% are bound and the standard library's lets evaluated, for the program's
+%% own top-level lets (report §8.5); stdout, stderr =>
+%% fun((binary()) -> any()), stdin => fun(() -> eof | {error, term()} |
+%% string()) and keys => the same for the terminal's characters, for tests.
 -spec run_main(fun(() -> term()), binary()) -> ok | {fault, binary()}.
 run_main(Main, Site) ->
     run_main(Main, Site, #{}).
@@ -575,18 +576,23 @@ run_main(Main, Site, Opts) ->
     Out = maps:get(stdout, Opts, fun(Bin) -> io:put_chars(Bin) end),
     Err = maps:get(stderr, Opts, fun(Bin) -> io:put_chars(standard_error, Bin) end),
     Line = maps:get(stdin, Opts, fun() -> io:get_line("") end),
+    Keys = maps:get(keys, Opts, fun ern_tty:read_char/0),
     System = [{stdout, erlang:spawn(fun() -> stdout_loop(Out) end)},
               {stderr, erlang:spawn(fun() -> stdout_loop(Err) end)},
               {stdin, erlang:spawn(fun() -> stdin_loop(Line) end)},
               {fs, erlang:spawn(fun ern_fs:loop/0)},
-              {terminal, erlang:spawn(fun ern_tty:loop/0)},
+              {terminal, erlang:spawn(fun() -> ern_tty:loop(Keys) end)},
               {tcp, erlang:spawn(fun ern_tcp:loop/0)},
               {clock, erlang:spawn(fun clock_loop/0)}],
     lists:foreach(fun({Name, Pid}) -> persistent_term:put({?MODULE, Name}, Pid) end, System),
     try
-        init_stdlib(),
+        %% report §8.5: the initializers, the standard library's first, run
+        %% in main's process, so one that faults is the program's fault; its
+        %% modules are loaded here, since main waiting on the code server
+        %% would read as a deadlock
+        Stdlib = stdlib_modules(),
         Init = maps:get(init, Opts, fun() -> ok end),
-        MainPid = spawn('Local', fun() -> Init(), Main() end, Site),
+        MainPid = spawn('Local', fun() -> run_inits(Stdlib), Init(), Main() end, Site),
         Reaper ! {await, MainPid, erlang:self(), fun(Down) -> {main_down, Run, Down} end},
         receive
             {main_down, Run, {'Down', _, 'Returned'}} -> ok;
@@ -636,14 +642,23 @@ end_program(Run, Reaper, System) ->
 %% path.
 -spec init_stdlib() -> ok.
 init_stdlib() ->
+    run_inits(stdlib_modules()).
+
+%% The installed modules, loaded, in the order their initializers run.
+stdlib_modules() ->
     Files = lists:usort(lists:append([filelib:wildcard(filename:join(D, "ern@*.beam"))
                                       || D <- code:get_path()])),
     Mods = [list_to_atom(filename:basename(File, ".beam")) || File <- Files],
     lists:foreach(fun(Mod) -> code:ensure_loaded(Mod) end, Mods),
+    ordered(Mods).
+
+run_inits(Mods) ->
     lists:foreach(fun(Mod) ->
-                      erlang:function_exported(Mod, '$init', 0) andalso Mod:'$init'()
-                  end, ordered(Mods)),
-    ok.
+                      case erlang:function_exported(Mod, '$init', 0) of
+                          true -> Mod:'$init'();
+                          false -> ok
+                      end
+                  end, Mods).
 
 %% Report §8.5: dependency order, which each compiled module declares as
 %% `'$deps'/0`; the order within an independent set is unspecified, and

@@ -62,6 +62,20 @@ terminal_restored() ->
     ?assertEqual(nomatch, re:run(Screen, "(^|[ \t])-echo([ \t;\r\n]|$)", [{capture, none}])),
     ?assert(count(Screen, <<"speed">>) >= 2).
 
+%% report §8.6, §8.2: at the end of input no key can come, so a program
+%% that waits only for keys is in a deadlock and faults. A regression test:
+%% the subscription went on counting as a source, and the program waited
+%% for ever. Without a terminal, so it does not cover a terminal closed
+%% under the program
+keys_at_end_of_input_test_() ->
+    {timeout, 60, fun keys_at_end_of_input/0}.
+
+keys_at_end_of_input() ->
+    ok = compile("terminal/waiting.ern", "terminal"),
+    {Status, Out} = sh("sh -c 'timeout 20 ../bin/ern build/terminal/waiting.erc < /dev/null'"),
+    ?assertEqual(1, Status),
+    ?assertMatch({_, _}, binary:match(Out, <<"fault: deadlock">>)).
+
 %% report §8.2, §9.3, and plan MVP 2.5 step 4's manual check: the game is
 %% played by the arrows, `Escape` leaves, and the board's rows each start at
 %% the left, which full raw mode would have broken

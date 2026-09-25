@@ -67,10 +67,11 @@ dead_system_process_test() ->
                                      receive never -> ok end
                                  end, <<"main">>, #{stdout => fun(_) -> ok end})).
 
-%% report §8.5, §8.6: a program that fails to start is ended as one that
-%% ran, so the next one starts. A regression test: an initializer of the
-%% standard library that raised left the process table and the system
-%% processes behind, and the next run failed to make its table
+%% report §8.5, §8.6: an initializer of the standard library that faults
+%% ends the program with that fault, and the program is ended as one that
+%% ran, so the next one starts. A regression test: such an initializer
+%% raised out of run_main, and left the process table and the system
+%% processes behind, so the next run failed to make its table
 failed_start_test() ->
     Dir = filename:join(filename:basedir(user_cache, "ern_rt_tests"), "failed_start"),
     ok = filelib:ensure_path(Dir),
@@ -83,7 +84,7 @@ failed_start_test() ->
     true = code:add_patha(Dir),
     Quiet = #{stdout => fun(_) -> ok end},
     try
-        ?assertError(boom, ern_rt:run_main(fun() -> ok end, <<"main">>, Quiet))
+        ?assertMatch({fault, _}, ern_rt:run_main(fun() -> ok end, <<"main">>, Quiet))
     after
         code:del_path(Dir),
         code:purge(Mod),
@@ -302,14 +303,13 @@ host_exit_reason_test() ->
 %% still deliver, so a program waiting on one is not deadlocked
 sources_test() ->
     %% a key that arrives long after the detector has looked several times
+    Key = fun() -> timer:sleep(500), "x" end,
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
-                           Tty = ern_rt:sys(terminal),
                            %% report §8.2: the subscription is answered once the mode is set
-                           subscribe(Tty),
-                           erlang:spawn(fun() -> timer:sleep(500), Tty ! {chars, "x"} end),
+                           subscribe(ern_rt:sys(terminal)),
                            receive _ -> ok end
-                       end, <<"main">>, #{stdout => fun(_) -> ok end})),
+                       end, <<"main">>, #{stdout => fun(_) -> ok end, keys => Key})),
     %% a line that takes as long to arrive
     Slow = fun() -> timer:sleep(500), "hello\n" end,
     ?assertEqual(ok, ern_rt:run_main(

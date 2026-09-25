@@ -352,7 +352,6 @@ prelude_namespaces() ->
     lists:usort(['Prelude']
                 ++ [N || {N, _, _} <- ern_prelude:builtin_types()]
                 ++ [N || #type_decl{name = N} <- Decls]
-                ++ [hd(Ns) || {Ns, _} <- ern_prelude:stdlib_types()]
                 ++ [hd(Q) || {Q, _, _} <- ern_prelude:values(), length(Q) > 1]
                 ++ [hd(I#iface.namespace) || I <- ern_prelude:stdlib_ifaces()]).
 

@@ -225,7 +225,6 @@ see_also(File) ->
     {ok, Src} = file:read_file(File),
     {ok, Decls} = ern_parser:parse_string(Src),
     Known = lists:append([decl_names(D) || D <- Decls])
-        ++ [atom_to_list(hd(Ns)) || {Ns, _} <- ern_prelude:stdlib_types()]
         ++ [atom_to_list(hd(Q)) || {Q, _, _} <- ern_prelude:values(), length(Q) > 1]
         ++ [atom_to_list(hd(I#iface.namespace)) || I <- ern_prelude:stdlib_ifaces()]
         ++ [atom_to_list(N) || {N, _, _} <- ern_prelude:builtin_types()]

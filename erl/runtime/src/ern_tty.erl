@@ -21,10 +21,11 @@
 %% Decoding is decode/1 over the bytes read, and flush/1 for what is left
 %% when nothing follows; both are functions and are what the unit tests
 %% exercise. The reading itself is driven through a pseudo-terminal by
-%% test/ern_terminal_tests.erl, since 2026-09-20.
+%% test/ern_terminal_tests.erl, since 2026-09-20; loop/1 takes the reading
+%% as a function, read_char/0 but in a test, as the runtime's stdin does.
 -module(ern_tty).
 
--export([loop/0, decode/1, flush/1, restore/0]).
+-export([loop/1, read_char/0, decode/1, flush/1, restore/0]).
 
 %% Report §8.2: how often the terminal is asked for its size while a
 %% program is subscribed, which is how a resize is noticed.
@@ -42,9 +43,15 @@
 -define(PASTE_BEGIN, "\e[200~").
 -define(PASTE_END, "\e[201~").
 
--spec loop() -> no_return().
-loop() ->
-    loop([], undefined, [], none).
+%% Read answers the next characters, eof, or {error, Reason}.
+-spec loop(fun(() -> eof | {error, term()} | unicode:chardata())) -> no_return().
+loop(Read) ->
+    loop([], {unstarted, Read}, [], none).
+
+%% The next character the host's terminal gives.
+-spec read_char() -> eof | {error, term()} | unicode:chardata().
+read_char() ->
+    io:get_chars(standard_io, "", 1).
 
 loop(Subscribers, Reader, Pending, Size) ->
     Pause = pause(Subscribers, Pending),
@@ -69,7 +76,12 @@ loop(Subscribers, Reader, Pending, Size) ->
         {chars, Chars} ->
             {Decoded, Left} = decode(Pending ++ Chars),
             deliver(Decoded, Subscribers),
-            loop(Subscribers, Reader, Left, Size)
+            loop(Subscribers, Reader, Left, Size);
+        closed ->
+            %% report §8.6: at the end of input no key can come, so the
+            %% subscription is no longer a source that can deliver
+            ern_rt:source_end(),
+            loop(Subscribers, closed, Pending, Size)
     after Pause ->
         %% report §8.2: a paste may take longer to arrive than an escape
         %% sequence, and what has come of it is not keys
@@ -122,7 +134,7 @@ optional(Size) -> {'Some', Size}.
 
 %% The reader runs once a program has asked for keys, and not before: a
 %% program that reads lines never leaves the terminal's line mode.
-start_reader(undefined) ->
+start_reader({unstarted, Read}) ->
     Tty = self(),
     case ern_rt:own_terminal(keys) of
         ok ->
@@ -136,12 +148,13 @@ start_reader(undefined) ->
             raw_mode(),
             %% linked, so that the reader ends with the terminal's process
             %% at the program's end and takes no key meant for what follows
-            erlang:spawn_link(fun() -> read_loop(Tty) end);
+            erlang:spawn_link(fun() -> read_loop(Tty, Read) end);
         taken ->
             %% the program is already ending with the fault (report §8.2)
-            undefined
+            {unstarted, Read}
     end;
 start_reader(Reader) ->
+    %% running, or `closed` at the end of input, which no reader reopens
     Reader.
 
 %% Report §8.2: each key as it is pressed and no echo, and the host's
@@ -219,13 +232,13 @@ terminal() ->
     catch _:_ -> false
     end.
 
-read_loop(Keys) ->
-    case io:get_chars(standard_io, "", 1) of
-        eof -> ok;
-        {error, _} -> ok;
+read_loop(Keys, Read) ->
+    case Read() of
+        eof -> Keys ! closed;
+        {error, _} -> Keys ! closed;
         Data ->
             Keys ! {chars, unicode:characters_to_list(Data)},
-            read_loop(Keys)
+            read_loop(Keys, Read)
     end.
 
 %% Report §9.3: Event = Key(Char) | ArrowUp | ArrowDown | ArrowLeft
