@@ -350,10 +350,10 @@ fn sameKind(a : Marker, b : Marker) -> Bool = match #(a, b) {
 }
 
 fn startsItem(line : String, first : Marker) -> Bool =
-    indent(line) < 4 && (match markerOf(unindented(line)) {
+    indent(line) < 4 && match markerOf(unindented(line)) {
         Some(m) -> sameKind(m, first)
       | None -> false
-    })
+    }
 
 // An item's lines after its first: those indented to its text, the blank
 // lines followed by one, and the lines of a paragraph that continue it
@@ -492,7 +492,7 @@ fn spanText(chars : List(Char)) -> String = match chars {
 fn emphasis(mark : Char, chars : List(Char), pending : List(Char)) -> List(Inline) = {
     let #(run, rest) = List.span(chars, fn(c) = c == mark);
     let size = List.size(run);
-    let intraword = mark == '_' && (match pending { p :: _ -> isWordChar(p) | [] -> false });
+    let intraword = mark == '_' && match pending { p :: _ -> isWordChar(p) | [] -> false };
     let opens = match rest { c :: _ -> c != ' ' && c != '\n' | [] -> false };
     if size > 2 || intraword || !opens then scan(rest, run <> pending)
     else match closingRun(rest, mark, size, []) {
@@ -526,7 +526,7 @@ fn closingRun(chars : List(Char), mark : Char, size : Int, done : List(Char))
             let #(run, rest) = List.span(chars, fn(d) = d == mark);
             let afterText = match done { p :: _ -> p != ' ' && p != '\n' | [] -> false };
             let closes = List.size(run) == size && afterText
-                && !(mark == '_' && (match rest { n :: _ -> isWordChar(n) | [] -> false }));
+                && !(mark == '_' && match rest { n :: _ -> isWordChar(n) | [] -> false });
             if closes then Some(#(List.reverse(done), rest))
             else closingRun(rest, mark, size, run <> done)
         }

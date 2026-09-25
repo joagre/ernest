@@ -400,7 +400,7 @@ build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces,
                             ok = file:write_file(Out ++ ".erl", Src);
                         erc ->
                             Build = #{source_hash => SourceHash, deps => DepHashes,
-                                      compiler => list_to_binary(?VERSION), stdlib => Std,
+                                      compiler => compiler_build(), stdlib => Std,
                                       source => list_to_binary(filename:basename(Rel))},
                             case ern_emitter:compile(Ns, Typed, Iface, Env, Build) of
                                 {ok, _, Beam} -> ok = file:write_file(Erc, Beam);
@@ -450,10 +450,10 @@ load_path(Opts) ->
     [absolute(D) || {load_path, D} <- Opts].
 
 %% Report §11.1: current when the source, every dependency's interface, the
-%% standard library's interfaces, and the compiler's version are those the
+%% standard library's interfaces, and the build of the compiler are those the
 %% .erc was built from.
 current(Erc, SourceHash, DepHashes, Std) ->
-    Version = list_to_binary(?VERSION),
+    Version = compiler_build(),
     case read_erc(Erc) of
         {ok, #{iface := Iface, source_hash := SourceHash, deps := Deps, compiler := Version,
                stdlib := Std}} ->
@@ -463,6 +463,14 @@ current(Erc, SourceHash, DepHashes, Std) ->
             end;
         _ -> false
     end.
+
+%% Report §11.1: the build of ernc, its version and a hash of the modules
+%% that compile, so that a compiler changed under one version is another.
+compiler_build() ->
+    Mods = [ern_lexer, ern_diag, ern_parser, ern_types, ern_typecheck, ern_reply, ern_exhaust,
+            ern_prelude, ern_emitter, ern_cli],
+    Hash = erlang:md5(term_to_binary([M:module_info(md5) || M <- Mods])),
+    <<(list_to_binary(?VERSION))/binary, $+, (binary:encode_hex(Hash, lowercase))/binary>>.
 
 read_erc(Erc) ->
     case file:read_file(Erc) of

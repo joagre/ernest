@@ -4030,6 +4030,10 @@ Feedback item 19. The grammar put `match`, `receive`, `if` and a lambda at the t
 
 The cold read's findings 2.2 and 2.1, and a hole in §6.6's promise. A generic function may not duplicate or discard its argument, since the argument may be a reply, and the checker enforced that only for a parameter whose own name was used other than once. A `let` hid everything from it: `fn dup(x) = { let y = x; #(y, y) }` let a program answer one reply twice, and `fn drop(x) = { let y = x; Unit }` or `fn forget(b : Box(a)) -> Unit = Unit` dropped one, leaving a caller in `Address.callForever` to wait for ever, which is what §6.6 exists to rule out. The rule is now what the body does rather than what the parameter is called: a type variable of a parameter's type is not-reply-carrying when the body, read with that variable taken for a reply, would break §6.6 anywhere, a second use or none through any binding, a place a reply may not stand, or a user type that carries one dropped (§3.9). The checker already had the discipline; it now runs it once more under that assumption for each such variable. What uses its value exactly once, `fn id(x) = x` or `fn keep(x) = { let y = x; y }`, stays open to a reply, and the container-element exemption stays, since no value can hold a reply there. `Stack.push`, which puts its element in a `List`, now reads `(a!, Stack(a!))`, which is the truth: a reply may not live in a list.
 
+## A Build of the Compiler Is Its Version and Its Code, 2026-09-25
+
+§11.1 recompiles a module "compiled by another version of `ernc`", and the code read that as the version string, which stays `0.1.0` while the compiler changes under it: a checker fixed during development kept the `.erc` files it had passed before, and the fix to the reply rule was first seen to fail for that reason alone. The build `ernc` records is now its version and a hash of the modules that compile, and §11.1 says "another build of `ernc`, another version or the same version's code changed". A release still differs from the one before by its version; nothing else about a build is recorded.
+
 ## Later
 
 Planned or considered, not in the language today.

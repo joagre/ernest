@@ -502,6 +502,13 @@ recompile_rule_test() ->
     ok = file:write_file(Dir ++ "/build/main.erc",
                          forge(Main3, fun(C) -> C#{compiler => <<"0.0.0">>} end)),
     ?assertEqual(0, ern_cli:ernc(Args)),
+    ?assertEqual({ok, Main3}, file:read_file(Dir ++ "/build/main.erc")),
+    %% and one built by another build of this version, whose code changed: a
+    %% regression test, since the version alone was compared and a changed
+    %% compiler kept what it had built before
+    ok = file:write_file(Dir ++ "/build/main.erc",
+                         forge(Main3, fun(C) -> C#{compiler => <<?VERSION>>} end)),
+    ?assertEqual(0, ern_cli:ernc(Args)),
     ?assertEqual({ok, Main3}, file:read_file(Dir ++ "/build/main.erc")).
 
 %% A compiled module with its interface chunk changed by F.
