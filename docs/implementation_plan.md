@@ -257,6 +257,18 @@ the shell is neither standard library nor library but the toolchain's own progra
       candidate shared; it is what the prefix matches share, never less than was typed,
       and abbreviations alone complete their namespace, `L.fM` to `List.fM`. §11.2 states
       it; `Shell.Complete`'s tests cover each case.
+  14. **Done 2026-09-25: the review's completion findings.** An independent reviewer
+      drove the shell through the terminal harness after items 1 to 13. `:forget`, `:load`
+      and `:reload` left completion reading the session as it was; they remember it now.
+      An input's module (`Input2`) and an operator (`List.<>`) were offered; neither is.
+      Fields did not complete in a pattern; they do, and a field or a constructor is
+      listed with its type. A namespace is offered only where it holds a name that may
+      stand there, so `let x : Sy` offers nothing, and `:browse` reaches a nested module
+      through its namespace. `:doc Sys` answered nothing though `Sys` completes; a
+      namespace lists what it holds, and `:doc List` shows the type and then the module.
+      §11.2 states each; `review_completion_test_`, `command_argument_test_`,
+      `doc_every_name_test_` and `Shell.Complete`'s tests cover them. The review's other
+      findings are items 15 to 18 below.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, `Markdown`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.

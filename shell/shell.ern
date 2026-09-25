@@ -812,12 +812,15 @@ fn argumentNames(kind : Argument, typed : String) -> List(Shell.Complete.Name) w
     match kind {
         // a module completes as it is written, without the dot a name
         // inside it would need, and is listed by its name alone, since
-        // every candidate here is a module
-        AModule -> List.filterMap(names(), fn(name) = match name {
-            Shell.Complete.Name(text = text, kind = Shell.Complete.Module) ->
-                Some(Shell.Complete.Name(text = text, kind = Shell.Complete.Value, shown = text))
-          | _ -> None
-        })
+        // every candidate here is a module; the namespaces they are in,
+        // `Http` for `Http.Parser`, complete with their dots
+        AModule -> Shell.Complete.withNamespaces(List.filterMap(names(), fn(name) =
+            match name {
+                Shell.Complete.Name(text = text, kind = Shell.Complete.Module) ->
+                    Some(Shell.Complete.Name(text = text, kind = Shell.Complete.Value,
+                        shown = text))
+              | _ -> None
+            }))
       | ASourceModule -> sourceModules(typed)
       | AName -> offered(typed)
       | ASessionName -> sessionNames()

@@ -469,16 +469,26 @@ where({field_or_value, Con}) ->
     case fields_of(Con) of
         [] -> 'Expression';
         Fields -> {'Fields', Fields}
+    end;
+where({field_or_pattern, Con}) ->
+    case fields_of(Con) of
+        [] -> 'Pattern';
+        Fields -> {'Fields', Fields}
     end.
 
 %% The fields of a constructor in scope, which the interfaces carry.
+%% Report §11.2: each as a `Shell.Complete.Name`, listed with its type, the
+%% constructor's parameter in the field's place, both in canonical order.
 fields_of(Con) ->
     Env = persistent_term:get({?MODULE, env}, #env{}),
-    case [Fs || #iface{types = Ts} <- Env#env.ifaces ++ ern_prelude:stdlib_ifaces(),
-                {_, #tinfo{constructors = Cs}} <- maps:to_list(Ts),
-                #cinfo{name = N, fields = {named, Fs}} <- Cs, N =:= Con] of
-        [Fields | _] -> [unicode:characters_to_binary(atom_to_list(F)) || F <- Fields];
-        [] -> []
+    St = session_state(Env),
+    case [{Fs, Sc} || #iface{types = Ts} <- Env#env.ifaces ++ ern_prelude:stdlib_ifaces(),
+                      {_, #tinfo{constructors = Cs}} <- maps:to_list(Ts),
+                      #cinfo{name = N, fields = {named, Fs}, scheme = Sc} <- Cs, N =:= Con] of
+        [{Fields, #scheme{type = {tfn, Ps, _, _}}} | _] ->
+            [name('Value', atom_to_list(F), atom_to_list(F) ++ " : " ++ ern_types:format(P, St))
+             || {F, P} <- lists:zip(Fields, Ps)];
+        _ -> []
     end.
 
 %% Report §11.2: every name completion may reach — the session's, the
@@ -496,15 +506,41 @@ names(#env{ifaces = Ifaces, session = S} = Env) ->
                || {Key, Q} <- maps:to_list(maps:get(values, S, #{}))]
         ++ [name('Type', atom_to_list(N), "type " ++ atom_to_list(N))
             || {N, _} <- maps:to_list(maps:get(types, S, #{}))]
-        ++ [name('Constructor', atom_to_list(N), atom_to_list(N))
-            || {N, _} <- maps:to_list(maps:get(cons, S, #{}))],
-    {TypeQs, ConQs} = ern_typecheck:prelude_names(),
+        ++ [name('Constructor', atom_to_list(N), con_line(atom_to_list(N), con_scheme(CQ, Env), St))
+            || {N, CQ} <- maps:to_list(maps:get(cons, S, #{}))],
+    {TypeQs, _} = ern_typecheck:prelude_names(),
     Prelude = [name('Value', qname_text(Q), qname_text(Q) ++ " : " ++ Type)
                || {Q, Type, _} <- ern_prelude:values()]
         ++ [name('Type', qname_text(Q), "type " ++ qname_text(Q)) || Q <- TypeQs]
-        ++ [name('Constructor', qname_text(Q), qname_text(Q)) || Q <- ConQs],
-    Modules = lists:append([module_names(I, St) || I <- Ifaces ++ ern_prelude:stdlib_ifaces()]),
-    lists:usort(Session ++ Prelude ++ Modules).
+        ++ [name('Constructor', qname_text(Q), con_line(qname_text(Q), {ok, Sc}, St))
+            || {Q, #cinfo{scheme = Sc}} <- maps:to_list(ern_typecheck:prelude_cons())],
+    %% report §11.2: an input's module is no name the session writes
+    Inputs = [[list_to_atom("Input" ++ integer_to_list(K))] || K <- lists:seq(1, Env#env.n)],
+    Modules = lists:append([module_names(I, St) || #iface{namespace = N} = I
+                                                       <- Ifaces ++ ern_prelude:stdlib_ifaces(),
+                                                   not lists:member(N, Inputs)]),
+    %% report §11.2: an operator is no name, and does not complete
+    lists:usort([Name || {'Name', _, _, Text} = Name <- Session ++ Prelude ++ Modules,
+                         words(Text)]).
+
+%% Every segment of a text begins with a letter or `_`, as a name's does.
+words(Text) ->
+    lists:all(fun(<<C, _/binary>>) -> C =:= $_ orelse (C >= $a andalso C =< $z)
+                                          orelse (C >= $A andalso C =< $Z);
+                 (_) -> false
+              end, binary:split(Text, <<".">>, [global])).
+
+%% Report §11.2: a constructor is listed with its type, as a value is.
+con_line(Text, {ok, Scheme}, St) -> Text ++ " : " ++ ern_types:format_scheme(Scheme, St);
+con_line(Text, none, _) -> Text.
+
+con_scheme(CQ, #env{ifaces = Ifaces}) ->
+    case [Sc || #iface{types = Ts} <- Ifaces, {_, #tinfo{constructors = Cs}} <- maps:to_list(Ts),
+                #cinfo{qname = Q, scheme = Sc} <- Cs, Q =:= CQ] of
+        [Sc | _] -> {ok, Sc};
+        [] -> none
+    end.
+
 
 %% Report §11.2: the names `:forget` takes, the values and the types the
 %% session declares; a member goes with its type.
@@ -541,8 +577,9 @@ module_names(#iface{namespace = Ns, types = Ts, values = Vs}, St) ->
             || {Q, Sc} <- maps:to_list(Vs)]
         ++ lists:append(
              [[name('Type', qname_text(Q), abstract_text(TI) ++ "type " ++ qname_text(Q))
-               | [name('Constructor', qname_text(lists:droplast(Q) ++ [CN]), atom_to_list(CN))
-                  || #cinfo{name = CN} <- Cs, not TI#tinfo.abstract]]
+               | [name('Constructor', qname_text(lists:droplast(Q) ++ [CN]),
+                       con_line(qname_text(lists:droplast(Q) ++ [CN]), {ok, Sc}, St))
+                  || #cinfo{name = CN, scheme = Sc} <- Cs, not TI#tinfo.abstract]]
               || {Q, #tinfo{constructors = Cs} = TI} <- maps:to_list(Ts)]).
 
 name(Kind, Text, Shown) ->
@@ -580,7 +617,7 @@ session_state(#env{session = S}) ->
 %% unloaded, since a value made before carries the type it was made with.
 -spec forget(#env{}, binary()) -> {'Left', binary()} | {'Right', #env{}}.
 forget(Env, <<"*">>) ->
-    {'Right', Env#env{session = #{}}};
+    {'Right', remember(Env#env{session = #{}})};
 forget(#env{session = S} = Env, Text) ->
     Name = binary_to_atom(Text),
     Values = maps:get(values, S, #{}),
@@ -592,9 +629,12 @@ forget(#env{session = S} = Env, Text) ->
         true ->
             Members = [{O, M} || {O, M} <- maps:keys(Values), O =:= Name],
             Gone = constructors(maps:get(Name, Types, none), Cons, Env),
-            {'Right', Env#env{session = S#{values => maps:without([Name | Members], Values),
-                                           types => maps:remove(Name, Types),
-                                           cons => maps:without(Gone, Cons)}}}
+            %% remembered, since completion and `Shift-Tab` read the
+            %% session from where the front end keeps it
+            {'Right', remember(Env#env{session = S#{values => maps:without([Name | Members],
+                                                                           Values),
+                                                    types => maps:remove(Name, Types),
+                                                    cons => maps:without(Gone, Cons)}})}
     end.
 
 %% The constructors of the type being forgotten that still stand for it; one
@@ -787,12 +827,36 @@ session_beam(#env{session = S, beams = Beams}, Path, Name) ->
 %% which is where a name no module declares is documented (report §9);
 %% then a constructor, whose documentation is its type's, and a module,
 %% whose documentation is the head of its page (report §11.2).
+%% A name that is a type and a module too, `List`, shows the type's section
+%% and then the module's head; a namespace that is neither lists what it
+%% holds.
 doc_of(Env, Segments) ->
-    first([fun() -> session_doc(Env, Segments) end,
-           fun() -> module_doc(Env, Segments) end,
-           fun() -> prelude_doc(Segments) end,
-           fun() -> constructor_doc(Env, Segments) end,
-           fun() -> module_head(Env, Segments) end]).
+    case first([fun() -> session_doc(Env, Segments) end,
+                fun() -> module_doc(Env, Segments) end,
+                fun() -> prelude_doc(Segments) end,
+                fun() -> constructor_doc(Env, Segments) end]) of
+        {ok, Page} ->
+            case module_head(Env, Segments) of
+                {ok, Head} -> {ok, [Page, "\n", Head]};
+                none -> {ok, Page}
+            end;
+        none ->
+            first([fun() -> module_head(Env, Segments) end,
+                   fun() -> namespace_doc(Env, Segments) end])
+    end.
+
+%% Report §11.2: a namespace that is no module and no documented type,
+%% `Sys`, is documented by what it holds, each name with its type.
+namespace_doc(_, []) ->
+    none;
+namespace_doc(Env, Segments) ->
+    Prefix = unicode:characters_to_binary(qname_text(Segments) ++ "."),
+    case [Shown || {'Name', _, Shown, Text} <- names(Env),
+                   binary:match(Text, Prefix) =:= {0, byte_size(Prefix)}] of
+        [] -> none;
+        Held -> {ok, ["# namespace ", qname_text(Segments), "\n\n",
+                      [["- `", S, "`\n"] || S <- Held]]}
+    end.
 
 first([]) ->
     none;
@@ -808,8 +872,8 @@ first([F | Fs]) ->
 constructor_doc(#env{session = S, beams = Beams} = Env, [Name]) ->
     case maps:get(Name, maps:get(cons, S, #{}), none) of
         none ->
-            case ern_typecheck:prelude_con_type(Name) of
-                {ok, TQ} -> prelude_doc(TQ);
+            case ern_typecheck:prelude_con(Name) of
+                {ok, #cinfo{type_qname = TQ}} -> prelude_doc(TQ);
                 none -> none
             end;
         CQ ->
@@ -1018,14 +1082,15 @@ load(Env, Text) ->
     end.
 
 %% A refusal ends in a line feed, as a diagnostic the compiler gives does,
-%% since the shell prints both alike.
+%% since the shell prints both alike. What is loaded is remembered, since
+%% completion and `Shift-Tab` read the session from where it is kept.
 load(Env, _Text, Ns) ->
     Name = unicode:characters_to_binary(qname_text(Ns)),
     case source_of(Env, Ns) of
         {ok, File} ->
             case compile_source(Env, File) of
                 {ok, Ns2, Beam, Hash} when Ns2 =:= Ns ->
-                    {'Right', {install(Env, Ns, Beam, Hash),
+                    {'Right', {remember(install(Env, Ns, Beam, Hash)),
                                <<Name/binary, ", compiled from ",
                                  (list_to_binary(relative(File, Env)))/binary>>}};
                 {ok, Ns2, _, _} ->
@@ -1038,7 +1103,7 @@ load(Env, _Text, Ns) ->
         none ->
             case compiled_of(Env, Ns) of
                 {ok, File, Beam, Hash} ->
-                    {'Right', {install(Env, Ns, Beam, Hash),
+                    {'Right', {remember(install(Env, Ns, Beam, Hash)),
                                <<Name/binary, ", from ",
                                  (list_to_binary(relative(File, Env)))/binary>>}};
                 none ->
@@ -1064,7 +1129,7 @@ reload(#env{modules = Modules} = Env) ->
         _ ->
             case lists:foldl(fun reload_one/2, {Env, [], ok}, Changed) of
                 {_, _, {error, Text}} -> {'Left', Text};
-                {Env1, Lines, ok} -> {'Right', {Env1, lists:reverse(Lines)}}
+                {Env1, Lines, ok} -> {'Right', {remember(Env1), lists:reverse(Lines)}}
             end
     end.
 

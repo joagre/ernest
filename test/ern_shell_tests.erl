@@ -513,6 +513,11 @@ command_argument() ->
                  {send, hex(":set timing of") ++ "09"},    % timing's value is a word
                  {expect, "timing off"},
                  {send, "03"},
+                 {send, hex(":load Http.Parser\r")},
+                 {expect, "compiled from"},
+                 {send, hex(":browse Ht") ++ "09"},          % a nested module's namespace
+                 {expect, "namespace Http"},
+                 {send, "03"},
                  {send, hex(":load ") ++ "09"},
                  {expect, "Http."},
                  {send, hex("Http.") ++ "09"},
@@ -580,6 +585,48 @@ tab_mid_row() ->
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nzeta : Int">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nspawn : (Where">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map(\r\n">>)).
+
+%% report §11.2: fields complete in a pattern as in an expression, each
+%% with its type, and a lone constructor is listed with its type; a name
+%% `:forget` removed no longer completes; an input's module and an operator
+%% are not offered. Regression tests for findings of the shell's review
+review_completion_test_() ->
+    {timeout, 90, fun review_completion/0}.
+
+review_completion() ->
+    Bytes = pty(alone("../bin/ern --shell"),
+                [{expect, "> "},
+                 {send, hex("type Point = Point(x : Int, yval : Int)\r")},
+                 {expect, "type Point = "},
+                 {expect, "type Point"},                   % the answer, after the echo
+                 {send, hex("Point(x = 1, y") ++ "09"},
+                 {expect, "yval : Int"},
+                 {send, "03"},
+                 {send, hex("match 1 { Point(x = a, y") ++ "09"},
+                 {expect, "Point(x = a, yval"},
+                 {send, "03"},
+                 {send, hex("match 1 { So") ++ "09"},
+                 {expect, "Some : (a) -> Optional(a)"},
+                 {send, "03"},
+                 {send, hex("let zz = 1\r")},
+                 {expect, "zz : Int"},
+                 {send, hex(":forget zz\r")},
+                 {send, hex(":bindings\r")},
+                 {expect, "type Point"},                   % `:forget` has been taken
+                 {send, hex("zz") ++ "09"},
+                 {sleep, 400},
+                 {send, "03"},
+                 {send, hex("1 + In") ++ "09"},
+                 {expect, "1 + Int"},
+                 {send, "03"},
+                 {send, hex("String.") ++ "09"},
+                 {expect, "String.toUpper"},
+                 {send, "03"},
+                 {send, "04"}],
+                30, " --size 60x100"),
+    ?assertEqual(1, count(Bytes, <<"zz : Int">>)),
+    ?assertEqual(nomatch, binary:match(Bytes, <<"Input">>)),
+    ?assertEqual(nomatch, binary:match(Bytes, <<"String.<>">>)).
 
 %% report §11.2: every refusal of a command is red, as a diagnostic's first
 %% line is, and an answer is plain. A regression test for a finding of the
@@ -858,7 +905,7 @@ doc_every_name() ->
                               "type Tree = Leaf | Node(left : Tree, right : Tree)\n",
                               ":doc zeta\n", ":doc sz\n", ":doc Leaf\n", ":doc Accept\n",
                               ":doc Some\n", ":doc Fs\n", ":load M\n", ":doc M.Red\n",
-                              ":doc M\n"]),
+                              ":doc M\n", ":doc Sys\n", ":doc List\n"]),
     {0, Out} = sh(alone("../bin/ern --shell --source-root " ++ Root) ++ " < " ++ In),
     ?assertEqual(nomatch, binary:match(Out, <<"no documentation">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"Input">>)),
@@ -871,7 +918,13 @@ doc_every_name() ->
     ?assertMatch({_, _}, binary:match(Out, <<"> M.Colour\n\n    type Colour = Red | Green"
                                              "\n\nA colour.">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> Ernest module M\n\n*Since 0.1.0.*\n\n"
-                                             "A little module.">>)).
+                                             "A little module.">>)),
+    %% a namespace lists what it holds, and a type that is a module too
+    %% shows both
+    ?assertMatch({_, _}, binary:match(Out, <<"> namespace Sys\n\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"`Sys.stdout : Address(String)`">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"    type List(a)">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"\nErnest module List\n">>)).
 
 %% report §11.2, §6.9: a spawn site in the session is written as the
 %% session writes names, `input:1` in an input's own expression and

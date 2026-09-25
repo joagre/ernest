@@ -15,7 +15,7 @@ export type Kind = Value | Type | Constructor | Module
 // own kinds of name, which is what a completion is filtered by.
 // `Anything` is the shell's, for a command's argument, whose names the
 // command has chosen already.
-export type Where = Expression | TypeName | Pattern | Declaration | Fields(List(String))
+export type Where = Expression | TypeName | Pattern | Declaration | Fields(List(Name))
   | Anything
 
 // A name the shell can complete to: as it is typed, what it is, and the
@@ -105,14 +105,24 @@ fn whole(name : Name) -> String = match name {
 // takes the fields of its constructor and nothing else. A declaration
 // is where an input may also be an expression, so it admits both.
 fn admitted(names : List(Name), where : Where) -> List(Name) = match where {
-    Fields(fields) ->
-        List.map(fields, fn(field) = Name(text = field, kind = Value, shown = field))
+    Fields(fields) -> fields
   | Anything -> names
-  | TypeName -> List.filter(names, fn(name) = isKind(name, Type) || isKind(name, Module))
-  | Pattern ->
-        List.filter(names, fn(name) = isKind(name, Constructor) || isKind(name, Module))
-  | _ -> List.filter(names, fn(name) = !isKind(name, Type))
+  | TypeName -> held(names, fn(name) = isKind(name, Type))
+  | Pattern -> held(names, fn(name) = isKind(name, Constructor))
+  | _ -> held(names, fn(name) = !isKind(name, Type))
 }
+
+// Report §11.2: the names that may stand there, and the namespaces that
+// hold one, at any depth: after `:`, `Sys` holds no type and is not
+// offered, where `Shell` holds `Shell.Region.Region`.
+fn held(names : List(Name), stands : (Name) -> Bool) -> List(Name) =
+    List.filter(names, fn(name) = match name {
+        Name(text = space, kind = Module) -> List.any(names, fn(inner) = match inner {
+            Name(text = t, kind = kind) ->
+                kind != Module && String.startsWith(t, space <> ".") && stands(inner)
+        })
+      | _ -> stands(name)
+    })
 
 fn isKind(name : Name, kind : Kind) -> Bool = match name { Name(kind = own) -> own == kind }
 
@@ -291,6 +301,7 @@ let caseKept = Test(name = "a lower-case letter reaches no constructor", run = f
 
 let neverShorter = Test(name = "a Tab never takes away what was typed", run = fn() = {
     let names = [Name(text = "Address", kind = Module, shown = "Address."),
+        Name(text = "Address.call", kind = Value, shown = "Address.call"),
         Name(text = "ArrowDown", kind = Constructor, shown = "ArrowDown")];
     let aside = [Name(text = "filterMap", kind = Value, shown = "filterMap"),
         Name(text = "flatMap", kind = Value, shown = "flatMap")];
@@ -303,6 +314,15 @@ let neverShorter = Test(name = "a Tab never takes away what was typed", run = fn
 let keepsTheLast = Test(name = "an abbreviation keeps its last segment as typed", run = fn() =
     becomes(complete("L.fM", library() <> [Name(text = "List.flatMap", kind = Value,
         shown = "List.flatMap : ...")], Expression), "List.fM"))
+
+let heldOnly = Test(name = "a namespace is offered only where it holds what may stand there",
+    run = fn() = {
+        let names = withNamespaces([Name(text = "Sys.stdout", kind = Value, shown = "Sys.stdout"),
+            Name(text = "Shell.Region.Region", kind = Type, shown = "type Shell.Region.Region")]);
+        match complete("S", names, TypeName) {
+            Completion(word = w) -> if w == "Shell." then Passed else Failed(w)
+        }
+    })
 
 let namespaces = Test(name = "a type with members is a namespace, completing with its dot",
     run = fn() =
@@ -322,7 +342,9 @@ let inAPattern = Test(name = "a pattern position takes constructors", run = fn()
 
 let inFields = Test(name = "a field position takes the fields of its constructor",
     run = fn() =
-        becomes(complete("na", library(), Fields(["name", "level"])), "name"))
+        becomes(complete("na", library(), Fields([
+            Name(text = "name", kind = Value, shown = "name : String"),
+            Name(text = "level", kind = Value, shown = "level : Int")])), "name"))
 
 fn library() -> List(Name) = [
     Name(text = "List", kind = Module, shown = "module List"),

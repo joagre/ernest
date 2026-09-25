@@ -820,9 +820,13 @@ constructor_pat(Pos, Path, Name, [{'(', _} | R]) ->
         [{')', _} | R1] ->
             w({#p_con{pos = Pos, path = Path, name = Name, args = {named, []}}, R1});
         [{ident, _, _}, {'=', _} | _] ->
-            {Fields, R1} = sep_by(R, ',', fun field_pat/1),
+            {Fields, R1} = sep_by(R, ',', field_pat_of(Name)),
             w({#p_con{pos = Pos, path = Path, name = Name, args = {named, Fields}},
                expect(R1, ')')});
+        [{eof, P} | _] ->
+            %% report §11.2: as in an expression, a field's name or a
+            %% pattern may stand here, and the constructor's type tells
+            wanted({field_or_pattern, Name}, P, "expected a pattern instead of end of input");
         _ ->
             {P, R1} = pattern(R),
             w({#p_con{pos = Pos, path = Path, name = Name, args = {positional, P}},
@@ -831,10 +835,14 @@ constructor_pat(Pos, Path, Name, [{'(', _} | R]) ->
 constructor_pat(Pos, Path, Name, Ts) ->
     w({#p_con{pos = Pos, path = Path, name = Name}, Ts}).
 
-field_pat(Ts) ->
-    {Name, Pos, R} = expect_ident_pos(Ts),
-    {P, R1} = pattern(expect(R, '=')),
-    w({#field_pat{pos = Pos, name = Name, pattern = P}, R1}).
+%% Report §11.2: a field of this constructor in a pattern, tagged as in
+%% an expression, so that completion knows which fields may stand there.
+field_pat_of(Con) ->
+    fun(Ts) ->
+        {Name, Pos, R} = tagging({field, Con}, fun() -> expect_ident_pos(Ts) end),
+        {P, R1} = pattern(expect(R, '=')),
+        w({#field_pat{pos = Pos, name = Name, pattern = P}, R1})
+    end.
 
 %%
 %% Bitstrings. Value is parsed by Parse (an expression or a pattern).
