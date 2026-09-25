@@ -670,11 +670,11 @@ constructor_expr(Pos, Path, Name, [{'(', _} | R]) ->
     case R of
         [{'..', _} | R1] ->
             {Base, R2} = expr(R1),
-            {Sets, R3} = sep_by(expect(R2, ','), ',', field_of(Name)),
+            {Sets, R3} = sep_by(expect(R2, ','), ',', field_of(Path, Name)),
             w({#e_con{pos = Pos, path = Path, name = Name, args = {named, Base, Sets}},
                expect(R3, ')')});
         [{ident, _, _}, {'=', _} | _] ->
-            {Sets, R1} = sep_by(R, ',', field_of(Name)),
+            {Sets, R1} = sep_by(R, ',', field_of(Path, Name)),
             w({#e_con{pos = Pos, path = Path, name = Name, args = {named, undefined, Sets}},
                expect(R1, ')')});
         [{')', P} | _] ->
@@ -685,9 +685,11 @@ constructor_expr(Pos, Path, Name, [{'(', _} | R]) ->
             %% argument would stand, and positional or named is not
             %% decided yet: what may stand here is a value or a field's
             %% name, and only the constructor's type tells which
-            wanted({field_or_value, Name}, P, "expected an expression instead of end of input");
+            inside_con(Path, Name, none, fun() ->
+                wanted({field_or_value, Name}, P, "expected an expression instead of end of input")
+            end);
         _ ->
-            {E, R1} = expr(R),
+            {E, R1} = inside_con(Path, Name, 0, fun() -> expr(R) end),
             w({#e_con{pos = Pos, path = Path, name = Name, args = {positional, E}},
                expect(R1, ')')})
     end;
@@ -695,12 +697,24 @@ constructor_expr(Pos, Path, Name, Ts) ->
     w({#e_con{pos = Pos, path = Path, name = Name}, Ts}).
 
 %% Report §11.2: a field of this constructor, which the tag names, so
-%% that completion knows which fields may stand at the cursor.
-field_of(Con) ->
+%% that completion knows which fields may stand at the cursor; and where
+%% the input stops, which field's value it stops in, or `none` where a
+%% field's name would stand, for `Shift-Tab`.
+field_of(Path, Con) ->
     fun(Ts) ->
-        {Name, Pos, R} = tagging({field, Con}, fun() -> expect_ident_pos(Ts) end),
-        {E, R1} = expr(expect(R, '=')),
+        {Name, Pos, R} = inside_con(Path, Con, none, fun() ->
+                             tagging({field, Con}, fun() -> expect_ident_pos(Ts) end)
+                         end),
+        {E, R1} = inside_con(Path, Con, {field, Name}, fun() -> expr(expect(R, '=')) end),
         w({#field_set{pos = Pos, name = Name, expr = E}, R1})
+    end.
+
+%% Report §11.2: the constructor an unfinished input stops inside, as
+%% `inside/3` records a call.
+inside_con(Path, Name, At, Parse) ->
+    try Parse()
+    catch throw:{parse_error, #diag{within = undefined} = D} ->
+        throw({parse_error, D#diag{within = {Path, Name, At}}})
     end.
 
 %%

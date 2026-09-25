@@ -72,6 +72,14 @@ export fn withNamespaces(names : List(Name)) -> List(Name) = {
     names <> List.map(fresh, fn(p) = Name(text = p, kind = Module, shown = "namespace " <> p))
 }
 
+// Report §11.2: the whole name the cursor stands in, what is before it
+// and what goes on after it, for `Shift-Tab`.
+export fn wordAt(line : String, at : Int) -> String = {
+    let following = String.toList(String.slice(line, at, String.size(line) - at));
+    let #(rest, _) = List.span(following, fn(c) = inName(Char.toString(c)));
+    word(String.slice(line, 0, at)) <> String.fromList(rest)
+}
+
 // The word being completed: the qualified name the cursor stands at the
 // end of. A name is letters, digits, `_`, and the `.` between segments.
 export fn word(before : String) -> String = {
@@ -323,6 +331,10 @@ let heldOnly = Test(name = "a namespace is offered only where it holds what may 
             Completion(word = w) -> if w == "Shell." then Passed else Failed(w)
         }
     })
+
+let wholeWord = Test(name = "the whole name the cursor stands in", run = fn() =
+    if wordAt("x + List.m(1)", 8) == "List.m" && wordAt("List.map xs", 6) == "List.map"
+    then Passed else Failed(wordAt("List.map xs", 6)))
 
 let namespaces = Test(name = "a type with members is a namespace, completing with its dot",
     run = fn() =

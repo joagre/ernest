@@ -14,7 +14,9 @@
 %% which completion reads to know what may stand at the cursor (§11.2)
 %% and which is `undefined` everywhere else; within: the innermost call
 %% the input stops inside, `{Path, Name, N}` for its callee and the index
-%% of the argument at the cursor, which `Shift-Tab` reads (§11.2), or
+%% of the argument at the cursor, which `Shift-Tab` reads (§11.2), or for a
+%% constructor `{Path, Name, At}`, At the argument's index, `{field, F}`
+%% for a named field's value, or `none` where a field's name stands; or
 %% `undefined`
 
 -endif.

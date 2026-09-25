@@ -252,3 +252,22 @@ meant, read well; the entries are what did not.
     so. The placement stays the runtime's, as unseen by the program as `remote`'s is.
     Decided with item 14 in MVP 3.0.
 
+## Asked beside item 24, 2026-09-25
+
+26. **`:processes` as a function rather than a command.** The shell's `:processes` reads
+    the runtime's record of every process it started, a door §11.2 opens for the shell
+    alone; a program learns of a process only by holding its address, and of a death only
+    through `monitor` (§6.9). Erlang's `processes()` is a function, and what it answers is
+    a value a program filters, sends to, and monitors. A prelude or standard library
+    function, `Process.live() : List(#(String, Address(...)))` or the like, would make the
+    record a value like any other, and `:processes` would be that function printed, one
+    way where there are two (principle 2), and nothing the shell sees that a program may
+    not (principle 3). Against it: a program that can enumerate processes can reach one it
+    was never handed an address to, which is the capability discipline the language keeps
+    by making an address the only way to reach a process; the element type needs the
+    mailbox type of every process, which is no one type, so the value would hold an
+    address of unknown protocol that can only be monitored; and E.0's admission rules
+    weigh a standard library function on its own. It turns on item 24, since a list of
+    addresses is only useful where addresses can be told apart. Decided with items 24 and
+    the registry in MVP 2.65.
+

@@ -759,32 +759,87 @@ prelude_or_none(Segments) ->
 -spec signature(binary()) -> 'None' | {'Some', {binary(), binary(), binary()}}.
 signature(Before) ->
     case within(Before) of
-        {Path, Name, N} ->
-            Env = persistent_term:get({?MODULE, env}, #env{}),
-            Text = unicode:characters_to_binary(
-                     lists:join(".", [atom_to_list(S) || S <- Path ++ [Name]])),
-            {ok, Binds, Expr, Ann} = input(Text),
-            %% a callee that does not check, a name not in scope, has none
-            case check_module(Env#env{n = Env#env.n + 1}, ['Signature'], <<"signature">>, Text,
-                              input_entry(Expr, Ann), Binds) of
-                {'Right', {_, #checked{typed = Typed, env = TEnv}}} ->
-                    {P, Nm} = one_name(Typed),
-                    {ok, Scheme} = ern_typecheck:declared_scheme(TEnv, P, Nm),
-                    {Head, Marked, Rest} =
-                        ern_types:format_call(Scheme, parameters(Env, Path, Name), N,
-                                              ern_typecheck:type_state(TEnv)),
-                    {'Some', {unicode:characters_to_binary([Text, Head]),
-                              unicode:characters_to_binary(Marked),
-                              unicode:characters_to_binary(Rest)}};
-                {'Left', _} ->
-                    'None'
+        {Path, Name, At} ->
+            %% a constructor's name begins with a capital (report §2.3)
+            case not is_integer(At) orelse hd(atom_to_list(Name)) < $a of
+                true -> con_signature(Path, Name, At);
+                false -> call_signature(Path, Name, At)
             end;
         none ->
             'None'
     end.
 
+call_signature(Path, Name, N) ->
+    Env = persistent_term:get({?MODULE, env}, #env{}),
+    Text = unicode:characters_to_binary(lists:join(".", [atom_to_list(S) || S <- Path ++ [Name]])),
+    {ok, Binds, Expr, Ann} = input(Text),
+    %% a callee that does not check, a name not in scope, has none
+    case check_module(Env#env{n = Env#env.n + 1}, ['Signature'], <<"signature">>, Text,
+                      input_entry(Expr, Ann), Binds) of
+        {'Right', {_, #checked{typed = Typed, env = TEnv}}} ->
+            {P, Nm} = one_name(Typed),
+            {ok, Scheme} = ern_typecheck:declared_scheme(TEnv, P, Nm),
+            {Head, Marked, Rest} = ern_types:format_call(Scheme, parameters(Env, Path, Name), N,
+                                                         ern_typecheck:type_state(TEnv)),
+            {'Some', {unicode:characters_to_binary([Text, Head]),
+                      unicode:characters_to_binary(Marked), unicode:characters_to_binary(Rest)}};
+        {'Left', _} ->
+            'None'
+    end.
+
+%% Report §11.2: the call is found wherever the input stands, so the text
+%% is read as an expression, as a block's statement, a `let`, and as
+%% declarations, the first that stops inside a call answering.
+%% Report §11.2: a constructor's fields, as a signature, the one whose
+%% value is at the cursor marked, and none where a field's name stands.
+con_signature(Path, Name, At) ->
+    Env = persistent_term:get({?MODULE, env}, #env{}),
+    case con_info(Env, Path, Name) of
+        {ok, #cinfo{fields = Fields, scheme = #scheme{type = {tfn, Ps, _, _}} = Sc}} ->
+            Names = case Fields of
+                        {named, Fs} -> Fs;
+                        _ -> []
+                    end,
+            Marked = case At of
+                         {field, F} -> index(F, Names, length(Ps));
+                         none -> length(Ps);
+                         I -> I
+                     end,
+            {Head, This, Rest} = ern_types:format_call(Sc, Names, Marked, session_state(Env)),
+            {'Some', {unicode:characters_to_binary([qname_text(Path ++ [Name]), Head]),
+                      unicode:characters_to_binary(This), unicode:characters_to_binary(Rest)}};
+        _ ->
+            'None'
+    end.
+
+index(F, Names, Otherwise) ->
+    case lists:search(fun({_, N}) -> N =:= F end, lists:zip(lists:seq(0, length(Names) - 1),
+                                                           Names)) of
+        {value, {I, _}} -> I;
+        false -> Otherwise
+    end.
+
+%% A constructor by the name written: the session's, the prelude's, or a
+%% module's.
+con_info(#env{session = S, ifaces = Ifaces}, [], Name) ->
+    case maps:get(Name, maps:get(cons, S, #{}), none) of
+        none -> ern_typecheck:prelude_con(Name);
+        CQ -> cinfo(CQ, Ifaces)
+    end;
+con_info(#env{ifaces = Ifaces}, Path, Name) ->
+    cinfo(Path ++ [Name], Ifaces ++ ern_prelude:stdlib_ifaces()).
+
+cinfo(CQ, Ifaces) ->
+    case [CI || #iface{types = Ts} <- Ifaces, {_, #tinfo{constructors = Cs}} <- maps:to_list(Ts),
+                #cinfo{qname = Q} = CI <- Cs, Q =:= CQ] of
+        [CI | _] -> {ok, CI};
+        [] -> none
+    end.
+
 within(Before) ->
-    case [W || {error, #diag{incomplete = true, within = W}} <- [ern_parser:parse_expr(Before)],
+    case [W || Parse <- [fun ern_parser:parse_expr/1, fun ern_parser:parse_stmt/1,
+                         fun ern_parser:parse_string/1],
+               {error, #diag{incomplete = true, within = W}} <- [Parse(Before)],
                W =/= undefined] of
         [W | _] -> W;
         [] -> none

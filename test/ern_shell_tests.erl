@@ -445,6 +445,10 @@ shift_tab() ->
                      {send, hex("List.map([1], ") ++ ShiftTab},
                      {expect, "xs : List(a)"},
                      {send, "03"},
+                     %% the whole name the cursor stands in, two to its left
+                     {send, hex("List.map") ++ "1b5b441b5b44" ++ ShiftTab},
+                     {expect, "The function applied"},
+                     {send, "03"},
                      {send, hex(":br") ++ "09"},              % a command completes
                      {expect, ":browse"},
                      {send, "03"},
@@ -554,9 +558,34 @@ shift_tab_colour() ->
                {send, hex("List.map([1], ") ++ "1b5b5a"},
                {expect, "xs : List(a)"},
                {send, "03"},
+               %% report §11.2: the call is found in a `let`, a declaration's
+               %% body, and a command's argument, and a constructor shows its
+               %% fields, the one whose value is at the cursor marked. A
+               %% regression test for findings of the shell's review
+               {send, hex("type Point = Point(x : Int, yval : Int)\r")},
+               %% inputs run in order, so `:bindings`' answer comes after the
+               %% declaration's; the echo alone may be repainted before it
+               {send, hex(":bindings\r")},
+               {expect, ":bindings"},
+               {expect, "type Point"},
+               {send, hex("let s = List.foldLeft(") ++ "1b5b5a"},
+               {expect, "acc : b"},
+               {send, "03"},
+               {send, hex("fn g(n : Int) -> Int = List.foldLeft([n], ") ++ "1b5b5a"},
+               {expect, "acc : b"},
+               {send, "03"},
+               {send, hex(":type List.foldLeft(") ++ "1b5b5a"},
+               {expect, "acc : b"},
+               {send, "03"},
+               {send, hex("Point(x = 1, yval = ") ++ "1b5b5a"},
+               {expect, "-> Point"},
+               {send, "03"},
                {send, "04"}],
               30),
-    ?assertMatch({_, _}, binary:match(Raw, <<"xs : List(a), \e[36mf : (a) -> b with e\e[0m)">>)).
+    ?assertMatch({_, _}, binary:match(Raw, <<"xs : List(a), \e[36mf : (a) -> b with e\e[0m)">>)),
+    ?assertEqual(3, count(Raw, <<"List.foldLeft(\e[36mxs : List(a)\e[0m, acc : b">>)
+                    + count(Raw, <<"List.foldLeft(xs : List(a), \e[36macc : b\e[0m">>)),
+    ?assertMatch({_, _}, binary:match(Raw, <<"Point(x : Int, \e[36myval : Int\e[0m) -> Point">>)).
 
 %% report §11.2: `Tab` indents only where spaces alone stand before the
 %% cursor on its row; after `(`, with nothing to complete, it lists what may
@@ -597,8 +626,11 @@ review_completion() ->
     Bytes = pty(alone("../bin/ern --shell"),
                 [{expect, "> "},
                  {send, hex("type Point = Point(x : Int, yval : Int)\r")},
-                 {expect, "type Point = "},
-                 {expect, "type Point"},                   % the answer, after the echo
+                 %% inputs run in order, so `:bindings`' answer comes after the
+                 %% declaration's; the echo alone may be repainted before it
+                 {send, hex(":bindings\r")},
+                 {expect, ":bindings"},
+                 {expect, "type Point"},
                  {send, hex("Point(x = 1, y") ++ "09"},
                  {expect, "yval : Int"},
                  {send, "03"},

@@ -269,6 +269,14 @@ the shell is neither standard library nor library but the toolchain's own progra
       §11.2 states each; `review_completion_test_`, `command_argument_test_`,
       `doc_every_name_test_` and `Shell.Complete`'s tests cover them. The review's other
       findings are items 15 to 18 below.
+  15. **Done 2026-09-25: the review's `Shift-Tab` findings.** The brief showed the first
+      screen row of the prose, not its first sentence; the signature was found only in a
+      bare expression, not in a `let`, a `fn` body or `:type`'s argument; a constructor
+      showed nothing; and `Shift-Tab` looked only before the cursor, so `List.m|ap`
+      documented nothing. Each follows §11.2 now, which states the constructor, the whole
+      name, and where a call is found; the parser records a constructor the input stops
+      inside as it records a call. `shift_tab_test_` and `shift_tab_colour_test_` cover
+      them.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, `Markdown`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.
@@ -352,7 +360,7 @@ options, then what is recorded and left alone.
   and `:processes` and a fault line show the same one, so a printed address and a row
   match; the runtime needs equal addresses to be equal terms. If they do not, `Io.debug`
   keeps `<address>`, and `:processes` and a fault line number each process for the shell
-  alone. Until then `:processes` shows the site and nothing more.
+  alone. Until then `:processes` shows the site and nothing more. Decided with them, item 26: whether `:processes` becomes a prelude or standard library function, the runtime's record of processes a value a program may read.
 - **The entries found in 2026-09-24's guide work**: item 15, a `Map` merge that combines the
   values of a key both maps hold, and item 17, a type's members at the prompt.
 - **The entries found writing `libs/markdown`**, 2026-09-25: items 18 to 23, tuple

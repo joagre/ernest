@@ -903,33 +903,33 @@ fn indented(state : Shell.Editor.State, line : String, at : Int) -> Shell.Editor
 
 // Report §11.2: `Shift-Tab` says what the name at the cursor is: its
 // type, the first sentence about it, and the version it appeared in, and
-// the whole page when it is pressed again. Where no name before the cursor
-// is documented and the cursor is inside a call, it shows the call's
-// signature instead. Under the line, as a listing is.
+// the whole page when it is pressed again. Where no name at the cursor is
+// documented and the cursor is inside a call or a constructor, it shows
+// the call's signature instead. Under the line, as a listing is.
 fn documenting(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading,
     state : Shell.Editor.State) -> Unit with ReaderMsg = {
     let Reading(last = last) = reading;
     let Shell.Editor.State(text = line, at = at) = state;
-    let before = String.slice(line, 0, at);
-    let name = Shell.Complete.word(before);
+    // report §11.2: the whole name the cursor stands in, and a call is
+    // looked for in a command's argument as in any input
+    let name = Shell.Complete.wordAt(line, at);
     let page = if String.isEmpty(name) then None else documentation(name);
+    let from = if String.startsWith(line, ":") then Int.min(commandEnd(line), at) else 0;
     let rows = match page {
         Some(text) -> if last == Documented then rendered(text) else brief(text)
-      | None ->
-            match signature(before) {
-                Some(#(head, marked, rest)) ->
-                    [head <> Shell.Style.emphasis(colours(), marked) <> rest]
-              | None -> []
-            }
+      | None -> match signature(String.slice(line, from, at - from)) {
+            Some(#(head, marked, rest)) -> [head <> Shell.Style.emphasis(colours(), marked) <> rest]
+          | None -> []
+        }
     };
     send(screen, under(state, rows));
     readLoop(session, screen, Reading(..reading, editing = state, last = Documented))
 }
 
-// The type, the first line of prose, and the version a page's declaration
-// appeared in: the first line of its first code block, the first row of
-// its first paragraph, and its `Since` paragraph, the name before the type
-// bold.
+// The type, the first sentence, and the version a page's declaration
+// appeared in: the first line of its first code block, the first sentence
+// of its first paragraph, and its `Since` paragraph, the name before the
+// type bold.
 fn brief(text : String) -> List(String) with m = {
     let blocks = Markdown.parse(text);
     let types = List.flatMap(blocks, fn(b) = match b {
@@ -942,8 +942,24 @@ fn brief(text : String) -> List(String) with m = {
     });
     let #(versions, prose) = List.partition(paragraphs, isVersion);
     List.map(List.take(types, 1), fn(t) = Shell.Style.named(colours(), t))
-        <> List.take(Markdown.render(List.take(prose, 1), screenWidth(), colours()), 1)
+        <> Markdown.render(List.map(List.take(prose, 1), sentence), screenWidth(), colours())
         <> Markdown.render(List.take(versions, 1), screenWidth(), colours())
+}
+
+// Report §11.2: a paragraph's first sentence, which ends at the first `. `
+// in its text.
+fn sentence(b : Markdown.Block) -> Markdown.Block = match b {
+    Markdown.Paragraph(xs) -> Markdown.Paragraph(upToStop(xs))
+  | other -> other
+}
+
+fn upToStop(xs : List(Markdown.Inline)) -> List(Markdown.Inline) = match xs {
+    [] -> []
+  | Markdown.Text(s) :: rest -> match String.indexOf(s, ". ") {
+        Some(i) -> [Markdown.Text(String.slice(s, 0, i + 1))]
+      | None -> Markdown.Text(s) :: upToStop(rest)
+    }
+  | x :: rest -> x :: upToStop(rest)
 }
 
 // The line §11.4 writes for the version a declaration appeared in.
