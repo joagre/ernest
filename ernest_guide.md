@@ -1042,7 +1042,7 @@ via : ((a) -> b, Address(b)) -> Address(a)
 type GameMsg = Tick(Int) | Input(Char)
 type World = World(score : Int)
 
-fn step(World(score = n) : World) -> World = World(score = n + 1)
+fn step(w : World) -> World = World(score = w.score + 1)
 
 fn game(state : World) -> Unit with GameMsg = {
     Clock.alarm(100, Tick);
