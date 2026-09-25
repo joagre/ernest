@@ -1457,12 +1457,12 @@ A peer that is lost stays lost: its processes are dead to this node, monitors re
 
 ```ernest
 // ets.ern
-export foreign type Table(k, v)
+export foreign type Table(k=, v)
 
 export foreign fn member(t : Table(k, v), key : k) -> Bool with m = "ets:member/2"
 ```
 
-External callers write `Ets.Table` and `Ets.member`. `foreign type` declares a type whose values only foreign functions make and read; Ernest has no constructor for it and cannot match it. `foreign fn` binds a name to a function on the other side, here Erlang's `ets:member/2`.
+External callers write `Ets.Table` and `Ets.member`. `foreign type` declares a type whose values only foreign functions make and read; Ernest has no constructor for it and cannot match it. `foreign fn` binds a name to a function on the other side, here Erlang's `ets:member/2`. The `=` in `k=` says the keys need equality, since `ets` compares them: a table keyed by functions is a type error at its first operation, as a `Map` is (report §4.7).
 
 The foreign side promises the declared types. A return value of the wrong shape faults the Ernest process that receives it, when it first looks at it; an Erlang exception becomes a fault of the calling process; and a message of the wrong type from foreign code faults its receiver on delivery. Purity is not checked: a `foreign fn` declared without `with` is trusted to have no effect (report §4.7).
 
@@ -1495,7 +1495,7 @@ A shim is a private `foreign fn` over an Erlang function and an exported Ernest 
 
 ```ernest
 // ets.ern
-export foreign type Table(k, v)
+export foreign type Table(k=, v)
 
 export fn lookup(t : Table(k, v), key : k) -> Optional(v) with m =
     match rawLookup(t, key) { [#(_, v)] -> Some(v) | _ -> None }

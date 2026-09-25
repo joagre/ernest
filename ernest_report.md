@@ -222,7 +222,7 @@ A function has one mailbox effect or none. A function that takes two callbacks w
 
 `==` and `!=` are structural and defined for all values except those containing functions or addresses, on which they are a type error. On a value of a foreign type or of `Foreign`, they are the runtime's exact equality on the two representations (§8.4): two references are equal only when they are one reference, and two values that foreign code made as the same term are equal. Ordering is per type, through `compare` in the type's namespace: `Int.compare : (Int, Int) -> Ordering`. For a type a module declares, that is its member `T.compare` (§4.2); a function named `compare` outside the type's namespace gives no ordering. For operand type `T`, `a < b` is `T.compare(a, b) == Less`; `<=`, `>`, and `>=` likewise. They resolve against the operand type as the operators of §4.8 do. A type without `compare` has no ordering, and `<` on it is a type error. The prelude defines `compare` for `Int`, `Float`, `String`, and `Char` (§9.6), and for no other type: `Bool`, `Optional`, and `Path` have no ordering.
 
-A function that applies `==` to a value of a type variable gives that variable an *equality constraint*, inferred and never written; instantiating it with a type that contains a function or an address is a type error at that call site. `Map(k, v)` and `Set(a)` carry the constraint on `k` and `a`; a `Map` or `Set` over a type without equality is rejected at its first operation; a type that names one, `Map((Int) -> Int, Int)` in an annotation or a field, is not itself an error. A standard library function that compares elements, `List.contains`, propagates the constraint through its parameter. `fn equal(a, b) = a == b` has type `(a, a) -> Bool` with the constraint on `a`. The constraint is part of the type scheme (§3.9). `let f = equal` carries it, and applying `f` to addresses is an error at that application. `if flag then equal else always`, with `always` unconstrained, carries the union of the branches' constraints. A compiled interface carries it across modules. The check is at the concrete application.
+A function that applies `==` to a value of a type variable gives that variable an *equality constraint*, inferred and never written; instantiating it with a type that contains a function or an address is a type error at that call site. A foreign type's parameter may carry the constraint (§4.7), and `Map(k=, v)` and `Set(a=)` carry it on `k` and `a` (§9.2). A value of such a type over a type without equality is rejected at its first operation; a type that names one, `Map((Int) -> Int, Int)` in an annotation or a field, is not itself an error. A standard library function that compares elements, `List.contains`, propagates the constraint through its parameter. `fn equal(a, b) = a == b` has type `(a, a) -> Bool` with the constraint on `a`. The constraint is part of the type scheme (§3.9). `let f = equal` carries it, and applying `f` to addresses is an error at that application. `if flag then equal else always`, with `always` unconstrained, carries the union of the branches' constraints. A compiled interface carries it across modules. The check is at the concrete application.
 
 ### 3.11 Serialization
 
@@ -233,8 +233,9 @@ Every value can be sent in a message, a function included, and its code travels 
 ```
 Program     = { Declaration } .
 Declaration = [ "export" ] ( TypeDecl | AbstractDecl | FnDecl | LetDecl | ForeignDecl ) .
-ForeignDecl = "foreign" ( "type" typename [ "(" typevar { "," typevar } ")" ]
+ForeignDecl = "foreign" ( "type" typename [ "(" ForeignVar { "," ForeignVar } ")" ]
             | "fn" DeclName "(" [ ForeignParam { "," ForeignParam } ] ")" Return "=" string ) .
+ForeignVar  = typevar [ "=" ] .
 ForeignParam = ident ":" Type .
 TypeDecl    = "type" typename [ "(" typevar { "," typevar } ")" ] "="
               Constructor { "|" Constructor } .
@@ -310,7 +311,7 @@ At top level, `let` binds a `DeclName`: an `ident`, optionally prefixed with a t
 
 ### 4.7 Foreign declarations
 
-`foreign type T` declares a type implemented outside the language.
+`foreign type T` declares a type implemented outside the language. A parameter written with `=`, `k=` in `foreign type Table(k=, v)`, puts the equality constraint of §3.10 on its argument wherever the type is written.
 
 `foreign fn f(params) -> T = "impl"` declares a function whose body is the implementation named by the string, in the runtime's language; parameters and the result are annotated. A foreign function with a mailbox type may do anything. One without a mailbox type promises purity: the same result for the same arguments, and no effect on anything. The implementation promises the declared types: a value of another shape, or an exception, is a fault, §7. Foreign code sees values in the runtime's representation, §8.4. Both declarations take `export` (§4.2).
 
@@ -709,9 +710,11 @@ Provided by the runtime:
 
 ```
 List(a) // an immutable linked list of elements of type a
-Map(k, v) // an immutable dictionary from k to v; requires equality on k
-Set(a) // an immutable set of a; requires equality on a
+Map(k=, v) // an immutable dictionary from k to v
+Set(a=) // an immutable set of a
 ```
+
+A parameter written with `=` requires equality of its argument, as a foreign type's does (§4.7).
 
 ### 9.3 Declared types
 
@@ -896,8 +899,9 @@ A printed type elides an effect variable bound to pure (§3.9). An effect variab
 ```
 Program     = { Declaration } .
 Declaration = [ "export" ] ( TypeDecl | AbstractDecl | FnDecl | LetDecl | ForeignDecl ) .
-ForeignDecl = "foreign" ( "type" typename [ "(" typevar { "," typevar } ")" ]
+ForeignDecl = "foreign" ( "type" typename [ "(" ForeignVar { "," ForeignVar } ")" ]
             | "fn" DeclName "(" [ ForeignParam { "," ForeignParam } ] ")" Return "=" string ) .
+ForeignVar  = typevar [ "=" ] .
 ForeignParam = ident ":" Type .
 
 TypeDecl    = "type" typename [ "(" typevar { "," typevar } ")" ] "="
@@ -1068,7 +1072,7 @@ A library over Erlang's `ets`, tables of type `set`, outside the standard librar
 /// by a value of type k with values of type v. A table lives
 /// until Ets.drop is called on it, or until the process that
 /// created it dies.
-export foreign type Table(k, v)
+export foreign type Table(k=, v)
 
 /// A fresh empty table. The table is owned by the current
 /// process and is destroyed when that process dies.
@@ -1527,7 +1531,7 @@ Every technical term this report introduces, with the section that defines it. P
 - **effect position** — the type after `with` in a function type. §3.9.
 - **entry point** — the function `ern` calls to run a program: the module's `export fn main`, or the function `--main` names. §8.1, §11.2.
 - **entry process** — the process that runs the entry point. §8.1, §8.6.
-- **equality constraint** — the restriction on a type variable compared with `==`. §3.10.
+- **equality constraint** — the restriction on a type variable compared with `==`, or on a foreign type's parameter written `k=`. §3.10, §4.7.
 - **fault** — a process death with the reason `Fault(cause)`; not catchable. §7.3, §7.4.
 - **field selection** — `e.f`, the named field `f` of `e`, where every constructor of the type has it. §3.5.
 - **foreign function** — declared `foreign fn`; body is a string reference to a runtime implementation. §4.7.

@@ -37,7 +37,7 @@
 /// since 0.1.0
 
 /// A table of the runtime, keyed by `k` with values of type `v`.
-export foreign type Table(k, v)
+export foreign type Table(k=, v)
 
 /// A fresh empty table, owned by the calling process.
 export fn new() -> Table(k, v) with m =

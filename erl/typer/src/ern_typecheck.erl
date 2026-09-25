@@ -184,7 +184,8 @@ prelude_env() ->
     Env0 = #env{st = ern_types:new()},
     Env1 = lists:foldl(fun({Name, Arity, _Doc}, E) ->
                            Params = lists:seq(1, Arity),
-                           add_type(E, #tinfo{qname = [Name], params = Params, foreign = true})
+                           add_type(E, #tinfo{qname = [Name], params = Params, foreign = true,
+                                              eq = ern_prelude:equality_params(Name)})
                        end, Env0, ern_prelude:builtin_types()),
     {ok, Decls} = ern_parser:parse_string(ern_prelude:declared_types()),
     {Env2a, []} = declare_types(Decls, Env1),
@@ -254,13 +255,12 @@ ann(#t_con{pos = Pos, path = Path, name = Name, args = Args}, VarMap, Env) ->
         fail(Pos, io_lib:format("~s takes ~B type argument~s, not ~B",
                                 [format_qname(QName), Arity, plural(Arity), length(Args)])),
     {ArgTs, VarMap1, St} = ann_list(Args, VarMap, Env),
-    %% report §3.10: Map(k, v) and Set(a) carry the equality constraint on
-    %% every variable of the key and the element, wherever the type is
-    %% written; a key that holds a function or an address is refused at its
-    %% first operation, not here
-    Keys = case {QName, ArgTs} of
-               {['Map'], [K, _]} -> [K];
-               {['Set'], [A]} -> [A];
+    %% report §3.10, §4.7, §9.2: a parameter declared `k=` puts the
+    %% equality constraint on every variable of its argument, wherever the
+    %% type is written; an argument that holds a function or an address is
+    %% refused at the type's first operation, not here
+    Keys = case lookup_type(QName, Env) of
+               #tinfo{eq = [_ | _] = Eq} -> [A || {A, true} <- lists:zip(ArgTs, Eq)];
                _ -> []
            end,
     St1 = lists:foldl(fun(T, S) -> ern_types:add_flag(T, eq, S) end, St,
@@ -343,11 +343,16 @@ declare_types(Decls, Env0) ->
                            Env2 = add_type(Env, #tinfo{qname = Q, params = Params}),
                            Env2#env{local_types = maps:put(Name, Q, Env2#env.local_types)}
                        end, Env0, TypeDecls),
-    Env2 = lists:foldl(fun(#foreign_type_decl{pos = Pos, name = Name, params = Params}, Env) ->
+    Env2 = lists:foldl(fun(#foreign_type_decl{pos = Pos, name = Name, params = Params,
+                                              eq = Eq}, Env) ->
                            check_unique_type(Pos, Name, Env),
                            Q = Env#env.ns ++ [Name],
+                           EqFlags = case Eq of
+                                         [] -> [];
+                                         _ -> [lists:member(P, Eq) || P <- Params]
+                                     end,
                            Env3 = add_type(Env, #tinfo{qname = Q, params = Params,
-                                                       foreign = true}),
+                                                       foreign = true, eq = EqFlags}),
                            Env3#env{local_types = maps:put(Name, Q, Env3#env.local_types)}
                        end, Env1, [D || #foreign_type_decl{} = D <- Decls]),
     %% pass two: constructors

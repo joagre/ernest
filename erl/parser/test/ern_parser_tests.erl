@@ -452,6 +452,10 @@ foreign_decl_test() ->
                  d("export foreign type Table(k, v)")),
     ?assertMatch(#foreign_type_decl{export = false, name = 'Handle', params = []},
                  d("foreign type Handle")),
+    %% a parameter that requires equality, Appendix A's ForeignVar
+    ?assertMatch(#foreign_type_decl{params = [k, v], eq = [k]},
+                 d("export foreign type Table(k=, v)")),
+    ?assertMatch({error, _}, ern_parser:parse_string("type T(a=) = T(a)")),
     ?assertMatch(#foreign_fn_decl{export = true, name = member,
                                   params = [#param{pattern = #p_var{name = t}, type = #t_con{}},
                                             #param{pattern = #p_var{name = key},

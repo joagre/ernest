@@ -7,7 +7,7 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Eighteen have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Nineteen have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
 (decided, report §9), 2, 4 and 43 (weighed and kept, the log's *Constructor Names Stay Unique
 in a Module*, *Names Stay Qualified, Without Import or Alias* and *Two Visibilities Are
@@ -17,7 +17,8 @@ report §4.4), 49 (decided with them: the editor's state and the region are abst
 history type was weighed and left, since its one rule, the cap of a thousand inputs, a
 session does not reach, and it would make the editor depend on `Shell.History`), 3 and 5
 (weighed and kept, the log's *Constant Patterns Stay Out* and *`after` Stays Reserved*), 48
-(decided, report §8.5, the mention rule kept), and 36 (already decided, report §9.6).
+(decided, report §8.5, the mention rule kept), 36 (already decided, report §9.6), and 39
+(decided, report §4.7).
 
 ## 1. Names and namespaces
 
@@ -35,9 +36,6 @@ rest stand alone, and one contract over several representations (52) is the larg
     the `false` says colour off only to someone who knows the signature. Named arguments
     are refused (the log's *Labeled Arguments*); whether a two-constructor type, `Plain |
     Styled`, is the library's idiom instead.
-39. **A library cannot ask for equality on its type variable.** §3.9's equality constraint
-    is inferred and never written, so `Ets.Table(k, v)` keyed by functions type-checks, and
-    the runtime compares those keys by identity. Whether a declaration can state it.
 52. **One contract, several representations.** An abstract type hides one representation;
     what it does not give is Java's interface or ML's signature, one API that several
     representations provide at once, chosen per use: Erlang's `sets` and `gb_sets` share

@@ -172,6 +172,14 @@ type_decl([{type, Pos} | R], Doc, Export) ->
     w({#type_decl{pos = Pos, doc = Doc, export = Export, name = Name, params = Params,
                   constructors = Cons}, R4}).
 
+%% Report §4.7, Appendix A: ForeignVar = typevar [ "=" ].
+foreign_var(Ts) ->
+    {V, R} = expect_ident(Ts),
+    case R of
+        [{'=', _} | R1] -> {{V, true}, R1};
+        _ -> {{V, false}, R}
+    end.
+
 opt_typevars([{'(', _} | R]) ->
     {Vars, R1} = sep_by(R, ',', fun expect_ident/1),
     {Vars, expect(R1, ')')};
@@ -308,8 +316,14 @@ let_decl([{'let', Pos} | R], Doc, Export) ->
 
 foreign_decl([{foreign, Pos}, {type, _} | R], Doc, Export) ->
     {Name, R1} = expect_typename(R),
-    {Params, R2} = opt_typevars(R1),
-    w({#foreign_type_decl{pos = Pos, doc = Doc, export = Export, name = Name, params = Params},
+    {Vars, R2} = case R1 of
+                     [{'(', _} | R1a] ->
+                         {Vs, R1b} = sep_by(R1a, ',', fun foreign_var/1),
+                         {Vs, expect(R1b, ')')};
+                     _ -> {[], R1}
+                 end,
+    w({#foreign_type_decl{pos = Pos, doc = Doc, export = Export, name = Name,
+                          params = [V || {V, _} <- Vars], eq = [V || {V, true} <- Vars]},
        R2});
 foreign_decl([{foreign, Pos}, {fn, _} | R], Doc, Export) ->
     {Owner, Name, R1} = decl_name(R),

@@ -167,6 +167,24 @@ redundant_clause_test() ->
                    "with those before it, this one matches every value it would"}],
                  D2#diag.labels).
 
+%% report §4.7, §3.10, §9.2: a foreign type's parameter written `k=` puts
+%% the equality constraint on its argument wherever the type is written,
+%% as Map's key has it. Feedback item 39: a table keyed by functions was
+%% accepted, and the host compared the keys
+foreign_type_equality_test() ->
+    T = "export foreign type T(k=, v)\n"
+        "foreign fn mk() -> T(k, v) = \"m:mk/0\"\n"
+        "foreign fn put(t : T(k, v), key : k, value : v) -> T(k, v) = \"m:put/3\"\n",
+    ?assertEqual(ok, ok(T ++ "fn f() = put(mk(), 1, 2)\n")),
+    ?assertEqual("(Int) -> Int does not support equality (it contains a function or an"
+                 " address), but it is compared here",
+                 err(T ++ "fn f() = put(mk(), fn(x : Int) -> Int = x, 2)\n")),
+    %% a parameter without `=` asks nothing
+    ?assertEqual(ok, ok(T ++ "fn f() = put(mk(), 1, fn(x : Int) -> Int = x)\n")),
+    %% the constraint shows in a type that names the parameter
+    ?assertEqual("(a=, b) -> M.T(a=, b)",
+                 type_of(T ++ "export fn g(key, value) = put(mk(), key, value)\n", g)).
+
 %% report §4.8: `!` is negation on Bool
 not_operator_test() ->
     ?assertEqual("(Bool) -> Bool", type_of("export fn flip(b) = !b", flip)),

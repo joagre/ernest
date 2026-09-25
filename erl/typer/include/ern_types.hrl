@@ -37,7 +37,9 @@
 %% What the checker knows about a declared type, from this module or a
 %% compiled interface.
 -record(tinfo, {qname, params = [], constructors = [], abstract = false,
-                signature = [], foreign = false, reply_carrying = false}).
+                signature = [], foreign = false, reply_carrying = false, eq = []}).
+%% eq: for a foreign or built-in type, whether each parameter requires
+%% equality, as `k=` declares it (report §4.7, §9.2); [] when none does
 %% constructors: [#cinfo{}]; signature: [{name(), #scheme{}}] for an abstract
 %% type; reply_carrying is computed transitively (report §6.6)
 

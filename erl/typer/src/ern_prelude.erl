@@ -7,11 +7,18 @@
 %% compiled interfaces, stdlib_ifaces/0.
 -module(ern_prelude).
 
--export([builtin_types/0, declared_types/0, process_only/0, values/0, docs/0,
+-export([builtin_types/0, equality_params/1, declared_types/0, process_only/0, values/0, docs/0,
          stdlib_ifaces/0]).
 
 -include_lib("typer/include/ern_types.hrl").
 -include_lib("parser/include/ern_ast.hrl").
+
+%% Report §9.2: which parameters of a built-in type require equality, as
+%% `Map(k=, v)` and `Set(a=)` write it.
+-spec equality_params(atom()) -> [boolean()].
+equality_params('Map') -> [true, false];
+equality_params('Set') -> [true];
+equality_params(_) -> [].
 
 %% Types the runtime provides with no Ernest declaration: name, arity, and
 %% documentation.
@@ -566,7 +573,8 @@ entry(Key, Signature, Doc) ->
 
 %% A built-in type as the report's §9.1 and §9.2 write it.
 type_signature('Address', 1) -> <<"type Address(m)">>;
-type_signature('Map', 2) -> <<"type Map(k, v)">>;
+type_signature('Map', 2) -> <<"type Map(k=, v)">>;
+type_signature('Set', 1) -> <<"type Set(a=)">>;
 type_signature(N, 1) -> <<"type ", (atom_to_binary(N))/binary, "(a)">>;
 type_signature(N, 0) -> <<"type ", (atom_to_binary(N))/binary>>.
 

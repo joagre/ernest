@@ -300,8 +300,13 @@ signature(#type_decl{} = D, _, _) ->
     text(type_text(D));
 signature(#abstract_decl{type = #type_decl{name = TName, params = Ps}}, _, _) ->
     text(["abstract type ", atom_to_list(TName), params_text(Ps)]);
-signature(#foreign_type_decl{name = N, params = Ps}, _, _) ->
-    text(["foreign type ", atom_to_list(N), params_text(Ps)]).
+signature(#foreign_type_decl{name = N, params = Ps, eq = Eq}, _, _) ->
+    %% report §4.7: a parameter that requires equality is written `k=`
+    text(["foreign type ", atom_to_list(N),
+          params_text([case lists:member(P, Eq) of
+                           true -> list_to_atom(atom_to_list(P) ++ "=");
+                           false -> P
+                       end || P <- Ps])]).
 
 type_text(#type_decl{name = N, params = Ps, constructors = Cs}) ->
     ["type ", atom_to_list(N), params_text(Ps), " = ",

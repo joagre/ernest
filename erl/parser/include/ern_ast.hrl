@@ -36,7 +36,8 @@
 -record(let_decl, {pos, doc, export = false, owner, name, ann, body, type}).
 %% ann: the annotation, or undefined; type: the scheme, set by the checker
 
--record(foreign_type_decl, {pos, doc, export = false, name, params = []}).
+-record(foreign_type_decl, {pos, doc, export = false, name, params = [], eq = []}).
+%% eq: the parameters written `k=`, which require equality (report §4.7)
 -record(foreign_fn_decl, {pos, doc, export = false, owner, name, params, ret, effect,
                           impl, type}).
 %% type: the scheme, set by the checker, as on fn_decl

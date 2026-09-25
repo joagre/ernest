@@ -86,7 +86,7 @@ The steps:
    two visibilities are enough (item 43), each weighed and kept. A later input may add a
    member to a session type (item 17; report §11.2). The log has an entry for each; item 46
    moved to the standard library's theme.
-4. **Expressions, patterns and types**, the second theme (items 39, 45 and 52 left). **Decided
+4. **Expressions, patterns and types**, the second theme (items 45 and 52 left). **Decided
    2026-09-25:** field selection, `e.f` where every constructor has the field (item 51; report
    §3.5); no projection from a tuple (item 18, weighed and kept out); a `match` and a
    `receive` are operands (item 19; report §5.9); a type variable is not-reply-carrying by
@@ -101,8 +101,9 @@ The steps:
    local `fn`'s signature sharing the enclosing type variables (2.34, §3.9). **Decided
    2026-09-26:** a pure function stands wherever one with a mailbox type is expected, each
    expression of a pure function type opening its effect (1.1; report §3.9); a redundant
-   clause is a type error, in `match` and `receive` (2.13; report §5.9). The log has an entry
-   for each.
+   clause is a type error, in `match` and `receive` (2.13; report §5.9); a foreign type's
+   parameter written `k=` requires equality, as `Map`'s key does (item 39; report §4.7). The
+   log has an entry for each.
 5. **Processes and the system**, the third theme (items 9, 24, 26, 27, 28, 37, 47, 50, 53),
    the registry at its head (item 53), an address's identity with it (item 24), since
    unregistering needs equality; either outcome changes `:processes` and `Io.debug`, as item
