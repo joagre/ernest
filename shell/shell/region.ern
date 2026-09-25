@@ -175,8 +175,20 @@ fn paint(rows : List(String), row : Int, at : Int) -> String =
 // since a row is placed by its columns and a tab's width depends on
 // where it falls.
 export fn rowsOf(r : Region) -> List(String) =
-    List.map(tailRowsOf(r) <> inputRows(r), fn(line) = clip(expand(line), width(r)))
+    List.map(tailRowsOf(r), fn(line) = clip(expand(line), width(r))) <> screenInput(r)
         <> offeredRows(r)
+
+// Report §11.2: the rows the input takes on the screen. Each of its lines
+// wraps at the window's edge, so what is typed past it stays in sight; a
+// line that fills the width exactly takes an empty row after it, where
+// the cursor goes on.
+fn screenInput(r : Region) -> List(String) =
+    List.flatMap(inputRows(r), fn(line) = onScreen(expand(line), width(r)))
+
+fn onScreen(line : String, w : Int) -> List(String) = {
+    let rows = wrapped(line, w);
+    if w > 0 && columns(line) > 0 && columns(line) % w == 0 then rows <> [""] else rows
+}
 
 // Report §11.2: what is shown under the input wraps at the window's
 // edge, since a name's type or a sentence cut short says less than it
@@ -184,7 +196,7 @@ export fn rowsOf(r : Region) -> List(String) =
 // counted on the last row instead.
 fn offeredRows(r : Region) -> List(String) = {
     let Region(offered = offered) = r;
-    let room = screenRows(r) - List.size(tailRowsOf(r)) - List.size(inputRows(r));
+    let room = screenRows(r) - List.size(tailRowsOf(r)) - List.size(screenInput(r));
     let lines = List.map(offered, fn(line) = wrapped(expand(line), width(r)));
     let all = List.flatMap(lines, fn(rows) = rows);
     if List.size(all) <= room then all
@@ -263,23 +275,32 @@ fn width(r : Region) -> Int = match r {
   | Region(size = Some(Size(columns = columns))) -> columns
 }
 
-// The row of the region the cursor rests on: the tail's rows, and then
-// one for each line feed the cursor has before it.
+// The row of the region the cursor rests on: the tail's rows, the screen
+// rows of the input's lines before the cursor's, and the rows the cursor's
+// own line wraps onto before it.
 export fn resting(r : Region) -> Int = {
     let Region(typed = typed, at = at) = r;
-    List.size(tailRowsOf(r)) + List.size(String.split(String.slice(typed, 0, at), "\n")) - 1
+    let line = List.size(String.split(String.slice(typed, 0, at), "\n")) - 1;
+    let earlier = List.flatMap(List.take(inputRows(r), line), fn(row) =
+        onScreen(expand(row), width(r)));
+    List.size(tailRowsOf(r)) + List.size(earlier) + offset(r) / Int.max(1, width(r))
 }
 
-// The column the cursor rests in: what the row holds before the cursor,
-// tabs and all, is as many columns as it paints.
-export fn column(r : Region) -> Int = {
+// The column the cursor rests in, on the row its line wraps onto: what the
+// line holds before the cursor, tabs and all, is as many columns as it
+// paints.
+export fn column(r : Region) -> Int = offset(r) % Int.max(1, width(r)) + 1
+
+// The columns before the cursor on its line, the prompt or `... ` among
+// them.
+fn offset(r : Region) -> Int = {
     let Region(prompt = prompt, typed = typed, at = at) = r;
     let before = String.slice(typed, 0, at);
     let head = match String.lastIndexOf(before, "\n") {
         None -> prompt <> before
       | Some(i) -> continuation <> String.slice(before, i + 1, String.size(before) - i - 1)
     };
-    Int.min(width(r), columns(expand(head)) + 1)
+    columns(expand(head))
 }
 
 // Report §11.2: a tab is painted as the spaces to the next stop. The
@@ -455,6 +476,24 @@ let enteredEmpty = Test(name = "nothing typed after no prompt leaves no row", ru
     if String.contains(bytes, "> \n") && !String.contains(none, "\n") then Passed
     else Failed(String.replace(none, "\u{1b}", "ESC"))
 })
+
+let wrapsTheInput = Test(name = "a line wider than the screen wraps, the cursor after it",
+    run = fn() = {
+        let #(r0, _) = said(new(Some(Size(rows = 24, columns = 10)), true), "> ");
+        let #(r, _) = typing(r0, "abcdefghijkl", 12, []);
+        // `> ` and twelve characters are fourteen columns: two rows
+        if rowsOf(r) == ["> abcdefgh", "ijkl"] && resting(r) == 1 && column(r) == 5 then Passed
+        else Failed(String.join(rowsOf(r), " | ") <> " at " <> Int.toString(resting(r))
+            <> "," <> Int.toString(column(r)))
+    })
+
+let fillsTheWidth = Test(name = "a line that fills the width puts the cursor on the next row",
+    run = fn() = {
+        let #(r0, _) = said(new(Some(Size(rows = 24, columns = 10)), true), "> ");
+        let #(r, _) = typing(r0, "abcdefgh", 8, []);
+        if rowsOf(r) == ["> abcdefgh", ""] && resting(r) == 1 && column(r) == 1 then Passed
+        else Failed(String.join(rowsOf(r), " | "))
+    })
 
 let saysWithoutATerminal = Test(name = "without a terminal what is said is the transcript",
     run = fn() = {

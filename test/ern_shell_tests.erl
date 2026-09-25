@@ -668,6 +668,26 @@ review_completion() ->
     ?assertEqual(nomatch, binary:match(Bytes, <<"Input">>)),
     ?assertEqual(nomatch, binary:match(Bytes, <<"String.<>">>)).
 
+%% report §11.2: a line wider than the screen wraps onto the rows below it
+%% as it is typed, and the cursor follows it there. A regression test for a
+%% finding of the shell's review, where the line was cut at the edge and the
+%% cursor stood still
+wide_input_test_() ->
+    {timeout, 60, fun wide_input/0}.
+
+wide_input() ->
+    Screen = screen(alone("../bin/ern --shell"),
+                    [{expect, "> "},
+                     {send, hex("let longname = \"abcdefghijklmnopqrstuvwxyz0123456789\"")},
+                     {expect, "0123456789"},
+                     {send, hex("X")},
+                     {expect, "789\"X"},
+                     {send, "03"},
+                     {send, "04"}],
+                    30, "12x40"),
+    Lines = [L || L <- binary:split(Screen, <<"\n">>, [global]), L =/= <<>>],
+    ?assert(lists:member(<<"> let longname = \"abcdefghijklmnopqrstuv">>, Lines)).
+
 %% report §11.2: every refusal of a command is red, as a diagnostic's first
 %% line is, and an answer is plain. A regression test for a finding of the
 %% session of real use: `:load`'s refusal was red and `:set`'s was not, the

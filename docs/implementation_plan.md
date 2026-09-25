@@ -286,6 +286,11 @@ the shell is neither standard library nor library but the toolchain's own progra
       `:browse List.` is taken, line mode ends with one line feed, and a module comes
       before a directory of its name in `:load`'s listing. `startup_test_`, the golden
       session, and the region's tests cover them.
+  17. **Done 2026-09-25: an input wider than the screen wraps.** The design note had the
+      region clip the input at the edge, which hid what was typed past it and pinned the
+      cursor. Each line of the input now wraps onto the rows below it as it is typed, the
+      cursor on the row and column it falls on; §11.2 states it. The region's tests and
+      `wide_input_test_` cover it.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, `Markdown`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.
