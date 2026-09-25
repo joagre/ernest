@@ -159,7 +159,7 @@ At a terminal the shell edits the line with Readline's Emacs keys, and keeps a h
 
 `Tab` completes the word before the cursor, by its prefix or by its word starts, `S.pS` to `String.padStart`. It offers only what may stand there: a command after a leading `:` and what the command takes after it, a type after `:` in an annotation, a constructor in a pattern, a field inside a named constructor's parentheses. A name completed alone is shown under the line with its type, and a second `Tab`, or one with nothing to add, lists the candidates there alphabetically, until the next key. With nothing typed they are the session's names, the modules, and the prelude's names, and every other name comes from its first letters; at the start of a row `Tab` indents instead. `Shift-Tab` shows the type, the first sentence, and the version of the name at the cursor, and pressed again its documentation. Inside a call, on no documented name, it shows the callee's signature with the parameter at the cursor marked, and inside a constructor its fields.
 
-`:reload` compiles and loads a module whose source has changed. Processes running the old version go on running it, and a binding that holds a function of it keeps it, until the next reload of that module, which ends the processes and forgets the bindings.
+`:load` compiles a module from its source and puts it in scope, and `:reload` compiles and loads again a loaded module whose source has changed. Where one of the changed modules does not compile, `:reload` loads none of them. Processes running the old version go on running it, and a binding that holds a function of it keeps it, until the next reload of that module, which ends the processes and forgets the bindings.
 
 ### 1.3 Reading input
 
