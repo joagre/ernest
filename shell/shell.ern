@@ -693,7 +693,8 @@ fn completing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading 
 // What a completion does to the line: the word it gives stands in
 // place of the one typed, and a second `Tab` lists what is left. Report
 // §11.2: so does a first `Tab` that adds nothing to the line, since a
-// key that changes nothing would say nothing.
+// key that changes nothing would say nothing, and a lone candidate is
+// listed whenever it is reached, since its line says what was completed.
 fn offering(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading,
     completion : Shell.Complete.Completion, typed : String,
     state : Shell.Editor.State) -> Unit with ReaderMsg = {
@@ -702,7 +703,8 @@ fn offering(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : 
     let #(text, next) = Shell.Complete.applied(line, at, typed, completion);
     let shown = Shell.Editor.typed(state, text, next);
     let said = hint(screen, reading, shown);
-    let rows = if last == Tabbed || text == line then listing(completion) else [];
+    let rows = if last == Tabbed || text == line || lone(completion) then listing(completion)
+        else [];
     send(screen, under(shown, rows));
     readLoop(session, screen,
         Reading(..reading, editing = shown, hinted = said, last = Tabbed))
@@ -715,16 +717,27 @@ fn commandEnd(line : String) -> Int = match String.indexOf(line, " ") {
   | Some(i) -> i
 }
 
-// Report §11.2: a command that takes an argument, completed whole, is
-// followed by a space, where the line has none after it already.
+fn lone(completion : Shell.Complete.Completion) -> Bool = match completion {
+    Shell.Complete.Completion(candidates = [_]) -> true
+  | _ -> false
+}
+
+// Report §11.2: a lone candidate is completed as far as it goes, so one
+// that takes a value after it, a command with an argument or a setting,
+// is followed by a space, where the line has none after it already.
+fn withSpace(completion : Shell.Complete.Completion, takes : Bool)
+    -> Shell.Complete.Completion = match completion {
+    Shell.Complete.Completion(word = whole, candidates = [only]) ->
+        if takes then Shell.Complete.Completion(word = whole <> " ", candidates = [only])
+        else completion
+  | _ -> completion
+}
+
 fn commandWord(word : String, line : String) -> Shell.Complete.Completion = {
     let completion = Shell.Complete.complete(word, commandNames(), Shell.Complete.Anything);
     match completion {
-        Shell.Complete.Completion(word = whole, candidates = [only]) ->
-            if commandEnd(line) == String.size(line) && takesArgument(whole) then
-                Shell.Complete.Completion(word = whole <> " ", candidates = [only])
-            else completion
-      | _ -> completion
+        Shell.Complete.Completion(word = whole) ->
+            withSpace(completion, commandEnd(line) == String.size(line) && takesArgument(whole))
     }
 }
 
@@ -746,6 +759,12 @@ fn argument(line : String, at : Int, typed : String) -> Shell.Complete.Completio
     match pick(String.slice(line, 1, end - 1)) {
         Picked(Entry(argument = AnExpression)) ->
             Shell.Complete.complete(typed, names(), context(before))
+      // every setting takes a value after it
+      | Picked(Entry(argument = ASetting)) ->
+            if String.isEmpty(String.trim(before)) then
+                withSpace(Shell.Complete.complete(typed, argumentNames(ASetting, typed),
+                    Shell.Complete.Anything), at == String.size(line))
+            else Shell.Complete.nothing
       | Picked(Entry(argument = kind)) ->
             if String.isEmpty(String.trim(before)) then
                 Shell.Complete.complete(typed, argumentNames(kind, typed), Shell.Complete.Anything)

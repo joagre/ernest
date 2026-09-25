@@ -221,6 +221,12 @@ the shell is neither standard library nor library but the toolchain's own progra
      `'$input'` now, which no identifier is spelled as. A constructor's refusal named
      `Input28.S`; it names `S` and the input that declared it. `session_names_test_` is
      the regression test.
+  8. **Done 2026-09-25: a lone candidate is completed as far as it goes.** `:set depth` and
+     `Tab` showed the setting's help line and left the line as it was, where a command
+     that takes an argument gets its space. A lone candidate now takes the space before
+     the value it takes, a setting as a command does, and is listed whenever `Tab` reaches
+     it, so `:bro` shows `:browse `'s help line as `List.ma` shows `List.map`'s type.
+     §11.2 states the rule; `command_argument_test_` covers it.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, `Markdown`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.

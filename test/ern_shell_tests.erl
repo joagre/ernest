@@ -475,8 +475,9 @@ shift_tab() ->
 %% module for `:browse`, listed by its name alone; a setting for `:set`; a
 %% module under the source root for `:load`, a directory at a time; and
 %% nothing after `:output`, where `Tab` neither lists nor indents. A
-%% whole command that takes nothing shows its help line, as a lone
-%% candidate is listed. A regression test for findings of the session of
+%% lone candidate is completed as far as it goes, a setting with the space
+%% before its value as a command with its argument, and is listed with its
+%% line whenever `Tab` reaches it. A regression test for findings of the session of
 %% real use: `:browse` and `Tab` did nothing, `:browse ` and `Tab`
 %% indented, `:browse B` listed `module Bool`, and `:bindings` and `Tab`
 %% showed nothing
@@ -503,6 +504,9 @@ command_argument() ->
                  {send, hex(":set ") ++ "09"},
                  {expect, "timing on or off"},
                  {send, "03"},
+                 {send, hex(":set dep") ++ "09"},          % a lone setting, and its value
+                 {expect, "depth n"},
+                 {send, "03"},
                  {send, hex(":load ") ++ "09"},
                  {expect, "Http."},
                  {send, hex("Http.") ++ "09"},
@@ -515,6 +519,8 @@ command_argument() ->
                 30, " --size 30x80"),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :bindings\r\n:bindings       what the session"
                                                " declares, with their types">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> :browse \r\n:browse Module  the exports">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> :set depth \r\ndepth n">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :browse B\r\nBool\r\nBytes">>)),
     ?assertEqual(nomatch, binary:match(Bytes, <<"module Bool">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\ndepth n\r\nlength n\r\n">>)),
