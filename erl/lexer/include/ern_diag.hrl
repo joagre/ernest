@@ -13,10 +13,11 @@
 %%   takes another line for it (report §11.2), and nothing else reads it.
 %% expected: what the parser wanted where it stopped, for completion to know
 %%   what may stand at the cursor (§11.2): `expression`, `typename`,
-%%   `pattern`, `declaration`, `{field, Con}` where a field's name of
-%%   constructor Con stands, or `{field_or_value, Con}` or
-%%   `{field_or_pattern, Con}` where Con's first argument would stand and
-%%   could be either; `undefined` for every other failure.
+%%   `pattern`, `declaration`, `{field, Path, Con}` where a field's name of
+%%   constructor Con stands, or `{field_or_value, Path, Con}` or
+%%   `{field_or_pattern, Path, Con}` where Con's first argument would stand
+%%   and could be either, Path being the qualifier Con is written with;
+%%   `undefined` for every other failure.
 %% within: the innermost call or constructor the input stops inside, for
 %%   `Shift-Tab` (§11.2). For a call `{Path, Name, N}`, N the index of the
 %%   argument at the cursor; for a constructor `{Path, Name, At}`, At the

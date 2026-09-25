@@ -1039,6 +1039,10 @@ signature_test() ->
     ?assertEqual({'Some', {<<"send(Address(a), ">>, <<"a">>, <<") -> Unit with m">>}},
                  ern_shell:signature(<<"send(a, ">>)),
     ?assertEqual('None', ern_shell:signature(<<"1 + ">>)),
+    %% a callee that is no function has no signature; a regression test,
+    %% where `Sys.stdout(` showed `Sys.stdoutAddress(String)`
+    ?assertEqual('None', ern_shell:signature(<<"Sys.stdout(">>)),
+    ?assertEqual('None', ern_shell:signature(<<"Map.empty(">>)),
     {'Some', Map} = ern_shell:documentation(<<"List.map">>),
     ?assertMatch({_, _}, binary:match(Map, <<"*Since 0.1.0.*">>)),
     {'Some', Send} = ern_shell:documentation(<<"send">>),
@@ -1116,13 +1120,197 @@ demo(N) ->
      "    tick()\n",
      "}\n"].
 
-%% An input that rewrites the module's source, so that the session is what
-%% changes it (E.17).
 write_demo(Dir, N) ->
-    Text = lists:flatten(demo(N)),
+    write_source(Dir, "demo.ern", demo(N)).
+
+%% An input that writes a module's source, so that the session is what
+%% changes it (E.17).
+write_source(Dir, File, Source) ->
+    Text = lists:flatten(Source),
     Escaped = lists:flatten([case C of $\n -> "\\n"; $" -> "\\\""; _ -> C end || C <- Text]),
-    ["Fs.write(Path(\"", filename:join(Dir, "demo.ern"), "\"), String.toUtf8(\"", Escaped,
+    ["Fs.write(Path(\"", filename:join(Dir, File), "\"), String.toUtf8(\"", Escaped,
      "\"), 2000)\n"].
+
+%% report §11.2: a `:reload` in which a changed module does not compile
+%% reloads none of them, so the session goes on with every module as it
+%% was, and the next `:reload` that compiles them all reloads them all. A
+%% regression test: the modules before the one that failed were loaded
+%% again while the session kept their previous interfaces, so the session
+%% ran code its checker had not seen
+reload_all_or_nothing_test_() ->
+    {timeout, 60, fun reload_all_or_nothing/0}.
+
+reload_all_or_nothing() ->
+    Dir = scratch("ern_reload_all_"),
+    ok = file:write_file(filename:join(Dir, "alpha.ern"), answer(1)),
+    ok = file:write_file(filename:join(Dir, "beta.ern"), answer(1)),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, [":load Alpha\n", ":load Beta\n",
+                              write_source(Dir, "alpha.ern", answer(2)),
+                              write_source(Dir, "beta.ern", "export fn answer() -> Int = \"no\"\n"),
+                              ":reload\n",
+                              "Alpha.answer() + 10\n",
+                              write_source(Dir, "beta.ern", answer(3)),
+                              ":reload\n",
+                              "Alpha.answer() + 20\n",
+                              "Beta.answer() + 30\n"]),
+    {0, Out} = sh(alone("../bin/ern --shell --source-root " ++ Dir) ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"beta.ern:1:">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"nothing was reloaded">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> 11 : Int">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"Alpha, compiled again">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"Beta, compiled again">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> 22 : Int">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> 33 : Int">>)).
+
+answer(N) ->
+    ["export fn answer() -> Int = ", integer_to_list(N), "\n"].
+
+%% A directory of its own under /tmp, for a test's sources.
+scratch(Prefix) ->
+    Dir = filename:join("/tmp", Prefix ++ os:getpid() ++ "_"
+                        ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    Dir.
+
+%% report §11.2: `:load` of a module the session has loaded is refused and
+%% names `:reload`, which is what compiles a loaded module again; a process
+%% running it goes on. A regression test: a second `:load` loaded the
+%% module over itself, and a third purged the version a process ran and
+%% killed the process, which nothing reported
+load_loaded_test_() ->
+    {timeout, 60, fun load_loaded/0}.
+
+load_loaded() ->
+    Dir = scratch("ern_load_twice_"),
+    ok = file:write_file(filename:join(Dir, "demo.ern"), demo(1)),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, [":load Demo\n", "spawn(Local, fn() = Demo.tick())\n",
+                              ":load Demo\n", ":load Demo\n", ":processes\n"]),
+    {0, Out} = sh(alone("../bin/ern --shell --source-root " ++ Dir) ++ " < " ++ In),
+    ?assertEqual(2, count(Out, <<"Demo is loaded already; :reload compiles it again">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"input:1\n">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"no process of the session's is running">>)).
+
+%% report §11.2, §4.2: the module an input becomes, and the one that holds
+%% what a `let` binds, have names no program writes, so a module of the
+%% same spelling is a module like any other and the session's declarations
+%% stand beside it. A regression test: the first input was the module
+%% `Input1`, and `:load Input1` put a module in its place, taking the
+%% session's `f` with it
+input_namespace_test_() ->
+    {timeout, 60, fun input_namespace/0}.
+
+input_namespace() ->
+    Dir = scratch("ern_inputs_"),
+    ok = file:write_file(filename:join(Dir, "input1.ern"), answer(7)),
+    ok = file:write_file(filename:join(Dir, "bindings2.ern"), answer(8)),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, ["fn f() -> Int = 1\n", "let x = 2\n", ":load Input1\n",
+                              ":load Bindings2\n", "f() + x\n", "Input1.answer()\n",
+                              "Bindings2.answer()\n"]),
+    {0, Out} = sh(alone("../bin/ern --shell --source-root " ++ Dir) ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"> 3 : Int">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> 7 : Int">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> 8 : Int">>)).
+
+%% report §11.2, §11.1: `:load` finds what the module uses as `ernc`
+%% finds it, on every root of the load path. A regression test: the
+%% compiler the shell calls read the dependencies' interfaces from the
+%% first root alone, and did not look on the load path for a dependency
+load_path_dependency_test_() ->
+    {timeout, 60, fun load_path_dependency/0}.
+
+load_path_dependency() ->
+    Dir = scratch("ern_load_deps_"),
+    Lib = filename:join(Dir, "lib"),
+    Src = filename:join(Dir, "src"),
+    First = filename:join(Dir, "first"),
+    Second = filename:join(Dir, "second"),
+    [ok = filelib:ensure_path(D) || D <- [Lib, Src, First]],
+    ok = file:write_file(filename:join(Lib, "dep.ern"), answer(5)),
+    ok = file:write_file(filename:join(Src, "user.ern"),
+                         "export fn twice() -> Int = Dep.answer() * 2\n"),
+    {0, _} = sh("../bin/ernc --source-root " ++ Lib ++ " --out-dir " ++ Second ++ " "
+                ++ filename:join(Lib, "dep.ern")),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, [":load User\n", "User.twice()\n"]),
+    {0, Out} = sh(alone("../bin/ern --shell --source-root " ++ Src ++ " --load-path " ++ First
+                        ++ " --load-path " ++ Second) ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"User, compiled from user.ern">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> 10 : Int">>)).
+
+%% report §11.2: the fields completion offers inside a constructor are
+%% those of the constructor written there, found as the checker finds it:
+%% a qualified one in its module, in an expression and in a pattern alike.
+%% A regression test: the fields were looked up by the constructor's bare
+%% name, so a constructor another module also declares offered the fields
+%% of whichever module came first
+fields_by_module_test() ->
+    Dir = scratch("ern_fields_"),
+    ok = file:write_file(filename:join(Dir, "circles.ern"),
+                         "export type Shape = Round(radius : Int)\n"),
+    ok = file:write_file(filename:join(Dir, "discs.ern"),
+                         "export type Shape = Round(diameter : Int, hole : Bool)\n"),
+    Texts = fun({'Fields', Names}) -> [Text || {'Name', _, _, Text} <- Names];
+               (Other) -> Other
+            end,
+    try
+        with_loaded(Dir, [<<"Circles">>, <<"Discs">>]),
+        ?assertEqual([<<"diameter">>, <<"hole">>], Texts(ern_shell:context(<<"Discs.Round(">>))),
+        ?assertEqual([<<"radius">>], Texts(ern_shell:context(<<"Circles.Round(">>))),
+        ?assertEqual([<<"diameter">>, <<"hole">>],
+                     Texts(ern_shell:context(<<"Discs.Round(hole = true, ">>))),
+        ?assertEqual([<<"diameter">>, <<"hole">>],
+                     Texts(ern_shell:context(<<"match s { Discs.Round(">>))),
+        ?assertEqual([<<"radius">>], Texts(ern_shell:context(<<"match s { Circles.Round(">>))),
+        %% an unqualified `Round` is neither module's, and has no fields
+        ?assertEqual('Expression', ern_shell:context(<<"Round(">>))
+    after
+        forget_session()
+    end.
+
+%% report §11.2, §4.2: what a command is given that is not a name is
+%% refused as one, and the refusal names what was given; a name longer
+%% than any the host can hold among them. A regression test: `:load .`
+%% was refused as ` is not a module name`, naming nothing, and a long name
+%% raised the host's limit on a name out of the front end
+not_a_name_test() ->
+    Long = list_to_binary(lists:duplicate(300, $a)),
+    try
+        ern_shell:loaded(#{}),
+        Env = ern_shell:start(),
+        ?assertMatch({'Left', <<". is not a module name", _/binary>>},
+                     ern_shell:load(Env, <<".">>)),
+        ?assertMatch({'Left', <<". is not a module name", _/binary>>},
+                     ern_shell:browse(Env, <<".">>)),
+        ?assertMatch({'Left', _}, ern_shell:load(Env, <<"A", Long/binary>>)),
+        ?assertMatch({'Left', _}, ern_shell:browse(Env, <<"A", Long/binary>>)),
+        ?assertMatch({'Left', _}, ern_shell:forget(Env, Long)),
+        ?assertMatch({'Left', _}, ern_shell:doc(Env, Long)),
+        ?assertMatch({'Left', _}, ern_shell:doc(Env, <<".">>)),
+        ?assertEqual('None', ern_shell:documentation(<<".">>)),
+        ?assertEqual('None', ern_shell:documentation(Long)),
+        ?assertEqual('None', ern_shell:documentation(<<"List.", Long/binary>>))
+    after
+        forget_session()
+    end.
+
+%% A session begun with the modules of Dir loaded by `:load`, one after
+%% the other, kept where completion reads it.
+with_loaded(Dir, Modules) ->
+    ern_shell:loaded(#{source_root => Dir}),
+    lists:foldl(fun(M, Env) ->
+                        {'Right', {Env1, _}} = ern_shell:load(Env, M),
+                        Env1
+                end, ern_shell:start(), Modules).
+
+%% The front end keeps the session where completion reads it; a test that
+%% set it leaves none behind for the next.
+forget_session() ->
+    persistent_term:erase({ern_shell, loaded}),
+    persistent_term:erase({ern_shell, env}),
+    ok.
 
 %% report §11.2: on a terminal the shell reads keys, paints what is typed,
 %% takes Backspace and C-d, and reads the interrupt as a key, which kills a

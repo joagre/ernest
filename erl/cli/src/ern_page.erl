@@ -58,6 +58,11 @@ member_docs(Entries) ->
                        Doc =/= none]).
 
 entry({{_, Name, _}, _, Signature, Doc, Meta}, Prefix, Members) ->
+    section([Prefix, atom_to_list(Name)], member_key(Name), Signature, Doc, Meta, Members).
+
+%% A declaration's section under its heading: its signature, its `since`
+%% line, its text, and its items.
+section(Heading, Key, Signature, Doc, Meta, Members) ->
     {Own, Since} = case Doc of
                        none -> {undefined, undefined};
                        #{<<"en">> := T} -> split_since(T)
@@ -65,10 +70,10 @@ entry({{_, Name, _}, _, Signature, Doc, Meta}, Prefix, Members) ->
     %% a member whose own block is only its `since` line inherits the entry's text
     Text = case Own of
                T2 when T2 =:= undefined; T2 =:= <<>> ->
-                   maps:get(member_key(Name), Members, undefined);
+                   maps:get(Key, Members, undefined);
                _ -> Own
            end,
-    ["## ", Prefix, atom_to_list(Name), "\n\n```ernest\n",
+    ["## ", Heading, "\n\n```ernest\n",
      lists:join("\n", [binary_to_list(L) || L <- Signature]), "\n```\n\n",
      since_line(Since),
      case Text of
@@ -120,14 +125,22 @@ since_line(undefined) -> [];
 since_line(V) -> ["*Since ", V, ".*\n\n"].
 
 %% Report §11.2: one declaration's documentation, as `:doc` prints it. The
-%% name is the unqualified one the entry carries, `map` or `Stack.push`.
--spec declaration(binary() | file:filename(), atom()) -> {ok, iolist()} | none.
+%% name is the unqualified one the entry carries, `map` or `Stack.push`, as
+%% it is written, so that no name is made of what a person typed.
+-spec declaration(binary() | file:filename(), binary()) -> {ok, iolist()} | none.
 declaration(Beam, Name) ->
     {ok, #{iface := #iface{namespace = Ns}}} = ern_emitter:read_interface(Beam),
     {ok, {docs_v1, _, ernest, _, _, _, Entries}} = ern_emitter:read_docs(Beam),
-    case [E || {{_, N, _}, _, _, _, _} = E <- Entries, N =:= Name] of
-        [] -> none;
-        [E | _] -> {ok, entry(E, qname(Ns) ++ ".", member_docs(Entries))}
+    case find(Name, Entries) of
+        {ok, E} -> {ok, entry(E, qname(Ns) ++ ".", member_docs(Entries))};
+        none -> none
+    end.
+
+%% The entry of a name as it is written.
+find(Name, Entries) ->
+    case [E || {{_, N, _}, _, _, _, _} = E <- Entries, atom_to_binary(N) =:= Name] of
+        [E | _] -> {ok, E};
+        [] -> none
     end.
 
 %% Report §11.2: a declaration the session made, under the name the session
@@ -136,7 +149,7 @@ declaration(Beam, Name) ->
 %% not the session's; `entry` keeps the entry's own, which a type's is.
 %% A name with no entry, one a `let` at the prompt bound, is its name and
 %% type alone.
--spec session_declaration(binary() | none, atom(), [string()] | entry) -> iolist().
+-spec session_declaration(binary() | none, binary(), [string()] | entry) -> iolist().
 session_declaration(Beam, Name, Signature) ->
     Entries = case Beam of
                   none ->
@@ -145,12 +158,12 @@ session_declaration(Beam, Name, Signature) ->
                       {ok, {docs_v1, _, ernest, _, _, _, Es}} = ern_emitter:read_docs(Beam),
                       Es
               end,
-    case [E || {{_, N, _}, _, _, _, _} = E <- Entries, N =:= Name] of
-        [] ->
-            entry({{function, Name, 0}, none, lines(Signature), none, #{}}, "", #{});
-        [{K, A, Own, Doc, Meta} | _] when Signature =:= entry ->
-            entry({K, A, Own, Doc, Meta}, "", member_docs(Entries));
-        [{K, A, _, Doc, Meta} | _] ->
+    case find(Name, Entries) of
+        none ->
+            section(Name, none, lines(Signature), none, #{}, #{});
+        {ok, E} when Signature =:= entry ->
+            entry(E, "", member_docs(Entries));
+        {ok, {K, A, _, Doc, Meta}} ->
             entry({K, A, lines(Signature), Doc, Meta}, "", member_docs(Entries))
     end.
 
@@ -158,12 +171,12 @@ lines(Signature) -> [unicode:characters_to_binary(L) || L <- Signature].
 
 %% Report §9, §11.2: one prelude name's documentation, `send`,
 %% `Address.call`, or `Optional`, as `:doc` prints it.
--spec prelude_declaration(atom()) -> {ok, iolist()} | none.
+-spec prelude_declaration(binary()) -> {ok, iolist()} | none.
 prelude_declaration(Name) ->
     {docs_v1, _, ernest, _, _, _, Entries} = ern_prelude:docs(),
-    case [E || {{_, N, _}, _, _, _, _} = E <- Entries, N =:= Name] of
-        [] -> none;
-        [E | _] -> {ok, entry(E, "", #{})}
+    case find(Name, Entries) of
+        {ok, E} -> {ok, entry(E, "", #{})};
+        none -> none
     end.
 
 %% Appendix E.0 rule 6: the version a module, or the prelude, appeared in,

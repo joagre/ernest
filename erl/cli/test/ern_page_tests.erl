@@ -9,11 +9,11 @@
 %% and its text, and none where the module declares no such name
 declaration_test() ->
     Beam = beam(),
-    {ok, Page} = ern_page:declaration(Beam, trim),
+    {ok, Page} = ern_page:declaration(Beam, <<"trim">>),
     Text = unicode:characters_to_binary(Page),
     ?assertMatch({0, _}, binary:match(Text, <<"## String.trim">>)),
     ?assertMatch({_, _}, binary:match(Text, <<"String.trim : (String) -> String">>)),
-    ?assertEqual(none, ern_page:declaration(Beam, nosuchname)).
+    ?assertEqual(none, ern_page:declaration(Beam, <<"nosuchname">>)).
 
 beam() ->
     File = "ern@string.beam",

@@ -400,6 +400,20 @@ module_cycle_test() ->
     write(Dir, "b.ern", "export fn g() -> Int = A.f()\n"),
     ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir])).
 
+%% report §4.1, §11.1: a module cycle refused leaves nothing behind in the
+%% process that compiled. A regression test: the graph the order is found
+%% in was left undeleted when the cycle was refused, a table each time,
+%% which a shell that compiles on `:load` would keep for the session
+module_cycle_leaves_no_table_test() ->
+    Dir = tmp(),
+    write(Dir, "a.ern", "export fn f() -> Int = B.g()\n"),
+    write(Dir, "b.ern", "export fn g() -> Int = A.f()\n"),
+    Args = ["--out-dir", Dir ++ "/build", Dir],
+    ?assertEqual(1, ernc_err(Args)),
+    Tables = length(ets:all()),
+    ?assertEqual(1, ernc_err(Args)),
+    ?assertEqual(Tables, length(ets:all())).
+
 %% report §11.1: a module is recompiled when its source, a dependency's
 %% interface, the standard library's interfaces, or the compiler changed, and
 %% not when only a dependency's bodies changed

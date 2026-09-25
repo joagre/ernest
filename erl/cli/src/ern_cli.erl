@@ -3,7 +3,7 @@
 %% tests can call it. Each entry point returns the exit status.
 -module(ern_cli).
 
--export([main/2, ernc/1, ernc/2, ern/1, ern/2, namespace/1, module_path/1,
+-export([main/2, ernc/1, ernc/2, namespace/1, module_path/1, ern/1, ern/2,
          compile_source/3]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -201,24 +201,32 @@ compile_order(Modules, Root) ->
 
 compile_order(Modules, Root, LoadPath) ->
     Parsed = [parse_module(M, Root, LoadPath) || M <- Modules],
+    %% the graph is tables of this process's, deleted whether or not the
+    %% order is found
     G = digraph:new(),
-    lists:foreach(fun(#mod{ns = Ns}) -> digraph:add_vertex(G, Ns) end, Parsed),
-    lists:foreach(fun(#mod{ns = Ns, deps = Deps}) ->
-                      lists:foreach(fun(D) ->
-                                        digraph:add_vertex(G, D),
-                                        digraph:add_edge(G, D, Ns)
-                                    end, Deps)
-                  end, Parsed),
-    Order = case digraph_utils:topsort(G) of
-                false ->
-                    Cycle = hd([C || C <- digraph_utils:cyclic_strong_components(G)]),
-                    Names = [qname(N) || N <- lists:sort(Cycle)],
-                    fail("module cycle: " ++ lists:join(", ", Names));
-                Sorted -> Sorted
+    Order = try
+                lists:foreach(fun(#mod{ns = Ns}) -> digraph:add_vertex(G, Ns) end, Parsed),
+                lists:foreach(fun(#mod{ns = Ns, deps = Deps}) ->
+                                  lists:foreach(fun(D) ->
+                                                    digraph:add_vertex(G, D),
+                                                    digraph:add_edge(G, D, Ns)
+                                                end, Deps)
+                              end, Parsed),
+                topsort(G)
+            after
+                digraph:delete(G)
             end,
-    digraph:delete(G),
     ByNs = maps:from_list([{Ns, M} || #mod{ns = Ns} = M <- Parsed]),
     [maps:get(Ns, ByNs) || Ns <- Order, is_map_key(Ns, ByNs)].
+
+topsort(G) ->
+    case digraph_utils:topsort(G) of
+        false ->
+            [Cycle | _] = digraph_utils:cyclic_strong_components(G),
+            fail("module cycle: " ++ lists:join(", ", [qname(N) || N <- lists:sort(Cycle)]));
+        Sorted ->
+            Sorted
+    end.
 
 parse_module(#mod{file = File} = M, Root, LoadPath) ->
     {ok, Bin} = file:read_file(File),
@@ -302,8 +310,6 @@ module_prefix(Path, Root, LoadPath) ->
         false -> module_prefix(lists:droplast(Path), Root, LoadPath)
     end.
 
-%% Report §4.2: the standard library's source root, `stdlib/` beside the
-%% toolchain's `erl/`, found from where this module was loaded.
 %% Report §11.1: the source root is --source-root; without it, the standard
 %% library's root for a path under it, else Default.
 source_root(Opts, Path, Default) ->
@@ -333,6 +339,8 @@ out_dir(Opts, Root) ->
 is_stdlib_root(Root) ->
     absolute(Root) =:= stdlib_root().
 
+%% Report §4.2: the standard library's source root, `stdlib/` beside the
+%% toolchain's `erl/`, found from where this module was loaded.
 stdlib_root() ->
     Here = absolute(code:which(?MODULE)),
     Repo = filename:dirname(filename:dirname(filename:dirname(filename:dirname(Here)))),
@@ -495,18 +503,18 @@ doc(Opts, Path, Err) ->
 %% Report §11.4: the documentation comes from the compiled module. A `.erc`
 %% is read; a source is compiled first, in memory, so that asking for a page
 %% writes nothing.
-beam_of(_Opts, Path) ->
+beam_of(Opts, Path) ->
     case filename:extension(Path) of
         ".erc" ->
             {ok, Bin} = file:read_file(Path),
             Bin;
         _ ->
-            Root = source_root(_Opts, Path, "."),
-            OutDir = out_dir(_Opts, Root),
+            Root = source_root(Opts, Path, "."),
+            OutDir = out_dir(Opts, Root),
             [#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}] =
-                compile_order([module_of(absolute(Path), Root)], Root, load_path(_Opts)),
+                compile_order([module_of(absolute(Path), Root)], Root, load_path(Opts)),
             DepIfaces = [I || D <- Deps,
-                              {_, I} <- [dep_iface(D, #{}, [OutDir | load_path(_Opts)])]],
+                              {_, I} <- [dep_iface(D, #{}, [OutDir | load_path(Opts)])]],
             case ern_typecheck:check(Ns, Decls, DepIfaces) of
                 {ok, Typed, Iface, Env} ->
                     Build = #{source_hash => <<>>, deps => [],
@@ -597,8 +605,8 @@ shell(Opts, Rest, Err) ->
     end,
     Init = case Rest of
                [] ->
-                   host_path([absolute(D) || {load_path, D} <- Opts]),
-                   ern_shell:loaded(#{roots => [absolute(D) || {load_path, D} <- Opts],
+                   host_path(load_path(Opts)),
+                   ern_shell:loaded(#{roots => load_path(Opts),
                                       source_root => source_root(Opts, ".", "."),
                                       ifaces => [], entry => none,
                                       startups => startups(Opts),
@@ -651,7 +659,7 @@ program(File, Opts) ->
     relative(Abs, Root) =:= module_path(Ns) ++ ".erc" orelse
         fail(File ++ " is not at the path of its namespace " ++ qname(Ns)),
     lists:foreach(fun shape/1, filename:split(filename:rootname(module_path(Ns)))),
-    Roots = [Root | [absolute(D) || {load_path, D} <- Opts]],
+    Roots = [Root | load_path(Opts)],
     host_path(Roots),
     {Ns, Roots, load(Ns, Roots, [])}.
 
@@ -691,20 +699,24 @@ history_file() ->
 
 %% Report §11.2: a module compiled from its source for the shell, as
 %% `ernc` would compile it but in memory, since `:load` and `:reload`
-%% write nothing. `Root` is the source root and `OutDir` where the
-%% dependencies' interfaces are read from.
--spec compile_source(file:filename(), file:filename(), file:filename()) ->
+%% write nothing. `Root` is the source root and `Dirs` the load path, the
+%% roots a dependency outside the source root is found under by its
+%% namespace, in order (§11.1).
+-spec compile_source(file:filename(), file:filename(), [file:filename(), ...]) ->
           {ok, [atom()], binary(), binary()} | {error, file:filename(), [term()]}.
-compile_source(File, Root, OutDir) ->
+compile_source(File, Root, Dirs) ->
     try
         [#mod{ns = Ns, rel = Rel, decls = Decls, deps = Deps}] =
-            compile_order([module_of(absolute(File), Root)], Root),
-        DepIfaces = [I || D <- Deps, {_, I} <- [dep_iface(D, #{}, [OutDir])]],
+            compile_order([module_of(absolute(File), Root)], Root, Dirs),
+        DepIfaces = [dep_iface(D, #{}, Dirs) || D <- Deps],
+        DepHashes = lists:sort([{D, ern_emitter:iface_hash(I)} || {D, I} <- DepIfaces]),
         {ok, Source} = file:read_file(File),
         Hash = crypto:hash(sha256, Source),
-        case ern_typecheck:check(Ns, Decls, DepIfaces) of
+        case ern_typecheck:check(Ns, Decls, [I || {_, I} <- DepIfaces]) of
             {ok, Typed, Iface, Env} ->
-                Build = #{source_hash => Hash, deps => [],
+                %% the dependencies are recorded as `ernc` records them, so
+                %% the shell loads them before the module (report §11.2)
+                Build = #{source_hash => Hash, deps => DepHashes,
                           source => list_to_binary(filename:basename(Rel))},
                 case ern_emitter:compile(Ns, Typed, Iface, Env, Build) of
                     {ok, _, Beam} -> {ok, Ns, Beam, Hash};
