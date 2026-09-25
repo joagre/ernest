@@ -3,7 +3,7 @@
 %% the spans underlined and labelled, and at most one help line.
 -module(ern_diag).
 
--export([span/1, line/1, column/1, short/2, format/3]).
+-export([span/1, short/2, format/3]).
 
 -export_type([span/0, diag/0]).
 
@@ -13,16 +13,10 @@
 %% line, column, and the end, exclusive, as line and column
 -type diag() :: #diag{}.
 
-%% A span from a node position or a token position (ern_lexer:pos()).
--spec span(tuple()) -> span().
+%% A span from a token position or from a node position, which is one.
+-spec span(ern_lexer:pos() | span()) -> span().
 span({L, C, End, _Before}) -> {L, C, End};
 span({_, _, _} = Span) -> Span.
-
--spec line(span()) -> pos_integer().
-line({L, _, _}) -> L.
-
--spec column(span()) -> pos_integer().
-column({_, C, _}) -> C.
 
 %% The first line alone: what a tool parses.
 -spec short(string(), diag()) -> string().
@@ -35,7 +29,7 @@ short(File, #diag{span = {L, C, _}, message = Message}) ->
 format(File, Source, #diag{span = Span, labels = Labels, help = Help} = D) ->
     Lines = lines(Source),
     Marks = lists:sort([{Span, "^", ""} | [{S, "-", Text} || {S, Text} <- Labels]]),
-    Width = length(integer_to_list(lists:max([line(S) || {S, _, _} <- Marks]))),
+    Width = length(integer_to_list(lists:max([L || {{L, _, _}, _, _} <- Marks]))),
     Body = marks(Marks, Lines, Width, 0),
     HelpLine = case Help of
                    undefined -> [];

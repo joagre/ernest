@@ -446,6 +446,30 @@ doc_comments_test() ->
     ?assertMatch([#fn_decl{body = #e_block{stmts = [#fn_decl{doc = <<"local">>}, _]}}],
                  ds("fn f() = {\n    /// local\n    fn g() = 1;\n    g()\n}")).
 
+%% report §2.2: a tuple's `#(` opens a bracket as `(` does, so a
+%% declaration after a type that holds a tuple type still ends the type,
+%% and a doc comment inside the function's body is a comment. A regression
+%% test: `#(` was not counted and `)` was, so the type never ended and the
+%% comment was kept as a doc token the expression could not parse.
+doc_after_tuple_type_test() ->
+    ?assertMatch([#type_decl{}, #fn_decl{doc = undefined, body = #e_var{name = x}}],
+                 ds("type T = A(#(Int, Int)) | B
+
+"
+                    "fn g(x : Int) -> Int =
+    /// not a doc
+    x
+")),
+    ?assertMatch([#fn_decl{}, #type_decl{}, #fn_decl{body = #e_var{name = x}}],
+                 ds("fn f() = #(1, 2)
+type T = A
+
+"
+                    "fn g(x : Int) -> Int =
+    /// not a doc
+    x
+")).
+
 %% report Appendix B
 several_declarations_test() ->
     ?assertMatch([#type_decl{}, #fn_decl{name = main}, #fn_decl{name = counter}],
@@ -554,6 +578,13 @@ spans_test() ->
         ern_parser:parse_string("fn f(x) = 123\n"),
     {ok, #e_lit{pos = {1, 1, {1, 5}}}} = ern_parser:parse_expr("\"ab\"\n"),
     ok.
+
+%% report §11.5, §5.9: an or-pattern spans its alternatives, from the
+%% first to the end of the last. A regression test: its span was the first
+%% alternative's alone, so a diagnostic on it underlined too little.
+or_pattern_span_test() ->
+    {ok, #e_match{clauses = [#clause{pattern = #p_or{pos = {1, 11, {1, 23}}}}, _]}} =
+        ern_parser:parse_expr("match x { 1 or 2 or 33 -> 0 | _ -> 1 }").
 
 %% report §11.5: a parse error's span is the offending token
 error_span_test() ->

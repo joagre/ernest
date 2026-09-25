@@ -48,57 +48,34 @@ parse_string(Text) ->
         {error, _} = E -> E
     end.
 
-%% One expression, for tests and the REPL.
+%% One expression, for tests and the shell.
 -spec parse_expr(unicode:chardata()) -> {ok, tuple()} | {error, error()}.
 parse_expr(Text) ->
-    case ern_lexer:tokenize(Text) of
-        {ok, Tokens} ->
-            try
-                {E, Rest} = expr(prune_docs(Tokens)),
-                case Rest of
-                    [{eof, _}] -> {ok, E};
-                    [T | _] -> fail(pos(T), "expected end of input instead of " ++ describe(T))
-                end
-            catch
-                throw:{parse_error, #diag{} = D} -> {error, at_end(Tokens, D)}
-            end;
-        {error, _} = E ->
-            E
-    end.
+    parse_one(Text, fun(Tokens) -> expr(prune_docs(Tokens)) end).
 
 %% One statement of a block, for the shell: report §11.2, a `let` at the
 %% prompt is a block `let`.
 -spec parse_stmt(unicode:chardata()) -> {ok, tuple()} | {error, error()}.
 parse_stmt(Text) ->
-    case ern_lexer:tokenize(Text) of
-        {ok, Tokens} ->
-            try
-                {S, Rest} = stmt(prune_docs(Tokens)),
-                case Rest of
-                    [{eof, _}] -> {ok, S};
-                    [T | _] -> fail(pos(T), "expected end of input instead of " ++ describe(T))
-                end
-            catch
-                throw:{parse_error, #diag{} = D} -> {error, at_end(Tokens, D)}
-            end;
-        {error, _} = E ->
-            E
-    end.
+    parse_one(Text, fun(Tokens) -> stmt(prune_docs(Tokens)) end).
 
 %% One type, for the prelude tables and tests.
 -spec parse_type(unicode:chardata()) -> {ok, tuple()} | {error, error()}.
 parse_type(Text) ->
+    parse_one(Text, fun type/1).
+
+%% What Parse reads from the whole of Text, which must end there.
+parse_one(Text, Parse) ->
     case ern_lexer:tokenize(Text) of
         {ok, Tokens} ->
             try
-                {T, Rest} = type(Tokens),
-                case Rest of
-                    [{eof, _}] -> {ok, T};
-                    [Tok | _] -> fail(pos(Tok), "expected end of input instead of "
-                                                ++ describe(Tok))
+                case Parse(Tokens) of
+                    {Node, [{eof, _}]} -> {ok, Node};
+                    {_, [T | _]} ->
+                        fail(pos(T), "expected end of input instead of " ++ describe(T))
                 end
             catch
-                throw:{parse_error, #diag{} = D} -> {error, D}
+                throw:{parse_error, #diag{} = D} -> {error, at_end(Tokens, D)}
             end;
         {error, _} = E ->
             E
@@ -121,7 +98,8 @@ doc_end(Pos, Text) ->
 %% before a declaration, or, inside a type declaration, before a
 %% constructor, a field, or a signature entry; elsewhere it is an ordinary
 %% comment. InType is true inside a type or abstract type declaration,
-%% where no expression can occur, and Depth counts the brackets there.
+%% where no expression can occur. Depth counts the open brackets, so that
+%% only a declaration keyword outside every bracket ends a type.
 prune_docs(Ts) ->
     prune_docs(Ts, false, 0).
 
@@ -139,12 +117,10 @@ prune_docs([T | R], InType, Depth) ->
     {InType1, Depth1} =
         case sym(T) of
             type -> {true, Depth};
-            S when Depth =:= 0, S =:= fn; Depth =:= 0, S =:= 'let'; Depth =:= 0, S =:= foreign;
-                   Depth =:= 0, S =:= export; Depth =:= 0, S =:= abstract -> {false, Depth};
-            '(' -> {InType, Depth + 1};
-            '{' -> {InType, Depth + 1};
-            ')' -> {InType, Depth - 1};
-            '}' -> {InType, Depth - 1};
+            S when S =:= '('; S =:= '#('; S =:= '{' -> {InType, Depth + 1};
+            S when S =:= ')'; S =:= '}' -> {InType, Depth - 1};
+            S when Depth =:= 0 ->
+                {InType andalso not lists:member(S, ?DECL_START), Depth};
             _ -> {InType, Depth}
         end,
     [T | prune_docs(R, InType1, Depth1)];
@@ -221,8 +197,8 @@ constructor(Ts) ->
     {Doc, Ts1} = doc(Ts),
     constructor(Ts1, Doc).
 
-constructor(Ts1, Doc) ->
-    {Name, Pos, R} = expect_typename_pos(Ts1),
+constructor(Ts, Doc) ->
+    {Name, Pos, R} = expect_typename_pos(Ts),
     Named = case R of
                 [{'(', _}, {ident, _, _}, {':', _} | _] -> true;
                 [{'(', _}, {doc, _, _}, {ident, _, _}, {':', _} | _] -> true;
@@ -508,10 +484,10 @@ receive_clauses(Ts, Acc) ->
 %% Report §5.9: a clause lists one or more patterns separated by `or`.
 clause(Ts) ->
     {Alts, R} = sep_by(Ts, 'or', fun pattern/1),
-    P = case Alts of
-            [Single] -> Single;
-            [First | _] -> #p_or{pos = node_pos(First), alts = Alts}
-        end,
+    {P, _} = case Alts of
+                 [Single] -> {Single, R};
+                 [First | _] -> w({#p_or{pos = node_pos(First), alts = Alts}, R})
+             end,
     {Guard, R1} = case R of
                       [{'when', _} | R0] -> expr(R0);
                       _ -> {undefined, R}

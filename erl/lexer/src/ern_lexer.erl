@@ -1,6 +1,7 @@
 %% Lexer for Ernest, report section 2. Input is Unicode text; output is a
-%% flat token list ending in {eof, Pos}. Every token carries the {Line,
-%% Column} of its first character, both 1-based, columns in code points.
+%% flat token list ending in {eof, Pos}. Every token carries a pos(): the
+%% line and column of its first character, both 1-based, columns in code
+%% points, then where it ends and where the token before it ended.
 %%
 %% Tokens: {int | float | char | string | bool | ident | typename | doc,
 %% Pos, Value} and {Symbol, Pos} for reserved words, operators, and
@@ -12,7 +13,7 @@
 
 -include_lib("lexer/include/ern_diag.hrl").
 
--export_type([pos/0, token/0, error/0]).
+-export_type([pos/0, token/0]).
 
 -type pos() :: {pos_integer(), pos_integer(), {pos_integer(), pos_integer()},
                 {pos_integer(), pos_integer()}}.
@@ -28,7 +29,6 @@
   | {typename, pos(), atom()}
   | {doc, pos(), unicode:unicode_binary()}
   | {atom(), pos()}.
--type error() :: {pos_integer(), pos_integer(), string()}.
 
 -define(RESERVED, [type, abstract, with, foreign, match, 'when', 'receive', 'after', 'or',
                    as, 'if', then, 'else', fn, 'let', export]).
@@ -39,16 +39,16 @@
                   "(", ")", "{", "}", "[", "]", ",", ";", ":", "=", "|", ".",
                   "+", "-", "*", "/", "%", "<", ">", "!"]).
 
--spec tokenize(unicode:chardata()) -> {ok, [token()]} | {error, error()}.
+-spec tokenize(unicode:chardata()) -> {ok, [token()]} | {error, ern_diag:diag()}.
 tokenize(Data) ->
     case unicode:characters_to_list(Data) of
         Chars when is_list(Chars) ->
             try lex(strip_bom(Chars), 1, 1, {1, 1}, []) of
                 Tokens -> {ok, Tokens}
             catch
-                throw:{lex_error, Line, Col, Message} ->
+                throw:{lex_error, Line, Col, Message, Incomplete} ->
                     {error, #diag{span = {Line, Col, {Line, Col + 1}}, message = Message,
-                                  incomplete = unfinished(Message)}}
+                                  incomplete = Incomplete}}
             end;
         _ ->
             {error, #diag{span = {1, 1, {1, 2}}, message = "input is not valid UTF-8"}}
@@ -76,13 +76,18 @@ lex("/*" ++ R, L, C, Prev, Acc) ->
     {Rest, L1, C1} = block_comment(R, 1, L, C + 2, L, C),
     lex(Rest, L1, C1, Prev, Acc);
 lex([Ch | _] = S, L, C, Prev, Acc) when Ch >= $0, Ch =< $9 ->
-    {{Kind, _, V}, Rest, C1} = number(S, L, C),
+    {Kind, V, Rest, C1} = number(S, L, C),
     %% report §2.5: nothing word-like directly after a number
     case Rest of
-        [$_ | _] -> error_at(L, C1, "_ must stand between two digits");
-        [Next | _] -> is_word_char(Next) andalso
-                          error_at(L, C1, [Next] ++ " cannot follow a number directly");
-        [] -> ok
+        [$_ | _] ->
+            error_at(L, C1, "_ must stand between two digits");
+        [Next | _] ->
+            case is_word_char(Next) of
+                true -> error_at(L, C1, [Next] ++ " cannot follow a number directly");
+                false -> ok
+            end;
+        [] ->
+            ok
     end,
     lex(Rest, L, C1, {L, C1}, [{Kind, {L, C, {L, C1}, Prev}, V} | Acc]);
 lex([$" | R], L, C, Prev, Acc) ->
@@ -158,7 +163,7 @@ next_doc_line_start("///" ++ R) -> {yes, R};
 next_doc_line_start(_) -> no.
 
 block_comment([], _Depth, _L, _C, L0, C0) ->
-    error_at(L0, C0, "unterminated block comment");
+    unfinished_at(L0, C0, "unterminated block comment");
 block_comment("*/" ++ R, 1, L, C, _L0, _C0) ->
     {R, L, C + 2};
 block_comment("*/" ++ R, Depth, L, C, L0, C0) ->
@@ -173,8 +178,8 @@ block_comment([_ | R], Depth, L, C, L0, C0) ->
 %%
 %% Numbers, report §2.5: int = decimal | "0x" hexdigit {["_"] hexdigit} |
 %% "0o" ... | "0b" ...; float = decimal "." decimal [exponent]; decimal =
-%% digit {["_"] digit}. Each returns the token, the rest, and the column
-%% after the text, underscores counted.
+%% digit {["_"] digit}. Returns the kind, the value, the rest, and the
+%% column after the text, underscores counted.
 %%
 
 number([$0, P | R], L, C) when P =:= $x; P =:= $o; P =:= $b ->
@@ -184,30 +189,34 @@ number([$0, P | R], L, C) when P =:= $x; P =:= $o; P =:= $b ->
                        $b -> {2, "binary"}
                    end,
     {Digits, N, R1} = digits(R, fun(Ch) -> digit_value(Ch) < Base end),
-    Digits =/= [] orelse
-        case R of
-            [$_ | _] -> error_at(L, C + 2, "_ must stand between two digits");
-            _ -> error_at(L, C, [$0, P] ++ " needs a " ++ Name ++ " digit")
-        end,
+    case {Digits, R} of
+        {[], [$_ | _]} -> error_at(L, C + 2, "_ must stand between two digits");
+        {[], _} -> error_at(L, C, [$0, P] ++ " needs a " ++ Name ++ " digit");
+        _ -> ok
+    end,
     End = C + 2 + N,
     case R1 of
-        [Ch | _] -> Ch =/= $_ andalso is_word_char(Ch) andalso
-                        error_at(L, End, [Ch] ++ " is not a " ++ Name ++ " digit");
-        [] -> ok
+        [Ch | _] when Ch =/= $_ ->
+            case is_word_char(Ch) of
+                true -> error_at(L, End, [Ch] ++ " is not a " ++ Name ++ " digit");
+                false -> ok
+            end;
+        _ ->
+            ok
     end,
-    {{int, {L, C}, list_to_integer(Digits, Base)}, R1, End};
+    {int, list_to_integer(Digits, Base), R1, End};
 number([$0, P | _], L, C) when P =:= $X; P =:= $O; P =:= $B ->
     error_at(L, C, "a base prefix is lowercase: 0" ++ [P + 32]);
-number(S, L, C) ->
+number(S, _L, C) ->
     {Int, N1, R1} = digits(S, fun is_digit/1),
     case R1 of
         [$., D | _] when D >= $0, D =< $9 ->
             {Frac, N2, R2} = digits(tl(R1), fun is_digit/1),
             {Exp, N3, R3} = exponent(R2),
             Text = Int ++ "." ++ Frac ++ Exp,
-            {{float, {L, C}, list_to_float(Text)}, R3, C + N1 + 1 + N2 + N3};
+            {float, list_to_float(Text), R3, C + N1 + 1 + N2 + N3};
         _ ->
-            {{int, {L, C}, list_to_integer(Int)}, R1, C + N1}
+            {int, list_to_integer(Int), R1, C + N1}
     end.
 
 %% The digits Pred accepts, a single `_` allowed between two of them: the
@@ -229,7 +238,9 @@ digits([D | R] = S, Pred, Acc, N) ->
 digits([], _, Acc, N) ->
     {lists:reverse(Acc), N, []}.
 
-is_digit(Ch) -> Ch >= $0 andalso Ch =< $9.
+is_digit(Ch) -> digit_value(Ch) < 10.
+
+is_hex(Ch) -> digit_value(Ch) < 16.
 
 digit_value(Ch) when Ch >= $0, Ch =< $9 -> Ch - $0;
 digit_value(Ch) when Ch >= $a, Ch =< $f -> Ch - $a + 10;
@@ -266,7 +277,7 @@ string_body([Ch | R], L, C, L0, C0, Acc) ->
 %% Report §2.5: everything up to the next backtick, a line break being a
 %% line feed and a carriage return before it dropped.
 raw_body([], _L, _C, L0, C0, _Acc) ->
-    error_at(L0, C0, "unterminated raw string");
+    unfinished_at(L0, C0, "unterminated raw string");
 raw_body([$` | R], L, C, _L0, _C0, Acc) ->
     {lists:reverse(Acc), R, L, C + 1};
 raw_body([$\r, $\n | R], L, _C, L0, C0, Acc) ->
@@ -315,9 +326,6 @@ escape([Ch | _], L, C) ->
 escape([], L, C) ->
     error_at(L, C, "unterminated escape").
 
-is_hex(Ch) -> (Ch >= $0 andalso Ch =< $9) orelse (Ch >= $a andalso Ch =< $f)
-              orelse (Ch >= $A andalso Ch =< $F).
-
 %%
 %% Words: identifiers, type names, reserved words, bool literals, wildcard.
 %%
@@ -350,12 +358,15 @@ symbol(S, [Sym | Syms]) ->
         false -> symbol(S, Syms)
     end.
 
+%%
+%% Errors
+%%
+
 error_at(L, C, Message) ->
-    throw({lex_error, L, C, lists:flatten(Message)}).
+    throw({lex_error, L, C, lists:flatten(Message), false}).
 
 %% Report §11.2, §2.5: a raw string and a block comment may span lines, so
-%% more input can finish one; a string or a char literal may not, and an
-%% unfinished one is an error whatever follows.
-unfinished("unterminated raw string") -> true;
-unfinished("unterminated block comment") -> true;
-unfinished(_) -> false.
+%% more input can finish one, and the diagnostic says so; a string or a
+%% char literal may not, and an unfinished one is an error whatever follows.
+unfinished_at(L, C, Message) ->
+    throw({lex_error, L, C, Message, true}).

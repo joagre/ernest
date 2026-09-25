@@ -1,7 +1,8 @@
 %% Ernest AST, one record per production of report Appendix A. Every node
-%% carries pos :: ern_lexer:pos(). Expressions and patterns carry
-%% type = undefined, which the type checker fills in; declarations carry
-%% doc and the export flag. The parser builds these untyped.
+%% carries pos :: ern_diag:span(), from its first token to the end of its
+%% last (report §11.5). Expressions and patterns carry type = undefined,
+%% which the type checker fills in; declarations carry doc and the export
+%% flag. The parser builds these untyped.
 %%
 %% Two rewrites happen in the parser: parentheses produce no node, and
 %% `x |> f(a)` becomes the call `f(x, a)` (report §5.7).
@@ -23,15 +24,18 @@
 -record(field, {pos, doc, name, type}).
 
 -record(abstract_decl, {pos, doc, export = false, type, signatures}).
+%% type: the #type_decl{} it hides; signatures: [#signature{}]
 -record(signature, {pos, doc, name, type}).
 
 -record(fn_decl, {pos, doc, export = false, owner, name, params, ret, effect, body,
                   type}).
 %% ret/effect: the annotation; ret = undefined means none, ret given with
-%% effect = undefined means pure.
+%% effect = undefined means pure. type: the scheme, set by the checker.
 -record(param, {pos, pattern, type}).
+%% type: the annotation, or undefined where there is none
 
 -record(let_decl, {pos, doc, export = false, owner, name, ann, body, type}).
+%% ann: the annotation, or undefined; type: the scheme, set by the checker
 
 -record(foreign_type_decl, {pos, doc, export = false, name, params = []}).
 -record(foreign_fn_decl, {pos, doc, export = false, owner, name, params, ret, effect,
@@ -64,21 +68,24 @@
 -record(e_bits, {pos, segments, type}).
 -record(bit_seg, {pos, value, specs = []}).
 %% value: an expression or, in a pattern, a pattern; specs: [spec()]
-%% spec(): {size, Expr} | {unit, integer()} | bits | bytes | int | float
-%%       | utf8 | utf16 | utf32 | big | little | native | signed | unsigned
+%% spec(): {size, Expr} | {unit, integer()} | bytes | int | float
+%%       | utf8 | utf16 | utf32 | big | little | signed | unsigned
 -record(e_block, {pos, stmts, type}).
 %% stmts: [#fn_decl{} | #binding{} | Expr], the last an Expr
 -record(binding, {pos, pattern, ann, op, expr}).
-%% op: '=' | '<-'
+%% ann: the annotation, or undefined; op: '=' | '<-'
 -record(e_call, {pos, callee, args, type}).
 -record(e_neg, {pos, expr, type}).
 -record(e_not, {pos, expr, type}).
 -record(e_binop, {pos, op, left, right, type}).
 -record(e_lambda, {pos, params, ret, effect, body, type}).
+%% ret/effect: as on fn_decl
 -record(e_if, {pos, condition, then_branch, else_branch, type}).
 -record(e_match, {pos, scrutinee, clauses, type}).
 -record(clause, {pos, pattern, guard, body}).
+%% guard: an expression, or undefined
 -record(e_receive, {pos, clauses, 'after', type}).
+%% 'after': an #after_clause{}, or undefined
 -record(after_clause, {pos, timeout, body}).
 
 %%
