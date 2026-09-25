@@ -207,7 +207,7 @@ operator_member_shape_test() ->
     ?assertEqual(ok, ok(Box ++ "export fn Box.<>(Box(a), Box(b)) = Box(a <> b)\n")),
     ?assertEqual(ok, ok(Box ++ "export fn Box.*(x : Box(Int), y : Box(Int)) -> Int = 1\n")),
     ?assertEqual("Box.<> must have the type (Box(a), Box(a)) -> Box(a),"
-                 " not (Box(a), Box(b!)) -> Box(a)",
+                 " not (Box(a), Box(b)) -> Box(a)",
                  err(Box ++ "export fn Box.<>(x : Box(a), y : Box(b)) -> Box(a) = x\n")),
     %% an inferred signature is read as it is inferred
     ?assertEqual(ok, ok(Vec ++ "export fn Vec.negate(Vec(a)) = Vec(-a)\n")).
@@ -723,7 +723,7 @@ toplevel_let_test() ->
 %% does not cover a variable that is only a container's element, which is
 %% exempt
 reply_through_bindings_test() ->
-    Req = "type Req = Get(reply : Reply(Int))\nexport type Box(a) = Box(List(a))\n",
+    Req = "type Req = Get(reply : Reply(Int))\nexport type Box(a) = Box(a)\n",
     ?assertEqual("(a!) -> #(a!, a!)",
                  type_of("export fn dup(x) = { let y = x; #(y, y) }", dup)),
     ?assertEqual("(a!) -> Unit", type_of("export fn drop(x) = { let y = x; Unit }", drop)),
@@ -735,6 +735,45 @@ reply_through_bindings_test() ->
                  err(Req ++ "fn dup(x) = { let y = x; #(y, y) }\n"
                      "fn f(r : Reply(Int)) = {\n"
                      "    let #(a, b) = dup(r); answer(a, 1); answer(b, 2) }")).
+
+%% report §6.6, §3.9: a declared type is reply-carrying at an instantiation
+%% whose fields, its arguments substituted, have a reply-carrying type, so
+%% a variable is not-reply-carrying for a dropped value of the type only
+%% where its parameter reaches a field outside function types and the
+%% arguments of built-in types, directly or through another declared
+%% type's parameter. H(e) was taken as reply-carrying at a reply-carrying
+%% e, and `drop` printed as `(H(e!)) -> Unit`; so were Lst(a) and WH(a).
+reply_carrying_by_the_fields_test() ->
+    Types = "export type H(e) = H(f : (Int) -> Unit with e)\n"
+            "export type Box(a) = Box(a)\n"
+            "export type Lst(a) = Lst(List(a))\n"
+            "export type Wrap(a) = Wrap(b : Box(a))\n"
+            "export type WH(e) = WH(h : H(e))\n"
+            "export type Pair(a) = Pair(#(a, Int))\n",
+    Printed = fun(Decl, Name) ->
+                      {ok, _, #iface{values = Vs}, Env} = check(Types ++ Decl),
+                      ern_types:format_scheme(maps:get(['M', Name], Vs),
+                                              ern_typecheck:type_state(Env))
+              end,
+    ?assertEqual("(H(e)) -> Unit", Printed("export fn drop(h : H(e)) -> Unit = Unit\n", drop)),
+    ?assertEqual("(WH(e)) -> Unit",
+                 Printed("export fn drop(h : WH(e)) -> Unit = Unit\n", drop)),
+    ?assertEqual("(Lst(a)) -> Unit",
+                 Printed("export fn drop(b : Lst(a)) -> Unit = Unit\n", drop)),
+    ?assertEqual("(Box(a!)) -> Unit",
+                 Printed("export fn drop(b : Box(a)) -> Unit = Unit\n", drop)),
+    ?assertEqual("(Wrap(a!)) -> Unit",
+                 Printed("export fn drop(b : Wrap(a)) -> Unit = Unit\n", drop)),
+    ?assertEqual("(Pair(a!)) -> Unit",
+                 Printed("export fn drop(b : Pair(a)) -> Unit = Unit\n", drop)),
+    %% an H over a mailbox of requests is no reply, and may be dropped
+    Req = "type Req = Get(reply : Reply(Int))\n",
+    ?assertEqual(ok, ok(Types ++ Req ++ "fn drop(h : H(e)) -> Unit = Unit\n"
+                        "fn f(h : H(Req)) -> Unit = { drop(h); drop(h) }\n")),
+    ?assertEqual("a reply-carrying value, Reply(Int), passed where the function duplicates or"
+                 " discards its argument",
+                 err(Types ++ "fn drop(b : Box(a)) -> Unit = Unit\n"
+                     "fn f(r : Reply(Int)) -> Unit = drop(Box(r))\n")).
 
 %% report §3.5, §4.8, §11.5: a field is selected where every constructor has
 %% it, of one type; a type found later in the definition serves, one never

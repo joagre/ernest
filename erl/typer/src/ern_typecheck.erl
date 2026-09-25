@@ -29,7 +29,10 @@
               local_types = #{}, local_cons = #{}, local_values = #{}, session = #{},
               vars = #{}, effect = pure, st, pending = [], deferred = [],
               ann_vars = #{}, rigid = [], effect_origin = undefined,
-              groups = #{}, typed = [], errs = [], reply_vars = []}).
+              groups = #{}, typed = [], errs = [], reply_vars = [],
+              reply_params = #{}}).
+%% reply_params: for each declared type with parameters, whether each can
+%% make an instantiation reply-carrying (report §6.6)
 %% reply_vars: type variables the reply discipline takes for reply-carrying
 %% while it asks whether a body would keep §6.6 if they were (§3.9)
 %% lets: the qualified names, this module's and its dependencies', that
@@ -350,37 +353,48 @@ declare_types(Decls, Env0) ->
                                            {Env, [D | Errs]}
                                    end
                                end, {Env2, []}, TypeDecls),
-    {mark_reply_carrying(Env3), Errs}.
+    {mark_reply_carrying(reply_params(Env3)), Errs}.
 
 %% Report §3.9: a type argument is a value position where its parameter
 %% occurs in a value position of the type's fields; one of a built-in or
-%% foreign type always is. A parameter may occur only as an argument of
-%% another type, or of its own, so the parameters that are value positions
-%% are found as a least fixpoint over every declared type in scope, and the
-%% state keeps the types that have one that is not.
+%% foreign type always is. The state keeps the types that have a parameter
+%% that is not.
 effect_params(#env{types = Ts, st = St}) ->
-    %% a type whose constructors failed to declare keeps its parameters'
-    %% names, and has no fields to read
-    Declared = maps:from_list([{Q, TI} || Q := #tinfo{foreign = false, params = [_ | _] = Ps} = TI
-                                              <- Ts,
-                                          lists:all(fun(P) -> is_tuple(P) end, Ps)]),
-    Flags = value_params(Declared, maps:map(fun(_, #tinfo{params = Ps}) ->
-                                                    [false || _ <- Ps]
-                                            end, Declared)),
+    Flags = param_flags(Ts, fun in_value/3),
     ern_types:set_effect_params(St, maps:filter(fun(_, Fs) -> lists:member(false, Fs) end,
                                                 Flags)).
 
-value_params(Declared, Flags) ->
+%% Report §6.6: a declared type is reply-carrying at an instantiation whose
+%% fields, its arguments substituted, have a reply-carrying type. An
+%% argument can make them so only where its parameter reaches a field
+%% outside function types and the arguments of built-in and foreign types,
+%% which never carry a reply.
+reply_params(#env{types = Ts} = Env) ->
+    Env#env{reply_params = param_flags(Ts, fun in_reply/3)}.
+
+%% For each declared type with parameters, whether each parameter occurs in
+%% its fields as In says. A parameter may occur only as an argument of
+%% another type, or of its own, so the flags are a least fixpoint over
+%% every declared type in scope. A type whose constructors failed to
+%% declare keeps its parameters' names, and has no fields to read.
+param_flags(Ts, In) ->
+    Declared = maps:from_list([{Q, TI} || Q := #tinfo{foreign = false, params = [_ | _] = Ps} = TI
+                                              <- Ts,
+                                          lists:all(fun(P) -> is_tuple(P) end, Ps)]),
+    param_fixpoint(Declared, In, maps:map(fun(_, #tinfo{params = Ps}) -> [false || _ <- Ps] end,
+                                          Declared)).
+
+param_fixpoint(Declared, In, Flags) ->
     Flags1 = maps:map(fun(Q, Fs) ->
                           #tinfo{params = Ps, constructors = Cs} = maps:get(Q, Declared),
                           Fields = lists:append([FTs || #cinfo{scheme = #scheme{type = T}} <- Cs,
                                                         {tfn, FTs, _, _} <- [T]]),
-                          [F orelse lists:any(fun(FT) -> in_value(Id, FT, Flags) end, Fields)
+                          [F orelse lists:any(fun(FT) -> In(Id, FT, Flags) end, Fields)
                            || {F, {tvar, Id}} <- lists:zip(Fs, Ps)]
                       end, Flags),
     case Flags1 =:= Flags of
         true -> Flags;
-        false -> value_params(Declared, Flags1)
+        false -> param_fixpoint(Declared, In, Flags1)
     end.
 
 %% Does variable Id occur in a value position of T, given which parameters
@@ -398,6 +412,22 @@ in_value(Id, {ttuple, Es}, Flags) ->
 in_value(Id, {tfn, Ps, _, R}, Flags) ->
     lists:any(fun(X) -> in_value(Id, X, Flags) end, [R | Ps]);
 in_value(_, _, _) ->
+    false.
+
+%% Does variable Id reach T outside function types and the arguments of
+%% built-in and foreign types, given which parameters of the declared types
+%% reach their fields so far?
+in_reply(Id, {tvar, Id}, _Flags) ->
+    true;
+in_reply(Id, {tcon, Q, As}, Flags) ->
+    Reaching = case Flags of
+                   #{Q := Fs} -> [A || {A, true} <- lists:zip(As, Fs)];
+                   _ -> []
+               end,
+    lists:any(fun(A) -> in_reply(Id, A, Flags) end, Reaching);
+in_reply(Id, {ttuple, Es}, Flags) ->
+    lists:any(fun(E) -> in_reply(Id, E, Flags) end, Es);
+in_reply(_, _, _) ->
     false.
 
 type_decl_of(#type_decl{} = TD) -> [TD];
@@ -506,7 +536,12 @@ reply_in(T, Ts, Env) ->
             case Ts of
                 #{Q := #tinfo{foreign = true}} -> false;
                 #{Q := #tinfo{reply_carrying = true}} -> true;
-                _ -> lists:any(fun(A) -> reply_in(A, Ts, Env) end, Args)
+                _ ->
+                    Reaching = case Env#env.reply_params of
+                                   #{Q := Fs} -> [A || {A, true} <- lists:zip(Args, Fs)];
+                                   _ -> []
+                               end,
+                    lists:any(fun(A) -> reply_in(A, Ts, Env) end, Reaching)
             end;
         {ttuple, Es} -> lists:any(fun(E) -> reply_in(E, Ts, Env) end, Es);
         _ -> false
