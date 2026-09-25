@@ -68,7 +68,8 @@ test/              what spans applications: the hand-written target modules,
                    input/, session/, terminal/
 bin/               ernc and ern, as escript sources
 stdlib/            the standard library as Ernest source
-shell/             the shell as Ernest source, from MVP 2.6
+shell/             the shell as Ernest source, from MVP 2.6; its README.md guides
+                   a reader through the code
 emacs/             ernest-mode.el, the Emacs major mode, and its tests under test/
 build/             build products, not in git: build/stdlib/, build/shell/, and
                    build/libs/ from make, the standard library's pages from make doc

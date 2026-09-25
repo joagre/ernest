@@ -196,7 +196,8 @@ export fn main() -> Unit with ShellMsg = {
         }
     } else {
         // report §11.2: in line mode the session reads the lines itself,
-        // and holds the terminal so that no input takes one
+        // and holds the terminal, so that an input that asks for the keys
+        // or a line faults rather than taking them
         holdTerminal(self());
         match startup(state, screen) {
             Continue(state2) -> lineLoop(state2, screen)
@@ -579,8 +580,10 @@ fn finish(screen : Address(ScreenMsg), text : String) -> Unit with m = {
     drain(screen)
 }
 
-// The prompt comes after what the input printed, whatever order the two
-// processes sent in: the screen is drained first.
+// The prompt comes after what the input printed. A program's text reaches
+// the screen from its own processes, not through the session, so the
+// screen is drained first; if it does not answer in five seconds the
+// prompt is written anyway.
 fn prompt(screen : Address(ScreenMsg)) -> Unit with m = {
     drain(screen);
     send(screen, Said("> "))
@@ -1006,7 +1009,8 @@ fn under(editing : Shell.Editor.State, rows : List(String)) -> ScreenMsg =
         rows = rows)
 
 //
-// The reader, when input is not a terminal: lines, no editing
+// Line mode: without a terminal there is no reader, and the session reads
+// lines itself, with no editing
 //
 
 fn lineLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = {

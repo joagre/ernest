@@ -5,8 +5,8 @@
 // what `Tab` or `Shift-Tab` showed. Everything above it is the
 // transcript, written into the terminal and scrolled by it.
 //
-// A pure function from the region and what happened to the region after
-// it and the bytes to write. The screen process in `shell.ern` writes
+// Pure: each event takes the region and what happened, and gives the
+// region after it and the bytes to write. The screen process in `shell.ern` writes
 // them and holds nothing else, which is what makes the drawing testable:
 // the tests at the foot of this file read the bytes. There is a region only
 // at a terminal; elsewhere the screen writes what it is sent as it comes.
@@ -397,8 +397,8 @@ let paintsTheLine = Test(name = "typing erases the region and paints it again", 
 
 let commitsWhatIsEntered = Test(name = "an input entered joins the transcript, a row a line",
     run = fn() = {
-        let #(typing, _) = typing(prompted(), "a\nb", 3, []);
-        let #(_, bytes) = entered(typing);
+        let #(typed, _) = typing(prompted(), "a\nb", 3, []);
+        let #(_, bytes) = entered(typed);
         same(bytes, "\r\u{1b}[1A\u{1b}[0J> a\n... b\n\r")
     })
 
