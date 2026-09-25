@@ -1106,7 +1106,7 @@ own() ->
     persistent_term:get({?MODULE, own}, []).
 
 %% Report §11.2: the faults reported since the session began, oldest first;
-%% the last few hundred are kept, a session never shrinking (§11.2).
+%% the last hundred are kept (?FAULTS).
 -spec faults() -> [term()].
 faults() ->
     case persistent_term:get({?MODULE, watcher}, undefined) of

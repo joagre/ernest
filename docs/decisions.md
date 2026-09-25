@@ -3926,6 +3926,8 @@ A finding of the session of real use: `:doc Ac` completed to `:doc Accept`, whic
 
 ## Documentation Is Shown as CommonMark, 2026-09-25
 
+*Overturned the same day: `libs/markdown` renders it, under* `libs/markdown`, Written at Once. *The argument against a partial renderer stands.*
+
 A question from the session of real use: `:doc` shows a page with its `##` heading and its ```` ```ernest ```` fence, where Erlang's `h/1`, `pydoc`, and `ri` render theirs for the terminal. Rendering what §11.4 itself writes, the headings, the type's code block, and the `*Since v.*` line, was drafted and dropped. A doc block is CommonMark 0.31 (§2.2), and E.0 rule 6 constrains only the standard library's pages, so a user's module may hold emphasis, links, lists, block quotes, or HTML. A renderer of §11.4's own markup alone would leave the author's in place, and a page half rendered surprises more than one shown as written, by principle 1. A whole renderer is a CommonMark implementation, which the `foreign` rule puts in Ernest, and that is a library rather than a part of the shell. CommonMark is written to read as plain text, so the page shown as written loses nothing a reader needs.
 
 **Verdict:** the shell shows documentation as the CommonMark §11.4 writes, unrendered, which §11.2 states. What would change it: a CommonMark renderer, which the shell would then apply to the whole page. One is planned as `libs/markdown` in MVP 2.8, a library rather than the standard library, since how a page looks at a terminal is policy inside a namespace of its own (E.0).

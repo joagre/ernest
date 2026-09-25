@@ -73,7 +73,7 @@ emacs/             ernest-mode.el, the Emacs major mode, and its tests under tes
 build/             build products, not in git: build/stdlib/, build/shell/, and
                    build/libs/ from make, the standard library's pages from make doc
 libs/              the first-party libraries, each a source root a program adds
-                   with --load-path: ets
+                   with --load-path: ets, markdown
 ```
 
 A module path segment is one lowercase word (report §11.1); a multi-word module is a nested directory. Files that are not modules use underscores.

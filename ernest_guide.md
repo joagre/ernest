@@ -155,11 +155,11 @@ hello
 
 A value of type `Unit` prints nothing, so the last input shows only what it wrote. A command begins with `:`. `:type e` prints the type of `e` without running it, `:doc List.sort` prints the documentation of `List.sort`, and `:help` lists the rest. `ern --shell hello.erc` starts the shell with `hello`'s module in scope and its `main` running beside it. A module without `main` is put in scope with nothing running, to be tried at the prompt.
 
-At a terminal the shell edits the line with Readline's Emacs keys, and keeps a history across sessions that `C-r` searches. An input the parser cannot finish takes another line. What programs write appears in a region at the foot of the screen, apart from the inputs, and a process that faults is reported at the prompt with the place it was spawned. A fault and an error are shown in red and a result's type dimmed, unless the environment sets `NO_COLOR`.
+At a terminal the shell edits the line with Readline's Emacs keys, and keeps a history across sessions that `C-r` searches. An input the parser cannot finish takes another line. What programs write appears in a region at the foot of the screen, apart from the inputs, and a process that faults is reported at the prompt with the place it was spawned. A fault, an error, and a refused command are shown in red and a result's type dimmed, and documentation is styled, unless the environment sets `NO_COLOR`. A line wider than the screen wraps as it is typed.
 
-`Tab` completes the word before the cursor, by its prefix or by its word starts, `S.pS` to `String.padStart`. It offers only what may stand there: a command after a leading `:` and what the command takes after it, a type after `:` in an annotation, a constructor in a pattern, a field inside a named constructor's parentheses. A name completed alone is shown under the line with its type, and a second `Tab`, or one with nothing to add, lists everything it offers there, until the next key. `Shift-Tab` shows the type, the first sentence, and the version of the name at the cursor, and pressed again its documentation. Inside a call it shows the callee's signature, the argument at the cursor in colour.
+`Tab` completes the word before the cursor, by its prefix or by its word starts, `S.pS` to `String.padStart`. It offers only what may stand there: a command after a leading `:` and what the command takes after it, a type after `:` in an annotation, a constructor in a pattern, a field inside a named constructor's parentheses. A name completed alone is shown under the line with its type, and a second `Tab`, or one with nothing to add, lists the candidates there alphabetically, until the next key. With nothing typed they are the session's names, the modules, and the prelude's names, and every other name comes from its first letters; at the start of a row `Tab` indents instead. `Shift-Tab` shows the type, the first sentence, and the version of the name at the cursor, and pressed again its documentation. Inside a call, on no documented name, it shows the callee's signature with the parameter at the cursor marked, and inside a constructor its fields.
 
-`:reload` compiles and loads a module whose source has changed. Processes running the old version go on running it until the next reload of that module, which ends them.
+`:reload` compiles and loads a module whose source has changed. Processes running the old version go on running it, and a binding that holds a function of it keeps it, until the next reload of that module, which ends the processes and forgets the bindings.
 
 ### 1.3 Reading input
 
@@ -204,7 +204,7 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 
 - **`Int`** — arbitrary precision. Literals: `42`, and in another base `0xFF`, `0o644`, `0b1010`. An `_` between digits groups them: `1_000_000`.
 - **`Float`** — IEEE 754 binary64, finite values only. Literal: `3.14`.
-- **`Char`** — one Unicode code point. Literal: `'a'`.
+- **`Char`** — one Unicode scalar value, a code point other than a surrogate. Literal: `'a'`.
 - **`String`** — Unicode text. Literal: `"hello"`, with the escapes `\n`, `\t`, `\\`, `\"`, and `\u{1F600}` among them (report §2.5). `<>` joins two strings, and a type's `toString` makes its text: `"n = " <> Int.toString(3)`. There is no interpolation.
 - **`Bytes`** — a sequence of octets. Literal: `<<0, 1, 2>>` (§8.6).
 - **`Bool`** — `true` or `false`. `&&` and `||` short-circuit, and `!` negates.
@@ -1318,7 +1318,7 @@ Directory mode compiles the modules in the order their dependencies need, and a 
 
 **Declarations use local names.** In `net/http.ern`, `export fn parse(...)` declares `parse`, which the code outside reaches as `Net.Http.parse`, and the code inside by either name.
 
-**`export` marks the boundary.** A declaration with `export` is visible from other modules, and one without is the module's own. There is no `import` and no export list. The constructors of an exported type are exported with it; an abstract type's constructor is visible only to the definitions its signature lists (§7.2). An exported function's type may name only exported types. Its mailbox type is exempt, so an exported `main` may receive a private message type (report §4.2).
+**`export` marks the boundary.** A declaration with `export` is visible from other modules, and one without is the module's own. There is no `import` and no export list. The constructors of an exported type are exported with it; an abstract type's constructor is visible only to the definitions its signature lists (§7.2). An exported declaration's type, and an exported type's fields, may name only exported types. A function's mailbox type is exempt, so an exported `main` may receive a private message type (report §4.2).
 
 **A module's own name hides the prelude's.** A module may declare its own `Close`, which then means its own throughout the module; `Prelude.Close` still names the prelude's (report §4.2).
 
@@ -1339,7 +1339,7 @@ adds two: passed
 
 `ern --test` runs every test of the module, each in a process of its own, and prints each as passed, failed with its text, or faulted with its cause. A test runs in a process, so it may spawn and send (report §11.2).
 
-**Documenting a module.** A `///` block documents the declaration on the line after it, and one first in the file, with a blank line after it, documents the module. The text is CommonMark; `ernc --doc` renders the module as a page, and the shell's `:doc` shows a declaration's part of it. What a module's documentation contains is report Appendix E.0 rule 6, and [`docs/module_doc_template.md`](docs/module_doc_template.md) shows it on an example module.
+**Documenting a module.** A `///` block documents the declaration on the line after it, and one first in the file, with a blank line after it, documents the module. The text is CommonMark; `ernc --doc` renders the module as a page, and the shell's `:doc` shows a declaration's part of it, or a module's head, rendered for the terminal. What a module's documentation contains is report Appendix E.0 rule 6, and [`docs/module_doc_template.md`](docs/module_doc_template.md) shows it on an example module.
 
 **Entry point.** `ern main.erc` runs `export fn main`, and `--main` runs another exported function that takes no arguments and returns `Unit`. A project with several programs keeps each entry point in a module of its own:
 
@@ -1620,9 +1620,9 @@ Two commands and a shell, and a mode for Emacs. Report §11 defines each option.
 
 ### 9.3 The shell
 
-An input is an expression, a declaration, or a `let`, and a command begins with `:`. `:help` lists the commands, among them these: `:type` and `:doc` explain a name, `:browse` lists a module's exports, `:load` and `:reload` compile a module from its source, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, `:set` sets the depth and length values are printed to and turns timing on and off, and `:output` sends what programs write to another window. A command may be shortened to a prefix of its name that begins no other, `:br` for `:browse`; `:b` begins `:bindings` too, and the shell says so. Inputs entered while another runs wait, and run in the order entered.
+An input is an expression, a declaration, or a `let`, and a command begins with `:`. `:help` lists the commands, among them these: `:type` gives an expression's type and `:doc` a name's documentation, `:browse` lists a module's exports, `:load` and `:reload` compile a module from its source, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, `:set` sets the depth and length values are printed to and turns timing on and off, and `:output` sends what programs write to another window. A command may be shortened to a prefix of its name that begins no other, `:br` for `:browse`; `:b` begins `:bindings` too, and the shell says so. Inputs entered while another runs wait, and run in the order entered.
 
-At a terminal the line is edited with Readline's Emacs keys. `Tab` completes a name, `Shift-Tab` shows its type and documentation, `C-r` searches the history, and `M-Enter` adds a line to the input. At a terminal the history is kept in `$HOME/.ernest/history`. When the shell starts it runs the inputs in `$HOME/.ernest/startup` and then those in the configuration directory's `startup`, `./.ernest` by default.
+At a terminal the line is edited with Readline's Emacs keys. `Tab` completes a name, `Shift-Tab` shows its type and documentation, `C-r` searches the history, and `M-Enter` adds a line to the input. At a terminal the history is kept in `$HOME/.ernest/history`. When the shell starts it runs the inputs in `$HOME/.ernest/startup` and then those in the configuration directory's `startup`, `./.ernest` by default. A startup line may be a command, and one that fails is reported with its file and line.
 
 ### 9.4 Emacs
 

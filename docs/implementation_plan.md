@@ -17,14 +17,14 @@ Actorson until 12 September 2026.
 
 ## Where we are
 
-**MVP 2.6, the shell, its closing sweep.** Checkpoints 0 to 4 are done: the loop and the
-terminal harness, bindings and the commands, the live region, the line editor with history,
-multi-line input and paste, and completion and documentation. What is left of the milestone,
-the sweep and a session of real use, is in "MVP 2.6" below, in order.
+**MVP 2.65, the language and the toolchain read back after the shell, is next.** MVP 2.6,
+the shell, was closed on 2026-09-25: its checkpoints, its closing sweep, a session of real
+use, an independent review, and a last sweep of the documents, all under "Done".
 
-**Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23, and MVP 2.61, the
+**Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23; MVP 2.61, the
 guide as the user's document, on 2026-09-24, after which CLAUDE.md was rewritten for
-clarity, every rule kept. Both are under "Done".
+clarity, every rule kept; and `libs/markdown`, from MVP 2.8, on 2026-09-25. All three are
+under "Done".
 
 **The rhythm.** One item a turn, with its tests, its documents, its conformance section and
 its commit; then a stop for review before the next. The user reads the plan and not the log,
@@ -39,308 +39,15 @@ so a decision they must see goes here.
 | MVP 1 | the chain: parser, types, BEAM | done 2026-09-18, tag `mvp1` |
 | MVP 2 | the rest of the report on one node | done 2026-09-19 |
 | MVP 2.5 | a complete standard library | done 2026-09-20 |
-| **MVP 2.6** | **the shell** | **checkpoints 0–4 and the closing sweep done; a session of real use** |
+| MVP 2.6 | the shell | done 2026-09-25 |
 | MVP 2.61 | the guide as the user's document | done 2026-09-24, out of order |
-| MVP 2.65 | the language and the toolchain read back | after 2.6 |
+| **MVP 2.65** | **the language and the toolchain read back** | **next** |
 | MVP 2.66 | introduce a supervisor behaviour? | after 2.6 |
 | MVP 2.7 | the first libraries and the network stack | |
 | MVP 2.8 | five more libraries | `libs/markdown` done 2026-09-25, out of order |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | MVP 3.0 | peers | |
 | MVP 3.1 | content addressing | |
-
----
-
-## MVP 2.6 (the shell), about two weeks
-
-The program that exercises everything at once, and the whole milestone: the libraries moved
-to 2.7 on 2026-09-20 so that one large thing is measured rather than two. Designed in
-[`shell_design.md`](shell_design.md), which owns the design; §11.2 owns what a user may rely
-on. The source is a tree of its own, `shell/`, compiled by `make` into `build/shell/`, since
-the shell is neither standard library nor library but the toolchain's own program.
-
-**The checkpoints**, each a stop for review.
-
-| | What | State |
-|---|---|---|
-| 0 | expressions only: the three processes, the foreign interface, an input checked, compiled, run, printed | done 2026-09-20 |
-| 1 | bindings, `it`, timing, declarations at the prompt, the commands, fault reports, `:load`/`:reload`, the startup files | done 2026-09-20 |
-| 2 | the terminal and the live region, `:output <path>` | done 2026-09-21 |
-| 3 | the line editor: editing, history and its search, multi-line input, bracketed paste | done 2026-09-21 |
-| 4 | completion and documentation | done 2026-09-24 |
-
-**What is left.**
-
-- **Checkpoint 4, completion and documentation.** Built, 2026-09-21: `Shell.Complete`, pure
-  and tested, matching by prefix and by abbreviation segment by segment and filtering by what
-  may stand at the cursor, types after `:`, constructors in a pattern, a constructor's
-  fields; `Tab` replacing the word and indenting four spaces where there is none; a second
-  `Tab` listing the candidates with their types, forty at most; a command completing as a
-  word of the shell's own; `Shift-Tab` showing a name's type and first sentence, and its page
-  when pressed again. **Left, in this order:**
-  1. **Done 2026-09-24: the prelude's documentation.** `:doc monitor` had said "no
-     documentation". Each entry of `ern_prelude`'s table now carries its documentation,
-     written by E.0 rule 6: a doc string beside each built-in type and primitive, a doc block
-     above each declared type in its Ernest source, and `module` on an operation its type's
-     module documents, which a test checks that module does. `ern_prelude:docs/0` builds the `Docs` term
-     `ern_page` renders, so `:doc`, `Shift-Tab`, and the prelude's page from `ernc --doc` of
-     the standard library's root share one renderer. The doc tests type-check the page's
-     examples and run those that end in `// => v`. Report §9 says the prelude is documented
-     so, with no example for a type a system reference speaks (rule 8), and §11.4 where the
-     page is written. The guide's quotes of `Down`, `Reason`, and `RemoteError` are checked
-     against the table, marked `ernest-prelude`, rather than turned into `:doc` sessions,
-     whose whole pages would bury the two lines the guide means to show.
-  2. **Done 2026-09-24: an input that is one name prints its declared type.** `:type
-     Io.readLine` had printed `with e` where `:browse Io` printed `with m`, since an
-     instance's variables carry no names (found by the guide's cold read). Report §11.2 now
-     says an input that is one name has its type printed as the declaration writes it,
-     whether `:type` asks for it or the input is evaluated; any other expression prints its
-     own type. `ern_typecheck:declared_scheme/3` resolves the name as the checker does and
-     gives its scheme, whose variables keep their names. The guide's `:type` sessions were
-     regenerated, and a shell test holds the rule.
-  3. **Done 2026-09-24: test areas, and faster suites.** A full `make test` had taken five
-     minutes. `make test` still runs everything, and each area has its own target:
-     `test-erl` (with `APP=` for one application), `test-programs`, `test-docs`,
-     `test-guide`, `test-shell`, and `test-emacs`, which was `emacs-mode`. CLAUDE.md maps a
-     change to the areas it needs, and the whole suite runs once per plan item. Measured
-     after: the guide's examples 103 s to 13 s, compiling and running a module's example in
-     the test's own node and the rest in parallel; the integration programs 39 s to 19 s
-     and the Emacs mode 38 s to 15 s, run side by side; the unit tests side by side under
-     `make -j`. The shell's sessions, 76 s, waited for step 5; most of their time turned out
-     to be one session waiting out the harness's timeout, fixed there.
-  4. **Done 2026-09-24: the signature inside a call, and a declaration's `since`.** Where
-     no name before the cursor is documented and the cursor is inside a call, `Shift-Tab`
-     shows the callee's signature, its parameters under their declared names and the one at
-     the cursor in the terminal's cyan: `List.map(xs : List(a), f : (a) -> b with e) ->
-     List(b) with e`, `f` coloured. The parser's diagnostic carries the innermost call and
-     argument index (`within`), `ern_types:format_call/4` prints the signature in three
-     parts around it, and the parameter names come from the `Docs` entry; a prelude function
-     shows types alone. The region learned escape sequences: they take no column, and a row
-     cut short resets its colour. The brief on a name ends with its `Since`, its own or its
-     module's.
-  5. **Done 2026-09-24: the program session waits on its faults, not on time.** It ran on
-     two waits of 400 ms and had failed once under load. It now runs in the pseudo-terminal
-     and waits on the screen for each fault report and each answer; the program's own fault
-     is awaited before the first input, since nothing at the prompt holds the entry point's
-     address to monitor. It passed eight runs at once. Timing the shell's area found that
-     `multiline` spent 30 s waiting out the harness's timeout, `C-d` leaving only on an
-     empty line; it cancels the input first now, and the area went from 76 s to 48 s.
-  6. **Done 2026-09-24: a terminal test for `Shift-Tab` and command completion.** The first
-     attempt had raced its own output, waiting for text the input echoes. `shift_tab_test_`
-     waits only for text the answer holds: the brief on a name with its type, sentence and
-     `Since`, the page on a second press, the signature inside a call, `:br` completed to
-     `:browse`, and the listing a second `Tab` gives; `shift_tab_colour_test_` reads the raw
-     output for the cyan around the parameter at the cursor. Six runs at once passed.
-  7. **Done 2026-09-24: colour where it carries meaning, at a terminal only, and never with
-     `NO_COLOR` set.** `Shell.Style`, pure and tested by `ern --test`: a fault report, a
-     fault's `fault:` line, and a diagnostic's first line in red; the type after a printed
-     value dimmed; a name bold in a completion listing and a `Shift-Tab` brief; the
-     parameter at the cursor in cyan. No syntax highlighting of what is typed; `ernc`'s
-     diagnostics stay plain. The front end answers whether to colour, from the terminal and
-     `NO_COLOR`, until `Sys.env` (MVP 2.7) lets the shell read the environment itself. The
-     harness waits on text with its colour sequences left out, stripping them once per read,
-     and the shell's tests read the terminal's output the same way, one colour test raw.
-     Running the shell's area alone found two things the full suite hid: the pure modules
-     `region.ern` and `complete.ern` had tests `make test` never ran, and the snake test ran
-     a program another suite had left in `build/`; every shell module's tests run now, and
-     snake runs what its own test compiled.
-- **Done 2026-09-24: typing ahead while an input runs.** The session, awaiting an input's
-  result, took an input typed meanwhile out of its mailbox and dropped it, so the second
-  was echoed and never answered. It is left in the mailbox now and runs after the first,
-  which report §11.2 states; the prompt said after the first answer, which the typed-ahead
-  input was never entered under, is taken away when the session takes that input (the
-  screen's `Taken`), so its answer starts a row of its own. `typing_ahead_test_` is the
-  regression test, and the program session types its second input ahead again.
-- **Done 2026-09-24: the closing sweep.** The guide was read against the report, and every
-  other document against the report and the code, by two readers who had not written them.
-  Report §11.2 now states `Tab` completion, `Shift-Tab` documentation, colour, `it`, the
-  file name `input`, the Readline keys, and a missing `HOME`; §11.5 the effect variable
-  printing elides. Read for restating at 1,584 words, every sentence a rule of its own, and
-  kept. Four defects the readers met in the toolchain were fixed, each with a regression
-  test: a timed wait as a session's first input in line mode was a deadlock, from a race
-  at spawn that a program could meet too, and §11.2's rule of no deadlock while a shell
-  holds the terminal had not been built (`spawned_row_test`, `shell_holds_no_deadlock_test`);
-  a prompt `let` with an unsettled effect variable crashed the next input
-  (`effect_variable_test_`); a declared name could print through another input's
-  substitution (the same test); and `:doc` painted a page red. The start line reads
-  `VERSION`, and a session without `HOME` says it keeps no history (`no_home_test_`). The
-  guide, the design note, the README, the architecture note, the feedback list, three
-  example headers, and two test headers were corrected.
-- **A session of real use.** The user works in the shell and reports what it is like; what
-  that finds is fixed before the milestone closes or recorded in the design note. Nothing so
-  far has been driven by hand — every test goes through the pseudo-terminal harness, which
-  tests what was thought of.
-  1. **Done 2026-09-25: what `Tab` and `Shift-Tab` show stands under the line.** A listing
-     was committed above the region, where it read as the answer before; it is now painted
-     in the region under the input, wrapped, cut to the screen with a count of the rest,
-     and taken away by the next key, as Erlang's shell does. A `Tab` that adds nothing to
-     the line lists at once, so `:` and `Tab` shows the commands. Report §11.2 states both;
-     `listing_at_once_test_` is the regression test, and the region's own tests cover the
-     wrapping and the count.
-  2. **Done 2026-09-25: a command's argument completes from what the command takes.**
-     `:browse` and `Tab` did nothing, `:browse ` and `Tab` indented, and `:browse Li`
-     offered constructors. A whole command that takes an argument takes its space; the
-     argument completes from what the command takes, a module for `:browse` listed by its
-     name alone, a module under the source root for `:load` read a directory at a time,
-     any name for `:doc`, the session's names for `:forget`, an expression for `:type`, and
-     `:set`'s four words; `Tab` never indents after a command. A lone candidate is listed,
-     so `:bindings` and `Tab` shows its help line. `command_argument_test_` is the
-     regression test.
-  3. **Done 2026-09-25: the commands in alphabetical order, and an ambiguous prefix
-     refused.** The listing's order was §11.2's priority for an ambiguous prefix, which a
-     reader of `:help` could not see. `:help` and the listing give the commands
-     alphabetically, and `:b` answers `:b is :bindings or :browse`; the golden session
-     checks both.
-  4. **Done 2026-09-25: every name that completes after `:doc` has documentation.**
-     `:doc Accept` answered none. A constructor now shows its type's section, a module the
-     head of its page, a session declaration its name and type as the session writes them
-     rather than `Input1.sz`, and a `let` at the prompt its name and type. `:doc` on a
-     module `:load` compiled had never worked, since the front end looked for a file; it
-     reads the session's copy. Report §11.2 states it; `doc_every_name_test_` is the
-     regression test.
-  5. **Done 2026-09-25: documentation is rendered for the terminal.** Asked of `:doc`'s `##`
-     and fences. First decided the same day to stay unrendered, since a doc block is any
-     CommonMark (§2.2) and rendering only what §11.4 writes would leave a page half
-     rendered; then `libs/markdown` was written (under "Done") and the shell renders every
-     page with it, `:doc`, the page on a second `Shift-Tab`, and the brief. §11.2 states
-     what is rendered and how it is coloured.
-  6. **Done 2026-09-25: `:load`'s refusals.** `:load aaaa` left the prompt on its answer's
-     line, since the front end's refusals had no line feed where the compiler's
-     diagnostics do; they end in one now. `:load List` said there was no module `List`,
-     where §4.2 makes a standard library namespace taken and the module is in scope from
-     the start, which is now the answer. A name that is not a module's, `aaaa`, is refused
-     as such by `:load` and `:browse`, rather than looked for. The golden session checks
-     all three.
-  7. **Done 2026-09-25: the session's names in spawn sites, and `main` at the prompt.**
-     `:processes` showed a process spawned at the prompt as `Input2.main:1`, the input's
-     internal module and its wrapper. §11.2 now says a site in the session is written as
-     the session writes names, `input:1` in an input's expression and `start:1` in a
-     function it declares; the emitter writes it so for an input, the `Down` a monitor
-     gives included. The wrapper was named `main`, and §11.2's scope looks in the input's
-     own declarations first, so `main()` after `fn main` called the wrapper forever; it is
-     `'$input'` now, which no identifier is spelled as. A constructor's refusal named
-     `Input28.S`; it names `S` and the input that declared it. `session_names_test_` is
-     the regression test.
-  8. **Done 2026-09-25: a lone candidate is completed as far as it goes.** `:set depth` and
-     `Tab` showed the setting's help line and left the line as it was, where a command
-     that takes an argument gets its space. A lone candidate now takes the space before
-     the value it takes, a setting as a command does, and is listed whenever `Tab` reaches
-     it, so `:bro` shows `:browse `'s help line as `List.ma` shows `List.map`'s type.
-     §11.2 states the rule; `command_argument_test_` covers it.
-  9. **Done 2026-09-25: a refusal is red, and a command that takes nothing refuses an
-     argument.** `:load`'s refusal was red and `:set`'s and `:browse`'s were plain, since
-     the colour followed the function that printed them. Every refusal of a command is red
-     now and every answer plain. `:reload hhhh` answered as if `hhhh` were not there; a
-     command that takes nothing refuses an argument. §11.2 states both;
-     `refusal_colour_test_` and the golden session cover them.
-  10. **Done 2026-09-25: `:set timing`'s value completes.** After `timing` the word `on` or
-      `off` completes, the one setting whose value is a word; the others take numbers,
-      which nothing completes. §11.2 states it; `command_argument_test_` covers it.
-  11. **Done 2026-09-25: `Tab` indents only at a row's start.** `List.map(` and `Tab` put
-      four spaces inside the call, since §11.2 indented wherever nothing was before the
-      cursor to complete. It indents now where only spaces stand before the cursor on its
-      row, and elsewhere lists what may stand there, as after a command. §11.2 states it;
-      `tab_mid_row_test_` is the regression test.
-  12. **Done 2026-09-25: what a listing holds, and in what order.** With nothing typed,
-      `List.map(` and `Tab` listed every name in scope, the prelude's constructors of
-      system messages first, since the front end's order is by kind. Candidates are listed
-      alphabetically now, by prefix before by abbreviation, and with nothing typed they
-      are the names the session declares, the modules in scope, and the prelude's names
-      other than its constructors, which no module leads to. §11.2 states it;
-      `tab_mid_row_test_` and `Shell.Complete`'s own tests cover it.
-  13. **Done 2026-09-25: matching a segment at a time, and never taking away what was
-      typed.** `let b = a` and `Tab` listed `Accept`, `ArrowDown`, and every
-      `Address.*`: one typed segment reached names of any depth, and a first letter
-      matched in either case. A segment now reaches the names of as many segments, a
-      namespace such as `Address` completing with its dot, and its first letter matches as
-      typed. `Ad` had become `A` and `L.fM` `List.f`, since the word was what every
-      candidate shared; it is what the prefix matches share, never less than was typed,
-      and abbreviations alone complete their namespace, `L.fM` to `List.fM`. §11.2 states
-      it; `Shell.Complete`'s tests cover each case.
-  14. **Done 2026-09-25: the review's completion findings.** An independent reviewer
-      drove the shell through the terminal harness after items 1 to 13. `:forget`, `:load`
-      and `:reload` left completion reading the session as it was; they remember it now.
-      An input's module (`Input2`) and an operator (`List.<>`) were offered; neither is.
-      Fields did not complete in a pattern; they do, and a field or a constructor is
-      listed with its type. A namespace is offered only where it holds a name that may
-      stand there, so `let x : Sy` offers nothing, and `:browse` reaches a nested module
-      through its namespace. `:doc Sys` answered nothing though `Sys` completes; a
-      namespace lists what it holds, and `:doc List` shows the type and then the module.
-      §11.2 states each; `review_completion_test_`, `command_argument_test_`,
-      `doc_every_name_test_` and `Shell.Complete`'s tests cover them. The review's other
-      findings are items 15 to 18 below.
-  15. **Done 2026-09-25: the review's `Shift-Tab` findings.** The brief showed the first
-      screen row of the prose, not its first sentence; the signature was found only in a
-      bare expression, not in a `let`, a `fn` body or `:type`'s argument; a constructor
-      showed nothing; and `Shift-Tab` looked only before the cursor, so `List.m|ap`
-      documented nothing. Each follows §11.2 now, which states the constructor, the whole
-      name, and where a call is found; the parser records a constructor the input stops
-      inside as it records a call. `shift_tab_test_` and `shift_tab_colour_test_` cover
-      them.
-  16. **Done 2026-09-25: the review's session findings.** A startup file's failing line
-      was reported as line 1 and a command in one was refused; each input is checked at
-      its own line and quoted from the file, and a command runs as a typed one does, a
-      `:quit` ending the session. `C-c` on an input typed ahead and interrupted committed
-      an empty row; it commits none. The settings are listed in one order everywhere,
-      `:set depth` alone says it takes a number, `:output`'s help line names its path,
-      `:browse List.` is taken, line mode ends with one line feed, and a module comes
-      before a directory of its name in `:load`'s listing. `startup_test_`, the golden
-      session, and the region's tests cover them.
-  17. **Done 2026-09-25: an input wider than the screen wraps.** The design note had the
-      region clip the input at the edge, which hid what was typed past it and pinned the
-      cursor. Each line of the input now wraps onto the rows below it as it is typed, the
-      cursor on the row and column it falls on; §11.2 states it. The region's tests and
-      `wide_input_test_` cover it.
-  18. **Done 2026-09-25: a binding keeps a reloaded module's previous version.** `let g =
-      Loop.f`, then `:reload`, and `g()` ran the new code, where §11.2 has the binding
-      keep the previous version: a function value of another module was an Erlang
-      external fun, which always runs the newest code. Every module now exports
-      `'$fun'/2`, answering its exported functions as funs made inside it, and such a
-      value is taken through it; the emitter's goldens show the change. While replaying
-      it, `:load` and `:reload` of a source that does not lex or parse raised out of the
-      front end and ended the shell; `ern_cli:compile_source/3` returns those diagnostics
-      as it returns the checker's. `reload_test_` and `load_unreadable_test_` cover both.
-
-**Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
-`Crypto`, `Uri`, `Zlib`, `Markdown`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.
-Field selection and the names of the toolchain's options moved to 2.65 on 2026-09-21.
-
-**What the shell has changed so far**, one line each, the arguments in the log.
-
-- **Before any of it**, 2026-09-20: `test/ern_pty.py`, a pseudo-terminal harness, since
-  Erlang cannot open one; `make test` needs python3. It tests §8.2's rules and drives snake.
-  Rewritten the same week to wait for what it expects on the screen rather than to send at
-  fixed times, which had failed about one run in ten.
-- **§9.3 and §8.2 gained what the shell needs**, 2026-09-20: the terminal's interrupt as a
-  key for the terminal's holder, the terminal's size, whether input is a terminal, and the
-  runtime's record of how every process ended as a door for the shell alone.
-- **Incremental checking was the estimate's risk and is not**, 2026-09-20: the checker takes
-  the session as a fourth argument and resolution rewrites a session name to the input that
-  declared it, so nothing downstream knows of a session. Two small changes.
-- **`Keys` became `Terminal`**, 2026-09-20, one module for the resource; `io_ansi:scan` was
-  measured twice and refused, being a capability scanner.
-- **The panes became a live region**, 2026-09-21: the transcript is written into the terminal
-  and scrolled by it, and the shell paints only the bottom rows. `Key` folded into one flat
-  `Event`; the pane routing went in the same commit.
-- **The pure parts became modules of their own**, 2026-09-21: `Shell.Editor`, `Shell.History`
-  and `Shell.Region`, each tested by `ern --test` as top-level `Test` values — the first use
-  of §9.3's `Test` here. Each split was forced by a name collision, which is the namespace
-  rule doing the pushing; the log's entries say so.
-- **The rule for `foreign`**, 2026-09-21, now in CLAUDE.md: a door is admitted for what the
-  host alone can do, and everything else is written in Ernest. Its first sweep found one
-  door of twenty-three in breach, `startup/0`.
-- **Report changes it forced**, all 2026-09-21 unless dated otherwise: §11.2's whole core,
-  the live region, `:output`, the history file, multi-line input, and the paste; §9.3's
-  `Event` and `Pasted`; §8.2's bracketed paste and the answered subscription; §4.2's
-  exported-declaration rule and the sentence on reaching a child module from its parent; E.5
-  `indexOf`, `lastIndexOf`, and what a character is.
-- **Defects it found, none of them the shell's**: `ernc` crashing on an exported declaration
-  naming a private type; a binding compiled inside an unmarked foreign call, which fired
-  `Deadlock`; a `let` of function type emitted as a `fn`; a subscription answered before the
-  mode was set; the terminal process counting its source after `stty`, which fired `Deadlock`
-  under load; `process_of/1` answering a checking proxy's own pid; the key decoder reading
-  `\e[2` as `Escape` and two characters; and initializers running in alphabetical order
-  rather than §8.5's dependency order.
 
 ---
 
@@ -854,7 +561,7 @@ for no decision were fixed, and its other issues decided one at a time:
 The shell showed documentation as CommonMark, `##` headings and ```` ```ernest ```` fences
 included, since a doc block may hold any CommonMark (§2.2) and rendering only what §11.4
 writes would have left pages half rendered. `libs/markdown` is the renderer that ruling
-waited for, pure Ernest, about five hundred lines: `Markdown.parse` reads CommonMark 0.31's
+waited for, pure Ernest, about five hundred lines of code: `Markdown.parse` reads CommonMark 0.31's
 blocks, headings ATX and setext, paragraphs, fenced and indented code, block quotes with
 lazy lines, bullet and ordered lists, thematic breaks, and HTML blocks kept as `Raw`, and
 its inlines, code spans, emphasis, strong emphasis, links, images, autolinks, and hard
@@ -872,7 +579,7 @@ links by reference stay in the text.
   modules. `:doc`, the page on a second `Shift-Tab`, and the brief on the first are
   rendered at the screen's width, 80 columns where there is no terminal. Report §11.2 states
   what is rendered and how it is coloured.
-- **Tests.** Its doc examples run in `ern_doc_tests`, as every library's do; 23 `Test`
+- **Tests.** Its doc examples run in `ern_doc_tests`, as every library's do; `Test`
   values for the edge cases run by `ern --test` in the new `libs_test_`, which runs every
   library's. They passed on their first run, so they confirm the code rather than having
   found anything; the terminal harness and the golden session show the shell's pages.
@@ -905,6 +612,302 @@ it changed beyond the guide, each argued in the log:
   (MVP 3.0).
 
 ---
+
+### MVP 2.6 — the shell (done 2026-09-25)
+
+The shell was closed on 2026-09-25 after its checkpoints, its closing sweep, a session of real use whose findings are items 1 to 13 below, an independent review whose findings are items 14 to 18, and a last sweep of the documents. What it was planned to be, and what each step found, is kept as it stood:
+
+The program that exercises everything at once, and the whole milestone: the libraries moved
+to 2.7 on 2026-09-20 so that one large thing is measured rather than two. Designed in
+[`shell_design.md`](shell_design.md), which owns the design; §11.2 owns what a user may rely
+on. The source is a tree of its own, `shell/`, compiled by `make` into `build/shell/`, since
+the shell is neither standard library nor library but the toolchain's own program.
+
+**The checkpoints**, each a stop for review.
+
+| | What | State |
+|---|---|---|
+| 0 | expressions only: the three processes, the foreign interface, an input checked, compiled, run, printed | done 2026-09-20 |
+| 1 | bindings, `it`, timing, declarations at the prompt, the commands, fault reports, `:load`/`:reload`, the startup files | done 2026-09-20 |
+| 2 | the terminal and the live region, `:output <path>` | done 2026-09-21 |
+| 3 | the line editor: editing, history and its search, multi-line input, bracketed paste | done 2026-09-21 |
+| 4 | completion and documentation | done 2026-09-24 |
+
+**What is left.**
+
+- **Checkpoint 4, completion and documentation.** Built, 2026-09-21: `Shell.Complete`, pure
+  and tested, matching by prefix and by abbreviation segment by segment and filtering by what
+  may stand at the cursor, types after `:`, constructors in a pattern, a constructor's
+  fields; `Tab` replacing the word and indenting four spaces where there is none; a second
+  `Tab` listing the candidates with their types, forty at most (the cap went on 2026-09-25, item 1 below); a command completing as a
+  word of the shell's own; `Shift-Tab` showing a name's type and first sentence, and its page
+  when pressed again. **Left, in this order:**
+  1. **Done 2026-09-24: the prelude's documentation.** `:doc monitor` had said "no
+     documentation". Each entry of `ern_prelude`'s table now carries its documentation,
+     written by E.0 rule 6: a doc string beside each built-in type and primitive, a doc block
+     above each declared type in its Ernest source, and `module` on an operation its type's
+     module documents, which a test checks that module does. `ern_prelude:docs/0` builds the `Docs` term
+     `ern_page` renders, so `:doc`, `Shift-Tab`, and the prelude's page from `ernc --doc` of
+     the standard library's root share one renderer. The doc tests type-check the page's
+     examples and run those that end in `// => v`. Report §9 says the prelude is documented
+     so, with no example for a type a system reference speaks (rule 8), and §11.4 where the
+     page is written. The guide's quotes of `Down`, `Reason`, and `RemoteError` are checked
+     against the table, marked `ernest-prelude`, rather than turned into `:doc` sessions,
+     whose whole pages would bury the two lines the guide means to show.
+  2. **Done 2026-09-24: an input that is one name prints its declared type.** `:type
+     Io.readLine` had printed `with e` where `:browse Io` printed `with m`, since an
+     instance's variables carry no names (found by the guide's cold read). Report §11.2 now
+     says an input that is one name has its type printed as the declaration writes it,
+     whether `:type` asks for it or the input is evaluated; any other expression prints its
+     own type. `ern_typecheck:declared_scheme/3` resolves the name as the checker does and
+     gives its scheme, whose variables keep their names. The guide's `:type` sessions were
+     regenerated, and a shell test holds the rule.
+  3. **Done 2026-09-24: test areas, and faster suites.** A full `make test` had taken five
+     minutes. `make test` still runs everything, and each area has its own target:
+     `test-erl` (with `APP=` for one application), `test-programs`, `test-docs`,
+     `test-guide`, `test-shell`, and `test-emacs`, which was `emacs-mode`. CLAUDE.md maps a
+     change to the areas it needs, and the whole suite runs once per plan item. Measured
+     after: the guide's examples 103 s to 13 s, compiling and running a module's example in
+     the test's own node and the rest in parallel; the integration programs 39 s to 19 s
+     and the Emacs mode 38 s to 15 s, run side by side; the unit tests side by side under
+     `make -j`. The shell's sessions, 76 s, waited for step 5; most of their time turned out
+     to be one session waiting out the harness's timeout, fixed there.
+  4. **Done 2026-09-24: the signature inside a call, and a declaration's `since`.** Where
+     no name before the cursor is documented and the cursor is inside a call, `Shift-Tab`
+     shows the callee's signature, its parameters under their declared names and the one at
+     the cursor in the terminal's cyan: `List.map(xs : List(a), f : (a) -> b with e) ->
+     List(b) with e`, `f` coloured. The parser's diagnostic carries the innermost call and
+     argument index (`within`), `ern_types:format_call/4` prints the signature in three
+     parts around it, and the parameter names come from the `Docs` entry; a prelude function
+     shows types alone. The region learned escape sequences: they take no column, and a row
+     cut short resets its colour. The brief on a name ends with its `Since`, its own or its
+     module's.
+  5. **Done 2026-09-24: the program session waits on its faults, not on time.** It ran on
+     two waits of 400 ms and had failed once under load. It now runs in the pseudo-terminal
+     and waits on the screen for each fault report and each answer; the program's own fault
+     is awaited before the first input, since nothing at the prompt holds the entry point's
+     address to monitor. It passed eight runs at once. Timing the shell's area found that
+     `multiline` spent 30 s waiting out the harness's timeout, `C-d` leaving only on an
+     empty line; it cancels the input first now, and the area went from 76 s to 48 s.
+  6. **Done 2026-09-24: a terminal test for `Shift-Tab` and command completion.** The first
+     attempt had raced its own output, waiting for text the input echoes. `shift_tab_test_`
+     waits only for text the answer holds: the brief on a name with its type, sentence and
+     `Since`, the page on a second press, the signature inside a call, `:br` completed to
+     `:browse`, and the listing a second `Tab` gives; `shift_tab_colour_test_` reads the raw
+     output for the cyan around the parameter at the cursor. Six runs at once passed.
+  7. **Done 2026-09-24: colour where it carries meaning, at a terminal only, and never with
+     `NO_COLOR` set.** `Shell.Style`, pure and tested by `ern --test`: a fault report, a
+     fault's `fault:` line, and a diagnostic's first line in red; the type after a printed
+     value dimmed; a name bold in a completion listing and a `Shift-Tab` brief; the
+     parameter at the cursor in cyan. No syntax highlighting of what is typed; `ernc`'s
+     diagnostics stay plain. The front end answers whether to colour, from the terminal and
+     `NO_COLOR`, until `Sys.env` (MVP 2.7) lets the shell read the environment itself. The
+     harness waits on text with its colour sequences left out, stripping them once per read,
+     and the shell's tests read the terminal's output the same way, one colour test raw.
+     Running the shell's area alone found two things the full suite hid: the pure modules
+     `region.ern` and `complete.ern` had tests `make test` never ran, and the snake test ran
+     a program another suite had left in `build/`; every shell module's tests run now, and
+     snake runs what its own test compiled.
+- **Done 2026-09-24: typing ahead while an input runs.** The session, awaiting an input's
+  result, took an input typed meanwhile out of its mailbox and dropped it, so the second
+  was echoed and never answered. It is left in the mailbox now and runs after the first,
+  which report §11.2 states; the prompt said after the first answer, which the typed-ahead
+  input was never entered under, is taken away when the session takes that input (the
+  screen's `Taken`), so its answer starts a row of its own. `typing_ahead_test_` is the
+  regression test, and the program session types its second input ahead again.
+- **Done 2026-09-24: the closing sweep.** The guide was read against the report, and every
+  other document against the report and the code, by two readers who had not written them.
+  Report §11.2 now states `Tab` completion, `Shift-Tab` documentation, colour, `it`, the
+  file name `input`, the Readline keys, and a missing `HOME`; §11.5 the effect variable
+  printing elides. Read for restating at 1,584 words, every sentence a rule of its own, and
+  kept. Four defects the readers met in the toolchain were fixed, each with a regression
+  test: a timed wait as a session's first input in line mode was a deadlock, from a race
+  at spawn that a program could meet too, and §11.2's rule of no deadlock while a shell
+  holds the terminal had not been built (`spawned_row_test`, `shell_holds_no_deadlock_test`);
+  a prompt `let` with an unsettled effect variable crashed the next input
+  (`effect_variable_test_`); a declared name could print through another input's
+  substitution (the same test); and `:doc` painted a page red. The start line reads
+  `VERSION`, and a session without `HOME` says it keeps no history (`no_home_test_`). The
+  guide, the design note, the README, the architecture note, the feedback list, three
+  example headers, and two test headers were corrected.
+- **A session of real use.** The user works in the shell and reports what it is like; what
+  that finds is fixed before the milestone closes or recorded in the design note. Nothing so
+  far has been driven by hand — every test goes through the pseudo-terminal harness, which
+  tests what was thought of.
+  1. **Done 2026-09-25: what `Tab` and `Shift-Tab` show stands under the line.** A listing
+     was committed above the region, where it read as the answer before; it is now painted
+     in the region under the input, wrapped, cut to the screen with a count of the rest,
+     and taken away by the next key, as Erlang's shell does. A `Tab` that adds nothing to
+     the line lists at once, so `:` and `Tab` shows the commands. Report §11.2 states both;
+     `listing_at_once_test_` is the regression test, and the region's own tests cover the
+     wrapping and the count.
+  2. **Done 2026-09-25: a command's argument completes from what the command takes.**
+     `:browse` and `Tab` did nothing, `:browse ` and `Tab` indented, and `:browse Li`
+     offered constructors. A whole command that takes an argument takes its space; the
+     argument completes from what the command takes, a module for `:browse` listed by its
+     name alone, a module under the source root for `:load` read a directory at a time,
+     any name for `:doc`, the session's names for `:forget`, an expression for `:type`, and
+     `:set`'s four words; `Tab` never indents after a command. A lone candidate is listed,
+     so `:bindings` and `Tab` shows its help line. `command_argument_test_` is the
+     regression test.
+  3. **Done 2026-09-25: the commands in alphabetical order, and an ambiguous prefix
+     refused.** The listing's order was §11.2's priority for an ambiguous prefix, which a
+     reader of `:help` could not see. `:help` and the listing give the commands
+     alphabetically, and `:b` answers `:b is :bindings or :browse`; the golden session
+     checks both.
+  4. **Done 2026-09-25: every name that completes after `:doc` has documentation.**
+     `:doc Accept` answered none. A constructor now shows its type's section, a module the
+     head of its page, a session declaration its name and type as the session writes them
+     rather than `Input1.sz`, and a `let` at the prompt its name and type. `:doc` on a
+     module `:load` compiled had never worked, since the front end looked for a file; it
+     reads the session's copy. Report §11.2 states it; `doc_every_name_test_` is the
+     regression test.
+  5. **Done 2026-09-25: documentation is rendered for the terminal.** Asked of `:doc`'s `##`
+     and fences. First decided the same day to stay unrendered, since a doc block is any
+     CommonMark (§2.2) and rendering only what §11.4 writes would leave a page half
+     rendered; then `libs/markdown` was written (under "Done") and the shell renders every
+     page with it, `:doc`, the page on a second `Shift-Tab`, and the brief. §11.2 states
+     what is rendered and how it is coloured.
+  6. **Done 2026-09-25: `:load`'s refusals.** `:load aaaa` left the prompt on its answer's
+     line, since the front end's refusals had no line feed where the compiler's
+     diagnostics do; they end in one now. `:load List` said there was no module `List`,
+     where §4.2 makes a standard library namespace taken and the module is in scope from
+     the start, which is now the answer. A name that is not a module's, `aaaa`, is refused
+     as such by `:load` and `:browse`, rather than looked for. The golden session checks
+     all three.
+  7. **Done 2026-09-25: the session's names in spawn sites, and `main` at the prompt.**
+     `:processes` showed a process spawned at the prompt as `Input2.main:1`, the input's
+     internal module and its wrapper. §11.2 now says a site in the session is written as
+     the session writes names, `input:1` in an input's expression and `start:1` in a
+     function it declares; the emitter writes it so for an input, the `Down` a monitor
+     gives included. The wrapper was named `main`, and §11.2's scope looks in the input's
+     own declarations first, so `main()` after `fn main` called the wrapper forever; it is
+     `'$input'` now, which no identifier is spelled as. A constructor's refusal named
+     `Input28.S`; it names `S` and the input that declared it. `session_names_test_` is
+     the regression test.
+  8. **Done 2026-09-25: a lone candidate is completed as far as it goes.** `:set depth` and
+     `Tab` showed the setting's help line and left the line as it was, where a command
+     that takes an argument gets its space. A lone candidate now takes the space before
+     the value it takes, a setting as a command does, and is listed whenever `Tab` reaches
+     it, so `:bro` shows `:browse `'s help line as `List.ma` shows `List.map`'s type.
+     §11.2 states the rule; `command_argument_test_` covers it.
+  9. **Done 2026-09-25: a refusal is red, and a command that takes nothing refuses an
+     argument.** `:load`'s refusal was red and `:set`'s and `:browse`'s were plain, since
+     the colour followed the function that printed them. Every refusal of a command is red
+     now and every answer plain. `:reload hhhh` answered as if `hhhh` were not there; a
+     command that takes nothing refuses an argument. §11.2 states both;
+     `refusal_colour_test_` and the golden session cover them.
+  10. **Done 2026-09-25: `:set timing`'s value completes.** After `timing` the word `on` or
+      `off` completes, the one setting whose value is a word; the others take numbers,
+      which nothing completes. §11.2 states it; `command_argument_test_` covers it.
+  11. **Done 2026-09-25: `Tab` indents only at a row's start.** `List.map(` and `Tab` put
+      four spaces inside the call, since §11.2 indented wherever nothing was before the
+      cursor to complete. It indents now where only spaces stand before the cursor on its
+      row, and elsewhere lists what may stand there, as after a command. §11.2 states it;
+      `tab_mid_row_test_` is the regression test.
+  12. **Done 2026-09-25: what a listing holds, and in what order.** With nothing typed,
+      `List.map(` and `Tab` listed every name in scope, the prelude's constructors of
+      system messages first, since the front end's order is by kind. Candidates are listed
+      alphabetically now, by prefix before by abbreviation, and with nothing typed they
+      are the names the session declares, the modules in scope, and the prelude's names
+      other than its constructors, which no module leads to. §11.2 states it;
+      `tab_mid_row_test_` and `Shell.Complete`'s own tests cover it.
+  13. **Done 2026-09-25: matching a segment at a time, and never taking away what was
+      typed.** `let b = a` and `Tab` listed `Accept`, `ArrowDown`, and every
+      `Address.*`: one typed segment reached names of any depth, and a first letter
+      matched in either case. A segment now reaches the names of as many segments, a
+      namespace such as `Address` completing with its dot, and its first letter matches as
+      typed. `Ad` had become `A` and `L.fM` `List.f`, since the word was what every
+      candidate shared; it is what the prefix matches share, never less than was typed,
+      and abbreviations alone complete their namespace, `L.fM` to `List.fM`. §11.2 states
+      it; `Shell.Complete`'s tests cover each case.
+  14. **Done 2026-09-25: the review's completion findings.** An independent reviewer
+      drove the shell through the terminal harness after items 1 to 13. `:forget`, `:load`
+      and `:reload` left completion reading the session as it was; they remember it now.
+      An input's module (`Input2`) and an operator (`List.<>`) were offered; neither is.
+      Fields did not complete in a pattern; they do, and a field or a constructor is
+      listed with its type. A namespace is offered only where it holds a name that may
+      stand there, so `let x : Sy` offers nothing, and `:browse` reaches a nested module
+      through its namespace. `:doc Sys` answered nothing though `Sys` completes; a
+      namespace lists what it holds, and `:doc List` shows the type and then the module.
+      §11.2 states each; `review_completion_test_`, `command_argument_test_`,
+      `doc_every_name_test_` and `Shell.Complete`'s tests cover them. The review's other
+      findings are items 15 to 18 below.
+  15. **Done 2026-09-25: the review's `Shift-Tab` findings.** The brief showed the first
+      screen row of the prose, not its first sentence; the signature was found only in a
+      bare expression, not in a `let`, a `fn` body or `:type`'s argument; a constructor
+      showed nothing; and `Shift-Tab` looked only before the cursor, so `List.m|ap`
+      documented nothing. Each follows §11.2 now, which states the constructor, the whole
+      name, and where a call is found; the parser records a constructor the input stops
+      inside as it records a call. `shift_tab_test_` and `shift_tab_colour_test_` cover
+      them.
+  16. **Done 2026-09-25: the review's session findings.** A startup file's failing line
+      was reported as line 1 and a command in one was refused; each input is checked at
+      its own line and quoted from the file, and a command runs as a typed one does, a
+      `:quit` ending the session. `C-c` on an input typed ahead and interrupted committed
+      an empty row; it commits none. The settings are listed in one order everywhere,
+      `:set depth` alone says it takes a number, `:output`'s help line names its path,
+      `:browse List.` is taken, line mode ends with one line feed, and a module comes
+      before a directory of its name in `:load`'s listing. `startup_test_`, the golden
+      session, and the region's tests cover them.
+  17. **Done 2026-09-25: an input wider than the screen wraps.** The design note had the
+      region clip the input at the edge, which hid what was typed past it and pinned the
+      cursor. Each line of the input now wraps onto the rows below it as it is typed, the
+      cursor on the row and column it falls on; §11.2 states it. The region's tests and
+      `wide_input_test_` cover it.
+  18. **Done 2026-09-25: a binding keeps a reloaded module's previous version.** `let g =
+      Loop.f`, then `:reload`, and `g()` ran the new code, where §11.2 has the binding
+      keep the previous version: a function value of another module was an Erlang
+      external fun, which always runs the newest code. Every module that exports a function now exports
+      `'$fun'/2`, answering its exported functions as funs made inside it, and such a
+      value is taken through it; the emitter's goldens show the change. While replaying
+      it, `:load` and `:reload` of a source that does not lex or parse raised out of the
+      front end and ended the shell; `ern_cli:compile_source/3` returns those diagnostics
+      as it returns the checker's. `reload_test_` and `load_unreadable_test_` cover both.
+
+**Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
+`Crypto`, `Uri`, `Zlib`, which are 2.8, and `Markdown`, done early (under "Done"); the library fetcher, 3.1; an HTTP server, never.
+Field selection and the names of the toolchain's options moved to 2.65 on 2026-09-21.
+
+**What the shell has changed so far**, one line each, the arguments in the log.
+
+- **Before any of it**, 2026-09-20: `test/ern_pty.py`, a pseudo-terminal harness, since
+  Erlang cannot open one; `make test` needs python3. It tests §8.2's rules and drives snake.
+  Rewritten the same week to wait for what it expects on the screen rather than to send at
+  fixed times, which had failed about one run in ten.
+- **§9.3 and §8.2 gained what the shell needs**, 2026-09-20: the terminal's interrupt as a
+  key for the terminal's holder, the terminal's size, whether input is a terminal, and the
+  runtime's record of how every process ended as a door for the shell alone.
+- **Incremental checking was the estimate's risk and is not**, 2026-09-20: the checker takes
+  the session as a fourth argument and resolution rewrites a session name to the input that
+  declared it, so nothing downstream knows of a session. Two small changes.
+- **`Keys` became `Terminal`**, 2026-09-20, one module for the resource; `io_ansi:scan` was
+  measured twice and refused, being a capability scanner.
+- **The panes became a live region**, 2026-09-21: the transcript is written into the terminal
+  and scrolled by it, and the shell paints only the bottom rows. `Key` folded into one flat
+  `Event`; the pane routing went in the same commit.
+- **The pure parts became modules of their own**, 2026-09-21: `Shell.Editor`, `Shell.History`
+  and `Shell.Region`, each tested by `ern --test` as top-level `Test` values — the first use
+  of §9.3's `Test` here. Each split was forced by a name collision, which is the namespace
+  rule doing the pushing; the log's entries say so.
+- **The rule for `foreign`**, 2026-09-21, now in CLAUDE.md: a door is admitted for what the
+  host alone can do, and everything else is written in Ernest. Its first sweep found one
+  door of twenty-three in breach, `startup/0`.
+- **Report changes it forced**, all 2026-09-21 unless dated otherwise: §11.2's whole core,
+  the live region, `:output`, the history file, multi-line input, and the paste; §9.3's
+  `Event` and `Pasted`; §8.2's bracketed paste and the answered subscription; §4.2's
+  exported-declaration rule and the sentence on reaching a child module from its parent; E.5
+  `indexOf`, `lastIndexOf`, and what a character is.
+- **Defects it found, none of them the shell's**: `ernc` crashing on an exported declaration
+  naming a private type; a binding compiled inside an unmarked foreign call, which fired
+  `Deadlock`; a `let` of function type emitted as a `fn`; a subscription answered before the
+  mode was set; the terminal process counting its source after `stty`, which fired `Deadlock`
+  under load; `process_of/1` answering a checking proxy's own pid; the key decoder reading
+  `\e[2` as `Escape` and two characters; initializers running in alphabetical order
+  rather than §8.5's dependency order; and on 2026-09-25, a function value of another
+  module running that module's newest code after a reload, a source that does not parse
+  raising out of `ernc`'s compile of it, and the input's wrapper `main` calling itself in
+  place of the session's `main`.
 
 ## Reference
 
@@ -943,8 +946,9 @@ are erased: `type_decl`, `abstract_decl`, `foreign_type_decl`, `signature`, `fie
 | `p_as` | `Var = Pat` |
 | `p_bits` | bit syntax |
 
-**Prelude name to Erlang** (§9.4 to §9.7, Appendix E). Called, or taken as a value with
-`fun M:F/A`.
+**Prelude name to Erlang** (§9.4 to §9.7, Appendix E). Called, or taken as a value: a
+runtime name as `fun ern_rt:F/A`, and a standard library module's through `M:'$fun'(F, A)`
+since 2026-09-25, as another module's function is (the `e_var` row).
 
 | Name | Erlang |
 |---|---|

@@ -1,6 +1,7 @@
-%% The shell (report §11.2), through a session: a file of inputs in line
-%% mode against a file of expected output, which is what the design note
-%% calls a session golden test.
+%% The shell (report §11.2): sessions in line mode, a file of inputs against
+%% a file of expected output, which is what the design note calls a session
+%% golden test, and the keys, the region, completion and documentation
+%% driven through the pseudo-terminal harness, `test/ern_pty.py`.
 -module(ern_shell_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -77,10 +78,10 @@ count(Haystack, Needle) ->
     length(binary:matches(Haystack, Needle)).
 
 %% report §11.2: at start the shell runs the inputs of the person's
-%% startup file and then the node's, a line an input; a value is not
-%% printed, a later file's binding shadows an earlier one's, and an input
-%% that fails is reported with the file it came from and the session goes
-%% on
+%% startup file and then the node's, a line an input, a command among them;
+%% a value is not printed, a later file's binding shadows an earlier one's,
+%% and an input that fails is reported with the file and the line it came
+%% from, and the session goes on
 startup_test_() ->
     {timeout, 60, fun startup/0}.
 
@@ -1063,10 +1064,11 @@ typing_ahead() ->
     Answers = [L || L <- Lines, L =:= <<"1 : Int">> orelse L =:= <<"4 : Int">>],
     ?assertEqual([<<"1 : Int">>, <<"4 : Int">>], Answers).
 
-%% report §11.2, §6.10, §7.3: `:load` compiles a module from its source
+%% report §11.2, §6.10, §7.4: `:load` compiles a module from its source
 %% under the source root and puts it in scope; `:reload` compiles again
-%% what has changed, names what is still in the previous version, and ends
-%% it on the reload that needs that version. The session rewrites the
+%% what has changed, names what is still in the previous version, a process
+%% or a binding holding a function of it, which keeps that version, and
+%% ends it on the reload that needs that version. The session rewrites the
 %% source itself, with `Fs.write`, so the test needs no second process.
 reload_test_() ->
     {timeout, 60, fun reload/0}.
@@ -1122,7 +1124,7 @@ write_demo(Dir, N) ->
     ["Fs.write(Path(\"", filename:join(Dir, "demo.ern"), "\"), String.toUtf8(\"", Escaped,
      "\"), 2000)\n"].
 
-%% report §11.2: on a terminal the shell reads keys, echoes what is typed,
+%% report §11.2: on a terminal the shell reads keys, paints what is typed,
 %% takes Backspace and C-d, and reads the interrupt as a key, which kills a
 %% running input and leaves the session standing
 terminal_test_() ->

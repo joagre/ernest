@@ -2,7 +2,8 @@
 // The shell's colours (report §11.2): colour where it carries meaning, at a
 // terminal only, and not where the environment sets `NO_COLOR`. Each
 // function takes whether colour is on, and gives the text unchanged when it
-// is not, so what the shell says reads the same without it.
+// is not, so what the shell says reads the same without it; the parameter a
+// signature marks is the one mark that must show, and has asterisks then.
 //
 
 // A fault, or the first line of a diagnostic: what needs the eye.
@@ -27,7 +28,10 @@ export fn named(on : Bool, text : String) -> String = match String.indexOf(text,
 
 // The parameter at the cursor in a signature, in the terminal's cyan, which
 // its theme chooses, so that it reads on a dark screen and a light one.
-export fn emphasis(on : Bool, text : String) -> String = paint(on, "36", text)
+// Report §11.2: without colour it is between asterisks, since the mark
+// carries meaning where the other colours only help the eye.
+export fn emphasis(on : Bool, text : String) -> String =
+    if on || String.isEmpty(text) then paint(on, "36", text) else "*" <> text <> "*"
 
 fn paint(on : Bool, code : String, text : String) -> String =
     if !on || String.isEmpty(text) then text
@@ -51,6 +55,10 @@ let diagnostics = Test(name = "a diagnostic's first line is red, its source plai
 let names = Test(name = "a name before its type is bold", run = fn() =
     if named(true, "List.map : (a) -> b") == "\u{1b}[1mList.map\u{1b}[0m : (a) -> b"
     then Passed else Failed(named(true, "List.map : (a) -> b")))
+
+let marksWithout = Test(name = "without colour the marked parameter is between asterisks",
+    run = fn() =
+        if emphasis(false, "f : Int") == "*f : Int*" then Passed else Failed(emphasis(false, "f")))
 
 let empties = Test(name = "an empty text takes no colour", run = fn() =
     if emphasis(true, "") == "" then Passed else Failed("coloured nothing"))

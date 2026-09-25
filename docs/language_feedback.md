@@ -238,7 +238,7 @@ meant, read well; the entries are what did not.
 ## Asked beside item 14, 2026-09-25
 
 25. **`spawn(Remote, f)`, the asynchronous `remote`.** A process already starts on a named
-    peer, `spawn(Peer(name), f)` (§6.1), and answers asynchronously; what only `remote(f)`
+    peer, `spawn(Peer(name), f)` (§6.2), and answers asynchronously; what only `remote(f)`
     has is the runtime's choice of peer, among those §11.3 marks as accepting remote
     computation, and it is synchronous. A third place, `type Where = Local | Peer(String) |
     Remote`, would give that choice to a process: a long computation no longer holds the
