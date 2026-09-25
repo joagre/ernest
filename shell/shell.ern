@@ -44,6 +44,8 @@ foreign fn names() -> List(Shell.Complete.Name) with m = "ern_shell:names/0"
 // end's to hold.
 foreign fn sessionNames() -> List(Shell.Complete.Name) with m = "ern_shell:session_names/0"
 foreign fn sourceRoot() -> String with m = "ern_shell:source_root/0"
+// Report §11.2: every name the session declares, as it is written.
+foreign fn sessionTexts() -> List(String) with m = "ern_shell:session_texts/0"
 // Report §11.2: what may stand at the cursor, which the parser knows,
 // since it says what it wanted where it stopped.
 foreign fn context(before : String) -> Shell.Complete.Where with m = "ern_shell:context/1"
@@ -694,7 +696,7 @@ fn completing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading 
         // completed: with the word there it has been read already, and
         // what may stand at the cursor is what may stand in its place
         let where = context(String.slice(line, 0, at - String.size(typed)));
-        let completion = Shell.Complete.complete(typed, names(), where);
+        let completion = Shell.Complete.complete(typed, offered(typed), where);
         offering(session, screen, reading, completion, typed, state)
     }
 }
@@ -725,6 +727,19 @@ fn commandEnd(line : String) -> Int = match String.indexOf(line, " ") {
     None -> String.size(line)
   | Some(i) -> i
 }
+
+// Report §11.2: the names a word completes against, every one once
+// something is typed; with nothing typed, the starting points, what the
+// session declares and the modules in scope.
+fn offered(typed : String) -> List(Shell.Complete.Name) with m =
+    if !String.isEmpty(typed) then names()
+    else {
+        let own = sessionTexts();
+        List.filter(names(), fn(name) = match name {
+            Shell.Complete.Name(kind = Shell.Complete.Module) -> true
+          | Shell.Complete.Name(text = text) -> List.contains(own, text)
+        })
+    }
 
 fn lone(completion : Shell.Complete.Completion) -> Bool = match completion {
     Shell.Complete.Completion(candidates = [_]) -> true
@@ -767,7 +782,7 @@ fn argument(line : String, at : Int, typed : String) -> Shell.Complete.Completio
     let before = String.slice(line, end, start - end);
     match pick(String.slice(line, 1, end - 1)) {
         Picked(Entry(argument = AnExpression)) ->
-            Shell.Complete.complete(typed, names(), context(before))
+            Shell.Complete.complete(typed, offered(typed), context(before))
       // every setting takes a value after it, and `timing`'s is a word
       | Picked(Entry(argument = ASetting)) -> match String.trim(before) {
             "" ->
@@ -797,7 +812,7 @@ fn argumentNames(kind : Argument, typed : String) -> List(Shell.Complete.Name) w
           | _ -> None
         })
       | ASourceModule -> sourceModules(typed)
-      | AName -> names()
+      | AName -> offered(typed)
       | ASessionName -> sessionNames()
       | ASetting -> List.map(settings, fn(#(word, shown)) =
             Shell.Complete.Name(text = word, kind = Shell.Complete.Value, shown = shown))

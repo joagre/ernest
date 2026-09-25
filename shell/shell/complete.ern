@@ -116,14 +116,21 @@ export fn applied(text : String, at : Int, typed : String, completion : Completi
 //
 
 fn matches(typed : String, names : List(Name)) -> List(Name) =
-    if String.isEmpty(typed) then names
+    if String.isEmpty(typed) then alphabetical(names)
     else {
         let parts = String.split(typed, ".");
         let exact = List.filter(names, fn(name) = reaches(parts, name, true));
         let loose = List.filter(names, fn(name) = reaches(parts, name, false)
             && !reaches(parts, name, true));
-        exact <> loose
+        alphabetical(exact) <> alphabetical(loose)
     }
+
+// Report §11.2: candidates are listed alphabetically, by the text a person
+// types.
+fn alphabetical(names : List(Name)) -> List(Name) = List.sort(names, fn(a, b) =
+    match #(a, b) {
+        #(Name(text = x), Name(text = y)) -> String.compare(x, y)
+    })
 
 fn reaches(parts : List(String), name : Name, exact : Bool) -> Bool = {
     let segments = String.split(whole(name), ".");
@@ -213,6 +220,15 @@ let applying = Test(name = "a completion replaces the word and moves the cursor"
             complete("L.fm", library(), Expression));
         if text == "1 + List.filterMap(xs)" && at == 18 then Passed
         else Failed("\"" <> text <> "\" at " <> Int.toString(at))
+    })
+
+let ordered = Test(name = "candidates are alphabetical, by prefix before by abbreviation",
+    run = fn() = match complete(word("L"), library(), Expression) {
+        Completion(candidates = candidates) -> {
+            let texts = List.map(candidates, fn(name) = match name { Name(text = t) -> t });
+            if texts == ["List", "List.filter", "List.filterMap", "List.map"] then Passed
+            else Failed(String.join(texts, ", "))
+        }
     })
 
 let nothingTyped = Test(name = "nothing typed reaches every name admitted", run = fn() =

@@ -241,6 +241,12 @@ the shell is neither standard library nor library but the toolchain's own progra
       cursor to complete. It indents now where only spaces stand before the cursor on its
       row, and elsewhere lists what may stand there, as after a command. §11.2 states it;
       `tab_mid_row_test_` is the regression test.
+  12. **Done 2026-09-25: what a listing holds, and in what order.** With nothing typed,
+      `List.map(` and `Tab` listed every name in scope, the prelude's constructors of
+      system messages first, since the front end's order is by kind. Candidates are listed
+      alphabetically now, by prefix before by abbreviation, and with nothing typed they
+      are the names the session declares and the modules in scope. §11.2 states it;
+      `tab_mid_row_test_` and `Shell.Complete`'s own tests cover it.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, `Markdown`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.

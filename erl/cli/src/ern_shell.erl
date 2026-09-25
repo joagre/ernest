@@ -11,7 +11,8 @@
          needs_more/1, check/3,
          type_text/1, declared/1, run/3, signature/1,
          show/3]).
--export([bindings/1, forget/2, browse/2, doc/2, names/0, session_names/0, source_root/0,
+-export([bindings/1, forget/2, browse/2, doc/2, names/0, session_names/0, session_texts/0,
+         source_root/0,
          context/1,
          documentation/1]).
 -export([deaths/1, mine/0, faults/0, processes/0, load/2, reload/1, output/1]).
@@ -515,6 +516,15 @@ session_names() ->
                  || {Key, Q} <- maps:to_list(maps:get(values, S, #{})), is_atom(Key)]
                 ++ [name('Type', atom_to_list(N), "type " ++ atom_to_list(N))
                     || N <- maps:keys(maps:get(types, S, #{}))]).
+
+%% Report §11.2: every name the session declares, as it is written, its
+%% values, members among them, its types, and its constructors: with
+%% nothing typed, these and the modules are what completion lists.
+-spec session_texts() -> [binary()].
+session_texts() ->
+    #env{session = S} = persistent_term:get({?MODULE, env}, #env{}),
+    lists:usort([unicode:characters_to_binary(name_text(K))
+                 || Which <- [values, types, cons], K <- maps:keys(maps:get(Which, S, #{}))]).
 
 %% Report §11.2: where `:load` finds a module's source, `--source-root`.
 -spec source_root() -> binary().
