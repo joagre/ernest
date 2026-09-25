@@ -18,8 +18,8 @@ Actorson until 12 September 2026.
 ## Where we are
 
 **MVP 2.65, the language and the toolchain read back after the shell, has begun.** Its
-first step, consolidating the feedback list and this plan, is done, and the report's cold
-read is under way; the themes follow, one at a time. MVP 2.6, the shell, was closed on
+first two steps are done, the feedback list and this plan consolidated and the report read
+cold; the themes follow, one at a time, the first under discussion. MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
 **Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23; MVP 2.61, the
@@ -76,12 +76,13 @@ The steps:
    its entries share, each keeping the number it is cited by, and the settled entries have
    left it; this plan's "Done" is a paragraph a milestone, the detail being the log's and
    the history's.
-2. **The report read cold, by an implementer**, begun 2026-09-25. A reader who has not seen
-   Ernest reads the report alone, as someone who must implement it, and reports every place
+2. **Done 2026-09-25: the report read cold, by an implementer.** A reader who had not seen
+   Ernest read the report alone, as someone who must implement it, and reported every place
    where two readings are possible, where a rule an implementation needs is missing, or
-   where they had to guess. The guide's cold read found more than every check against the
-   report had, and Wirth's measure of a report is that it suffices to implement the
-   language. What it finds joins the themes below, or is fixed where it asks no decision.
+   where they had to guess: 16 findings of the first kind, 33 of the second, and 30 of
+   wording, in [`report_cold_read.md`](report_cold_read.md), which holds them until each is
+   decided. Those that belong to a theme below are decided with it, and the rest in a batch
+   of their own after the themes.
 3. **Names and namespaces**, the feedback list's first theme (items 2, 4, 17, 32, 33, 43,
    46, 49). One decision, since the module namespace, a type's members, unique constructor
    names and the absence of imports each move the others' costs; it settles where an
@@ -136,7 +137,9 @@ The steps:
    and `pubkey_cert_records`, OTP internals an upgrade may break; `module_info`, which no
    Ernest function may be called. And three shapes: `compile_source`'s mixed error values,
    `run/1` dropping the stacktrace, and the owner a qualified name records.
-9. **What was decided is built**, report first as each decision already was, each change with
+9. **The cold read's own findings**, those no theme takes, in a batch: the report's wording,
+   its cross-references and examples, and the rules it leaves an implementer to invent.
+10. **What was decided is built**, report first as each decision already was, each change with
    its tests, and the document sweep at the end.
 
 ---
