@@ -3,11 +3,24 @@
 
 APPS = utils lexer parser typer runtime emitter cli
 
+# What the Ernest trees are built from: the compiler's beams, and each
+# tree's sources and the directories that hold them, so that a source
+# added or removed is seen and ernc's sweep of §11.1 runs. Each tree is a
+# stamp file that make rebuilds only when one of these is newer, so a make
+# with nothing to do starts no ernc; ernc's own build records then decide
+# what inside a tree to compile.
+TOOL = $(wildcard erl/*/ebin/*.beam)
+# The top directory is written `dir/.`, since `stdlib`, `libs` and `shell`
+# are also the names of targets.
+sources = $(shell find $(1) -name '*.ern') $(1)/. $(shell find $(1) -mindepth 1 -type d)
+
 all:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
-	@$(MAKE) -s stdlib
-	@$(MAKE) -s libs
 	@$(MAKE) -s shell
+
+stdlib: build/stdlib/.built
+libs: build/libs/.built
+shell: build/shell/.built
 
 # The standard library written in Ernest: stdlib/ compiled by ernc into
 # build/stdlib under its Erlang module name, where the tools put it on the
@@ -15,39 +28,40 @@ all:
 # A changed compiler with an unchanged VERSION leaves ernc's build records
 # valid (report §11.1), so the tree is rebuilt whenever a compiler beam is
 # newer than the last standard library build.
-stdlib:
-	@if [ -n "$$(find erl -name '*.beam' -newer build/stdlib/.built 2>/dev/null)" ] \
-	   || [ ! -f build/stdlib/.built ]; then rm -rf build/stdlib; fi
+build/stdlib/.built: $(TOOL) $(call sources,stdlib)
+	@if [ -n "$$(find erl -name '*.beam' -newer $@ 2>/dev/null)" ] \
+	   || [ ! -f $@ ]; then rm -rf build/stdlib; fi
 	@bin/ernc --out-dir build/stdlib stdlib
-	@touch build/stdlib/.built
 	@for f in build/stdlib/*.erc; do \
 	  cp $$f build/stdlib/ern@$$(basename $$f .erc).beam; done
+	@touch $@
+
+# The libraries (plan, MVP 2.7): each libs/<name>/ is a source root of its
+# own, compiled into build/libs/<name>, which a program adds with
+# --load-path. Rebuilt when a compiler beam is newer, as the standard
+# library is.
+build/libs/.built: build/stdlib/.built $(TOOL) $(call sources,libs)
+	@for d in libs/*/; do n=$$(basename $$d); \
+	  if [ -n "$$(find erl -name '*.beam' -newer build/libs/$$n/.built 2>/dev/null)" ] \
+	     || [ ! -f build/libs/$$n/.built ]; then rm -rf build/libs/$$n; fi; \
+	  bin/ernc --source-root $$d --out-dir build/libs/$$n $$d || exit 1; \
+	  touch build/libs/$$n/.built; done
+	@touch $@
 
 # The shell, written in Ernest (report §11.2, plan MVP 2.6): shell/ compiled
 # by ernc into build/shell, where `ern --shell` finds it on the code path.
 # It renders documentation with libs/markdown, which it is compiled against
 # and which ships beside it. Rebuilt when a compiler beam is newer, as the
 # standard library is.
-shell: stdlib libs
-	@if [ -n "$$(find erl -name '*.beam' -newer build/shell/.built 2>/dev/null)" ] \
-	   || [ ! -f build/shell/.built ]; then rm -rf build/shell; fi
+build/shell/.built: build/stdlib/.built build/libs/.built $(TOOL) $(call sources,shell)
+	@if [ -n "$$(find erl -name '*.beam' -newer $@ 2>/dev/null)" ] \
+	   || [ ! -f $@ ]; then rm -rf build/shell; fi
 	@bin/ernc --load-path build/libs/markdown --out-dir build/shell shell
-	@touch build/shell/.built
 	@find build/shell -name '*.erc' | while read f; do \
 	  m=$${f#build/shell/}; \
 	  cp $$f build/shell/ern@$$(echo $${m%.erc} | tr / @).beam; done
 	@cp build/libs/markdown/markdown.erc build/shell/ern@markdown.beam
-
-# The libraries (plan, MVP 2.7): each libs/<name>/ is a source root of its
-# own, compiled into build/libs/<name>, which a program adds with
-# --load-path. Rebuilt when a compiler beam is newer, as the standard
-# library is.
-libs: stdlib
-	@for d in libs/*/; do n=$$(basename $$d); \
-	  if [ -n "$$(find erl -name '*.beam' -newer build/libs/$$n/.built 2>/dev/null)" ] \
-	     || [ ! -f build/libs/$$n/.built ]; then rm -rf build/libs/$$n; fi; \
-	  bin/ernc --source-root $$d --out-dir build/libs/$$n $$d || exit 1; \
-	  touch build/libs/$$n/.built; done
+	@touch $@
 
 # The standard library's pages, one per module beside its .erc in
 # build/stdlib, and index.md listing them (report §11.4).
