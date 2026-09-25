@@ -7,35 +7,19 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Nine have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Ten have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
-(decided, report §9), 2 and 4 (weighed and kept, the log's *Constructor Names Stay Unique
-in a Module* and *Names Stay Qualified, Without Import or Alias*), 17 (decided, report §11.2), 32 and 33 (decided, report §4.4), and 49 (decided with them: the
+(decided, report §9), 2, 4 and 43 (weighed and kept, the log's *Constructor Names Stay Unique
+in a Module*, *Names Stay Qualified, Without Import or Alias* and *Two Visibilities Are
+Enough*), 17 (decided, report §11.2), 32 and 33 (decided, report §4.4), and 49 (decided with them: the
 editor's state and the region are abstract, and a history type was weighed and left, since
 its one rule, the cap of a thousand inputs, a session does not reach, and it would make the
 editor depend on `Shell.History`).
 
 ## 1. Names and namespaces
 
-How a name reaches a declaration, and what that costs to write. A module is a namespace,
-a type's members are a namespace inside it, a constructor's name is unique across the
-module, and nothing is imported or aliased (§4.2). Each entry here is one cost of those
-four rules. The entries are one decision, since changing one rule moves the others'
-costs. The first, where an abstract type's boundary lies (items 32 and 33), was decided on
-2026-09-25: it is its module (report §4.4), so a function no longer has to be a member to
-see a representation.
-
-46. **Abstract types in the standard library.** `Random.Seed` could be written in Ernest,
-    SplitMix64 over `Int`'s bit operations, as an abstract type: three shims go, a seed can
-    cross nodes, and the sequence is the same on every runtime; against it, item 13 kept
-    `Random` a shim. Its functions keep their names under the module boundary. `Path` could be
-    abstract with an invariant, no trailing separator, which the defects of `Path.parent`
-    fell through; against it, E.14 made the constructor the way in and the prelude's
-    `FsMsg` carries `Path`. `Markdown`'s `Block` and `Inline` stay transparent, being what a
-    caller matches on; a Tcp socket stays an address, since `monitor` and `kill` are why it
-    is one. Weighed with items 11 and 13.
-43. **Standard library modules cannot share a private helper**: `Fs` and `Tcp` each write
-    the same `answered`. Whether a module may keep helpers for its siblings.
+Decided on 2026-09-25, and no entry is left; the plan's MVP 2.65 names each decision, and
+item 46 went to the standard library's theme.
 
 ## 2. Expressions, patterns and types
 
@@ -214,7 +198,8 @@ same question.
 
 Each entry is weighed on E.0's admission rules, one by one, and most are small, so they can
 be decided in batches. They fall into three groups: where the line between a shim and
-Ernest runs (11, 13, 42), what a function is named and where it lives (40, 41, 38), and
+Ernest runs, with the abstract types it could write (11, 13, 42, 46), what a function is
+named and where it lives (40, 41, 38), and
 functions the library lacks or has in a form that misleads (the rest).
 
 11. **`path.ern`'s shims over string surgery.** A shim exists only where the runtime owns
@@ -250,6 +235,15 @@ functions the library lacks or has in a form that misleads (the rest).
     `fromList` but `Set.filter` a shim; `Map.map`, `filter`, `filterMap` and `foreach` are
     shims but `Map.any`, `all` and `find` Ernest. Only the operations on the representation
     need the host; item 13 kept the modules as shims without this line.
+46. **Abstract types in the standard library.** `Random.Seed` could be written in Ernest,
+    SplitMix64 over `Int`'s bit operations, as an abstract type: three shims go, a seed can
+    cross nodes, and the sequence is the same on every runtime; against it, item 13 kept
+    `Random` a shim. Its functions keep their names under the module boundary. `Path` could be
+    abstract with an invariant, no trailing separator, which the defects of `Path.parent`
+    fell through; against it, E.14 made the constructor the way in and the prelude's
+    `FsMsg` carries `Path`. `Markdown`'s `Block` and `Inline` stay transparent, being what a
+    caller matches on; a Tcp socket stays an address, since `monitor` and `kill` are why it
+    is one. Weighed with items 11 and 13.
 40. **E.0 rule 3 and the `fromList`s.** The rule puts a conversion in the subject's module,
     yet `String.fromList`, `Map.fromList`, `Set.fromList` and `Either.fromOptional` live in
     the target's. The rule is reworded to say so, or the functions move.

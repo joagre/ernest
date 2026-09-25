@@ -80,14 +80,12 @@ The steps:
    into the report (the log's *The Report Read Cold, Its Plain Half*). What is open is in
    [`report_cold_read.md`](report_cold_read.md), each finding under the theme that decides
    it; what no theme takes is decided in step 9.
-3. **Names and namespaces**, the feedback list's first theme (items 43, 46).
-   **Decided 2026-09-25: an abstract type's boundary is its module** (report §4.4; the log's
-   *An Abstract Type's Boundary Is Its Module*); items 32, 33 and 49 went with it. **Kept
-   2026-09-25: constructor names unique in a module** (item 2; the log's *Constructor Names
-   Stay Unique in a Module*), and **names stay qualified, without import or alias** (item 4;
-   the log's *Names Stay Qualified, Without Import or Alias*), and **a later input may add a
-   member to a session type** (item 17; report §11.2, the log's *A Later Input May Add a
-   Member*). Next: item 43.
+3. **Done 2026-09-25: names and namespaces**, the feedback list's first theme. An abstract
+   type's boundary is its module (items 32, 33 and 49; report §4.4). Constructor names stay
+   unique in a module (item 2), names stay qualified without import or alias (item 4), and
+   two visibilities are enough (item 43), each weighed and kept. A later input may add a
+   member to a session type (item 17; report §11.2). The log has an entry for each; item 46
+   moved to the standard library's theme.
 4. **Expressions, patterns and types**, the second theme, field selection at its head (item
    51, with 18 and 19, then 3, 5, 36, 39, 45, 48 and 52). If field selection is taken, the
    report changes first: §3.5 for the rule, Appendix A for the production, §11.5 for what
@@ -97,7 +95,8 @@ The steps:
    unregistering needs equality; either outcome changes `:processes` and `Io.debug`, as item
    24 says. Items 14 and 25 stay with MVP 3.0 and 16 with MVP 2.7.
 6. **The standard library under E.0**, the fourth theme, in three batches: where the line
-   between a shim and Ernest runs (items 11, 13, 42), what a function is named and where it
+   between a shim and Ernest runs, with the abstract types it could write (items 11, 13, 42,
+   46), what a function is named and where it
    lives (38, 40, 41), and what the library lacks or has in a form that misleads (7, 8, 15,
    20, 21, 22, 23, 31, 34, 35, 44).
 7. **The toolchain**, the fifth theme: the shell's own questions (items 29 and 30), and the

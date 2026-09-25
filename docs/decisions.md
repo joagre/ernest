@@ -4010,6 +4010,10 @@ Feedback item 4, weighed and left as it is: a name from another module is writte
 
 Feedback item 17. §4.2 keeps a type's members in the module that declares it, and §11.2 makes each input a module of its own, so `type Coin` and then `fn Coin.+` in the next input was refused: "Coin is not a type declared in this module". Both rules were kept, and their meeting surprised, since at a prompt a person adds to what is there, as GHCi takes an instance in a later line than its type (principle 1). The session already has scope rules of its own (§11.2), and now one more: a later input may declare a member of a type the session declares, and the member is the session's. It belongs to the latest declaration of the type's name, so a type declared again starts with no members, and an abstract type's constructor stays its own input's, since the boundary is the module (§4.4). Nothing changes for a program, which is not a session; the rejected alternative, a better message and the rule kept, would have left the surprise in place.
 
+## Two Visibilities Are Enough, 2026-09-25
+
+Feedback item 43, weighed and left as it is: a declaration is exported or private to its file (§4.2), and nothing between. What asked for more was one line, `answered`, turning `Address.call`'s `None` into `Left(Timeout)`, written in `fs.ern` and `tcp.ern`. A visibility for a namespace's own modules, Java's package-private or Rust's `pub(crate)`, is a concept and a word more (principle 5), a second way to export that each declaration chooses between (principle 2), and a reason a call compiles that the call does not show (principle 3). Moving the line into a module of its own would make it public, where E.0 rule 4 refuses a composition of two functions already there. A one-line composition written twice keeps each module readable alone. What would change it: a helper of substance that several modules of one namespace need and programs must not see; the first question then is whether it is a module of its own, exported and admitted.
+
 ## Later
 
 Planned or considered, not in the language today.
