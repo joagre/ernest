@@ -7,10 +7,10 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Eight have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Nine have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
 (decided, report §9), 2 and 4 (weighed and kept, the log's *Constructor Names Stay Unique
-in a Module* and *Names Stay Qualified, Without Import or Alias*), 32 and 33 (decided, report §4.4), and 49 (decided with them: the
+in a Module* and *Names Stay Qualified, Without Import or Alias*), 17 (decided, report §11.2), 32 and 33 (decided, report §4.4), and 49 (decided with them: the
 editor's state and the region are abstract, and a history type was weighed and left, since
 its one rule, the cap of a thousand inputs, a session does not reach, and it would make the
 editor depend on `Shell.History`).
@@ -36,13 +36,6 @@ see a representation.
     is one. Weighed with items 11 and 13.
 43. **Standard library modules cannot share a private helper**: `Fs` and `Tcp` each write
     the same `answered`. Whether a module may keep helpers for its siblings.
-17. **At the prompt, a type's members come in the same input as the type.** A type's
-    members belong to the module that declares it, and each input is a module of its own
-    (report §11.2), so `type Money = Money(Int)` and then `fn Money.compare(...)` in the
-    next input is refused with "Money is not a type declared in this module". Consistent
-    with the module rule, and surprising at a prompt, where a person adds to what is there.
-    Whether the session may add members to a type it declared, or the message says to
-    declare them together.
 
 ## 2. Expressions, patterns and types
 

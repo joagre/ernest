@@ -811,6 +811,30 @@ open_binding() ->
 %% line faults with the cause §7.4 gives and the shell goes on. A
 %% regression test: in line mode the input took the shell's next line, and
 %% at a terminal it ended the program, shell and all
+%% report §11.2: a later input may declare a member of a type the session
+%% declares, and an operator finds it; a type declared again starts with no
+%% members. Written with the change, and it does not cover an abstract type,
+%% whose constructor stays its own input's (§4.4)
+later_member_test_() ->
+    {timeout, 60, fun later_member/0}.
+
+later_member() ->
+    In = filename:join("/tmp", "ern_member_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = file:write_file(In, "type Coin = Coin(Int)\n"
+                             "fn Coin.+(Coin(a), Coin(b)) = Coin(a + b)\n"
+                             "Coin(1) + Coin(2)\n"
+                             "fn Coin.compare(Coin(a), Coin(b)) = Int.compare(a, b)\n"
+                             "Coin(1) < Coin(2)\n"
+                             "Coin.compare(Coin(3), Coin(2))\n"
+                             "type Coin = Coin(Float)\n"
+                             "Coin(1.0) + Coin(2.0)\n"),
+    {0, Out} = sh("../bin/ern --shell < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"Coin(3) : Coin">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"true : Bool">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"Greater : Ordering">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"`+` is not defined on Coin">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"not a type declared">>)).
+
 input_reads_line_test_() ->
     {timeout, 60, fun input_reads_line/0}.
 

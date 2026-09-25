@@ -789,11 +789,11 @@ is_value(Path, Name, Env) ->
 %% A qualified name in another Ernest module: Path names the module, or a
 %% module plus a type-member owner (report §4.2).
 remote_name(Path, Name, Env) ->
-    case ern_typecheck:lookup_type(Path, Env) of
-        #tinfo{qname = Q} when length(Q) > 1 ->
+    case ern_typecheck:is_member_path(Path, Name, Env) of
+        true ->
             %% Path is Module ++ [Owner]: the member lives in Module
             {module_atom(lists:droplast(Path)), fname(lists:last(Path), Name)};
-        _ ->
+        false ->
             {module_atom(Path), Name}
     end.
 
@@ -1049,9 +1049,11 @@ negate(_, Form, _) -> erl_syntax:prefix_expr(erl_syntax:operator('-'), Form).
 
 %% A member of the type Q: a local function when Q is this module's type,
 %% otherwise a call into the module that owns it (report §4.2).
-member_call(Q, Name, Args, #cx{ns = Ns}) ->
+member_call(Q, Name, Args, #cx{ns = Ns, env = Env}) ->
     Owner = lists:last(Q),
-    case lists:droplast(Q) of
+    %% report §11.2: at the prompt a later input may have declared it
+    MQ = ern_typecheck:member_qname(Q, Name, Env),
+    case lists:droplast(lists:droplast(MQ)) of
         Ns -> erl_syntax:application(erl_syntax:atom(fname(Owner, Name)), Args);
         Mod -> call_remote(module_atom(Mod), fname(Owner, Name), Args)
     end.

@@ -14,8 +14,9 @@
 -module(ern_typecheck).
 
 -export([check/3, check/4, check_string/2, type_state/1, set_type_state/2, prelude_names/0,
-         prelude_con/1, prelude_cons/0, prelude_env/0, lookup_type/2, is_reply_carrying/2,
-         foreign_impl/1, declared_scheme/3, typed_pattern_bindings/1, segment_spec/1,
+         prelude_con/1, prelude_cons/0, prelude_env/0, lookup_type/2, is_member_path/3,
+         member_qname/3, is_reply_carrying/2, foreign_impl/1, declared_scheme/3,
+         typed_pattern_bindings/1, segment_spec/1,
          lookup_con/4, con_info/2, is_value/2, resolve_type/2, node_type/1]).
 
 -export_type([env/0, session/0]).
@@ -299,6 +300,22 @@ lookup_type_name(Pos, Path, Name, #env{types = Ts}) ->
 -spec lookup_type([atom()], env()) -> #tinfo{} | undefined.
 lookup_type(QName, #env{types = Ts}) -> maps:get(QName, Ts, undefined).
 
+%% Report §4.2, §11.2: whether Path is a module and the type that owns the
+%% member Name: a type of that module, or, at the prompt, a type the session
+%% declares whose member a later input declared.
+-spec is_member_path([atom()], atom(), env()) -> boolean().
+is_member_path(Path, Name, Env) ->
+    case lookup_type(Path, Env) of
+        #tinfo{qname = Q} when length(Q) > 1 -> true;
+        _ -> session(values, {lists:last(Path), Name}, Env) =:= {ok, Path ++ [Name]}
+    end.
+
+%% Report §4.8, §11.2: the qualified name of the member an operator on the
+%% type Q resolves to, which at the prompt a later input may have declared.
+-spec member_qname([atom()], atom(), env()) -> [atom()].
+member_qname(Q, Member, Env) ->
+    session_member(Q, Member, Env).
+
 %%
 %% Type declarations
 %%
@@ -563,8 +580,10 @@ register_value_name(D, #env{local_values = LV} = Env) ->
         #{Key := _} -> fail(Pos, "value " ++ local_name(Owner, Name) ++ " is declared twice");
         _ -> ok
     end,
-    Owner =:= undefined orelse maps:is_key(Owner, Env#env.local_types) orelse
-        fail(Pos, atom_to_list(Owner) ++ " is not a type declared in this module"),
+    %% report §11.2: at the prompt, a member of a type the session declares
+    Owner =:= undefined orelse maps:is_key(Owner, Env#env.local_types)
+        orelse session(types, Owner, Env) =/= error
+        orelse fail(Pos, atom_to_list(Owner) ++ " is not a type declared in this module"),
     %% report §4.8: an operator is declared with `fn`
     case is_record(D, let_decl) andalso is_operator(Name) of
         true -> fail(Pos, "an operator is declared with `fn`, not `let`");
@@ -1335,7 +1354,7 @@ op_text(Op) -> atom_to_list(Op).
 member_scheme(Q, Member, #env{ns = Ns, local_values = LV} = Env) ->
     Key = case own_type_path(Q, Ns) of
               true -> maps:get({lists:last(Q), Member}, LV, undefined);
-              false -> Q ++ [Member]
+              false -> session_member(Q, Member, Env)
           end,
     case Key of
         undefined -> {undefined, Env};
@@ -2394,6 +2413,20 @@ session_con(Pos, Q, #env{cons = Cs, types = Ts}) ->
                       " and is not visible outside the input that declared it");
         _ ->
             CI
+    end.
+
+%% Report §11.2: a member of the session's latest type of its name may have
+%% been declared by a later input than the type.
+session_member(Q, Member, Env) ->
+    Name = lists:last(Q),
+    case session(types, Name, Env) of
+        {ok, Q} ->
+            case session(values, {Name, Member}, Env) of
+                {ok, MQ} -> MQ;
+                error -> Q ++ [Member]
+            end;
+        _ ->
+            Q ++ [Member]
     end.
 
 %% Report §11.2: what the session declared under this unqualified name.

@@ -1625,8 +1625,13 @@ bound(#env{n = N} = Env, Bound, TEnv) ->
 %% overwrites.
 session(#env{ifaces = Ifaces, session = S} = Env, #iface{} = Iface) ->
     #iface{namespace = Ns, types = Ts, values = Vs} = Iface,
-    Values = maps:merge(maps:get(values, S, #{}),
-                        maps:from_list([{value_key(Ns, Q), Q} || Q <- maps:keys(Vs)])),
+    %% a type declared again starts with no members: the earlier type's
+    %% belong to it, and its name now names another
+    Declared = [lists:last(Q) || Q <- maps:keys(Ts)],
+    Kept = maps:filter(fun({Owner, _}, _) -> not lists:member(Owner, Declared);
+                          (_, _) -> true
+                       end, maps:get(values, S, #{})),
+    Values = maps:merge(Kept, maps:from_list([{value_key(Ns, Q), Q} || Q <- maps:keys(Vs)])),
     Types = maps:merge(maps:get(types, S, #{}),
                        maps:from_list([{lists:last(Q), Q} || Q <- maps:keys(Ts)])),
     Cons = maps:merge(maps:get(cons, S, #{}),
