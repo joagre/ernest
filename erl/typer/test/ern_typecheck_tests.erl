@@ -104,6 +104,23 @@ operators_need_a_determined_operand_type_test() ->
     ?assertEqual("(Int, Int) -> Bool", type_of("export fn lt(a : Int, b) = a < b", lt)),
     ?assertEqual("`<` is not defined on Bool", err("fn f(a : Bool, b) = a < b")).
 
+%% report §4.8: an operator's operand type is resolved once the definition
+%% is inferred, from either operand; `[]` and a lambda's use determine it as
+%% well as a literal; a local fn is a definition of its own, so its
+%% operands must be determined inside it, where a lambda's may come from
+%% its use in the enclosing definition; and an operator's result does not
+%% determine its operands. A regression test: the checker conformed before
+%% it was written. It does not cover a mutually recursive group.
+operator_operand_sources_test() ->
+    ?assertEqual("(Int, Int) -> Int", type_of("export fn f(a, b : Int) = a + b", f)),
+    ?assertEqual("(List(a)) -> List(a)", type_of("export fn g(xs) = xs <> []", g)),
+    ?assertEqual("the operand type of `+` is not determined; annotate it",
+                 err("fn h(n : Int) = { fn dbl(x) = x + x; dbl(n) }")),
+    ?assertEqual("(Int) -> Int",
+                 type_of("export fn h(n : Int) = { let dbl = fn(x) = x + x; dbl(n) }", h)),
+    ?assertEqual("the operand type of `+` is not determined; annotate it",
+                 err("fn h(a) = { let x = a + a; Int.abs(x) }")).
+
 %% report §4.8, §3.10: a user type's own operator and its compare resolve
 %% against the operand type; the result is the operator's, and an
 %% ordering is a Bool; a type without the member has no operator
@@ -178,9 +195,42 @@ equality_test() ->
                  " address), but it is compared here",
                  err("fn same(a : Address(Int), b) = equal(a, b)\nfn equal(a, b) = a == b")),
     ?assertEqual("Address(Int) does not support equality (it contains a function or an"
-                 " address), but it is compared here",
+                 " address), and a Map's key needs it",
                  err("fn f(a : Address(Int)) = Map.put(Map.empty, a, 1)")),
     ?assertEqual(ok, ok("fn f(a : String) = Map.put(Map.empty, a, 1)")).
+
+%% report §3.10: a type's ordering is the `compare` in its own namespace; a
+%% module-level `fn compare` is an ordinary function and gives the type no
+%% ordering. A regression test: the checker conformed before it was
+%% written. It does not cover a prelude type's namespace.
+module_level_compare_gives_no_ordering_test() ->
+    D = "type D = D(Int)\nfn compare(D(a), D(b)) -> Ordering = Int.compare(a, b)\n",
+    ?assertEqual("`<` is not defined on D", err(D ++ "fn f(x : D, y : D) = x < y")),
+    ?assertEqual(ok, ok(D ++ "fn f(x : D, y : D) -> Ordering = compare(x, y)")).
+
+%% report §3.10: a Map over a key without equality is refused at its first
+%% operation, and the error names the key, not a comparison; a Set's element
+%% alike; a type that names such a Map, in an annotation or a field, is no
+%% error alone; a variable inside a key is constrained as one that is the
+%% key. A regression test, written after the fix; it does not cover a
+%% user function's own Map parameter instantiated at such a key, which
+%% takes the same path.
+map_key_equality_test() ->
+    ?assertEqual("(Int) -> Int does not support equality (it contains a function or an"
+                 " address), and a Map's key needs it",
+                 err("fn f() = { let m : Map((Int) -> Int, Int) = Map.empty; m }")),
+    ?assertEqual("Address(Int) does not support equality (it contains a function or an"
+                 " address), and a Set's element needs it",
+                 err("fn f(a : Address(Int)) = Set.put(Set.empty, a)")),
+    ?assertEqual(ok, ok("type Box = Box(m : Map((Int) -> Int, Int))\n"
+                        "fn f(m : Map((Int) -> Int, Int)) -> Int = 1\n"
+                        "fn g(b : Box) -> Box = b")),
+    ?assertEqual("(Map(#(k=, Int), v)) -> Map(#(k=, Int), v)",
+                 type_of("export fn f(m : Map(#(k, Int), v)) -> Map(#(k, Int), v) = m", f)),
+    ?assertEqual("Address(Int) does not support equality (it contains a function or an"
+                 " address), and a Map's key needs it",
+                 err("fn f(m : Map(#(k, Int), Int), key : k) = m\n"
+                     "fn g(m : Map(#(Address(Int), Int), Int), a : Address(Int)) = f(m, a)")).
 
 %%
 %% Effects (report §3.9, §6.1)
@@ -207,7 +257,8 @@ effects_test() ->
                                   "fn gb() -> Unit with B = Unit\n"
                                   "fn both() = { ga(); gb() }")).
 
-%% report §6.3, §6.8, §7.2: a missing reply is `after` in receive
+%% report §6.1, §6.3, §6.8, §7.2: a missing reply is `after` in receive; a
+%% receive makes its function process-only, one with only `after` too
 receive_and_mailboxes_test() ->
     Counter = "type CounterMsg = Inc(Int) | Get(reply : Reply(Int))\n"
               "export fn counter(n : Int) -> Unit with CounterMsg = receive {\n"
@@ -217,6 +268,13 @@ receive_and_mailboxes_test() ->
     ?assertEqual("`receive` needs a process, and f is pure",
                  err("fn f() -> Unit = receive { after 1 -> Unit }")),
     ?assertEqual(ok, ok("fn f() -> Unit with Never = receive { after 1 -> Unit }")),
+    %% an after-only receive, inferred, is process-only (a regression case,
+    %% added after the checker conformed)
+    ?assertEqual("(Int) -> Unit with e",
+                 type_of("export fn sleep(ms : Int) = receive { after ms -> Unit }", sleep)),
+    ?assertEqual("sleep needs a process, and p is pure",
+                 err("fn sleep(ms : Int) = receive { after ms -> Unit }\n"
+                     "fn p() -> Unit = sleep(1)")),
     ?assertEqual("a function with mailbox Never cannot receive",
                  err("fn f() -> Unit with Never = receive { Unit -> Unit }")),
     ?assertEqual("(a!) -> Unit with e",
@@ -235,6 +293,35 @@ spawn_test() ->
                  err("fn work() = Unit\n"
                      "fn main() -> Unit with Never = { let a = spawn(Local, fn() = work());"
                      " Unit }")).
+
+%% report §4.5, §3.9, §11.5: a pure result annotation on an effect-polymorphic
+%% function makes its callback pure, and the error names the side that is
+%% pure: a process function passed where a pure one is needed, and a pure
+%% one passed where a process is needed; in a parameter's parameter the two
+%% swap, since there the callee hands the function over. A regression test,
+%% written after the fix; it does not cover a result's function, nor the
+%% shell's rendering of the message.
+effect_mismatch_direction_test() ->
+    ?assertEqual("the argument does not fit apply: a function that runs in a process where a"
+                 " pure one is needed",
+                 err("fn apply(f, x) -> Int = f(x)\n"
+                     "fn g(a : Address(Int)) -> Int with m ="
+                     " apply(fn(y) = { send(a, y); y }, 1)")),
+    ?assertEqual("the value does not have the declared type: a function that runs in a process"
+                 " where a pure one is needed",
+                 err("fn g() -> Int with Never = {"
+                     " let k : (Int) -> Int = fn(y) = { Io.println(\"x\"); y }; k(1) }")),
+    ?assertEqual("the argument does not fit spawn: a pure function where one that runs in a"
+                 " process is needed",
+                 err("fn main() -> Unit with Never = {"
+                     " let _ = spawn(Local, fn() -> Unit = Unit); Unit }")),
+    %% h hands k a process function, and k's parameter must be pure
+    ?assertEqual("the argument does not fit h: a function that runs in a process where a"
+                 " pure one is needed",
+                 err("fn h(k : ((Int) -> Int with m) -> Int) -> Int with m ="
+                     " { let _ = self(); k(fn(x) = x) }\n"
+                     "fn g() -> Int with Never = h(fn(f : (Int) -> Int) -> Int = f(1))")),
+    ?assertEqual(ok, ok("fn apply(f, x) -> Int = f(x)\nfn g() -> Int = apply(fn(y) = y + 1, 1)")).
 
 %% report §5.9
 guards_are_pure_test() ->
@@ -354,6 +441,19 @@ bind_arrow_test() ->
                  err("fn f(a : String) = { let x <- String.toInt(a); Right(x) }")),
     ?assertMatch("`<-` needs an Either or an Optional, not Int", err("fn f() = { let x <- 1; x }")).
 
+%% report §5.5: `<-` over a value whose sum type nothing decides asks for an
+%% annotation; its pattern is irrefutable, as `let`'s is, so a constructor
+%% pattern is refused and a tuple accepted. A regression test: the checker
+%% conformed before it was written. It does not cover an Either.
+bind_arrow_open_sum_and_pattern_test() ->
+    ?assertEqual("`<-` needs to know whether the value is an Either or an Optional; annotate it",
+                 err("fn g(x) = { let a <- x; x }")),
+    ?assertEqual("a `let` pattern must be irrefutable; use match",
+                 err("fn f(x : Optional(Optional(Int))) -> Optional(Int) ="
+                     " { let Some(y) <- x; y }")),
+    ?assertEqual(ok, ok("fn f(x : Optional(#(Int, Int))) -> Optional(Int) ="
+                        " { let #(a, b) <- x; Some(a + b) }")).
+
 %%
 %% Types and declarations
 %%
@@ -374,6 +474,18 @@ type_declarations_test() ->
     ?assertEqual("field names must be unique within a constructor",
                  err("type T = T(a : Int, a : Int)")).
 
+%% report §4.2, §5.4: a module declares each top-level name once, private or
+%% exported, and a block each local fn name once; two adjacent ones are the
+%% parser's "one clause" error (ern_parser_tests). The top-level half is a
+%% regression test, written after the checker conformed; the local half
+%% was fixed with it, since two local fns of one name apart in a block were
+%% accepted. It does not cover a local fn and a `let` of one name.
+declared_once_test() ->
+    ?assertEqual("value f is declared twice", err("fn f() = 1\nfn g() = 3\nfn f() = 2")),
+    ?assertEqual("local function g is declared twice in the block",
+                 err("fn h() = { fn g() = 1; let x = 1; fn g() = 2; g() + x }")),
+    ?assertEqual(ok, ok("fn h() = { fn g() = 1; let x = { fn g() = 2; g() }; g() + x }")).
+
 %% report §3.9
 annotations_are_rigid_test() ->
     ?assertEqual("type variable a in the annotation is used as Int", err("fn f(x : a) -> a = 1")),
@@ -382,6 +494,38 @@ annotations_are_rigid_test() ->
     ?assertEqual("(a) -> a", type_of("export fn id(x : a) -> a = x", id)),
     ?assertMatch("the body does not have the declared return type: " ++ _,
                  err("fn f(x : Int) -> String = x")).
+
+%% report §3.9: polymorphic recursion is refused, even under a full
+%% signature. A regression test: the checker conformed before it was
+%% written. It does not cover a mutually recursive group.
+polymorphic_recursion_is_refused_test() ->
+    ?assertEqual("recursive use does not match the definition: a type that would contain"
+                 " itself ((Nested(List(a))) -> Int against (Nested(a)) -> Int)",
+                 err("type Nested(a) = Flat(a) | Nest(Nested(List(a)))\n"
+                     "fn depth(n : Nested(a)) -> Int ="
+                     " match n { Flat(_) -> 0 | Nest(m) -> 1 + depth(m) }")).
+
+%% report §3.9: a signature's type variables reach a block `let`'s annotation,
+%% `=` and `<-` alike, and stay rigid there; a variable named only in the
+%% block `let` is its own and flexible, each `let` its own; inside a lambda
+%% the lambda's variables reach it too. A regression test, written after
+%% the fix; it does not cover a local `fn`'s own signature, which starts a
+%% definition of its own.
+block_let_annotation_variables_test() ->
+    ?assertEqual("type variable a in the annotation is used as Int",
+                 err("fn f(x : a) -> Int = { let y : a = 1; y }")),
+    ?assertEqual("type variable a in the annotation is used as Int",
+                 err("fn f(x : Optional(a), n : Int) -> Optional(Int) ="
+                     " { let y : a <- Some(n); Some(y) }")),
+    ?assertEqual("(a) -> a", type_of("export fn f(x : a) -> a = { let y : a = x; y }", f)),
+    ?assertEqual(ok, ok("fn f(x : Int) -> Int = { let y : a = x; y }")),
+    ?assertEqual(ok, ok("fn f(x : Int) -> Int = { let y : a = x; let z : a = \"s\"; y }")),
+    %% the lambda's own b, not rigid, is the one the inner `let` names
+    ?assertEqual(ok, ok("fn f(x : Int) -> Int ="
+                        " { let g = fn(y : b) -> b = { let z : b = y; z }; g(x) }")),
+    ?assertEqual("the argument does not fit g: expected String, found Int",
+                 err("fn f(x : Int) -> Int ="
+                     " { let g = fn(y : b) -> b = { let z : b = \"s\"; z }; g(x) }")).
 
 %% report §3.4
 with_binds_to_the_nearest_arrow_test() ->
@@ -541,6 +685,20 @@ reply_test() ->
     ?assertEqual(ok, ok(Msg ++ "fn ask(a : Address(Req)) = Address.call(a, fn(r) = Get(reply = r),"
                         " 1000)")).
 
+%% report §6.6: a local fn may not capture a reply-carrying value, since it
+%% may be called many times; a function whose inferred result is
+%% reply-carrying returns the reply to its caller, who must consume it. A
+%% regression test: the checker conformed before it was written. It does
+%% not cover a local fn that captures a lambda that captured the reply.
+reply_through_functions_test() ->
+    ?assertEqual("the reply-carrying value r is captured by a local function",
+                 err("fn f(r : Reply(Int)) -> Unit with Never = { fn go() = answer(r, 1); go() }")),
+    Pass = "fn pass(r : Reply(Int)) = r\n",
+    ?assertEqual(ok, ok(Pass ++ "fn f(r : Reply(Int)) -> Unit with Never = answer(pass(r), 1)")),
+    ?assertEqual("the reply-carrying value x is never consumed",
+                 err(Pass ++ "fn g(r : Reply(Int)) -> Unit with Never ="
+                     " { let x = pass(r); Unit }")).
+
 %% report §6.6, §3.9, §4.4, §4.7
 warts_audit_test() ->
     Msg = "type Req = Get(reply : Reply(Int)) | Stop\n",
@@ -579,6 +737,19 @@ warts_audit_test() ->
                  err("fn f(x : a) -> a = { let g = fn(y : a) -> a = 1; g(x) }")),
     ?assertEqual("(Int) -> Int", type_of("export fn f(x : Int) = (fn(y : b) -> b = 1)(x)", f)),
     ?assertEqual("(Int) -> Int", type_of("export fn f(x : Int) = (fn(y : b) -> b = y)(x)", f)).
+
+%% report §8.4: a foreign fn's implementation is named module:function/arity,
+%% and the arity is its parameter count; either mistake is a compile error.
+%% A regression test: the checker conformed before it was written. It does
+%% not cover a module or function missing at run time.
+foreign_implementation_name_test() ->
+    Named = "the implementation of tick is named module:function/arity, as \"ets:new/2\"",
+    ?assertEqual(Named, err("foreign fn tick(n : Int) -> Int = \"erlang:abs\"")),
+    ?assertEqual(Named, err("foreign fn tick(n : Int) -> Int = \"abs/1\"")),
+    ?assertEqual(Named, err("foreign fn tick(n : Int) -> Int = \"erlang:abs/x\"")),
+    ?assertEqual("the implementation names arity 2, and tick has 1 parameter",
+                 err("foreign fn tick(n : Int) -> Int = \"erlang:abs/2\"")),
+    ?assertEqual(ok, ok("foreign fn tick(n : Int) -> Int = \"erlang:abs/1\"")).
 
 %% report §3.1
 base_types_test() ->
@@ -1108,6 +1279,33 @@ bitstring_construction_test() ->
     ?assertEqual("a `bytes` segment is a whole number of bytes, not 12 bits",
                  err("fn f(b : Bytes) = <<b:size(12)-bytes-unit(1)>>")).
 
+%% report §5.11: `signed` and `unsigned` apply to an `int` segment only;
+%% `big` and `little` to an `int`, `float`, `utf16` or `utf32` segment
+%% only; in a construction and in a pattern alike. The defaults the checker
+%% hands the emitter are big and unsigned. A regression test, written after
+%% the fix; the defaults' bytes at run time (`<<258:size(16)>>` is
+%% `<<1, 2>>`, `<<x>>` over 255 binds 255) are not covered here.
+bitstring_specifier_kinds_test() ->
+    ?assertEqual("`signed` applies to an `int` segment only, not a `float` one",
+                 err("fn f(x : Float) = <<x:float-signed>>")),
+    ?assertEqual("`unsigned` applies to an `int` segment only, not a `bytes` one",
+                 err("fn f(x : Bytes) = <<x:unsigned-bytes>>")),
+    ?assertEqual("`signed` applies to an `int` segment only, not a `utf8` one",
+                 err("fn f(c : Char) = <<c:utf8-signed>>")),
+    ?assertEqual("`little` applies to an `int`, `float`, `utf16` or `utf32` segment, not a"
+                 " `utf8` one", err("fn f(c : Char) = <<c:utf8-little>>")),
+    ?assertEqual("`little` applies to an `int`, `float`, `utf16` or `utf32` segment, not a"
+                 " `bytes` one", err("fn f(x : Bytes) = <<x:bytes-little>>")),
+    ?assertEqual("`big` applies to an `int`, `float`, `utf16` or `utf32` segment, not a"
+                 " `bytes` one",
+                 err("fn f(b : Bytes) -> Int = match b { <<n, _:bytes-big>> -> n | _ -> 0 }")),
+    ?assertEqual(ok, ok("fn f(x : Int, y : Float, c : Char) = <<x:signed-little, x:unsigned,"
+                        " y:float-little, c:utf16-little, c:utf32-big, c:utf8>>")),
+    ?assertEqual(ok, ok("fn f(b : Bytes) -> Int = match b {"
+                        " <<n:size(16)-signed-little, _:bytes>> -> n | _ -> 0 }")),
+    ?assertMatch({ok, #{kind := int, size := {const, 8}, endian := big, sign := unsigned}},
+                 ern_typecheck:segment_spec([])).
+
 %% report §5.11: a pattern binds each segment at its type; a size sees the
 %% earlier segments and is pure; a segment pattern is a variable, `_`, or
 %% a literal; a sizeless rest is last; a match needs a final wildcard
@@ -1180,6 +1378,47 @@ bitstring_size_shape_test() ->
     ?assertEqual("a size in a pattern is a variable, an Int literal, or `+`, `-`, `*` of them",
                  err("fn f(b : Bytes) = match b { <<n, rest:size(n / 2)-bytes>> -> rest"
                      " | _ -> b }")).
+
+%% report §5.11: a pattern's size may name a block `let`'s variable or one a
+%% lambda captures, as a parameter; a top-level `let` is no variable, and
+%% one bound elsewhere in the same pattern, outside the bitstring, is not
+%% in scope. A regression test: the checker conformed before it was
+%% written. It does not cover a receive clause's pattern.
+bitstring_size_variables_test() ->
+    ?assertEqual(ok, ok("fn f(n : Int, b : Bytes) -> Int ="
+                        " { let k = n; match b { <<x:size(k)>> -> x | _ -> 0 } }")),
+    ?assertEqual(ok, ok("fn f(n : Int) -> (Bytes) -> Int ="
+                        " fn(b) = match b { <<x:size(n)>> -> x | _ -> 0 }")),
+    ?assertEqual("a size in a pattern is a variable, an Int literal, or `+`, `-`, `*` of them",
+                 err("let k = 8\nfn f(b : Bytes) -> Int ="
+                     " match b { <<x:size(k)>> -> x | _ -> 0 }")),
+    ?assertEqual("unknown name k",
+                 err("fn f(p : #(Int, Bytes)) -> Int ="
+                     " match p { #(k, <<x:size(k)-bytes>>) -> k | _ -> 0 }")).
+
+%% report §5.9, §5.11: a bitstring nested in a constructor covers nothing,
+%% as one at the top does not; a wildcard at its place completes the match.
+%% A regression test: the checker conformed before it was written. It does
+%% not cover a bitstring inside a tuple.
+nested_bitstring_coverage_test() ->
+    ?assertEqual("match on Optional(Bytes) is not exhaustive; missing Some(_)",
+                 err("fn f(x : Optional(Bytes)) -> Int ="
+                     " match x { Some(<<n>>) -> n | None -> 0 }")),
+    ?assertEqual(ok, ok("fn f(x : Optional(Bytes)) -> Int ="
+                        " match x { Some(<<n>>) -> n | None -> 0 | Some(_) -> 1 }")).
+
+%% report §5.11: a specifier's name is an ordinary identifier outside a
+%% specifier list, so a value, a parameter and a pattern's variable may be
+%% named `size`, `int` or `little`. A regression test: the checker
+%% conformed before it was written; the parser's half is in
+%% ern_parser_tests.
+specifier_names_are_identifiers_test() ->
+    ?assertEqual("(Int, Int) -> Bytes",
+                 type_of("export fn build(size : Int, int : Int) -> Bytes ="
+                         " <<size:size(int)-big>>", build)),
+    ?assertEqual("(Bytes) -> Int",
+                 type_of("export fn parse(b : Bytes) -> Int = match b {"
+                         " <<size:size(16), little:bytes>> -> size | _ -> 0 }", parse)).
 
 %% report §8.5, §4.2: a name bound inside a body — a pattern's variable,
 %% a lambda's parameter, a block's binding — shadows a top-level one, so

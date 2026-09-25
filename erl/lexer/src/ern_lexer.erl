@@ -207,16 +207,26 @@ number([$0, P | R], L, C) when P =:= $x; P =:= $o; P =:= $b ->
     {int, list_to_integer(Digits, Base), R1, End};
 number([$0, P | _], L, C) when P =:= $X; P =:= $O; P =:= $B ->
     error_at(L, C, "a base prefix is lowercase: 0" ++ [P + 32]);
-number(S, _L, C) ->
+number(S, L, C) ->
     {Int, N1, R1} = digits(S, fun is_digit/1),
     case R1 of
         [$., D | _] when D >= $0, D =< $9 ->
             {Frac, N2, R2} = digits(tl(R1), fun is_digit/1),
             {Exp, N3, R3} = exponent(R2),
             Text = Int ++ "." ++ Frac ++ Exp,
-            {float, list_to_float(Text), R3, C + N1 + 1 + N2 + N3};
+            {float, float_value(Text, L, C), R3, C + N1 + 1 + N2 + N3};
         _ ->
             {int, list_to_integer(Int), R1, C + N1}
+    end.
+
+%% A float literal's value, rounded to the nearest Float. One that rounds
+%% beyond the largest finite Float is an error at the literal (report §2.5);
+%% one that rounds below the smallest is 0.0.
+float_value(Text, L, C) ->
+    try
+        list_to_float(Text)
+    catch
+        error:badarg -> error_at(L, C, "the float literal is beyond the largest finite Float")
     end.
 
 %% The digits Pred accepts, a single `_` allowed between two of them: the

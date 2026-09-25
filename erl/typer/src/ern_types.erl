@@ -105,6 +105,10 @@ bind(Id, T, #st{subst = S} = St) ->
 %% Unification
 %%
 
+%% A is the expected type and B the actual one; which is which decides
+%% between pure_where_process_needed and process_where_pure_needed. A
+%% function's parameters are unified the other way round, since there the
+%% actual function is the one handed a value.
 -spec unify(type() | pure, type() | pure, st()) -> {ok, st()} | {error, term()}.
 unify(A, B, St) ->
     try
@@ -116,9 +120,9 @@ unify(A, B, St) ->
 unify_(T, T, St) ->
     St;
 unify_({tvar, Id} = V, T, St) ->
-    bind_var(Id, V, T, St);
+    bind_var(Id, V, T, pure_where_process_needed, St);
 unify_(T, {tvar, Id} = V, St) ->
-    bind_var(Id, V, T, St);
+    bind_var(Id, V, T, process_where_pure_needed, St);
 unify_({tcon, N, As}, {tcon, N, Bs}, St) when length(As) =:= length(Bs) ->
     unify_list(As, Bs, St);
 unify_({ttuple, As}, {ttuple, Bs}, St) when length(As) =:= length(Bs) ->
@@ -126,7 +130,7 @@ unify_({ttuple, As}, {ttuple, Bs}, St) when length(As) =:= length(Bs) ->
 unify_({tfn, Ps1, E1, R1}, {tfn, Ps2, E2, R2}, St) ->
     case length(Ps1) =:= length(Ps2) of
         true ->
-            St1 = unify_list(Ps1, Ps2, St),
+            St1 = unify_list(Ps2, Ps1, St),
             St2 = unify_(resolve(E1, St1), resolve(E2, St1), St1),
             unify_(resolve(R1, St2), resolve(R2, St2), St2);
         false ->
@@ -146,12 +150,14 @@ unify_list([A | As], [B | Bs], St) ->
     unify_list(As, Bs, St1).
 
 %% Binding a variable: the occurs check, the flag rules, level adjustment.
-bind_var(Id, _V, pure, St) ->
+%% Pure against a process-only variable fails with Reason, which says on
+%% which side of the unification, the expected or the actual, pure stood.
+bind_var(Id, _V, pure, Reason, St) ->
     case lists:member(process_only, flags(Id, St)) of
-        true -> throw({unify_error, process_only_vs_pure});
+        true -> throw({unify_error, Reason});
         false -> bind(Id, pure, St)
     end;
-bind_var(Id, _V, {tvar, Id2}, St) ->
+bind_var(Id, _V, {tvar, Id2}, _Reason, St) ->
     %% two variables: merge flags into the survivor, keep the lower level
     #st{vars = Vs} = St,
     %% and the annotation's name, if only the bound one has it (§11.5)
@@ -160,7 +166,7 @@ bind_var(Id, _V, {tvar, Id2}, St) ->
     Name = case N2 of undefined -> N1; _ -> N2 end,
     TV2a = TV2#tv{level = min(L1, L2), flags = lists:usort(F1 ++ F2), name = Name},
     bind(Id, {tvar, Id2}, St#st{vars = Vs#{Id2 => TV2a}});
-bind_var(Id, V, T, St) ->
+bind_var(Id, V, T, _Reason, St) ->
     case occurs(Id, T, St) of
         true -> throw({unify_error, {occurs, V, T}});
         false ->
@@ -504,8 +510,10 @@ format_error({arity, N, M}) ->
                                 [N, plural(N), M]));
 format_error({pure_vs_effect, _}) ->
     "a pure function where a function with a mailbox effect was expected, or the reverse";
-format_error(process_only_vs_pure) ->
+format_error(pure_where_process_needed) ->
     "a pure function where one that runs in a process is needed";
+format_error(process_where_pure_needed) ->
+    "a function that runs in a process where a pure one is needed";
 format_error({occurs, _, _}) ->
     "a type that would contain itself";
 format_error({mismatch, _, _}) ->

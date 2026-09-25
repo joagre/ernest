@@ -263,6 +263,22 @@ bitstring_expr_test() ->
                                                        signed]}]},
                  e("<<x:unit(8)-size(n)-little-signed>>")).
 
+%% report §5.11: a specifier's name is an ordinary identifier outside a
+%% specifier list, so a segment's value, a size's expression and a pattern's
+%% variable may be named `size`, `int` or `little`. A regression test: the
+%% parser conformed before it was written; the checker's half is in
+%% ern_typecheck_tests.
+specifier_names_are_identifiers_test() ->
+    ?assertMatch(#e_bits{segments = [#bit_seg{value = #e_var{name = size},
+                                              specs = [{size, #e_var{name = int}}, big]}]},
+                 e("<<size:size(int)-big>>")),
+    #e_match{clauses = [#clause{pattern = P}]} =
+        e("match b { <<size:size(16), little:bytes>> -> size }"),
+    ?assertMatch(#p_bits{segments = [#bit_seg{value = #p_var{name = size},
+                                              specs = [{size, #e_lit{value = 16}}]},
+                                     #bit_seg{value = #p_var{name = little},
+                                              specs = [bytes]}]}, P).
+
 %%
 %% Patterns
 %%
@@ -356,7 +372,7 @@ type_decl_test() ->
                                                 fields = {named, [#field{name = dir,
                                                                          type = #t_con{}},
                                                                   #field{name = seen}]}}]},
-                 d("type Snapshot = Snapshot(dir : Path, seen : Map(Path, Mtime))")),
+                 d("type Snapshot = Snapshot(dir : Path, seen : Map(Path, Int))")),
     ?assertMatch(#type_decl{constructors = [#constructor{
                                                 name = 'Upgrade',
                                                 fields = {named,

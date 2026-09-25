@@ -94,6 +94,18 @@ floats_test() ->
                   {float, 1.0e9}],
                  toks("1.0 3.25 1.0e-9 2.5E+3 1.0e9")).
 
+%% report §2.5: a float literal beyond the largest finite Float is an error
+%% at the literal, not a crash; one below the smallest is 0.0. A regression
+%% test, written after the fix; it covers the lexer alone, not how ernc or
+%% the shell shows the diagnostic.
+float_literal_out_of_range_test() ->
+    ?assertEqual({1, 5, "the float literal is beyond the largest finite Float"},
+                 err("x = 1.0e400")),
+    ?assertEqual({1, 1, "the float literal is beyond the largest finite Float"},
+                 err("1.7976931348623159e308")),
+    ?assertEqual([{float, 1.7976931348623157e308}], toks("1.7976931348623157e308")),
+    ?assertEqual([{float, 0.0}], toks("1.0e-400")).
+
 %% report §2.5, §2.6
 int_then_dots_test() ->
     ?assertEqual([{int, 1}, '..', {int, 2}], toks("1..2")),

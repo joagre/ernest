@@ -240,13 +240,17 @@ ann(#t_con{pos = Pos, path = Path, name = Name, args = Args}, VarMap, Env) ->
                                 [format_qname(QName), Arity, plural(Arity), length(Args)])),
     {ArgTs, VarMap1, St} = ann_list(Args, VarMap, Env),
     %% report §3.10: Map(k, v) and Set(a) carry the equality constraint on
-    %% k and a, wherever the type is written
+    %% every variable of the key and the element, wherever the type is
+    %% written; a key that holds a function or an address is refused at its
+    %% first operation, not here
+    Keys = case {QName, ArgTs} of
+               {['Map'], [K, _]} -> [K];
+               {['Set'], [A]} -> [A];
+               _ -> []
+           end,
     St1 = lists:foldl(fun(T, S) -> ern_types:add_flag(T, eq, S) end, St,
-                      case {QName, ArgTs} of
-                          {['Map'], [K, _]} -> [K];
-                          {['Set'], [A]} -> [A];
-                          _ -> []
-                      end),
+                      [{tvar, Id} || K <- Keys, not has_fn_or_address(K),
+                                     Id <- ern_types:free_vars(K, St)]),
     {{tcon, QName, ArgTs}, VarMap1, St1};
 ann(#t_tuple{elems = Es}, VarMap, Env) ->
     {Ts, VarMap1, St} = ann_list(Es, VarMap, Env),
@@ -1085,16 +1089,58 @@ no_reply_instantiations(#env{pending = Pending} = Env) ->
                                                 " or discards its argument");
                               false -> ok
                           end;
-                     ({eq, Id, Pos}) ->
+                     ({eq, Id, Pos, Need}) ->
                           T = ern_types:zonk({tvar, Id}, Env#env.st),
                           case has_fn_or_address(T) of
                               true -> fail(Pos, ern_types:format(T, Env#env.st)
                                                 ++ " does not support equality (it contains"
-                                                " a function or an address), but it is"
-                                                " compared here");
+                                                " a function or an address), " ++ Need);
                               false -> ok
                           end
                   end, Pending).
+
+%% The restrictions an instance of a scheme carries, checked when its
+%% definition ends: each no-reply variable, and each equality-constrained
+%% one with what needs the equality: a Map's key or a Set's element it
+%% stands in, or else a comparison (report §3.10).
+instance_pending(T, Pos, St) ->
+    [case Flag of
+         no_reply -> {no_reply, Id, Pos};
+         eq -> {eq, Id, Pos, equality_need(Id, T, St)}
+     end || Id <- ern_types:free_vars(T, St), Flag <- ern_types:flags(Id, St),
+            Flag =:= no_reply orelse Flag =:= eq].
+
+equality_need(Id, T, St) ->
+    case container_of(Id, T, St) of
+        map -> "and a Map's key needs it";
+        set -> "and a Set's element needs it";
+        none -> "but it is compared here"
+    end.
+
+container_of(Id, T, St) ->
+    case ern_types:resolve(T, St) of
+        {tcon, ['Map'], [K, V]} ->
+            case lists:member(Id, ern_types:free_vars(K, St)) of
+                true -> map;
+                false -> container_of(Id, V, St)
+            end;
+        {tcon, ['Set'], [A]} ->
+            case lists:member(Id, ern_types:free_vars(A, St)) of
+                true -> set;
+                false -> none
+            end;
+        {tcon, _, Args} -> first_container(Id, Args, St);
+        {ttuple, Es} -> first_container(Id, Es, St);
+        {tfn, Ps, _, R} -> first_container(Id, Ps ++ [R], St);
+        _ -> none
+    end.
+
+first_container(_Id, [], _St) -> none;
+first_container(Id, [T | Ts], St) ->
+    case container_of(Id, T, St) of
+        none -> first_container(Id, Ts, St);
+        Found -> Found
+    end.
 
 %% Report §5.4: a local fn may be used only after every `let` of its block
 %% that it references, directly or through other local fns, has been
@@ -1255,9 +1301,7 @@ user_operator(Pos, Op, LT, Q, Env0) ->
         {Scheme, Env} ->
             {FT, St1} = ern_types:instantiate(Scheme, Env#env.st),
             %% as a reference to the member would, report §3.9
-            Pending = [{Flag, Id, Pos} || Id <- ern_types:free_vars(FT, St1),
-                                          Flag <- ern_types:flags(Id, St1),
-                                          Flag =:= no_reply orelse Flag =:= eq],
+            Pending = instance_pending(FT, Pos, St1),
             {Eff, St2} = ern_types:fresh_effect(St1),
             {Res, St3} = ern_types:fresh(St2),
             {Operands, Context} =
@@ -1385,9 +1429,7 @@ infer(#e_var{pos = Pos, path = Path0, name = Name} = E0, Env0) ->
     {E, Path} = session_name(E0, Path0, Name, Env0),
     {Scheme, Env} = lookup_value(Pos, Path, Name, Env0),
     {T, St} = ern_types:instantiate(Scheme, Env#env.st),
-    Pending = [{Flag, Id, Pos} || Id <- ern_types:free_vars(T, St),
-                                  Flag <- ern_types:flags(Id, St),
-                                  Flag =:= no_reply orelse Flag =:= eq],
+    Pending = instance_pending(T, Pos, St),
     {E#e_var{type = T}, T, Env#env{st = St, pending = Pending ++ Env#env.pending}};
 infer(#e_con{pos = Pos, path = Path, name = Name, args = Args} = E, Env) ->
     CI = lookup_con(Pos, Path, Name, Env),
@@ -1797,6 +1839,7 @@ check_clauses(Kind, Clauses, ScrutT, ScrutOrigin, Expected, Context, Origin, Sib
 infer_block(Stmts, Pos, Expect, Env) ->
     Fns = [S || #fn_decl{} = S <- Stmts],
     FnNames = [N || #fn_decl{name = N} <- Fns],
+    one_local_fn(Fns, []),
     St0 = ern_types:enter(Env#env.st),
     {Placeholders, St1} = lists:mapfoldl(fun(#fn_decl{name = N}, S) ->
                                              {V, S1} = ern_types:fresh(S),
@@ -1821,6 +1864,15 @@ infer_block(Stmts, Pos, Expect, Env) ->
                   _ -> S
               end || S <- Typed],
     {Typed1, T, Env2}.
+
+%% Report §4.2, §5.4: a block declares each local fn name once, as a
+%% module declares each top-level name once.
+one_local_fn([], _Seen) ->
+    ok;
+one_local_fn([#fn_decl{pos = Pos, name = N} | Rest], Seen) ->
+    lists:member(N, Seen) andalso
+        fail(Pos, "local function " ++ atom_to_list(N) ++ " is declared twice in the block"),
+    one_local_fn(Rest, [N | Seen]).
 
 %% Local fns not yet checked that N depends on, transitively.
 pending(N, #{deps := Deps, checked := Checked}) ->
@@ -1874,7 +1926,9 @@ infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '=', expr = X} = 
         case Ann of
             undefined -> infer(X, Env);
             _ ->
-                {AT, _, St} = ann(Ann, #{}, Env),
+                %% the definition's annotation variables are in scope and
+                %% rigid; a name new here is the binding's own (report §3.9)
+                {AT, _, St} = ann(Ann, Env#env.ann_vars, Env),
                 En = Env#env{st = St},
                 check_expr(X, AT, "the value does not have the declared type",
                            ann_origin(Ann, AT, En), En)
@@ -1896,7 +1950,7 @@ infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '<-', expr = X} =
     Env3 = case Ann of
                undefined -> Env2;
                _ ->
-                   {AT, _, St} = ann(Ann, #{}, Env2),
+                   {AT, _, St} = ann(Ann, Env2#env.ann_vars, Env2),
                    unify_at(BPos, AT, PT, Env2#env{st = St}, "the value does not have the"
                                                              " declared type")
            end,
@@ -2135,7 +2189,8 @@ spec_of(Pos, Specs) ->
 
 %% Report §5.11: the specifiers of a segment as one map, kind, size
 %% (none, {const, N}, or {expr, E}), unit, endian, sign, with the defaults,
-%% or the error of a conflict or an impossible width.
+%% or the error of a conflict, a sign or byte order the kind does not take,
+%% or an impossible width.
 -spec segment_spec([term()]) -> {ok, map()} | {error, string()}.
 segment_spec(Specs) ->
     try
@@ -2147,6 +2202,19 @@ segment_spec(Specs) ->
                    none when Kind =:= float -> {const, 64};
                    S -> S
                end,
+        case {Kind, Spec} of
+            {int, _} -> ok;
+            {_, #{sign := Sign}} ->
+                throw("`" ++ atom_to_list(Sign) ++ "` applies to an `int` segment only, not a `"
+                      ++ atom_to_list(Kind) ++ "` one");
+            _ -> ok
+        end,
+        case {Kind, Spec} of
+            {_, #{endian := Endian}} when Kind =:= bytes; Kind =:= utf8 ->
+                throw("`" ++ atom_to_list(Endian) ++ "` applies to an `int`, `float`, `utf16`"
+                      " or `utf32` segment, not a `" ++ atom_to_list(Kind) ++ "` one");
+            _ -> ok
+        end,
         Utf = lists:member(Kind, [utf8, utf16, utf32]),
         case Utf andalso (maps:is_key(size, Spec) orelse maps:is_key(unit, Spec)) of
             true -> throw("a utf segment has no size or unit");
@@ -2527,8 +2595,9 @@ differing_help(_, _, _, _) -> undefined.
 unify_message(Context, {mismatch, _, _}, Expected, Actual, St) ->
     lists:flatten([Context, ": expected ", ern_types:format(Expected, St), ", found ",
                    ern_types:format(Actual, St)]);
-unify_message(Context, process_only_vs_pure, _, _, _) ->
-    lists:flatten([Context, ": ", ern_types:format_error(process_only_vs_pure)]);
+unify_message(Context, Reason, _, _, _) when Reason =:= pure_where_process_needed;
+                                              Reason =:= process_where_pure_needed ->
+    lists:flatten([Context, ": ", ern_types:format_error(Reason)]);
 unify_message(Context, {pure_vs_effect, _}, Expected, Actual, St) ->
     lists:flatten([Context, ": expected ", ern_types:format(Expected, St), ", found ",
                    ern_types:format(Actual, St), " (a pure function and one with a mailbox"

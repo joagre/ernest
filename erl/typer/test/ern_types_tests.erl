@@ -45,15 +45,16 @@ effect_rules_test() ->
     ?assertMatch({ok, _}, ern_types:unify(E, pure, St1)),
     %% a process-only one may not
     St2 = ern_types:add_flag(E, process_only, St1),
-    ?assertEqual({error, process_only_vs_pure}, ern_types:unify(E, pure, St2)),
-    ?assertEqual({error, process_only_vs_pure}, ern_types:unify(pure, E, St2)),
+    %% the reason says which side, the expected (first) or the actual, is pure
+    ?assertEqual({error, pure_where_process_needed}, ern_types:unify(E, pure, St2)),
+    ?assertEqual({error, process_where_pure_needed}, ern_types:unify(pure, E, St2)),
     %% pure against a mailbox type is an error; two mailbox types must match
     ?assertMatch({error, {pure_vs_effect, _}}, ern_types:unify(pure, int(), St0)),
     ?assertMatch({error, {mismatch, _, _}}, ern_types:unify(int(), bool(), St0)),
     %% flags merge when two variables are unified
     {F, St3} = ern_types:fresh(St2),
     St4 = unify_ok(F, E, St3),
-    ?assertEqual({error, process_only_vs_pure}, ern_types:unify(F, pure, St4)).
+    ?assertEqual({error, pure_where_process_needed}, ern_types:unify(F, pure, St4)).
 
 %% report §3.9
 generalize_by_level_test() ->
@@ -152,4 +153,6 @@ format_error_test() ->
     ?assertEqual("a function of 1 argument where one of 2 was expected",
                  ern_types:format_error({arity, 1, 2})),
     ?assertEqual("a pure function where one that runs in a process is needed",
-                 ern_types:format_error(process_only_vs_pure)).
+                 ern_types:format_error(pure_where_process_needed)),
+    ?assertEqual("a function that runs in a process where a pure one is needed",
+                 ern_types:format_error(process_where_pure_needed)).
