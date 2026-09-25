@@ -3998,6 +3998,10 @@ No process of the toolchain's own is an OTP behaviour, no `gen_server`, `supervi
 
 **The cost, named, and one that was not.** An Erlang programmer opening `erl/` meets loops where a `gen_server` would be expected; the style guide says so, and the README and the architecture note point at it. *The Terminal Module* read the rule as refusing the signal server's handler too, so a resize was noticed by asking the terminal five times a second. That was the rule applied past its reason: OTP's own terminal code forwards SIGWINCH with a twenty-line handler that sends a message and runs no loop. `ern_tty_signal` does the same since, and the terminal's process asks for the size once a resize has come. What would change it: a part of the toolchain that must run as a long-lived service, which the node daemon of MVP 3 may be, weighed then on its own.
 
+## Constructor Names Stay Unique in a Module, 2026-09-25
+
+Feedback item 2, weighed and left as it is: a constructor's name is unique across its module's types (§4.2). It bit three times, all in the shell (`Output2`, the editor's `Typing`, `Clear` and `Cancel`, `Outcome.Failed` beside `TestResult.Failed`), and each time a split module or a better name made the code better. Haskell, Elm and Gleam keep the same rule, so a reader from the family expects it (principle 1), and a bare constructor names one thing its module declares, read without the types (principle 3). The alternatives each cost a principle: constructors under their type, `Shell.Editor.Edit.Typing`, lengthen every qualified use, and allowing both spellings is two ways (principle 2); resolving a bare constructor by the type the checker expects, as OCaml does, hides which one is meant (principle 3) and adds a resolution step (principle 5). What would change it: a module whose types belong together, which a split would make worse, and which needs one constructor name twice.
+
 ## Later
 
 Planned or considered, not in the language today.
