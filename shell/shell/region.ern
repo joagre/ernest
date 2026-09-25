@@ -22,8 +22,9 @@
 // line that has arrived without its line feed, the prompt and the input
 // being typed after it with the cursor in it, the rows shown under the
 // input, the row the cursor was left on, how many rows the tail may take,
-// and the terminal's size.
-export type Region = Region(
+// and the terminal's size. Abstract (report §4.4): the region alone keeps
+// the tail within its rows and the cursor within what is typed.
+export abstract type Region = Region(
     tail : List(String),
     writing : String,
     prompt : String,

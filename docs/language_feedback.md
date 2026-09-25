@@ -9,7 +9,10 @@ or a line saying it was weighed and left alone, and then it leaves this file.
 The entries are grouped by the question they share, and keep the numbers they were found
 under, since the plan, the log and the code cite them. Six have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
-(decided, report §9), and 32 and 33 (decided, report §4.4).
+(decided, report §9), 32 and 33 (decided, report §4.4), and 49 (decided with them: the
+editor's state and the region are abstract, and a history type was weighed and left, since
+its one rule, the cap of a thousand inputs, a session does not reach, and it would make the
+editor depend on `Shell.History`).
 
 ## 1. Names and namespaces
 
@@ -32,14 +35,6 @@ see a representation.
    `Shell.Editor.*` constructors in one `match`, and the shell's command code writes
    `Shell.Command.` forty-three times. Explicit and correct; also the main argument anyone will
    make for aliases later.
-49. **Where else the shell would use abstract types.** Since the boundary moved to the
-    module (item 32, decided 2026-09-25), `Shell.Editor.State` is abstract. The history
-    would be the second, a `Shell.History` type newest first and capped: the file is
-    trimmed to the last thousand inputs as it is read, but the editor's list grows past
-    that within a session, and `keeps` lives in the editor while the trim lives in the file.
-    `Shell.Region.Region` could be too, since the shell never takes one apart. `Settings`,
-    `Completion`, `Name` and `Reading` stay transparent, since their readers match on or
-    build them.
 46. **Abstract types in the standard library.** `Random.Seed` could be written in Ernest,
     SplitMix64 over `Int`'s bit operations, as an abstract type: three shims go, a seed can
     cross nodes, and the sequence is the same on every runtime; against it, item 13 kept

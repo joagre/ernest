@@ -95,6 +95,8 @@ Every part follows the same design: the decisions are pure functions, and the pr
 - `Shell.Command.parse` refuses nothing itself. It returns `Either(String, #(Action, String))`, and the session says the refusal.
 - `Shell.Complete.complete` does not know where names come from. The reader passes in the names, and a `Where` that says what may stand at the cursor. After a command the reader gives `Anything`. Elsewhere it asks the parser (`context`).
 
+Two of the types are abstract (§4.4): `Shell.Editor.State` and `Shell.Region.Region`. The shell holds them and hands them back, and only their own modules take them apart, so the editor alone keeps the cursor inside the line and the region alone keeps the tail within its rows.
+
 So each of these modules is tested by its `Test` values (§9.3). They are top-level `let`s of type `Test`, found by their type, wherever they stand. `ern --test` runs them, and `make test-shell` runs them for every module. The pure tests cannot reach the wiring between the processes. `test/ern_shell_tests.erl` covers that by running the shell under a pseudo-terminal (`test/ern_pty.py`).
 
 ## The front end
