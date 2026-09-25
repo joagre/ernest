@@ -350,4 +350,11 @@ raised, for MVP 2.65.
 47. **A socket's protocol is not for programs.** `send(sock, Close)` stands beside
     `Tcp.close`; E.0 rule 8 says a system reference is used only through its module, and
     E.18 does not say the same of `SockMsg`.
+48. **A `let` of functions that call back to it is refused.** `let starts = [headingStart,
+    ...]`, the Markdown library's table of block starts, is refused as an initializer
+    that depends on itself, since `quoteStart` reaches `blocks`, which reads `starts`.
+    Building the list calls none of them; the dependency is a call's, made later. §8.5
+    orders initializers by what they reference, and a function value referenced is not a
+    function called. The library writes `fn starts()`; whether §8.5 should count only what
+    an initializer can call while it runs.
 
