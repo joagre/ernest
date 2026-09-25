@@ -271,3 +271,83 @@ meant, read well; the entries are what did not.
     addresses is only useful where addresses can be told apart. Decided with items 24 and
     the registry in MVP 2.65.
 
+## Found by the review of the Ernest code, 2026-09-25
+
+Two readers reviewed every line of `shell/`, `stdlib/` and `libs/` against §0, E.0 and
+CLAUDE.md. What was plainly wrong was fixed in the same pass; these are the questions it
+raised, for MVP 2.65.
+
+27. **Nothing in Appendix E says whether keys can be read.** The shell asks the host
+    (`ern_shell:is_terminal/0`), a `foreign fn` for a fact `Terminal` owns; `Terminal.size`
+    answers only whether output is a terminal. Whether E.16 should answer the question.
+28. **The fault log is the host's.** `:faults` reads a list the front end keeps, where the
+    session already receives every fault as a `Died` message and could keep the last
+    hundred itself in Ernest. §11.2 calls it "the runtime's record", so moving it is a
+    report question.
+29. **The editor's words are split at spaces only**, so `M-b` over `List.map(xs` jumps it
+    whole; Readline's words are alphanumeric runs. Which the shell should follow.
+30. **`:load`'s completion restates the path-to-namespace rule** of §4.2 and §11.1
+    (`isPathWord`, `capital` in `shell.ern`), which the compiler also owns. Whether the rule
+    belongs to a function both use, in the front end or in Appendix E.
+31. **An `IoError` has no text.** The shell writes `trouble(IoError)` for its messages, and
+    every program that touches a file will write the same function; whether E.17 gives
+    `IoError` a description, or E.0 rule 3 refuses it as a format policy.
+32. **Where §4.4 draws an abstract type's boundary.** At the signature, not at the module:
+    only the definitions its signature names may use the constructor, the module's private
+    helpers and tests included. Gleam's `opaque` and ML's signatures hide the constructor
+    only outside the declaring module. So a type with many internal helpers, the shell's
+    editor state, pays heavily for its invariant (`0 <= at <= size(text)`), and a test at
+    the foot of its file cannot match on it. Whether the boundary moves to the module.
+33. **Three-segment member names.** A module named after its main type (`shell/editor.ern`
+    holding `State`) makes a member `Shell.Editor.State.edit`, which leans on item 4.
+34. **What a string search matches.** `String.contains`, `indexOf` and `startsWith` match
+    whole graphemes, `split` and `endsWith` bytes, so `String.split("e\u{301}", "e")` finds
+    an `e` that `contains` does not. E.5 says what a character is and not what a search
+    matches; the sentence goes in E.5, and the code follows it.
+35. **No ASCII digit test.** `Char.isDigit` is Unicode's Nd, so a format parser, the Markdown
+    library's list numbers and `String.toInt` among them, writes its own `0`-to-`9` test.
+    Whether `Char` gains one, by E.0.
+36. **The built-in types' operators read as endless recursion.** `export fn Int.+(a, b) =
+    a + b`, `List.<>`, and `Int.compare` written with `<`, which §3.10 defines through
+    `compare`. The emitter uses the host's operators; §9.6 does not say so. One sentence
+    there, that on the built-in types the operators are the runtime's.
+37. **`Tcp.listen(0)` cannot say which port it got**, so a program that asks for a free port
+    cannot tell a peer where to connect, and E.18's example uses a fixed port.
+38. **`Ets`'s verbs** are `insert`, `lookup`, `delete`, `member`, where E.0 names the
+    container verbs `put`, `get`, `remove`, `contains`; and `drop` means another thing in
+    `List`. Whether a library follows E.0's names.
+39. **A library cannot ask for equality on its type variable.** §3.9's equality constraint
+    is inferred and never written, so `Ets.Table(k, v)` keyed by functions type-checks, and
+    the runtime compares those keys by identity. Whether a declaration can state it.
+40. **E.0 rule 3 and the `fromList`s.** The rule puts a conversion in the subject's module,
+    yet `String.fromList`, `Map.fromList`, `Set.fromList` and `Either.fromOptional` live in
+    the target's. The rule is reworded to say so, or the functions move.
+41. **Naming inside modules.** `Set.intersect` is a verb beside the nouns `union` and
+    `difference`; `String.contains` is a substring test where the container verb means
+    membership, against rule 2's one verb for one operation.
+42. **Where `Map` and `Set` draw the shim line.** `Set.map` is Ernest over `toList` and
+    `fromList` but `Set.filter` a shim; `Map.map`, `filter`, `filterMap` and `foreach` are
+    shims but `Map.any`, `all` and `find` Ernest. Only the operations on the representation
+    need the host; item 13 kept the modules as shims without this line.
+43. **Standard library modules cannot share a private helper**: `Fs` and `Tcp` each write
+    the same `answered`. Whether a module may keep helpers for its siblings.
+44. **No function gives the text `Io.debug` prints**, so a test can only report a value by
+    a text of its own making (the Markdown library's tests report "N blocks"). Whether E.1
+    gains `Io.show`, or a test's failure prints a value by the same printer.
+45. **A Bool argument reads as nothing at the call.** `Markdown.render(doc, 80, false)`:
+    the `false` says colour off only to someone who knows the signature. Named arguments
+    are refused (the log's *Labeled Arguments*); whether a two-constructor type, `Plain |
+    Styled`, is the library's idiom instead.
+46. **Abstract types in the standard library.** `Random.Seed` could be written in Ernest,
+    SplitMix64 over `Int`'s bit operations, as an abstract type: three shims go, a seed can
+    cross nodes, and the sequence is the same on every runtime; against it, E.13's names
+    change to `Random.Seed.next` (§4.4), and item 13 kept `Random` a shim. `Path` could be
+    abstract with an invariant, no trailing separator, which the defects of `Path.parent`
+    fell through; against it, E.14 made the constructor the way in and the prelude's
+    `FsMsg` carries `Path`. `Markdown`'s `Block` and `Inline` stay transparent, being what a
+    caller matches on; a Tcp socket stays an address, since `monitor` and `kill` are why it
+    is one. Weighed with items 11 and 13.
+47. **A socket's protocol is not for programs.** `send(sock, Close)` stands beside
+    `Tcp.close`; E.0 rule 8 says a system reference is used only through its module, and
+    E.18 does not say the same of `SockMsg`.
+
