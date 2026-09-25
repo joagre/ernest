@@ -327,11 +327,8 @@ fn await(state : State, screen : Address(ScreenMsg), checked : Checked, child : 
 // Report §11.2: with timing on, a result is followed by the time the run
 // took.
 fn timed(screen : Address(ScreenMsg), settings : Settings, started : Int) -> Unit with m =
-    match settings {
-        Settings(timing = false) -> Unit
-      | Settings(timing = true) -> say(screen, "(" <> Int.toString(Clock.now() - started)
-            <> " ms)")
-    }
+    if settings.timing then say(screen, "(" <> Int.toString(Clock.now() - started) <> " ms)")
+    else Unit
 
 fn keyLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = receive {
     Typed(line) -> { send(screen, Taken); taking(state, screen, line) }
@@ -953,14 +950,13 @@ fn showing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : R
 // how it is run, once, above the region rather than on the prompt, where
 // it would move the column the input is typed in.
 fn hint(screen : Address(ScreenMsg), reading : Reading, next : Shell.Editor.State)
-    -> Bool with m = match reading {
-    Reading(hinted = true) -> true
-  | Reading(hinted = false) ->
-        if String.contains(Shell.Editor.text(next), "\n") then {
-            send(screen, Noted("M-Enter adds a line, Enter runs."));
-            true
-        } else false
-}
+    -> Bool with m =
+    if reading.hinted then true
+    else if String.contains(Shell.Editor.text(next), "\n") then {
+        send(screen, Noted("M-Enter adds a line, Enter runs."));
+        true
+    }
+    else false
 
 // Report §11.2: `Enter` takes another line where the parser cannot
 // finish the input, and runs what there is on an empty line, so that an
