@@ -277,6 +277,15 @@ the shell is neither standard library nor library but the toolchain's own progra
       name, and where a call is found; the parser records a constructor the input stops
       inside as it records a call. `shift_tab_test_` and `shift_tab_colour_test_` cover
       them.
+  16. **Done 2026-09-25: the review's session findings.** A startup file's failing line
+      was reported as line 1 and a command in one was refused; each input is checked at
+      its own line and quoted from the file, and a command runs as a typed one does, a
+      `:quit` ending the session. `C-c` on an input typed ahead and interrupted committed
+      an empty row; it commits none. The settings are listed in one order everywhere,
+      `:set depth` alone says it takes a number, `:output`'s help line names its path,
+      `:browse List.` is taken, line mode ends with one line feed, and a module comes
+      before a directory of its name in `:load`'s listing. `startup_test_`, the golden
+      session, and the region's tests cover them.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, `Markdown`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.

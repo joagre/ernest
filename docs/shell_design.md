@@ -211,7 +211,7 @@ A program is started by calling it; there is no command for it. A module meant f
 
 - **`$HOME/.ernest/history`** — the history, per user, as a person expects when they type the same thing in two projects. With `HOME` unset nothing is saved and the shell says so once, at start.
 - **`$HOME/.ernest/startup`, then the configuration directory's `startup`** — the inputs run at start, commands included, a line an input and neither file required. The person's runs first and the node's after it, so a node adds to or overrides what a person always wants; `--config-dir` moves the second. Neither is a module and neither has a `.ern` extension: a `.ern` file under a source root is compiled with the project, and one in the configuration directory breaks the project's build, since `ernc` reads dotted directories and then rejects the path.
-- **A startup input shows nothing unless it fails.** Its value is not printed, a startup file being setup rather than a session; what does not check, or faults, is reported as any input is, under the path of the file it came from rather than `input`.
+- **A startup input shows nothing unless it fails.** Its value is not printed, a startup file being setup rather than a session; what does not check, or faults, is reported as any input is, under the path of the file it came from rather than `input`, at its own line, quoted from the file. A command runs as a typed one does, `:set` among them, and a `:quit` ends the session.
 - **The configuration directory** (§11.2, §11.3) is the node's, holding its address, its keys, and the node's own startup inputs.
 
 ## Not in the shell

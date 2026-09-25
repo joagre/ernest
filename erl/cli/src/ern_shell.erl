@@ -683,7 +683,12 @@ namespace(Text) ->
 %% Report §4.2: a module is named by its namespace, each segment of which
 %% begins with a capital letter, `Http.Parser` for `http/parser.ern`; a
 %% name that is not one is refused rather than looked for.
-module_name(Text) ->
+module_name(Text0) ->
+    %% a trailing dot, which completion leaves after a namespace, names it
+    Text = case binary:last(Text0) of
+               $. -> binary:part(Text0, 0, byte_size(Text0) - 1);
+               _ -> Text0
+           end,
     Segments = binary:split(Text, <<".">>, [global]),
     case lists:all(fun(<<C, _/binary>>) -> C >= $A andalso C =< $Z; (_) -> false end,
                    Segments) of
@@ -1042,9 +1047,15 @@ beam_on_path(Ns) ->
 entry(none, _) -> none;
 entry(Beam, Name) -> ern_page:declaration(Beam, Name).
 
+%% Report §11.2: an input from a startup file is named by the file, and its
+%% lines are quoted from the file, the input standing at its own line there.
 diagnostic(From, Input, Diags) ->
+    Source = case From =/= <<"input">> andalso file:read_file(From) of
+                 {ok, Text} -> Text;
+                 _ -> Input
+             end,
     unicode:characters_to_binary(
-      [ern_diag:format(binary_to_list(From), Input, D) || D <- Diags]).
+      [ern_diag:format(binary_to_list(From), Source, D) || D <- Diags]).
 
 %% Report §11.2: the shell reports a process that faults, and the runtime
 %% is what knows. The watcher is told of every death the runtime records

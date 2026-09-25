@@ -92,18 +92,23 @@ startup() ->
     ok = filelib:ensure_path(filename:join(Node, ".ernest")),
     ok = file:write_file(filename:join([Home, ".ernest", "startup"]),
                          "let greeting = \"from the user file\"\nlet shared = 1\n"),
-    %% the node's file binds the same name, and holds a line that does not
-    %% parse
+    %% the node's file binds the same name, holds a line that does not
+    %% parse, and a command, which runs as a typed one does
     ok = file:write_file(filename:join([Node, ".ernest", "startup"]),
-                         "let shared = 2\n1 +\n"),
+                         "let shared = 2\n1 +\n:set depth 1\n"),
     In = filename:join(Node, "session.in"),
-    ok = file:write_file(In, "greeting\nshared\n"),
+    ok = file:write_file(In, "greeting\nshared\n[[1]]\n"),
     {0, Out} = sh("HOME=" ++ Home ++ " ../bin/ern --shell --config-dir "
                   ++ filename:join(Node, ".ernest") ++ " < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"\"from the user file\" : String">>)),
     %% the node's file ran after the person's, so its binding is the one
     ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"startup:1:4: expected an expression">>)),
+    %% a failing input names its own line of the file, quoted from the file
+    %% with the line before it; a regression test for a finding of the
+    %% shell's review, where every one said line 1 and `:set` was refused
+    ?assertMatch({_, _}, binary:match(Out, <<"startup:2:4: expected an expression">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"1 | let shared = 2\n2 | 1 +">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"[...] : List(List(Int))">>)),
     %% what a startup input answered was not printed
     ?assertEqual(nomatch, binary:match(Out, <<"1 : Int">>)).
 
@@ -583,8 +588,11 @@ shift_tab_colour() ->
                {send, "04"}],
               30),
     ?assertMatch({_, _}, binary:match(Raw, <<"xs : List(a), \e[36mf : (a) -> b with e\e[0m)">>)),
-    ?assertEqual(3, count(Raw, <<"List.foldLeft(\e[36mxs : List(a)\e[0m, acc : b">>)
-                    + count(Raw, <<"List.foldLeft(xs : List(a), \e[36macc : b\e[0m">>)),
+    %% the first argument marked after `let` and `:type`, the second in the
+    %% declaration's body; a repaint may write a row twice, so each is looked
+    %% for, not counted
+    ?assertMatch({_, _}, binary:match(Raw, <<"List.foldLeft(\e[36mxs : List(a)\e[0m, acc : b">>)),
+    ?assertMatch({_, _}, binary:match(Raw, <<"List.foldLeft(xs : List(a), \e[36macc : b\e[0m">>)),
     ?assertMatch({_, _}, binary:match(Raw, <<"Point(x : Int, \e[36myval : Int\e[0m) -> Point">>)).
 
 %% report §11.2: `Tab` indents only where spaces alone stand before the
@@ -673,7 +681,7 @@ refusal_colour() ->
                {send, hex(":sreload\r")},
                {expect, "no command"},
                {send, hex(":set depth a\r")},
-               {expect, "not a number"},
+               {expect, "takes a number"},
                {send, hex(":reload hhhh\r")},
                {expect, "takes no argument"},
                {send, hex(":load hhhh\r")},
@@ -684,7 +692,7 @@ refusal_colour() ->
               30),
     Red = fun(Text) -> binary:match(Raw, <<"\e[31m", Text/binary>>) =/= nomatch end,
     ?assert(Red(<<"no command :sreload">>)),
-    ?assert(Red(<<"that is not a number">>)),
+    ?assert(Red(<<":set depth takes a number">>)),
     ?assert(Red(<<":reload takes no argument">>)),
     ?assert(Red(<<"hhhh is not a module name">>)),
     ?assertNot(Red(<<"the session declares nothing yet">>)).

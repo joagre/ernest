@@ -152,14 +152,18 @@ export fn main() -> Unit with ShellMsg = {
         // report §8.2: the prompt waits for the reader to hold the
         // keyboard, since until then the terminal is still echoing lines
         receive { Ready -> Unit };
-        let state2 = startup(state, screen);
-        send(screen, Said("> "));
-        keyLoop(state2, screen)
+        match startup(state, screen) {
+            Continue(state2) -> { send(screen, Said("> ")); keyLoop(state2, screen) }
+          | Leave -> finish(screen, "")
+        }
     } else {
         // report §11.2: in line mode the session reads the lines itself,
         // and holds the terminal so that no input takes one
         holdTerminal(self());
-        lineLoop(startup(state, screen), screen)
+        match startup(state, screen) {
+            Continue(state2) -> lineLoop(state2, screen)
+          | Leave -> finish(screen, "")
+        }
     }
 }
 
@@ -196,27 +200,37 @@ fn run(
 // Report §11.2: the inputs of the startup files, the person's first and
 // then the node's, a line an input, each with the file it came from so
 // that a failure names it rather than `input`.
-fn startup(state : State, screen : Address(ScreenMsg)) -> State with ShellMsg =
+fn startup(state : State, screen : Address(ScreenMsg)) -> Next with ShellMsg =
     fromFiles(state, screen,
         List.flatMap(startupFiles(), fn(file) = fileInputs(screen, file)))
 
 // A file that is not there is no error; one that cannot be read is said
-// and the session goes on.
+// and the session goes on. Each input carries the line it is on.
 fn fileInputs(screen : Address(ScreenMsg), file : String)
-    -> List(#(String, String)) with m = match Fs.read(Path(file), fileWait) {
+    -> List(#(String, Int, String)) with m = match Fs.read(Path(file), fileWait) {
     Left(NotFound) -> []
   | Left(why) -> { say(screen, file <> " could not be read: " <> trouble(why)); [] }
   | Right(bytes) -> {
         let text = Optional.withDefault(String.fromUtf8(bytes), "");
-        let lines = List.filter(String.lines(text), fn(line) = !String.isEmpty(String.trim(line)));
-        List.map(lines, fn(line) = #(file, line))
+        let numbered = List.indexed(String.lines(text));
+        List.filterMap(numbered, fn(#(i, line)) =
+            if String.isEmpty(String.trim(line)) then None else Some(#(file, i + 1, line)))
     }
 }
 
-fn fromFiles(state : State, screen : Address(ScreenMsg), inputs : List(#(String, String)))
-    -> State with ShellMsg = match inputs {
-    [] -> state
-  | #(from, input) :: rest -> fromFiles(quietly(state, screen, from, input), screen, rest)
+// Report §11.2: a startup input runs as a typed one, a command among them,
+// and a `:quit` there ends the session. A diagnostic names the line of the
+// file: the input is checked below as many empty lines as come before it.
+fn fromFiles(state : State, screen : Address(ScreenMsg),
+    inputs : List(#(String, Int, String))) -> Next with ShellMsg = match inputs {
+    [] -> Continue(state)
+  | #(from, line, input) :: rest ->
+        if String.startsWith(input, ":") then match perform(state, screen, input) {
+            Continue(state2) -> fromFiles(state2, screen, rest)
+          | Leave -> Leave
+        }
+        else fromFiles(quietly(state, screen, from, String.repeat("\n", line - 1) <> input),
+            screen, rest)
 }
 
 // The reader stays live, so an interruption reaches the session while the
@@ -337,7 +351,7 @@ let commands = [
     Entry(name = "load", command = Load, takes = Some("a module"), argument = ASourceModule,
         about = " Module    the module by its namespace, compiled from its source"),
     Entry(name = "output", command = Output, takes = None, argument = APath,
-        about = "         a path, so a second window shows what programs write; - for the tail"),
+        about = " path    send what programs write to path, or - back to the tail"),
     Entry(name = "processes", command = Processes, takes = None, argument = NoArgument,
         about = "      the live processes of the session, by spawn site"),
     Entry(name = "quit", command = Quit, takes = None, argument = NoArgument,
@@ -484,9 +498,9 @@ fn set(screen : Address(ScreenMsg), settings : Settings, arg : String) -> Settin
     let #(what, rest) = splitWord(arg, 0);
     if String.isEmpty(what) then { printLines(screen, settingLines(settings)); settings }
     else if what == "depth" then
-        number(screen, settings, rest, fn(n) = Settings(..settings, depth = n))
+        number(screen, settings, "depth", rest, fn(n) = Settings(..settings, depth = n))
     else if what == "length" then
-        number(screen, settings, rest, fn(n) = Settings(..settings, length = n))
+        number(screen, settings, "length", rest, fn(n) = Settings(..settings, length = n))
     else if what == "timing" then
         if rest == "on" then Settings(..settings, timing = true)
         else if rest == "off" then Settings(..settings, timing = false)
@@ -499,27 +513,27 @@ fn set(screen : Address(ScreenMsg), settings : Settings, arg : String) -> Settin
                 send(screen, Height(n));
                 Settings(..settings, output = n)
             }
-          | None -> { refuse(screen, ":set output takes a number of rows"); settings }
+          | None -> { refuse(screen, ":set output takes a number"); settings }
         }
-    else { refuse(screen, ":set takes depth, length, timing, or output"); settings }
+    else { refuse(screen, ":set takes depth, length, output, or timing"); settings }
 }
 
 fn number(
     screen : Address(ScreenMsg),
     settings : Settings,
+    what : String,
     text : String,
     f : (Int) -> Settings
 ) -> Settings with m = match String.toInt(text) {
     Some(n) -> if n < 0 then { refuse(screen, "a depth and a length are 0 or more"); settings }
     else f(n)
-  | None -> { refuse(screen, "that is not a number"); settings }
+  | None -> { refuse(screen, ":set " <> what <> " takes a number"); settings }
 }
 
 fn settingLines(settings : Settings) -> List(String) = match settings {
     Settings(depth = d, length = l, timing = t, output = o) ->
         ["depth " <> Int.toString(d), "length " <> Int.toString(l),
-            "timing " <> (if t then "on" else "off"),
-            "output " <> Int.toString(o)]
+            "output " <> Int.toString(o), "timing " <> (if t then "on" else "off")]
 }
 
 // The first word of a line and what follows it, trimmed.
@@ -1126,7 +1140,8 @@ fn lineLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = 
     deaths(screen);
     prompt(screen);
     match Io.readLine() {
-        None -> finish(screen, "\n")
+        // the prompt's line is ended by `finish`, as a `:quit` ends it
+        None -> finish(screen, "")
       | Some(line) -> match String.trim(line) {
             "" -> lineLoop(state, screen)
           | input -> match submit(state, screen, input) {

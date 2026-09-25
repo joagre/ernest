@@ -93,6 +93,10 @@ export fn typing(r : Region, text : String, at : Int, offered : List(String))
 // drawing it and what was shown under it.
 export fn entered(r : Region) -> #(Region, String) = match r {
     Region(live = false) -> #(r, "")
+  // nothing typed and no prompt, an input typed ahead and interrupted,
+  // leaves no row
+  | Region(live = true, tail = tail, prompt = "", typed = "") ->
+        painted(Region(..r, at = 0, offered = [], tail = []), tail)
   | Region(live = true, tail = tail) ->
         painted(Region(..r, prompt = "", typed = "", at = 0, offered = [], tail = []),
             tail <> inputRows(r))
@@ -441,6 +445,15 @@ let offerCounted = Test(name = "what the screen has no room for is counted", run
     let #(r1, _) = said(r0, "> ");
     let #(r, _) = typing(r1, "", 0, ["a", "b", "c", "d", "e", "f", "g"]);
     rowsAre(rowsOf(r), ["> ", "a", "b", "c", "d", "and 3 more"])
+})
+
+let enteredEmpty = Test(name = "nothing typed after no prompt leaves no row", run = fn() = {
+    let #(_, bytes) = entered(typed("", 0));
+    let #(r, _) = said(new(Some(Size(rows = 24, columns = 80)), true), "");
+    let #(_, none) = entered(r);
+    // a row committed would end in a line feed
+    if String.contains(bytes, "> \n") && !String.contains(none, "\n") then Passed
+    else Failed(String.replace(none, "\u{1b}", "ESC"))
 })
 
 let saysWithoutATerminal = Test(name = "without a terminal what is said is the transcript",

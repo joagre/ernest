@@ -61,8 +61,8 @@ zero : () -> Int
 > Io.println : (String) -> Unit with m
 > depth 10
 length 100
-timing off
 output 5
+timing off
 > > > [[..., ...], [...]] : List(List(List(Int)))
 > > > [1, 2, ...] : List(Int)
 > > > input:1:1: unknown name x
@@ -116,7 +116,7 @@ zero : () -> Int
   :forget name    forget a name the session declared, or * for all of them
   :help           this text
   :load Module    the module by its namespace, compiled from its source
-  :output         a path, so a second window shows what programs write; - for the tail
+  :output path    send what programs write to path, or - back to the tail
   :processes      the live processes of the session, by spawn site
   :quit           leave, as C-d on an empty line does
   :reload         every loaded module whose source has changed

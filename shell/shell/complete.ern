@@ -182,7 +182,9 @@ fn matches(typed : String, names : List(Name)) -> #(List(Name), List(Name)) = {
 // types.
 fn alphabetical(names : List(Name)) -> List(Name) = List.sort(names, fn(a, b) =
     match #(a, b) {
-        #(Name(text = x), Name(text = y)) -> String.compare(x, y)
+        #(Name(text = x, shown = s), Name(text = y, shown = t)) ->
+            // two names alike, a module and its directory, by the line shown
+            if x == y then String.compare(s, t) else String.compare(x, y)
     })
 
 // Report §11.2: a name is reached a segment at a time, so what is typed
