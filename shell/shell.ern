@@ -733,18 +733,20 @@ fn commandEnd(line : String) -> Int = match String.indexOf(line, " ") {
 // session declares, the modules in scope, and the prelude's names that no
 // module qualifies, its constructors aside, which are mostly the messages
 // of system processes and complete from a letter.
-fn offered(typed : String) -> List(Shell.Complete.Name) with m =
-    if !String.isEmpty(typed) then names()
+fn offered(typed : String) -> List(Shell.Complete.Name) with m = {
+    let all = Shell.Complete.withNamespaces(names());
+    if !String.isEmpty(typed) then all
     else {
+        // nothing typed reaches the names of one segment, so what is left
+        // to leave out is the prelude's constructors
         let own = sessionTexts();
-        List.filter(names(), fn(name) = match name {
-            Shell.Complete.Name(kind = Shell.Complete.Module) -> true
-          | Shell.Complete.Name(text = text, kind = Shell.Complete.Constructor) ->
+        List.filter(all, fn(name) = match name {
+            Shell.Complete.Name(text = text, kind = Shell.Complete.Constructor) ->
                 List.contains(own, text)
-          | Shell.Complete.Name(text = text) ->
-                List.contains(own, text) || !String.contains(text, ".")
+          | _ -> true
         })
     }
+}
 
 fn lone(completion : Shell.Complete.Completion) -> Bool = match completion {
     Shell.Complete.Completion(candidates = [_]) -> true

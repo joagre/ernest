@@ -248,6 +248,15 @@ the shell is neither standard library nor library but the toolchain's own progra
       are the names the session declares, the modules in scope, and the prelude's names
       other than its constructors, which no module leads to. §11.2 states it;
       `tab_mid_row_test_` and `Shell.Complete`'s own tests cover it.
+  13. **Done 2026-09-25: matching a segment at a time, and never taking away what was
+      typed.** `let b = a` and `Tab` listed `Accept`, `ArrowDown`, and every
+      `Address.*`: one typed segment reached names of any depth, and a first letter
+      matched in either case. A segment now reaches the names of as many segments, a
+      namespace such as `Address` completing with its dot, and its first letter matches as
+      typed. `Ad` had become `A` and `L.fM` `List.f`, since the word was what every
+      candidate shared; it is what the prefix matches share, never less than was typed,
+      and abbreviations alone complete their namespace, `L.fM` to `List.fM`. §11.2 states
+      it; `Shell.Complete`'s tests cover each case.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, `Markdown`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.

@@ -40,16 +40,36 @@ export let nothing = Completion(word = "", candidates = [])
 // which is no part of a name.
 export fn complete(typed : String, names : List(Name), where : Where) -> Completion =
     match matches(typed, admitted(names, where)) {
-        [] -> nothing
-      | [only] -> Completion(word = whole(only), candidates = [only])
-      | many -> {
-            let shared = common(List.map(many, fn(name) = whole(name)));
-            // what they share is never shorter than what was typed
-            // where they were reached by prefix, and stands for the
-            // word either way
-            Completion(word = shared, candidates = many)
+        #([], []) -> nothing
+      | #([only], []) -> Completion(word = whole(only), candidates = [only])
+      | #([], [only]) -> Completion(word = whole(only), candidates = [only])
+      | #([], loose) -> Completion(word = namespaced(loose, typed), candidates = loose)
+      | #(exact, loose) -> {
+            // report §11.2: what the names reached by prefix share, never
+            // less than was typed, which a `Tab` does not take away
+            let shared = common(List.map(exact, fn(name) = whole(name)));
+            let word = if String.size(shared) >= String.size(typed) then shared else "";
+            Completion(word = word, candidates = exact <> loose)
         }
     }
+
+// Report §11.2: every namespace the names are in, offered as a module is,
+// completing with its dot: a type with members, `Address` for
+// `Address.call`, is a namespace though it is no module.
+export fn withNamespaces(names : List(Name)) -> List(Name) = {
+    let texts = List.map(names, fn(name) = match name { Name(text = t) -> t });
+    let prefixes = List.flatMap(texts, fn(t) = {
+        let segments = String.split(t, ".");
+        List.map(List.range(1, List.size(segments) - 1), fn(n) =
+            String.join(List.take(segments, n), "."))
+    });
+    let known = List.filterMap(names, fn(name) = match name {
+        Name(text = t, kind = Module) -> Some(t)
+      | _ -> None
+    });
+    let fresh = List.filter(List.unique(prefixes), fn(p) = !List.contains(known, p));
+    names <> List.map(fresh, fn(p) = Name(text = p, kind = Module, shown = p <> "."))
+}
 
 // The word being completed: the qualified name the cursor stands at the
 // end of. A name is letters, digits, `_`, and the `.` between segments.
@@ -115,15 +135,29 @@ export fn applied(text : String, at : Int, typed : String, completion : Completi
 // a prefix is the better match and is listed first.
 //
 
-fn matches(typed : String, names : List(Name)) -> List(Name) =
-    if String.isEmpty(typed) then alphabetical(names)
-    else {
-        let parts = String.split(typed, ".");
-        let exact = List.filter(names, fn(name) = reaches(parts, name, true));
-        let loose = List.filter(names, fn(name) = reaches(parts, name, false)
-            && !reaches(parts, name, true));
-        alphabetical(exact) <> alphabetical(loose)
+// Report §11.2: names reached by abbreviation alone share no text that
+// keeps what was typed, `fM` reaching `filterMap` and `flatMap`, so the
+// namespace they are all in is completed and the last segment is kept as
+// typed: `L.fM` gives `List.fM`. With no namespace, or several, nothing is.
+fn namespaced(loose : List(Name), typed : String) -> String = {
+    let spaces = List.unique(List.map(loose, fn(name) = match name {
+        Name(text = t) -> String.join(List.dropLast(String.split(t, ".")), ".")
+    }));
+    match #(spaces, List.last(String.split(typed, "."))) {
+        #([space], Some(last)) -> if String.isEmpty(space) then "" else space <> "." <> last
+      | _ -> ""
     }
+}
+
+// The names reached by prefix, and those reached by abbreviation alone,
+// each alphabetical.
+fn matches(typed : String, names : List(Name)) -> #(List(Name), List(Name)) = {
+    let parts = String.split(typed, ".");
+    let exact = List.filter(names, fn(name) = reaches(parts, name, true));
+    let loose = List.filter(names, fn(name) = reaches(parts, name, false)
+        && !reaches(parts, name, true));
+    #(alphabetical(exact), alphabetical(loose))
+}
 
 // Report §11.2: candidates are listed alphabetically, by the text a person
 // types.
@@ -132,9 +166,12 @@ fn alphabetical(names : List(Name)) -> List(Name) = List.sort(names, fn(a, b) =
         #(Name(text = x), Name(text = y)) -> String.compare(x, y)
     })
 
+// Report §11.2: a name is reached a segment at a time, so what is typed
+// reaches the names of as many segments as it has; a namespace's members
+// come after its dot.
 fn reaches(parts : List(String), name : Name, exact : Bool) -> Bool = {
-    let segments = String.split(whole(name), ".");
-    List.size(parts) <= List.size(segments) && every(parts, segments, exact)
+    let segments = match name { Name(text = text) -> String.split(text, ".") };
+    List.size(parts) == List.size(segments) && every(parts, segments, exact)
 }
 
 // Each segment of what is typed against the segment of the name in the
@@ -148,9 +185,12 @@ fn every(parts : List(String), segments : List(String), exact : Bool) -> Bool =
       | #(_, []) -> false
     }
 
+// Report §11.2: a segment's first letter is matched as typed, since its
+// case says what a name is (§2.3); the rest by prefix or by word starts.
 fn begins(segment : String, part : String, exact : Bool) -> Bool =
     if exact then String.startsWith(segment, part)
-    else abbreviates(String.toList(part), String.toList(segment), true)
+    else String.slice(part, 0, 1) == String.slice(segment, 0, 1)
+        && abbreviates(String.toList(part), String.toList(segment), true)
 
 // An abbreviation matches the starts of the words inside a name:
 // `fM` and `fm` both reach `filterMap`, `m` alone does not.
@@ -222,22 +262,52 @@ let applying = Test(name = "a completion replaces the word and moves the cursor"
         else Failed("\"" <> text <> "\" at " <> Int.toString(at))
     })
 
-let ordered = Test(name = "candidates are alphabetical, by prefix before by abbreviation",
-    run = fn() = match complete(word("L"), library(), Expression) {
+let ordered = Test(name = "candidates are alphabetical", run = fn() =
+    match complete(word("List."), library(), Expression) {
         Completion(candidates = candidates) -> {
             let texts = List.map(candidates, fn(name) = match name { Name(text = t) -> t });
-            if texts == ["List", "List.filter", "List.filterMap", "List.map"] then Passed
+            if texts == ["List.filter", "List.filterMap", "List.map"] then Passed
             else Failed(String.join(texts, ", "))
         }
     })
 
-let nothingTyped = Test(name = "nothing typed reaches every name admitted", run = fn() =
+let nothingTyped = Test(name = "nothing typed reaches the names of one segment", run = fn() =
     match complete("", library(), Expression) {
         Completion(candidates = candidates) ->
-            if List.size(candidates) == List.size(List.filter(library(), fn(name) =
-                !isKind(name, Type)))
-            then Passed else Failed(Int.toString(List.size(candidates)))
+            if List.size(candidates) == 2 then Passed
+            else Failed(Int.toString(List.size(candidates)))
     })
+
+let oneSegment = Test(name = "a segment reaches no name deeper than it", run = fn() =
+    match complete(word("L"), library(), Expression) {
+        Completion(word = w, candidates = [_]) -> if w == "List." then Passed else Failed(w)
+      | Completion(candidates = candidates) -> Failed(Int.toString(List.size(candidates)))
+    })
+
+let caseKept = Test(name = "a lower-case letter reaches no constructor", run = fn() =
+    becomes(complete(word("a"), [Name(text = "Accept", kind = Constructor, shown = "Accept"),
+        Name(text = "answer", kind = Value, shown = "answer : ...")], Expression), "answer"))
+
+let neverShorter = Test(name = "a Tab never takes away what was typed", run = fn() = {
+    let names = [Name(text = "Address", kind = Module, shown = "Address."),
+        Name(text = "ArrowDown", kind = Constructor, shown = "ArrowDown")];
+    let aside = [Name(text = "filterMap", kind = Value, shown = "filterMap"),
+        Name(text = "flatMap", kind = Value, shown = "flatMap")];
+    match #(complete("Ad", names, Expression), complete("fm", aside, Expression)) {
+        #(Completion(word = a), Completion(word = b)) ->
+            if a == "Address." && b == "" then Passed else Failed(a <> " | " <> b)
+    }
+})
+
+let keepsTheLast = Test(name = "an abbreviation keeps its last segment as typed", run = fn() =
+    becomes(complete("L.fM", library() <> [Name(text = "List.flatMap", kind = Value,
+        shown = "List.flatMap : ...")], Expression), "List.fM"))
+
+let namespaces = Test(name = "a type with members is a namespace, completing with its dot",
+    run = fn() =
+        becomes(complete(word("Ad"),
+            withNamespaces([Name(text = "Address.call", kind = Value, shown = "Address.call")]),
+            Expression), "Address."))
 
 let anything = Test(name = "a command's own names are all admitted, types among them",
     run = fn() =
