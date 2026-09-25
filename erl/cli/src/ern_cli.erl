@@ -714,7 +714,10 @@ compile_source(File, Root, OutDir) ->
                 {error, File, Errors}
         end
     catch
-        throw:{cli_error, Message} -> {error, File, [Message]}
+        throw:{cli_error, Message} -> {error, File, [Message]};
+        %% a source that does not lex or parse is refused as one that does
+        %% not check is, its diagnostics given back and not raised
+        throw:{errors, Failed, Unread} -> {error, Failed, Unread}
     end.
 
 %% Report §8.6: a signal from outside ends the program as returning from

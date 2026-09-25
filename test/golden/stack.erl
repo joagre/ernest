@@ -4,7 +4,8 @@
          'Stack.empty'/0,
          'Stack.push'/2,
          'Stack.pop'/1,
-         '$init'/0]).
+         '$init'/0,
+         '$fun'/2]).
 
 main() ->
     S_1 = 'Stack.push'(2, 'Stack.push'(1, 'Stack.empty'())),
@@ -31,3 +32,7 @@ main() ->
     persistent_term:put({ern@stack, 'Stack.empty'},
                         {'Stack', []}),
     ok.
+
+'$fun'(main, 0) -> fun main/0;
+'$fun'('Stack.push', 2) -> fun 'Stack.push'/2;
+'$fun'('Stack.pop', 1) -> fun 'Stack.pop'/1.

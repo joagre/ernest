@@ -94,8 +94,10 @@ forms(Ns, Decls, Env, Deps, Session) ->
     {Init, Cx2} = init_fun(Lets, Decls, Cx1),
     Tests = tests_fun(Lets),
     DepsFun = deps_fun(Deps),
+    FunFun = fun_fun(Decls),
     Exports = [export(D) || D <- Decls, exported(D)] ++ [{'$init', 0} || Lets =/= []]
-        ++ [{'$tests', 0} || Tests =/= []] ++ [{'$deps', 0} || DepsFun =/= []],
+        ++ [{'$tests', 0} || Tests =/= []] ++ [{'$deps', 0} || DepsFun =/= []]
+        ++ [{'$fun', 2} || FunFun =/= []],
     %% an Ernest function named like an auto-imported BIF, `size`, `max`,
     %% is called by its own name: the auto-import is switched off for it
     Clashes = [{F, A} || {F, A} <- maps:fold(fun({O, N}, Arity, Acc) when is_integer(Arity) ->
@@ -115,7 +117,8 @@ forms(Ns, Decls, Env, Deps, Session) ->
                                      [erl_syntax:list([erl_syntax:arity_qualifier(
                                                          erl_syntax:atom(F), erl_syntax:integer(A))
                                                        || {F, A} <- Exports])])],
-    Functions = lists:append(Funs) ++ Init ++ Tests ++ DepsFun ++ lists:reverse(Cx2#cx.lifted),
+    Functions = lists:append(Funs) ++ Init ++ Tests ++ DepsFun ++ FunFun
+        ++ lists:reverse(Cx2#cx.lifted),
     erl_syntax:revert_forms(Attrs ++ Functions).
 
 %% Report §9.3, §11.2: '$tests'/0 lists the module's tests, every top-level
@@ -129,6 +132,20 @@ tests_fun(Lets) ->
             Calls = [erl_syntax:application(erl_syntax:atom(F), []) || F <- Names],
             [erl_syntax:function(erl_syntax:atom('$tests'),
                                  [erl_syntax:clause([], none, [erl_syntax:list(Calls)])])]
+    end.
+
+%% Report §11.2, §6.10: '$fun'/2 answers an exported function of this
+%% module as a fun of the version that answers, so that a function value
+%% another module takes from this one keeps the code it was taken from when
+%% the module is loaded again; an external fun would reach the newest.
+fun_fun(Decls) ->
+    Clauses = [erl_syntax:clause([erl_syntax:atom(F), erl_syntax:integer(A)], none,
+                                 [erl_syntax:implicit_fun(erl_syntax:atom(F),
+                                                          erl_syntax:integer(A))])
+               || D <- Decls, exported(D), not is_record(D, let_decl), {F, A} <- [export(D)]],
+    case Clauses of
+        [] -> [];
+        _ -> [erl_syntax:function(erl_syntax:atom('$fun'), Clauses)]
     end.
 
 %% Report §8.5: the modules this one depends on, whose top-level
@@ -717,8 +734,13 @@ var_ref(Pos, Path, Name, T, #cx{tops = Tops, env = Env} = Cx) ->
                            case is_value(Path, Name, Env) of
                                true -> call_remote(M, F, []);
                                false ->
+                                   %% report §11.2: a function of another
+                                   %% module as a value keeps the version
+                                   %% it was taken from
                                    case T of
-                                       {tfn, Ps, _, _} -> remote_fun(M, F, length(Ps));
+                                       {tfn, Ps, _, _} ->
+                                           call_remote(M, '$fun', [erl_syntax:atom(F),
+                                                                   erl_syntax:integer(length(Ps))]);
                                        _ -> call_remote(M, F, [])
                                    end
                            end

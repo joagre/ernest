@@ -688,6 +688,23 @@ wide_input() ->
     Lines = [L || L <- binary:split(Screen, <<"\n">>, [global]), L =/= <<>>],
     ?assert(lists:member(<<"> let longname = \"abcdefghijklmnopqrstuv">>, Lines)).
 
+%% report §11.2: `:load` of a source that does not lex or parse reports its
+%% diagnostic and the session goes on. A regression test: the error was
+%% raised out of the front end, and the shell ended with it
+load_unreadable_test_() ->
+    {timeout, 60, fun load_unreadable/0}.
+
+load_unreadable() ->
+    Dir = filename:join("/tmp", "ern_bad_" ++ os:getpid() ++ "_"
+                        ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(filename:join(Dir, "bad.ern"), "export fn f() -> Int = 1 \\ 2\n"),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, ":load Bad\n1\n"),
+    {0, Out} = sh(alone("../bin/ern --shell --source-root " ++ Dir) ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"bad.ern:1:26: illegal character">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"1 : Int">>)).
+
 %% report §11.2: every refusal of a command is red, as a diagnostic's first
 %% line is, and an answer is plain. A regression test for a finding of the
 %% session of real use: `:load`'s refusal was red and `:set`'s was not, the
@@ -1062,10 +1079,12 @@ reload() ->
     In = filename:join(Dir, "session.in"),
     ok = file:write_file(In, [":load Demo\n",
                               "Demo.answer()\n",
+                              "let g = Demo.answer\n",
                               "spawn(Local, fn() = Demo.tick())\n",
                               write_demo(Dir, 2),
                               ":reload\n",
                               "Demo.answer()\n",
+                              "g()\n",
                               write_demo(Dir, 3),
                               ":reload\n",
                               "Demo.answer()\n",
@@ -1075,9 +1094,13 @@ reload() ->
     ?assertMatch({_, _}, binary:match(Out, <<"Demo, compiled from demo.ern">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"1 : Int">>)),
     %% the first reload names what is still in the version it replaced
-    ?assertMatch({_, _}, binary:match(Out, <<"a process in the previous version; a further"
-                                             " reload of it ends them">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"input:1, a process, g, a binding in the previous"
+                                             " version; a further reload of it ends them">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)),
+    %% a binding holding a function of the module keeps the version it was
+    %% taken from, a regression test for a finding of the shell's review,
+    %% where it ran the new code: the new answer, then the old one
+    ?assertMatch({_, _}, binary:match(Out, <<"2 : Int\n> 1 : Int">>)),
     %% the second ends it, and says so
     ?assertMatch({_, _}, binary:match(Out, <<"ended ">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"3 : Int">>)),

@@ -1,6 +1,6 @@
 -module(ern@pingpong).
 
--export([main/0]).
+-export([main/0, '$fun'/2]).
 
 main() ->
     PongAddr_1 = ern_rt:spawn('Local',
@@ -42,5 +42,7 @@ pong() ->
             pong();
         'Stop' -> 'Unit'
     end.
+
+'$fun'(main, 0) -> fun main/0.
 
 '$type_1'() -> {con, [{'None', []}, {'Some', [int]}]}.

@@ -291,6 +291,15 @@ the shell is neither standard library nor library but the toolchain's own progra
       cursor. Each line of the input now wraps onto the rows below it as it is typed, the
       cursor on the row and column it falls on; §11.2 states it. The region's tests and
       `wide_input_test_` cover it.
+  18. **Done 2026-09-25: a binding keeps a reloaded module's previous version.** `let g =
+      Loop.f`, then `:reload`, and `g()` ran the new code, where §11.2 has the binding
+      keep the previous version: a function value of another module was an Erlang
+      external fun, which always runs the newest code. Every module now exports
+      `'$fun'/2`, answering its exported functions as funs made inside it, and such a
+      value is taken through it; the emitter's goldens show the change. While replaying
+      it, `:load` and `:reload` of a source that does not lex or parse raised out of the
+      front end and ended the shell; `ern_cli:compile_source/3` returns those diagnostics
+      as it returns the checker's. `reload_test_` and `load_unreadable_test_` cover both.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, `Markdown`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.
@@ -915,7 +924,7 @@ are erased: `type_decl`, `abstract_decl`, `foreign_type_decl`, `signature`, `fie
 | `foreign_fn_decl` | a clause calling the named `M:F/A` |
 | `param` | the pattern in the clause head |
 | `e_lit` | integer, float, or char literal; string as a binary; bool as an atom |
-| `e_var` | a local: the Erlang variable; a top-level fn as a value: `fun f/N`; a top-level let: `name()`; a prelude name: table below |
+| `e_var` | a local: the Erlang variable; a top-level fn as a value: `fun f/N`, and another module's `M:'$fun'(f, N)`, a fun of the version current when it is taken (§11.2); a top-level let: `name()`; a prelude name: table below |
 | `e_con` | as `constructor`; a single-positional constructor as a value: `fun(V) -> {'C', V} end` |
 | `field_set` | its value at its canonical position |
 | `e_tuple`, `e_list` | tuple, list |

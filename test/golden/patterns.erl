@@ -1,6 +1,6 @@
 -module(ern@patterns).
 
--export([main/0]).
+-export([main/0, '$fun'/2]).
 
 main() ->
     ern@io:println(sign(-1)),
@@ -49,3 +49,5 @@ whole(Xs_12) ->
         All_15 = [X_13 | Rest_14] -> All_15;
         [] -> []
     end.
+
+'$fun'(main, 0) -> fun main/0.

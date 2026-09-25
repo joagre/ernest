@@ -1,6 +1,6 @@
 -module(ern@upgrade).
 
--export([main/0]).
+-export([main/0, '$fun'/2]).
 
 main() ->
     C_1 = ern_rt:spawn('Local',
@@ -53,5 +53,7 @@ doublingCounter(N_12) ->
             doublingCounter(N_12);
         {'Upgrade', M_15, K_16} -> K_16(M_15(N_12))
     end.
+
+'$fun'(main, 0) -> fun main/0.
 
 '$type_1'() -> {con, [{'None', []}, {'Some', [int]}]}.

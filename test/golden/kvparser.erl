@@ -1,6 +1,6 @@
 -module(ern@kvparser).
 
--export([main/0]).
+-export([main/0, '$fun'/2]).
 
 main() ->
     ern@list:foreach([<<"a=12">>,
@@ -32,7 +32,7 @@ parse(S_6) ->
 
 keyOf(Cs_14) ->
     {K_15, Rest_16} = ern@list:span(Cs_14,
-                                    fun ern@char:isAlpha/1),
+                                    ern@char:'$fun'(isAlpha, 1)),
     case not ern@list:isEmpty(K_15) of
         true -> {'Right', {ern@string:fromList(K_15), Rest_16}};
         false ->
@@ -51,3 +51,5 @@ number(Cs_20, S_21) ->
         {'Some', N_22} -> {'Right', N_22};
         'None' -> {'Left', <<"bad number: ", S_21/binary>>}
     end.
+
+'$fun'(main, 0) -> fun main/0.

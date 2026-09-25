@@ -31,7 +31,7 @@
 
 -module('ern@counter').
 
--export([main/0]).
+-export([main/0, '$fun'/2]).
 
 %% export fn main() -> Unit with m = {
 %%     let c = spawn(Local, fn() = counter(0));
@@ -69,5 +69,9 @@ counter(N) ->
         {'Upgrade', M, K} ->
             K(M(N))
     end.
+
+%% A function of this module taken as a value by another is a fun made here,
+%% which keeps this version when the module is loaded again (report §11.2).
+'$fun'(main, 0) -> fun main/0.
 
 '$type_1'() -> {con, [{'None', []}, {'Some', [int]}]}.
