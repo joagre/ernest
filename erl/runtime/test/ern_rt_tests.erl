@@ -14,6 +14,84 @@ own_terminal_test() ->
                              end, <<"own_terminal_test">>, #{}),
     ?assertEqual({fault, <<"the terminal is already read as keys">>}, Result).
 
+%% report §8.2: readers of the terminal asking at once, some for lines and
+%% some for keys, are one reading and refusals. A regression test: the
+%% check and the claim were two steps, and both sides could pass the
+%% check. The launcher ends a run at the first refusal, so the claims are
+%% made here against the table a run would have. A race can be won by
+%% luck, so a pass confirms the order rather than proving it
+own_terminal_race_test() ->
+    ets:new(ern_processes, [named_table, public, set]),
+    Run = make_ref(),
+    persistent_term:put({ern_rt, launcher}, {self(), Run}),
+    Me = self(),
+    Kinds = [case I rem 2 of 0 -> keys; 1 -> lines end || I <- lists:seq(1, 64)],
+    Askers = [spawn(fun() ->
+                        receive go -> ok end,
+                        Me ! {owned, K, ern_rt:own_terminal(K)}
+                    end) || K <- Kinds],
+    [A ! go || A <- Askers],
+    Owned = [receive {owned, K, R} -> {K, R} after 1000 -> timeout end || _ <- Kinds],
+    Refused = [receive {fault, Run, Text} -> Text after 1000 -> timeout end
+               || {_, taken} <- Owned],
+    ets:delete(ern_processes),
+    persistent_term:erase({ern_rt, launcher}),
+    ?assertEqual(1, length(lists:usort([K || {K, ok} <- Owned]))),
+    ?assertEqual(64, length([R || {_, R} <- Owned, R =:= ok orelse R =:= taken])),
+    ?assertEqual([], [T || T <- Refused, not is_binary(T)]).
+
+%% report §8.2, §7.3: a read of the standard input that fails is a failure
+%% of the runtime, which ends the program with a fault that names it, and an
+%% empty line is the empty string. A regression test: each crashed the
+%% process behind Sys.stdin, and the caller waited for ever
+stdin_failure_test() ->
+    Ask = fun() ->
+              Stdin = ern_rt:sys(stdin),
+              ern_rt:call_forever(Stdin, fun(R) -> {'ReadLine', R} end)
+          end,
+    Me = self(),
+    Quiet = #{stdout => fun(_) -> ok end},
+    ?assertEqual({fault, <<"the standard input could not be read: eio">>},
+                 ern_rt:run_main(Ask, <<"main">>, Quiet#{stdin => fun() -> {error, eio} end})),
+    ?assertEqual(ok, ern_rt:run_main(fun() -> Me ! {line, Ask()} end, <<"main">>,
+                                     Quiet#{stdin => fun() -> "" end})),
+    ?assertEqual({'Some', <<>>}, wait(line)).
+
+%% report §8.6: a system process that has died can deliver nothing, so it
+%% does not keep a deadlock from being found. A regression test: the
+%% detector read a dead one as busy, and the program waited for ever
+dead_system_process_test() ->
+    ?assertEqual({fault, <<"deadlock">>},
+                 ern_rt:run_main(fun() ->
+                                     exit(ern_rt:sys(clock), kill),
+                                     receive never -> ok end
+                                 end, <<"main">>, #{stdout => fun(_) -> ok end})).
+
+%% report §8.5, §8.6: a program that fails to start is ended as one that
+%% ran, so the next one starts. A regression test: an initializer of the
+%% standard library that raised left the process table and the system
+%% processes behind, and the next run failed to make its table
+failed_start_test() ->
+    Dir = filename:join(filename:basedir(user_cache, "ern_rt_tests"), "failed_start"),
+    ok = filelib:ensure_path(Dir),
+    Mod = 'ern@zz_failed_start',
+    Forms = [{attribute, 1, module, Mod}, {attribute, 1, export, [{'$init', 0}]},
+             {function, 1, '$init', 0,
+              [{clause, 1, [], [], [{call, 1, {atom, 1, error}, [{atom, 1, boom}]}]}]}],
+    {ok, Mod, Bin} = compile:forms(Forms),
+    ok = file:write_file(filename:join(Dir, atom_to_list(Mod) ++ ".beam"), Bin),
+    true = code:add_patha(Dir),
+    Quiet = #{stdout => fun(_) -> ok end},
+    try
+        ?assertError(boom, ern_rt:run_main(fun() -> ok end, <<"main">>, Quiet))
+    after
+        code:del_path(Dir),
+        code:purge(Mod),
+        code:delete(Mod),
+        file:delete(filename:join(Dir, atom_to_list(Mod) ++ ".beam"))
+    end,
+    ?assertEqual(ok, ern_rt:run_main(fun() -> ok end, <<"main">>, Quiet)).
+
 %% Compile a hand-written target module from forms, as the compiler will
 %% compile its own output, and run its main under the launcher, collecting
 %% what reaches stdout.

@@ -5,33 +5,36 @@
 %% is its quoted name, Some(v) is {'Some', V}, Down(function, reason) is
 %% {'Down', Function, Reason} in canonical field order.
 %%
-%% Every Address is a pid. via/2 and monitor/2 run small proxy processes, so
-%% send is `!` and a generated receive never meets a foreign message shape.
-%% A Reply(a) is a process alias made with alias([reply]): it deactivates
-%% after the first answer, and unalias after a timeout drops late ones
-%% (report §6.6). Every process body runs under run/1, which turns an
-%% exception into an exit reason the monitor proxy reports as a Fault. All
-%% spawns go through the reaper process, which spawn_monitors each process
-%% and records how it ended, so a monitor placed after the death still
-%% reports the cause (report §6.9). The reaper also detects Deadlock
-%% (report §8.6): every live process blocked in an untimed receive, no timed
-%% receive or clock alarm pending, no process inside foreign code. A row of
-%% the process table is {Pid, Site, State, Timers, Foreign}: Timers counts
-%% the timed receives the process is in, Foreign its foreign calls.
+%% An Address is a pid, or {via, F, Target} for an address seen through a
+%% function (report §6.5), which send/2 applies in the sender. A Reply(a)
+%% is a process alias made with alias([reply]): it deactivates after the
+%% first answer, and unalias after a timeout drops late ones (report §6.6).
+%% Every process body runs under run/1, which turns an exception into an
+%% exit reason that Down reports as a Fault. All spawns go through the
+%% reaper process, which spawn_monitors each process and records how it
+%% ended, so a monitor placed after the death still reports the cause
+%% (report §6.9); every monitor is the reaper's. The reaper also detects
+%% Deadlock (report §8.6): every live process blocked in an untimed
+%% receive, no timed receive or clock alarm pending, no process inside
+%% foreign code. The process table holds a row {Pid, Site, State, Timers,
+%% Foreign} per process the runtime started, where Timers counts the timed
+%% receives the process is in and Foreign its foreign calls, and beside
+%% them the count of sources, the way the terminal is read, and the
+%% checking proxies of §8.4.
 -module(ern_rt).
 
--export([send/2, spawn/3, self/0, via/2, call/3, call_forever/2, answer/2, monitor/2,
-         kill/1, sys/1, run_main/2, run_main/3, fault/1, remote/1,
-         todo/1, timed/0, untimed/0, in_foreign/1, init_stdlib/0, own_terminal/1,
-         source_begin/0, source_end/0, process_of/1, proxy_for/3, proxy_forget/2,
-         hold_terminal/1, terminal_holder/0, shell_holds/0, deaths/1, live/0]).
+-export([send/2, process_of/1, spawn/3, self/0, via/2, call/3, call_forever/2, answer/2,
+         monitor/2, kill/1, deaths/1, live/0, proxy_for/3, proxy_forget/2, source_begin/0,
+         source_end/0, timed/0, untimed/0, in_foreign/1, remote/1, todo/1, fault/1, sys/1,
+         hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1, run_main/2,
+         run_main/3, init_stdlib/0]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
 -define(UNIT, 'Unit').
 -define(PROCESSES, ern_processes).
 
--type address() :: pid().
+-type address() :: pid() | {via, fun((term()) -> term()), address()}.
 -type reply() :: reference().
 
 %%
@@ -115,6 +118,13 @@ call(Addr, Mk, Ms) ->
     after max(0, Ms) ->
         untimed(),
         erlang:unalias(Alias),
+        %% an answer that came between the timeout and the unalias is late
+        %% as well, and is not left in the caller's mailbox
+        receive
+            {Alias, _} -> ok
+        after 0 ->
+            ok
+        end,
         'None'
     end.
 
@@ -275,9 +285,11 @@ quiet_system() ->
                               end
                           end, [stdout, stderr, stdin, fs, terminal, tcp, clock, deaths]).
 
+%% A system process that has died can deliver nothing.
 quiet(Pid) ->
     case erlang:process_info(Pid, [status, message_queue_len]) of
         [{status, waiting}, {message_queue_len, 0}] -> true;
+        undefined -> true;
         _ -> false
     end.
 
@@ -454,69 +466,83 @@ line_guard(Addr) ->
     end.
 
 %% Report §8.2: which way the terminal is being read, keys or lines; a
-%% program does one or the other, and the second to ask ends it.
+%% program does one or the other, and the second to ask ends it. The first
+%% to ask claims it in one step, so two that ask at once are one claim.
 -spec own_terminal(lines | keys) -> ok | taken.
 own_terminal(Kind) ->
-    case persistent_term:get({?MODULE, reading}, undefined) of
-        undefined ->
-            persistent_term:put({?MODULE, reading}, Kind),
+    case ets:insert_new(?PROCESSES, {reading, Kind}) of
+        true ->
             ok;
-        Kind ->
-            ok;
-        Other ->
-            {Launcher, Run} = persistent_term:get({?MODULE, launcher}),
-            Launcher ! {terminal, Run, format("the terminal is already read as ~s", [Other])},
-            taken
+        false ->
+            case ets:lookup(?PROCESSES, reading) of
+                [{reading, Kind}] ->
+                    ok;
+                [{reading, Other}] ->
+                    end_with_fault(format("the terminal is already read as ~s", [Other])),
+                    taken
+            end
     end.
+
+%% Report §7.3, §8.2: a system process ends the program with a fault of
+%% the entry process, the launcher's to report.
+end_with_fault(Text) ->
+    {Launcher, Run} = persistent_term:get({?MODULE, launcher}),
+    Launcher ! {fault, Run, Text},
+    ok.
 
 %% Report §8.2: stdin answers each ReadLine with the next line without its
 %% line feed, None at end of input. Line is the runtime's reader, which a
-%% test replaces.
+%% test replaces. Report §7.3: a read that fails is a failure of the
+%% runtime, and ends the program with a fault that names it.
 stdin_loop(Line) ->
     receive
         {'ReadLine', Reply} ->
             own_terminal(lines),
             source_begin(),
-            Read = case Line() of
-                       eof -> 'None';
-                       Text -> {'Some', chomp(Text)}
-                   end,
-            answer(Reply, Read),
+            case Line() of
+                eof ->
+                    answer(Reply, 'None');
+                {error, Reason} ->
+                    end_with_fault(format("the standard input could not be read: ~p", [Reason]));
+                Text ->
+                    answer(Reply, {'Some', chomp(unicode:characters_to_binary(Text))})
+            end,
             source_end(),
             stdin_loop(Line)
     end.
 
-chomp(Text) ->
-    Bin = unicode:characters_to_binary(Text),
+chomp(<<>>) ->
+    <<>>;
+chomp(Bin) ->
     case binary:last(Bin) of
         $\n -> binary:part(Bin, 0, byte_size(Bin) - 1);
         _ -> Bin
     end.
 
 %% ClockMsg, report §9.3: After(ms, to), At(at, to), Now(reply). Alarms are
-%% delivered through the clock itself, so it knows how many are pending
-%% (report §8.6).
-clock_loop(Pending) ->
+%% delivered through the clock itself, so each is counted as a source while
+%% it is pending (report §8.6).
+clock_loop() ->
     receive
         {'After', Ms, To} ->
             source_begin(),
             %% Appendix E.0 rule 8: a time below 0 is 0
             erlang:send_after(max(0, Ms), erlang:self(), {fire, To}),
-            clock_loop(Pending + 1);
+            clock_loop();
         {'At', At, To} ->
             source_begin(),
             erlang:send_after(max(0, At - erlang:system_time(millisecond)), erlang:self(),
                               {fire, To}),
-            clock_loop(Pending + 1);
+            clock_loop();
         {fire, To} ->
             %% report §6.5, E.15: the alarm's target may be an address seen
             %% through a function, and it is sent the time it fired
             deliver(To, erlang:system_time(millisecond)),
             source_end(),
-            clock_loop(Pending - 1);
+            clock_loop();
         {'Now', Reply} ->
             answer(Reply, erlang:system_time(millisecond)),
-            clock_loop(Pending)
+            clock_loop()
     end.
 
 %%
@@ -526,10 +552,11 @@ clock_loop(Pending) ->
 %% Runs Main as the entry process and returns ok, or {fault, Message} if it
 %% faulted, a deadlock among the faults (report §8.6: the entry process
 %% faults with `Fault("deadlock")`). Every local process is then ended with
-%% ProgramEnd and stdout
-%% is flushed. Opts: init => a function run in main's process before Main,
-%% after the Sys.* references are bound, for the top-level lets (report
-%% §8.5); stdout => fun((binary()) -> any()) for tests.
+%% ProgramEnd and stdout is flushed, however the run ended. Opts: init => a
+%% function run in main's process before Main, after the Sys.* references
+%% are bound, for the top-level lets (report §8.5); stdout, stderr =>
+%% fun((binary()) -> any()) and stdin => fun(() -> eof | {error, term()} |
+%% string()) for tests.
 -spec run_main(fun(() -> term()), binary()) -> ok | {fault, binary()}.
 run_main(Main, Site) ->
     run_main(Main, Site, #{}).
@@ -539,7 +566,6 @@ run_main(Main, Site, Opts) ->
     ets:new(?PROCESSES, [named_table, public, set]),
     %% report §8.6: the sources a system process holds, counted while held
     ets:insert(?PROCESSES, {sources, 0}),
-    persistent_term:erase({?MODULE, reading}),
     persistent_term:erase({?MODULE, holder}),
     persistent_term:erase({?MODULE, deaths}),
     Run = make_ref(),
@@ -548,32 +574,37 @@ run_main(Main, Site, Opts) ->
     persistent_term:put({?MODULE, reaper}, Reaper),
     Out = maps:get(stdout, Opts, fun(Bin) -> io:put_chars(Bin) end),
     Err = maps:get(stderr, Opts, fun(Bin) -> io:put_chars(standard_error, Bin) end),
-    Stdout = erlang:spawn(fun() -> stdout_loop(Out) end),
-    Stderr = erlang:spawn(fun() -> stdout_loop(Err) end),
     Line = maps:get(stdin, Opts, fun() -> io:get_line("") end),
-    Stdin = erlang:spawn(fun() -> stdin_loop(Line) end),
-    Fs = erlang:spawn(fun ern_fs:loop/0),
-    Tty = erlang:spawn(fun ern_tty:loop/0),
-    Tcp = erlang:spawn(fun ern_tcp:loop/0),
-    Clock = erlang:spawn(fun() -> clock_loop(0) end),
-    persistent_term:put({?MODULE, stdout}, Stdout),
-    persistent_term:put({?MODULE, stderr}, Stderr),
-    persistent_term:put({?MODULE, stdin}, Stdin),
-    persistent_term:put({?MODULE, fs}, Fs),
-    persistent_term:put({?MODULE, terminal}, Tty),
-    persistent_term:put({?MODULE, tcp}, Tcp),
-    persistent_term:put({?MODULE, clock}, Clock),
-    init_stdlib(),
-    Init = maps:get(init, Opts, fun() -> ok end),
-    MainPid = spawn('Local', fun() -> Init(), Main() end, Site),
-    Reaper ! {await, MainPid, erlang:self(), fun(Down) -> {main_down, Run, Down} end},
-    Result = receive
-                 {main_down, Run, {'Down', _, Reason}} -> Reason;
-                 {deadlock, Run} ->
-                     exit(MainPid, {ern, fault, <<"deadlock">>}),
-                     {'Fault', <<"deadlock">>};
-                 {terminal, Run, Text} -> {'Fault', Text}
-             end,
+    System = [{stdout, erlang:spawn(fun() -> stdout_loop(Out) end)},
+              {stderr, erlang:spawn(fun() -> stdout_loop(Err) end)},
+              {stdin, erlang:spawn(fun() -> stdin_loop(Line) end)},
+              {fs, erlang:spawn(fun ern_fs:loop/0)},
+              {terminal, erlang:spawn(fun ern_tty:loop/0)},
+              {tcp, erlang:spawn(fun ern_tcp:loop/0)},
+              {clock, erlang:spawn(fun clock_loop/0)}],
+    lists:foreach(fun({Name, Pid}) -> persistent_term:put({?MODULE, Name}, Pid) end, System),
+    try
+        init_stdlib(),
+        Init = maps:get(init, Opts, fun() -> ok end),
+        MainPid = spawn('Local', fun() -> Init(), Main() end, Site),
+        Reaper ! {await, MainPid, erlang:self(), fun(Down) -> {main_down, Run, Down} end},
+        receive
+            {main_down, Run, {'Down', _, 'Returned'}} -> ok;
+            {main_down, Run, {'Down', _, {'Fault', Msg}}} -> {fault, Msg};
+            {main_down, Run, {'Down', _, Other}} -> {fault, format("~p", [Other])};
+            {deadlock, Run} ->
+                exit(MainPid, {ern, fault, <<"deadlock">>}),
+                {fault, <<"deadlock">>};
+            {fault, Run, Text} -> {fault, Text}
+        end
+    after
+        end_program(Run, Reaper, System)
+    end.
+
+%% Report §8.6: every local process ends with ProgramEnd, the sinks' output
+%% is flushed, the system processes and the reaper are stopped, and the
+%% terminal goes back as the program found it (§8.2).
+end_program(Run, Reaper, System) ->
     lists:foreach(fun({Pid, _, alive, _, _}) -> exit(Pid, {ern, program_end});
                      (_) -> ok
                   end, ets:tab2list(?PROCESSES)),
@@ -588,21 +619,15 @@ run_main(Main, Site, Opts) ->
                           {'DOWN', Mon, process, _, _} -> ok
                       end,
                       erlang:demonitor(Mon, [flush])
-                  end, [Stdout, Stderr]),
+                  end, [proplists:get_value(K, System) || K <- [stdout, stderr]]),
     %% each ended before the table goes, which the reaper reads
-    lists:foreach(fun stop/1, [Stdout, Stderr, Stdin, Fs, Tty, Tcp, Clock, Reaper]),
-    %% report §8.2: the terminal goes back as the program found it
-    case persistent_term:get({?MODULE, reading}, undefined) of
-        keys -> ern_tty:restore();
+    lists:foreach(fun stop/1, [Pid || {_, Pid} <- System] ++ [Reaper]),
+    case ets:lookup(?PROCESSES, reading) of
+        [{reading, keys}] -> ern_tty:restore();
         _ -> ok
     end,
     ets:delete(?PROCESSES),
-    flush_run(Run),
-    case Result of
-        'Returned' -> ok;
-        {'Fault', Msg} -> {fault, Msg};
-        Other -> {fault, format("~p", [Other])}
-    end.
+    flush_run(Run).
 
 %% Report §8.5: a standard library module's top-level lets, `Map.empty`
 %% among them, are evaluated once at program start like any other module's;
@@ -649,11 +674,13 @@ stop(Pid) ->
     exit(Pid, kill),
     receive {'DOWN', Ref, process, Pid, _} -> ok end.
 
-%% What the reaper may still send about this run after it ended.
+%% What the reaper and the system processes may still send about this run
+%% after it ended.
 flush_run(Run) ->
     receive
         {main_down, Run, _} -> flush_run(Run);
-        {deadlock, Run} -> flush_run(Run)
+        {deadlock, Run} -> flush_run(Run);
+        {fault, Run, _} -> flush_run(Run)
     after 0 ->
         ok
     end.

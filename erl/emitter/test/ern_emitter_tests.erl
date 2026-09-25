@@ -1,10 +1,8 @@
 -module(ern_emitter_tests).
 
--export([write_golden/0]).
+-export([write_golden/0, pair/0, opt/1, remember/1, junk/1, good/1, tell/1, junk_server/0]).
 
 -include_lib("eunit/include/eunit.hrl").
-
--export([pair/0, opt/1, junk/1, junk_server/0, good/1, tell/1, remember/1]).
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("lexer/include/ern_diag.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -895,6 +893,67 @@ bif_names_test() ->
         "    Io.println(Int.toString(size([1])))\n"
         "}\n"),
     ?assertEqual(<<"2\n10\n">>, Out).
+
+%% report §4.2, §4.6, §8.5: a module names its own declarations qualified
+%% as well, a private function, a `let`, and a type's member, called and
+%% taken as values, and a `let` so named is still ordered after the one it
+%% reads. A regression test: each was a remote call, undefined for a
+%% private function, and the `let` was not seen as a dependency
+qualified_own_name_test() ->
+    {ok, Out} = run(
+        "let total = M.base * 2\n"
+        "let base = 3\n"
+        "fn two() -> Int = 2\n"
+        "type Box = Box(Int)\n"
+        "fn Box.open(b : Box) -> Int = match b { Box(n) -> n }\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    let f = M.two;\n"
+        "    let g = M.Box.open;\n"
+        "    Io.println(Int.toString(M.two() + f() + M.Box.open(Box(4)) + g(Box(1))));\n"
+        "    Io.println(Int.toString(M.total))\n"
+        "}\n"),
+    ?assertEqual(<<"9\n6\n">>, Out).
+
+%% report §6.3, §4.5: a timed receive's time below 0 is 0 whatever the
+%% module calls `max`. A regression test: the emitted `max(0, t)` called
+%% the module's own `max/2`, here a difference, which gave a negative time
+qualified_max_test() ->
+    {ok, Out} = run(
+        "fn max(a : Int, b : Int) -> Int = a - b\n"
+        "type Msg = Ping\n"
+        "export fn main() -> Unit with Msg = {\n"
+        "    Io.println(Int.toString(max(1, 2)));\n"
+        "    receive { Ping -> Unit | after 10 -> Io.println(\"after\") }\n"
+        "}\n"),
+    ?assertEqual(<<"-1\nafter\n">>, Out).
+
+%% report §6.6, §8.4: `Address.call` and `Address.callForever` taken as
+%% values check the reply as the calls do. A regression test: as values
+%% they were the runtime's functions, and the reply went unchecked
+call_as_value_test() ->
+    {ok, Out} = run(
+        "type Msg = Get(reply : Reply(Int))\n"
+        "fn serve() -> Unit with Msg = receive { Get(reply = r) -> answer(r, 7) }\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    let c : (Address(Msg), (Reply(Int)) -> Msg, Int) -> Optional(Int) with Never =\n"
+        "        Address.call;\n"
+        "    let w : (Address(Msg), (Reply(Int)) -> Msg) -> Int with Never =\n"
+        "        Address.callForever;\n"
+        "    let asked = c(spawn(Local, serve), fn(r) = Get(reply = r), 1000);\n"
+        "    let n = Optional.withDefault(asked, 0);\n"
+        "    Io.println(Int.toString(n + w(spawn(Local, serve), fn(r) = Get(reply = r))))\n"
+        "}\n"),
+    ?assertEqual(<<"14\n">>, Out),
+    {ok, Typed, _, Env} = ern_typecheck:check_string(
+        ['M'], <<"type Msg = Get(reply : Reply(Int))\n"
+                 "export fn main() -> Unit with Never = {\n"
+                 "    let c : (Address(Msg), (Reply(Int)) -> Msg, Int) -> Optional(Int) with Never"
+                 " =\n"
+                 "        Address.call;\n"
+                 "    Unit\n"
+                 "}\n">>),
+    Src = unicode:characters_to_binary(ern_emitter:erl_source(['M'], Typed, Env)),
+    ?assertMatch({_, _}, binary:match(Src, <<"reply does not match Optional(Int)">>)).
 
 %% report §5.11: the report's frame round trip, sub-octet fields, utf8,
 %% float and signed and little segments, a dynamic size in a pattern, and

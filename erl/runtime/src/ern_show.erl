@@ -24,9 +24,8 @@ show(D, V, Depth, Length) ->
 
 %% Report §11.2: below the depth a value is `...`, whatever it is. A value
 %% written without nesting, a number or a string, is not below it: depth
-%% counts the brackets a reader would have to open.
--define(NESTED(L), (L#lim.depth =:= 0)).
-
+%% counts the brackets a reader would have to open, and a depth of 0 is
+%% where by_type/4 and represented/2 stop at the first bracket.
 deeper(#lim{depth = unbounded} = L) -> L;
 deeper(#lim{depth = N} = L) -> L#lim{depth = N - 1}.
 
@@ -57,7 +56,7 @@ by_type({abstract, _}, _, _, _) -> "<abstract>";
 by_type({mu, Id, D}, V, B, L) -> by_type(D, V, B#{Id => D}, L);
 by_type({ref, Id}, V, B, L) -> by_type(maps:get(Id, B), V, B, L);
 by_type({con, _}, V, _, _) when is_atom(V) -> atom_to_list(V);
-by_type(_, _, _, L) when ?NESTED(L) -> "...";
+by_type(_, _, _, #lim{depth = 0}) -> "...";
 by_type({list, D}, V, B, L) ->
     ["[", join(parts(V, L, fun(X) -> by_type(D, X, B, deeper(L)) end)), "]"];
 by_type({tuple, Ds}, V, B, L) ->
@@ -94,7 +93,7 @@ represented(Bin, L) when is_binary(Bin) ->
 represented(P, _) when is_pid(P) -> "<address>";
 represented(R, _) when is_reference(R) -> "<reply>";
 represented(F, _) when is_function(F) -> "<function>";
-represented(V, L) when ?NESTED(L), is_list(V); ?NESTED(L), is_tuple(V); ?NESTED(L), is_map(V) ->
+represented(V, #lim{depth = 0}) when is_list(V); is_tuple(V); is_map(V) ->
     "...";
 represented(V, L) when is_list(V) ->
     %% a foreign value may be an improper list, which Ernest has no form for

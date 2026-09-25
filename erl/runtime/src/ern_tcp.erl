@@ -62,6 +62,8 @@ socket_process(Socket) ->
     Owner.
 
 %% Waiting: replies with no bytes yet. Buffer: bytes with no reply yet.
+%% The port delivers one packet each time it is asked, and it is asked
+%% again while a reply still waits.
 socket_loop(Socket, Waiting, Buffer) ->
     receive
         {'Recv', Reply} ->
@@ -84,6 +86,7 @@ socket_loop(Socket, Waiting, Buffer) ->
             case Waiting of
                 [Reply | Rest] ->
                     ern_rt:answer(Reply, {'Right', Bytes}),
+                    Rest =/= [] andalso inet:setopts(Socket, [{active, once}]),
                     socket_loop(Socket, Rest, Buffer);
                 [] ->
                     socket_loop(Socket, [], Buffer ++ [Bytes])

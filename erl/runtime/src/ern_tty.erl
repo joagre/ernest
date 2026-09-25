@@ -134,7 +134,9 @@ start_reader(undefined) ->
             %% is a computation whose completion delivers a message
             ern_rt:source_begin(),
             raw_mode(),
-            erlang:spawn(fun() -> read_loop(Tty) end);
+            %% linked, so that the reader ends with the terminal's process
+            %% at the program's end and takes no key meant for what follows
+            erlang:spawn_link(fun() -> read_loop(Tty) end);
         taken ->
             %% the program is already ending with the fault (report §8.2)
             undefined
@@ -186,6 +188,9 @@ write(Text) ->
 %% inherits the runtime's, which is the terminal. Nothing is done when the
 %% input is not one: keys read from a pipe need no mode, and a mode set
 %% there would be set on whatever terminal the runtime was started from.
+%% An stty that does not finish in time is closed, and what its port sent
+%% is not left in the mailbox, where report §8.6 would read it as a message
+%% still to be handled.
 stty(Args) ->
     case terminal() andalso os:find_executable("stty") of
         false ->
@@ -193,7 +198,20 @@ stty(Args) ->
         Stty ->
             Port = open_port({spawn_executable, Stty},
                              [{args, Args}, nouse_stdio, exit_status]),
-            receive {Port, {exit_status, _}} -> ok after 2000 -> ok end
+            receive
+                {Port, {exit_status, _}} -> ok
+            after 2000 ->
+                %% the port may have closed since, which is the same
+                try port_close(Port) catch error:badarg -> true end,
+                flush_port(Port)
+            end
+    end.
+
+flush_port(Port) ->
+    receive
+        {Port, _} -> flush_port(Port)
+    after 0 ->
+        ok
     end.
 
 terminal() ->
