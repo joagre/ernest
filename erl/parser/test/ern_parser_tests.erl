@@ -655,7 +655,7 @@ ast_coverage_test() ->
                                    end, [], Files)),
     %% no program of MVP 2.5 frames a protocol, so a bitstring with segments
     %% and a bitstring pattern are exercised by the parser's own tests above
-    %% and wait for a library that speaks a wire format (plan, MVP 2.7's http)
+    %% and wait for a library that speaks a wire format (plan, MVP 3.2's http)
     ?assertEqual([bit_seg, p_bits], Declared -- Used).
 
 tags(T, Acc) when is_tuple(T), is_atom(element(1, T)) ->

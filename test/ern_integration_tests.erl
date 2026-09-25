@@ -151,7 +151,7 @@ cookie_of(Answer) ->
     [Sid | _] = binary:split(After, <<";">>),
     Sid.
 
-%% report §9.3, plan MVP 2.8: every library's own tests, run by `ern --test`
+%% report §9.3, plan MVP 3.2: every library's own tests, run by `ern --test`
 %% over its compiled modules, as the shell's are
 libs_test_() ->
     {timeout, 60, fun libs/0}.

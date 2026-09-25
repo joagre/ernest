@@ -24,7 +24,7 @@ cold; the themes follow, one at a time, the first under discussion. MVP 2.6, the
 
 **Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23; MVP 2.61, the
 guide as the user's document, on 2026-09-24, after which CLAUDE.md was rewritten for
-clarity, every rule kept; and `libs/markdown`, from MVP 2.8, on 2026-09-25. All three are
+clarity, every rule kept; and `libs/markdown`, now MVP 3.2's, on 2026-09-25. All three are
 under "Done".
 
 **The rhythm.** One item a turn, with its tests, its documents, its conformance section and
@@ -44,11 +44,11 @@ so a decision they must see goes here.
 | MVP 2.61 | the guide as the user's document | done 2026-09-24, out of order |
 | **MVP 2.65** | **the language and the toolchain read back** | **begun 2026-09-25** |
 | MVP 2.66 | introduce a supervisor behaviour? | after 2.65 |
-| MVP 2.7 | the first libraries and the network stack | |
-| MVP 2.8 | five more libraries | `libs/markdown` done 2026-09-25, out of order |
+| MVP 2.7 | a program started from a command line, and the appendix of libraries | |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | MVP 3.0 | peers | |
 | MVP 3.1 | content addressing | |
+| MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
 
 ---
 
@@ -86,13 +86,20 @@ The steps:
    two visibilities are enough (item 43), each weighed and kept. A later input may add a
    member to a session type (item 17; report §11.2). The log has an entry for each; item 46
    moved to the standard library's theme.
-4. **Expressions, patterns and types**, the second theme (items 3, 5, 36, 39, 45, 48 and 52,
-   and the cold read's findings under it). **Decided 2026-09-25:** field selection, `e.f`
-   where every constructor has the field (item 51; report §3.5); no projection from a tuple
-   (item 18, weighed and kept out); a `match` and a `receive` are operands (item 19; report
-   §5.9); a type variable is not-reply-carrying by what the body does with it, which closes
-   the hole the cold read found in §6.6 (findings 2.1 and 2.2; report §3.9). The log has an
-   entry for each.
+4. **Expressions, patterns and types**, the second theme (items 39, 45 and 52 left, and the
+   cold read's findings 1.1 and 2.13). **Decided 2026-09-25:** field selection, `e.f` where
+   every constructor has the field (item 51; report §3.5); no projection from a tuple (item
+   18, weighed and kept out); a `match` and a `receive` are operands (item 19; report §5.9);
+   a type variable is not-reply-carrying by what the body does with it, which closes the
+   hole the cold read found in §6.6 (findings 2.1 and 2.2; report §3.9); constant patterns
+   and a reserved `after`, each weighed and kept (items 3 and 5); an initializer depends on
+   every name it mentions (item 48 and finding 1.13; report §8.5); and seven smaller rules
+   from the cold read: source order for a callee and a pipe (1.2, §5.1), `..` only on a type
+   with one constructor (1.6, §5.6), a type argument a value position only where its fields
+   make it one (2.6, §3.9), the shape of an operator, `compare` or `negate` member (2.8,
+   §4.8), a local `fn` never named like a variable in scope (2.9, §5.4), a receive guard's
+   grammar written out (2.17, §6.3), and a local `fn`'s signature sharing the enclosing
+   type variables (2.34, §3.9). The log has an entry for each.
 5. **Processes and the system**, the third theme (items 9, 24, 26, 27, 28, 37, 47, 50, 53),
    the registry at its head (item 53), an address's identity with it (item 24), since
    unregistering needs equality; either outcome changes `:processes` and `Io.debug`, as item
@@ -175,60 +182,20 @@ tests it by writing one, and decides what it should be, if anything.
 
 ---
 
-## MVP 2.7 (the first libraries and the network stack), about two weeks
+## MVP 2.7 (a program started from a command line, and the appendix of libraries), about a week
 
-Appendix D has been written to once, for `Ets`, and a pattern tried once is a guess: four
-libraries written to it confirm or correct it before anyone outside writes to one, and they
-are the compiler's second real user. `libs/` and `build/libs/` exist since 2026-09-24, when
-`Ets` left the standard library for `libs/ets` and `ernc` took `--load-path`. Being
-first-party changes nothing about the tier: a library is not on the load path unless a
-program puts it there.
+What a command-line program needs, report first: `Sys.args : List(String)` and `Sys.env` in
+§8.2 and §9.7 as runtime-bound values, ambient as the other `Sys.*` references are, and an
+exit status in §8.6. The guide's cold read asked for the arguments at once
+(`language_feedback.md` item 16, 2026-09-24); an entry point that takes a `List(String)` is
+weighed against `Sys.args` before the report changes, and parsing options from the list is a
+library's, by E.0. With `Sys.env`, the shell reads `NO_COLOR` in Ernest, where its front end
+reads it today.
 
-- **Report first**, for what a command-line program needs: `Sys.args : List(String)` and
-  `Sys.env` in §8.2 and §9.7 as runtime-bound values, ambient as the other `Sys.*` references
-  are, an exit status in §8.6, and `Time` in Appendix E over the clock's milliseconds. They
-  came back here on 2026-09-20 when the shell's colour went later. The guide's cold read
-  asked for the arguments at once (`language_feedback.md` item 16, 2026-09-24); an entry
-  point that takes a `List(String)` is weighed against `Sys.args` before the report changes,
-  and parsing options from the list is a library's, by E.0. With `Sys.env`, the shell reads
-  `NO_COLOR` in Ernest, where its front end reads it today.
-- **`libs/json`**, pure Ernest: a `Json` type, a parser over `String` returning `Either`, a
-  printer; the first test of `<-`, `tryMap` and `tryFold` at size.
-- **`libs/base64`**, a shim over `base64`: the smallest there is, so Appendix D's pattern is
-  written a second time before the two large ones.
-- **`libs/tls`**, a shim over `ssl` and `public_key` with their manual pages open: `listen`,
-  `accept`, `connect` returning `Address(SockMsg)` with the encryption inside the socket
-  process, so `Tcp.read`, `write` and `close` serve both. Certificate verification is the
-  caller's to ask for.
-- **`libs/http`**, Ernest over `Tcp` and `Tls`: request and response types, a client. No
-  server; that is the webserver example's job.
-- **The paper program:** `examples/fetch.ern`, a command-line tool that fetches JSON over
-  HTTPS and prints a report, errors to stderr, with an exit status. A paper program travels
-  with the stack it needs; MVP 2.5 taught that a program which only compiles proves little.
-- **Each library** is an Ernest source root under `libs/<name>/` that a program adds with
-  `--load-path`, with `stdlib/`'s test discipline, its documentation in its module's doc
-  block, which says how a program adds it, and no entry in
-  Appendix E. Own repositories later, when there is a package story.
-- **The report lists them** in a new informative appendix, one section per library with its
-  signatures and contracts, and a mirror test holding each compiled interface equal to it, as
-  `ern_prelude_tests` holds the prelude to Appendix E. Third-party libraries are not listed;
-  Appendix D is what they follow.
-
----
-
-## MVP 2.8 (five more libraries), about two weeks
-
-`libs/regex`, a shim over `re`, a library and never syntax: `Regex.compile : (String) ->
-Either(RegexError, Regex)` with `Regex` a foreign type, so a bad pattern is a value the
-program handles, as Gleam's `gleam_regexp` does. `libs/crypto`, a shim over `crypto` for
-hashes, HMAC and random bytes, the key and cipher surface waiting for a program. `libs/uri`,
-pure Ernest or a shim over `uri_string`. `libs/zlib`, a shim over `zlib`. Each is written and
-documented in one pass to [`module_doc_template.md`](module_doc_template.md), and its
-executed doc examples are its first user, so no paper program is required (decided
-2026-09-19). Each gets an appendix section beside 2.7's four.
-
-`libs/markdown` was taken out of order and is done (under "Done", 2026-09-25); the other
-four remain.
+**The report lists the libraries that exist**, `libs/ets` and `libs/markdown`, in a new
+informative appendix, one section per library with its signatures and contracts, and a mirror
+test holding each compiled interface equal to it, as `ern_prelude_tests` holds the prelude to
+Appendix E. Third-party libraries are not listed; Appendix D is what they follow.
 
 ---
 
@@ -334,6 +301,36 @@ answer is the first.
   tree from a git URL into a directory on the load path, compiles it, and records the hashes
   of its definitions. No resolver, no semver, no lockfile beyond those hashes, and no
   registry; discovery by name is a tooling question for later.
+
+---
+
+## MVP 3.2 (the libraries, as they are wanted)
+
+Decided 2026-09-25: the libraries not yet written wait, and each is written when our work
+needs it, MVP 3.0 and 3.1 among that work, when someone asks for it, or when we want it (the
+log's *Libraries As They Are Wanted*). Each is an Ernest source root
+under `libs/<name>/` that a program adds with `--load-path`, with `stdlib/`'s test discipline,
+documented in one pass to [`module_doc_template.md`](module_doc_template.md) with its executed
+examples as its first user, and a section in the appendix of libraries. Own repositories
+later, when there is a package story. Named so far:
+
+- **`libs/json`**, pure Ernest: a `Json` type, a parser over `String` returning `Either`, a
+  printer.
+- **`libs/base64`**, a shim over `base64`.
+- **`libs/tls`**, a shim over `ssl` and `public_key` with their manual pages open: `listen`,
+  `accept`, `connect` returning `Address(SockMsg)` with the encryption inside the socket
+  process, so `Tcp.read`, `write` and `close` serve both. Certificate verification is the
+  caller's to ask for.
+- **`libs/http`**, Ernest over `Tcp` and `Tls`: request and response types, a client. No
+  server; that is the webserver example's job. With it, `examples/fetch.ern`, a command-line
+  tool that fetches JSON over HTTPS and prints a report, since a paper program travels with
+  the stack it needs, and `Time` in Appendix E over the clock's milliseconds, which only it
+  wants so far.
+- **`libs/regex`**, a shim over `re`, a library and never syntax: `Regex.compile : (String)
+  -> Either(RegexError, Regex)` with `Regex` a foreign type, so a bad pattern is a value the
+  program handles, as Gleam's `gleam_regexp` does.
+- **`libs/crypto`**, a shim over `crypto` for hashes, HMAC and random bytes; **`libs/uri`**,
+  pure Ernest or a shim over `uri_string`; **`libs/zlib`**, a shim over `zlib`.
 
 ---
 
@@ -454,14 +451,14 @@ five more did the same, and a last sweep of the documents. On the way it built
 and found about twenty defects in the toolchain, none of them the shell's. The log's
 entries from 2026-09-20 to 2026-09-25 hold every argument.
 
-### `libs/markdown` — a CommonMark renderer (done 2026-09-25, out of MVP 2.8's order)
+### `libs/markdown` — a CommonMark renderer (done 2026-09-25, now under MVP 3.2)
 
 Pure Ernest, about five hundred lines: `Markdown.parse` reads CommonMark 0.31's blocks and
 inlines, and `Markdown.render` lays them out at a width, with the terminal's styles or as
 written; where it is simpler than the specification, its doc block says so. How a heading
 looks at a terminal is policy inside a namespace of its own, so E.0 puts it under `libs/`.
 The shell renders `:doc` and `Shift-Tab` with it. Its place in the report's informative
-appendix of libraries is MVP 2.7's, with `libs/ets`.
+appendix of libraries is MVP 2.7's, with `libs/ets`'s.
 
 ### The code read back after the shell (done 2026-09-25)
 
@@ -548,10 +545,10 @@ Ernest's concepts or toolchain replace.
 | `timer` | `Clock` | `now`, `alarm`, `alarmAt` | `Clock.monotonic` | `send_interval`, `cancel`: E.15's positions. `sleep`: `receive { after ms -> Unit }`. `seconds`, `minutes`: arithmetic |
 | `rand` | `Random` | E.13: `seed`, `next`, `nextFloat` | | |
 | `math` | `Float` | the operators, `abs`, `min`, `max`, `round`, `floor`, `ceil`, `truncate`, `toString`, `sqrt`, `pow`, `exp`, `log`, the trigonometry | | `looselyEquals`: the tolerance is the program's. `toPrecision`: a format, and §9.6 has no format strings |
-| `gen_tcp`, `inet`, `socket`, `ssl` | `Tcp` | E.18 | `Udp` as its own module, a later MVP | socket options: tuning is a library's. TLS: `libs/tls` in MVP 2.7, returning the same `Address(SockMsg)` |
+| `gen_tcp`, `inet`, `socket`, `ssl` | `Tcp` | E.18 | `Udp` as its own module, a later MVP | socket options: tuning is a library's. TLS: `libs/tls` in MVP 3.2, returning the same `Address(SockMsg)` |
 | `ets` | `libs/ets` | Appendix D | | match specifications, `qlc`: `Ets` is a key-value table |
 | `os` | `Sys` | | `Sys.env`, `Sys.args`, MVP 2.7 | `cmd`: a door to the system a program opens itself, MVP 3 at the earliest |
-| `calendar` | `Time` | | a `Time` type and its parts, MVP 2.7 | formatting: a format is the program's, rule 3 |
+| `calendar` | `Time` | | a `Time` type and its parts, MVP 3.2 | formatting: a format is the program's, rule 3 |
 | `binary` | `Bytes` | E.20, and `<>` | | `split`, `match`, `replace`, `encode_unsigned`: `<<...>>` and the `Int` operations |
 | `array`, `queue` | | | | `List` and `Map` give both, rule 4; a persistent array is a library |
 | `eunit` | `Test` | §9.3's `Test` and `TestResult`, run by `ern --test` (§11.2) | | |

@@ -326,10 +326,12 @@ format(T, St) ->
     {S, _} = fmt(T1, St, #{effect_only => EffectOnly, values => 0, effects => 0, taken => []}),
     lists:flatten(S).
 
-%% Variables that occur only in effect positions are named e, e1, ...; the
-%% others a, b, c, d, f, ... (report §3.9 writes `e` for effect variables).
+%% Variables that occur in no value position are named e, e1, ...: those
+%% after `with`, and those only in a type argument that is no value
+%% position, `H(e)`; the others a, b, c, d, f, ... (report §3.9 writes `e`
+%% for effect variables).
 effect_only_vars(T, St) ->
-    effect_vars(T) -- value_vars(T, St).
+    free_vars(T, St) -- value_vars(T, St).
 
 %% Variable ids in value positions / in effect positions of a zonked type.
 %% Report §3.9: a type argument is a value position unless the state says

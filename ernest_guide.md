@@ -306,7 +306,7 @@ Person(age = 31, name = "Alice") : Person
 31 : Int
 ```
 
-`older.age` reads one field. `..alice` copies the fields not listed, and `age = 31` overrides one. `alice` is unchanged; `older` is a second `Person` value. Ernest uses `:` for types (`name : String`) and `=` for values (`name = "Alice"`); function result types use `->`.
+`older.age` reads one field. `..alice` copies the fields not listed, and `age = 31` overrides one. `..` works on a type with one constructor, since the value might otherwise have been built by another. `alice` is unchanged; `older` is a second `Person` value. Ernest uses `:` for types (`name : String`) and `=` for values (`name = "Alice"`); function result types use `->`.
 
 The fields may be given in any order, and are evaluated in the order written. The shell prints them in the order of their names.
 
@@ -714,7 +714,7 @@ fn waitForData() -> Optional(Int) with Inbox = receive {
 
 `after 1000` gives up after 1000 milliseconds with no matching message, and `after 0` looks without waiting. Without `after`, the process waits for as long as it takes. A `receive` with only an `after` clause is a timed wait, the one `receive` a process with mailbox `Never` may use.
 
-A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: it compares variables, literals, and nullary constructors, and calls nothing (report §6.3). For more, receive the message and `match` it.
+A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: it compares variables, literals, and nullary constructors, tests a `Bool` variable, and joins these with `!`, `&&` and `||`; it calls nothing (report §6.3). For more, receive the message and `match` it.
 
 If a `Wake` is already in the mailbox, `waitForData` leaves it there and waits for a `Data`; a later `receive` can take the `Wake`.
 

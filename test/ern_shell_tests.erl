@@ -1320,6 +1320,24 @@ fields_by_module_test() ->
         forget_session()
     end.
 
+%% report §11.2, §3.9: `:browse` prints a type whose parameter is no value
+%% position as the checker does, so a variable found only there is an
+%% effect variable. A regression test: the shell printed under the
+%% prelude's state alone, which knows no module's types, and the printer
+%% named a variable `e` only after `with`, so it was `a`
+browse_effect_parameter_test() ->
+    Dir = scratch("ern_hooks_"),
+    ok = file:write_file(filename:join(Dir, "hooks.ern"),
+                         "export type H(e) = H(f : (Int) -> Unit with e)\n"
+                         "export fn drop(h) = { let H(f = _) = h; Unit }\n"),
+    try
+        Env = with_loaded(Dir, [<<"Hooks">>]),
+        {'Right', Lines} = ern_shell:browse(Env, <<"Hooks">>),
+        ?assert(lists:member(<<"Hooks.drop : (H(e)) -> Unit">>, Lines), Lines)
+    after
+        forget_session()
+    end.
+
 %% report §11.2, §4.2: what a command is given that is not a name is
 %% refused as one, and the refusal names what was given; a name longer
 %% than any the host can hold among them. A regression test: `:load .`

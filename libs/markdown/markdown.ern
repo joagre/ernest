@@ -124,7 +124,7 @@ fn begun(tries : List((String, List(String)) -> Optional(#(Block, List(String)))
 }
 
 // Each kind of block that may begin at a line, in the order they are tried;
-// a function rather than a `let`, which feedback item 48 is about.
+// a function rather than a `let`, which would be a cycle, since they reach back to it (§8.5).
 fn starts() -> List((String, List(String)) -> Optional(#(Block, List(String)))) =
     [headingStart, ruleStart, fenceStart, quoteStart, listStart, htmlStart]
 

@@ -608,8 +608,8 @@ scheme(Q, #env{ifaces = Ifaces}) ->
 
 %% The state a session name's type is printed under: the session's types
 %% print unqualified, as they do in an input (report §11.2).
-session_state(#env{session = S}) ->
-    St = ern_typecheck:type_state(ern_typecheck:prelude_env()),
+session_state(#env{session = S, ifaces = Ifaces}) ->
+    St = ern_typecheck:scope_state(Ifaces),
     ern_types:set_scope(St, [], maps:values(maps:get(types, S, #{})), []).
 
 %% Report §11.2: `:forget` removes a name the session declared, and `*`
@@ -660,8 +660,8 @@ browse(Text, Ns, Ifaces) ->
         [] ->
             {'Left', <<"no module ", Text/binary, " is in scope">>};
         Found ->
-            #iface{types = Ts, values = Vs} = lists:last(Found),
-            St0 = ern_typecheck:type_state(ern_typecheck:prelude_env()),
+            #iface{types = Ts, values = Vs} = Last = lists:last(Found),
+            St0 = ern_typecheck:scope_state(Ifaces ++ [Last]),
             St = ern_types:set_scope(St0, Ns, [], []),
             Types = [unicode:characters_to_binary([abstract_text(TI), "type ", qname_text(Q)])
                      || {Q, TI} <- lists:sort(maps:to_list(Ts))],

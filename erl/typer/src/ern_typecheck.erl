@@ -13,7 +13,8 @@
 %% Errors are collected per definition; checking continues with the next.
 -module(ern_typecheck).
 
--export([check/3, check/4, check_string/2, type_state/1, set_type_state/2, prelude_names/0,
+-export([check/3, check/4, check_string/2, type_state/1, scope_state/1, set_type_state/2,
+         prelude_names/0,
          prelude_con/1, prelude_cons/0, prelude_env/0, lookup_type/2, is_member_path/3,
          member_qname/3, is_reply_carrying/2, assume_reply_carrying/2, foreign_impl/1,
          declared_scheme/3, typed_pattern_bindings/1, segment_spec/1, lookup_con/4,
@@ -141,6 +142,13 @@ diag(Pos, Message) -> #diag{span = ern_diag:span(Pos), message = Message}.
 
 -spec type_state(env()) -> ern_types:st().
 type_state(#env{st = St}) -> St.
+
+%% The state a type is printed under outside a check: the prelude's, and
+%% which parameters of the types of Ifaces are no value position (report
+%% §3.9), so a variable found only in one prints as an effect variable does.
+-spec scope_state([#iface{}]) -> ern_types:st().
+scope_state(Ifaces) ->
+    effect_params(lists:foldl(fun add_iface/2, prelude_env(), Ifaces)).
 
 -spec set_type_state(ern_types:st(), env()) -> env().
 set_type_state(St, Env) -> Env#env{st = St}.

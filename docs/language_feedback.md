@@ -7,15 +7,17 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Thirteen have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Eighteen have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
 (decided, report §9), 2, 4 and 43 (weighed and kept, the log's *Constructor Names Stay Unique
 in a Module*, *Names Stay Qualified, Without Import or Alias* and *Two Visibilities Are
-Enough*), 17 (decided, report §11.2), 51 (decided, report §3.5), 18 (weighed and kept out, the log's
-*No Projection From a Tuple*), 19 (decided, report §5.9), 32 and 33 (decided, report §4.4), and 49 (decided with them: the
-editor's state and the region are abstract, and a history type was weighed and left, since
-its one rule, the cap of a thousand inputs, a session does not reach, and it would make the
-editor depend on `Shell.History`).
+Enough*), 17 (decided, report §11.2), 51 (decided, report §3.5), 18 (weighed and kept out,
+the log's *No Projection From a Tuple*), 19 (decided, report §5.9), 32 and 33 (decided,
+report §4.4), 49 (decided with them: the editor's state and the region are abstract, and a
+history type was weighed and left, since its one rule, the cap of a thousand inputs, a
+session does not reach, and it would make the editor depend on `Shell.History`), 3 and 5
+(weighed and kept, the log's *Constant Patterns Stay Out* and *`after` Stays Reserved*), 48
+(decided, report §8.5, the mention rule kept), and 36 (already decided, report §9.6).
 
 ## 1. Names and namespaces
 
@@ -26,31 +28,16 @@ item 46 went to the standard library's theme.
 
 How a part of a value is read, and the smaller rules of the grammar and the checker that
 writing Ernest ran into. Field selection, which led it, was decided on 2026-09-25 (report
-§3.5), and with it tuple projection (kept out) and `match` as an operand (taken, §5.9). The rest stand alone, and one contract
-over several representations (52) is the largest of them.
+§3.5), and with it tuple projection (kept out) and `match` as an operand (taken, §5.9). The
+rest stand alone, and one contract over several representations (52) is the largest of them.
 
-3. **No constant patterns.** `let ctrlW = '\u{17}'` cannot appear in a `match` arm; an
-   identifier there binds. So Readline's key table is bare literals with trailing comments
-   (`'\u{17}' -> … // C-w`). A guard (`c == ctrlW`) is the alternative and reads worse. The
-   leaning is to leave it: a real cost honestly paid for one-way pattern semantics.
 45. **A Bool argument reads as nothing at the call.** `Markdown.render(doc, 80, false)`:
     the `false` says colour off only to someone who knows the signature. Named arguments
     are refused (the log's *Labeled Arguments*); whether a two-constructor type, `Plain |
     Styled`, is the library's idiom instead.
-48. **A `let` of functions that call back to it is refused.** `let starts = [headingStart,
-    ...]`, the Markdown library's table of block starts, is refused as an initializer
-    that depends on itself, since `quoteStart` reaches `blocks`, which reads `starts`.
-    Building the list calls none of them; the dependency is a call's, made later. §8.5
-    orders initializers by what they reference, and a function value referenced is not a
-    function called. The library writes `fn starts()`; whether §8.5 should count only what
-    an initializer can call while it runs.
 39. **A library cannot ask for equality on its type variable.** §3.9's equality constraint
     is inferred and never written, so `Ets.Table(k, v)` keyed by functions type-checks, and
     the runtime compares those keys by identity. Whether a declaration can state it.
-36. **The built-in types' operators read as endless recursion.** `export fn Int.+(a, b) =
-    a + b`, `List.<>`, and `Int.compare` written with `<`, which §3.10 defines through
-    `compare`. The emitter uses the host's operators; §9.6 does not say so. One sentence
-    there, that on the built-in types the operators are the runtime's.
 52. **One contract, several representations.** An abstract type hides one representation;
     what it does not give is Java's interface or ML's signature, one API that several
     representations provide at once, chosen per use: Erlang's `sets` and `gb_sets` share
@@ -62,10 +49,6 @@ over several representations (52) is the largest of them.
     The gap is a pure data structure written once against "a set" and run over either
     representation; closing it takes ML's signatures and functors or type classes, each a
     new concept against principles 5 and 3. Whether the record of functions suffices.
-5. **`after` is reserved**, so a natural helper name for "the rest of a string from here"
-   had to become `from`. Trivial, but the kind of thing that accumulates. Felt again in
-   `libs/markdown`, where `after` was the name every scanning function wanted for what
-   follows a match; it became `later` throughout.
 
 ## 3. Processes and the system
 

@@ -8,7 +8,9 @@ with a test where none held them: 1.3 to 1.5, 1.9 to 1.12, 1.14 to 1.16, 2.3 to 
 first halves of 2.8 and 2.9, 2.7, 2.12, 2.14 to 2.16, 2.20 to 2.23, 2.25, 2.27 to 2.32, 3.1 to
 3.11, 3.14 to 3.16, 3.18 to 3.28, and halves of 3.17 and 3.29; 2.10, 2.11 and 3.13 went with
 an abstract type's boundary (§4.4). 2.1 and 2.2 were decided with the reply rule on 2026-09-25
-(§3.9, the log's *Not-Reply-Carrying by What the Body Does*).
+(§3.9, the log's *Not-Reply-Carrying by What the Body Does*); 1.2, 1.6, 1.13, 2.6, the
+second halves of 2.8 and 2.9, 2.17 and 2.34 the same day (the log's *An Initializer Depends
+on What It Names* and *The Cold Read's Smaller Rules*).
 
 This file holds the rest until MVP 2.65 decides each, under the theme of the feedback list
 that takes it; a finding leaves the file when it is decided. Each keeps its number and the
@@ -32,82 +34,12 @@ pure, so a named pure function is refused where `with M` is expected while the s
 lambda is accepted. Recommended: a pure function stands wherever a function with a mailbox
 type is expected, and not the converse.
 
-1.2. **The evaluation order of a callee and of a pipe.** §5.1 (L370): "Strict, left to
-right, arguments before the call." Whether `x` in `x |> f(a)` is evaluated before `f` and
-`a` or after; whether `g(1)` is evaluated before `h()` in `g(1)(h())`. Visible when either
-part sends or receives. The reader's guess: source order.
-
-*Checked.* Today: a callee is evaluated before its arguments, and in `x |> e` a computed
-callee of `e` before `x`. Recommended: source order, a callee before its arguments and, in
-`x |> e`, `x` first.
-
-1.6. **`C(..p, f = v)` when the type has several constructors.** §5.6 (L394). `p` may have
-been built by another constructor of the type: a type error unless the type has one
-constructor, a fault §7.4 does not list, or a flow-sensitive check. No guess.
-
-*Checked.* Today: accepted, and a value built by another constructor faults with the host's
-`badmatch`. Recommended: `..` only on a type with one constructor, a type error on any
-other; every `..` in the repository is on such a type.
-
-1.13. **An initialization cycle: a mention or a call?** §8.5 (L669): "A binding that
-references another, directly or through the functions it calls … A cycle is a compile-time
-error." `let handlers = [f]; fn f() = List.size(handlers)` is a cycle if a mention counts
-and none if only a call does (feedback item 48). Whether a top-level `let` may name itself
-inside a lambda, `let a = fn() = a`; §4.6's "does not see its own name" is a block's.
-
-*Checked.* Today: a mention counts, inside a lambda too. Recommended: keep the mention rule
-and state it, since counting only calls is unsound; feedback item 48 is then decided as it
-stands.
-
-2.6. **Effect variables as type parameters.** A type argument is a value position (L211),
-so in `type H(e) = H(f : (Int) -> Unit with e)` the `e` of `H(e)` can never be pure, and no
-pure callback could be stored, unless 1.1's subeffecting holds.
-
-*Checked.* Recommended: a type argument is a value position only where its parameter occurs
-in a value position of the type's fields; a built-in or foreign type's argument always is.
-
-2.8. **"The type's namespace" for `compare`** (§3.10 L221): for a user type, the member
-`fn Distance.compare`? For a prelude-declared type, `Optional` or `Path`, which namespace?
-What signature and purity a user `compare` must have, and what a `with m` or wrongly typed
-one does. Whether "both operands have the same type" (§4.8) makes `fn Vec.*(Vec, Float)` a
-declaration error.
-
-*Checked.* The second half, a member's shape. Recommended: a member named by an operator has
-type `(T, T) -> R`, `T.compare` `(T, T) -> Ordering`, `T.negate` `(T) -> R`, each pure, and
-any other is an error at its declaration.
-
-2.9. **Duplicate private top-level names.** §4.2 (L259) forbids only two exported
-declarations of one qualified name: nothing on two private `fn f`, a `fn f` beside a
-`let f`, or a local `fn` and a `let` of one name in a block.
-
-*Checked.* The block half. Today: a local `fn` beside a parameter or a `let` of its name
-compiles, and faults at run time with the host's `badfun`, since the checker takes the `fn`
-and the emitter the other binding. Recommended: a name a block's `fn` declares is bound by
-no other statement of that block; the emitter scopes a local `fn` over its block either way.
-
 2.13. **A redundant or unreachable clause**: an error, a warning, or nothing? The report
 never mentions warnings.
 
 *Checked.* Recommended: a clause or alternative that can match nothing the clauses before it
 leave, guarded ones not counted, is a type error, in `match` and in `receive`, labelled with
 the earlier clause.
-
-2.17. **What a receive guard may hold.** §6.3 (L490): "a comparison of the pattern's
-variables, the enclosing function's variables, literals, and nullary constructors".
-`when flag`? `when !flag`? `-1` is `Int.negate(1)`, a call, so `when x > -1`? §3.10 defines
-`<` as a call to `T.compare`, yet the guard "calls nothing".
-
-*Checked.* Today: `when !flag` is refused and `when !flag == true` accepted. Recommended: a
-guard expression's grammar written out, with a `Bool` operand, `!`, and a negative literal.
-
-2.34. **A local `fn`'s signature and the enclosing signature's type variables.** Found
-while testing 2.31 on 2026-09-25, not by the cold reader. §3.9 scopes a `fn` signature's
-variables over the whole definition, lambdas' and block `let`s' annotations included; it does
-not say whether an `a` in a local `fn`'s own signature is the enclosing `a` or the local
-function's own, and a local `fn` is generalized as a top-level one is.
-
-*Checked.* Today: a local `fn`'s signature does not see the enclosing variables; each is
-its own. Untested. To be decided with 2.31's rule.
 
 ## Processes and the system
 
