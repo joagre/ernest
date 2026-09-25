@@ -55,7 +55,8 @@ export fn complete(typed : String, names : List(Name), where : Where) -> Complet
 
 // Report §11.2: every namespace the names are in, offered as a module is,
 // completing with its dot: a type with members, `Address` for
-// `Address.call`, is a namespace though it is no module.
+// `Address.call` (§4.8), and `Sys` (§9.7) are namespaces though they are
+// no modules, and a listing says so, as it says `module List`.
 export fn withNamespaces(names : List(Name)) -> List(Name) = {
     let texts = List.map(names, fn(name) = match name { Name(text = t) -> t });
     let prefixes = List.flatMap(texts, fn(t) = {
@@ -68,7 +69,7 @@ export fn withNamespaces(names : List(Name)) -> List(Name) = {
       | _ -> None
     });
     let fresh = List.filter(List.unique(prefixes), fn(p) = !List.contains(known, p));
-    names <> List.map(fresh, fn(p) = Name(text = p, kind = Module, shown = p <> "."))
+    names <> List.map(fresh, fn(p) = Name(text = p, kind = Module, shown = "namespace " <> p))
 }
 
 // The word being completed: the qualified name the cursor stands at the
