@@ -80,11 +80,12 @@ The steps:
    into the report (the log's *The Report Read Cold, Its Plain Half*). What is open is in
    [`report_cold_read.md`](report_cold_read.md), each finding under the theme that decides
    it; what no theme takes is decided in step 9.
-3. **Names and namespaces**, the feedback list's first theme (items 4, 17, 43, 46).
+3. **Names and namespaces**, the feedback list's first theme (items 17, 43, 46).
    **Decided 2026-09-25: an abstract type's boundary is its module** (report §4.4; the log's
    *An Abstract Type's Boundary Is Its Module*); items 32, 33 and 49 went with it. **Kept
    2026-09-25: constructor names unique in a module** (item 2; the log's *Constructor Names
-   Stay Unique in a Module*). Next: item 4.
+   Stay Unique in a Module*), and **names stay qualified, without import or alias** (item 4;
+   the log's *Names Stay Qualified, Without Import or Alias*). Next: item 17.
 4. **Expressions, patterns and types**, the second theme, field selection at its head (item
    51, with 18 and 19, then 3, 5, 36, 39, 45, 48 and 52). If field selection is taken, the
    report changes first: §3.5 for the rule, Appendix A for the production, §11.5 for what

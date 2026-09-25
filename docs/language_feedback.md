@@ -7,10 +7,10 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Seven have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Eight have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
-(decided, report §9), 2 (weighed and kept, the log's *Constructor Names Stay Unique in a
-Module*), 32 and 33 (decided, report §4.4), and 49 (decided with them: the
+(decided, report §9), 2 and 4 (weighed and kept, the log's *Constructor Names Stay Unique
+in a Module* and *Names Stay Qualified, Without Import or Alias*), 32 and 33 (decided, report §4.4), and 49 (decided with them: the
 editor's state and the region are abstract, and a history type was weighed and left, since
 its one rule, the cap of a thousand inputs, a session does not reach, and it would make the
 editor depend on `Shell.History`).
@@ -25,11 +25,6 @@ costs. The first, where an abstract type's boundary lies (items 32 and 33), was 
 2026-09-25: it is its module (report §4.4), so a function no longer has to be a member to
 see a representation.
 
-4. **Qualified constructors are heavy at use sites**, and there is no import or alias (§4.2
-   is explicit: no export list, no `import`). The reader loop matches seven
-   `Shell.Editor.*` constructors in one `match`, and the shell's command code writes
-   `Shell.Command.` forty-three times. Explicit and correct; also the main argument anyone will
-   make for aliases later.
 46. **Abstract types in the standard library.** `Random.Seed` could be written in Ernest,
     SplitMix64 over `Int`'s bit operations, as an abstract type: three shims go, a seed can
     cross nodes, and the sequence is the same on every runtime; against it, item 13 kept
