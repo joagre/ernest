@@ -235,3 +235,20 @@ meant, read well; the entries are what did not.
     the node, as a pid does. Decided in MVP 2.65 with the registry, since unregistering
     needs it; the plan states what each outcome changes.
 
+## Asked beside item 14, 2026-09-25
+
+25. **`spawn(Remote, f)`, the asynchronous `remote`.** A process already starts on a named
+    peer, `spawn(Peer(name), f)` (§6.1), and answers asynchronously; what only `remote(f)`
+    has is the runtime's choice of peer, among those §11.3 marks as accepting remote
+    computation, and it is synchronous. A third place, `type Where = Local | Peer(String) |
+    Remote`, would give that choice to a process: a long computation no longer holds the
+    caller, and it may send more than one answer. With it, `remote(f)` is `spawn(Remote,
+    ...)` and a reply, a composition, which strengthens item 14's case against it by
+    principle 2. To be answered: what `spawn(Remote, f)` does where no peer accepts remote
+    computation, where `remote` answers `Left(NoRemotePeer)` and `spawn` has only an
+    address to return, and a silent fall back to `Local` is what principle 3 refuses, so
+    it faults; and that the flag in `ernest.conf` then admits any process a peer sends,
+    where today it admits a pure function, so what a peer accepts widens and §11.3 says
+    so. The placement stays the runtime's, as unseen by the program as `remote`'s is.
+    Decided with item 14 in MVP 3.0.
+
