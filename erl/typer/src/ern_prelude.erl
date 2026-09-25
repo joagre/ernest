@@ -617,7 +617,7 @@ prelude_doc() ->
 
 %% The interfaces of the standard library modules written in Ernest: every
 %% ern@*.beam in a `stdlib` directory on the code path that carries an
-%% interface chunk (plan, MVP 2.5 step 2). The compiled library is build
+%% interface chunk (plan, MVP 2.5). The compiled library is build
 %% output, so it is found by where it is installed rather than by an
 %% application's name; taking every ern@ module on the path instead would
 %% make the shell's own module, which lives in `build/shell` and is on the

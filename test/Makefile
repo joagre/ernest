@@ -11,7 +11,7 @@
 EBIN = ebin
 ERLC_FLAGS = +debug_info -Werror
 
-# The suites by area (plan, MVP 2.6 checkpoint 4, step 3): `test` runs them
+# The suites by area (plan, MVP 2.6): `test` runs them
 # all, and each area has a target of its own for a change that touches it
 # alone.
 PROGRAMS = ern_integration_tests

@@ -76,7 +76,7 @@ keys_at_end_of_input() ->
     ?assertEqual(1, Status),
     ?assertMatch({_, _}, binary:match(Out, <<"fault: deadlock">>)).
 
-%% report §8.2, §9.3, and plan MVP 2.5 step 4's manual check: the game is
+%% report §8.2, §9.3, and MVP 2.5's manual check: the game is
 %% played by the arrows, `Escape` leaves, and the board's rows each start at
 %% the left, which full raw mode would have broken
 snake_test_() ->

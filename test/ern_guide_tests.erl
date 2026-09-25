@@ -64,7 +64,7 @@ normalize(D) -> re:replace(string:trim(D), "\\s+", " ", [global, {return, binary
 %% standard input, or an error named from its own working directory, runs
 %% in parallel with the others of its kind; the rest compile and run in
 %% this node, one after another, since two of them may share a module's
-%% name (plan, MVP 2.6 checkpoint 4, step 3).
+%% name (plan, MVP 2.6).
 guide_examples_test_() ->
     Named = [{label(N, U), U} || {N, U} <- lists:zip(lists:seq(1, length(units())), units())],
     {Apart, Here} = lists:partition(fun({_, U}) -> own_node(U) end, Named),

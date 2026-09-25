@@ -257,7 +257,7 @@ Delivered before the shell. Those marked report first are written into the repor
 - **`ern_show` takes a depth and a length**, which `Io.debug` passes unbounded, so the shell and E.1 keep one printer. A runtime change, not a report one.
 - **The parser answers that an input is incomplete**, distinctly from a diagnostic: it ran out of input where more was expected. It knows already and does not say. A front-end change; built 2026-09-21 as a flag on the diagnostic, since the parser has the diagnostic in hand and nothing else can tell.
 - **`ern` takes no file when `--shell` is given**, and its usage line grows `--source-root`. A toolchain change, built.
-- **Documentation in the `.erc`**, with each function's parameters as written, for `:doc` and `Shift-Tab` (MVP 2.5 step 6, done).
+- **Documentation in the `.erc`**, with each function's parameters as written, for `:doc` and `Shift-Tab` (MVP 2.5, done).
 
 ## Open
 

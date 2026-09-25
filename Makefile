@@ -68,7 +68,7 @@ build/shell/.built: build/stdlib/.built build/libs/.built $(TOOL) $(call sources
 doc: all
 	@bin/ernc --doc --out-dir build/stdlib stdlib
 
-# The tests by area (plan, MVP 2.6 checkpoint 4, step 3). `make test` runs
+# The tests by area (plan, MVP 2.6). `make test` runs
 # every area; a change that touches one area runs that area's target, as
 # CLAUDE.md maps them.
 test: all

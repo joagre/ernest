@@ -278,7 +278,7 @@ fences(Doc) ->
         nomatch -> []
     end.
 
-%% plan MVP 2.5 step 2: every value a compiled standard library interface
+%% plan MVP 2.5: every value a compiled standard library interface
 %% declares is exported by its module with the arity of its type
 stdlib_targets_test() ->
     Missing = [{Q, Ar} || #iface{namespace = Ns, values = Vs} <- ern_prelude:stdlib_ifaces(),

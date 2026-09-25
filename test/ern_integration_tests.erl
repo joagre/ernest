@@ -13,7 +13,7 @@
 %% §6.6 (counter), §6.7 (remote), §6.10 (upgrade), §5.10 (patterns),
 %% §5.5 (kvparser), §4.4 (stack)
 %% Each program is compiled and run apart from the others, so they run in
-%% parallel (plan, MVP 2.6 checkpoint 4, step 3).
+%% parallel (plan, MVP 2.6).
 programs_test_() ->
     {inparallel, [{Name, {timeout, 60, fun() -> program(Name) end}} || Name <- ?PROGRAMS]}.
 
@@ -23,7 +23,7 @@ program(Name) ->
     {0, Out} = sh("../bin/ern build/" ++ Name ++ ".erc"),
     ?assertEqual(expected(Name), lines(Out)).
 
-%% Plan, MVP 2.5 step 4: the paper programs that the doors of step 4 opened.
+%% Plan, MVP 2.5: the paper programs that the doors of step 4 opened.
 %% snake waits for a terminal, so it is only compiled here and ern_terminal_tests
 %% plays it under a pseudo-terminal; echo is run by hand; the others run below.
 -define(COMPILES, ["filesync", "repl", "snake", "echo", "webserver"]).
@@ -35,7 +35,7 @@ compiles_test_() ->
                 ?assert(filelib:is_regular("build/" ++ Name ++ ".erc"))
             end} || Name <- ?COMPILES]}.
 
-%% Paper program 4 (plan, MVP 2.5 step 4): the REPL reads stdin and ends at
+%% Paper program 4 (plan, MVP 2.5): the REPL reads stdin and ends at
 %% end of input, so its run is bounded by its input. The last two lines are
 %% the point of the program: an expression that does not terminate is killed
 %% after two seconds, and the next expression still works.
@@ -48,7 +48,7 @@ repl() ->
     {0, Out} = sh("../bin/ern build/repl.erc < input/repl.in"),
     ?assertEqual(expected("repl"), lines(Out)).
 
-%% Paper program 2 (plan, MVP 2.5 step 4): the syncer runs until it is
+%% Paper program 2 (plan, MVP 2.5): the syncer runs until it is
 %% stopped, so the harness gives it two prepared directories, lets it run,
 %% stops it, and reads the directories back. One file on each side crosses,
 %% and the pair that differs leaves a conflict beside the newer copy.
@@ -97,7 +97,7 @@ run_for(Dir, Cmd, Seconds) ->
                   ++ integer_to_list(Seconds) ++ "; kill $p 2>/dev/null; wait $p 2>/dev/null; }'"),
     lines(Out).
 
-%% Paper program 1 (plan, MVP 2.5 step 4): the server serves until it is
+%% Paper program 1 (plan, MVP 2.5): the server serves until it is
 %% stopped, so the harness starts it, makes two requests over one session,
 %% and stops it. The second request carries the cookie the first set, and
 %% the visit count proves the session store kept it between connections.
