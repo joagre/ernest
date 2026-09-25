@@ -21,26 +21,7 @@ Then read the modules under [`shell/`](shell/) in any order. A file's path is it
 - **The reader** owns the keys. It holds a `Reading`, which is mostly the line being edited. Each key goes through `Shell.Editor.edit`, and the `Edit` it answers says what to do: show the line, send the input, cancel it, clear the screen, complete, document, or leave. Its mailbox is `ReaderMsg`, the terminal's events wrapped in `K`.
 - **The screen** is the only process that writes to the terminal. The session, the reader, and running programs all send it text. It keeps a `Shell.Region.Region` and writes the bytes the region gives back. Its mailbox is `ScreenMsg`. Without a terminal it runs `plainLoop` instead, which writes text as it comes.
 
-The messages, and who sends each:
-
-| Message | To | From | Meaning |
-|---|---|---|---|
-| `Typed(text)` | session | reader | an input, entered |
-| `Interrupted` | session | reader | `C-c` |
-| `Eof` | session | reader | `C-d` on an empty line |
-| `Ready` | session | reader | the reader has the keyboard |
-| `Done(outcome)` | session | the input's process | the run ended, with a value or a fault |
-| `Died(down)` | session | the front end's watcher | some process died |
-| `ReaderDied(down)` | session | a monitor | the reader died |
-| `Said(text)` | screen | session, reader | the shell's own text, committed to the transcript |
-| `Noted(text)` | screen | reader | a note shown while an input is typed |
-| `Wrote(text)` | screen | a running program | what a program writes, shown in the tail |
-| `Typing(text, at, rows)` | screen | reader, session | the line being typed, the cursor, and rows shown under it |
-| `Entered` | screen | reader | the line is finished and joins the transcript |
-| `Taken` | screen | session | the session has taken an input, which may have been typed ahead |
-| `Resize`, `Clear` | screen | reader | the terminal's size changed; `C-l` |
-| `Height(n)` | screen | session | `:set output n`, and `0` on quitting |
-| `Flush(reply)` | screen | session | answer once everything sent before is written |
+The three message types, `ShellMsg`, `ScreenMsg` and `ReaderMsg`, stand at the top of `shell.ern`; their comments say what each message means and who sends it.
 
 The same short names recur across modules. `Typing`, `Clear` and `Leave` are both `Shell.Editor.Edit` constructors and `Shell`'s own, and `State` is a type in `Shell` and in `Shell.Editor`. A name qualified with its module is that module's. An unqualified name is the file's own, or else the prelude's: `Event`, `Size`, `Down`, `IoError`, `Path`, and `Test` are the prelude's. The prelude also declares an `Entry`, so a module that declares its own writes the prelude's as `Prelude.Entry`.
 

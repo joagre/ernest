@@ -76,40 +76,22 @@ The steps:
    its entries share, each keeping the number it is cited by, and the settled entries have
    left it; this plan's "Done" is a paragraph a milestone, the detail being the log's and
    the history's.
-2. **Done 2026-09-25: the report read cold, by an implementer.** A reader who had not seen
-   Ernest read the report alone, as someone who must implement it, and reported every place
-   where two readings are possible, where a rule an implementation needs is missing, or
-   where they had to guess: 16 findings of the first kind, 33 of the second, and 30 of
-   wording, in [`report_cold_read.md`](report_cold_read.md), which holds them until each is
-   decided. Those that belong to a theme below are decided with it, and the rest in a batch
-   of their own after the themes.
+2. **Done 2026-09-25: the report read cold, by an implementer**, and its plain half written
+   into the report (the log's *The Report Read Cold, Its Plain Half*). What is open is in
+   [`report_cold_read.md`](report_cold_read.md), each finding under the theme that decides
+   it; what no theme takes is decided in step 9.
 3. **Names and namespaces**, the feedback list's first theme (items 2, 4, 17, 43, 46).
-   One decision, since the module namespace, a type's members, unique constructor names
-   and the absence of imports each move the others' costs. **Decided 2026-09-25: an
-   abstract type's boundary is its module** (items 32 and 33; report §4.4, the log's *An
-   Abstract Type's Boundary Is Its Module*): every definition of its module may use its
-   constructors, the `with { ... }` signature is gone, and an abstract type the module
-   keeps private is refused. The shell's editor state and region are abstract since, and a
-   history type was weighed and left (item 49). Next in the
-   theme: item 2, constructor names unique across a module's types.
+   **Decided 2026-09-25: an abstract type's boundary is its module** (report §4.4; the log's
+   *An Abstract Type's Boundary Is Its Module*); items 32, 33 and 49 went with it. Next:
+   item 2.
 4. **Expressions, patterns and types**, the second theme, field selection at its head (item
    51, with 18 and 19, then 3, 5, 36, 39, 45, 48 and 52). If field selection is taken, the
    report changes first: §3.5 for the rule, Appendix A for the production, §11.5 for what
    a selector on an absent field says.
-5. **Processes and the system**, the third theme, the registry at its head. §6.5 refuses a
-   registry; the node protocol note asks for one (its open question 8), and a restarted
-   service's new address has no other way to reach those who held the old one (MVP 2.66,
-   the guide's §6.4). Decided report first: a table per node from name to address, or the
-   argument that addresses handed on in messages suffice. With it, an address's identity
-   (item 24), since unregistering needs address equality, and either outcome changes the
-   shell: `:processes` lists three processes spawned by three inputs as `input:1` three
-   times. If addresses get equality, as *reaches the same process*, §3.10 loses the address
-   half of its exception, `Io.debug` prints the identity (E.1), `<address 3>`, and
-   `:processes` and a fault line show the same one; the runtime needs equal addresses to be
-   equal terms. If they do not, `Io.debug` keeps `<address>`, and `:processes` and a fault
-   line number each process for the shell alone. Then `:processes` as a function (item 26)
-   and the fault log (28), which turn on both, and the system modules' contracts (9, 27,
-   37, 47, 50). Items 14 and 25 stay with MVP 3.0 and 16 with MVP 2.7.
+5. **Processes and the system**, the third theme (items 9, 24, 26, 27, 28, 37, 47, 50, 53),
+   the registry at its head (item 53), an address's identity with it (item 24), since
+   unregistering needs equality; either outcome changes `:processes` and `Io.debug`, as item
+   24 says. Items 14 and 25 stay with MVP 3.0 and 16 with MVP 2.7.
 6. **The standard library under E.0**, the fourth theme, in three batches: where the line
    between a shim and Ernest runs (items 11, 13, 42), what a function is named and where it
    lives (38, 40, 41), and what the library lacks or has in a form that misleads (7, 8, 15,
@@ -121,7 +103,8 @@ The steps:
    rule that tells them apart is worth stating; the options that are modes rather than
    modifiers, `--doc`, `--test`, `--emit`, `--shell`, `--create-config-dir`, and whether a
    mode is a subcommand; `--create-config-dir`, a whole job in an option's clothes that
-   names the same directory as `--config-dir`; `--no-clean`, the only negative; and
+   names the directory's parent where `--config-dir` names the directory (the cold read's
+   3.12); `--no-clean`, the only negative; and
    `--errors short`, a value option with one value. The names are in §11.1 to §11.4, so
    each is a report change and worth deciding once.
 8. **The Erlang code's open questions**, from its review on 2026-09-25, gone through one by
@@ -477,31 +460,11 @@ appendix of libraries is MVP 2.7's, with `libs/ets`.
 ### The code read back after the shell (done 2026-09-25)
 
 Every line of Ernest under `shell/`, `stdlib/` and `libs/`, and every line of Erlang under
-`erl/`, read for what goes against the principles, for clumsy code, and for defects. The
-Ernest findings that are not plain fixes are in the feedback list, decided in MVP 2.65; the
-Erlang code's open questions are a step there too. The shell gained `Shell.Command`, one
-table of its commands, and `shell/README.md`, a guide to reading its code.
-
-- **Defects fixed**, each with a regression test: a tuple type unbalanced the parser's doc
-  comment pruning; an or-pattern's span was its first alternative's; the checker's effect
-  origin leaked out of a nested definition, a deferred operator was checked against the
-  wrong mailbox and lost its restrictions, and a local binding hid the module's own
-  qualified name; a module's own qualified call was emitted as a remote one, and a timed
-  receive could call the module's own `max`; a late reply stayed in the mailbox, a dead
-  system process stopped deadlock detection, a stdin error or an empty line crashed the
-  stdin process, two claims of the terminal could both win, a failed start left the next
-  run unable to begin, the key reader outlived its program, and a Tcp read after a timeout
-  was never answered; `:reload` could load half, the session's own modules could be
-  named, `:load` of a loaded module could kill its processes, completion mixed the fields
-  of two constructors of one name, a long name crashed the shell, `:doc .` crashed, and
-  `ernc` ignored the load path for a dependency.
-- **Decided, report first** (§2.3, §7.4, §11.2; the log's *The Code Read Back*): a name is
-  at most 255 characters; an input's module is `$Input<n>`, which no program can name;
-  `:load` refuses a loaded module and loads what a module uses; `:reload` loads all or
-  nothing; a standard input that cannot be read is a fault of the entry process; a
-  standard library initializer's fault is the program's; at the end of input a key
-  subscription is no longer a source, so a program waiting only for keys ends in a
-  deadlock; a callee that is not a function has no signature.
+`erl/`, read for what goes against the principles, for clumsy code, and for defects; about
+twenty-five defects fixed, each with a regression test, and the report's §2.3, §7.4 and §11.2
+changed first where a fix needed a rule. The shell gained `Shell.Command` and
+[`shell/README.md`](../shell/README.md). The log's *The Code Read Back* has the decisions,
+the feedback list the Ernest questions it raised, and MVP 2.65's step 8 the Erlang ones.
 
 ---
 

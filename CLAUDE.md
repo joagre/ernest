@@ -13,12 +13,15 @@ The rules are in the order of work: what is authoritative and who owns each fact
 ## Who owns each fact
 
 - **Each fact has one owner.** The report owns the language, [`docs/decisions.md`](docs/decisions.md) the rationale, [`docs/implementation_plan.md`](docs/implementation_plan.md) the roadmap, the code and its tests what is built, and [`docs/architecture.md`](docs/architecture.md) how the code is arranged.
+- **The other documents own one thing each.** [`docs/style.md`](docs/style.md) owns the code's form; the README the layout and the commands; a design note its component's design (`docs/shell_design.md`, `docs/node_protocol.md`, `docs/code_distribution.md`); [`shell/README.md`](shell/README.md) how the shell's code reads; and [`docs/language_feedback.md`](docs/language_feedback.md) and [`docs/report_cold_read.md`](docs/report_cold_read.md) the questions still open.
 - **The decisions log is rationale only.** It says why the report and the plan say what they say, and changes with them. It is never normative.
 - **The plan and the programs under `examples/` are illustrative.** They are the roadmap and the motivating examples, not sources of truth about the language.
 - **Every other document points at the owner and does not restate it.** The README says where things are, not what they are.
-- **A restatement is allowed in two cases only.** The guide restates the report, because teaching is restating. A list that must live both in the code and in a document has a test keeping the two equal; the tests that read `ernest_report.md` or the README are these mirrors. Any other restatement is a wart.
+- **Visible means a pointer where a reader looks, never a copy.** A fact a reader must not miss gets a line that names its owner, in the place that reader opens first.
+- **A restatement is allowed in two cases only.** A document meant to teach, the guide and `shell/README.md`, restates what it teaches, because teaching is restating. A list that must live both in the code and in a document has a test keeping the two equal; the tests that read `ernest_report.md` or the README are these mirrors. A teaching document that would repeat such a list without a test points at the code instead. Any other restatement is a wart.
 - **A sentence goes to its owner before it is written.** What will be built and when goes in the plan; why goes in the log. A paragraph that does both is split at that line.
 - **A decision the user must see goes in the plan.** The user reads the plan and not the log, so a decision that is only in the log is one the user will not see.
+- **The plan states a decision in a sentence and points; the log argues it.** The plan gives the decision in one sentence, with the report section that states it and the log entry that argues it. The log carries the argument and names the decision without restating the report's words. A finished milestone in the plan is a paragraph and its pointers.
 
 ## The repository
 

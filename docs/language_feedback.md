@@ -117,12 +117,16 @@ over several representations (52) is the largest of them.
 ## 3. Processes and the system
 
 What a process is to the program that holds its address, and what the system modules
-give. The registry, which the plan's MVP 2.65 decides from the node protocol note, leads:
-address identity (24) is decided with it, since unregistering needs it, and `:processes`
-as a function (26) turns on both. The rest are the system modules' contracts, one by one.
+give. The registry (53) leads: address identity (24) is decided with it, since
+unregistering needs it, and `:processes` as a function (26) turns on both. The rest are the system modules' contracts, one by one.
 Items 14 and 25 are MVP 3.0's, and 16 is MVP 2.7's; they are here because they are the
 same question.
 
+53. **A registry, or the argument that none is needed.** §6.5 refuses one, the node
+    protocol note asks for one (its open question 8), and a restarted service's new address
+    has no other way to reach those who held the old one (MVP 2.66, the guide's §6.4). A
+    table per node from name to address, or the argument that addresses handed on in
+    messages suffice. Unregistering needs address equality, so item 24 is decided with it.
 24. **A process has an identity no one can see.** `:processes` lists three processes spawned
     by three inputs as `input:1` three times, and nothing tells them apart: an address prints
     as `<address>` (E.1) and has no equality (§3.10), because `via(f, a) == a` was held to
@@ -137,8 +141,11 @@ same question.
     runtime: an adapted address is `{via, F, Target}`, and Erlang's `==`, which `Map`, `Set`
     and `List.contains` use, compares `F`, so equal addresses need a representation that is
     equal as a term, or an equality of the runtime's own. Across nodes the identity names
-    the node, as a pid does. Decided with the registry; the plan states what each outcome
-    changes.
+    the node, as a pid does. Decided with the registry (53). Either outcome changes the
+    shell: with equality, §3.10 loses the address half of its exception, `Io.debug` prints
+    the identity (E.1), `<address 3>`, and `:processes` and a fault line show the same one;
+    without it, `Io.debug` keeps `<address>`, and `:processes` and a fault line number each
+    process for the shell alone.
 26. **`:processes` as a function rather than a command.** The shell's `:processes` reads
     the runtime's record of every process it started, a door §11.2 opens for the shell
     alone; a program learns of a process only by holding its address, and of a death only
