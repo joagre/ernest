@@ -162,7 +162,7 @@ fn paint(rows : List(String), row : Int, at : Int) -> String =
 // is shown under them. Each is painted with its tabs already spaces,
 // since a row is placed by its columns and a tab's width depends on
 // where it falls.
-export fn rowsOf(r : Region) -> List(String) =
+fn rowsOf(r : Region) -> List(String) =
     List.map(tailRowsOf(r), fn(line) = clip(expand(line), width(r))) <> screenInput(r)
         <> offeredRows(r)
 
@@ -237,7 +237,7 @@ fn tailRowsOf(r : Region) -> List(String) = {
 // prompt and the rest after `... `. `String.lines` is not this split: a
 // text that ends in a line feed is being typed on a new empty row, and
 // that row is shown.
-export fn inputRows(r : Region) -> List(String) = {
+fn inputRows(r : Region) -> List(String) = {
     let Region(prompt = prompt, typed = typed) = r;
     match String.split(typed, "\n") {
         [] -> [prompt]
@@ -258,7 +258,7 @@ fn width(r : Region) -> Int = match r { Region(size = Size(columns = columns)) -
 // The row of the region the cursor rests on: the tail's rows, the screen
 // rows of the input's lines before the cursor's, and the rows the cursor's
 // own line wraps onto before it.
-export fn resting(r : Region) -> Int = {
+fn resting(r : Region) -> Int = {
     let Region(typed = typed, at = at) = r;
     let line = List.size(String.split(String.slice(typed, 0, at), "\n")) - 1;
     let earlier = List.flatMap(List.take(inputRows(r), line), fn(row) =
@@ -269,7 +269,7 @@ export fn resting(r : Region) -> Int = {
 // The column the cursor rests in, on the row its line wraps onto: what the
 // line holds before the cursor, tabs and all, is as many columns as it
 // paints.
-export fn column(r : Region) -> Int = offset(r) % Int.max(1, width(r)) + 1
+fn column(r : Region) -> Int = offset(r) % Int.max(1, width(r)) + 1
 
 // The columns before the cursor on its line, the prompt or `... ` among
 // them.
@@ -288,7 +288,7 @@ fn offset(r : Region) -> Int = {
 // has measured rather than leaving the tab to the terminal's own stops.
 // One character is one column here, which a wide glyph is not; that is
 // the design note's open question, and this is the function it changes.
-export fn expand(row : String) -> String = expanding(String.toList(row), "")
+fn expand(row : String) -> String = expanding(String.toList(row), "")
 
 fn expanding(chars : List(Char), done : String) -> String = match chars {
     [] -> done
@@ -301,7 +301,7 @@ fn expanding(chars : List(Char), done : String) -> String = match chars {
 // Report §11.2: an escape sequence, `ESC [` and what follows up to its
 // final character, sets how the terminal paints what comes after it and
 // takes no column. A row the shell colours is measured without them.
-export fn columns(row : String) -> Int = counting(String.toList(row), 0)
+fn columns(row : String) -> Int = counting(String.toList(row), 0)
 
 fn counting(chars : List(Char), n : Int) -> Int = match chars {
     [] -> n
@@ -341,12 +341,7 @@ fn right(n : Int) -> String = if n <= 0 then "" else "\u{1b}[" <> Int.toString(n
 // The text up to each line feed, and what is left without one.
 fn split(text : String) -> #(List(String), String) = match String.split(text, "\n") {
     [] -> #([], "")
-  | parts -> #(List.dropLast(parts), lastOr(parts))
-}
-
-fn lastOr(parts : List(String)) -> String = match List.last(parts) {
-    None -> ""
-  | Some(text) -> text
+  | parts -> #(List.dropLast(parts), Optional.withDefault(List.last(parts), ""))
 }
 
 //

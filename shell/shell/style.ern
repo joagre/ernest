@@ -58,7 +58,8 @@ let names = Test(name = "a name before its type is bold", run = fn() =
 
 let marksWithout = Test(name = "without colour the marked parameter is between asterisks",
     run = fn() =
-        if emphasis(false, "f : Int") == "*f : Int*" then Passed else Failed(emphasis(false, "f")))
+        if emphasis(false, "f : Int") == "*f : Int*" then Passed
+        else Failed(emphasis(false, "f : Int")))
 
 let empties = Test(name = "an empty text takes no colour", run = fn() =
     if emphasis(true, "") == "" then Passed else Failed("coloured nothing"))

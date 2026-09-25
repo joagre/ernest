@@ -4,9 +4,9 @@
 // event to what the reader must do next. GNU Readline's Emacs bindings;
 // `Escape` and the key after it are `Meta` and that key (§8.2).
 //
-// A module of its own, because it is the one part of the shell that is
-// pure and can therefore be tested on its own: the tests at the foot of
-// this file are what `ern --test` runs (§9.3).
+// Pure, and tested on its own: the tests at the foot of this file are
+// what `ern --test` runs (§9.3). The reader holds a `State` and reads it
+// through the functions here, never by its fields.
 //
 
 // What is being edited: the line and the cursor, what was last killed,
@@ -30,11 +30,12 @@ export type Pending = Plain | Meta | Bracket
 export type Search = Search(query : String, back : Int, from : Int, before : String,
     forward : Bool)
 
-export type Edit = Typing(State) | Submit(State) | Cancel | Clear(State)
-  | Completing(State) | Documenting(State) | Leave
+export type Edit =
+    Typing(State) | Submit(State) | Cancel | Clear(State) | Completing(State) | Documenting(State)
+  | Leave
 
 // Nothing typed yet and nothing behind it.
-export let fresh = State(text = "", at = 0, kill = "", pending = Plain, history = [],
+let fresh = State(text = "", at = 0, kill = "", pending = Plain, history = [],
     back = 0, saved = "", search = None)
 
 // A session's first line, after the inputs of the sessions before it,
@@ -47,19 +48,14 @@ export fn start(history : List(String)) -> State = State(..fresh, history = hist
 export fn next(state : State) -> State = match state {
     State(text = text, kill = kill, history = history) ->
         State(..fresh, kill = kill,
-            history = if keeps(state, text) then text :: history else history)
+            history = if keeps(state) then text :: history else history)
 }
 
 // Report §11.2: a blank input and one equal to the input before it are
 // not kept, in the history or in the file.
-export fn keeps(state : State, text : String) -> Bool = match state {
-    State(history = history) ->
-        !String.isEmpty(String.trim(text)) && List.get(history, 0) != Some(text)
-}
+export fn keeps(State(text = text, history = history) : State) -> Bool =
+    !String.isEmpty(String.trim(text)) && List.get(history, 0) != Some(text)
 
-// What the reader shows on the line and where the cursor stands in it:
-// the line itself, or, while a search runs, Readline's search prompt
-// with the match after it.
 // Report §11.2: another line of the same input, which `M-Enter` asks
 // for and `Enter` does where the parser cannot finish what is typed.
 export fn newline(state : State) -> State = insert(state, "\n")
@@ -69,6 +65,21 @@ export fn newline(state : State) -> State = insert(state, "\n")
 export fn typed(state : State, text : String, at : Int) -> State =
     State(..state, text = text, at = at)
 
+// The line being edited and the cursor in it, a search aside.
+export fn text(State(text = text) : State) -> String = text
+
+export fn at(State(at = at) : State) -> Int = at
+
+// Whether the keys so far have begun a sequence the next key ends
+// (report §8.2).
+export fn midSequence(state : State) -> Bool = match state {
+    State(pending = Plain) -> false
+  | _ -> true
+}
+
+// What the reader shows on the line and where the cursor stands in it:
+// the line itself, or, while a search runs, Readline's search prompt
+// with the match after it.
 export fn shown(state : State) -> String = match state {
     State(search = None, text = text) -> text
   | State(search = Some(s), text = text) -> asked(s, text) <> text
@@ -190,10 +201,8 @@ fn walkTo(state : State, to : Int) -> State = {
 }
 
 // The nth input back, 1 being the one before this line.
-fn entry(history : List(String), n : Int) -> String = match List.get(history, n - 1) {
-    Some(text) -> text
-  | None -> ""
-}
+fn entry(history : List(String), n : Int) -> String =
+    Optional.withDefault(List.get(history, n - 1), "")
 
 fn behind(state : State) -> List(String) = match state { State(history = history) -> history }
 
@@ -277,10 +286,8 @@ fn matched(state : State, s : Search, n : Int) -> State = {
         search = Some(Search(..s, back = n)))
 }
 
-fn matchAt(text : String, query : String) -> Int = match String.indexOf(text, query) {
-    Some(i) -> i
-  | None -> String.size(text)
-}
+fn matchAt(text : String, query : String) -> Int =
+    Optional.withDefault(String.indexOf(text, query), String.size(text))
 
 fn find(history : List(String), query : String, from : Int, step : Int) -> Optional(Int) =
     if from < 1 || from > List.size(history) then None
@@ -296,7 +303,8 @@ fn step(s : Search) -> Int = match s {
 // which is what makes the editor testable on its own.
 //
 
-fn insert(state : State, what : String) -> State = {
+// Text put in at the cursor, which is left after it.
+export fn insert(state : State, what : String) -> State = {
     let State(text = text, at = at) = state;
     State(..state, text = String.slice(text, 0, at) <> what <> from(text, at),
         at = at + String.size(what))
@@ -493,8 +501,8 @@ let kept = Test(name = "the line just taken joins the history", run = fn() =
     })
 
 let notKept = Test(name = "a blank input and one repeated are not kept", run = fn() =
-    if !keeps(start(["one"]), "  ") && !keeps(start(["one"]), "one")
-        && keeps(start(["one"]), "two") then Passed
+    if !keeps(typed(start(["one"]), "  ", 0)) && !keeps(typed(start(["one"]), "one", 0))
+        && keeps(typed(start(["one"]), "two", 0)) then Passed
     else Failed("the history kept what it should not"))
 
 // Every event of a text typed a character at a time.

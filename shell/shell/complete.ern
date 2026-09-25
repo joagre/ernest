@@ -15,8 +15,8 @@ export type Kind = Value | Type | Constructor | Module
 // own kinds of name, which is what a completion is filtered by.
 // `Anything` is the shell's, for a command's argument, whose names the
 // command has chosen already.
-export type Where = Expression | TypeName | Pattern | Declaration | Fields(List(Name))
-  | Anything
+export type Where =
+    Expression | TypeName | Pattern | Declaration | Fields(List(Name)) | Anything
 
 // A name the shell can complete to: as it is typed, what it is, and the
 // line a listing shows, which carries its type.
@@ -24,9 +24,9 @@ export type Name = Name(text : String, kind : Kind, shown : String)
 
 // What a `Tab` does: the word that stands in place of the one before
 // the cursor, and the names it could still be, which a second `Tab`
-// lists, a lone one too. The word replaces rather than extends, since an abbreviation
-// is no prefix of what it reaches: `L.fm` becomes `List.filterMap`.
-// An empty word changes nothing.
+// lists, a lone one too. The word replaces rather than extends, since an
+// abbreviation is no prefix of what it reaches: `L.fm` becomes
+// `List.filterMap`. A completion whose word is empty changes nothing.
 export type Completion = Completion(word : String, candidates : List(Name))
 
 export let nothing = Completion(word = "", candidates = [])
@@ -34,10 +34,9 @@ export let nothing = Completion(word = "", candidates = [])
 // Report §11.2: the word before the cursor completes against the names
 // in scope, segment by segment, so `Li` gives `List.` and `List.ma`
 // gives `List.map`. Nothing typed reaches every name admitted there,
-// which is what a `Tab` after a command lists.
-// The word is the caller's to give, since only it knows what a word is
-// where the cursor stands: the shell's own commands begin with a `:`,
-// which is no part of a name.
+// which is what a `Tab` after a command lists. The word is the caller's
+// to give, since only it knows what a word is where the cursor stands:
+// the shell's own commands begin with a `:`, which is no part of a name.
 export fn complete(typed : String, names : List(Name), where : Where) -> Completion =
     match matches(typed, admitted(names, where)) {
         #([], []) -> nothing
@@ -266,9 +265,6 @@ let prefixFirst = Test(name = "a prefix is listed before an abbreviation", run =
 
 let noneAtAll = Test(name = "a word that reaches nothing completes to nothing", run = fn() =
     becomes(complete(word("Zz"), library(), Expression), ""))
-
-let inTheMiddle = Test(name = "the word before the cursor is what completes", run = fn() =
-    becomes(complete(word("List.ma"), library(), Expression), "List.map"))
 
 let words = Test(name = "a word ends where a name cannot go on", run = fn() = {
     let seen = word("1 + List.ma");

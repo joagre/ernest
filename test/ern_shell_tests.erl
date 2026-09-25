@@ -157,7 +157,7 @@ editor() ->
     %% every compiled module of the shell, so that a module's tests run
     %% from the day it is written; region's and complete's had not
     Modules = filelib:wildcard("../build/shell/**/*.erc"),
-    ?assert(length(Modules) >= 6),
+    ?assert(length(Modules) >= 7),
     %% the shell renders documentation with libs/markdown, which a run of
     %% its modules puts on the load path as any program using a library does
     Runs = ["../bin/ern --load-path ../build/libs/markdown --test " ++ M || M <- Modules],

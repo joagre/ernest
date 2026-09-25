@@ -77,12 +77,12 @@ fn made(path : Path) -> Either(IoError, Unit) with m = match Path.parent(path) {
 // it is written `\n` and a backslash `\\`.
 //
 
-export fn encode(input : String) -> String =
+fn encode(input : String) -> String =
     String.replace(String.replace(input, "\\", "\\\\"), "\n", "\\n")
 
 // Left to right, since `\\n` is a backslash and an `n` and not a
 // newline; two passes of `String.replace` would read it as one.
-export fn decode(line : String) -> String = undo(line, "")
+fn decode(line : String) -> String = undo(line, "")
 
 fn undo(rest : String, done : String) -> String =
     if String.isEmpty(rest) then done

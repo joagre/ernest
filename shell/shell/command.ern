@@ -1,0 +1,252 @@
+//
+// The shell's commands (report §11.2), designed in docs/shell_design.md:
+// the one table every part of the shell reads, what a command's name
+// selects, what a command line is, what completes after it, what the
+// help says, and what `:set` sets. Pure, and tested by `ern --test`; the
+// session carries the actions out.
+//
+
+// What a command does.
+export type Action =
+    Bindings | Browse | Doc | Faults | Forget | Help | Load | Output | Processes | Quit
+  | Reload | Set | Type
+
+// Report §11.2: what completes after a command's name. A path is an
+// argument, but nothing completes it.
+export type Completes =
+    Expressions | Modules | SourceModules | Names | SessionNames | SettingWords | Paths
+
+// What a command takes after its name: nothing, a word it needs, named in
+// its refusal, or a word it allows.
+export type Takes = Nothing | Needs(what : String, completes : Completes) | Allows(Completes)
+
+// A command: its name, what it does and takes, the word its help line
+// shows for what it takes, and the rest of that line.
+export type Command =
+    Command(name : String, action : Action, takes : Takes, placeholder : String, about : String)
+
+// Report §11.2: the commands, in the alphabetical order the help lists them.
+export let commands = [
+    Command(name = "bindings", action = Bindings, placeholder = "",
+        takes = Nothing,
+        about = "what the session declares, with their types"),
+    Command(name = "browse", action = Browse, placeholder = "Module",
+        takes = Needs(what = "a module", completes = Modules),
+        about = "the exports of Module with their types"),
+    Command(name = "doc", action = Doc, placeholder = "Name",
+        takes = Needs(what = "a name", completes = Names),
+        about = "the documentation of Name, which GHCi calls :info"),
+    Command(name = "faults", action = Faults, placeholder = "",
+        takes = Nothing,
+        about = "the faults reported since the session began"),
+    Command(name = "forget", action = Forget, placeholder = "name",
+        takes = Needs(what = "a name, or * for all of them", completes = SessionNames),
+        about = "forget a name the session declared, or * for all of them"),
+    Command(name = "help", action = Help, placeholder = "",
+        takes = Nothing,
+        about = "this text"),
+    Command(name = "load", action = Load, placeholder = "Module",
+        takes = Needs(what = "a module", completes = SourceModules),
+        about = "the module by its namespace, compiled from its source"),
+    Command(name = "output", action = Output, placeholder = "path",
+        takes = Allows(Paths),
+        about = "send what programs write to path, or - back to the tail"),
+    Command(name = "processes", action = Processes, placeholder = "",
+        takes = Nothing,
+        about = "the live processes of the session, by spawn site"),
+    Command(name = "quit", action = Quit, placeholder = "",
+        takes = Nothing,
+        about = "leave, as C-d on an empty line does"),
+    Command(name = "reload", action = Reload, placeholder = "",
+        takes = Nothing,
+        about = "every loaded module whose source has changed"),
+    Command(name = "set", action = Set, placeholder = "",
+        takes = Allows(SettingWords),
+        about = settingsAbout),
+    Command(name = "type", action = Type, placeholder = "e",
+        takes = Needs(what = "an expression", completes = Expressions),
+        about = "the type of e, which is not run")
+]
+
+// Report §11.2: a command line, the action its name selects and the
+// argument after it, or the refusal that says why it selects none.
+export fn parse(line : String) -> Either(String, #(Action, String)) = {
+    let #(word, arg) = split(line);
+    match pick(String.slice(word, 1, String.size(word) - 1)) {
+        Unknown -> Left("no command " <> word <> "; :help lists them")
+      | Ambiguous(names) -> Left(word <> " is " <> alternatives(names))
+      | Picked(Command(name = name, action = action, takes = takes)) -> match takes {
+            Needs(what = what) when String.isEmpty(arg) -> Left(":" <> name <> " takes " <> what)
+          | Nothing when !String.isEmpty(arg) -> Left(":" <> name <> " takes no argument")
+          | _ -> Right(#(action, arg))
+        }
+    }
+}
+
+// What a command's name selects: one command, none, or several, which
+// report §11.2 refuses with their names.
+type Picked = Picked(Command) | Unknown | Ambiguous(List(String))
+
+// Report §11.2: a name selects its command, and so does a prefix of it that
+// begins no other command's name.
+fn pick(name : String) -> Picked = {
+    let begun = List.filter(commands, fn(c) = String.startsWith(nameOf(c), name));
+    match List.filter(begun, fn(c) = nameOf(c) == name) {
+        [whole] -> Picked(whole)
+      | _ ->
+            if String.isEmpty(name) then Unknown
+            else match begun {
+                [] -> Unknown
+              | [one] -> Picked(one)
+              | many -> Ambiguous(List.map(many, nameOf))
+            }
+    }
+}
+
+fn nameOf(Command(name = name) : Command) -> String = name
+
+// `:bindings or :browse`, and `:a, :b or :c` for three.
+fn alternatives(names : List(String)) -> String = words(List.map(names, fn(name) = ":" <> name))
+
+// `a or b`, and `a, b or c` for three.
+fn words(ws : List(String)) -> String = match List.last(ws) {
+    None -> ""
+  | Some(last) ->
+        if List.size(ws) == 1 then last else String.join(List.dropLast(ws), ", ") <> " or " <> last
+}
+
+// A command line: its first word, the command with its `:`, and what
+// follows it, trimmed.
+fn split(line : String) -> #(String, String) = {
+    let end = wordEnd(line);
+    #(String.slice(line, 0, end), String.trim(String.slice(line, end, String.size(line) - end)))
+}
+
+// Report §11.2: a command's own word is everything up to the first space,
+// which is where its argument begins.
+export fn wordEnd(line : String) -> Int =
+    Optional.withDefault(String.indexOf(line, " "), String.size(line))
+
+// Report §11.2: what completes after a command's word, where it takes
+// anything after it.
+export fn completes(word : String) -> Optional(Completes) =
+    match pick(String.slice(word, 1, String.size(word) - 1)) {
+        Picked(Command(takes = Needs(completes = k))) -> Some(k)
+      | Picked(Command(takes = Allows(k))) -> Some(k)
+      | _ -> None
+    }
+
+// Report §11.2: the help, a line for each command. Completion lists a
+// command by the same line.
+export fn help() -> List(String) =
+    ["Commands, which a prefix of the name selects where it begins no other:"]
+        <> List.map(commands, fn(c) = "  " <> line(c))
+        <> ["The value of the last expression is `it`."]
+
+export fn line(Command(name = name, placeholder = placeholder, about = about) : Command)
+    -> String = {
+    let head = if String.isEmpty(placeholder) then name else name <> " " <> placeholder;
+    String.padEnd(":" <> head, column, ' ') <> about
+}
+
+// The column a help line's prose starts at, past the longest command and
+// its word.
+let column = 16
+
+//
+// `:set`
+//
+
+// Report §11.2: what `:set` sets, each with the word its value is.
+export let settings = [#("depth", "n"), #("length", "n"), #("output", "n"),
+    #("timing", "on or off")]
+
+let settingsAbout =
+    String.join(List.map(settings, fn(#(name, value)) = name <> " " <> value), ", ")
+        <> "; :set alone shows them"
+
+// What one `:set` sets.
+export type Setting = Depth(Int) | Length(Int) | OutputRows(Int) | Timing(Bool)
+
+// Report §11.2: what `:set`'s argument sets, or the refusal that says why
+// it sets nothing.
+export fn setting(arg : String) -> Either(String, Setting) = match split(arg) {
+    #("depth", rest) -> count("depth", rest, Depth)
+  | #("length", rest) -> count("length", rest, Length)
+  | #("output", rest) -> count("output", rest, OutputRows)
+  | #("timing", "on") -> Right(Timing(true))
+  | #("timing", "off") -> Right(Timing(false))
+  | #("timing", _) -> Left(":set timing takes on or off")
+  | _ -> Left(":set takes " <> words(List.map(settings, fn(#(name, _)) = name)))
+}
+
+fn count(what : String, text : String, made : (Int) -> Setting) -> Either(String, Setting) =
+    match String.toInt(text) {
+        Some(n) -> if n < 0 then Left(":set " <> what <> " takes 0 or more") else Right(made(n))
+      | None -> Left(":set " <> what <> " takes a number")
+    }
+
+//
+// Tests
+//
+
+let prefixes = Test(name = "a prefix that begins one name selects it, two are refused",
+    run = fn() = match #(pick("br"), pick("b"), pick("zz")) {
+        #(Picked(Command(name = "browse")), Ambiguous(["bindings", "browse"]), Unknown) -> Passed
+      | _ -> Failed("pick")
+    })
+
+let whole = Test(name = "a whole name selects its command", run = fn() =
+    match pick("set") {
+        Picked(Command(name = "set")) -> Passed
+      | _ -> Failed("set")
+    })
+
+let alphabetical = Test(name = "the commands are in alphabetical order", run = fn() = {
+    let names = List.map(commands, nameOf);
+    if names == List.sort(names, String.compare) then Passed else Failed(String.join(names, " "))
+})
+
+let lines = Test(name = "a command line is its action and its argument, trimmed", run = fn() =
+    match #(parse(":br  List "), parse(":help")) {
+        #(Right(#(Browse, "List")), Right(#(Help, ""))) -> Passed
+      | _ -> Failed("parse")
+    })
+
+let refusals = Test(name = "a command line that selects nothing says why", run = fn() = {
+    let said = List.map([":zz", ":f", ":b", ":type", ":help me"], fn(line) = match parse(line) {
+        Left(text) -> text
+      | Right(_) -> "accepted"
+    });
+    if said == ["no command :zz; :help lists them", ":f is :faults or :forget",
+        ":b is :bindings or :browse", ":type takes an expression", ":help takes no argument"]
+    then Passed else Failed(String.join(said, " | "))
+})
+
+let three = Test(name = "three alternatives read as a list", run = fn() =
+    if alternatives(["a", "b", "c"]) == ":a, :b or :c" then Passed
+    else Failed(alternatives(["a", "b", "c"])))
+
+let completing = Test(name = "what completes is what the command takes", run = fn() =
+    match #(completes(":load"), completes(":output"), completes(":help"), completes(":zz")) {
+        #(Some(SourceModules), Some(Paths), None, None) -> Passed
+      | _ -> Failed("completes")
+    })
+
+let helpLines = Test(name = "a help line's prose starts in one column", run = fn() =
+    match pick("browse") {
+        Picked(c) ->
+            if line(c) == ":browse Module  the exports of Module with their types" then Passed
+            else Failed(line(c))
+      | _ -> Failed("browse")
+    })
+
+let settingsRead = Test(name = "a setting reads its value, and refuses what is not one",
+    run = fn() =
+        match #(setting("depth 3"), setting("timing on"), setting("depth -1"), setting("width 2")) {
+            #(Right(Depth(3)), Right(Timing(true)), Left(negative), Left(unknown)) ->
+                if negative == ":set depth takes 0 or more"
+                    && unknown == ":set takes depth, length, output or timing"
+                then Passed else Failed(negative <> " | " <> unknown)
+          | _ -> Failed("setting")
+        })
