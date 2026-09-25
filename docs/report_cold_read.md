@@ -14,13 +14,15 @@ marked as theirs; they are not decisions. The reader thought 1.9, 2.30 and 3.14 
 settled by a convention the report does not state.
 
 Where a finding belongs to a theme of the feedback list, it is decided with that theme:
-2.7, 2.8, 2.9, 2.11, 2.12 and 3.9 with names and namespaces; 1.1, 1.3, 1.9, 1.10, 1.11,
+2.7, 2.8, 2.9, 2.12 and 3.9 with names and namespaces; 1.1, 1.3, 1.9, 1.10, 1.11,
 1.12, 2.1 to 2.6, 2.31 and 2.32 with expressions, patterns and types; 1.8, 1.16, 2.18,
 2.19, 2.20, 2.28, 2.29 and 3.29 with processes and the system; 1.7, 1.14, 1.15, 2.24 to
 2.27 and 3.10, 3.11 with the standard library; 2.33, 3.12 and 3.30 with the toolchain. The
 rest are the report's own, decided in a batch of their own.
 
-Already fixed: 3.1, a cross-reference to §11.1 written the same day, now gone.
+Already decided: 3.1, a cross-reference to §11.1 written the same day, removed; and 2.10,
+2.11 and 3.13 with an abstract type's boundary (report §4.4, 2026-09-25): an abstract type's
+fields may name a private type, and there is no signature to leave a definition out of.
 
 ## Rank 1
 
@@ -159,13 +161,6 @@ declaration error.
 declarations of one qualified name: nothing on two private `fn f`, a `fn f` beside a
 `let f`, or a local `fn` and a `let` of one name in a block.
 
-2.10. **Private field types in an exported abstract type.** L259: "the field types of an
-exported type may not name a type the module keeps private". Does that hold where the
-constructors are hidden?
-
-2.11. **A signature entry without a definition** (§4.4 L280): an error or not? Must a
-definition match its entry exactly, or may it be more general?
-
 2.12. **Taken namespaces and the prelude's types.** §4.2 (L261) forbids coinciding with "a
 namespace of the prelude". Whether `Event`, `Size`, `Entry`, `Test`, `Down`, `Address` and
 `Sys` count, and so whether `event.ern`, `test.ern`, `address.ern` or `sys.ern` at the root
@@ -285,9 +280,6 @@ wait for a reply and take no milliseconds.
 3.12. **The configuration directory.** `--config-dir dir` names the `.ernest` directory
 itself (default `./.ernest`, L873), but `--create-config-dir dir` creates `dir/.ernest`
 (L877).
-
-3.13. **Singular against plural.** §4.4 (L280) "whose constructor may appear", §3.6
-"constructors".
 
 3.14. **"Appears … as well".** §4.2 (L259) "The qualified name appears at use sites, in the
 module itself as well" reads as mandatory, against unqualified lookup.

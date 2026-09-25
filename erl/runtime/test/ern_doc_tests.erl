@@ -174,22 +174,15 @@ version(Text) ->
     Trimmed = string:trim(unicode:characters_to_list(Text)),
     [list_to_integer(P) || P <- string:split(Trimmed, ".", all)].
 
-%% Appendix E.0 rule 6: every exported declaration has a doc block, a
-%% member of an abstract type at its signature entry if not its own
+%% Appendix E.0 rule 6: every exported declaration has a doc block
 doc_exported_documented_test_() ->
     [{atom_to_list(hd(Ns)), fun() -> documented(File) end} || {Ns, File} <- modules()].
 
 documented(File) ->
     {ok, Src} = file:read_file(File),
     {ok, Decls} = ern_parser:parse_string(Src),
-    Entries = [{T, N} || #abstract_decl{type = #type_decl{name = T}, signatures = Sigs} <- Decls,
-                         #signature{name = N, doc = Doc} <- Sigs, Doc =/= undefined],
-    ?assertEqual([], [decl_names(D) || D <- Decls, exported_decl(D), doc_field(D) =:= undefined,
-                                       not lists:member(member_of(D), Entries)]).
-
-member_of(#fn_decl{owner = O, name = N}) -> {O, N};
-member_of(#let_decl{owner = O, name = N}) -> {O, N};
-member_of(_) -> none.
+    ?assertEqual([], [decl_names(D) || D <- Decls, exported_decl(D),
+                                       doc_field(D) =:= undefined]).
 
 %% Appendix E.0 rule 6: every exported function is called by an example on
 %% the page, the module's or its own; an operator member, used infix, is

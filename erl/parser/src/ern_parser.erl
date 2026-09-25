@@ -96,10 +96,10 @@ doc_end(Pos, Text) ->
 
 %% A doc token survives only where report §2.2 attaches it: on the line
 %% before a declaration, or, inside a type declaration, before a
-%% constructor, a field, or a signature entry; elsewhere it is an ordinary
-%% comment. InType is true inside a type or abstract type declaration,
-%% where no expression can occur. Depth counts the open brackets, so that
-%% only a declaration keyword outside every bracket ends a type.
+%% constructor or a field; elsewhere it is an ordinary comment. InType is
+%% true inside a type or abstract type declaration, where no expression can
+%% occur. Depth counts the open brackets, so that only a declaration keyword
+%% outside every bracket ends a type.
 prune_docs(Ts) ->
     prune_docs(Ts, false, 0).
 
@@ -228,24 +228,15 @@ abstract_decl([{abstract, Pos} | R], Doc, Export) ->
                    [{type, _} | _] -> type_decl(R, undefined, false);
                    [T | _] -> fail(pos(T), "expected `type` after `abstract`")
                end,
-    R2 = expect(expect(R1, with), '{'),
-    {Sigs, R3} = sep_by(R2, ';', fun signature/1),
-    w({#abstract_decl{pos = Pos, doc = Doc, export = Export, type = TD, signatures = Sigs},
-       expect(R3, '}')}).
-
-signature(Ts) ->
-    {Doc, Ts1} = doc(Ts),
-    signature(Ts1, Doc).
-
-signature([{ident, Pos, Name} | R], Doc) ->
-    {T, R1} = type(expect(R, ':')),
-    w({#signature{pos = Pos, doc = Doc, name = Name, type = T}, R1});
-signature([{Op, Pos} | R], Doc) when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/';
-                                     Op =:= '%'; Op =:= '<>' ->
-    {T, R1} = type(expect(R, ':')),
-    w({#signature{pos = Pos, doc = Doc, name = Op, type = T}, R1});
-signature([T | _], _) ->
-    fail(pos(T), "expected a signature name instead of " ++ describe(T)).
+    case R1 of
+        [{with, WPos} | _] ->
+            %% report §4.4: the module is an abstract type's boundary, so
+            %% there is no list of the definitions that may see inside it
+            fail(WPos, "an abstract type has no signature: every definition of its module"
+                       " may use its constructors, so leave out `with { ... }`");
+        _ ->
+            w({#abstract_decl{pos = Pos, doc = Doc, export = Export, type = TD}, R1})
+    end.
 
 fn_decl([{fn, Pos} | R], Doc, Export) ->
     {Owner, Name, R1} = decl_name(R),

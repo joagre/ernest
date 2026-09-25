@@ -83,13 +83,16 @@ The steps:
    wording, in [`report_cold_read.md`](report_cold_read.md), which holds them until each is
    decided. Those that belong to a theme below are decided with it, and the rest in a batch
    of their own after the themes.
-3. **Names and namespaces**, the feedback list's first theme (items 2, 4, 17, 32, 33, 43,
-   46, 49). One decision, since the module namespace, a type's members, unique constructor
-   names and the absence of imports each move the others' costs; it settles where an
-   abstract type's boundary lies, and so whether the shell's editor state and the standard
-   library's `Random.Seed` and `Path` become abstract.
+3. **Names and namespaces**, the feedback list's first theme (items 2, 4, 17, 43, 46, 49).
+   One decision, since the module namespace, a type's members, unique constructor names
+   and the absence of imports each move the others' costs. **Decided 2026-09-25: an
+   abstract type's boundary is its module** (items 32 and 33; report §4.4, the log's *An
+   Abstract Type's Boundary Is Its Module*): every definition of its module may use its
+   constructors, the `with { ... }` signature is gone, and an abstract type the module
+   keeps private is refused. The shell's editor state is abstract since. Next in the
+   theme: item 2, constructor names unique across a module's types.
 4. **Expressions, patterns and types**, the second theme, field selection at its head (item
-   51, with 18 and 19, then 3, 5, 36, 39, 45 and 48). If field selection is taken, the
+   51, with 18 and 19, then 3, 5, 36, 39, 45, 48 and 52). If field selection is taken, the
    report changes first: §3.5 for the rule, Appendix A for the production, §11.5 for what
    a selector on an absent field says.
 5. **Processes and the system**, the third theme, the registry at its head. §6.5 refuses a

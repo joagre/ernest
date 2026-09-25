@@ -26,17 +26,9 @@ type SessionMsg =
     Visit(id : SessionId, reply : Reply(Int)) // the session's visits, this one counted
   | Forget
 
-abstract type StatusCode = StatusCode(Int) with {
-    ok : StatusCode;
-    notFound : StatusCode;
-    render : (StatusCode) -> String
-}
+type StatusCode = StatusCode(Int)
 
-abstract type SessionId = SessionId(String) with {
-    fresh : (Int) -> SessionId;
-    parse : (String) -> Optional(SessionId);
-    text : (SessionId) -> String
-}
+type SessionId = SessionId(String)
 
 //
 // Program

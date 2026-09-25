@@ -78,11 +78,7 @@ Template.Circle(centre = Template.Point(x = 0, y = 0), radius = 1)
 ## Template.Stack
 
 ```ernest
-abstract type Stack with {
-    empty : Stack;
-    push : (Shape, Stack) -> Stack;
-    pop : (Stack) -> Optional(#(Shape, Stack))
-}
+abstract type Stack
 ```
 
 Shapes in the order they were pushed, most recent on top. The
@@ -97,10 +93,6 @@ Template.Stack.push(Template.Dot(Template.Point(x = 0, y = 0)), Template.Stack.e
 ### See also
 
 `List` (Appendix E.2), which a stack is a restriction of.
-
-- `empty : Stack`: The stack with nothing on it.
-- `push : (Shape, Stack) -> Stack`: The stack with the shape on top.
-- `pop : (Stack) -> Optional(#(Shape, Stack))`: The top shape and the rest, `None` when the stack is empty.
 
 ## Template.Stack.empty
 

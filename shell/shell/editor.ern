@@ -6,15 +6,16 @@
 //
 // Pure, and tested on its own: the tests at the foot of this file are
 // what `ern --test` runs (§9.3). The reader holds a `State` and reads it
-// through the functions here, never by its fields.
+// through the functions here, since its constructor is this module's.
 //
 
 // What is being edited: the line and the cursor, what was last killed,
 // what the keys before this one have begun, the inputs before this one
 // with how far back through them the person has walked, the line they
 // were typing when they began to walk, and the search when one is
-// running.
-export type State = State(text : String, at : Int, kill : String, pending : Pending,
+// running. Abstract (report §4.4): the editor alone keeps the cursor
+// inside the line and a search's place inside the history.
+export abstract type State = State(text : String, at : Int, kill : String, pending : Pending,
     history : List(String), back : Int, saved : String,
     search : Optional(Search))
 
@@ -22,12 +23,12 @@ export type State = State(text : String, at : Int, kill : String, pending : Pend
 // arrives as `Escape` and the characters after it, so the editor reads
 // one: `Escape` begins a Meta key, and `Escape [` begins the rest of a
 // sequence, of which `Escape [ Z` is `Shift-Tab`.
-export type Pending = Plain | Meta | Bracket
+type Pending = Plain | Meta | Bracket
 
 // An incremental search: what has been typed to search for, where in the
 // history the match is, where the walk stood and what was being typed
 // when the search began, and its direction.
-export type Search = Search(query : String, back : Int, from : Int, before : String,
+type Search = Search(query : String, back : Int, from : Int, before : String,
     forward : Bool)
 
 export type Edit =

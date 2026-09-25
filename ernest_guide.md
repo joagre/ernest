@@ -1318,7 +1318,7 @@ Directory mode compiles the modules in the order their dependencies need, and a 
 
 **Declarations use local names.** In `net/http.ern`, `export fn parse(...)` declares `parse`, which the code outside reaches as `Net.Http.parse`, and the code inside by either name.
 
-**`export` marks the boundary.** A declaration with `export` is visible from other modules, and one without is the module's own. There is no `import` and no export list. The constructors of an exported type are exported with it; an abstract type's constructor is visible only to the definitions its signature lists (§7.2). An exported declaration's type, and an exported type's fields, may name only exported types. A function's mailbox type is exempt, so an exported `main` may receive a private message type (report §4.2).
+**`export` marks the boundary.** A declaration with `export` is visible from other modules, and one without is the module's own. There is no `import` and no export list. The constructors of an exported type are exported with it; an abstract type's constructors are visible only in its own module (§7.2). An exported declaration's type, and the fields of an exported type that is not abstract, may name only exported types. A function's mailbox type is exempt, so an exported `main` may receive a private message type (report §4.2).
 
 **A module's own name hides the prelude's.** A module may declare its own `Close`, which then means its own throughout the module; `Prelude.Close` still names the prelude's (report §4.2).
 
@@ -1349,50 +1349,37 @@ $ ern --main Tools.check build/main.erc
 
 ### 7.2 Abstract types
 
-An abstract type has a private representation and a public signature: only the definitions its `with { ... }` lists may name its constructor. A type's operations are declared with its name before theirs, `fn Stack.push`, and the type is then a namespace inside its module; report §4.8 declares operators on a type the same way, `fn Distance.+`.
+An abstract type keeps its representation to its module: every definition in the module may name its constructor, and no other module can. A type's operations are declared with its name before theirs, `fn Stack.push`, and the type is then a namespace inside its module; report §4.8 declares operators on a type the same way, `fn Distance.+`.
 
 ```ernest
 // main.ern  (namespace Main)
-export abstract type Stack(a) = Stack(List(a)) with {
-    empty : Stack(a);
-    push : (a, Stack(a)) -> Stack(a);
-    pop : (Stack(a)) -> Optional(#(a, Stack(a)))
-}
+export abstract type Stack(a) = Stack(List(a))
 
 export let Stack.empty : Stack(a) = Stack([])
 export fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) = Stack(x :: xs)
 export fn Stack.pop(Stack(xs) : Stack(a)) -> Optional(#(a, Stack(a))) =
     match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
 
-export fn Stack.isEmpty(s : Stack(a)) -> Bool = match Stack.pop(s) {
-    None -> true
-  | Some(_) -> false
-}
+export fn Stack.size(Stack(xs) : Stack(a)) -> Int = List.size(xs)
 ```
 
-Inside `main.ern` the operations are `Stack.push` and the rest; outside, they are `Main.Stack.push`, and `Main.Stack([])` is an error.
+Inside `main.ern` the operations are `Stack.push` and the rest, and any definition may take a `Stack` apart, a private helper or a test included. Outside, they are `Main.Stack.push`, and `Main.Stack([])` is an error: another module sees the type and the operations, never the constructor.
 
-`Stack.empty`, `Stack.push`, `Stack.pop` are listed in the `with { ... }` signature, so their bodies may name the `Stack` constructor. `Stack.isEmpty` is not listed, and uses the operations instead. A definition that is not listed and names the constructor is refused, even in the same module:
+An abstract type is exported, since one its module keeps would hide from no module:
 
 ```ernest-rejected
-export abstract type Stack(a) = Stack(List(a)) with {
-    empty : Stack(a)
-}
-
-export let Stack.empty : Stack(a) = Stack([])
-
-export fn Stack.size(Stack(xs) : Stack(a)) -> Int = List.size(xs)
+abstract type Stack(a) = Stack(List(a))
 ```
 
 ```console
 $ ernc hidden.ern
-hidden.ern:7:22: the constructor Stack of abstract type Stack may appear only in the definitions its signature names
-6 | 
-7 | export fn Stack.size(Stack(xs) : Stack(a)) -> Int = List.size(xs)
-  |                      ^^^^^^^^^
+hidden.ern:1:1: Stack is an abstract type the module keeps private, which hides its constructors from no module
+1 | abstract type Stack(a) = Stack(List(a))
+  | ^^^^^^^^
+  | = help: export it, or declare it `type`
 ```
 
-The representation may change later, a tree for the list, and callers built against the signature still work.
+The representation may change later, a tree for the list, and the modules that use the stack still work, since none of them could name it.
 
 ### 7.3 Prediction exercise
 
@@ -1709,7 +1696,7 @@ The four paper programs, in ascending complexity:
 - [`examples/snake.ern`](examples/snake.ern) — snake game with tick-based updates; `..` record updates, one process per player, `Clock`, `Terminal`, `Random`.
 - [`examples/repl.ern`](examples/repl.ern) — small read-eval-print loop; `<-` for chained parsing, `monitor` + `kill` for aborting slow evaluation, `Io.readLine`.
 - [`examples/filesync.ern`](examples/filesync.ern) — file sync between two directories, whose two sides run on one node and would run the same on two; mutual-address setup, one process per file operation, `Fs`.
-- [`examples/webserver.ern`](examples/webserver.ern) — HTTP server with sessions in a process that owns a `Map`; request-reply, abstract types, `Tcp`.
+- [`examples/webserver.ern`](examples/webserver.ern) — HTTP server with sessions in a process that owns a `Map`; request-reply, type members, `Tcp`.
 
 Beyond `Io.println` and `Clock`, the paper programs use `Fs`, `Terminal`, `Tcp`, and `Io.readLine`, all of which the toolchain has.
 

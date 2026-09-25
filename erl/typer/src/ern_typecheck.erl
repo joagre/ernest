@@ -89,7 +89,7 @@ check(Ns, Decls0, Ifaces, Session) ->
         St1 = ern_types:set_scope(Env1a#env.st, Ns, SessionTypes, Shadows),
         Env1 = mark_abstract(Decls, Env1a#env{st = St1}),
         {Typed, Env2, Errs2} = check_values(Decls, Env1),
-        Errs3 = check_signatures(Decls, Env2) ++ check_exports(Decls, Env2),
+        Errs3 = check_abstract(Decls) ++ check_exports(Decls, Env2),
         case lists:sort(Errs1 ++ Errs2 ++ Errs3) of
             [] -> {ok, Typed, make_iface(Decls, Env2), Env2};
             Errs -> {error, Errs}
@@ -453,37 +453,10 @@ check_values(Decls, Env0) ->
     Groups = dependency_groups(Values, Env1),
     Pending = maps:from_list([{group_qname(D, Env1), G} || G <- Groups, D <- G]),
     Env2 = lists:foldl(fun run_group/2, Env1#env{groups = Pending, typed = [], errs = []}, Groups),
-    Errs = ownership(Decls, Values) ++ let_cycles(Env2#env.typed, Env2) ++ Env2#env.errs,
+    Errs = let_cycles(Env2#env.typed, Env2) ++ Env2#env.errs,
     %% restore declaration order for the typed output
     Typed = [replace_typed(D, Env2#env.typed) || D <- Decls],
     {Typed, Env2#env{groups = #{}, typed = [], errs = []}, Errs}.
-
-%% Report §4.4: the constructor of an abstract type appears only in the
-%% definitions its signature names. One error per definition, at the first
-%% constructor it mentions where it may not.
-ownership(Decls, Values) ->
-    Owned = maps:from_list(
-              [{C, {T, [S || #signature{name = S} <- Sigs]}}
-               || #abstract_decl{type = #type_decl{name = T, constructors = Cons},
-                                 signatures = Sigs} <- Decls,
-                  #constructor{name = C} <- Cons]),
-    lists:append(
-      [case [{Pos, C, T} || {Pos, C} <- lists:reverse(constructors_in(D, [])),
-                            {T, Sigs} <- [maps:get(C, Owned, none)],
-                            not (Owner =:= T andalso lists:member(Name, Sigs))] of
-           [] -> [];
-           [{Pos, C, T} | _] ->
-               [diag(Pos, "the constructor " ++ atom_to_list(C) ++ " of abstract type "
-                          ++ atom_to_list(T) ++ " may appear only in the definitions its"
-                          " signature names")]
-       end || D <- Values, {Owner, Name} <- [decl_key(D)]]).
-
-constructors_in(#e_con{pos = Pos, name = C, args = A}, Acc) -> constructors_in(A, [{Pos, C} | Acc]);
-constructors_in(#p_con{pos = Pos, name = C, args = A}, Acc) -> constructors_in(A, [{Pos, C} | Acc]);
-constructors_in(T, Acc) when is_tuple(T) ->
-    lists:foldl(fun constructors_in/2, Acc, tl(tuple_to_list(T)));
-constructors_in(L, Acc) when is_list(L) -> lists:foldl(fun constructors_in/2, Acc, L);
-constructors_in(_, Acc) -> Acc.
 
 group_qname(D, Env) ->
     {Owner, Name} = decl_key(D),
@@ -2417,47 +2390,20 @@ lookup_con(Pos, Path, Name, #env{cons = Cs, types = Types, local_types = LT}) ->
 con_info(QName, #env{cons = Cs}) -> maps:get(QName, Cs).
 
 %%
-%% Abstract type signatures (report §4.4); the ownership rule is `ownership/2`
+%% Abstract types (report §4.4)
 %%
 
-check_signatures(Decls, Env) ->
-    lists:append([check_signature_list(D, Env) || #abstract_decl{} = D <- Decls]).
+%% An abstract type hides its constructors from every other module, so one
+%% the module keeps private hides nothing.
+check_abstract(Decls) ->
+    [#diag{span = abstract_word(ern_diag:span(Pos)),
+           message = atom_to_list(N) ++ " is an abstract type the module keeps private, which"
+                     " hides its constructors from no module",
+           help = "export it, or declare it `type`"}
+     || #abstract_decl{export = false, pos = Pos, type = #type_decl{name = N}} <- Decls].
 
-check_signature_list(#abstract_decl{type = #type_decl{name = TName}, signatures = Sigs}, Env) ->
-    lists:append(
-      [try
-           Q = value_qname(Env, TName, Name),
-           case maps:find(Q, Env#env.globals) of
-               error -> fail(Pos, atom_to_list(TName) ++ "." ++ atom_to_list(Name)
-                                  ++ " is in the signature but not defined");
-               {ok, Scheme} ->
-                   {Declared, VarMap, St} = ann(Syntax, #{}, Env),
-                   {Actual, St1} = ern_types:instantiate(Scheme, St),
-                   %% the signature is printed before unification, the member after
-                   Mismatch = fun(S) ->
-                                  fail(Pos, atom_to_list(TName) ++ "." ++ atom_to_list(Name)
-                                            ++ " is " ++ ern_types:format_scheme(Scheme, S)
-                                            ++ ", not the signature's "
-                                            ++ ern_types:format(Declared, St1))
-                              end,
-                   case ern_types:unify(Declared, Actual, St1) of
-                       {ok, St2} ->
-                           %% the signature's variables must stay distinct and
-                           %% unbound: the member is at least as general
-                           Ids = [ern_types:resolve(V, St2) || V <- maps:values(VarMap)],
-                           case lists:all(fun({tvar, _}) -> true; (_) -> false end, Ids)
-                                andalso length(lists:usort(Ids)) =:= length(Ids) of
-                               true -> [];
-                               false -> Mismatch(St2)
-                           end;
-                       {error, _} ->
-                           Mismatch(St1)
-                   end
-           end
-       catch
-           throw:{type_error, Pos, Msg} -> [diag(Pos, Msg)];
-           throw:{type_error, #diag{} = D} -> [D]
-       end || #signature{pos = Pos, name = Name, type = Syntax} <- Sigs]).
+%% The word `abstract`, where the declaration begins.
+abstract_word({L, C, _}) -> {L, C, {L, C + length("abstract")}}.
 
 %%
 %% Interface
@@ -2484,13 +2430,14 @@ check_exports(Decls, #env{local_types = LT, globals = Gs, types = Ts} = Env) ->
     Private = fun(Q) -> lists:member(Q, Own) andalso not lists:member(Q, Exported) end,
     lists:append(
       [begin
-           Named = case exported_value(D, Env) of
-                       {true, Q} -> tcons(scheme_type(maps:get(Q, Gs, undefined), Env));
-                       false ->
-                           case exported_type(D, Env) of
-                               {true, TQ} -> constructor_tcons(maps:get(TQ, Ts, undefined), Env);
-                               false -> []
-                           end
+           Named = case {exported_value(D, Env), exported_type(D, Env)} of
+                       {{true, Q}, _} -> tcons(scheme_type(maps:get(Q, Gs, undefined), Env));
+                       %% report §4.2: an abstract type's constructors do not
+                       %% cross, so its fields may name a private type
+                       {false, {true, _}} when is_record(D, abstract_decl) -> [];
+                       {false, {true, TQ}} ->
+                           constructor_tcons(maps:get(TQ, Ts, undefined), Env);
+                       {false, false} -> []
                    end,
            [private_type(D, T) || T <- lists:usort(Named), Private(T)]
        end || D <- Decls]).

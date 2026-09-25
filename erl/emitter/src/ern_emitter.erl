@@ -238,9 +238,6 @@ doc_signature(D, Prefix, Env) ->
 doc_meta(#fn_decl{params = Ps}) -> #{params => param_names(Ps)};
 doc_meta(#foreign_fn_decl{params = Ps}) -> #{params => param_names(Ps)};
 doc_meta(#type_decl{constructors = Cs}) -> #{items => [constructor_item(C) || C <- Cs]};
-doc_meta(#abstract_decl{signatures = Sigs}) ->
-    #{items => [#{kind => signature, name => N, type => text(syn(T)), doc => doc_or_none(Doc)}
-                || #signature{doc = Doc, name = N, type = T} <- Sigs]};
 doc_meta(_) -> #{}.
 
 %% A parameter's name as written; one that is not a plain variable shows
@@ -301,11 +298,8 @@ signature(#foreign_fn_decl{owner = O, name = N, params = Ps, ret = R, effect = E
     text([Prefix, atom_to_list(fname(O, N)), " : ", syn(Type)]);
 signature(#type_decl{} = D, _, _) ->
     text(type_text(D));
-signature(#abstract_decl{type = #type_decl{name = TName, params = Ps}, signatures = Sigs}, _, _) ->
-    text([["abstract type ", atom_to_list(TName), params_text(Ps), " with {\n"],
-          lists:join(";\n", [["    ", atom_to_list(N), " : ", syn(T)]
-                              || #signature{name = N, type = T} <- Sigs]),
-          "\n}"]);
+signature(#abstract_decl{type = #type_decl{name = TName, params = Ps}}, _, _) ->
+    text(["abstract type ", atom_to_list(TName), params_text(Ps)]);
 signature(#foreign_type_decl{name = N, params = Ps}, _, _) ->
     text(["foreign type ", atom_to_list(N), params_text(Ps)]).
 

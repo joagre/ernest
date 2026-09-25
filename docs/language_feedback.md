@@ -7,17 +7,19 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Four have left: 1 (decided, report
-§4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed) and 12
-(decided, report §9).
+under, since the plan, the log and the code cite them. Six have left: 1 (decided, report
+§4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
+(decided, report §9), and 32 and 33 (decided, report §4.4).
 
 ## 1. Names and namespaces
 
 How a name reaches a declaration, and what that costs to write. A module is a namespace,
 a type's members are a namespace inside it, a constructor's name is unique across the
 module, and nothing is imported or aliased (§4.2). Each entry here is one cost of those
-four rules, and an abstract type's boundary (§4.4) is where they are paid most. The
-entries are one decision, since changing one rule moves the others' costs.
+four rules. The entries are one decision, since changing one rule moves the others'
+costs. The first, where an abstract type's boundary lies (items 32 and 33), was decided on
+2026-09-25: it is its module (report §4.4), so a function no longer has to be a member to
+see a representation.
 
 2. **Constructor names unique across a module's types.** Felt three times: the `Output2`
    dodge, the editor's `Typing`/`Clear`/`Cancel` wanting names the screen had, and
@@ -30,28 +32,18 @@ entries are one decision, since changing one rule moves the others' costs.
    `Shell.Editor.*` constructors in one `match`, and the shell's command code writes
    `Shell.Command.` forty-three times. Explicit and correct; also the main argument anyone will
    make for aliases later.
-33. **Three-segment member names.** A module named after its main type (`shell/editor.ern`
-    holding `State`) makes a member `Shell.Editor.State.edit`, which leans on item 4.
-32. **Where §4.4 draws an abstract type's boundary.** At the signature, not at the module:
-    only the definitions its signature names may use the constructor, the module's private
-    helpers and tests included. Gleam's `opaque` and ML's signatures hide the constructor
-    only outside the declaring module. So a type with many internal helpers, the shell's
-    editor state, pays heavily for its invariant (`0 <= at <= size(text)`), and a test at
-    the foot of its file cannot match on it. Whether the boundary moves to the module.
-49. **Where the shell would use abstract types.** `Shell.Editor.State` is the one that
-    pays: its invariant, `0 <= at <= size(text)` and a search's indices inside the history,
-    is kept by the editor alone, and the reader already reads it only through `text`,
-    `at`, `shown`, `cursor` and `midSequence`. Items 32 and 33 are what keep it
-    transparent. The history would be the second, a `Shell.History` type newest first and
-    capped: the file is trimmed to the last thousand inputs as it is read, but the editor's
-    list grows past that within a session, and `keeps` lives in the editor while the trim
-    lives in the file. `Settings`, `Region`, `Completion`, `Name` and `Reading` stay
-    transparent, since their readers match on or build them and no rule spans their
-    fields. Waits on item 32.
+49. **Where else the shell would use abstract types.** Since the boundary moved to the
+    module (item 32, decided 2026-09-25), `Shell.Editor.State` is abstract. The history
+    would be the second, a `Shell.History` type newest first and capped: the file is
+    trimmed to the last thousand inputs as it is read, but the editor's list grows past
+    that within a session, and `keeps` lives in the editor while the trim lives in the file.
+    `Shell.Region.Region` could be too, since the shell never takes one apart. `Settings`,
+    `Completion`, `Name` and `Reading` stay transparent, since their readers match on or
+    build them.
 46. **Abstract types in the standard library.** `Random.Seed` could be written in Ernest,
     SplitMix64 over `Int`'s bit operations, as an abstract type: three shims go, a seed can
-    cross nodes, and the sequence is the same on every runtime; against it, E.13's names
-    change to `Random.Seed.next` (§4.4), and item 13 kept `Random` a shim. `Path` could be
+    cross nodes, and the sequence is the same on every runtime; against it, item 13 kept
+    `Random` a shim. Its functions keep their names under the module boundary. `Path` could be
     abstract with an invariant, no trailing separator, which the defects of `Path.parent`
     fell through; against it, E.14 made the constructor the way in and the prelude's
     `FsMsg` carries `Path`. `Markdown`'s `Block` and `Inline` stay transparent, being what a
@@ -72,7 +64,8 @@ entries are one decision, since changing one rule moves the others' costs.
 How a part of a value is read, and the smaller rules of the grammar and the checker that
 writing Ernest ran into. Field selection leads, since it is the one candidate for new
 syntax and the shell has three witnesses for it; tuple projection and `match` as an
-operand are the same question asked of other forms. The rest stand alone.
+operand are the same question asked of other forms. The rest stand alone, and one contract
+over several representations (52) is the largest of them.
 
 51. **Field selection**, `s.upper`. The shell read one field through a whole pattern three
     times: the screen's record, then `Shell.Editor.State` twice, `fn text(editing) = match
@@ -110,6 +103,17 @@ operand are the same question asked of other forms. The rest stand alone.
     a + b`, `List.<>`, and `Int.compare` written with `<`, which §3.10 defines through
     `compare`. The emitter uses the host's operators; §9.6 does not say so. One sentence
     there, that on the built-in types the operators are the runtime's.
+52. **One contract, several representations.** An abstract type hides one representation;
+    what it does not give is Java's interface or ML's signature, one API that several
+    representations provide at once, chosen per use: Erlang's `sets` and `gb_sets` share
+    their function names by convention, and a caller switches by changing the module name.
+    Ernest has three answers without a new concept: E.0 rule 2's shared verbs, the same
+    convention unchecked; a record of functions passed as a value, checked by the types and
+    verbose, which is Gleam's and Elm's answer; and, for a stateful service, a mailbox type,
+    which two processes of different representation both accept behind an `Address(M)`.
+    The gap is a pure data structure written once against "a set" and run over either
+    representation; closing it takes ML's signatures and functors or type classes, each a
+    new concept against principles 5 and 3. Whether the record of functions suffices.
 5. **`after` is reserved**, so a natural helper name for "the rest of a string from here"
    had to become `from`. Trivial, but the kind of thing that accumulates. Felt again in
    `libs/markdown`, where `after` was the name every scanning function wanted for what

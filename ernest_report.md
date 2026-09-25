@@ -30,7 +30,7 @@ Source text is Unicode in UTF-8; a leading byte-order mark (U+FEFF) is stripped.
 
 `//` to end of line and `/* ... */`, which nests, are removed by the lexer and take part in no grammar rule.
 
-`///` to end of line is a doc comment; consecutive `///` lines form a doc block, whose text is CommonMark 0.31. A doc block immediately preceding a declaration, a constructor, a named field, or a signature entry, with no blank line between, is its documentation, extractable by the toolchain, §11.4. A doc block before the first declaration, with a blank line after it, is the module's documentation. Elsewhere it is an ordinary comment.
+`///` to end of line is a doc comment; consecutive `///` lines form a doc block, whose text is CommonMark 0.31. A doc block immediately preceding a declaration, a constructor, or a named field, with no blank line between, is its documentation, extractable by the toolchain, §11.4. A doc block before the first declaration, with a blank line after it, is the module's documentation. Elsewhere it is an ordinary comment.
 
 ### 2.3 Identifiers
 
@@ -58,7 +58,7 @@ Eighteen, grouped by role:
 
 | Role                 | Words                                                  |
 |----------------------|--------------------------------------------------------|
-| Type declarations    | `type`, `abstract`, `with`, `foreign`                  |
+| Types                | `type`, `abstract`, `with`, `foreign`                  |
 | Pattern matching     | `match`, `when`, `receive`, `after`, `as`, `or`        |
 | Control flow         | `if`, `then`, `else`                                   |
 | Bindings             | `fn`, `let`                                            |
@@ -190,7 +190,7 @@ Field names are unique within a constructor, and their declaration order carries
 
 ### 3.6 Abstract types
 
-A sum type whose constructors may be mentioned only in the definitions of the names in the type's signature, §4.4.
+A sum type whose constructors may be mentioned only in the module that declares it, §4.4.
 
 ### 3.7 Built-in types
 
@@ -238,8 +238,7 @@ TypeDecl    = "type" typename [ "(" typevar { "," typevar } ")" ] "="
               Constructor { "|" Constructor } .
 Constructor = conname [ "(" ( Type | Field { "," Field } ) ")" ] .
 Field       = ident ":" Type .
-AbstractDecl  = "abstract" TypeDecl "with" "{" Signature { ";" Signature } "}" .
-Signature   = ( ident | userop ) ":" Type .
+AbstractDecl  = "abstract" TypeDecl .
 FnDecl      = "fn" DeclName "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 Param       = Pattern [ ":" Type ] .
 Return      = "->" Type [ "with" Type ] .
@@ -256,7 +255,7 @@ A *module* is one source file, ending in `.ern`: the unit of compilation and of 
 
 **Files are namespaces.** A file at `a/b/c.ern` under the source root provides the namespace `A.B.C`. Each segment is the path segment with its first letter uppercased: `http.ern` is `Http`, `httpv2.ern` is `Httpv2`. Path segments are one lowercase word (§11.1), so the mapping is one-to-one. The top of the hierarchy, where the prelude lives, is provided by the runtime, not by user code.
 
-**Declarations are local; `export` marks the boundary.** A declaration is written with its local name. `fn parse` in `net/http.ern` is exported as `Net.Http.parse` when marked `export`; otherwise it is private to its module. The qualified name appears at use sites, in the module itself as well, never at declarations. Two exported declarations with the same qualified name are an error. The type of an exported declaration, and the field types of an exported type, may not name a type the module keeps private. A function's mailbox type is exempt: an exported entry point may receive a private message type. A type whose values cross the boundary but whose constructors do not is an `abstract type` (§4.4). There is no export list and no `import`.
+**Declarations are local; `export` marks the boundary.** A declaration is written with its local name. `fn parse` in `net/http.ern` is exported as `Net.Http.parse` when marked `export`; otherwise it is private to its module. The qualified name appears at use sites, in the module itself as well, never at declarations. Two exported declarations with the same qualified name are an error. The type of an exported declaration, and the field types of an exported type that is not abstract, may not name a type the module keeps private. A function's mailbox type is exempt: an exported entry point may receive a private message type. A type whose values cross the boundary but whose constructors do not is an `abstract type` (§4.4). There is no export list and no `import`.
 
 **Taken namespaces.** A module namespace may not coincide with a namespace of the prelude or the standard library: `io.ern` at the source root is an error. The standard library's own source root, shipped with the toolchain, is the exception: its files provide those namespaces. A file under it is compiled with it as the source root (§11.1); another source root is an error.
 
@@ -267,7 +266,7 @@ export fn parse(s : String) -> Optional(Request) = ...
 fn helper(x) = ...        // private to net/http.ern
 ```
 
-**Type members.** A type `T` declared in a module, concrete or abstract, is a nested namespace. Its members are declared with the single prefix `T.`, as in `fn Distance.+` and `let Stack.empty`, and are exported at `Module.T.member`. The namespace belongs to the file that declares the type. A module namespace may not coincide with it: `main/stack.ern` is an error when `main.ern` declares `Stack`. In `main.ern`, `Main.Stack.push` is therefore its own member where it declares `Stack`, and the module `Main.Stack`'s `push` where it does not. Type names that differ only in case are permitted. For an abstract type, only the definitions in its signature may name the constructor (§4.4).
+**Type members.** A type `T` declared in a module, concrete or abstract, is a nested namespace. Its members are declared with the single prefix `T.`, as in `fn Distance.+` and `let Stack.empty`, and are exported at `Module.T.member`. The namespace belongs to the file that declares the type. A module namespace may not coincide with it: `main/stack.ern` is an error when `main.ern` declares `Stack`. In `main.ern`, `Main.Stack.push` is therefore its own member where it declares `Stack`, and the module `Main.Stack`'s `push` where it does not. Type names that differ only in case are permitted.
 
 **Unqualified lookup.** An unqualified name in a body is looked up in the module's declarations, exported or not, then in the type-member namespace of the enclosing declaration, then in the prelude. A name not found there is written qualified. A module may declare a type or constructor with a prelude name, and the name then means the local one throughout the module. `Prelude` names the prelude's own namespace, so `Prelude.Close` is the prelude's `Close` in a module that declares its own. It takes one name the prelude declares. No module and no type is named `Prelude`. Within a module, type names are unique and constructor names are unique across its types.
 
@@ -277,22 +276,19 @@ fn helper(x) = ...        // private to net/http.ern
 
 ### 4.4 Abstract types
 
-`abstract type T = ... with { s1; s2 }` declares a type whose constructor may appear only in the definitions of the names in its signature. Each such definition is declared as a member, `fn Stack.push`, and is checked against its signature. Each is marked `export` or left private independently of the type. A definition not in the signature cannot mention the constructor. The members of a concrete type (§4.2) carry no such restriction.
+`abstract type T = ...` declares a type whose constructors may appear only in the module that declares it. Every definition of that module may use them, a private one or a test included; another module sees the type and not its constructors. An abstract type is exported: one the module keeps private is an error, since it hides from no other module.
 
 ```
 // main.ern  (namespace Main)
-export abstract type Stack(a) = Stack(List(a)) with {
-    empty : Stack(a);
-    push : (a, Stack(a)) -> Stack(a);
-    pop : (Stack(a)) -> Optional(#(a, Stack(a)))
-}
+export abstract type Stack(a) = Stack(List(a))
 
 export let Stack.empty = Stack([])
 export fn Stack.push(x, Stack(xs)) = Stack(x :: xs)
 export fn Stack.pop(Stack(xs)) = match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
+export fn size(Stack(xs)) = List.size(xs)
 ```
 
-External callers see `Main.Stack` and `Main.Stack.push`. A module may declare several abstract types.
+External callers see `Main.Stack`, `Main.Stack.push`, and `Main.size`; `Stack(...)` is refused outside `main.ern`. A module may declare several abstract types.
 
 ### 4.5 Functions
 
@@ -682,7 +678,7 @@ Four operations ship a closure or payload, and the code it depends on, to a peer
 
 **Resolution.** Before a shipped closure runs, the peer resolves every hash it carries, transitively, from its own store or by fetching from the sender, and caches what it fetched. A resolution failure is a missing dependency, a missing `Sys.x`, or an incompatible foreign definition. For `remote` and `spawn(Peer, ...)` it is a fault of the caller. For `send` it is an asynchronous fault of the sender. A resolution failure does not invalidate other addresses on that peer; only the loss of the peer does (§10).
 
-**Identity.** Types are identified by hash. Two nodes with identical declarations under the same qualified name interoperate. Two nodes with different declarations under one name hold distinct types. A shipped closure that mentions the sender's `FooMsg` uses the sender's `FooMsg` on the peer; the peer's own `FooMsg` is unrelated to it. An abstract type's hash also includes its signature: two `Stack(a)` declarations with the same name and representation are one type only if their signatures match.
+**Identity.** Types are identified by hash. Two nodes with identical declarations under the same qualified name interoperate. Two nodes with different declarations under one name hold distinct types. A shipped closure that mentions the sender's `FooMsg` uses the sender's `FooMsg` on the peer; the peer's own `FooMsg` is unrelated to it. An abstract type's hash also includes the types of its module's exported declarations: two `Stack(a)` declarations with the same name and representation are one type only if their modules export the same declarations with the same types.
 
 **Bindings.** A `Sys.*` name in shipped code resolves on the peer that runs it: a shipped `Io.println` writes on the peer. An address captured by the closure is shipped as a value and still names the process it named on the sender: an `Address` captured from the sender's `Sys.stdout` still names the sender's stdout. A top-level binding referenced by shipped code is evaluated on the peer on first use, in the peer's environment, at most once per node for each hash of its definition: `let output = Sys.stdout` is the peer's stdout when evaluated on the peer. An initializer that faults there faults the process that first uses it. Foreign declarations are not shipped: a shipped closure that references one requires a compatible definition under the same qualified name on the peer, and a missing or incompatible one is a fault at resolution.
 
@@ -878,7 +874,7 @@ Options are long: `--name`, or `--name value` for one that takes a value.
 
 ### 11.4 Documentation extraction
 
-`ernc --doc file.ern` writes the module's documentation to stdout as CommonMark. The documentation is read from the compiled module, so `ernc --doc file.erc` writes the same text, and a source path is compiled first. The text is: a title naming the module, `# Ernest module Net.Http`, the module's `since v` line (E.0 rule 6) as *Since v.*, and the module's doc block; then, in source order, every exported declaration and every declaration with a doc block, each under a heading of its name as a caller writes it, `Net.Http.parse`, with its type (§11.5) in a code block, under the same name, a `since v` line of its own as *Since v.*, the rest of its doc block, and the doc blocks of its constructors, fields, or signature entries as a list. `ernc --doc src-dir` writes one such document per module into `build-dir` beside the `.erc`, and `index.md` listing them. For the standard library's own source root it also writes the prelude's page, `prelude.md`, titled `# Ernest prelude`, first in the index. The last line names the compiler's version and the source file. A declaration's heading is level two, so a heading inside its doc block is level three or deeper; a heading in the module's doc block is level two. Appendix E.0 rule 6 says what a doc block contains.
+`ernc --doc file.ern` writes the module's documentation to stdout as CommonMark. The documentation is read from the compiled module, so `ernc --doc file.erc` writes the same text, and a source path is compiled first. The text is: a title naming the module, `# Ernest module Net.Http`, the module's `since v` line (E.0 rule 6) as *Since v.*, and the module's doc block; then, in source order, every exported declaration and every declaration with a doc block, each under a heading of its name as a caller writes it, `Net.Http.parse`, with its type (§11.5) in a code block, under the same name, a `since v` line of its own as *Since v.*, the rest of its doc block, and the doc blocks of its constructors or fields as a list. `ernc --doc src-dir` writes one such document per module into `build-dir` beside the `.erc`, and `index.md` listing them. For the standard library's own source root it also writes the prelude's page, `prelude.md`, titled `# Ernest prelude`, first in the index. The last line names the compiler's version and the source file. A declaration's heading is level two, so a heading inside its doc block is level three or deeper; a heading in the module's doc block is level two. Appendix E.0 rule 6 says what a doc block contains.
 
 ### 11.5 Diagnostics
 
@@ -901,8 +897,7 @@ TypeDecl    = "type" typename [ "(" typevar { "," typevar } ")" ] "="
               Constructor { "|" Constructor } .
 Constructor = conname [ "(" ( Type | Field { "," Field } ) ")" ] .
 Field       = ident ":" Type .
-AbstractDecl  = "abstract" TypeDecl "with" "{" Signature { ";" Signature } "}" .
-Signature   = ( ident | userop ) ":" Type .
+AbstractDecl  = "abstract" TypeDecl .
 
 FnDecl      = "fn" DeclName "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 Param       = Pattern [ ":" Type ] .
@@ -1151,7 +1146,7 @@ Eight rules give a function its shape.
 5. A function is pure unless its value lives in a process: the modules over the system references of §8.2 carry `with m`, and nothing else does. Every function that takes a function is effect-polymorphic (§3.9).
 6. A module is documented as a section 3 manual page, in CommonMark (§2.2). Under `See also`, a declaration or a module is named in backticks and not linked.
    - **The module.** Its doc block says what the module is for, then has the section `Examples`, with the module's central examples, and `See also` when there is something to see. It ends with the line `since v`, the toolchain version in which the module appeared.
-   - **A declaration.** Every exported declaration has a doc block, a member of an abstract type at its signature entry: one sentence saying what the type does not say, which occurrence `remove` removes, the order `toList` produces, the range `next` draws from; an `Errors` section when it faults, and none otherwise (rule 4); an `Examples` section with one example for an exported `type`, an abstract type's examples covering its members; `See also` when there is something to see. A declaration has the module's `since` unless its doc block ends with one of its own. The name and the type are the heading and the code block `ernc --doc` renders (§11.4).
+   - **A declaration.** Every exported declaration has a doc block: one sentence saying what the type does not say, which occurrence `remove` removes, the order `toList` produces, the range `next` draws from; an `Errors` section when it faults, and none otherwise (rule 4); an `Examples` section with one example for an exported `type`, an abstract type's examples covering its members; `See also` when there is something to see. A declaration has the module's `since` unless its doc block ends with one of its own. The name and the type are the heading and the code block `ernc --doc` renders (§11.4).
    - **Examples.** Every exported function except an operator, whose use is infix, is called by at least one example on the module's page, in the module's examples or its own, and an example that would repeat another is left out. An example ends in `// => v`, where `v` is what `Io.debug` prints for its value; what the example itself prints comes before it and is not part of `v`. An example that cannot run where the page's examples run, because its value is of an abstract type, because it reads a file or a socket, or because it needs a mailbox of its own, has no `// =>` line and is only type-checked.
 7. A type a module declares is listed in its section as its functions are, `foreign type Seed` in E.13, and is named for what it is within the module, never for the module. The types the runtime speaks are the prelude's, §9.3.
 8. A system reference of §8.2 is used through its standard library module, never by `send`. A function that waits takes the milliseconds as its last argument and answers `Left(Timeout)`; `Clock.now`, `Tcp.listen`, and `Io.readLine` take none, the first two answered at once and the third waiting for the user; one that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9). In either, a time below 0 is 0, and a moment already past is now.
@@ -1502,7 +1497,7 @@ Bytes.fromList : (List(Int)) -> Optional(Bytes) // None when a value is outside 
 
 Every technical term this report introduces, with the section that defines it. Pointers only — the definition lives in the referenced section.
 
-- **abstract type** — a sum type whose constructors are visible only to the definitions of the names in its signature. §3.6, §4.4.
+- **abstract type** — a sum type whose constructors are visible only in the module that declares it. §3.6, §4.4.
 - **address** — `Address(m)`, a reference to a process that receives values of type `m`. §3.7, §6.5.
 - **arity** — the number of arguments a function takes; part of its type. §4.5.
 - **binding** — a `let` in a block, `let p = e` or `let p <- e`. §4.6, §5.5.
@@ -1573,4 +1568,4 @@ Every technical term this report introduces, with the section that defines it. P
 - **`Unit`** — the type with the single value `Unit`. §3.1, §9.3.
 - **`via`** — `via(f, addr)` is the address `addr` seen through `f`. §6.5, §9.5.
 - **wildcard** — the pattern `_`; matches anything, binds nothing. §2.3, §5.10.
-- **`with`** — the mailbox-type marker on a function type, `with M`, and the start of an abstract type's signature. §3.4, §4.4, §6.1.
+- **`with`** — the mailbox-type marker on a function type, `with M`. §3.4, §6.1.

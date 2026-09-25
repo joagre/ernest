@@ -557,12 +557,6 @@ warts_audit_test() ->
     ?assertEqual("a reply-carrying value, Reply(Int), passed where the function duplicates or"
                  " discards its argument",
                  err(Msg ++ "fn fst(#(x, y)) = x\nfn f(r : Reply(Int)) = fst(#(1, r))")),
-    %% a member less general than its signature
-    ?assertEqual("Stack.push is (Int, Stack(Int)) -> Stack(Int), not the signature's"
-                 " (a, Stack(a)) -> Stack(a)",
-                 err("abstract type Stack(a) = Stack(List(a)) with {"
-                     " push : (a, Stack(a)) -> Stack(a) }\n"
-                     "fn Stack.push(x : Int, Stack(xs)) = Stack(x :: xs)")),
     %% duplicate field in a pattern
     ?assertEqual("a field is matched twice",
                  err(Msg ++ "fn f(r) = match r { Get(reply = a, reply = b) -> Unit"
@@ -594,8 +588,7 @@ base_types_test() ->
 
 %% report §3.6
 abstract_types_as_types_test() ->
-    Stack = "export abstract type Stack(a) = Stack(List(a)) with {\n"
-            "    empty : Stack(a);\n    push : (a, Stack(a)) -> Stack(a)\n}\n"
+    Stack = "export abstract type Stack(a) = Stack(List(a))\n"
             "export let Stack.empty = Stack([])\n"
             "export fn Stack.push(x, Stack(xs)) = Stack(x :: xs)\n",
     ?assertEqual("(M.Stack(Int)) -> M.Stack(Int)",
@@ -669,9 +662,7 @@ prelude_values_test() ->
 
 %% report §4.4
 abstract_type_test() ->
-    Stack = "export abstract type Stack(a) = Stack(List(a)) with {\n"
-            "    empty : Stack(a);\n    push : (a, Stack(a)) -> Stack(a);\n"
-            "    pop : (Stack(a)) -> Optional(#(a, Stack(a)))\n}\n"
+    Stack = "export abstract type Stack(a) = Stack(List(a))\n"
             "export let Stack.empty = Stack([])\n"
             "export fn Stack.push(x, Stack(xs)) = Stack(x :: xs)\n"
             "export fn Stack.pop(Stack(xs)) = match xs { [] -> None | x :: rest ->"
@@ -679,11 +670,10 @@ abstract_type_test() ->
     ?assertEqual(ok, ok(Stack)),
     ?assertEqual("(a, M.Stack(a)) -> M.Stack(a)",
                  type_of(Stack ++ "export fn use(x, s) = Stack.push(x, s)", use)),
-    ?assertEqual("Stack.size is in the signature but not defined",
-                 err("abstract type Stack(a) = Stack(List(a)) with { size : (Stack(a)) -> Int }")),
-    ?assertMatch("Stack.size is (a!) -> Bool, not the signature's (Stack(a)) -> Int",
-                 err("abstract type Stack(a) = Stack(List(a)) with { size : (Stack(a)) -> Int }\n"
-                     "fn Stack.size(s) = true")),
+    %% an abstract type the module keeps private hides from no module
+    ?assertEqual("Stack is an abstract type the module keeps private, which hides its"
+                 " constructors from no module",
+                 err("abstract type Stack(a) = Stack(List(a))")),
     ?assertEqual("Nope is not a type declared in this module", err("fn Nope.f() = 1")).
 
 %% report §6.6: a lambda that captures a reply-carrying value is reply-carrying
@@ -733,25 +723,17 @@ self_qualified_under_a_local_test() ->
     ?assertEqual("Int", type_of("export let four = { let two = 1; M.two - two }\nlet two = 5\n",
                                 four)).
 
-%% report §4.4: the constructor of an abstract type appears only in the
-%% definitions its signature names; a local fn inside such a definition is
-%% part of it
+%% report §4.4: every definition of the module that declares an abstract
+%% type may use its constructors, a private one and a local fn among them;
+%% another module may not (ern_cli_tests)
 ownership_test() ->
-    Stack = "export abstract type Stack(a) = Stack(List(a)) with {\n"
-            "    empty : Stack(a);\n    push : (a, Stack(a)) -> Stack(a);\n"
-            "    pop : (Stack(a)) -> Optional(#(a, Stack(a)))\n}\n"
+    Stack = "export abstract type Stack(a) = Stack(List(a))\n"
             "export let Stack.empty = Stack([])\n"
-            "export fn Stack.push(x, Stack(xs)) = Stack(x :: xs)\n"
-            "export fn Stack.pop(Stack(xs)) = match xs { [] -> None | x :: rest ->"
-            " Some(#(x, Stack(rest))) }\n",
-    Msg = "the constructor Stack of abstract type Stack may appear only in the definitions its"
-          " signature names",
-    ?assertEqual(Msg, err(Stack ++ "fn peek(Stack(xs)) = xs")),
-    ?assertEqual(Msg, err(Stack ++ "fn Stack.size(s) = match s { Stack(xs) -> List.size(xs) }")),
-    ?assertEqual(Msg, err(Stack ++ "fn wrap(xs : List(List(Int))) = List.map(xs, Stack)")),
-    ?assertEqual(ok, ok(Stack ++ "fn use() = Stack.push(1, Stack.empty)")),
-    ?assertEqual(ok, ok("abstract type Box(a) = Box(a) with { make : (a) -> Box(a) }\n"
-                        "fn Box.make(x) = { fn wrap(y) = Box(y); wrap(x) }")).
+            "export fn Stack.push(x, Stack(xs)) = Stack(x :: xs)\n",
+    ?assertEqual(ok, ok(Stack ++ "fn peek(Stack(xs)) = xs")),
+    ?assertEqual(ok, ok(Stack ++ "fn Stack.size(s) = match s { Stack(xs) -> List.size(xs) }")),
+    ?assertEqual(ok, ok(Stack ++ "fn wrap(xs : List(List(Int))) = List.map(xs, Stack)")),
+    ?assertEqual(ok, ok(Stack ++ "fn use() = { fn wrap(y) = Stack([y]); wrap(1) }")).
 
 %% report §4.2, §11.1
 %% report §4.8: the standard library module of a built-in type declares that
@@ -817,9 +799,11 @@ exported_types_test() ->
                  err("type Hidden = Hidden(Int)\nexport type Holder = Holder(Hidden)")),
     ?assertEqual(ok, ok("export type Msg = Ping\nexport fn start() -> Address(Msg) with m ="
                         " spawn(Local, fn() = Unit)")),
-    %% an abstract type is how a value crosses without its constructors
-    ?assertEqual(ok, ok("export abstract type Box = B(Int) with { of : (Int) -> Box }\n"
-                        "export fn Box.of(n) = B(n)")),
+    %% an abstract type is how a value crosses without its constructors, and
+    %% its fields may name a private type, since they do not cross
+    ?assertEqual(ok, ok("export abstract type Box = B(Int)\nexport fn Box.of(n) = B(n)")),
+    ?assertEqual(ok, ok("type Hidden = Hidden(Int)\nexport abstract type Box = B(Hidden)\n"
+                        "export fn Box.of(n) = B(Hidden(n))")),
     %% the effect names no value: an entry point's mailbox type may be private
     ?assertEqual(ok, ok("type Msg = Ping\nexport fn main() -> Unit with Msg ="
                         " receive { Ping -> Unit }")).

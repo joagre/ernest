@@ -69,18 +69,19 @@ export type Shape =
 /// ### See also
 ///
 /// `List` (Appendix E.2), which a stack is a restriction of.
-export abstract type Stack = Stack(List(Shape)) with {
-    /// The stack with nothing on it.
-    empty : Stack;
-    /// The stack with the shape on top.
-    push : (Shape, Stack) -> Stack;
-    /// The top shape and the rest, `None` when the stack is empty.
-    pop : (Stack) -> Optional(#(Shape, Stack))
-}
+export abstract type Stack = Stack(List(Shape))
 
+/// The stack with nothing on it.
 export let Stack.empty = Stack([])
-export fn Stack.push(s, Stack(ss)) = Stack(s :: ss)
-export fn Stack.pop(Stack(ss)) = match ss { [] -> None | s :: rest -> Some(#(s, Stack(rest))) }
+
+/// The stack with the shape on top.
+export fn Stack.push(s : Shape, Stack(ss) : Stack) -> Stack = Stack(s :: ss)
+
+/// The top shape and the rest, `None` when the stack is empty.
+export fn Stack.pop(Stack(ss) : Stack) -> Optional(#(Shape, Stack)) = match ss {
+    [] -> None
+  | s :: rest -> Some(#(s, Stack(rest)))
+}
 
 /// The circle of the radius around the centre.
 export fn circle(centre : Point, radius : Int) -> Shape =

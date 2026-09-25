@@ -3968,6 +3968,16 @@ After the shell, every line of Ernest and of Erlang in the repository was read f
 
 **A callee that is not a function has no signature.** `Shift-Tab` inside `Sys.stdout(` showed `Sys.stdoutAddress(String)`, the name and a type run together; nothing is what a value in call position has to show.
 
+## An Abstract Type's Boundary Is Its Module, 2026-09-25
+
+MVP 2.65's first decision, feedback item 32. §4.4 hid an abstract type's constructors from every definition its `with { ... }` signature did not name, the module's own private helpers and tests included, and required each named definition to be a member, `fn Stack.push`, checked against its signature entry. In all the Ernest written by then, the standard library's twenty-one modules, the shell and `libs/markdown`, no abstract type was declared; the four in the repository were examples of the feature. The one type that wanted it, the shell's editor state with its cursor inside its line, declined it: twenty helpers would have joined a signature, been renamed as members (`Shell.Editor.State.edit`, item 33), and its tests could not have matched on it.
+
+**The boundary is the module now.** Every definition of the declaring module may use an abstract type's constructors; another module sees the type and not its constructors. §4.2 already made the module the boundary of `export`, so a reader predicts the same line for a hidden constructor (principle 1), and it is the line Gleam's `opaque`, Haskell's and Elm's export lists, and ML's signatures on a structure draw. The signature went with the old boundary: it restated the types of the definitions below it, which their `export` marks already made the interface (principle 2), and `with` is again only a mailbox's (principles 4 and 5). The construct it resembled is SML's `abstype`, a group of declarations attached to a type, which ML style left for signatures on modules for the same costs.
+
+**What was given up.** A guarantee a reader could check by reading the listed definitions is now checked by reading the module, one file. A one-file program can no longer guard a type against itself, since no other module exists; an abstract type the module keeps private is refused, as hiding from no one, and `examples/webserver.ern`'s two became plain types. A program that wants the guard puts the type in a module of its own, which is what ML and Rust do with a nested module and what Gleam, Haskell and Elm, having none, do with a file. The signature also fixed each operation's type at the type; an exported definition's type is now its own annotation or its inferred one, and §8.7 identifies an abstract type across nodes by its module's exported declarations, where it read the signature.
+
+**What followed.** The members of an abstract type need not be members: a module function may take one apart. The shell's editor state became abstract with one word, its search and pending sequence private, and its tests unchanged. An abstract type's fields may name a type its module keeps private, since the constructors do not cross (§4.2, the cold read's 2.10). Whether several representations may stand behind one contract, Java's interface or ML's signature, is a separate question, feedback item 52; every answer to it keeps a representation's boundary at a module, so it did not wait.
+
 ## Later
 
 Planned or considered, not in the language today.

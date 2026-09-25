@@ -23,9 +23,8 @@
 %% fields: none | {positional, Type} | {named, [#field{}]}
 -record(field, {pos, doc, name, type}).
 
--record(abstract_decl, {pos, doc, export = false, type, signatures}).
-%% type: the #type_decl{} it hides; signatures: [#signature{}]
--record(signature, {pos, doc, name, type}).
+-record(abstract_decl, {pos, doc, export = false, type}).
+%% type: the #type_decl{} whose constructors its module keeps (report §4.4)
 
 -record(fn_decl, {pos, doc, export = false, owner, name, params, ret, effect, body,
                   type}).

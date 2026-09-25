@@ -214,15 +214,14 @@ match_test() ->
 doc_attachment_test() ->
     {ok, Ds} = ern_parser:parse_string(
                  <<"/// The module.\n\n/// T.\ntype T =\n    /// A.\n    A(\n    /// f.\n"
-                   "    x : Int)\n    /// B.\n  | B\n/// S.\nabstract type S = S(Int) with {\n"
-                   "    /// e.\n    e : S\n}\n">>),
+                   "    x : Int)\n    /// B.\n  | B\n/// S.\nabstract type S = S(Int)\n">>),
     ?assertMatch([#module_doc{text = <<"The module.">>},
                   #type_decl{doc = <<"T.">>,
                              constructors = [#constructor{doc = <<"A.">>,
                                                           fields = {named,
                                                                     [#field{doc = <<"f.">>}]}},
                                              #constructor{doc = <<"B.">>}]},
-                  #abstract_decl{doc = <<"S.">>, signatures = [#signature{doc = <<"e.">>}]}],
+                  #abstract_decl{doc = <<"S.">>}],
                  Ds),
     ?assertMatch({ok, [#fn_decl{doc = undefined}]},
                  ern_parser:parse_string(<<"fn f() = {\n    /// stray\n    1\n}\n">>)).
@@ -366,17 +365,17 @@ type_decl_test() ->
                                                                                    #t_con{}}}]}}]},
                  d("type M = Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with M)")).
 
-%% report §4.4
+%% report §4.4: an abstract type is a type declaration marked `abstract`, and
+%% has no signature
 abstract_decl_test() ->
     ?assertMatch(#abstract_decl{export = true,
                                 type = #type_decl{name = 'Stack', params = [a],
-                                                  constructors = [#constructor{name = 'Stack'}]},
-                                signatures = [#signature{name = empty, type = #t_con{}},
-                                              #signature{name = push, type = #t_fn{}},
-                                              #signature{name = '+', type = #t_fn{}}]},
-                 d("export abstract type Stack(a) = Stack(List(a)) with {\n"
-                   "    empty : Stack(a);\n    push : (a, Stack(a)) -> Stack(a);\n"
-                   "    + : (Stack(a), Stack(a)) -> Stack(a)\n}")).
+                                                  constructors = [#constructor{name = 'Stack'}]}},
+                 d("export abstract type Stack(a) = Stack(List(a))")),
+    ?assertMatch({error, #diag{message = "an abstract type has no signature: every definition"
+                                         " of its module may use its constructors, so leave"
+                                         " out `with { ... }`"}},
+                 ern_parser:parse_string("abstract type S = S(Int) with {\n    e : S\n}\n")).
 
 %% report §4.5
 fn_decl_test() ->
@@ -529,8 +528,8 @@ operator_grammar_test() ->
     ?assertEqual("expected a name instead of `+`", err("fn +(a, b) = a")),
     ?assertEqual("expected a name after `.` instead of `|>`", err_expr("Int.|>")),
     ?assertEqual("expected a name after `.` instead of `==`", err_expr("Int.==")),
-    ?assertEqual("expected a signature name instead of `|>`",
-                 err("abstract type T = T with { |> : (T) -> T }")).
+    ?assertEqual("expected a member name or operator after `.` instead of `|>`",
+                 err("fn T.|>(a) = a")).
 
 %% report Appendix A
 misc_errors_test() ->

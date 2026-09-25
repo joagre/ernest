@@ -216,11 +216,7 @@ operators_across_modules_test() ->
 type_member_across_modules_test() ->
     Dir = tmp(),
     write(Dir, "src/lib/stack.ern",
-          "export abstract type Stack(a) = Stack(List(a)) with {\n"
-          "    empty : Stack(a);\n"
-          "    push : (a, Stack(a)) -> Stack(a);\n"
-          "    size : (Stack(a)) -> Int\n"
-          "}\n"
+          "export abstract type Stack(a) = Stack(List(a))\n"
           "export let Stack.empty : Stack(a) = Stack([])\n"
           "export fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) = Stack(x :: xs)\n"
           "export fn Stack.size(Stack(xs) : Stack(a)) -> Int = List.size(xs)\n"),
@@ -311,7 +307,7 @@ deadlock_test() ->
 abstract_constructor_outside_test() ->
     Dir = tmp(),
     write(Dir, "src/main.ern",
-          "export abstract type Stack(a) = Stack(List(a)) with { empty : Stack(a) }\n"
+          "export abstract type Stack(a) = Stack(List(a))\n"
           "export let Stack.empty = Stack([])\n" ++ hello()),
     write(Dir, "src/other.ern", "export fn f() -> Main.Stack(Int) = Main.Stack([])\n"),
     ?assertEqual(1, ernc_err(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
@@ -560,10 +556,7 @@ doc_test() ->
     File = write(Dir, "shapes.ern",
                  "/// A shape.\n"
                  "export type Shape = Dot | At(x : Int, y : Int)\n"
-                 "export abstract type Box(a) = Box(List(a)) with {\n"
-                 "    empty : Box(a);\n"
-                 "    put : (a, Box(a)) -> Box(a)\n"
-                 "}\n"
+                 "export abstract type Box(a) = Box(List(a))\n"
                  "export let Box.empty : Box(a) = Box([])\n"
                  "/// Put x in the box.\n"
                  "export fn Box.put(x : a, Box(xs) : Box(a)) -> Box(a) = Box(x :: xs)\n"
@@ -576,8 +569,7 @@ doc_test() ->
     Expect = fun(Text) -> ?assertMatch({_, _}, binary:match(Out, Text)) end,
     Expect(<<"# Ernest module Shapes\n\n## Shapes.Shape\n\n```ernest\n"
              "type Shape = Dot | At(x : Int, y : Int)\n```\n\nA shape.\n">>),
-    Expect(<<"## Shapes.Box\n\n```ernest\nabstract type Box(a) with {\n"
-             "    empty : Box(a);\n    put : (a, Box(a)) -> Box(a)\n}\n```\n">>),
+    Expect(<<"## Shapes.Box\n\n```ernest\nabstract type Box(a)\n```\n">>),
     Expect(<<"## Shapes.Box.empty\n\n```ernest\nShapes.Box.empty : Box(a)\n```\n">>),
     Expect(<<"## Shapes.Box.put\n\n```ernest\nShapes.Box.put : (a, Box(a)) -> Box(a)\n```\n\n"
              "Put x in the box.\n">>),
