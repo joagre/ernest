@@ -68,8 +68,7 @@ export fn said(r : Region, text : String) -> #(Region, String) = {
 // the input that prompt belongs to is still being typed; what the
 // session says takes the prompt with it, an input having finished.
 export fn noted(r : Region, text : String) -> #(Region, String) = {
-    let Region(tail = tail) = r;
-    painted(Region(..r, tail = []), tail <> [text])
+    painted(Region(..r, tail = []), r.tail <> [text])
 }
 
 // What a program writes goes to the tail. A line the tail no longer has
@@ -107,8 +106,7 @@ export fn entered(r : Region) -> #(Region, String) = match r {
 // the prompt said after that other's answer is not this input's; it goes,
 // so that what the session says next starts a row of its own.
 export fn taken(r : Region) -> #(Region, String) = {
-    let Region(prompt = prompt) = r;
-    if String.isEmpty(prompt) then #(r, "") else painted(Region(..r, prompt = ""), [])
+    if String.isEmpty(r.prompt) then #(r, "") else painted(Region(..r, prompt = ""), [])
 }
 
 // The window has changed; the tail may no longer fit.
@@ -184,9 +182,8 @@ fn onScreen(line : String, w : Int) -> List(String) = {
 // did, and takes the rows the screen has left. A line with no room is
 // counted on the last row instead.
 fn offeredRows(r : Region) -> List(String) = {
-    let Region(offered = offered) = r;
     let room = screenRows(r) - List.size(tailRowsOf(r)) - List.size(screenInput(r));
-    let lines = List.map(offered, fn(line) = wrapped(expand(line), width(r)));
+    let lines = List.map(r.offered, fn(line) = wrapped(expand(line), width(r)));
     let all = List.flatMap(lines, fn(rows) = rows);
     if List.size(all) <= room then all
     else if room < 1 then []

@@ -90,20 +90,19 @@ type Picked = Picked(Command) | Unknown | Ambiguous(List(String))
 // Report §11.2: a name selects its command, and so does a prefix of it that
 // begins no other command's name.
 fn pick(name : String) -> Picked = {
-    let begun = List.filter(commands, fn(c) = String.startsWith(nameOf(c), name));
-    match List.filter(begun, fn(c) = nameOf(c) == name) {
+    let begun = List.filter(commands, fn(c) = String.startsWith(c.name, name));
+    match List.filter(begun, fn(c) = c.name == name) {
         [whole] -> Picked(whole)
       | _ ->
             if String.isEmpty(name) then Unknown
             else match begun {
                 [] -> Unknown
               | [one] -> Picked(one)
-              | many -> Ambiguous(List.map(many, nameOf))
+              | many -> Ambiguous(List.map(many, fn(c) = c.name))
             }
     }
 }
 
-fn nameOf(Command(name = name) : Command) -> String = name
 
 // `:bindings or :browse`, and `:a, :b or :c` for three.
 fn alternatives(names : List(String)) -> String = words(List.map(names, fn(name) = ":" <> name))
@@ -203,7 +202,7 @@ let whole = Test(name = "a whole name selects its command", run = fn() =
     })
 
 let alphabetical = Test(name = "the commands are in alphabetical order", run = fn() = {
-    let names = List.map(commands, nameOf);
+    let names = List.map(commands, fn(c) = c.name);
     if names == List.sort(names, String.compare) then Passed else Failed(String.join(names, " "))
 })
 

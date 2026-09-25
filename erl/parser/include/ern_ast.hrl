@@ -74,6 +74,8 @@
 -record(binding, {pos, pattern, ann, op, expr}).
 %% ann: the annotation, or undefined; op: '=' | '<-'
 -record(e_call, {pos, callee, args, type}).
+-record(e_select, {pos, expr, field, type}).
+%% expr.field, report §3.5
 -record(e_neg, {pos, expr, type}).
 -record(e_not, {pos, expr, type}).
 -record(e_binop, {pos, op, left, right, type}).

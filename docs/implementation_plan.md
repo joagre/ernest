@@ -86,10 +86,10 @@ The steps:
    two visibilities are enough (item 43), each weighed and kept. A later input may add a
    member to a session type (item 17; report §11.2). The log has an entry for each; item 46
    moved to the standard library's theme.
-4. **Expressions, patterns and types**, the second theme, field selection at its head (item
-   51, with 18 and 19, then 3, 5, 36, 39, 45, 48 and 52). If field selection is taken, the
-   report changes first: §3.5 for the rule, Appendix A for the production, §11.5 for what
-   a selector on an absent field says.
+4. **Expressions, patterns and types**, the second theme (items 18 and 19, then 3, 5, 36, 39,
+   45, 48 and 52, and the cold read's findings under it). **Decided 2026-09-25: field
+   selection**, `e.f` where every constructor has the field (item 51; report §3.5, the
+   log's *Field Selection*).
 5. **Processes and the system**, the third theme (items 9, 24, 26, 27, 28, 37, 47, 50, 53),
    the registry at its head (item 53), an address's identity with it (item 24), since
    unregistering needs equality; either outcome changes `:processes` and `Io.debug`, as item
@@ -99,7 +99,7 @@ The steps:
    46), what a function is named and where it
    lives (38, 40, 41), and what the library lacks or has in a form that misleads (7, 8, 15,
    20, 21, 22, 23, 31, 34, 35, 44).
-7. **The toolchain**, the fifth theme: the shell's own questions (items 29 and 30), and the
+7. **The toolchain**, the fifth theme: the shell's own questions (items 29, 30 and 54), and the
    names of the options to `ernc` and `ern`. Both tools grew their options one MVP at a
    time and the set has never been read whole. Under review: the three words for a
    directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the

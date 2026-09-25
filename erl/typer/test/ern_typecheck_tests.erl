@@ -589,6 +589,26 @@ toplevel_let_test() ->
     ?assertEqual("Io.println needs a process, and a top-level `let` is pure",
                  err("let x = Io.println(\"a\")")).
 
+%% report §3.5, §4.8, §11.5: a field is selected where every constructor has
+%% it, of one type; a type found later in the definition serves, one never
+%% found is an error, and an abstract type's fields are its module's
+field_selection_test() ->
+    Shape = "export type Point = Point(x : Int, y : Int)\n"
+            "export type Shape = Dot(at : Point) | Circle(at : Point, radius : Int)\n",
+    ?assertEqual("(M.Shape) -> Int", type_of(Shape ++ "export fn f(s : Shape) = s.at.x", f)),
+    ?assertEqual("(M.Point) -> Int",
+                 type_of(Shape ++ "export fn g(p) = { let n = p.x; n + norm(p) }\n"
+                         "fn norm(p : Point) -> Int = p.y", g)),
+    ?assertEqual("Shape has no field radius in every constructor: Dot has none",
+                 err(Shape ++ "fn f(s : Shape) = s.radius")),
+    ?assertEqual("Point has no field z", err(Shape ++ "fn f(p : Point) = p.z")),
+    ?assertEqual("#(Int, Int) has no field x", err("fn f() = #(1, 2).x")),
+    ?assertEqual("the type whose field x is read is not determined; annotate it",
+                 err(Shape ++ "fn f(p) = p.x")),
+    ?assertMatch("the field name in every constructor" ++ _,
+                 err("type T = A(name : Int) | B(name : String)\nfn f(t : T) = t.name")),
+    ?assertEqual(ok, ok("export abstract type Box = Box(n : Int)\nfn f(b : Box) = b.n")).
+
 %% report §5.6
 constructors_test() ->
     ?assertEqual("(Int) -> List(Optional(Int))",

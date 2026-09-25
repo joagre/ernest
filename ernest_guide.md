@@ -287,7 +287,7 @@ Three shapes of constructor, with different usage:
 - **Positional** (`Some(a)`): one value, and the constructor is also a function, `(a) -> Optional(a)`, so it can be passed: `List.map(xs, Some)`. A constructor takes one positional value or named fields; several values without names are a tuple, `Point(#(Int, Int))`.
 - **Named fields** (`Person(name : String, age : Int)`): construction uses the field syntax (`Person(name = "Alice", age = 30)`). Not a function value.
 
-### 2.4 Named fields and `..` update
+### 2.4 Named fields, selection, and `..` update
 
 For constructors that carry several things, name each field:
 
@@ -302,11 +302,15 @@ alice : Person
 older : Person
 > older
 Person(age = 31, name = "Alice") : Person
+> older.age
+31 : Int
 ```
 
-`..alice` copies the fields not listed, and `age = 31` overrides one. `alice` is unchanged; `older` is a second `Person` value. Ernest uses `:` for types (`name : String`) and `=` for values (`name = "Alice"`); function result types use `->`.
+`older.age` reads one field. `..alice` copies the fields not listed, and `age = 31` overrides one. `alice` is unchanged; `older` is a second `Person` value. Ernest uses `:` for types (`name : String`) and `=` for values (`name = "Alice"`); function result types use `->`.
 
 The fields may be given in any order, and are evaluated in the order written. The shell prints them in the order of their names.
+
+A type with several constructors has a field only where every constructor has it, with one type: in `type Shape = Dot(at : Point) | Circle(at : Point, radius : Int)`, `s.at` reads any shape's point, and `s.radius` is refused, since a `Dot` has none; a `match` reads it. An abstract type's fields are its own module's (§7.2).
 
 ### 2.5 Lists, tuples, maps, sets
 

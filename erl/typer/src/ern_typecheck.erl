@@ -1055,10 +1055,20 @@ solve_deferred(#env{deferred = Deferred} = Env) ->
                 {operator, Pos, Op, _, _} ->
                     %% report §4.8: resolution precedes generalization
                     fail(Pos, "the operand type of `" ++ atom_to_list(Op)
-                              ++ "` is not determined; annotate it")
+                              ++ "` is not determined; annotate it");
+                {select, Pos, F, _, _} ->
+                    fail(Pos, "the type whose field " ++ atom_to_list(F)
+                              ++ " is read is not determined; annotate it")
             end
     end.
 
+solve_one({select, Pos, F, XT, Res}, Env) ->
+    case ern_types:resolve(XT, Env#env.st) of
+        {tvar, _} -> unsolved;
+        _ ->
+            {T, Env1} = resolve_select(Pos, F, XT, Env),
+            {solved, unify_at(Pos, Res, T, Env1, "the field " ++ atom_to_list(F))}
+    end;
 solve_one({operator, Pos, Op, LT, Res}, Env) ->
     case ern_types:resolve(LT, Env#env.st) of
         {tvar, _} -> unsolved;
@@ -1285,6 +1295,69 @@ operator_result(Pos, Op, LT, Env) ->
         _ ->
             resolve_operator(Pos, Op, LT, Env)
     end.
+
+%% Report §3.5, §4.8: a field selection resolves against its operand's type
+%% as an operator does, deferred while that type is still a variable.
+select_result(Pos, F, XT, Env) ->
+    case ern_types:resolve(XT, Env#env.st) of
+        {tvar, _} ->
+            {Res, St} = ern_types:fresh(Env#env.st),
+            {Res, Env#env{st = St, deferred = [{select, Pos, F, XT, Res} | Env#env.deferred]}};
+        _ ->
+            resolve_select(Pos, F, XT, Env)
+    end.
+
+%% Report §3.5: the selector f exists where every constructor of the type
+%% has a named field f, of one type; an abstract type's fields are its
+%% module's (§4.4).
+resolve_select(Pos, F, XT, #env{st = St, types = Types, local_types = LT} = Env) ->
+    T = ern_types:resolve(XT, St),
+    Field = atom_to_list(F),
+    Shown = ern_types:format(T, St),
+    case T of
+        {tcon, Q, _} ->
+            Own = maps:get(lists:last(Q), LT, undefined) =:= Q,
+            case maps:get(Q, Types, undefined) of
+                #tinfo{abstract = true} when not Own ->
+                    fail(Pos, Shown ++ " is abstract, and its fields are its module's alone");
+                #tinfo{constructors = [_ | _] = Cs} ->
+                    field_type(Pos, F, T, Cs, Env);
+                _ ->
+                    fail(Pos, Shown ++ " has no field " ++ Field)
+            end;
+        _ ->
+            fail(Pos, Shown ++ " has no field " ++ Field)
+    end.
+
+field_type(Pos, F, T, Cs, Env) ->
+    Shown = ern_types:format(T, Env#env.st),
+    lists:any(fun(#cinfo{fields = {named, Ns}}) -> lists:member(F, Ns); (_) -> false end, Cs)
+        orelse fail(Pos, Shown ++ " has no field " ++ atom_to_list(F)),
+    lists:foldl(
+      fun(#cinfo{name = C, fields = Fields, scheme = Scheme}, {FT0, E}) ->
+              Names = case Fields of {named, Ns} -> Ns; _ -> [] end,
+              case index_of(F, Names) of
+                  none ->
+                      fail(Pos, Shown ++ " has no field " ++ atom_to_list(F)
+                                ++ " in every constructor: " ++ atom_to_list(C) ++ " has none");
+                  I ->
+                      {{tfn, FTs, pure, RT}, St1} = ern_types:instantiate(Scheme, E#env.st),
+                      E1 = unify_at(Pos, T, RT, E#env{st = St1}, "the value whose field "
+                                                                  ++ atom_to_list(F) ++ " is read"),
+                      FT = lists:nth(I, FTs),
+                      E2 = case FT0 of
+                               undefined -> E1;
+                               _ -> unify_at(Pos, FT0, FT, E1, "the field " ++ atom_to_list(F)
+                                                               ++ " in every constructor")
+                           end,
+                      {FT, E2}
+              end
+      end, {undefined, Env}, Cs).
+
+index_of(X, L) -> index_of(X, L, 1).
+index_of(_, [], _) -> none;
+index_of(X, [X | _], I) -> I;
+index_of(X, [_ | R], I) -> index_of(X, R, I + 1).
 
 resolve_operator(Pos, Op, LT, #env{st = St} = Env) ->
     T = ern_types:resolve(LT, St),
@@ -1540,6 +1613,10 @@ infer(#e_not{pos = Pos, expr = X} = E, Env) ->
     {TypedX, XT, Env1} = infer(X, Env),
     Env2 = unify_at(Pos, ?BOOL, XT, Env1, "the operand of `!`"),
     {E#e_not{expr = TypedX, type = ?BOOL}, ?BOOL, Env2};
+infer(#e_select{pos = Pos, expr = X, field = F} = E, Env) ->
+    {TypedX, XT, Env1} = infer(X, Env),
+    {T, Env2} = select_result(Pos, F, XT, Env1),
+    {E#e_select{expr = TypedX, type = T}, T, Env2};
 infer(#e_neg{pos = Pos, expr = X} = E, Env) ->
     {TypedX, XT, Env1} = infer(X, Env),
     {T, Env2} = operator_result(Pos, negate, XT, Env1),
@@ -1742,9 +1819,6 @@ infer_named(#e_con{pos = Pos, name = Name} = E, Names, FTs, RT, Base, Sets, Env)
                        end, Env1, Sets),
     {E#e_con{args = {named, TypedBase, TypedSets}, type = RT}, RT, Env2}.
 
-index_of(X, L) -> index_of(X, L, 1).
-index_of(X, [X | _], I) -> I;
-index_of(X, [_ | R], I) -> index_of(X, R, I + 1).
 
 binop_type(Pos, Op, L, LT, R, RT, Env) when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/';
                                             Op =:= '%'; Op =:= '<>' ->

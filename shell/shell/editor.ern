@@ -67,9 +67,9 @@ export fn typed(state : State, text : String, at : Int) -> State =
     State(..state, text = text, at = at)
 
 // The line being edited and the cursor in it, a search aside.
-export fn text(State(text = text) : State) -> String = text
+export fn text(state : State) -> String = state.text
 
-export fn at(State(at = at) : State) -> Int = at
+export fn at(state : State) -> Int = state.at
 
 // Whether the keys so far have begun a sequence the next key ends
 // (report §8.2).
@@ -169,7 +169,7 @@ fn meta(state : State, event : Event) -> Edit = {
       // report §8.2: `Escape [` begins a sequence §9.3 does not name,
       // of which `Escape [ Z` is `Shift-Tab`
       | Key('[') -> Typing(State(..state, pending = Bracket))
-      | Key('<') -> Typing(walkTo(state, List.size(behind(state))))
+      | Key('<') -> Typing(walkTo(state, List.size(state.history)))
       | Key('>') -> Typing(walkTo(state, 0))
       | Key('b') -> Typing(State(..state, at = wordLeft(text, at)))
       | Key('f') -> Typing(State(..state, at = wordRight(text, at)))
@@ -205,8 +205,6 @@ fn walkTo(state : State, to : Int) -> State = {
 fn entry(history : List(String), n : Int) -> String =
     Optional.withDefault(List.get(history, n - 1), "")
 
-fn behind(state : State) -> List(String) = match state { State(history = history) -> history }
-
 //
 // Searching the history: `C-r` back and `C-s` forward, each character
 // typed narrowing the search, `C-g` putting back what the search began
@@ -237,7 +235,7 @@ fn searching(state : State, s : Search, event : Event) -> Edit = match event {
 // there is none.
 fn seek(state : State, s : Search, step : Int) -> State = {
     let Search(query = query, back = back) = s;
-    match find(behind(state), query, back + step, step) {
+    match find(state.history, query, back + step, step) {
         Some(n) -> matched(state, s, n)
       | None -> State(..state, search = Some(s))
     }
@@ -249,7 +247,7 @@ fn narrow(state : State, s : Search, c : Char) -> State = {
     let Search(query = query, back = back) = s;
     let narrower = Search(..s, query = query <> Char.toString(c));
     let from = if back == 0 then back + step(s) else back;
-    match find(behind(state), query <> Char.toString(c), from, step(s)) {
+    match find(state.history, query <> Char.toString(c), from, step(s)) {
         Some(n) -> matched(state, narrower, n)
       | None -> State(..state, search = Some(narrower))
     }
@@ -265,7 +263,7 @@ fn shorten(state : State, s : Search) -> State = {
     if String.isEmpty(shorter) then
         State(..state, text = before, at = String.size(before), back = from,
             search = Some(narrower))
-    else match find(behind(state), shorter, from + step(s), step(s)) {
+    else match find(state.history, shorter, from + step(s), step(s)) {
         Some(n) -> matched(state, narrower, n)
       | None -> State(..state, search = Some(narrower))
     }
@@ -281,9 +279,8 @@ fn abandon(state : State, s : Search) -> State = match s {
 fn stop(state : State) -> State = State(..state, search = None)
 
 fn matched(state : State, s : Search, n : Int) -> State = {
-    let Search(query = query) = s;
-    let text = entry(behind(state), n);
-    State(..state, text = text, at = matchAt(text, query), back = n,
+    let text = entry(state.history, n);
+    State(..state, text = text, at = matchAt(text, s.query), back = n,
         search = Some(Search(..s, back = n)))
 }
 

@@ -573,6 +573,10 @@ calls(Callee, [{'(', _} | R]) ->
     Closed = inside(Callee, max(0, length(Args) - 1), fun() -> expect(R1, ')') end),
     {Call, R2} = w({#e_call{pos = node_pos(Callee), callee = Callee, args = Args}, Closed}),
     calls(Call, R2);
+calls(E, [{'.', _}, {ident, _, Field} | R]) ->
+    %% report §3.5: a field selected from the value before it
+    {Select, R1} = w({#e_select{pos = node_pos(E), expr = E, field = Field}, R}),
+    calls(Select, R1);
 calls(E, Ts) ->
     {E, Ts}.
 

@@ -136,6 +136,18 @@ pipe_rewrite_test() ->
     ?assertMatch(#e_call{callee = #e_lambda{}, args = [#e_var{name = x}]},
                  e("x |> (fn(y) = y + 1)")).
 
+%% report §3.5, Appendix A: `.` and an ident after a primary select a
+%% field, chained and after a call; an uppercase first segment still
+%% begins a qualified name
+field_selection_test() ->
+    ?assertMatch(#e_select{expr = #e_var{name = s}, field = upper}, e("s.upper")),
+    ?assertMatch(#e_select{expr = #e_select{expr = #e_var{name = s}, field = at}, field = x},
+                 e("s.at.x")),
+    ?assertMatch(#e_select{expr = #e_call{}, field = y}, e("f(1).y")),
+    ?assertMatch(#e_select{expr = #e_var{path = ['Stack'], name = empty}, field = items},
+                 e("Stack.empty.items")),
+    ?assertMatch(#e_binop{op = '+', left = #e_select{}, right = #e_select{}}, e("p.x + p.y")).
+
 %% report §5.6
 constructors_test() ->
     ?assertMatch(#e_con{name = 'Some', args = {positional, #e_lit{value = 5}}}, e("Some(5)")),

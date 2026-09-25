@@ -354,6 +354,20 @@ case_distinct_names_test() ->
     ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"341\n">>, iolist_to_binary(?capturedOutput)).
 
+%% report §3.5, §4.4: an abstract type's fields have no selector outside its
+%% module
+abstract_field_outside_test() ->
+    Dir = tmp(),
+    write(Dir, "src/main.ern",
+          "export abstract type Box = Box(n : Int)\n"
+          "export let Box.one = Box(n = 1)\n"
+          "export fn inside(b : Box) -> Int = b.n\n" ++ hello()),
+    write(Dir, "src/other.ern", "export fn g() -> Int = Main.Box.one.n\n"),
+    ?assertEqual(1, ernc_err(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertMatch({match, _},
+                 re:run(iolist_to_binary(?capturedOutput),
+                        "Main.Box is abstract, and its fields are its module's alone")).
+
 %% report §4.2: a module that names itself qualified is not a module cycle
 self_qualified_module_test() ->
     Dir = tmp(),

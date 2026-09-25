@@ -1189,6 +1189,20 @@ constructors_test() ->
         "}\n"),
     ?assertEqual(<<"5,2\ndot\n1\n">>, Out).
 
+%% report §3.5, §8.4: a selected field, one element of the tuple where every
+%% constructor holds it at one place and a case on the tag where the places
+%% differ, its operand evaluated once
+field_selection_test() ->
+    {ok, Out} = run(
+        "type Pair = Left(a : Int, name : String) | Right(name : String, z : Int)\n"
+        "type Point = Point(x : Int, y : Int)\n"
+        "fn v(p : Pair) -> Pair with Never = { Io.println(\"once\"); p }\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    Io.println(v(Left(a = 1, name = \"l\")).name <> Right(name = \"r\", z = 2).name);\n"
+        "    Io.println(Int.toString(Point(x = 3, y = 4).y))\n"
+        "}\n"),
+    ?assertEqual(<<"once\nlr\n4\n">>, Out).
+
 %% report §3.5, §5.1: named fields are stored in canonical order and
 %% evaluated in the order written, in a construction and in an update from
 %% a base value, whose base is evaluated first. A regression test: the

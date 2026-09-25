@@ -7,11 +7,11 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Ten have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Eleven have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
 (decided, report §9), 2, 4 and 43 (weighed and kept, the log's *Constructor Names Stay Unique
 in a Module*, *Names Stay Qualified, Without Import or Alias* and *Two Visibilities Are
-Enough*), 17 (decided, report §11.2), 32 and 33 (decided, report §4.4), and 49 (decided with them: the
+Enough*), 17 (decided, report §11.2), 51 (decided, report §3.5), 32 and 33 (decided, report §4.4), and 49 (decided with them: the
 editor's state and the region are abstract, and a history type was weighed and left, since
 its one rule, the cap of a thousand inputs, a session does not reach, and it would make the
 editor depend on `Shell.History`).
@@ -24,18 +24,11 @@ item 46 went to the standard library's theme.
 ## 2. Expressions, patterns and types
 
 How a part of a value is read, and the smaller rules of the grammar and the checker that
-writing Ernest ran into. Field selection leads, since it is the one candidate for new
-syntax and the shell has three witnesses for it; tuple projection and `match` as an
-operand are the same question asked of other forms. The rest stand alone, and one contract
+writing Ernest ran into. Field selection, which led it, was decided on 2026-09-25 (report
+§3.5); tuple projection and `match` as an operand are the same question asked of other
+forms. The rest stand alone, and one contract
 over several representations (52) is the largest of them.
 
-51. **Field selection**, `s.upper`. The shell read one field through a whole pattern three
-    times: the screen's record, then `Shell.Editor.State` twice, `fn text(editing) = match
-    editing { State(text = text) -> text }` existing only to read one field. Gleam's rule
-    is there to copy: a field is read with a dot when every constructor of the type has a
-    field of that name and type. Against it is principle 2, a pattern already reading a
-    field; for it, that Ernest took `..` for update from the family whose readers expect
-    `.` for read. The plan's MVP 2.65 says which sections change if it is taken.
 18. **No projection from a tuple.** `List.span` answers a pair, and twice the half wanted was
     reached for as `.0` or `.1`, which Ernest does not have; `let #(_, rest) = ...` is the
     one way, a line longer. Principle 2 is for it staying so; recorded because it was felt.
@@ -305,5 +298,10 @@ What the shell does that its own code, rather than the language, decides.
 30. **`:load`'s completion restates the path-to-namespace rule** of §4.2 and §11.1
     (`isPathWord`, `capital` in `shell.ern`), which the compiler also owns. Whether the rule
     belongs to a function both use, in the front end or in Appendix E.
+54. **Completion after a value's `.`.** Since fields are selected (§3.5), `state.` and
+    `Tab` at the prompt could offer the fields of the value's type, as `List.` offers the
+    module's names; §11.2's completion reads what is before the last `.` as a namespace,
+    so it offers nothing. Whether completion reaches a value's fields, which needs the
+    value's type where the parser stopped.
 29. **The editor's words are split at spaces only**, so `M-b` over `List.map(xs` jumps it
     whole; Readline's words are alphanumeric runs. Which the shell should follow.

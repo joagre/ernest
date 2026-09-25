@@ -123,15 +123,12 @@ fn step(world : World) -> World = {
     World(..world, players = ps3, apples = apples3, seed = seed2, tick = t + 1)
 }
 
-fn applyInput(world : World, input : Input) -> World = {
-    let World(players = ps) = world;
-    match input {
-        Turn(id = id, dir = d) -> match Map.get(ps, id) {
-            Some(p) -> World(..world, players = Map.put(ps, id, turn(p, d)))
-          | None -> world
-        }
-      | Leave(id) -> World(..world, players = Map.remove(ps, id))
+fn applyInput(world : World, input : Input) -> World = match input {
+    Turn(id = id, dir = d) -> match Map.get(world.players, id) {
+        Some(p) -> World(..world, players = Map.put(world.players, id, turn(p, d)))
+      | None -> world
     }
+  | Leave(id) -> World(..world, players = Map.remove(world.players, id))
 }
 
 fn collide(ps : Map(Int, Player), p : Player) -> Player = match p {

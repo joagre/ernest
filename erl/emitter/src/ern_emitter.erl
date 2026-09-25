@@ -602,6 +602,9 @@ expr(#e_call{pos = Pos, callee = Callee, args = Args}, Cx) ->
 expr(#e_not{pos = Pos, expr = X}, Cx) ->
     {Form, Cx1} = expr(X, Cx),
     {at(Pos, erl_syntax:prefix_expr(erl_syntax:operator('not'), Form)), Cx1};
+expr(#e_select{pos = Pos, expr = X, field = F}, Cx) ->
+    {Form, Cx1} = expr(X, Cx),
+    select(Pos, F, ern_typecheck:node_type(X), Form, Cx1);
 expr(#e_neg{pos = Pos, expr = X}, Cx) ->
     {Form, Cx1} = expr(X, Cx),
     {at(Pos, negate(resolved(ern_typecheck:node_type(X), Cx), Form, Cx)), Cx1};
@@ -1217,6 +1220,33 @@ subst(pure, _) -> pure.
 %%
 %% Constructors, report §8.4
 %%
+
+%% Report §3.5, §8.4: a selected field. A named constructor is its tag and
+%% its fields in canonical order, so the field is one element of the tuple
+%% where every constructor has it at one place, and a case on the tag where
+%% the places differ.
+select(Pos, F, XT, Form, #cx{env = Env} = Cx) ->
+    {tcon, Q, _} = ern_typecheck:resolve_type(XT, Env),
+    #tinfo{constructors = Cs} = ern_typecheck:lookup_type(Q, Env),
+    Places = [{C, place(F, Names) + 1, length(Names)}
+              || #cinfo{name = C, fields = {named, Names}} <- Cs],
+    case lists:usort([I || {_, I, _} <- Places]) of
+        [I] ->
+            {at(Pos, call_remote(erlang, element, [erl_syntax:integer(I), Form])), Cx};
+        _ ->
+            {[V], Cx1} = fresh_vars(1, "F", Cx),
+            Var = erl_syntax:variable(V),
+            Clauses = [erl_syntax:clause(
+                         [erl_syntax:tuple([erl_syntax:atom(C)
+                                            | [case J of I -> Var; _ -> erl_syntax:underscore() end
+                                               || J <- lists:seq(2, N + 1)]])],
+                         none, [Var])
+                       || {C, I, N} <- Places],
+            {at(Pos, erl_syntax:case_expr(Form, Clauses)), Cx1}
+    end.
+
+place(F, [F | _]) -> 1;
+place(F, [_ | R]) -> 1 + place(F, R).
 
 con_expr(Pos, Path, Name, Args, Cx) ->
     #cinfo{fields = Fields} = ern_typecheck:lookup_con(Pos, Path, Name, Cx#cx.env),
