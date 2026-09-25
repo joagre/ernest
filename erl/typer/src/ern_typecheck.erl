@@ -1748,6 +1748,21 @@ walk(_, _, Env) ->
 %% Expressions: infer(Expr, Env) -> {TypedExpr, Type, Env}
 %%
 
+%% Report §3.9: a pure function stands where one with a mailbox type is
+%% expected, so an expression whose type is a pure function type takes a
+%% fresh effect variable in its outermost arrow, which the context binds.
+open_effect(T, St) ->
+    case ern_types:resolve(T, St) of
+        {tfn, Ps, Eff, R} ->
+            case ern_types:resolve(Eff, St) of
+                pure ->
+                    {Fresh, St1} = ern_types:fresh_effect(St),
+                    {{tfn, Ps, Fresh, R}, St1};
+                _ -> {T, St}
+            end;
+        _ -> {T, St}
+    end.
+
 infer(#e_lit{kind = Kind} = E, Env) ->
     T = lit_type(Kind),
     {E#e_lit{type = T}, T, Env};
@@ -1756,7 +1771,8 @@ infer(#e_var{pos = Pos, path = Path0, name = Name} = E0, Env0) ->
     %% that declared it, so that nothing after this knows of a session
     {E, Path} = session_name(E0, Path0, Name, Env0),
     {Scheme, Env} = lookup_value(Pos, Path, Name, Env0),
-    {T, St} = ern_types:instantiate(Scheme, Env#env.st),
+    {T0, St0} = ern_types:instantiate(Scheme, Env#env.st),
+    {T, St} = open_effect(T0, St0),
     Pending = instance_pending(T, Pos, St),
     {E#e_var{type = T}, T, Env#env{st = St, pending = Pending ++ Env#env.pending}};
 infer(#e_con{pos = Pos, path = Path, name = Name, args = Args} = E, Env) ->
@@ -1775,7 +1791,8 @@ infer(#e_con{pos = Pos, path = Path, name = Name, args = Args} = E, Env) ->
             {E#e_con{args = {positional, TypedArg}, type = RT}, RT, Env3};
         {positional, none} ->
             %% a single-positional constructor is a function value (§5.6)
-            {E#e_con{type = CT}, CT, Env1};
+            {OT, St1} = open_effect(CT, St),
+            {E#e_con{type = OT}, OT, Env1#env{st = St1}};
         {positional, {named, _, _}} ->
             fail(Pos, atom_to_list(Name) ++ " has one positional field, not named fields");
         {{named, Names}, {named, Base, Sets}} ->
@@ -1832,7 +1849,8 @@ infer(#e_call{pos = Pos, callee = Callee, args = Args} = E, Env) ->
                                    {TA, En1}
                                end, Env1, lists:zip(Args, Ps)),
             Env3 = use_effect(Pos, Name, Eff, Env2),
-            {E#e_call{callee = TypedCallee, args = TypedArgs, type = RetT}, RetT, Env3};
+            {OT, St3} = open_effect(RetT, Env3#env.st),
+            {E#e_call{callee = TypedCallee, args = TypedArgs, type = OT}, OT, Env3#env{st = St3}};
         {tvar, _} ->
             {TypedArgs, ArgTs, Env2} = infer_list(Args, Env1),
             {RetT, St} = ern_types:fresh(Env2#env.st),
@@ -1852,8 +1870,9 @@ infer(#e_not{pos = Pos, expr = X} = E, Env) ->
     {E#e_not{expr = TypedX, type = ?BOOL}, ?BOOL, Env2};
 infer(#e_select{pos = Pos, expr = X, field = F} = E, Env) ->
     {TypedX, XT, Env1} = infer(X, Env),
-    {T, Env2} = select_result(Pos, F, XT, Env1),
-    {E#e_select{expr = TypedX, type = T}, T, Env2};
+    {T0, Env2} = select_result(Pos, F, XT, Env1),
+    {T, St} = open_effect(T0, Env2#env.st),
+    {E#e_select{expr = TypedX, type = T}, T, Env2#env{st = St}};
 infer(#e_neg{pos = Pos, expr = X} = E, Env) ->
     {TypedX, XT, Env1} = infer(X, Env),
     {T, Env2} = operator_result(Pos, negate, XT, Env1),
@@ -1877,8 +1896,12 @@ infer(#e_lambda{params = Params, ret = Ret, effect = Effect, body = Body} = E,
                                     end},
     Context = ret_context(Ret, "the lambda body does not have the declared type"),
     {TypedBody, _BodyT, Env4} = check_expr(Body, RetT, Context, ret_origin(Ret, RetT, Env2), Env2),
-    {E#e_lambda{params = TypedParams, body = TypedBody, type = T}, T,
-     Env4#env{vars = Env#env.vars, effect = Env#env.effect, ann_vars = Env#env.ann_vars,
+    %% the body was checked as the annotation says; a lambda written pure
+    %% stands where one with a mailbox type is expected, as any expression
+    %% of a pure function type does (report §3.9)
+    {OT, St4} = open_effect(T, Env4#env.st),
+    {E#e_lambda{params = TypedParams, body = TypedBody, type = T}, OT,
+     Env4#env{st = St4, vars = Env#env.vars, effect = Env#env.effect, ann_vars = Env#env.ann_vars,
               effect_origin = Env#env.effect_origin}};
 infer(E, Env) when is_record(E, e_if); is_record(E, e_match); is_record(E, e_receive) ->
     {T, St} = ern_types:fresh(Env#env.st),

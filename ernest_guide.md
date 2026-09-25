@@ -589,9 +589,9 @@ An effect variable may stand for a mailbox type or for pure. One that also appea
 
 The process operations, `self`, `send`, `spawn`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, `kill`, and `remote`, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
 
-### 3.6 One spawn corner: pure callbacks
+### 3.6 One spawn corner: a callback's mailbox
 
-`spawn`'s callback has type `() -> Unit with n`, and the `n` is also the mailbox of the `Address(n)` it returns. A callback declared pure has no mailbox and cannot be spawned. A process that never receives is spawned with the mailbox `Never`:
+`spawn`'s callback has type `() -> Unit with n`, and the `n` is also the mailbox of the `Address(n)` it returns. A pure function fits wherever one with a mailbox type is expected, so a pure callback is spawned too, and its mailbox is whatever the address is used as. When nothing says, the type of the address is not determined. A process that never receives is spawned with the mailbox `Never`:
 
 ```console
 $ ern --shell
@@ -599,10 +599,8 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type spawn
 spawn : (Where, () -> Unit with n) -> Address(n) with m
 > spawn(Local, fn() -> Unit = Unit)
-input:1:14: the argument does not fit spawn: a pure function where one that runs in a process is needed
-1 | spawn(Local, fn() -> Unit = Unit)
-  | ----- spawn : (Where, () -> Unit with a) -> Address(a) with e
-  |              ^^^^^^^^^^^^^^^^^^^
+<address> : Address(a)
+`it` is unchanged: this input did not determine the type of its value
 > spawn(Local, fn() -> Unit with Never = Unit)
 <address> : Address(Never)
 ```

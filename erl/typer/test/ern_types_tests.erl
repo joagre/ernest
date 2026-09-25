@@ -115,7 +115,8 @@ format_test() ->
     ?assertEqual("Net.Http.Request", ern_types:format({tcon, ['Net', 'Http', 'Request'], []}, St3)),
     ?assertEqual("#(Int, Bool)", ern_types:format({ttuple, [int(), bool()]}, St3)),
     ?assertEqual("() -> Int", ern_types:format({tfn, [], pure, int()}, St3)),
-    ?assertEqual("(a, b) -> a with e", ern_types:format({tfn, [A, B], E, A}, St3)),
+    %% report §11.5: an effect variable that occurs once prints as pure
+    ?assertEqual("(a, b) -> a", ern_types:format({tfn, [A, B], E, A}, St3)),
     ?assertEqual("() -> Address(a) with a",
                  ern_types:format({tfn, [], A, {tcon, ['Address'], [A]}}, St3)),
     ?assertEqual("((a) -> b with e, a) -> b with e",

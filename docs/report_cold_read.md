@@ -10,7 +10,8 @@ first halves of 2.8 and 2.9, 2.7, 2.12, 2.14 to 2.16, 2.20 to 2.23, 2.25, 2.27 t
 an abstract type's boundary (§4.4). 2.1 and 2.2 were decided with the reply rule on 2026-09-25
 (§3.9, the log's *Not-Reply-Carrying by What the Body Does*); 1.2, 1.6, 1.13, 2.6, the
 second halves of 2.8 and 2.9, 2.17 and 2.34 the same day (the log's *An Initializer Depends
-on What It Names* and *The Cold Read's Smaller Rules*).
+on What It Names* and *The Cold Read's Smaller Rules*), and 1.1 on 2026-09-26 (the log's *A
+Pure Function Stands for One With a Mailbox*).
 
 This file holds the rest until MVP 2.65 decides each, under the theme of the feedback list
 that takes it; a finding leaves the file when it is decided. Each keeps its number and the
@@ -18,21 +19,6 @@ reader's text, and says what the implementation does today and what the check re
 Line numbers are the report's on 2026-09-25.
 
 ## Expressions, patterns and types
-
-1.1. **Whether a pure function stands where `with M` is expected.** §3.9 (L209, L215),
-§6.1 (L462), §6.2 (L484). "At a call site an effect variable binds to a mailbox type or to
-pure"; "Pure is the absence of `with`; it is not a type"; "Two callbacks with different
-concrete effects are a type error". Nothing says whether pure is compatible with an effect
-already bound to M: `fn both(f, g) = { f(1); g(2) }` called with one pure and one
-`send`ing callback; a pure function stored in `Upgrade(next : (Int) -> Unit with
-CounterMsg)`; `spawn(Local, fn() = Unit)`. §11.5 (L889) accepts `fn k() -> Int with m = 5`,
-which suggests pure fits a variable, not a concrete M. Reading A, subeffecting; reading B,
-plain unification, each case a type error. The reader's guess: A.
-
-*Checked.* Today: plain unification, but generalization turns a lone effect variable into
-pure, so a named pure function is refused where `with M` is expected while the same inline
-lambda is accepted. Recommended: a pure function stands wherever a function with a mailbox
-type is expected, and not the converse.
 
 2.13. **A redundant or unreachable clause**: an error, a warning, or nothing? The report
 never mentions warnings.

@@ -107,6 +107,35 @@ effect_only_type_argument_test() ->
                      "fn run(h : V(e), x : Int) -> Unit with e = h.f(x)\n"
                      "fn usePure() -> Unit = run(V(f = fn(x) = Unit, v = 1), 1)\n")).
 
+%% report §3.9: a pure function stands where one with a mailbox type is
+%% expected, whether it is named, declared, annotated, a parameter, a
+%% field, or a call's result, and in either order beside one that sends;
+%% one with a mailbox type never stands where a pure one is expected.
+%% Found by the cold read (its 1.1): a named pure function was refused
+%% where the same function written in place was accepted
+pure_stands_for_a_mailbox_test() ->
+    Types = "type Msg = Add(Int) | Up(next : (Int) -> Unit with Msg)\n"
+            "type Hook = Hook(run : (Int) -> Unit)\n"
+            "fn done(n : Int) -> Unit = Unit\n"
+            "fn quiet(n) = Unit\n"
+            "fn later() -> (Int) -> Unit = done\n"
+            "fn both(f, g) = { f(1); g(2) }\n",
+    Main = fun(Body) ->
+               Types ++ "fn main() -> Unit with Msg = { let a = self(); " ++ Body ++ "; Unit }\n"
+           end,
+    ?assertEqual(ok, ok(Main("let _ = Up(next = done)"))),
+    ?assertEqual(ok, ok(Main("let _ = Up(next = quiet)"))),
+    ?assertEqual(ok, ok(Main("let _ = Up(next = later())"))),
+    ?assertEqual(ok, ok(Main("let h = Hook(run = done); let _ = Up(next = h.run)"))),
+    ?assertEqual(ok, ok(Main("both(done, fn(x) = send(a, Add(x)))"))),
+    ?assertEqual(ok, ok(Main("both(fn(x) = send(a, Add(x)), done)"))),
+    ?assertEqual(ok, ok(Main("let _ = spawn(Local, fn() = done(1))"))),
+    ?assertEqual(ok, ok(Types ++ "fn wrap(f : (Int) -> Unit) -> Msg = Up(next = f)\n")),
+    ?assertEqual("field run: a function that runs in a process where a pure one is needed",
+                 err(Main("let _ = Hook(run = fn(x) = send(a, Add(x)))"))),
+    %% and a pure function still prints as pure
+    ?assertEqual("(Int) -> Unit", type_of("export fn done(n : Int) -> Unit = Unit", done)).
+
 %% report §4.8: `!` is negation on Bool
 not_operator_test() ->
     ?assertEqual("(Bool) -> Bool", type_of("export fn flip(b) = !b", flip)),
@@ -352,10 +381,9 @@ spawn_test() ->
     ?assertEqual(ok, ok("fn work() -> Unit with Never = Unit\n"
                         "fn main() -> Unit with Never = { let _ = spawn(Local, fn() = work());"
                         " Unit }")),
-    ?assertEqual("the argument does not fit spawn: a pure function where one that runs in a"
-                 " process is needed",
-                 err("fn main() -> Unit with Never = { let _ = spawn(Local, fn() -> Unit = Unit);"
-                     " Unit }")),
+    %% a callback written pure is spawned as any pure function is (report §3.9)
+    ?assertEqual(ok, ok("fn main() -> Unit with Never = {"
+                        " let _ = spawn(Local, fn() -> Unit = Unit); Unit }")),
     ?assertEqual("the type of a is not determined (Address(a)); use it, or annotate it",
                  err("fn work() = Unit\n"
                      "fn main() -> Unit with Never = { let a = spawn(Local, fn() = work());"
@@ -363,11 +391,12 @@ spawn_test() ->
 
 %% report §4.5, §3.9, §11.5: a pure result annotation on an effect-polymorphic
 %% function makes its callback pure, and the error names the side that is
-%% pure: a process function passed where a pure one is needed, and a pure
-%% one passed where a process is needed; in a parameter's parameter the two
-%% swap, since there the callee hands the function over. A regression test,
-%% written after the fix; it does not cover a result's function, nor the
-%% shell's rendering of the message.
+%% pure: a process function passed where a pure one is needed; in a
+%% parameter's parameter the two swap, since there the callee hands the
+%% function over. A pure one passed where a process is needed is no error
+%% since the cold read's 1.1. A regression test, written after the fix; it
+%% does not cover a result's function, nor the shell's rendering of the
+%% message.
 effect_mismatch_direction_test() ->
     ?assertEqual("the argument does not fit apply: a function that runs in a process where a"
                  " pure one is needed",
@@ -378,10 +407,6 @@ effect_mismatch_direction_test() ->
                  " where a pure one is needed",
                  err("fn g() -> Int with Never = {"
                      " let k : (Int) -> Int = fn(y) = { Io.println(\"x\"); y }; k(1) }")),
-    ?assertEqual("the argument does not fit spawn: a pure function where one that runs in a"
-                 " process is needed",
-                 err("fn main() -> Unit with Never = {"
-                     " let _ = spawn(Local, fn() -> Unit = Unit); Unit }")),
     %% h hands k a process function, and k's parameter must be pure
     ?assertEqual("the argument does not fit h: a function that runs in a process where a"
                  " pure one is needed",

@@ -321,7 +321,9 @@ first_differing(Es, As, Whole) ->
 
 -spec format(type() | pure, st()) -> string().
 format(T, St) ->
-    T1 = zonk(T, St),
+    %% report §11.5: an effect variable that occurs once, and is not
+    %% process-only, prints as pure
+    T1 = elide_pure_effects(zonk(T, St), [], St),
     EffectOnly = effect_only_vars(T1, St),
     {S, _} = fmt(T1, St, #{effect_only => EffectOnly, values => 0, effects => 0, taken => []}),
     lists:flatten(S).
@@ -410,7 +412,7 @@ scheme_state(#scheme{vars = Vars, names = Names}, #st{vars = Vs, subst = S} = St
           {string(), string(), string()}.
 format_call(#scheme{type = T} = Scheme, Params, Marked, St) ->
     St1 = scheme_state(Scheme, St),
-    case zonk(T, St1) of
+    case elide_pure_effects(zonk(T, St1), [], St1) of
         {tfn, Ps, E, R} = T1 ->
             Names0 = #{effect_only => effect_only_vars(T1, St1), values => 0, effects => 0,
                        taken => []},
