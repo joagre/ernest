@@ -729,15 +729,20 @@ fn commandEnd(line : String) -> Int = match String.indexOf(line, " ") {
 }
 
 // Report §11.2: the names a word completes against, every one once
-// something is typed; with nothing typed, the starting points, what the
-// session declares and the modules in scope.
+// something is typed; with nothing typed, the starting points: what the
+// session declares, the modules in scope, and the prelude's names that no
+// module qualifies, its constructors aside, which are mostly the messages
+// of system processes and complete from a letter.
 fn offered(typed : String) -> List(Shell.Complete.Name) with m =
     if !String.isEmpty(typed) then names()
     else {
         let own = sessionTexts();
         List.filter(names(), fn(name) = match name {
             Shell.Complete.Name(kind = Shell.Complete.Module) -> true
-          | Shell.Complete.Name(text = text) -> List.contains(own, text)
+          | Shell.Complete.Name(text = text, kind = Shell.Complete.Constructor) ->
+                List.contains(own, text)
+          | Shell.Complete.Name(text = text) ->
+                List.contains(own, text) || !String.contains(text, ".")
         })
     }
 

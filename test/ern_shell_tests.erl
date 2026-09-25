@@ -555,10 +555,11 @@ shift_tab_colour() ->
 
 %% report §11.2: `Tab` indents only where spaces alone stand before the
 %% cursor on its row; after `(`, with nothing to complete, it lists what may
-%% stand there, and with nothing typed that is the session's names and the
-%% modules, alphabetically. A regression test for findings of the session
-%% of real use: `List.map(` and `Tab` put four spaces inside the call, and
-%% then listed every prelude constructor first
+%% stand there, and with nothing typed that is the session's names, the
+%% modules, and the prelude's names but its constructors, alphabetically.
+%% A regression test for findings of the session of real use: `List.map(`
+%% and `Tab` put four spaces inside the call, and then listed every prelude
+%% constructor first
 tab_mid_row_test_() ->
     {timeout, 60, fun tab_mid_row/0}.
 
@@ -577,6 +578,7 @@ tab_mid_row() ->
     ?assertEqual(nomatch, binary:match(Bytes, <<"ArrowDown">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"module Bool\r\nmodule Bytes\r\n">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nzeta : Int">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nspawn : (Where">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map(\r\n">>)).
 
 %% report §11.2: every refusal of a command is red, as a diagnostic's first

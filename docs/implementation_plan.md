@@ -245,7 +245,8 @@ the shell is neither standard library nor library but the toolchain's own progra
       `List.map(` and `Tab` listed every name in scope, the prelude's constructors of
       system messages first, since the front end's order is by kind. Candidates are listed
       alphabetically now, by prefix before by abbreviation, and with nothing typed they
-      are the names the session declares and the modules in scope. §11.2 states it;
+      are the names the session declares, the modules in scope, and the prelude's names
+      other than its constructors, which no module leads to. §11.2 states it;
       `tab_mid_row_test_` and `Shell.Complete`'s own tests cover it.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
