@@ -228,9 +228,8 @@ fn quietly(state : State, screen : Address(ScreenMsg), from : String, line : Int
 
 fn run(state : State, screen : Address(ScreenMsg), from : String, line : Int, input : String,
     printing : Bool) -> State with ShellMsg = {
-    let State(env = env, colour = colour) = state;
-    match check(env, from, line, input) {
-        Left(text) -> { diagnose(screen, colour, text); state }
+    match check(state.env, from, line, input) {
+        Left(text) -> { diagnose(screen, state.colour, text); state }
       | Right(#(env2, checked)) -> {
             // report §11.2: the run is what timing measures, not the check
             let started = Clock.now();
@@ -293,15 +292,13 @@ fn fromFiles(state : State, screen : Address(ScreenMsg),
 fn await(state : State, screen : Address(ScreenMsg), checked : Checked, child : Address(Never),
     started : Int, printing : Bool) -> State with ShellMsg = receive {
     Done(Ok(env = env2, value = value)) -> {
-        let State(settings = settings, colour = colour) = state;
-        let Settings(depth = depth, length = length) = settings;
         let shown = typeText(checked);
         if printing then {
             match declared(checked) {
                 [] -> if isUnit(checked) then Unit
                 else {
-                    say(screen, show(value, depth, length)
-                        <> Shell.Style.quiet(colour, " : " <> shown));
+                    say(screen, show(value, state.settings.depth, state.settings.length)
+                        <> Shell.Style.quiet(state.colour, " : " <> shown));
                     if unbound(checked) then
                         say(screen, "`it` is unchanged: this input did not determine"
                             <> " the type of its value")
@@ -309,14 +306,13 @@ fn await(state : State, screen : Address(ScreenMsg), checked : Checked, child : 
                 }
               | lines -> printLines(screen, lines)
             };
-            timed(screen, settings, started)
+            timed(screen, state.settings, started)
         } else Unit;
         State(..state, env = env2)
     }
   | Done(Faulted(text)) -> {
-        let State(settings = settings, colour = colour) = state;
-        say(screen, Shell.Style.fault(colour, "fault: " <> text));
-        if printing then timed(screen, settings, started) else Unit;
+        say(screen, Shell.Style.fault(state.colour, "fault: " <> text));
+        if printing then timed(screen, state.settings, started) else Unit;
         state
     }
   | Interrupted -> { kill(child); say(screen, "Killed"); state }
@@ -509,11 +505,10 @@ fn set(screen : Address(ScreenMsg), colour : Bool, settings : Settings, arg : St
       | Right(Shell.Command.Timing(on)) -> Settings(..settings, timing = on)
     }
 
-fn settingLines(settings : Settings) -> List(String) = match settings {
-    Settings(depth = d, length = l, timing = t, output = o) ->
-        ["depth " <> Int.toString(d), "length " <> Int.toString(l),
-            "output " <> Int.toString(o), "timing " <> (if t then "on" else "off")]
-}
+fn settingLines(settings : Settings) -> List(String) =
+    ["depth " <> Int.toString(settings.depth), "length " <> Int.toString(settings.length),
+        "output " <> Int.toString(settings.output),
+        "timing " <> (if settings.timing then "on" else "off")]
 
 //
 // The screen: the only process that writes to the terminal
@@ -687,13 +682,12 @@ fn completing(session : Address(ShellMsg), screen : Address(ScreenMsg), reading 
 fn offering(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading,
     completion : Shell.Complete.Completion, typed : String,
     state : Shell.Editor.State) -> Unit with ReaderMsg = {
-    let Reading(last = last, colour = colour) = reading;
     let line = Shell.Editor.text(state);
     let #(text, next) = Shell.Complete.applied(line, Shell.Editor.at(state), typed, completion);
     let shown = Shell.Editor.typed(state, text, next);
     let said = hint(screen, reading, shown);
-    let listed = last == Tabbed || text == line || lone(completion);
-    let rows = if listed then listing(completion, colour) else [];
+    let listed = reading.last == Tabbed || text == line || lone(completion);
+    let rows = if listed then listing(completion, reading.colour) else [];
     send(screen, under(shown, rows));
     readLoop(session, screen,
         Reading(..reading, editing = shown, hinted = said, last = Tabbed))
@@ -839,8 +833,8 @@ fn capital(word : String) -> String = match String.toList(word) {
 }
 
 fn commandNames() -> List(Shell.Complete.Name) =
-    List.map(Shell.Command.commands, fn(Shell.Command.Command(name = name) as c) =
-        Shell.Complete.Name(text = ":" <> name, kind = Shell.Complete.Value,
+    List.map(Shell.Command.commands, fn(c) =
+        Shell.Complete.Name(text = ":" <> c.name, kind = Shell.Complete.Value,
             shown = Shell.Command.line(c)))
 
 // Report §11.2: what `Tab` puts in where it indents.
@@ -940,11 +934,7 @@ fn screenWidth() -> Int with m = match Terminal.size() {
 // type they carry, or a command's help line. The region cuts the listing
 // to the rows the screen has.
 fn listing(completion : Shell.Complete.Completion, colour : Bool) -> List(String) =
-    match completion {
-        Shell.Complete.Completion(candidates = candidates) ->
-            List.map(candidates, fn(Shell.Complete.Name(shown = shown)) =
-                Shell.Style.named(colour, shown))
-    }
+    List.map(completion.candidates, fn(name) = Shell.Style.named(colour, name.shown))
 
 // The screen is told what is being typed, and the session is told once
 // how a multi-line input is run.

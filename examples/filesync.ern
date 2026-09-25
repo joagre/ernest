@@ -151,7 +151,7 @@ fn changed(old : Map(Path, Int), Entry(path = p, mtime = m) : Entry) -> Optional
     }
 
 fn snapshot(entries : List(Entry)) -> Map(Path, Int) =
-    List.foldLeft(entries, Map.empty, fn(acc, Entry(path = p, mtime = m)) = Map.put(acc, p, m))
+    List.foldLeft(entries, Map.empty, fn(acc, entry) = Map.put(acc, entry.path, entry.mtime))
 
 fn conflictPath(p : Path) -> Path = Path(Path.toString(p) <> ".conflict")
 

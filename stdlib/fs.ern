@@ -60,7 +60,7 @@ export fn append(path : Path, bytes : Bytes, ms : Int) -> Either(IoError, Unit) 
 ///     let _ = Fs.makeDir(Path("shelf"), 5000);
 ///     let _ = Fs.write(Path("shelf/one.txt"), <<>>, 5000);
 ///     Either.map(Fs.list(Path("shelf"), 5000),
-///         fn(es) = List.map(es, fn(Entry(path = p)) = Path.name(p)))
+///         fn(es) = List.map(es, fn(e) = Path.name(e.path)))
 /// }
 /// // => Right(["one.txt"])
 /// ```
@@ -75,7 +75,7 @@ export fn list(path : Path, ms : Int) -> Either(IoError, List(Entry)) with m =
 /// ```ernest
 /// {
 ///     let _ = Fs.write(Path("three.txt"), String.toUtf8("abc"), 5000);
-///     Either.map(Fs.stat(Path("three.txt"), 5000), fn(Entry(size = s)) = s)
+///     Either.map(Fs.stat(Path("three.txt"), 5000), fn(e) = e.size)
 /// }
 /// // => Right(3)
 /// ```

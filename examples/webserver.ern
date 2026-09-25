@@ -152,16 +152,16 @@ fn headerPairs(
         }
 }
 
-fn render(Response(status = s, headers = hs, body = b) : Response) -> Bytes = {
-    let body = String.toUtf8(b);
-    let start = "HTTP/1.1 " <> StatusCode.render(s);
+fn render(response : Response) -> Bytes = {
+    let body = String.toUtf8(response.body);
+    let start = "HTTP/1.1 " <> StatusCode.render(response.status);
     let length = "content-length: " <> Int.toString(Bytes.size(body));
-    let rest = List.map(hs, fn(#(name, value)) = name <> ": " <> value);
+    let rest = List.map(response.headers, fn(#(name, value)) = name <> ": " <> value);
     String.toUtf8(String.join(start :: length :: rest, "\r\n") <> "\r\n\r\n") <> body
 }
 
-fn cookie(Request(headers = hs) : Request, name : String) -> Optional(String) =
-    Optional.andThen(List.find(hs, fn(#(n, _)) = n == "cookie"),
+fn cookie(request : Request, name : String) -> Optional(String) =
+    Optional.andThen(List.find(request.headers, fn(#(n, _)) = n == "cookie"),
         fn(#(_, v)) = cookieValue(String.split(v, ";"), name))
 
 fn cookieValue(parts : List(String), name : String) -> Optional(String) = match parts {
@@ -172,13 +172,9 @@ fn cookieValue(parts : List(String), name : String) -> Optional(String) = match 
     }
 }
 
-fn withCookie(
-    Response(status = s, headers = hs, body = b) : Response,
-    name : String,
-    value : String
-) -> Response =
-    Response(status = s, headers = #("set-cookie", name <> "=" <> value <> "; path=/") :: hs,
-        body = b)
+fn withCookie(response : Response, name : String, value : String) -> Response =
+    Response(..response,
+        headers = #("set-cookie", name <> "=" <> value <> "; path=/") :: response.headers)
 
 fn errorText(e : IoError) -> String = match e {
     NotFound -> "no such file"

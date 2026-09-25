@@ -57,7 +57,7 @@ export fn complete(typed : String, names : List(Name), where : Where) -> Complet
 // `Address.call` (§4.8), and `Sys` (§9.7) are namespaces though they are
 // no modules, and a listing says so, as it says `module List`.
 export fn withNamespaces(names : List(Name)) -> List(Name) = {
-    let texts = List.map(names, fn(name) = match name { Name(text = t) -> t });
+    let texts = List.map(names, fn(name) = name.text);
     let prefixes = List.flatMap(texts, fn(t) = {
         let segments = String.split(t, ".");
         List.map(List.range(1, List.size(segments) - 1), fn(n) =
@@ -124,14 +124,12 @@ fn admitted(names : List(Name), where : Where) -> List(Name) = match where {
 // offered, where `Shell` holds `Shell.Region.Region`.
 fn held(names : List(Name), stands : (Name) -> Bool) -> List(Name) =
     List.filter(names, fn(name) = match name {
-        Name(text = space, kind = Module) -> List.any(names, fn(inner) = match inner {
-            Name(text = t, kind = kind) ->
-                kind != Module && String.startsWith(t, space <> ".") && stands(inner)
-        })
+        Name(text = space, kind = Module) -> List.any(names, fn(inner) =
+            inner.kind != Module && String.startsWith(inner.text, space <> ".") && stands(inner))
       | _ -> stands(name)
     })
 
-fn isKind(name : Name, kind : Kind) -> Bool = match name { Name(kind = own) -> own == kind }
+fn isKind(name : Name, kind : Kind) -> Bool = name.kind == kind
 
 // The line a completion leaves, and where the cursor lands in it: the
 // word before the cursor is replaced, since an abbreviation is no
@@ -158,9 +156,8 @@ export fn applied(text : String, at : Int, typed : String, completion : Completi
 // namespace they are all in is completed and the last segment is kept as
 // typed: `L.fM` gives `List.fM`. With no namespace, or several, nothing is.
 fn namespaced(loose : List(Name), typed : String) -> String = {
-    let spaces = List.unique(List.map(loose, fn(name) = match name {
-        Name(text = t) -> String.join(List.dropLast(String.split(t, ".")), ".")
-    }));
+    let spaces = List.unique(List.map(loose, fn(name) =
+        String.join(List.dropLast(String.split(name.text, ".")), ".")));
     match #(spaces, List.last(String.split(typed, "."))) {
         #([space], Some(last)) -> if String.isEmpty(space) then "" else space <> "." <> last
       | _ -> ""
@@ -180,17 +177,15 @@ fn matches(typed : String, names : List(Name)) -> #(List(Name), List(Name)) = {
 // Report §11.2: candidates are listed alphabetically, by the text a person
 // types.
 fn alphabetical(names : List(Name)) -> List(Name) = List.sort(names, fn(a, b) =
-    match #(a, b) {
-        #(Name(text = x, shown = s), Name(text = y, shown = t)) ->
-            // two names alike, a module and its directory, by the line shown
-            if x == y then String.compare(s, t) else String.compare(x, y)
-    })
+    // two names alike, a module and its directory, by the line shown
+    if a.text == b.text then String.compare(a.shown, b.shown)
+    else String.compare(a.text, b.text))
 
 // Report §11.2: a name is reached a segment at a time, so what is typed
 // reaches the names of as many segments as it has; a namespace's members
 // come after its dot.
 fn reaches(parts : List(String), name : Name, exact : Bool) -> Bool = {
-    let segments = match name { Name(text = text) -> String.split(text, ".") };
+    let segments = String.split(name.text, ".");
     List.size(parts) == List.size(segments) && every(parts, segments, exact)
 }
 
@@ -279,21 +274,17 @@ let applying = Test(name = "a completion replaces the word and moves the cursor"
         else Failed("\"" <> text <> "\" at " <> Int.toString(at))
     })
 
-let ordered = Test(name = "candidates are alphabetical", run = fn() =
-    match complete(word("List."), library(), Expression) {
-        Completion(candidates = candidates) -> {
-            let texts = List.map(candidates, fn(name) = match name { Name(text = t) -> t });
-            if texts == ["List.filter", "List.filterMap", "List.map"] then Passed
-            else Failed(String.join(texts, ", "))
-        }
-    })
+let ordered = Test(name = "candidates are alphabetical", run = fn() = {
+    let candidates = complete(word("List."), library(), Expression).candidates;
+    let texts = List.map(candidates, fn(name) = name.text);
+    if texts == ["List.filter", "List.filterMap", "List.map"] then Passed
+    else Failed(String.join(texts, ", "))
+})
 
-let nothingTyped = Test(name = "nothing typed reaches the names of one segment", run = fn() =
-    match complete("", library(), Expression) {
-        Completion(candidates = candidates) ->
-            if List.size(candidates) == 2 then Passed
-            else Failed(Int.toString(List.size(candidates)))
-    })
+let nothingTyped = Test(name = "nothing typed reaches the names of one segment", run = fn() = {
+    let candidates = complete("", library(), Expression).candidates;
+    if List.size(candidates) == 2 then Passed else Failed(Int.toString(List.size(candidates)))
+})
 
 let oneSegment = Test(name = "a segment reaches no name deeper than it", run = fn() =
     match complete(word("L"), library(), Expression) {
@@ -311,10 +302,9 @@ let neverShorter = Test(name = "a Tab never takes away what was typed", run = fn
         Name(text = "ArrowDown", kind = Constructor, shown = "ArrowDown")];
     let aside = [Name(text = "filterMap", kind = Value, shown = "filterMap"),
         Name(text = "flatMap", kind = Value, shown = "flatMap")];
-    match #(complete("Ad", names, Expression), complete("fm", aside, Expression)) {
-        #(Completion(word = a), Completion(word = b)) ->
-            if a == "Address." && b == "" then Passed else Failed(a <> " | " <> b)
-    }
+    let a = complete("Ad", names, Expression).word;
+    let b = complete("fm", aside, Expression).word;
+    if a == "Address." && b == "" then Passed else Failed(a <> " | " <> b)
 })
 
 let keepsTheLast = Test(name = "an abbreviation keeps its last segment as typed", run = fn() =
@@ -325,9 +315,8 @@ let heldOnly = Test(name = "a namespace is offered only where it holds what may 
     run = fn() = {
         let names = withNamespaces([Name(text = "Sys.stdout", kind = Value, shown = "Sys.stdout"),
             Name(text = "Shell.Region.Region", kind = Type, shown = "type Shell.Region.Region")]);
-        match complete("S", names, TypeName) {
-            Completion(word = w) -> if w == "Shell." then Passed else Failed(w)
-        }
+        let w = complete("S", names, TypeName).word;
+        if w == "Shell." then Passed else Failed(w)
     })
 
 let wholeWord = Test(name = "the whole name the cursor stands in", run = fn() =
@@ -365,8 +354,6 @@ fn library() -> List(Name) = [
     Name(text = "Some", kind = Constructor, shown = "Some : (a) -> Optional(a)")
 ]
 
-fn becomes(completion : Completion, text : String) -> TestResult = match completion {
-    Completion(word = word) ->
-        if word == text then Passed
-        else Failed("\"" <> word <> "\" instead of \"" <> text <> "\"")
-}
+fn becomes(completion : Completion, text : String) -> TestResult =
+    if completion.word == text then Passed
+    else Failed("\"" <> completion.word <> "\" instead of \"" <> text <> "\"")

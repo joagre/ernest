@@ -67,7 +67,7 @@ fn game(world : World) -> Unit with GameMsg = {
             let world2 = step(drain(world, 64));
             Io.print(render(world2));
             // the last player left, so the game is over (report §8.6)
-            if Map.isEmpty(World.players(world2)) then Unit else game(world2)
+            if Map.isEmpty(world2.players) then Unit else game(world2)
         }
     }
 }
@@ -104,23 +104,22 @@ fn board() -> #(Int, Int) with m = match Terminal.size() {
 // One tick: move everyone, eat apples, collide, refill apples.
 // Three counters change: score per player, apples left, tick.
 fn step(world : World) -> World = {
-    let World(w = w, h = h, players = ps, apples = apples, seed = seed, tick = t) = world;
     fn movePlayer(#(acc, apples), _, p) = match p {
         Player(alive = false) or Player(body = []) -> #(acc, apples)
       | Player(body = head :: rest, dir = d, score = s) -> {
-            let next = move(w, h, head, d);
+            let next = move(world.w, world.h, head, d);
             let ate = List.contains(apples, next);
             let #(body, s2) =
                 if ate then #(next :: head :: rest, s + 1)
                 else #(next :: head :: List.dropLast(rest), s);
             let p2 = Player(..p, body = body, score = s2);
-            #(Map.put(acc, Player.id(p), p2), List.remove(apples, next))
+            #(Map.put(acc, p.id, p2), List.remove(apples, next))
         }
     };
-    let #(ps2, apples2) = Map.foldLeft(ps, #(ps, apples), movePlayer);
+    let #(ps2, apples2) = Map.foldLeft(world.players, #(world.players, world.apples), movePlayer);
     let ps3 = Map.map(ps2, fn(_, p) = collide(ps2, p));
-    let #(apples3, seed2) = refill(w, h, Map.size(ps3), apples2, seed);
-    World(..world, players = ps3, apples = apples3, seed = seed2, tick = t + 1)
+    let #(apples3, seed2) = refill(world.w, world.h, Map.size(ps3), apples2, world.seed);
+    World(..world, players = ps3, apples = apples3, seed = seed2, tick = world.tick + 1)
 }
 
 fn applyInput(world : World, input : Input) -> World = match input {
@@ -148,36 +147,35 @@ fn refill(w : Int, h : Int, want : Int, apples : List(Pos), seed : Random.Seed)
     }
 
 fn addPlayer(world : World, id : Int) -> World = {
-    let World(players = ps, seed = seed) = world;
-    let #(pos, seed2) = freePos(world, seed);
+    let #(pos, seed2) = freePos(world, world.seed);
     let p = Player(id = id, body = [pos], dir = E, score = 0, alive = true);
-    World(..world, players = Map.put(ps, id, p), seed = seed2)
+    World(..world, players = Map.put(world.players, id, p), seed = seed2)
 }
 
 fn freePos(world : World, seed : Random.Seed) -> #(Pos, Random.Seed) = {
-    let World(w = w, h = h) = world;
-    let #(x, s1) = Random.next(seed, w - 1);
-    let #(y, s2) = Random.next(s1, h - 1);
+    let #(x, s1) = Random.next(seed, world.w - 1);
+    let #(y, s2) = Random.next(s1, world.h - 1);
     let pos = Pos(x = x, y = y);
     if taken(world, pos) then freePos(world, s2) else #(pos, s2)
 }
 
-fn taken(World(players = ps, apples = apples) : World, pos : Pos) -> Bool =
-    List.contains(apples, pos) || List.any(Map.values(ps), fn(p) = List.contains(bodyOf(p), pos))
+fn taken(world : World, pos : Pos) -> Bool =
+    List.contains(world.apples, pos)
+        || List.any(Map.values(world.players), fn(p) = List.contains(p.body, pos))
 
 // The whole screen every tick: the terminal is cleared and drawn from the top,
 // so a tick's picture replaces the one before it.
 fn render(world : World) -> String = {
-    let World(w = w, h = h, players = ps, apples = apples, tick = t) = world;
-    let row = fn(y) = String.fromList(List.map(List.range(0, w - 1),
-        fn(x) = cell(ps, apples, Pos(x = x, y = y))));
-    let rows = List.map(List.range(0, h - 1), row);
-    "\u{1b}[H\u{1b}[2J" <> String.join(rows, "\n") <> "\n" <> status(ps, t) <> "\n"
+    let row = fn(y) = String.fromList(List.map(List.range(0, world.w - 1),
+        fn(x) = cell(world.players, world.apples, Pos(x = x, y = y))));
+    let rows = List.map(List.range(0, world.h - 1), row);
+    "\u{1b}[H\u{1b}[2J" <> String.join(rows, "\n") <> "\n"
+        <> status(world.players, world.tick) <> "\n"
 }
 
 fn cell(ps : Map(Int, Player), apples : List(Pos), pos : Pos) -> Char =
     if List.any(Map.values(ps), fn(p) = headOf(p) == Some(pos)) then '@'
-    else if List.any(Map.values(ps), fn(p) = List.contains(bodyOf(p), pos)) then 'o'
+    else if List.any(Map.values(ps), fn(p) = List.contains(p.body, pos)) then 'o'
     else if List.contains(apples, pos) then '*'
     else '.'
 
@@ -186,14 +184,11 @@ fn status(ps : Map(Int, Player), t : Int) -> String =
         <> String.join(List.map(Map.values(ps), scoreText), "   ")
         <> "   (arrows steer, Escape leaves)"
 
-fn scoreText(Player(id = id, score = s, alive = alive) : Player) -> String =
-    "player " <> Int.toString(id) <> ": " <> Int.toString(s)
-        <> (if alive then "" else " (dead)")
+fn scoreText(p : Player) -> String =
+    "player " <> Int.toString(p.id) <> ": " <> Int.toString(p.score)
+        <> (if p.alive then "" else " (dead)")
 
-fn bodyOf(Player(body = b) : Player) -> List(Pos) = b
-
-fn headOf(Player(body = b) : Player) -> Optional(Pos) =
-    match b { head :: _ -> Some(head) | [] -> None }
+fn headOf(p : Player) -> Optional(Pos) = match p.body { head :: _ -> Some(head) | [] -> None }
 
 //
 // Small helpers
@@ -206,14 +201,9 @@ fn move(w : Int, h : Int, Pos(x = x, y = y) : Pos, d : Dir) -> Pos = match d {
   | E -> Pos(x = (x + 1) % w, y = y)
 }
 
-fn turn(p : Player, d : Dir) -> Player = match #(Player.dir(p), d) {
+fn turn(p : Player, d : Dir) -> Player = match #(p.dir, d) {
     #(N, S) -> p | #(S, N) -> p | #(W, E) -> p | #(E, W) -> p // no U-turn
   | _ -> Player(..p, dir = d)
 }
 
-fn World.players(World(players = ps) : World) -> Map(Int, Player) = ps
-
-fn Player.dir(Player(dir = d) : Player) -> Dir = d
-fn Player.id(Player(id = i) : Player) -> Int = i
-
-fn tailOf(Player(body = b) : Player) -> List(Pos) = match b { _ :: rest -> rest | [] -> [] }
+fn tailOf(p : Player) -> List(Pos) = match p.body { _ :: rest -> rest | [] -> [] }

@@ -55,12 +55,11 @@ export fn new(size : Size) -> Region =
 // What the session says is committed as it is produced; what it leaves
 // without a line feed is the prompt, which the input is typed after.
 export fn said(r : Region, text : String) -> #(Region, String) = {
-    let Region(prompt = prompt, tail = tail) = r;
-    let #(lines, rest) = split(prompt <> text);
+    let #(lines, rest) = split(r.prompt <> text);
     // report §11.2: what the tail holds is committed before what the
     // session says, so that the scrollback reads in the order the lines
     // were written
-    painted(Region(..r, prompt = rest, tail = []), tail <> lines)
+    painted(Region(..r, prompt = rest, tail = []), r.tail <> lines)
 }
 
 // Report §11.2: a line the shell writes while an input is being typed.
@@ -75,9 +74,8 @@ export fn noted(r : Region, text : String) -> #(Region, String) = {
 // room for is committed as it leaves, so the terminal's scrollback holds
 // every line in the order it was written.
 export fn wrote(r : Region, text : String) -> #(Region, String) = {
-    let Region(tail = tail, writing = writing) = r;
-    let #(lines, rest) = split(writing <> text);
-    aged(Region(..r, tail = tail <> lines, writing = rest), [])
+    let #(lines, rest) = split(r.writing <> text);
+    aged(Region(..r, tail = r.tail <> lines, writing = rest), [])
 }
 
 // The line being typed, where the cursor is in it, and the rows shown
@@ -147,9 +145,7 @@ fn painted(r : Region, commits : List(String)) -> #(Region, String) = {
     #(Region(..r, resting = row), erase(r) <> written(commits) <> paint(rows, row, column(r)))
 }
 
-fn erase(r : Region) -> String = match r {
-    Region(resting = n) -> "\r" <> up(n) <> "\u{1b}[0J"
-}
+fn erase(r : Region) -> String = "\r" <> up(r.resting) <> "\u{1b}[0J"
 
 fn written(lines : List(String)) -> String =
     String.join(List.map(lines, fn(line) = line <> "\n"), "")
@@ -162,7 +158,7 @@ fn paint(rows : List(String), row : Int, at : Int) -> String =
 // since a row is placed by its columns and a tab's width depends on
 // where it falls.
 fn rowsOf(r : Region) -> List(String) =
-    List.map(tailRowsOf(r), fn(line) = clip(expand(line), width(r))) <> screenInput(r)
+    List.map(tailRowsOf(r), fn(line) = clip(expand(line), r.size.columns)) <> screenInput(r)
         <> offeredRows(r)
 
 // Report §11.2: the rows the input takes on the screen. Each of its lines
@@ -170,7 +166,7 @@ fn rowsOf(r : Region) -> List(String) =
 // line that fills the width exactly takes an empty row after it, where
 // the cursor goes on.
 fn screenInput(r : Region) -> List(String) =
-    List.flatMap(inputRows(r), fn(line) = onScreen(expand(line), width(r)))
+    List.flatMap(inputRows(r), fn(line) = onScreen(expand(line), r.size.columns))
 
 fn onScreen(line : String, w : Int) -> List(String) = {
     let rows = wrapped(line, w);
@@ -182,8 +178,8 @@ fn onScreen(line : String, w : Int) -> List(String) = {
 // did, and takes the rows the screen has left. A line with no room is
 // counted on the last row instead.
 fn offeredRows(r : Region) -> List(String) = {
-    let room = screenRows(r) - List.size(tailRowsOf(r)) - List.size(screenInput(r));
-    let lines = List.map(r.offered, fn(line) = wrapped(expand(line), width(r)));
+    let room = r.size.rows - List.size(tailRowsOf(r)) - List.size(screenInput(r));
+    let lines = List.map(r.offered, fn(line) = wrapped(expand(line), r.size.columns));
     let all = List.flatMap(lines, fn(rows) = rows);
     if List.size(all) <= room then all
     else if room < 1 then []
@@ -226,8 +222,7 @@ fn past(chars : List(Char), left : Int, sequences : String) -> #(String, List(Ch
     }
 
 fn tailRowsOf(r : Region) -> List(String) = {
-    let Region(tail = tail, writing = writing) = r;
-    let all = if String.isEmpty(writing) then tail else tail <> [writing];
+    let all = if String.isEmpty(r.writing) then r.tail else r.tail <> [r.writing];
     List.drop(all, Int.max(0, List.size(all) - height(r)))
 }
 
@@ -235,47 +230,36 @@ fn tailRowsOf(r : Region) -> List(String) = {
 // prompt and the rest after `... `. `String.lines` is not this split: a
 // text that ends in a line feed is being typed on a new empty row, and
 // that row is shown.
-fn inputRows(r : Region) -> List(String) = {
-    let Region(prompt = prompt, typed = typed) = r;
-    match String.split(typed, "\n") {
-        [] -> [prompt]
-      | first :: rest -> (prompt <> first) :: List.map(rest, fn(line) = continuation <> line)
-    }
+fn inputRows(r : Region) -> List(String) = match String.split(r.typed, "\n") {
+    [] -> [r.prompt]
+  | first :: rest -> (r.prompt <> first) :: List.map(rest, fn(line) = continuation <> line)
 }
 
 // The tail's height: what `:set output` asks for, and never more than
 // the screen has room for, the input having the last word.
-fn height(r : Region) -> Int = match r {
-    Region(output = output, size = Size(rows = rows)) -> Int.min(output, Int.max(0, rows / 2 - 1))
-}
-
-fn screenRows(r : Region) -> Int = match r { Region(size = Size(rows = rows)) -> rows }
-
-fn width(r : Region) -> Int = match r { Region(size = Size(columns = columns)) -> columns }
+fn height(r : Region) -> Int = Int.min(r.output, Int.max(0, r.size.rows / 2 - 1))
 
 // The row of the region the cursor rests on: the tail's rows, the screen
 // rows of the input's lines before the cursor's, and the rows the cursor's
 // own line wraps onto before it.
 fn resting(r : Region) -> Int = {
-    let Region(typed = typed, at = at) = r;
-    let line = List.size(String.split(String.slice(typed, 0, at), "\n")) - 1;
+    let line = List.size(String.split(String.slice(r.typed, 0, r.at), "\n")) - 1;
     let earlier = List.flatMap(List.take(inputRows(r), line), fn(row) =
-        onScreen(expand(row), width(r)));
-    List.size(tailRowsOf(r)) + List.size(earlier) + offset(r) / Int.max(1, width(r))
+        onScreen(expand(row), r.size.columns));
+    List.size(tailRowsOf(r)) + List.size(earlier) + offset(r) / Int.max(1, r.size.columns)
 }
 
 // The column the cursor rests in, on the row its line wraps onto: what the
 // line holds before the cursor, tabs and all, is as many columns as it
 // paints.
-fn column(r : Region) -> Int = offset(r) % Int.max(1, width(r)) + 1
+fn column(r : Region) -> Int = offset(r) % Int.max(1, r.size.columns) + 1
 
 // The columns before the cursor on its line, the prompt or `... ` among
 // them.
 fn offset(r : Region) -> Int = {
-    let Region(prompt = prompt, typed = typed, at = at) = r;
-    let before = String.slice(typed, 0, at);
+    let before = String.slice(r.typed, 0, r.at);
     let head = match String.lastIndexOf(before, "\n") {
-        None -> prompt <> before
+        None -> r.prompt <> before
       | Some(i) -> continuation <> String.slice(before, i + 1, String.size(before) - i - 1)
     };
     columns(expand(head))

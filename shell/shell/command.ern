@@ -142,10 +142,9 @@ export fn help() -> List(String) =
         <> List.map(commands, fn(c) = "  " <> line(c))
         <> ["The value of the last expression is `it`."]
 
-export fn line(Command(name = name, placeholder = placeholder, about = about) : Command)
-    -> String = {
-    let head = if String.isEmpty(placeholder) then name else name <> " " <> placeholder;
-    String.padEnd(":" <> head, column, ' ') <> about
+export fn line(c : Command) -> String = {
+    let head = if String.isEmpty(c.placeholder) then c.name else c.name <> " " <> c.placeholder;
+    String.padEnd(":" <> head, column, ' ') <> c.about
 }
 
 // The column a help line's prose starts at, past the longest command and

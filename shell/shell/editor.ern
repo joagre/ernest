@@ -46,16 +46,14 @@ export fn start(history : List(String)) -> State = State(..fresh, history = hist
 // The state to type the next line in: the line just taken joins the
 // history, and what was killed outlives the line it was killed from, as
 // Readline's does.
-export fn next(state : State) -> State = match state {
-    State(text = text, kill = kill, history = history) ->
-        State(..fresh, kill = kill,
-            history = if keeps(state) then text :: history else history)
-}
+export fn next(state : State) -> State =
+    State(..fresh, kill = state.kill,
+        history = if keeps(state) then state.text :: state.history else state.history)
 
 // Report §11.2: a blank input and one equal to the input before it are
 // not kept, in the history or in the file.
-export fn keeps(State(text = text, history = history) : State) -> Bool =
-    !String.isEmpty(String.trim(text)) && List.get(history, 0) != Some(text)
+export fn keeps(state : State) -> Bool =
+    !String.isEmpty(String.trim(state.text)) && List.get(state.history, 0) != Some(state.text)
 
 // Report §11.2: another line of the same input, which `M-Enter` asks
 // for and `Enter` does where the parser cannot finish what is typed.
@@ -91,10 +89,8 @@ export fn cursor(state : State) -> Int = match state {
   | State(search = Some(s), text = text, at = at) -> String.size(asked(s, text)) + at
 }
 
-fn asked(s : Search, text : String) -> String = match s {
-    Search(query = query, forward = forward) ->
-        "(" <> missing(query, text) <> direction(forward) <> ")`" <> query <> "': "
-}
+fn asked(s : Search, text : String) -> String =
+    "(" <> missing(s.query, text) <> direction(s.forward) <> ")`" <> s.query <> "': "
 
 fn missing(query : String, text : String) -> String =
     if String.isEmpty(query) || String.indexOf(text, query) != None then "" else "failed "
@@ -116,21 +112,18 @@ fn bracket(state : State, event : Event) -> Edit = match event {
   | other -> plain(state, other)
 }
 
-fn plain(state : State, event : Event) -> Edit = {
-    let State(text = text, at = at) = state;
-    match event {
-        Enter -> Submit(state)
-      | Interrupt -> Cancel
-      | Escape -> Typing(State(..state, pending = Meta))
-      | ArrowLeft -> Typing(State(..state, at = Int.max(0, at - 1)))
-      | ArrowRight -> Typing(State(..state, at = Int.min(String.size(text), at + 1)))
-      | ArrowUp -> Typing(walk(state, 1))
-      | ArrowDown -> Typing(walk(state, -1))
-      | Resized(_) -> Typing(state)
-      // report §11.2: a paste goes in at the cursor, line feeds and all
-      | Pasted(text) -> Typing(insert(state, text))
-      | Key(c) -> character(state, c)
-    }
+fn plain(state : State, event : Event) -> Edit = match event {
+    Enter -> Submit(state)
+  | Interrupt -> Cancel
+  | Escape -> Typing(State(..state, pending = Meta))
+  | ArrowLeft -> Typing(State(..state, at = Int.max(0, state.at - 1)))
+  | ArrowRight -> Typing(State(..state, at = Int.min(String.size(state.text), state.at + 1)))
+  | ArrowUp -> Typing(walk(state, 1))
+  | ArrowDown -> Typing(walk(state, -1))
+  | Resized(_) -> Typing(state)
+  // report §11.2: a paste goes in at the cursor, line feeds and all
+  | Pasted(text) -> Typing(insert(state, text))
+  | Key(c) -> character(state, c)
 }
 
 // A character typed, which is Readline's control key where it is one.
@@ -187,16 +180,13 @@ fn meta(state : State, event : Event) -> Edit = {
 // typed, which is kept while the walk is away from it.
 //
 
-fn walk(state : State, step : Int) -> State = match state {
-    State(back = back) -> walkTo(state, back + step)
-}
+fn walk(state : State, step : Int) -> State = walkTo(state, state.back + step)
 
 fn walkTo(state : State, to : Int) -> State = {
-    let State(text = text, back = back, saved = saved, history = history) = state;
-    if to < 0 || to > List.size(history) then state
+    if to < 0 || to > List.size(state.history) then state
     else {
-        let typed = if back == 0 then text else saved;
-        let recalled = if to == 0 then typed else entry(history, to);
+        let typed = if state.back == 0 then state.text else state.saved;
+        let recalled = if to == 0 then typed else entry(state.history, to);
         State(..state, text = recalled, at = String.size(recalled), saved = typed, back = to)
     }
 }
@@ -213,11 +203,9 @@ fn entry(history : List(String), n : Int) -> String =
 // says so in its prompt.
 //
 
-fn search(state : State, forward : Bool) -> State = match state {
-    State(text = text, back = back) ->
-        State(..state, search = Some(Search(query = "", back = back, from = back,
-            before = text, forward = forward)))
-}
+fn search(state : State, forward : Bool) -> State =
+    State(..state, search = Some(Search(query = "", back = state.back, from = state.back,
+        before = state.text, forward = forward)))
 
 fn searching(state : State, s : Search, event : Event) -> Edit = match event {
     Enter -> Submit(stop(state))
@@ -233,13 +221,11 @@ fn searching(state : State, s : Search, event : Event) -> Edit = match event {
 
 // The next match in the direction, the search standing where it was when
 // there is none.
-fn seek(state : State, s : Search, step : Int) -> State = {
-    let Search(query = query, back = back) = s;
-    match find(state.history, query, back + step, step) {
+fn seek(state : State, s : Search, step : Int) -> State =
+    match find(state.history, s.query, s.back + step, step) {
         Some(n) -> matched(state, s, n)
       | None -> State(..state, search = Some(s))
     }
-}
 
 // A character typed: the search narrows and looks again from where it
 // stands, since the match it has may match the longer query too.
@@ -270,10 +256,8 @@ fn shorten(state : State, s : Search) -> State = {
 }
 
 // `C-g`: the line the search began from comes back.
-fn abandon(state : State, s : Search) -> State = match s {
-    Search(from = from, before = before) ->
-        State(..state, text = before, at = String.size(before), back = from, search = None)
-}
+fn abandon(state : State, s : Search) -> State =
+    State(..state, text = s.before, at = String.size(s.before), back = s.from, search = None)
 
 // The search ends and the input it found stays.
 fn stop(state : State) -> State = State(..state, search = None)
@@ -292,9 +276,7 @@ fn find(history : List(String), query : String, from : Int, step : Int) -> Optio
     else if String.indexOf(entry(history, from), query) != None then Some(from)
     else find(history, query, from + step, step)
 
-fn step(s : Search) -> Int = match s {
-    Search(forward = forward) -> if forward then -1 else 1
-}
+fn step(s : Search) -> Int = if s.forward then -1 else 1
 
 //
 // Editing a line: each is a pure function of the text and the cursor,

@@ -340,8 +340,8 @@ fn listed(lines : List(String), first : Marker, items : List(List(Block)))
       | [] -> #(listOf(first, items), [])
     }
 
-fn listOf(Marker(start = start) : Marker, items : List(List(Block))) -> Block =
-    Items(start = start, items = items)
+fn listOf(marker : Marker, items : List(List(Block))) -> Block =
+    Items(start = marker.start, items = items)
 
 fn sameKind(a : Marker, b : Marker) -> Bool = match #(a, b) {
     #(Marker(start = None, mark = x), Marker(start = None, mark = y)) -> x == y
