@@ -722,6 +722,17 @@ self_qualified_test() ->
     ?assertEqual("(M.T) -> Int", type_of("export type T = T(Int)\nexport fn f(t) = M.T.n(t)\n"
                                          "fn T.n(T(n)) = n\n", f)).
 
+%% report §4.2, §8.5: a local binding does not hide the module's own
+%% qualified name, so the initializer depends on it as on the plain name.
+%% A regression test: before the fix the cycle went unseen, and `M.b` was
+%% unknown whenever the groups ran `a` first. It does not cover a
+%% multi-segment namespace
+self_qualified_under_a_local_test() ->
+    ?assertEqual("the initializer of a depends on itself, through b",
+                 err("let a = { let b = 1; M.b + b }\nlet b = a\n")),
+    ?assertEqual("Int", type_of("export let four = { let two = 1; M.two - two }\nlet two = 5\n",
+                                four)).
+
 %% report §4.4: the constructor of an abstract type appears only in the
 %% definitions its signature names; a local fn inside such a definition is
 %% part of it

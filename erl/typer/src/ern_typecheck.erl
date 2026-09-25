@@ -681,9 +681,10 @@ refs(#e_block{stmts = Stmts}, Env, Acc, B) ->
     Acc1;
 refs(#e_var{path = [], name = N}, _Env, Acc, B) when is_map_key(N, B) -> Acc;
 refs(#e_var{path = [], name = N}, _Env, Acc, _B) -> [{undefined, N} | Acc];
-refs(#e_var{path = Ns, name = N}, #env{ns = Ns} = Env, Acc, B) when Ns =/= [] ->
-    %% the module's own qualified name (report §4.2)
-    refs(#e_var{path = [], name = N}, Env, Acc, B);
+refs(#e_var{path = Ns, name = N}, #env{ns = Ns}, Acc, _B) when Ns =/= [] ->
+    %% the module's own qualified name (report §4.2), which a local binding
+    %% of the same name does not hide
+    [{undefined, N} | Acc];
 refs(#e_var{path = [Owner], name = N}, #env{local_types = LT}, Acc, _B) ->
     case maps:is_key(Owner, LT) of true -> [{Owner, N} | Acc]; false -> Acc end;
 refs(#e_var{path = P} = V, #env{ns = Ns} = Env, Acc, B) when length(P) > 1 ->
