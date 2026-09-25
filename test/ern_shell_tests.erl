@@ -546,6 +546,35 @@ shift_tab_colour() ->
               30),
     ?assertMatch({_, _}, binary:match(Raw, <<"xs : List(a), \e[36mf : (a) -> b with e\e[0m)">>)).
 
+%% report §11.2: every refusal of a command is red, as a diagnostic's first
+%% line is, and an answer is plain. A regression test for a finding of the
+%% session of real use: `:load`'s refusal was red and `:set`'s was not, the
+%% colour following the code path and not the meaning
+refusal_colour_test_() ->
+    {timeout, 60, fun refusal_colour/0}.
+
+refusal_colour() ->
+    Raw = raw(alone("../bin/ern --shell"),
+              [{expect, "> "},
+               {send, hex(":sreload\r")},
+               {expect, "no command"},
+               {send, hex(":set depth a\r")},
+               {expect, "not a number"},
+               {send, hex(":reload hhhh\r")},
+               {expect, "takes no argument"},
+               {send, hex(":load hhhh\r")},
+               {expect, "not a module name"},
+               {send, hex(":bindings\r")},
+               {expect, "declares nothing yet"},
+               {send, "04"}],
+              30),
+    Red = fun(Text) -> binary:match(Raw, <<"\e[31m", Text/binary>>) =/= nomatch end,
+    ?assert(Red(<<"no command :sreload">>)),
+    ?assert(Red(<<"that is not a number">>)),
+    ?assert(Red(<<":reload takes no argument">>)),
+    ?assert(Red(<<"hhhh is not a module name">>)),
+    ?assertNot(Red(<<"the session declares nothing yet">>)).
+
 %% report §11.2: what may stand at the cursor decides what completes,
 %% and the parser is what knows: after `:` a type, inside a named
 %% constructor its fields, and everywhere else the values,

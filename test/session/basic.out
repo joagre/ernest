@@ -93,6 +93,7 @@ Examples
 > aaaa is not a module name: each segment of one begins with a capital letter
 > no module Nope under the source root or on the load path
 > List is the standard library's, in scope from the start
+> :reload takes no argument
 > no documentation for Nope.nope
 > type Shape
 abstract type Stack

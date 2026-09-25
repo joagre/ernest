@@ -280,6 +280,11 @@ fn diagnose(screen : Address(ScreenMsg), text : String) -> Unit with m =
 fn say(screen : Address(ScreenMsg), text : String) -> Unit with m =
     send(screen, Said(text <> "\n"))
 
+// Report §11.2: what the shell refuses is red, as a diagnostic's first
+// line is, and what it answers is plain.
+fn refuse(screen : Address(ScreenMsg), text : String) -> Unit with m =
+    say(screen, Shell.Style.fault(colours(), text))
+
 // What the input declared, a line for each, in the order they were written
 // (report §11.2).
 fn printLines(screen : Address(ScreenMsg), lines : List(String)) -> Unit with m =
@@ -357,18 +362,22 @@ fn perform(state : State, screen : Address(ScreenMsg), input : String) -> Next w
     let name = String.slice(word, 1, String.size(word) - 1);
     match pick(name) {
         Unknown -> {
-            say(screen, "no command " <> word <> "; :help lists them");
+            refuse(screen, "no command " <> word <> "; :help lists them");
             Continue(state)
         }
       | Ambiguous(names) -> {
-            say(screen, word <> " is " <> alternatives(names));
+            refuse(screen, word <> " is " <> alternatives(names));
             Continue(state)
         }
       | Picked(Entry(name = full, command = c, takes = Some(what))) ->
             if String.isEmpty(arg) then {
-                say(screen, ":" <> full <> " takes " <> what);
+                refuse(screen, ":" <> full <> " takes " <> what);
                 Continue(state)
             } else obey(state, screen, c, arg)
+      | Picked(Entry(name = full, argument = NoArgument)) when !String.isEmpty(arg) -> {
+            refuse(screen, ":" <> full <> " takes no argument");
+            Continue(state)
+        }
       | Picked(Entry(command = c)) -> obey(state, screen, c, arg)
     }
 }
@@ -422,19 +431,19 @@ fn obey(state : State, screen : Address(ScreenMsg), c : Command, arg : String)
             }
         }
       | Forget -> match forget(env, arg) {
-            Left(text) -> { say(screen, text); Continue(state) }
+            Left(text) -> { refuse(screen, text); Continue(state) }
           | Right(env2) -> Continue(State(..state, env = env2))
         }
       | Browse -> match browse(env, arg) {
-            Left(text) -> { say(screen, text); Continue(state) }
+            Left(text) -> { refuse(screen, text); Continue(state) }
           | Right(lines) -> { printLines(screen, lines); Continue(state) }
         }
       | Doc -> match doc(env, arg) {
-            Left(text) -> { say(screen, text); Continue(state) }
+            Left(text) -> { refuse(screen, text); Continue(state) }
           | Right(text) -> { printLines(screen, rendered(text)); Continue(state) }
         }
       | Output -> match output(arg) {
-            Left(text) -> { say(screen, text); Continue(state) }
+            Left(text) -> { refuse(screen, text); Continue(state) }
           | Right(text) -> { say(screen, text); Continue(state) }
         }
       | Set -> Continue(State(..state, settings = set(screen, settings, arg)))
@@ -479,18 +488,18 @@ fn set(screen : Address(ScreenMsg), settings : Settings, arg : String) -> Settin
     else if what == "timing" then
         if rest == "on" then Settings(..settings, timing = true)
         else if rest == "off" then Settings(..settings, timing = false)
-        else { say(screen, ":set timing takes on or off"); settings }
+        else { refuse(screen, ":set timing takes on or off"); settings }
     else if what == "output" then
         // report §11.2: the rows the tail takes, and none at 0
         match String.toInt(rest) {
-            Some(n) -> if n < 0 then { say(screen, "a height is 0 or more"); settings }
+            Some(n) -> if n < 0 then { refuse(screen, "a height is 0 or more"); settings }
             else {
                 send(screen, Height(n));
                 Settings(..settings, output = n)
             }
-          | None -> { say(screen, ":set output takes a number of rows"); settings }
+          | None -> { refuse(screen, ":set output takes a number of rows"); settings }
         }
-    else { say(screen, ":set takes depth, length, timing, or output"); settings }
+    else { refuse(screen, ":set takes depth, length, timing, or output"); settings }
 }
 
 fn number(
@@ -499,9 +508,9 @@ fn number(
     text : String,
     f : (Int) -> Settings
 ) -> Settings with m = match String.toInt(text) {
-    Some(n) -> if n < 0 then { say(screen, "a depth and a length are 0 or more"); settings }
+    Some(n) -> if n < 0 then { refuse(screen, "a depth and a length are 0 or more"); settings }
     else f(n)
-  | None -> { say(screen, "that is not a number"); settings }
+  | None -> { refuse(screen, "that is not a number"); settings }
 }
 
 fn settingLines(settings : Settings) -> List(String) = match settings {
@@ -704,7 +713,7 @@ fn offering(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : 
     let shown = Shell.Editor.typed(state, text, next);
     let said = hint(screen, reading, shown);
     let rows = if last == Tabbed || text == line || lone(completion) then listing(completion)
-        else [];
+    else [];
     send(screen, under(shown, rows));
     readLoop(session, screen,
         Reading(..reading, editing = shown, hinted = said, last = Tabbed))

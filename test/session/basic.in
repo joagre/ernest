@@ -55,6 +55,7 @@ x
 :load aaaa
 :load Nope
 :load List
+:reload hhhh
 :doc Nope.nope
 :bindings
 :forget *

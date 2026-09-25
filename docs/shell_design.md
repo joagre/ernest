@@ -163,7 +163,7 @@ GNU Readline's Emacs bindings.
 - **Interrupting:** `C-c` abandons the input being typed, every line of it, and kills the running evaluation when there is one. The bindings survive, and the abandoned text goes to the history to recall and mend. An input typed ahead is not the running one, so it waits and runs after it (§11.2).
 - **A paste is one event.** The runtime asks the terminal to bracket a paste while a program reads keys (§8.2), so pasted text arrives as `Pasted` with its line endings as line feeds; the editor puts it in the line at the cursor, and its line feeds add rows rather than running the input. A terminal that does not bracket a paste sends the characters, and each line feed in them runs what is typed so far, as typing does.
 - **`C-l`** clears the screen and keeps the line being typed. What was committed before it stays in the terminal's scrollback.
-- **Colour**, from `Shell.Style`, at a terminal and never with `NO_COLOR` set: a fault and a diagnostic's first line red, a printed value's type dimmed, a name bold in a listing and a brief, the parameter at the cursor cyan. The region measures a row without its escape sequences.
+- **Colour**, from `Shell.Style`, at a terminal and never with `NO_COLOR` set: a fault, a diagnostic's first line, and every refusal of a command red, an answer plain, a printed value's type dimmed, a name bold in a listing and a brief, the parameter at the cursor cyan. The region measures a row without its escape sequences.
 - **Later:** the suggestion, in grey, which is how it is told from what was typed; and the kill ring with `M-y` cycling, `C-t` and `M-t` transposing, `M-u`, `M-l`, `M-c` for case.
 
 ## Completion
@@ -189,7 +189,7 @@ GNU Readline's Emacs bindings.
 
 ## Commands
 
-A command is `:` and a name; it is not an Ernest function. Its name selects it, and so does a prefix of its name that begins no other command's name; a prefix that begins more than one is refused with them, `:b is :bindings or :browse`. `:help` and the listing give the commands alphabetically.
+A command is `:` and a name; it is not an Ernest function. A command that takes nothing refuses an argument, `:reload takes no argument`. Its name selects it, and so does a prefix of its name that begins no other command's name; a prefix that begins more than one is refused with them, `:b is :bindings or :browse`. `:help` and the listing give the commands alphabetically.
 
 - **`:type e`** — the type of `e`, which is not run; it answers `e : T`, the expression as it was written. When `e` is one name, `T` is the name's type as its declaration writes it, under the declaration's variable names (§11.2).
 - **`:browse Module`** — the exports of `Module` with their types.
