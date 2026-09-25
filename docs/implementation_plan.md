@@ -233,6 +233,9 @@ the shell is neither standard library nor library but the toolchain's own progra
      now and every answer plain. `:reload hhhh` answered as if `hhhh` were not there; a
      command that takes nothing refuses an argument. §11.2 states both;
      `refusal_colour_test_` and the golden session cover them.
+  10. **Done 2026-09-25: `:set timing`'s value completes.** After `timing` the word `on` or
+      `off` completes, the one setting whose value is a word; the others take numbers,
+      which nothing completes. §11.2 states it; `command_argument_test_` covers it.
 
 **Out of 2.6:** every library, which is 2.7 with the paper program that needs it; `Regex`,
 `Crypto`, `Uri`, `Zlib`, `Markdown`, which are 2.8; the library fetcher, 3.1; an HTTP server, never.

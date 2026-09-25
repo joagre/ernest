@@ -768,12 +768,16 @@ fn argument(line : String, at : Int, typed : String) -> Shell.Complete.Completio
     match pick(String.slice(line, 1, end - 1)) {
         Picked(Entry(argument = AnExpression)) ->
             Shell.Complete.complete(typed, names(), context(before))
-      // every setting takes a value after it
-      | Picked(Entry(argument = ASetting)) ->
-            if String.isEmpty(String.trim(before)) then
+      // every setting takes a value after it, and `timing`'s is a word
+      | Picked(Entry(argument = ASetting)) -> match String.trim(before) {
+            "" ->
                 withSpace(Shell.Complete.complete(typed, argumentNames(ASetting, typed),
                     Shell.Complete.Anything), at == String.size(line))
-            else Shell.Complete.nothing
+          | "timing" -> Shell.Complete.complete(typed, List.map(["on", "off"], fn(word) =
+                Shell.Complete.Name(text = word, kind = Shell.Complete.Value, shown = word)),
+                Shell.Complete.Anything)
+          | _ -> Shell.Complete.nothing
+        }
       | Picked(Entry(argument = kind)) ->
             if String.isEmpty(String.trim(before)) then
                 Shell.Complete.complete(typed, argumentNames(kind, typed), Shell.Complete.Anything)

@@ -505,7 +505,13 @@ command_argument() ->
                  {expect, "timing on or off"},
                  {send, "03"},
                  {send, hex(":set dep") ++ "09"},          % a lone setting, and its value
+                 %% the listing before holds `depth n` too, and a repaint of it
+                 %% could meet a wait for that alone: the completed line comes first
+                 {expect, ":set depth "},
                  {expect, "depth n"},
+                 {send, "03"},
+                 {send, hex(":set timing of") ++ "09"},    % timing's value is a word
+                 {expect, "timing off"},
                  {send, "03"},
                  {send, hex(":load ") ++ "09"},
                  {expect, "Http."},
@@ -521,6 +527,7 @@ command_argument() ->
                                                " declares, with their types">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :browse \r\n:browse Module  the exports">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :set depth \r\ndepth n">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> :set timing off\r\noff">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :browse B\r\nBool\r\nBytes">>)),
     ?assertEqual(nomatch, binary:match(Bytes, <<"module Bool">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\ndepth n\r\nlength n\r\n">>)),
