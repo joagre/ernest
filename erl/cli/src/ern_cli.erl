@@ -159,12 +159,23 @@ module_of(File, Root) ->
     Components = filename:split(filename:rootname(Rel)),
     lists:foreach(fun shape/1, Components),
     Ns = namespace(Components),
-    %% report §4.2: a module namespace is never a prelude namespace, except
-    %% in the standard library's own source root
+    %% report §4.2: a module namespace is never a namespace of the prelude
+    %% or the standard library, except in the standard library's own source
+    %% root; the message names which of the two takes it, the prelude where
+    %% both do
     case Ns of
         [Single] ->
-            not is_stdlib_root(Root) andalso lists:member(Single, prelude_namespaces()) andalso
-                fail(Rel ++ " takes the prelude namespace " ++ atom_to_list(Single));
+            not is_stdlib_root(Root) andalso
+                case {lists:member(Single, prelude_only_namespaces()),
+                      lists:member(Single, stdlib_namespaces())} of
+                    {true, _} ->
+                        fail(Rel ++ " takes the prelude namespace " ++ atom_to_list(Single));
+                    {false, true} ->
+                        fail(Rel ++ " takes the standard library namespace "
+                             ++ atom_to_list(Single));
+                    {false, false} ->
+                        ok
+                end;
         _ -> ok
     end,
     #mod{ns = Ns, file = File, rel = Rel}.
@@ -346,14 +357,23 @@ stdlib_root() ->
     Repo = filename:dirname(filename:dirname(filename:dirname(filename:dirname(Here)))),
     absolute(filename:join(Repo, "stdlib")).
 
-%% Report §4.2: `Prelude` among them, the name of the prelude itself.
+%% Report §4.2: the namespaces a module may not take, the prelude's and the
+%% standard library's.
 prelude_namespaces() ->
+    lists:usort(prelude_only_namespaces() ++ stdlib_namespaces()).
+
+%% The prelude's own: its types, the first segment of its qualified values,
+%% and `Prelude`, the name of the prelude itself.
+prelude_only_namespaces() ->
     {ok, Decls} = ern_parser:parse_string(ern_prelude:declared_types()),
     lists:usort(['Prelude']
                 ++ [N || {N, _, _} <- ern_prelude:builtin_types()]
                 ++ [N || #type_decl{name = N} <- Decls]
-                ++ [hd(Q) || {Q, _, _} <- ern_prelude:values(), length(Q) > 1]
-                ++ [hd(I#iface.namespace) || I <- ern_prelude:stdlib_ifaces()]).
+                ++ [hd(Q) || {Q, _, _} <- ern_prelude:values(), length(Q) > 1]).
+
+%% The standard library's modules at the top of the hierarchy.
+stdlib_namespaces() ->
+    lists:usort([hd(I#iface.namespace) || I <- ern_prelude:stdlib_ifaces()]).
 
 %% Type-check and compile one module against its dependencies'
 %% interfaces, unless its .erc is current (§11.1). Returns the interfaces
@@ -817,11 +837,13 @@ run_entry(Opts, Ns, Roots, Loaded, Err) ->
     end.
 
 %% Report §11.2: the entry point the shell spawns beside it, or none for a
-%% file without one, which is loaded to be tried.
+%% file without one, which is loaded to be tried. A `main` that is not an
+%% entry point (§8.1) leaves the file without one; a function `--main`
+%% names must be one.
 shell_entry(Opts, Ns, Roots, Loaded) ->
     Mod = ern_emitter:module_atom(Ns),
     case proplists:get_value(main, Opts) =:= undefined
-         andalso not erlang:function_exported(Mod, main, 0) of
+         andalso entry_shape(Mod, main) =/= entry of
         true ->
             {none, Loaded};
         false ->
@@ -830,7 +852,9 @@ shell_entry(Opts, Ns, Roots, Loaded) ->
     end.
 
 %% Report §8.1: the entry point, the loaded module's `main` or the function
-%% `--main` names, and every module loaded for it.
+%% `--main` names, and every module loaded for it. It is an exported `fn`
+%% of type `() -> Unit`, with a mailbox type or pure; a top-level `let`,
+%% and a function of another shape, is refused.
 entry_point(Opts, Ns, Roots, Loaded) ->
     {EntryMod, EntryFn, Loaded1} =
         case proplists:get_value(main, Opts) of
@@ -842,10 +866,39 @@ entry_point(Opts, Ns, Roots, Loaded) ->
                 MainNs = lists:droplast(Parts),
                 {ern_emitter:module_atom(MainNs), lists:last(Parts), load(MainNs, Roots, Loaded)}
         end,
-    erlang:function_exported(EntryMod, EntryFn, 0) orelse
-        fail("no exported entry point " ++ atom_to_list(EntryFn) ++ " in "
-             ++ qname(entry_ns(EntryMod)) ++ "; an entry point takes no arguments (report §8.1)"),
+    Name = qname(entry_ns(EntryMod) ++ [EntryFn]),
+    Shape = "; an entry point is an exported fn of type () -> Unit (report §8.1)",
+    case entry_shape(EntryMod, EntryFn) of
+        entry -> ok;
+        missing -> fail("no exported function " ++ Name ++ Shape);
+        {'let', Type} ->
+            fail(Name ++ " is not an entry point: it is a let of type " ++ Type ++ Shape);
+        {other, Type} ->
+            fail(Name ++ " is not an entry point: its type is " ++ Type ++ Shape)
+    end,
     {EntryMod, EntryFn, Loaded1}.
+
+%% What the interface of a loaded module says of one of its names: an entry
+%% point, a `let`, a function of another shape, or nothing it exports. A
+%% result type that is a type variable is instantiated to `Unit`, as a
+%% polymorphic mailbox type is to `Never` (report §8.1).
+entry_shape(Mod, Fn) ->
+    {ok, Bin} = file:read_file(code:which(Mod)),
+    {ok, #{iface := #iface{namespace = Ns, values = Values, lets = Lets}}} =
+        ern_emitter:read_interface(Bin),
+    Q = Ns ++ [Fn],
+    case maps:find(Q, Values) of
+        error ->
+            missing;
+        {ok, #scheme{type = T} = Scheme} ->
+            Type = ern_types:format_scheme(Scheme, ern_types:new()),
+            case {lists:member(Q, Lets), T} of
+                {true, _} -> {'let', Type};
+                {false, {tfn, [], _, {tcon, ['Unit'], []}}} -> entry;
+                {false, {tfn, [], _, {tvar, _}}} -> entry;
+                {false, _} -> {other, Type}
+            end
+    end.
 
 entry_site(Mod, Fn) ->
     unicode:characters_to_binary(qname(entry_ns(Mod)) ++ "." ++ atom_to_list(Fn)).

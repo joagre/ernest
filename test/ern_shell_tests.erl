@@ -923,6 +923,32 @@ library_file() ->
                   ++ " < " ++ filename:join(Dir, "in")),
     ?assertMatch({_, _}, binary:match(Out, <<"42 : Int">>)).
 
+%% report §11.2, §8.1: a `main` that is not an entry point leaves the file
+%% without one, so it is loaded and nothing is spawned; `--main` naming it
+%% is refused. Written with the change: the shell spawned any exported
+%% `main` that takes no arguments. A `let main` is not covered here, as
+%% ern_cli_tests covers its refusal.
+non_entry_main_test_() ->
+    {timeout, 60, fun non_entry_main/0}.
+
+non_entry_main() ->
+    Dir = filename:join("/tmp", "ern_main_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(filename:join(Dir, "main.ern"),
+                         "export fn main() -> Int with m = { Io.println(\"spawned\"); 3 }\n"),
+    ok = file:write_file(filename:join(Dir, "in"), "1 + 1\n"),
+    {0, _} = sh("../bin/ernc --source-root " ++ Dir ++ " --out-dir " ++ Dir ++ " "
+                ++ filename:join(Dir, "main.ern")),
+    Erc = filename:join(Dir, "main.erc"),
+    {0, Out} = sh("HOME=" ++ Dir ++ " ../bin/ern --shell " ++ Erc
+                  ++ " < " ++ filename:join(Dir, "in")),
+    ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"spawned">>)),
+    {1, Refused} = sh("HOME=" ++ Dir ++ " ../bin/ern --shell --main Main.main " ++ Erc
+                      ++ " < " ++ filename:join(Dir, "in")),
+    ?assertMatch({_, _}, binary:match(Refused, <<"Main.main is not an entry point: its type is"
+                                                 " () -> Int with m">>)).
+
 %% report §9, §11.2: `:doc` finds a prelude name's documentation, a
 %% function, a type, and a `Sys.*` reference, and still finds an operation
 %% in its type's module. A regression test: the prelude had none, and `:doc

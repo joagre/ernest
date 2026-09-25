@@ -246,6 +246,24 @@ prelude_namespace_test() ->
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
                                       <<"takes the prelude namespace Prelude">>)).
 
+%% report §4.2: the refusal names whose namespace a file at the source root
+%% takes: `Event` and `Sys` are the prelude's, `Io` the standard library's.
+%% A regression test, written after the code; it does not cover a namespace
+%% that both take, such as `Int`, which is named as the prelude's.
+taken_namespace_names_owner_test() ->
+    lists:foreach(
+      fun(File) ->
+              Dir = tmp(),
+              write(Dir, "src/" ++ File, "export fn f() -> Int = 1\n"),
+              ?assertEqual(1, ernc_err(["--out-dir", Dir ++ "/build", Dir ++ "/src"]))
+      end, ["event.ern", "sys.ern", "io.ern"]),
+    Out = iolist_to_binary(?capturedOutput),
+    ?assertMatch({_, _}, binary:match(Out, <<"event.ern takes the prelude namespace Event">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"sys.ern takes the prelude namespace Sys">>)),
+    ?assertMatch({_, _},
+                 binary:match(Out, <<"io.ern takes the standard library namespace Io">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"prelude namespace Io">>)).
+
 %% report §4.2: `Prelude.send` is the prelude's `send` at run time too, past
 %% a function of the module's own by that name
 prelude_value_runs_test() ->
@@ -315,6 +333,26 @@ abstract_constructor_outside_test() ->
                  re:run(iolist_to_binary(?capturedOutput),
                         "Main.Stack is the constructor of an abstract type and is not visible"
                         " outside its module")).
+
+%% report §4.2: type names that differ only in case are distinct, and a
+%% type whose name differs only in case from a child module's segment does
+%% not take that module's namespace: `STACK` in main.ern beside
+%% main/stack.ern compiles, `STACK.get` and `Main.STACK.get` are main's own
+%% member, and `Main.Stack.one` is the child module's. A regression test,
+%% written after the code; single-file mode is not covered.
+case_distinct_names_test() ->
+    Dir = tmp(),
+    write(Dir, "src/main.ern",
+          "export type STACK = STACK(Int)\n"
+          "export type Stack2 = A\n"
+          "export type STACK2 = B\n"
+          "export fn STACK.get(s : STACK) -> Int = match s { STACK(n) -> n }\n"
+          "export fn main() -> Unit with m = Io.println(Int.toString(\n"
+          "    STACK.get(STACK(3)) * 100 + Main.STACK.get(STACK(4)) * 10 + Main.Stack.one()))\n"),
+    write(Dir, "src/main/stack.ern", "export fn one() -> Int = 1\n"),
+    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"341\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §4.2: a module that names itself qualified is not a module cycle
 self_qualified_module_test() ->
@@ -752,6 +790,39 @@ main_option_test() ->
     ?assertEqual(1, ern_cli:ern(["--main", "Tools.twice", Dir ++ "/build/main.erc"])),
     ?assertEqual(1, ern_cli:ern(["--main", "check", Dir ++ "/build/main.erc"])).
 
+%% report §8.1, §11.2: an entry point is an exported fn of type
+%% `() -> Unit`, with a mailbox type or pure; a function of another shape
+%% and a top-level `let` are refused by name and type, as `main` and as
+%% `--main`, and a function that is not exported is not found
+entry_point_shape_test() ->
+    Run = fun(Source, Args) ->
+                  Dir = tmp(),
+                  File = write(Dir, "main.ern", Source),
+                  ?assertEqual(0, ern_cli:ernc(["--source-root", Dir, File])),
+                  ern_err(Args ++ [filename:join(Dir, "main.erc")])
+          end,
+    ?assertEqual(1, Run("export fn main() -> Int = 3\n", [])),
+    ?assertEqual(1, Run("export let main = fn() -> Unit with Never = Io.println(\"x\")\n",
+                        [])),
+    ?assertEqual(1, Run("export fn main() -> Unit = Unit\n"
+                        "export fn other() -> Int = 3\n", ["--main", "Main.other"])),
+    ?assertEqual(1, Run("fn main() -> Unit = Unit\n", [])),
+    ?assertEqual(0, Run("export fn main() -> Unit = Unit\n", [])),
+    ?assertEqual(0, Run("export fn main() -> Unit with m = Io.println(\"m\")\n", [])),
+    ?assertEqual(0, Run("export fn main() -> Unit = Unit\n"
+                        "export fn other() -> Unit with Never = Io.println(\"o\")\n",
+                        ["--main", "Main.other"])),
+    Out = iolist_to_binary(?capturedOutput),
+    Refusals = [<<"Main.main is not an entry point: its type is () -> Int">>,
+                <<"Main.main is not an entry point: it is a let of type"
+                  " () -> Unit with Never">>,
+                <<"Main.other is not an entry point: its type is () -> Int">>,
+                <<"no exported function Main.main">>,
+                <<"m\no\n">>],
+    [?assertMatch({_, _}, binary:match(Out, R)) || R <- Refusals],
+    %% the refused entry points were not run
+    ?assertEqual(nomatch, binary:match(Out, <<"x\n">>)).
+
 %% report §8.5, §8.2, §11.2: top-level lets of every loaded module are
 %% evaluated before main, dependencies first, with Sys.* bound
 init_order_test() ->
@@ -764,6 +835,27 @@ init_order_test() ->
     ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"42\n">>, iolist_to_binary(?capturedOutput)).
+
+%% report §8.5, §11.2: a module on the source root that the program does
+%% not depend on is not loaded, so its faulting top-level `let` does not
+%% stop main; a module it depends on is initialized whole, so a faulting
+%% `let` main does not use still faults the program. A regression test,
+%% written after the code; a module reached only through `--main` is not
+%% covered.
+init_only_dependencies_test() ->
+    Dir = tmp(),
+    write(Dir, "src/lib/boom.ern",
+          "export let zero = List.size([])\n"
+          "export let boom = 1 / zero\n"),
+    write(Dir, "src/main.ern", hello()),
+    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_err([Dir ++ "/build/main.erc"])),
+    write(Dir, "src/main.ern",
+          "export fn main() -> Unit with Never = Io.println(Int.toString(Lib.Boom.zero))\n"),
+    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_err([Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"hello, world\nfault: division by zero\n">>,
+                 iolist_to_binary(?capturedOutput)).
 
 %% report §7.3, §8.6, §11.2: a faulting main is status 1
 fault_status_test() ->
