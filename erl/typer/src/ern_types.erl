@@ -7,7 +7,8 @@
          enter/1, leave/1,
          resolve/2, zonk/2, unify/3, free_vars/2,
          mono/1, generalize/2, generalize/3, instantiate/2,
-         mismatch_pair/3, format/2, value_vars/1, effect_vars/1, set_scope/4,
+         mismatch_pair/3, format/2, value_vars/2, effect_vars/1, set_scope/4,
+         set_effect_params/2,
          format_scheme/2, format_call/4, format_error/1]).
 
 -export_type([st/0, type/0, effect/0, qname/0, id/0, flags/0]).
@@ -22,11 +23,13 @@
               | {tfn, [type()], effect(), type()}.
 
 -record(st, {next = 1, level = 0, subst = #{}, vars = #{}, ns = [], session = [],
-             shadows = []}).
+             shadows = [], effect_params = #{}}).
 %% ns, session, shadows: the module being checked, whose types print
 %% unqualified; the session's types that print so too, each the latest
 %% declaration of its name (report §11.2); and the module's type names that
 %% shadow prelude names, which print qualified (report §11.5)
+%% effect_params: for each type with a parameter that is no value position
+%% (report §3.9), whether each of its arguments is one
 -opaque st() :: #st{}.
 
 %%
@@ -319,33 +322,54 @@ first_differing(Es, As, Whole) ->
 -spec format(type() | pure, st()) -> string().
 format(T, St) ->
     T1 = zonk(T, St),
-    EffectOnly = effect_only_vars(T1),
+    EffectOnly = effect_only_vars(T1, St),
     {S, _} = fmt(T1, St, #{effect_only => EffectOnly, values => 0, effects => 0, taken => []}),
     lists:flatten(S).
 
 %% Variables that occur only in effect positions are named e, e1, ...; the
 %% others a, b, c, d, f, ... (report §3.9 writes `e` for effect variables).
-effect_only_vars(T) ->
-    effect_vars(T) -- value_vars(T).
+effect_only_vars(T, St) ->
+    effect_vars(T) -- value_vars(T, St).
 
 %% Variable ids in value positions / in effect positions of a zonked type.
--spec value_vars(type() | pure) -> [id()].
-value_vars(T) -> lists:usort(value_positions(T, [])).
+%% Report §3.9: a type argument is a value position unless the state says
+%% its parameter occurs in no value position of the type's fields.
+-spec value_vars(type() | pure, st()) -> [id()].
+value_vars(T, #st{effect_params = EP}) -> lists:usort(value_positions(T, EP, [])).
 
 -spec effect_vars(type() | pure) -> [id()].
 effect_vars(T) -> lists:usort(effect_positions(T, [])).
 
-value_positions({tvar, Id}, Acc) -> [Id | Acc];
-value_positions({tcon, _, As}, Acc) -> lists:foldl(fun value_positions/2, Acc, As);
-value_positions({ttuple, Es}, Acc) -> lists:foldl(fun value_positions/2, Acc, Es);
-value_positions({tfn, Ps, _E, R}, Acc) -> lists:foldl(fun value_positions/2, Acc, Ps ++ [R]);
-value_positions(pure, Acc) -> Acc.
+value_positions({tvar, Id}, _EP, Acc) ->
+    [Id | Acc];
+value_positions({tcon, Q, As}, EP, Acc) ->
+    Values = case EP of
+                 #{Q := Flags} -> [A || {A, true} <- lists:zip(As, Flags)];
+                 _ -> As
+             end,
+    value_positions_list(Values, EP, Acc);
+value_positions({ttuple, Es}, EP, Acc) ->
+    value_positions_list(Es, EP, Acc);
+value_positions({tfn, Ps, _E, R}, EP, Acc) ->
+    value_positions_list(Ps ++ [R], EP, Acc);
+value_positions(pure, _EP, Acc) ->
+    Acc.
+
+value_positions_list(Ts, EP, Acc) ->
+    lists:foldl(fun(T, A) -> value_positions(T, EP, A) end, Acc, Ts).
 
 %% The module being checked, the session's types, and the type names that
 %% shadow prelude names, which print qualified (report §11.5).
 -spec set_scope(st(), qname(), [qname()], [atom()]) -> st().
 set_scope(St, Ns, Session, Shadows) ->
     St#st{ns = Ns, session = Session, shadows = Shadows}.
+
+%% Report §3.9: the types with a parameter that occurs in no value position
+%% of their fields, each with whether each of its arguments is a value
+%% position.
+-spec set_effect_params(st(), #{qname() => [boolean()]}) -> st().
+set_effect_params(St, EffectParams) ->
+    St#st{effect_params = EffectParams}.
 
 %% Report §11.5: a type name as the module would write it.
 type_name([Name], _St) ->
@@ -386,7 +410,7 @@ format_call(#scheme{type = T} = Scheme, Params, Marked, St) ->
     St1 = scheme_state(Scheme, St),
     case zonk(T, St1) of
         {tfn, Ps, E, R} = T1 ->
-            Names0 = #{effect_only => effect_only_vars(T1), values => 0, effects => 0,
+            Names0 = #{effect_only => effect_only_vars(T1, St1), values => 0, effects => 0,
                        taken => []},
             {Shown, Names1} = lists:mapfoldl(fun(P, N) -> fmt(P, St1, N) end, Names0, Ps),
             Named = [parameter(Name, S) || {Name, S} <- lists:zip(padded(Params, length(Ps)),

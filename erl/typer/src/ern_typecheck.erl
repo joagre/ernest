@@ -89,7 +89,7 @@ check(Ns, Decls0, Ifaces, Session) ->
         %% report §11.2: a session type prints unqualified, except one a
         %% later input has shadowed, which prints as the input that declared it
         SessionTypes = maps:values(maps:get(types, Session, #{})),
-        St1 = ern_types:set_scope(Env1a#env.st, Ns, SessionTypes, Shadows),
+        St1 = ern_types:set_scope(effect_params(Env1a), Ns, SessionTypes, Shadows),
         Env1 = mark_abstract(Decls, Env1a#env{st = St1}),
         {Typed, Env2, Errs2} = check_values(Decls, Env1),
         Errs3 = check_abstract(Decls) ++ check_exports(Decls, Env2),
@@ -176,7 +176,8 @@ prelude_env() ->
                            add_type(E, #tinfo{qname = [Name], params = Params, foreign = true})
                        end, Env0, ern_prelude:builtin_types()),
     {ok, Decls} = ern_parser:parse_string(ern_prelude:declared_types()),
-    {Env2, []} = declare_types(Decls, Env1),
+    {Env2a, []} = declare_types(Decls, Env1),
+    Env2 = Env2a#env{st = effect_params(Env2a)},
     Env3 = lists:foldl(fun({QName, Text, _Doc}, E) ->
                            {ok, Syntax} = ern_parser:parse_type(Text),
                            ProcessOnly = lists:member(QName, ern_prelude:process_only()),
@@ -215,7 +216,7 @@ signature_scheme(Syntax, ProcessOnly, Env) ->
     {T, VarMap, St1} = ann(Syntax, #{}, Env#env{st = St0}),
     Z = ern_types:zonk(T, St1),
     Effs = ern_types:effect_vars(Z),
-    Vals = ern_types:value_vars(Z),
+    Vals = ern_types:value_vars(Z, St1),
     St2 = lists:foldl(fun(Id, S) -> ern_types:add_flag({tvar, Id}, process_only, S) end, St1,
                       [Id || Id <- Effs, ProcessOnly orelse lists:member(Id, Vals)]),
     St3 = ern_types:leave(St2),
@@ -350,6 +351,54 @@ declare_types(Decls, Env0) ->
                                    end
                                end, {Env2, []}, TypeDecls),
     {mark_reply_carrying(Env3), Errs}.
+
+%% Report §3.9: a type argument is a value position where its parameter
+%% occurs in a value position of the type's fields; one of a built-in or
+%% foreign type always is. A parameter may occur only as an argument of
+%% another type, or of its own, so the parameters that are value positions
+%% are found as a least fixpoint over every declared type in scope, and the
+%% state keeps the types that have one that is not.
+effect_params(#env{types = Ts, st = St}) ->
+    %% a type whose constructors failed to declare keeps its parameters'
+    %% names, and has no fields to read
+    Declared = maps:from_list([{Q, TI} || Q := #tinfo{foreign = false, params = [_ | _] = Ps} = TI
+                                              <- Ts,
+                                          lists:all(fun(P) -> is_tuple(P) end, Ps)]),
+    Flags = value_params(Declared, maps:map(fun(_, #tinfo{params = Ps}) ->
+                                                    [false || _ <- Ps]
+                                            end, Declared)),
+    ern_types:set_effect_params(St, maps:filter(fun(_, Fs) -> lists:member(false, Fs) end,
+                                                Flags)).
+
+value_params(Declared, Flags) ->
+    Flags1 = maps:map(fun(Q, Fs) ->
+                          #tinfo{params = Ps, constructors = Cs} = maps:get(Q, Declared),
+                          Fields = lists:append([FTs || #cinfo{scheme = #scheme{type = T}} <- Cs,
+                                                        {tfn, FTs, _, _} <- [T]]),
+                          [F orelse lists:any(fun(FT) -> in_value(Id, FT, Flags) end, Fields)
+                           || {F, {tvar, Id}} <- lists:zip(Fs, Ps)]
+                      end, Flags),
+    case Flags1 =:= Flags of
+        true -> Flags;
+        false -> value_params(Declared, Flags1)
+    end.
+
+%% Does variable Id occur in a value position of T, given which parameters
+%% of the declared types are value positions so far?
+in_value(Id, {tvar, Id}, _Flags) ->
+    true;
+in_value(Id, {tcon, Q, As}, Flags) ->
+    Values = case Flags of
+                 #{Q := Fs} -> [A || {A, true} <- lists:zip(As, Fs)];
+                 _ -> As
+             end,
+    lists:any(fun(A) -> in_value(Id, A, Flags) end, Values);
+in_value(Id, {ttuple, Es}, Flags) ->
+    lists:any(fun(E) -> in_value(Id, E, Flags) end, Es);
+in_value(Id, {tfn, Ps, _, R}, Flags) ->
+    lists:any(fun(X) -> in_value(Id, X, Flags) end, [R | Ps]);
+in_value(_, _, _) ->
+    false.
 
 type_decl_of(#type_decl{} = TD) -> [TD];
 type_decl_of(#abstract_decl{type = TD}) -> [TD];
@@ -764,6 +813,7 @@ placeholder_group(Group, Env) ->
                 end, Env, Group).
 
 check_group(Group, Env0) ->
+    lists:foreach(fun local_fn_names/1, Group),
     St0 = ern_types:enter(Env0#env.st),
     %% a monomorphic placeholder per member for recursion
     {Placeholders, St1} = lists:mapfoldl(fun(D, S) ->
@@ -793,12 +843,85 @@ check_group(Group, Env0) ->
                                         {Owner, Name} = decl_key(D),
                                         V = proplists:get_value({Owner, Name}, Placeholders),
                                         {Scheme, St} = ern_types:generalize(V, E#env.st),
+                                        member_shape(D, Scheme, E#env{st = St}),
                                         Q = value_qname(E, Owner, Name),
                                         E1 = E#env{st = St,
                                                    globals = maps:put(Q, Scheme, E#env.globals)},
                                         {zonk_ast(set_decl_type(D, Scheme), St), E1}
                                     end, Env3, Typed),
     {Typed2, Env4}.
+
+%% Report §4.8: a member named by an operator has the type (T, T) -> R for
+%% its type T, T.compare the type (T, T) -> Ordering, and T.negate the type
+%% (T) -> R, each pure. T is the member's type with any type arguments, the
+%% same in both parameters. In the module of a built-in type, the module's
+%% own operators, compare, and negate are the type's (§4.8, §9.6).
+member_shape(D, #scheme{type = {tfn, Ps, Eff, R}} = Scheme, Env) ->
+    case member_type(D, Env) of
+        none ->
+            ok;
+        {TQ, Member} ->
+            {Arity, Help} = case Member of
+                                negate -> {1, "negate takes one value of its type and is pure"};
+                                compare -> {2, "compare takes two values of its type, returns an"
+                                               " Ordering, and is pure"};
+                                _ -> {2, "a member named by an operator takes two values of its"
+                                         " type and is pure"}
+                            end,
+            {TT, St} = case Ps of
+                           [{tcon, TQ, _} = P | _] -> {P, Env#env.st};
+                           _ -> own_type(TQ, Env)
+                       end,
+            Result = case Member of
+                         compare -> {tcon, ['Ordering'], []};
+                         _ -> R
+                     end,
+            Expected = {tfn, lists:duplicate(Arity, TT), pure, Result},
+            case ern_types:zonk({tfn, Ps, Eff, R}, St) =:= Expected of
+                true ->
+                    ok;
+                false ->
+                    Shown = fun(T) -> ern_types:format_scheme(Scheme#scheme{type = T}, St) end,
+                    fail(element(2, D), format_qname([lists:last(TQ), Member])
+                                        ++ " must have the type "
+                                        ++ Shown(Expected) ++ ", not "
+                                        ++ Shown(Scheme#scheme.type), [], Help)
+            end
+    end;
+member_shape(_, _, _) ->
+    ok.
+
+%% The type and the member a declaration names by an operator, compare, or
+%% negate, or none.
+member_type(D, #env{ns = Ns} = Env) when is_record(D, fn_decl); is_record(D, foreign_fn_decl) ->
+    {Owner, Name} = decl_key(D),
+    Member = lists:member(Name, [compare, negate | ?ARITH ++ ['<>']]),
+    Builtin = case Ns of
+                  [B] -> lists:keymember(B, 1, ern_prelude:builtin_types());
+                  _ -> false
+              end,
+    case {Member, Owner} of
+        {false, _} -> none;
+        {true, undefined} when Builtin -> {Ns, Name};
+        {true, undefined} -> none;
+        {true, _} -> {owner_qname(Owner, Env), Name}
+    end;
+member_type(_, _) ->
+    none.
+
+%% Report §11.2: the type a member names, the module's own or, at the
+%% prompt, one the session declared.
+owner_qname(Owner, #env{local_types = LT} = Env) ->
+    case LT of
+        #{Owner := Q} -> Q;
+        _ -> {ok, Q} = session(types, Owner, Env), Q
+    end.
+
+%% The type TQ over fresh variables, for its parameters.
+own_type(TQ, #env{types = Ts, st = St0}) ->
+    #tinfo{params = Params} = maps:get(TQ, Ts),
+    {Args, St} = lists:mapfoldl(fun(_, S) -> ern_types:fresh(S) end, St0, Params),
+    {{tcon, TQ, Args}, St}.
 
 zonk_ast({tvar, _} = T, St) -> ern_types:zonk(T, St);
 zonk_ast({tcon, _, _} = T, St) -> ern_types:zonk(T, St);
@@ -847,7 +970,66 @@ let_cycle(#let_decl{pos = Pos, name = Name} = D, G, Errs, Seen) ->
             end
     end.
 
-%% Unify a placeholder with what the annotations say, before any body.
+%% Report §5.4: a local fn may not take the name of a parameter or a
+%% variable in scope where it is declared, nor of a `let` of its block.
+%% The scope is read off the declaration as written: the variables bound
+%% around each local fn, with where each is bound. A local fn of an
+%% enclosing block is no variable, and one of its name may be declared.
+local_fn_names(#fn_decl{params = Ps, body = B}) -> fn_names(B, param_vars(Ps));
+local_fn_names(#let_decl{body = B}) -> fn_names(B, []);
+local_fn_names(_) -> ok.
+
+fn_names(#e_lambda{params = Ps, body = B}, Vars) ->
+    fn_names(B, param_vars(Ps) ++ Vars);
+fn_names(#clause{pattern = P, guard = G, body = B}, Vars) ->
+    Vars1 = pattern_vars(P) ++ Vars,
+    fn_names(G, Vars1),
+    fn_names(B, Vars1);
+fn_names(#e_block{stmts = Stmts}, Vars) ->
+    Lets = lists:append([pattern_vars(P) || #binding{pattern = P} <- Stmts]),
+    lists:foldl(fun(#binding{pattern = P, expr = X}, Vs) ->
+                        fn_names(X, Vs),
+                        pattern_vars(P) ++ Vs;
+                   (#fn_decl{pos = Pos, name = N, params = Ps, body = B}, Vs) ->
+                        local_fn_name(Pos, N, Vs, "a variable in scope where it is declared"),
+                        local_fn_name(Pos, N, Lets, "a `let` of its block"),
+                        fn_names(B, param_vars(Ps) ++ Vs),
+                        Vs;
+                   (S, Vs) ->
+                        fn_names(S, Vs),
+                        Vs
+                end, Vars, Stmts),
+    ok;
+fn_names(T, Vars) when is_tuple(T) ->
+    fn_names(tl(tuple_to_list(T)), Vars);
+fn_names(L, Vars) when is_list(L) ->
+    lists:foreach(fun(X) -> fn_names(X, Vars) end, L);
+fn_names(_, _) ->
+    ok.
+
+local_fn_name(Pos, N, Vars, What) ->
+    case lists:keyfind(N, 1, Vars) of
+        false ->
+            ok;
+        {N, At} ->
+            fail(Pos, "local function " ++ atom_to_list(N) ++ " has the name of " ++ What,
+                 [{ern_diag:span(At), atom_to_list(N) ++ " is bound here"}],
+                 "rename the function or the variable")
+    end.
+
+param_vars(Ps) -> lists:append([pattern_vars(P) || #param{pattern = P} <- Ps]).
+
+%% The variables a pattern binds, each with where it is bound.
+pattern_vars(#p_var{pos = Pos, name = N}) -> [{N, Pos}];
+pattern_vars(#p_as{pos = Pos, pattern = P, name = N}) -> [{N, Pos} | pattern_vars(P)];
+pattern_vars(#p_or{alts = [A | _]}) -> pattern_vars(A);
+pattern_vars(P) when is_tuple(P) -> pattern_vars(tl(tuple_to_list(P)));
+pattern_vars(L) when is_list(L) -> lists:append([pattern_vars(X) || X <- L]);
+pattern_vars(_) -> [].
+
+%% Unify a placeholder with what the annotations say, before any body. A
+%% local fn's annotations name the enclosing definition's variables where
+%% they share a name (report §3.9).
 signature_shape(#fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect}, V, Env) ->
     {PTs, {AnnVars, St1}} = lists:mapfoldl(fun(#param{type = undefined}, {AV, St}) ->
                                                    {T, St0} = ern_types:fresh(St),
@@ -856,7 +1038,7 @@ signature_shape(#fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect}
                                                    {T, AV1, St0} = ann(Syntax, AV,
                                                                        Env#env{st = St}),
                                                    {T, {AV1, St0}}
-                                           end, {#{}, Env#env.st}, Params),
+                                           end, {Env#env.ann_vars, Env#env.st}, Params),
     {RetT, EffT, _, St2} = return_annotation(Ret, Effect, AnnVars, Env#env{st = St1}),
     FnT = {tfn, PTs, EffT, RetT},
     unify_at(Pos, V, FnT, Env#env{st = mark_process_only(FnT, St2)}, "signature");
@@ -879,7 +1061,9 @@ set_decl_type(D, _) -> D.
 
 check_value(#fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect, body = Body} = D,
             Placeholder, Env) ->
-    {TypedParams, ParamTypes, Env1, AnnVars} = bind_params(Params, Env, #{}),
+    %% report §3.9: a local fn's signature shares the enclosing one's
+    %% variables; at top level there are none
+    {TypedParams, ParamTypes, Env1, AnnVars} = bind_params(Params, Env, Env#env.ann_vars),
     {RetT, EffT, AnnVars1, St} = return_annotation(Ret, Effect, AnnVars, Env1),
     FnT = {tfn, ParamTypes, EffT, RetT},
     Env2 = Env1#env{st = mark_process_only(FnT, St), effect = EffT, pending = [], deferred = [],
@@ -988,7 +1172,8 @@ return_annotation(Ret, Effect, AnnVars, Env) ->
 %% signature is process-only (report §3.9).
 mark_process_only(FnT, St) ->
     Z = ern_types:zonk(FnT, St),
-    Both = [Id || Id <- ern_types:effect_vars(Z), lists:member(Id, ern_types:value_vars(Z))],
+    Vals = ern_types:value_vars(Z, St),
+    Both = [Id || Id <- ern_types:effect_vars(Z), lists:member(Id, Vals)],
     lists:foldl(fun(Id, S) -> ern_types:add_flag({tvar, Id}, process_only, S) end, St, Both).
 
 %% Report §11.5: the labels an error carries. A return annotation is the
@@ -1552,6 +1737,7 @@ infer(#e_con{pos = Pos, path = Path, name = Name, args = Args} = E, Env) ->
             fail(Pos, atom_to_list(Name) ++ " has one positional field, not named fields");
         {{named, Names}, {named, Base, Sets}} ->
             {tfn, FTs, pure, RT} = CT,
+            Base =:= undefined orelse one_constructor(Pos, CI, Env1),
             infer_named(E, Names, FTs, RT, Base, Sets, Env1);
         {{named, _}, _} ->
             fail(Pos, atom_to_list(Name) ++ " has named fields; write "
@@ -1836,6 +2022,18 @@ infer_named(#e_con{pos = Pos, name = Name} = E, Names, FTs, RT, Base, Sets, Env)
                        end, Env1, Sets),
     {E#e_con{args = {named, TypedBase, TypedSets}, type = RT}, RT, Env2}.
 
+%% Report §5.6: `..` takes the unlisted fields from a value that has them,
+%% so its type has one constructor.
+one_constructor(Pos, #cinfo{name = Name, type_qname = TQ}, #env{types = Ts} = Env) ->
+    case maps:get(TQ, Ts) of
+        #tinfo{constructors = [_]} ->
+            true;
+        #tinfo{constructors = Cs} ->
+            fail(Pos, io_lib:format("`..` is allowed only on a type with one constructor, and"
+                                    " ~s has ~B", [ern_types:format({tcon, TQ, []}, Env#env.st),
+                                                   length(Cs)]),
+                 [], "give every field of " ++ atom_to_list(Name))
+    end.
 
 binop_type(Pos, Op, L, LT, R, RT, Env) when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/';
                                             Op =:= '%'; Op =:= '<>' ->

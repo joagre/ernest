@@ -78,6 +78,35 @@ foreign_effect_test() ->
                " each(xs, fn(x) = Io.println(Int.toString(x)))\n",
     ?assertMatch({ok, _, _, _}, ern_typecheck:check_string(['M'], Callback)).
 
+%% report §3.9: a type argument is a value position only where its
+%% parameter occurs in a value position of the type's fields, so a variable
+%% that occurs in H(e) and after `with` ranges over the mailbox types and
+%% pure, and `run` holds a pure callback and one with a mailbox alike. The
+%% argument of a type whose parameter is a field is a value position, and
+%% the rule reaches through another type's fields and a type's own. `run`
+%% was process-only, and a pure caller was refused.
+effect_only_type_argument_test() ->
+    H = "export type H(e) = H(f : (Int) -> Unit with e)\n"
+        "export fn run(h : H(e), x : Int) -> Unit with e = h.f(x)\n",
+    ?assertEqual(ok, ok(H ++ "fn usePure() -> Unit = run(H(f = fn(x) = Unit), 1)\n"
+                        "fn useBox(a : Address(Int)) -> Unit with Int ="
+                        " run(H(f = fn(x) = send(a, x)), 1)\n")),
+    %% and prints as an effect variable does, in the module's own state
+    {ok, _, #iface{values = Vs}, Env} =
+        check("export type H(e) = H(f : (Int) -> Unit with e)\n"
+              "export fn run(h, x : Int) = { let H(f = g) = h; g(x) }\n"),
+    ?assertEqual("(H(e), Int) -> Unit with e",
+                 ern_types:format_scheme(maps:get(['M', run], Vs),
+                                         ern_typecheck:type_state(Env))),
+    ?assertEqual(ok, ok(H ++ "type K(e) = K(h : H(e)) | L(k : K(e))\n"
+                        "fn go(k : K(e)) -> Unit with e ="
+                        " match k { K(h = h) -> run(h, 1) | L(k = k2) -> go(k2) }\n"
+                        "fn usePure() -> Unit = go(L(k = K(h = H(f = fn(x) = Unit))))\n")),
+    ?assertEqual("run needs a process, and usePure is pure",
+                 err("type V(e) = V(f : (Int) -> Unit with e, v : e)\n"
+                     "fn run(h : V(e), x : Int) -> Unit with e = h.f(x)\n"
+                     "fn usePure() -> Unit = run(V(f = fn(x) = Unit, v = 1), 1)\n")).
+
 %% report §4.8: `!` is negation on Bool
 not_operator_test() ->
     ?assertEqual("(Bool) -> Bool", type_of("export fn flip(b) = !b", flip)),
@@ -145,24 +174,62 @@ user_type_operators_test() ->
     ?assertEqual("(M.Vec) -> M.Vec",
                  type_of(Vec ++ "export fn Vec.negate(Vec(a)) -> Vec = Vec(-a)\n"
                          "export fn f(a : Vec) = -a", f)),
-    ?assertMatch("Vec.negate does not fit an operand of Vec: " ++ _,
-                 err(Vec ++ "export fn Vec.negate(Vec(a), Vec(b)) -> Vec = Vec(-a)\n"
-                     "fn f(a : Vec) = -a")),
-    ?assertMatch("V.compare must return an Ordering: " ++ _,
-                 err("export type V = V(Int)\nexport fn V.compare(V(a), V(b)) -> Int = a - b\n"
-                     "fn f(a : V, b) = a < b")),
-    ?assertMatch("Vec.+ does not fit two operands of Vec: " ++ _,
-                 err("export type Vec = Vec(Int)\n"
-                     "export fn Vec.+(Vec(a), b : Int) -> Vec = Vec(a + b)\n"
-                     "fn f(a : Vec, b) = a + b")),
-    %% an operator with a mailbox effect is process code (report §3.4)
-    ?assertEqual("Vec.+ needs a process, and f is pure",
-                 err("export type Vec = Vec(Int)\n"
-                     "export fn Vec.+(Vec(a), Vec(b)) -> Vec with Never = Vec(a + b)\n"
-                     "fn f(a : Vec, b) -> Vec = a + b")),
     %% report §8.5: a let is not on a cycle through an operator it does not use
     ?assertEqual(ok, ok("export type Vec = Vec(Int)\nlet scale = 2 + 1\n"
                         "export fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a + b * scale)\n")).
+
+%% report §4.8: a member named by an operator has the type (T, T) -> R for
+%% its type T, T.compare the type (T, T) -> Ordering, and T.negate the type
+%% (T) -> R, each pure; another shape is an error at the declaration, where
+%% a wrong arity, a wrong parameter, and a wrong result of compare were
+%% reported at a use, and a member with a mailbox effect was accepted. The
+%% type's arguments may be any, the same in both parameters.
+operator_member_shape_test() ->
+    Vec = "export type Vec = Vec(Int)\n",
+    ?assertEqual("Vec.negate must have the type (Vec) -> Vec, not (Vec, Vec) -> Vec",
+                 err(Vec ++ "export fn Vec.negate(Vec(a), Vec(b)) -> Vec = Vec(-a)\n")),
+    ?assertEqual("Vec.compare must have the type (Vec, Vec) -> Ordering, not (Vec, Vec) -> Int",
+                 err(Vec ++ "export fn Vec.compare(Vec(a), Vec(b)) -> Int = a - b\n")),
+    ?assertEqual("Vec.+ must have the type (Vec, Vec) -> Vec, not (Vec, Int) -> Vec",
+                 err(Vec ++ "export fn Vec.+(Vec(a), b : Int) -> Vec = Vec(a + b)\n")),
+    ?assertEqual("Vec.* must have the type (Vec, Vec) -> Int, not (Int, Vec) -> Int",
+                 err(Vec ++ "export fn Vec.*(a : Int, Vec(b)) -> Int = a * b\n")),
+    ?assertEqual("Vec.- must have the type (Vec, Vec) -> Vec, not (Vec, Vec) -> Vec with Never",
+                 err(Vec ++ "export fn Vec.-(Vec(a), Vec(b)) -> Vec with Never = Vec(a - b)\n")),
+    ?assertEqual("Vec.<> must have the type (Vec, Vec) -> Vec, not (Vec, Vec) -> Vec with m",
+                 err(Vec ++ "export fn Vec.<>(Vec(a), Vec(b)) -> Vec with m ="
+                     " { let _ = receive { n -> n }; Vec(a + b) }\n")),
+    {error, [#diag{help = Help} | _]} =
+        check(Vec ++ "export fn Vec.compare(Vec(a), Vec(b)) -> Int = a - b\n"),
+    ?assertEqual("compare takes two values of its type, returns an Ordering, and is pure", Help),
+    %% the type's arguments are any, one in both parameters
+    Box = "export type Box(a) = Box(List(a))\n",
+    ?assertEqual(ok, ok(Box ++ "export fn Box.<>(Box(a), Box(b)) = Box(a <> b)\n")),
+    ?assertEqual(ok, ok(Box ++ "export fn Box.*(x : Box(Int), y : Box(Int)) -> Int = 1\n")),
+    ?assertEqual("Box.<> must have the type (Box(a), Box(a)) -> Box(a),"
+                 " not (Box(a), Box(b!)) -> Box(a)",
+                 err(Box ++ "export fn Box.<>(x : Box(a), y : Box(b)) -> Box(a) = x\n")),
+    %% an inferred signature is read as it is inferred
+    ?assertEqual(ok, ok(Vec ++ "export fn Vec.negate(Vec(a)) = Vec(-a)\n")).
+
+%% report §4.8, §9.6: in the module of a built-in type, the module's own
+%% operators, compare, and negate are the type's members, of the same
+%% shapes. A regression test for the standard library's modules, which
+%% conform; it does not cover a foreign fn member.
+builtin_member_shape_test() ->
+    Check = fun(Text) ->
+                    case ern_typecheck:check_string(['Int'], Text) of
+                        {ok, _, _, _} -> ok;
+                        {error, [#diag{message = M} | _]} -> M
+                    end
+            end,
+    ?assertEqual(ok, Check("export fn compare(a : Int, b : Int) -> Ordering = Equal\n")),
+    ?assertEqual("Int.compare must have the type (Int, Int) -> Ordering, not (Int, Int) -> Int",
+                 Check("export fn compare(a : Int, b : Int) -> Int = 0\n")),
+    ?assertEqual("Int.negate must have the type (Int) -> Int, not (Int, Int) -> Int",
+                 Check("export fn negate(a : Int, b : Int) -> Int = a\n")),
+    ?assertEqual("Int.+ must have the type (Int, Int) -> Int, not (Int, Float) -> Int",
+                 Check("export fn Int.+(a : Int, b : Float) -> Int = a\n")).
 
 %% report §4.8, §3.9: an operator's member is checked when first demanded,
 %% so a helper both the member and another definition use keeps its
@@ -486,6 +553,35 @@ declared_once_test() ->
                  err("fn h() = { fn g() = 1; let x = 1; fn g() = 2; g() + x }")),
     ?assertEqual(ok, ok("fn h() = { fn g() = 1; let x = { fn g() = 2; g() }; g() + x }")).
 
+%% report §5.4: a local fn may not take the name of a parameter or a
+%% variable in scope where it is declared, nor of a `let` of its block:
+%% the enclosing fn's parameter, a `let` or a pattern's variable bound
+%% before it, a `let` after it in its block, a lambda's parameter. Each was
+%% accepted, the checker taking the name for the fn and the emitter for
+%% the variable, and the program faulted with badfun. A local fn of an
+%% enclosing block, and a top-level function, are no variables.
+local_fn_takes_no_variables_name_test() ->
+    Scope = "local function g has the name of a variable in scope where it is declared",
+    ?assertEqual(Scope, err("fn f(g : Int) -> Int = { fn g() -> Int = 1; g() }")),
+    ?assertEqual(Scope, err("fn f() -> Int = { let g = 1; fn g() -> Int = 2; g() }")),
+    ?assertEqual(Scope, err("fn f(x : Int) -> Int = match x { g -> { fn g() -> Int = 2; g() } }")),
+    ?assertEqual(Scope, err("fn f(p : #(Int, Int)) -> Int = {"
+                            " let #(a, g) = p; fn g() -> Int = a; g() }")),
+    ?assertEqual(Scope, err("fn f() -> Int ="
+                            " { let h = fn(g : Int) -> Int = { fn g() -> Int = 2; g() }; h(1) }")),
+    ?assertEqual(Scope, err("let k = fn(g : Int) -> Int = { fn g() -> Int = 2; g() }")),
+    ?assertEqual(Scope, err("fn f(g : Int) -> Int = { fn h() -> Int = { fn g() -> Int = 1; g() };"
+                            " h() }")),
+    ?assertEqual("local function g has the name of a `let` of its block",
+                 err("fn f() -> Int = { fn g() -> Int = 2; let g = 1; g }")),
+    D = diag("fn f(g : Int) -> Int = { fn g() -> Int = 1; g() }"),
+    ?assertEqual([{{1, 6, {1, 7}}, "g is bound here"}], D#diag.labels),
+    ?assertEqual("rename the function or the variable", D#diag.help),
+    ?assertEqual(ok, ok("fn g() -> Int = 1\nfn f() -> Int = { fn g() -> Int = 2; g() }")),
+    ?assertEqual(ok, ok("fn f() -> Int ="
+                        " { let x = { let g = 1; g }; fn g() -> Int = 2; g() + x }")),
+    ?assertEqual(ok, ok("fn f(x : Int) -> Int = { fn g(g : Int) -> Int = g; g(x) }")).
+
 %% report §3.9
 annotations_are_rigid_test() ->
     ?assertEqual("type variable a in the annotation is used as Int", err("fn f(x : a) -> a = 1")),
@@ -494,6 +590,26 @@ annotations_are_rigid_test() ->
     ?assertEqual("(a) -> a", type_of("export fn id(x : a) -> a = x", id)),
     ?assertMatch("the body does not have the declared return type: " ++ _,
                  err("fn f(x : Int) -> String = x")).
+
+%% report §3.9: a local fn's signature shares the enclosing signature's
+%% variables, rigid there; a variable named only in it is the local fn's
+%% own, rigid and generalized with it. The local fn's `a` was its own, so
+%% `inner(1)` was accepted where the enclosing `a` is not Int.
+local_fn_signature_shares_variables_test() ->
+    ?assertEqual("(a) -> a",
+                 type_of("export fn outer(x : a) -> a = { fn inner(y : a) -> a = y; inner(x) }",
+                         outer)),
+    ?assertEqual("type variable a in the annotation is used as Int",
+                 err("fn outer(x : a) -> a = { fn inner(y : a) -> a = y; inner(1) }")),
+    ?assertEqual("type variable a in the annotation is used as Int",
+                 err("fn outer(x : a) -> Int = { fn inner(y : a) -> a = y; inner(1) }")),
+    ?assertEqual("(a) -> a",
+                 type_of("export fn outer(x : a) -> a ="
+                         " { fn id(y : b) -> b = y; let _ = id(1); id(x) }", outer)),
+    ?assertEqual("two type variables in the annotation are used as one type",
+                 err("fn outer(x : a) -> a = { fn g(y : b) -> b = x; x }")),
+    ?assertEqual("type variable b in the annotation is used as Int",
+                 err("fn outer(x : a) -> a = { fn g(y : b) -> b = 1; x }")).
 
 %% report §3.9: polymorphic recursion is refused, even under a full
 %% signature. A regression test: the checker conformed before it was
@@ -580,6 +696,16 @@ let_cycle_test() ->
                   "the initializer of b depends on itself"],
                  errs("let a : Int = a\nlet b : Int = b")).
 
+%% report §8.5: a binding depends on what every function it names depends
+%% on, called or not, and a lambda's body is part of its initializer. A
+%% regression test: the checker conformed before it was written.
+let_cycle_through_a_named_function_test() ->
+    ?assertEqual("the initializer of handlers depends on itself, through f",
+                 err("let handlers = [f]\nfn f() -> Int = List.size(handlers)\n")),
+    ?assert(lists:member("the initializer of a depends on itself", errs("let a = fn() = a\n"))),
+    ?assertEqual(["the initializer of a depends on itself"],
+                 errs("let a : () -> Int = fn() -> Int = a()\n")).
+
 %% report §4.6
 toplevel_let_test() ->
     ?assertEqual("Int", type_of("export let port : Int = 8080", port)),
@@ -642,6 +768,19 @@ constructors_test() ->
                         "fn f(p : P) = P(..p, age = 31)")),
     ?assertEqual("None takes no fields", err("fn f() = None(1)")),
     ?assertEqual("unknown constructor Nope", err("fn f() = Nope")).
+
+%% report §5.6: `..` is allowed only on a type with one constructor. It was
+%% accepted on a type of two, and the program faulted with badmatch where
+%% the value was the other constructor.
+update_needs_one_constructor_test() ->
+    T = "type T = A(x : Int, y : Int) | B(x : Int, y : Int)\n",
+    D = diag(T ++ "fn f(t : T) -> T = A(..t, x = 1)\n"),
+    ?assertEqual("`..` is allowed only on a type with one constructor, and T has 2",
+                 D#diag.message),
+    ?assertEqual("give every field of A", D#diag.help),
+    ?assertEqual(ok, ok(T ++ "fn f(t : T) -> T = A(x = 1, y = t.y)\n")),
+    ?assertEqual(ok, ok("type P(a) = P(x : a, y : Int)\n"
+                        "fn f(p : P(String)) -> P(String) = P(..p, y = 2)\n")).
 
 %% report §5.2
 calls_test() ->
@@ -1258,20 +1397,20 @@ effect_origin_is_restored_after_a_nested_definition_test() ->
     ?assertEqual("Io.println needs a process, and f is pure", D2#diag.message),
     ?assertEqual("give f a mailbox type with `with`", D2#diag.help).
 
-%% report §4.8, §3.4: a regression test. An operator resolved at the end
-%% of its definition, once its operand type is known, calls its member
-%% under that definition's mailbox, for a top-level and a local fn alike.
-%% Not covered: `negate`, which takes the same path.
-deferred_operator_takes_the_definitions_mailbox_test() ->
-    V = "type V = V(Int)\nfn V.+(V(a), V(b)) -> V with Never = V(a + b)\n",
+%% report §4.8, §3.4: an operator resolved at the end of its definition,
+%% once its operand type is known, calls its member, which is pure, in a
+%% process body and a pure one alike, for a top-level and a local fn. It
+%% was written against a member with a mailbox effect, which §4.8 now
+%% refuses at its declaration (operator_member_shape_test). Not covered:
+%% `negate`, which takes the same path.
+deferred_operator_calls_a_pure_member_test() ->
+    V = "type V = V(Int)\nfn V.+(V(a), V(b)) -> V = V(a + b)\n",
     ?assertEqual(ok, ok(V ++ "fn f(x, y) -> V with Never = { let z = x + y; let V(_) = x; z }\n")),
     ?assertEqual(ok, ok(V ++ "fn f() -> V with Never = {\n"
                         "    fn g(x, y) = { let z = x + y; let V(_) = x; z };\n"
                         "    g(V(1), V(2))\n"
                         "}\n")),
-    D = diag(V ++ "fn f(x, y) -> V = { let z = x + y; let V(_) = x; z }\n"),
-    ?assertEqual("V.+ needs a process, and f is pure", D#diag.message),
-    ?assertEqual([{{3, 15, {3, 16}}, "`-> V` with no `with` declares f pure"}], D#diag.labels).
+    ?assertEqual(ok, ok(V ++ "fn f(x, y) -> V = { let z = x + y; let V(_) = x; z }\n")).
 
 %% report §3.10, §4.8: a regression test. An operator resolved at the end
 %% of its definition keeps its member's equality constraint, as one
