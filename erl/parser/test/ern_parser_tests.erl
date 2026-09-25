@@ -542,13 +542,19 @@ toplevel_bind_arrow_test() ->
     ?assertEqual("`<-` is a block form", err("let x <- f()")),
     ?assertEqual("a top-level `let` uses `=`", help("let x <- f()")).
 
-%% report §5
+%% report §5, §5.9: `if` and a lambda stand as an operand only in
+%% parentheses; a `match` and a `receive`, ending at their own `}`, stand
+%% as one as a block does
 non_operand_forms_test() ->
     ?assertEqual("`if` is not an operand", err_expr("1 + if c then a else b")),
     ?assertEqual("parenthesize it", help_expr("1 + if c then a else b")),
     ?assertEqual("`fn` is not an operand", err_expr("x |> fn(y) = y")),
-    ?assertEqual("`match` is not an operand", err_expr("-match x { _ -> 1 }")),
-    ?assertMatch(#e_binop{op = '+', right = #e_if{}}, e("1 + (if c then a else b)")).
+    ?assertMatch(#e_binop{op = '+', right = #e_if{}}, e("1 + (if c then a else b)")),
+    ?assertMatch(#e_neg{expr = #e_match{}}, e("-match x { _ -> 1 }")),
+    ?assertMatch(#e_binop{op = '||', left = #e_binop{op = '&&', right = #e_match{}}},
+                 e("a && match x { _ -> true } || b")),
+    ?assertMatch(#e_binop{op = '+', left = #e_receive{}},
+                 e("receive { after 0 -> 1 } + 2")).
 
 %% report §2.6, §4.8
 operator_grammar_test() ->

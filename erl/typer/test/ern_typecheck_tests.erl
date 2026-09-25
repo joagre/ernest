@@ -589,6 +589,27 @@ toplevel_let_test() ->
     ?assertEqual("Io.println needs a process, and a top-level `let` is pure",
                  err("let x = Io.println(\"a\")")).
 
+%% report §3.9, §6.6: a type variable is not-reply-carrying where the body,
+%% read with it taken for a reply, would break the discipline: through a
+%% `let` as much as by the parameter's name, or dropped inside a user type;
+%% one used exactly once stays open. A regression test: a `let` hid the
+%% second use and the drop, so a reply could be answered twice or never. It
+%% does not cover a variable that is only a container's element, which is
+%% exempt
+reply_through_bindings_test() ->
+    Req = "type Req = Get(reply : Reply(Int))\nexport type Box(a) = Box(List(a))\n",
+    ?assertEqual("(a!) -> #(a!, a!)",
+                 type_of("export fn dup(x) = { let y = x; #(y, y) }", dup)),
+    ?assertEqual("(a!) -> Unit", type_of("export fn drop(x) = { let y = x; Unit }", drop)),
+    ?assertEqual("(M.Box(a!)) -> Unit",
+                 type_of(Req ++ "export fn forget(b : Box(a)) -> Unit = Unit", forget)),
+    ?assertEqual("(a) -> a", type_of("export fn keep(x) = { let y = x; y }", keep)),
+    ?assertEqual("a reply-carrying value, Reply(Int), passed where the function duplicates or"
+                 " discards its argument",
+                 err(Req ++ "fn dup(x) = { let y = x; #(y, y) }\n"
+                     "fn f(r : Reply(Int)) = {\n"
+                     "    let #(a, b) = dup(r); answer(a, 1); answer(b, 2) }")).
+
 %% report §3.5, §4.8, §11.5: a field is selected where every constructor has
 %% it, of one type; a type found later in the definition serves, one never
 %% found is an error, and an abstract type's fields are its module's
@@ -859,7 +880,8 @@ abstract_type_test() ->
             "export fn Stack.pop(Stack(xs)) = match xs { [] -> None | x :: rest ->"
             " Some(#(x, Stack(rest))) }\n",
     ?assertEqual(ok, ok(Stack)),
-    ?assertEqual("(a, M.Stack(a)) -> M.Stack(a)",
+    %% report §3.9: push puts its element in a List, where a reply may not stand
+    ?assertEqual("(a!, M.Stack(a!)) -> M.Stack(a!)",
                  type_of(Stack ++ "export fn use(x, s) = Stack.push(x, s)", use)),
     %% an abstract type the module keeps private hides from no module
     ?assertEqual("Stack is an abstract type the module keeps private, which hides its"

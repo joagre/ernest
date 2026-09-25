@@ -9,9 +9,13 @@
 %% and legal nowhere else. Linear holds a name N for a value and {lambda, N}
 %% for such a lambda bound by let.
 %%
-%% A polymorphic parameter that is used other than exactly once gets the
-%% no_reply flag on its type variable, unless that variable is an element
-%% of a container in the function's type (report §3.9).
+%% Report §3.9: a type variable of a parameter's type gets the no_reply flag
+%% when the body, read with that variable taken for reply-carrying, would
+%% break this discipline: a second use or none, through a `let` or a
+%% pattern as much as by the parameter's own name, a place a reply may not
+%% stand, or a user type that carries one dropped. A variable that is an
+%% element of a container in the function's type is exempt, since no value
+%% of that type can carry a reply there.
 -module(ern_reply).
 
 -export([check/4]).
@@ -24,27 +28,53 @@
 -spec check([#param{}], tuple(), ern_types:type(), ern_typecheck:env()) ->
           ern_typecheck:env().
 check(Params, Body, FnT, Env) ->
+    discipline(Params, Body, Env),
+    St = ern_typecheck:type_state(Env),
+    Elements = elements(FnT, St),
+    Vars = lists:usort(param_vars(FnT, St)) -- Elements,
+    lists:foldl(fun(V, E) ->
+                    case holds(Params, Body, ern_typecheck:assume_reply_carrying([V], E)) of
+                        true -> E;
+                        false ->
+                            ern_typecheck:set_type_state(
+                              ern_types:add_flag(V, no_reply, ern_typecheck:type_state(E)), E)
+                    end
+                end, Env, Vars).
+
+%% The whole discipline over one function: its illegal positions, and each
+%% linear parameter consumed exactly once.
+discipline(Params, Body, Env) ->
     positions(Params, Env),
     positions(Body, Env),
     Linear = [N || P <- Params, N <- linear_bindings(P#param.pattern, Env)],
     Uses = uses(Body, Linear, Env),
-    lists:foreach(fun(N) -> exactly_once(N, Uses, element(2, Body)) end, Linear),
-    %% polymorphic parameter variables used other than once
-    Elements = elements(FnT, ern_typecheck:type_state(Env)),
-    lists:foldl(fun({N, T}, E) ->
-                    St = ern_typecheck:type_state(E),
-                    case ern_types:resolve(T, St) of
-                        {tvar, _} = V ->
-                            case lists:member(V, Elements)
-                                 orelse used_exactly_once(N, Body, E) of
-                                true -> E;
-                                false -> ern_typecheck:set_type_state(
-                                           ern_types:add_flag(V, no_reply, St), E)
-                            end;
-                        _ -> E
-                    end
-                end, Env, [B || P <- Params,
-                                B <- ern_typecheck:typed_pattern_bindings(P#param.pattern)]).
+    lists:foreach(fun(N) -> exactly_once(N, Uses, element(2, Body)) end, Linear).
+
+%% Would the body keep the discipline under this environment's assumption?
+holds(Params, Body, Env) ->
+    try
+        discipline(Params, Body, Env),
+        true
+    catch
+        throw:{type_error, _, _} -> false
+    end.
+
+%% The type variables of the parameters' types, where values stand: not a
+%% function type's effect.
+param_vars(FnT, St) ->
+    case ern_types:resolve(FnT, St) of
+        {tfn, Ps, _, _} -> lists:append([value_vars(T, St) || T <- Ps]);
+        _ -> []
+    end.
+
+value_vars(T, St) ->
+    case ern_types:resolve(T, St) of
+        {tvar, _} = V -> [V];
+        {tcon, _, Args} -> lists:append([value_vars(A, St) || A <- Args]);
+        {ttuple, Es} -> lists:append([value_vars(E, St) || E <- Es]);
+        {tfn, Ps, _, R} -> lists:append([value_vars(X, St) || X <- [R | Ps]]);
+        _ -> []
+    end.
 
 %% The type variables that are elements of a container in a parameter
 %% type or the result type, directly or through tuples and containers.
@@ -66,15 +96,6 @@ within(T, In, St) ->
             end;
         {ttuple, Es} -> lists:append([within(E, In, St) || E <- Es]);
         _ -> []
-    end.
-
-%% Would N pass the discipline if it were linear? A second use or a
-%% path mismatch throws; both mean no.
-used_exactly_once(N, Body, Env) ->
-    try
-        count(N, uses(Body, [N], Env)) =:= 1
-    catch
-        throw:{type_error, _, _} -> false
     end.
 
 %%

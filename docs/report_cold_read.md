@@ -7,7 +7,8 @@ implementation, and those with one clear reading were written into the report th
 with a test where none held them: 1.3 to 1.5, 1.9 to 1.12, 1.14 to 1.16, 2.3 to 2.5, the
 first halves of 2.8 and 2.9, 2.7, 2.12, 2.14 to 2.16, 2.20 to 2.23, 2.25, 2.27 to 2.32, 3.1 to
 3.11, 3.14 to 3.16, 3.18 to 3.28, and halves of 3.17 and 3.29; 2.10, 2.11 and 3.13 went with
-an abstract type's boundary (§4.4).
+an abstract type's boundary (§4.4). 2.1 and 2.2 were decided with the reply rule on 2026-09-25
+(§3.9, the log's *Not-Reply-Carrying by What the Body Does*).
 
 This file holds the rest until MVP 2.65 decides each, under the theme of the feedback list
 that takes it; a finding leaves the file when it is decided. Each keeps its number and the
@@ -57,24 +58,6 @@ inside a lambda, `let a = fn() = a`; §4.6's "does not see its own name" is a bl
 *Checked.* Today: a mention counts, inside a lambda too. Recommended: keep the mention rule
 and state it, since counting only calls is unsound; feedback item 48 is then decided as it
 stands.
-
-2.1. **A gap in the reply rule.** §3.9 (L217), §6.6 (L540–542). The not-reply-carrying
-restriction falls only on parameters duplicated or discarded, and is lifted for a
-container's element visible in a parameter or result type; so `Stack.push(r, s)` of §4.4
-with `r : Reply(Int)` passes, though its body puts `r` in a `List`, which L542 forbids, and
-nothing checks inside a generic body. Likewise whether `Box(Reply(Int))` is legal for
-`type Box(a) = Box(List(a))`.
-
-*Checked.* Recommended: decided with 2.2's reading.
-
-2.2. **"Duplicates or discards" is undefined** (L217): a use in one branch only, a use in a
-guard, a parameter passed on.
-
-*Checked.* Today: unsound. `fn dup(x) = { let y = x; #(y, y) }` lets a program answer one
-reply twice, and a `let` or a generic `forget` drops one silently, since only a parameter
-whose name does not occur exactly once is restricted. Recommended: not-reply-carrying falls
-on a type variable when the body, read with that variable as a reply-carrying type, breaks
-§6.6.
 
 2.6. **Effect variables as type parameters.** A type argument is a value position (L211),
 so in `type H(e) = H(f : (Int) -> Unit with e)` the `e` of `H(e)` can never be pure, and no

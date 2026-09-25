@@ -623,7 +623,8 @@ doc_test() ->
              "type Shape = Dot | At(x : Int, y : Int)\n```\n\nA shape.\n">>),
     Expect(<<"## Shapes.Box\n\n```ernest\nabstract type Box(a)\n```\n">>),
     Expect(<<"## Shapes.Box.empty\n\n```ernest\nShapes.Box.empty : Box(a)\n```\n">>),
-    Expect(<<"## Shapes.Box.put\n\n```ernest\nShapes.Box.put : (a, Box(a)) -> Box(a)\n```\n\n"
+    %% report §3.9: put keeps its element in a List, where a reply may not stand
+    Expect(<<"## Shapes.Box.put\n\n```ernest\nShapes.Box.put : (a!, Box(a!)) -> Box(a!)\n```\n\n"
              "Put x in the box.\n">>),
     Expect(<<"## Shapes.same\n\n```ernest\nShapes.same : (a=, a=) -> Bool\n```\n">>),
     Expect(<<"## Shapes.twice\n\n```ernest\nShapes.twice : (Int) -> Int\n```\n\n"

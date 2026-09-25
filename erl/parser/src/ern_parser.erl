@@ -414,8 +414,6 @@ expr(Ts) ->
     {E, R} = case Ts of
                  [{fn, Pos} | R0] -> lambda(R0, Pos);
                  [{'if', Pos} | R0] -> if_expr(R0, Pos);
-                 [{match, Pos} | R0] -> match_expr(R0, Pos);
-                 [{'receive', Pos} | R0] -> receive_expr(R0, Pos);
                  _ -> binexpr(Ts, 0)
              end,
     juxtaposition(R),
@@ -627,12 +625,17 @@ primary([{'<<', Pos} | R]) ->
     w({#e_bits{pos = Pos, segments = Segs}, R1});
 primary([{'{', Pos} | R]) ->
     block(R, Pos);
+primary([{match, Pos} | R]) ->
+    %% report §5.9: it ends at its own `}`, as a block does
+    match_expr(R, Pos);
+primary([{'receive', Pos} | R]) ->
+    receive_expr(R, Pos);
 primary([{'(', _} | R]) ->
     {E, R1} = expr(R),
     w({E, expect(R1, ')')});
 primary([{'_', Pos} | _]) ->
     fail(Pos, "`_` is a pattern, not an expression");
-primary([{Kw, Pos} | _]) when Kw =:= 'if'; Kw =:= match; Kw =:= 'receive'; Kw =:= fn ->
+primary([{Kw, Pos} | _]) when Kw =:= 'if'; Kw =:= fn ->
     fail(Pos, "`" ++ atom_to_list(Kw) ++ "` is not an operand", "parenthesize it");
 primary([T | _]) ->
     wanted(expression, pos(T), "expected an expression instead of " ++ describe(T)).

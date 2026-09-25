@@ -216,7 +216,7 @@ The functions of §9.4 and §9.5 whose type has a `with`, and a `foreign fn` who
 
 A function has one mailbox effect or none. A function that takes two callbacks with independent effects declares each effect: in `fn callBoth(p : (Int) -> Int, e : (Int) -> Unit with n) -> Unit with n`, `p` is pure, `e` has effect `n`, and the function inherits `n`. Two callbacks whose effects are both variables unify to one effect. Two callbacks with different concrete effects are a type error. The combinators of Appendix E are typed by the same rule, `List.map : (List(a), (a) -> b with e) -> List(b) with e`; a pure callback binds `e` to pure, an effectful one to the caller's mailbox.
 
-**Inferred restrictions.** An annotation gives a function's shape: arity, argument types, result, mailbox effect. Three restrictions are inferred from the body and never written. The equality constraint of §3.10 falls on a variable compared with `==`. Process-only is inherited by a function whose body calls a process-only function: `fn wrap(a, v) = send(a, v)` cannot be called from pure code. Not-reply-carrying (§6.6) falls on a parameter the function duplicates or discards: `fn dup(x) = #(x, x)` and `fn discard(x) = Unit` cannot take a reply, `fn id(x) = x` can. It does not fall on a variable that is also an element of `List`, `Map`, `Set`, `Optional`, or `Either` in a parameter type or the result type, directly or through tuples and those types, since §6.6 already forbids a reply-carrying element there: `Optional.withDefault : (Optional(a), a) -> a` is not restricted. Each is part of the type scheme and travels with the function value through bindings, branches, and compiled interfaces. Each is checked at instantiation, not at definition. The compiler shows them (§11.5). This is the one exception to principle 3.
+**Inferred restrictions.** An annotation gives a function's shape: arity, argument types, result, mailbox effect. Three restrictions are inferred from the body and never written. The equality constraint of §3.10 falls on a variable compared with `==`. Process-only is inherited by a function whose body calls a process-only function: `fn wrap(a, v) = send(a, v)` cannot be called from pure code. Not-reply-carrying (§6.6) falls on a type variable of a parameter's type when the body, read with that variable as a reply-carrying type, would break §6.6: use such a value twice or not at all, through a `let` or a pattern as much as by the parameter's name, or put it where §6.6 forbids one. So `fn dup(x) = #(x, x)`, `fn discard(x) = Unit`, `fn keep(x) = { let y = x; Unit }`, and `fn forget(b : Box(a)) -> Unit = Unit` cannot take a reply, and `fn id(x) = x` can. It does not fall on a variable that is also an element of `List`, `Map`, `Set`, `Optional`, or `Either` in a parameter type or the result type, directly or through tuples and those types, since §6.6 already forbids a reply-carrying element there: `Optional.withDefault : (Optional(a), a) -> a` is not restricted. Each is part of the type scheme and travels with the function value through bindings, branches, and compiled interfaces. Each is checked at instantiation, not at definition. The compiler shows them (§11.5). This is the one exception to principle 3.
 
 ### 3.10 Equality and ordering
 
@@ -323,7 +323,7 @@ The arithmetic operators `+`, `-`, `*`, `/`, `%` and `<>` resolve against the op
 ## 5. Expressions
 
 ```
-Expr      = Lambda | IfExpr | MatchExpr | ReceiveExpr | BinExpr .
+Expr      = Lambda | IfExpr | BinExpr .
 Lambda    = "fn" "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 IfExpr    = "if" Expr "then" Expr "else" Expr .
 MatchExpr = "match" Expr "{" Clause { "|" Clause } "}" .
@@ -334,7 +334,8 @@ BinExpr   = Unary { binop Unary } .
 Unary     = [ "-" | "!" ] Primary { Call | Select } .
 Call      = "(" [ Expr { "," Expr } ] ")" .
 Select    = "." ident .
-Primary   = literal | QName | Tuple | ListLit | BitExpr | Block | "(" Expr ")" .
+Primary   = literal | QName | Tuple | ListLit | BitExpr | Block | MatchExpr | ReceiveExpr
+          | "(" Expr ")" .
 QName     = { typename "." } ( ident | conname [ "(" ( Expr | Fields ) ")" ] )
           | typename "." { typename "." } userop .
 Fields    = ".." Expr "," FieldSet { "," FieldSet } | FieldSet { "," FieldSet } .
@@ -410,7 +411,7 @@ let words = input |> String.trim |> String.toLower |> String.toList
 
 ### 5.9 `match`
 
-The value is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. A clause may list several patterns separated by `or`, and matches when any of them does: `Player(alive = false) or Player(body = []) -> #(acc, apples)`. Every alternative binds the same variables at the same types; the guard and the body see them. Alternatives that bind different variables are a type error. The clauses together must cover the type, and a `match` that does not is a type error; guards do not count toward coverage. A guard is a `Bool` expression with no mailbox effect that sees the pattern's variables and the enclosing scope. A guard that is `false` falls through to the next clause; a guard that faults faults the process. A `receive` guard falls through likewise, and is restricted further (§6.3).
+A `match`, like a `receive` (§6.3) and a block, ends at its own `}`, so it may stand as an operand: `n > 0 && match x { ... }`. `if` and a lambda end in no delimiter of their own, and stand as an operand only in parentheses. The value is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. A clause may list several patterns separated by `or`, and matches when any of them does: `Player(alive = false) or Player(body = []) -> #(acc, apples)`. Every alternative binds the same variables at the same types; the guard and the body see them. Alternatives that bind different variables are a type error. The clauses together must cover the type, and a `match` that does not is a type error; guards do not count toward coverage. A guard is a `Bool` expression with no mailbox effect that sees the pattern's variables and the enclosing scope. A guard that is `false` falls through to the next clause; a guard that faults faults the process. A `receive` guard falls through likewise, and is restricted further (§6.3).
 
 ### 5.10 Patterns
 
@@ -919,7 +920,7 @@ TupleType   = "#(" Type { "," Type } ")" .
 FnType      = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
 ParenType   = "(" Type ")" .
 
-Expr        = Lambda | IfExpr | MatchExpr | ReceiveExpr | BinExpr .
+Expr        = Lambda | IfExpr | BinExpr .
 Lambda      = "fn" "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 IfExpr      = "if" Expr "then" Expr "else" Expr .
 MatchExpr   = "match" Expr "{" Clause { "|" Clause } "}" .
@@ -930,7 +931,8 @@ BinExpr     = Unary { binop Unary } .
 Unary       = [ "-" | "!" ] Primary { Call | Select } .
 Call        = "(" [ Expr { "," Expr } ] ")" .
 Select      = "." ident .
-Primary     = literal | QName | Tuple | ListLit | BitExpr | Block | "(" Expr ")" .
+Primary     = literal | QName | Tuple | ListLit | BitExpr | Block | MatchExpr | ReceiveExpr
+            | "(" Expr ")" .
 QName       = { typename "." } ( ident | conname [ "(" ( Expr | Fields ) ")" ] )
             | typename "." { typename "." } userop .
 Fields      = ".." Expr "," FieldSet { "," FieldSet } | FieldSet { "," FieldSet } .

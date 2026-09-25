@@ -15,9 +15,9 @@
 
 -export([check/3, check/4, check_string/2, type_state/1, set_type_state/2, prelude_names/0,
          prelude_con/1, prelude_cons/0, prelude_env/0, lookup_type/2, is_member_path/3,
-         member_qname/3, is_reply_carrying/2, foreign_impl/1, declared_scheme/3,
-         typed_pattern_bindings/1, segment_spec/1,
-         lookup_con/4, con_info/2, is_value/2, resolve_type/2, node_type/1]).
+         member_qname/3, is_reply_carrying/2, assume_reply_carrying/2, foreign_impl/1,
+         declared_scheme/3, typed_pattern_bindings/1, segment_spec/1, lookup_con/4,
+         con_info/2, is_value/2, resolve_type/2, node_type/1]).
 
 -export_type([env/0, session/0]).
 
@@ -29,7 +29,9 @@
               local_types = #{}, local_cons = #{}, local_values = #{}, session = #{},
               vars = #{}, effect = pure, st, pending = [], deferred = [],
               ann_vars = #{}, rigid = [], effect_origin = undefined,
-              groups = #{}, typed = [], errs = []}).
+              groups = #{}, typed = [], errs = [], reply_vars = []}).
+%% reply_vars: type variables the reply discipline takes for reply-carrying
+%% while it asks whether a body would keep §6.6 if they were (§3.9)
 %% lets: the qualified names, this module's and its dependencies', that
 %% were declared with `let`; the emitter reaches a value through its getter
 %% session: the shell's session, a scope between this module's own
@@ -449,6 +451,7 @@ field_types_reply(_, _, _) ->
 
 reply_in(T, Ts, Env) ->
     case ern_types:resolve(T, Env#env.st) of
+        {tvar, _} = V -> lists:member(V, Env#env.reply_vars);
         {tcon, ['Reply'], _} -> true;
         {tcon, Q, Args} ->
             case Ts of
@@ -462,6 +465,11 @@ reply_in(T, Ts, Env) ->
 
 -spec is_reply_carrying(ern_types:type(), env()) -> boolean().
 is_reply_carrying(T, #env{types = Ts} = Env) -> reply_in(T, Ts, Env).
+
+%% Report §3.9, §6.6: the environment in which the type variables Vars are
+%% taken for reply-carrying.
+-spec assume_reply_carrying([ern_types:type()], env()) -> env().
+assume_reply_carrying(Vars, Env) -> Env#env{reply_vars = Vars}.
 
 %%
 %% Values: fn, let, foreign fn, in dependency order
