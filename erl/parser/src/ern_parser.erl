@@ -499,7 +499,8 @@ binexpr_loop(Left, [{Op, Pos} | R] = Ts, Min) ->
             Combined = case Op =:= '|>' andalso parenthesized(R, R1) of
                            %% report §5.7: a parenthesized right-hand side is a
                            %% value, applied to the left
-                           true -> #e_call{pos = Start, callee = Right, args = [Left]};
+                           true -> #e_call{pos = Start, callee = Right, args = [Left],
+                                           pipe = true};
                            false -> combine(Op, Start, Left, Right)
                        end,
             {Node, _} = w({Combined, R1}),
@@ -536,11 +537,12 @@ parenthesized([{'(', _} | _] = Ts, Rest) ->
 parenthesized(_, _) ->
     false.
 
-%% `x |> f(a)` is `f(x, a)`; `x |> f` is `f(x)`.
+%% `x |> f(a)` is `f(x, a)`; `x |> f` is `f(x)`; either call is marked as
+%% a pipe's, since `x` is evaluated before the callee (report §5.1).
 combine('|>', Pos, X, #e_call{callee = C, args = A}) ->
-    #e_call{pos = Pos, callee = C, args = [X | A]};
+    #e_call{pos = Pos, callee = C, args = [X | A], pipe = true};
 combine('|>', Pos, X, F) ->
-    #e_call{pos = Pos, callee = F, args = [X]};
+    #e_call{pos = Pos, callee = F, args = [X], pipe = true};
 combine(Op, Pos, L, R) ->
     #e_binop{pos = Pos, op = Op, left = L, right = R}.
 

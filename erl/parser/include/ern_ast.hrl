@@ -1,11 +1,11 @@
 %% Ernest AST, one record per production of report Appendix A. Every node
 %% carries pos :: ern_diag:span(), from its first token to the end of its
 %% last (report §11.5). Expressions and patterns carry type = undefined,
-%% which the type checker fills in; declarations carry doc and the export
-%% flag. The parser builds these untyped.
+%% their last field, which the type checker fills in; declarations carry
+%% doc and the export flag. The parser builds these untyped.
 %%
 %% Two rewrites happen in the parser: parentheses produce no node, and
-%% `x |> f(a)` becomes the call `f(x, a)` (report §5.7).
+%% `x |> f(a)` becomes the call `f(x, a)` (report §5.7), marked as a pipe's.
 
 -ifndef(ERN_AST_HRL).
 -define(ERN_AST_HRL, true).
@@ -73,7 +73,9 @@
 %% stmts: [#fn_decl{} | #binding{} | Expr], the last an Expr
 -record(binding, {pos, pattern, ann, op, expr}).
 %% ann: the annotation, or undefined; op: '=' | '<-'
--record(e_call, {pos, callee, args, type}).
+-record(e_call, {pos, callee, args, pipe = false, type}).
+%% pipe: true when `x |> e` wrote it; x is the first argument, evaluated
+%% before a callee that is not a name (report §5.1)
 -record(e_select, {pos, expr, field, type}).
 %% expr.field, report §3.5
 -record(e_neg, {pos, expr, type}).

@@ -136,6 +136,14 @@ pipe_rewrite_test() ->
     ?assertMatch(#e_call{callee = #e_lambda{}, args = [#e_var{name = x}]},
                  e("x |> (fn(y) = y + 1)")).
 
+%% report §5.1, §5.7: the call a pipe writes is marked, so that x is
+%% evaluated before a computed callee; a written call is not
+pipe_marks_call_test() ->
+    ?assertMatch(#e_call{pipe = true, callee = #e_call{pipe = false}}, e("x |> f(a)(b)")),
+    ?assertMatch(#e_call{pipe = true}, e("x |> (f(a))")),
+    ?assertMatch(#e_call{pipe = true}, e("x |> f")),
+    ?assertMatch(#e_call{pipe = false}, e("f(x, a)")).
+
 %% report §3.5, Appendix A: `.` and an ident after a primary select a
 %% field, chained and after a call; an uppercase first segment still
 %% begins a qualified name

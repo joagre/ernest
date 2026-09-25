@@ -597,6 +597,18 @@ expr(#e_bits{pos = Pos, segments = Segs}, Cx) ->
 expr(#e_block{pos = Pos, stmts = Stmts}, Cx) ->
     {Forms, Cx1} = block(Stmts, Cx),
     {at(Pos, erl_syntax:block_expr(Forms)), Cx1#cx{vars = Cx#cx.vars, locals = Cx#cx.locals}};
+expr(#e_call{pos = Pos, callee = Callee, args = [X | Rest], pipe = true}, Cx)
+  when not is_record(Callee, e_var), not is_record(Callee, e_con),
+       not is_record(Callee, e_lambda) ->
+    %% report §5.1: in `x |> e`, x is evaluated before a callee that is
+    %% evaluated at all, and the other arguments after it
+    {XF, Cx1} = expr(X, Cx),
+    {[V], Cx2} = fresh_vars(1, "Piped", Cx1),
+    {CalleeForm, Cx3} = expr(Callee, Cx2),
+    {RestForms, Cx4} = exprs(Rest, Cx3),
+    Var = erl_syntax:variable(V),
+    App = erl_syntax:application(CalleeForm, [Var | RestForms]),
+    {at(Pos, erl_syntax:block_expr([erl_syntax:match_expr(Var, XF), App])), Cx4};
 expr(#e_call{pos = Pos, callee = Callee, args = Args}, Cx) ->
     call(Pos, Callee, Args, Cx);
 expr(#e_not{pos = Pos, expr = X}, Cx) ->
@@ -1457,13 +1469,16 @@ pattern_names(_) -> [].
 %% A clause whose guard is not an Erlang guard expression falls through by
 %% a continuation over the remaining clauses (plan 2.1).
 match_clauses(SF, Clauses, Cx) ->
-    case lists:any(fun(#clause{guard = G}) -> G =/= undefined andalso not erlang_guard(G, Cx) end,
-                   Clauses) of
-        false ->
+    Erlang = fun(#clause{guard = undefined}) -> true;
+                (#clause{pattern = P, guard = G}) ->
+                     erlang_guard(G, pattern_names(P) ++ maps:keys(Cx#cx.vars), Cx)
+             end,
+    case lists:all(Erlang, Clauses) of
+        true ->
             {Parts, Cx1} = lists:mapfoldl(fun simple_clauses/2, Cx, Clauses),
             {Binds, Forms} = join_parts(Parts),
             {with_binds(Binds, erl_syntax:case_expr(SF, Forms)), Cx1};
-        true ->
+        false ->
             {[S], Cx1} = fresh_vars(1, "S", Cx),
             SVar = erl_syntax:variable(S),
             {Body, Cx2} = general_clauses(SVar, Clauses, Cx1),
@@ -1585,29 +1600,31 @@ alternatives(#clause{pos = Pos, pattern = #p_or{alts = [First | _] = Alts}, guar
                        end, CxB#cx{vars = Cx0#cx.vars}, Alts),
     {{[Bind], Forms}, CxN}.
 
-%% Comparisons and Boolean operators over variables and literals.
-erlang_guard(#e_binop{op = Op, left = L, right = R}, Cx) when Op =:= '&&'; Op =:= '||' ->
-    erlang_guard(L, Cx) andalso erlang_guard(R, Cx);
-erlang_guard(#e_binop{op = Op, left = L, right = R}, _) when Op =:= '=='; Op =:= '!=' ->
-    guard_operand(L) andalso guard_operand(R);
-erlang_guard(#e_binop{op = Op, left = L, right = R}, Cx) when Op =:= '<'; Op =:= '<=';
-                                                           Op =:= '>'; Op =:= '>=' ->
+%% Report §6.3's guard expression over the variables in Bound, the
+%% clause's and the enclosing function's: it is an Erlang guard. A name
+%% bound at top level is read through its getter, a call, so it is not one.
+erlang_guard(#e_binop{op = Op, left = L, right = R}, Bound, Cx) when Op =:= '&&'; Op =:= '||' ->
+    erlang_guard(L, Bound, Cx) andalso erlang_guard(R, Bound, Cx);
+erlang_guard(#e_binop{op = Op, left = L, right = R}, Bound, _) when Op =:= '=='; Op =:= '!=' ->
+    guard_operand(L, Bound) andalso guard_operand(R, Bound);
+erlang_guard(#e_binop{op = Op, left = L, right = R}, Bound, Cx) when Op =:= '<'; Op =:= '<=';
+                                                                  Op =:= '>'; Op =:= '>=' ->
     %% an ordering through T.compare is a call (report §3.10)
     Prelude = case resolved(ern_typecheck:node_type(L), Cx) of
                   {tcon, [_], []} -> true;
                   _ -> false
               end,
-    Prelude andalso guard_operand(L) andalso guard_operand(R);
-erlang_guard(#e_lit{kind = bool}, _) -> true;
-erlang_guard(#e_var{path = []}, _) -> true;
-erlang_guard(_, _) -> false.
+    Prelude andalso guard_operand(L, Bound) andalso guard_operand(R, Bound);
+erlang_guard(#e_not{expr = X}, Bound, Cx) -> erlang_guard(X, Bound, Cx);
+erlang_guard(#e_lit{kind = bool}, _, _) -> true;
+erlang_guard(#e_var{path = [], name = N}, Bound, _) -> lists:member(N, Bound);
+erlang_guard(_, _, _) -> false.
 
-guard_operand(#e_lit{}) -> true;
-guard_operand(#e_var{path = []}) -> true;
-guard_operand(#e_con{args = none}) -> true;
-guard_operand(#e_not{expr = X}) -> guard_operand(X);
-guard_operand(#e_neg{expr = #e_lit{}}) -> true;
-guard_operand(_) -> false.
+guard_operand(#e_lit{}, _) -> true;
+guard_operand(#e_neg{expr = #e_lit{kind = K}}, _) when K =:= int; K =:= float -> true;
+guard_operand(#e_var{path = [], name = N}, Bound) -> lists:member(N, Bound);
+guard_operand(#e_con{args = none}, _) -> true;
+guard_operand(_, _) -> false.
 
 %%
 %% Patterns: pattern(P, Cx) -> {Form, Cx} with the variables bound

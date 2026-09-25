@@ -1714,37 +1714,46 @@ check_expr(E, Expected, Context, Origin, Env) ->
     {Typed, T, Env2}.
 
 %% Report §6.3: a receive guard is a guard expression, since it selects a
-%% message without removing it.
-receive_guard(G, Env) ->
-    case guard_expression(G, Env) of
-        true -> ok;
-        false -> fail(node_span(G), "a `receive` guard is a comparison of variables, literals,"
-                                    " and nullary constructors, joined by `&&` and `||`, and"
-                                    " calls nothing", [], "receive the message and `match` it")
-    end.
-
-guard_expression(#e_binop{op = Op, left = L, right = R}, Env) when Op =:= '&&'; Op =:= '||' ->
-    guard_expression(L, Env) andalso guard_expression(R, Env);
-guard_expression(#e_binop{op = Op, left = L, right = R}, Env) when Op =:= '=='; Op =:= '!=' ->
-    guard_operand(L, Env) andalso guard_operand(R, Env);
-guard_expression(#e_binop{pos = Pos, op = Op, left = L, right = R}, Env)
+%% message without removing it: `true`, `false`, a Bool operand, or a
+%% comparison of two operands, under `!`, `&&`, and `||`. The guard is
+%% already a Bool, so a bare operand is a Bool one.
+receive_guard(#e_binop{op = Op, left = L, right = R}, Env) when Op =:= '&&'; Op =:= '||' ->
+    receive_guard(L, Env),
+    receive_guard(R, Env);
+receive_guard(#e_binop{op = Op, left = L, right = R}, Env) when Op =:= '=='; Op =:= '!=' ->
+    guard_operand(L, Env),
+    guard_operand(R, Env);
+receive_guard(#e_binop{pos = Pos, op = Op, left = L, right = R}, Env)
   when Op =:= '<'; Op =:= '<='; Op =:= '>'; Op =:= '>=' ->
     case ern_types:resolve(node_type(L), Env#env.st) of
         T when T =:= ?INT; T =:= ?FLOAT; T =:= ?STRING; T =:= ?CHAR -> ok;
         T -> fail(Pos, "a `receive` guard orders only Int, Float, String, and Char, not "
                        ++ ern_types:format(T, Env#env.st))
     end,
-    guard_operand(L, Env) andalso guard_operand(R, Env);
-guard_expression(#e_lit{kind = bool}, _) -> true;
-guard_expression(#e_var{path = [], name = N}, #env{vars = Vs}) -> maps:is_key(N, Vs);
-guard_expression(_, _) -> false.
+    guard_operand(L, Env),
+    guard_operand(R, Env);
+receive_guard(#e_not{expr = X}, Env) -> receive_guard(X, Env);
+receive_guard(#e_lit{kind = bool}, _) -> ok;
+receive_guard(#e_var{} = V, Env) -> guard_operand(V, Env);
+receive_guard(G, _) ->
+    fail(node_span(G), "a `receive` guard combines `true`, `false`, Bool variables, and"
+                       " comparisons with `!`, `&&`, and `||`, and calls nothing",
+         [], "receive the message and `match` it").
 
-guard_operand(#e_lit{}, _) -> true;
-guard_operand(#e_not{expr = X}, Env) -> guard_operand(X, Env);
-guard_operand(#e_neg{expr = #e_lit{}}, _) -> true;
-guard_operand(#e_var{path = [], name = N}, #env{vars = Vs}) -> maps:is_key(N, Vs);
-guard_operand(#e_con{args = none}, _) -> true;
-guard_operand(_, _) -> false.
+%% An operand: a variable of the pattern or of the enclosing function, a
+%% literal, a negative numeric literal, or a nullary constructor.
+guard_operand(#e_lit{}, _) -> ok;
+guard_operand(#e_neg{expr = #e_lit{kind = K}}, _) when K =:= int; K =:= float -> ok;
+guard_operand(#e_con{args = none}, _) -> ok;
+guard_operand(#e_var{path = [], name = N}, #env{vars = Vs}) when is_map_key(N, Vs) -> ok;
+guard_operand(#e_var{} = V, _) ->
+    fail(node_span(V), callee_name(V) ++ " is bound at top level, and a `receive` guard reads"
+                                         " only the function's variables",
+         [], "bind its value to a variable before the `receive`");
+guard_operand(X, _) ->
+    fail(node_span(X), "a comparison in a `receive` guard compares variables, literals, and"
+                       " nullary constructors",
+         [], "receive the message and `match` it").
 
 %% After the first branch, the expectation's origin is that branch when
 %% nothing outside fixed it.

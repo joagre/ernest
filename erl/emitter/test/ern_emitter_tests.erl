@@ -672,6 +672,40 @@ receive_guard_compound_test() ->
         "}\n"),
     ?assertEqual(<<"9\n">>, Out).
 
+%% report §6.3: `!` before a guard expression and a negative literal in a
+%% receive guard, emitted as an Erlang guard; the messages the guard
+%% rejects stay in the mailbox
+receive_guard_not_test() ->
+    {ok, Out} = run(
+        "type Msg = N(Int) | Stop\n"
+        "fn take(flag : Bool) -> Int with Msg = receive {\n"
+        "    N(k) when !flag && !(k > 5) && k > -3 -> k\n"
+        "  | Stop -> 100\n"
+        "}\n"
+        "fn negative() -> Int with Msg = receive { N(k) when k < -1 -> k }\n"
+        "export fn main() -> Unit with Msg = {\n"
+        "    send(self(), N(9));\n"
+        "    send(self(), N(-4));\n"
+        "    send(self(), N(2));\n"
+        "    send(self(), Stop);\n"
+        "    Io.println(Int.toString(take(false)));\n"
+        "    Io.println(Int.toString(take(true)));\n"
+        "    Io.println(Int.toString(negative()))\n"
+        "}\n"),
+    ?assertEqual(<<"2\n100\n-4\n">>, Out).
+
+%% report §5.9, §4.6: a match guard may read a top-level `let`, which is
+%% read through its getter, so the guard is not compiled as an Erlang guard
+match_guard_top_level_let_test() ->
+    {ok, Out} = run(
+        "let limit = 5\n"
+        "fn size(n : Int) -> String = match n { m when m > limit -> \"big\" | _ -> \"small\" }\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    Io.println(size(9));\n"
+        "    Io.println(size(1))\n"
+        "}\n"),
+    ?assertEqual(<<"big\nsmall\n">>, Out).
+
 %% report §3.1, §4.8, §9.6: Int arithmetic, comparison, and the Boolean
 %% operators
 operators_test() ->
@@ -748,6 +782,23 @@ no_negative_zero_test() ->
         "}\n"),
     ?assertEqual(<<"#(0.0, 0.0, 0.0, 0.0)\ntrue\n1\n0.0\n\"zero\"\nSome(0.0)\n0.0\n"
                    "\"guard\"\n0.0\n">>, Out).
+
+%% report §5.1: a callee is evaluated before its arguments; in `x |> e`,
+%% x is evaluated before e, whether e is a call or a parenthesized value
+evaluation_order_test() ->
+    {ok, Out} = run(
+        "fn show(s : String, n : Int) -> Int with Never = { Io.println(s); n }\n"
+        "fn f(a : Int) -> ((Int, Int) -> Int) with Never = {\n"
+        "    Io.println(\"f(a)\");\n"
+        "    fn(x, y) = x + y + a\n"
+        "}\n"
+        "fn g(a : Int) -> ((Int) -> Int) with Never = { Io.println(\"g(1)\"); fn(x) = x + a }\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    Io.println(Int.toString(show(\"x\", 1) |> f(show(\"a\", 2))(show(\"b\", 3))));\n"
+        "    Io.println(Int.toString(g(1)(show(\"h()\", 4))));\n"
+        "    Io.println(Int.toString(show(\"y\", 5) |> (g(1))))\n"
+        "}\n"),
+    ?assertEqual(<<"x\na\nf(a)\nb\n6\ng(1)\nh()\n5\ny\ng(1)\n6\n">>, Out).
 
 %% report §4.8: `!` negates a Bool, in an expression and in a guard
 not_operator_test() ->

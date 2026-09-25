@@ -1375,10 +1375,8 @@ bitstring_pattern_test() ->
     ?assertEqual("a `let` pattern must be irrefutable",
                  err("fn f(b : Bytes) = { let <<x>> = b; x }")).
 
-%% report §6.3: a receive guard is a guard expression: comparisons of
-%% variables, literals, and nullary constructors joined by && and ||, no
-%% call, orderings on the four ordered prelude types only; a match guard
-%% is any Bool expression
+%% report §6.3: a receive guard is a guard expression, and calls nothing;
+%% a match guard is any Bool expression
 receive_guard_test() ->
     Msg = "type Msg = N(Int) | Stop\n",
     ?assertEqual(ok, ok(Msg ++ "fn big(k : Int) -> Bool = k > 100\n"
@@ -1390,18 +1388,52 @@ receive_guard_test() ->
                         " match m { N(k) when big(k) -> Unit | _ -> Unit }")),
     D = diag(Msg ++ "fn big(k : Int) -> Bool = k > 100\n"
              "fn loop() -> Unit with Msg = receive { N(k) when big(k) -> Unit | _ -> Unit }"),
-    ?assertEqual("a `receive` guard is a comparison of variables, literals, and nullary"
-                 " constructors, joined by `&&` and `||`, and calls nothing", D#diag.message),
-    ?assertEqual("receive the message and `match` it", D#diag.help),
-    ?assertEqual("a `receive` guard is a comparison of variables, literals, and nullary"
-                 " constructors, joined by `&&` and `||`, and calls nothing",
-                 err(Msg ++ "fn loop() -> Unit with Msg = receive { N(k) when k + 1 > 2 -> Unit"
-                     " | _ -> Unit }")),
-    ?assertEqual("a `receive` guard is a comparison of variables, literals, and nullary"
-                 " constructors, joined by `&&` and `||`, and calls nothing",
-                 err(Msg ++ "let limit = 5\n"
-                     "fn loop() -> Unit with Msg = receive { N(k) when k > limit -> Unit"
-                     " | _ -> Unit }")),
+    ?assertEqual("a `receive` guard combines `true`, `false`, Bool variables, and comparisons"
+                 " with `!`, `&&`, and `||`, and calls nothing", D#diag.message),
+    ?assertEqual("receive the message and `match` it", D#diag.help).
+
+%% report §6.3: each form of a guard expression: `true`, `false`, a Bool
+%% operand, `!` before a guard expression, and a comparison whose operands
+%% are negative numeric literals and nullary constructors as well as
+%% variables and literals
+receive_guard_forms_test() ->
+    Head = "type Msg = N(Int) | F(Float) | O(Ordering)\n"
+           "fn loop(flag : Bool) -> Unit with Msg = receive { ",
+    Tail = " -> Unit | _ -> Unit }",
+    Accepted = ["N(_) when true", "N(_) when false", "N(_) when flag", "N(_) when !flag",
+                "N(k) when !(k > 1)", "N(k) when !(!(k == 1)) && !flag || !false",
+                "N(k) when k > -1", "F(y) when y < -1.5", "F(y) when -1.5 != y",
+                "O(o) when o == Less"],
+    [?assertEqual({G, ok}, {G, ok(Head ++ G ++ Tail)}) || G <- Accepted].
+
+%% report §6.3: a comparison's operands are operands, so a comparison, a
+%% negation, arithmetic, or a negated variable is not one; a variable bound
+%% at top level is not the function's
+receive_guard_refused_test() ->
+    Head = "type Msg = N(Int)\nlet limit = 5\nlet ready = true\n"
+           "fn loop(flag : Bool, go : Bool, m : Int) -> Unit with Msg = receive { ",
+    Tail = " -> Unit | _ -> Unit }",
+    Operand = "a comparison in a `receive` guard compares variables, literals, and nullary"
+              " constructors",
+    Refused = [{"N(_) when !flag == true", Operand},
+               {"N(_) when flag == go == true", Operand},
+               {"N(k) when k + 1 > 2", Operand},
+               {"N(k) when k > -m", Operand},
+               {"N(k) when k > limit",
+                "limit is bound at top level, and a `receive` guard reads only the function's"
+                " variables"},
+               {"N(_) when !ready",
+                "ready is bound at top level, and a `receive` guard reads only the function's"
+                " variables"},
+               {"N(k) when Int.compare(k, m) == Less",
+                Operand}],
+    [?assertEqual({G, Expected}, {G, err(Head ++ G ++ Tail)}) || {G, Expected} <- Refused],
+    D = diag(Head ++ "N(k) when k > limit" ++ Tail),
+    ?assertEqual("bind its value to a variable before the `receive`", D#diag.help).
+
+%% report §6.3, §3.10: `<`, `<=`, `>`, and `>=` in a receive guard order
+%% Int, Float, String, and Char only, not a user type with its own compare
+receive_guard_ordering_test() ->
     ?assertEqual("a `receive` guard orders only Int, Float, String, and Char, not Vec",
                  err("export type Vec = Vec(Int)\n"
                      "export fn Vec.compare(Vec(a), Vec(b)) -> Ordering = Int.compare(a, b)\n"
