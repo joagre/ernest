@@ -13,11 +13,10 @@
 %% Errors are collected per definition; checking continues with the next.
 -module(ern_typecheck).
 
--export([check/3, check/4, check_string/2, prelude_env/0, prelude_names/0,
-         prelude_con/1, prelude_cons/0]).
--export([is_reply_carrying/2, resolve_type/2, lookup_type/2, lookup_con/4, type_state/1,
-         set_type_state/2, node_type/1, foreign_impl/1, segment_spec/1, is_value/2,
-         typed_pattern_bindings/1, declared_scheme/3]).
+-export([check/3, check/4, check_string/2, type_state/1, set_type_state/2, prelude_names/0,
+         prelude_con/1, prelude_cons/0, prelude_env/0, lookup_type/2, is_reply_carrying/2,
+         foreign_impl/1, declared_scheme/3, typed_pattern_bindings/1, segment_spec/1,
+         lookup_con/4, con_info/2, is_value/2, resolve_type/2, node_type/1]).
 
 -export_type([env/0, session/0]).
 
@@ -57,7 +56,6 @@
 -define(NEVER, {tcon, ['Never'], []}).
 -define(ARITH, ['+', '-', '*', '/', '%']).
 -define(ORDER, ['<', '<=', '>', '>=']).
--define(CONTAINERS, [['List'], ['Map'], ['Set'], ['Optional'], ['Either']]).
 
 %%
 %% Entry points
@@ -183,13 +181,13 @@ prelude_env() ->
                            E1
                        end, Env2, ern_prelude:stdlib_types()),
     Env4 = lists:foldl(fun({QName, Text, _Doc}, E) ->
-                    {ok, Syntax} = ern_parser:parse_type(Text),
-                    ProcessOnly = lists:member(QName, ern_prelude:process_only()),
-                    {Scheme, E1} = signature_scheme(Syntax, ProcessOnly,
-                                                    ern_prelude:eq_vars(QName), E),
-                    E1#env{globals = maps:put(QName, Scheme, E1#env.globals)}
-                end, Env3#env{ns = [], local_types = #{}, local_cons = #{}, local_values = #{}},
-                ern_prelude:values()),
+                           {ok, Syntax} = ern_parser:parse_type(Text),
+                           ProcessOnly = lists:member(QName, ern_prelude:process_only()),
+                           {Scheme, E1} = signature_scheme(Syntax, ProcessOnly, E),
+                           E1#env{globals = maps:put(QName, Scheme, E1#env.globals)}
+                       end,
+                       Env3#env{ns = [], local_types = #{}, local_cons = #{}, local_values = #{}},
+                       ern_prelude:values()),
     %% the standard library modules written in Ernest, by their interfaces
     lists:foldl(fun add_iface/2, Env4, ern_prelude:stdlib_ifaces()).
 
@@ -215,20 +213,14 @@ add_type(#env{types = Ts, cons = Cs} = Env, #tinfo{qname = Q, constructors = Con
 
 %% A signature from the prelude tables: every annotation variable is
 %% generalized; effect variables of the process primitives are process-only.
-signature_scheme(Syntax, ProcessOnly, EqVars, Env) ->
+signature_scheme(Syntax, ProcessOnly, Env) ->
     St0 = ern_types:enter(Env#env.st),
     {T, VarMap, St1} = ann(Syntax, #{}, Env#env{st = St0}),
     Z = ern_types:zonk(T, St1),
     Effs = ern_types:effect_vars(Z),
     Vals = ern_types:value_vars(Z),
-    St2a = lists:foldl(fun(Id, S) -> ern_types:add_flag({tvar, Id}, process_only, S) end, St1,
-                       [Id || Id <- Effs, ProcessOnly orelse lists:member(Id, Vals)]),
-    St2 = lists:foldl(fun(Name, S) ->
-                          case VarMap of
-                              #{Name := V} -> ern_types:add_flag(V, eq, S);
-                              _ -> S
-                          end
-                      end, St2a, EqVars),
+    St2 = lists:foldl(fun(Id, S) -> ern_types:add_flag({tvar, Id}, process_only, S) end, St1,
+                      [Id || Id <- Effs, ProcessOnly orelse lists:member(Id, Vals)]),
     St3 = ern_types:leave(St2),
     {Scheme, St4} = ern_types:generalize(Z, [Id || {tvar, Id} <- maps:values(VarMap)], St3),
     {Scheme, Env#env{st = St4}}.
@@ -272,10 +264,11 @@ ann(#t_fn{params = Ps, ret = R, effect = E}, VarMap, Env) ->
     {{tfn, PTs, ET, RT}, VarMap3, St3}.
 
 ann_list(Syntaxes, VarMap, Env) ->
-    lists:foldl(fun(S, {Acc, VM, St}) ->
-                    {T, VM1, St1} = ann(S, VM, Env#env{st = St}),
-                    {Acc ++ [T], VM1, St1}
-                end, {[], VarMap, Env#env.st}, Syntaxes).
+    {Ts, {VarMap1, St}} = lists:mapfoldl(fun(S, {VM, St0}) ->
+                                             {T, VM1, St1} = ann(S, VM, Env#env{st = St0}),
+                                             {T, {VM1, St1}}
+                                         end, {VarMap, Env#env.st}, Syntaxes),
+    {Ts, VarMap1, St}.
 
 lookup_type_name(Pos, [], Name, #env{local_types = LT, types = Ts} = Env) ->
     case LT of
@@ -533,13 +526,17 @@ demand(Q, #env{groups = Pending} = Env) ->
         #{Q := Group} ->
             Clean = Env#env{vars = #{}, effect = pure, pending = [], deferred = [], ann_vars = #{},
                             rigid = [], effect_origin = undefined},
-            Env1 = run_group(Group, Clean),
-            Env1#env{vars = Env#env.vars, effect = Env#env.effect, pending = Env#env.pending,
-                     deferred = Env#env.deferred, ann_vars = Env#env.ann_vars,
-                     rigid = Env#env.rigid, effect_origin = Env#env.effect_origin};
+            restore_scope(run_group(Group, Clean), Env);
         _ ->
             Env
     end.
+
+%% A definition's own scope set aside: Checked, the environment after it,
+%% with the scope of Env, the environment before it.
+restore_scope(Checked, Env) ->
+    Checked#env{vars = Env#env.vars, effect = Env#env.effect, pending = Env#env.pending,
+                deferred = Env#env.deferred, ann_vars = Env#env.ann_vars, rigid = Env#env.rigid,
+                effect_origin = Env#env.effect_origin}.
 
 is_value_decl(#fn_decl{}) -> true;
 is_value_decl(#let_decl{}) -> true;
@@ -598,8 +595,10 @@ register_value_name(D, #env{local_values = LV} = Env) ->
     Owner =:= undefined orelse maps:is_key(Owner, Env#env.local_types) orelse
         fail(Pos, atom_to_list(Owner) ++ " is not a type declared in this module"),
     %% report §4.8: an operator is declared with `fn`
-    not (is_record(D, let_decl) andalso is_operator(Name)) orelse
-        fail(Pos, "an operator is declared with `fn`, not `let`"),
+    case is_record(D, let_decl) andalso is_operator(Name) of
+        true -> fail(Pos, "an operator is declared with `fn`, not `let`");
+        false -> ok
+    end,
     Q = value_qname(Env, Owner, Name),
     Lets = case D of
                #let_decl{} -> (Env#env.lets)#{Q => true};
@@ -688,7 +687,7 @@ refs(#e_var{path = Ns, name = N}, #env{ns = Ns} = Env, Acc, B) when Ns =/= [] ->
 refs(#e_var{path = [Owner], name = N}, #env{local_types = LT}, Acc, _B) ->
     case maps:is_key(Owner, LT) of true -> [{Owner, N} | Acc]; false -> Acc end;
 refs(#e_var{path = P} = V, #env{ns = Ns} = Env, Acc, B) when length(P) > 1 ->
-    case lists:prefix(Ns, P) andalso length(P) =:= length(Ns) + 1 of
+    case own_type_path(P, Ns) of
         true -> refs(V#e_var{path = [lists:last(P)]}, Env, Acc, B);
         false -> Acc
     end;
@@ -739,15 +738,20 @@ refs_in_pattern(P, Env, Acc, B) ->
 operator_ref(none, _, _) -> [];
 operator_ref(Member, Operand, #env{ns = Ns, local_types = LT}) ->
     case node_type(Operand) of
-        {tcon, Q, _} when length(Q) =:= length(Ns) + 1 ->
+        {tcon, Q, _} ->
             Owner = lists:last(Q),
-            case lists:prefix(Ns, Q) andalso maps:is_key(Owner, LT) of
+            case own_type_path(Q, Ns) andalso maps:is_key(Owner, LT) of
                 true -> [{Owner, Member}];
                 false -> []
             end;
         _ ->
             []
     end.
+
+%% Report §4.2: is Path the module's own namespace and one name below it,
+%% as `M.T` in module M, where T may be a type the module declares?
+own_type_path(Path, Ns) ->
+    length(Path) =:= length(Ns) + 1 andalso lists:prefix(Ns, Path).
 
 %% A group failed: give its names a fresh polymorphic type so that later
 %% groups report their own errors rather than cascades.
@@ -797,8 +801,8 @@ check_group(Group, Env0) ->
                                     end, Env3, Typed),
     {Typed2, Env4}.
 
-zonk_ast({Tag, _, _} = T, St) when Tag =:= tvar; Tag =:= tcon -> ern_types:zonk(T, St);
 zonk_ast({tvar, _} = T, St) -> ern_types:zonk(T, St);
+zonk_ast({tcon, _, _} = T, St) -> ern_types:zonk(T, St);
 zonk_ast({ttuple, _} = T, St) -> ern_types:zonk(T, St);
 zonk_ast({tfn, _, _, _} = T, St) -> ern_types:zonk(T, St);
 zonk_ast(T, St) when is_tuple(T) -> list_to_tuple([zonk_ast(X, St) || X <- tuple_to_list(T)]);
@@ -846,13 +850,14 @@ let_cycle(#let_decl{pos = Pos, name = Name} = D, G, Errs, Seen) ->
 
 %% Unify a placeholder with what the annotations say, before any body.
 signature_shape(#fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect}, V, Env) ->
-    {PTs, AnnVars, St1} = lists:foldl(fun(#param{type = undefined}, {Acc, AV, St}) ->
-                                              {T, St0} = ern_types:fresh(St),
-                                              {Acc ++ [T], AV, St0};
-                                         (#param{type = Syntax}, {Acc, AV, St}) ->
-                                              {T, AV1, St0} = ann(Syntax, AV, Env#env{st = St}),
-                                              {Acc ++ [T], AV1, St0}
-                                      end, {[], #{}, Env#env.st}, Params),
+    {PTs, {AnnVars, St1}} = lists:mapfoldl(fun(#param{type = undefined}, {AV, St}) ->
+                                                   {T, St0} = ern_types:fresh(St),
+                                                   {T, {AV, St0}};
+                                              (#param{type = Syntax}, {AV, St}) ->
+                                                   {T, AV1, St0} = ann(Syntax, AV,
+                                                                       Env#env{st = St}),
+                                                   {T, {AV1, St0}}
+                                           end, {#{}, Env#env.st}, Params),
     {RetT, EffT, _, St2} = return_annotation(Ret, Effect, AnnVars, Env#env{st = St1}),
     FnT = {tfn, PTs, EffT, RetT},
     unify_at(Pos, V, FnT, Env#env{st = mark_process_only(FnT, St2)}, "signature");
@@ -881,15 +886,11 @@ check_value(#fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect, bod
     Env2 = Env1#env{st = mark_process_only(FnT, St), effect = EffT, pending = [], deferred = [],
                     ann_vars = AnnVars1, rigid = maps:to_list(AnnVars1),
                     effect_origin = effect_origin(decl_name(D), Ret, Effect, RetT, EffT, St)},
-    {TypedBody, _BodyT, Env4} = check(Body, RetT, ret_context(Ret, "the body does not have the"
-                                                            " declared return type"),
-                                      ret_origin(Ret, RetT, Env2), Env2),
+    Context = ret_context(Ret, "the body does not have the declared return type"),
+    {TypedBody, _BodyT, Env4} = check_expr(Body, RetT, Context, ret_origin(Ret, RetT, Env2), Env2),
     Env5 = unify_at(Pos, Placeholder, FnT, Env4, "recursive use does not match the definition"),
-    Post = {Pos, TypedParams, TypedBody, FnT, Env5#env.rigid, Env5#env.pending,
-            Env5#env.deferred},
-    {D#fn_decl{params = TypedParams, body = TypedBody}, Post,
-     Env5#env{vars = Env#env.vars, effect = Env#env.effect, pending = Env#env.pending,
-              deferred = Env#env.deferred, ann_vars = Env#env.ann_vars, rigid = Env#env.rigid}};
+    {D#fn_decl{params = TypedParams, body = TypedBody},
+     post(Pos, TypedParams, TypedBody, FnT, Env5), restore_scope(Env5, Env)};
 check_value(#let_decl{pos = Pos, ann = Ann, body = Body} = D, Placeholder, Env) ->
     {AnnT, AnnVars, St} = case Ann of
                               undefined -> {undefined, #{}, Env#env.st};
@@ -903,14 +904,11 @@ check_value(#let_decl{pos = Pos, ann = Ann, body = Body} = D, Placeholder, Env) 
     {TypedBody, BodyT, Env2} =
         case AnnT of
             undefined -> infer(Body, Env0);
-            _ -> check(Body, AnnT, "the value does not have the declared type",
-                       ann_origin(Ann, AnnT, Env0), Env0)
+            _ -> check_expr(Body, AnnT, "the value does not have the declared type",
+                            ann_origin(Ann, AnnT, Env0), Env0)
         end,
     Env3 = unify_at(Pos, Placeholder, BodyT, Env2, "recursive use does not match the definition"),
-    Post = {Pos, [], TypedBody, BodyT, Env3#env.rigid, Env3#env.pending, Env3#env.deferred},
-    {D#let_decl{body = TypedBody}, Post,
-     Env3#env{vars = Env#env.vars, effect = Env#env.effect, pending = Env#env.pending,
-              deferred = Env#env.deferred, ann_vars = Env#env.ann_vars, rigid = Env#env.rigid}};
+    {D#let_decl{body = TypedBody}, post(Pos, [], TypedBody, BodyT, Env3), restore_scope(Env3, Env)};
 check_value(#foreign_fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect,
                              impl = Impl} = D, Placeholder, Env) ->
     %% report §8.4: the implementation is module:function/arity
@@ -928,6 +926,14 @@ check_value(#foreign_fn_decl{pos = Pos, params = Params, ret = Ret, effect = Eff
     {T, _, St} = ann(Syntax, #{}, Env),
     Env1 = unify_at(Pos, Placeholder, T, Env#env{st = foreign_effect(T, St)}, "foreign signature"),
     {D, none, Env1}.
+
+%% What the checks after inference need of a definition: its scope as it
+%% ends, since a deferred operator calls its member under the definition's
+%% own mailbox and adds its restrictions to the definition's (report §4.8,
+%% §3.4, §3.10).
+post(Pos, TypedParams, TypedBody, T, Env) ->
+    {Pos, TypedParams, TypedBody, T, Env#env.effect, Env#env.effect_origin, Env#env.rigid,
+     Env#env.pending, Env#env.deferred}.
 
 %% Report §3.9: a foreign fn's effect is its own, and so process-only,
 %% unless it is the effect of one of its parameters' function types, where
@@ -954,21 +960,21 @@ foreign_impl(Impl) ->
 %% Parameters bind pattern variables monomorphically; annotation variables
 %% are shared across the parameters and the return annotation.
 bind_params(Params, Env, AnnVars) ->
-    lists:foldl(fun(#param{pos = Pos, pattern = P, type = Ann} = Param, {Acc, Ts, E, AV}) ->
-                    {TypedP, PT, Bindings, E1} = check_pattern(P, E),
-                    irrefutable(P, E1) orelse
-                        fail(Pos, "a parameter pattern must be irrefutable"),
-                    {AV1, E2} = case Ann of
-                                    undefined -> {AV, E1};
-                                    _ ->
-                                        {AT, AV0, St} = ann(Ann, AV, E1),
-                                        {AV0, unify_at(Pos, AT, PT, E1#env{st = St},
-                                                       "the parameter pattern does not fit its"
-                                                       " annotation")}
-                                end,
-                    E3 = bind_vars(Bindings, E2),
-                    {Acc ++ [Param#param{pattern = TypedP}], Ts ++ [PT], E3, AV1}
-                end, {[], [], Env, AnnVars}, Params).
+    {Typed, {Env1, AnnVars1}} = lists:mapfoldl(fun bind_param/2, {Env, AnnVars}, Params),
+    {TypedParams, Ts} = lists:unzip(Typed),
+    {TypedParams, Ts, Env1, AnnVars1}.
+
+bind_param(#param{pos = Pos, pattern = P, type = Ann} = Param, {Env, AnnVars}) ->
+    {TypedP, PT, Bindings, Env1} = check_pattern(P, Env),
+    irrefutable(P, Env1) orelse fail(Pos, "a parameter pattern must be irrefutable"),
+    {AnnVars1, Env2} = case Ann of
+                           undefined -> {AnnVars, Env1};
+                           _ ->
+                               {AT, AV, St} = ann(Ann, AnnVars, Env1),
+                               {AV, unify_at(Pos, AT, PT, Env1#env{st = St},
+                                             "the parameter pattern does not fit its annotation")}
+                       end,
+    {{Param#param{pattern = TypedP}, PT}, {bind_vars(Bindings, Env2), AnnVars1}}.
 
 return_annotation(undefined, _Effect, AnnVars, Env) ->
     {RetT, St1} = ern_types:fresh(Env#env.st),
@@ -1007,10 +1013,9 @@ effect_origin(Name, _Ret, Effect, _RetT, EffT, St) ->
     {Name, node_span(Effect), Name ++ " is declared `with " ++ ern_types:format(EffT, St)
                               ++ "` here", undefined}.
 
-decl_name(#fn_decl{owner = undefined, name = N}) -> atom_to_list(N);
-decl_name(#fn_decl{owner = O, name = N}) -> atom_to_list(O) ++ "." ++ atom_to_list(N);
-decl_name(#foreign_fn_decl{owner = undefined, name = N}) -> atom_to_list(N);
-decl_name(#foreign_fn_decl{owner = O, name = N}) -> atom_to_list(O) ++ "." ++ atom_to_list(N).
+decl_name(D) ->
+    {Owner, Name} = decl_key(D),
+    local_name(Owner, Name).
 
 node_span(Node) -> element(2, Node).
 
@@ -1024,15 +1029,18 @@ bind_vars(Bindings, #env{vars = Vs} = Env) ->
 
 post_checks(none, Env) ->
     Env;
-post_checks({Pos, TypedParams, TypedBody, FnT, Rigid, Pending, Deferred}, Env0) ->
-    Env1 = solve_deferred(Env0#env{deferred = Deferred}),
+post_checks({Pos, TypedParams, TypedBody, FnT, Effect, Origin, Rigid, Pending, Deferred},
+            Env0) ->
+    Env1 = solve_deferred(Env0#env{effect = Effect, effect_origin = Origin, pending = Pending,
+                                   deferred = Deferred}),
     rigid_annotation_vars(Pos, Rigid, Env1),
     local_fn_order(TypedBody),
     undetermined_bindings(TypedBody, FnT, Env1),
     ern_exhaust:check(TypedBody, Env1),
     Env2 = ern_reply:check(TypedParams, TypedBody, FnT, Env1),
-    no_reply_instantiations(Env2#env{pending = Pending}),
-    Env2#env{pending = Env0#env.pending, deferred = Env0#env.deferred}.
+    no_reply_instantiations(Env2),
+    Env2#env{effect = Env0#env.effect, effect_origin = Env0#env.effect_origin,
+             pending = Env0#env.pending, deferred = Env0#env.deferred}.
 
 %% Report §5.5: `let p <- e` is resolved from the type of e, or from the
 %% block's type, once the definition is inferred. Solving one may resolve
@@ -1134,8 +1142,7 @@ block_order(Stmts) ->
     FnNames = [N || #fn_decl{name = N} <- Fns],
     Indexed = lists:zip(lists:seq(1, length(Stmts)), Stmts),
     %% every let binding of the block as an instance {Name, Index}
-    Lets = lists:append([[{N, I} || {N, _} <- typed_pattern_bindings(P)]
-                         || {I, #binding{pattern = P}} <- Indexed]),
+    Lets = [{N, I} || {I, #binding{pattern = P}} <- Indexed, N <- pattern_names(P)],
     LetNames = lists:usort([N || {N, _} <- Lets]),
     %% what each local fn references: its siblings, and the binding of each
     %% let name in force at its declaration (report §5.4, §4.6)
@@ -1147,7 +1154,7 @@ block_order(Stmts) ->
     Needs = fun(N) -> needed_lets(N, Direct, [], []) end,
     lists:foldl(fun({I, #binding{pattern = P, expr = X}}, Bound) ->
                     check_uses(X, FnNames, Needs, Bound),
-                    Bound ++ [{N, I} || {N, _} <- typed_pattern_bindings(P)];
+                    [{N, I} || N <- pattern_names(P)] ++ Bound;
                    ({_, #fn_decl{}}, Bound) ->
                     Bound;
                    ({_, X}, Bound) ->
@@ -1194,29 +1201,23 @@ check_uses(Expr, FnNames, Needs, Bound) ->
 %% Unqualified names of the given set free in a local fn's body: outside
 %% its parameters and the bindings inside the body.
 free_refs(Body, Params, Names) ->
-    Bound = lists:append([[N || {N, _} <- typed_pattern_bindings(P)]
-                          || #param{pattern = P} <- Params]),
-    lists:usort([N || N <- free_in(Body, Bound), lists:member(N, Names)]).
+    lists:usort([N || N <- free_in(Body, param_names(Params)), lists:member(N, Names)]).
 
 free_in(#e_var{path = [], name = N}, Bound) ->
     case lists:member(N, Bound) of true -> []; false -> [N] end;
 free_in(#e_lambda{params = Ps, body = B}, Bound) ->
-    free_in(B, Bound ++ lists:append([[N || {N, _} <- typed_pattern_bindings(P)]
-                                      || #param{pattern = P} <- Ps]));
+    free_in(B, param_names(Ps) ++ Bound);
 free_in(#e_block{stmts = Stmts}, Bound) ->
-    {_, Acc} = lists:foldl(
-                 fun(#binding{pattern = P, expr = X}, {Bd, A}) ->
-                         {Bd ++ [N || {N, _} <- typed_pattern_bindings(P)], A ++ free_in(X, Bd)};
-                    (#fn_decl{name = N, params = Ps, body = B}, {Bd, A}) ->
-                         ParamNames = [[V || {V, _} <- typed_pattern_bindings(P)]
-                                       || #param{pattern = P} <- Ps],
-                         Inner = Bd ++ [N] ++ lists:append(ParamNames),
-                         {Bd ++ [N], A ++ free_in(B, Inner)};
-                    (S, {Bd, A}) -> {Bd, A ++ free_in(S, Bd)}
-                 end, {Bound, []}, Stmts),
-    Acc;
+    {Free, _} = lists:mapfoldl(fun(#binding{pattern = P, expr = X}, Bd) ->
+                                       {free_in(X, Bd), pattern_names(P) ++ Bd};
+                                  (#fn_decl{name = N, params = Ps, body = B}, Bd) ->
+                                       {free_in(B, [N | param_names(Ps)] ++ Bd), [N | Bd]};
+                                  (S, Bd) ->
+                                       {free_in(S, Bd), Bd}
+                               end, Bound, Stmts),
+    lists:append(Free);
 free_in(#clause{pattern = P, guard = G, body = B}, Bound) ->
-    Bd = Bound ++ [N || {N, _} <- typed_pattern_bindings(P)],
+    Bd = pattern_names(P) ++ Bound,
     free_in(G, Bd) ++ free_in(B, Bd);
 free_in(T, Bound) when is_tuple(T) ->
     lists:append([free_in(X, Bound) || X <- tl(tuple_to_list(T))]);
@@ -1224,6 +1225,17 @@ free_in(L, Bound) when is_list(L) ->
     lists:append([free_in(X, Bound) || X <- L]);
 free_in(_, _) ->
     [].
+
+pattern_names(P) -> [N || {N, _} <- typed_pattern_bindings(P)].
+
+param_names(Params) -> lists:append([pattern_names(P) || #param{pattern = P} <- Params]).
+
+%% Report §3.1: a literal's type, in an expression and in a pattern.
+lit_type(int) -> ?INT;
+lit_type(float) -> ?FLOAT;
+lit_type(char) -> ?CHAR;
+lit_type(string) -> ?STRING;
+lit_type(bool) -> ?BOOL.
 
 %% Report §4.8, §3.10, §5.1: an operator resolves against its operand
 %% type as soon as that type is known; an operand still a variable is
@@ -1244,15 +1256,15 @@ operator_result(Pos, Op, LT, Env) ->
 resolve_operator(Pos, Op, LT, #env{st = St} = Env) ->
     T = ern_types:resolve(LT, St),
     case T of
-        {tcon, ['Int'], []} when Op =:= negate -> {LT, Env};
-        {tcon, ['Float'], []} when Op =:= negate -> {LT, Env};
-        {tcon, ['Int'], []} -> arith_or_order(Op, LT, ?ARITH, Pos, Env);
-        {tcon, ['Float'], []} -> arith_or_order(Op, LT, ['+', '-', '*', '/'], Pos, Env);
-        {tcon, ['String'], []} when Op =:= '<>' -> {LT, Env};
-        {tcon, ['String'], []} -> arith_or_order(Op, LT, [], Pos, Env);
-        {tcon, ['Char'], []} -> arith_or_order(Op, LT, [], Pos, Env);
+        ?INT when Op =:= negate -> {LT, Env};
+        ?FLOAT when Op =:= negate -> {LT, Env};
+        ?INT -> arith_or_order(Op, LT, ?ARITH, Pos, Env);
+        ?FLOAT -> arith_or_order(Op, LT, ['+', '-', '*', '/'], Pos, Env);
+        ?STRING when Op =:= '<>' -> {LT, Env};
+        ?STRING -> arith_or_order(Op, LT, [], Pos, Env);
+        ?CHAR -> arith_or_order(Op, LT, [], Pos, Env);
         {tcon, ['List'], _} when Op =:= '<>' -> {LT, Env};
-        {tcon, ['Bytes'], []} when Op =:= '<>' -> {LT, Env};
+        ?BYTES when Op =:= '<>' -> {LT, Env};
         {tcon, Q, _} when length(Q) > 1 -> user_operator(Pos, Op, LT, Q, Env);
         _ -> not_defined(Pos, Op, T, Env)
     end.
@@ -1309,7 +1321,7 @@ op_text(Op) -> atom_to_list(Op).
 %% checked now if its group has not run; in another, through its compiled
 %% interface.
 member_scheme(Q, Member, #env{ns = Ns, local_values = LV} = Env) ->
-    Key = case lists:prefix(Ns, Q) andalso length(Q) =:= length(Ns) + 1 of
+    Key = case own_type_path(Q, Ns) of
               true -> maps:get({lists:last(Q), Member}, LV, undefined);
               false -> Q ++ [Member]
           end,
@@ -1359,10 +1371,11 @@ undetermined_bindings(Node, FnT, #env{st = St} = Env) ->
 %% variable names, which an instance does not.
 -spec declared_scheme(env(), [atom()], atom()) -> {ok, #scheme{}} | error.
 declared_scheme(Env, Path, Name) ->
+    %% the position is never shown: an unknown name answers `error`
     try lookup_value({1, 1, {1, 1}}, Path, Name, Env) of
         {Scheme, _} -> {ok, Scheme}
     catch
-        _:_ -> error
+        throw:{type_error, _, _} -> error
     end.
 
 %% The names a pattern binds, with their types, in the order written; the
@@ -1396,9 +1409,7 @@ walk(_, _, Env) ->
 %%
 
 infer(#e_lit{kind = Kind} = E, Env) ->
-    T = case Kind of
-            int -> ?INT; float -> ?FLOAT; char -> ?CHAR; string -> ?STRING; bool -> ?BOOL
-        end,
+    T = lit_type(Kind),
     {E#e_lit{type = T}, T, Env};
 infer(#e_var{pos = Pos, path = Path0, name = Name} = E0, Env0) ->
     %% report §11.2: a name the session declared is rewritten to the input
@@ -1421,8 +1432,8 @@ infer(#e_con{pos = Pos, path = Path, name = Name, args = Args} = E, Env) ->
             fail(Pos, atom_to_list(Name) ++ " takes no fields");
         {positional, {positional, Arg}} ->
             {tfn, [FT], pure, RT} = CT,
-            {TypedArg, _AT, Env3} = check(Arg, FT, "the field of " ++ atom_to_list(Name),
-                                          undefined, Env1),
+            {TypedArg, _AT, Env3} = check_expr(Arg, FT, "the field of " ++ atom_to_list(Name),
+                                               undefined, Env1),
             {E#e_con{args = {positional, TypedArg}, type = RT}, RT, Env3};
         {positional, none} ->
             %% a single-positional constructor is a function value (§5.6)
@@ -1436,7 +1447,7 @@ infer(#e_con{pos = Pos, path = Path, name = Name, args = Args} = E, Env) ->
             fail(Pos, atom_to_list(Name) ++ " has named fields; write "
                       ++ atom_to_list(Name) ++ "(field = value, ...)")
     end;
-infer(#e_tuple{pos = _, elems = Es} = E, Env) ->
+infer(#e_tuple{elems = Es} = E, Env) ->
     {TypedEs, Ts, Env1} = infer_list(Es, Env),
     T = {ttuple, Ts},
     {E#e_tuple{elems = TypedEs, type = T}, T, Env1};
@@ -1444,8 +1455,9 @@ infer(#e_list{elems = Es} = E, Env) ->
     {ElemT, St} = ern_types:fresh(Env#env.st),
     {TypedEs, {Env1, _}} =
         lists:mapfoldl(fun(X, {En, Origin}) ->
-                           {TX, _, En1} = check(X, ElemT, "list elements must have one type",
-                                                Origin, En),
+                           {TX, _, En1} = check_expr(X, ElemT,
+                                                     "list elements must have one type", Origin,
+                                                     En),
                            Origin1 = case Origin of
                                          undefined -> {node_span(X), "the first element has type "
                                                        ++ ern_types:format(ElemT, En1#env.st)};
@@ -1476,8 +1488,8 @@ infer(#e_call{pos = Pos, callee = Callee, args = Args} = E, Env) ->
             Origin = {node_span(Callee), Name ++ " : " ++ ern_types:format(CalleeT, Env1#env.st)},
             {TypedArgs, Env2} =
                 lists:mapfoldl(fun({Arg, P}, En) ->
-                                   {TA, _, En1} = check(Arg, P, "the argument does not fit "
-                                                        ++ Name, Origin, En),
+                                   {TA, _, En1} = check_expr(Arg, P, "the argument does not fit "
+                                                             ++ Name, Origin, En),
                                    {TA, En1}
                                end, Env1, lists:zip(Args, Ps)),
             Env3 = use_effect(Pos, Name, Eff, Env2),
@@ -1497,8 +1509,8 @@ infer(#e_call{pos = Pos, callee = Callee, args = Args} = E, Env) ->
 infer(#e_not{pos = Pos, expr = X} = E, Env) ->
     %% report §4.8: `!` is Bool's, as `&&` and `||` are
     {TypedX, XT, Env1} = infer(X, Env),
-    Env2 = unify_at(Pos, {tcon, ['Bool'], []}, XT, Env1, "the operand of `!`"),
-    {E#e_not{expr = TypedX, type = {tcon, ['Bool'], []}}, {tcon, ['Bool'], []}, Env2};
+    Env2 = unify_at(Pos, ?BOOL, XT, Env1, "the operand of `!`"),
+    {E#e_not{expr = TypedX, type = ?BOOL}, ?BOOL, Env2};
 infer(#e_neg{pos = Pos, expr = X} = E, Env) ->
     {TypedX, XT, Env1} = infer(X, Env),
     {T, Env2} = operator_result(Pos, negate, XT, Env1),
@@ -1520,44 +1532,38 @@ infer(#e_lambda{params = Params, ret = Ret, effect = Effect, body = Body} = E,
                                         undefined -> Env#env.effect_origin;
                                         O -> O
                                     end},
-    {TypedBody, _BodyT, Env4} = check(Body, RetT, ret_context(Ret, "the lambda body does not have"
-                                                            " the declared type"),
-                                      ret_origin(Ret, RetT, Env2), Env2),
+    Context = ret_context(Ret, "the lambda body does not have the declared type"),
+    {TypedBody, _BodyT, Env4} = check_expr(Body, RetT, Context, ret_origin(Ret, RetT, Env2), Env2),
     {E#e_lambda{params = TypedParams, body = TypedBody, type = T}, T,
-     Env4#env{vars = Env#env.vars, effect = Env#env.effect, ann_vars = Env#env.ann_vars}};
-infer(#e_if{} = E, Env) ->
+     Env4#env{vars = Env#env.vars, effect = Env#env.effect, ann_vars = Env#env.ann_vars,
+              effect_origin = Env#env.effect_origin}};
+infer(E, Env) when is_record(E, e_if); is_record(E, e_match); is_record(E, e_receive) ->
     {T, St} = ern_types:fresh(Env#env.st),
-    check(E, T, undefined, undefined, Env#env{st = St});
-infer(#e_match{} = E, Env) ->
-    {T, St} = ern_types:fresh(Env#env.st),
-    check(E, T, undefined, undefined, Env#env{st = St});
-infer(#e_receive{} = E, Env) ->
-    {T, St} = ern_types:fresh(Env#env.st),
-    check(E, T, undefined, undefined, Env#env{st = St}).
+    check_expr(E, T, undefined, undefined, Env#env{st = St}).
 
 %% Report §11.5: an expression checked against an expected type. The
 %% expectation is pushed into branches, clauses, and a block's last
 %% statement, so a mismatch is reported at the leaf; Context names the
 %% rule and Origin the span that fixed the expectation, or undefined when
 %% it is the first branch, which then becomes the origin for the rest.
-check(#e_if{condition = C, then_branch = Th, else_branch = El} = E, Expected, Context, Origin,
-      Env) ->
-    {TypedC, _, Env1} = check(C, ?BOOL, "the condition of `if`", undefined, Env),
-    {TypedTh, _, Env2} = check(Th, Expected, Context, Origin, Env1),
+check_expr(#e_if{condition = C, then_branch = Th, else_branch = El} = E, Expected, Context,
+           Origin, Env) ->
+    {TypedC, _, Env1} = check_expr(C, ?BOOL, "the condition of `if`", undefined, Env),
+    {TypedTh, _, Env2} = check_expr(Th, Expected, Context, Origin, Env1),
     {Context1, Origin1} = sibling(Context, Origin, "the branches of `if` must have one type",
                                   Th, "the then branch", Expected, Env2),
-    {TypedEl, _, Env3} = check(El, Expected, Context1, Origin1, Env2),
+    {TypedEl, _, Env3} = check_expr(El, Expected, Context1, Origin1, Env2),
     {E#e_if{condition = TypedC, then_branch = TypedTh, else_branch = TypedEl, type = Expected},
      Expected, Env3};
-check(#e_match{scrutinee = S, clauses = Clauses} = E, Expected, Context, Origin, Env) ->
+check_expr(#e_match{scrutinee = S, clauses = Clauses} = E, Expected, Context, Origin, Env) ->
     {TypedS, ST, Env1} = infer(S, Env),
     ScrutOrigin = {node_span(S), "the value matched has type "
                                  ++ ern_types:format(ST, Env1#env.st)},
     {TypedClauses, Env2} = check_clauses(match, Clauses, ST, ScrutOrigin, Expected, Context, Origin,
                                          "the clauses must have one type", Env1),
     {E#e_match{scrutinee = TypedS, clauses = TypedClauses, type = Expected}, Expected, Env2};
-check(#e_receive{pos = Pos, clauses = Clauses, 'after' = After} = E, Expected, Context,
-      Origin, Env) ->
+check_expr(#e_receive{pos = Pos, clauses = Clauses, 'after' = After} = E, Expected, Context,
+           Origin, Env) ->
     {MailboxT, Env1} = mailbox_type(Pos, Env),
     case Clauses =/= [] andalso ern_types:resolve(MailboxT, Env1#env.st) =:= ?NEVER of
         true -> fail(Pos, "a function with mailbox Never cannot receive", [],
@@ -1571,8 +1577,8 @@ check(#e_receive{pos = Pos, clauses = Clauses, 'after' = After} = E, Expected, C
         case After of
             undefined -> {undefined, Env2};
             #after_clause{timeout = Timeout, body = Body} = A ->
-                {TypedTimeout, _, En1} = check(Timeout, ?INT, "the `after` time is in"
-                                               " milliseconds", undefined, Env2),
+                {TypedTimeout, _, En1} = check_expr(Timeout, ?INT, "the `after` time is in"
+                                                    " milliseconds", undefined, Env2),
                 {Context1, Origin1} =
                     case {Clauses, Origin} of
                         {[#clause{body = First} | _], undefined} ->
@@ -1580,14 +1586,14 @@ check(#e_receive{pos = Pos, clauses = Clauses, 'after' = After} = E, Expected, C
                                     " type", First, "the first clause", Expected, En1);
                         _ -> {default(Context, "the `after` body"), Origin}
                     end,
-                {TypedBody, _, En3} = check(Body, Expected, Context1, Origin1, En1),
+                {TypedBody, _, En3} = check_expr(Body, Expected, Context1, Origin1, En1),
                 {A#after_clause{timeout = TypedTimeout, body = TypedBody}, En3}
         end,
     {E#e_receive{clauses = TypedClauses, 'after' = TypedAfter, type = Expected}, Expected, Env3};
-check(#e_block{pos = Pos, stmts = Stmts} = E, Expected, Context, Origin, Env) ->
+check_expr(#e_block{pos = Pos, stmts = Stmts} = E, Expected, Context, Origin, Env) ->
     {TypedStmts, T, Env1} = infer_block(Stmts, Pos, {Expected, Context, Origin}, Env),
     {E#e_block{stmts = TypedStmts, type = T}, T, Env1#env{vars = Env#env.vars}};
-check(E, Expected, Context, Origin, Env) ->
+check_expr(E, Expected, Context, Origin, Env) ->
     {Typed, T, Env1} = infer(E, Env),
     Env2 = unify_at(node_span(E), Expected, T, Env1, default(Context, "this expression"),
                     Origin),
@@ -1596,21 +1602,24 @@ check(E, Expected, Context, Origin, Env) ->
 %% Report §6.3: a receive guard is a guard expression, since it selects a
 %% message without removing it.
 receive_guard(G, Env) ->
-    guard_expression(G, Env) orelse
-        fail(node_span(G), "a `receive` guard is a comparison of variables, literals, and nullary"
-                           " constructors, joined by `&&` and `||`, and calls nothing", [],
-             "receive the message and `match` it").
+    case guard_expression(G, Env) of
+        true -> ok;
+        false -> fail(node_span(G), "a `receive` guard is a comparison of variables, literals,"
+                                    " and nullary constructors, joined by `&&` and `||`, and"
+                                    " calls nothing", [], "receive the message and `match` it")
+    end.
 
 guard_expression(#e_binop{op = Op, left = L, right = R}, Env) when Op =:= '&&'; Op =:= '||' ->
     guard_expression(L, Env) andalso guard_expression(R, Env);
+guard_expression(#e_binop{op = Op, left = L, right = R}, Env) when Op =:= '=='; Op =:= '!=' ->
+    guard_operand(L, Env) andalso guard_operand(R, Env);
 guard_expression(#e_binop{pos = Pos, op = Op, left = L, right = R}, Env)
-  when Op =:= '=='; Op =:= '!='; Op =:= '<'; Op =:= '<='; Op =:= '>'; Op =:= '>=' ->
-    lists:member(Op, ?ORDER) andalso
-        (case ern_types:resolve(node_type(L), Env#env.st) of
-             {tcon, [T], []} when T =:= 'Int'; T =:= 'Float'; T =:= 'String'; T =:= 'Char' -> ok;
-             T -> fail(Pos, "a `receive` guard orders only Int, Float, String, and Char, not "
-                            ++ ern_types:format(T, Env#env.st))
-         end),
+  when Op =:= '<'; Op =:= '<='; Op =:= '>'; Op =:= '>=' ->
+    case ern_types:resolve(node_type(L), Env#env.st) of
+        T when T =:= ?INT; T =:= ?FLOAT; T =:= ?STRING; T =:= ?CHAR -> ok;
+        T -> fail(Pos, "a `receive` guard orders only Int, Float, String, and Char, not "
+                       ++ ern_types:format(T, Env#env.st))
+    end,
     guard_operand(L, Env) andalso guard_operand(R, Env);
 guard_expression(#e_lit{kind = bool}, _) -> true;
 guard_expression(#e_var{path = [], name = N}, #env{vars = Vs}) -> maps:is_key(N, Vs);
@@ -1635,11 +1644,12 @@ default(undefined, Text) -> Text;
 default(Context, _) -> Context.
 
 infer_list(Es, Env) ->
-    {Typed, {Ts, Env1}} = lists:mapfoldl(fun(X, {Acc, En}) ->
-                                             {TX, XT, En1} = infer(X, En),
-                                             {TX, {Acc ++ [XT], En1}}
-                                         end, {[], Env}, Es),
-    {Typed, Ts, Env1}.
+    {Typed, Env1} = lists:mapfoldl(fun(X, En) ->
+                                       {TX, XT, En1} = infer(X, En),
+                                       {{TX, XT}, En1}
+                                   end, Env, Es),
+    {TypedEs, Ts} = lists:unzip(Typed),
+    {TypedEs, Ts, Env1}.
 
 callee_name(#e_var{path = Path, name = Name}) -> format_qname(Path ++ [Name]);
 callee_name(_) -> "the callee".
@@ -1788,13 +1798,16 @@ check_clauses(Kind, Clauses, ScrutT, ScrutOrigin, Expected, Context, Origin, Sib
                                                                  "a guard is pure (report §5.9)",
                                                                  "compute the value before"
                                                                  " the match"}},
-                              {TG, _, En3a} = check(G, ?BOOL, "a guard is a Bool", undefined,
-                                                    Guarded),
-                              Kind =:= rcv andalso receive_guard(TG, En3a),
+                              {TG, _, En3a} = check_expr(G, ?BOOL, "a guard is a Bool",
+                                                         undefined, Guarded),
+                              case Kind of
+                                  rcv -> receive_guard(TG, En3a);
+                                  match -> ok
+                              end,
                               {TG, En3a#env{effect = En3#env.effect,
                                             effect_origin = En3#env.effect_origin}}
                       end,
-                  {TypedB, _, En5} = check(B, Expected, Ctx, Or, En4),
+                  {TypedB, _, En5} = check_expr(B, Expected, Ctx, Or, En4),
                   {Ctx1, Or1} = sibling(Ctx, Or, SiblingContext, B, "the first clause", Expected,
                                         En5),
                   {C#clause{pattern = TypedP, guard = TypedG, body = TypedB},
@@ -1869,7 +1882,7 @@ infer_stmts([Last], _Pos, Expect, Env, _Fns, Acc) ->
         _ ->
             {Typed, T, Env1} = case Expect of
                                    undefined -> infer(Last, Env);
-                                   {Ex, Ctx, Or} -> check(Last, Ex, Ctx, Or, Env)
+                                   {Ex, Ctx, Or} -> check_expr(Last, Ex, Ctx, Or, Env)
                                end,
             {lists:reverse([Typed | Acc]), T, Env1}
     end;
@@ -1884,7 +1897,7 @@ infer_stmts([#fn_decl{name = N} = D | Rest], Pos, Expect, Env, Local, Acc) ->
     Env2 = post_checks(Post, Env2a),
     Env3 = Env2#env{st = ern_types:leave(Env2#env.st)},
     Local1 = Local#{checked => [N | maps:get(checked, Local)],
-                    waiting => maps:get(waiting, Local) ++ [N]},
+                    waiting => [N | maps:get(waiting, Local)]},
     {Env4, Local2} = release(Env3, Local1),
     infer_stmts(Rest, Pos, Expect, Env4, Local2, [TypedD | Acc]);
 infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '=', expr = X} = B | Rest],
@@ -1895,8 +1908,8 @@ infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '=', expr = X} = 
             _ ->
                 {AT, _, St} = ann(Ann, #{}, Env),
                 En = Env#env{st = St},
-                check(X, AT, "the value does not have the declared type", ann_origin(Ann, AT, En),
-                      En)
+                check_expr(X, AT, "the value does not have the declared type",
+                           ann_origin(Ann, AT, En), En)
         end,
     {TypedP, PT, Bindings, Env2} = check_pattern(P, Env1),
     irrefutable(P, Env2) orelse fail(BPos, "a `let` pattern must be irrefutable", [],
@@ -1985,9 +1998,7 @@ pat(#p_var{name = N} = P, Env) ->
     {T, St} = ern_types:fresh(Env#env.st),
     {P#p_var{type = T}, T, [{N, T}], Env#env{st = St}};
 pat(#p_lit{kind = Kind} = P, Env) ->
-    T = case Kind of
-            int -> ?INT; float -> ?FLOAT; char -> ?CHAR; string -> ?STRING; bool -> ?BOOL
-        end,
+    T = lit_type(Kind),
     {P#p_lit{type = T}, T, [], Env};
 pat(#p_con{pos = Pos, path = Path, name = Name, args = Args} = P, Env) ->
     CI = lookup_con(Pos, Path, Name, Env),
@@ -2011,18 +2022,19 @@ pat(#p_con{pos = Pos, path = Path, name = Name, args = Args} = P, Env) ->
             FieldNames = [N || #field_pat{name = N} <- FieldPats],
             length(lists:usort(FieldNames)) =:= length(FieldNames) orelse
                 fail(Pos, "a field is matched twice"),
-            {TypedFPs, {Bs, Env2}} =
+            {Typed, Env2} =
                 lists:mapfoldl(
-                  fun(#field_pat{pos = FPos, name = N, pattern = Sub} = FP, {BAcc, En}) ->
+                  fun(#field_pat{pos = FPos, name = N, pattern = Sub} = FP, En) ->
                           lists:member(N, Names) orelse
                               fail(FPos, atom_to_list(Name) ++ " has no field "
                                          ++ atom_to_list(N)),
                           FT = lists:nth(index_of(N, Names), FTs),
                           {TypedSub, SubT, SubBs, En1} = pat(Sub, En),
                           En2 = unify_at(FPos, FT, SubT, En1, "field " ++ atom_to_list(N)),
-                          {FP#field_pat{pattern = TypedSub}, {BAcc ++ SubBs, En2}}
-                  end, {[], Env1}, FieldPats),
-            {P#p_con{args = {named, TypedFPs}, type = RT}, RT, Bs, Env2};
+                          {{FP#field_pat{pattern = TypedSub}, SubBs}, En2}
+                  end, Env1, FieldPats),
+            {TypedFPs, Bs} = lists:unzip(Typed),
+            {P#p_con{args = {named, TypedFPs}, type = RT}, RT, lists:append(Bs), Env2};
         {{named, _}, none} ->
             {tfn, _, pure, RT} = CT,
             {P#p_con{type = RT}, RT, [], Env1};
@@ -2031,23 +2043,24 @@ pat(#p_con{pos = Pos, path = Path, name = Name, args = Args} = P, Env) ->
                       ++ atom_to_list(Name) ++ "(field = p, ...)")
     end;
 pat(#p_tuple{elems = Es} = P, Env) ->
-    {TypedEs, {Ts, Bs, Env1}} = lists:mapfoldl(fun(E, {TAcc, BAcc, En}) ->
-                                                   {TE, T, B, En1} = pat(E, En),
-                                                   {TE, {TAcc ++ [T], BAcc ++ B, En1}}
-                                               end, {[], [], Env}, Es),
+    {Typed, Env1} = lists:mapfoldl(fun(E, En) ->
+                                       {TE, T, B, En1} = pat(E, En),
+                                       {{TE, T, B}, En1}
+                                   end, Env, Es),
+    {TypedEs, Ts, Bs} = lists:unzip3(Typed),
     T = {ttuple, Ts},
-    {P#p_tuple{elems = TypedEs, type = T}, T, Bs, Env1};
+    {P#p_tuple{elems = TypedEs, type = T}, T, lists:append(Bs), Env1};
 pat(#p_list{pos = Pos, elems = Es} = P, Env) ->
     {ElemT, St} = ern_types:fresh(Env#env.st),
-    {TypedEs, {Bs, Env1}} = lists:mapfoldl(fun(E, {BAcc, En}) ->
-                                               {TE, T, B, En1} = pat(E, En),
-                                               En2 = unify_at(Pos, ElemT, T, En1,
-                                                              "list elements must have one"
-                                                              " type"),
-                                               {TE, {BAcc ++ B, En2}}
-                                           end, {[], Env#env{st = St}}, Es),
+    {Typed, Env1} = lists:mapfoldl(fun(E, En) ->
+                                       {TE, T, B, En1} = pat(E, En),
+                                       En2 = unify_at(Pos, ElemT, T, En1,
+                                                      "list elements must have one type"),
+                                       {{TE, B}, En2}
+                                   end, Env#env{st = St}, Es),
+    {TypedEs, Bs} = lists:unzip(Typed),
     T = {tcon, ['List'], [ElemT]},
-    {P#p_list{elems = TypedEs, type = T}, T, Bs, Env1};
+    {P#p_list{elems = TypedEs, type = T}, T, lists:append(Bs), Env1};
 pat(#p_cons{pos = Pos, head = H, tail = Tl} = P, Env) ->
     {TypedH, HT, HBs, Env1} = pat(H, Env),
     {TypedTl, TlT, TlBs, Env2} = pat(Tl, Env1),
@@ -2088,7 +2101,8 @@ pat(#p_bits{pos = Pos, segments = Segs} = P, Env) ->
 bit_segment(#bit_seg{pos = Pos, value = V, specs = Specs} = S, construct, Env) ->
     Spec = spec_of(Pos, Specs),
     {TypedSpecs, Env1} = size_expr(Specs, Env),
-    {TypedV, _, Env2} = check(V, segment_type(Spec), segment_context(Spec), undefined, Env1),
+    {TypedV, _, Env2} = check_expr(V, segment_type(Spec), segment_context(Spec), undefined,
+                                   Env1),
     {S#bit_seg{value = TypedV, specs = TypedSpecs}, Env2}.
 
 bit_pattern(#bit_seg{pos = Pos, value = V, specs = Specs} = S, Bindings, Env) ->
@@ -2114,7 +2128,8 @@ bit_pattern(#bit_seg{pos = Pos, value = V, specs = Specs} = S, Bindings, Env) ->
 
 size_expr(Specs, Env) ->
     lists:mapfoldl(fun({size, E}, En) ->
-                           {TE, _, En1} = check(E, ?INT, "the size of a segment", undefined, En),
+                           {TE, _, En1} = check_expr(E, ?INT, "the size of a segment",
+                                                     undefined, En),
                            {{size, TE}, En1};
                       (Other, En) ->
                            {Other, En}
@@ -2165,9 +2180,14 @@ segment_spec(Specs) ->
                    S -> S
                end,
         Utf = lists:member(Kind, [utf8, utf16, utf32]),
-        Utf andalso (maps:is_key(size, Spec) orelse maps:is_key(unit, Spec)) andalso
-            throw("a utf segment has no size or unit"),
-        Unit >= 1 andalso Unit =< 256 orelse throw("unit is 1 to 256 on this runtime"),
+        case Utf andalso (maps:is_key(size, Spec) orelse maps:is_key(unit, Spec)) of
+            true -> throw("a utf segment has no size or unit");
+            false -> ok
+        end,
+        case Unit >= 1 andalso Unit =< 256 of
+            true -> ok;
+            false -> throw("unit is 1 to 256 on this runtime")
+        end,
         case {Kind, Size} of
             {float, {const, N}} when N =/= 16, N =/= 32, N =/= 64 ->
                 throw("a float segment is 16, 32, or 64 bits");
@@ -2304,10 +2324,13 @@ lookup_value(Pos, Path, Name, #env{ns = Ns, local_values = LV} = Env) ->
             %% declares T, and the module M.T's `name` otherwise; only one of
             %% the two can exist, a module namespace may not coincide with a
             %% type-member namespace
-            case lists:prefix(Ns, Path) andalso length(Path) =:= length(Ns) + 1
-                 andalso own_member(lists:last(Path), Name, Env) of
+            Own = case own_type_path(Path, Ns) of
+                      true -> own_member(lists:last(Path), Name, Env);
+                      false -> error
+                  end,
+            case Own of
                 {ok, Q} -> local_global(Q, Env);
-                _ -> lookup_global(Pos, Path ++ [Name], Env)
+                error -> lookup_global(Pos, Path ++ [Name], Env)
             end
     end.
 
@@ -2354,6 +2377,9 @@ lookup_global(Pos, Q, #env{globals = Gs} = Env) ->
         _ -> fail(Pos, "unknown name " ++ format_qname(Q))
     end.
 
+%% A constructor as a name written at Pos, `C` or `M.C`, names it (report
+%% §4.2, §4.4): the error for one unknown or not visible here is thrown.
+-spec lookup_con(ern_lexer:pos(), [atom()], atom(), env()) -> #cinfo{}.
 lookup_con(Pos, [], Name, #env{local_cons = LC, cons = Cs} = Env) ->
     case LC of
         #{Name := Q} -> maps:get(Q, Cs);
@@ -2389,6 +2415,11 @@ lookup_con(Pos, Path, Name, #env{cons = Cs, types = Types, local_types = LT}) ->
             end;
         _ -> fail(Pos, "unknown constructor " ++ format_qname(Q))
     end.
+
+%% A constructor by its qualified name, one a checked pattern or a type's
+%% own list of constructors gave, so known and not a name to resolve.
+-spec con_info([atom()], env()) -> #cinfo{}.
+con_info(QName, #env{cons = Cs}) -> maps:get(QName, Cs).
 
 %%
 %% Abstract type signatures (report §4.4); the ownership rule is `ownership/2`
@@ -2477,12 +2508,10 @@ private_type(D, Q) ->
           help = "export " ++ atom_to_list(Name) ++ ", or declare it `abstract type` so that"
                  " its constructors stay private (§4.4)"}.
 
-declared_text(#fn_decl{owner = O, name = N}) -> local_name(O, N);
-declared_text(#let_decl{owner = O, name = N}) -> local_name(O, N);
-declared_text(#foreign_fn_decl{owner = O, name = N}) -> local_name(O, N);
 declared_text(#type_decl{name = N}) -> atom_to_list(N);
 declared_text(#abstract_decl{type = #type_decl{name = N}}) -> atom_to_list(N);
-declared_text(#foreign_type_decl{name = N}) -> atom_to_list(N).
+declared_text(#foreign_type_decl{name = N}) -> atom_to_list(N);
+declared_text(D) -> decl_name(D).
 
 scheme_type(#scheme{type = T}, Env) -> resolve_type(T, Env);
 scheme_type(_, _) -> pure.

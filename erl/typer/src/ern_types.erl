@@ -3,12 +3,12 @@
 %% is in #st{} and threaded; nothing is mutated.
 -module(ern_types).
 
--export([new/0, fresh/1, fresh/2, fresh_named/2, fresh_effect/1, flags/2, var_level/2, add_flag/3,
-         enter/1, leave/1, level/1,
-         resolve/2, zonk/2, unify/3, occurs_free/2,
-         generalize/2, generalize/3, instantiate/2, mono/1, free_vars/2,
-         value_vars/1, effect_vars/1, mismatch_pair/3,
-         format/2, format_scheme/2, format_call/4, format_error/1, set_scope/4]).
+-export([new/0, fresh/1, fresh/2, fresh_named/2, fresh_effect/1, flags/2, add_flag/3,
+         enter/1, leave/1,
+         resolve/2, zonk/2, unify/3, free_vars/2,
+         mono/1, generalize/2, generalize/3, instantiate/2,
+         mismatch_pair/3, format/2, value_vars/1, effect_vars/1, set_scope/4,
+         format_scheme/2, format_call/4, format_error/1]).
 
 -export_type([st/0, type/0, effect/0, qname/0, id/0, flags/0]).
 
@@ -57,9 +57,6 @@ fresh_effect(St) -> fresh(St, []).
 -spec flags(id(), st()) -> flags().
 flags(Id, #st{vars = Vs}) -> (maps:get(Id, Vs))#tv.flags.
 
--spec var_level(id(), st()) -> non_neg_integer().
-var_level(Id, #st{vars = Vs}) -> (maps:get(Id, Vs))#tv.level.
-
 -spec add_flag(type(), eq | process_only | no_reply, st()) -> st().
 add_flag(T, Flag, St) ->
     case resolve(T, St) of
@@ -76,9 +73,6 @@ enter(#st{level = L} = St) -> St#st{level = L + 1}.
 
 -spec leave(st()) -> st().
 leave(#st{level = L} = St) -> St#st{level = L - 1}.
-
--spec level(st()) -> non_neg_integer().
-level(#st{level = L}) -> L.
 
 %%
 %% Substitution
@@ -210,10 +204,6 @@ free_vars(T, St, Acc) ->
         {tfn, Ps, E, R} -> lists:foldl(fun(X, Ac) -> free_vars(X, St, Ac) end, Acc, Ps ++ [E, R]);
         pure -> Acc
     end.
-
--spec occurs_free(id(), type() | pure) -> boolean().
-occurs_free(Id, T) ->
-    lists:member(Id, free_vars(T, #st{})).
 
 %%
 %% Schemes

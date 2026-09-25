@@ -28,7 +28,7 @@ check(Params, Body, FnT, Env) ->
     positions(Body, Env),
     Linear = [N || P <- Params, N <- linear_bindings(P#param.pattern, Env)],
     Uses = uses(Body, Linear, Env),
-    lists:foreach(fun(N) -> exactly_once(N, Uses, element(2, Body), Env) end, Linear),
+    lists:foreach(fun(N) -> exactly_once(N, Uses, element(2, Body)) end, Linear),
     %% polymorphic parameter variables used other than once
     Elements = elements(FnT, ern_typecheck:type_state(Env)),
     lists:foldl(fun({N, T}, E) ->
@@ -43,7 +43,8 @@ check(Params, Body, FnT, Env) ->
                             end;
                         _ -> E
                     end
-                end, Env, [B || P <- Params, B <- var_bindings(P#param.pattern)]).
+                end, Env, [B || P <- Params,
+                                B <- ern_typecheck:typed_pattern_bindings(P#param.pattern)]).
 
 %% The type variables that are elements of a container in a parameter
 %% type or the result type, directly or through tuples and containers.
@@ -66,17 +67,6 @@ within(T, In, St) ->
         {ttuple, Es} -> lists:append([within(E, In, St) || E <- Es]);
         _ -> []
     end.
-
-var_bindings(#p_var{name = N, type = T}) -> [{N, T}];
-var_bindings(#p_as{name = N, type = T, pattern = P}) -> [{N, T} | var_bindings(P)];
-var_bindings(#p_con{args = {positional, P}}) -> var_bindings(P);
-var_bindings(#p_con{args = {named, FPs}}) ->
-    lists:append([var_bindings(P) || #field_pat{pattern = P} <- FPs]);
-var_bindings(#p_tuple{elems = Es}) -> lists:append([var_bindings(E) || E <- Es]);
-var_bindings(#p_list{elems = Es}) -> lists:append([var_bindings(E) || E <- Es]);
-var_bindings(#p_cons{head = H, tail = T}) -> var_bindings(H) ++ var_bindings(T);
-var_bindings(#p_or{alts = [A | _]}) -> var_bindings(A);
-var_bindings(_) -> [].
 
 %% Would N pass the discipline if it were linear? A second use or a
 %% path mismatch throws; both mean no.
@@ -119,7 +109,8 @@ position(#p_con{pos = Pos, path = Path, name = Name, args = Args, type = T}, Env
             St0 = ern_typecheck:type_state(Env),
             {CT, St1} = ern_types:instantiate(Scheme, St0),
             {FieldTs, ResT} = case CT of {tfn, Fs, _, R} -> {Fs, R}; R -> {[], R} end,
-            St2 = case ern_types:unify(ResT, T, St1) of {ok, S} -> S; _ -> St1 end,
+            %% the pattern was checked as this constructor, so this unifies
+            {ok, St2} = ern_types:unify(ResT, T, St1),
             Env1 = ern_typecheck:set_type_state(St2, Env),
             case {Fields, Args} of
                 {positional, {positional, #p_wild{}}} ->
@@ -136,7 +127,6 @@ position(#p_con{pos = Pos, path = Path, name = Name, args = Args, type = T}, Env
                 _ -> ok
             end
     end;
-position(#p_or{alts = Alts}, Env) -> lists:foreach(fun(A) -> position(A, Env) end, Alts);
 position(_, _) -> ok.
 
 wild_field(Pos, Name, [FT], Env) ->
@@ -220,16 +210,16 @@ uses(#fn_decl{pos = Pos, body = Body}, Linear, Env) ->
                                            ++ " is captured by a local function"})
     end;
 uses(#e_if{pos = Pos, condition = C, then_branch = T, else_branch = E}, Linear, Env) ->
-    seq([uses(C, Linear, Env), branches(Pos, [uses(T, Linear, Env), uses(E, Linear, Env)], Env)]);
+    seq([uses(C, Linear, Env), branches(Pos, [uses(T, Linear, Env), uses(E, Linear, Env)])]);
 uses(#e_match{pos = Pos, scrutinee = S, clauses = Clauses}, Linear, Env) ->
-    seq([uses(S, Linear, Env), branches(Pos, [clause_uses(C, Linear, Env) || C <- Clauses], Env)]);
+    seq([uses(S, Linear, Env), branches(Pos, [clause_uses(C, Linear, Env) || C <- Clauses])]);
 uses(#e_receive{pos = Pos, clauses = Clauses, 'after' = After}, Linear, Env) ->
     AfterUses = case After of
                     undefined -> [];
                     #after_clause{timeout = T, body = B} ->
                         [seq([uses(T, Linear, Env), uses(B, Linear, Env)])]
                 end,
-    branches(Pos, [clause_uses(C, Linear, Env) || C <- Clauses] ++ AfterUses, Env);
+    branches(Pos, [clause_uses(C, Linear, Env) || C <- Clauses] ++ AfterUses);
 uses(#e_block{stmts = Stmts}, Linear, Env) ->
     block_uses(Stmts, Linear, Env, []);
 uses(Node, Linear, Env) when is_tuple(Node) ->
@@ -243,34 +233,35 @@ clause_uses(#clause{pos = Pos, pattern = P, guard = G, body = B}, Linear, Env) -
     Inner = linear_bindings(P, Env),
     GuardUses = case G of undefined -> []; _ -> uses(G, Linear ++ Inner, Env) end,
     All = seq([GuardUses, uses(B, Linear ++ Inner, Env)]),
-    lists:foreach(fun(N) -> exactly_once(N, All, Pos, Env) end, Inner),
+    lists:foreach(fun(N) -> exactly_once(N, All, Pos) end, Inner),
     [U || {N, _} = U <- All, not lists:member(N, Inner)].
 
 block_uses([], _Linear, _Env, Acc) ->
     seq(lists:reverse(Acc));
-block_uses([#binding{pos = Pos, pattern = #p_var{name = F}, expr = #e_lambda{} = L} | Rest],
+block_uses([#binding{pos = Pos, pattern = #p_var{name = F}, expr = #e_lambda{} = L} = B | Rest],
            Linear, Env, Acc) ->
     %% a let bound to a capturing lambda is a linear binding of the lambda
     case captures(L, Linear, Env) of
         [] ->
-            block_uses([#binding{pos = Pos, pattern = #p_var{name = F}, expr = L} | Rest],
-                       Linear, Env, Acc, plain);
+            binding_uses(B, Rest, Linear, Env, Acc);
         Caps ->
             RestUses = block_uses(Rest, [{lambda, F} | Linear], Env, []),
-            exactly_once(F, RestUses, Pos, Env),
+            exactly_once(F, RestUses, Pos),
             Outer = [U || {N, _} = U <- RestUses, N =/= F],
             seq(lists:reverse([Outer, Caps | Acc]))
     end;
 block_uses([#binding{} = B | Rest], Linear, Env, Acc) ->
-    block_uses([B | Rest], Linear, Env, Acc, plain);
+    binding_uses(B, Rest, Linear, Env, Acc);
 block_uses([S | Rest], Linear, Env, Acc) ->
     block_uses(Rest, Linear, Env, [uses(S, Linear, Env) | Acc]).
 
-block_uses([#binding{pos = Pos, pattern = P, expr = X} | Rest], Linear, Env, Acc, plain) ->
+%% A `let`: each linear name its pattern binds is consumed once by the rest
+%% of the block.
+binding_uses(#binding{pos = Pos, pattern = P, expr = X}, Rest, Linear, Env, Acc) ->
     XUses = uses(X, Linear, Env),
     Inner = linear_bindings(P, Env),
     RestUses = block_uses(Rest, Linear ++ Inner, Env, []),
-    lists:foreach(fun(N) -> exactly_once(N, RestUses, Pos, Env) end, Inner),
+    lists:foreach(fun(N) -> exactly_once(N, RestUses, Pos) end, Inner),
     Outer = [U || {N, _} = U <- RestUses, not lists:member(N, Inner)],
     seq(lists:reverse([Outer, XUses | Acc])).
 
@@ -280,7 +271,7 @@ block_uses([#binding{pos = Pos, pattern = P, expr = X} | Rest], Linear, Env, Acc
 captures(#e_lambda{pos = Pos, params = Params, body = Body}, Linear, Env) ->
     Inner = [N || P <- Params, N <- linear_bindings(P#param.pattern, Env)],
     BodyUses = uses(Body, Linear ++ Inner, Env),
-    lists:foreach(fun(N) -> exactly_once(N, BodyUses, Pos, Env) end, Inner),
+    lists:foreach(fun(N) -> exactly_once(N, BodyUses, Pos) end, Inner),
     [U || {N, _} = U <- BodyUses, not lists:member(N, Inner)].
 
 %% Sequential composition: a second use of a name is an error there.
@@ -299,9 +290,9 @@ seq(Lists) ->
                 end, [], Lists).
 
 %% Branches must consume the same names.
-branches(_Pos, [], _Env) ->
+branches(_Pos, []) ->
     [];
-branches(Pos, [First | Others], _Env) ->
+branches(Pos, [First | Others]) ->
     Names = lists:usort([N || {N, _} <- First]),
     lists:foreach(fun(Other) ->
                       case lists:usort([N || {N, _} <- Other]) of
@@ -316,7 +307,7 @@ branches(Pos, [First | Others], _Env) ->
                   end, Others),
     First.
 
-exactly_once(N, Uses, Pos, _Env) ->
+exactly_once(N, Uses, Pos) ->
     case count(N, Uses) of
         1 -> ok;
         0 -> throw({type_error, Pos, "the reply-carrying value " ++ atom_to_list(N)
@@ -327,20 +318,9 @@ exactly_once(N, Uses, Pos, _Env) ->
 count(N, Uses) -> length([x || {M, _} <- Uses, M =:= N]).
 
 %% Variables a pattern binds to reply-carrying values.
-linear_bindings(#p_var{name = N, type = T}, Env) ->
-    case ern_typecheck:is_reply_carrying(T, Env) of true -> [N]; false -> [] end;
-linear_bindings(#p_as{name = N, type = T, pattern = P}, Env) ->
-    Own = case ern_typecheck:is_reply_carrying(T, Env) of true -> [N]; false -> [] end,
-    Own ++ linear_bindings(P, Env);
-linear_bindings(#p_con{args = {positional, P}}, Env) -> linear_bindings(P, Env);
-linear_bindings(#p_con{args = {named, FPs}}, Env) ->
-    lists:append([linear_bindings(P, Env) || #field_pat{pattern = P} <- FPs]);
-linear_bindings(#p_tuple{elems = Es}, Env) -> lists:append([linear_bindings(E, Env) || E <- Es]);
-linear_bindings(#p_list{elems = Es}, Env) -> lists:append([linear_bindings(E, Env) || E <- Es]);
-linear_bindings(#p_cons{head = H, tail = T}, Env) ->
-    linear_bindings(H, Env) ++ linear_bindings(T, Env);
-linear_bindings(#p_or{alts = [A | _]}, Env) -> linear_bindings(A, Env);
-linear_bindings(_, _) -> [].
+linear_bindings(P, Env) ->
+    [N || {N, T} <- ern_typecheck:typed_pattern_bindings(P),
+          ern_typecheck:is_reply_carrying(T, Env)].
 
 walk(F, Node) when is_tuple(Node), is_atom(element(1, Node)) ->
     F(Node),

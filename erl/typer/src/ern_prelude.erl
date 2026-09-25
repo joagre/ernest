@@ -7,8 +7,8 @@
 %% compiled interfaces, stdlib_ifaces/0.
 -module(ern_prelude).
 
--export([builtin_types/0, declared_types/0, stdlib_types/0, values/0, process_only/0,
-         eq_vars/1, stdlib_ifaces/0, docs/0]).
+-export([builtin_types/0, declared_types/0, stdlib_types/0, process_only/0, values/0, docs/0,
+         stdlib_ifaces/0]).
 
 -include_lib("typer/include/ern_types.hrl").
 -include_lib("parser/include/ern_ast.hrl").
@@ -347,25 +347,12 @@ declared_types() ->
 stdlib_types() ->
     [].
 
-%% Primitives whose effect variables are process-only (report §3.9), and the
-%% Io functions, which are built on send.
+%% The primitives among values/0 whose effect variables are process-only
+%% (report §3.9).
 -spec process_only() -> [[atom()]].
 process_only() ->
     [[send], [spawn], ['Address', call], ['Address', callForever], [answer], [monitor],
-     [kill], [remote],
-     ['Clock', now], ['Clock', alarm], ['Clock', alarmAt]].
-
-%% Type variables that carry the equality constraint (report §3.10): Map
-%% keys, Set elements, and the List functions that compare elements.
--spec eq_vars([atom()]) -> [atom()].
-eq_vars(['Map' | _]) -> [k];
-eq_vars(['Set', map]) -> [a, b];
-eq_vars(['Set', filterMap]) -> [a, b];
-eq_vars(['Set' | _]) -> [a];
-eq_vars(['List', contains]) -> [a];
-eq_vars(['List', remove]) -> [a];
-eq_vars(['List', unique]) -> [a];
-eq_vars(_) -> [].
+     [kill], [remote]].
 
 %% Qualified name, type text, and documentation, or `module` for an
 %% operation its type's module documents (report §9).

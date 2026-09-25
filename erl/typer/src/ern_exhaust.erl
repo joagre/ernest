@@ -11,6 +11,8 @@
 
 %% Simplified patterns: wild | {con, key(), [pattern()]}
 %%   key(): {con, QName} | {tuple, N} | nil | cons | {bool, B} | {lit, V}
+%% QName is the constructor's qualified name, as the checker keeps it, so a
+%% constructor is read back by it with no name to resolve (report §4.2).
 
 -spec check(tuple(), ern_typecheck:env()) -> ok.
 check(Node, Env) ->
@@ -140,7 +142,7 @@ complete([{tuple, _} = K | _], _Env) ->
 complete([K | _] = Keys, _Env) when K =:= nil; K =:= cons ->
     missing([nil, cons], Keys);
 complete([{con, Q} | _] = Keys, Env) ->
-    #cinfo{type_qname = TQ} = con_info(Q, Env),
+    #cinfo{type_qname = TQ} = ern_typecheck:con_info(Q, Env),
     #tinfo{constructors = Cs} = ern_typecheck:lookup_type(TQ, Env),
     missing([{con, CQ} || #cinfo{qname = CQ} <- Cs], Keys).
 
@@ -150,18 +152,10 @@ missing(All, Keys) ->
         [M | _] -> {false, M}
     end.
 
-arity({con, Q}, Env) -> (con_info(Q, Env))#cinfo.tag_arity;
+arity({con, Q}, Env) -> (ern_typecheck:con_info(Q, Env))#cinfo.tag_arity;
 arity({tuple, N}, _) -> N;
 arity(cons, _) -> 2;
 arity(_, _) -> 0.
-
-%% Q is qualified, so a name of one segment is the prelude's, even where the
-%% module declares its own (report §4.2)
-con_info([Name], Env) ->
-    ern_typecheck:lookup_con({0, 0}, ['Prelude'], Name, Env);
-con_info(Q, Env) ->
-    Name = lists:last(Q),
-    ern_typecheck:lookup_con({0, 0}, lists:droplast(Q), Name, Env).
 
 %%
 %% Witness printing
@@ -175,7 +169,7 @@ show({con, {tuple, _}, Subs}, Env) -> ["#(", join([show(S, Env) || S <- Subs]), 
 show({con, nil, []}, _) -> "[]";
 show({con, cons, [H, T]}, Env) -> [show_atom(H, Env), " :: ", show(T, Env)];
 show({con, {con, Q}, Subs}, Env) ->
-    #cinfo{name = Name, fields = Fields} = con_info(Q, Env),
+    #cinfo{name = Name, fields = Fields} = ern_typecheck:con_info(Q, Env),
     case {Fields, Subs} of
         {none, []} -> atom_to_list(Name);
         {positional, [S]} -> [atom_to_list(Name), "(", show(S, Env), ")"];

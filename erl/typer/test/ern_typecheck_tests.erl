@@ -1036,6 +1036,51 @@ effect_placement_test() ->
     ?assertEqual("Io.println needs a process, and the lambda is pure", D6#diag.message),
     ?assertEqual("give the lambda a mailbox type with `with`", D6#diag.help).
 
+%% report §11.5, §3.4: a regression test. After a local fn or an annotated
+%% lambda, an effect error in the enclosing function names that function
+%% and labels its own annotation, not the nested definition's. Not
+%% covered: the other scopes that set the origin, a guard and a size
+%% expression, which effect_placement_test and the bitstring tests reach.
+effect_origin_is_restored_after_a_nested_definition_test() ->
+    D1 = diag("fn f() -> Unit = { fn g() -> Int = 1; receive { after 1 -> Unit } }\n"),
+    ?assertEqual("`receive` needs a process, and f is pure", D1#diag.message),
+    ?assertEqual([{{1, 11, {1, 15}}, "`-> Unit` with no `with` declares f pure"}],
+                 D1#diag.labels),
+    D2 = diag("fn f() -> Unit = { let g = fn(x : Int) -> Int = x; Io.println(\"x\") }\n"),
+    ?assertEqual("Io.println needs a process, and f is pure", D2#diag.message),
+    ?assertEqual("give f a mailbox type with `with`", D2#diag.help).
+
+%% report §4.8, §3.4: a regression test. An operator resolved at the end
+%% of its definition, once its operand type is known, calls its member
+%% under that definition's mailbox, for a top-level and a local fn alike.
+%% Not covered: `negate`, which takes the same path.
+deferred_operator_takes_the_definitions_mailbox_test() ->
+    V = "type V = V(Int)\nfn V.+(V(a), V(b)) -> V with Never = V(a + b)\n",
+    ?assertEqual(ok, ok(V ++ "fn f(x, y) -> V with Never = { let z = x + y; let V(_) = x; z }\n")),
+    ?assertEqual(ok, ok(V ++ "fn f() -> V with Never = {\n"
+                        "    fn g(x, y) = { let z = x + y; let V(_) = x; z };\n"
+                        "    g(V(1), V(2))\n"
+                        "}\n")),
+    D = diag(V ++ "fn f(x, y) -> V = { let z = x + y; let V(_) = x; z }\n"),
+    ?assertEqual("V.+ needs a process, and f is pure", D#diag.message),
+    ?assertEqual([{{3, 15, {3, 16}}, "`-> V` with no `with` declares f pure"}], D#diag.labels).
+
+%% report §3.10, §4.8: a regression test. An operator resolved at the end
+%% of its definition keeps its member's equality constraint, as one
+%% resolved at once does. Not covered: the no_reply restriction, which
+%% the same list carries.
+deferred_operator_keeps_its_members_equality_test() ->
+    B = "type Box(a) = Box(a)\n"
+        "fn Box.+(Box(x), Box(y)) -> Box(a) = if x == y then Box(x) else Box(y)\n",
+    Msg = "(Int) -> Int does not support equality (it contains a function or an address),"
+          " but it is compared here",
+    ?assertEqual(Msg, err(B ++ "fn f(p : Box((Int) -> Int), q) -> Box((Int) -> Int) = p + q\n")),
+    ?assertEqual(Msg, err(B ++ "fn f(p, q) -> Box((Int) -> Int) = {\n"
+                          "    let z = p + q;\n"
+                          "    let _ : Box((Int) -> Int) = p;\n"
+                          "    z\n"
+                          "}\n")).
+
 %%
 %% Bitstrings (report §5.11)
 %%
