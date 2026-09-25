@@ -76,7 +76,7 @@ export fn map(r : Either(e, a), f : (a) -> b with x) -> Either(e, b) with x =
 /// Either.mapLeft(Left("bad"), fn(s) = s <> "!")
 /// // => Left("bad!")
 /// ```
-export fn mapLeft(r : Either(e, a), g : (e) -> f with x) -> Either(f, a) with x =
+export fn mapLeft(r : Either(e, a), g : (e) -> b with x) -> Either(b, a) with x =
     match r { Left(c) -> Left(g(c)) | Right(v) -> Right(v) }
 
 /// The function's result for `Right`, or the `Left` unchanged without

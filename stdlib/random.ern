@@ -29,7 +29,8 @@
 /// runtime's value and belongs to the node that made it.
 export foreign type Seed
 
-/// The seed that number names; the same number gives the same sequence.
+/// The seed that number names; the same number gives the same sequence, and
+/// so do two numbers equal in their low 64 bits.
 export foreign fn seed(n : Int) -> Seed = "ern_random:seed/1"
 
 /// A number between 0 and the bound, both included, and the seed to draw

@@ -4,9 +4,9 @@
 /// holds a table reads and writes it: a table is state that processes share,
 /// which is why this is a library and not the standard library's (report
 /// §10). Keys are compared as the runtime compares its terms. Appendix D of
-/// the report is this library written out, as its example of a shim.
-/// `make` builds it into `build/libs/ets`, which a program puts on its load
-/// path with `--load-path`, when it is compiled and when it is run.
+/// the report shows this library, abridged, as its example of a shim. A
+/// program puts the library on its load path, when it is compiled and when
+/// it is run.
 ///
 /// ## Examples
 ///

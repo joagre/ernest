@@ -155,6 +155,11 @@ foreign fn power(base : Float, exponent : Float) -> Float = "ern_float:pow/2"
 
 /// `e` raised to `x`.
 ///
+/// ### Errors
+///
+/// Faults with `Fault("float arithmetic error")` when the result is not
+/// finite (report §3.1).
+///
 /// ### Examples
 ///
 /// ```ernest

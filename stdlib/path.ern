@@ -55,13 +55,15 @@ foreign fn segments(p : String) -> List(String) = "ern_path:split/1"
 /// #(Path.parent(Path("/etc/hosts")), Path.parent(Path("hosts")))
 /// // => #(Some(Path("/etc")), None)
 /// ```
-export fn parent(p : Path) -> Optional(Path) = {
-    let text = toString(p);
-    let up = dirname(text);
-    if up == text || up == "." then None else Some(Path(up))
+///
+/// ```ernest
+/// #(Path.parent(Path("a/b/")), Path.parent(Path("./x")), Path.parent(Path("/")))
+/// // => #(Some(Path("a")), Some(Path(".")), None)
+/// ```
+export fn parent(p : Path) -> Optional(Path) = match List.dropLast(split(p)) {
+    [] -> None
+  | first :: rest -> Some(List.foldLeft(rest, Path(first), fn(up, s) = join(up, Path(s))))
 }
-
-foreign fn dirname(p : String) -> String = "ern_path:dirname/1"
 
 /// The last segment.
 export fn name(p : Path) -> String = basename(toString(p))

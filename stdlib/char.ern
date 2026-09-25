@@ -1,4 +1,4 @@
-/// Operations on `Char`, a Unicode code point (report §3.1). The predicates
+/// Operations on `Char`, a Unicode scalar value (report §3.1). The predicates
 /// use the code point's Unicode properties; the ordering is the prelude's
 /// (report §9.6), by code point.
 ///

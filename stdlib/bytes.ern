@@ -51,19 +51,19 @@ export fn get(b : Bytes, i : Int) -> Optional(Int) =
 foreign fn at(b : Bytes, i : Int) -> Int = "binary:at/2"
 
 /// The octets from the index, that many of them, clipped to what is there;
-/// a negative index or count gives the empty `Bytes`.
+/// a negative index or count is 0.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// #(Bytes.slice(<<1, 2, 3>>, 1, 5), Bytes.slice(<<1, 2, 3>>, 0, 2))
+/// #(Bytes.slice(<<1, 2, 3>>, 1, 5), Bytes.slice(<<1, 2, 3>>, -1, 2))
 /// // => #(<<2, 3>>, <<1, 2>>)
 /// ```
-export fn slice(b : Bytes, from : Int, count : Int) -> Bytes =
-    if from < 0 || count <= 0 || from >= size(b) then
-        <<>>
-    else
-        part(b, from, Int.min(count, size(b) - from))
+export fn slice(b : Bytes, from : Int, count : Int) -> Bytes = {
+    let start = Int.max(from, 0);
+    if count <= 0 || start >= size(b) then <<>>
+    else part(b, start, Int.min(count, size(b) - start))
+}
 
 foreign fn part(b : Bytes, from : Int, count : Int) -> Bytes = "binary:part/3"
 

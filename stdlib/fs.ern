@@ -50,7 +50,8 @@ export fn write(path : Path, bytes : Bytes, ms : Int) -> Either(IoError, Unit) w
 export fn append(path : Path, bytes : Bytes, ms : Int) -> Either(IoError, Unit) with m =
     answered(Address.call(Sys.fs, fn(r) = AppendFile(path = path, bytes = bytes, reply = r), ms))
 
-/// The entries of the directory, in unspecified order.
+/// The entries of the directory, in unspecified order, each path the
+/// directory's joined with the entry's name.
 ///
 /// ### Examples
 ///
@@ -59,7 +60,7 @@ export fn append(path : Path, bytes : Bytes, ms : Int) -> Either(IoError, Unit) 
 ///     let _ = Fs.makeDir(Path("shelf"), 5000);
 ///     let _ = Fs.write(Path("shelf/one.txt"), <<>>, 5000);
 ///     Either.map(Fs.list(Path("shelf"), 5000),
-///                fn(es) = List.map(es, fn(e) = match e { Entry(path = p) -> Path.name(p) }))
+///         fn(es) = List.map(es, fn(Entry(path = p)) = Path.name(p)))
 /// }
 /// // => Right(["one.txt"])
 /// ```
@@ -74,7 +75,7 @@ export fn list(path : Path, ms : Int) -> Either(IoError, List(Entry)) with m =
 /// ```ernest
 /// {
 ///     let _ = Fs.write(Path("three.txt"), String.toUtf8("abc"), 5000);
-///     Either.map(Fs.stat(Path("three.txt"), 5000), fn(e) = match e { Entry(size = s) -> s })
+///     Either.map(Fs.stat(Path("three.txt"), 5000), fn(Entry(size = s)) = s)
 /// }
 /// // => Right(3)
 /// ```

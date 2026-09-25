@@ -1068,10 +1068,10 @@ export foreign type Table(k, v)
 
 /// A fresh empty table. The table is owned by the current
 /// process and is destroyed when that process dies.
-export fn new() -> Table(k, v) with m = rawNew(atom("ernest"), [atom("set"), atom("public")])
+export fn new() -> Table(k, v) with m =
+    rawNew(Erl.atom("ernest"), [Erl.atom("set"), Erl.atom("public")])
 
 foreign fn rawNew(name : Foreign, opts : List(Foreign)) -> Table(k, v) with m = "ets:new/2"
-foreign fn atom(name : String) -> Foreign = "erlang:binary_to_atom/1"
 
 /// Insert or replace the entry for key.
 export fn insert(t : Table(k, v), key : k, value : v) -> Unit with m = {
@@ -1093,7 +1093,7 @@ export fn delete(t : Table(k, v), key : k) -> Unit with m = { let _ = rawDelete(
 foreign fn rawDelete(t : Table(k, v), key : k) -> Bool with m = "ets:delete/2"
 
 /// The number of entries in the table.
-export fn size(t : Table(k, v)) -> Int with m = rawInfo(t, atom("size"))
+export fn size(t : Table(k, v)) -> Int with m = rawInfo(t, Erl.atom("size"))
 
 foreign fn rawInfo(t : Table(k, v), item : Foreign) -> Int with m = "ets:info/2"
 
@@ -1288,7 +1288,7 @@ String.lines : (String) -> List(String) // at each line feed; a line feed at the
 String.split : (String, String) -> List(String) // at each occurrence of the second; an empty second gives the first alone
 String.join : (List(String), String) -> String // the second between the parts
 String.toInt : (String) -> Optional(Int) // the digits 0 to 9, with an optional leading -
-String.toIntBase : (String, Int) -> Optional(Int) // in that base, 2 to 36, its digits and letters in either case; None outside
+String.toIntBase : (String, Int) -> Optional(Int) // in that base, 2 to 36, its digits and letters in either case, with an optional leading -; None outside
 String.toBool : (String) -> Optional(Bool) // "true" or "false"; None for anything else
 String.toFloat : (String) -> Optional(Float) // the float literal form of §2.5, with an optional leading -
 String.toList : (String) -> List(Char)
@@ -1386,7 +1386,7 @@ Either.isRight : (Either(e, a)) -> Bool
 Either.withDefault : (Either(e, a), a) -> a
 Either.orElse : (Either(e, a), Either(e, a)) -> Either(e, a) // the first that is Right
 Either.map : (Either(e, a), (a) -> b with x) -> Either(e, b) with x
-Either.mapLeft : (Either(e, a), (e) -> f with x) -> Either(f, a) with x
+Either.mapLeft : (Either(e, a), (e) -> b with x) -> Either(b, a) with x
 Either.andThen : (Either(e, a), (a) -> Either(e, b) with x) -> Either(e, b) with x
 Either.toOptional : (Either(e, a)) -> Optional(a)
 Either.fromOptional : (Optional(a), e) -> Either(e, a)
@@ -1409,7 +1409,7 @@ The runtime's generator behind a pure interface. `Seed` is a foreign type (§3.8
 
 ```
 foreign type Seed
-Random.seed : (Int) -> Random.Seed
+Random.seed : (Int) -> Random.Seed // numbers equal in their low 64 bits name the same sequence
 Random.next : (Random.Seed, Int) -> #(Int, Random.Seed) // uniform between 0 and the second inclusive, and the seed after it
 Random.nextFloat : (Random.Seed) -> #(Float, Random.Seed) // uniform above 0.0 and below 1.0, and the seed after it
 ```

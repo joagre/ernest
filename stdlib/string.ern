@@ -61,7 +61,8 @@ export fn isEmpty(s : String) -> Bool = size(s) == 0
 /// String.compare("a", "b")
 /// // => Less
 /// ```
-export foreign fn compare(a : String, b : String) -> Ordering = "ern_string:compare/2"
+export fn compare(a : String, b : String) -> Ordering =
+    if a < b then Less else if a == b then Equal else Greater
 
 /// `true` when the second is somewhere in the first.
 ///
@@ -122,7 +123,7 @@ export foreign fn endsWith(s : String, suffix : String) -> Bool = "ern_string:en
 export foreign fn replace(s : String, from : String, to : String) -> String =
     "ern_string:replace/3"
 
-/// From the index, that many code points, clipped to what is there; a
+/// From the index, that many graphemes, clipped to what is there; a
 /// negative index starts at the beginning, and a negative count gives the
 /// empty string.
 ///
@@ -264,8 +265,9 @@ fn digits(chars : List(Char)) -> Optional(Int) =
 
 fn isAsciiDigit(c : Char) -> Bool = c >= '0' && c <= '9'
 
-/// The digits and letters in that base, 2 to 36, in either case, or `None`
-/// for anything else and for a base outside those.
+/// The digits and letters in that base, 2 to 36, in either case, with an
+/// optional leading `-`, or `None` for anything else, a leading `+` among
+/// it, and for a base outside those.
 ///
 /// ### Examples
 ///
@@ -274,7 +276,7 @@ fn isAsciiDigit(c : Char) -> Bool = c >= '0' && c <= '9'
 /// // => #(Some(255), None)
 /// ```
 export fn toIntBase(s : String, base : Int) -> Optional(Int) =
-    if base < 2 || base > 36 then None else inBase(s, base)
+    if base < 2 || base > 36 || startsWith(s, "+") then None else inBase(s, base)
 
 foreign fn inBase(s : String, base : Int) -> Optional(Int) = "ern_string:to_int_base/2"
 

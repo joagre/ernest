@@ -1,7 +1,7 @@
 /// Operations on `List(a)`, the singly linked list of the language (report
 /// §3.3). `[]` is the empty list and `::` puts an element in front, so
-/// neither is a function here; the list of an element's own type is what
-/// `toList` and `fromList` elsewhere produce. `contains`, `remove`, and
+/// neither is a function here, and `toList` and `fromList` would be the
+/// identity, so the module has neither. `contains`, `remove`, and
 /// `unique` compare elements, so their element type needs equality
 /// (report §3.10).
 ///
@@ -392,15 +392,16 @@ fn halves(xs : List(a)) -> #(List(a), List(a)) = {
 }
 
 fn merge(left : List(a), right : List(a), compare : (a, a) -> Ordering with e)
-    -> List(a) with e = match #(left, right) {
-    #([], _) -> right
-  | #(_, []) -> left
-  | #(l :: ls, r :: rs) ->
-        match compare(l, r) {
-            Greater -> r :: merge(left, rs, compare)
-          | _ -> l :: merge(ls, right, compare)
-        }
-}
+    -> List(a) with e =
+    match #(left, right) {
+        #([], _) -> right
+      | #(_, []) -> left
+      | #(l :: ls, r :: rs) ->
+            match compare(l, r) {
+                Greater -> r :: merge(left, rs, compare)
+              | _ -> l :: merge(ls, right, compare)
+            }
+    }
 
 /// The pairs of elements at the same index, to the length of the shorter
 /// list.
@@ -488,8 +489,8 @@ export fn tryMap(xs : List(a), f : (a) -> Either(e, b) with x) -> Either(e, List
 /// List.tryFold([1, 2], 0, fn(acc, n) = if n > 1 then Left("big") else Right(acc + n))
 /// // => Left("big")
 /// ```
-export fn tryFold(xs : List(a), acc : b, f : (b, a) -> Either(e, b) with x) ->
-    Either(e, b) with x =
+export fn tryFold(xs : List(a), acc : b, f : (b, a) -> Either(e, b) with x)
+    -> Either(e, b) with x =
     match xs {
         [] -> Right(acc)
       | y :: rest -> {

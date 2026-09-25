@@ -7,7 +7,7 @@
 -export([contains/2, index_of/2, last_index_of/2, starts_with/2, ends_with/2,
          replace/3, slice/3, trim/1, to_lower/1,
          to_upper/1, to_int_base/2, to_float/1, to_list/1, from_list/1, from_utf8/1, to_utf8/1,
-         split/2, copy/2, compare/2]).
+         split/2, copy/2]).
 
 -spec contains(binary(), binary()) -> boolean().
 contains(S, Sub) -> string:find(S, Sub) =/= nomatch.
@@ -98,8 +98,3 @@ split(S, Sep) -> binary:split(S, Sep, [global]).
 
 -spec copy(binary(), integer()) -> binary().
 copy(S, N) -> binary:copy(S, N).
-
--spec compare(binary(), binary()) -> 'Less' | 'Equal' | 'Greater'.
-compare(A, B) when A < B -> 'Less';
-compare(A, B) when A > B -> 'Greater';
-compare(_, _) -> 'Equal'.

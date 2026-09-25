@@ -12,8 +12,7 @@
 ///
 /// ## See also
 ///
-/// `Random.seed` for a sequence that differs between runs, `Io` for the
-/// other system module a program meets first.
+/// `Random.seed` for a sequence that differs between runs.
 ///
 /// since 0.1.0
 

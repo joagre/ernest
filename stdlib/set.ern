@@ -1,4 +1,4 @@
-/// Operations on `Set(a)`, a finite set of elements (report §3.3). The
+/// Operations on `Set(a)`, a finite set of elements (report §9.2). The
 /// element type needs equality, which the type itself requires (report
 /// §3.10). A set has no `get`: membership is `contains`. The order of
 /// `toList`, `foldLeft`, `foreach`, and `find` is unspecified.

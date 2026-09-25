@@ -105,7 +105,8 @@ export foreign fn bitXor(a : Int, b : Int) -> Int = "erlang:bxor/2"
 /// Bitwise complement, `-n - 1`.
 export foreign fn bitNot(n : Int) -> Int = "erlang:bnot/1"
 
-/// `n` shifted left by `k` bits: `n` times two to the power `k`.
+/// `n` shifted left by `k` bits: `n` times two to the power `k`; a negative
+/// `k` shifts right.
 ///
 /// ### Examples
 ///

@@ -18,8 +18,8 @@
 ///
 /// ## See also
 ///
-/// `String` for building what is printed, `Clock` for the other system
-/// module a program meets first.
+/// `String` for building what is printed, `Terminal` for the keys and the
+/// screen themselves.
 ///
 /// since 0.1.0
 

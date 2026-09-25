@@ -7,11 +7,19 @@
 ///
 /// ## Examples
 ///
-/// A listener, a connection to it, and one message each way:
+/// A listener, a process that echoes what the connection it accepts sends,
+/// and a connection to it, one message each way:
 ///
 /// ```ernest
 /// {
-///     let _ <- Tcp.listen(7000);
+///     let listener <- Tcp.listen(7000);
+///     let _ = spawn(Local, fn() = match Tcp.accept(listener, 1000) {
+///         Right(peer) -> match Tcp.read(peer, 1000) {
+///             Right(bytes) -> Tcp.write(peer, bytes)
+///           | Left(_) -> Unit
+///         }
+///       | Left(_) -> Unit
+///     });
 ///     let client <- Tcp.connect("127.0.0.1", 7000, 1000);
 ///     Tcp.write(client, String.toUtf8("ping"));
 ///     let answer = Tcp.read(client, 1000);
@@ -42,13 +50,13 @@ export fn listen(port : Int) -> Either(IoError, Address(ListenerMsg)) with m =
 ///     Tcp.accept(listener, 10)
 /// }
 /// ```
-export fn accept(listener : Address(ListenerMsg), ms : Int) ->
-    Either(IoError, Address(SockMsg)) with m =
+export fn accept(listener : Address(ListenerMsg), ms : Int)
+    -> Either(IoError, Address(SockMsg)) with m =
     answered(Address.call(listener, fn(r) = Accept(reply = r), ms))
 
 /// A connection to that host and port.
-export fn connect(host : String, port : Int, ms : Int) ->
-    Either(IoError, Address(SockMsg)) with m =
+export fn connect(host : String, port : Int, ms : Int)
+    -> Either(IoError, Address(SockMsg)) with m =
     answered(Address.call(Sys.tcp, fn(r) = Connect(host = host, port = port, reply = r), ms))
 
 /// What has arrived, at least one octet, or `Left(Closed)` when the peer
