@@ -10,22 +10,13 @@ first halves of 2.8 and 2.9, 2.7, 2.12, 2.14 to 2.16, 2.20 to 2.23, 2.25, 2.27 t
 an abstract type's boundary (§4.4). 2.1 and 2.2 were decided with the reply rule on 2026-09-25
 (§3.9, the log's *Not-Reply-Carrying by What the Body Does*); 1.2, 1.6, 1.13, 2.6, the
 second halves of 2.8 and 2.9, 2.17 and 2.34 the same day (the log's *An Initializer Depends
-on What It Names* and *The Cold Read's Smaller Rules*), and 1.1 on 2026-09-26 (the log's *A
-Pure Function Stands for One With a Mailbox*).
+on What It Names* and *The Cold Read's Smaller Rules*), and 1.1 and 2.13 on 2026-09-26 (the log's
+*A Pure Function Stands for One With a Mailbox* and *A Redundant Clause Is an Error*).
 
 This file holds the rest until MVP 2.65 decides each, under the theme of the feedback list
 that takes it; a finding leaves the file when it is decided. Each keeps its number and the
 reader's text, and says what the implementation does today and what the check recommended.
 Line numbers are the report's on 2026-09-25.
-
-## Expressions, patterns and types
-
-2.13. **A redundant or unreachable clause**: an error, a warning, or nothing? The report
-never mentions warnings.
-
-*Checked.* Recommended: a clause or alternative that can match nothing the clauses before it
-leave, guarded ones not counted, is a type error, in `match` and in `receive`, labelled with
-the earlier clause.
 
 ## Processes and the system
 

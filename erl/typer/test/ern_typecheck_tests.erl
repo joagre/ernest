@@ -136,6 +136,37 @@ pure_stands_for_a_mailbox_test() ->
     %% and a pure function still prints as pure
     ?assertEqual("(Int) -> Unit", type_of("export fn done(n : Int) -> Unit = Unit", done)).
 
+%% report §5.9, §6.3: a clause or an alternative that can match nothing
+%% the clauses before it leave is an error, in `match` and in `receive`; a
+%% guarded clause covers nothing, and a bitstring pattern judged is taken
+%% to match anything. The label names the clause that completes the cover.
+%% Found by the cold read (its 2.13): every redundant clause was accepted
+redundant_clause_test() ->
+    Never = "this clause can never match",
+    ?assertEqual(Never, err("fn f(x : Optional(Int)) -> Int ="
+                            " match x { Some(n) -> n | None -> 0 | Some(1) -> 1 }")),
+    ?assertEqual(Never, err("fn f(x : Int) -> Int = match x { n -> n | 0 -> 1 }")),
+    ?assertEqual(Never, err("fn f() -> Int with Int = receive { n -> n | 5 -> 1 }")),
+    ?assertEqual(Never, err("fn f(b : Bool) -> Int = match b { true -> 1 | false -> 2 | _ -> 3 }")),
+    ?assertEqual("this alternative can never match",
+                 err("fn f(x : Optional(Int)) -> Int ="
+                     " match x { Some(_) or Some(1) -> 1 | None -> 0 }")),
+    %% a guarded clause may fail, so what follows it is reached
+    ?assertEqual(ok, ok("fn f(x : Int) -> Int = match x { n when n > 0 -> n | 0 -> 1 | _ -> 2 }")),
+    %% a guarded clause is itself redundant when unguarded ones cover it
+    ?assertEqual(Never, err("fn f(x : Int) -> Int = match x { _ -> 1 | n when n > 0 -> n }")),
+    %% two bitstring clauses may differ by what their sizes decide
+    ?assertEqual(ok, ok("fn f(b : Bytes) -> Int ="
+                        " match b { <<x>> -> x | <<x, _>> -> x | _ -> 0 }")),
+    {error, [D1 | _]} = check("fn f(x : Int) -> Int = match x { n -> n | 0 -> 1 }"),
+    ?assertEqual([{{1, 34, {1, 35}}, "this pattern matches every value it would"}],
+                 D1#diag.labels),
+    {error, [D2 | _]} =
+        check("fn f(b : Bool) -> Int = match b { true -> 1 | false -> 2 | _ -> 3 }"),
+    ?assertEqual([{{1, 47, {1, 52}},
+                   "with those before it, this one matches every value it would"}],
+                 D2#diag.labels).
+
 %% report §4.8: `!` is negation on Bool
 not_operator_test() ->
     ?assertEqual("(Bool) -> Bool", type_of("export fn flip(b) = !b", flip)),

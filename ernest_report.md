@@ -411,7 +411,7 @@ let words = input |> String.trim |> String.toLower |> String.toList
 
 ### 5.9 `match`
 
-A `match`, like a `receive` (§6.3) and a block, ends at its own `}`, so it may stand as an operand: `n > 0 && match x { ... }`. `if` and a lambda end in no delimiter of their own, and stand as an operand only in parentheses. The value is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. A clause may list several patterns separated by `or`, and matches when any of them does: `Player(alive = false) or Player(body = []) -> #(acc, apples)`. Every alternative binds the same variables at the same types; the guard and the body see them. Alternatives that bind different variables are a type error. The clauses together must cover the type, and a `match` that does not is a type error; guards do not count toward coverage. A guard is a `Bool` expression with no mailbox effect that sees the pattern's variables and the enclosing scope. A guard that is `false` falls through to the next clause; a guard that faults faults the process. A `receive` guard falls through likewise, and is restricted further (§6.3).
+A `match`, like a `receive` (§6.3) and a block, ends at its own `}`, so it may stand as an operand: `n > 0 && match x { ... }`. `if` and a lambda end in no delimiter of their own, and stand as an operand only in parentheses. The value is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. A clause may list several patterns separated by `or`, and matches when any of them does: `Player(alive = false) or Player(body = []) -> #(acc, apples)`. Every alternative binds the same variables at the same types; the guard and the body see them. Alternatives that bind different variables are a type error. The clauses together must cover the type, and a `match` that does not is a type error; guards do not count toward coverage. A clause, or an alternative of one, is *redundant* when it can match no value the clauses and alternatives before it leave unmatched, and a redundant clause is a type error: `n -> n | 0 -> 1`. A guarded clause leaves every value its pattern matches, since its guard may fail. For this, a bitstring pattern before the clause matches no value, and one in the clause matches any. A guard is a `Bool` expression with no mailbox effect that sees the pattern's variables and the enclosing scope. A guard that is `false` falls through to the next clause; a guard that faults faults the process. A `receive` guard falls through likewise, and is restricted further (§6.3).
 
 ### 5.10 Patterns
 
@@ -485,7 +485,7 @@ type Where = Local | Peer(String)
 
 ### 6.3 `receive`
 
-`receive { clauses }` matches the mailbox in arrival order. The first message that matches a clause's pattern and guard is removed and the clause is evaluated; the rest remain. If none matches, the process waits. Patterns are typed against the mailbox type. Coverage is not required: a message no clause matches stays in the mailbox.
+`receive { clauses }` matches the mailbox in arrival order. The first message that matches a clause's pattern and guard is removed and the clause is evaluated; the rest remain. If none matches, the process waits. Patterns are typed against the mailbox type. Coverage is not required: a message no clause matches stays in the mailbox. A redundant clause is a type error, as in a `match` (§5.9).
 
 A guard selects a message without removing it, so a `receive` guard is a *guard expression*. Its operands are the pattern's variables, the enclosing function's variables that are not bound at top level, literals, negative numeric literals, and nullary constructors. A guard expression is `true`, `false`, an operand of type `Bool`, a comparison of two operands with `==`, `!=`, `<`, `<=`, `>`, or `>=`, `!` before a guard expression, or two guard expressions joined by `&&` or `||`. `<`, `<=`, `>`, and `>=` compare `Int`, `Float`, `String`, and `Char` only, in the order of their `compare` (§3.10). A guard expression calls nothing and cannot fault.
 
@@ -1564,6 +1564,7 @@ Every technical term this report introduces, with the section that defines it. P
 - **pure function** — a function without a mailbox type; result depends only on arguments. §0, §6.1.
 - **qualified name** — a name with a dotted namespace prefix, `Net.Http.parse`. §2.3, §4.2.
 - **`receive`** — a match over the mailbox. §6.3.
+- **redundant** — of a clause or an alternative: able to match no value those before it leave; a type error. §5.9.
 - **remote computation** — `remote(f)` evaluates a pure function on a peer. §6.7.
 - **`Reply(a)`** — a one-shot address for the answer to a request. §3.7, §6.6.
 - **reply-carrying** — a type that transitively contains a `Reply`. §6.6.

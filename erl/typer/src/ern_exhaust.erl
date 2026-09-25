@@ -1,13 +1,15 @@
 %% Match exhaustiveness, report §5.9: the unguarded clauses of every
-%% `match` must cover the scrutinee's type. Maranget's usefulness
-%% algorithm; a witness for the missing case goes into the message.
-%% `receive` is exempt (report §6.3).
+%% `match` must cover the scrutinee's type, and no clause of a `match` or
+%% a `receive` may be redundant. Maranget's usefulness algorithm; a
+%% witness for the missing case goes into the message. `receive` is exempt
+%% from coverage (report §6.3), not from redundancy.
 -module(ern_exhaust).
 
 -export([check/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
+-include_lib("lexer/include/ern_diag.hrl").
 
 %% Simplified patterns: wild | {con, key(), [pattern()]}
 %%   key(): {con, QName} | {tuple, N} | nil | cons | {bool, B} | {lit, V}
@@ -17,6 +19,7 @@
 -spec check(tuple(), ern_typecheck:env()) -> ok.
 check(Node, Env) ->
     walk(fun(#e_match{pos = Pos, scrutinee = S, clauses = Clauses}) ->
+                 redundant(Clauses, Env),
                  Rows = lists:append([alt_rows(P, Env)
                                       || #clause{pattern = P, guard = undefined} <- Clauses]),
                  case useful(Rows, [wild], Env) of
@@ -27,8 +30,70 @@ check(Node, Env) ->
                                  ["match on ", ern_types:format(Ty, ern_typecheck:type_state(Env)),
                                   " is not exhaustive; missing ", show(Witness, Env)])})
                  end;
+            (#e_receive{clauses = Clauses}) ->
+                 redundant(Clauses, Env);
             (_) -> ok
          end, Node).
+
+%% Report §5.9: a clause, or an alternative of one, that can match no value
+%% the clauses before it leave is an error. A guarded clause covers
+%% nothing, since its guard may fail; the alternatives before it in its own
+%% clause cover what they match. The label names the earliest clause with
+%% which the cover is complete.
+redundant(Clauses, Env) ->
+    lists:foldl(fun(#clause{pattern = P, guard = G}, Prev) ->
+                        Alts = alternatives(P),
+                        Own = lists:foldl(fun(A, Before) ->
+                                              judge(A, length(Alts) > 1, Before, Env),
+                                              Before ++ [{[simplify(A, Env)], A}]
+                                          end, Prev, Alts),
+                        case G of
+                            undefined -> Own;
+                            _ -> Prev
+                        end
+                end, [], Clauses),
+    ok.
+
+alternatives(#p_or{alts = Alts}) -> Alts;
+alternatives(P) -> [P].
+
+judge(A, IsAlternative, Before, Env) ->
+    Candidate = [relax(simplify(A, Env))],
+    case useful([R || {R, _} <- Before], Candidate, Env) of
+        {yes, _} -> ok;
+        no ->
+            What = case IsAlternative of
+                       true -> "alternative";
+                       false -> "clause"
+                   end,
+            [{Last, By} | _] = cover(Before, Candidate, [], Env),
+            Label = case useful([Last], Candidate, Env) of
+                        no -> "this pattern matches every value it would";
+                        {yes, _} -> "with those before it, this one matches every value it would"
+                    end,
+            throw({type_error,
+                   #diag{span = ern_diag:span(element(2, A)),
+                         message = "this " ++ What ++ " can never match",
+                         labels = [{ern_diag:span(element(2, By)), Label}],
+                         help = "remove it, or move it above the patterns that cover it"}})
+    end.
+
+%% The shortest run of rows from the first that leaves Candidate useless:
+%% the rows from the last of them on.
+cover([Row | Rest], Candidate, Taken, Env) ->
+    Taken1 = Taken ++ [Row],
+    case useful([R || {R, _} <- Taken1], Candidate, Env) of
+        no -> [Row | Rest];
+        {yes, _} -> cover(Rest, Candidate, Taken1, Env)
+    end.
+
+%% A bitstring pattern counts as matching nothing among the rows that
+%% cover, and as matching anything in the pattern judged, so that no
+%% bitstring clause is called redundant for what its size may decide
+%% (report §5.9, §5.11).
+relax({con, bits, []}) -> wild;
+relax({con, K, Subs}) -> {con, K, [relax(S) || S <- Subs]};
+relax(wild) -> wild.
 
 walk(F, Node) when is_tuple(Node), is_atom(element(1, Node)) ->
     F(Node),

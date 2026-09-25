@@ -86,22 +86,23 @@ The steps:
    two visibilities are enough (item 43), each weighed and kept. A later input may add a
    member to a session type (item 17; report §11.2). The log has an entry for each; item 46
    moved to the standard library's theme.
-4. **Expressions, patterns and types**, the second theme (items 39, 45 and 52 left, and the
-   cold read's finding 2.13). **Decided 2026-09-25:** field selection, `e.f` where
-   every constructor has the field (item 51; report §3.5); no projection from a tuple (item
-   18, weighed and kept out); a `match` and a `receive` are operands (item 19; report §5.9);
-   a type variable is not-reply-carrying by what the body does with it, which closes the
-   hole the cold read found in §6.6 (findings 2.1 and 2.2; report §3.9); constant patterns
-   and a reserved `after`, each weighed and kept (items 3 and 5); an initializer depends on
-   every name it mentions (item 48 and finding 1.13; report §8.5); and seven smaller rules
-   from the cold read: source order for a callee and a pipe (1.2, §5.1), `..` only on a type
-   with one constructor (1.6, §5.6), a type argument a value position only where its fields
-   make it one (2.6, §3.9), the shape of an operator, `compare` or `negate` member (2.8,
-   §4.8), a local `fn` never named like a variable in scope (2.9, §5.4), a receive guard's
-   grammar written out (2.17, §6.3), and a local `fn`'s signature sharing the enclosing
-   type variables (2.34, §3.9). **Decided 2026-09-26:** a pure function stands wherever one
-   with a mailbox type is expected, each expression of a pure function type opening its
-   effect (1.1; report §3.9). The log has an entry for each.
+4. **Expressions, patterns and types**, the second theme (items 39, 45 and 52 left). **Decided
+   2026-09-25:** field selection, `e.f` where every constructor has the field (item 51; report
+   §3.5); no projection from a tuple (item 18, weighed and kept out); a `match` and a
+   `receive` are operands (item 19; report §5.9); a type variable is not-reply-carrying by
+   what the body does with it, which closes the hole the cold read found in §6.6 (findings 2.1
+   and 2.2; report §3.9); constant patterns and a reserved `after`, each weighed and kept
+   (items 3 and 5); an initializer depends on every name it mentions (item 48 and finding
+   1.13; report §8.5); and seven smaller rules from the cold read: source order for a callee
+   and a pipe (1.2, §5.1), `..` only on a type with one constructor (1.6, §5.6), a type
+   argument a value position only where its fields make it one (2.6, §3.9), the shape of an
+   operator, `compare` or `negate` member (2.8, §4.8), a local `fn` never named like a
+   variable in scope (2.9, §5.4), a receive guard's grammar written out (2.17, §6.3), and a
+   local `fn`'s signature sharing the enclosing type variables (2.34, §3.9). **Decided
+   2026-09-26:** a pure function stands wherever one with a mailbox type is expected, each
+   expression of a pure function type opening its effect (1.1; report §3.9); a redundant
+   clause is a type error, in `match` and `receive` (2.13; report §5.9). The log has an entry
+   for each.
 5. **Processes and the system**, the third theme (items 9, 24, 26, 27, 28, 37, 47, 50, 53),
    the registry at its head (item 53), an address's identity with it (item 24), since
    unregistering needs equality; either outcome changes `:processes` and `Io.debug`, as item

@@ -271,7 +271,7 @@ fn opposite(d : Direction) -> Direction = match d {
 }
 ```
 
-The compiler checks that clauses cover every case; a missing case is a type error.
+The compiler checks that clauses cover every case; a missing case is a type error. So is a clause that can never match, because the clauses above it take every value it would: after `North -> South`, a second `North -> ...` is never reached.
 
 Constructors can carry data. `Optional(a)` is the standard example:
 
@@ -699,7 +699,7 @@ resend.ern:5:15: the reply-carrying value msg is consumed twice
 
 ### 4.3 Selective receive and `after`
 
-`receive` takes the first message that matches a clause and leaves the others in the mailbox for later. Unlike `match`, it need not cover every case.
+`receive` takes the first message that matches a clause and leaves the others in the mailbox for later. Unlike `match`, it need not cover every case, but a clause that can never match is still an error.
 
 ```ernest
 type Inbox = Data(Int) | Wake
