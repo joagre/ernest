@@ -643,17 +643,30 @@ expr(#e_receive{pos = Pos, clauses = Clauses, 'after' = After}, Cx) ->
         #after_clause{timeout = T, body = B} ->
             %% report §8.6: a timed receive counts itself in before, and out
             %% first in every body, so the reaper knows it is not waiting
-            {TF0, Cx2} = expr(T, Cx1),
-            %% report §6.3: a time below 0 is 0; qualified, since the
-            %% module may declare a `max` of its own (report §4.5)
-            TF = call_remote(erlang, max, [erl_syntax:integer(0), TF0]),
+            {TF, Cx2} = expr(T, Cx1),
             {BF, Cx3} = body(B, Cx2),
+            %% report §6.3: a time below 0 is 0, and none is too long; the
+            %% host waits at most 2^32 - 1 ms at once, so the receive is
+            %% entered again until the deadline has passed (ern_rt:deadline/1)
+            {[D], Cx4} = fresh_vars(1, "Deadline", Cx3),
+            {[W], Cx5} = fresh_vars(1, "Wait", Cx4),
+            Deadline = erl_syntax:variable(D),
+            Remaining = call_remote(ern_rt, remaining, [Deadline]),
             Untimed = call_remote(ern_rt, untimed, []),
             Timed = [erl_syntax:clause(erl_syntax:clause_patterns(C), erl_syntax:clause_guard(C),
                                        [Untimed | erl_syntax:clause_body(C)])
                      || C <- ClauseForms],
-            Recv = erl_syntax:receive_expr(Timed, TF, [Untimed | BF]),
-            {at(Pos, with_binds(Binds ++ [call_remote(ern_rt, timed, [])], Recv)), Cx3}
+            Due = erl_syntax:case_expr(
+                    Remaining,
+                    [erl_syntax:clause([erl_syntax:integer(0)], none, [Untimed | BF]),
+                     erl_syntax:clause([erl_syntax:underscore()], none,
+                                       [erl_syntax:application(erl_syntax:variable(W), [])])]),
+            Recv = erl_syntax:receive_expr(Timed, Remaining, [Due]),
+            Wait = erl_syntax:named_fun_expr(erl_syntax:variable(W),
+                                             [erl_syntax:clause([], none, [Recv])]),
+            Enter = [erl_syntax:match_expr(Deadline, call_remote(ern_rt, deadline, [TF])),
+                     call_remote(ern_rt, timed, [])],
+            {at(Pos, with_binds(Binds ++ Enter, erl_syntax:application(Wait, []))), Cx5}
     end.
 
 exprs(Es, Cx) ->
@@ -1220,31 +1233,40 @@ con_expr(Pos, Path, Name, Args, Cx) ->
             {Form, Cx1} = expr(Arg, Cx),
             {at(Pos, erl_syntax:tuple([Tag, Form])), Cx1};
         {{named, Names}, {named, undefined, Sets}} ->
-            {Forms, Cx1} = lists:mapfoldl(fun(N, C) ->
-                                              [X] = [X0 || #field_set{name = FN, expr = X0} <- Sets,
-                                                           FN =:= N],
-                                              expr(X, C)
-                                          end, Cx, Names),
-            {at(Pos, erl_syntax:tuple([Tag | Forms])), Cx1};
+            {Binds, Set, Cx1} = field_sets(Names, Sets, Cx),
+            Tuple = erl_syntax:tuple([Tag | [maps:get(N, Set) || N <- Names]]),
+            {at(Pos, with_binds(Binds, Tuple)), Cx1};
         {{named, Names}, {named, Base, Sets}} ->
             %% T(..base, f = e): bind the base to a tuple pattern, take the
             %% unlisted fields from it
             {BaseForm, Cx1} = expr(Base, Cx),
             {Vars, Cx2} = fresh_vars(length(Names), "B", Cx1),
             BasePat = erl_syntax:tuple([Tag | [erl_syntax:variable(V) || V <- Vars]]),
-            {Forms, Cx3} = lists:mapfoldl(
-                             fun({N, V}, C) ->
-                                     case [X0 || #field_set{name = FN, expr = X0} <- Sets,
-                                                 FN =:= N] of
-                                         [X] -> expr(X, C);
-                                         [] -> {erl_syntax:variable(V), C}
-                                     end
-                             end, Cx2, lists:zip(Names, Vars)),
+            {Binds, Set, Cx3} = field_sets(Names, Sets, Cx2),
+            Forms = [maps:get(N, Set, erl_syntax:variable(V)) || {N, V} <- lists:zip(Names, Vars)],
             Bind = erl_syntax:match_expr(BasePat, BaseForm),
-            {at(Pos, erl_syntax:block_expr([Bind, erl_syntax:tuple([Tag | Forms])])), Cx3};
+            {at(Pos, with_binds([Bind | Binds], erl_syntax:tuple([Tag | Forms]))), Cx3};
         _ ->
             fail(Pos, "constructor " ++ atom_to_list(Name) ++ " used with the wrong field shape;"
                       " T is the type checker's job")
+    end.
+
+%% Report §3.5, §5.1: named fields are stored in canonical order and
+%% evaluated in the order written. Where the two differ, each field is
+%% bound to a variable first, as written. The field forms by name, and
+%% the bindings that go before the tuple.
+field_sets(Names, Sets, Cx) ->
+    {Forms, Cx1} = lists:mapfoldl(fun(#field_set{expr = X}, C) -> expr(X, C) end, Cx, Sets),
+    Written = [N || #field_set{name = N} <- Sets],
+    case [N || N <- Names, lists:member(N, Written)] of
+        Written ->
+            {[], maps:from_list(lists:zip(Written, Forms)), Cx1};
+        _ ->
+            {Vars, Cx2} = fresh_vars(length(Sets), "F", Cx1),
+            Binds = [erl_syntax:match_expr(erl_syntax:variable(V), F)
+                     || {V, F} <- lists:zip(Vars, Forms)],
+            {Binds, maps:from_list(lists:zip(Written, [erl_syntax:variable(V) || V <- Vars])),
+             Cx2}
     end.
 
 %%

@@ -504,6 +504,18 @@ io_debug_test() ->
                    "#(true, false)\n\"é中\"\n#('a', '\\'', Some('\\n'))\n#(Ready, 1)\n"
                    "<<104, 105>>\n'x'\n97\n"/utf8>>, Out).
 
+%% report Appendix E.1: Io.debug writes a String as a literal, with `"`,
+%% `\\`, a line feed and a tab escaped by name, another control character
+%% by its code point, and every other character as itself. A regression
+%% test, written after the code; it does not cover a character outside
+%% the Basic Multilingual Plane
+io_debug_escapes_test() ->
+    {ok, Out} = run("export fn main() -> Unit with Never = {\n"
+                    "    let _ = Io.debug(\"a\\\"b\\\\c\\n\\t\\u{1}\\u{7F}é\");\n"
+                    "    Unit\n"
+                    "}\n"),
+    ?assertEqual(<<"\"a\\\"b\\\\c\\n\\t\\u{1}\\u{7F}é\"\n"/utf8>>, Out).
+
 %% report §8.2: keys and lines are the same terminal, so a program that
 %% does both ends with a fault naming the side that holds it
 terminal_is_lines_or_keys_test() ->
@@ -546,6 +558,54 @@ negative_time_test() ->
                     "    receive { M -> Io.println(\"alarm\") | Get(reply = r) -> answer(r, 0) }\n"
                     "}\n"),
     ?assertEqual(<<"after\nnone\nalarm\n">>, Out).
+
+%% report §6.3, §6.6, Appendix E.0 rule 8: a time has no upper bound, so a
+%% time beyond the host's longest wait, 2^32 - 1 ms, waits as any other: a
+%% message that comes after 50 ms is received, a call is answered, and a
+%% file is read. A regression test: each faulted with the host's
+%% timeout_value. It does not cover a wait that outlasts one slice of
+%% 2^32 - 1 ms, nor an alarm, which ern_rt_tests covers
+long_time_test() ->
+    {ok, Out} = run(
+        "type Msg = Ping | Get(reply : Reply(Int))\n"
+        "fn later(to : Address(Msg)) -> Unit with Never = {\n"
+        "    receive { after 50 -> Unit };\n"
+        "    send(to, Ping)\n"
+        "}\n"
+        "fn server() -> Unit with Msg = receive {\n"
+        "    Get(reply = r) -> { receive { after 50 -> Unit }; answer(r, 7) }\n"
+        "  | Ping -> Unit\n"
+        "}\n"
+        "export fn main() -> Unit with Msg = {\n"
+        "    let me = self();\n"
+        "    let _ = spawn(Local, fn() = later(me));\n"
+        "    receive {\n"
+        "        Ping -> Io.println(\"ping\")\n"
+        "      | after 5000000000 -> Io.println(\"after\")\n"
+        "    };\n"
+        "    let a = spawn(Local, server);\n"
+        "    let _ = Io.debug(Address.call(a, fn(r) = Get(reply = r), 5000000000));\n"
+        "    match Fs.read(Path(\"../../../VERSION\"), 5000000000) {\n"
+        "        Right(_) -> Io.println(\"read\")\n"
+        "      | Left(_) -> Io.println(\"not read\")\n"
+        "    }\n"
+        "}\n"),
+    ?assertEqual(<<"ping\nSome(7)\nread\n">>, Out).
+
+%% report §8.6: a process blocked in Address.callForever waits without a
+%% limit, as an untimed receive does, so a call to a server that waits in
+%% an untimed receive for something else is a deadlock. A regression test,
+%% written after the code; it does not cover a callForever to a process
+%% that has already ended
+call_forever_deadlock_test() ->
+    {R, _} = run("type Req = Get(reply : Reply(Int)) | Other\n"
+                 "fn server() -> Unit with Req = receive { Other -> Unit }\n"
+                 "export fn main() -> Unit with m = {\n"
+                 "    let a = spawn(Local, server);\n"
+                 "    let _ = Io.debug(Address.callForever(a, fn(r) = Get(reply = r)));\n"
+                 "    Unit\n"
+                 "}\n"),
+    ?assertEqual({fault, <<"deadlock">>}, R).
 
 %% Appendix E.15, §5.6: an alarm carries the time it fired, so a
 %% single-positional constructor passes as its wrap, as `Died` does to
@@ -813,6 +873,25 @@ foreign_proxy_is_one_test() ->
     ?assertEqual(<<"same\n">>, Out),
     persistent_term:erase({?MODULE, proxy_seen}).
 
+%% report §3.10, §3.8: a foreign value's equality is the host's, of the
+%% terms: a reference equals itself and not another, two values that are
+%% the same term are equal, and so are two Foreign values made from the
+%% same value. A regression test, written after the code; it does not
+%% cover a foreign value that holds a function
+foreign_equality_test() ->
+    {ok, Out} = run(
+        "foreign type Ref\n"
+        "foreign fn makeRef() -> Ref with m = \"erlang:make_ref/0\"\n"
+        "foreign fn same(x : Int) -> Ref = \"erlang:abs/1\"\n"
+        "export fn main() -> Unit with m = {\n"
+        "    let a = makeRef();\n"
+        "    let b = makeRef();\n"
+        "    let _ = Io.debug(#(a == a, a == b, same(1) == same(-1), same(1) == same(2)));\n"
+        "    let _ = Io.debug(Foreign.from(1) == Foreign.from(1));\n"
+        "    Unit\n"
+        "}\n"),
+    ?assertEqual(<<"#(true, false, true, false)\ntrue\n">>, Out).
+
 %% report §8.4, §7.4: an address given to foreign code is a proxy that
 %% checks each message on delivery, a bad one faulting the target even
 %% when no clause would bind it; a good one arrives, also from inside a
@@ -1016,6 +1095,67 @@ bitstring_faults_test() ->
                       ?assertEqual({fault, Cause}, R)
                   end, Faults).
 
+%% report §5.11: a bare segment is an unsigned big-endian int of size 8;
+%% a sized int is big-endian; `signed` alone is 8 bits. A regression test,
+%% written after the code; it does not cover `little` or a pattern with a
+%% signed segment
+bitstring_defaults_test() ->
+    Show = "fn show(b : Bytes) -> String = match b {\n"
+           "    <<x, rest:bytes>> -> Int.toString(x) <> \" \" <> show(rest)\n"
+           "  | _ -> \"\"\n"
+           "}\n",
+    {ok, Out} = run(Show ++
+        "export fn main() -> Unit with Never = {\n"
+        "    Io.println(show(<<258:size(16)>>));\n"
+        "    Io.println(match <<255>> { <<x>> -> Int.toString(x) | _ -> \"no\" });\n"
+        "    Io.println(show(<<-1:signed>>))\n"
+        "}\n"),
+    ?assertEqual(<<"1 2 \n255\n255 \n">>, Out),
+    {R, _} = run("export fn main() -> Unit with Never = { let _ = <<-1>>; Unit }\n"),
+    ?assertEqual({fault, <<"segment overflow">>}, R).
+
+%% report §5.11, §7.4, §3.1: a Bytes shorter than its size and a negative
+%% size fault at construction; a Float narrowed to 16 bits rounds to the
+%% nearest, one too small becomes 0.0, one above the largest 16-bit float
+%% faults; a float pattern does not match the bytes of an infinity or a
+%% NaN; a rest that a dynamic size leaves unaligned does not match. A
+%% regression test, written after the code; it does not cover a 32-bit
+%% float's rounding, nor a negative size in a pattern
+bitstring_edges_test() ->
+    Neg = "fn neg() -> Int = 0 - List.size([1, 2, 3, 4, 5, 6, 7, 8])\n",
+    Main = "export fn main() -> Unit with Never = ",
+    Faults = ["<<(<<1>>):size(2)-bytes>>", "<<1:size(neg())>>", "<<(<<1>>):size(neg())-bytes>>",
+              "<<65519.0:size(16)-float>>"],
+    lists:foreach(fun(Bits) ->
+                      {R, _} = run(Neg ++ Main ++ "{ let _ = " ++ Bits ++ "; Unit }\n"),
+                      ?assertEqual({Bits, {fault, <<"segment overflow">>}}, {Bits, R})
+                  end, Faults),
+    {ok, Out} = run(
+        "fn half(b : Bytes) -> String = match b {\n"
+        "    <<f:size(16)-float>> -> Float.toString(f)\n"
+        "  | _ -> \"no\"\n"
+        "}\n"
+        "fn single(b : Bytes) -> String = match b {\n"
+        "    <<f:size(32)-float>> -> Float.toString(f)\n"
+        "  | _ -> \"no\"\n"
+        "}\n"
+        "fn tail(n : Int, b : Bytes) -> String = match b {\n"
+        "    <<_:size(n), rest:bytes>> -> Int.toString(Bytes.size(rest))\n"
+        "  | _ -> \"no\"\n"
+        "}\n"
+        ++ Main ++ "{\n"
+        "    Io.println(half(<<3.14159:size(16)-float>>));\n"
+        "    Io.println(half(<<1.0e-10:size(16)-float>>));\n"
+        "    Io.println(half(<<65504.0:size(16)-float>>));\n"
+        "    Io.println(single(<<127, 128, 0, 0>>));\n"
+        "    Io.println(single(<<255, 128, 0, 0>>));\n"
+        "    Io.println(single(<<127, 192, 0, 0>>));\n"
+        "    Io.println(half(<<124, 0>>));\n"
+        "    Io.println(tail(8, <<1, 2>>));\n"
+        "    Io.println(tail(4, <<1, 2>>))\n"
+        "}\n"),
+    ?assertEqual(<<"3.140625\n0.0\n65504.0\nno\nno\nno\nno\n1\nno\n">>, Out).
+
 %% report §7.4: a zero divisor faults main with its cause
 division_fault_test() ->
     {Result, _} = run("export fn main() -> Unit with Never = {\n"
@@ -1049,6 +1189,24 @@ constructors_test() ->
         "}\n"),
     ?assertEqual(<<"5,2\ndot\n1\n">>, Out).
 
+%% report §3.5, §5.1: named fields are stored in canonical order and
+%% evaluated in the order written, in a construction and in an update from
+%% a base value, whose base is evaluated first. A regression test: the
+%% fields were evaluated in canonical order. It does not cover a positional
+%% constructor, whose one field has no order
+field_order_test() ->
+    {ok, Out} = run(
+        "type Snap = Snap(z : Int, a : Int, m : Int)\n"
+        "fn v(s : String, n : Int) -> Int with Never = { Io.println(s); n }\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    let s = Snap(z = v(\"z\", 1), a = v(\"a\", 2), m = v(\"m\", 3));\n"
+        "    let t = Snap(..{ Io.println(\"base\"); s }, m = v(\"m\", 4), a = v(\"a\", 5));\n"
+        "    let _ = Io.debug(#(s, t));\n"
+        "    Unit\n"
+        "}\n"),
+    ?assertEqual(<<"z\na\nm\nbase\nm\na\n"
+                   "#(Snap(a = 2, m = 3, z = 1), Snap(a = 5, m = 4, z = 1))\n">>, Out).
+
 %% report §5.3, §5.8: lambdas capture, if is an expression
 lambda_if_test() ->
     {ok, Out} = run(
@@ -1074,6 +1232,32 @@ monitor_site_test() ->
         "    }\n"
         "}\n"),
     ?assertEqual(<<"M.main:4 division by zero\n">>, Out).
+
+%% report §6.9: a Down's function is the top-level declaration the spawn
+%% is written in: one inside a local fn or a lambda counts as written in
+%% the enclosing declaration, and `spawn` taken as a value counts where
+%% its name is written. A regression test, written after the code; it does
+%% not cover a spawn in a top-level `let`'s initializer
+down_site_test() ->
+    {ok, Out} = run(
+        "type Msg = Died(Down)\n"
+        "fn idle() -> Unit with Never = Unit\n"
+        "fn report() -> Unit with Msg = receive {\n"
+        "    Died(Down(function = f, reason = _)) -> Io.println(f)\n"
+        "}\n"
+        "fn outer() -> Unit with Msg = {\n"
+        "    fn inner() -> Address(Never) with Msg = spawn(Local, idle);\n"
+        "    monitor(inner(), Died);\n"
+        "    report();\n"
+        "    let viaLambda = fn() = spawn(Local, idle);\n"
+        "    monitor(viaLambda(), Died);\n"
+        "    report();\n"
+        "    let s = spawn;\n"
+        "    monitor(s(Local, idle), Died);\n"
+        "    report()\n"
+        "}\n"
+        "export fn main() -> Unit with Msg = outer()\n"),
+    ?assertEqual(<<"M.outer:7\nM.outer:10\nM.outer:13\n">>, Out).
 
 %% report §9.4, §9.6: spawn, the Int operators, and <> are functions and
 %% may be passed as values
@@ -1230,6 +1414,25 @@ process_functions_test() ->
         "    })\n"
         "}\n"),
     ?assertEqual(<<"killed\ndivision by zero\ntick\nno peer\n">>, Out).
+
+%% report §6.9: kill on a process that has already ended has no effect,
+%% and a monitor placed after it reports the reason the process ended
+%% with. A regression test, written after the code; it does not cover
+%% kill on a system process
+kill_dead_test() ->
+    {ok, Out} = run(
+        "type Msg = Died(Down)\n"
+        "export fn main() -> Unit with Msg = {\n"
+        "    let z = List.size([]);\n"
+        "    let w = spawn(Local, fn() -> Unit with Never = { let _ = 1 / z; Unit });\n"
+        "    monitor(w, Died);\n"
+        "    receive { Died(_) -> Unit };\n"
+        "    kill(w);\n"
+        "    monitor(w, Died);\n"
+        "    receive { Died(d) -> { let _ = Io.debug(d); Unit } }\n"
+        "}\n"),
+    ?assertEqual(<<"Down(function = \"M.main:4\", reason = Fault(\"division by zero\"))\n">>,
+                 Out).
 
 %% report §8.2, §9.7: Sys.stdout is a value
 sys_stdout_test() ->

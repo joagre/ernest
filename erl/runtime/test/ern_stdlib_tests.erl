@@ -183,6 +183,16 @@ string_test() ->
     ?assertEqual('Less', S:compare(<<"a">>, <<"b">>)),
     ?assertEqual('Equal', S:compare(<<"a">>, <<"a">>)).
 
+%% report Appendix E.5, §2.5: String.toFloat reads the float literal form
+%% without `_` grouping; an exponent below the smallest Float gives 0.0, one
+%% beyond the largest gives None. A regression test, written after the
+%% code; it does not cover a form without a digit on each side of the point
+string_to_float_edges_test() ->
+    S = 'ern@string',
+    ?assertEqual('None', S:toFloat(<<"3.141_592">>)),
+    ?assertEqual({'Some', 0.0}, S:toFloat(<<"1.0e-400">>)),
+    ?assertEqual('None', S:toFloat(<<"1.0e400">>)).
+
 %% report Appendix E.6, §9.6
 char_test() ->
     C = 'ern@char',
@@ -268,6 +278,23 @@ int_test() ->
     ?assertEqual({'Some', <<"FF">>}, I:toStringBase(255, 16)),
     ?assertEqual({'Some', <<"-11">>}, I:toStringBase(-3, 2)),
     ?assertEqual('None', I:toStringBase(5, 37)).
+
+%% report Appendix E.8, §3.1, §7.4: Int.toFloat rounds to the nearest
+%% Float and faults only where the rounding gives no finite Float: the
+%% largest finite Float as an Int, plus 2^970 - 1, rounds down to it, and
+%% plus 2^970 faults, of either sign. Int.pow(0, 0) is 1, and a negative
+%% count shifts the other way. A regression test, written after the code;
+%% it does not cover the rounding of an Int within the range
+int_edges_test() ->
+    I = 'ern@int',
+    Max = (1 bsl 53 - 1) bsl 971,
+    ?assertEqual(1.7976931348623157e308, I:toFloat(Max)),
+    ?assertEqual(1.7976931348623157e308, I:toFloat(Max + (1 bsl 970) - 1)),
+    ?assertThrow({ern, fault, <<"Int out of Float range">>}, I:toFloat(Max + (1 bsl 970))),
+    ?assertThrow({ern, fault, <<"Int out of Float range">>}, I:toFloat(-(Max + (1 bsl 970)))),
+    ?assertEqual({'Some', 1}, I:pow(0, 0)),
+    ?assertEqual(2, I:shiftLeft(8, -2)),
+    ?assertEqual(32, I:shiftRight(8, -2)).
 
 %% report Appendix E.9, §3.1, §7.4, §9.6
 float_test() ->

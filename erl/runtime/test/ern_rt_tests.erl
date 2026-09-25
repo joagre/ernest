@@ -162,6 +162,89 @@ deadlock_test() ->
                                          ern_rt:in_foreign(fun() -> receive after 250 -> ok end end)
                                      end, <<"main">>, Quiet)).
 
+%% report §8.6: a process waiting for the host to load a module is not
+%% waiting in a receive, so it is no deadlock. A regression test: the
+%% detector read a process waiting on the code server as blocked, and a
+%% program whose main loaded a module of the runtime at its first call, as
+%% Io.debug loads ern_show after a timed call, ended with a false deadlock
+%% whenever the detector looked during the load. Here the code server is
+%% held for 400 ms, longer than the detector's 100 ms, so the test failed
+%% every time before the fix. It covers a load made by a call, the only
+%% way an Ernest process loads, and not code:ensure_loaded called directly
+loading_is_not_deadlock_test() ->
+    Dir = filename:join(filename:basedir(user_cache, "ern_rt_tests"), "loading"),
+    ok = filelib:ensure_path(Dir),
+    Mod = ern_zz_loading,
+    Forms = [{attribute, 1, module, Mod}, {attribute, 1, export, [{f, 0}]},
+             {function, 1, f, 0, [{clause, 1, [], [], [{atom, 1, loaded}]}]}],
+    {ok, Mod, Bin} = compile:forms(Forms),
+    Beam = filename:join(Dir, atom_to_list(Mod) ++ ".beam"),
+    ok = file:write_file(Beam, Bin),
+    true = code:add_patha(Dir),
+    CodeServer = whereis(code_server),
+    Holder = spawn(fun() ->
+                       receive {hold, From} -> ok end,
+                       erlang:suspend_process(CodeServer),
+                       From ! held,
+                       receive after 400 -> erlang:resume_process(CodeServer) end
+                   end),
+    Me = self(),
+    Main = fun() ->
+               %% counted as a timed wait while the holder takes the server
+               ern_rt:timed(),
+               Holder ! {hold, erlang:self()},
+               receive held -> ern_rt:untimed() end,
+               Me ! {loaded, Mod:f()}
+           end,
+    try
+        ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+        ?assertEqual(loaded, wait(loaded))
+    after
+        code:del_path(Dir),
+        code:purge(Mod),
+        code:delete(Mod),
+        file:delete(Beam)
+    end.
+
+%% report §6.6, Appendix E.0 rule 8: a time has no upper bound; a call
+%% given more than the host's longest wait, 2^32 - 1 ms, is answered as any
+%% other. A regression test: the host's receive refused such a time, and
+%% the call faulted with timeout_value. It does not cover a wait that
+%% actually outlasts one slice of 2^32 - 1 ms
+call_long_time_test() ->
+    Me = self(),
+    Result = ern_rt:run_main(
+               fun() ->
+                   Server = ern_rt:spawn('Local',
+                                         fun() ->
+                                             receive {ask, R} -> ok end,
+                                             ern_rt:timed(),
+                                             receive after 50 -> ern_rt:untimed() end,
+                                             ern_rt:answer(R, 7)
+                                         end, <<"s">>),
+                   Me ! {result, ern_rt:call(Server, fun(R) -> {ask, R} end, 5000000000)}
+               end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual(ok, Result),
+    ?assertEqual({'Some', 7}, wait(result)).
+
+%% Appendix E.0 rule 8, E.15: an alarm has no upper bound either, though
+%% the host's timers have one near 2^63 microseconds; the clock sets such an
+%% alarm again in slices, and goes on serving. A regression test: the host
+%% refused the time, the clock died, and every later alarm was lost. It
+%% does not cover an alarm that actually outlasts one slice
+clock_long_time_test() ->
+    Quiet = #{stdout => fun(_) -> ok end},
+    Me = self(),
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Clock = ern_rt:sys(clock),
+                           ern_rt:send(Clock, {'After', 10000000000000, ern_rt:self()}),
+                           ern_rt:send(Clock, {'After', 10, ern_rt:self()}),
+                           receive At when is_integer(At) -> ok end,
+                           Me ! {alive, erlang:is_process_alive(Clock)}
+                       end, <<"main">>, Quiet)),
+    ?assertEqual(true, wait(alive)).
+
 %% report §8.6: a process is in the table before it runs, so a timed
 %% receive it enters first is counted. A regression test for a lost count
 %% that made such a wait a deadlock, first seen at the shell's first input.

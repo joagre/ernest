@@ -25,7 +25,8 @@
 
 -export([send/2, process_of/1, spawn/3, self/0, via/2, call/3, call_forever/2, answer/2,
          monitor/2, kill/1, deaths/1, live/0, proxy_for/3, proxy_forget/2, source_begin/0,
-         source_end/0, timed/0, untimed/0, in_foreign/1, remote/1, todo/1, fault/1, sys/1,
+         source_end/0, timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1,
+         undefined_function/3, undefined_lambda/3, remote/1, todo/1, fault/1, sys/1,
          hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1, run_main/2,
          run_main/3, init_stdlib/0]).
 
@@ -33,6 +34,8 @@
 
 -define(UNIT, 'Unit').
 -define(PROCESSES, ern_processes).
+%% The longest wait the host's `receive ... after` takes, in milliseconds.
+-define(SLICE, 16#FFFFFFFF).
 
 -type address() :: pid() | {via, fun((term()) -> term()), address()}.
 -type reply() :: reference().
@@ -110,22 +113,29 @@ call(Addr, Mk, Ms) ->
     Alias = erlang:alias([reply]),
     deliver(Addr, Mk(Alias)),
     timed(),
+    await(Alias, deadline(Ms)).
+
+await(Alias, Deadline) ->
     receive
         {Alias, V} ->
             untimed(),
             {'Some', V}
-    %% report §6.6: a time below 0 is 0
-    after max(0, Ms) ->
-        untimed(),
-        erlang:unalias(Alias),
-        %% an answer that came between the timeout and the unalias is late
-        %% as well, and is not left in the caller's mailbox
-        receive
-            {Alias, _} -> ok
-        after 0 ->
-            ok
-        end,
-        'None'
+    after remaining(Deadline) ->
+        case remaining(Deadline) of
+            0 ->
+                untimed(),
+                erlang:unalias(Alias),
+                %% an answer that came between the timeout and the unalias
+                %% is late as well, and is not left in the caller's mailbox
+                receive
+                    {Alias, _} -> ok
+                after 0 ->
+                    ok
+                end,
+                'None';
+            _ ->
+                await(Alias, Deadline)
+        end
     end.
 
 -spec call_forever(address(), fun((reply()) -> term())) -> term().
@@ -362,11 +372,42 @@ timed() ->
 untimed() ->
     count(4, -1).
 
+%% Report §6.3, §6.6, Appendix E.0 rule 8: a time has no upper bound, and a
+%% time below 0 is 0. The host waits at most ?SLICE at once, so a wait is
+%% made against the moment its time ends, on the monotonic clock, in waits
+%% of at most ?SLICE each; the compiler emits the same loop for `after`.
+-spec deadline(integer()) -> integer().
+deadline(Ms) ->
+    erlang:monotonic_time(millisecond) + max(0, Ms).
+
+%% The next wait towards the deadline; 0 once it has passed.
+-spec remaining(integer()) -> 0..?SLICE.
+remaining(Deadline) ->
+    min(?SLICE, max(0, Deadline - erlang:monotonic_time(millisecond))).
+
 %% Report §8.4, §8.6: a process inside foreign code is not waiting.
 -spec in_foreign(fun(() -> term())) -> term().
 in_foreign(Fun) ->
     count(5, 1),
     try Fun() after count(5, -1) end.
+
+%% Report §8.6: the host loads a module at the first call into it, and the
+%% caller waits on the code server meanwhile, which is the host's work and
+%% not a receive of the caller's. Every process the runtime starts has this
+%% module as its error handler (run/1), which counts the load as a foreign
+%% call is counted and leaves the call itself to the host's handler.
+-spec undefined_function(module(), atom(), [term()]) -> term().
+undefined_function(Mod, F, Args) ->
+    load(Mod),
+    error_handler:undefined_function(Mod, F, Args).
+
+-spec undefined_lambda(module(), fun(), [term()]) -> term().
+undefined_lambda(Mod, Fun, Args) ->
+    load(Mod),
+    error_handler:undefined_lambda(Mod, Fun, Args).
+
+load(Mod) ->
+    in_foreign(fun() -> code:ensure_loaded(Mod) end).
 
 count(Pos, D) ->
     try ets:update_counter(?PROCESSES, erlang:self(), {Pos, D}) of
@@ -396,6 +437,7 @@ todo(Msg) ->
 %%
 
 run(Fun) ->
+    erlang:process_flag(error_handler, ?MODULE),
     try
         Fun()
     catch
@@ -526,24 +568,33 @@ clock_loop() ->
     receive
         {'After', Ms, To} ->
             source_begin(),
-            %% Appendix E.0 rule 8: a time below 0 is 0
-            erlang:send_after(max(0, Ms), erlang:self(), {fire, To}),
+            arm(deadline(Ms), To),
             clock_loop();
         {'At', At, To} ->
             source_begin(),
-            erlang:send_after(max(0, At - erlang:system_time(millisecond)), erlang:self(),
-                              {fire, To}),
+            arm(deadline(At - erlang:system_time(millisecond)), To),
             clock_loop();
-        {fire, To} ->
-            %% report §6.5, E.15: the alarm's target may be an address seen
-            %% through a function, and it is sent the time it fired
-            deliver(To, erlang:system_time(millisecond)),
-            source_end(),
+        {fire, Deadline, To} ->
+            case remaining(Deadline) of
+                0 ->
+                    %% report §6.5, E.15: the alarm's target may be an
+                    %% address seen through a function, and it is sent the
+                    %% time it fired
+                    deliver(To, erlang:system_time(millisecond)),
+                    source_end();
+                _ ->
+                    arm(Deadline, To)
+            end,
             clock_loop();
         {'Now', Reply} ->
             answer(Reply, erlang:system_time(millisecond)),
             clock_loop()
     end.
+
+%% Appendix E.0 rule 8: a time has no upper bound, and the host's timers
+%% have one, so an alarm is set again until its deadline has passed.
+arm(Deadline, To) ->
+    erlang:send_after(remaining(Deadline), erlang:self(), {fire, Deadline, To}).
 
 %%
 %% Report §8.1, §8.6: the launcher
@@ -588,8 +639,7 @@ run_main(Main, Site, Opts) ->
     try
         %% report §8.5: the initializers, the standard library's first, run
         %% in main's process, so one that faults is the program's fault; its
-        %% modules are loaded here, since main waiting on the code server
-        %% would read as a deadlock
+        %% modules are loaded here, where their order is read from them
         Stdlib = stdlib_modules(),
         Init = maps:get(init, Opts, fun() -> ok end),
         MainPid = spawn('Local', fun() -> run_inits(Stdlib), Init(), Main() end, Site),
