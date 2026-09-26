@@ -10,6 +10,12 @@
 // errorText is a hand-written rendering for stdout. main runs the acceptor
 // itself so the program keeps running (report §8.6).
 //
+// Waits for libs/http (MVP 3.2). parse, requestLine, headerLines and render
+// are a stand-in for its request parser and response renderer, a part of
+// HTTP/1.1 (RFC 9112) written by hand: the version is ignored and a chunked
+// body is not known. They are replaced by the library when it is written, and
+// are not extended meanwhile.
+//
 // Run under test since 2026-09-20: the harness starts the server, makes two
 // requests over one session, and stops it, since the program itself serves
 // until it is stopped.

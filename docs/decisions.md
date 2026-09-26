@@ -4401,6 +4401,14 @@ E.5 named text's conversions to numbers as primitives while rule 1 admitted only
 
 The terminal's interrupt went to "the holder", which several subscribers leave undefined: it goes to every subscriber while the terminal is claimed for keys. Sockets and listeners are foreign processes the runtime starts but no system reference names, so they are not system processes, and `Process.live` and `Process.faults` include them, as the step that kept them killable said.
 
+## The Web Server Waits for Its Library, 2026-09-26
+
+Feedback item 55, decided in MVP 2.65's step 10 before its build. `examples/webserver.ern` parses a request line and headers from the bytes it reads and renders a response's status line and headers: a part of HTTP/1.1, RFC 9112, written by hand, which ignores the version and knows no chunked body. A published protocol is a library's work, and a program that finds itself writing one stops and says it waits.
+
+Keeping the subset under a name that says what it is was weighed: honest about the code, it would still leave the example the place where the protocol grows, the next person adding chunked bodies to a paper program rather than to a library. Rewriting the example around a line-based protocol would hide the need by choosing another example, which the rule refuses. Writing `libs/http` now would pull a milestone with its own design into a step meant to build what was decided.
+
+Taken: the example waits. Its header names `parse`, `requestLine`, `headerLines` and `render` as a stand-in for `libs/http`, not extended meanwhile, and the build changes them only as the system references and `Char.isAsciiDigit` require. The plan's MVP 3.2 had given `libs/http` a client and left the server's side to the example; it now parses and renders in both directions, the server loop alone staying the example's, and the stand-in goes when the library comes.
+
 ## Later
 
 Planned or considered, not in the language today.

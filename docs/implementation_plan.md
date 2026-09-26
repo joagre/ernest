@@ -479,8 +479,13 @@ The steps:
         processes, so `Process.live` and `Process.faults` include them (E.18).
 
       **Four decisions for the user**, taken before sub-step 5, each a feedback item no step
-      had placed: whether `examples/webserver.ern` waits for `libs/http` or keeps a subset
-      it names (item 55, which the build's B8 and C4 touch); whether E.16 gains the terminal's
+      had placed:
+      - **Item 55, decided 2026-09-26: the webserver waits for `libs/http`.** Its parser and
+        renderer are a stand-in its header names, not extended, and B8 and C4 change only
+        what they must; MVP 3.2's `libs/http` parses and renders in both directions and
+        replaces them. The log's *The Web Server Waits for Its Library*.
+
+      Still to decide: whether E.16 gains the terminal's
       control sequences or a library owns them (item 56); whether E.1 gains a read of bytes
       (item 57); and whether `Tcp` gains a close for a listener (item 58, found by the cold
       read).
@@ -706,8 +711,10 @@ later, when there is a package story. Named so far:
   speaking an encoding private to `Tcp` (E.18), or a socket type of its own with its own
   `read`, `write` and `close`, is decided when it is written. Certificate verification is the
   caller's to ask for.
-- **`libs/http`**, Ernest over `Tcp` and `Tls`: request and response types, a client. No
-  server; that is the webserver example's job. With it, `examples/fetch.ern`, a command-line
+- **`libs/http`**, Ernest over `Tcp` and `Tls`: request and response types, their parsing
+  and rendering in both directions, and a client. No server loop; that is the webserver
+  example's job, whose hand-written parser and renderer the library replaces (MVP 2.65 step
+  10, feedback item 55). With it, `examples/fetch.ern`, a command-line
   tool that fetches JSON over HTTPS and prints a report, since a paper program travels with
   the stack it needs, and `Time` in Appendix E over the clock's milliseconds, which only it
   wants so far.

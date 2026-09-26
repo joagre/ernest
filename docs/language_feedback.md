@@ -7,7 +7,7 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Fifty-one have left, each decided in
+under, since the plan, the log and the code cite them. Fifty-two have left, each decided in
 a step of the plan's MVP 2.65, which names the decision and the log entry that argues it.
 
 ## 1. Names and namespaces
@@ -96,13 +96,6 @@ program in the repository for it; `libs/markdown`, a CommonMark implementation, 
 where such code belongs, and the Unicode width table for `Terminal.columns` was decided into
 the standard library (step 6, batch 3).
 
-55. **HTTP/1.1 written by hand in `examples/webserver.ern`.** The example parses a request
-    line and headers from the bytes it reads (`parse`, `requestLine`, `headerLines`) and
-    renders a status line, a `Content-Length` and the headers of a response: a protocol
-    (RFC 9112), and a part of it, since it ignores the version and knows no chunked body.
-    `libs/http` is among the libraries not yet written (the log's *Libraries As They Are
-    Wanted*). Whether the example waits for it, or keeps a subset it says is one, is to be
-    decided before the example is next touched.
 56. **Terminal control sequences written by hand in four places.** The shell's
     `Shell.Style` and `Shell.Region`, `libs/markdown` and `examples/snake.ern` each write
     ECMA-48's sequences themselves: select graphic rendition for colour and weight, cursor
