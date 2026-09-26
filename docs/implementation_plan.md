@@ -22,8 +22,8 @@ first four steps are done: the feedback list and this plan consolidated, the rep
 cold, and the first two themes, names and namespaces, and expressions, patterns and types.
 The third theme, processes and the system, has begun: names, restarts and supervision
 are decided (item 53, six questions), a process's identity (item 24), the live
-processes as a function (item 26), and the fault log (item 28), a stream's time limit (item 50), and system messages (item 47); items 37 and 27 are
-next. MVP 2.6, the shell, was closed on
+processes as a function (item 26), and the fault log (item 28), a stream's time limit (item 50), system messages (item 47), and a listener's port
+(item 37); item 27 is next. MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
 **Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23; MVP 2.61, the
@@ -210,11 +210,19 @@ The steps:
    keeps the table of owners, held equal to §9.7 by a test. `Sys.stdout` and `Sys.stderr`
    take an `OutMsg`, so E.0 rule 8 holds with no exception. Report §9.7, E.0 rule 8 and
    E.18, in step 10. The log's *A System Message Is Its Module's to Make*.
+
+   **Decided 2026-09-26: a listener says its port** (item 37). `Tcp.port(listener)` answers
+   `Either(IoError, Int)`, admitted by E.0 rule 1, answered at once and so in rule 8's list
+   of functions that take no milliseconds; a dead listener gives `Left(Closed)`, since a
+   call to a dead process ends at once. `ListenerMsg` gains `Port(reply)`, `Tcp`'s own, and
+   E.18's example listens on port 0 and prints the port it got. A socket's own and peer
+   address go to step 6's third batch. The log's *A Listener Says Its Port*.
 6. **The standard library under E.0**, the fourth theme, in three batches: where the line
    between a shim and Ernest runs, with the abstract types it could write (items 11, 13, 42,
    46), what a function is named and where it
    lives (38, 40, 41), and what the library lacks or has in a form that misleads (7, 8, 15,
-   20, 21, 22, 23, 31, 34, 35, 44).
+   20, 21, 22, 23, 31, 34, 35, 44, and a connected socket's own and peer address, placed
+   here by item 37).
 7. **The toolchain**, the fifth theme: the shell's own questions (items 29, 30 and 54), and the
    names of the options to `ernc` and `ern`. Both tools grew their options one MVP at a
    time and the set has never been read whole. Under review: the three words for a
