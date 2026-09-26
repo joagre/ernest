@@ -341,7 +341,7 @@ count(N, Uses) -> length([x || {M, _} <- Uses, M =:= N]).
 
 %% Variables a pattern binds to reply-carrying values.
 linear_bindings(P, Env) ->
-    [N || {N, T} <- ern_typecheck:typed_pattern_bindings(P),
+    [N || {N, T} <- ern_ast:pattern_bindings(P),
           ern_typecheck:is_reply_carrying(T, Env)].
 
 walk(F, Node) ->

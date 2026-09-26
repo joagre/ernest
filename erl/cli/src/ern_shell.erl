@@ -181,7 +181,7 @@ pattern_let(Text) ->
                           message = "a `let` with `<-` at the prompt has no block to end",
                           help = "write it in a block, `{ let x <- e; ... }`"}};
         {ok, #binding{pos = Pos, pattern = P} = B} ->
-            Names = [N || {N, _} <- ern_typecheck:typed_pattern_bindings(P)],
+            Names = [N || {N, _} <- ern_ast:pattern_bindings(P)],
             Vars = [#e_var{pos = Pos, name = N} || N <- Names],
             Last = case Vars of
                        [] -> #e_con{pos = Pos, name = 'Unit'};

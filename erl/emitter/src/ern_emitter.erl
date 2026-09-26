@@ -87,7 +87,7 @@ forms(Ns, Decls, Env, Deps, Session) ->
     Cx0 = #cx{ns = Ns, mod = Mod, env = Env, tops = top_names(Decls), session = Session},
     {Funs, Cx1} = lists:mapfoldl(fun decl/2, Cx0, Decls),
     Lets = [D || #let_decl{} = D <- Decls],
-    {Init, Cx2} = init_fun(Lets, Decls, Cx1),
+    {Init, Cx2} = init_fun(Lets, Cx1),
     Tests = tests_fun(Lets),
     DepsFun = deps_fun(Deps),
     FunFun = fun_fun(Decls),
@@ -404,118 +404,24 @@ key(#cx{mod = Mod}, Name) ->
     erl_syntax:tuple([erl_syntax:atom(Mod), erl_syntax:atom(Name)]).
 
 %% '$init'/0 evaluates the top-level lets once, in dependency order.
-init_fun([], _Decls, Cx) ->
+init_fun([], Cx) ->
     {[], Cx};
-init_fun(Lets, Decls, Cx) ->
+init_fun(Lets, Cx) ->
     {Stores, Cx1} = lists:mapfoldl(
                       fun(#let_decl{owner = O, name = N, body = Body}, C) ->
                               {BodyForm, C1} = expr(Body, C#cx{fname = fname(O, N), vars = #{},
                                                                locals = #{}}),
                               {call_remote(persistent_term, put, [key(C, fname(O, N)), BodyForm]),
                                C1}
-                      end, Cx, let_order(Lets, Decls, Cx)),
+                      end, Cx, let_order(Lets, Cx)),
     Clause = erl_syntax:clause([], none, Stores ++ [erl_syntax:atom(ok)]),
     {[erl_syntax:function(erl_syntax:atom('$init'), [Clause])], Cx1}.
 
-%% Dependency order among the lets, report §8.5: a let after those its
-%% initializer references, directly or through the functions it calls. The
-%% checker has already rejected a cycle.
-let_order(Lets, Decls, Cx) ->
-    Keys = [{O, N} || #let_decl{owner = O, name = N} <- Lets],
-    Fns = maps:from_list([{{O, N}, B} || #fn_decl{owner = O, name = N, body = B} <- Decls]),
-    G = digraph:new(),
-    lists:foreach(fun(K) -> digraph:add_vertex(G, K) end, Keys),
-    lists:foreach(fun(#let_decl{owner = O, name = N, body = B}) ->
-                      lists:foreach(fun(R) -> digraph:add_edge(G, {O, N}, R) end,
-                                    [R || R <- reached(refs(B, Cx), Fns, [], Cx),
-                                          lists:member(R, Keys)])
-                  end, Lets),
-    Sorted = digraph_utils:topsort(G),
-    digraph:delete(G),
-    %% report §8.5: the checker rejects a cycle among top-level lets, so
-    %% one here means the two disagree, which is a defect and not a
-    %% program's error
-    false =/= Sorted orelse error({let_cycle, Keys}),
-    Order = lists:reverse(Sorted),
+%% Report §8.5: the lets in the order the checker found, a let after
+%% those its initializer reaches.
+let_order(Lets, #cx{env = Env}) ->
     ByKey = maps:from_list([{{O, N}, D} || #let_decl{owner = O, name = N} = D <- Lets]),
-    [maps:get(K, ByKey) || K <- Order].
-
-%% The names reached through function bodies.
-reached([], _Fns, Seen, _Cx) ->
-    Seen;
-reached([R | Rest], Fns, Seen, Cx) ->
-    case lists:member(R, Seen) of
-        true -> reached(Rest, Fns, Seen, Cx);
-        false ->
-            More = case Fns of
-                       #{R := Body} -> refs(Body, Cx);
-                       _ -> []
-                   end,
-            reached(More ++ Rest, Fns, [R | Seen], Cx)
-    end.
-
-%% Report §8.5: as in the checker, a name bound inside the body is not a
-%% reference to a top-level one of that name (`references/2` there).
-refs(Node, Cx) -> refs(Node, #{}, Cx).
-
-refs(#e_lambda{params = Ps, body = Body}, B, Cx) ->
-    refs(Body, binds_params(Ps, B), Cx);
-refs(#clause{pattern = P, guard = G, body = Body}, B, Cx) ->
-    B1 = binds(P, B),
-    refs(G, B1, Cx) ++ refs(Body, B1, Cx);
-refs(#e_block{stmts = Stmts}, B, Cx) ->
-    B0 = lists:foldl(fun(#fn_decl{owner = undefined, name = N}, Bs) -> Bs#{N => true};
-                        (_, Bs) -> Bs
-                     end, B, Stmts),
-    {Refs, _} = lists:foldl(fun(#binding{pattern = P, expr = E}, {A, Bs}) ->
-                                {A ++ refs(E, Bs, Cx), binds(P, Bs)};
-                               (#fn_decl{params = Ps, body = Body}, {A, Bs}) ->
-                                {A ++ refs(Body, binds_params(Ps, Bs), Cx), Bs};
-                               (Stmt, {A, Bs}) ->
-                                {A ++ refs(Stmt, Bs, Cx), Bs}
-                            end, {[], B0}, Stmts),
-    Refs;
-refs(#e_var{path = [], name = N}, B, _Cx) when is_map_key(N, B) -> [];
-refs(#e_var{path = [], name = N}, _B, _Cx) -> [{undefined, N}];
-refs(#e_var{ref = Ref}, _B, _Cx) ->
-    %% report §4.2: the module's own declarations, by any name that reaches
-    %% them, as the checker resolved it
-    case Ref of
-        {own, O, N} -> [{O, N}];
-        _ -> []
-    end;
-refs(#e_binop{op = Op, left = L, right = R}, B, Cx) ->
-    %% an operator on a local type calls its member (report §4.8, §3.10)
-    Member = case ern_typecheck:node_type(L) of
-                 {tcon, Q, _} when length(Q) > 1 ->
-                     case lists:member(Op, ['<', '<=', '>', '>=']) of
-                         true -> [{lists:last(Q), compare}];
-                         false -> [{lists:last(Q), Op}]
-                     end;
-                 _ -> []
-             end,
-    Member ++ refs(L, B, Cx) ++ refs(R, B, Cx);
-refs(#e_not{expr = X}, B, Cx) ->
-    refs(X, B, Cx);
-refs(#e_neg{expr = X}, B, Cx) ->
-    case ern_typecheck:node_type(X) of
-        {tcon, Q, _} when length(Q) > 1 -> [{lists:last(Q), negate} | refs(X, B, Cx)];
-        _ -> refs(X, B, Cx)
-    end;
-refs(T, B, Cx) when is_tuple(T) -> lists:append([refs(X, B, Cx) || X <- tl(tuple_to_list(T))]);
-refs(L, B, Cx) when is_list(L) -> lists:append([refs(X, B, Cx) || X <- L]);
-refs(_, _B, _Cx) -> [].
-
-binds(P, B) ->
-    case P of
-        #p_var{name = N} -> B#{N => true};
-        _ when is_tuple(P) -> lists:foldl(fun binds/2, B, tl(tuple_to_list(P)));
-        _ when is_list(P) -> lists:foldl(fun binds/2, B, P);
-        _ -> B
-    end.
-
-binds_params(Ps, B) ->
-    lists:foldl(fun(#param{pattern = P}, Bs) -> binds(P, Bs) end, B, Ps).
+    [maps:get(K, ByKey) || K <- ern_typecheck:let_order(Env)].
 
 %%
 %% Expressions: expr(E, Cx) -> {Form, Cx}
@@ -1286,7 +1192,7 @@ declare_locals(Fns, Stmts, #cx{vars = Vars, locals = Locals, tops = Tops} = Cx) 
         lists:mapfoldl(
           fun(#fn_decl{name = N, params = Params, body = Body}, C) ->
                   Bound = lists:append([pattern_names(P) || #param{pattern = P} <- Params]),
-                  Free = [F || F <- lists:usort(names(Body, Bound)),
+                  Free = [F || F <- lists:usort(ern_ast:free_names(Body, Bound)),
                                not is_map_key({undefined, F}, Tops)],
                   Refs = [F || F <- Free, lists:member(F, Names)],
                   Own = [F || F <- Free, not lists:member(F, Names),
@@ -1334,40 +1240,7 @@ emit_locals(Fns, Cx) ->
       end, Cx, Fns).
 
 %% Unqualified names free in Node, given the names bound around it.
-names(#e_var{path = [], name = N}, Bound) ->
-    case lists:member(N, Bound) of true -> []; false -> [N] end;
-names(#e_lambda{params = Ps, body = B}, Bound) ->
-    names(B, Bound ++ lists:append([pattern_names(P) || #param{pattern = P} <- Ps]));
-names(#e_block{stmts = Stmts}, Bound) ->
-    {_, Acc} = lists:foldl(fun(#binding{pattern = P, expr = X}, {Bd, A}) ->
-                                   {Bd ++ pattern_names(P), A ++ names(X, Bd)};
-                              (#fn_decl{name = N, params = Ps, body = B}, {Bd, A}) ->
-                                   ParamNames = [pattern_names(P) || #param{pattern = P} <- Ps],
-                                   Inner = Bd ++ [N] ++ lists:append(ParamNames),
-                                   {Bd ++ [N], A ++ names(B, Inner)};
-                              (S, {Bd, A}) -> {Bd, A ++ names(S, Bd)}
-                           end, {Bound, []}, Stmts),
-    Acc;
-names(#clause{pattern = P, guard = G, body = B}, Bound) ->
-    Bd = Bound ++ pattern_names(P),
-    names(G, Bd) ++ names(B, Bd);
-names(T, Bound) when is_tuple(T) -> lists:append([names(X, Bound) || X <- tl(tuple_to_list(T))]);
-names(L, Bound) when is_list(L) -> lists:append([names(X, Bound) || X <- L]);
-names(_, _) -> [].
-
-pattern_names(#p_var{name = N}) -> [N];
-pattern_names(#p_as{name = N, pattern = P}) -> [N | pattern_names(P)];
-pattern_names(#p_con{args = {positional, P}}) -> pattern_names(P);
-pattern_names(#p_con{args = {named, FPs}}) ->
-    lists:append([pattern_names(P) || #field_pat{pattern = P} <- FPs]);
-pattern_names(#p_tuple{elems = Es}) -> lists:append([pattern_names(E) || E <- Es]);
-pattern_names(#p_list{elems = Es}) -> lists:append([pattern_names(E) || E <- Es]);
-pattern_names(#p_cons{head = H, tail = T}) -> pattern_names(H) ++ pattern_names(T);
-pattern_names(#p_or{alts = [A | _]}) -> pattern_names(A);
-pattern_names(#p_bits{segments = Segs}) ->
-    %% report §5.11: a segment's value is a variable, a literal or `_`
-    lists:append([pattern_names(V) || #bit_seg{value = V} <- Segs]);
-pattern_names(_) -> [].
+pattern_names(P) -> [N || {N, _} <- ern_ast:pattern_bindings(P)].
 
 %%
 %% match and receive clauses

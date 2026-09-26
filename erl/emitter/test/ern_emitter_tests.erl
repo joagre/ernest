@@ -1166,6 +1166,17 @@ bitstring_defaults_test() ->
     {R, _} = run("export fn main() -> Unit with Never = { let _ = <<-1>>; Unit }\n"),
     ?assertEqual({fault, <<"segment overflow">>}, R).
 
+%% report §8.5: top-level lets run in the order the checker found, a let
+%% after every let it reaches through the functions it names, whatever the
+%% order they are declared in. A regression test for the order the emitter
+%% now reads rather than computing again; the order it had was the same.
+initialization_order_test() ->
+    {ok, Out} = run("let total = twice() + 1\n"
+                    "fn twice() -> Int = base * 2\n"
+                    "let base = 10\n"
+                    "export fn main() -> Unit with Never = Io.println(Int.toString(total))\n"),
+    ?assertEqual(<<"21\n">>, Out).
+
 %% report §4.2: a name shadowed at each step of the lookup order compiles
 %% to the declaration the checker resolved it to, which the emitter reads
 %% from the name's `ref` rather than resolving again: a type's member, the

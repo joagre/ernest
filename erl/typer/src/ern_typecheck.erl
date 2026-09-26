@@ -17,7 +17,7 @@
          prelude_names/0,
          prelude_con/1, prelude_cons/0, prelude_env/0, lookup_type/2, is_member_path/3,
          member_qname/3, is_reply_carrying/2, assume_reply_carrying/2, foreign_impl/1,
-         declared_scheme/3, typed_pattern_bindings/1, segment_spec/1, lookup_con/4,
+         declared_scheme/3, let_order/1, segment_spec/1, lookup_con/4,
          con_info/2, is_value/2, resolve_type/2, node_type/1]).
 
 -export_type([env/0, session/0]).
@@ -31,7 +31,9 @@
               vars = #{}, effect = pure, st, pending = [], deferred = [],
               ann_vars = #{}, rigid = [], effect_origin = undefined,
               groups = #{}, typed = [], errs = [], reply_vars = [],
-              reply_params = #{}}).
+              reply_params = #{}, let_order = []}).
+%% let_order: the module's top-level lets in the order §8.5 evaluates them,
+%% which the emitter reads.
 %% reply_params: for each declared type with parameters, whether each can
 %% make an instantiation reply-carrying (report §6.6)
 %% reply_vars: type variables the reply discipline takes for reply-carrying
@@ -580,9 +582,20 @@ check_values(Decls, Env0) ->
     Pending = maps:from_list([{group_qname(D, Env1), G} || G <- Groups, D <- G]),
     Env2 = lists:foldl(fun run_group/2, Env1#env{groups = Pending, typed = [], errs = []}, Groups),
     Errs = let_cycles(Env2#env.typed, Env2) ++ Env2#env.errs,
+    Order = case Errs of
+                [] -> initialization_order(Env2#env.typed, Env2);
+                _ -> []
+            end,
     %% restore declaration order for the typed output
     Typed = [replace_typed(D, Env2#env.typed) || D <- Decls],
-    {Typed, Env2#env{groups = #{}, typed = [], errs = []}, Errs}.
+    {Typed, Env2#env{groups = #{}, typed = [], errs = [], let_order = Order}, Errs}.
+
+%% Report §8.5: the order the module's top-level lets are evaluated in, a
+%% let after every let its initializer reaches, directly or through the
+%% functions it names; the cycle check has passed.
+-spec let_order(env()) -> [{atom() | undefined, atom()}].
+let_order(#env{let_order = Order}) ->
+    Order.
 
 group_qname(D, Env) ->
     {Owner, Name} = decl_key(D),
@@ -783,12 +796,7 @@ refs(_, _, Acc, _B) -> Acc.
 %% A pattern binds its variables; an expression inside it, a bitstring
 %% segment's size, refers as any expression does.
 binds(P, B) ->
-    case P of
-        #p_var{name = N} -> B#{N => true};
-        _ when is_tuple(P) -> lists:foldl(fun binds/2, B, tl(tuple_to_list(P)));
-        _ when is_list(P) -> lists:foldl(fun binds/2, B, P);
-        _ -> B
-    end.
+    lists:foldl(fun({N, _}, Bs) -> Bs#{N => true} end, B, ern_ast:pattern_bindings(P)).
 
 binds_params(Ps, B) ->
     lists:foldl(fun(#param{pattern = P}, Bs) -> binds(P, Bs) end, B, Ps).
@@ -958,6 +966,28 @@ zonk_ast(X, _) -> X.
 %% declarations, since an operator names its member only once typed; one
 %% error per cycle, at its first let.
 let_cycles(Decls, Env) ->
+    G = reference_graph(Decls, Env),
+    Lets = lists:keysort(2, [D || #let_decl{} = D <- Decls]),
+    {Errs, _} = lists:foldl(fun(D, {Acc, Seen}) -> let_cycle(D, G, Acc, Seen) end,
+                            {[], []}, Lets),
+    digraph:delete(G),
+    lists:reverse(Errs).
+
+initialization_order(Decls, Env) ->
+    G = reference_graph(Decls, Env),
+    Lets = [decl_key(D) || #let_decl{} = D <- Decls],
+    L = digraph:new(),
+    lists:foreach(fun(K) -> digraph:add_vertex(L, K) end, Lets),
+    lists:foreach(fun(K) ->
+                      [digraph:add_edge(L, K, R)
+                       || R <- digraph_utils:reachable_neighbours([K], G), lists:member(R, Lets)]
+                  end, Lets),
+    Sorted = digraph_utils:topsort(L),
+    digraph:delete(L),
+    digraph:delete(G),
+    lists:reverse(Sorted).
+
+reference_graph(Decls, Env) ->
     Keys = [decl_key(D) || D <- Decls],
     G = digraph:new(),
     lists:foreach(fun(K) -> digraph:add_vertex(G, K) end, Keys),
@@ -965,11 +995,7 @@ let_cycles(Decls, Env) ->
                       [digraph:add_edge(G, decl_key(D), Ref)
                        || Ref <- references(D, Env), lists:member(Ref, Keys)]
                   end, Decls),
-    Lets = lists:keysort(2, [D || #let_decl{} = D <- Decls]),
-    {Errs, _} = lists:foldl(fun(D, {Acc, Seen}) -> let_cycle(D, G, Acc, Seen) end,
-                            {[], []}, Lets),
-    digraph:delete(G),
-    lists:reverse(Errs).
+    G.
 
 let_cycle(#let_decl{pos = Pos, name = Name} = D, G, Errs, Seen) ->
     Key = decl_key(D),
@@ -1463,32 +1489,9 @@ check_uses(Expr, FnNames, Needs, Bound) ->
 %% Unqualified names of the given set free in a local fn's body: outside
 %% its parameters and the bindings inside the body.
 free_refs(Body, Params, Names) ->
-    lists:usort([N || N <- free_in(Body, param_names(Params)), lists:member(N, Names)]).
+    lists:usort([N || N <- ern_ast:free_names(Body, param_names(Params)), lists:member(N, Names)]).
 
-free_in(#e_var{path = [], name = N}, Bound) ->
-    case lists:member(N, Bound) of true -> []; false -> [N] end;
-free_in(#e_lambda{params = Ps, body = B}, Bound) ->
-    free_in(B, param_names(Ps) ++ Bound);
-free_in(#e_block{stmts = Stmts}, Bound) ->
-    {Free, _} = lists:mapfoldl(fun(#binding{pattern = P, expr = X}, Bd) ->
-                                       {free_in(X, Bd), pattern_names(P) ++ Bd};
-                                  (#fn_decl{name = N, params = Ps, body = B}, Bd) ->
-                                       {free_in(B, [N | param_names(Ps)] ++ Bd), [N | Bd]};
-                                  (S, Bd) ->
-                                       {free_in(S, Bd), Bd}
-                               end, Bound, Stmts),
-    lists:append(Free);
-free_in(#clause{pattern = P, guard = G, body = B}, Bound) ->
-    Bd = pattern_names(P) ++ Bound,
-    free_in(G, Bd) ++ free_in(B, Bd);
-free_in(T, Bound) when is_tuple(T) ->
-    lists:append([free_in(X, Bound) || X <- tl(tuple_to_list(T))]);
-free_in(L, Bound) when is_list(L) ->
-    lists:append([free_in(X, Bound) || X <- L]);
-free_in(_, _) ->
-    [].
-
-pattern_names(P) -> [N || {N, _} <- typed_pattern_bindings(P)].
+pattern_names(P) -> [N || {N, _} <- ern_ast:pattern_bindings(P)].
 
 param_names(Params) -> lists:append([pattern_names(P) || #param{pattern = P} <- Params]).
 
@@ -1683,7 +1686,7 @@ undetermined_bindings(Node, FnT, #env{st = St} = Env) ->
                                                       ++ ern_types:format(T, St)
                                                       ++ "); use it, or annotate it")
                                    end
-                               end, typed_pattern_bindings(P)),
+                               end, ern_ast:pattern_bindings(P)),
                  E;
             (_, E) -> E
          end, Node, Env),
@@ -1701,25 +1704,6 @@ declared_scheme(Env, Path, Name) ->
         throw:{type_error, _, _} -> error
     end.
 
-%% The names a pattern binds, with their types, in the order written; the
-%% types are undefined in a pattern not yet checked.
--spec typed_pattern_bindings(tuple()) -> [{atom(), term()}].
-typed_pattern_bindings(#p_var{name = N, type = T}) -> [{N, T}];
-typed_pattern_bindings(#p_as{name = N, type = T, pattern = P}) ->
-    typed_pattern_bindings(P) ++ [{N, T}];
-typed_pattern_bindings(#p_con{args = {positional, P}}) -> typed_pattern_bindings(P);
-typed_pattern_bindings(#p_con{args = {named, Fs}}) ->
-    lists:append([typed_pattern_bindings(P) || #field_pat{pattern = P} <- Fs]);
-typed_pattern_bindings(#p_tuple{elems = Es}) ->
-    lists:append([typed_pattern_bindings(E) || E <- Es]);
-typed_pattern_bindings(#p_list{elems = Es}) -> lists:append([typed_pattern_bindings(E) || E <- Es]);
-typed_pattern_bindings(#p_cons{head = H, tail = T}) ->
-    typed_pattern_bindings(H) ++ typed_pattern_bindings(T);
-typed_pattern_bindings(#p_or{alts = [A | _]}) -> typed_pattern_bindings(A);
-typed_pattern_bindings(#p_bits{segments = Segs}) ->
-    %% report §5.11: a segment's value is a variable, a literal or `_`
-    lists:append([typed_pattern_bindings(V) || #bit_seg{value = V} <- Segs]);
-typed_pattern_bindings(_) -> [].
 
 %%
 %% Expressions: infer(Expr, Env) -> {TypedExpr, Type, Env}
@@ -2345,14 +2329,14 @@ check_pattern(P, Env) ->
 %% Report §5.9: the alternatives bind each variable at one type, checked
 %% once the clause's pattern has met the value's type.
 alternatives_agree(#p_or{alts = [First | Rest]}, Env) ->
-    Bindings = typed_pattern_bindings(First),
+    Bindings = ern_ast:pattern_bindings(First),
     lists:foldl(fun(A, En) ->
                     lists:foldl(fun({N, TN}, E) ->
                                     {N, TF} = lists:keyfind(N, 1, Bindings),
                                     unify_at(node_span(A), TF, TN, E,
                                              "the alternatives bind `" ++ atom_to_list(N)
                                              ++ "` at one type", undefined)
-                                end, En, typed_pattern_bindings(A))
+                                end, En, ern_ast:pattern_bindings(A))
                 end, Env, Rest);
 alternatives_agree(_, Env) ->
     Env.
