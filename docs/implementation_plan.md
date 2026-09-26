@@ -22,7 +22,8 @@ first four steps are done: the feedback list and this plan consolidated, the rep
 cold, and the first two themes, names and namespaces, and expressions, patterns and types.
 The third theme, processes and the system, has begun: names, restarts and supervision
 are decided (item 53, six questions), a process's identity (item 24), the live
-processes as a function (item 26), and the fault log (item 28), and a stream's time limit (item 50); items 47, 37 and 27 are next. MVP 2.6, the shell, was closed on
+processes as a function (item 26), and the fault log (item 28), a stream's time limit (item 50), and system messages (item 47); items 37 and 27 are
+next. MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
 **Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23; MVP 2.61, the
@@ -201,6 +202,14 @@ The steps:
    the accept and the connect use the host's own time limit, and the Ernest side waits with
    `Address.callForever`. E.18 gains that a read, accept or connect that times out has taken
    nothing. The log's *A Stream Keeps Its Own Time Limit*.
+
+   **Decided 2026-09-26: a system message is its system module's to make** (item 47). The
+   message types of the system references and of the addresses their modules answer stay
+   the prelude's, and their constructors are named only in that system module; another
+   module that names one is refused, and the error names the function to call. The checker
+   keeps the table of owners, held equal to §9.7 by a test. `Sys.stdout` and `Sys.stderr`
+   take an `OutMsg`, so E.0 rule 8 holds with no exception. Report §9.7, E.0 rule 8 and
+   E.18, in step 10. The log's *A System Message Is Its Module's to Make*.
 6. **The standard library under E.0**, the fourth theme, in three batches: where the line
    between a shim and Ernest runs, with the abstract types it could write (items 11, 13, 42,
    46), what a function is named and where it
