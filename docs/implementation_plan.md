@@ -287,6 +287,10 @@ The steps:
         composition, `trimStart` then `trimEnd`, that text wants more often than either half;
         `Map.merge` is no pipe of two functions and needs nothing. The log's *`trim` Is a
         Named Pair*.
+      - **G7, `Tcp.peer` and `Tcp.local` keep their names.** A connection's peer is TCP's
+        word, another context than a peer node, and E.18's line for `Tcp.peer` says so, "the
+        connection's far end, in TCP's sense, not a peer of §8.3". The log's *A TCP Peer Is
+        TCP's*.
    2. **The ledger.** A table in this plan, a row for each decision the gate leaves: the
       report sections it changes; the Erlang modules and Ernest files it reaches; its tests,
       the new ones and the mirror tests that must change, a mirror test planned for every
