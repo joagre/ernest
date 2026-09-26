@@ -599,9 +599,15 @@ each is built where it belongs.
   `Supervisor`'s Shape*). A child is added at any time, when the program starts or while it
   runs, so a pool of children started at run time is the same supervisor and not a second
   kind; a child that returns or is killed leaves the group, and the supervisor forgets it.
-  The caller writes the `spawn`, as with `restarting`: `Supervisor.child(sup, ..., f)`
-  answers the function a process runs, which joins the group, waiting until the supervisor
-  has it, and then runs `f`; so the child's site (§6.9) and its placement are the caller's.
+  The caller writes the `spawn`, as with `restarting`: `Supervisor.child(sup, f)` answers
+  the function a process runs, which joins the group, waiting until the supervisor has it,
+  and then runs `f`; so the child's site (§6.9) and its placement are the caller's. A
+  supervisor is spawned the same way, `spawn(Local, Supervisor.group(strategy, limit))`,
+  its address an `Address(Supervisor.Msg)` whose message type is abstract. The group's
+  limit is the only one: a child restarts in place after each fault until the group passes
+  it, and then the supervisor signals every child to restart and faults. Under a parent it
+  restarts in place and its children join it again, each with the number it first joined
+  with, so the order holds; at the root it dies and its watcher kills the children.
 - **`examples/supervisor.ern`**, three long-lived services under one supervisor as
   top-level bindings, faulted on purpose, read back against principles 1 and 2 and E.0.
   The guide gains a section on the supervisor, after the one on services: a tree as
