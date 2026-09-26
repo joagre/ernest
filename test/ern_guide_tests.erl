@@ -98,15 +98,22 @@ check({modules, #{files := Files, run := Run}}) ->
         {Flags, Module, [], Expected} when Flags =/= "shell " ->
             %% in this node: the program's output is what the test captures
             Args = string:lexemes(Flags, " ") ++ [filename:join(Build, Module)],
-            ?assertEqual(0, ern_cli:ern(Args, group_leader())),
-            ?assertEqual(trim(Expected), trim(iolist_to_binary(?capturedOutput)));
+            ErrFile = filename:join(Dir, "stderr"),
+            {ok, Err} = file:open(ErrFile, [write]),
+            ?assertEqual(0, ern_cli:ern(Args, Err)),
+            ok = file:close(Err),
+            {ok, Errors} = file:read_file(ErrFile),
+            same_streams(Expected, iolist_to_binary(?capturedOutput), Errors);
         {Flags, Module, Inputs, Expected} ->
             In = filename:join(Dir, "inputs"),
             ok = write(In, [[I, <<"\n">>] || I <- Inputs]),
+            ErrFile = filename:join(Dir, "stderr"),
             {0, Printed} = sh("cd " ++ Dir ++ " && HOME=" ++ Dir ++ " "
                               ++ filename:absname("../bin/ern") ++ " " ++ Flags
-                              ++ filename:join(Build, Module) ++ " < " ++ In),
-            ?assertEqual(trim(Expected), session_end(Printed))
+                              ++ filename:join(Build, Module) ++ " < " ++ In
+                              ++ " 2> " ++ ErrFile),
+            {ok, Errors} = file:read_file(ErrFile),
+            same_streams(Expected, session_end(Printed), Errors)
     end;
 check({rejected, #{files := [{F, Code}], shown := Shown}}) ->
     Dir = tmp(),
@@ -130,6 +137,20 @@ check({session, #{inputs := Inputs, shown := Expected}}) ->
 
 %% A session not at a terminal echoes no input, and ends at the last
 %% prompt, which a program's output does not end in.
+%% Report §11.2: a console shows standard output and standard error as a
+%% terminal does, but two processes write them and nothing orders one
+%% against the other, so each stream is held to its own order: its lines
+%% are the console's, the other stream's taken out, in order.
+same_streams(Expected, Out, Errors) ->
+    Shown = lines(trim(Expected)),
+    Written = lines(trim(Out)),
+    Said = lines(trim(Errors)),
+    ?assertEqual(Shown -- Said, Written),
+    ?assertEqual(Shown -- Written, Said).
+
+lines(<<>>) -> [];
+lines(Text) -> binary:split(Text, <<"\n">>, [global]).
+
 session_end(Out) ->
     trim(string:trim(trim(Out), trailing, ">")).
 

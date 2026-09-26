@@ -114,6 +114,9 @@ represented(V, L) when is_list(V) ->
 represented({set, S}, L) when is_map(S) ->
     Elems = parts(lists:sort(maps:keys(S)), L, fun(K) -> represented(K, deeper(L)) end),
     ["Set.fromList([", join(Elems), "])"];
+%% an address seen through `via` is the runtime's own term (report §6.5),
+%% and is written as every address is, by the process behind it
+represented({via, F, _} = A, _) when is_function(F, 1) -> address(A);
 represented(T, L) when is_tuple(T), tuple_size(T) > 0, is_atom(element(1, T)) ->
     %% report §8.4: a constructor's atom is its source spelling, capitalized;
     %% any other first atom, `true` among them, begins a tuple
