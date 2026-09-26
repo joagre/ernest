@@ -595,6 +595,10 @@ each is built where it belongs.
   which leaves a binding holding a dead address or needs a registry, a forwarder, or a
   handle every address operation looks up; and `OneForOne` alone, which stops a tree at
   one level.
+- **The `Supervisor`'s shape**, decided one question at a time (the log's *The
+  `Supervisor`'s Shape*). A child is added at any time, when the program starts or while it
+  runs, so a pool of children started at run time is the same supervisor and not a second
+  kind; a child that returns or is killed leaves the group, and the supervisor forgets it.
 - **`examples/supervisor.ern`**, three long-lived services under one supervisor as
   top-level bindings, faulted on purpose, read back against principles 1 and 2 and E.0.
   The guide gains a section on the supervisor, after the one on services: a tree as
