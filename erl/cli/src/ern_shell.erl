@@ -386,7 +386,12 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
     {ok, Mod, Beam} = ern_emitter:compile(Ns, Typed, Iface, TEnv,
                                           #{source_hash => <<>>, deps => [], session => true}),
     {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), Beam),
-    Env1 = Env#env{beams = maps:put(Ns, Beam, Env#env.beams)},
+    %% report §11.2: an input that declares keeps its module for `:doc`;
+    %% an expression's has no documentation, and is not kept
+    Env1 = case Binds of
+               decls -> Env#env{beams = maps:put(Ns, Beam, Env#env.beams)};
+               _ -> Env
+           end,
     Input = fun() ->
                 %% the input's own fault is its answer, so the watcher is
                 %% told before anything of the input runs
