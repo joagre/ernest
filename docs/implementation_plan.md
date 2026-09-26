@@ -134,9 +134,14 @@ The steps:
       site, the cause, and `restarted` when the limit allowed a restart (report §11.2, when
       built). `monitor` stays one message, at death (§6.9). Feedback item 9 is answered. The
       log's *Every Fault Reaches Standard Error*.
-   4. **An initializer that spawns**: in which process, in what order under §8.5, how a
-      service that is one per node is tested, and what §8.7 does with a shipped binding
-      that spawns.
+   4. **Decided 2026-09-26: an initializer runs as a `Never` process.** It is checked as a
+      body of mailbox type `Never`, so it may spawn, send and call and may not receive, and
+      it runs in the entry process before `main` (report §4.6 and §8.5, when built). The
+      mention rule stays: a spawned process may start at once, and two services that name
+      each other are a cycle. A module is initialized whole. A service is tested through
+      the pair `fn start()` and `let service = start()`, which the guide teaches. §8.7 and
+      the shell's reload each gain a sentence where they meet a service. The log's *An
+      Initializer Runs as a `Never` Process*.
    5. **Across nodes**: `Log.service` on a peer is the peer's own. Reaching another node's
       service is MVP 3.0's decision, *Finding a service on a peer*.
    6. **A `Supervisor` module in the standard library**, for what `restarting` leaves out:
