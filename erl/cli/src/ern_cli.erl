@@ -919,7 +919,7 @@ run_test({'Test', Name, Run}) ->
     Outcome = receive
                   {Ref, 'Passed'} -> returned(Ref, <<"passed">>);
                   {Ref, {'Failed', Text}} -> returned(Ref, <<"failed: ", Text/binary>>);
-                  {Ref, down, {'Down', _, Reason}} -> <<"faulted: ", (cause(Reason))/binary>>
+                  {Ref, down, {'Down', Reason, _}} -> <<"faulted: ", (cause(Reason))/binary>>
               end,
     ok = ern_rt:deadlock_target(none),
     ern_rt:sys(stdout) ! <<Name/binary, ": ", Outcome/binary, "\n">>,

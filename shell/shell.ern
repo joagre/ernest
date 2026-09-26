@@ -379,8 +379,8 @@ fn reportDeath(screen : Address(ScreenMsg), colour : Bool, down : Down) -> Unit 
     say(screen, Shell.Style.fault(colour, faultLine(down)))
 
 fn faultLine(down : Down) -> String = match down {
-    Down(reason = Fault(text), function = where) -> where <> " faulted: " <> text
-  | Down(reason = _, function = where) -> where <> " ended"
+    Down(reason = Fault(text), site = where) -> where <> " faulted: " <> text
+  | Down(reason = _, site = where) -> where <> " ended"
 }
 
 // A diagnostic, its first line coloured as a fault (report §11.2).

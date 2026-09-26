@@ -1100,7 +1100,7 @@ prelude_types_test() ->
     ?assertEqual(ok, ok("fn f(x : Either(String, Int)) = match x { Left(_) -> 0"
                         " | Right(v) -> v }")),
     ?assertEqual(ok, ok("fn f(x : Ordering) = match x { Less -> 0 | Equal -> 1 | Greater -> 2 }")),
-    ?assertEqual(ok, ok("fn f(x : Down) = match x { Down(reason = r, function = _) -> r }")),
+    ?assertEqual(ok, ok("fn f(x : Down) = match x { Down(reason = r, site = _) -> r }")),
     ?assertEqual(ok, ok("fn f(x : Reason) = match x { Returned -> 0 | Killed -> 1 | ProgramEnd -> 2"
                         " | Fault(_) -> 3 | Unknown -> 4 }")),
     ?assertEqual(ok, ok("fn f(x : ClockMsg) -> Unit with Never = match x {"

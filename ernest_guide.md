@@ -957,11 +957,11 @@ spawnMonitored : (Where, () -> Unit with n, (Down) -> m) -> Address(n) with m
 ```
 
 ```ernest-prelude
-type Down = Down(reason : Reason, function : String)
+type Down = Down(reason : Reason, site : String)
 type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
 ```
 
-`monitor(child, wrap)` puts `wrap(d)` in your mailbox when `child` dies, or at once if it is dead already, with the reason `Unknown`, since the runtime keeps nothing of a process that has ended. A process you start yourself is watched from its start with `spawnMonitored(Local, f, wrap)`, `spawn` and `monitor` in one step, so that no end comes before the watch. `wrap` makes your message from the runtime's `Down`: in ping-pong, `PongDone` is a constructor of `MainMsg` that carries one. A `Down` says the process ended, not that it succeeded; its `reason` says how, and its `function` names the function that spawned it and the line, `Counter.main:19`.
+`monitor(child, wrap)` puts `wrap(d)` in your mailbox when `child` dies, or at once if it is dead already, with the reason `Unknown`, since the runtime keeps nothing of a process that has ended. A process you start yourself is watched from its start with `spawnMonitored(Local, f, wrap)`, `spawn` and `monitor` in one step, so that no end comes before the watch. `wrap` makes your message from the runtime's `Down`: in ping-pong, `PongDone` is a constructor of `MainMsg` that carries one. A `Down` says the process ended, not that it succeeded; its `reason` says how, and its `site` says where it was spawned, the top-level declaration and the line of the spawn, `Counter.main:19`.
 
 `wrap` is a function, so it can carry what you need to tell one death from another. A process that monitors a worker while waiting for its answer gets two messages, the answer and the death, and takes the answer; the death is still in the mailbox when the next worker is monitored. Addresses have no equality, so a `Down` cannot be asked which worker it is about. Give each worker a number and let the wrap close over it:
 
@@ -1086,7 +1086,7 @@ fn collect(totals : Address(TallyMsg), left : Int) -> Unit with MainMsg =
     if left == 0 then Unit
     else receive {
         Counted(counts) -> { send(totals, Add(counts)); collect(totals, left - 1) }
-      | Died(Down(reason = Fault(cause), function = _)) -> {
+      | Died(Down(reason = Fault(cause), site = _)) -> {
             Io.println("a worker faulted: " <> cause);
             collect(totals, left - 1)
         }
@@ -1201,7 +1201,7 @@ fn worker(count : Int) -> Unit with Never =
 export fn main() -> Unit with MainMsg = {
     let _ = spawnMonitored(Local, fn() = worker(0), WorkerDied);
     receive {
-        WorkerDied(Down(reason = Fault(cause), function = site)) ->
+        WorkerDied(Down(reason = Fault(cause), site = site)) ->
             Io.println("the worker spawned at " <> site <> " faulted: " <> cause)
       | WorkerDied(_) -> Io.println("the worker ended")
     }
@@ -1213,7 +1213,7 @@ $ ern run faults.erc
 the worker spawned at Faults.main:9 faulted: division by zero
 ```
 
-`average` is pure and still faults. A type says what a function returns when it returns, not that it will. The `function` of a `Down` names the function that spawned the process and the line of the call.
+`average` is pure and still faults. A type says what a function returns when it returns, not that it will. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn.
 
 Three faults reach beyond their process. A fault in the entry process ends the program: `ern` prints `fault: ` and the cause, and exits with status 1. A fault in the function of an adapted address (§5.5) is the fault of the process the address names. A fault in the callback of `remote` is the fault of the process that called it (§8.1). A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
 
@@ -1239,7 +1239,7 @@ fn supervise(jobs : List(Int)) -> Unit with SupMsg = match jobs {
 // has sent its answer, so after its end the answer is taken too, whichever
 // arrived first, and neither is left for the next worker.
 fn outcome() -> String with SupMsg = receive {
-    Ended(Down(reason = Fault(cause), function = _)) -> "failed, " <> cause
+    Ended(Down(reason = Fault(cause), site = _)) -> "failed, " <> cause
   | Ended(_) -> receive { Result(n) -> Int.toString(n) }
 }
 

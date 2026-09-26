@@ -2,8 +2,8 @@
 %% generated code calls, and the launcher.
 %%
 %% Values follow the ABI of report §8.4: Unit is 'Unit', a nullary constructor
-%% is its quoted name, Some(v) is {'Some', V}, Down(function, reason) is
-%% {'Down', Function, Reason} in canonical field order.
+%% is its quoted name, Some(v) is {'Some', V}, Down(reason, site) is
+%% {'Down', Reason, Site} in canonical field order.
 %%
 %% An Address is a pid, or {via, F, Target} for an address seen through a
 %% function (report §6.5), which send/2 applies in the sender. A Reply(a)
@@ -234,7 +234,7 @@ reaper_loop(Waiters) ->
                 [{_, Site, alive, _, _}] ->
                     ets:delete(?PROCESSES, Pid),
                     died(Pid, Site, Reason),
-                    Down = {'Down', Site, reason(Reason)},
+                    Down = {'Down', reason(Reason), Site},
                     lists:foreach(fun({To, {raw, Tag}}) -> To ! {Tag, Site, Reason};
                                      ({To, Wrap}) -> wrapped(To, Wrap, Down)
                                   end, maps:get(Pid, Waiters, []));
@@ -242,7 +242,7 @@ reaper_loop(Waiters) ->
                     %% report §6.9: the spawn site of a process the runtime
                     %% did not start, or of one that had ended, is not known
                     lists:foreach(fun({To, Wrap}) ->
-                                      wrapped(To, Wrap, {'Down', <<>>, reason(Reason)})
+                                      wrapped(To, Wrap, {'Down', reason(Reason), <<>>})
                                   end, maps:get(Pid, Waiters, [])),
                     is_map_key(Pid, Waiters) andalso source_end();
                 _ ->

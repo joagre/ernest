@@ -298,9 +298,9 @@ monitor_test() ->
                ern_rt:kill(Victim),
                receive {down, D3} -> Me ! {d3, D3} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({'Down', <<"Main.main:3">>, 'Returned'}, wait(d1)),
-    ?assertEqual({'Down', <<"Main.main:5">>, {'Fault', <<"division by zero">>}}, wait(d2)),
-    ?assertEqual({'Down', <<"Main.main:7">>, 'Killed'}, wait(d3)).
+    ?assertEqual({'Down', 'Returned', <<"Main.main:3">>}, wait(d1)),
+    ?assertEqual({'Down', {'Fault', <<"division by zero">>}, <<"Main.main:5">>}, wait(d2)),
+    ?assertEqual({'Down', 'Killed', <<"Main.main:7">>}, wait(d3)).
 
 %% report §6.9, §8.6: the runtime keeps nothing of a process that has
 %% ended, so a monitor made after its end answers Unknown with no spawn
@@ -321,7 +321,7 @@ ended_rows_test() ->
                receive {down, D} -> Me ! {late, D} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual([], wait(row)),
-    ?assertEqual({'Down', <<>>, 'Unknown'}, wait(late)).
+    ?assertEqual({'Down', 'Unknown', <<>>}, wait(late)).
 
 %% A process body that starts once it is told to, so that a monitor can be
 %% made while it runs.
@@ -344,7 +344,7 @@ runtime_failure_test() ->
                P ! go,
                receive {down, D} -> Me ! {down, D} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({'Down', <<"Main.main:2">>, {'Fault', <<"error:badarg">>}}, wait(down)).
+    ?assertEqual({'Down', {'Fault', <<"error:badarg">>}, <<"Main.main:2">>}, wait(down)).
 
 %% report §6.9, §6.5: a monitor's wrap that faults is the fault of the
 %% process it delivers to, and the runtime goes on. A regression test: the
@@ -368,8 +368,8 @@ faulting_wrap_test() ->
                receive {later, D2} -> Me ! {d2, D2} end,
                Watcher
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({'Down', <<"Main.main:3">>, {'Fault', <<"division by zero">>}}, wait(d1)),
-    ?assertEqual({'Down', <<"Main.main:5">>, 'Returned'}, wait(d2)).
+    ?assertEqual({'Down', {'Fault', <<"division by zero">>}, <<"Main.main:3">>}, wait(d1)),
+    ?assertEqual({'Down', 'Returned', <<"Main.main:5">>}, wait(d2)).
 
 %% report §6.5, E.15: an alarm's function that never finishes holds up no
 %% other alarm. A regression test: the clock applied it itself, and froze
@@ -409,7 +409,7 @@ unloaded_code_test() ->
                exit(Old, {ern, code_unloaded}),
                receive {down, D} -> Me ! {d, D} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({'Down', <<"Main.main:3">>, {'Fault', <<"its code was unloaded">>}}, wait(d)).
+    ?assertEqual({'Down', {'Fault', <<"its code was unloaded">>}, <<"Main.main:3">>}, wait(d)).
 
 %% report §6.5: via adapts a message on its way to the target
 via_test() ->
@@ -514,7 +514,10 @@ via_in_flight_test() ->
                        end, <<"main">>, #{stdout => fun(_) -> ok end})).
 
 %% report §6.5: an address seen through a function is the target and the
-%% function, not a process, so adapting costs nothing that accumulates
+%% function, not a process, so adapting costs nothing that accumulates. An
+%% alarm's delivery is a process of its own until it has delivered (§6.9),
+%% so the count is read once those have ended; it was read at once, and
+%% failed when one had delivered and not yet ended
 via_is_not_a_process_test() ->
     Me = self(),
     ok = ern_rt:run_main(
@@ -527,10 +530,23 @@ via_is_not_a_process_test() ->
                                                      ern_rt:via(fun(_) -> tick end, Mine)})
                              end, lists:seq(1, 100)),
                lists:foreach(fun(_) -> receive tick -> ok end end, lists:seq(1, 100)),
-               Me ! {counts, Before, erlang:system_info(process_count)}
+               Me ! {counts, Before, settled(Before, 100)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     {Before, After} = wait(counts2),
     ?assertEqual(Before, After).
+
+%% The process count once it is Before again, or after Tries waits of 10
+%% ms, each counted as a timed wait so that it is no deadlock (§8.6).
+settled(Before, Tries) ->
+    case erlang:system_info(process_count) of
+        Before -> Before;
+        Count when Tries =:= 0 -> Count;
+        _ ->
+            ern_rt:timed(),
+            receive after 10 -> ok end,
+            ern_rt:untimed(),
+            settled(Before, Tries - 1)
+    end.
 
 %% report §8.4, §6.3: an address handed to a foreign function arrives as
 %% the checking proxy, and the proxy names the process behind it, so what
@@ -564,7 +580,7 @@ via_fault_test() ->
                receive {down, D} -> Me ! {d, D} end,
                Me ! {sender, alive}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({'Down', <<"Main.main:3">>, {'Fault', <<"division by zero">>}}, wait(d)),
+    ?assertEqual({'Down', {'Fault', <<"division by zero">>}, <<"Main.main:3">>}, wait(d)),
     ?assertEqual(alive, wait(sender)).
 
 %% report §6.9: a monitor is the reaper's whoever started the process, so
@@ -583,7 +599,7 @@ monitor_foreign_process_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     {Before, After} = wait(counts2),
     ?assertEqual(Before, After),
-    ?assertEqual({'Down', <<>>, 'Returned'}, wait(d)).
+    ?assertEqual({'Down', 'Returned', <<>>}, wait(d)).
 
 wait(counts2) ->
     receive {counts, B, A} -> {B, A} after 2000 -> timeout end;

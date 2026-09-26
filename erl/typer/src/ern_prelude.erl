@@ -221,9 +221,9 @@ declared_types() ->
     /// // => Greater
     /// ```
     type Ordering = Less | Equal | Greater
-    /// What `monitor` delivers when a process ends: how it ended, and the
-    /// function that spawned it with the line of the call, `Counter.main:19`
-    /// (report §6.9).
+    /// What `monitor` delivers when a process ends: how it ended, and where
+    /// it was spawned, the top-level declaration and the line of the spawn,
+    /// `Counter.main:19` (report §6.9).
     ///
     /// ### Examples
     ///
@@ -231,10 +231,10 @@ declared_types() ->
     /// {
     ///     let worker = spawn(Local, fn() -> Unit with Never = Unit);
     ///     monitor(worker, fn(d : Down) = d);
-    ///     receive { Down(reason = r, function = _) -> r }
+    ///     receive { Down(reason = r, site = _) -> r }
     /// }
     /// ```
-    type Down = Down(reason : Reason, function : String)
+    type Down = Down(reason : Reason, site : String)
     /// How a process ended: its function returned, `kill` ended it, the program
     /// ended while it ran, or it faulted with a cause. Only `Fault` is a fault.
     ///

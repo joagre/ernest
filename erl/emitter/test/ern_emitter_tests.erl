@@ -1375,7 +1375,7 @@ monitor_site_test() ->
         "    let _ = spawnMonitored(Local, fn() -> Unit with Never = { let _ = 1 / z; Unit },"
         " Died);\n"
         "    receive {\n"
-        "        Died(Down(function = f, reason = Fault(msg))) -> Io.println(f <> \" \" <> msg)\n"
+        "        Died(Down(site = f, reason = Fault(msg))) -> Io.println(f <> \" \" <> msg)\n"
         "      | Died(_) -> Io.println(\"other\")\n"
         "    }\n"
         "}\n"),
@@ -1391,7 +1391,7 @@ down_site_test() ->
         "type Msg = Died(Down)\n"
         "fn idle() -> Unit with Never = receive { after 100 -> Unit }\n"
         "fn report() -> Unit with Msg = receive {\n"
-        "    Died(Down(function = f, reason = _)) -> Io.println(f)\n"
+        "    Died(Down(site = f, reason = _)) -> Io.println(f)\n"
         "}\n"
         "fn outer() -> Unit with Msg = {\n"
         "    fn inner() -> Address(Never) with Msg = spawn(Local, idle);\n"
@@ -1544,14 +1544,14 @@ process_functions_test() ->
         "    monitor(w, Died);\n"
         "    kill(w);\n"
         "    receive {\n"
-        "        Died(Down(reason = Killed, function = _)) -> Io.println(\"killed\")\n"
+        "        Died(Down(reason = Killed, site = _)) -> Io.println(\"killed\")\n"
         "      | _ -> Io.println(\"other\")\n"
         "    };\n"
         "    let z = List.size([]);\n"
         "    let _ = spawnMonitored(Local, fn() -> Unit with Never = { let _ = 1 / z; Unit },"
         " Died);\n"
         "    receive {\n"
-        "        Died(Down(reason = Fault(m), function = _)) -> Io.println(m)\n"
+        "        Died(Down(reason = Fault(m), site = _)) -> Io.println(m)\n"
         "      | _ -> Io.println(\"other\")\n"
         "    };\n"
         "    send(via(fn(u : Unit) = Tick, self()), Unit);\n"
@@ -1580,7 +1580,7 @@ kill_dead_test() ->
         "    monitor(w, Died);\n"
         "    receive { Died(d) -> { let _ = Io.debug(d); Unit } }\n"
         "}\n"),
-    ?assertEqual(<<"Down(function = \"\", reason = Unknown)\n">>, Out).
+    ?assertEqual(<<"Down(reason = Unknown, site = \"\")\n">>, Out).
 
 %% report §8.2, §9.7: Sys.stdout is a value
 sys_stdout_test() ->

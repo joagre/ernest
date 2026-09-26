@@ -1217,7 +1217,7 @@ watch(To, Quiet, Faults) ->
                 true ->
                     watch(To, Quiet, Faults);
                 false ->
-                    Down = {'Down', Site, Reason},
+                    Down = {'Down', Reason, Site},
                     ern_rt:send(To, Down),
                     watch(To, Quiet, lists:sublist([Down | Faults], ?FAULTS))
             end;
