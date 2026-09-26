@@ -16,4 +16,8 @@ with the toolchain's option names (the log's *One Tool, the Job Its First Word*)
 
 The last ten, 1.7, 1.8, 2.18, 2.19, 2.24, 2.26, 2.33, 3.17, 3.29 and 3.30, were decided on
 2026-09-26 in MVP 2.65's step 9 (the log's *The Cold Read's Last Findings*), and no finding is
-left; the plan's step 10 writes what they decided into the report.
+left; MVP 2.65's step 10 wrote what they decided into the report on 2026-09-26.
+
+A second reader read the report cold on 2026-09-26, after that pass (the plan's MVP 2.65,
+step 10, sub-step 4), and each of the 37 places they found was decided in that step. No
+finding is open.

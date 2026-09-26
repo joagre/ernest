@@ -1,8 +1,7 @@
 /// Output to `Sys.stdout` and `Sys.stderr`, and input from `Sys.stdin`
 /// (report §8.2). Each is a system process, so printing is a message and
 /// carries the caller's mailbox effect; pure code cannot print. A string
-/// goes to any other `Address(String)` by `send`, which is how a program
-/// writes to a socket or a sink of its own.
+/// goes to any other `Address(String)` by `send`.
 ///
 /// ## Examples
 ///

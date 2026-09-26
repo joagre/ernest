@@ -6,7 +6,7 @@
 //
 // Assumptions. Tcp and Clock are the standard library's system modules (report
 // Appendix E) over Sys.tcp and Sys.clock (§8.2). The sessions are a process
-// that owns a Map, since state shared by processes is a process (§10).
+// that owns a Map, since state shared by processes is a process (Appendix E.0 rule 1).
 // errorText is a hand-written rendering for stdout. main runs the acceptor
 // itself so the program keeps running (report §8.6).
 //

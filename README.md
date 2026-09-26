@@ -132,7 +132,7 @@ built.
 
 ## What the toolchain accepts
 
-The toolchain is the report on one node; the plan's MVPs lift the table row by row. Everything the report describes type-checks, and what the table leaves out compiles and runs: pure functions with inference, `Float` and operators on user types, `foreign fn` and `foreign type` with the checks of §8.4, bitstrings, sum and abstract types, processes with typed mailboxes, `receive` with `after`, `Address.call`, `monitor` and `kill`, `<-`, `match` with any guard, top-level `let`, and modules in directories. The table is what the toolchain refuses or does not yet check, each with the MVP that lifts it in [`docs/implementation_plan.md`](docs/implementation_plan.md).
+The toolchain is the report on one node; the plan's MVPs lift the table row by row. Everything the report describes type-checks, and what the table leaves out compiles and runs, except what MVP 2.65's step 10 is building: the report states it already, and the plan's ledger lists each decision until it is built. What runs today: pure functions with inference, `Float` and operators on user types, `foreign fn` and `foreign type` with the checks of §8.4, bitstrings, sum and abstract types, processes with typed mailboxes, `receive` with `after`, `Address.call`, `monitor` and `kill`, `<-`, `match` with any guard, top-level `let`, and modules in directories. The table is what the toolchain refuses or does not yet check, each with the MVP that lifts it in [`docs/implementation_plan.md`](docs/implementation_plan.md).
 
 | Construct | Until | What you see today |
 |---|---|---|

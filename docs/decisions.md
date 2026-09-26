@@ -4383,6 +4383,24 @@ A line of standard input that is not UTF-8 is the fault of the process that aske
 
 `Process.faults` holds one subscription a process, a second replacing the first, as `Terminal.subscribe` does (*One Subscription to the Terminal a Process*): a subscription per call would deliver each fault twice, which no subscriber wants.
 
+## The Report Read Cold After the Pass, 2026-09-26
+
+MVP 2.65's step 10, its fourth sub-step. A reader who took no part read the report alone after the report pass and found 37 places; the guide and every other document were read against it. Most were fixed as written. Seven needed a verdict.
+
+`Process` had been placed in `process.ern` as its foreign type (*Everything About a Process in Its Module*), which makes its name `Process.Process`, a type named for its module, which E.0 rule 7 refuses; and §9 already makes a type the prelude's when the module of its operations is named after it, as `Map` and `Path` are. So `Process` is the prelude's, as `Map` is, and `process.ern` holds its operations and `Info`, `Activity` and `FaultReport`. What the gate wanted, the operations out of the prelude, stands.
+
+A call made to a process that had already ended cannot say how it ended, since the runtime keeps nothing (*A Process Is Watched From Its Start*); where `monitor` answers `Unknown`, `callForever` faults its caller with `Fault("callee had ended")`, a cause that says what is known.
+
+After *A Socket Lives Until It Is Closed*, an ended socket faulted a read but answered `Left(Closed)` to `Tcp.port`, `peer` and `local`, two answers for one state (principle 2). Every function that waits on an ended socket or listener now faults as a call to an ended process does, and `Left(Closed)` is what a live socket answers once its connection has closed. A listener has no close, which is feedback item 58.
+
+The shell's `:load` said nothing of a module's top-level bindings. They are evaluated as §8.5 orders them, in a process of the shell's own rather than the shell's, so that a faulting one is reported and loads nothing instead of ending the session; `:reload` evaluates them again, and a service of the new version starts beside the old.
+
+E.0 put Appendix D's library under all nine shape rules, which it breaks by rule 5, every `Ets` function carrying `with m` for a table other processes change, and by rule 6's documentation. What *A Name Follows the Vocabulary* wanted of a library was its names, so the rules that shape a name and a result, 1 to 4, 7 and 9, reach it, and the two lists are cited as rules and shape rules, since both start at 1.
+
+E.5 named text's conversions to numbers as primitives while rule 1 admitted only `Int.toString` and `Float.toString`; parsing a number is as much the host's as printing one, so rule 1 names their inverses, and the batch's own list, which kept `String`'s conversions, holds. `String.trim` is the named pair of rule 4 and so Ernest over `trimStart` and `trimEnd`, not a primitive of its own.
+
+The terminal's interrupt went to "the holder", which several subscribers leave undefined: it goes to every subscriber while the terminal is claimed for keys. Sockets and listeners are foreign processes the runtime starts but no system reference names, so they are not system processes, and `Process.live` and `Process.faults` include them, as the step that kept them killable said.
+
 ## Later
 
 Planned or considered, not in the language today.

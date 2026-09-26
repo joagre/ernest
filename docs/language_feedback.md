@@ -7,33 +7,8 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Fifty-one have left: 1 (decided, report
-§4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
-(decided, report §9), 2, 4 and 43 (weighed and kept, the log's *Constructor Names Stay Unique
-in a Module*, *Names Stay Qualified, Without Import or Alias* and *Two Visibilities Are
-Enough*), 17 (decided, report §11.2), 51 (decided, report §3.5), 18 (weighed and kept out,
-the log's *No Projection From a Tuple*), 19 (decided, report §5.9), 32 and 33 (decided,
-report §4.4), 49 (decided with them: the editor's state and the region are abstract, and a
-history type was weighed and left, since its one rule, the cap of a thousand inputs, a
-session does not reach, and it would make the editor depend on `Shell.History`), 3 and 5
-(weighed and kept, the log's *Constant Patterns Stay Out* and *`after` Stays Reserved*), 48
-(decided, report §8.5, the mention rule kept), 36 (already decided, report §9.6), 39
-(decided, report §4.7), 45 (decided, report Appendix E.0 rule 9), 52 (weighed and kept, the
-log's *One Contract, Several Representations*), 9 (decided, the plan's MVP 2.65 step 5:
-`ern` prints every fault to standard error), 53 (decided in the same step: no registry, a
-service is a top-level binding, and a restart keeps the address), 24 (decided there too:
-`Address.process` gives a `Process`, the identity with equality), 26 (decided there:
-`stdlib/process.ern` lists the live processes, and the shell reads it), 28 (decided there:
-`Process.faults` delivers every fault, and the shell keeps its own log), 50 (decided there:
-a timed read, accept or connect takes its time limit into the request), 47 (decided there:
-a system message type's constructors are its system module's), 37 (decided there:
-`Tcp.port` answers a listener's port), 27 (decided there: `Terminal.subscribe` refuses
-where standard input is not a terminal), 11, 13, 42, 46 and 34 (decided in step 6's first
-batch: a shim is only an operation that reaches the representation), 40, 41 and 38 (decided
-in its second: a name follows the vocabulary), 7, 8, 15, 20, 21, 22, 23, 31, 35 and 44
-(decided in its third: what the library lacked), 29 (a defect of the shell, fixed: a word is
-Readline's), 30 (fixed: `:load`'s completion asks the compiler for the path rule), and 54 (decided: completion
-reaches the fields of what the session or a module names).
+under, since the plan, the log and the code cite them. Fifty-one have left, each decided in
+a step of the plan's MVP 2.65, which names the decision and the log entry that argues it.
 
 ## 1. Names and namespaces
 
@@ -95,13 +70,19 @@ MVP 3.0's, and 16 is MVP 2.7's; they stay here because they are the same questio
 
 ## 4. The standard library under E.0
 
-Decided on 2026-09-26 in three batches; the plan's MVP 2.65 step 6 names each decision. One
-entry has come since.
+Decided on 2026-09-26 in three batches; the plan's MVP 2.65 step 6 names each decision. Two
+entries have come since.
 
 57. **Standard input cannot be read as bytes.** `Io.readLine` answers a line of UTF-8, which
     the cold read's 2.24 fixed as the rule whatever the locale, so a program that reads a
     binary stream, or text in another encoding, from its standard input has no way to. Found
     2026-09-26 in MVP 2.65's step 9. Whether E.1 gains a read of bytes, by E.0.
+
+58. **A listener cannot be closed.** `Tcp.close` takes an `Address(SockMsg)`, so a listener
+    lives until it is killed or the program ends (E.18, since MVP 2.65's report pass): a
+    server that stops listening and goes on, or a test that listens on port 0 and ends,
+    kills it or leaves it. Found 2026-09-26 by the cold read of MVP 2.65's step 10. Whether
+    `Tcp` gains a close for a listener, by E.0's vocabulary.
 
 ## 5. The toolchain and the shell
 

@@ -157,7 +157,7 @@ A value of type `Unit` prints nothing, so the last input shows only what it wrot
 
 At a terminal the shell edits the line with Readline's Emacs keys, and keeps a history across sessions that `C-r` searches. An input the parser cannot finish takes another line. What programs write appears in a region at the foot of the screen, apart from the inputs, and a process that faults is reported at the prompt with the place it was spawned. A fault, an error, and a refused command are shown in red and a result's type dimmed, and documentation is styled, unless the environment sets `NO_COLOR`. A line wider than the screen wraps as it is typed.
 
-`Tab` completes the word before the cursor, by its prefix or by its word starts, `S.pS` to `String.padStart`. It offers only what may stand there: a command after a leading `:` and what the command takes after it, a type after `:` in an annotation, a constructor in a pattern, a field inside a named constructor's parentheses. A name completed alone is shown under the line with its type, and a second `Tab`, or one with nothing to add, lists the candidates there alphabetically, until the next key. With nothing typed they are the session's names, the modules, and the prelude's names, and every other name comes from its first letters; at the start of a row `Tab` indents instead. `Shift-Tab` shows the type, the first sentence, and the version of the name at the cursor, and pressed again its documentation. Inside a call, on no documented name, it shows the callee's signature with the parameter at the cursor marked, and inside a constructor its fields.
+`Tab` completes the word before the cursor, by its prefix or by its word starts, `S.pS` to `String.padStart`. It offers only what may stand there: a command after a leading `:` and what the command takes after it, a type after `:` in an annotation, a constructor in a pattern, a field inside a named constructor's parentheses. A name completed alone is shown under the line with its type, and a second `Tab`, or one with nothing to add, lists the candidates there alphabetically, until the next key. With nothing typed they are the session's names, the modules in scope, and the prelude's names other than its constructors, and every other name comes from its first letters; at the start of a row `Tab` indents instead. `Shift-Tab` shows the type, the first sentence, and the version of the name at the cursor, and pressed again its documentation. Inside a call, on no documented name, it shows the callee's signature with the parameter at the cursor marked, and inside a constructor its fields.
 
 `:load` compiles a module from its source and puts it in scope, and `:reload` compiles and loads again a loaded module whose source has changed. Where one of the changed modules does not compile, `:reload` loads none of them. Processes running the old version go on running it, and a binding that holds a function of it keeps it, until the next reload of that module, which ends the processes and forgets the bindings.
 
@@ -340,7 +340,7 @@ Set.fromList([1, 2, 3]) : Set(Int)
 
 `Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call.
 
-Map keys and set elements need equality. `==` is defined on every type except one that contains a function or an address, so a map keyed by addresses is a type error. In a printed type, a variable that needs equality is marked `=`: `List.contains : (List(a=), a=) -> Bool`. An annotation does not write the mark; the compiler infers it from the body.
+Map keys and set elements need equality. `==` is defined on every type except one that contains a function or an address, so a map keyed by addresses is refused at its first operation. In a printed type, a variable that needs equality is marked `=`: `List.contains : (List(a=), a=) -> Bool`. An annotation does not write the mark; the compiler infers it from the body.
 
 Ordering is separate: `a < b` asks the type's `compare`, which answers `Less`, `Equal`, or `Greater`. `Int`, `Float`, `String`, and `Char` have one, and a type of your own gets one by declaring it in its module. A function named `Money.compare` is a member of the type `Money` (§7.2):
 
@@ -548,7 +548,7 @@ addN : (Int) -> Int
 
 `addN` captures `n`: a lambda closes over the bindings it names.
 
-A lambda's body extends as far as the text allows: to the `,`, `;`, `|`, `>>`, or closing bracket of the form around it, or to a `then` or `else`.
+A lambda's body extends as far as the text allows: to the `,`, `;`, `:`, `|`, `->`, `{`, `>>`, or closing bracket of the form around it, or to a `then` or `else`.
 
 ### 3.3 Type inference and its limits
 
@@ -712,7 +712,7 @@ fn waitForData() -> Optional(Int) with Inbox = receive {
 
 `after 1000` gives up after 1000 milliseconds with no matching message, and `after 0` looks without waiting. Without `after`, the process waits for as long as it takes. A `receive` with only an `after` clause is a timed wait, the one `receive` a process with mailbox `Never` may use.
 
-A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: it compares variables, literals, and nullary constructors, tests a `Bool` variable, and joins these with `!`, `&&` and `||`; it calls nothing (report §6.3). For more, receive the message and `match` it.
+A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: it compares the variables the function binds, not its top-level names, literals, and nullary constructors, orders only `Int`, `Float`, `String` and `Char`, tests a `Bool` variable, and joins these with `!`, `&&` and `||`; it calls nothing (report §6.3). For more, receive the message and `match` it.
 
 If a `Wake` is already in the mailbox, `waitForData` leaves it there and waits for a `Data`; a later `receive` can take the `Wake`.
 
@@ -1053,7 +1053,7 @@ fn waitForTick(state : World) -> Unit with GameMsg = receive {
 }
 ```
 
-`game` schedules one alarm and hands over to `waitForTick`, which takes inputs without touching the alarm; only a `Tick` returns to `game`, which schedules the next. `step` reads the world's field with a pattern.
+`game` schedules one alarm and hands over to `waitForTick`, which takes inputs without touching the alarm; only a `Tick` returns to `game`, which schedules the next. `step` reads the world's field by selecting it, `w.score`.
 
 ### 5.6 The word counter at once
 
@@ -1574,7 +1574,7 @@ export foreign fn member(t : Table(k, v), key : k) -> Bool with m = "ets:member/
 
 External callers write `Ets.Table` and `Ets.member`. `foreign type` declares a type whose values only foreign functions make and read; Ernest has no constructor for it and cannot match it. `foreign fn` binds a name to a function on the other side, here Erlang's `ets:member/2`. The `=` in `k=` says the keys need equality, since `ets` compares them: a table keyed by functions is a type error at its first operation, as a `Map` is (report §4.7).
 
-The foreign side promises the declared types. A return value of the wrong shape faults the Ernest process that receives it, when it first looks at it; an Erlang exception becomes a fault of the calling process; and a message of the wrong type from foreign code faults its receiver on delivery. Purity is not checked: a `foreign fn` declared without `with` is trusted to have no effect (report §4.7).
+The foreign side promises the declared types. A return value of the wrong shape faults the calling process when the function returns, the whole value checked, and a function in it when that function is called; an Erlang exception becomes a fault of the calling process; and a message of the wrong type from foreign code faults its receiver on delivery. Purity is not checked: a `foreign fn` declared without `with` is trusted to have no effect (report §4.7).
 
 In the other direction, an Ernest process's end is an Erlang exit reason, `normal`, `{ern, fault, Text}`, `{ern, killed}`, or `{ern, program_end}`, which Erlang code that monitors it reads (report §8.4).
 
