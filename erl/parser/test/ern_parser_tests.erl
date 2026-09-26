@@ -136,6 +136,16 @@ pipe_rewrite_test() ->
     ?assertMatch(#e_call{callee = #e_lambda{}, args = [#e_var{name = x}]},
                  e("x |> (fn(y) = y + 1)")).
 
+%% report §5.7: a parenthesized right-hand side is parsed once. A
+%% regression test: the check parsed it twice at every level, so that
+%% nesting took exponential time, two seconds at a depth of 22.
+pipe_nesting_test_() ->
+    {timeout, 5, fun() ->
+        Source = lists:duplicate(40, "x |> (") ++ "x" ++ lists:duplicate(40, ")"),
+        ?assertMatch(#e_call{callee = #e_call{}, args = [#e_var{name = x}]},
+                     e(lists:flatten(Source)))
+    end}.
+
 %% report §5.1, §5.7: the call a pipe writes is marked, so that x is
 %% evaluated before a computed callee; a written call is not
 pipe_marks_call_test() ->
