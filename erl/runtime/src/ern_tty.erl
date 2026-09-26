@@ -24,7 +24,7 @@
 %% as a function, read_char/0 but in a test, as the runtime's stdin does.
 -module(ern_tty).
 
--export([loop/1, read_char/0, decode/1, flush/1, restore/0]).
+-export([loop/1, read_char/0, decode/1, flush/1, restore/0, is_terminal/1]).
 
 %% Report §8.2: how long a paste may take to arrive whole.
 -define(PASTE_PAUSE, 200).
@@ -231,7 +231,13 @@ flush_port(Port) ->
     end.
 
 terminal() ->
-    try prim_tty:isatty(stdin) =:= true
+    is_terminal(stdin).
+
+%% Whether the stream is a terminal, as the io server of the standard
+%% streams reports it (the `stdin` and `stdout` options of io:getopts/1).
+-spec is_terminal(stdin | stdout) -> boolean().
+is_terminal(Stream) ->
+    try proplists:get_value(Stream, io:getopts(standard_io), false) =:= true
     catch _:_ -> false
     end.
 

@@ -960,8 +960,8 @@ create_config_dir(Dir) ->
     not filelib:is_dir(Conf) orelse fail(Conf ++ " exists"),
     Key = public_key:generate_key({namedCurve, ed25519}),
     Private = public_key:pem_encode([public_key:pem_entry_encode('PrivateKeyInfo', Key)]),
-    {'ECPrivateKey', _, _, _, PublicPoint, _} = Key,
-    Curve = {namedCurve, pubkey_cert_records:namedCurves(ed25519)},
+    %% the key names its curve, {namedCurve, Oid}, as its parameters
+    {'ECPrivateKey', _, _, Curve, PublicPoint, _} = Key,
     Public = public_key:pem_encode(
                [public_key:pem_entry_encode('SubjectPublicKeyInfo',
                                             {{'ECPoint', PublicPoint}, Curve})]),

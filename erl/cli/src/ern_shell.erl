@@ -1487,9 +1487,7 @@ is_terminal() ->
     %% report §11.2: the keys are read and the screen painted, so the input
     %% and the output are both the terminal; a shell whose output goes to a
     %% file writes it plainly
-    try prim_tty:isatty(stdin) =:= true andalso prim_tty:isatty(stdout) =:= true
-    catch _:_ -> false
-    end.
+    ern_tty:is_terminal(stdin) andalso ern_tty:is_terminal(stdout).
 
 %% The toolchain's version, the top-level VERSION file, passed by the
 %% Makefile.
