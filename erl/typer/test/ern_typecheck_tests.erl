@@ -1527,6 +1527,18 @@ effect_origin_of_an_unannotated_lambda_test() ->
     D2 = diag(Decls ++ "fn run() -> Int = { let k = fn() = { g(); h() }; 1 }\n"),
     ?assertEqual([], D2#diag.labels).
 
+%% report §6.6, §4.2: only the prelude's spawn consumes a capturing lambda
+%% as its direct argument; a module's own function named spawn is any
+%% other function. A regression test: the reply check knew spawn by its
+%% unqualified name, and a module's own spawn was taken for the prelude's.
+own_spawn_is_no_spawn_test() ->
+    D = diag("fn spawn(a : Int, f : () -> Unit with m) -> Unit with m = Unit\n"
+             "fn handle(r : Reply(Int)) -> Unit with m = {\n"
+             "    let f = fn() = answer(r, 1);\n"
+             "    spawn(1, f)\n}\n"),
+    ?assertEqual("the lambda f captures a reply-carrying value and may only be called or"
+                 " passed directly to spawn", D#diag.message).
+
 %% report §4.8, §3.4: an operator resolved at the end of its definition,
 %% once its operand type is known, calls its member, which is pure, in a
 %% process body and a pure one alike, for a top-level and a local fn. It

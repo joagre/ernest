@@ -477,11 +477,12 @@ refs(#e_block{stmts = Stmts}, B, Cx) ->
     Refs;
 refs(#e_var{path = [], name = N}, B, _Cx) when is_map_key(N, B) -> [];
 refs(#e_var{path = [], name = N}, _B, _Cx) -> [{undefined, N}];
-refs(#e_var{path = Path, name = N}, _B, Cx) ->
-    %% report §4.2: the module's own declarations, by any name that reaches them
-    case own_decl(Path, N, Cx) of
-        {ok, O} -> [{O, N}];
-        error -> []
+refs(#e_var{ref = Ref}, _B, _Cx) ->
+    %% report §4.2: the module's own declarations, by any name that reaches
+    %% them, as the checker resolved it
+    case Ref of
+        {own, O, N} -> [{O, N}];
+        _ -> []
     end;
 refs(#e_binop{op = Op, left = L, right = R}, B, Cx) ->
     %% an operator on a local type calls its member (report §4.8, §3.10)
@@ -522,8 +523,8 @@ binds_params(Ps, B) ->
 
 expr(#e_lit{pos = Pos, kind = Kind, value = V}, Cx) ->
     {at(Pos, literal(Kind, V)), Cx};
-expr(#e_var{pos = Pos, path = Path, name = Name, type = T}, Cx) ->
-    {Form, Cx1} = var_ref(Pos, Path, Name, T, Cx),
+expr(#e_var{pos = Pos, path = Path, name = Name, type = T, ref = Ref}, Cx) ->
+    {Form, Cx1} = var_ref(Pos, Path, Name, Ref, T, Cx),
     {at(Pos, Form), Cx1};
 expr(#e_con{pos = Pos, path = Path, name = Name, args = Args}, Cx) ->
     con_expr(Pos, Path, Name, Args, Cx);
@@ -677,36 +678,24 @@ string_binary(Bin) ->
 %% Names
 %%
 
-%% A name used as a value: var_ref(...) -> {Form, Cx}.
-var_ref(Pos, [], Name, T, #cx{vars = Vars, locals = Locals, tops = Tops} = Cx) ->
+%% A name used as a value: var_ref(...) -> {Form, Cx}. Report §4.2: what
+%% the name refers to is the checker's `ref`, read and not decided here.
+var_ref(Pos, _, Name, var, T, #cx{vars = Vars, locals = Locals} = Cx) ->
     case Vars of
         #{Name := V} -> {var_form(V), Cx};
         _ ->
-            case Locals of
-                #{Name := #local{lifted = Lifted}} ->
-                    closure(Lifted, instances(Name, Cx), arity_of(T, Pos), Cx);
-                _ when is_map_key({undefined, Name}, Tops) ->
-                    {own_value(undefined, Name, Cx), Cx};
-                _ ->
-                    prelude_value(Pos, [Name], T, Cx)
-            end
+            #{Name := #local{lifted = Lifted}} = Locals,
+            closure(Lifted, instances(Name, Cx), arity_of(T, Pos), Cx)
     end;
-var_ref(Pos, ['Prelude'], Name, T, Cx) ->
-    %% report §4.2: the prelude's, past anything the module declares
-    prelude_value(Pos, [Name], T, Cx);
-var_ref(Pos, ['Io'], debug, T, Cx) ->
+var_ref(Pos, ['Io'], debug, _, T, Cx) ->
     %% Appendix E.1: as a value too, the descriptor of the argument's type
     prelude_value(Pos, ['Io', debug], T, Cx);
-var_ref(Pos, Path, Name, T, #cx{env = Env} = Cx) ->
-    case own_decl(Path, Name, Cx) of
-        {ok, Owner} ->
-            {own_value(Owner, Name, Cx), Cx};
-        error ->
-            case is_prelude(Path ++ [Name], Env) of
-                true -> prelude_value(Pos, Path ++ [Name], T, Cx);
-                false -> {remote_value(Path, Name, T, Env), Cx}
-            end
-    end.
+var_ref(Pos, _, _, {prelude, Q}, T, Cx) ->
+    prelude_value(Pos, Q, T, Cx);
+var_ref(_, _, _, {own, Owner, Name}, _, Cx) ->
+    {own_value(Owner, Name, Cx), Cx};
+var_ref(_, _, _, {remote, Module, Owner, Name}, T, #cx{env = Env} = Cx) ->
+    {remote_value(Module, Owner, Name, T, Env), Cx}.
 
 %% Report §4.6: a `let` is a value, reached through its getter even where it
 %% holds a function; a `fn` is the function itself.
@@ -717,9 +706,9 @@ own_value(Owner, Name, #cx{tops = Tops}) ->
         Arity -> erl_syntax:implicit_fun(Local, erl_syntax:integer(Arity))
     end.
 
-remote_value(Path, Name, T, Env) ->
-    {M, F} = remote_name(Path, Name, Env),
-    case {is_value(Path, Name, Env), T} of
+remote_value(Module, Owner, Name, T, Env) ->
+    {M, F} = remote_name(Module, Owner, Name),
+    case {is_value(Module, Owner, Name, Env), T} of
         {false, {tfn, Ps, _, _}} ->
             %% report §11.2: a function of another module as a value keeps
             %% the version it was taken from
@@ -731,48 +720,14 @@ remote_value(Path, Name, T, Env) ->
 arity_of({tfn, Ps, _, _}, _) -> length(Ps);
 arity_of(_, Pos) -> fail(Pos, "a local function used as a value must have a function type").
 
-%% Report §4.2: the owner of the module's own declaration that a qualified
-%% name names, else error. `T.name` is a member of the module's type T, and
-%% the module's own name, `M.name` or `M.T.name`, names what `name` or
-%% `T.name` does. The order is the checker's.
-own_decl([Owner], Name, #cx{tops = Tops}) when is_map_key({Owner, Name}, Tops) ->
-    {ok, Owner};
-own_decl(Path, Name, #cx{ns = Ns, tops = Tops}) ->
-    Owner = case lists:prefix(Ns, Path) andalso lists:nthtail(length(Ns), Path) of
-                [] -> undefined;
-                [O] -> O;
-                _ -> none
-            end,
-    case is_map_key({Owner, Name}, Tops) of
-        true -> {ok, Owner};
-        false -> error
-    end.
+%% Report §4.6: whether another module's declaration is a `let`, which
+%% its interface says (§11.1).
+is_value(Module, Owner, Name, Env) ->
+    ern_typecheck:is_value(Module ++ [Owner || Owner =/= undefined] ++ [Name], Env).
 
-%% A prelude or stdlib name: the prelude tables know it and no module does.
-is_prelude(QName, Env) ->
-    ern_typecheck:lookup_type(QName, Env) =:= undefined andalso
-        lists:keymember(QName, 1, ern_prelude:values()).
-
-%% Report §4.6: whether the qualified name was declared with `let`, which
-%% the module's interface says (§11.1).
-is_value(Path, Name, Env) ->
-    case ern_typecheck:lookup_type(Path, Env) of
-        #tinfo{qname = Q} when length(Q) > 1 ->
-            ern_typecheck:is_value(lists:droplast(Path) ++ [lists:last(Path), Name], Env);
-        _ ->
-            ern_typecheck:is_value(Path ++ [Name], Env)
-    end.
-
-%% A qualified name in another Ernest module: Path names the module, or a
-%% module plus a type-member owner (report §4.2).
-remote_name(Path, Name, Env) ->
-    case ern_typecheck:is_member_path(Path, Name, Env) of
-        true ->
-            %% Path is Module ++ [Owner]: the member lives in Module
-            {module_atom(lists:droplast(Path)), fname(lists:last(Path), Name)};
-        false ->
-            {module_atom(Path), function_atom(Name)}
-    end.
+%% Another Ernest module's declaration as a function of its Erlang module.
+remote_name(Module, Owner, Name) ->
+    {module_atom(Module), fname(Owner, Name)}.
 
 closure(Lifted, Insts, Arity, Cx) ->
     {Params, Cx1} = fresh_vars(Arity, "A", Cx),
@@ -786,55 +741,42 @@ closure(Lifted, Insts, Arity, Cx) ->
 %% Calls
 %%
 
-call(Pos, #e_var{path = [], name = Name} = Callee, Args, Cx) ->
-    #cx{vars = Vars, locals = Locals, tops = Tops} = Cx,
+call(Pos, #e_var{ref = var, name = Name}, Args, Cx) ->
+    #cx{vars = Vars, locals = Locals} = Cx,
     {ArgForms, Cx1} = exprs(Args, Cx),
     case Vars of
         #{Name := V} ->
             {at(Pos, erl_syntax:application(var_form(V), ArgForms)), Cx1};
         _ ->
-            case Locals of
-                #{Name := #local{lifted = Lifted}} ->
-                    Insts = [erl_syntax:variable(V) || V <- instances(Name, Cx)],
-                    App = erl_syntax:application(erl_syntax:atom(Lifted), Insts ++ ArgForms),
-                    {at(Pos, App), Cx1};
-                _ when is_map_key({undefined, Name}, Tops) ->
-                    {at(Pos, own_call(undefined, Name, ArgForms, Cx)), Cx1};
-                _ ->
-                    prelude_call(Pos, [Name], Args, ArgForms, Callee, Cx1)
-            end
+            #{Name := #local{lifted = Lifted}} = Locals,
+            Insts = [erl_syntax:variable(V) || V <- instances(Name, Cx)],
+            App = erl_syntax:application(erl_syntax:atom(Lifted), Insts ++ ArgForms),
+            {at(Pos, App), Cx1}
     end;
-call(Pos, #e_var{path = ['Prelude'], name = Name} = Callee, Args, Cx) ->
-    %% report §4.2: the prelude's, past anything the module declares
-    {ArgForms, Cx1} = exprs(Args, Cx),
-    prelude_call(Pos, [Name], Args, ArgForms, Callee, Cx1);
 call(Pos, #e_var{path = ['Io'], name = debug}, [A], Cx) ->
     %% Appendix E.1: printed by the argument's type at the call, whether Io
     %% is the prelude's or, once written in Ernest, the standard library's
     {[F], Cx1} = exprs([A], Cx),
     Desc = erl_syntax:abstract(descriptor(ern_typecheck:node_type(A), Cx)),
     {at(Pos, call_remote(ern_io, debug, [F, Desc])), Cx1};
-call(Pos, #e_var{path = Path, name = Name} = Callee, Args, #cx{env = Env} = Cx) ->
+call(Pos, #e_var{ref = {prelude, Q}} = Callee, Args, Cx) ->
+    %% report §4.2: the prelude's, `Prelude.x` among them
     {ArgForms, Cx1} = exprs(Args, Cx),
-    case own_decl(Path, Name, Cx) of
-        {ok, Owner} ->
-            {at(Pos, own_call(Owner, Name, ArgForms, Cx)), Cx1};
-        error ->
-            case is_prelude(Path ++ [Name], Env) of
-                true ->
-                    prelude_call(Pos, Path ++ [Name], Args, ArgForms, Callee, Cx1);
-                false ->
-                    {M, F} = remote_name(Path, Name, Env),
-                    %% report §4.6: calling a `let` applies what its getter
-                    %% answers; calling a `fn` is the call itself
-                    case is_value(Path, Name, Env) of
-                        true ->
-                            Get = call_remote(M, F, []),
-                            {at(Pos, erl_syntax:application(Get, ArgForms)), Cx1};
-                        false ->
-                            {at(Pos, call_remote(M, F, ArgForms)), Cx1}
-                    end
-            end
+    prelude_call(Pos, Q, Args, ArgForms, Callee, Cx1);
+call(Pos, #e_var{ref = {own, Owner, Name}}, Args, Cx) ->
+    {ArgForms, Cx1} = exprs(Args, Cx),
+    {at(Pos, own_call(Owner, Name, ArgForms, Cx)), Cx1};
+call(Pos, #e_var{ref = {remote, Module, Owner, Name}}, Args, #cx{env = Env} = Cx) ->
+    {ArgForms, Cx1} = exprs(Args, Cx),
+    {M, F} = remote_name(Module, Owner, Name),
+    %% report §4.6: calling a `let` applies what its getter answers;
+    %% calling a `fn` is the call itself
+    case is_value(Module, Owner, Name, Env) of
+        true ->
+            Get = call_remote(M, F, []),
+            {at(Pos, erl_syntax:application(Get, ArgForms)), Cx1};
+        false ->
+            {at(Pos, call_remote(M, F, ArgForms)), Cx1}
     end;
 call(Pos, #e_con{} = Con, Args, Cx) ->
     %% a single-positional constructor called as a function

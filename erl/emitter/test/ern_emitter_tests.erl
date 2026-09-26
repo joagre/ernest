@@ -1166,6 +1166,24 @@ bitstring_defaults_test() ->
     {R, _} = run("export fn main() -> Unit with Never = { let _ = <<-1>>; Unit }\n"),
     ?assertEqual({fault, <<"segment overflow">>}, R).
 
+%% report §4.2: a name shadowed at each step of the lookup order compiles
+%% to the declaration the checker resolved it to, which the emitter reads
+%% from the name's `ref` rather than resolving again: a type's member, the
+%% module's own function over the prelude's `self`, the module named
+%% qualified, `Prelude.self`, and a local binding over them all. A
+%% regression test for the single decision; the order it had was the same.
+lookup_order_test() ->
+    {ok, Out} = run("type Box = Box(Int)\n"
+                    "fn Box.value(b : Box) -> Int = match b { Box(n) -> n }\n"
+                    "fn value(b : Box) -> Int = 100\n"
+                    "fn self() -> Int = 5\n"
+                    "export fn main() -> Unit with Never = {\n"
+                    "    let me = Prelude.self();\n"
+                    "    let first = Box.value(Box(1)) + value(Box(1)) + self() + M.self();\n"
+                    "    let value = fn(b : Box) -> Int = 1000;\n"
+                    "    Io.println(Int.toString(first + value(Box(1))))\n}\n"),
+    ?assertEqual(<<"1111\n">>, Out).
+
 %% A function may be named `module_info` or `record_info`, which the host
 %% gives every module: the emitter compiles them under names no Ernest name
 %% can spell. A regression test: ernc refused them with Erlang's "function

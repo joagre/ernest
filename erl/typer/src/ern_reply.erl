@@ -195,8 +195,9 @@ uses(#e_var{pos = Pos, path = [], name = N}, Linear, _Env) ->
                 false -> []
             end
     end;
-uses(#e_call{callee = #e_var{path = [], name = spawn}, args = [Where, Arg]}, Linear, Env) ->
-    %% spawn's direct argument consumes a capturing lambda
+uses(#e_call{callee = #e_var{ref = {prelude, [spawn]}}, args = [Where, Arg]}, Linear, Env) ->
+    %% spawn's direct argument consumes a capturing lambda; spawn is the
+    %% prelude's as the checker resolved it, not a name spelled `spawn`
     ArgUses = case Arg of
                   #e_lambda{} -> captures(Arg, Linear, Env);
                   #e_var{pos = Pos, path = [], name = F} ->

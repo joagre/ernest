@@ -58,7 +58,10 @@
 
 -record(e_lit, {pos, kind, value, type}).
 %% kind: int | float | char | string | bool
--record(e_var, {pos, path = [], name, type}).
+-record(e_var, {pos, path = [], name, ref, type}).
+%% ref, which the checker sets (report §4.2): var, a name bound around it;
+%% {own, Owner, Name}, this module's declaration, Owner a type or undefined;
+%% {remote, Ns, Owner, Name}, another module's; {prelude, QName}.
 %% a qualified function, operator, or value: path is the typename prefix
 -record(e_con, {pos, path = [], name, args = none, type}).
 %% args: none | {positional, Expr} | {named, Base | undefined, [#field_set{}]}

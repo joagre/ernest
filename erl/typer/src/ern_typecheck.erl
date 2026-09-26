@@ -648,32 +648,6 @@ decl_key(#let_decl{owner = O, name = N}) -> {O, N};
 decl_key(#foreign_fn_decl{owner = O, name = N}) -> {O, N};
 decl_key(D) -> {other, element(2, D)}.
 
-%% Report §11.2: an unqualified name the session declared names another
-%% module, the input that declared it; anything else is left as written.
-session_name(E, [], Name, #env{vars = Vs, local_values = LV} = Env) ->
-    case maps:is_key(Name, Vs) orelse maps:is_key(Name, LV) of
-        true -> {E, []};
-        false ->
-            case session(values, Name, Env) of
-                {ok, Q} -> Owner = lists:droplast(Q), {E#e_var{path = Owner}, Owner};
-                error -> {E, []}
-            end
-    end;
-%% Report §4.2: a type member is written under the type that owns it, so a
-%% member the session declared names that input's type.
-session_name(E, [Owner] = Path, Name, #env{local_types = LT, local_values = LV} = Env) ->
-    case maps:is_key(Owner, LT) orelse maps:is_key({Owner, Name}, LV) of
-        true ->
-            {E, Path};
-        false ->
-            case session(values, {Owner, Name}, Env) of
-                {ok, Q} -> Q1 = lists:droplast(Q), {E#e_var{path = Q1}, Q1};
-                error -> {E, Path}
-            end
-    end;
-session_name(E, Path, _Name, _Env) ->
-    {E, Path}.
-
 value_qname(#env{ns = Ns}, undefined, Name) -> Ns ++ [Name];
 value_qname(#env{ns = Ns}, Owner, Name) -> Ns ++ [Owner, Name].
 
@@ -1722,7 +1696,7 @@ undetermined_bindings(Node, FnT, #env{st = St} = Env) ->
 declared_scheme(Env, Path, Name) ->
     %% the position is never shown: an unknown name answers `error`
     try lookup_value({1, 1, {1, 1}}, Path, Name, Env) of
-        {Scheme, _} -> {ok, Scheme}
+        {Scheme, _, _} -> {ok, Scheme}
     catch
         throw:{type_error, _, _} -> error
     end.
@@ -1769,15 +1743,16 @@ open_effect(T, St) ->
 infer(#e_lit{kind = Kind} = E, Env) ->
     T = lit_type(Kind),
     {E#e_lit{type = T}, T, Env};
-infer(#e_var{pos = Pos, path = Path0, name = Name} = E0, Env0) ->
-    %% report §11.2: a name the session declared is rewritten to the input
-    %% that declared it, so that nothing after this knows of a session
-    {E, Path} = session_name(E0, Path0, Name, Env0),
-    {Scheme, Env} = lookup_value(Pos, Path, Name, Env0),
+infer(#e_var{pos = Pos, path = Path, name = Name} = E, Env0) ->
+    %% report §11.2: a name the session declared resolves to the input that
+    %% declared it, which its `ref` records; its path stays as written
+    {Scheme, Ref, Env} = lookup_value(Pos, Path, Name, Env0),
     {T0, St0} = ern_types:instantiate(Scheme, Env#env.st),
     {T, St} = open_effect(T0, St0),
     Pending = instance_pending(T, Pos, St),
-    {E#e_var{type = T}, T, Env#env{st = St, pending = Pending ++ Env#env.pending}};
+    %% report §4.2: what the name resolved to is recorded, so that the
+    %% emitter reads the decision rather than making it again
+    {E#e_var{type = T, ref = Ref}, T, Env#env{st = St, pending = Pending ++ Env#env.pending}};
 infer(#e_con{pos = Pos, path = Path, name = Name, args = Args} = E, Env) ->
     CI = lookup_con(Pos, Path, Name, Env),
     {CT, St} = ern_types:instantiate(CI#cinfo.scheme, Env#env.st),
@@ -2690,20 +2665,21 @@ irrefutable(_, _) -> false.
 %% Name lookup (report §4.2)
 %%
 
-%% A name's scheme and the environment, since a local name whose group
-%% has not run is checked on demand.
+%% A name's scheme, what it refers to (the `ref` of #e_var{}), and the
+%% environment, since a local name whose group has not run is checked on
+%% demand.
 lookup_value(Pos, [], Name, #env{vars = Vs, local_values = LV} = Env) ->
     case Vs of
-        #{Name := Scheme} -> {Scheme, Env};
+        #{Name := Scheme} -> {Scheme, var, Env};
         _ ->
             case LV of
                 #{Name := Q} -> local_global(Q, Env);
                 _ ->
                     case session(values, Name, Env) of
-                        {ok, Q} -> local_global(Q, Env);
+                        {ok, Q} -> session_global(Q, Name, Env);
                         error ->
                             case Env#env.globals of
-                                #{[Name] := Scheme} -> {Scheme, Env};
+                                #{[Name] := Scheme} -> {Scheme, {prelude, [Name]}, Env};
                                 _ -> fail(Pos, "unknown name " ++ atom_to_list(Name))
                             end
                     end
@@ -2712,7 +2688,7 @@ lookup_value(Pos, [], Name, #env{vars = Vs, local_values = LV} = Env) ->
 lookup_value(Pos, ['Prelude'], Name, #env{globals = Gs} = Env) ->
     %% report §4.2: `Prelude.x` is the prelude's x, whatever the module declares
     case Gs of
-        #{[Name] := Scheme} -> {Scheme, Env};
+        #{[Name] := Scheme} -> {Scheme, {prelude, [Name]}, Env};
         _ -> fail(Pos, "the prelude declares no " ++ atom_to_list(Name))
     end;
 lookup_value(Pos, ['Prelude' | _] = Path, Name, _Env) ->
@@ -2722,8 +2698,8 @@ lookup_value(Pos, [Owner] = Path, Name, #env{local_values = LV} = Env) ->
         #{{Owner, Name} := Q} -> local_global(Q, Env);
         _ ->
             case session(values, {Owner, Name}, Env) of
-                {ok, Q} -> local_global(Q, Env);
-                error -> lookup_global(Pos, Path ++ [Name], Env)
+                {ok, Q} -> session_global(Q, Name, Env);
+                error -> lookup_global(Pos, Path, Name, Env)
             end
     end;
 lookup_value(Pos, Path, Name, #env{ns = Ns, local_values = LV} = Env) ->
@@ -2732,7 +2708,7 @@ lookup_value(Pos, Path, Name, #env{ns = Ns, local_values = LV} = Env) ->
         true ->
             case LV of
                 #{Name := Q} -> local_global(Q, Env);
-                _ -> lookup_global(Pos, Path ++ [Name], Env)
+                _ -> lookup_global(Pos, Path, Name, Env)
             end;
         false ->
             %% report §4.2: `M.T.name` in module M is M's own member where M
@@ -2745,7 +2721,7 @@ lookup_value(Pos, Path, Name, #env{ns = Ns, local_values = LV} = Env) ->
                   end,
             case Own of
                 {ok, Q} -> local_global(Q, Env);
-                error -> lookup_global(Pos, Path ++ [Name], Env)
+                error -> lookup_global(Pos, Path, Name, Env)
             end
     end.
 
@@ -2796,14 +2772,45 @@ session(Which, Name, #env{session = Session}) ->
         _ -> error
     end.
 
-local_global(Q, Env) ->
+%% This module's own declaration, Q being its namespace and the owner and
+%% the name.
+local_global(Q, #env{ns = Ns} = Env) ->
     Env1 = demand(Q, Env),
-    {maps:get(Q, Env1#env.globals), Env1}.
+    Ref = case lists:nthtail(length(Ns), Q) of
+              [Name] -> {own, undefined, Name};
+              [Owner, Name] -> {own, Owner, Name}
+          end,
+    {maps:get(Q, Env1#env.globals), Ref, Env1}.
 
-lookup_global(Pos, Q, #env{globals = Gs} = Env) ->
+%% Report §11.2: a declaration of an earlier input, another module.
+session_global(Q, Name, Env) ->
+    Env1 = demand(Q, Env),
+    {maps:get(Q, Env1#env.globals), other_ref(lists:droplast(Q), Name, Env1), Env1}.
+
+lookup_global(Pos, Path, Name, #env{globals = Gs} = Env) ->
+    Q = Path ++ [Name],
     case Gs of
-        #{Q := Scheme} -> {Scheme, Env};
-        _ -> fail(Pos, "unknown name " ++ format_qname(Q))
+        #{Q := Scheme} ->
+            Ref = case lookup_type(Q, Env) =:= undefined
+                       andalso lists:keymember(Q, 1, ern_prelude:values()) of
+                      true -> {prelude, Q};
+                      false -> other_ref(Path, Name, Env)
+                  end,
+            {Scheme, Ref, Env};
+        _ ->
+            fail(Pos, "unknown name " ++ format_qname(Q))
+    end.
+
+%% Report §4.2: another module's declaration, Path its namespace or its
+%% namespace and the type that owns the member.
+other_ref(Path, Name, #env{ns = Ns} = Env) ->
+    {Module, Owner} = case is_member_path(Path, Name, Env) of
+                          true -> {lists:droplast(Path), lists:last(Path)};
+                          false -> {Path, undefined}
+                      end,
+    case Module =:= Ns of
+        true -> {own, Owner, Name};
+        false -> {remote, Module, Owner, Name}
     end.
 
 %% A constructor as a name written at Pos, `C` or `M.C`, names it (report
