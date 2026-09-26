@@ -34,6 +34,9 @@
 
 -define(UNIT, 'Unit').
 -define(PROCESSES, ern_processes).
+%% Report §6.9: how each process the runtime started ended, apart from the
+%% live ones, so that what reads the live processes never copies the dead.
+-define(ENDED, ern_ended).
 %% The longest wait the host's `receive ... after` takes, in milliseconds.
 -define(SLICE, 16#FFFFFFFF).
 
@@ -194,11 +197,11 @@ reaper_loop(Waiters) ->
             From ! {Ref, Pid},
             reaper_loop(Waiters);
         {await, Pid, To, Wrap} ->
-            case ets:lookup(?PROCESSES, Pid) of
-                [{_, Site, Reason, _, _}] when Reason =/= alive ->
+            case {ets:lookup(?ENDED, Pid), ets:lookup(?PROCESSES, Pid)} of
+                {[{_, Site, Reason}], _} ->
                     To ! Wrap({'Down', Site, reason(Reason)}),
                     reaper_loop(Waiters);
-                [] when not is_map_key(Pid, Waiters) ->
+                {[], []} when not is_map_key(Pid, Waiters) ->
                     %% not one the runtime started, so it is watched from
                     %% here; report §8.6: its death would deliver a message,
                     %% which is a source while it is awaited
@@ -212,7 +215,8 @@ reaper_loop(Waiters) ->
         {'DOWN', _MRef, process, Pid, Reason} ->
             case ets:lookup(?PROCESSES, Pid) of
                 [{_, Site, alive, _, _}] ->
-                    ets:insert(?PROCESSES, {Pid, Site, Reason, 0, 0}),
+                    ets:insert(?ENDED, {Pid, Site, Reason}),
+                    ets:delete(?PROCESSES, Pid),
                     died(Pid, Site, Reason),
                     lists:foreach(fun({To, Wrap}) -> To ! Wrap({'Down', Site, reason(Reason)}) end,
                                   maps:get(Pid, Waiters, []));
@@ -248,9 +252,14 @@ deaths(Watcher) ->
 
 -spec live() -> [{address(), binary()}].
 live() ->
-    try [{Pid, Site} || {Pid, Site, alive, _, _} <- ets:tab2list(?PROCESSES)]
+    try [{Pid, Site} || {Pid, Site, _, _} <- live_rows()]
     catch _:_ -> []
     end.
+
+%% The live processes' rows, each its pid, its spawn site, and the counts
+%% of its timed waits and of its foreign calls in progress.
+live_rows() ->
+    ets:select(?PROCESSES, [{{'$1', '$2', alive, '$3', '$4'}, [], [{{'$1', '$2', '$3', '$4'}}]}]).
 
 died(Pid, Site, Reason) ->
     case persistent_term:get({?MODULE, deaths}, undefined) of
@@ -272,9 +281,11 @@ died(Pid, Site, Reason) ->
 %% the one the shell registers for deaths (§11.2) is counted here. Report
 %% §11.2: nothing is a deadlock while a shell holds the terminal.
 deadlocked() ->
-    Rows = [{Pid, T, F} || {Pid, _, alive, T, F} <- ets:tab2list(?PROCESSES)],
     terminal_holder() =:= undefined
-        andalso Rows =/= []
+        andalso deadlocked([{Pid, T, F} || {Pid, _, T, F} <- live_rows()]).
+
+deadlocked(Rows) ->
+    Rows =/= []
         andalso lists:all(fun({_, T, F}) -> T =:= 0 andalso F =:= 0 end, Rows)
         andalso sources() =:= 0
         andalso quiet_system()
@@ -616,6 +627,7 @@ run_main(Main, Site) ->
 -spec run_main(fun(() -> term()), binary(), map()) -> ok | {fault, binary()}.
 run_main(Main, Site, Opts) ->
     ets:new(?PROCESSES, [named_table, public, set]),
+    ets:new(?ENDED, [named_table, public, set]),
     %% report §8.6: the sources a system process holds, counted while held
     ets:insert(?PROCESSES, {sources, 0}),
     persistent_term:erase({?MODULE, holder}),
@@ -661,9 +673,7 @@ run_main(Main, Site, Opts) ->
 %% is flushed, the system processes and the reaper are stopped, and the
 %% terminal goes back as the program found it (§8.2).
 end_program(Run, Reaper, System) ->
-    lists:foreach(fun({Pid, _, alive, _, _}) -> exit(Pid, {ern, program_end});
-                     (_) -> ok
-                  end, ets:tab2list(?PROCESSES)),
+    lists:foreach(fun({Pid, _, _, _}) -> exit(Pid, {ern, program_end}) end, live_rows()),
     lists:foreach(fun(Sink) ->
                       FlushRef = make_ref(),
                       Mon = erlang:monitor(process, Sink),
@@ -683,6 +693,7 @@ end_program(Run, Reaper, System) ->
         _ -> ok
     end,
     ets:delete(?PROCESSES),
+    ets:delete(?ENDED),
     flush_run(Run).
 
 %% Report §8.5: a standard library module's top-level lets, `Map.empty`

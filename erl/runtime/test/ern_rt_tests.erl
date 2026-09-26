@@ -298,6 +298,27 @@ monitor_test() ->
     ?assertEqual({'Down', <<"Main.main:5">>, {'Fault', <<"division by zero">>}}, wait(d2)),
     ?assertEqual({'Down', <<"Main.main:7">>, 'Killed'}, wait(d3)).
 
+%% report §6.9, §8.6: a process that ended is remembered, so a monitor
+%% made after its end still gets the cause, and it leaves the live
+%% processes, which the idle deadlock check reads. A regression test: the
+%% check copied the row of every process that had ever lived, 143 ms at
+%% 200,000, every 100 ms the program was idle.
+ended_rows_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Zero = zero(),
+               Pids = [ern_rt:spawn('Local', fun() -> 1 div Zero end, <<"Main.main:2">>)
+                       || _ <- lists:seq(1, 50)],
+               [ern_rt:monitor(P, fun(D) -> {ended, D} end) || P <- Pids],
+               [receive {ended, _} -> ok end || _ <- Pids],
+               Me ! {row, ets:lookup(ern_processes, lists:last(Pids))},
+               ern_rt:monitor(lists:last(Pids), fun(D) -> {down, D} end),
+               receive {down, D} -> Me ! {late, D} end
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual([], wait(row)),
+    ?assertEqual({'Down', <<"Main.main:2">>, {'Fault', <<"division by zero">>}}, wait(late)).
+
 %% report §7.3, §7.4, §11.2: a process whose code the shell unloads dies
 %% with the fault that says so; the shell ends it as `exit/2` does here
 unloaded_code_test() ->
