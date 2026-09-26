@@ -68,6 +68,14 @@ build/shell/.built: build/stdlib/.built build/libs/.built $(TOOL) $(call sources
 doc: all
 	@bin/ern doc --build-root build/stdlib stdlib
 
+# Terminal.columns' width table in stdlib/terminal.ern, from the Unicode
+# data of the version the host's grapheme segmentation follows: UC_SPEC is
+# a directory holding EastAsianWidth.txt, emoji-data.txt and
+# UnicodeData.txt, as OTP's source tree has in lib/stdlib/uc_spec.
+unicode:
+	@test -n "$(UC_SPEC)" || { echo "UC_SPEC=dir is required"; exit 1; }
+	@escript tools/unicode_width.escript $(UC_SPEC)
+
 # The tests by area (plan, MVP 2.6). `make test` runs
 # every area; a change that touches one area runs that area's target, as
 # CLAUDE.md maps them.
@@ -159,4 +167,4 @@ EMACS_CORPUS = ../stdlib/*.ern ../shell/*.ern ../shell/shell/*.ern ../examples/*
 		../examples/modules/*.ern ../examples/modules/*/*.ern ../test/*/*.ern ../libs/*/*.ern
 
 .PHONY: all libs test test-erl test-programs test-docs test-guide test-shell test-emacs \
-        $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref stdlib shell doc
+        $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref stdlib shell doc unicode

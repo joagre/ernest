@@ -340,7 +340,7 @@ The steps:
       | C1 | a shim reaches the representation (step 6), built | E.0 rule 1, E.3, E.4, E.5, E.14, E.20 | `map.ern`, `set.ern`, `string.ern`, `bytes.ern`, `path.ern` in Ernest over their primitives; `ern_map`, `ern_set`, `ern_string`, `ern_path` shrink, `ern_path:dirname` with them | `ern_stdlib_tests` and each edge case a contract names; new mirror: each module's `foreign fn`s equal the primitives its section names | `architecture.md`, the module pages | none | `ern_map:`/`ern_set:`/`maps:` 30, `ern_string:` six, `ern_path:` 6 |
       | C2 | `Random` is SplitMix64 (step 6), built | E.13, E.0 rule 7's example | `random.ern` over `Int`'s bit operations; `ern_random` goes | `random_test` known answers; `stdlib_types_test` an abstract type | guide §8.4's node-bound example, which is `Random.Seed`, gets another; `architecture.md` | C1 | `foreign type Seed` 4, `bound to its node` 4, `exsss` 3 |
       | C3 | names follow the vocabulary (step 6), built | E.0 shape rules 2 and 3, E.4, App. D | `set.ern` `intersection`; `libs/ets` `put`, `get`, `contains`, `remove`, `close` | `ern_stdlib_tests`; mirror: `appendix_d_library_test` | guide §2.9, §8.3, §8.5 | C1 | `intersect` 7, `Ets.insert`/`lookup`/`member`/`delete`/`drop` 16 |
-      | C4 | what the library lacked (step 6, G8), built but for `columns`, which waits for decision G16 below | E.0 rule 4 and shape rule 5, E.1, E.3, E.5, E.6, E.16 | `mergeWith`, `trimStart`, `trimEnd`, `Char.isAsciiDigit`, `Terminal.columns` over a width table in `terminal.ern`, `Terminal.styled`, the cursor's moves and the erasures (item 56), `Io.show` with the emitter's case; the shell's region and `libs/markdown` use `columns` | `ern_stdlib_tests`, `ern_doc_tests`, `values_test`, `ern_emitter_tests`, a wide glyph in the terminal harness | THIRD_PARTY_LICENSES (Unicode's data), `shell_design.md`'s open question, guide §2.9, `examples/repl.ern` and `webserver.ern` | D1, B8, B10 | `Only the system modules carry`, `It is not a composition`, `One character is one column`, `c >= '0' && c <= '9'`: 7 |
+      | C4 | what the library lacked (step 6, G8), built | E.0 rule 4 and shape rule 5, E.1, E.3, E.5, E.6, E.16 | `mergeWith`, `trimStart`, `trimEnd`, `Char.isAsciiDigit`, `Terminal.columns` over a width table in `terminal.ern`, `Terminal.styled`, the cursor's moves and the erasures (item 56), `Io.show` with the emitter's case; the shell's region and `libs/markdown` use `columns` | `ern_stdlib_tests`, `ern_doc_tests`, `values_test`, `ern_emitter_tests`, a wide glyph in the terminal harness | THIRD_PARTY_LICENSES (Unicode's data), `shell_design.md`'s open question, guide §2.9, `examples/repl.ern` and `webserver.ern` | D1, B8, B10 | `Only the system modules carry`, `It is not a composition`, `One character is one column`, `c >= '0' && c <= '9'`: 7 |
       | D1 | code-point order, `trim` by `Char.isSpace` (step 9), built | §3.10, E.5, E.6 | `ern_string` trim; `compare` and case mapping already conform | `string_test`: U+00A0 and U+3000 stripped, U+200E kept | `string.ern` docs, `test/session/basic.out` | none | `without leading and trailing` 3 |
       | D2 | how a program ends (step 9), built | §8.6, §11.2 | `ern_cli` a signal handler exits 128 plus the signal; `run_main` prints `killed` | `ern_cli_tests`, `ern_integration_tests` status 143, SIGHUP 129 | guide §6.3, §9.2 | none | `The program ends when main returns or faults`, `exits with status 0 when`: 3 |
       | D3 | standard input is UTF-8 (step 9), and `Io.read` and `Io.write` (item 57), built | §8.2, E.0 shape rule 8, E.1 | `ern_rt`'s reader reads bytes and checks UTF-8 for a line; `io.ern`'s `read` and `write`; `stdout` takes `Bytes` too | integration under `LANG=C`: UTF-8, CRLF, no last line feed, invalid bytes | `io.ern` doc, guide §1.3 | B8 | `without its line feed` 3 |
@@ -512,7 +512,7 @@ The steps:
       `make test` at the end of each group.
       Built so far: group 1, D2, D6, D7, D8, B6 and B7, group 2, C1, C3, C2, D1 and D4, and group
       3, B1, B3 and B2, group 4, B8, D3, B9 and B10, group 5, B5 and B4, and group 6, D5, A2
-      and C4 but for `Terminal.columns`, on 2026-09-26;
+      and C4, on 2026-09-26;
       the host's interrupt
       cannot be caught on the BEAM, so §8.6 says it ends the program at once (the log's *The
       Build's First Group*). Standard input is read through a port of the runtime's own,
@@ -531,15 +531,11 @@ The steps:
       region's moves and erasures, `libs/markdown` and snake write through `Terminal`'s
       functions; field completion checks the text before the `.` as `Shift-Tab` checks a
       callee (the log's *The Build's Sixth Group*).
-      - **G16, how Ernest walks a string's graphemes, decided before `Terminal.columns`.**
-        `columns` counts by grapheme, and `String` gives no grapheme but by position:
-        `String.slice(s, i, 1)` walks the string again for each, which is quadratic, and
-        the shell's region would call it on every row at every key. The recommendation is
-        a primitive, `String.graphemes : (String) -> List(String)`, admitted as `size` and
-        `slice` are by E.0 rule 1, the segmentation being the host's Unicode data, beside
-        `toList`'s `Char`s. Until it is decided, `columns`, its width table and
-        `THIRD_PARTY_LICENSES`' entry wait, and the region and `libs/markdown` keep their
-        own width code, which counts a character a column.
+      - **G16, decided with the user and built: `String.graphemes : (String) ->
+        List(String)`**, a primitive by E.0 rule 1 as `size` and `slice` are, so that
+        Ernest walks a string's graphemes in one pass (E.5). `Terminal.columns` is Ernest
+        over it and a table `make unicode` generates from the Unicode data of the host's
+        version (E.16), and the region and `libs/markdown` measure with it.
    7. **The guide's section on services, and the closing sweep.** Feedback item 59, a
       module's constructor hiding the prelude's without a word, is decided first: a note in
       the error at a use that names the hidden prelude name is the recommendation, the

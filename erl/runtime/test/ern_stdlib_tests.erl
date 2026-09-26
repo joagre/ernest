@@ -598,6 +598,26 @@ path_edges_test() ->
     ?assertEqual(T(<<"a/b">>), P:withExtension(T(<<"a/b.txt/">>), <<>>)),
     ?assertEqual(T(<<"a.d/b.md">>), P:withExtension(T(<<"a.d/b">>), <<"md">>)).
 
+%% report Appendix E.16, E.5: columns counts by grapheme, by its first code
+%% point that counts: a combining mark adds none, alone it takes none; an
+%% emoji sequence joined by ZWJ and a flag are one wide grapheme; a
+%% pictograph is wide only with U+FE0F; a fullwidth letter is wide; a tab
+%% and an escape sequence take none. Written with the code
+columns_test() ->
+    T = 'ern@terminal',
+    C = fun(Chars) -> T:columns(unicode:characters_to_binary(Chars)) end,
+    ?assertEqual(1, C([$e, 16#301])),
+    ?assertEqual(0, C([16#301])),
+    ?assertEqual(2, C([16#1F468, 16#200D, 16#1F469, 16#200D, 16#1F467])),
+    ?assertEqual(2, C([16#1F1F8, 16#1F1EA])),
+    ?assertEqual(1, C([16#2764])),
+    ?assertEqual(2, C([16#2764, 16#FE0F])),
+    ?assertEqual(2, C([16#FF21])),
+    ?assertEqual(0, C("\t")),
+    ?assertEqual(2, C("\e[1;31mab\e[0m")),
+    ?assertEqual(1, C("\e7a")),
+    ?assertEqual([<<"a">>, <<"e", 16#301/utf8>>], ern_string:graphemes(<<"ae", 16#301/utf8>>)).
+
 %% report Appendix E.14, §9.3
 path_test() ->
     P = 'ern@path',

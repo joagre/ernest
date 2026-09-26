@@ -254,7 +254,7 @@ Delivered before the shell. Those marked report first are written into the repor
 - **The shell reads the terminal's interrupt as a key while it reads** (§11.2), which no other program does; §8.6's signal stands for them. Report first.
 - **The terminal's size**, asked for at each redraw, and a notice when it changes: `Terminal.size` and `Resized`, in checkpoint 2. Report first.
 - **Whether input is a terminal**, for line mode. Not in the report; report first.
-- **What the runtime knows about processes** — one system reference for two questions: subscribe me to the faults, and what is alive with its spawn site. The runtime holds both (§6.9); neither hands out an address, so §6.3 stands. Not in the report; report first.
+- **What the runtime knows about processes** — every fault as it happens, and what is alive with its spawn site: `Process.faults`, `Process.live` and `Process.info` (E.21), which grant nothing, since a `Process` is no address. Report first; built in MVP 2.65.
 - **§11.2 states the shell's normative core:** the flag without an argument and the file optional with it; the shell as the entry process (§8.1) with the file's entry point spawned beside it, and what `--main` then names; the session as a scope in §4.2's lookup order, with a session type printed unqualified (§11.5); the terminal's holder; the interrupt read as a key; no deadlock detected while a shell holds the terminal; types on every result, a module and a process per input, bindings that survive a fault, the commands and their prefix rule, and line mode.
 - **`ern_show` takes a depth and a length**, which `Io.debug` passes unbounded, so the shell and E.1 keep one printer. A runtime change, not a report one.
 - **The parser answers that an input is incomplete**, distinctly from a diagnostic: it ran out of input where more was expected. It knows already and does not say. A front-end change; built 2026-09-21 as a flag on the diagnostic, since the parser has the diagnostic in hand and nothing else can tell.
@@ -263,9 +263,7 @@ Delivered before the shell. Those marked report first are written into the repor
 
 ## Open
 
-- **How the region measures a wide character.** A tab is settled: the region paints it as the spaces to the next stop of eight and places the cursor by the columns a row takes, since a tab's width depends on where it falls and the terminal's own stops are not the region's to trust. What is committed keeps the tab. A wide glyph is still one column to the region and two to the terminal, and `expand` in `shell/shell/region.ern` is the one function that has to learn it; nothing in the runtime knows a glyph's width.
-
-Settled since this list was written: the depth and length defaults are 10 and 100; a hundred faults are kept; `:load` compiles in memory and writes nothing, so there is no output to place; and the foreign interface is what `shell/shell.ern` declares.
+Nothing is open. Settled since this list was written: the depth and length defaults are 10 and 100; a hundred faults are kept; `:load` compiles in memory and writes nothing, so there is no output to place; the foreign interface is what `shell/shell.ern` declares; and the region measures a row by `Terminal.columns` (E.16), grapheme by grapheme, so a wide glyph takes two columns and is never split across rows, while a tab is painted as the spaces to the next stop of eight, its width depending on where it falls, and what is committed keeps the tab.
 
 ## Testing
 

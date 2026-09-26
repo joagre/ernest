@@ -751,27 +751,13 @@ fn filled(pieces : List(String), width : Int, row : String, rows : List(String))
         [] -> List.reverse(if String.isEmpty(row) then rows else row :: rows)
       | spaces :: word :: rest when String.startsWith(spaces, " ") ->
             if String.isEmpty(row) then filled(rest, width, word, rows)
-            else if columns(row) + String.size(spaces) + columns(word) <= width then
+            else if Terminal.columns(row) + String.size(spaces) + Terminal.columns(word) <= width
+            then
                 filled(rest, width, row <> spaces <> word, rows)
             else filled(rest, width, word, row :: rows)
       | [spaces] when String.startsWith(spaces, " ") -> filled([], width, row, rows)
       | word :: rest -> filled(rest, width, row <> word, rows)
     }
-
-// The columns a row takes: an escape sequence, `ESC [` and what follows
-// up to its final character, takes none.
-fn columns(row : String) -> Int = counting(String.toList(row), 0)
-
-fn counting(chars : List(Char), n : Int) -> Int = match chars {
-    [] -> n
-  | '\u{1b}' :: '[' :: rest -> counting(afterSequence(rest), n)
-  | _ :: rest -> counting(rest, n + 1)
-}
-
-fn afterSequence(chars : List(Char)) -> List(Char) = match chars {
-    [] -> []
-  | c :: rest -> if c >= '@' && c <= '~' then rest else afterSequence(rest)
-}
 
 //
 // The tests (report §9.3), run by `ern test` as every library's are.

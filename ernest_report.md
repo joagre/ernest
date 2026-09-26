@@ -1278,10 +1278,11 @@ Set.isSubset : (Set(a), Set(a)) -> Bool // every element of the first is in the 
 
 ### Appendix E.5. `string.ern` (namespace `String`)
 
-A `String` is not a container: operations on its `Char`s go through `toList`. `size`, `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and index in graphemes, extended grapheme clusters, each what a reader sees as one letter. `toList` and `fromList` are `Char`s, one scalar value each, so a string holding a combining mark has more `Char`s than graphemes. The primitives are `size`, `indexOf`, `lastIndexOf`, and `slice`, the operations that need Unicode's tables, `trimStart`, `trimEnd`, `toLower`, and `toUpper`, and the conversions `toIntBase`, `toFloat`, `toList`, `fromList`, `toUtf8`, and `fromUtf8` (E.0 rule 1). The rest is Ernest over them, so every search matches whole graphemes: `String.contains("e\u{301}", "e")` is `false`. `trim`, `trimStart`, and `trimEnd` remove the graphemes whose first code point is White_Space, as `Char.isSpace` says. `toLower` and `toUpper` use Unicode's full case mapping without the rules that depend on a language or a context: `String.toUpper("ß")` is `"SS"`. `String.compare` orders by code point. It and `String.<>` are the prelude's, §9.6; this module provides them (§9).
+A `String` is not a container: operations on its `Char`s go through `toList`. `size`, `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and index in graphemes, extended grapheme clusters, each what a reader sees as one letter, and `graphemes` gives them in order. `toList` and `fromList` are `Char`s, one scalar value each, so a string holding a combining mark has more `Char`s than graphemes. The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`, and `slice`, the operations that need Unicode's tables, `trimStart`, `trimEnd`, `toLower`, and `toUpper`, and the conversions `toIntBase`, `toFloat`, `toList`, `fromList`, `toUtf8`, and `fromUtf8` (E.0 rule 1). The rest is Ernest over them, so every search matches whole graphemes: `String.contains("e\u{301}", "e")` is `false`. `trim`, `trimStart`, and `trimEnd` remove the graphemes whose first code point is White_Space, as `Char.isSpace` says. `toLower` and `toUpper` use Unicode's full case mapping without the rules that depend on a language or a context: `String.toUpper("ß")` is `"SS"`. `String.compare` orders by code point. It and `String.<>` are the prelude's, §9.6; this module provides them (§9).
 
 ```
 String.size : (String) -> Int // graphemes
+String.graphemes : (String) -> List(String) // the graphemes in order, each a String
 String.isEmpty : (String) -> Bool
 String.contains : (String, String) -> Bool // substring; an empty second is always there
 String.indexOf : (String, String) -> Optional(Int) // where the second begins, None where it is not there; an empty second is 0
@@ -1456,7 +1457,7 @@ Clock.alarmAt : (Int, (Int) -> m) -> Unit with m // at the time, wrap(t) in the 
 
 ### Appendix E.16. `terminal.ern` (namespace `Terminal`)
 
-Over the terminal's system reference (§8.2). `columns` is Ernest over a table built from Unicode's East Asian Width and emoji data. The terminal speaks ECMA-48: `subscribe` decodes its keys from it, `columns` reads its sequences in a string, and `styled`, the cursor's moves, and the two erasures answer its sequences as text a program writes with `Io.print`. `styled` turns its style off after the text by the style's own code, so that a style around it stays on; `Bold` and `Dim` are turned off together, since ECMA-48 has one code for both.
+Over the terminal's system reference (§8.2). `columns` is Ernest over a table built from Unicode's East Asian Width, emoji, and general category data, of the version the host's grapheme segmentation follows. It counts a grapheme by its first code point that is no combining mark, format character, or control: two for one East Asian Wide or Fullwidth or of emoji presentation, or an extended pictographic one followed by U+FE0F, and one for any other. A grapheme only of combining marks, format characters, and controls takes none, a tab among them, whose width is the caller's. An escape sequence takes none: `ESC [` to its final byte, or `ESC` and the byte after it. The terminal speaks ECMA-48: `subscribe` decodes its keys from it, `columns` reads its sequences in a string, and `styled`, the cursor's moves, and the two erasures answer its sequences as text a program writes with `Io.print`. `styled` turns its style off after the text by the style's own code, so that a style around it stays on; `Bold` and `Dim` are turned off together, since ECMA-48 has one code for both.
 
 ```
 type Size = Size(rows : Int, columns : Int)
@@ -1474,7 +1475,7 @@ Terminal.left : (Int) -> String // the cursor left n columns; "" for n below 1
 Terminal.right : (Int) -> String // the cursor right n columns; "" for n below 1
 Terminal.clearBelow : String // erases from the cursor to the end of the screen
 Terminal.clearScreen : String // erases the screen and puts the cursor at its top left
-Terminal.columns : (String) -> Int // the columns the text takes at a terminal: an escape sequence none, a wide or emoji grapheme two, a grapheme only of combining or format characters none; a tab is the caller's
+Terminal.columns : (String) -> Int // the columns the text takes at a terminal: an escape sequence none, a wide or emoji grapheme two, a grapheme only of combining marks, format characters and controls none
 ```
 
 ### Appendix E.17. `fs.ern` (namespace `Fs`)

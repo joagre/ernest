@@ -171,7 +171,8 @@ fn screenInput(r : Region) -> List(String) =
 
 fn onScreen(line : String, w : Int) -> List(String) = {
     let rows = wrapped(line, w);
-    if w > 0 && columns(line) > 0 && columns(line) % w == 0 then rows <> [""] else rows
+    let n = Terminal.columns(line);
+    if w > 0 && n > 0 && n % w == 0 then rows <> [""] else rows
 }
 
 // Report §11.2: what is shown under the input wraps at the window's
@@ -203,24 +204,54 @@ fn fitting(lines : List(List(String)), room : Int) -> List(List(String)) = match
 // with every escape sequence the rows before it held, in order, so that
 // it is painted as it would have been unbroken.
 fn wrapped(line : String, width : Int) -> List(String) =
-    if columns(line) <= width || width < 1 then [line]
+    if Terminal.columns(line) <= width || width < 1 then [line]
     else {
-        let #(sequences, rest) = past(String.toList(line), width, "");
-        clip(line, width) :: wrapped(sequences <> String.fromList(rest), width)
+        let #(sequences, rest) = past(String.graphemes(line), width, "", false);
+        let more = if List.isEmpty(rest) then [] else wrapped(sequences <> String.join(rest, ""),
+            width);
+        clip(line, width) :: more
     }
 
 // The escape sequences among the first columns of a row, and the row
-// after them.
-fn past(chars : List(Char), left : Int, sequences : String) -> #(String, List(Char)) =
-    match chars {
-        '\u{1b}' :: '[' :: rest -> {
-            let tail = afterSequence(rest);
-            let sequence = String.fromList(List.take(chars, List.size(chars) - List.size(tail)));
-            past(tail, left, sequences <> sequence)
-        }
-      | _ :: rest when left > 0 -> past(rest, left - 1, sequences)
-      | _ -> #(sequences, chars)
+// after them. A grapheme wider than what is left ends the row, but for
+// the first, which a row always takes, so a narrow window moves on.
+fn past(graphemes : List(String), left : Int, sequences : String, taken : Bool)
+    -> #(String, List(String)) = match sequence(graphemes) {
+    Some(#(s, tail)) -> past(tail, left, sequences <> s, taken)
+  | None -> match graphemes {
+        g :: rest when fits(g, left, taken) ->
+            past(rest, left - Terminal.columns(g), sequences, true)
+      | _ -> #(sequences, graphemes)
     }
+}
+
+// Whether the grapheme goes on the row with that many columns left.
+fn fits(g : String, left : Int, taken : Bool) -> Bool = {
+    let w = Terminal.columns(g);
+    w <= left || !taken && w > 0
+}
+
+// An escape sequence at the head of the graphemes, `ESC [` to its final
+// character, and what follows it.
+fn sequence(graphemes : List(String)) -> Optional(#(String, List(String))) = match graphemes {
+    "\u{1b}" :: "[" :: rest -> {
+        let tail = afterSequence(rest);
+        let taken = List.take(graphemes, List.size(graphemes) - List.size(tail));
+        Some(#(String.join(taken, ""), tail))
+    }
+  | _ -> None
+}
+
+fn afterSequence(graphemes : List(String)) -> List(String) = match graphemes {
+    [] -> []
+  | g :: rest -> if final(g) then rest else afterSequence(rest)
+}
+
+// The character that ends a sequence, `m` among them.
+fn final(g : String) -> Bool = match String.toList(g) {
+    [c] -> Char.toInt(c) >= 0x40 && Char.toInt(c) <= 0x7E
+  | _ -> false
+}
 
 fn tailRowsOf(r : Region) -> List(String) = {
     let all = if String.isEmpty(r.writing) then r.tail else r.tail <> [r.writing];
@@ -263,59 +294,39 @@ fn offset(r : Region) -> Int = {
         None -> r.prompt <> before
       | Some(i) -> continuation <> String.slice(before, i + 1, String.size(before) - i - 1)
     };
-    columns(expand(head))
+    Terminal.columns(expand(head))
 }
 
 // Report §11.2: a tab is painted as the spaces to the next stop. The
 // region places its rows and its cursor by column, so it writes what it
-// has measured rather than leaving the tab to the terminal's own stops.
-// One character is one column here, which a wide glyph is not; that is
-// the design note's open question, and this is the function it changes.
-fn expand(row : String) -> String = expanding(String.toList(row), "")
+// has measured rather than leaving the tab to the terminal's own stops;
+// every other grapheme takes the columns `Terminal.columns` gives it.
+fn expand(row : String) -> String = expanding(String.graphemes(row), "")
 
-fn expanding(chars : List(Char), done : String) -> String = match chars {
+fn expanding(graphemes : List(String), done : String) -> String = match graphemes {
     [] -> done
-  | c :: rest ->
-        if c == '\t' then
-            expanding(rest, done <> String.repeat(" ", tabStop - columns(done) % tabStop))
-        else expanding(rest, done <> Char.toString(c))
+  | "\t" :: rest ->
+        expanding(rest, done <> String.repeat(" ", tabStop - Terminal.columns(done) % tabStop))
+  | g :: rest -> expanding(rest, done <> g)
 }
-
-// Report §11.2: an escape sequence, `ESC [` and what follows up to its
-// final character, sets how the terminal paints what comes after it and
-// takes no column. A row the shell colours is measured without them.
-fn columns(row : String) -> Int = counting(String.toList(row), 0)
-
-fn counting(chars : List(Char), n : Int) -> Int = match chars {
-    [] -> n
-  | '\u{1b}' :: '[' :: rest -> counting(afterSequence(rest), n)
-  | _ :: rest -> counting(rest, n + 1)
-}
-
-fn afterSequence(chars : List(Char)) -> List(Char) = match chars {
-    [] -> []
-  | c :: rest -> if final(c) then rest else afterSequence(rest)
-}
-
-// The character that ends a sequence, `m` among them.
-fn final(c : Char) -> Bool = Char.toInt(c) >= 0x40 && Char.toInt(c) <= 0x7E
 
 // A row cut to the window's width keeps its escape sequences whole, and
 // one cut short after a sequence ends with the reset, so the colour of
-// what was cut off does not run on into the next row.
+// what was cut off does not run on into the next row: the sequences cut
+// may be any, and the reset is the one sequence that ends them all.
 fn clip(line : String, width : Int) -> String =
-    if columns(line) <= width then line else clipping(String.toList(line), width, "", false)
+    if Terminal.columns(line) <= width then line
+    else clipping(String.graphemes(line), width, "", false, false)
 
-fn clipping(chars : List(Char), left : Int, done : String, styled : Bool) -> String =
-    match chars {
-        '\u{1b}' :: '[' :: rest -> {
-            let tail = afterSequence(rest);
-            let sequence = String.fromList(List.take(chars, List.size(chars) - List.size(tail)));
-            clipping(tail, left, done <> sequence, true)
-        }
-      | c :: rest when left > 0 -> clipping(rest, left - 1, done <> Char.toString(c), styled)
+fn clipping(graphemes : List(String), left : Int, done : String, styled : Bool, taken : Bool)
+    -> String = match sequence(graphemes) {
+    Some(#(s, tail)) -> clipping(tail, left, done <> s, true, taken)
+  | None -> match graphemes {
+        g :: rest when fits(g, left, taken) ->
+            clipping(rest, left - Terminal.columns(g), done <> g, styled, true)
       | _ -> if styled then done <> "\u{1b}[0m" else done
     }
+}
 
 
 
@@ -343,9 +354,16 @@ let restsWhereTyped = Test(name = "the cursor rests on the row and column it is 
 let restsOnTheFirstRow = Test(name = "a one-line input rests after its prompt", run = fn() =
     at(typed("abc", 2), 0, 5))
 
+let wideGlyphs = Test(name = "a wide glyph takes two columns and is never split", run = fn() =
+    rowsAre(wrapped("中中中", 4) <> [clip("a中b", 2)] <> wrapped("中中", 1),
+        ["中中", "中", "a", "中", "中"]))
+
+let restsAfterWide = Test(name = "the cursor rests after a wide glyph's two columns",
+    run = fn() = at(typed("中a", 2), 0, 6))
+
 let escapesTakeNoColumn = Test(name = "an escape sequence takes no column", run = fn() =
-    if columns("a\u{1b}[36mbc\u{1b}[0md") == 4 then Passed
-    else Failed(Int.toString(columns("a\u{1b}[36mbc\u{1b}[0md"))))
+    if Terminal.columns("a\u{1b}[36mbc\u{1b}[0md") == 4 then Passed
+    else Failed(Int.toString(Terminal.columns("a\u{1b}[36mbc\u{1b}[0md"))))
 
 let clipKeepsSequences = Test(name = "a row cut short keeps its sequences and resets", run = fn() =
     same(clip("ab\u{1b}[36mcdef\u{1b}[0m", 4), "ab\u{1b}[36mcd\u{1b}[0m"))

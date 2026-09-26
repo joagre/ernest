@@ -5,8 +5,14 @@
 %% and comparison is Erlang's on binaries, which is by code point.
 -module(ern_string).
 
--export([index_of/2, last_index_of/2, slice/3, trim_start/1, trim_end/1, to_lower/1,
+-export([graphemes/1, index_of/2, last_index_of/2, slice/3, trim_start/1, trim_end/1, to_lower/1,
          to_upper/1, to_int_base/2, to_float/1, to_list/1, from_list/1, from_utf8/1, to_utf8/1]).
+
+%% Appendix E.5: the graphemes in order, as `string:to_graphemes/1` splits
+%% them, extended grapheme clusters by the host's Unicode data, the same
+%% `string:length/1` counts; each is a code point or a list of them.
+-spec graphemes(binary()) -> [binary()].
+graphemes(S) -> [unicode:characters_to_binary([G]) || G <- string:to_graphemes(S)].
 
 %% Appendix E.5: in the characters `string:length/1` counts, as `slice`
 %% takes them, so that the answer indexes the same string `slice` does.

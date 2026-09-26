@@ -78,6 +78,8 @@ build/             build products, not in git: build/stdlib/, build/shell/, and
                    build/libs/ from make, the standard library's pages from make doc
 libs/              the first-party libraries, each a source root a program adds
                    with --load-path: ets, markdown
+tools/             generators of tables the sources hold: unicode_width.escript
+                   writes Terminal.columns' table, run by make unicode
 ```
 
 A module path segment is one lowercase word (report §11.1); a multi-word module is a nested directory. Files that are not modules use underscores.
@@ -102,6 +104,9 @@ make sections     list the report sections no test cites
 make xref         check that every section citation and document path in the documents resolves
 make coverage     every section with how many tests cite it, thinnest first
 make golden       rewrite test/golden/, the Erlang the compiler emits per example
+make unicode UC_SPEC=dir
+                  write Terminal.columns' table from Unicode's data in dir, OTP's
+                  lib/stdlib/uc_spec of the host's version
 make clean        remove build products
 make clean-emacs  remove Emacs backup, auto-save, and lock files
 ```

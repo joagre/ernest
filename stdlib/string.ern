@@ -54,6 +54,22 @@ export fn String.<>(a : String, b : String) -> String = a <> b
 /// ```
 export foreign fn size(s : String) -> Int = "string:length/1"
 
+/// The graphemes in order, each a `String`: what a reader sees as one
+/// letter, where `toList` gives the `Char`s.
+///
+/// ### Examples
+///
+/// ```ernest
+/// String.graphemes("a中!")
+/// // => ["a", "中", "!"]
+/// ```
+///
+/// ```ernest
+/// #(List.size(String.graphemes("e\u{301}")), List.size(String.toList("e\u{301}")))
+/// // => #(1, 2)
+/// ```
+export foreign fn graphemes(s : String) -> List(String) = "ern_string:graphemes/1"
+
 /// `true` for the empty string.
 export fn isEmpty(s : String) -> Bool = size(s) == 0
 

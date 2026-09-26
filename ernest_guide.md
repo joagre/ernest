@@ -471,7 +471,7 @@ The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char
 - **A conversion is named by the other type.** Between a type and one its module builds on, both directions are the building module's, `String.fromList` and `String.toList`; any other conversion is its argument's module's `toX`: `String.toInt`, `Int.toString`.
 - **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get` and `String.toInt` return `Optional`, `Fs.read` returns `Either(Io.Error, Bytes)`.
 - **Pure unless the value lives in a process.** A function carries `with m` only where it reaches a system process or asks the runtime about its processes, as `Process.live` does, and every function that takes a function is as pure as the function it is given (§3.5).
-- **A `String` is text, not a list.** Its length and positions count what a reader sees as letters; `String.toList` gives its `Char`s.
+- **A `String` is text, not a list.** Its length and positions count what a reader sees as letters, which `String.graphemes` gives one by one; `String.toList` gives its `Char`s.
 - **A system process is used through its module**, never by `send`. A function that waits takes a timeout in milliseconds last and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. One that delivers later takes a function that makes the message: `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired.
 
 What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it.
