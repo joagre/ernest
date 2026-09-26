@@ -11,7 +11,7 @@ One Ernest module goes through the stages below, Erlang applications under `erl/
 | Stage | Module | In | Out |
 |---|---|---|---|
 | lexer | `ern_lexer` | source text | token list |
-| parser | `ern_parser` | token list | AST, records of `ern_ast.hrl` |
+| parser | `ern_parser`, with `ern_ast` the one walk over it | token list | AST, records of `ern_ast.hrl` |
 | typer | `ern_typecheck` with `ern_types`, `ern_prelude`, `ern_exhaust`, `ern_reply` | AST, dependency interfaces | typed AST, interface, environment |
 | emitter | `ern_emitter` | typed AST, environment | Erlang forms, then a BEAM binary with the `ErnI` and `Docs` chunks |
 | runtime | `ern_rt`, `ern_boundary`, `ern_bits`, `ern_show`, `ern_fs`, `ern_tty`, `ern_tcp`, and the standard library's shims | | what compiled code calls |

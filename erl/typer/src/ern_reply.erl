@@ -343,10 +343,5 @@ linear_bindings(P, Env) ->
     [N || {N, T} <- ern_typecheck:typed_pattern_bindings(P),
           ern_typecheck:is_reply_carrying(T, Env)].
 
-walk(F, Node) when is_tuple(Node), is_atom(element(1, Node)) ->
-    F(Node),
-    lists:foreach(fun(X) -> walk(F, X) end, tl(tuple_to_list(Node)));
-walk(F, L) when is_list(L) ->
-    lists:foreach(fun(X) -> walk(F, X) end, L);
-walk(_, _) ->
-    ok.
+walk(F, Node) ->
+    ern_ast:walk(fun(N, ok) -> F(N), ok end, Node, ok).

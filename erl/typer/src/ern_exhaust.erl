@@ -95,13 +95,8 @@ relax({con, bits, []}) -> wild;
 relax({con, K, Subs}) -> {con, K, [relax(S) || S <- Subs]};
 relax(wild) -> wild.
 
-walk(F, Node) when is_tuple(Node), is_atom(element(1, Node)) ->
-    F(Node),
-    lists:foreach(fun(X) -> walk(F, X) end, tl(tuple_to_list(Node)));
-walk(F, L) when is_list(L) ->
-    lists:foreach(fun(X) -> walk(F, X) end, L);
-walk(_, _) ->
-    ok.
+walk(F, Node) ->
+    ern_ast:walk(fun(N, ok) -> F(N), ok end, Node, ok).
 
 %%
 %% Simplification

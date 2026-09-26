@@ -774,3 +774,12 @@ within_call_test() ->
     ?assertEqual({{[], g, 1}, expression}, Within(<<"f(g(1, ">>)),
     ?assertMatch({{[], f, 1}, _}, Within(<<"f(1, 2">>)),
     ?assertMatch({undefined, _}, Within(<<"1 + ">>)).
+
+%% erl/parser/src/ern_ast.erl: the one walk visits every node in pre-order,
+%% into lists and nested records, threading its accumulator. A regression
+%% test for the walk the checker, the reply check and the exhaustiveness
+%% check had each copied.
+ast_walk_test() ->
+    Names = ern_ast:walk(fun(#e_var{name = N}, Acc) -> [N | Acc]; (_, Acc) -> Acc end,
+                         e("f(a, g(b), [c])"), []),
+    ?assertEqual([f, a, g, b, c], lists:reverse(Names)).

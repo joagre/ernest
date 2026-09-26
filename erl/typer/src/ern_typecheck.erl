@@ -1420,7 +1420,7 @@ first_container(Id, [T | Ts], St) ->
 %% that it references, directly or through other local fns, has been
 %% evaluated. Uses are calls and value references alike.
 local_fn_order(Node) ->
-    walk(fun(#e_block{stmts = Stmts}, E) -> block_order(Stmts), E;
+    ern_ast:walk(fun(#e_block{stmts = Stmts}, E) -> block_order(Stmts), E;
             (_, E) -> E
          end, Node, ok),
     ok.
@@ -1471,7 +1471,7 @@ needed_lets(N, Direct, Seen, Acc) ->
     end.
 
 check_uses(Expr, FnNames, Needs, Bound) ->
-    walk(fun(#e_var{pos = Pos, path = [], name = N}, E) ->
+    ern_ast:walk(fun(#e_var{pos = Pos, path = [], name = N}, E) ->
                  case lists:member(N, FnNames) of
                      true ->
                          case Needs(N) -- Bound of
@@ -1700,7 +1700,7 @@ rigid_annotation_vars(Pos, Rigid, #env{st = St}) ->
 %% has a free variable that does not reach the definition's own type.
 undetermined_bindings(Node, FnT, #env{st = St} = Env) ->
     Escaping = ern_types:free_vars(FnT, St),
-    walk(fun(#binding{pos = Pos, pattern = P}, E) ->
+    ern_ast:walk(fun(#binding{pos = Pos, pattern = P}, E) ->
                  lists:foreach(fun({Name, T}) ->
                                    case ern_types:free_vars(T, St) -- Escaping of
                                        [] -> ok;
@@ -1746,15 +1746,6 @@ typed_pattern_bindings(#p_bits{segments = Segs}) ->
     %% report §5.11: a segment's value is a variable, a literal or `_`
     lists:append([typed_pattern_bindings(V) || #bit_seg{value = V} <- Segs]);
 typed_pattern_bindings(_) -> [].
-
-%% Generic pre-order walk over the typed AST, threading Env.
-walk(F, Node, Env) when is_tuple(Node), is_atom(element(1, Node)) ->
-    Env1 = F(Node, Env),
-    lists:foldl(fun(X, E) -> walk(F, X, E) end, Env1, tl(tuple_to_list(Node)));
-walk(F, L, Env) when is_list(L) ->
-    lists:foldl(fun(X, E) -> walk(F, X, E) end, Env, L);
-walk(_, _, Env) ->
-    Env.
 
 %%
 %% Expressions: infer(Expr, Env) -> {TypedExpr, Type, Env}
