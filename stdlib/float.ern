@@ -92,8 +92,17 @@ export fn min(a : Float, b : Float) -> Float = if a < b then a else b
 /// The larger.
 export fn max(a : Float, b : Float) -> Float = if a > b then a else b
 
-/// The shortest decimal that reads back as the same value, always with a
-/// fraction: `100.0`, not `100`.
+/// The shortest digits that read back as the same value, always with a
+/// fraction: `100.0`, not `100`. From 0.0001 to below 1.0e16 they are
+/// written plain; beyond, as one digit, the point, the rest, and the
+/// exponent, whose sign is written only when it is negative.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Float.toString(1.0e15), Float.toString(1.0e16), Float.toString(0.00001))
+/// // => #("1000000000000000.0", "1.0e16", "1.0e-5")
+/// ```
 export foreign fn toString(x : Float) -> String = "ern_float:to_string/1"
 
 /// The nearest `Int`, ties to even.

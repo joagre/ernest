@@ -126,7 +126,7 @@ proper([]) -> true;
 proper([_ | T]) -> proper(T);
 proper(_) -> false.
 
-float_text(F) -> float_to_list(F, [short]).
+float_text(F) -> ern_float:text(F).
 
 string(Bin) -> [$", [escape(C, $") || C <- unicode:characters_to_list(Bin)], $"].
 
