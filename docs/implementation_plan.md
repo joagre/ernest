@@ -599,6 +599,9 @@ each is built where it belongs.
   `Supervisor`'s Shape*). A child is added at any time, when the program starts or while it
   runs, so a pool of children started at run time is the same supervisor and not a second
   kind; a child that returns or is killed leaves the group, and the supervisor forgets it.
+  The caller writes the `spawn`, as with `restarting`: `Supervisor.child(sup, ..., f)`
+  answers the function a process runs, which joins the group, waiting until the supervisor
+  has it, and then runs `f`; so the child's site (§6.9) and its placement are the caller's.
 - **`examples/supervisor.ern`**, three long-lived services under one supervisor as
   top-level bindings, faulted on purpose, read back against principles 1 and 2 and E.0.
   The guide gains a section on the supervisor, after the one on services: a tree as
