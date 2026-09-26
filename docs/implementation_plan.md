@@ -577,9 +577,24 @@ each is built where it belongs.
   runs a host program, and `Os.exit`, which ends the program with a status, join them.
   MVP 2.7 builds all four.
 
-- **`stdlib/supervisor.ern`**, in Ernest but for one shim, the in-place restart of a child,
-  which only the host can do. Appendix E gains its section, with its module page and
-  examples as E.0 shape rule 6 asks.
+- **`stdlib/supervisor.ern`**, in Ernest over the runtime's in-place restart of a sibling.
+  Appendix E gains its section, with its module page and examples as E.0 shape rule 6
+  asks, and §6.9 a sentence that a `restarting` process also runs `f` again when its
+  supervisor restarts it.
+- **A sibling restarts at its next wait**, decided 2026-09-27 (the log's *A Sibling Restarts
+  at Its Next Wait*). BEAM cannot raise a fault in another process, so step 5's in-place
+  restart of a sibling is a priority message the supervisor sends, OTP 28's, which goes
+  before the mailbox's other messages. The emitter gives every `receive` one clause for it,
+  the runtime's waits in `Address.call` and `Address.callForever` the same, and
+  `restarting`'s loop runs `f` again on it, neither counted against the child's limit nor
+  reported as a fault. The rule the report states: a child restarted by its supervisor
+  finishes the message in hand and restarts at its next wait, or at once if it waits, its
+  address and mailbox kept. A child that computes without waiting is not restarted. A
+  supervisor is itself a `restarting` process, so a tree restarts in place, level by
+  level, and the service bindings keep their addresses. Refused: children as new processes,
+  which leaves a binding holding a dead address or needs a registry, a forwarder, or a
+  handle every address operation looks up; and `OneForOne` alone, which stops a tree at
+  one level.
 - **`examples/supervisor.ern`**, three long-lived services under one supervisor as
   top-level bindings, faulted on purpose, read back against principles 1 and 2 and E.0.
   The guide gains a section on the supervisor, after the one on services: a tree as
