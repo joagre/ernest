@@ -1,8 +1,9 @@
-/// Pseudo-random numbers from the runtime's generator behind a pure
-/// interface (report Appendix E.13). A `Seed` is made by `seed` and carried
-/// from one draw to the next, so the same seed gives the same sequence on
-/// one runtime version; there is no hidden state and no process. A program
-/// that wants a fresh sequence seeds from `Clock.now()`.
+/// Pseudo-random numbers behind a pure interface (report Appendix E.13).
+/// The generator is SplitMix64, written here over `Int`'s bit operations, so
+/// the same seed gives the same sequence on every node and every version. A
+/// `Seed` is made by `seed` and carried from one draw to the next; there is
+/// no hidden state and no process. A program that wants a fresh sequence
+/// seeds from `Clock.now()`.
 ///
 /// ## Examples
 ///
@@ -25,16 +26,18 @@
 ///
 /// since 0.1.0
 
-/// The generator's state, which a draw takes and gives back; it is the
-/// runtime's value and belongs to the node that made it.
-export foreign type Seed
+/// The generator's state, which a draw takes and gives back: SplitMix64's
+/// 64-bit counter, a value like any other, which crosses nodes.
+export abstract type Seed = Seed(Int)
 
 /// The seed that number names; the same number gives the same sequence, and
 /// so do two numbers equal in their low 64 bits.
-export foreign fn seed(n : Int) -> Seed = "ern_random:seed/1"
+export fn seed(n : Int) -> Seed = Seed(Int.bitAnd(n, mask))
 
 /// A number between 0 and the bound, both included, and the seed to draw
-/// with next; a negative bound draws between it and 0.
+/// with next; a negative bound draws between it and 0. Every number in the
+/// range is equally likely, the draws that would favour some being drawn
+/// again.
 ///
 /// ### Examples
 ///
@@ -43,9 +46,13 @@ export foreign fn seed(n : Int) -> Seed = "ern_random:seed/1"
 /// x <= 0 && x >= -3
 /// // => true
 /// ```
-export foreign fn next(s : Seed, bound : Int) -> #(Int, Seed) = "ern_random:next/2"
+export fn next(s : Seed, bound : Int) -> #(Int, Seed) = {
+    let #(x, later) = below(s, Int.abs(bound) + 1);
+    if bound < 0 then #(Int.negate(x), later) else #(x, later)
+}
 
-/// A number above 0.0 and below 1.0, and the seed to draw with next.
+/// A number above 0.0 and below 1.0, and the seed to draw with next: the
+/// draw's top 52 bits and a half, as a fraction of 2^52.
 ///
 /// ### Examples
 ///
@@ -54,4 +61,35 @@ export foreign fn next(s : Seed, bound : Int) -> #(Int, Seed) = "ern_random:next
 /// x > 0.0 && x < 1.0
 /// // => true
 /// ```
-export foreign fn nextFloat(s : Seed) -> #(Float, Seed) = "ern_random:next_float/1"
+export fn nextFloat(s : Seed) -> #(Float, Seed) = {
+    let #(z, later) = step(s);
+    #((Int.toFloat(Int.shiftRight(z, 12)) + 0.5) / 4503599627370496.0, later)
+}
+
+// A number from 0 to below r, from as many 64-bit draws as span r, those
+// at or above the largest multiple of r the draws can reach drawn again.
+fn below(s : Seed, r : Int) -> #(Int, Seed) = {
+    let #(v, span, later) = words(s, r, 0, 1);
+    if v < span - span % r then #(v % r, later) else below(later, r)
+}
+
+fn words(s : Seed, r : Int, v : Int, span : Int) -> #(Int, Int, Seed) =
+    if span >= r && span > 1 then #(v, span, s)
+    else {
+        let #(z, later) = step(s);
+        words(later, r, v * 18446744073709551616 + z, span * 18446744073709551616)
+    }
+
+// SplitMix64: the counter advanced by the golden gamma, and its new value
+// mixed into the draw.
+fn step(s : Seed) -> #(Int, Seed) = match s {
+    Seed(state) -> {
+        let counter = Int.bitAnd(state + 0x9E37_79B9_7F4A_7C15, mask);
+        let a = Int.bitAnd(Int.bitXor(counter, Int.shiftRight(counter, 30))
+            * 0xBF58_476D_1CE4_E5B9, mask);
+        let b = Int.bitAnd(Int.bitXor(a, Int.shiftRight(a, 27)) * 0x94D0_49BB_1331_11EB, mask);
+        #(Int.bitXor(b, Int.shiftRight(b, 31)), Seed(counter))
+    }
+}
+
+let mask = 0xFFFF_FFFF_FFFF_FFFF
