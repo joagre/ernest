@@ -118,7 +118,11 @@ The steps:
    its name as `Sys.stdout` is, typed by its declaration, and granted by `export`. This
    revokes §4.6's pure initializer and adds the top-level binding to §6.5's ways of holding
    an address. Nothing is built before the questions below are decided, in this order:
-   1. **The message lost with the fault**, and a `Reply` it carries.
+   1. **Decided 2026-09-26: a call ends when its callee faults.** When the process a call's
+      request was sent to faults or dies before it answers, `Address.call` returns `None` at
+      once and `Address.callForever` faults the caller with the same cause (report §6.6, when
+      built). The lost message is not delivered again, and one without a `Reply` is lost
+      silently. The log's *A Call Ends When Its Callee Faults*.
    2. **The restart limit**, and whether `restarting` has strategies at all. As drafted it
       has none: it restarts one process, and a strategy across siblings, `one_for_all` or
       `rest_for_one`, is not its to have.
