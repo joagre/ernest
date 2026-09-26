@@ -7,7 +7,7 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Fifty-two have left, each decided in
+under, since the plan, the log and the code cite them. Fifty-three have left, each decided in
 a step of the plan's MVP 2.65, which names the decision and the log entry that argues it.
 
 ## 1. Names and namespaces
@@ -96,10 +96,5 @@ program in the repository for it; `libs/markdown`, a CommonMark implementation, 
 where such code belongs, and the Unicode width table for `Terminal.columns` was decided into
 the standard library (step 6, batch 3).
 
-56. **Terminal control sequences written by hand in four places.** The shell's
-    `Shell.Style` and `Shell.Region`, `libs/markdown` and `examples/snake.ern` each write
-    ECMA-48's sequences themselves: select graphic rendition for colour and weight, cursor
-    up and right, erase in display, clear screen. `Terminal.columns` (step 6, batch 3)
-    takes the counting of them into `Terminal`, but the writing stays in four copies of a
-    published vocabulary. Whether E.16 gains the sequences a program writes, or a library
-    under `libs/` owns them.
+Both entries were decided in MVP 2.65's step 10: 55, the web server waits for `libs/http`, and
+56, `Terminal` writes the terminal's sequences.

@@ -4409,6 +4409,14 @@ Keeping the subset under a name that says what it is was weighed: honest about t
 
 Taken: the example waits. Its header names `parse`, `requestLine`, `headerLines` and `render` as a stand-in for `libs/http`, not extended meanwhile, and the build changes them only as the system references and `Char.isAsciiDigit` require. The plan's MVP 3.2 had given `libs/http` a client and left the server's side to the example; it now parses and renders in both directions, the server loop alone staying the example's, and the stand-in goes when the library comes.
 
+## The Terminal Writes Its Own Sequences, 2026-09-26
+
+Feedback item 56, decided in MVP 2.65's step 10 before its build. The shell's style and region, `libs/markdown` and the snake example each wrote ECMA-48's sequences by hand, colour and weight, the cursor's moves, the erasures: four copies of a published vocabulary, which is a library's or the standard library's.
+
+A library, `libs/ansi`, was weighed and left: `Terminal` already decodes the keys the terminal sends in that vocabulary and, with `columns`, reads its sequences in a string, so a second owner for writing them would split one vocabulary in two, and a reader looking for how to colour text looks where the terminal is (principle 1); `libs/` is also off the default load path, which the snake example would then need.
+
+Taken: E.16 gains `styled` over `Style` and `Colour`, the cursor's four moves and two erasures, each pure and answering text the program writes with `Io.print`, admitted by rule 3, the standard's obvious definitions with nothing chosen for the program; that the terminal speaks ECMA-48 rather than a terminfo entry is the assumption `Terminal` already makes for its keys. Rule 2 gives the whole vocabulary, eight colours and four directions, not only what the four places used. `styled` turns a style off by its own code, the Markdown renderer's convention, so a style inside another leaves the outer on; `Bold` and `Dim` go off together, ECMA-48 having one code for both.
+
 ## Later
 
 Planned or considered, not in the language today.

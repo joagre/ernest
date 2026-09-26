@@ -339,7 +339,7 @@ The steps:
       | C1 | a shim reaches the representation (step 6) | E.0 rule 1, E.3, E.4, E.5, E.14, E.20 | `map.ern`, `set.ern`, `string.ern`, `bytes.ern`, `path.ern` in Ernest over their primitives; `ern_map`, `ern_set`, `ern_string`, `ern_path` shrink, `ern_path:dirname` with them | `ern_stdlib_tests` and each edge case a contract names; new mirror: each module's `foreign fn`s equal the primitives its section names | `architecture.md`, the module pages | none | `ern_map:`/`ern_set:`/`maps:` 30, `ern_string:` six, `ern_path:` 6 |
       | C2 | `Random` is SplitMix64 (step 6) | E.13, E.0 rule 7's example | `random.ern` over `Int`'s bit operations; `ern_random` goes | `random_test` known answers; `stdlib_types_test` an abstract type | guide §8.4's node-bound example, which is `Random.Seed`, gets another; `architecture.md` | C1 | `foreign type Seed` 4, `bound to its node` 4, `exsss` 3 |
       | C3 | names follow the vocabulary (step 6) | E.0 shape rules 2 and 3, E.4, App. D | `set.ern` `intersection`; `libs/ets` `put`, `get`, `contains`, `remove`, `close` | `ern_stdlib_tests`; mirror: `appendix_d_library_test` | guide §2.9, §8.3, §8.5 | C1 | `intersect` 7, `Ets.insert`/`lookup`/`member`/`delete`/`drop` 16 |
-      | C4 | what the library lacked (step 6, G8) | E.0 rule 4 and shape rule 5, E.1, E.3, E.5, E.6, E.16 | `mergeWith`, `trimStart`, `trimEnd`, `Char.isAsciiDigit`, `Terminal.columns` over a width table in `terminal.ern`, `Io.show` with the emitter's case; the shell's region and `libs/markdown` use `columns` | `ern_stdlib_tests`, `ern_doc_tests`, `values_test`, `ern_emitter_tests`, a wide glyph in the terminal harness | THIRD_PARTY_LICENSES (Unicode's data), `shell_design.md`'s open question, guide §2.9, `examples/repl.ern` and `webserver.ern` | D1, B8, B10 | `Only the system modules carry`, `It is not a composition`, `One character is one column`, `c >= '0' && c <= '9'`: 7 |
+      | C4 | what the library lacked (step 6, G8) | E.0 rule 4 and shape rule 5, E.1, E.3, E.5, E.6, E.16 | `mergeWith`, `trimStart`, `trimEnd`, `Char.isAsciiDigit`, `Terminal.columns` over a width table in `terminal.ern`, `Terminal.styled`, the cursor's moves and the erasures (item 56), `Io.show` with the emitter's case; the shell's region and `libs/markdown` use `columns` | `ern_stdlib_tests`, `ern_doc_tests`, `values_test`, `ern_emitter_tests`, a wide glyph in the terminal harness | THIRD_PARTY_LICENSES (Unicode's data), `shell_design.md`'s open question, guide §2.9, `examples/repl.ern` and `webserver.ern` | D1, B8, B10 | `Only the system modules carry`, `It is not a composition`, `One character is one column`, `c >= '0' && c <= '9'`: 7 |
       | D1 | code-point order, `trim` by `Char.isSpace` (step 9) | §3.10, E.5, E.6 | `ern_string` trim; `compare` and case mapping already conform | `string_test`: U+00A0 and U+3000 stripped, U+200E kept | `string.ern` docs, `test/session/basic.out` | none | `without leading and trailing` 3 |
       | D2 | how a program ends (step 9) | §8.6, §11.2 | `ern_cli` a signal handler exits 128 plus the signal; `run_main` prints `killed` | `ern_cli_tests`, `ern_integration_tests` status 143, SIGHUP 129 | guide §6.3, §9.2 | none | `The program ends when main returns or faults`, `exits with status 0 when`: 3 |
       | D3 | standard input is UTF-8 (step 9) | §8.2, E.1 | `ern_rt`'s reader reads bytes and checks UTF-8 | integration under `LANG=C`: UTF-8, CRLF, no last line feed, invalid bytes | `io.ern` doc, guide §1.3 | B8 | `without its line feed` 3 |
@@ -485,9 +485,13 @@ The steps:
         what they must; MVP 3.2's `libs/http` parses and renders in both directions and
         replaces them. The log's *The Web Server Waits for Its Library*.
 
-      Still to decide: whether E.16 gains the terminal's
-      control sequences or a library owns them (item 56); whether E.1 gains a read of bytes
-      (item 57); and whether `Tcp` gains a close for a listener (item 58, found by the cold
+      - **Item 56, decided 2026-09-26: `Terminal` writes the terminal's sequences.** E.16
+        gains `Colour`, `Style`, `styled`, the cursor's four moves, `clearBelow` and
+        `clearScreen`, pure functions answering text; the shell's style and region,
+        `libs/markdown` and `examples/snake.ern` lose their copies, built with C4. The log's
+        *The Terminal Writes Its Own Sequences*.
+
+      Still to decide: whether E.1 gains a read of bytes (item 57); and whether `Tcp` gains a close for a listener (item 58, found by the cold
       read).
    5. **The toolchain first.** `ern build` and its siblings replace `ernc` before anything
       else is built, since the rename reaches the Makefile, the tests, the README, the guide

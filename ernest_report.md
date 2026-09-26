@@ -1454,7 +1454,7 @@ Clock.alarmAt : (Int, (Int) -> m) -> Unit with m // at the time, wrap(t) in the 
 
 ### Appendix E.16. `terminal.ern` (namespace `Terminal`)
 
-Over the terminal's system reference (§8.2). `columns` is Ernest over a table built from Unicode's East Asian Width and emoji data.
+Over the terminal's system reference (§8.2). `columns` is Ernest over a table built from Unicode's East Asian Width and emoji data. The terminal speaks ECMA-48: `subscribe` decodes its keys from it, `columns` reads its sequences in a string, and `styled`, the cursor's moves, and the two erasures answer its sequences as text a program writes with `Io.print`. `styled` turns its style off after the text by the style's own code, so that a style around it stays on; `Bold` and `Dim` are turned off together, since ECMA-48 has one code for both.
 
 ```
 type Size = Size(rows : Int, columns : Int)
@@ -1463,6 +1463,15 @@ type Event =
   | Interrupt | Pasted(String) | Resized(Size)
 Terminal.subscribe : ((Event) -> m) -> Either(Io.Error, Unit) with m // every key pressed and every resize from now on, wrapped, in the caller's mailbox; a second call replaces the first; Left(NotATerminal) where standard input is not a terminal
 Terminal.size : () -> Optional(Size) with m // the terminal's size now, None where standard output is not a terminal
+type Colour = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White
+type Style = Bold | Dim | Italic | Underline | Foreground(Colour)
+Terminal.styled : (String, Style) -> String // the text in the style
+Terminal.up : (Int) -> String // the cursor up n rows; "" for n below 1
+Terminal.down : (Int) -> String // the cursor down n rows; "" for n below 1
+Terminal.left : (Int) -> String // the cursor left n columns; "" for n below 1
+Terminal.right : (Int) -> String // the cursor right n columns; "" for n below 1
+Terminal.clearBelow : String // erases from the cursor to the end of the screen
+Terminal.clearScreen : String // erases the screen and puts the cursor at its top left
 Terminal.columns : (String) -> Int // the columns the text takes at a terminal: an escape sequence none, a wide or emoji grapheme two, a grapheme only of combining or format characters none; a tab is the caller's
 ```
 
