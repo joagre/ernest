@@ -342,7 +342,7 @@ The steps:
       | C4 | what the library lacked (step 6, G8) | E.0 rule 4 and shape rule 5, E.1, E.3, E.5, E.6, E.16 | `mergeWith`, `trimStart`, `trimEnd`, `Char.isAsciiDigit`, `Terminal.columns` over a width table in `terminal.ern`, `Terminal.styled`, the cursor's moves and the erasures (item 56), `Io.show` with the emitter's case; the shell's region and `libs/markdown` use `columns` | `ern_stdlib_tests`, `ern_doc_tests`, `values_test`, `ern_emitter_tests`, a wide glyph in the terminal harness | THIRD_PARTY_LICENSES (Unicode's data), `shell_design.md`'s open question, guide §2.9, `examples/repl.ern` and `webserver.ern` | D1, B8, B10 | `Only the system modules carry`, `It is not a composition`, `One character is one column`, `c >= '0' && c <= '9'`: 7 |
       | D1 | code-point order, `trim` by `Char.isSpace` (step 9) | §3.10, E.5, E.6 | `ern_string` trim; `compare` and case mapping already conform | `string_test`: U+00A0 and U+3000 stripped, U+200E kept | `string.ern` docs, `test/session/basic.out` | none | `without leading and trailing` 3 |
       | D2 | how a program ends (step 9) | §8.6, §11.2 | `ern_cli` a signal handler exits 128 plus the signal; `run_main` prints `killed` | `ern_cli_tests`, `ern_integration_tests` status 143, SIGHUP 129 | guide §6.3, §9.2 | none | `The program ends when main returns or faults`, `exits with status 0 when`: 3 |
-      | D3 | standard input is UTF-8 (step 9) | §8.2, E.1 | `ern_rt`'s reader reads bytes and checks UTF-8 | integration under `LANG=C`: UTF-8, CRLF, no last line feed, invalid bytes | `io.ern` doc, guide §1.3 | B8 | `without its line feed` 3 |
+      | D3 | standard input is UTF-8 (step 9), and `Io.read` and `Io.write` (item 57) | §8.2, E.0 shape rule 8, E.1 | `ern_rt`'s reader reads bytes and checks UTF-8 for a line; `io.ern`'s `read` and `write`; `stdout` takes `Bytes` too | integration under `LANG=C`: UTF-8, CRLF, no last line feed, invalid bytes | `io.ern` doc, guide §1.3 | B8 | `without its line feed` 3 |
       | D4 | `Float.toString` (step 9, L7) | E.9 | `ern_float:to_string`, `ern_show:float_text` | `float_test` at 0.0001, 1.0e15, 1.0e16, 1.0e-5, each read back | `float.ern` doc | none | `shortest decimal that reads back` 2 |
       | D5 | the shell's commands in §11.2 (step 9) | §11.2 | `shell/shell/command.ern` | new mirror: the paragraph against the command list | `shell_design.md`, guide §1.2, §9.3, `shell/README.md` | A1, B5 | `The shell's help lists the commands` 1 |
       | D6 | `////` is a comment (step 9) | §2.2, App. F | `ern_lexer`; `emacs/ernest-mode.el` | `four_slashes_is_a_doc_line_test` inverts; `emacs/test/colour.el` | `docs/emacs_mode.md` | none | `` `///` to end of line `` 2 |
@@ -491,7 +491,12 @@ The steps:
         `libs/markdown` and `examples/snake.ern` lose their copies, built with C4. The log's
         *The Terminal Writes Its Own Sequences*.
 
-      Still to decide: whether E.1 gains a read of bytes (item 57); and whether `Tcp` gains a close for a listener (item 58, found by the cold
+      - **Item 57, decided 2026-09-26: standard input and output carry bytes.** E.1 gains
+        `Io.read`, what has arrived from standard input, and `Io.write`, bytes to standard
+        output; a read of bytes shares the stream with `readLine` and claims the terminal
+        for lines (§8.2). Built with D3. The log's *Standard Input and Output Carry Bytes*.
+
+      Still to decide: whether `Tcp` gains a close for a listener (item 58, found by the cold
       read).
    5. **The toolchain first.** `ern build` and its siblings replace `ernc` before anything
       else is built, since the rename reaches the Makefile, the tests, the README, the guide

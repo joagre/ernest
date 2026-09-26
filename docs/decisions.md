@@ -4417,6 +4417,12 @@ A library, `libs/ansi`, was weighed and left: `Terminal` already decodes the key
 
 Taken: E.16 gains `styled` over `Style` and `Colour`, the cursor's four moves and two erasures, each pure and answering text the program writes with `Io.print`, admitted by rule 3, the standard's obvious definitions with nothing chosen for the program; that the terminal speaks ECMA-48 rather than a terminfo entry is the assumption `Terminal` already makes for its keys. Rule 2 gives the whole vocabulary, eight colours and four directions, not only what the four places used. `styled` turns a style off by its own code, the Markdown renderer's convention, so a style inside another leaves the outer on; `Bold` and `Dim` go off together, ECMA-48 having one code for both.
 
+## Standard Input and Output Carry Bytes, 2026-09-26
+
+Feedback item 57, decided in MVP 2.65's step 10 before its build. Once a line of standard input is UTF-8 whatever the locale (*The Cold Read's Last Findings*), a program could not read a binary stream or text in another encoding from its standard input, and, `Io.print` taking a `String`, could not write bytes to its standard output either: `Fs.read` gave bytes a pipe could not pass on.
+
+Leaving it to MVP 2.7, with the arguments and the exit status, was weighed: the build's D3 rewrites the reader to read bytes and check UTF-8 itself, and would then hide the bytes behind lines for MVP 2.7 to reopen, the gap standing meanwhile in a language that had decided it. Taken: E.1 gains `Io.read`, what has arrived from standard input, at least one byte, `None` at end of input, and `Io.write`, bytes to standard output, admitted by rule 1 since standard input and output live in the runtime. The names are the vocabulary's, `Fs.read` and `Fs.write` moving `Bytes` and `Tcp.read` answering what has arrived with no size (principle 1). Lines and bytes come from one stream, each request taking up where the last stopped, so a header line can precede a binary body; a read of bytes claims the terminal for lines, as `readLine` does, and neither takes milliseconds, since both wait for input.
+
 ## Later
 
 Planned or considered, not in the language today.

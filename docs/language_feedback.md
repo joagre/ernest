@@ -7,7 +7,7 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Fifty-three have left, each decided in
+under, since the plan, the log and the code cite them. Fifty-four have left, each decided in
 a step of the plan's MVP 2.65, which names the decision and the log entry that argues it.
 
 ## 1. Names and namespaces
@@ -71,12 +71,7 @@ MVP 3.0's, and 16 is MVP 2.7's; they stay here because they are the same questio
 ## 4. The standard library under E.0
 
 Decided on 2026-09-26 in three batches; the plan's MVP 2.65 step 6 names each decision. Two
-entries have come since.
-
-57. **Standard input cannot be read as bytes.** `Io.readLine` answers a line of UTF-8, which
-    the cold read's 2.24 fixed as the rule whatever the locale, so a program that reads a
-    binary stream, or text in another encoding, from its standard input has no way to. Found
-    2026-09-26 in MVP 2.65's step 9. Whether E.1 gains a read of bytes, by E.0.
+entries have come since; 57 was decided in step 10, standard input and output carry bytes.
 
 58. **A listener cannot be closed.** `Tcp.close` takes an `Address(SockMsg)`, so a listener
     lives until it is killed or the program ends (E.18, since MVP 2.65's report pass): a
