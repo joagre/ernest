@@ -202,7 +202,10 @@ The steps:
 9. **The cold read's own findings**, those no theme takes, in a batch: the report's wording,
    its cross-references and examples, and the rules it leaves an implementer to invent.
 10. **What was decided is built**, report first as each decision already was, each change with
-   its tests, and the document sweep at the end.
+   its tests, and the document sweep at the end. The guide gains a section on services: a
+   service as a top-level binding, `restarting` and its `Limit`, the `start` and `service`
+   pair for tests, a call that ends when its callee faults, and `fault`; §6.4's sentence
+   that a restarted service must hand out its new address goes.
 
 ---
 
@@ -219,7 +222,8 @@ the fault report it stands on.
   examples as E.0 rule 6 asks.
 - **`examples/supervisor.ern`**, three long-lived services under one supervisor as
   top-level bindings, faulted on purpose, read back against principles 1 and 2 and E.0.
-  The guide's §6.4 then teaches it beside the job runner.
+  The guide gains a section on the supervisor, after the one on services: a tree as
+  top-level bindings, the three strategies, the group's limit, and stopping.
 - **Two things to settle in the build, report first where the report is silent.** A
   supervisor that faults by a defect of its own, not by `fault`, leaves its children
   running, since nothing owns a process; a watcher the module spawns beside it, holding
