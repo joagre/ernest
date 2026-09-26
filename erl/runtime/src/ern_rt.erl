@@ -24,13 +24,14 @@
 -module(ern_rt).
 
 -export([send/2, process_of/1, spawn/3, spawn_monitored/4, self/0, via/2, call/3,
-         call_forever/2, answer/2, monitor/2, kill/1, deaths/1, live/0, proxy_for/3,
+         call_forever/2, answer/2, monitor/2, kill/1, live/0, processes/0, info/1, faults/1,
+         proxy_for/3,
          proxy_forget/2, source_begin/0, source_begin/1, source_end/0, opened/1,
          forget_opened/1, timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1,
          undefined_function/3, undefined_lambda/3, remote/1, fault/1, fault/2,
          trace/1, sys/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
          binding/1, run_main/2, run_main/3, signal/1, deadlock_target/1, restarting/2,
-         init_stdlib/0, read_input/1, input_not_utf8/0]).
+         init_stdlib/0, read_input/1, input_not_utf8/0, reason/1]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -231,6 +232,7 @@ kill(Addr) ->
     exit(process_of(Addr), {ern, killed}),
     ?UNIT.
 
+-spec reason(term()) -> term().
 reason(normal) -> 'Returned';
 reason({ern, killed}) -> 'Killed';
 reason({ern, program_end}) -> 'ProgramEnd';
@@ -273,6 +275,9 @@ reaper_loop(Waiters) ->
                     reaper_loop(maps:update_with(Pid, fun(L) -> [{To, Wrap} | L] end,
                                                  [{To, Wrap}], Waiters))
             end;
+        {report, Pid, Site, Fault} ->
+            report(Pid, Site, Fault, true),
+            reaper_loop(Waiters);
         {'DOWN', _MRef, process, Pid, Reason} ->
             case ets:lookup(?PROCESSES, Pid) of
                 [{_, Site, alive, _, _}] ->
@@ -330,30 +335,93 @@ counted_link(Work) ->
     source_begin(Pid),
     Pid ! go.
 
-%% Report §11.2: the shell reads how every process the runtime started
-%% ended (§6.9) and which are alive, and no program does: §6.3 gives a
-%% program no registry, and these two are the toolchain's own door. The
-%% watcher is told of every death, and decides for itself which are news.
--spec deaths(pid()) -> ok.
-deaths(Watcher) ->
-    persistent_term:put({?MODULE, deaths}, Watcher),
-    ok.
-
--spec live() -> [{address(), binary()}].
+%% The live processes the runtime started with their spawn sites, which
+%% the shell's :reload reads to find what still runs a module.
+-spec live() -> [{pid(), binary()}].
 live() ->
     try [{Pid, Site} || {Pid, Site, _, _} <- live_rows()]
     catch _:_ -> []
     end.
+
+%% Appendix E.21: Process.live, the live processes the runtime started, the
+%% system processes excepted, which it does not start as it starts these.
+-spec processes() -> [pid()].
+processes() ->
+    [Pid || {Pid, _} <- live()].
+
+%% Appendix E.21: Process.info, a snapshot of a live process, None once it
+%% has ended and for a process on another node. A process waiting for a
+%% call's answer is Calling, which the host's status does not tell from a
+%% receive: its pending call is in the table of calls (§6.6).
+-spec info(pid()) -> 'None' | {'Some', {'Info', atom(), non_neg_integer(), binary()}}.
+info(Pid) when node(Pid) =:= node() ->
+    case {ets_lookup(?PROCESSES, Pid),
+          erlang:process_info(Pid, [status, message_queue_len])} of
+        {[{_, Site, alive, _, _}], [{status, Status}, {message_queue_len, Queued}]} ->
+            Activity = case Status of
+                           waiting ->
+                               case ets_match(?CALLS, {'_', Pid, '_'}) of
+                                   [] -> 'Receiving';
+                                   _ -> 'Calling'
+                               end;
+                           _ -> 'Running'
+                       end,
+            {'Some', {'Info', Activity, Queued, Site}};
+        _ ->
+            'None'
+    end;
+info(_) ->
+    'None'.
+
+ets_lookup(Table, Key) ->
+    try ets:lookup(Table, Key) catch _:_ -> [] end.
+
+ets_match(Table, Pattern) ->
+    try ets:match_object(Table, Pattern) catch _:_ -> [] end.
+
+%% Appendix E.21: Process.faults, the caller subscribed to every fault of
+%% every process the runtime started, To being the caller seen through its
+%% wrap. A process holds one subscription, the latest, which ends when it
+%% dies (the reaper's DOWN).
+-spec faults(address()) -> 'Unit'.
+faults(To) ->
+    try ets:insert(?PROCESSES, {{faults, process_of(To)}, To}) catch _:_ -> true end,
+    ?UNIT.
+
+%% Report §11.2, Appendix E.21: a fault, which each subscriber is sent as a
+%% FaultReport, each delivery a process of its own as a monitor's is, and
+%% which `ern run`'s reporter, the runtime's own subscriber, is given as it
+%% happens, before the process's end reaches anyone who waits on it. The
+%% fields are in canonical order: cause, process, restarted, site, trace.
+%% The reaper reports, so that a delivery is linked to a process that lives
+%% as long as the run; a process that restarts sends it its fault.
+report(Pid, Site, Fault, Restarted) ->
+    {Cause, Trace} = case Fault of
+                         {ern, fault, Msg, Stack} -> {Msg, Stack};
+                         {ern, fault, Msg} -> {Msg, <<>>};
+                         _ -> {element(2, reason(Fault)), <<>>}
+                     end,
+    Report = {'FaultReport', Cause, Pid, Restarted, Site, Trace},
+    case persistent_term:get({?MODULE, reporter}, undefined) of
+        undefined -> ok;
+        Reporter -> Reporter(Report)
+    end,
+    Subscribers = try ets:match(?PROCESSES, {{faults, '_'}, '$1'}) catch _:_ -> [] end,
+    lists:foreach(fun([To]) -> counted_link(fun() -> deliver(To, Report) end) end,
+                  Subscribers).
 
 %% The live processes' rows, each its pid, its spawn site, and the counts
 %% of its timed waits and of its foreign calls in progress.
 live_rows() ->
     ets:select(?PROCESSES, [{{'$1', '$2', alive, '$3', '$4'}, [], [{{'$1', '$2', '$3', '$4'}}]}]).
 
+%% Report §6.9, §11.2: a process that ended faulting is reported, and a
+%% subscription to faults it held ends with it.
 died(Pid, Site, Reason) ->
-    case persistent_term:get({?MODULE, deaths}, undefined) of
-        undefined -> ok;
-        Watcher -> Watcher ! {death, Pid, Site, reason(Reason)}, ok
+    ets:delete(?PROCESSES, {faults, Pid}),
+    case reason(Reason) of
+        {'Fault', _} -> report(Pid, Site, Reason, false);
+        _ -> ok
     end.
 
 %% Report §8.6. Two snapshots of every live process's status and reduction
@@ -366,8 +434,7 @@ died(Pid, Site, Reason) ->
 %% as well: between taking a message out and counting the source it holds,
 %% it is running rather than waiting, and the check sees that. The reaper
 %% is the process making the check, so its own mailbox is what is read of
-%% it. §8.6 leaves a foreign process that can deliver to the runtime, and
-%% the one the shell registers for deaths (§11.2) is counted here. Report
+%% it. §8.6 leaves a foreign process that can deliver to the runtime. Report
 %% §11.2: nothing is a deadlock while a shell holds the terminal.
 deadlocked() ->
     terminal_holder() =:= undefined
@@ -393,7 +460,7 @@ quiet_system() ->
                                   undefined -> true;
                                   Pid -> quiet(Pid)
                               end
-                          end, [stdout, stderr, stdin, fs, terminal, tcp, clock, deaths])
+                          end, [stdout, stderr, stdin, fs, terminal, tcp, clock])
         andalso lists:all(fun quiet/1, opened()).
 
 %% A system process that has died can deliver nothing.
@@ -881,7 +948,8 @@ arm(Deadline, To) ->
 %% ProgramEnd and stdout is flushed, however the run ended. Opts: init => a
 %% function run in main's process before Main, after the system references
 %% are bound and the standard library's lets evaluated, for the program's
-%% own top-level lets (report §8.5); stdout, stderr =>
+%% own top-level lets (report §8.5); faults => fun((FaultReport) -> any()),
+%% given every fault as it happens (report §11.2); stdout, stderr =>
 %% fun((binary()) -> any()), stdin => fun(() -> eof | {error, term()} |
 %% unicode:chardata()), called for each read, and keys => the same for the
 %% terminal's keys, for tests (fed/1). Report §8.2: the standard streams
@@ -898,7 +966,12 @@ run_main(Main, Site, Opts) ->
     ets:new(?PROCESSES, [named_table, public, set]),
     ets:new(?CALLS, [named_table, public, bag]),
     persistent_term:erase({?MODULE, holder}),
-    persistent_term:erase({?MODULE, deaths}),
+    %% report §11.2: `ern run` reports every fault, the runtime's own
+    %% subscriber, given here as a function
+    case Opts of
+        #{faults := Reporter} -> persistent_term:put({?MODULE, reporter}, Reporter);
+        _ -> persistent_term:erase({?MODULE, reporter})
+    end,
     Run = make_ref(),
     persistent_term:put({?MODULE, launcher}, {erlang:self(), Run}),
     Reaper = erlang:spawn(fun() -> reaper_loop(#{}) end),
@@ -930,24 +1003,34 @@ run_main(Main, Site, Opts) ->
         %% the runtime (§11.2), reach it however soon the process ends
         MainPid = spawn_awaited(fun() -> run_inits(Stdlib), Init(), Main() end, Site,
                                 [{erlang:self(), {raw, {main_down, Run}}}]),
-        receive
-            {{main_down, Run}, _, Raw} ->
-                case {reason(Raw), Raw} of
-                    {'Returned', _} -> ok;
-                    {'Killed', _} -> killed;
-                    {{'Fault', Msg}, {ern, fault, _, Trace}} -> {fault, Msg, Trace};
-                    {{'Fault', Msg}, _} -> {fault, Msg};
-                    {Other, _} -> {fault, format("~p", [Other])}
-                end;
-            {deadlock, Run} ->
-                exit(MainPid, {ern, fault, <<"deadlock">>}),
-                {fault, <<"deadlock">>};
-            {fault, Run, Text} -> {fault, Text};
-            {signal, Run, Signal} -> {signal, Signal}
-        end
+        await_main(MainPid, Run)
     after
         end_program(Run, Reaper, System),
+        persistent_term:erase({?MODULE, reporter}),
         restore_encodings(Encodings)
+    end.
+
+%% The entry process's end. Report §8.6, §8.2: a deadlock, and a fault the
+%% runtime finds in a system process's work, fault the entry process, whose
+%% end then comes as any process's does, reported as every fault is (§11.2).
+await_main(MainPid, Run) ->
+    receive
+        {{main_down, Run}, _, Raw} ->
+            case {reason(Raw), Raw} of
+                {'Returned', _} -> ok;
+                {'Killed', _} -> killed;
+                {{'Fault', Msg}, {ern, fault, _, Trace}} -> {fault, Msg, Trace};
+                {{'Fault', Msg}, _} -> {fault, Msg};
+                {Other, _} -> {fault, format("~p", [Other])}
+            end;
+        {deadlock, Run} ->
+            exit(MainPid, {ern, fault, <<"deadlock">>}),
+            await_main(MainPid, Run);
+        {fault, Run, Text} ->
+            exit(MainPid, {ern, fault, Text}),
+            await_main(MainPid, Run);
+        {signal, Run, Signal} ->
+            {signal, Signal}
     end.
 
 input(Key, Opts) ->
@@ -1026,6 +1109,13 @@ restarts(F, Restarts, Within, Times) ->
             Recent = [T || T <- Times, Now - T < Within],
             case length(Recent) < Restarts of
                 true ->
+                    %% report §11.2: a fault after which the process
+                    %% restarts is reported as one
+                    Site = case ets_lookup(?PROCESSES, erlang:self()) of
+                               [{_, S, alive, _, _}] -> S;
+                               _ -> <<>>
+                           end,
+                    persistent_term:get({?MODULE, reaper}) ! {report, erlang:self(), Site, Fault},
                     restarted(element(3, Fault)),
                     restarts(F, Restarts, Within, [Now | Recent]);
                 false ->

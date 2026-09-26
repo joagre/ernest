@@ -1064,6 +1064,35 @@ non_entry_main() ->
     ?assertMatch({_, _}, binary:match(Refused, <<"Main.main is not an entry point: its type is"
                                                  " () -> Int with m">>)).
 
+%% report §11.2, Appendix E.21: the shell is a subscriber of Process.faults.
+%% An input a signal ends with a fault answers with it rather than waiting
+%% for a `Done` that never comes; a restart is reported as one, and the
+%% end after it; `:faults` keeps both; a binding `:load` evaluates is
+%% reported by `:load` alone. A regression test for the move off the front
+%% end's watcher; it does not cover a process `:reload` ends
+fault_subscriber_test_() ->
+    {timeout, 60, fun fault_subscriber/0}.
+
+fault_subscriber() ->
+    Dir = scratch("ern_fault_subscriber_"),
+    ok = file:write_file(filename:join(Dir, "bad.ern"),
+                         "export let zero = List.size([])\nexport let boom = 1 / zero\n"),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, ["send(via(fn(x) = x / List.size([]), self()), 1)\n",
+                              "1 + 1\n",
+                              "let r = restarting(RestartLimit(restarts = 1, within = 60000),"
+                              " fn() -> Unit with Never = Io.println(Int.toString("
+                              "1 / List.size([]))))\n",
+                              "let _ = spawn(Local, r)\n",
+                              ":faults\n",
+                              ":load Bad\n"]),
+    {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"> fault: division by zero\n> 2 : Int">>)),
+    ?assertEqual(2, count(Out, <<"input:1 faulted, restarted: division by zero">>)),
+    ?assertEqual(2, count(Out, <<"input:1 faulted: division by zero">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"Bad: a top-level binding faulted">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"Shell.load">>)).
+
 %% report §11.2, §8.2: the shell shows each byte a program writes that is
 %% not UTF-8 as U+FFFD, a character cut across two writes whole, and text
 %% as UTF-8 whatever the host's locale

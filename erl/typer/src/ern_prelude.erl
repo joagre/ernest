@@ -94,7 +94,8 @@ builtin_types() ->
      {'Address', 1,
       <<"""
       Where messages of type `m` are sent: a process, or one seen through a
-      function with `via`. Addresses have no equality.
+      function with `via`. Addresses have no equality; the process behind
+      one has, `Process.fromAddress(a)`.
 
       ### Examples
 
@@ -140,6 +141,19 @@ builtin_types() ->
       ```ernest
       Foreign.toInt(Foreign.from(3))
       // => Some(3)
+      ```
+      """/utf8>>},
+     {'Process', 0,
+      <<"""
+      The identity of a process, with equality and no ordering; nothing can
+      be sent to it. `Process.fromAddress` gives the process behind an
+      address (report Appendix E.21).
+
+      ### Examples
+
+      ```ernest
+      Process.fromAddress(self()) == Process.fromAddress(via(fn(x) = x, self()))
+      // => true
       ```
       """/utf8>>},
      {'List', 1,

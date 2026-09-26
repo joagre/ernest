@@ -27,16 +27,15 @@ The same short names recur across modules. `Typing`, `Clear` and `Leave` are bot
 
 ### Start and end
 
-`main` calls `mine()` first. So does each process it spawns. The shell's own processes are then left out of the fault reports and `:processes`. `main` then does the following, in order:
+`main` does the following, in order:
 
-1. It spawns the screen.
-2. It sends what programs write to the screen as `Wrote` (`setScreen`).
-3. It watches for deaths (`watchDeaths`).
-4. It starts the file's entry point, if the shell was started with one (`program`).
-5. It reads the history.
-6. It spawns the reader, which subscribes to the terminal and sends `Ready`.
-7. It records the reader as the terminal's holder (`holdTerminal`), so that an input asking for the keys faults rather than taking them. It monitors the reader.
-8. It waits for `Ready`, runs the startup files, and writes the first prompt.
+1. Where standard output has a size, it spawns the reader. The reader records itself as the terminal's holder (`holdTerminal`), so that an input asking for the keys faults rather than taking them, and subscribes to the terminal. It sends `Ready`, or `NoKeys` where standard input is not a terminal, and the session then reads lines.
+2. It spawns the screen: a region at a terminal, plain text in line mode. In line mode the session holds the terminal itself.
+3. It sends what programs write to the screen as `Wrote` (`setScreen`).
+4. It keeps its own processes, the session, the screen and the reader, in its `State` by their `Process`, so that their faults are not news and `:processes` leaves them out. It subscribes to every fault with `Process.faults(Reported)`.
+5. It starts the file's entry point, if the shell was started with one (`program`).
+6. At a terminal, it reads the history, sends the reader `Start` with the screen and the history, and monitors the reader.
+7. It runs the startup files and writes the first prompt.
 
 `finish` ends the session. It takes the region away with `Height(0)` and an empty `Typing`, leaves the cursor on a fresh line, and drains the screen.
 
@@ -46,11 +45,11 @@ The same short names recur across modules. `Typing`, `Clear` and `Leave` are bot
 2. `continues` asks the parser whether the input needs another line. It does not, so the reader appends the input to the history (`remember`). It sends `Entered` to the screen, which commits the line to the transcript, and `Typed(text)` to the session. Then it starts the next line with `Shell.Editor.next`.
 3. The session's `keyLoop` receives `Typed`. It sends `Taken` to the screen and calls `taking`, which skips a blank line and calls `submit`. `submit` sends a `:` line to `perform` and anything else to `evaluate`.
 4. A command: `Shell.Command.parse` gives the action and its argument, or the text of a refusal. `obey` carries out the action.
-5. Ernest: `run` checks the input through the front end (`check`) and starts it with `spawnInput`. `await` then waits for `Done(Ok(...))` or `Done(Faulted(...))`, and prints the value and its type with `say`.
+5. Ernest: `run` checks the input through the front end (`check`) and starts it with `spawnInput`. `await` then waits for `Done(Ok(...))` or `Done(Faulted(...))`, and prints the value and its type with `say`. A fault report about the input's own process is its answer too, since only a signal ends that process with a fault, and then no `Done` comes.
 6. `say` sends `Said(text)` to the screen. The screen passes it to `Shell.Region.said` and writes the bytes it gets back.
 7. `prompt` drains the screen with a `Flush` call before it writes the next `> `. A program's text reaches the screen from the program's own processes, not through the session, so without the drain the prompt could come before it.
 
-While an input runs, the reader goes on reading keys. `await` receives only `Done`, `Interrupted` and `Died`. So an input typed meanwhile, or `Eof`, stays in the mailbox and is taken after the run. `C-c` travels the other way. The editor answers `Cancel`, and the reader sends `Entered` to the screen and `Interrupted` to the session. `await` kills the input's process and says `Killed`. The run's own `Done` may still arrive after that, and `keyLoop` drops it.
+While an input runs, the reader goes on reading keys. `await` receives only `Done`, `Interrupted` and `Reported`. So an input typed meanwhile, or `Eof`, stays in the mailbox and is taken after the run. `C-c` travels the other way. The editor answers `Cancel`, and the reader sends `Entered` to the screen and `Interrupted` to the session. `await` kills the input's process and says `Killed`. The run's own `Done` may still arrive after that, and `keyLoop` drops it.
 
 ## The modules
 
@@ -98,7 +97,8 @@ The session's state lives in two places:
 - **`with ShellMsg`** in a signature says that the function acts through a process whose mailbox is `ShellMsg`: it receives there, or calls something that does. `with m` says that it uses its process, to send or to call the host, and runs in a process with any mailbox. A signature with neither is pure. See §6.1.
 - **`spawn(Local, fn() = ...)`** starts a process on this node. The loop it calls fixes its mailbox type.
 - **`Address(Never)`** is the address of a process that receives nothing, such as the input's process. No value has type `Never`, so nothing can be sent to it, but it can be killed and monitored (§6.8).
-- **`via(Died, self())`** is the session's address seen through `Died`, so a `Down` sent there arrives as `Died(down)` (§6.5). `monitor(reader, ReaderDied)` wraps the reader's `Down` the same way.
+- **`Process.faults(Reported)`** puts every fault in the session's mailbox as `Reported(report)`, `Reported` being the function that wraps it (§6.5). `monitor(reader, ReaderDied)` wraps the reader's `Down` the same way.
+- **`Process.fromAddress(a)`** is the process behind an address. It has equality where an address has none, so the session keeps its own processes in a `Set(Process)` and tells an input's fault by comparing processes.
 - **`Address.call` with a `Reply`** is request-reply (§6.6). The caller passes a function that builds the message around the reply. `drain` uses it to wait until the screen has written everything sent before.
 - **`<>`** joins strings and lists alike, and `#(a, b)` is a tuple.
 - **Top-down layout**: types first, then `main`, and each function's helpers right after it ([`docs/style.md`](../docs/style.md)).

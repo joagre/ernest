@@ -72,7 +72,7 @@ At language level there is one type, `Address(m)`, and `send` behaves the same f
 
 ### 4.4 Equality
 
-`Address` has no equality, as decided in the language. Two copies of the same remote address cannot be compared. Deduplication of addresses, for instance in a subscriber list, must use another key.
+`Address` has no equality, as decided in the language. The `Process` behind an address has, and across nodes a `Process` names its node (report Appendix E.21), so two copies of the same remote address give equal processes. Deduplication of addresses, for instance in a subscriber list, uses the process.
 
 ## 5. Sending and delivery
 

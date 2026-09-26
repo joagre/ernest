@@ -279,8 +279,12 @@ session_shown(Lines) ->
     iolist_to_binary([case L of <<"> ", _/binary>> -> <<"> ">>; _ -> [L, <<"\n">>] end
                       || L <- Lines]).
 
+%% The text without its trailing blanks, and with the number the host gives
+%% a process masked in `<process 84>` and `<address 84>`, since it is the
+%% host's count and not the language's (report Appendix E.1).
 trim(Text) ->
-    string:trim(Text, trailing).
+    re:replace(string:trim(Text, trailing), "<(address|process) [0-9]+>", "<\\1 N>",
+               [global, unicode, {return, binary}]).
 
 join(Lines) ->
     iolist_to_binary([[L, <<"\n">>] || L <- Lines]).

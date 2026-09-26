@@ -49,7 +49,8 @@ by_type(bool, V, _, _) -> atom_to_list(V);
 by_type(char, V, _, _) -> [$', char_body(V), $'];
 by_type(string, V, _, _) -> string(V);
 by_type(bytes, V, _, L) -> bytes(V, L);
-by_type({pid, _, _}, _, _, _) -> "<address>";
+by_type({pid, _, _}, V, _, _) -> address(V);
+by_type(process, V, _, _) -> ["<process ", number(V), ">"];
 by_type(ref, _, _, _) -> "<reply>";
 by_type(F, _, _, _) when element(1, F) =:= 'fun' -> "<function>";
 by_type({abstract, _}, _, _, _) -> "<abstract>";
@@ -81,6 +82,15 @@ by_type({con, Cs}, V, B, L) when is_tuple(V) ->
             end,
     [atom_to_list(Tag), "(", join(Parts), ")"].
 
+%% Report Appendix E.1: an address by the process behind it, which grants
+%% nothing, and a process by the number the host gives it.
+address(A) ->
+    ["<address ", number(ern_rt:process_of(A)), ">"].
+
+number(Pid) ->
+    [_, N, _] = string:split(string:trim(pid_to_list(Pid), both, "<>"), ".", all),
+    N.
+
 %% By the runtime's representation alone.
 represented(V, _) when is_integer(V) -> integer_to_list(V);
 represented(V, _) when is_float(V) -> float_text(V);
@@ -90,7 +100,7 @@ represented(Bin, L) when is_binary(Bin) ->
         Chars when is_list(Chars) -> string(Bin);
         _ -> bytes(Bin, L)
     end;
-represented(P, _) when is_pid(P) -> "<address>";
+represented(P, _) when is_pid(P) -> address(P);
 represented(R, _) when is_reference(R) -> "<reply>";
 represented(F, _) when is_function(F) -> "<function>";
 represented(V, #lim{depth = 0}) when is_list(V); is_tuple(V); is_map(V) ->

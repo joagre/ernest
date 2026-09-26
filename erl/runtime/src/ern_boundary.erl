@@ -5,7 +5,7 @@
 %% that checks each message the foreign side sends against the address's
 %% mailbox type on delivery and forwards it, or ends the target with the
 %% fault. The compiler describes a type as a term this module interprets:
-%% any | int | float | bool | char | string | bytes | {pid, D, Text} | ref
+%% any | int | float | bool | char | string | bytes | {pid, D, Text} | ref | process
 %% | {'fun', Arity, R, Text, Make} | never | {list, D} | {tuple, [D]} | {map, K, V}
 %% | {set, D} | {con, [{Tag, [D]} | {Tag, [D], [Name]}]} | {abstract, D}
 %% | {mu, Id, D} | {ref, Id}, mu binding Id for the ref inside it, which is
@@ -113,6 +113,7 @@ chk(string, V, _) -> is_binary(V) andalso unicode:characters_to_binary(V) =:= V;
 chk(bytes, V, _) -> is_binary(V);
 chk({pid, _, _}, V, _) -> is_pid(V);
 chk(ref, V, _) -> is_reference(V);
+chk(process, V, _) -> is_pid(V);
 chk(F, V, _) when element(1, F) =:= 'fun' -> is_function(V, element(2, F));
 chk(never, _, _) -> false;
 chk({list, D}, V, B) -> is_list(V) andalso lists:all(fun(X) -> chk(D, X, B) end, V);

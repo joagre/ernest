@@ -14,6 +14,15 @@ by_type_test() ->
     ?assertEqual(<<"Snap(dir = \"x\", seen = 2)">>, ern_show:show(Snap, {'Snap', <<"x">>, 2})),
     ?assertEqual(<<"<abstract>">>, ern_show:show({abstract, {con, []}}, {'Stack', []})).
 
+%% report Appendix E.1, E.21: a process by its number, and an address by
+%% the number of the process behind it, through every via
+identity_test() ->
+    Pid = list_to_pid("<0.84.0>"),
+    ?assertEqual(<<"<process 84>">>, ern_show:show(process, Pid)),
+    ?assertEqual(<<"<address 84>">>, ern_show:show({pid, any, <<>>}, Pid)),
+    ?assertEqual(<<"<address 84>">>,
+                 ern_show:show({pid, any, <<>>}, {via, fun(X) -> X end, Pid})).
+
 %% report Appendix E.1: a foreign value reads by the representation, and as
 %% <foreign> where it reads as none of Ernest's forms; an improper list,
 %% which only foreign code can make, is one such

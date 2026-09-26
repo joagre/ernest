@@ -86,8 +86,10 @@ fn try(env : Map(String, Value), e : Expr, run : Int) -> Either(TryError, Value)
 
 // Every monitor reports a death, a normal return included, and it arrives
 // after the answer; a child killed on a timeout reports later still.
-// Addresses have no equality (report §6.3), so the run number in the
-// message is what tells this child's news from an earlier child's.
+// A `Down` names no process, and the child's `Process` (report Appendix
+// E.21) exists only after the spawn its wrap is made for, so the run
+// number in the message is what tells this child's news from an earlier
+// child's.
 fn await(child : Address(Never), run : Int) -> Either(TryError, Value) with ReplMsg = receive {
     Result(run = r, value = v) when r == run -> Either.mapLeft(v, Eval)
   | Died(run = r) when r == run -> Left(Crashed) // a fault in the child

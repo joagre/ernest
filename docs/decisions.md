@@ -4475,6 +4475,18 @@ Two cases §8.2 did not settle were decided. Keys that are not UTF-8 end the pro
 
 The initialization order of bindings that do not depend on one another was the order a graph library happened to give, and it moved with unrelated changes: a test of `:reload` that had passed began to keep a different binding's value. §11.2 says that a faulting binding and those after it keep the previous version's values, which means nothing a reader can predict while the order is unspecified, against principle 3. §8.5 now evaluates such bindings in the order the module declares them; the order of modules that do not depend on one another stays unspecified, since nothing reads it.
 
+## The Build's Fifth Group, 2026-09-26
+
+MVP 2.65's step 10: `Process` and its module, and every fault on standard error. What was found while building:
+
+Faults are reported from the two places that see them, the reaper at a process's end and the restart loop at a restart, and both reports go through the reaper: a delivery is a process linked to the one that starts it, and one started by a process that restarts was killed with it at its next fault, before it delivered. `ern run`'s report is the runtime's own subscriber, given to the run as a function and called before anyone waiting on the process hears of its end, so that the line is written before the program's own reaction to it. A fault the runtime found in a system process's work, the terminal read both ways or standard input unreadable, had ended the run with no process faulting; the launcher now faults the entry process with it and waits for its end, as it does for a deadlock, so that each is reported as every fault is, and `ern` no longer writes a `fault:` line of its own. The shell's own end is the exception, since no subscriber is left to see it.
+
+§11.2 did not say what `ern test` prints of a fault that is not a test's own, a worker a test spawned or an initializer. It now reports them as `ern run` does, the running test's being its line.
+
+The shell lost its eight doors to the runtime's processes. Its own processes are a `Set(Process)` in its state, and the hundred faults `:faults` lists are kept there. The front end had quieted an input's fault, a binding `:load` evaluated, and a process `:reload` ended. An input's process catches its own fault, so a report of it comes only when a signal ends it; that report is now the input's answer, which also mends an input that a fault by signal left the session waiting on for ever. A binding `:load` evaluates is caught the same way. A process `:reload` ends is reported, since §11.2 leaves it no exemption and the fault is true.
+
+The ledger had `examples/repl.ern`'s run number becoming a `Process`. A wrap given to `spawnMonitored` is made before the spawn, and the process it would name exists only after, so the run number stays, as the guide's §5.2 keeps its own, and the REPL's comment says why. An address prints with the number of the process behind it, `<address 84>`, a count the host keeps; the guide's tests compare its consoles with that number masked, as a time would be.
+
 ## Later
 
 Planned or considered, not in the language today.

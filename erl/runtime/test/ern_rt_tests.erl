@@ -86,6 +86,65 @@ stdin_stream_test() ->
     ?assertMatch({'Down', {'Fault', <<"the standard input is not UTF-8">>}, _}, wait(down)),
     ?assertEqual([{'Some', <<"next">>}, 'None', 'None'], wait(after_fault)).
 
+%% report Appendix E.21: a snapshot says what a live process is doing, a
+%% wait in a receive told from a wait for a call's answer, and nothing of
+%% one that has ended; the live processes are those the runtime started
+process_info_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Quiet = ern_rt:spawn('Local', fun() -> receive stop -> ok end end, <<"M.quiet:1">>),
+               Server = ern_rt:spawn('Local', fun() -> receive never -> ok end end, <<"M.s:2">>),
+               Caller = ern_rt:spawn('Local', fun() ->
+                                                  ern_rt:call_forever(Server, fun(R) -> R end)
+                                              end, <<"M.caller:3">>),
+               ern_rt:send(Quiet, first),
+               timer:sleep(50),
+               Me ! {infos, [ern_rt:info(ern_rt:process_of(A)) || A <- [Quiet, Caller]]},
+               Me ! {live, lists:sort(ern_rt:processes())
+                               =:= lists:sort([self(), Quiet, Server, Caller])},
+               ern_rt:kill(Quiet),
+               timer:sleep(50),
+               Me ! {gone, ern_rt:info(Quiet)},
+               ern_rt:kill(Caller),
+               ern_rt:kill(Server)
+           end, <<"M.main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual([{'Some', {'Info', 'Receiving', 1, <<"M.quiet:1">>}},
+                  {'Some', {'Info', 'Calling', 0, <<"M.caller:3">>}}], wait(infos)),
+    ?assertEqual(true, wait(live)),
+    ?assertEqual('None', wait(gone)).
+
+%% report Appendix E.21, §11.2: every fault reaches each subscriber as a
+%% FaultReport, a restart among them, and the runtime's reporter as it
+%% happens; a second subscription replaces the first; a kill is no fault
+fault_reports_test() ->
+    Me = self(),
+    Reporter = fun(Report) -> Me ! {reported, Report} end,
+    ok = ern_rt:run_main(
+           fun() ->
+               ern_rt:faults(ern_rt:via(fun(R) -> {first, R} end, ern_rt:self())),
+               ern_rt:faults(ern_rt:via(fun(R) -> {report, R} end, ern_rt:self())),
+               Limit = {'RestartLimit', 1, 60000},
+               Twice = ern_rt:restarting(Limit, fun() -> 1 div zero() end),
+               _ = ern_rt:spawn('Local', Twice, <<"M.twice:4">>),
+               Killed = ern_rt:spawn('Local', fun() -> receive never -> ok end end, <<"M.k:5">>),
+               ern_rt:kill(Killed),
+               Reports = [receive {report, R} -> R end, receive {report, R2} -> R2 end],
+               Me ! {reports, lists:sort([{Site, Cause, Restarted}
+                                          || {'FaultReport', Cause, _, Restarted, Site, <<>>}
+                                                 <- Reports])},
+               timer:sleep(100),
+               Me ! {first, receive {first, _} -> true after 0 -> false end}
+           end, <<"M.main">>, #{stdout => fun(_) -> ok end, faults => Reporter}),
+    ?assertEqual([{<<"M.twice:4">>, <<"division by zero">>, false},
+                  {<<"M.twice:4">>, <<"division by zero">>, true}], wait(reports)),
+    ?assertEqual(false, wait(first)),
+    Reported = [R || {reported, R} <- flush()],
+    ?assertEqual(2, length(Reported)).
+
+flush() ->
+    receive M -> [M | flush()] after 0 -> [] end.
+
 %% report §8.6: a system process that has died can deliver nothing, so it
 %% does not keep a deadlock from being found. A regression test: the
 %% detector read a dead one as busy, and the program waited for ever

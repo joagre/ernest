@@ -23,10 +23,6 @@ type Outcome = Ok(env : Env, value : Value) | Faulted(String)
 
 foreign fn start() -> Env with m = "ern_shell:start/0"
 foreign fn program() -> Optional(Address(Never)) with m = "ern_shell:program/0"
-foreign fn watchDeaths(to : Address(Down)) -> Unit with m = "ern_shell:deaths/1"
-foreign fn mine() -> Unit with m = "ern_shell:mine/0"
-foreign fn faults() -> List(Down) with m = "ern_shell:faults/0"
-foreign fn processes() -> List(String) with m = "ern_shell:processes/0"
 foreign fn load(env : Env, name : String) -> Either(String, #(Env, String)) with m =
     "ern_shell:load/2"
 foreign fn reload(env : Env) -> Either(String, #(Env, List(String))) with m =
@@ -101,17 +97,20 @@ foreign fn holdTerminal(reader : Address(a)) -> Unit with m = "ern_rt:hold_termi
 // What the session is told. The reader sends `Ready` once it holds the
 // keyboard, or `NoKeys` where standard input is not a terminal, `Typed`
 // for an input entered, `Interrupted` for `C-c`, and `Eof` for `C-d` on an
-// empty line; the input's process sends `Done` as its run ends; the front
-// end's watcher sends `Died` for every death, and the monitor on the
-// reader `ReaderDied` for its own.
+// empty line; the input's process sends `Done` as its run ends;
+// `Process.faults` sends `Reported` for every fault, and the monitor on the
+// reader `ReaderDied` for its end.
 type ShellMsg =
-    Typed(String) | Eof | Interrupted | Done(Outcome) | Died(Down) | ReaderDied(Down) | Ready
-  | NoKeys
+    Typed(String) | Eof | Interrupted | Done(Outcome) | Reported(Process.FaultReport)
+  | ReaderDied(Down) | Ready | NoKeys
 
 // What the session carries between inputs: the front end's environment, the
-// settings `:set` changes, which are ordinary values, and whether it colours
-// what it says, read once at the start (report §11.2).
-type State = State(env : Env, settings : Settings, colour : Bool)
+// settings `:set` changes, which are ordinary values, whether it colours
+// what it says, read once at the start, the shell's own processes, whose
+// faults are not news, and the last hundred faults reported, newest first
+// (report §11.2).
+type State = State(env : Env, settings : Settings, colour : Bool, own : Set(Process),
+    faults : List(Process.FaultReport))
 type Settings = Settings(depth : Int, length : Int, timing : Bool, output : Int)
 
 type Next = Continue(State) | Leave
@@ -153,7 +152,6 @@ type Last = Ordinary | Tabbed | Documented
 let defaults = Settings(depth = 10, length = 100, timing = false, output = Shell.Region.tailRows)
 
 export fn main() -> Unit with ShellMsg = {
-    mine();
     let me = self();
     // report §11.2: at a terminal the keys are read and a region painted;
     // elsewhere lines are read and what is said is written as it comes.
@@ -167,12 +165,9 @@ export fn main() -> Unit with ShellMsg = {
         }
     };
     let colour = Optional.isSome(keys) && colours();
-    let screen = spawn(Local, fn() = {
-        mine();
-        match keys {
-            Some(#(_, size)) -> screenLoop(Shell.Region.new(size))
-          | None -> plainLoop()
-        }
+    let screen = spawn(Local, fn() = match keys {
+        Some(#(_, size)) -> screenLoop(Shell.Region.new(size))
+      | None -> plainLoop()
     });
     // report §11.2: in line mode the session reads the lines itself, and
     // holds the terminal, so that an input that asks for the keys or a
@@ -182,12 +177,16 @@ export fn main() -> Unit with ShellMsg = {
     // session says is committed to the transcript
     setScreen(via(Wrote, screen));
     send(screen, Said("Ernest " <> version() <> ". :help for the commands, :quit to leave.\n"));
-    let state = State(env = start(), settings = defaults, colour = colour);
+    // report §11.2: the session, the screen and the reader are the shell's
+    // own, whose faults are not news
+    let readers = match keys { Some(#(reader, _)) -> [Process.fromAddress(reader)] | None -> [] };
+    let own = Set.fromList([Process.fromAddress(me), Process.fromAddress(screen)] <> readers);
+    let state = State(env = start(), settings = defaults, colour = colour, own = own, faults = []);
     // report §11.2: a process that faults is news at the prompt, whichever
-    // it is; the watcher is in place before the program's entry point runs
-    watchDeaths(via(Died, self()));
-    // report §11.2: the file's entry point is spawned beside the prompt,
-    // and its faults reach the watcher as any other process's do
+    // it is, and the session hears of it as any subscriber does, from
+    // before the program's entry point runs
+    Process.faults(Reported);
+    // report §11.2: the file's entry point is spawned beside the prompt
     let _ = program();
     match keys {
         Some(#(reader, _)) -> {
@@ -323,10 +322,16 @@ fn await(state : State, screen : Address(ScreenMsg), checked : Checked, child : 
         state
     }
   | Interrupted -> { kill(child); say(screen, "Killed"); state }
-  | Died(down) -> {
-        reportDeath(screen, state.colour, down);
-        await(state, screen, checked, child, started, printing)
-    }
+  | Reported(report) ->
+        // report §11.2: an input's own fault is its answer; the input
+        // catches what it raises, so a report of its process is a fault a
+        // signal brought, after which no `Done` comes
+        if report.process == Process.fromAddress(child) then {
+            say(screen, Shell.Style.fault(state.colour, "fault: " <> report.cause));
+            if printing then timed(screen, state.settings, started) else Unit;
+            state
+        }
+        else await(reported(state, screen, report), screen, checked, child, started, printing)
     // an input typed meanwhile, and the end of input, are left in the
     // mailbox: they wait for this one, and run after it (report §11.2)
 }
@@ -341,10 +346,7 @@ fn keyLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = r
     Typed(line) -> { send(screen, Taken); taking(state, screen, line) }
   | Eof -> finish(screen, "\n")
   | Interrupted -> { prompt(screen); keyLoop(state, screen) }
-  | Died(down) -> {
-        reportDeath(screen, state.colour, down);
-        keyLoop(state, screen)
-    }
+  | Reported(report) -> keyLoop(reported(state, screen, report), screen)
   | ReaderDied(down) -> readerDied(screen, state.colour, down)
   // the end of a run that `Interrupted` killed, which `await` no longer
   // waits for
@@ -369,18 +371,34 @@ fn readerDied(screen : Address(ScreenMsg), colour : Bool, down : Down) -> Unit w
             "the shell stopped reading the keyboard: " <> faultLine(other)) <> "\n")
     }
 
-// Report §11.2: what died while the session was reading. In line mode the
-// session blocks in `Io.readLine`, so a death is reported before the next
-// prompt instead; §6.4 leaves every other message in the mailbox.
-fn deaths(screen : Address(ScreenMsg), colour : Bool) -> Unit with ShellMsg = receive {
-    Died(down) -> { reportDeath(screen, colour, down); deaths(screen, colour) }
-  | after 0 -> Unit
+// Report §11.2: what faulted while the session was reading. In line mode
+// the session blocks in `Io.readLine`, so a fault is reported before the
+// next prompt instead; §6.4 leaves every other message in the mailbox.
+fn pending(state : State, screen : Address(ScreenMsg)) -> State with ShellMsg = receive {
+    Reported(report) -> pending(reported(state, screen, report), screen)
+  | after 0 -> state
 }
 
 // Report §11.2: a process that faults is reported with its spawn site and
-// cause; returning, being killed, and the program's end are not news.
-fn reportDeath(screen : Address(ScreenMsg), colour : Bool, down : Down) -> Unit with m =
-    say(screen, Shell.Style.fault(colour, faultLine(down)))
+// cause, and kept for `:faults`, unless it is one of the shell's own.
+fn reported(state : State, screen : Address(ScreenMsg), report : Process.FaultReport)
+    -> State with m =
+    if Set.contains(state.own, report.process) then state
+    else {
+        say(screen, Shell.Style.fault(state.colour, reportLine(report)));
+        State(..state, faults = List.take(report :: state.faults, keptFaults))
+    }
+
+// Report §11.2: `:faults` lists the last hundred.
+let keptFaults = 100
+
+// The spawn site and the cause, as `ern run` writes them, and beneath a
+// failure of the runtime the host's stack.
+fn reportLine(report : Process.FaultReport) -> String = {
+    let faulted = if report.restarted then " faulted, restarted: " else " faulted: ";
+    let line = report.site <> faulted <> report.cause;
+    if String.isEmpty(report.trace) then line else line <> "\n" <> String.trimEnd(report.trace)
+}
 
 fn faultLine(down : Down) -> String = match down {
     Down(reason = Fault(text), site = where) -> where <> " faulted: " <> text
@@ -398,6 +416,13 @@ fn say(screen : Address(ScreenMsg), text : String) -> Unit with m =
 // line is, and what it answers is plain.
 fn refuse(screen : Address(ScreenMsg), colour : Bool, text : String) -> Unit with m =
     say(screen, Shell.Style.fault(colour, text))
+
+// Report §11.2: the session's live processes by spawn site, the shell's own
+// left out.
+fn sessionProcesses(own : Set(Process)) -> List(String) with m =
+    List.sort(List.filterMap(Process.live(), fn(p) =
+        if Set.contains(own, p) then None else Optional.map(Process.info(p), fn(i) = i.site)),
+        String.compare)
 
 // What the input declared, a line for each, in the order they were written
 // (report §11.2).
@@ -463,15 +488,15 @@ fn obey(state : State, screen : Address(ScreenMsg), action : Shell.Command.Actio
           | Right(text) -> { say(screen, text); Continue(state) }
         }
       | Shell.Command.Set -> Continue(State(..state, settings = set(screen, colour, settings, arg)))
-      | Shell.Command.Processes -> match processes() {
+      | Shell.Command.Processes -> match sessionProcesses(state.own) {
             [] -> { say(screen, "no process of the session's is running"); Continue(state) }
           | sites -> { printLines(screen, sites); Continue(state) }
         }
-      | Shell.Command.Faults -> match faults() {
+      | Shell.Command.Faults -> match List.reverse(state.faults) {
             [] -> { say(screen, "no process has faulted"); Continue(state) }
-          | downs -> {
+          | reports -> {
                 printLines(screen,
-                    List.map(downs, fn(d) = Shell.Style.fault(colour, faultLine(d))));
+                    List.map(reports, fn(r) = Shell.Style.fault(colour, reportLine(r))));
                 Continue(state)
             }
         }
@@ -607,7 +632,6 @@ fn drain(screen : Address(ScreenMsg)) -> Unit with m = {
 // terminal's mode is the holder's and the interrupt a key, and once it has
 // the keys it waits for the screen it draws on.
 fn reader(session : Address(ShellMsg)) -> Unit with ReaderMsg = {
-    mine();
     holdTerminal(self());
     match Terminal.subscribe(K) {
         Right(_) -> {
@@ -1010,12 +1034,12 @@ fn under(editing : Shell.Editor.State, rows : List(String)) -> ScreenMsg =
         rows = rows)
 
 //
-// Line mode: without a terminal there is no reader, and the session reads
-// lines itself, with no editing
+// Line mode: where standard output has no size or the reader's
+// subscription is refused, the session reads lines itself, with no editing
 //
 
-fn lineLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = {
-    deaths(screen, state.colour);
+fn lineLoop(state0 : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = {
+    let state = pending(state0, screen);
     prompt(screen);
     match Io.readLine() {
         // the prompt's line is ended by `finish`, as a `:quit` ends it

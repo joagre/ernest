@@ -750,15 +750,27 @@ shell(Opts, Rest, Err) ->
            end,
     %% report §11.2: the sinks are the screen's, which the shell names
     Sink = fun(Bin) -> ern_shell:to_screen(Bin) end,
-    outcome(Err, ern_rt:run_main(fun() -> Mod:main() end, <<"Shell.main">>,
-                                 #{stdout => Sink, stderr => Sink, init => Init})).
+    shell_outcome(Err, ern_rt:run_main(fun() -> Mod:main() end, <<"Shell.main">>,
+                                       #{stdout => Sink, stderr => Sink, init => Init})).
 
-%% Report §11.2: the entry process's fault on standard error, and beneath a
-%% failure of the runtime or a foreign function's raise the host's stack.
-report_fault(Err, {fault, Msg}) ->
-    io:format(Err, "fault: ~ts~n", [Msg]);
-report_fault(Err, {fault, Msg, Trace}) ->
-    io:format(Err, "fault: ~ts~n~ts", [Msg, Trace]).
+%% Report §11.2: every fault on standard error as it happens, a line each,
+%% the spawn site and the cause, and beneath a failure of the runtime or a
+%% foreign function's raise the host's stack. It goes through standard
+%% error's process, so that it keeps its place among what the program
+%% wrote there, and is flushed with it when the program ends. The runtime's
+%% own subscriber of Process.faults (Appendix E.21).
+report_fault({'FaultReport', Cause, _Process, Restarted, Site, Trace}) ->
+    Faulted = case Restarted of
+                  true -> <<" faulted, restarted: ">>;
+                  false -> <<" faulted: ">>
+              end,
+    ern_rt:send(ern_rt:sys(stderr), <<Site/binary, Faulted/binary, Cause/binary, "\n",
+                                      Trace/binary>>).
+
+%% The options of a run that reports its faults, its standard error being
+%% the error device, standard_error but in a test.
+reporting(Opts, Err) ->
+    Opts#{faults => fun report_fault/1, stderr => fun(Bin) -> file:write(Err, Bin) end}.
 
 %% The module of a `.erc`, its load path, and every module loaded for it:
 %% the file's own dependencies first (report §11.2, §4.2).
@@ -869,7 +881,15 @@ quiet_signals() ->
 outcome(_Err, ok) -> 0;
 outcome(Err, killed) -> io:format(Err, "killed~n", []), 1;
 outcome(_Err, {signal, Signal}) -> ern_signals:status(Signal);
-outcome(Err, Fault) -> report_fault(Err, Fault), 1.
+%% report §11.2: the entry process's fault has been reported as it happened
+outcome(_Err, _Fault) -> 1.
+
+%% Report §11.2: the shell reports the faults of the session's processes
+%% itself, as a subscriber, so its own end, which no subscriber of its own
+%% is left to see, is said here.
+shell_outcome(Err, {fault, Msg}) -> io:format(Err, "fault: ~ts~n", [Msg]), 1;
+shell_outcome(Err, {fault, Msg, Trace}) -> io:format(Err, "fault: ~ts~n~ts", [Msg, Trace]), 1;
+shell_outcome(Err, Other) -> outcome(Err, Other).
 
 %% Report §8.5: every top-level let of the loaded modules, dependencies
 %% first, once the runtime has bound the system references.
@@ -895,7 +915,14 @@ run_tests(Ns, Loaded, Err) ->
                Me ! {ern_tests, lists:all(fun(P) -> P end, Passed)}
            end,
     Site = unicode:characters_to_binary(qname(Ns) ++ ".$tests"),
-    case ern_rt:run_main(Main, Site, #{init => init_fun(Loaded)}) of
+    %% report §11.2: a test's own fault is its line, and every other is
+    %% reported as `ern run` reports it
+    Reporter = fun(Report) ->
+                   element(3, Report) =:= persistent_term:get({?MODULE, test}, none)
+                       orelse report_fault(Report)
+               end,
+    Opts = reporting(#{init => init_fun(Loaded)}, Err),
+    case ern_rt:run_main(Main, Site, Opts#{faults => Reporter}) of
         ok ->
             receive
                 {ern_tests, true} -> 0;
@@ -916,12 +943,16 @@ run_test({'Test', Name, Run}) ->
     Pid = ern_rt:spawn_monitored('Local', fun() -> Me ! {Ref, Run()} end,
                                  fun(Down) -> {Ref, down, Down} end, Name),
     ok = ern_rt:deadlock_target(Pid),
+    %% the reporter hears of the test's fault before this process does,
+    %% so the test is forgotten only once its end is here
+    persistent_term:put({?MODULE, test}, Pid),
     Outcome = receive
                   {Ref, 'Passed'} -> returned(Ref, <<"passed">>);
                   {Ref, {'Failed', Text}} -> returned(Ref, <<"failed: ", Text/binary>>);
                   {Ref, down, {'Down', Reason, _}} -> <<"faulted: ", (cause(Reason))/binary>>
               end,
     ok = ern_rt:deadlock_target(none),
+    persistent_term:erase({?MODULE, test}),
     ern_rt:sys(stdout) ! <<Name/binary, ": ", Outcome/binary, "\n">>,
     Outcome =:= <<"passed">>.
 
@@ -939,7 +970,8 @@ run_entry(Opts, Ns, Roots, Loaded, Err) ->
     Site = entry_site(EntryMod, EntryFn),
     Fn = ern_emitter:function_atom(EntryFn),
     %% report §8.6: a deadlock is the entry process's fault
-    outcome(Err, ern_rt:run_main(fun() -> EntryMod:Fn() end, Site, #{init => Init})).
+    outcome(Err, ern_rt:run_main(fun() -> EntryMod:Fn() end, Site,
+                                 reporting(#{init => Init}, Err))).
 
 %% Report §11.2: the entry point the shell spawns beside it, or none for a
 %% file without one, which is loaded to be tried. A `main` that is not an

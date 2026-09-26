@@ -337,15 +337,28 @@ operator_member_on_demand_test() ->
     ?assertEqual(["`<>` is not defined on Int"], Errs).
 
 
+%% report §3.10, Appendix E.21: a process has equality and no ordering, and
+%% a comparison of addresses is refused with the process behind each named
+process_identity_test() ->
+    ok("fn same(a : Address(Int), b : Address(Int)) -> Bool =\n"
+       "    Process.fromAddress(a) == Process.fromAddress(b)"),
+    ?assertEqual("`==` is not defined on Address(Int): it contains a function or an address;"
+                 " compare the processes behind addresses, `Process.fromAddress(a)`",
+                 err("fn same(a : Address(Int), b : Address(Int)) = a == b")),
+    ?assertMatch("`<` is not defined on Process" ++ _,
+                 err("fn before(a : Process, b : Process) = a < b")).
+
 %% report §3.10
 equality_test() ->
     ?assertEqual("`==` is not defined on (Int) -> Int: it contains a function or an address",
                  err("fn f(g : (Int) -> Int) = g == g")),
     ?assertEqual("Address(Int) does not support equality (it contains a function or an"
-                 " address), but it is compared here",
+                 " address), but it is compared here; compare the processes behind"
+                 " addresses, `Process.fromAddress(a)`",
                  err("fn same(a : Address(Int), b) = equal(a, b)\nfn equal(a, b) = a == b")),
     ?assertEqual("Address(Int) does not support equality (it contains a function or an"
-                 " address), and a Map's key needs it",
+                 " address), and a Map's key needs it"
+                 "; compare the processes behind addresses, `Process.fromAddress(a)`",
                  err("fn f(a : Address(Int)) = Map.put(Map.empty, a, 1)")),
     ?assertEqual(ok, ok("fn f(a : String) = Map.put(Map.empty, a, 1)")).
 
@@ -370,7 +383,8 @@ map_key_equality_test() ->
                  " address), and a Map's key needs it",
                  err("fn f() = { let m : Map((Int) -> Int, Int) = Map.empty; m }")),
     ?assertEqual("Address(Int) does not support equality (it contains a function or an"
-                 " address), and a Set's element needs it",
+                 " address), and a Set's element needs it"
+                 "; compare the processes behind addresses, `Process.fromAddress(a)`",
                  err("fn f(a : Address(Int)) = Set.put(Set.empty, a)")),
     ?assertEqual(ok, ok("type Box = Box(m : Map((Int) -> Int, Int))\n"
                         "fn f(m : Map((Int) -> Int, Int)) -> Int = 1\n"
@@ -378,7 +392,8 @@ map_key_equality_test() ->
     ?assertEqual("(Map(#(k=, Int), v)) -> Map(#(k=, Int), v)",
                  type_of("export fn f(m : Map(#(k, Int), v)) -> Map(#(k, Int), v) = m", f)),
     ?assertEqual("Address(Int) does not support equality (it contains a function or an"
-                 " address), and a Map's key needs it",
+                 " address), and a Map's key needs it"
+                 "; compare the processes behind addresses, `Process.fromAddress(a)`",
                  err("fn f(m : Map(#(k, Int), Int), key : k) = m\n"
                      "fn g(m : Map(#(Address(Int), Int), Int), a : Address(Int)) = f(m, a)")).
 

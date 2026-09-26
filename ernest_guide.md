@@ -599,10 +599,10 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type spawn
 spawn : (Where, () -> Unit with n) -> Address(n) with m
 > spawn(Local, fn() -> Unit = Unit)
-<address> : Address(a)
+<address 84> : Address(a)
 `it` is unchanged: this input did not determine the type of its value
 > spawn(Local, fn() -> Unit with Never = Unit)
-<address> : Address(Never)
+<address 87> : Address(Never)
 ```
 
 ### 3.7 The word counter as functions
@@ -963,7 +963,7 @@ type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
 
 `monitor(child, wrap)` puts `wrap(d)` in your mailbox when `child` dies, or at once if it is dead already, with the reason `Unknown`, since the runtime keeps nothing of a process that has ended. A process you start yourself is watched from its start with `spawnMonitored(Local, f, wrap)`, `spawn` and `monitor` in one step, so that no end comes before the watch. `wrap` makes your message from the runtime's `Down`: in ping-pong, `PongDone` is a constructor of `MainMsg` that carries one. A `Down` says the process ended, not that it succeeded; its `reason` says how, and its `site` says where it was spawned, the top-level declaration and the line of the spawn, `Counter.main:19`.
 
-`wrap` is a function, so it can carry what you need to tell one death from another. A process that monitors a worker while waiting for its answer gets two messages, the answer and the death, and takes the answer; the death is still in the mailbox when the next worker is monitored. Addresses have no equality, so a `Down` cannot be asked which worker it is about. Give each worker a number and let the wrap close over it:
+`wrap` is a function, so it can carry what you need to tell one death from another. A process that monitors a worker while waiting for its answer gets two messages, the answer and the death, and takes the answer; the death is still in the mailbox when the next worker is monitored. A `Down` does not say which process it is about, so give each worker a number and let the wrap close over it:
 
 ```ernest
 type MainMsg = Result(run : Int, value : Int) | Died(run : Int, down : Down)
@@ -1000,7 +1000,9 @@ run 1: 1
 run 2: 4
 ```
 
-A death whose run is not the one being waited for is an earlier worker's, and `waitFor` passes over it. Identity is part of the protocol you write, and the wrap is where you put it.
+A death whose run is not the one being waited for is an earlier worker's, and `waitFor` passes over it. The wrap is where a death says whose it is.
+
+Addresses have no equality, since an address seen through `via` holds a function. The process behind an address has: `Process.fromAddress(a)` is a `Process`, which can key a `Map` or be kept in a `Set` and to which nothing can be sent. `Process.live()` lists the live processes, `Process.info(p)` tells where one was spawned, how many messages wait for it and whether it runs, and `Process.faults(wrap)` sends you every fault as it happens (report Appendix E.21). They are for seeing what runs, and a program is still written with the addresses it was given.
 
 A fault in one process does not affect another, apart from the four cases of §6.3.
 
@@ -1017,7 +1019,7 @@ kill : (Address(a)) -> Unit with m
 
 ### 5.4 Deadlock
 
-When every process waits in a `receive` that nothing can ever satisfy, the program ends with `fault: deadlock`. A process waiting for a timer, a key, a socket, or a file is waiting for something that can come, so an idle server is not deadlocked. Report §8.6 gives the exact condition.
+When every process waits in a `receive` that nothing can ever satisfy, the entry process faults with `deadlock`, and the program ends. A process waiting for a timer, a key, a socket, or a file is waiting for something that can come, so an idle server is not deadlocked. Report §8.6 gives the exact condition.
 
 ### 5.5 Adapting messages with `via`
 
@@ -1210,12 +1212,13 @@ export fn main() -> Unit with MainMsg = {
 
 ```console
 $ ern run faults.erc
+Faults.main:9 faulted: division by zero
 the worker spawned at Faults.main:9 faulted: division by zero
 ```
 
-`average` is pure and still faults. A type says what a function returns when it returns, not that it will. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn.
+`average` is pure and still faults. A type says what a function returns when it returns, not that it will. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn. The first line is `ern run`'s own: it writes every fault to standard error as it happens, the spawn site and the cause, whatever the program does about it.
 
-Four faults reach beyond their process. A fault in the entry process ends the program: `ern` prints `fault: ` and the cause, and exits with status 1. A fault in the function of an adapted address (§5.5) is the fault of the process the address names. A fault in the callback of `remote` is the fault of the process that called it (§8.1). A fault in a process that a `callForever` waits on faults the caller with the same cause (report §6.6). A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
+Four faults reach beyond their process. A fault in the entry process ends the program, and `ern run` exits with status 1. A fault in the function of an adapted address (§5.5) is the fault of the process the address names. A fault in the callback of `remote` is the fault of the process that called it (§8.1). A fault in a process that a `callForever` waits on faults the caller with the same cause (report §6.6). A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
 
 ### 6.4 Let it crash
 
@@ -1249,12 +1252,13 @@ export fn main() -> Unit with SupMsg = supervise([4, 0, 5])
 ```console
 $ ern run jobs.erc
 4: 25
+Jobs.supervise:7 faulted: division by zero
 0: failed, division by zero
 5: 20
 all jobs done
 ```
 
-A process for each job is the restart: the job that faulted ends its own worker, and the next job starts with a fresh one. Only `supervise` prints. A worker's `Io.println` and the supervisor's are two senders to standard output's process, which the runtime does not order (§5.1), so a worker reports by a message to its supervisor.
+A process for each job is the restart: the job that faulted ends its own worker, and the next job starts with a fresh one. Of the program, only `supervise` prints; the second line is `ern run`'s report of the fault, on standard error. A worker's `Io.println` and the supervisor's are two senders to standard output's process, which the runtime does not order (§5.1), so a worker reports by a message to its supervisor.
 
 What must survive a fault lives in the process that does not fault: here the list of jobs is the supervisor's. A long-lived service restarts in place instead: `restarting(RestartLimit(restarts = 3, within = 5000), f)` is a function that runs `f` again after a fault, in the same process, with its address and its mailbox, so whoever holds the address keeps it, and after three restarts within five seconds the next fault ends the process (report §6.9). A process that must not outlive another monitors it and returns when it dies.
 
@@ -1709,7 +1713,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 
 ### 9.2 `ern run`, `ern test`, `ern shell` and `ern config`
 
-- `ern run hello.erc` runs `main` and exits with status 0 when it returns. A fault of the entry process is printed as `fault: ` and its cause, and the status is 1 (§6.3); an entry process that is killed prints `killed`, and the status is 1. A signal that stops the program prints nothing, and the status is 128 plus the signal's number, 143 for a termination.
+- `ern run hello.erc` runs `main` and exits with status 0 when it returns. Every fault is printed on standard error as it happens, the spawn site and the cause, and a fault of the entry process makes the status 1 (§6.3); an entry process that is killed prints `killed`, and the status is 1. A signal that stops the program prints nothing, and the status is 128 plus the signal's number, 143 for a termination.
 - `--main Module.name` runs another exported function of no arguments instead of `main`.
 - `--load-path dir` adds compiled modules and Erlang `.beam` files the program needs (§8.5).
 - `ern test module.erc` runs the module's tests and exits with status 1 unless all passed (§7.1).
@@ -1747,7 +1751,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - A function says in its type whether it may send or receive (§3.4).
 - There are no exceptions, no `catch`, and no `try`. A failure is a value, a message, or a fault (§6).
 - There are no links and no exit signals, only monitors. A process that must die with another monitors it and returns.
-- There are no registered names, and addresses cannot be compared. A process is reached through an address it was given, or through a top-level binding that holds one, a service.
+- There are no registered names, and addresses cannot be compared; the processes behind them can, `Process.fromAddress(a)`, which is a pid without the right to send. A process is reached through an address it was given, or through a top-level binding that holds one, a service.
 - There are no atoms in the language: constructors are the tags. `Erl.atom` makes one for a foreign call.
 - There are no OTP behaviours. A server is a `receive` loop with `Reply`, restarted in place by `restarting` (§6.4).
 - A running program replaces its code by a message that carries the new function (§4.6). Only the shell's `:reload` loads a new version of a module.
@@ -1792,7 +1796,7 @@ A function's number of arguments is part of its type, and `fn(x, y)` shows it wh
 
 **§5.7.** No. Per-sender FIFO orders messages from ping to pong and pong to ping, but the two processes both send to standard output's process, two senders to one process, and the runtime does not order across senders. Alternation is a *possible* trace, not a guaranteed one.
 
-**§6.5.** `main` faults with the cause `first of an empty list`, and since it is the entry process the program ends and `ern run` prints `fault: first of an empty list`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
+**§6.5.** `main` faults with the cause `first of an empty list`, and since it is the entry process the program ends and `ern run` prints the fault, `Main.main faulted: first of an empty list` for a `main` in `main.ern`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
 
 **§7.4.** Yes. The boundary of an abstract type is its module, so every definition in `main.ern` may name the constructor, a helper or a test included; another module sees the type and its operations, never the constructor.
 

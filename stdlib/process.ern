@@ -1,0 +1,109 @@
+/// The operations of the prelude's `Process`, the identity of a process
+/// (report Appendix E.21). A `Process` has equality and no ordering, so it
+/// is sound as a key of a `Map` and an element of a `Set`, and nothing can
+/// be sent to it: an address is what a process is reached by, and a
+/// `Process` only says which one. What the runtime knows of a live process
+/// is read as a snapshot, which may have changed by the time it is read;
+/// the runtime keeps nothing of a process that has ended.
+///
+/// ## Examples
+///
+/// ```ernest
+/// {
+///     let me = Process.fromAddress(self());
+///     List.contains(Process.live(), me)
+/// }
+/// // => true
+/// ```
+///
+/// ## See also
+///
+/// `monitor` for learning how a process one holds ended, `Io.debug`, which
+/// prints a process by the number the runtime gives it.
+///
+/// since 0.1.0
+
+/// What the runtime knows of a live process: where it was spawned (report
+/// §6.9), how many messages wait in its mailbox, and what it is doing.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Optional.map(Process.info(Process.fromAddress(self())), fn(i) = i.activity)
+/// // => Some(Running)
+/// ```
+export type Info = Info(site : String, queued : Int, activity : Activity)
+
+/// What a live process is doing: running, waiting in a `receive`, or
+/// waiting for the answer to a call (report §6.6).
+///
+/// ### Examples
+///
+/// ```ernest
+/// Process.Receiving
+/// ```
+export type Activity = Running | Receiving | Calling
+
+/// A fault of a process the runtime started: the process, its spawn site,
+/// the cause, whether the process restarts after it (report §6.9), and the
+/// host's stack beneath a failure in the runtime or a foreign function's
+/// raise, a function to a line, empty beneath a cause of report §7.4.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Process.FaultReport(process = Process.fromAddress(self()), site = "Main.worker:3",
+///     cause = "division by zero", restarted = false, trace = "").cause
+/// // => "division by zero"
+/// ```
+export type FaultReport =
+    FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String)
+
+/// The process behind the address, through every `via`. Addresses have no
+/// equality; the processes behind them have (report §3.10).
+///
+/// ### Examples
+///
+/// ```ernest
+/// Process.fromAddress(self()) == Process.fromAddress(via(fn(x) = x, self()))
+/// // => true
+/// ```
+export foreign fn fromAddress(address : Address(m)) -> Process = "ern_rt:process_of/1"
+
+/// A snapshot of the process, or `None` once it has ended, and for a
+/// process on another node.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Optional.isSome(Process.info(Process.fromAddress(self())))
+/// // => true
+/// ```
+export foreign fn info(process : Process) -> Optional(Info) with m = "ern_rt:info/1"
+
+/// The processes the runtime started that have not ended, the system
+/// processes excepted, in unspecified order.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.isEmpty(Process.live())
+/// // => false
+/// ```
+export foreign fn live() -> List(Process) with m = "ern_rt:processes/0"
+
+/// Every fault of every process the runtime started, from now on, wrapped,
+/// in the caller's mailbox, the system processes' excepted. A process holds
+/// one subscription: a second call replaces the first, its wrap from then
+/// on, and a subscription ends when its process dies. It is no source that
+/// can deliver (report §8.6), since a fault comes only from a process that
+/// runs.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Process.faults(fn(report) = report)
+/// ```
+export fn faults(wrap : (FaultReport) -> m) -> Unit with m = subscribe(via(wrap, self()))
+
+foreign fn subscribe(to : Address(FaultReport)) -> Unit with m = "ern_rt:faults/1"

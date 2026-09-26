@@ -44,6 +44,7 @@ desc({tcon, ['Address'], [M]}, Seen, Cx) ->
     {D, Seen1} = desc(M, Seen, Cx),
     {{pid, D, text_binary("message does not match ", M, Cx)}, Seen1};
 desc({tcon, ['Reply'], _}, Seen, _) -> {ref, Seen};
+desc({tcon, ['Process'], []}, Seen, _) -> {process, Seen};
 desc({tcon, ['Foreign'], []}, Seen, _) -> {any, Seen};
 desc({tcon, ['Never'], []}, Seen, _) -> {never, Seen};
 desc({tcon, ['List'], [A]}, Seen, Cx) ->

@@ -10,7 +10,7 @@
 -export([loaded/1, start/0, program/0, startup_files/0, history_file/0, needs_more/1, check/4,
          is_unit/1, type_text/1, run/3, show/3, bindings/1, context/1, names/0,
          session_names/0, session_texts/0, source_root/0, segment/1, forget/2, browse/2, doc/2,
-         documentation/1, signature/1, deaths/1, mine/0, faults/0, processes/0, load/2,
+         documentation/1, signature/1, load/2,
          reload/1, version/0, colours/0, write/1, screen/1, to_screen/1,
          output/1, unbound/1, declared/1]).
 
@@ -402,9 +402,8 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
                _ -> Env
            end,
     Input = fun() ->
-                %% the input's own fault is its answer, so the watcher is
-                %% told before anything of the input runs
-                quiet(erlang:self()),
+                %% report §11.2: the input's own fault is its answer, caught
+                %% here, so that its process does not end with a fault
                 Outcome = try
                               V = value(Mod, Binds),
                               {'Ok', remember(bind(Env1, Binds, Ns, V, T, TEnv, Iface)),
@@ -1193,95 +1192,6 @@ down(#diag{span = Span, labels = Labels} = D, K) ->
 
 lower({L, C, {EL, EC}}, K) -> {L + K, C, {EL + K, EC}}.
 
-%% Report §11.2: the shell reports a process that faults, and the runtime
-%% is what knows. The watcher is told of every death the runtime records
-%% (§6.9), keeps the faults for `:faults`, and forwards the ones that are
-%% news to the session: not the shell's own processes, and not an input's,
-%% whose fault is already its answer.
--define(FAULTS, 100).
-%% How long a question to the watcher is waited for, in milliseconds.
--define(WATCHER_WAIT, 5000).
-
--spec deaths(term()) -> 'Unit'.
-deaths(To) ->
-    Watcher = erlang:spawn(fun() -> watch(To, #{}, []) end),
-    persistent_term:put({?MODULE, watcher}, Watcher),
-    ern_rt:deaths(Watcher),
-    'Unit'.
-
-%% Quiet holds the live processes whose fault is not news; each leaves it
-%% when it dies.
-watch(To, Quiet, Faults) ->
-    receive
-        {death, Pid, Site, {'Fault', _} = Reason} when not is_map_key(Pid, Quiet) ->
-            case lists:member(Pid, own()) of
-                true ->
-                    watch(To, Quiet, Faults);
-                false ->
-                    Down = {'Down', Reason, Site},
-                    ern_rt:send(To, Down),
-                    watch(To, Quiet, lists:sublist([Down | Faults], ?FAULTS))
-            end;
-        {death, Pid, _, _} ->
-            watch(To, maps:remove(Pid, Quiet), Faults);
-        %% an input's own fault is its answer, and a process `:reload` ends
-        %% is named by `:reload` itself; one already dead has had its death
-        %% seen, or dies of what came before it was quieted, which is news
-        {{quiet, Pid}, From, Ref} ->
-            From ! {Ref, ok},
-            case is_process_alive(Pid) of
-                true -> watch(To, Quiet#{Pid => true}, Faults);
-                false -> watch(To, Quiet, Faults)
-            end;
-        {faults, From, Ref} ->
-            From ! {Ref, lists:reverse(Faults)},
-            watch(To, Quiet, Faults)
-    end.
-
-%% A death the shell does not report, having reported it another way. The
-%% watcher has it before this returns, so the death cannot reach the
-%% watcher first.
-quiet(Pid) ->
-    ask({quiet, Pid}, ok).
-
-%% A question to the watcher, and what it is taken to answer where there
-%% is no watcher or it does not answer in time.
-ask(Question, Otherwise) ->
-    case persistent_term:get({?MODULE, watcher}, undefined) of
-        undefined ->
-            Otherwise;
-        Watcher ->
-            Ref = make_ref(),
-            Watcher ! {Question, erlang:self(), Ref},
-            receive {Ref, Answer} -> Answer after ?WATCHER_WAIT -> Otherwise end
-    end.
-
-%% Report §11.2: a process of the shell's own, the session, the screen and
-%% the reader. Each says so from inside itself: an address handed to a
-%% foreign function arrives as the checking proxy in front of it (§8.4), so
-%% the process behind it is not what the front end would be holding.
--spec mine() -> 'Unit'.
-mine() ->
-    persistent_term:put({?MODULE, own}, [ern_rt:self() | own()]),
-    'Unit'.
-
-own() ->
-    persistent_term:get({?MODULE, own}, []).
-
-%% Report §11.2: the faults reported since the session began, oldest first;
-%% the last hundred are kept (?FAULTS).
--spec faults() -> [term()].
-faults() ->
-    ask(faults, []).
-
-%% Report §11.2, §6.9: the live processes by their spawn sites, the
-%% session's own left out; a site and never an address, which §6.3 gives
-%% no way to compare anyway.
--spec processes() -> [binary()].
-processes() ->
-    Own = [ern_rt:self() | own()],
-    lists:sort([Site || {Pid, Site} <- ern_rt:live(), not lists:member(Pid, Own)]).
-
 %% Report §11.2: `:load` takes a module by its namespace. Its source under
 %% the source root is compiled as `ern build` would compile it and nothing is
 %% written; a module with no source there is loaded from its compiled
@@ -1372,17 +1282,36 @@ initialize([{Ns, _, _} | Rest]) ->
         false -> initialize(Rest)
     end.
 
+%% A binding's fault is :load's to report, so the process catches it and
+%% ends without one, and no subscriber of Process.faults hears of it twice;
+%% a kill, which nothing catches, is seen by the monitor.
 initialize(Ns, Mod, Rest) ->
+    Me = self(),
     Ref = make_ref(),
     Init = fun() ->
-               quiet(ern_rt:self()),
-               Mod:'$init'()
+               Result = try Mod:'$init'() of
+                            _ -> ok
+                        catch
+                            throw:{ern, fault, Msg} -> {fault, Msg};
+                            throw:{ern, fault, Msg, _} -> {fault, Msg};
+                            Class:Reason -> {fault, fault_text(Class, Reason)}
+                        end,
+               Me ! {Ref, Result}
            end,
-    _ = ern_rt:spawn_monitored('Local', Init, fun(Down) -> {Ref, Down} end, <<"Shell.load">>),
+    Pid = ern_rt:process_of(ern_rt:spawn('Local', Init, <<"Shell.load">>)),
+    Monitor = erlang:monitor(process, Pid),
     receive
-        {Ref, {'Down', 'Returned', _}} -> initialize(Rest);
-        {Ref, {'Down', {'Fault', Cause}, _}} -> {fault, Ns, Cause};
-        {Ref, {'Down', Reason, _}} -> {fault, Ns, atom_to_binary(Reason)}
+        {Ref, Result} ->
+            erlang:demonitor(Monitor, [flush]),
+            case Result of
+                ok -> initialize(Rest);
+                {fault, Cause} -> {fault, Ns, Cause}
+            end;
+        {'DOWN', Monitor, process, Pid, Reason} ->
+            {fault, Ns, case ern_rt:reason(Reason) of
+                            {'Fault', Cause} -> Cause;
+                            Other -> atom_to_binary(Other)
+                        end}
     end.
 
 %% Report §11.2: a reloaded module's binding that faulted, which with the
@@ -1519,16 +1448,12 @@ in_previous(Env, Mod) ->
             || {Name, _} <- bindings_of(Env, Mod)].
 
 %% Report §7.3, §11.2: the processes still in it end with the cause the
-%% report gives them, and the bindings that hold a function of it are
-%% forgotten; the fault reports leave out a process ended here, `:reload`
-%% being the one that says so.
+%% report gives them, a fault reported as every fault is, and the bindings
+%% that hold a function of it are forgotten.
 end_previous(#env{session = S} = Env, Mod) ->
     Processes = [{Pid, Site} || {Pid, Site} <- ern_rt:live(),
                                 erlang:check_process_code(Pid, Mod)],
-    lists:foreach(fun({Pid, _}) ->
-                      quiet(Pid),
-                      exit(Pid, {ern, code_unloaded})
-                  end, Processes),
+    lists:foreach(fun({Pid, _}) -> exit(Pid, {ern, code_unloaded}) end, Processes),
     Bindings = bindings_of(Env, Mod),
     Values = maps:without([Key || {_, Key} <- Bindings], maps:get(values, S, #{})),
     {[<<Site/binary, ", a process">> || {_, Site} <- Processes]

@@ -338,7 +338,8 @@ deadlock_test() ->
           "type Msg = Ping\nexport fn main() -> Unit with Msg = receive { Ping -> Unit }\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(1, ern_err(["run", Dir ++ "/build/main.erc"])),
-    ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput), "^fault: deadlock\n")).
+    ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput),
+                                        "^Main.main faulted: deadlock\n")).
 
 %% report §4.4: an abstract type's constructor is not visible outside its module
 abstract_constructor_outside_test() ->
@@ -650,7 +651,31 @@ fault_test() ->
                  "}\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     ?assertEqual(1, ern_err(["run", filename:join(Dir, "boom.erc")])),
-    ?assertEqual(<<"fault: division by zero\n">>, iolist_to_binary(?capturedOutput)).
+    ?assertEqual(<<"Boom.main faulted: division by zero\n">>, iolist_to_binary(?capturedOutput)).
+
+%% report §11.2, §6.9: `ern run` reports every fault of every process on
+%% standard error as it happens, a worker's and a restart's among them,
+%% and the program goes on; the entry process's return is status 0. A
+%% regression test for B4; it does not cover a system process's fault,
+%% which no program can bring about
+worker_faults_test() ->
+    Dir = tmp(),
+    File = write(Dir, "workers.ern",
+                 "type Msg = Died(Down)\n"
+                 "export fn main() -> Unit with Msg = {\n"
+                 "    let limit = RestartLimit(restarts = 1, within = 60000);\n"
+                 "    let _ = spawnMonitored(Local, restarting(limit, fn() -> Unit with Never =\n"
+                 "        Io.println(Int.toString(1 / List.size([])))), Died);\n"
+                 "    receive { Died(_) -> Io.println(\"done\") }\n"
+                 "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    ?assertEqual(0, ern_err(["run", filename:join(Dir, "workers.erc")])),
+    %% standard error's lines and standard output's are two processes'
+    %% writes, which nothing orders between them
+    ?assertEqual(lists:sort([<<"Workers.main:4 faulted, restarted: division by zero">>,
+                             <<"Workers.main:4 faulted: division by zero">>, <<"done">>]),
+                 lists:sort(binary:split(iolist_to_binary(?capturedOutput), <<"\n">>,
+                                         [global, trim]))).
 
 %% report §11.2, §7.3, §7.4: beneath a foreign function's raise the fault
 %% line has the host's stack, a function to a line, naming the function
@@ -665,7 +690,8 @@ fault_stack_test() ->
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     ?assertEqual(1, ern_err(["run", filename:join(Dir, "raise.erc")])),
     [First, Second | _] = binary:split(iolist_to_binary(?capturedOutput), <<"\n">>, [global]),
-    ?assertEqual(<<"fault: foreign function erlang:element/2 raised error:badarg">>, First),
+    ?assertEqual(<<"Raise.main faulted: foreign function erlang:element/2 raised error:badarg">>,
+                 First),
     ?assertEqual(<<"    erlang:element/2">>, Second).
 
 %% report §11.4, §11.5: every exported and every documented declaration,
@@ -970,7 +996,7 @@ init_only_dependencies_test() ->
           "export fn main() -> Unit with Never = Io.println(Int.toString(Lib.Boom.zero))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(1, ern_err(["run", Dir ++ "/build/main.erc"])),
-    ?assertEqual(<<"hello, world\nfault: division by zero\n">>,
+    ?assertEqual(<<"hello, world\nMain.main faulted: division by zero\n">>,
                  iolist_to_binary(?capturedOutput)).
 
 %% report §7.3, §8.6, §11.2: a faulting main is status 1

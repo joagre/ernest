@@ -1349,7 +1349,8 @@ no_reply_instantiations(#env{pending = Pending} = Env) ->
                           case has_fn_or_address(T) of
                               true -> fail(Pos, ern_types:format(T, Env#env.st)
                                                 ++ " does not support equality (it contains"
-                                                " a function or an address), " ++ Need);
+                                                " a function or an address), " ++ Need
+                                                ++ identity_hint(T));
                               false -> ok
                           end
                   end, Pending).
@@ -2014,12 +2015,25 @@ equality_constraint(Pos, T, Env) ->
     Z = ern_types:zonk(T, St),
     case has_fn_or_address(Z) of
         true -> fail(Pos, "`==` is not defined on " ++ ern_types:format(Z, St)
-                          ++ ": it contains a function or an address");
+                          ++ ": it contains a function or an address" ++ identity_hint(Z));
         false ->
             St1 = lists:foldl(fun(Id, S) -> ern_types:add_flag({tvar, Id}, eq, S) end,
                               St, ern_types:free_vars(Z, St)),
             Env#env{st = St1}
     end.
+
+%% Report §3.10, Appendix E.21: where an address is what is compared, the
+%% process behind it is what has equality.
+identity_hint(T) ->
+    case has_address(T) of
+        true -> "; compare the processes behind addresses, `Process.fromAddress(a)`";
+        false -> ""
+    end.
+
+has_address({tcon, ['Address'], _}) -> true;
+has_address({tcon, _, Args}) -> lists:any(fun has_address/1, Args);
+has_address({ttuple, Es}) -> lists:any(fun has_address/1, Es);
+has_address(_) -> false.
 
 has_fn_or_address({tfn, _, _, _}) -> true;
 has_fn_or_address({tcon, ['Address'], _}) -> true;
