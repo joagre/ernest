@@ -371,7 +371,7 @@ The steps:
         `shell_design.md`'s `Event`, `Pasted` and bare `Sys`, `stdlib/io.ern`'s header, the
         guide section 0 on printing, and `language_feedback.md` item 16.
       - B9: every function that waits on an ended socket or listener faults as a call does,
-        and a listener lives until it is killed (E.18).
+        and `Tcp.closeListener` closes a listener, a pending accept answering `Left(Closed)` (E.18).
       - C1: `String.trim` is Ernest over its halves, and the conversions between text and
         numbers are primitives by rule 1 (E.0, E.5).
       - C3: `libs/ets`'s header, whose `drop` is unprefixed.
@@ -496,8 +496,10 @@ The steps:
         output; a read of bytes shares the stream with `readLine` and claims the terminal
         for lines (§8.2). Built with D3. The log's *Standard Input and Output Carry Bytes*.
 
-      Still to decide: whether `Tcp` gains a close for a listener (item 58, found by the cold
-      read).
+      - **Item 58, decided 2026-09-26: `Tcp.closeListener`.** It stops a listener as
+        `Tcp.close` stops a socket, an `accept` waiting on it answering `Left(Closed)`, so a
+        server shuts down without a fault (E.18). Built with B9. The log's *A Listener Is
+        Closed by Name*.
    5. **The toolchain first.** `ern build` and its siblings replace `ernc` before anything
       else is built, since the rename reaches the Makefile, the tests, the README, the guide
       and the Emacs mode, and every later test is then written against the final commands.

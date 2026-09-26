@@ -4423,6 +4423,12 @@ Feedback item 57, decided in MVP 2.65's step 10 before its build. Once a line of
 
 Leaving it to MVP 2.7, with the arguments and the exit status, was weighed: the build's D3 rewrites the reader to read bytes and check UTF-8 itself, and would then hide the bytes behind lines for MVP 2.7 to reopen, the gap standing meanwhile in a language that had decided it. Taken: E.1 gains `Io.read`, what has arrived from standard input, at least one byte, `None` at end of input, and `Io.write`, bytes to standard output, admitted by rule 1 since standard input and output live in the runtime. The names are the vocabulary's, `Fs.read` and `Fs.write` moving `Bytes` and `Tcp.read` answering what has arrived with no size (principle 1). Lines and bytes come from one stream, each request taking up where the last stopped, so a header line can precede a binary body; a read of bytes claims the terminal for lines, as `readLine` does, and neither takes milliseconds, since both wait for input.
 
+## A Listener Is Closed by Name, 2026-09-26
+
+Feedback item 58, found by the cold read of MVP 2.65's step 10. `Tcp.close` takes a socket, so a listener could only be killed, and since a call now ends when its callee dies (*A Call Ends When Its Callee Faults*), an acceptor waiting in `Tcp.accept` then faulted with `callee was killed`, which every fault's report prints: an orderly shutdown reading as a failure, against principle 3.
+
+`Tcp.close` cannot take both, there being no overloading and the two address types differing for good reason, `Tcp.read` on a listener being a type error. Making `kill` the close with a special answer for a killed listener's accepts would be a case of the call rule that only listeners have; a new verb, `stop` or `unlisten`, would give ending a resource two words (shape rule 2). Taken: `Tcp.closeListener`, the verb `close` that `Tcp.close` and `Ets.close` give to ending a resource with the noun that says which. It is a send, an `accept` waiting on the listener answers `Left(Closed)` as a pending read does when a socket closes, and the listener's process then ends.
+
 ## Later
 
 Planned or considered, not in the language today.

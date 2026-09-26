@@ -1496,7 +1496,7 @@ Fs.copy : (Path, Path, Int) -> Either(Io.Error, Unit) with m // a file, the firs
 
 ### Appendix E.18. `tcp.ern` (namespace `Tcp`)
 
-Over TCP's system reference (§8.2). A socket is a process: its address can be sent, monitored, and killed like any other. Sockets and listeners are foreign processes (§8.4) but not system processes, so `Process.live` and `Process.faults` include them. It lives until `Tcp.close`, until it is killed, or until the program ends. After its connection closes, from either end or by a failure, each `Tcp.read` answers `Left(Closed)`. A listener lives until it is killed or the program ends. On a socket or a listener that has ended, a function that waits for its answer, `read`, `accept`, `port`, `peer`, or `local`, faults the caller as `Address.callForever` does on an ended process (§6.6), and `write` and `close` do nothing. `Tcp.write` is a send: it returns at once, and a connection that fails shows as `Left(Closed)` from the next `Tcp.read`. A read, an accept, or a connect that times out has taken nothing: bytes that arrive later wait for the next read, and a connection that completes later is closed. There are no options; framing is bitstrings (§5.11). The last argument of a function that waits is the milliseconds.
+Over TCP's system reference (§8.2). A socket is a process: its address can be sent, monitored, and killed like any other. Sockets and listeners are foreign processes (§8.4) but not system processes, so `Process.live` and `Process.faults` include them. It lives until `Tcp.close`, until it is killed, or until the program ends. After its connection closes, from either end or by a failure, each `Tcp.read` answers `Left(Closed)`. A listener lives until `Tcp.closeListener`, until it is killed, or until the program ends; closing it answers an `accept` waiting on it with `Left(Closed)`. On a socket or a listener that has ended, a function that waits for its answer, `read`, `accept`, `port`, `peer`, or `local`, faults the caller as `Address.callForever` does on an ended process (§6.6), and `write`, `close`, and `closeListener` do nothing. `Tcp.write` is a send: it returns at once, and a connection that fails shows as `Left(Closed)` from the next `Tcp.read`. A read, an accept, or a connect that times out has taken nothing: bytes that arrive later wait for the next read, and a connection that completes later is closed. There are no options; framing is bitstrings (§5.11). The last argument of a function that waits is the milliseconds.
 
 ```
 abstract type ListenerMsg // what a listener takes
@@ -1509,6 +1509,7 @@ Tcp.connect : (String, Int, Int) -> Either(Io.Error, Address(SockMsg)) with m //
 Tcp.read : (Address(SockMsg), Int) -> Either(Io.Error, Bytes) with m // what has arrived, at least one byte
 Tcp.write : (Address(SockMsg), Bytes) -> Unit with m
 Tcp.close : (Address(SockMsg)) -> Unit with m
+Tcp.closeListener : (Address(ListenerMsg)) -> Unit with m // stops listening
 Tcp.peer : (Address(SockMsg)) -> Either(Io.Error, Endpoint) with m // the connection's far end, in TCP's sense, not a peer of §8.3
 Tcp.local : (Address(SockMsg)) -> Either(Io.Error, Endpoint) with m // the connection's near end
 ```
