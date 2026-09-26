@@ -20,8 +20,8 @@ Actorson until 12 September 2026.
 **MVP 2.65, the language and the toolchain read back after the shell, has begun.** Its
 first four steps are done: the feedback list and this plan consolidated, the report read
 cold, and the first two themes, names and namespaces, and expressions, patterns and types.
-The third theme, processes and the system, has begun: its direction for names, restarts
-and supervision is set, and its questions are decided one at a time. MVP 2.6, the shell, was closed on
+The third theme, processes and the system, has begun: names, restarts and supervision
+are decided (item 53, six questions), and address identity (item 24) is next. MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
 **Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23; MVP 2.61, the
@@ -45,7 +45,7 @@ so a decision they must see goes here.
 | MVP 2.6 | the shell | done 2026-09-25 |
 | MVP 2.61 | the guide as the user's document | done 2026-09-24, out of order |
 | **MVP 2.65** | **the language and the toolchain read back** | **begun 2026-09-25** |
-| MVP 2.66 | introduce a supervisor behaviour? | after 2.65 |
+| MVP 2.66 | the standard library's `Supervisor` | after 2.65 |
 | MVP 2.7 | a program started from a command line, and the appendix of libraries | |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | MVP 3.0 | peers | |
@@ -150,18 +150,21 @@ The steps:
       initialization is the evaluation shipped code reads, and shipped code whose
       definition differs by hash evaluates its own, a second service on the peer. The log's
       *A Peer's Service Is Found Through Its Binding*.
-   6. **A `Supervisor` module in the standard library**, for what `restarting` leaves out:
-      a group of children, strategies across them, and the order they stop in. Written by
-      every program otherwise, and E.0 rule 3's objection to a library that chooses policy
-      for the program is weighed again against that. It borrows what `restarting` settles
-      where it can: the `Limit`, restart on a fault only, and a restart that keeps the
-      address. Whether it can keep a child's address in a group, where `restarting` restarts
-      one process from inside and nothing restarts another in place, is part of the question:
-      a child restarted by the supervisor is a new process, so its stable address would be a
-      forward through the supervisor, written once in the library.
+   6. **Decided 2026-09-26: a `Supervisor` in the standard library, and `fault`.**
+      `Supervisor.start(strategy, limit)`, `Supervisor.spawn(supervisor, limit, f)`, which
+      returns the child's typed address, and `Supervisor.stop`, with `OneForOne`,
+      `OneForAll` and `RestForOne` and a `Limit` counted across the group. Its children
+      are `restarting` processes, restarted in place for a group strategy through a shim
+      internal to the module, and a start notice written in Ernest tells it a child
+      restarted. E.0 rule 3 gains that a policy the program passes as an argument is not
+      buried. Past its limit the supervisor stops its children and ends with `fault(cause)`,
+      a prelude function that faults on purpose. Built in MVP 2.66. The log's *A
+      `Supervisor` in the Standard Library, and `fault`*.
 
-   Address identity (item 24) no longer hinges on unregistering, since nothing unregisters,
-   and is decided after these on its own; either outcome changes `:processes` and
+   Item 53 is decided with the six and has left the feedback list. The report changes,
+   §4.6, §6.5, §6.6, §6.9, §7.4, §8.5, §8.7, §9, §11.2 and E.0 rule 3, are made in step 10,
+   report first. Address identity (item 24) no longer hinges on unregistering, since nothing
+   unregisters, and is decided next on its own; either outcome changes `:processes` and
    `Io.debug`, as item 24 says.
 6. **The standard library under E.0**, the fourth theme, in three batches: where the line
    between a shim and Ernest runs, with the abstract types it could write (items 11, 13, 42,
@@ -203,47 +206,26 @@ The steps:
 
 ---
 
-## MVP 2.66 (a supervisor, or the argument that none is needed), about three days
+## MVP 2.66 (the standard library's `Supervisor`), about three days
 
-The claim has stood since 2026-09-13 and has never been tested: a supervisor is fifteen
-lines of `spawn`, `monitor` and `receive`, so Ernest needs no behaviour for it. This item
-tests it by writing one, and decides what it should be, if anything.
+MVP 2.65 step 5 decided what a supervisor is (question 6; the log's *A `Supervisor` in the
+Standard Library, and `fault`*), after the claim of 2026-09-13, that a supervisor is fifteen
+lines of `spawn`, `monitor` and `receive`, met a restarted child's new address. This item
+builds it, after step 10 of 2.65 has built `restarting`, `fault`, the service binding and
+the fault report it stands on.
 
-**Superseded in part, 2026-09-26.** MVP 2.65 step 5 set a direction that answers the first
-three bullets below: `restarting(f)` keeps a restarted process's address, a service is a
-top-level binding, and whether the standard library has a `Supervisor` is that step's sixth
-question. What stays here is the experiment, `examples/supervisor.ern`, written against what
-step 5 decides; the bullets are rewritten when it is decided.
-
-- **Not in the language.** §6.9 gives monitors and no links, and §0's fifth principle keeps the surface
-  small; a behaviour would be a second way to structure processes beside the three
-  primitives. Nothing here proposes a report change.
-- **Not in the standard library either, by E.0 rule 3.** A supervisor is policy and almost
-  nothing else: which strategy, how many restarts in what time, in what order children stop.
-  Rule 3 refuses a function whose result depends on a choice the library makes for the
-  program. If it is written at all it is a library under `libs/`, on Appendix D's pattern,
-  where a program that disagrees writes its own.
-- **The experiment first.** The guide's §6.4 shows the easy case since 2026-09-24, a
-  supervisor in fifteen lines that runs a worker per job. The experiment is the hard one:
-  `examples/supervisor.ern`, three long-lived workers restarted on fault under a
-  restart-intensity limit, written with nothing but `spawn`, `monitor` and `receive`, and
-  read back against the claim. If it reads as a program a person would write, the guide's
-  section is the answer and no code. If every program would write the same sixty lines, that
-  is the argument for `libs/supervisor`.
-- **Two things it will run into, and they are the content of the discussion.**
-  - **A restarted child has a new address, and §6.5 has no registry**, so nobody who held
-    the old one can reach it. A supervisor that restarts children is therefore a name
-    service for them, or its children are unreachable after the first fault. This is the
-    same hole the node protocol note's open question 8 names, and it is queued for MVP
-    2.65; the supervisor is the second witness for it.
-  - **Stopping a child needs `kill` or a protocol message.** `kill` is asynchronous and
-    gives the child no chance to finish (§6.9); a message means the child's mailbox type
-    carries a stop case, which is the child's business and cannot be imposed by a library.
-    OTP solves this with exit signals and a shutdown timeout, which Ernest refuses.
-- **What no-links costs, and the idiom that answers it.** A supervisor that dies leaves its
-  children running, where OTP's would take them with it. The answer within the language is
-  the reverse monitor: each child monitors its supervisor and returns when it dies, which the
-  guide's §6.4 states. Whether a sentence is enough is part of this item.
+- **`stdlib/supervisor.ern`**, in Ernest but for one shim, the in-place restart of a child,
+  which only the host can do. Appendix E gains its section, with its module page and
+  examples as E.0 rule 6 asks.
+- **`examples/supervisor.ern`**, three long-lived services under one supervisor as
+  top-level bindings, faulted on purpose, read back against principles 1 and 2 and E.0.
+  The guide's §6.4 then teaches it beside the job runner.
+- **Two things to settle in the build, report first where the report is silent.** A
+  supervisor that faults by a defect of its own, not by `fault`, leaves its children
+  running, since nothing owns a process; a watcher the module spawns beside it, holding
+  the children's addresses and killing them on its `Down`, is written in Ernest. And
+  stopping a child is `kill`, which gives it no chance to finish; a child that must
+  finish carries a stop message in its own protocol, which the module cannot impose.
 
 ---
 

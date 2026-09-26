@@ -7,7 +7,7 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Twenty-two have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Twenty-three have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
 (decided, report §9), 2, 4 and 43 (weighed and kept, the log's *Constructor Names Stay Unique
 in a Module*, *Names Stay Qualified, Without Import or Alias* and *Two Visibilities Are
@@ -19,8 +19,9 @@ session does not reach, and it would make the editor depend on `Shell.History`),
 (weighed and kept, the log's *Constant Patterns Stay Out* and *`after` Stays Reserved*), 48
 (decided, report §8.5, the mention rule kept), 36 (already decided, report §9.6), 39
 (decided, report §4.7), 45 (decided, report Appendix E.0 rule 9), 52 (weighed and kept, the
-log's *One Contract, Several Representations*), and 9 (decided, the plan's MVP 2.65 step 5:
-`ern` prints every fault to standard error).
+log's *One Contract, Several Representations*), 9 (decided, the plan's MVP 2.65 step 5:
+`ern` prints every fault to standard error), and 53 (decided in the same step: no registry, a
+service is a top-level binding, and a restart keeps the address).
 
 ## 1. Names and namespaces
 
@@ -35,18 +36,11 @@ decision.
 ## 3. Processes and the system
 
 What a process is to the program that holds its address, and what the system modules
-give. The registry (53) leads: address identity (24) is decided with it, since
-unregistering needs it, and `:processes` as a function (26) turns on both. The rest are the system modules' contracts, one by one.
+give. Address identity (24) leads, and `:processes` as a function (26) turns on it. The
+rest are the system modules' contracts, one by one.
 Items 14 and 25 are MVP 3.0's, and 16 is MVP 2.7's; they are here because they are the
 same question.
 
-53. **A registry, or the argument that none is needed.** §6.5 refuses one, the node
-    protocol note asks for one (its open question 8), and a restarted service's new address
-    has no other way to reach those who held the old one (MVP 2.66, the guide's §6.4). A
-    table per node from name to address, or the argument that addresses handed on in
-    messages suffice. Unregistering needs address equality, so item 24 is decided with it.
-    The direction was set on 2026-09-26, in the plan's MVP 2.65 step 5, and the entry leaves
-    when its six questions are decided.
 24. **A process has an identity no one can see.** `:processes` lists three processes spawned
     by three inputs as `input:1` three times, and nothing tells them apart: an address prints
     as `<address>` (E.1) and has no equality (§3.10), because `via(f, a) == a` was held to
@@ -61,7 +55,7 @@ same question.
     runtime: an adapted address is `{via, F, Target}`, and Erlang's `==`, which `Map`, `Set`
     and `List.contains` use, compares `F`, so equal addresses need a representation that is
     equal as a term, or an equality of the runtime's own. Across nodes the identity names
-    the node, as a pid does. Decided with the registry (53). Either outcome changes the
+    the node, as a pid does. Either outcome changes the
     shell: with equality, §3.10 loses the address half of its exception, `Io.debug` prints
     the identity (E.1), `<address 3>`, and `:processes` and a fault line show the same one;
     without it, `Io.debug` keeps `<address>`, and `:processes` and a fault line number each
