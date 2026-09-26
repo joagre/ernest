@@ -268,6 +268,9 @@ The steps:
         and its message type with it, abstract under §4.4; `OutMsg`, item 47's owner table
         and its mirror test go. §8.2, §9.7, E.0 rules 7 and 8, and each system module's
         section. The log's *The System References Live in Their Modules*.
+      - **G1, `todo` goes; `fault` stays.** One prelude function ends a process with a
+        cause; unfinished code writes `fault("todo: ...")`. §7.4 and §9, the example and the
+        guide that used `todo` for a broken invariant. The log's *One Way to Fault*.
    2. **The ledger.** A table in this plan, a row for each decision the gate leaves: the
       report sections it changes; the Erlang modules and Ernest files it reaches; its tests,
       the new ones and the mirror tests that must change, a mirror test planned for every
