@@ -537,10 +537,11 @@ The steps:
         over it and a table `make unicode` generates from the Unicode data of the host's
         version (E.16), and the region and `libs/markdown` measure with it.
    7. **The guide's section on services, and the closing sweep.** Feedback items 59 and 60
-      are decided first, with the user, one at a time: 59, a module's constructor hiding the
-      prelude's without a word, where a note in the error at a use that names the hidden
-      prelude name is the recommendation, the lookup order of §4.2 standing; and 60, a
-      request refused by a fault that must still be answered on that path. Built on
+      are decided first, with the user, one at a time. 59, decided and built: an error at a
+      use of a name the module's own declaration hides from the prelude labels that use
+      with the prelude's qualified name, the lookup order of §4.2 standing (§11.5; the log's
+      *The Closing of Step 10*). 60: a request refused by a fault that must still be
+      answered on that path. Built on
       2026-09-26 before them: the guide's §6.5 on services; the holders of `it` freed once
       nothing reads them, the shell's memory flat from 2,000 inputs to 8,000 where it had
       grown 18 MB, and its atoms constant; `ern_shell` kept whole, its `:browse`, `:doc` and

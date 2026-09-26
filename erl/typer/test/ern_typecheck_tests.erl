@@ -337,6 +337,22 @@ operator_member_on_demand_test() ->
     ?assertEqual(["`<>` is not defined on Int"], Errs).
 
 
+%% report §4.2, §11.5: an error at a use of a name the module's own
+%% declaration hides from the prelude labels that use with the prelude's
+%% qualified name; an error elsewhere has no such label. Feedback item 59
+hidden_prelude_name_test() ->
+    Text = "type Msg = Local(reply : Reply(Int)) | Stop\n"
+           "export fn main() -> Unit with Never = {\n"
+           "    let _ = spawn(Local, fn() -> Unit with Never = Unit);\n"
+           "    Unit\n"
+           "}\n",
+    {error, [#diag{labels = Labels}]} = ern_typecheck:check_string(['M'], Text),
+    ?assertEqual(["`Local` here is this module's constructor; the prelude's is `Prelude.Local`"],
+                 [L || {_, L} <- Labels]),
+    {error, [#diag{labels = Others}]} =
+        ern_typecheck:check_string(['M'], "type Msg = Local(Int)\nfn f() -> Int = \"x\"\n"),
+    ?assertEqual([], [L || {_, L} <- Others, string:find(L, "Prelude.") =/= nomatch]).
+
 %% report §3.10, Appendix E.21: a process has equality and no ordering, and
 %% a comparison of addresses is refused with the process behind each named
 process_identity_test() ->

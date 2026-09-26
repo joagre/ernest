@@ -104,12 +104,77 @@ check(Ns, Decls0, Ifaces, Session) ->
         Errs3 = check_abstract(Decls) ++ check_exports(Decls, Env2),
         case lists:sort(Errs1 ++ Errs2 ++ Errs3) of
             [] -> {ok, Typed, make_iface(Decls, Env2), Env2};
-            Errs -> {error, Errs}
+            Errs -> {error, hidden_notes(Decls, Errs)}
         end
     catch
-        throw:{type_error, Pos, Msg} -> {error, [diag(Pos, Msg)]};
-        throw:{type_error, #diag{} = D} -> {error, [D]}
+        throw:{type_error, Pos, Msg} -> {error, hidden_notes(Decls, [diag(Pos, Msg)])};
+        throw:{type_error, #diag{} = D} -> {error, hidden_notes(Decls, [D])}
     end.
+
+%% Report §4.2, §11.5: a module's own declaration hides a prelude name of
+%% the same spelling in the module, and an error at a use of such a name
+%% says so, with the prelude's qualified name, since what the writer meant
+%% may be the prelude's. The note is a label on the use.
+hidden_notes(Decls, Errs) ->
+    {PreludeTypes, PreludeCons} = prelude_names(),
+    PreludeValues = [Q || {[_] = Q, _, _} <- ern_prelude:values()],
+    Types = [T || #type_decl{name = T} <- declared_types(Decls)],
+    Cons = [C || #type_decl{constructors = Cs} <- declared_types(Decls),
+                 #constructor{name = C} <- Cs],
+    Values = [N || D <- Decls, N <- top_value_name(D)],
+    Hidden = [{type, N} || N <- Types, lists:member([N], PreludeTypes)]
+        ++ [{constructor, N} || N <- Cons, lists:member([N], PreludeCons)]
+        ++ [{value, N} || N <- Values, lists:member([N], PreludeValues)],
+    case Hidden of
+        [] -> Errs;
+        _ -> [hidden_note(D, hidden_uses(Decls, Hidden)) || D <- Errs]
+    end.
+
+declared_types(Decls) ->
+    [T || #type_decl{} = T <- Decls] ++ [T || #abstract_decl{type = T} <- Decls].
+
+top_value_name(#fn_decl{owner = undefined, name = N}) -> [N];
+top_value_name(#let_decl{owner = undefined, name = N}) -> [N];
+top_value_name(#foreign_fn_decl{owner = undefined, name = N}) -> [N];
+top_value_name(_) -> [].
+
+%% Each unqualified use of a hidden name, its span and what it names.
+hidden_uses(Decls, Hidden) ->
+    Uses = fun Walk(#t_con{path = [], name = N, pos = P} = T) ->
+                   [{P, type, N} || lists:member({type, N}, Hidden)]
+                       ++ Walk(T#t_con.args);
+               Walk(#e_con{path = [], name = N, pos = P} = E) ->
+                   [{P, constructor, N} || lists:member({constructor, N}, Hidden)]
+                       ++ Walk(E#e_con.args);
+               Walk(#p_con{path = [], name = N, pos = P} = E) ->
+                   [{P, constructor, N} || lists:member({constructor, N}, Hidden)]
+                       ++ Walk(E#p_con.args);
+               Walk(#e_var{path = [], name = N, pos = P}) ->
+                   [{P, value, N} || lists:member({value, N}, Hidden)];
+               Walk(T) when is_tuple(T) -> lists:append([Walk(X) || X <- tuple_to_list(T)]);
+               Walk(L) when is_list(L) -> lists:append([Walk(X) || X <- L]);
+               Walk(_) -> []
+           end,
+    Uses(Decls).
+
+%% A diagnostic whose primary span holds a use of a hidden name gains the
+%% note at that use.
+hidden_note(#diag{span = Span, labels = Labels} = D, Uses) ->
+    Notes = [{ern_diag:span(P), note_text(Kind, N)} || {P, Kind, N} <- Uses,
+                                                        within(ern_diag:span(P), Span)],
+    D#diag{labels = Labels ++ lists:usort(Notes)};
+hidden_note(D, _) ->
+    D.
+
+note_text(Kind, N) ->
+    Name = atom_to_list(N),
+    "`" ++ Name ++ "` here is this module's " ++ atom_to_list(Kind)
+        ++ "; the prelude's is `Prelude." ++ Name ++ "`".
+
+within({L, C, _}, {SL, SC, {EL, EC}}) ->
+    ({L, C} >= {SL, SC}) andalso ({L, C} =< {EL, EC});
+within(_, _) ->
+    false.
 
 %% Report §4.8: in the standard library module of a built-in type, an
 %% operator declared as that type's, `fn Float.+` in float.ern, is the
