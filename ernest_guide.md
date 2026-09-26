@@ -1385,7 +1385,34 @@ The representation may change later, a tree for the list, and the modules that u
 
 ### 7.3 One contract, several representations
 
-Code is often written once for a kind of thing that has several representations: a set kept in a hash, or kept sorted. Ernest writes such a contract as a record of functions, a type whose fields are the operations, in a module of its own:
+Code is often written once for a kind of thing that has several representations: a shape that is a circle or a square, a set kept in a hash or kept sorted. Ernest writes such a contract as a record of functions, a type whose fields are the operations, in one of two forms.
+
+**Values that carry their operations.** Each value is a record whose functions close over what it is made of, so a list may hold values of different representations:
+
+```ernest
+// shapes.ern  (namespace Shapes)
+/// A shape, whatever it is made of.
+type Shape = Shape(name : String, area : () -> Float)
+
+fn circle(radius : Float) -> Shape =
+    Shape(name = "circle", area = fn() = 3.14159 * radius * radius)
+
+fn square(side : Float) -> Shape = Shape(name = "square", area = fn() = side * side)
+
+export fn main() = List.foreach([circle(1.0), square(2.0)], fn(s) =
+    Io.println(s.name <> " " <> Float.toString(s.area())))
+```
+
+```console
+$ ernc shapes.ern
+$ ern shapes.erc
+circle 3.14159
+square 4.0
+```
+
+`s.area()` runs the function the shape was built with, and the code that takes a `Shape` knows nothing of radii or sides. What this form cannot do is combine two values: a circle's `area` sees its own radius and no other shape's. An operation that must see inside two values of one representation, a union of two sets or a comparison, takes the second form.
+
+**Operations passed beside the data.** The contract is a type in a module of its own, and the data is a type parameter, `s`:
 
 ```ernest
 // sets.ern  (namespace Sets)
@@ -1456,7 +1483,9 @@ b a c
 1 2 3
 ```
 
-The types check each record where it is built, so a representation whose `add` takes the wrong arguments is refused in its own module. `dedupe` sees only `Sets.Operations`, never a `Set` or a sorted list. The contract is what the record lists and nothing more: `Sets.Ordered.toList` is an extra of that representation, reached through its module. Equality comes from the types, as everywhere: `Sets.Hashed.operations()` needs it because `Set(a=)` does (§2.5), and `Sets.Ordered` asks only for a `compare`. A service with state is different: two processes of different representations take one message type, and the caller holds an `Address(M)` (§4). What the record does not do is check a module: nothing says that `sets/hashed.ern` provides every operation `Sets.Operations` lists, except the `operations()` that builds one.
+Reach for the first form when values of different representations meet, in one list or one message, and for the second when an operation takes two values of one representation.
+
+In both, the types check each record where it is built: `circle` and `Sets.Hashed.operations()` must give every field, each of its type, or the module is refused. The code that takes the record sees only what it lists, never a radius, a `Set` or a sorted list. What a representation needs goes in when it is built, a radius or a `compare`, and what it has beyond the contract, as `Sets.Ordered.toList`, is reached through its module. Equality comes from the types, as everywhere: `Sets.Hashed.operations()` needs it because `Set(a=)` does (§2.5). Nothing checks a module beyond the record it builds: a representation need export nothing else. A service with state is different: two processes of different representations take one message type, and the caller holds an `Address(M)` (§4).
 
 ### 7.4 Prediction exercise
 

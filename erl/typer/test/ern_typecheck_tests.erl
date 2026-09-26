@@ -131,6 +131,11 @@ pure_stands_for_a_mailbox_test() ->
     ?assertEqual(ok, ok(Main("both(fn(x) = send(a, Add(x)), done)"))),
     ?assertEqual(ok, ok(Main("let _ = spawn(Local, fn() = done(1))"))),
     ?assertEqual(ok, ok(Types ++ "fn wrap(f : (Int) -> Unit) -> Msg = Up(next = f)\n")),
+    %% a field selected before its record's type is known, and called in a
+    %% process; a regression test: the selection, resolved after the call,
+    %% was not opened, and the pure field was refused
+    ?assertEqual(ok, ok(Main("List.foreach([Hook(run = done)],"
+                             " fn(h) = { send(a, Add(1)); h.run(1) })"))),
     ?assertEqual("field run: a function that runs in a process where a pure one is needed",
                  err(Main("let _ = Hook(run = fn(x) = send(a, Add(x)))"))),
     %% and a pure function still prints as pure

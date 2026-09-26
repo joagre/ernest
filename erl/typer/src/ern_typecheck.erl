@@ -1307,15 +1307,19 @@ solve_one({select, Pos, F, XT, Res}, Env) ->
     case ern_types:resolve(XT, Env#env.st) of
         {tvar, _} -> unsolved;
         _ ->
-            {T, Env1} = resolve_select(Pos, F, XT, Env),
-            {solved, unify_at(Pos, Res, T, Env1, "the field " ++ atom_to_list(F))}
+            {T0, Env1} = resolve_select(Pos, F, XT, Env),
+            %% opened as a selection resolved at once is (report §3.9)
+            {T, St} = open_effect(T0, Env1#env.st),
+            {solved, unify_at(Pos, Res, T, Env1#env{st = St}, "the field " ++ atom_to_list(F))}
     end;
 solve_one({operator, Pos, Op, LT, Res}, Env) ->
     case ern_types:resolve(LT, Env#env.st) of
         {tvar, _} -> unsolved;
         _ ->
-            {T, Env1} = resolve_operator(Pos, Op, LT, Env),
-            {solved, unify_at(Pos, Res, T, Env1, "the result of `" ++ op_text(Op) ++ "`")}
+            {T0, Env1} = resolve_operator(Pos, Op, LT, Env),
+            {T, St} = open_effect(T0, Env1#env.st),
+            {solved, unify_at(Pos, Res, T, Env1#env{st = St},
+                              "the result of `" ++ op_text(Op) ++ "`")}
     end;
 solve_one({bind_arrow, Pos, XT, PT, RestT}, Env) ->
     St = Env#env.st,
@@ -1880,13 +1884,15 @@ infer(#e_select{pos = Pos, expr = X, field = F} = E, Env) ->
     {E#e_select{expr = TypedX, type = T}, T, Env2#env{st = St}};
 infer(#e_neg{pos = Pos, expr = X} = E, Env) ->
     {TypedX, XT, Env1} = infer(X, Env),
-    {T, Env2} = operator_result(Pos, negate, XT, Env1),
-    {E#e_neg{expr = TypedX, type = T}, T, Env2};
+    {T0, Env2} = operator_result(Pos, negate, XT, Env1),
+    {T, St} = open_effect(T0, Env2#env.st),
+    {E#e_neg{expr = TypedX, type = T}, T, Env2#env{st = St}};
 infer(#e_binop{pos = Pos, op = Op, left = L, right = R} = E, Env) ->
     {TypedL, LT, Env1} = infer(L, Env),
     {TypedR, RT, Env2} = infer(R, Env1),
-    {T, Env3} = binop_type(Pos, Op, L, LT, R, RT, Env2),
-    {E#e_binop{left = TypedL, right = TypedR, type = T}, T, Env3};
+    {T0, Env3} = binop_type(Pos, Op, L, LT, R, RT, Env2),
+    {T, St} = open_effect(T0, Env3#env.st),
+    {E#e_binop{left = TypedL, right = TypedR, type = T}, T, Env3#env{st = St}};
 infer(#e_lambda{params = Params, ret = Ret, effect = Effect, body = Body} = E,
       Env) ->
     {TypedParams, ParamTypes, Env1, AnnVars} = bind_params(Params, Env, Env#env.ann_vars),
