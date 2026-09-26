@@ -4349,7 +4349,7 @@ A subscription to `Process.faults` is not a deadlock source under §8.6. The ter
 
 After the standard library's shims shrink to what reaches a representation (C1), no `foreign fn` in it takes a function, and §3.9's rule for one that does is used by a test alone. It stays: it is the type of any such declaration, a library's or a program's, and without it a callback's effect would be unstated (L8).
 
-The message types that move with their references (G13) keep names that repeat their module, `Clock.ClockMsg`, against E.0 rule 7, so they lose it; `ListenerMsg`, `SockMsg`, `StdinMsg` and `OutMsg` already name what they are. §9 keeps in the prelude a type the language's rules name or one whose module is named after it, and its third criterion, a type a system reference speaks, goes with the move. By the first two `Event` and `Size` are `Terminal`'s and `Entry` is `Fs`'s, and `Path` stays. `IoError` fits neither, since four modules answer it and none owns it; where it lives is left to discussion (L4), as whether a socket outlives its connection was (L3, *A Socket Lives Until It Is Closed*).
+The message types that move with their references (G13) keep names that repeat their module, `Clock.ClockMsg`, against E.0 rule 7, so they lose it; `ListenerMsg`, `SockMsg`, `StdinMsg` and `OutMsg` already name what they are. §9 keeps in the prelude a type the language's rules name or one whose module is named after it, and its third criterion, a type a system reference speaks, goes with the move. By the first two `Event` and `Size` are `Terminal`'s and `Entry` is `Fs`'s, and `Path` stays. `IoError` fits neither, since three modules answer it, `Fs`, `Tcp` and, once it refuses a pipe, `Terminal`, and none owns it; where it lives was left to discussion (L4, *The Error of Input and Output*), as whether a socket outlives its connection was (L3, *A Socket Lives Until It Is Closed*).
 
 ## A Socket Lives Until It Is Closed, 2026-09-26
 
@@ -4358,6 +4358,14 @@ L3 of MVP 2.65's step 10 ledger. A socket's process ended with its connection, w
 The socket now lives until `Tcp.close`, as a descriptor does in every host: after its connection closes each read answers `Left(Closed)`, and `Tcp.close` ends the process. A read after the program's own close is a use of a closed resource and faults, as the call rule says. Going back to `Address.call` for reads was weighed and refused: it carries the time limit twice, in the request and in the call, the two racing timers item 50 removed.
 
 The cost is that a socket the program never closes keeps its process until the program ends. That is growth the program causes and can see, a defect in that program by the rule on memory, and never the runtime's; a monitor learns of the socket's end at `Tcp.close` rather than at the hang-up, which the next read reports.
+
+## The Error of Input and Output, 2026-09-26
+
+L4 of MVP 2.65's step 10 ledger. Once the system types move into their modules, §9 keeps a type in the prelude when the language's rules name it or when the module of its operations is named after it, and `IoError` meets neither: `Fs`, `Tcp` and `Terminal` answer it, and none owns it.
+
+A type for each module was weighed first, `Fs.Error` without `Refused` and `Tcp.Error` without `NotFound`, each more precise. It was refused because E.0 rule 8 promises `Left(Timeout)` from every function that waits, which one type keeps as one constructor and several types would make a shared spelling; and because a block's `<-` takes one error type, so a function that reads a file and writes it to a socket would convert one error into the other, ceremony nothing else in the language asks for.
+
+One type, then, and the question is where. Keeping it in the prelude needs a third criterion, a type the system modules share, which exists for one type and would admit the next without the question asked again (principle 5). `Io` is the module named for input and output, so its error is `Io.Error`, named for what it is within the module (E.0 rule 7), and §9 keeps its two criteria without an exception. `Io`'s own functions do not answer it today; E.1 says in a sentence that it is the error of every system module, as Rust's `std::io::Error` is `std::fs`'s and `std::net`'s.
 
 ## Later
 
