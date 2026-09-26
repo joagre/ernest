@@ -33,7 +33,7 @@ export abstract type Region = Region(
     offered : List(String),
     resting : Int,
     output : Int,
-    size : Size
+    size : Terminal.Size
 )
 
 // Report §11.2: the tail's rows to begin with, which `:set output n`
@@ -48,7 +48,7 @@ let continuation = "... "
 let tabStop = 8
 
 // A region at the foot of a terminal of that size.
-export fn new(size : Size) -> Region =
+export fn new(size : Terminal.Size) -> Region =
     Region(tail = [], writing = "", prompt = "", typed = "", at = 0, offered = [], resting = 0,
         output = tailRows, size = size)
 
@@ -108,7 +108,7 @@ export fn taken(r : Region) -> #(Region, String) = {
 }
 
 // The window has changed; the tail may no longer fit.
-export fn resized(r : Region, size : Size) -> #(Region, String) =
+export fn resized(r : Region, size : Terminal.Size) -> #(Region, String) =
     aged(Region(..r, size = size), [])
 
 // Report §11.2: `:set output n` gives the tail n rows, and 0 takes the
@@ -356,7 +356,7 @@ let tabsAfterSequences = Test(name = "a tab stop is counted without escape seque
 
 let takenPrompt = Test(name = "a prompt spent on no input goes before the next answer",
     run = fn() = {
-        let r0 = new(Size(rows = 24, columns = 80));
+        let r0 = new(Terminal.Size(rows = 24, columns = 80));
         let #(r1, _) = said(r0, "1 : Int\n> ");
         let #(r2, _) = taken(r1);
         let #(_, bytes) = said(r2, "4 : Int\n> ");
@@ -408,7 +408,7 @@ let enteredTakesItAway = Test(name = "an input entered takes away what Tab showe
     })
 
 let offerWraps = Test(name = "a row shown under the input wraps at the edge", run = fn() = {
-    let #(r1, _) = said(new(Size(rows = 24, columns = 6)), "> ");
+    let #(r1, _) = said(new(Terminal.Size(rows = 24, columns = 6)), "> ");
     let #(r, _) = typing(r1, "", 0, ["abcdefgh"]);
     rowsAre(rowsOf(r), ["> ", "abcdef", "gh"])
 })
@@ -419,7 +419,7 @@ let wrapKeepsColour = Test(name = "a wrapped row is coloured on as it was", run 
 
 let offerCounted = Test(name = "what the screen has no room for is counted", run = fn() = {
     // six rows: one for the input, four for lines, one for the count
-    let r0 = new(Size(rows = 6, columns = 80));
+    let r0 = new(Terminal.Size(rows = 6, columns = 80));
     let #(r1, _) = said(r0, "> ");
     let #(r, _) = typing(r1, "", 0, ["a", "b", "c", "d", "e", "f", "g"]);
     rowsAre(rowsOf(r), ["> ", "a", "b", "c", "d", "and 3 more"])
@@ -427,7 +427,7 @@ let offerCounted = Test(name = "what the screen has no room for is counted", run
 
 let enteredEmpty = Test(name = "nothing typed after no prompt leaves no row", run = fn() = {
     let #(_, bytes) = entered(typed("", 0));
-    let #(r, _) = said(new(Size(rows = 24, columns = 80)), "");
+    let #(r, _) = said(new(Terminal.Size(rows = 24, columns = 80)), "");
     let #(_, none) = entered(r);
     // a row committed would end in a line feed
     if String.contains(bytes, "> \n") && !String.contains(none, "\n") then Passed
@@ -436,7 +436,7 @@ let enteredEmpty = Test(name = "nothing typed after no prompt leaves no row", ru
 
 let wrapsTheInput = Test(name = "a line wider than the screen wraps, the cursor after it",
     run = fn() = {
-        let #(r0, _) = said(new(Size(rows = 24, columns = 10)), "> ");
+        let #(r0, _) = said(new(Terminal.Size(rows = 24, columns = 10)), "> ");
         let #(r, _) = typing(r0, "abcdefghijkl", 12, []);
         // `> ` and twelve characters are fourteen columns: two rows
         if rowsOf(r) == ["> abcdefgh", "ijkl"] && resting(r) == 1 && column(r) == 5 then Passed
@@ -446,7 +446,7 @@ let wrapsTheInput = Test(name = "a line wider than the screen wraps, the cursor 
 
 let fillsTheWidth = Test(name = "a line that fills the width puts the cursor on the next row",
     run = fn() = {
-        let #(r0, _) = said(new(Size(rows = 24, columns = 10)), "> ");
+        let #(r0, _) = said(new(Terminal.Size(rows = 24, columns = 10)), "> ");
         let #(r, _) = typing(r0, "abcdefgh", 8, []);
         if rowsOf(r) == ["> abcdefgh", ""] && resting(r) == 1 && column(r) == 1 then Passed
         else Failed(String.join(rowsOf(r), " | "))
@@ -454,7 +454,7 @@ let fillsTheWidth = Test(name = "a line that fills the width puts the cursor on 
 
 // A region with a prompt written, which is where an input is typed.
 fn prompted() -> Region = {
-    let #(r, _) = said(new(Size(rows = 24, columns = 80)), "> ");
+    let #(r, _) = said(new(Terminal.Size(rows = 24, columns = 80)), "> ");
     r
 }
 

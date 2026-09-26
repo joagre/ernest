@@ -872,7 +872,7 @@ outcome(_Err, {signal, Signal}) -> ern_signals:status(Signal);
 outcome(Err, Fault) -> report_fault(Err, Fault), 1.
 
 %% Report §8.5: every top-level let of the loaded modules, dependencies
-%% first, once the runtime has bound the Sys.* references.
+%% first, once the runtime has bound the system references.
 init_fun(Loaded) ->
     fun() ->
         lists:foreach(fun(Mod) ->

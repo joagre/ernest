@@ -5,7 +5,7 @@
 // sessions.
 //
 // Assumptions. Tcp and Clock are the standard library's system modules (report
-// Appendix E) over Sys.tcp and Sys.clock (§8.2). The sessions are a process
+// Appendix E) over the TCP process and the clock (§8.2). The sessions are a process
 // that owns a Map, since state shared by processes is a process (Appendix E.0 rule 1).
 // errorText is a hand-written rendering for stdout. main runs the acceptor
 // itself so the program keeps running (report §8.6).
@@ -71,14 +71,14 @@ fn store(counts : Map(SessionId, Int)) -> Unit with SessionMsg = receive {
 fn acceptor(
     sessions : Address(SessionMsg),
     seq : Int,
-    listener : Address(ListenerMsg)
+    listener : Address(Tcp.ListenerMsg)
 ) -> Unit with Never =
     match Tcp.accept(listener, 60000) {
         Right(sock) -> {
             let _ = spawn(Local, fn() = handler(sessions, seq, sock));
             acceptor(sessions, seq + 1, listener)
         }
-      | Left(Timeout) -> acceptor(sessions, seq, listener)
+      | Left(Io.Timeout) -> acceptor(sessions, seq, listener)
       | Left(e) -> Io.println("cannot accept: " <> errorText(e))
     }
 
@@ -86,7 +86,7 @@ fn acceptor(
 fn handler(
     sessions : Address(SessionMsg),
     seq : Int,
-    sock : Address(SockMsg)
+    sock : Address(Tcp.SockMsg)
 ) -> Unit with m = {
     match Tcp.read(sock, 5000) {
         Right(bytes) -> match parse(bytes) {
@@ -182,13 +182,14 @@ fn withCookie(response : Response, name : String, value : String) -> Response =
     Response(..response,
         headers = #("set-cookie", name <> "=" <> value <> "; path=/") :: response.headers)
 
-fn errorText(e : IoError) -> String = match e {
-    NotFound -> "no such file"
-  | Denied -> "permission denied"
-  | Refused -> "refused"
-  | Closed -> "closed"
-  | Timeout -> "timed out"
-  | Other(text) -> text
+fn errorText(e : Io.Error) -> String = match e {
+    Io.NotFound -> "no such file"
+  | Io.Denied -> "permission denied"
+  | Io.Refused -> "refused"
+  | Io.Closed -> "closed"
+  | Io.Timeout -> "timed out"
+  | Io.NotATerminal -> "not a terminal"
+  | Io.Other(text) -> text
 }
 
 //

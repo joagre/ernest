@@ -1030,7 +1030,8 @@ doc_of(Env, Segments) ->
     end.
 
 %% Report §11.2: a namespace that is no module and no documented type,
-%% `Sys`, is documented by what it holds, each name with its type.
+%% `Net` where only `net/http.ern` is, is documented by what it holds, each
+%% name with its type.
 namespace_doc(_, []) ->
     none;
 namespace_doc(Env, Segments) ->
@@ -1633,12 +1634,12 @@ version() ->
 
 %% Report §11.2: the shell colours what it says at a terminal, and not where
 %% the environment sets NO_COLOR to anything, as that convention asks. The
-%% environment is the host's until `Sys.env` (plan, MVP 2.7).
+%% environment is the host's until MVP 2.7 gives a program its environment.
 -spec colours() -> boolean().
 colours() ->
     is_terminal() andalso os:getenv("NO_COLOR", "") =:= "".
 
-%% The screen writes to the terminal itself: `Sys.stdout` is the screen's,
+%% The screen writes to the terminal itself: standard output is the screen's,
 %% so a screen that printed through it would print to itself.
 -spec write(binary()) -> 'Unit'.
 write(Text) ->

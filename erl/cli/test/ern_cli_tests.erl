@@ -269,13 +269,16 @@ taken_namespace_names_owner_test() ->
               Dir = tmp(),
               write(Dir, "src/" ++ File, "export fn f() -> Int = 1\n"),
               ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"]))
-      end, ["event.ern", "sys.ern", "io.ern"]),
+      end, ["down.ern", "io.ern"]),
     Out = iolist_to_binary(?capturedOutput),
-    ?assertMatch({_, _}, binary:match(Out, <<"event.ern takes the prelude namespace Event">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"sys.ern takes the prelude namespace Sys">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"down.ern takes the prelude namespace Down">>)),
     ?assertMatch({_, _},
                  binary:match(Out, <<"io.ern takes the standard library namespace Io">>)),
-    ?assertEqual(nomatch, binary:match(Out, <<"prelude namespace Io">>)).
+    ?assertEqual(nomatch, binary:match(Out, <<"prelude namespace Io">>)),
+    %% report §9.7: the prelude binds no system reference, so `Sys` is free
+    Dir = tmp(),
+    write(Dir, "src/sys.ern", "export fn f() -> Int = 1\n"),
+    ?assertEqual(0, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])).
 
 %% report §4.2: `Prelude.send` is the prelude's `send` at run time too, past
 %% a function of the module's own by that name
@@ -283,10 +286,13 @@ prelude_value_runs_test() ->
     Dir = tmp(),
     write(Dir, "src/main.ern",
           "fn send(n : Int) -> Int = n\n"
-          "export fn main() -> Unit with m = {\n"
+          "export fn main() -> Unit with String = {\n"
           "    let say = Prelude.send;\n"
-          "    Prelude.send(Sys.stdout, Int.toString(send(1)) <> \"\\n\");\n"
-          "    say(Sys.stdout, \"two\\n\")\n"
+          "    let me = self();\n"
+          "    Prelude.send(me, Int.toString(send(1)));\n"
+          "    say(me, \"two\");\n"
+          "    receive { s -> Io.println(s) };\n"
+          "    receive { s -> Io.println(s) }\n"
           "}\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
@@ -760,7 +766,7 @@ prelude_page() ->
     {ok, Page} = file:read_file(filename:join(Dir, "prelude.md")),
     ?assertMatch(<<"# Ernest prelude\n\n*Since 0.1.0.*", _/binary>>, Page),
     [?assertMatch({_, _}, binary:match(Page, <<"\n## ", N/binary, "\n">>))
-     || N <- [<<"send">>, <<"Address.call">>, <<"Optional">>, <<"Sys.tcp">>, <<"Int">>]],
+     || N <- [<<"send">>, <<"Address.call">>, <<"Optional">>, <<"restarting">>, <<"Int">>]],
     ?assertMatch({_, _}, binary:match(Page, <<"from the prelude, report §9."/utf8>>)).
 
 %% report §11.4, Appendix E.0 rule 6: docs/module_doc_template.md is what
@@ -933,17 +939,18 @@ entry_point_shape_test() ->
     ?assertEqual(nomatch, binary:match(Out, <<"x\n">>)).
 
 %% report §8.5, §8.2, §11.2: top-level lets of every loaded module are
-%% evaluated before main, dependencies first, with Sys.* bound
+%% evaluated before main, dependencies first, with the system modules'
+%% references bound, so an initializer prints
 init_order_test() ->
     Dir = tmp(),
-    write(Dir, "src/lib/values.ern", "export let base = 40\nexport let out = Sys.stdout\n"),
+    write(Dir, "src/lib/values.ern",
+          "export let base = 40\nlet said = Io.println(\"values\")\n"),
     write(Dir, "src/main.ern",
           "let total = Lib.Values.base + 2\n"
-          "export fn main() -> Unit with Never =\n"
-          "    send(Lib.Values.out, Int.toString(total) <> \"\\n\")\n"),
+          "export fn main() -> Unit with Never = Io.println(Int.toString(total))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
-    ?assertEqual(<<"42\n">>, iolist_to_binary(?capturedOutput)).
+    ?assertEqual(<<"values\n42\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §8.5, §11.2: a module on the source root that the program does
 %% not depend on is not loaded, so its faulting top-level `let` does not

@@ -1424,9 +1424,9 @@ The generator is SplitMix64, written in Ernest over `Int`'s bit operations. `See
 
 ```
 abstract type Seed
-Random.seed : (Int) -> Random.Seed // numbers equal in their low 64 bits name the same sequence
-Random.next : (Random.Seed, Int) -> #(Int, Random.Seed) // uniform between 0 and the second inclusive, whatever the second's sign, and the seed after it
-Random.nextFloat : (Random.Seed) -> #(Float, Random.Seed) // uniform above 0.0 and below 1.0, and the seed after it
+Random.seed : (Int) -> Seed // numbers equal in their low 64 bits name the same sequence
+Random.next : (Seed, Int) -> #(Int, Seed) // uniform between 0 and the second inclusive, whatever the second's sign, and the seed after it
+Random.nextFloat : (Seed) -> #(Float, Seed) // uniform above 0.0 and below 1.0, and the seed after it
 ```
 
 ### Appendix E.14. `path.ern` (namespace `Path`)

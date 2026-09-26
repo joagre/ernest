@@ -73,7 +73,7 @@ area.ern:2:5: Io.println needs a process, and area is pure
   | = help: give area a mailbox type with `with`
 ```
 
-**A failure dropped.** `Fs.write` returns `Either(IoError, Unit)`: the file was written, or the reason it was not. Its last argument, `1000`, is how many milliseconds it may take. A statement in a block must be `Unit`, so the failure cannot pass unseen. `let _ = ...` discards it where that is meant.
+**A failure dropped.** `Fs.write` returns `Either(Io.Error, Unit)`: the file was written, or the reason it was not. Its last argument, `1000`, is how many milliseconds it may take. A statement in a block must be `Unit`, so the failure cannot pass unseen. `let _ = ...` discards it where that is meant.
 
 ```ernest-rejected
 export fn main() -> Unit with Never = {
@@ -84,7 +84,7 @@ export fn main() -> Unit with Never = {
 
 ```console
 $ ern build notes.ern
-notes.ern:2:5: this statement's value is discarded: expected Unit, found Either(IoError, Unit)
+notes.ern:2:5: this statement's value is discarded: expected Unit, found Either(Io.Error, Unit)
 1 | export fn main() -> Unit with Never = {
 2 |     Fs.write(Path("notes.txt"), String.toUtf8("buy milk"), 1000);
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -128,7 +128,7 @@ hello, world
 
 Two ways of writing `with` follow, and the guide's programs use both. A function that starts a process that never receives, such as `main` or the function a spawned process runs, is written `with Never`; a lambda spawned for such a process is written `fn() -> Unit with Never = ...`, since no `receive` in it settles its mailbox type. A function that only sends, such as `Io.println`, is written `with m`, a type variable, so that a process with any mailbox may call it.
 
-`Io.println` sends its text to `Sys.stdout`, a process the runtime provides, which writes it. `Io.printlnError` sends to `Sys.stderr`, so a program whose output another program reads can still report trouble. Sending to a process of the runtime is one of the two ways a program reaches the world; the other is `foreign fn` (§8).
+`Io.println` sends its text to standard output's process, which the runtime provides and `Io` alone reaches. `Io.printlnError` sends to standard error's, so a program whose output another program reads can still report trouble. Sending to a process of the runtime is one of the two ways a program reaches the world; the other is `foreign fn` (§8).
 
 `Io.debug(x)` prints any value as the source would write it and returns it, so it wraps an expression where it stands: `let n = Io.debug(f(x))`. It sends, as `Io.println` does, so it cannot hide in a pure function (report Appendix E.1).
 
@@ -469,7 +469,7 @@ The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char
 - **One verb per operation, in every module that has it.** `Map.get(m, k)` and `List.get(xs, 0)`; `size`, `isEmpty`, `contains`, `put`, `remove`, `map`, `filter`, `foldLeft`, `find`, `fromList`, `toList` wherever they apply.
 - **Subject first, callbacks last**, so the pipe works: `xs |> List.foldLeft(0, fn(acc, x) = acc + x)`.
 - **A conversion is named by the other type.** Between a type and one its module builds on, both directions are the building module's, `String.fromList` and `String.toList`; any other conversion is its argument's module's `toX`: `String.toInt`, `Int.toString`.
-- **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get` and `String.toInt` return `Optional`, `Fs.read` returns `Either(IoError, Bytes)`.
+- **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get` and `String.toInt` return `Optional`, `Fs.read` returns `Either(Io.Error, Bytes)`.
 - **Pure unless the value lives in a process.** Only the system modules carry `with m`, and every function that takes a function is as pure as the function it is given (§3.5).
 - **A `String` is text, not a list.** Its length and positions count what a reader sees as letters; `String.toList` gives its `Char`s.
 - **A system process is used through its module**, never by `send`. A function that waits takes a timeout in milliseconds last and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. One that delivers later takes a function that makes the message: `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired.
@@ -943,7 +943,7 @@ fn pong() -> Unit with PongMsg = receive {
 
 `main` monitors pong and waits for it to end. Had `main` returned at once, the program would have ended before the two had played, since returning from `main` ends every process (§4.5).
 
-The output is likely `ping 3`, `pong 3`, `ping 2`, and so on, but not certain. Messages from one sender arrive in the order sent, so ping's requests reach pong in order. Ping and pong are two senders to `Sys.stdout`, and between senders there is no order.
+The output is likely `ping 3`, `pong 3`, `ping 2`, and so on, but not certain. Messages from one sender arrive in the order sent, so ping's requests reach pong in order. Ping and pong are two senders to standard output's process, and between senders there is no order.
 
 ### 5.2 `monitor` and `Down`
 
@@ -1254,7 +1254,7 @@ $ ern run jobs.erc
 all jobs done
 ```
 
-A process for each job is the restart: the job that faulted ends its own worker, and the next job starts with a fresh one. Only `supervise` prints. A worker's `Io.println` and the supervisor's are two senders to `Sys.stdout`, which the runtime does not order (§5.1), so a worker reports by a message to its supervisor.
+A process for each job is the restart: the job that faulted ends its own worker, and the next job starts with a fresh one. Only `supervise` prints. A worker's `Io.println` and the supervisor's are two senders to standard output's process, which the runtime does not order (§5.1), so a worker reports by a message to its supervisor.
 
 What must survive a fault lives in the process that does not fault: here the list of jobs is the supervisor's. A long-lived service restarts in place instead: `restarting(RestartLimit(restarts = 3, within = 5000), f)` is a function that runs `f` again after a fault, in the same process, with its address and its mailbox, so whoever holds the address keeps it, and after three restarts within five seconds the next fault ends the process (report §6.9). A process that must not outlive another monitors it and returns when it dies.
 
@@ -1559,7 +1559,7 @@ no remote peer configured
 
 ### 8.2 Code shipping
 
-A closure or a message sent to a peer takes the code it needs with it: the peer uses the code it has, and fetches from the sender what it lacks. Every function and type is known by a hash of its definition, a type's name included, so two nodes agree on a type exactly when they declare it the same way (report §8.7). A `Sys.*` name in shipped code is the peer's, so a shipped `Io.println` prints on the peer, while an address the closure captured still names the process it named. A `send` to a peer returns at once, and a failure to resolve the code there faults the sender later.
+A closure or a message sent to a peer takes the code it needs with it: the peer uses the code it has, and fetches from the sender what it lacks. Every function and type is known by a hash of its definition, a type's name included, so two nodes agree on a type exactly when they declare it the same way (report §8.7). A system module's reference in shipped code is the peer's, so a shipped `Io.println` prints on the peer, while an address the closure captured still names the process it named. A `send` to a peer returns at once, and a failure to resolve the code there faults the sender later.
 
 A peer that is lost stays lost: its processes are dead to this node, monitors report `Fault("peer lost")`, and a message in flight may be lost without notice (report §10).
 
@@ -1790,7 +1790,7 @@ A function's number of arguments is part of its type, and `fn(x, y)` shows it wh
 
 **§4.8.** No. The timeout only bounds the caller's wait. The recipient may still be processing the request or may answer later; the late answer is silently discarded but the work done on the recipient side is not undone.
 
-**§5.7.** No. Per-sender FIFO orders messages from ping to pong and pong to ping, but the two processes both send to `Sys.stdout`, two senders to one process, and the runtime does not order across senders. Alternation is a *possible* trace, not a guaranteed one.
+**§5.7.** No. Per-sender FIFO orders messages from ping to pong and pong to ping, but the two processes both send to standard output's process, two senders to one process, and the runtime does not order across senders. Alternation is a *possible* trace, not a guaranteed one.
 
 **§6.5.** `main` faults with the cause `first of an empty list`, and since it is the entry process the program ends and `ern run` prints `fault: first of an empty list`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
 

@@ -54,8 +54,9 @@ export fn complete(typed : String, names : List(Name), where : Where) -> Complet
 
 // Report §11.2: every namespace the names are in, offered as a module is,
 // completing with its dot: a type with members, `Address` for
-// `Address.call` (§4.8), and `Sys` (§9.7) are namespaces though they are
-// no modules, and a listing says so, as it says `module List`.
+// `Address.call` (§4.8), and a directory of modules, `Net` for
+// `Net.Http`, are namespaces though they are no modules, and a listing
+// says so, as it says `module List`.
 export fn withNamespaces(names : List(Name)) -> List(Name) = {
     let texts = List.map(names, fn(name) = name.text);
     let prefixes = List.flatMap(texts, fn(t) = {
@@ -120,7 +121,7 @@ fn admitted(names : List(Name), where : Where) -> List(Name) = match where {
 }
 
 // Report §11.2: the names that may stand there, and the namespaces that
-// hold one, at any depth: after `:`, `Sys` holds no type and is not
+// hold one, at any depth: after `:`, `Net` holds no type and is not
 // offered, where `Shell` holds `Shell.Region.Region`.
 fn held(names : List(Name), stands : (Name) -> Bool) -> List(Name) =
     List.filter(names, fn(name) = match name {
@@ -313,7 +314,7 @@ let keepsTheLast = Test(name = "an abbreviation keeps its last segment as typed"
 
 let heldOnly = Test(name = "a namespace is offered only where it holds what may stand there",
     run = fn() = {
-        let names = withNamespaces([Name(text = "Sys.stdout", kind = Value, shown = "Sys.stdout"),
+        let names = withNamespaces([Name(text = "Net.get", kind = Value, shown = "Net.get"),
             Name(text = "Shell.Region.Region", kind = Type, shown = "type Shell.Region.Region")]);
         let w = complete("S", names, TypeName).word;
         if w == "Shell." then Passed else Failed(w)

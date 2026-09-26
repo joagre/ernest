@@ -1116,9 +1116,8 @@ prelude_types_test() ->
     ?assertEqual(ok, ok("fn f(x : Down) = match x { Down(reason = r, site = _) -> r }")),
     ?assertEqual(ok, ok("fn f(x : Reason) = match x { Returned -> 0 | Killed -> 1 | ProgramEnd -> 2"
                         " | Fault(_) -> 3 | Unknown -> 4 }")),
-    ?assertEqual(ok, ok("fn f(x : ClockMsg) -> Unit with Never = match x {"
-                        " After(ms = _, to = _) -> Unit | At(at = _, to = _) -> Unit"
-                        " | Now(reply = r) -> answer(r, 0) }")),
+    ?assertEqual(ok, ok("fn f(x : RestartLimit) = match x {"
+                        " RestartLimit(restarts = n, within = _) -> n }")),
     ?assertEqual(ok, ok("fn f(x : RemoteError) = match x { NoRemotePeer -> 0 | PeerLost -> 1 }")),
     ?assertEqual(ok, ok("fn f(x : Where) = match x { Local -> 0 | Peer(_) -> 1 }")).
 
@@ -1135,8 +1134,8 @@ prelude_values_test() ->
                  err("fn f(a : Address(Int)) -> Unit = send(a, 1)")),
     ?assertEqual("(List(Int)) -> List(Int)",
                  type_of("export fn f(xs) = List.map(xs, fn(x : Int) = x)", f)),
-    ?assertEqual("Address(String)", type_of("export let out = Sys.stdout", out)),
-    ?assertEqual("Address(ClockMsg)", type_of("export let clk = Sys.clock", clk)).
+    %% report §9.7: the prelude binds no system reference
+    ?assertEqual("unknown name Sys.stdout", err("let out = Sys.stdout")).
 
 %%
 %% Abstract types and interfaces
@@ -1355,22 +1354,23 @@ local_fn_annotation_before_use_test() ->
 %% type is checked against the prelude's constructors; `Prelude.` takes one
 %% name, and no type takes the name
 prelude_namespace_test() ->
-    Shadow = "type Last = Other | Tabbed\ntype Entry = Entry(name : String)\n"
+    Shadow = "type Last = Peer | Tabbed\n"
+             "type RestartLimit = RestartLimit(name : String)\n"
              "fn send(n : Int) -> Int = n\n",
-    ?assertEqual("(IoError) -> String",
-                 type_of(Shadow ++ "export fn describe(e : Prelude.IoError) = match e {"
-                         " Prelude.Other(t) -> t | _ -> \"known\" }", describe)),
-    ?assertEqual("(Entry) -> Int",
-                 type_of(Shadow ++ "export fn size(e : Prelude.Entry) ="
-                         " match e { Prelude.Entry(size = n) -> n }", size)),
-    ?assertEqual("() -> IoError",
-                 type_of(Shadow ++ "export fn other() = Prelude.Other(\"x\")", other)),
+    ?assertEqual("(Where) -> String",
+                 type_of(Shadow ++ "export fn describe(e : Prelude.Where) = match e {"
+                         " Prelude.Peer(t) -> t | _ -> \"here\" }", describe)),
+    ?assertEqual("(RestartLimit) -> Int",
+                 type_of(Shadow ++ "export fn size(e : Prelude.RestartLimit) ="
+                         " match e { Prelude.RestartLimit(restarts = n) -> n }", size)),
+    ?assertEqual("() -> Where",
+                 type_of(Shadow ++ "export fn other() = Prelude.Peer(\"x\")", other)),
     ?assertEqual(ok, ok(Shadow ++ "fn f(a : Address(String)) -> Unit with m ="
                         " Prelude.send(a, \"x\")")),
     %% the module's own names are untouched
-    ?assertEqual(ok, ok(Shadow ++ "fn g() -> Int = send(1)\nfn h() -> Last = Other")),
+    ?assertEqual(ok, ok(Shadow ++ "fn g() -> Int = send(1)\nfn h() -> Last = Peer")),
     ?assertEqual("Prelude.Io.println: Prelude takes one name the prelude declares,"
-                 " as `Prelude.Close`",
+                 " as `Prelude.Some`",
                  err("fn f() -> Unit with m = Prelude.Io.println(\"x\")")),
     ?assertEqual("the prelude declares no constructor Nope", err("fn f() = Prelude.Nope")),
     ?assertEqual("Prelude names the prelude, and a type may not take it",

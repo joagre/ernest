@@ -392,8 +392,8 @@ either_test() ->
     ?assertEqual({'Some', 1}, E:toOptional({'Right', 1})),
     ?assertEqual({'Left', e}, E:fromOptional('None', e)).
 
-%% report Appendix E.1, §8.2: print and println write to Sys.stdout,
-%% printError and printlnError to Sys.stderr, each as a message
+%% report Appendix E.1, §8.2: print and println write to Io's stdout,
+%% printError and printlnError to its stderr, each as a message
 io_test() ->
     Me = self(),
     Sink = fun(Tag) -> fun(Bin) -> Me ! {Tag, Bin} end end,
@@ -435,8 +435,8 @@ collect(Tag, Acc) ->
     after 0 -> lists:reverse(Acc)
     end.
 
-%% report Appendix E.17, §8.2: the file system through Sys.fs, each answer
-%% Right or Left(IoError), and Left(Timeout) when the wait runs out
+%% report Appendix E.17, §8.2: the file system through Fs's reference, each answer
+%% Right or Left(Io.Error), and Left(Timeout) when the wait runs out
 fs_test() ->
     Me = self(),
     Dir = filename:join("/tmp", "ern_fs_" ++ integer_to_list(erlang:unique_integer([positive]))),

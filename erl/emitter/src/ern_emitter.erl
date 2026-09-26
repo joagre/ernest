@@ -637,9 +637,6 @@ prelude_value(_, ['Io', debug], {tfn, [P], _, _}, Cx) ->
     {[A], Cx1} = fresh_vars(1, "A", Cx),
     Desc = erl_syntax:abstract(descriptor(P, Cx)),
     {lambda([A], call_remote(ern_io, debug, [erl_syntax:variable(A), Desc])), Cx1};
-prelude_value(_, ['Sys', Name], _, Cx) ->
-    %% report §9.7: every system reference is the runtime's, by its name
-    {call_remote(ern_rt, sys, [erl_syntax:atom(Name)]), Cx};
 prelude_value(Pos, [Name], T, Cx) ->
     case lists:member(Name, [self, send, answer, via, monitor, kill, remote, fault, restarting]) of
         true -> {remote_fun(ern_rt, Name, arity_of(T, Pos)), Cx};

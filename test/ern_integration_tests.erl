@@ -42,7 +42,7 @@ compiles_test_() ->
 %% end of input, so its run is bounded by its input. The last two lines are
 %% the point of the program: an expression that does not terminate is killed
 %% after two seconds, and the next expression still works.
-%% report §6.9 (monitor), §8.2 (Sys.stdin), §9.3 (Io.readLine)
+%% report §6.9 (monitor), §8.2 (Io's stdin), §9.3 (Io.readLine)
 repl_test_() ->
     {timeout, 60, fun repl/0}.
 
@@ -55,7 +55,7 @@ repl() ->
 %% stopped, so the harness gives it two prepared directories, lets it run,
 %% stops it, and reads the directories back. One file on each side crosses,
 %% and the pair that differs leaves a conflict beside the newer copy.
-%% report §8.2 (Sys.fs), §6.6 (Address.call), Appendix E.17 (Fs.list)
+%% report §8.2 (Fs's reference), §6.6 (Address.call), Appendix E.17 (Fs.list)
 filesync_test_() ->
     {timeout, 60, fun filesync/0}.
 
@@ -124,7 +124,7 @@ hangup() ->
 %% stopped, so the harness starts it, makes two requests over one session,
 %% and stops it. The second request carries the cookie the first set, and
 %% the visit count proves the session store kept it between connections.
-%% report §8.2 (Sys.tcp), Appendix E.18 (Tcp), §6.6 (the store's request-reply)
+%% report §8.2 (Tcp's reference), Appendix E.18 (Tcp), §6.6 (the store's request-reply)
 webserver_test_() ->
     {timeout, 60, fun webserver/0}.
 

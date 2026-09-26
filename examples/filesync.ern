@@ -7,8 +7,8 @@
 // the same node or not.
 //
 // Assumptions. Fs and Clock are the standard library's system modules (report
-// Appendix E) over Sys.fs and Sys.clock (§8.2); Path, Entry, and IoError are
-// the prelude's (§9.3). errorText is a hand-written rendering for stdout.
+// Appendix E) over the file system and the clock (§8.2); Path is the prelude's
+// (§9.3), Fs.Entry and Io.Error the modules'. errorText is a hand-written rendering for stdout.
 // main runs syncer a itself so the program keeps running (report §8.6).
 //
 // Run under test since 2026-09-20: the harness prepares a and b, runs the
@@ -22,12 +22,12 @@
 
 type Change = Change(path : Path, mtime : Int)
 
-type Ack = Stored | Conflict | Failed(IoError)
+type Ack = Stored | Conflict | Failed(Io.Error)
 
 type SyncMsg
     = Link(Address(SyncMsg))
   | Tick
-  | Listed(Either(IoError, List(Entry)))
+  | Listed(Either(Io.Error, List(Fs.Entry)))
   | Put(path : Path, mtime : Int, bytes : Bytes, ack : Reply(Ack))
 
 //
@@ -141,25 +141,26 @@ fn push(peer : Address(SyncMsg), p : Path, m : Int, bytes : Bytes) -> Unit with 
 //
 
 // What has changed since the last snapshot?
-fn diff(old : Map(Path, Int), entries : List(Entry)) -> List(Change) =
+fn diff(old : Map(Path, Int), entries : List(Fs.Entry)) -> List(Change) =
     List.filterMap(entries, fn(e) = changed(old, e))
 
-fn changed(old : Map(Path, Int), Entry(path = p, mtime = m) : Entry) -> Optional(Change) =
+fn changed(old : Map(Path, Int), Fs.Entry(path = p, mtime = m) : Fs.Entry) -> Optional(Change) =
     match Map.get(old, p) {
         None -> Some(Change(path = p, mtime = m))
       | Some(m0) -> if m > m0 then Some(Change(path = p, mtime = m)) else None
     }
 
-fn snapshot(entries : List(Entry)) -> Map(Path, Int) =
+fn snapshot(entries : List(Fs.Entry)) -> Map(Path, Int) =
     List.foldLeft(entries, Map.empty, fn(acc, entry) = Map.put(acc, entry.path, entry.mtime))
 
 fn conflictPath(p : Path) -> Path = Path(Path.toString(p) <> ".conflict")
 
-fn errorText(e : IoError) -> String = match e {
-    NotFound -> "no such file"
-  | Denied -> "permission denied"
-  | Refused -> "refused"
-  | Closed -> "closed"
-  | Timeout -> "timed out"
-  | Other(text) -> text
+fn errorText(e : Io.Error) -> String = match e {
+    Io.NotFound -> "no such file"
+  | Io.Denied -> "permission denied"
+  | Io.Refused -> "refused"
+  | Io.Closed -> "closed"
+  | Io.Timeout -> "timed out"
+  | Io.NotATerminal -> "not a terminal"
+  | Io.Other(text) -> text
 }

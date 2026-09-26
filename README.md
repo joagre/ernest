@@ -48,7 +48,7 @@ Four layers:
 
 - **Language.** The rules in `ernest_report.md`: syntax, types, processes, evaluation. Small and stable.
 - **Prelude.** What the report requires to exist, §9: the built-in and declared types, the process functions, the operations the operators resolve to, and the system references. A prelude operation in a type's namespace is provided by that type's standard library module.
-- **Standard library** (Appendix E). On the load path by default: one module per namespace of Appendix E, mostly one per type and one per system process, which is the way a program uses a `Sys.*` reference. Appendix E.0 has the rules for what enters and how it is named. The modules are Ernest under `stdlib/`, since the plan's MVP 2.5.
+- **Standard library** (Appendix E). On the load path by default: one module per namespace of Appendix E, mostly one per type and one per system process, which is the way a program uses a system process (§8.2). Appendix E.0 has the rules for what enters and how it is named. The modules are Ernest under `stdlib/`, since the plan's MVP 2.5.
 - **Libraries.** Everything else, `Json`, `Tls`, `Regex`, `Http`, and the rest: written on the foreign-library pattern of Appendix D, by anyone, added to a program's load path when wanted. Which are first-party under `libs/`, and when, is the plan's MVP 3.2; `libs/ets` and `libs/markdown` are there, and the shell renders documentation with the second. The line between the standard library and a library is Appendix E.0: a namespace of its own with policy inside is a library, however useful.
 
 ## Layout of the repository

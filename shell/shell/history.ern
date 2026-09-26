@@ -21,13 +21,13 @@ export foreign fn file() -> Optional(String) with m = "ern_shell:history_file/0"
 
 // The inputs of the sessions before this one, newest first. A file that
 // holds more than the last thousand is trimmed to them as it is read.
-export fn read() -> Either(IoError, List(String)) with m = match file() {
+export fn read() -> Either(Io.Error, List(String)) with m = match file() {
     None -> Right([])
   | Some(name) -> {
         let path = Path(name);
         match Fs.read(path, wait) {
             // no file yet: a first session has no history and makes none
-            Left(NotFound) -> Right([])
+            Left(Io.NotFound) -> Right([])
           | Left(why) -> Left(why)
           | Right(bytes) -> trimmed(path, inputs(bytes))
         }
@@ -36,7 +36,7 @@ export fn read() -> Either(IoError, List(String)) with m = match file() {
 
 // Newest first is the order the editor walks; the file is oldest first,
 // as a person reading it expects.
-fn trimmed(path : Path, inputs : List(String)) -> Either(IoError, List(String)) with m = {
+fn trimmed(path : Path, inputs : List(String)) -> Either(Io.Error, List(String)) with m = {
     let extra = List.size(inputs) - kept;
     if extra <= 0 then Right(List.reverse(inputs))
     else {
@@ -56,7 +56,7 @@ fn text(inputs : List(String)) -> String =
 
 // One input, appended as the shell takes it. The directory is made when
 // it is not there, as it is not before a first session.
-export fn add(input : String) -> Either(IoError, Unit) with m = match file() {
+export fn add(input : String) -> Either(Io.Error, Unit) with m = match file() {
     None -> Right(Unit)
   | Some(name) -> {
         let path = Path(name);
@@ -67,7 +67,7 @@ export fn add(input : String) -> Either(IoError, Unit) with m = match file() {
     }
 }
 
-fn made(path : Path) -> Either(IoError, Unit) with m = match Path.parent(path) {
+fn made(path : Path) -> Either(Io.Error, Unit) with m = match Path.parent(path) {
     None -> Right(Unit)
   | Some(dir) -> Fs.makeDir(dir, wait)
 }

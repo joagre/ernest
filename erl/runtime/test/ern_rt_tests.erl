@@ -43,7 +43,7 @@ own_terminal_race_test() ->
 %% report §8.2, §7.3: a read of the standard input that fails is a failure
 %% of the runtime, which ends the program with a fault that names it, and an
 %% empty line is the empty string. A regression test: each crashed the
-%% process behind Sys.stdin, and the caller waited for ever
+%% process behind Io's stdin, and the caller waited for ever
 stdin_failure_test() ->
     Ask = fun() ->
               Stdin = ern_rt:sys(stdin),
@@ -386,14 +386,6 @@ endless_alarm_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(ticked, wait_atom(ticked)).
 
-%% report §6.9: a system process is the runtime's to end, and kill on one
-%% faults the caller. A regression test: kill(Sys.stdout) lost every line
-%% of output, those sent before it among them.
-kill_system_process_test() ->
-    ?assertEqual({fault, <<"a system process is the runtime's">>},
-                 ern_rt:run_main(fun() -> ern_rt:kill(ern_rt:sys(stdout)) end, <<"main">>,
-                                 #{stdout => fun(_) -> ok end})).
-
 %% An atom whose text is no integer, which the compiler cannot see through.
 zero_text() -> list_to_atom("zero").
 
@@ -428,7 +420,7 @@ main_fault_test() ->
                  ern_rt:run_main(fun() -> 1 div zero() end, <<"main">>,
                                  #{stdout => fun(_) -> ok end})).
 
-%% report §9.3, §9.7: the clock answers Now and fires After
+%% report §8.2, Appendix E.15: the clock answers Now and fires After
 clock_test() ->
     Me = self(),
     ok = ern_rt:run_main(

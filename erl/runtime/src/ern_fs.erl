@@ -1,5 +1,5 @@
-%% Report §8.2, §9.3: the process behind Sys.fs. It answers each FsMsg of
-%% §9.3 with Either(IoError, a), doing the work in a process of its own so
+%% Report §8.2, Appendix E.17: the process behind Fs's reference. It answers
+%% each of Fs's messages with Either(Io.Error, a), doing the work in a process of its own so
 %% that one slow file does not hold up the rest. A Path is {'Path', Bin}
 %% and an Entry's fields are in canonical order (report §3.5): isDir,
 %% mtime, path, size.
@@ -47,7 +47,7 @@ handle({'Copy', From, Reply, To}) ->
                       Error -> Error
                   end).
 
-%% Every answer is Right(v) or Left(IoError).
+%% Every answer is Right(v) or Left(Io.Error).
 answer(Reply, {ok, Value}) ->
     ern_rt:answer(Reply, {'Right', Value});
 answer(Reply, {error, Reason}) ->
@@ -68,7 +68,7 @@ entries(Dir, Names) ->
                         end
                 end, {ok, []}, lists:reverse(Names)).
 
-%% report §9.3: Entry(isDir, mtime, path, size), mtime in milliseconds
+%% report Appendix E.17: Fs.Entry(isDir, mtime, path, size), mtime in milliseconds
 entry(Name) ->
     case file:read_file_info(Name, [{time, posix}]) of
         {ok, #file_info{type = Type, mtime = Mtime, size = Size}} ->
@@ -77,7 +77,7 @@ entry(Name) ->
             Error
     end.
 
-%% report §9.3: IoError = NotFound | Denied | Refused | Closed | Timeout
+%% report Appendix E.1: Io.Error = NotFound | Denied | Refused | Closed | Timeout
 %% | Other(String)
 io_error(enoent) -> 'NotFound';
 io_error(eacces) -> 'Denied';

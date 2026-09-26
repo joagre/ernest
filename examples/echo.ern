@@ -33,7 +33,7 @@ export fn main() -> Unit with Msg = {
     }
 }
 
-fn roundTrips(socket : Address(SockMsg), left : Int) -> Unit with m =
+fn roundTrips(socket : Address(Tcp.SockMsg), left : Int) -> Unit with m =
     if left <= 0 then
         Unit
     else {
@@ -44,13 +44,13 @@ fn roundTrips(socket : Address(SockMsg), left : Int) -> Unit with m =
         }
     }
 
-fn serve(listener : Address(ListenerMsg)) -> Unit with Never =
+fn serve(listener : Address(Tcp.ListenerMsg)) -> Unit with Never =
     match Tcp.accept(listener, 5000) {
         Right(socket) -> echo(socket)
       | Left(_) -> Unit
     }
 
-fn echo(socket : Address(SockMsg)) -> Unit with Never =
+fn echo(socket : Address(Tcp.SockMsg)) -> Unit with Never =
     match Tcp.read(socket, 5000) {
         Right(bytes) -> {
             Tcp.write(socket, bytes);

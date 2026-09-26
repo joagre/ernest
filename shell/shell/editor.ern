@@ -97,7 +97,7 @@ fn missing(query : String, text : String) -> String =
 
 fn direction(forward : Bool) -> String = if forward then "i-search" else "reverse-i-search"
 
-export fn edit(state : State, event : Event) -> Edit = match state {
+export fn edit(state : State, event : Terminal.Event) -> Edit = match state {
     State(search = Some(s)) -> searching(State(..state, pending = Plain), s, event)
   | State(pending = Meta) -> meta(State(..state, pending = Plain), event)
   | State(pending = Bracket) -> bracket(State(..state, pending = Plain), event)
@@ -107,23 +107,24 @@ export fn edit(state : State, event : Event) -> Edit = match state {
 // Report §11.2: `Shift-Tab`, which the terminal sends as `Escape [ Z`,
 // shows what the name at the cursor is. Any other sequence is the
 // `Escape` key and the characters after it, as §8.2 delivers it.
-fn bracket(state : State, event : Event) -> Edit = match event {
-    Key('Z') -> Documenting(state)
+fn bracket(state : State, event : Terminal.Event) -> Edit = match event {
+    Terminal.Key('Z') -> Documenting(state)
   | other -> plain(state, other)
 }
 
-fn plain(state : State, event : Event) -> Edit = match event {
-    Enter -> Submit(state)
-  | Interrupt -> Cancel
-  | Escape -> Typing(State(..state, pending = Meta))
-  | ArrowLeft -> Typing(State(..state, at = Int.max(0, state.at - 1)))
-  | ArrowRight -> Typing(State(..state, at = Int.min(String.size(state.text), state.at + 1)))
-  | ArrowUp -> Typing(walk(state, 1))
-  | ArrowDown -> Typing(walk(state, -1))
-  | Resized(_) -> Typing(state)
+fn plain(state : State, event : Terminal.Event) -> Edit = match event {
+    Terminal.Enter -> Submit(state)
+  | Terminal.Interrupt -> Cancel
+  | Terminal.Escape -> Typing(State(..state, pending = Meta))
+  | Terminal.ArrowLeft -> Typing(State(..state, at = Int.max(0, state.at - 1)))
+  | Terminal.ArrowRight ->
+        Typing(State(..state, at = Int.min(String.size(state.text), state.at + 1)))
+  | Terminal.ArrowUp -> Typing(walk(state, 1))
+  | Terminal.ArrowDown -> Typing(walk(state, -1))
+  | Terminal.Resized(_) -> Typing(state)
   // report §11.2: a paste goes in at the cursor, line feeds and all
-  | Pasted(text) -> Typing(insert(state, text))
-  | Key(c) -> character(state, c)
+  | Terminal.Pasted(text) -> Typing(insert(state, text))
+  | Terminal.Key(c) -> character(state, c)
 }
 
 // A character typed, which is Readline's control key where it is one.
@@ -153,22 +154,23 @@ fn character(state : State, c : Char) -> Edit = {
 }
 
 // `Escape` and then the key: Readline's Meta bindings.
-fn meta(state : State, event : Event) -> Edit = {
+fn meta(state : State, event : Terminal.Event) -> Edit = {
     let State(text = text, at = at) = state;
     match event {
         // report §11.2: another line, though the parser could run what
         // is typed
-        Enter -> Typing(newline(state))
+        Terminal.Enter -> Typing(newline(state))
       // report §8.2: `Escape [` begins a sequence §9.3 does not name,
       // of which `Escape [ Z` is `Shift-Tab`
-      | Key('[') -> Typing(State(..state, pending = Bracket))
-      | Key('<') -> Typing(walkTo(state, List.size(state.history)))
-      | Key('>') -> Typing(walkTo(state, 0))
-      | Key('b') -> Typing(State(..state, at = wordLeft(text, at, alphanumeric)))
-      | Key('f') -> Typing(State(..state, at = wordRight(text, at, alphanumeric)))
-      | Key('d') -> Typing(killFrom(state, wordRight(text, at, alphanumeric)))
-      | Key('\u{8}') or Key('\u{7f}') -> Typing(killTo(state, wordLeft(text, at, alphanumeric)))
-      | Key(_) -> Typing(state) // an unbound Meta key does nothing
+      | Terminal.Key('[') -> Typing(State(..state, pending = Bracket))
+      | Terminal.Key('<') -> Typing(walkTo(state, List.size(state.history)))
+      | Terminal.Key('>') -> Typing(walkTo(state, 0))
+      | Terminal.Key('b') -> Typing(State(..state, at = wordLeft(text, at, alphanumeric)))
+      | Terminal.Key('f') -> Typing(State(..state, at = wordRight(text, at, alphanumeric)))
+      | Terminal.Key('d') -> Typing(killFrom(state, wordRight(text, at, alphanumeric)))
+      | Terminal.Key('\u{8}') or Terminal.Key('\u{7f}') ->
+            Typing(killTo(state, wordLeft(text, at, alphanumeric)))
+      | Terminal.Key(_) -> Typing(state) // an unbound Meta key does nothing
       // every other key does what it does, `Escape` before it or not
       | other -> plain(state, other)
     }
@@ -207,15 +209,15 @@ fn search(state : State, forward : Bool) -> State =
     State(..state, search = Some(Search(query = "", back = state.back, from = state.back,
         before = state.text, forward = forward)))
 
-fn searching(state : State, s : Search, event : Event) -> Edit = match event {
-    Enter -> Submit(stop(state))
-  | Interrupt -> Cancel
-  | Resized(_) -> Typing(state)
-  | Key('\u{12}') -> Typing(seek(state, Search(..s, forward = false), 1)) // C-r
-  | Key('\u{13}') -> Typing(seek(state, Search(..s, forward = true), -1)) // C-s
-  | Key('\u{7}') -> Typing(abandon(state, s)) // C-g
-  | Key('\u{8}') or Key('\u{7f}') -> Typing(shorten(state, s)) // Backspace
-  | Key(c) -> if c < ' ' then edit(stop(state), event) else Typing(narrow(state, s, c))
+fn searching(state : State, s : Search, event : Terminal.Event) -> Edit = match event {
+    Terminal.Enter -> Submit(stop(state))
+  | Terminal.Interrupt -> Cancel
+  | Terminal.Resized(_) -> Typing(state)
+  | Terminal.Key('\u{12}') -> Typing(seek(state, Search(..s, forward = false), 1)) // C-r
+  | Terminal.Key('\u{13}') -> Typing(seek(state, Search(..s, forward = true), -1)) // C-s
+  | Terminal.Key('\u{7}') -> Typing(abandon(state, s)) // C-g
+  | Terminal.Key('\u{8}') or Terminal.Key('\u{7f}') -> Typing(shorten(state, s)) // Backspace
+  | Terminal.Key(c) -> if c < ' ' then edit(stop(state), event) else Typing(narrow(state, s, c))
   | _ -> edit(stop(state), event)
 }
 
@@ -356,20 +358,21 @@ fn alphanumeric(text : String, i : Int) -> Bool = match String.toList(String.sli
 //
 
 let typing = Test(name = "typing inserts at the cursor", run = fn() =
-    reads(play(keys("abc") <> [ArrowLeft] <> keys("X")), "abXc", 3))
+    reads(play(keys("abc") <> [Terminal.ArrowLeft] <> keys("X")), "abXc", 3))
 
 let ends = Test(name = "C-a and C-e go to the ends of the line", run = fn() =
     reads(play(keys("abc") <> [ctrl('a')] <> keys("X") <> [ctrl('e')] <> keys("Y")),
         "XabcY", 5))
 
 let backspace = Test(name = "backspace deletes what is before the cursor", run = fn() =
-    reads(play(keys("abc") <> [Key('\u{7f}')]), "ab", 2))
+    reads(play(keys("abc") <> [Terminal.Key('\u{7f}')]), "ab", 2))
 
 let forwardDelete = Test(name = "C-d deletes what is under the cursor", run = fn() =
     reads(play(keys("abc") <> [ctrl('a'), ctrl('d')]), "bc", 0))
 
 let killAndYank = Test(name = "C-k kills to the end and C-y puts it back", run = fn() =
-    reads(play(keys("abcdef") <> [ArrowLeft, ArrowLeft, ctrl('k'), ctrl('a'), ctrl('y')]),
+    reads(play(keys("abcdef")
+        <> [Terminal.ArrowLeft, Terminal.ArrowLeft, ctrl('k'), ctrl('a'), ctrl('y')]),
         "efabcd", 2))
 
 let killLine = Test(name = "C-u kills back to the start of the line", run = fn() =
@@ -379,41 +382,41 @@ let killWord = Test(name = "C-w kills the word before the cursor", run = fn() =
     reads(play(keys("one two") <> [ctrl('w')]), "one ", 4))
 
 let wordsBack = Test(name = "M-b goes to the start of the word before", run = fn() =
-    reads(play(keys("one two") <> [Escape] <> keys("b")), "one two", 4))
+    reads(play(keys("one two") <> [Terminal.Escape] <> keys("b")), "one two", 4))
 
 let wordsForward = Test(name = "M-f goes to the end of the word after", run = fn() =
-    reads(play(keys("one two") <> [ctrl('a'), Escape] <> keys("f")), "one two", 3))
+    reads(play(keys("one two") <> [ctrl('a'), Terminal.Escape] <> keys("f")), "one two", 3))
 
 let killWordForward = Test(name = "M-d kills the word after the cursor", run = fn() =
-    reads(play(keys("one two") <> [ctrl('a'), Escape] <> keys("d")), " two", 0))
+    reads(play(keys("one two") <> [ctrl('a'), Terminal.Escape] <> keys("d")), " two", 0))
 
 // report §11.2: the Meta keys' word is a run of letters and digits, and
 // C-w's runs back to a space. Regression tests: the ones above use "one
 // two", where the two agree, and passed while every key stopped at spaces
 // only. Not covered: a grapheme of several code points inside a word.
 let wordsBackInCode = Test(name = "M-b stops at a letter after punctuation", run = fn() =
-    reads(play(keys("List.map(xs") <> [Escape] <> keys("b")), "List.map(xs", 9))
+    reads(play(keys("List.map(xs") <> [Terminal.Escape] <> keys("b")), "List.map(xs", 9))
 
 let wordsForwardInCode = Test(name = "M-f stops at the end of letters", run = fn() =
-    reads(play(keys("List.map(xs") <> [ctrl('a'), Escape] <> keys("f")), "List.map(xs", 4))
+    reads(play(keys("List.map(xs") <> [ctrl('a'), Terminal.Escape] <> keys("f")), "List.map(xs", 4))
 
 let killWordForwardInCode = Test(name = "M-d kills letters and digits only", run = fn() =
-    reads(play(keys("List.map(xs") <> [ctrl('a'), Escape] <> keys("d")), ".map(xs", 0))
+    reads(play(keys("List.map(xs") <> [ctrl('a'), Terminal.Escape] <> keys("d")), ".map(xs", 0))
 
 let killWordBackInCode = Test(name = "M-Backspace kills letters and digits only", run = fn() =
-    reads(play(keys("List.map(xs") <> [Escape, Key('\u{7f}')]), "List.map(", 9))
+    reads(play(keys("List.map(xs") <> [Terminal.Escape, Terminal.Key('\u{7f}')]), "List.map(", 9))
 
 let killToSpaceInCode = Test(name = "C-w kills back to a space", run = fn() =
     reads(play(keys("f List.map(xs") <> [ctrl('w')]), "f ", 2))
 
 let submits = Test(name = "Enter submits what was typed", run = fn() =
-    match play(keys("hi") <> [Enter]) {
+    match play(keys("hi") <> [Terminal.Enter]) {
         Submit(State(text = "hi")) -> Passed
       | other -> Failed(said(other))
     })
 
 let cancels = Test(name = "C-c abandons the line", run = fn() =
-    match play(keys("hi") <> [Interrupt]) {
+    match play(keys("hi") <> [Terminal.Interrupt]) {
         Cancel -> Passed
       | other -> Failed(said(other))
     })
@@ -431,40 +434,42 @@ let clears = Test(name = "C-l clears the screen and keeps the line", run = fn() 
     })
 
 let addsLine = Test(name = "M-Enter adds a line at the cursor", run = fn() =
-    reads(play(keys("ab") <> [Escape, Enter] <> keys("c")), "ab\nc", 4))
+    reads(play(keys("ab") <> [Terminal.Escape, Terminal.Enter] <> keys("c")), "ab\nc", 4))
 
 let pastes = Test(name = "a paste goes in at the cursor, line feeds and all", run = fn() =
-    reads(play(keys("ab") <> [ArrowLeft, Pasted("x\ny")]), "ax\nyb", 4))
+    reads(play(keys("ab") <> [Terminal.ArrowLeft, Terminal.Pasted("x\ny")]), "ax\nyb", 4))
 
 let asksToComplete = Test(name = "Tab asks the reader to complete", run = fn() =
-    match play(keys("Li") <> [Key('\t')]) {
+    match play(keys("Li") <> [Terminal.Key('\t')]) {
         Completing(State(text = "Li")) -> Passed
       | other -> Failed(said(other))
     })
 
 let asksToDocument = Test(name = "Shift-Tab asks the reader for documentation",
     run = fn() =
-        match play(keys("List.map") <> [Escape] <> keys("[Z")) {
+        match play(keys("List.map") <> [Terminal.Escape] <> keys("[Z")) {
             Documenting(State(text = "List.map")) -> Passed
           | other -> Failed(said(other))
         })
 
 let escapeThenBracket = Test(name = "Escape and a bracket that is no sequence types on",
     run = fn() =
-        reads(play(keys("a") <> [Escape] <> keys("[b")), "ab", 2))
+        reads(play(keys("a") <> [Terminal.Escape] <> keys("[b")), "ab", 2))
 
 let walks = Test(name = "the arrows walk back through the inputs", run = fn() =
-    reads(plays(start(["two", "one"]), [ArrowUp, ArrowUp, ArrowUp]), "one", 3))
+    reads(plays(start(["two", "one"]), [Terminal.ArrowUp, Terminal.ArrowUp, Terminal.ArrowUp]),
+        "one", 3))
 
 let walksBack = Test(name = "walking back and returning brings back what was typed", run = fn() =
-    reads(plays(start(["old"]), keys("new") <> [ArrowUp, ArrowDown]), "new", 3))
+    reads(plays(start(["old"]), keys("new") <> [Terminal.ArrowUp, Terminal.ArrowDown]), "new", 3))
 
 let walksByKey = Test(name = "C-p and C-n walk as the arrows do", run = fn() =
     reads(plays(start(["two", "one"]), [ctrl('p'), ctrl('p'), ctrl('n')]), "two", 3))
 
 let walksToEnds = Test(name = "M-< goes to the oldest input and M-> back to the line",
     run = fn() =
-        reads(plays(start(["two", "one"]), [Escape] <> keys("<") <> [Escape] <> keys(">")), "", 0))
+        reads(plays(start(["two", "one"]),
+            [Terminal.Escape] <> keys("<") <> [Terminal.Escape] <> keys(">")), "", 0))
 
 let searches = Test(name = "C-r finds the newest input holding what is typed", run = fn() =
     reads(plays(start(["print two", "let x = 1"]), [ctrl('r')] <> keys("two")),
@@ -490,7 +495,7 @@ let searchAbandoned = Test(name = "C-g puts back the line the search began from"
         "abc", 3))
 
 let searchAccepted = Test(name = "Enter takes the input the search found", run = fn() =
-    match plays(start(["print two"]), [ctrl('r')] <> keys("two") <> [Enter]) {
+    match plays(start(["print two"]), [ctrl('r')] <> keys("two") <> [Terminal.Enter]) {
         Submit(State(text = "print two", search = None)) -> Passed
       | other -> Failed(said(other))
     })
@@ -512,19 +517,20 @@ let notKept = Test(name = "a blank input and one repeated are not kept", run = f
     else Failed("the history kept what it should not"))
 
 // Every event of a text typed a character at a time.
-fn keys(text : String) -> List(Event) = List.map(String.toList(text), fn(c) = Key(c))
+fn keys(text : String) -> List(Terminal.Event) =
+    List.map(String.toList(text), fn(c) = Terminal.Key(c))
 
 // A control key as the terminal sends it: `C-a` is 1 (§8.2).
-fn ctrl(c : Char) -> Event = match Char.fromInt(Char.toInt(c) - 96) {
-    Some(k) -> Key(k)
-  | None -> Key(c)
+fn ctrl(c : Char) -> Terminal.Event = match Char.fromInt(Char.toInt(c) - 96) {
+    Some(k) -> Terminal.Key(k)
+  | None -> Terminal.Key(c)
 }
 
 // The events in order, from a fresh line; an event after the line ended
 // changes nothing, so the first ending is what a test reads.
-fn play(events : List(Event)) -> Edit = plays(fresh, events)
+fn play(events : List(Terminal.Event)) -> Edit = plays(fresh, events)
 
-fn plays(from : State, events : List(Event)) -> Edit =
+fn plays(from : State, events : List(Terminal.Event)) -> Edit =
     List.foldLeft(events, Typing(from), fn(edited, event) = match edited {
         Typing(state) -> edit(state, event)
       | ended -> ended

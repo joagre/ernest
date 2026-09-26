@@ -1,7 +1,8 @@
-/// Output to `Sys.stdout` and `Sys.stderr`, and input from `Sys.stdin`
-/// (report §8.2). Each is a system process, so printing is a message and
-/// carries the caller's mailbox effect; pure code cannot print. A string
-/// goes to any other `Address(String)` by `send`.
+/// Output to standard output and standard error, and input from standard
+/// input, through the module's system references `stdout`, `stderr`, and
+/// `stdin` (report §8.2). Each is a system process, so printing is a
+/// message and carries the caller's mailbox effect; pure code cannot print.
+/// `Error` is the error of every system module.
 ///
 /// ## Examples
 ///
@@ -22,6 +23,34 @@
 ///
 /// since 0.1.0
 
+/// Why an operation of a system module found no answer: the file or the
+/// host is not there, access was refused, the connection was refused or
+/// has closed, the time ran out, standard input is not a terminal, or
+/// another reason, in the runtime's own words (report Appendix E.1).
+///
+/// ### Examples
+///
+/// ```ernest
+/// match Fs.read(Path("/no/such/file"), 1000) {
+///     Left(Io.NotFound) -> "missing"
+///   | Left(_) -> "failed"
+///   | Right(_) -> "read"
+/// }
+/// ```
+export type Error = NotFound | Denied | Refused | Closed | Timeout | NotATerminal | Other(String)
+
+// What standard input takes.
+type StdinMsg = ReadLine(reply : Reply(Optional(String)))
+
+// Report §8.2: the system references, the runtime's addresses of standard
+// output, standard error and standard input, bound at each start.
+let stdout : Address(Bytes) = system(Erl.atom("stdout"))
+let stderr : Address(Bytes) = system(Erl.atom("stderr"))
+let stdin : Address(StdinMsg) = system(Erl.atom("stdin"))
+
+foreign fn system(name : Foreign) -> Address(a) with m = "ern_rt:sys/1"
+
+
 /// The string to standard output, as it is, without a line feed.
 ///
 /// ### Examples
@@ -31,10 +60,10 @@
 /// Io.println("and half")
 /// // => Unit
 /// ```
-export fn print(s : String) -> Unit with m = send(Sys.stdout, s)
+export fn print(s : String) -> Unit with m = send(stdout, String.toUtf8(s))
 
 /// The string to standard output, with a line feed after it.
-export fn println(s : String) -> Unit with m = send(Sys.stdout, s <> "\n")
+export fn println(s : String) -> Unit with m = send(stdout, String.toUtf8(s <> "\n"))
 
 /// The string to standard error, as it is, without a line feed. Standard
 /// error is a second sink, for a program whose output something else reads;
@@ -47,10 +76,10 @@ export fn println(s : String) -> Unit with m = send(Sys.stdout, s <> "\n")
 /// Io.printlnError("open the file")
 /// // => Unit
 /// ```
-export fn printError(s : String) -> Unit with m = send(Sys.stderr, s)
+export fn printError(s : String) -> Unit with m = send(stderr, String.toUtf8(s))
 
 /// The string to standard error, with a line feed after it.
-export fn printlnError(s : String) -> Unit with m = send(Sys.stderr, s <> "\n")
+export fn printlnError(s : String) -> Unit with m = send(stderr, String.toUtf8(s <> "\n"))
 
 /// The next line from standard input, without its line feed, or `None` at
 /// end of input. A program reads lines or subscribes to keys, not both
@@ -62,7 +91,7 @@ export fn printlnError(s : String) -> Unit with m = send(Sys.stderr, s <> "\n")
 /// Io.readLine()
 /// ```
 export fn readLine() -> Optional(String) with m =
-    Address.callForever(Sys.stdin, fn(r) = ReadLine(reply = r))
+    Address.callForever(stdin, fn(r) = ReadLine(reply = r))
 
 /// The value printed as Ernest writes it, by its type at the call, and
 /// returned, so it wraps an expression where it stands: `let n =

@@ -1,10 +1,10 @@
-%% Report §9.3: the keys of Appendix E.16, decoded from what a terminal
+%% Report Appendix E.16: the keys of Appendix E.16, decoded from what a terminal
 %% sends. The reading itself needs a terminal; the decoding does not.
 -module(ern_tty_tests).
 
 -include_lib("eunit/include/eunit.hrl").
 
-%% report §9.3: a character, the arrows, Enter, and Escape
+%% report Appendix E.16: a character, the arrows, Enter, and Escape
 decode_test() ->
     ?assertEqual({[{'Key', $a}, {'Key', $b}], []}, ern_tty:decode("ab")),
     ?assertEqual({['Enter', 'Enter'], []}, ern_tty:decode("\n\r")),
@@ -14,14 +14,14 @@ decode_test() ->
     ?assertEqual({['Escape', {'Key', $z}], []}, ern_tty:decode("\ez")),
     ?assertEqual({[{'Key', 16#E9}], []}, ern_tty:decode([16#E9])).
 
-%% report §9.3: an escape that may still grow into an arrow waits for the
+%% report Appendix E.16: an escape that may still grow into an arrow waits for the
 %% rest, and the caller passes what is left back in
 partial_sequence_test() ->
     ?assertEqual({[], "\e"}, ern_tty:decode("\e")),
     ?assertEqual({[], "\e["}, ern_tty:decode("\e[")),
     {[], Rest} = ern_tty:decode("\e["),
     ?assertEqual({['ArrowUp'], []}, ern_tty:decode(Rest ++ "A")),
-    %% report §9.3: a sequence §9.3 does not name is the Escape key and the
+    %% report Appendix E.16: a sequence Appendix E.16 does not name is the Escape key and the
     %% characters after it, which is how Meta and the page keys arrive
     ?assertEqual({['Escape', {'Key', $[}, {'Key', $5}, {'Key', $~}], []},
                  ern_tty:decode("\e[5~")).
@@ -35,7 +35,7 @@ flush_test() ->
     %% a sequence that did arrive whole is decoded, not flushed
     ?assertEqual({['ArrowUp'], []}, ern_tty:decode("\e[A")).
 
-%% report §8.2, §9.3: the terminal's process delivers each key as an
+%% report §8.2, Appendix E.16: the terminal's process delivers each key as an
 %% `Event`, a lone Escape after the pause
 %% and an arrow at once; ern_rt:send needs a run, so this one has one
 escape_pause_test() ->
@@ -101,7 +101,7 @@ subscribe(Tty) ->
     Me = ern_rt:self(),
     ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Reply, Me} end, 5000).
 
-%% report §8.2, §9.3: a paste is one event and not the keys of its
+%% report §8.2, Appendix E.16: a paste is one event and not the keys of its
 %% characters, its line endings are line feeds whichever the terminal
 %% sends, and what has arrived of a paste waits for the end the terminal
 %% puts after it, however small the pieces the reader hands over

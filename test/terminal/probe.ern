@@ -3,7 +3,7 @@
 // Each key is printed as it arrives; Escape ends the program.
 //
 
-type Msg = E(Event)
+type Msg = E(Terminal.Event)
 
 // `ready` is printed after the subscription, not before: it is what the
 // harness waits for, and until the subscription the terminal still echoes.
@@ -15,24 +15,24 @@ export fn main() -> Unit with Msg = {
 
 fn sizeText() -> String with m = match Terminal.size() {
     None -> "no size"
-  | Some(Size(rows = rows, columns = columns)) ->
+  | Some(Terminal.Size(rows = rows, columns = columns)) ->
         Int.toString(rows) <> "x" <> Int.toString(columns)
 }
 
 fn loop() -> Unit with Msg = receive {
-    E(Escape) -> Io.println("escape")
-  | E(ArrowUp) -> { Io.println("up"); loop() }
-  | E(ArrowDown) -> { Io.println("down"); loop() }
-  | E(ArrowLeft) -> { Io.println("left"); loop() }
-  | E(ArrowRight) -> { Io.println("right"); loop() }
-  | E(Enter) -> { Io.println("enter"); loop() }
-  | E(Interrupt) -> { Io.println("interrupt"); loop() }
-  | E(Key(c)) -> { Io.println("char " <> Char.toString(c)); loop() }
-  | E(Pasted(text)) -> {
+    E(Terminal.Escape) -> Io.println("escape")
+  | E(Terminal.ArrowUp) -> { Io.println("up"); loop() }
+  | E(Terminal.ArrowDown) -> { Io.println("down"); loop() }
+  | E(Terminal.ArrowLeft) -> { Io.println("left"); loop() }
+  | E(Terminal.ArrowRight) -> { Io.println("right"); loop() }
+  | E(Terminal.Enter) -> { Io.println("enter"); loop() }
+  | E(Terminal.Interrupt) -> { Io.println("interrupt"); loop() }
+  | E(Terminal.Key(c)) -> { Io.println("char " <> Char.toString(c)); loop() }
+  | E(Terminal.Pasted(text)) -> {
         Io.println("pasted " <> String.replace(text, "\n", "|"));
         loop()
     }
-  | E(Resized(Size(rows = rows, columns = columns))) -> {
+  | E(Terminal.Resized(Terminal.Size(rows = rows, columns = columns))) -> {
         Io.println("resized " <> Int.toString(rows) <> "x" <> Int.toString(columns));
         loop()
     }

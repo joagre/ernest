@@ -23,7 +23,7 @@ Then read the modules under [`shell/`](shell/) in any order. A file's path is it
 
 The three message types, `ShellMsg`, `ScreenMsg` and `ReaderMsg`, stand at the top of `shell.ern`; their comments say what each message means and who sends it.
 
-The same short names recur across modules. `Typing`, `Clear` and `Leave` are both `Shell.Editor.Edit` constructors and `Shell`'s own, and `State` is a type in `Shell` and in `Shell.Editor`. A name qualified with its module is that module's. An unqualified name is the file's own, or else the prelude's: `Event`, `Size`, `Down`, `IoError`, `Path`, and `Test` are the prelude's. The prelude also declares an `Entry`, so a module that declares its own writes the prelude's as `Prelude.Entry`.
+The same short names recur across modules. `Typing`, `Clear` and `Leave` are both `Shell.Editor.Edit` constructors and `Shell`'s own, and `State` is a type in `Shell` and in `Shell.Editor`. A name qualified with its module is that module's. An unqualified name is the file's own, or else the prelude's: `Down`, `Path`, and `Test` are the prelude's. A system module's types are written with its name, `Terminal.Event`, `Terminal.Size`, `Io.Error`, and `Fs.Entry`.
 
 ### Start and end
 
@@ -58,7 +58,7 @@ While an input runs, the reader goes on reading keys. `await` receives only `Don
 |---|---|---|
 | `Shell` | [`shell.ern`](shell.ern) | The three processes and the front end's declarations. Everything that sends, receives, or reaches the host is here, except the history file. |
 | `Shell.Command` | [`shell/command.ern`](shell/command.ern) | The table of commands, in one place: what each does, what it takes, what completes after it, and its help line. It also parses a command line and a `:set` argument. |
-| `Shell.Editor` | [`shell/editor.ern`](shell/editor.ern) | The line editor. It takes a `State` and an `Event` and gives an `Edit`. It implements Readline's Emacs keys, the walk through the history, and the incremental search. |
+| `Shell.Editor` | [`shell/editor.ern`](shell/editor.ern) | The line editor. It takes a `State` and a `Terminal.Event` and gives an `Edit`. It implements Readline's Emacs keys, the walk through the history, and the incremental search. |
 | `Shell.Complete` | [`shell/complete.ern`](shell/complete.ern) | Completion: it matches a word against names, by prefix and by the starts of their words, and finds what the candidates share. |
 | `Shell.Region` | [`shell/region.ern`](shell/region.ern) | The live region at the foot of the terminal. Each event takes the region and gives the region after it and the bytes to write. |
 | `Shell.History` | [`shell/history.ern`](shell/history.ern) | The history file, over `Fs`: reading it, trimming it, appending to it, and the escaping that keeps each input on one line. Only the file's path is `foreign`. |

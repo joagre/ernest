@@ -17,9 +17,10 @@ values_test() ->
     Report = lists:sort(lists:append([signature(L) || L <- Lines])),
     %% a module written in Ernest gives its signatures by its interface; the
     %% restrictions the compiler infers and prints, `a=` and `a!`, are never
-    %% written (report §3.9), so they are left out of the comparison
+    %% written (report §3.9), so they are left out of the comparison; a
+    %% module's section writes its own types unqualified (§4.2)
     St = ern_typecheck:type_state(ern_typecheck:prelude_env()),
-    Compiled = [{qname(Q), normalize(unmarked(ern_types:format_scheme(S, St)))}
+    Compiled = [{qname(Q), normalize(own(Q, unmarked(ern_types:format_scheme(S, St))))}
                 || I <- ern_prelude:stdlib_ifaces(), {Q, S} <- maps:to_list(element(4, I))],
     %% a §9.6 operation is in the table, which types it before any module is
     %% installed, and in its module's interface: it counts once when the two
@@ -48,7 +49,7 @@ prelude_documented_test() ->
     Undocumented = [N || #type_decl{doc = undefined, name = N} <- Decls],
     ?assertEqual([], Undocumented),
     Own = [Q || {Q, _, D} <- ern_prelude:values(), is_binary(D)],
-    ?assert(length(Own) >= 18),
+    ?assert(length(Own) >= 12),
     ModuleOnly = [Q || {Q, _, module} <- ern_prelude:values()],
     Missing = [Q || [Ns, Name] = Q <- ModuleOnly, not in_module_docs(Ns, Name)],
     ?assertEqual([], Missing),
@@ -140,6 +141,11 @@ stdlib_types_test() ->
 unmarked(Text) ->
     re:replace(Text, "\\b([a-z][a-z0-9]*)[=!]+", "\\1", [global, {return, list}]).
 
+%% A type text with the names of the value's own module unqualified.
+own(Q, Text) ->
+    Ns = qname(lists:droplast(Q)),
+    re:replace(Text, "\\b" ++ Ns ++ "\\.(?=[A-Z])", "", [global, {return, list}]).
+
 %% `type T(p, q) = ...` with its parameters renamed a, b, ... in order.
 rename(Decl) ->
     case re:run(Decl, "^(?:foreign )?type \\w+\\(([^)]*)\\)", [{capture, all_but_first, list}]) of
@@ -165,6 +171,9 @@ compiled_decl(_Ns, TI) when element(7, TI) ->
                _ -> "(" ++ lists:join(", ", [atom_to_list(P) || P <- Params]) ++ ")"
            end,
     normalize(lists:flatten(["foreign type ", atom_to_list(lists:last(Q)), Head]));
+compiled_decl(_Ns, #tinfo{abstract = true, qname = Q, params = []}) ->
+    %% report §4.4: an abstract type is listed without its constructors
+    "abstract type " ++ atom_to_list(lists:last(Q));
 compiled_decl(Ns, TI) ->
     Q = element(2, TI),
     Params = element(3, TI),
@@ -174,11 +183,23 @@ compiled_decl(Ns, TI) ->
                [] -> "";
                _ -> "(" ++ lists:join(", ", [maps:get(Id, Names) || {tvar, Id} <- Params]) ++ ")"
            end,
-    Cons = [con_text(C, Ns, Names) || C <- element(4, TI)],
+    Order = declared_fields(Ns),
+    Cons = [con_text(C, Ns, Names, Order) || C <- element(4, TI)],
     normalize(lists:flatten(["type ", atom_to_list(lists:last(Q)), Head, " = ",
                              lists:join(" | ", Cons)])).
 
-con_text(CI, Ns, Names) ->
+%% The field names of each constructor of a module's source, in the order
+%% declared, which the interface does not keep (its fields are canonical).
+declared_fields(Ns) ->
+    {ok, Source} = file:read_file(stdlib_file(Ns)),
+    {ok, Decls} = ern_parser:parse_string(Source),
+    Types = [T || #type_decl{} = T <- Decls]
+        ++ [T || #abstract_decl{type = T} <- Decls],
+    maps:from_list([{C, [F || #field{name = F} <- Fields]}
+                    || #type_decl{constructors = Cs} <- Types,
+                       #constructor{name = C, fields = {named, Fields}} <- Cs]).
+
+con_text(CI, Ns, Names, Order) ->
     Name = atom_to_list(element(2, CI)),
     Fields = case element(7, CI) of
                  {scheme, _, {tfn, FieldTs, _, _}, _} -> FieldTs;
@@ -188,8 +209,10 @@ con_text(CI, Ns, Names) ->
         {none, _} -> Name;
         {positional, [T]} -> Name ++ "(" ++ type_text(T, Ns, Names) ++ ")";
         {{named, Fs}, FTs} ->
-            Name ++ "(" ++ lists:join(", ", [atom_to_list(F) ++ " : " ++ type_text(T, Ns, Names)
-                                             || {F, T} <- lists:zip(Fs, FTs)]) ++ ")"
+            Typed = lists:zip(Fs, FTs),
+            Name ++ "(" ++ lists:join(", ", [atom_to_list(F) ++ " : "
+                                             ++ type_text(proplists:get_value(F, Typed), Ns, Names)
+                                             || F <- maps:get(element(2, CI), Order)]) ++ ")"
     end.
 
 type_text({tvar, Id}, _, Names) -> maps:get(Id, Names);
@@ -285,6 +308,7 @@ group([L | Ls]) ->
 
 is_declaration("type " ++ _) -> true;
 is_declaration("foreign type " ++ _) -> true;
+is_declaration("abstract type " ++ _) -> true;
 is_declaration(_) -> false.
 
 continuation(" " ++ _) -> true;

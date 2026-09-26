@@ -1,4 +1,4 @@
-/// Time from `Sys.clock`, the system process that keeps it (report §8.2).
+/// Time from the clock, the system process that keeps it (report §8.2).
 /// Times are milliseconds since the epoch. An alarm fires once and cannot
 /// be cancelled: a process that no longer wants it ignores the message, and
 /// a periodic tick is scheduled again after the previous one is handled.
@@ -16,8 +16,19 @@
 ///
 /// since 0.1.0
 
+// What the clock takes: times in milliseconds, the time an alarm fires
+// sent to its `to`.
+type Msg = After(ms : Int, to : Address(Int)) | At(at : Int, to : Address(Int))
+  | Now(reply : Reply(Int))
+
+// Report §8.2: the system reference, the runtime's address of the clock,
+// bound at each start.
+let reference : Address(Msg) = system(Erl.atom("clock"))
+
+foreign fn system(name : Foreign) -> Address(Msg) with m = "ern_rt:sys/1"
+
 /// The time now.
-export fn now() -> Int with m = Address.callForever(Sys.clock, fn(r) = Now(reply = r))
+export fn now() -> Int with m = Address.callForever(reference, fn(r) = Now(reply = r))
 
 /// After that many milliseconds, `wrap(t)` arrives in the caller's mailbox,
 /// `t` the time it fired. A single-positional constructor passes as
@@ -29,7 +40,7 @@ export fn now() -> Int with m = Address.callForever(Sys.clock, fn(r) = Now(reply
 /// Clock.alarm(10, fn(_) = Unit)
 /// ```
 export fn alarm(ms : Int, wrap : (Int) -> m) -> Unit with m =
-    send(Sys.clock, After(ms = ms, to = via(wrap, self())))
+    send(reference, After(ms = ms, to = via(wrap, self())))
 
 /// At that time, `wrap(t)` arrives in the caller's mailbox, `t` the time it
 /// fired; a time already past arrives at once.
@@ -40,4 +51,4 @@ export fn alarm(ms : Int, wrap : (Int) -> m) -> Unit with m =
 /// Clock.alarmAt(Clock.now() + 10, fn(_) = Unit)
 /// ```
 export fn alarmAt(at : Int, wrap : (Int) -> m) -> Unit with m =
-    send(Sys.clock, At(at = at, to = via(wrap, self())))
+    send(reference, At(at = at, to = via(wrap, self())))

@@ -248,10 +248,6 @@ declared_types() ->
     /// // => "division by zero"
     /// ```
     type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
-    /// The messages `Sys.clock` takes. A program uses the `Clock` module and
-    /// never sends to the clock itself (report Appendix E.0 rule 8).
-    type ClockMsg = After(ms : Int, to : Address(Int)) | At(at : Int, to : Address(Int))
-      | Now(reply : Reply(Int))
     /// Why `remote` has no answer: no peer takes remote computation, or the peer
     /// was lost before it answered (report §6.7).
     ///
@@ -283,20 +279,6 @@ declared_types() ->
     /// RestartLimit(restarts = 3, within = 5000)
     /// ```
     type RestartLimit = RestartLimit(restarts : Int, within : Int)
-    /// The terminal's window, in rows and columns, as the terminal reports it
-    /// (report §8.2).
-    type Size = Size(rows : Int, columns : Int)
-    /// What the terminal delivers to its subscriber: a key, an arrow, `Enter`,
-    /// `Escape`, the interrupt, a paste, or a new size (report §8.2).
-    type Event = Key(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter
-               | Escape | Interrupt | Pasted(String) | Resized(Size)
-    /// The messages `Sys.terminal` takes. A program uses the `Terminal` module
-    /// (report Appendix E.0 rule 8).
-    type TerminalMsg = Subscribe(to : Address(Event), reply : Reply(Unit))
-                     | Measure(reply : Reply(Optional(Size)))
-    /// The messages `Sys.stdin` takes. A program reads a line with
-    /// `Io.readLine` (report Appendix E.0 rule 8).
-    type StdinMsg = ReadLine(reply : Reply(Optional(String)))
     /// A file system path, in the runtime's syntax; the `Path` module takes it
     /// apart (report Appendix E.14).
     ///
@@ -307,35 +289,6 @@ declared_types() ->
     /// // => "a.txt"
     /// ```
     type Path = Path(String)
-    /// What `Fs.stat` and `Fs.list` tell of a file: its path, its modification
-    /// time, its size in bytes, and whether it is a directory.
-    type Entry = Entry(path : Path, mtime : Int, size : Int, isDir : Bool)
-    /// Why an operation of `Fs` or `Tcp` failed. `Other` carries the runtime's
-    /// own account.
-    type IoError = NotFound | Denied | Refused | Closed | Timeout | Other(String)
-    /// The messages `Sys.fs` takes. A program uses the `Fs` module (report
-    /// Appendix E.0 rule 8).
-    type FsMsg =
-        ReadFile(path : Path, reply : Reply(Either(IoError, Bytes)))
-      | WriteFile(path : Path, bytes : Bytes, reply : Reply(Either(IoError, Unit)))
-      | AppendFile(path : Path, bytes : Bytes, reply : Reply(Either(IoError, Unit)))
-      | ListDir(path : Path, reply : Reply(Either(IoError, List(Entry))))
-      | Stat(path : Path, reply : Reply(Either(IoError, Entry)))
-      | MakeDir(path : Path, reply : Reply(Either(IoError, Unit)))
-      | Remove(path : Path, reply : Reply(Either(IoError, Unit)))
-      | Rename(from : Path, to : Path, reply : Reply(Either(IoError, Unit)))
-      | Copy(from : Path, to : Path, reply : Reply(Either(IoError, Unit)))
-    /// The messages `Sys.tcp` takes. A program uses the `Tcp` module (report
-    /// Appendix E.0 rule 8).
-    type TcpMsg =
-        Listen(port : Int, reply : Reply(Either(IoError, Address(ListenerMsg))))
-      | Connect(host : String, port : Int, reply : Reply(Either(IoError, Address(SockMsg))))
-    /// The messages a listening socket takes. A program uses `Tcp.accept`
-    /// (report Appendix E.0 rule 8).
-    type ListenerMsg = Accept(reply : Reply(Either(IoError, Address(SockMsg))))
-    /// The messages a connected socket takes. A program uses `Tcp.read`,
-    /// `Tcp.write`, and `Tcp.close` (report Appendix E.0 rule 8).
-    type SockMsg = Recv(reply : Reply(Either(IoError, Bytes))) | Send(Bytes) | Close
     /// A test that `ern test` runs: its name, and a function that answers
     /// whether it passed (report §9.3, §11.2).
     ///
@@ -392,7 +345,7 @@ values() ->
       ### Examples
 
       ```ernest
-      send(Sys.stdout, "hello\n")
+      send(self(), 42)
       ```
       """/utf8>>},
      {[spawn], "(Where, () -> Unit with n) -> Address(n) with m",
@@ -440,8 +393,8 @@ values() ->
 
       ```ernest
       {
-          let lines = via(fn(n) = Int.toString(n) <> "\n", Sys.stdout);
-          send(lines, 42)
+          let texts = via(fn(n) = Int.toString(n), self());
+          send(texts, 42)
       }
       ```
       """/utf8>>},
@@ -584,23 +537,8 @@ values() ->
       ```ernest
       fn(xs : List(Int)) -> Int = match xs { x :: _ -> x | [] -> fault("never empty here") }
       ```
-      """/utf8>>},
-     %% §9.7 system references; a program uses them through their modules
-     {['Sys', stdout], "Address(String)",
-      <<"The process that writes a program's output; `Io.println` sends to it.">>},
-     {['Sys', stderr], "Address(String)",
-      <<"The process that writes a program's diagnostics; `Io.printlnError` sends to it.">>},
-     {['Sys', stdin], "Address(StdinMsg)",
-      <<"The process that reads standard input a line at a time; `Io.readLine` asks it.">>},
-     {['Sys', terminal], "Address(TerminalMsg)",
-      <<"The process that holds the terminal for one subscriber; the `Terminal` module "
-        "speaks to it.">>},
-     {['Sys', clock], "Address(ClockMsg)",
-      <<"The process that tells the time and sets alarms; the `Clock` module speaks to it.">>},
-     {['Sys', fs], "Address(FsMsg)",
-      <<"The process that reads and writes files; the `Fs` module speaks to it.">>},
-     {['Sys', tcp], "Address(TcpMsg)",
-      <<"The process that opens sockets; the `Tcp` module speaks to it.">>}].
+      """/utf8>>}
+].
 
 %% Report §9, §11.4: the prelude's documentation, as an EEP 48 chunk of the
 %% shape ern_docs:build/4 builds for a module, so that one renderer serves
@@ -656,8 +594,8 @@ arity(Text) ->
 prelude_doc() ->
     <<"""
     The names every module has without writing a module's name: the built-in
-    types, the types the language's rules and the system references speak, the
-    process functions, `fault`, and the system references (report §9). An
+    types, the types the language's rules name and those whose module is named
+    after them, the process functions, and `fault` (report §9). An
     operation in a type's namespace, `Int.compare`, is documented by that
     type's module.
 

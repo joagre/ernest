@@ -1,4 +1,4 @@
-%% Report §8.2, §9.3, Appendix E.18: the process behind Sys.tcp, and the
+%% Report §8.2, Appendix E.18: the process behind Tcp's reference, and the
 %% processes behind a listener and a socket. A socket is a process: it owns
 %% the port, it dies with the connection, and its address can be monitored,
 %% killed, and adapted like any other. Data arrives as {active, once} so a

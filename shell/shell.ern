@@ -129,7 +129,7 @@ type ScreenMsg =
   | Typing(text : String, at : Int, rows : List(String)) | Entered | Taken | Resize | Clear
   | Height(Int) | Flush(reply : Reply(Unit))
 
-type ReaderMsg = K(Event)
+type ReaderMsg = K(Terminal.Event)
 
 // What the reader carries between keys: the line being edited, whether
 // the history file still takes what is typed, whether this session has
@@ -253,7 +253,7 @@ fn startup(state : State, screen : Address(ScreenMsg)) -> Next with ShellMsg =
 // and the session goes on. Each input carries the line it is on.
 fn fileInputs(screen : Address(ScreenMsg), file : String)
     -> List(#(String, Int, String)) with m = match Fs.read(Path(file), fileWait) {
-    Left(NotFound) -> []
+    Left(Io.NotFound) -> []
   | Left(why) -> { say(screen, file <> " could not be read: " <> trouble(why)); [] }
   | Right(bytes) -> {
         let text = Optional.withDefault(String.fromUtf8(bytes), "");
@@ -266,13 +266,14 @@ fn fileInputs(screen : Address(ScreenMsg), file : String)
 // How long to wait for the file system, which is a local file.
 let fileWait = 5000
 
-fn trouble(why : IoError) -> String = match why {
-    NotFound -> "the file is not there"
-  | Denied -> "permission was denied"
-  | Refused -> "the file system refused"
-  | Closed -> "the file was closed"
-  | Timeout -> "the file system did not answer"
-  | Other(text) -> text
+fn trouble(why : Io.Error) -> String = match why {
+    Io.NotFound -> "the file is not there"
+  | Io.Denied -> "permission was denied"
+  | Io.Refused -> "the file system refused"
+  | Io.Closed -> "the file was closed"
+  | Io.Timeout -> "the file system did not answer"
+  | Io.NotATerminal -> "standard input is not a terminal"
+  | Io.Other(text) -> text
 }
 
 // Report §11.2: a startup input runs as a typed one, a command among them,
@@ -602,7 +603,7 @@ fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : 
     -> Unit with ReaderMsg = {
     let Reading(editing = editing, keeping = keeping) = reading;
     receive {
-        K(Resized(_)) -> {
+        K(Terminal.Resized(_)) -> {
             send(screen, Resize);
             readLoop(session, screen, reading)
         }
@@ -800,14 +801,14 @@ fn sourceModules(typed : String) -> List(Shell.Complete.Name) with m = {
     }
 }
 
-fn sourceModule(prefix : String, entry : Prelude.Entry) -> Optional(Shell.Complete.Name) =
+fn sourceModule(prefix : String, entry : Fs.Entry) -> Optional(Shell.Complete.Name) =
     match entry {
-        Prelude.Entry(path = path, isDir = true) ->
+        Fs.Entry(path = path, isDir = true) ->
             Optional.map(segment(Path.name(path)), fn(s) = {
                 let text = prefix <> s;
                 Shell.Complete.Name(text = text, kind = Shell.Complete.Module, shown = text <> ".")
             })
-      | Prelude.Entry(path = path) ->
+      | Fs.Entry(path = path) ->
             if Path.extension(path) != Some("ern") then None
             else Optional.map(segment(Path.name(Path.withExtension(path, ""))), fn(s) = {
                 let text = prefix <> s;
@@ -913,7 +914,7 @@ fn rendered(text : String, width : Int, colour : Bool) -> List(String) =
 fn styleOf(colour : Bool) -> Markdown.Style = if colour then Markdown.Styled else Markdown.Plain
 
 fn screenWidth() -> Int with m = match Terminal.size() {
-    Some(Size(columns = columns)) -> columns
+    Some(Terminal.Size(columns = columns)) -> columns
   | None -> 80
 }
 

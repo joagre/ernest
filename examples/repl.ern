@@ -8,7 +8,7 @@
 // terminates must be abortable).
 //
 // Assumptions. Io.readLine is the standard library's (report Appendix E) over
-// Sys.stdin (§8.2). ParseError.toString and EvalError.toString are hand-written
+// standard input (§8.2). ParseError.toString and EvalError.toString are hand-written
 // renderings for stdout. main runs the loop itself so the program keeps
 // running (report §8.6).
 //

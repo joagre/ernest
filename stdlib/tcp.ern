@@ -1,4 +1,4 @@
-/// TCP over `Sys.tcp`, the system process that opens sockets (report §8.2).
+/// TCP over its system process, which opens sockets (report §8.2).
 /// A socket is a process: its address can be sent, monitored, killed, and
 /// adapted with `via` like any other, and it dies with the connection, so a
 /// program learns of a peer going away the way it learns of any process
@@ -35,11 +35,42 @@
 ///
 /// since 0.1.0
 
-/// A listener on that port; port 0 asks the runtime for a free one.
-export fn listen(port : Int) -> Either(IoError, Address(ListenerMsg)) with m =
-    Address.callForever(Sys.tcp, fn(r) = Listen(port = port, reply = r))
+/// What a listener takes; a program uses `Tcp.accept` (report Appendix
+/// E.18).
+///
+/// ### Examples
+///
+/// ```ernest
+/// Either.map(Tcp.listen(0), fn(listener) = listener)
+/// ```
+export abstract type ListenerMsg = Accept(reply : Reply(Either(Io.Error, Address(SockMsg))))
 
-/// The next connection to the listener, or `Left(Timeout)` when none comes
+/// What a connected socket takes; a program uses `Tcp.read`, `Tcp.write`,
+/// and `Tcp.close` (report Appendix E.18).
+///
+/// ### Examples
+///
+/// ```ernest
+/// Tcp.connect("127.0.0.1", 7000, 1000)
+/// ```
+export abstract type SockMsg = Recv(reply : Reply(Either(Io.Error, Bytes))) | Send(Bytes) | Close
+
+// What TCP's system process takes.
+type Msg =
+    Listen(port : Int, reply : Reply(Either(Io.Error, Address(ListenerMsg))))
+  | Connect(host : String, port : Int, reply : Reply(Either(Io.Error, Address(SockMsg))))
+
+// Report §8.2: the system reference, the runtime's address of the TCP process,
+// bound at each start.
+let reference : Address(Msg) = system(Erl.atom("tcp"))
+
+foreign fn system(name : Foreign) -> Address(Msg) with m = "ern_rt:sys/1"
+
+/// A listener on that port; port 0 asks the runtime for a free one.
+export fn listen(port : Int) -> Either(Io.Error, Address(ListenerMsg)) with m =
+    Address.callForever(reference, fn(r) = Listen(port = port, reply = r))
+
+/// The next connection to the listener, or `Left(Io.Timeout)` when none comes
 /// in time.
 ///
 /// ### Examples
@@ -51,17 +82,17 @@ export fn listen(port : Int) -> Either(IoError, Address(ListenerMsg)) with m =
 /// }
 /// ```
 export fn accept(listener : Address(ListenerMsg), ms : Int)
-    -> Either(IoError, Address(SockMsg)) with m =
+    -> Either(Io.Error, Address(SockMsg)) with m =
     answered(Address.call(listener, fn(r) = Accept(reply = r), ms))
 
 /// A connection to that host and port.
 export fn connect(host : String, port : Int, ms : Int)
-    -> Either(IoError, Address(SockMsg)) with m =
-    answered(Address.call(Sys.tcp, fn(r) = Connect(host = host, port = port, reply = r), ms))
+    -> Either(Io.Error, Address(SockMsg)) with m =
+    answered(Address.call(reference, fn(r) = Connect(host = host, port = port, reply = r), ms))
 
 /// What has arrived, at least one octet, or `Left(Closed)` when the peer
-/// has closed, or `Left(Timeout)` when nothing comes in time.
-export fn read(socket : Address(SockMsg), ms : Int) -> Either(IoError, Bytes) with m =
+/// has closed, or `Left(Io.Timeout)` when nothing comes in time.
+export fn read(socket : Address(SockMsg), ms : Int) -> Either(Io.Error, Bytes) with m =
     answered(Address.call(socket, fn(r) = Recv(reply = r), ms))
 
 /// Writes the octets to the socket.
@@ -71,5 +102,5 @@ export fn write(socket : Address(SockMsg), bytes : Bytes) -> Unit with m =
 /// Closes the socket, which ends its process.
 export fn close(socket : Address(SockMsg)) -> Unit with m = send(socket, Close)
 
-fn answered(answer : Optional(Either(IoError, a))) -> Either(IoError, a) =
-    Optional.withDefault(answer, Left(Timeout))
+fn answered(answer : Optional(Either(Io.Error, a))) -> Either(Io.Error, a) =
+    Optional.withDefault(answer, Left(Io.Timeout))

@@ -520,7 +520,7 @@ io_debug_escapes_test() ->
 %% report §8.2: keys and lines are the same terminal, so a program that
 %% does both ends with a fault naming the side that holds it
 terminal_is_lines_or_keys_test() ->
-    {R1, _} = run("type Msg = Pressed(Event)\n"
+    {R1, _} = run("type Msg = Pressed(Terminal.Event)\n"
                   "export fn main() -> Unit with Msg = {\n"
                   "    let _ = Io.readLine();\n"
                   "    Terminal.subscribe(Pressed);\n"
@@ -1649,12 +1649,12 @@ clock_path_test() ->
         "}\n"),
     ?assertEqual(<<"true\na/b\n">>, Out).
 
-%% report §8.5, §8.2: the Sys.* references are bound before the top-level
-%% lets are evaluated
-sys_in_let_test() ->
-    {ok, Out} = run("let out = Sys.stdout\n"
-                    "export fn main() -> Unit with Never = send(out, \"via let\\n\")\n"),
-    ?assertEqual(<<"via let\n">>, Out).
+%% report §8.5, §8.2: a system module's reference is bound before the
+%% program's own top-level lets are evaluated, so an initializer may print
+system_reference_in_let_test() ->
+    {ok, Out} = run("let greeting = Io.println(\"from a let\")\n"
+                    "export fn main() -> Unit with Never = Io.println(\"from main\")\n"),
+    ?assertEqual(<<"from a let\nfrom main\n">>, Out).
 
 %% report §9, Appendix E; plan 2.1 table two: every prelude value the
 %% checker knows is emitted as a call to a function that exists, with the
@@ -1744,10 +1744,18 @@ kill_dead_test() ->
         "}\n"),
     ?assertEqual(<<"Down(reason = Unknown, site = \"\")\n">>, Out).
 
-%% report §8.2, §9.7: Sys.stdout is a value
-sys_stdout_test() ->
-    {ok, Out} = run("export fn main() -> Unit with Never = send(Sys.stdout, \"hi\\n\")\n"),
-    ?assertEqual(<<"hi\n">>, Out).
+%% report §8.2, §9.7: a system reference is private to its module, and
+%% the prelude binds none, so a program names neither `Io.stdout` nor
+%% `Sys.stdout`, and a system module's message is not a program's to make
+system_reference_private_test() ->
+    Refused = fun(Main) ->
+                      ern_typecheck:check_string(['M'],
+                                                 "export fn main() -> Unit with Never = "
+                                                 ++ Main ++ "\n")
+              end,
+    ?assertMatch({error, _}, Refused("send(Io.stdout, String.toUtf8(\"hi\"))")),
+    ?assertMatch({error, _}, Refused("send(Sys.stdout, \"hi\")")),
+    ?assertMatch({error, _}, Refused("{ let _ = Clock.Now; Unit }")).
 
 
 %% report §8.5: a compiled module declares the modules it depends on, as

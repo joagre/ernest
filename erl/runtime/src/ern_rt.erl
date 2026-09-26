@@ -220,12 +220,9 @@ monitor(Addr, Wrap) ->
 
 -spec kill(address()) -> 'Unit'.
 kill(Addr) ->
-    Pid = process_of(Addr),
-    %% report §6.9: a system process is the runtime's to end
-    lists:member(Pid, [persistent_term:get({?MODULE, K}, undefined)
-                       || K <- [stdout, stderr, stdin, fs, terminal, tcp, clock]])
-        andalso fault(<<"a system process is the runtime's">>),
-    exit(Pid, {ern, killed}),
+    %% report §8.2: no program can name a system process, whose reference is
+    %% private to its module, so any address given here is a program's
+    exit(process_of(Addr), {ern, killed}),
     ?UNIT.
 
 reason(normal) -> 'Returned';
@@ -673,7 +670,7 @@ chomp(Bin) ->
         _ -> Bin
     end.
 
-%% ClockMsg, report §9.3: After(ms, to), At(at, to), Now(reply). Alarms are
+%% Clock's message, report Appendix E.15: After(ms, to), At(at, to), Now(reply). Alarms are
 %% delivered through the clock itself, so each is counted as a source while
 %% it is pending (report §8.6).
 clock_loop() ->
@@ -719,7 +716,7 @@ arm(Deadline, To) ->
 %% the entry process faults with `Fault("deadlock")`), or {signal, Signal}
 %% if the host's termination or hangup ended the program. Every local process is then ended with
 %% ProgramEnd and stdout is flushed, however the run ended. Opts: init => a
-%% function run in main's process before Main, after the Sys.* references
+%% function run in main's process before Main, after the system references
 %% are bound and the standard library's lets evaluated, for the program's
 %% own top-level lets (report §8.5); stdout, stderr =>
 %% fun((binary()) -> any()), stdin => fun(() -> eof | {error, term()} |

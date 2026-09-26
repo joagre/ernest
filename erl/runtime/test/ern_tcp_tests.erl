@@ -1,4 +1,4 @@
-%% Report §9.3, Appendix E.18: the process behind a socket.
+%% Report Appendix E.18: the process behind a socket.
 -module(ern_tcp_tests).
 
 -include_lib("eunit/include/eunit.hrl").

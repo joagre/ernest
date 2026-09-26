@@ -9,7 +9,7 @@
 // source.
 //
 // Assumptions. Terminal, Clock, and Random are the standard library's
-// (report Appendix E); Event and Size are the prelude's (§9.3).
+// (report Appendix E); Terminal.Event and Terminal.Size are the module's.
 // main runs the game loop itself so that the world is one value in one
 // place, and while it runs the program keeps running (report §8.6).
 //
@@ -81,12 +81,12 @@ fn drain(world : World, n : Int) -> World with GameMsg =
     }
 
 // One process per player: translates keys into Input.
-fn player(id : Int, game : Address(GameMsg)) -> Unit with Event = receive {
-    ArrowUp -> { send(game, In(Turn(id = id, dir = N))); player(id, game) }
-  | ArrowDown -> { send(game, In(Turn(id = id, dir = S))); player(id, game) }
-  | ArrowLeft -> { send(game, In(Turn(id = id, dir = W))); player(id, game) }
-  | ArrowRight -> { send(game, In(Turn(id = id, dir = E))); player(id, game) }
-  | Escape -> send(game, In(Leave(id)))
+fn player(id : Int, game : Address(GameMsg)) -> Unit with Terminal.Event = receive {
+    Terminal.ArrowUp -> { send(game, In(Turn(id = id, dir = N))); player(id, game) }
+  | Terminal.ArrowDown -> { send(game, In(Turn(id = id, dir = S))); player(id, game) }
+  | Terminal.ArrowLeft -> { send(game, In(Turn(id = id, dir = W))); player(id, game) }
+  | Terminal.ArrowRight -> { send(game, In(Turn(id = id, dir = E))); player(id, game) }
+  | Terminal.Escape -> send(game, In(Leave(id)))
   | _ -> player(id, game)
 }
 
@@ -94,7 +94,7 @@ fn player(id : Int, game : Address(GameMsg)) -> Unit with Event = receive {
 // line, and a size to fall back on where there is no terminal.
 fn board() -> #(Int, Int) with m = match Terminal.size() {
     None -> #(40, 20)
-  | Some(Size(rows = rows, columns = columns)) -> #(Int.min(columns, 80), rows - 2)
+  | Some(Terminal.Size(rows = rows, columns = columns)) -> #(Int.min(columns, 80), rows - 2)
 }
 
 //

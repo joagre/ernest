@@ -2546,7 +2546,7 @@ lookup_value(Pos, Path, Name, #env{ns = Ns, local_values = LV} = Env) ->
 %% below a namespace of its own is reached by that namespace.
 prelude_one(Pos, Path, Name) ->
     fail(Pos, format_qname(Path ++ [Name]) ++ ": Prelude takes one name the prelude declares,"
-              " as `Prelude.Close`").
+              " as `Prelude.Some`").
 
 own_member(Owner, Name, #env{local_values = LV} = Env) ->
     case LV of

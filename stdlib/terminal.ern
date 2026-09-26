@@ -1,4 +1,4 @@
-/// The terminal through `Sys.terminal`, the system process that reads it
+/// The terminal through its system process, which reads it
 /// (report §8.2). A subscriber is sent every key pressed from then on,
 /// the text of a paste as one `Pasted`, and the new size whenever the
 /// window changes, wrapped for its own mailbox, as `monitor` and
@@ -19,6 +19,39 @@
 ///
 /// since 0.1.0
 
+/// The terminal's window, in rows and columns, as the terminal reports it
+/// (report §8.2).
+///
+/// ### Examples
+///
+/// ```ernest
+/// Terminal.Size(rows = 24, columns = 80)
+/// ```
+export type Size = Size(rows : Int, columns : Int)
+
+/// What the terminal delivers to its subscriber: a key, an arrow, `Enter`,
+/// `Escape`, the interrupt, a paste, or a new size (report §8.2).
+///
+/// ### Examples
+///
+/// ```ernest
+/// match Terminal.Key('q') { Terminal.Key(c) -> c == 'q' | _ -> false }
+/// // => true
+/// ```
+export type Event =
+    Key(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter
+  | Escape | Interrupt | Pasted(String) | Resized(Size)
+
+// What the terminal takes.
+type Msg = Subscribe(to : Address(Event), reply : Reply(Unit))
+  | Measure(reply : Reply(Optional(Size)))
+
+// Report §8.2: the system reference, the runtime's address of the terminal,
+// bound at each start.
+let reference : Address(Msg) = system(Erl.atom("terminal"))
+
+foreign fn system(name : Foreign) -> Address(Msg) with m = "ern_rt:sys/1"
+
 /// Every key pressed and every resize from now on, wrapped, in the
 /// caller's mailbox. It answers once the terminal is in the mode the keys
 /// need, so that nothing typed after it returns is echoed (report §8.2).
@@ -26,7 +59,7 @@
 /// and the keys come wrapped the new way from then on.
 export fn subscribe(wrap : (Event) -> m) -> Unit with m = {
     let to = via(wrap, self());
-    Address.callForever(Sys.terminal, fn(r) = Subscribe(to = to, reply = r))
+    Address.callForever(reference, fn(r) = Subscribe(to = to, reply = r))
 }
 
 /// The terminal's size now, and `None` where there is no terminal or its
@@ -42,4 +75,4 @@ export fn subscribe(wrap : (Event) -> m) -> Unit with m = {
 /// }
 /// ```
 export fn size() -> Optional(Size) with m =
-    Address.callForever(Sys.terminal, fn(r) = Measure(reply = r))
+    Address.callForever(reference, fn(r) = Measure(reply = r))

@@ -1065,7 +1065,7 @@ non_entry_main() ->
                                                  " () -> Int with m">>)).
 
 %% report §9, §11.2: `:doc` finds a prelude name's documentation, a
-%% function, a type, and a `Sys.*` reference, and still finds an operation
+%% function, a type, and a value, and still finds an operation
 %% in its type's module. A regression test: the prelude had none, and `:doc
 %% monitor` said "no documentation"
 prelude_doc_test_() ->
@@ -1073,11 +1073,11 @@ prelude_doc_test_() ->
 
 prelude_doc() ->
     In = filename:join("/tmp", "ern_pdoc_" ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = file:write_file(In, ":doc monitor\n:doc Down\n:doc Sys.stdout\n:doc Int.compare\n"),
+    ok = file:write_file(In, ":doc monitor\n:doc Down\n:doc restarting\n:doc Int.compare\n"),
     {0, Out} = sh("../bin/ern shell < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"> monitor\n\n    monitor : ">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"type Down = Down(reason : Reason">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"> Sys.stdout\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> restarting\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> Int.compare\n">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"no documentation">>)).
 
@@ -1119,19 +1119,21 @@ doc_every_name() ->
     ok = file:write_file(filename:join(Root, "m.ern"),
                          "/// A little module.\n///\n/// since 0.1.0\n\n"
                          "/// A colour.\nexport type Colour = Red | Green\n"),
+    ok = filelib:ensure_path(filename:join(Root, "net")),
+    ok = file:write_file(filename:join([Root, "net", "http.ern"]), "export fn get() -> Int = 1\n"),
     In = filename:join(Root, "session.in"),
     ok = file:write_file(In, ["let zeta = 1\n", "fn sz() -> Int = 1\n",
                               "type Tree = Leaf | Node(left : Tree, right : Tree)\n",
-                              ":doc zeta\n", ":doc sz\n", ":doc Leaf\n", ":doc Accept\n",
+                              ":doc zeta\n", ":doc sz\n", ":doc Leaf\n", ":doc Tcp.ListenerMsg\n",
                               ":doc Some\n", ":doc Fs\n", ":load M\n", ":doc M.Red\n",
-                              ":doc M\n", ":doc Sys\n", ":doc List\n"]),
+                              ":doc M\n", ":load Net.Http\n", ":doc Net\n", ":doc List\n"]),
     {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Root) ++ " < " ++ In),
     ?assertEqual(nomatch, binary:match(Out, <<"no documentation">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"Input">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> zeta\n\n    zeta : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> sz\n\n    sz : () -> Int\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> Tree\n\n    type Tree = Leaf">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"> ListenerMsg\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> Tcp.ListenerMsg\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> Optional\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> Ernest module Fs\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> M.Colour\n\n    type Colour = Red | Green"
@@ -1140,8 +1142,8 @@ doc_every_name() ->
                                              "A little module.">>)),
     %% a namespace lists what it holds, and a type that is a module too
     %% shows both
-    ?assertMatch({_, _}, binary:match(Out, <<"> namespace Sys\n\n">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"`Sys.stdout : Address(String)`">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> namespace Net\n\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"`Net.Http.get : () -> Int`">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"    type List(a)">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"\nErnest module List\n">>)).
 
@@ -1181,8 +1183,7 @@ signature_test() ->
                  ern_shell:signature(<<"send(a, ">>)),
     ?assertEqual('None', ern_shell:signature(<<"1 + ">>)),
     %% a callee that is no function has no signature; a regression test,
-    %% where `Sys.stdout(` showed `Sys.stdoutAddress(String)`
-    ?assertEqual('None', ern_shell:signature(<<"Sys.stdout(">>)),
+    %% where a system reference's showed its type glued to its name
     ?assertEqual('None', ern_shell:signature(<<"Map.empty(">>)),
     {'Some', Map} = ern_shell:documentation(<<"List.map">>),
     ?assertMatch({_, _}, binary:match(Map, <<"*Since 0.1.0.*">>)),

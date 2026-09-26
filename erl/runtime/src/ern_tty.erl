@@ -1,6 +1,6 @@
-%% Report §8.2, §9.3: the process behind Sys.terminal. It answers
+%% Report §8.2, Appendix E.16: the process behind Terminal's reference. It answers
 %% Subscribe by remembering the address, sends every key pressed to each
-%% subscriber as an Event of §9.3, answers Size with the terminal's size,
+%% subscriber as a Terminal.Event, answers Size with the terminal's size,
 %% and sends Resized when that size changes. The terminal is put in the
 %% mode the keys need when the first subscriber arrives, since keys and
 %% lines are the same terminal and a program does one or the other, and
@@ -151,7 +151,7 @@ running({unstarted, _}) -> false;
 running(closed) -> false;
 running(_) -> true.
 
-%% Report §9.3: Size(rows, columns), which the host answers only while its
+%% Report Appendix E.16: Size(rows, columns), which the host answers only while its
 %% terminal is in charge, so before the first subscription there is none.
 size_now() ->
     case {io:rows(), io:columns()} of
@@ -281,7 +281,7 @@ read_loop(Keys, Read) ->
             read_loop(Keys, Read)
     end.
 
-%% Report §9.3: Event = Key(Char) | ArrowUp | ArrowDown | ArrowLeft
+%% Report Appendix E.16: Event = Key(Char) | ArrowUp | ArrowDown | ArrowLeft
 %% | ArrowRight | Enter | Escape | Interrupt | Resized(Size), one list of
 %% what the terminal sent. An escape sequence that is none of those is the
 %% Escape key and the characters after it, which is how Meta and Shift-Tab
