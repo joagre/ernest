@@ -8,13 +8,14 @@
 
 -define(ROOT, "..").
 
-%% report §11, README "Building": `make xref`
+%% report §11, docs/build.md: `make xref`
 citations_resolve_test() ->
     Report = read("ernest_report.md"),
     Guide = read("ernest_guide.md"),
     ReportHeads = headings(Report),
     GuideHeads = headings(Guide),
-    Live = ["ernest_report.md", "README.md", "CLAUDE.md", "docs/implementation_plan.md",
+    Live = ["ernest_report.md", "README.md", "CLAUDE.md", "docs/build.md",
+            "docs/implementation_plan.md",
             "docs/architecture.md", "docs/shell_design.md", "docs/module_doc_template.md"]
         ++ examples() ++ stdlib(),
     Dangling =
@@ -26,10 +27,11 @@ citations_resolve_test() ->
 %% docs/style.md, README "Layout of the repository": a document that says
 %% where things are names things that are there. The report and the guide
 %% name paths a program might have, `net/http.ern`, and the plan and the
-%% naming record name paths that are gone or not yet written, so the four
+%% naming record name paths that are gone or not yet written, so the five
 %% checked here are the ones that describe the repository as it is.
 document_paths_test() ->
-    Where = ["README.md", "CLAUDE.md", "docs/architecture.md", "docs/style.md"],
+    Where = ["README.md", "CLAUDE.md", "docs/architecture.md", "docs/style.md",
+             "docs/build.md"],
     Missing = [{F, P} || F <- Where, P <- paths(read(F)),
                          not exists(P)],
     ?assertEqual([], Missing).

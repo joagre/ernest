@@ -13,7 +13,7 @@ The rules are in the order of work: what is authoritative and who owns each fact
 ## Who owns each fact
 
 - **Each fact has one owner.** The report owns the language, [`docs/decisions.md`](docs/decisions.md) the rationale, [`docs/implementation_plan.md`](docs/implementation_plan.md) the roadmap, the code and its tests what is built, and [`docs/architecture.md`](docs/architecture.md) how the code is arranged.
-- **The other documents own one thing each.** [`docs/style.md`](docs/style.md) owns the code's form; the README the layout and the commands; a design note its component's design (`docs/shell_design.md`, `docs/node_protocol.md`, `docs/code_distribution.md`); [`shell/README.md`](shell/README.md) how the shell's code reads; [`docs/review.md`](docs/review.md) the review before a release; and [`docs/language_feedback.md`](docs/language_feedback.md) and [`docs/report_cold_read.md`](docs/report_cold_read.md) the questions still open.
+- **The other documents own one thing each.** [`docs/style.md`](docs/style.md) owns the code's form; the README the layout and the commands a user runs; [`docs/build.md`](docs/build.md) building, testing and installing; a design note its component's design (`docs/shell_design.md`, `docs/node_protocol.md`, `docs/code_distribution.md`); [`shell/README.md`](shell/README.md) how the shell's code reads; [`docs/review.md`](docs/review.md) the review before a release; and [`docs/language_feedback.md`](docs/language_feedback.md) and [`docs/report_cold_read.md`](docs/report_cold_read.md) the questions still open.
 - **The decisions log is rationale only.** It says why the report and the plan say what they say, and changes with them. It is never normative.
 - **The plan and the programs under `examples/` are illustrative.** They are the roadmap and the motivating examples, not sources of truth about the language.
 - **Every other document points at the owner and does not restate it.** The README says where things are, not what they are.
@@ -27,7 +27,7 @@ The rules are in the order of work: what is authoritative and who owns each fact
 
 - **The plan says where we are.** It holds the current phase and its decisions; what is built is what `erl/` and `make test` say.
 - **The implementation is Erlang, OTP 29.** The toolchain is one command, `ern`, whose first word is its job: `ern build` compiles and `ern run` runs. The programs the toolchain runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`.
-- **The README owns the layout and the commands**, under "Layout of the repository" and "Building". `make` builds; `make test` tests.
+- **The README owns the layout and the commands a user runs**, under "Layout of the repository" and "Using", and [`docs/build.md`](docs/build.md) the make targets and the installation. `make` builds; `make test` tests.
 - **The style guide owns the naming of the code**, one rule for every Erlang module and every module compiled from Ernest. It is imported at the end of this file.
 - **Third-party code is listed in `THIRD_PARTY_LICENSES`.** A borrowed file keeps its upstream header.
 
