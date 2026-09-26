@@ -4439,6 +4439,14 @@ A deadlock under `ern test` is the running test's fault. The reaper, which finds
 
 A foreign function value's result is checked at each call, which needs a wrapper of the value's own arity; Erlang writes a fun of a given arity only in source, and the emitter writes one into each function's descriptor, so the boundary applies the maker the compiled code carries rather than a fixed table of arities.
 
+## A Review Before Each Release, 2026-09-26
+
+Asked for while MVP 2.65's build ran: how Ernest is made sound in theory and in practice before it is released, as a procedure that can be run again. What found the project's defects decided its shape. Tests that passed on their first run confirmed code; what found defects was the terminal harness under load, a read-back of code, a reader who took no part, and the user. So the review is readers who took no part, each given one lens, in the order of the owners, the report first since everything is checked against it; and wherever a reading can become a test, it does, so that the next review runs it rather than reading again. A phase that finds nothing twice becomes a test or goes.
+
+Two kinds of check are new to the project. The grammar and the type system are argued mechanically and in writing rather than read: Appendix A's FIRST sets computed, programs generated from the grammar parsed and near misses refused, programs generated to type-check run to see that none ends in a host error, which is the practical test of soundness. And the language is used before it is released, by readers who know only the guide writing programs of the kinds it is for, since the shell showed that writing Ernest finds what reading the report does not.
+
+The first run is the first release's, MVP 2.95, before its manual pages and its installation, since a finding may change what they build. `docs/review.md` owns the procedure; the plan holds each run's ledger and says when one runs.
+
 ## Later
 
 Planned or considered, not in the language today.

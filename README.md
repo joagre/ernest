@@ -16,7 +16,7 @@ The toolchain is written in Erlang: lexer, parser, type checker, runtime, the co
 
 ### Then the small programs
 
-The complete programs from the report's Appendix B and D, and some of the guide's, are collected under [`examples/`](examples/). Each program's header comment says where it comes from and what it needs; `template.ern`, a documented module with no header comment, is described by [`docs/module_doc_template.md`](docs/module_doc_template.md). Together the examples exercise every construct of the grammar except bitstrings, and a test keeps it so.
+The complete programs from the report's Appendix B and D, and some of the guide's, are collected under [`examples/`](examples/). Each program's header comment says where it comes from and what it needs; `template.ern`, a documented module with no header comment, is described by [`docs/module_doc_template.md`](docs/module_doc_template.md). Together with the standard library and the libraries, the examples exercise every construct of the grammar, and a test keeps it so.
 
 **What the toolchain runs.** The guide's own examples are compiled, run, and compared with the output it shows by `test/ern_guide_tests.erl`. The programs under `examples/` that `make test` compiles and runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`, with their expected output under `test/expected/` and the Erlang they compile to under `test/golden/`. The `modules` pair runs there too, and the paper programs have tests of their own: `repl` on a fixed input, `filesync` given two directories, and `webserver` asked twice over one session, each stopped when it has shown what it must. `snake` wants a terminal, so `ern_terminal_tests` plays it under a pseudo-terminal, and `echo` is a measurement run by hand; the rest of `examples/` is type-checked only, and each file's header says where it stands.
 
@@ -29,6 +29,8 @@ The complete programs from the report's Appendix B and D, and some of the guide'
 - **[`docs/decisions.md`](docs/decisions.md)** — dated design decisions and their rationale. What was tried, what was rejected, why the report says what it says. Not normative — the report wins any conflict. Browse as needed; not intended to be read straight through.
 
 - **[`docs/implementation_plan.md`](docs/implementation_plan.md)** — the roadmap: where the project stands, what is done, and what comes next.
+
+- **[`docs/review.md`](docs/review.md)** — the review before a release: its phases, what each reader is asked, and when it is done.
 
 - **[`docs/architecture.md`](docs/architecture.md)** — how the toolchain is built: the stages, what flows between them, the checker's passes, the compiler's one traversal, the runtime, the tests, and where MVP 2.5 and later hook in.
 
@@ -57,7 +59,8 @@ ernest_report.md   the language report (normative)
 ernest_guide.md    the guide
 docs/              decisions log, implementation plan, architecture note, style guides,
                    module documentation template, shell design, language feedback, the
-                   report's cold read, Emacs mode, node protocol, code distribution
+                   report's cold read, the review before a release, Emacs mode, node
+                   protocol, code distribution
 examples/          Ernest programs: the paper programs and the small ones
 erl/               the toolchain, as Erlang applications: lexer, parser,
                    typer, runtime, emitter, cli, utils (vendored getopt);
