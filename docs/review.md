@@ -20,7 +20,8 @@ The tree is clean and `make test` is green. The review records, in the plan's le
 - the report's measure, as the log's *Measure* counts it, and each section's length;
 - `make sections` and `make coverage`: the sections no test cites and the thinnest;
 - the count of tests by suite, of prelude names, of standard library functions by module, of primitives, and of the lines of Erlang and of Ernest by application;
-- the memory, atoms and processes of the load programs (Phase 3), before and after a long run.
+- the memory, atoms and processes of the load programs (Phase 3), before and after a long run;
+- the speed of the load programs, a round trip of the echo server and a compile of the standard library, so that a change is seen; a number is recorded and compared, never a reason for a shim (CLAUDE.md, *Shims*).
 
 A number that moved without a plan item that moved it is a finding.
 
@@ -70,7 +71,11 @@ The report is read alone, as the one normative document it is, for what it says 
 
 **3e. The boundaries.** A reader looks at what crosses a trust boundary: the foreign boundary's checks, the configuration directory and its key, a path from the network, a socket's input, the shell's history file.
 
-**3f. Portability.** The suite on the OTP versions the README names, on Linux and on macOS, under `LANG=C`, and in the terminals the shell promises: a plain terminal, `tmux`, and one without colour.
+**3f. Versions.** The compiled `.erc` of the last release: the current toolchain recompiles it, as §11.1's rule says, rather than loading it; and every declaration added since the last release carries a `since` line with the new version (E.0 shape rule 6).
+
+**3g. What we borrow.** Every vendored file and every table built from another's data, `getopt` and Unicode's among them, is listed in `THIRD_PARTY_LICENSES` with its licence and keeps its upstream header; a new one is a finding until it is.
+
+**3h. Portability.** The suite on the OTP versions the README names, on Linux and on macOS, under `LANG=C`, and in the terminals the shell promises: a plain terminal, `tmux`, and one without colour.
 
 ## Phase 4: the documents
 
@@ -84,7 +89,11 @@ The report is read alone, as the one normative document it is, for what it says 
 
 **4e. The module pages.** `ern doc` of the standard library and of every library, read as a reader of a manual page reads: every exported name documented, its errors stated, its examples run (E.0 shape rule 6).
 
-**4f. The release notes.** What changed since the last release, written from the plan's milestones and the log's entries, each change with the report section that states it.
+**4f. The Emacs mode.** Its tests over every Ernest file in the repository, and a session of editing a module of the standard library, what its indentation and faces get wrong recorded (`docs/emacs_mode.md`).
+
+**4g. The installation.** Once the plan's MVP 2.95 has built one: installed into a temporary prefix, moved to another, and run from there, `ern run`, `ern shell`, `ern doc` and a manual page each; then uninstalled, leaving nothing.
+
+**4h. The release notes.** What changed since the last release, written from the plan's milestones and the log's entries, each change with the report section that states it.
 
 ## Phase 5: the language in use
 
