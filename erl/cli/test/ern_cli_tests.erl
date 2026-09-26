@@ -950,6 +950,21 @@ fault_status_test() ->
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     ?assertEqual(1, ern_cli:ern(["run", filename:join(Dir, "boom.erc")])).
 
+%% report §8.6, §11.2: the program ends when its entry process is killed,
+%% printing `killed`, with status 1. A regression test: it printed
+%% `fault: 'Killed'`, since only a return and a fault had their own lines.
+killed_entry_test() ->
+    Dir = tmp(),
+    File = write(Dir, "main.ern",
+                 "export fn main() -> Unit with Never = {\n"
+                 "    let me = self();\n"
+                 "    let _ = spawn(Local, fn() -> Unit with Never = kill(me));\n"
+                 "    receive { after 5000 -> Io.println(\"not killed\") }\n"
+                 "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    ?assertEqual(1, ern_err(["run", filename:join(Dir, "main.erc")])),
+    ?assertEqual(<<"killed\n">>, iolist_to_binary(?capturedOutput)).
+
 %% report §11.2: the file must lie at the path of its namespace
 misplaced_module_test() ->
     Dir = pair(tmp()),

@@ -29,7 +29,7 @@
          source_end/0, timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1,
          undefined_function/3, undefined_lambda/3, remote/1, todo/1, fault/1, fault/2,
          trace/1, sys/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
-         run_main/2, run_main/3, init_stdlib/0]).
+         run_main/2, run_main/3, signal/1, init_stdlib/0]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -668,21 +668,24 @@ arm(Deadline, To) ->
 %% Report §8.1, §8.6: the launcher
 %%
 
-%% Runs Main as the entry process and returns ok, or {fault, Message} if it
-%% faulted, a deadlock among the faults (report §8.6: the entry process
-%% faults with `Fault("deadlock")`). Every local process is then ended with
+%% Runs Main as the entry process and returns ok, killed if it was killed,
+%% {fault, Message} if it faulted, a deadlock among the faults (report §8.6:
+%% the entry process faults with `Fault("deadlock")`), or {signal, Signal}
+%% if the host's termination or hangup ended the program. Every local process is then ended with
 %% ProgramEnd and stdout is flushed, however the run ended. Opts: init => a
 %% function run in main's process before Main, after the Sys.* references
 %% are bound and the standard library's lets evaluated, for the program's
 %% own top-level lets (report §8.5); stdout, stderr =>
 %% fun((binary()) -> any()), stdin => fun(() -> eof | {error, term()} |
 %% string()) and keys => the same for the terminal's characters, for tests.
--spec run_main(fun(() -> term()), binary()) -> ok | {fault, binary()} | {fault, binary(), binary()}.
+-type outcome() :: ok | killed | {fault, binary()} | {fault, binary(), binary()}
+                 | {signal, sigterm | sighup}.
+
+-spec run_main(fun(() -> term()), binary()) -> outcome().
 run_main(Main, Site) ->
     run_main(Main, Site, #{}).
 
--spec run_main(fun(() -> term()), binary(), map()) ->
-          ok | {fault, binary()} | {fault, binary(), binary()}.
+-spec run_main(fun(() -> term()), binary(), map()) -> outcome().
 run_main(Main, Site, Opts) ->
     ets:new(?PROCESSES, [named_table, public, set]),
     %% report §8.6: the sources a system process holds, counted while held
@@ -720,6 +723,7 @@ run_main(Main, Site, Opts) ->
             {{main_down, Run}, _, Raw} ->
                 case {reason(Raw), Raw} of
                     {'Returned', _} -> ok;
+                    {'Killed', _} -> killed;
                     {{'Fault', Msg}, {ern, fault, _, Trace}} -> {fault, Msg, Trace};
                     {{'Fault', Msg}, _} -> {fault, Msg};
                     {Other, _} -> {fault, format("~p", [Other])}
@@ -727,10 +731,25 @@ run_main(Main, Site, Opts) ->
             {deadlock, Run} ->
                 exit(MainPid, {ern, fault, <<"deadlock">>}),
                 {fault, <<"deadlock">>};
-            {fault, Run, Text} -> {fault, Text}
+            {fault, Run, Text} -> {fault, Text};
+            {signal, Run, Signal} -> {signal, Signal}
         end
     after
         end_program(Run, Reaper, System)
+    end.
+
+%% Report §8.6: the host's termination or hangup ends the run in progress
+%% as the end of its entry process does; none when no run is in progress.
+-spec signal(sigterm | sighup) -> ok | none.
+signal(Signal) ->
+    case persistent_term:get({?MODULE, launcher}, none) of
+        {Pid, Run} ->
+            case erlang:is_process_alive(Pid) of
+                true -> Pid ! {signal, Run, Signal}, ok;
+                false -> none
+            end;
+        none ->
+            none
     end.
 
 %% Report §8.6: every local process ends with ProgramEnd, the sinks' output
@@ -757,6 +776,8 @@ end_program(Run, Reaper, System) ->
         _ -> ok
     end,
     ets:delete(?PROCESSES),
+    %% a signal after the run has nothing to end (signal/1)
+    persistent_term:erase({?MODULE, launcher}),
     flush_run(Run).
 
 %% Report §8.5: a standard library module's top-level lets, `Map.empty`

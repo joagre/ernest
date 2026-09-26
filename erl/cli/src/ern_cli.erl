@@ -750,13 +750,8 @@ shell(Opts, Rest, Err) ->
            end,
     %% report §11.2: the sinks are the screen's, which the shell names
     Sink = fun(Bin) -> ern_shell:to_screen(Bin) end,
-    case ern_rt:run_main(fun() -> Mod:main() end, <<"Shell.main">>,
-                         #{stdout => Sink, stderr => Sink, init => Init}) of
-        ok -> 0;
-        Fault ->
-            report_fault(Err, Fault),
-            1
-    end.
+    outcome(Err, ern_rt:run_main(fun() -> Mod:main() end, <<"Shell.main">>,
+                                 #{stdout => Sink, stderr => Sink, init => Init})).
 
 %% Report §11.2: the entry process's fault on standard error, and beneath a
 %% failure of the runtime or a foreign function's raise the host's stack.
@@ -856,19 +851,25 @@ compile_source(File, Root, Dirs) ->
         throw:{errors, Failed, Unread} -> {error, Failed, Unread}
     end.
 
-%% Report §8.6: a signal from outside ends the program as returning from
-%% main does, and the runtime prints nothing of its own about it. The host
-%% ends the node in order, which flushes what has been written; its own
-%% notice of the signal is an informational report, and a program's output
-%% is not to be mixed with it.
+%% Report §8.6: the host's termination and hangup end the program as the
+%% end of its entry process does, and the runtime prints nothing of its own
+%% about them (ern_signals).
 quiet_signals() ->
-    ok = os:set_signal(sigterm, handle),
-    ok = os:set_signal(sighup, handle),
-    %% the host logs its own note about the signal at notice level, and a
+    ok = ern_signals:install(),
+    %% the host logs its own note about a signal at notice level, and a
     %% program's output is not to be mixed with it; a warning or an error
     %% from the host still comes through.
     _ = logger:set_handler_config(default, level, warning),
     ok.
+
+%% Report §11.2: the status a run ends `ern` with, and what it prints of
+%% its entry process's end: nothing when it returned, `killed` when it was
+%% killed, its fault, and nothing for a signal, whose status is 128 plus
+%% its number.
+outcome(_Err, ok) -> 0;
+outcome(Err, killed) -> io:format(Err, "killed~n", []), 1;
+outcome(_Err, {signal, Signal}) -> ern_signals:status(Signal);
+outcome(Err, Fault) -> report_fault(Err, Fault), 1.
 
 %% Report §8.5: every top-level let of the loaded modules, dependencies
 %% first, once the runtime has bound the Sys.* references.
@@ -935,13 +936,8 @@ run_entry(Opts, Ns, Roots, Loaded, Err) ->
     Init = init_fun(Loaded1),
     Site = entry_site(EntryMod, EntryFn),
     Fn = ern_emitter:function_atom(EntryFn),
-    case ern_rt:run_main(fun() -> EntryMod:Fn() end, Site, #{init => Init}) of
-        ok -> 0;
-        Fault ->
-            %% report §8.6: a deadlock is the entry process's fault
-            report_fault(Err, Fault),
-            1
-    end.
+    %% report §8.6: a deadlock is the entry process's fault
+    outcome(Err, ern_rt:run_main(fun() -> EntryMod:Fn() end, Site, #{init => Init})).
 
 %% Report §11.2: the entry point the shell spawns beside it, or none for a
 %% file without one, which is loaded to be tried. A `main` that is not an

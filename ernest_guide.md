@@ -802,7 +802,7 @@ count is 8
 
 `spawn(Local, fn() = counter(0))` starts a process on this node that runs the lambda, and returns its `Address(CounterMsg)`. `Local` says where the process runs; `Peer(name)` is another node (§8). Inside the lambda, `self()` is the new process's address, so a parent that gives the child its own address takes it first: `let me = self(); spawn(Local, fn() = child(me))`.
 
-When `main` returns, the program ends: every process on the node ends with the reason `ProgramEnd`, which is not a fault, and output still on its way is written first. A program stopped from outside, by the terminal's interrupt or a signal, ends the same way (report §8.6).
+When `main` returns, or its process ends in any other way, the program ends: every process on the node ends with the reason `ProgramEnd`, which is not a fault, and output still on its way is written first. A program stopped from outside by a termination or a hangup signal ends the same way; the terminal's interrupt ends it at once, and output still on its way may be lost (report §8.6).
 
 The count is 8 because messages from one sender arrive in the order sent: both `Inc`s come before the `Get`. Were the counter too slow, `main` would print `counter did not answer`.
 
@@ -1710,7 +1710,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 
 ### 9.2 `ern run`, `ern test`, `ern shell` and `ern config`
 
-- `ern run hello.erc` runs `main` and exits with status 0 when it returns. A fault of the entry process is printed as `fault: ` and its cause, and the status is 1 (§6.3).
+- `ern run hello.erc` runs `main` and exits with status 0 when it returns. A fault of the entry process is printed as `fault: ` and its cause, and the status is 1 (§6.3); an entry process that is killed prints `killed`, and the status is 1. A signal that stops the program prints nothing, and the status is 128 plus the signal's number, 143 for a termination.
 - `--main Module.name` runs another exported function of no arguments instead of `main`.
 - `--load-path dir` adds compiled modules and Erlang `.beam` files the program needs (§8.5).
 - `ern test module.erc` runs the module's tests and exits with status 1 unless all passed (§7.1).

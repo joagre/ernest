@@ -70,9 +70,11 @@ filesync() ->
     Older = calendar:gregorian_seconds_to_datetime(
               calendar:datetime_to_gregorian_seconds(calendar:local_time()) - 7200),
     ok = file:change_time(Dir ++ "/a/notes.txt", Older),
-    Out = run_for(Dir, "../../../bin/ern run ../../build/filesync.erc", 4),
-    %% report §8.6: the signal ends the program as returning from main does,
-    %% so what was written is there and the runtime says nothing of its own
+    {Status, Out} = run_for(Dir, "../../../bin/ern run ../../build/filesync.erc", 4, "TERM"),
+    %% report §8.6, §11.2: the signal ends the program as returning from main
+    %% does, so what was written is there and the runtime says nothing of its
+    %% own, and the status is 128 plus the signal's number
+    ?assertEqual(143, Status),
     ?assert(lists:member(<<"conflict: notes.txt">>, Out)),
     ?assertEqual([], [L || L <- Out, binary:match(L, <<"conflict: notes.txt">>) =:= nomatch]),
     ?assertEqual({ok, <<"hello from a\n">>}, file:read_file(Dir ++ "/b/greeting.txt")),
@@ -93,12 +95,30 @@ del(Dir) ->
     end.
 
 %% A program that runs until it is stopped: started in Dir, stopped after
-%% Seconds with the host's termination signal. Its output is returned whole.
-run_for(Dir, Cmd, Seconds) ->
+%% Seconds with the signal named. Its status and its output are returned,
+%% standard error with standard output.
+run_for(Dir, Cmd, Seconds, Signal) ->
     %% sh -c, since open_port runs the command with exec and `cd` is a builtin
     {_, Out} = sh("sh -c 'cd " ++ Dir ++ " && { " ++ Cmd ++ " & p=$!; sleep "
-                  ++ integer_to_list(Seconds) ++ "; kill $p 2>/dev/null; wait $p 2>/dev/null; }'"),
-    lines(Out).
+                  ++ integer_to_list(Seconds) ++ "; kill -" ++ Signal
+                  ++ " $p 2>/dev/null; wait $p; echo status $?; }'"),
+    [<<"status ", S/binary>> | Rest] = lists:reverse(lines(Out)),
+    {binary_to_integer(S), lists:reverse(Rest)}.
+
+%% report §8.6, §11.2: the host's hangup ends a program as its termination
+%% does, printing nothing, with status 128 plus the signal's number. A
+%% regression test: the hangup was ignored, and the program ran on.
+hangup_test_() ->
+    {timeout, 60, fun hangup/0}.
+
+hangup() ->
+    Dir = "build/hangup",
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/waits.ern",
+                         "export fn main() -> Unit with Never =\n"
+                         "    receive { after 60000 -> Io.println(\"late\") }\n"),
+    {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
+    ?assertEqual({129, []}, run_for(Dir, "../../../bin/ern run waits.erc", 2, "HUP")).
 
 %% Paper program 1 (plan, MVP 2.5): the server serves until it is
 %% stopped, so the harness starts it, makes two requests over one session,
