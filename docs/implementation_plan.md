@@ -574,7 +574,8 @@ each is built where it belongs.
 - **Item 16, decided 2026-09-27: the command line is `Os`'s**, a system module whose
   bindings `Os.arguments` and `Os.environment` the runtime makes (§8.2; the log's *A
   Program's Command Line Is `Os`'s*). No entry point takes the arguments. `Os.run`, which
-  runs a host program, joins them. MVP 2.7 builds all three.
+  runs a host program, and `Os.exit`, which ends the program with a status, join them.
+  MVP 2.7 builds all four.
 
 - **`stdlib/supervisor.ern`**, in Ernest but for one shim, the in-place restart of a child,
   which only the host can do. Appendix E gains its section, with its module page and
@@ -596,7 +597,8 @@ each is built where it belongs.
 
 What a command-line program needs, report first, in a system module `Os` (§8.2, Appendix E),
 decided 2026-09-27 in MVP 2.66's opening discussion (item 16; the log's *A Program's Command
-Line Is `Os`'s*). What waits is the exit status in §8.6, the next question of that discussion.
+Line Is `Os`'s*), and the exit status the same day (the log's *A Program Ends With
+`Os.exit`*).
 
 - **`Os.arguments : List(String)`**, the words after the module in `ern run file.erc a b`,
   without the program's name; everything after the module is the program's. An argument
@@ -620,6 +622,13 @@ Line Is `Os`'s*). What waits is the exit status in §8.6, the next question of t
   socket's model would give it.
 - `Os` is a system module with its own `reference` (§8.2), so a running command counts as
   pending work in §8.6's check for a deadlock.
+- **`Os.exit(status : Int) -> a with m`**, which ends the program as §8.6 ends it, live
+  processes dying with `ProgramEnd` and pending output flushed, and exits with `status`. A
+  program that does not call it exits 0 when `main` returns and 1 on a fault, as today. A
+  status outside 0 to 255 faults the caller (§7.4). In the shell it ends the input it runs
+  in, not the shell, which answers `exited with status n`; under `ern test` the test fails
+  with `exited with status n` and the run goes on (§11.2). Its module page says in a line
+  that it ends the program, not a process, which is `kill` or a return.
 
 **Memory, read for what only grows.** Noted 2026-09-26. The line it draws: waste the garbage
 collector reclaims is allowed, and growth over time that no collection reclaims is a defect,
