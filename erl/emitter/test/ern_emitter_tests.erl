@@ -1,6 +1,7 @@
 -module(ern_emitter_tests).
 
--export([write_golden/0, pair/0, opt/1, remember/1, junk/1, good/1, tell/1, junk_server/0]).
+-export([write_golden/0, pair/0, opt/1, funs/0, remember/1, junk/1, good/1, tell/1,
+         junk_server/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
@@ -910,6 +911,21 @@ foreign_faults_test() ->
                   ++ Main ++ "each(fn(n : Int) -> Unit with Never = todo(\"later\"), [1])\n"),
     ?assertEqual({fault, <<"todo: later">>}, R5).
 
+%% report §7.4: a function value foreign code returns is checked when it is
+%% called, its result against its declared result type, in the caller, and
+%% one that keeps to it runs. A regression test: such a function's result
+%% was never checked, so an ill-typed one reached Ernest code unchecked.
+foreign_function_value_test() ->
+    Source = "foreign fn funs() -> List((Int) -> Int) = \"ern_emitter_tests:funs/0\"\n"
+             "export fn main() -> Unit with Never = match funs() {\n"
+             "    [good, bad] -> {\n"
+             "        Io.println(Int.toString(good(1)));\n"
+             "        Io.println(Int.toString(bad(1)))\n"
+             "    }\n"
+             "  | _ -> Unit\n"
+             "}\n",
+    ?assertEqual({{fault, <<"foreign return does not match Int">>}, <<"2\n">>}, run(Source)).
+
 %% report §8.4: the proxy in front of an exposed address is one per address
 %% and mailbox type, so exposing the same address twice gives the same one
 foreign_proxy_is_one_test() ->
@@ -996,6 +1012,7 @@ foreign_messages_test() ->
 
 %% The foreign side of the tests above.
 pair() -> {1, 2}.
+funs() -> [fun(X) -> X + 1 end, fun(_) -> not_an_int end].
 opt(0) -> {'Some', 3};
 opt(_) -> {'Some', <<"x">>}.
 %% report §8.4: remembers the first address it is given and says whether

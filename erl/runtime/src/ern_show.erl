@@ -51,7 +51,7 @@ by_type(string, V, _, _) -> string(V);
 by_type(bytes, V, _, L) -> bytes(V, L);
 by_type({pid, _, _}, _, _, _) -> "<address>";
 by_type(ref, _, _, _) -> "<reply>";
-by_type({'fun', _}, _, _, _) -> "<function>";
+by_type(F, _, _, _) when element(1, F) =:= 'fun' -> "<function>";
 by_type({abstract, _}, _, _, _) -> "<abstract>";
 by_type({mu, Id, D}, V, B, L) -> by_type(D, V, B#{Id => D}, L);
 by_type({ref, Id}, V, B, L) -> by_type(maps:get(Id, B), V, B, L);

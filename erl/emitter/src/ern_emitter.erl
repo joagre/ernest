@@ -776,12 +776,32 @@ descriptor_ref(T, Cx) ->
                 Descs ->
                     Name = list_to_atom("$type_" ++ integer_to_list(map_size(Descs) + 1)),
                     Fun = erl_syntax:function(erl_syntax:atom(Name),
-                                              [erl_syntax:clause([], none,
-                                                                 [erl_syntax:abstract(Desc)])]),
+                                              [erl_syntax:clause([], none, [desc_form(Desc)])]),
                     {erl_syntax:application(erl_syntax:atom(Name), []),
                      Cx#cx{descs = Descs#{Desc => Name}, lifted = [Fun | Cx#cx.lifted]}}
             end
     end.
+
+%% A descriptor as the form that builds it. A function's descriptor also
+%% carries the maker of its checked wrapper, a fun of its arity that checks
+%% each result (report §7.4), which only generated code can spell for every
+%% arity; ern_boundary applies it to a function value foreign code gives.
+desc_form({'fun', N, R, Text}) ->
+    F = erl_syntax:variable('F'),
+    Args = [erl_syntax:variable(list_to_atom("A" ++ integer_to_list(I)))
+            || I <- lists:seq(1, N)],
+    Check = call_remote(ern_boundary, value,
+                        [desc_form(R), erl_syntax:application(F, Args), erl_syntax:abstract(Text)]),
+    Wrapper = erl_syntax:fun_expr([erl_syntax:clause(Args, none, [Check])]),
+    Maker = erl_syntax:fun_expr([erl_syntax:clause([F], none, [Wrapper])]),
+    erl_syntax:tuple([erl_syntax:atom('fun'), erl_syntax:integer(N), desc_form(R),
+                      erl_syntax:abstract(Text), Maker]);
+desc_form(T) when is_tuple(T) ->
+    erl_syntax:tuple([desc_form(E) || E <- tuple_to_list(T)]);
+desc_form(L) when is_list(L) ->
+    erl_syntax:list([desc_form(E) || E <- L]);
+desc_form(Other) ->
+    erl_syntax:abstract(Other).
 
 check_text(Prefix, T, Cx) ->
     string_binary(text_binary(Prefix, T, Cx)).

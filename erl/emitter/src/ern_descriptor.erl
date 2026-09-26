@@ -28,7 +28,11 @@ desc(pure, Seen, _) -> {any, Seen};
 desc({ttuple, Es}, Seen, Cx) ->
     {Ds, Seen1} = descs(Es, Seen, Cx),
     {{tuple, Ds}, Seen1};
-desc({tfn, Ps, _, _}, Seen, _) -> {{'fun', length(Ps)}, Seen};
+desc({tfn, Ps, _, R}, Seen, Cx) ->
+    %% report §7.4: a function value from foreign code has its result
+    %% checked at each call, against the result's descriptor
+    {D, Seen1} = desc(R, Seen, Cx),
+    {{'fun', length(Ps), D, text_binary("foreign return does not match ", R, Cx)}, Seen1};
 desc({tcon, ['Int'], []}, Seen, _) -> {int, Seen};
 desc({tcon, ['Float'], []}, Seen, _) -> {float, Seen};
 desc({tcon, ['Bool'], []}, Seen, _) -> {bool, Seen};

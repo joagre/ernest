@@ -347,7 +347,7 @@ The steps:
       | D5 | the shell's commands in §11.2 (step 9) | §11.2 | `shell/shell/command.ern` | new mirror: the paragraph against the command list | `shell_design.md`, guide §1.2, §9.3, `shell/README.md` | A1, B5 | `The shell's help lists the commands` 1 |
       | D6 | `////` is a comment (step 9) | §2.2, App. F | `ern_lexer`; `emacs/ernest-mode.el` | `four_slashes_is_a_doc_line_test` inverts; `emacs/test/colour.el` | `docs/emacs_mode.md` | none | `` `///` to end of line `` 2 |
       | D7 | `ern test` streams, a deadlock one test's fault (step 9) | §11.2 | `ern_cli` `run_tests`; `ern_rt` faults the running test | `ern_cli_tests`; new: a deadlocked test then a passing one | guide §9.2, `shell_design.md`, `shell/README.md` | A1 | `It prints each test's name` 1 |
-      | D8 | a function value foreign code returns is checked at each call (a standing gap) | §7.4 | `ern_boundary` wraps such a value so each call's result is checked, as a proxy checks each message | new: a foreign function returning a function whose result is ill-typed faults at the call with `Fault("foreign return does not match T")` | the plan's standing gap goes | none | `is not checked when it is called` 1 |
+      | D8 | a function value foreign code returns is checked at each call (a standing gap), built | §7.4 | `ern_boundary` wraps such a value so each call's result is checked, as a proxy checks each message | new: a foreign function returning a function whose result is ill-typed faults at the call with `Fault("foreign return does not match T")` | the plan's standing gap goes | none | `is not checked when it is called` 1 |
       | E1 | the holders of `it` freed (step 8) | none | `ern_shell` holders recycled as inputs are, each input's dependencies recorded, `forget` purges a holder | `ern_shell_tests` the unload tests' "not covered"; new: a holder freed, one kept by a later declaration, 2,000 inputs measured | `shell_design.md` `A session never shrinks`, `architecture.md` if the module splits | B5, A1 | `A session never shrinks`, `frees nothing`, `holder of it`: 4 |
 
       **Added by sub-step 4's sweeps**, each place a row's commit also rewrites, and what the
@@ -759,13 +759,6 @@ connectors: those are libraries for others to write on Appendix D's pattern.
   (2026-09-19).
 - **A label at the first use of the variable whose type a mismatch names** was planned for
   §3.4's placement work and not built (2026-09-18).
-- **A function value that foreign code returns is not checked when it is called**, though
-  §7.4 says its result is checked against its declared result type (found by the cold
-  read's check, 2026-09-25). The fix is the address proxy's shape: the boundary wraps such a
-  value so that each call's result is checked, as a proxy checks each message. With it goes
-  the one way an ill-typed value reaches Ernest arithmetic, where the host's error is
-  reported as `Fault("division by zero")` whatever the operator was; only a zero divisor
-  gives that cause. Built in MVP 2.65's step 10, the ledger's D8.
 
 ---
 

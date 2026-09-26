@@ -6,13 +6,16 @@
 %% mailbox type on delivery and forwards it, or ends the target with the
 %% fault. The compiler describes a type as a term this module interprets:
 %% any | int | float | bool | char | string | bytes | {pid, D, Text} | ref
-%% | {'fun', Arity} | never | {list, D} | {tuple, [D]} | {map, K, V}
+%% | {'fun', Arity, R, Text, Make} | never | {list, D} | {tuple, [D]} | {map, K, V}
 %% | {set, D} | {con, [{Tag, [D]} | {Tag, [D], [Name]}]} | {abstract, D}
 %% | {mu, Id, D} | {ref, Id}, mu binding Id for the ref inside it, which is
 %% how a recursive type is described once; {pid, D, Text} is an address
 %% whose messages D describes; a constructor with named fields carries
 %% their names, and an abstract type seen from outside its module is
-%% wrapped, both for printing (ern_show).
+%% wrapped, both for printing (ern_show). A function's R describes its
+%% result, and Make wraps a function value so that each call's result is
+%% checked against R, faulting with Text (report §7.4); `Io.debug`'s
+%% descriptors carry no Make, since nothing is checked there.
 -module(ern_boundary).
 
 -export([foreign/6, value/3]).
@@ -36,9 +39,36 @@ foreign(M, F, Args, ArgDescs, Desc, Text) ->
 -spec value(term(), term(), binary()) -> term().
 value(Desc, V, Text) ->
     case chk(Desc, V, #{}) of
-        true -> zeroed(Desc, V);
+        true -> armed(Desc, zeroed(Desc, V));
         false -> ern_rt:fault(Text)
     end.
+
+%% Report §7.4: every function value in a checked value, wrapped so that
+%% its result is checked at each call. The value is already checked.
+armed(D, V) ->
+    case has_fun(D) of
+        true -> arm(D, V, #{});
+        false -> V
+    end.
+
+has_fun({'fun', _, _, _, _}) -> true;
+has_fun(T) when is_tuple(T) -> lists:any(fun has_fun/1, tuple_to_list(T));
+has_fun(L) when is_list(L) -> lists:any(fun has_fun/1, L);
+has_fun(_) -> false.
+
+arm({'fun', _, _, _, Make}, V, _) -> Make(V);
+arm({list, D}, V, B) -> [arm(D, X, B) || X <- V];
+arm({tuple, Ds}, V, B) ->
+    list_to_tuple([arm(D, X, B) || {D, X} <- lists:zip(Ds, tuple_to_list(V))]);
+arm({map, _, D}, V, B) -> maps:map(fun(_, X) -> arm(D, X, B) end, V);
+arm({con, Cs}, V, B) when is_tuple(V) ->
+    Ds = con_fields(element(1, V), Cs),
+    list_to_tuple([element(1, V) | [arm(D, X, B)
+                                    || {D, X} <- lists:zip(Ds, tl(tuple_to_list(V)))]]);
+arm({abstract, D}, V, B) -> arm(D, V, B);
+arm({mu, Id, D}, V, B) -> arm(D, V, B#{Id => D});
+arm({ref, Id}, V, B) -> arm(maps:get(Id, B), V, B);
+arm(_, V, _) -> V.
 
 %% Report §3.1: a float entering from foreign code, the runtime's negative
 %% zero among them, is the language's; X + 0.0 is 0.0 for either zero and
@@ -83,7 +113,7 @@ chk(string, V, _) -> is_binary(V) andalso unicode:characters_to_binary(V) =:= V;
 chk(bytes, V, _) -> is_binary(V);
 chk({pid, _, _}, V, _) -> is_pid(V);
 chk(ref, V, _) -> is_reference(V);
-chk({'fun', N}, V, _) -> is_function(V, N);
+chk(F, V, _) when element(1, F) =:= 'fun' -> is_function(V, element(2, F));
 chk(never, _, _) -> false;
 chk({list, D}, V, B) -> is_list(V) andalso lists:all(fun(X) -> chk(D, X, B) end, V);
 chk({tuple, Ds}, V, B) ->
