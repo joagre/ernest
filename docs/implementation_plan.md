@@ -191,6 +191,16 @@ The steps:
    3.12); `--no-clean`, the only negative; and
    `--errors short`, a value option with one value. The names are in §11.1 to §11.4, so
    each is a report change and worth deciding once.
+   - **Decided 2026-09-26: one tool, the job its first word.** `ernc` goes into `ern`:
+     `ern build`, `ern doc`, `ern run`, `ern test`, `ern shell` and `ern config`, with
+     `--help` and `--version` as options. §11 states the rule for a directory's option:
+     `-root` where its layout gives namespaces, `-dir` a plain directory, `-path` a root
+     given more than once; `--out-dir` becomes `--build-root`. `ern config [--config-dir d]`
+     creates the configuration directory itself (the cold read's 3.12). `--no-clean` goes,
+     and `--errors short` and `--emit erl` become the flags `--short-errors` and
+     `--emit-erl`. A refusal of an old spelling names the new one. Report §11.1 to §11.4,
+     the README, the guide's tools page, the Makefile, the Emacs mode and the tests change
+     together in step 10. The log's *One Tool, the Job Its First Word*.
 8. **The Erlang code's open questions**, from its review on 2026-09-25, gone through one by
    one after the language is decided and before what was decided is built, since a split
    is cheapest before the code it moves is changed. Where the code lives and how big it is:

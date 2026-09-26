@@ -11,7 +11,8 @@ an abstract type's boundary (§4.4). 2.1 and 2.2 were decided with the reply rul
 (§3.9, the log's *Not-Reply-Carrying by What the Body Does*); 1.2, 1.6, 1.13, 2.6, the
 second halves of 2.8 and 2.9, 2.17 and 2.34 the same day (the log's *An Initializer Depends
 on What It Names* and *The Cold Read's Smaller Rules*), and 1.1 and 2.13 on 2026-09-26 (the log's
-*A Pure Function Stands for One With a Mailbox* and *A Redundant Clause Is an Error*).
+*A Pure Function Stands for One With a Mailbox* and *A Redundant Clause Is an Error*), and 3.12
+with the toolchain's option names (the log's *One Tool, the Job Its First Word*).
 
 This file holds the rest until MVP 2.65 decides each, under the theme of the feedback list
 that takes it; a finding leaves the file when it is decided. Each keeps its number and the
@@ -95,13 +96,6 @@ nothing says how a session ends.
 
 *Checked.* Recommended: a Commands paragraph in §11.2, about 190 words, one sentence a
 command, reversing the log's choice to leave them to `:help`.
-
-3.12. **The configuration directory.** `--config-dir dir` names the `.ernest` directory
-itself (default `./.ernest`, L873), but `--create-config-dir dir` creates `dir/.ernest`
-(L877).
-
-*Checked.* Recommended: both options name the configuration directory itself. With the
-toolchain's option names.
 
 3.17. **§2.2's comments.** Whether `////` is a doc comment; whether a `*/` inside a string
 inside a block comment ends it; whether an end of line is LF only.
