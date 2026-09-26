@@ -26,11 +26,10 @@ citations_resolve_test() ->
 %% docs/style.md, README "Layout of the repository": a document that says
 %% where things are names things that are there. The report and the guide
 %% name paths a program might have, `net/http.ern`, and the plan and the
-%% naming record name paths that are gone or not yet written, so the five
+%% naming record name paths that are gone or not yet written, so the four
 %% checked here are the ones that describe the repository as it is.
 document_paths_test() ->
-    Where = ["README.md", "CLAUDE.md", "docs/architecture.md", "docs/style.md",
-             "docs/install.md"],
+    Where = ["README.md", "CLAUDE.md", "docs/architecture.md", "docs/style.md"],
     Missing = [{F, P} || F <- Where, P <- paths(read(F)),
                          not exists(P)],
     ?assertEqual([], Missing).

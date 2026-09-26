@@ -4447,10 +4447,6 @@ Two kinds of check are new to the project. The grammar and the type system are a
 
 The first run is the first release's, MVP 2.95, before its manual pages and its installation, since a finding may change what they build. `docs/review.md` owns the procedure; the plan holds each run's ledger and says when one runs.
 
-## An Installation Without a Configure Step, 2026-09-26
-
-MVP 2.95's installation, whose design `docs/install.md` owns. Ernest has no configure step, and none is wanted for a tree of Erlang beams and an escript. The prefix is a make variable, with `DESTDIR` to stage the tree for a package, which is how projects without a configure step, Lua and SQLite's among them, take one. Nothing is written into the installed files, so the tree is relocatable by construction: `bin/ern` already finds its libraries relative to its own path, and the installed one is a relative symbolic link the escript resolves before it looks. The manual pages go to `share/man`, where the file system hierarchy puts them and `man` looks by default, rather than the older `man` beside `bin`. Erlang/OTP stays a requirement on the path: bundling a runtime is a larger release and a later decision. A document for building alone was weighed and left: building is one `make`, which the README's few lines own, and the installation is the part with a design, so it is a design note beside the shell's and the protocol's.
-
 ## Later
 
 Planned or considered, not in the language today.

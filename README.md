@@ -59,8 +59,8 @@ ernest_report.md   the language report (normative)
 ernest_guide.md    the guide
 docs/              decisions log, implementation plan, architecture note, style guides,
                    module documentation template, shell design, language feedback, the
-                   report's cold read, the review before a release, installing, Emacs
-                   mode, node protocol, code distribution
+                   report's cold read, the review before a release, Emacs mode, node
+                   protocol, code distribution
 examples/          Ernest programs: the paper programs and the small ones
 erl/               the toolchain, as Erlang applications: lexer, parser,
                    typer, runtime, emitter, cli, utils (vendored getopt);
