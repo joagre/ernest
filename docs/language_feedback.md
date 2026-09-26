@@ -7,7 +7,7 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Twenty-nine have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Thirty have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
 (decided, report §9), 2, 4 and 43 (weighed and kept, the log's *Constructor Names Stay Unique
 in a Module*, *Names Stay Qualified, Without Import or Alias* and *Two Visibilities Are
@@ -26,8 +26,9 @@ service is a top-level binding, and a restart keeps the address), 24 (decided th
 `stdlib/process.ern` lists the live processes, and the shell reads it), 28 (decided there:
 `Process.faults` delivers every fault, and the shell keeps its own log), 50 (decided there:
 a timed read, accept or connect takes its time limit into the request), 47 (decided there:
-a system message type's constructors are its system module's), and 37 (decided there:
-`Tcp.port` answers a listener's port).
+a system message type's constructors are its system module's), 37 (decided there:
+`Tcp.port` answers a listener's port), and 27 (decided there: `Terminal.subscribe` refuses
+where standard input is not a terminal).
 
 ## 1. Names and namespaces
 
@@ -41,14 +42,9 @@ decision.
 
 ## 3. Processes and the system
 
-What a process is to the program that holds its address, and what the system modules
-give: the system modules' contracts, one by one.
-Items 14 and 25 are MVP 3.0's, and 16 is MVP 2.7's; they are here because they are the
-same question.
+Decided on 2026-09-26; the plan's MVP 2.65 step 5 names each decision. Items 14 and 25 are
+MVP 3.0's, and 16 is MVP 2.7's; they stay here because they are the same question.
 
-27. **Nothing in Appendix E says whether keys can be read.** The shell asks the host
-    (`ern_shell:is_terminal/0`), a `foreign fn` for a fact `Terminal` owns; `Terminal.size`
-    answers only whether output is a terminal. Whether E.16 should answer the question.
 14. **Is `remote` needed once the node protocol and code distribution exist?** Raised while
     the guide was being checked, with `docs/node_protocol.md` and `docs/code_distribution.md`
     in view. `remote(f)` (report §6.7, guide §8.1) runs a pure function on a peer the runtime

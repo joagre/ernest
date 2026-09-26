@@ -18,12 +18,10 @@ Actorson until 12 September 2026.
 ## Where we are
 
 **MVP 2.65, the language and the toolchain read back after the shell, has begun.** Its
-first four steps are done: the feedback list and this plan consolidated, the report read
-cold, and the first two themes, names and namespaces, and expressions, patterns and types.
-The third theme, processes and the system, has begun: names, restarts and supervision
-are decided (item 53, six questions), a process's identity (item 24), the live
-processes as a function (item 26), and the fault log (item 28), a stream's time limit (item 50), system messages (item 47), and a listener's port
-(item 37); item 27 is next. MVP 2.6, the shell, was closed on
+first five steps are done: the feedback list and this plan consolidated, the report read
+cold, and the first three themes, names and namespaces, expressions, patterns and types,
+and processes and the system. The fourth theme, the standard library under E.0, is next.
+MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
 **Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23; MVP 2.61, the
@@ -111,112 +109,44 @@ The steps:
    and a check-only contract waits for a design (item 52, weighed and kept); an exported
    function takes no `Bool` that chooses a behaviour, and `Markdown.render` takes a `Style`
    (item 45; report Appendix E.0 rule 9). The log has an entry for each.
-5. **Processes and the system**, the third theme (items 9, 24, 26, 27, 28, 37, 47, 50, 53).
-   Items 14 and 25 stay with MVP 3.0 and 16 with MVP 2.7. **The direction, set 2026-09-26**
-   (item 53; the log's *Names, Restarts and Supervision*): no registry. A process spawned
-   through `restarting(f)` keeps its address and its mailbox across a fault, and runs `f`
-   again from its start; the message it was handling is lost. A service is a top-level
-   binding, `export let service : Address(M) = spawn(Local, restarting(...))`, reached by
-   its name as `Sys.stdout` is, typed by its declaration, and granted by `export`. This
-   revokes §4.6's pure initializer and adds the top-level binding to §6.5's ways of holding
-   an address. Nothing is built before the questions below are decided, in this order:
-   1. **Decided 2026-09-26: a call ends when its callee faults.** When the process a call's
-      request was sent to faults or dies before it answers, `Address.call` returns `None` at
-      once and `Address.callForever` faults the caller with the same cause (report §6.6, when
-      built). The lost message is not delivered again, and one without a `Reply` is lost
-      silently. The log's *A Call Ends When Its Callee Faults*. Completed with item 50: a
-      callee that returned without answering faults a `callForever` caller with
-      `Fault("callee returned without answering")`, one that was killed with
-      `Fault("callee was killed")`, and one that ended with the program gives nothing.
-   2. **Decided 2026-09-26: a restart has a limit and no strategy.** `restarting(limit, f)`,
-      with `type Limit = Limit(restarts : Int, within : Int)` in milliseconds and no default,
-      restarts on a fault only; `Returned`, `Killed` and `ProgramEnd` end the process. Past
-      the limit it dies with the last fault's cause. No strategy across siblings, which is a
-      group's, and no backoff, which is policy; both are question 6's. The name `Limit` is
-      settled when the report is written. The log's *A Restart Has a Limit and No Strategy*.
-   3. **Decided 2026-09-26: every fault reaches standard error.** `ern` prints every fault
-      of every process, not only the entry process's, as the shell already does: the spawn
-      site, the cause, and `restarted` when the limit allowed a restart (report §11.2, when
-      built). `monitor` stays one message, at death (§6.9). Feedback item 9 is answered. The
-      log's *Every Fault Reaches Standard Error*.
-   4. **Decided 2026-09-26: an initializer runs as a `Never` process.** It is checked as a
-      body of mailbox type `Never`, so it may spawn, send and call and may not receive, and
-      it runs in the entry process before `main` (report §4.6 and §8.5, when built). The
-      mention rule stays: a spawned process may start at once, and two services that name
-      each other are a cycle. A module is initialized whole. A service is tested through
-      the pair `fn start()` and `let service = start()`, which the guide teaches. §8.7 and
-      the shell's reload each gain a sentence where they meet a service. The log's *An
-      Initializer Runs as a `Never` Process*.
-   5. **Decided 2026-09-26: a peer's service is found through its binding.** A process
-      spawned on the peer reads the binding there and sends the address back, since §8.7
-      evaluates a binding shipped code names once per node. `Peer.find("a", fn() =
-      Log.service)` does it in one call, typed `(String, () -> Address(m))` to an address or
-      a failure, and is built in MVP 3.0. §8.7 gains two sentences: a node's own
-      initialization is the evaluation shipped code reads, and shipped code whose
-      definition differs by hash evaluates its own, a second service on the peer. The log's
-      *A Peer's Service Is Found Through Its Binding*.
-   6. **Decided 2026-09-26: a `Supervisor` in the standard library, and `fault`.**
-      `Supervisor.start(strategy, limit)`, `Supervisor.spawn(supervisor, limit, f)`, which
-      returns the child's typed address, and `Supervisor.stop`, with `OneForOne`,
-      `OneForAll` and `RestForOne` and a `Limit` counted across the group. Its children
-      are `restarting` processes, restarted in place for a group strategy through a shim
-      internal to the module, and a start notice written in Ernest tells it a child
-      restarted. E.0 rule 3 gains that a policy the program passes as an argument is not
-      buried. Past its limit the supervisor stops its children and ends with `fault(cause)`,
-      a prelude function that faults on purpose. Built in MVP 2.66. The log's *A
-      `Supervisor` in the Standard Library, and `fault`*.
+5. **Done 2026-09-26: processes and the system**, the third theme, after a survey of the
+   BEAM languages, the typed and virtual actors, and the capability languages (the log's
+   *Names, Restarts and Supervision*). Nothing is built yet; step 10 builds it, report first,
+   in §4.6, §6.5, §6.6, §6.9, §7.4, §8.2, §8.5, §8.7, §9, §11.2 and Appendix E. Items 14 and
+   25 stay with MVP 3.0 and 16 with MVP 2.7. The decisions, each argued in the log entry
+   named:
+   - **No registry; a restart keeps the address** (item 53). `restarting(Limit(restarts,
+     within), f)` runs `f` again in the same process and mailbox on a fault, past the limit
+     dying with the last cause, with no strategy and no backoff (*A Restart Has a Limit and
+     No Strategy*). A service is a top-level binding, `export let service : Address(M) =
+     ...`, and an initializer is checked as a `Never` process in the entry process before
+     `main` (*An Initializer Runs as a `Never` Process*).
+   - **A call ends when its callee faults or dies**: `Address.call` answers `None` at once,
+     and `Address.callForever` faults its caller with the callee's cause, `Fault("callee was
+     killed")` or `Fault("callee returned without answering")` (*A Call Ends When Its Callee
+     Faults*, completed in *A Stream Keeps Its Own Time Limit*).
+   - **Every fault reaches standard error**, with `restarted` after one the limit allowed;
+     `monitor` stays one message at death (item 9; *Every Fault Reaches Standard Error*).
+   - **A peer's service is found through its binding**, and `Peer.find` does it in one
+     call in MVP 3.0 (*A Peer's Service Is Found Through Its Binding*).
+   - **A `Supervisor` in the standard library, and `fault(cause)` in the prelude**, built in
+     MVP 2.66 (*A `Supervisor` in the Standard Library, and `fault`*).
+   - **A process's identity is a `Process`**, from `Address.process`, with equality; an
+     address keeps none (item 24; *A Process's Identity Is a `Process`*).
+   - **`stdlib/process.ern`**: `Process.live`, `site`, `mailboxSize`, `state` (item 26; *The
+     Live Processes Are a Library Function*) and `Process.faults` with `FaultReport` (item
+     28; *Every Fault Is Delivered to Whoever Subscribes*). The shell's doors to the
+     runtime's processes go.
+   - **A stream keeps its own time limit**: `Tcp.read`, `accept` and `connect` carry their
+     milliseconds in the request (item 50; *A Stream Keeps Its Own Time Limit*).
+   - **A system message is its module's to make**, and `Sys.stdout` and `Sys.stderr` take an
+     `OutMsg` (item 47; *A System Message Is Its Module's to Make*).
+   - **`Tcp.port(listener)`** (item 37; *A Listener Says Its Port*).
+   - **`Terminal.subscribe` answers `Left(NotATerminal)`** where standard input is not a
+     terminal, and the shell's `isTerminal()` goes (item 27; *A Subscription Says Whether It
+     Has Keys*).
 
-   Item 53 is decided with the six and has left the feedback list. The report changes,
-   §4.6, §6.5, §6.6, §6.9, §7.4, §8.5, §8.7, §9, §11.2 and E.0 rule 3, are made in step 10,
-   report first.
-
-   **Decided 2026-09-26: a process's identity is a `Process`** (item 24). `Address.process :
-   (Address(m)) -> Process` gives the process behind an address, every adapter removed; a
-   `Process` has equality and no ordering, and nothing can be sent to it. §3.10 keeps an
-   address without equality, since it holds a function. `Io.debug` prints `<process 84>`,
-   and an address as `<address 84>`; `:processes` and a fault line show the same identity.
-   `Down` is unchanged. Report §3.10, §6.5, §9 and E.1, and §11.2, in step 10. The log's *A
-   Process's Identity Is a `Process`*.
-
-   **Decided 2026-09-26: the live processes are a standard library function** (item 26).
-   `stdlib/process.ern`, admitted by E.0 rule 1: `Process.live()`, the live processes the
-   runtime started, system processes excepted; `Process.site(p)`, where it was spawned;
-   `Process.mailboxSize(p)` and `Process.state(p)`, running, waiting in a `receive`, or
-   waiting for the answer to a call, each `None` once the process is dead and each a
-   snapshot, as its documentation says. The shell's `:processes` is written over them, and
-   its foreign `processes()` goes. Report §9, a new Appendix E section, and §11.2, in step
-   10. The log's *The Live Processes Are a Library Function*.
-
-   **Decided 2026-09-26: every fault is delivered to whoever subscribes** (item 28).
-   `Process.faults(wrap)` delivers a `FaultReport(process, site, cause, restarted)` for
-   every fault of every process the runtime started, as E.0 rule 8 delivers, for as long
-   as the subscriber lives. `ern`'s report of every fault is the runtime's own subscriber.
-   The shell subscribes, prints, and keeps its last hundred faults in Ernest; its
-   `watchDeaths` and `faults()` go, and §11.2's sentence on a record the shell alone reads
-   goes with them. MVP 2.7's simple log can be written over it. The log's *Every Fault Is
-   Delivered to Whoever Subscribes*.
-
-   **Decided 2026-09-26: a stream keeps its own time limit** (item 50). `Tcp.read`,
-   `Tcp.accept` and `Tcp.connect` keep their signatures, and the milliseconds travel in the
-   request: the socket process answers `Left(Timeout)` itself and buffers what comes later,
-   the accept and the connect use the host's own time limit, and the Ernest side waits with
-   `Address.callForever`. E.18 gains that a read, accept or connect that times out has taken
-   nothing. The log's *A Stream Keeps Its Own Time Limit*.
-
-   **Decided 2026-09-26: a system message is its system module's to make** (item 47). The
-   message types of the system references and of the addresses their modules answer stay
-   the prelude's, and their constructors are named only in that system module; another
-   module that names one is refused, and the error names the function to call. The checker
-   keeps the table of owners, held equal to §9.7 by a test. `Sys.stdout` and `Sys.stderr`
-   take an `OutMsg`, so E.0 rule 8 holds with no exception. Report §9.7, E.0 rule 8 and
-   E.18, in step 10. The log's *A System Message Is Its Module's to Make*.
-
-   **Decided 2026-09-26: a listener says its port** (item 37). `Tcp.port(listener)` answers
-   `Either(IoError, Int)`, admitted by E.0 rule 1, answered at once and so in rule 8's list
-   of functions that take no milliseconds; a dead listener gives `Left(Closed)`, since a
-   call to a dead process ends at once. `ListenerMsg` gains `Port(reply)`, `Tcp`'s own, and
-   E.18's example listens on port 0 and prints the port it got. A socket's own and peer
-   address go to step 6's third batch. The log's *A Listener Says Its Port*.
+   The guide gains a section on services in step 10 and one on the supervisor in MVP 2.66.
 6. **The standard library under E.0**, the fourth theme, in three batches: where the line
    between a shim and Ernest runs, with the abstract types it could write (items 11, 13, 42,
    46), what a function is named and where it
