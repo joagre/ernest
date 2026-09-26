@@ -274,7 +274,12 @@ The steps:
       that a restarted service must hand out its new address goes. The section on the
       supervisor is MVP 2.66's. `ern_shell`, its doors to the runtime gone, is measured
       again and whether its `:browse` and `:doc` leave it is decided (step 8, *Where the
-      Toolchain's Modules Split*). The document sweep closes the step.
+      Toolchain's Modules Split*). The holder module of each `it`, its value and its
+      interface are freed once no module the session keeps refers to them, each input
+      recording what earlier inputs it depends on as `ernc` records a module's; measured in
+      step 8, 2,000 expressions still grow the code by 8 MB and the process heaps by 16 MB,
+      nearly all of it the holders and the environment they lengthen (*The Shell Lets Go of
+      an Input*). The document sweep closes the step.
 
 ---
 
@@ -316,8 +321,12 @@ reads it today.
 every Ernest program in the repository, the standard library, the shell, `libs/` and
 `examples/`, read again for memory that is kept with no need, capped or not, as the table of
 ended processes was (MVP 2.65 step 8, *A Process Is Watched From Its Start*): a table, a
-cache, a list or a map that grows with the work done rather than with what is alive. Each
-finding is fixed, or decided with the user where the fix changes what the language promises.
+cache, a list or a map that grows with the work done rather than with what is alive. The
+reading is checked by measurement: representative programs, the examples, the shell under a
+long session, a server under many requests, each run under load with the host's memory, its
+atoms and its processes measured before and after, as the shell was in step 8, whose
+per-input growth reading alone had not shown. Each finding is fixed, or decided with the user
+where the fix changes what the language promises.
 
 **A simple log.** Noted 2026-09-26, to be decided in this milestone: `ern` writes what it
 prints to standard error, the fault reports first among them, to a file as well, and

@@ -742,6 +742,35 @@ host_reserved_names() ->
     ?assertMatch({_, _}, binary:match(Out, <<"5 : Int">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"fault">>)).
 
+%% report §11.2: an input that declares nothing is done with its module once
+%% it has its answer: the module is unloaded, unless what the input bound
+%% holds one of its functions, and a process the input spawned keeps it
+%% until that process ends. A regression test: every input's module stayed
+%% loaded for the rest of the session. Not covered: the holder of `it`,
+%% which step 10 of MVP 2.65 frees.
+input_module_unloaded_test_() ->
+    {timeout, 60, fun input_module_unloaded/0}.
+
+input_module_unloaded() ->
+    In = filename:join("/tmp", "ern_unload_" ++ os:getpid() ++ ".in"),
+    ok = file:write_file(In, [
+        "foreign fn loaded(m : Foreign) -> Bool with m = \"erlang:module_loaded/1\"\n",
+        "foreign fn old(m : Foreign) -> Bool with m = \"erlang:check_old_code/1\"\n",
+        "1 + 1\n",
+        "loaded(Erl.atom(\"ern@$input3\"))\n",
+        "fn(x : Int) -> Int = x + 1\n",
+        "it(41)\n",
+        "let _ = spawn(Local, fn() -> Unit with Never = {"
+        " let _ = receive { after 300 -> Unit }; Io.println(\"late\") })\n",
+        "old(Erl.atom(\"ern@$input7\"))\n",
+        "receive { after 600 -> Unit }\n",
+        "old(Erl.atom(\"ern@$input7\"))\n"]),
+    {0, Out} = sh(alone("../bin/ern --shell") ++ " < " ++ In),
+    Answers = [L || L <- binary:split(Out, <<"\n">>, [global]),
+                    binary:match(L, [<<" : Bool">>, <<" : Int">>, <<"late">>]) =/= nomatch],
+    ?assertEqual([<<"> 2 : Int">>, <<"> false : Bool">>, <<"> 42 : Int">>, <<"> > true : Bool">>,
+                  <<"> late">>, <<"> false : Bool">>], Answers).
+
 %% report §11.2: every refusal of a command is red, as a diagnostic's first
 %% line is, and an answer is plain. A regression test for a finding of the
 %% session of real use: `:load`'s refusal was red and `:set`'s was not, the

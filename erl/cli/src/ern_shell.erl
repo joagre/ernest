@@ -405,9 +405,51 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
                               throw:{ern, fault, Msg, _} -> {'Faulted', Msg};
                               Class:Reason -> {'Faulted', fault_text(Class, Reason)}
                           end,
+                forget(Mod, Binds, Outcome),
                 ern_rt:send(To, Outcome)
             end,
     ern_rt:spawn('Local', Input, <<"input:1">>).
+
+%% An input that declares nothing, an expression or a `let`, is done with
+%% its module once it has its answer, unless what it bound holds one of the
+%% module's functions: it is deleted, and purged unless a process the input
+%% spawned still runs it, which keeps it until that process ends; each
+%% later input tries the purge again. An input that declares keeps its
+%% module, since its names are the session's.
+forget(Mod, Binds, Outcome) ->
+    Unpurged = [M || M <- persistent_term:get({?MODULE, unpurged}, []),
+                     not code:soft_purge(M)],
+    Done = case {Binds, Outcome} of
+               {decls, _} -> true;
+               {_, {'Ok', _, #value{term = V}}} -> holds_code_of(V, Mod) orelse unload(Mod);
+               {_, {'Faulted', _}} -> unload(Mod)
+           end,
+    Left = case Done of
+               true -> Unpurged;
+               false -> [Mod | Unpurged]
+           end,
+    Left =/= persistent_term:get({?MODULE, unpurged}, [])
+        andalso persistent_term:put({?MODULE, unpurged}, Left),
+    ok.
+
+%% Deleted, and whether its code could be purged too.
+unload(Mod) ->
+    code:delete(Mod),
+    code:soft_purge(Mod).
+
+%% Whether a value holds a function of the module, in its data or in a
+%% function's captures.
+holds_code_of(F, Mod) when is_function(F) ->
+    element(2, erlang:fun_info(F, module)) =:= Mod
+        orelse holds_code_of(element(2, erlang:fun_info(F, env)), Mod);
+holds_code_of(T, Mod) when is_tuple(T) ->
+    holds_code_of(tuple_to_list(T), Mod);
+holds_code_of([H | Rest], Mod) ->
+    holds_code_of(H, Mod) orelse holds_code_of(Rest, Mod);
+holds_code_of(M, Mod) when is_map(M) ->
+    holds_code_of(maps:to_list(M), Mod);
+holds_code_of(_, _) ->
+    false.
 
 %% An input that declares runs its initializers and nothing else. Report
 %% §8.5: a module's top-level values are computed by them, which the runner
