@@ -30,7 +30,7 @@ Source text is Unicode in UTF-8; a leading byte-order mark (U+FEFF) is stripped.
 
 `//` to end of line and `/* ... */`, which nests, are removed by the lexer and take part in no grammar rule. A block comment's text is not tokenized: the `*/` that closes its outermost `/*` ends it, inside quotes or not. A line ends at a line feed.
 
-`///` to end of line is a doc comment; consecutive `///` lines form a doc block, whose text is CommonMark 0.31. A doc block immediately preceding a declaration, a constructor, or a named field, with no blank line between, is its documentation, extractable by the toolchain, §11.4. A doc block before the first declaration, with a blank line after it, is the module's documentation. Elsewhere it is an ordinary comment.
+`///` to end of line, where the third `/` is not followed by a fourth, is a doc comment; `////` begins an ordinary comment. Consecutive `///` lines form a doc block, whose text is CommonMark 0.31. A doc block immediately preceding a declaration, a constructor, or a named field, with no blank line between, is its documentation, extractable by the toolchain, §11.4. A doc block before the first declaration, with a blank line after it, is the module's documentation. Elsewhere it is an ordinary comment.
 
 ### 2.3 Identifiers
 
@@ -196,7 +196,7 @@ A sum type whose constructors may be mentioned only in the module that declares 
 
 ### 3.7 Built-in types
 
-`Address(m)` is an address of a process that receives `m`. `Reply(a)` is a one-shot address for the answer to a request, §6.6. `Never` is the type with no values. It is an ordinary type and unifies with itself alone; a function that never returns and may stand at any type has a type variable as its result, as `todo` has (§9.6). `Foreign` is the type of a value foreign code made and Ernest does not inspect, §8.4 and Appendix E.12. The prelude types are listed in §9.
+`Address(m)` is an address of a process that receives `m`. `Reply(a)` is a one-shot address for the answer to a request, §6.6. `Never` is the type with no values. It is an ordinary type and unifies with itself alone; a function that never returns and may stand at any type has a type variable as its result, as `fault` has (§9.6). `Foreign` is the type of a value foreign code made and Ernest does not inspect, §8.4 and Appendix E.12. The prelude types are listed in §9.
 
 ### 3.8 Foreign types
 
@@ -206,11 +206,11 @@ A foreign value is bound to the node that made it: transporting a value that tra
 
 ### 3.9 Type variables and polymorphism
 
-Types are inferred according to Hindley-Milner. A `fn` definition and a top-level `let` are generalized over their free type variables; a `let` in a block is not. Type variables in a `fn` signature scope over the whole definition, including the annotations of lambdas, of block `let`s, and of local `fn`s within it. A variable named only in a lambda's annotation is the lambda's own and is not rigid. A variable named only in a block `let`'s annotation is that binding's own and is not rigid. A local `fn`'s signature shares the enclosing signature's variables, and a variable named only in it is the local function's own, rigid and generalized with it as a top-level function's is. Recursive and mutually recursive types are allowed; polymorphic recursion is not, even where the whole signature is written: a recursive call is at the definition's own type. Every type variable in a constructor's fields is a parameter of the type.
+Types are inferred according to Hindley-Milner. A `fn` definition and a top-level `let` are generalized over their free type variables; a `let` in a block is not, nor is a top-level `let` whose initializer calls a process-only function (§4.6). Type variables in a `fn` signature scope over the whole definition, including the annotations of lambdas, of block `let`s, and of local `fn`s within it. A variable named only in a lambda's annotation is the lambda's own and is not rigid. A variable named only in a block `let`'s annotation is that binding's own and is not rigid. A local `fn`'s signature shares the enclosing signature's variables, and a variable named only in it is the local function's own, rigid and generalized with it as a top-level function's is. Recursive and mutually recursive types are allowed; polymorphic recursion is not, even where the whole signature is written: a recursive call is at the definition's own type. Every type variable in a constructor's fields is a parameter of the type.
 
 **Effect polymorphism.** The mailbox effect of a function type may be a type variable, generalized with the others: `fn apply(f, x) = f(x)` has type `((a) -> b with e, a) -> b with e`. At a call site an effect variable binds to a mailbox type or to pure: `apply(fn(x) = send(a, x), 5)` binds `e` to the mailbox of `send`, `apply(fn(x) = x + 1, 5)` binds `e` to pure. Pure is the absence of `with`; it is not a type. A mailbox type bound this way becomes the caller's. A pure function stands wherever a function of the same type with a mailbox type is expected, and a function with a mailbox type never stands where a pure one is expected. So an expression whose type is a function type without `with` takes a fresh effect variable in its place, which the context binds: with `fn done(n : Int) -> Unit = Unit`, `Upgrade(migrate = double, next = done)` binds it to `CounterMsg` (§6.10). Only the expression's own function type takes one. A function type inside it or inside another type, a parameter's, a result's, or a field's, keeps its effect until an expression has it as its own type, as a call or a selection does.
 
-An effect position is the type after `with`. A value position is an argument, a result, a tuple component, or a type argument whose parameter occurs in a value position of its type's fields. A type argument of a built-in or foreign type is a value position. A variable that occurs only in effect positions ranges over the mailbox types and pure. A variable that also occurs in a value position ranges over types alone: `m` in `self : () -> Address(m) with m` is never pure. This is the only departure from Hindley-Milner in the form of types. Inference asks for an annotation in three places: an operator whose operand type nothing in the definition fixes (§4.8), a block binding whose type keeps a variable nothing resolves (§4.6), and a `<-` whose sum type is still open (§5.5).
+An effect position is the type after `with`. A value position is an argument, a result, a tuple component, or a type argument whose parameter occurs in a value position of its type's fields. A type argument of a built-in or foreign type is a value position. A variable that occurs only in effect positions ranges over the mailbox types and pure. A variable that also occurs in a value position ranges over types alone: `m` in `self : () -> Address(m) with m` is never pure. This is the only departure from Hindley-Milner in the form of types. Inference asks for an annotation in three places: an operator whose operand type nothing in the definition fixes (§4.8), a binding that is not generalized whose type keeps a variable nothing resolves (§4.6), and a `<-` whose sum type is still open (§5.5).
 
 The functions of §9.4 and §9.5 whose type has a `with`, and a `foreign fn` whose effect is its own, are *process-only*: their effect variable is treated as if it occurred in a value position, and pure code cannot call them. A `foreign fn`'s effect is its own unless its effect variable is also the effect of one of its parameters' function types, in which case the effect is that callback's and the function is effect-polymorphic: `foreign fn each(m : Map(k, v), f : (k, v) -> Unit with e) -> Unit with e` is pure when `f` is.
 
@@ -260,7 +260,7 @@ A *module* is one source file, ending in `.ern`: the unit of compilation and of 
 
 **Declarations are local; `export` marks the boundary.** A declaration is written with its local name. `fn parse` in `net/http.ern` is exported as `Net.Http.parse` when marked `export`; otherwise it is private to its module. A use site may write a declaration's qualified name, in its own module as well and exported or not; a declaration never does. Two exported declarations with the same qualified name are an error. The type of an exported declaration, and the field types of an exported type that is not abstract, may not name a type the module keeps private. A function's mailbox type is exempt: an exported entry point may receive a private message type. A type whose values cross the boundary but whose constructors do not is an `abstract type` (§4.4). There is no export list and no `import`.
 
-**Taken namespaces.** A module namespace may not coincide with a namespace of the prelude or the standard library. The prelude's namespaces are `Prelude`, `Sys`, `Address`, and the name of every type §9 lists: `event.ern`, `sys.ern`, and `io.ern` at the source root are errors. The standard library's own source root, shipped with the toolchain, is the exception: its files provide those namespaces. A file under it is compiled with it as the source root (§11.1); another source root is an error.
+**Taken namespaces.** A module namespace may not coincide with a namespace of the prelude or the standard library. The prelude's namespaces are `Prelude`, `Address`, and the name of every type §9 lists: `down.ern` and `io.ern` at the source root are errors. The standard library's own source root, shipped with the toolchain, is the exception: its files provide those namespaces. A file under it is compiled with it as the source root (§11.1); another source root is an error.
 
 ```
 // net/http.ern
@@ -307,7 +307,7 @@ In a block, `let p = e` binds the irrefutable pattern `p` to the value of `e`; `
 
 A block binding's type may hold unresolved type variables; `[]`, `None`, `Map.empty`, and a call that returns a polymorphic value introduce them. Such a variable is resolved in one of three ways: a later use of the binding in the block pins it, `let m = Map.empty; Map.put(m, "a", 1)` pins `m` at `Map(String, Int)`; it reaches the block's result and is generalized by the enclosing `fn` or top-level `let`, `fn namedEmpty() = { let xs = []; xs }` has type `() -> List(a)`; or an annotation on the binding fixes it. A variable resolved in none of these ways is a type error at the binding. A use pins a variable only where it fixes the variable's type: in `{ let xs = []; List.size(xs) }` the element type stays open, and the binding is a type error. A spawned function whose mailbox type nothing fixes is annotated: `let a = spawn(Local, fn() -> Unit with Never = ping(p, 3))`. `let _ = e` binds no variable, so no variable in the type of `e` needs resolving: `let _ = spawn(Local, fn() = worker())` is legal with the mailbox type unresolved. A type parameter of an enclosing scope counts as resolved.
 
-At top level, `let` binds a `DeclName`: an `ident`, optionally prefixed with a type of the same module (§4.2). The binding generalizes its free type variables: `let Stack.empty : Stack(a) = Stack([])`. The left side is a name, not a pattern; `<-` is a block form only. The initializer is pure. Effectful setup belongs in `main`. The runtime evaluates top-level bindings in dependency order before `main` runs (§8.5).
+At top level, `let` binds a `DeclName`: an `ident`, optionally prefixed with a type of the same module (§4.2). The left side is a name, not a pattern; `<-` is a block form only. The initializer is a body of mailbox type `Never` (§6.8): it may spawn, send, and call, and it may not receive. The binding generalizes its free type variables: `let Stack.empty : Stack(a) = Stack([])`. A binding whose initializer calls a process-only function (§3.9) is not generalized, and a type variable left in its type is a type error at the binding. The runtime evaluates top-level bindings in dependency order, in the entry process, before `main` runs (§8.5).
 
 ### 4.7 Foreign declarations
 
@@ -503,7 +503,14 @@ Messages from one process to another are received in sending order. Between diff
 
 `Address(m)` identifies a process on a node and carries its protocol: `send(a, v)` is type-checked against `m` on any node. `via(f, addr)`, §9.5, is `addr` seen through `f : (a) -> b`: sending `v` to `via(f, addr)` sends `f(v)` to `addr`, `f` being applied by the `send`, in the sender. `via(Wrap, self())`, with `Wrap : (Int) -> Msg` and the mailbox type `Msg`, is an `Address(Int)`; a value sent to it arrives as `Wrap(v)`. A fault in `f` is the target's: the process `addr` names dies of it, and the sender goes on.
 
-Addresses have no equality; identity is expressed in the protocol. There is no registry: a process reaches another only through an address it holds or received, and possession of the address is the permission to send.
+Addresses have no equality (§3.10). The process behind an address is `Process.fromAddress(a)`, a value with equality that nothing can be sent to (Appendix E.21). There is no registry. A process reaches another through an address it holds or received, or through a top-level binding that holds one, which is a *service*:
+
+```
+export let log : Address(LogMsg) =
+    spawn(Local, restarting(RestartLimit(restarts = 3, within = 5000), logger))
+```
+
+The address is the permission to send, and a service binding grants it to the modules that see the binding (§4.2).
 
 ### 6.6 Request-reply
 
@@ -515,7 +522,7 @@ Address.callForever : (Address(m), (Reply(a)) -> m) -> a with n
 answer              : (Reply(a), a) -> Unit with m
 ```
 
-`Address.call(addr, mk, ms)` allocates a fresh `r : Reply(a)`, sends `mk(r)` to `addr`, and returns `Some(v)` when the recipient answers or `None` after `ms` milliseconds, a time below 0 being 0. The clock starts at the call. A reply that arrives together with the timeout may be delivered or discarded. `Address.callForever(addr, mk)` waits without limit and returns `a`. `answer(r, v)` sends `v` to the caller. A reply travels by an identifier private to the call, never through the caller's mailbox. A late answer, after a timeout or the caller's death, is discarded silently, as is a second answer to a `Reply` already answered. The recipient cannot observe whether the caller still waits.
+`Address.call(addr, mk, ms)` allocates a fresh `r : Reply(a)`, sends `mk(r)` to `addr`, and returns `Some(v)` when the recipient answers or `None` after `ms` milliseconds, a time below 0 being 0. The clock starts at the call. A reply that arrives together with the timeout may be delivered or discarded. `Address.callForever(addr, mk)` waits without limit and returns `a`. When the process `addr` names ends or restarts before it answers, the call ends at once. `Address.call` then returns `None`. `Address.callForever` faults the caller: with the callee's cause where the callee faulted, with `Fault("callee was killed")` where it was killed, and with `Fault("callee returned without answering")` where its function returned. Where the program ends, the caller ends with it. A request handed on to another process is watched only at the process it was sent to. `answer(r, v)` sends `v` to the caller. A reply travels by an identifier private to the call, never through the caller's mailbox. A late answer, after a timeout or the caller's death, is discarded silently, as is a second answer to a `Reply` already answered. The recipient cannot observe whether the caller still waits.
 
 **The rule.** A `Reply` is answered exactly once, and so is every value that contains one: on every path from where it is bound, it is *consumed* exactly once. `answer(r, v)` consumes a `Reply` by answering it. Every other consumption hands the obligation on:
 
@@ -523,7 +530,7 @@ answer              : (Reply(a), a) -> Unit with m
 - `send` hands it to the `receive` clause that binds the value.
 - Placing it in a constructor field or tuple component of reply-carrying type hands it to the built value.
 - Returning it from a function whose result type is reply-carrying hands it to the caller.
-- Capturing it in a lambda hands it to the lambda, which is then reply-carrying itself. The lambda is consumed exactly once, by a call or as the function argument of `spawn` or `spawnMonitored`, and may appear nowhere else. `let f = fn() = worker(r); spawn(Local, f)` is legal; with `f()` after the `spawn`, `f` is consumed twice. A local `fn` may not capture a reply-carrying value; such a capture is a type error.
+- Capturing it in a lambda hands it to the lambda, which is then reply-carrying itself. The lambda is consumed exactly once, by a call or as the function argument of `spawn` or `spawnMonitored`, and may appear nowhere else. `let f = fn() = worker(r); spawn(Local, f)` is legal; with `f()` after the `spawn`, `f` is consumed twice. `restarting(limit, f)` with such an `f` is a type error, since `restarting` may run `f` more than once. A local `fn` may not capture a reply-carrying value; such a capture is a type error.
 
 A value is bound by a parameter, a `let`, a pattern variable, a `receive` variable, a lambda's capture, or the result of a call, and each binding is an *obligation*. The check is per function and crosses no call boundary. It is static: every path makes the consumption, and whether execution reaches it is not checked, since non-termination, a fault, or an indefinite wait may prevent it.
 
@@ -564,7 +571,9 @@ A function with mailbox type `Never` can send but never receive: a `receive` wit
 
 ### 6.9 Death
 
-A process dies when its function returns, when `kill` is called on it, on a fault (§7.3), or when the program ends (§8.6). Its `Reason` (§9.3) says which: `Returned`, `Killed`, `Fault(cause)`, or `ProgramEnd`; `Unknown` is what a `monitor` made after the end says. `kill` is asynchronous: the target may run until the runtime interrupts it. `kill` on a process that is dead has no effect. `kill` on a system process (§8.2) faults the caller with `Fault("a system process is the runtime's")`. `monitor(a, wrap)`, §9.5, places `wrap(d)` in the caller's mailbox when `a` dies; `d : Down` gives the cause. If `a` is already dead, the message is placed at once, with the reason `Unknown`: the runtime keeps nothing of a process that has ended, so a `monitor` made after the end cannot say how. A `monitor` made while the process runs gets its reason, and a process started with `spawnMonitored` (§6.2) is monitored from its start. Each `monitor` call produces one message. A `wrap` is applied as `via`'s function is (§6.5), by the delivery: a fault in it is the fault of the process it delivers to, and a `wrap` that does not finish holds up no other delivery. `function` in `Down` is the qualified name of the top-level declaration in which the `spawn` that started the dead process is written, with the line where it is written: `Counter.main:19`. A `spawn` in a lambda or a local `fn` counts as written in the top-level declaration that contains it. Where `spawn` is passed as a value, it counts as written where its name is. For the entry process it is the entry point's name. With the reason `Unknown` it is the empty string. There are no other links.
+A process dies when its function returns, when `kill` is called on it, on a fault (§7.3), or when the program ends (§8.6). Its `Reason` (§9.3) says which: `Returned`, `Killed`, `Fault(cause)`, or `ProgramEnd`; `Unknown` is what a `monitor` made after the end says. `kill` is asynchronous: the target may run until the runtime interrupts it. `kill` on a process that is dead has no effect. `monitor(a, wrap)`, §9.5, places `wrap(d)` in the caller's mailbox when `a` dies; `d : Down` gives the cause. If `a` is already dead, the message is placed at once, with the reason `Unknown`: the runtime keeps nothing of a process that has ended, so a `monitor` made after the end cannot say how. A `monitor` made while the process runs gets its reason, and a process started with `spawnMonitored` (§6.2) is monitored from its start. Each `monitor` call produces one message. A `wrap` is applied as `via`'s function is (§6.5), by the delivery: a fault in it is the fault of the process it delivers to, and a `wrap` that does not finish holds up no other delivery. `site` in `Down` is where the dead process was spawned: the qualified name of the top-level declaration in which the `spawn` that started it is written, with the line where it is written: `Counter.main:19`. A `spawn` in a lambda or a local `fn` counts as written in the top-level declaration that contains it. Where `spawn` is passed as a value, it counts as written where its name is. For the entry process it is the entry point's name. With the reason `Unknown` it is the empty string. There are no other links.
+
+`restarting(RestartLimit(restarts = n, within = t), f)`, §9.5, is a function that runs `f()` and, when `f` faults, runs `f()` again in the same process. The process keeps its address and its mailbox, the message being handled is lost, and every call waiting for an answer from it ends (§6.6). A restart is not a death, and no `monitor` is told of it. When `n` restarts have happened within the last `t` milliseconds, the next fault is not restarted, and the process dies with its cause; a count or a time below 0 is 0. `f` returning, a `kill`, and the program's end end the process as they end any other.
 
 ### 6.10 Code replacement
 
@@ -595,11 +604,11 @@ The error is part of the function's meaning and is in its result type, `Either(e
 
 ### 7.2 Message errors
 
-The error crosses a process boundary and is in the message: `Either`, or a constructor of the reply type. A missing reply is `None` from `Address.call` (§6.6).
+The error crosses a process boundary and is in the message: `Either`, or a constructor of the reply type. A missing reply is `None` from `Address.call`, after the time limit or once the callee has ended (§6.6).
 
 ### 7.3 Faults
 
-A fault ends the process that meets it, with the reason `Fault(cause)` that `Down` carries (§6.9). The code cannot see it, and nothing catches it. Its causes are those §7.4 lists, each with its text, and a failure in the runtime, out of memory among them, whose text is the host's class and reason: `Fault("error:badarg")`. A process that is killed, or that ends with the program, has not faulted.
+A fault ends the process that meets it, with the reason `Fault(cause)` that `Down` carries (§6.9), unless the process restarts (§6.9). The code cannot see it, and nothing catches it. Its causes are those §7.4 lists, each with its text, and a failure in the runtime, out of memory among them, whose text is the host's class and reason: `Fault("error:badarg")`. A process that is killed, or that ends with the program, has not faulted.
 
 ### 7.4 Causes of faults
 
@@ -608,37 +617,38 @@ Partial operations in the prelude return `Optional` or `Either`, except the foll
 - `/` and `%` on `Int` with a zero divisor: `Fault("division by zero")`. `Int.div` and `Int.mod`, §9.6, return `Optional` instead.
 - `Float` arithmetic whose result the finite range cannot hold (§3.1): `Fault("float arithmetic error")`. `Int.toFloat` of an integer that rounds beyond the largest finite `Float`: `Fault("Int out of Float range")`.
 - Bitstring construction (§5.11). A value that does not fit its width: `Fault("segment overflow")`. A dynamic total bit count, or a dynamic size of a segment bound to `Bytes`, that is not a multiple of 8: `Fault("bitstring not byte-aligned")`.
-- `todo("...")`, which compiles at any type: `Fault("todo: ...")`.
+- `fault(c)`, which compiles at any type: `Fault(c)`.
+- `Io.readLine` of a line that is not UTF-8: `Fault("the standard input is not UTF-8")` (§8.2).
+- `Address.callForever` whose callee ends before it answers (§6.6): the callee's cause, `Fault("callee was killed")`, or `Fault("callee returned without answering")`.
 - Cross-node transport of a foreign value (§3.8): `Fault("foreign value cannot cross nodes")`.
 - `spawn(Peer(...), ...)` or `spawnMonitored(Peer(...), ...)` with an unknown or unreachable peer: `Fault("peer unreachable")`. `spawn(Peer(...), ...)` or `remote(f)` with a resolution failure on the peer (§8.7): `Fault("peer resolution failed: ...")`. A fault in `remote`'s callback faults the caller with the callback's own cause. `send` to a remote address whose resolution fails faults the sender with the same cause, asynchronously, after `send` returns.
-- `kill` on a system process: `Fault("a system process is the runtime's")`, in the caller (§6.9).
 - A foreign function that raises: `Fault("foreign function m:f/n raised ...")`. A foreign function's return is checked against its declared type when the function returns, and a reply when `Address.call` or `Address.callForever` returns it, each in the calling process and to the value's whole depth; a function value in it is checked when it is called, its result against its declared result type. A mismatch faults the calling process: `Fault("foreign return does not match T")`, `Fault("reply does not match T")`. A message from a foreign process that does not match the mailbox type faults the receiver on delivery (§8.4): `Fault("message does not match M")`. Each names the declared type.
 
-These faults come from no prelude operation. A fault in a function adapting an address faults the target with its own cause (§6.5). The loss of a peer faults every process on it with `Fault("peer lost")` (§10). A deadlock faults the entry process with `Fault("deadlock")` (§8.6). The unloading of the code a process runs faults the process with `Fault("its code was unloaded")` (§11.2). Reading the terminal both as lines and as keys faults the entry process with `Fault("the terminal is already read as lines")`, or `as keys` (§8.2). While a shell holds the terminal, subscribing to it or reading a line from any other process faults that process with `Fault("the shell holds the terminal; run the program with ern to give it the keyboard")` (§11.2). A standard input that cannot be read faults the entry process with `Fault("the standard input could not be read: ...")`, the host's reason after the colon.
+These faults come from no prelude operation. A fault in a function adapting an address faults the target with its own cause (§6.5). The loss of a peer faults every process on it with `Fault("peer lost")` (§10). A deadlock faults the entry process with `Fault("deadlock")` (§8.6), and under `ern test` the process of the test that runs (§11.2). The unloading of the code a process runs faults the process with `Fault("its code was unloaded")` (§11.2). Reading the terminal both as lines and as keys faults the entry process with `Fault("the terminal is already read as lines")`, or `as keys` (§8.2). While a shell holds the terminal, subscribing to it or reading a line from any other process faults that process with `Fault("the shell holds the terminal; run the program with ern run to give it the keyboard")` (§11.2). A standard input that cannot be read faults the entry process with `Fault("the standard input could not be read: ...")`, the host's reason after the colon.
 
 ## 8. Programs
 
 ### 8.1 `main`
 
-The entry point is a `fn () -> Unit with m`. The process that runs it is the *entry process*. `m` is the message type when the entry receives. It is `Never` when the annotation says so. Otherwise it is polymorphic, and the runtime instantiates it to `Never`. A pure `fn () -> Unit` is an entry point too, and its process's mailbox type is `Never`. A result type that is a type variable, as a function that never returns has, is taken as `Unit`, as a mailbox type that is a variable is taken as `Never`. A top-level `let`, and a function of another shape, is not an entry point, and `ern` refuses it. `ern module.erc` runs the `export fn main` of that module; `ern --main Qualified.name module.erc` runs another exported function of that shape. `main` is a convention, not a reserved name.
+The entry point is a `fn () -> Unit with m`. The process that runs it is the *entry process*. `m` is the message type when the entry receives. It is `Never` when the annotation says so. Otherwise it is polymorphic, and the runtime instantiates it to `Never`. A pure `fn () -> Unit` is an entry point too, and its process's mailbox type is `Never`. A result type that is a type variable, as a function that never returns has, is taken as `Unit`, as a mailbox type that is a variable is taken as `Never`. A top-level `let`, and a function of another shape, is not an entry point, and `ern run` refuses it. `ern run module.erc` runs the `export fn main` of that module; `ern run --main Qualified.name module.erc` runs another exported function of that shape. `main` is a convention, not a reserved name.
 
 ### 8.2 System references
 
-The runtime starts its system processes and binds their addresses to top-level values in the `Sys` namespace, §9.7. A program uses each through the standard library, Appendix E: `Sys.stdout`, `Sys.stderr`, and `Sys.stdin` through `Io`, the rest through the module of the same name, its *system module*. The address and its message type are declared in Ernest, for the module and for the foreign process behind it (§8.4). A runtime may provide more. The values are in scope everywhere; pure code can name an address but not send to it (§6.1). A `Sys.*` name the runtime does not provide is a compile-time error. In code shipped to a peer, one the peer's runtime does not provide is a resolution failure (§8.7).
+The runtime starts its system processes, and each is a top-level binding of its *system module* in the standard library, private to that module: `stdout`, `stderr`, and `stdin` of `Io`, and the `reference` of `Terminal`, `Clock`, `Fs`, and `Tcp` (Appendix E). A program uses each through its module's functions. The binding's initializer is a `foreign fn` of the module that answers the runtime's address (§4.7), evaluated at each start (§8.5). The message type is declared in the module, in Ernest, for the module and for the foreign process behind it (§8.4), and no other module can make a message of it. A runtime may provide more system modules. In code shipped to a peer, a system module the peer's runtime does not provide is a resolution failure (§8.7).
 
-**`stdout` and `stderr`.** `stdout` writes each received `String` to standard output as bytes, and adds no newline. `stderr` does the same to standard error. It is a second sink, for a program whose output is read by something else, and not a level of severity.
+**`stdout` and `stderr`.** `stdout` writes each text it receives to standard output as bytes, and adds no newline. `stderr` does the same to standard error. It is a second sink, for a program whose output is read by something else, and not a level of severity.
 
-**`stdin`.** `stdin` answers each `ReadLine` with the next line without its line feed, and `None` at end of input.
+**`stdin`.** Standard input is read as UTF-8, whatever the host's locale. `stdin` answers each request with the next line, without its line feed and without one carriage return before the line feed, and with `None` at end of input. A last line without a line feed is a line. A line that is not UTF-8 faults the process that asked for it with `Fault("the standard input is not UTF-8")` (§7.4).
 
-**The terminal.** `terminal` sends each subscriber an `Event` for every key pressed and for every change of the terminal's size. A process holds one subscription: a second `Terminal.subscribe` replaces the first, its wrap from then on, and a subscription ends when its process dies. It answers `Measure` with the size now, and with `None` where there is no terminal or its size is unknown. `terminal` and `stdin` are the same terminal, and a program subscribes to the terminal or reads lines, not both. A program that does both faults its entry process with `Fault("the terminal is already read as lines")`, or `as keys` (§7.4).
+**The terminal.** `terminal` sends each subscriber an `Event` for every key pressed and for every change of the terminal's size. A process holds one subscription: a second `Terminal.subscribe` replaces the first, its wrap from then on, and a subscription ends when its process dies. Where standard input is not a terminal, a subscription is refused with `Left(NotATerminal)` and claims nothing. `terminal` answers a request for the size with the size now, and with `None` where standard output is not a terminal or its size is unknown. `terminal` and `stdin` are the same terminal, read as keys or as lines: a subscription that is granted claims it for keys, and a line read claims it for lines. A program that claims it both ways faults its entry process with `Fault("the terminal is already read as lines")`, or `as keys` (§7.4).
 
-**Keys.** A subscription is answered once the terminal is in the mode the keys need: nothing typed after `subscribe` returns is echoed. While a program is subscribed, the terminal delivers each key as it is pressed and does not echo it, and the runtime restores line mode with echo when the program ends. A sequence the runtime does not name arrives as `Escape` and the characters after it. `Escape` is delivered once no escape sequence can still follow it.
+**Keys.** A subscription is answered once the terminal is in the mode the keys need: nothing typed after `subscribe` returns is echoed. While a program is subscribed, the terminal delivers each key as it is pressed and does not echo it, and the runtime restores line mode with echo when the program ends. A sequence the runtime does not name arrives as `Escape` and the characters after it. `Escape` is delivered once no escape sequence can still follow it. The terminal applies each subscriber's wrap itself, keeping its keys in order, so a wrap that does not finish delays that subscriber's keys and no other's.
 
 **Paste.** While a program is subscribed, the runtime asks the terminal to bracket a paste. Pasted text then arrives as one `Pasted`, not as the keys of its characters, and its line endings are line feeds. A terminal that does not bracket a paste sends the characters, which no program can tell from typing.
 
 **Interrupt.** `Interrupt` is the terminal's interrupt, delivered to the holder of the terminal in place of the signal that would end the program (§8.6). A program that is not the holder is ended by that signal.
 
-**`clock`, `fs`, and `tcp`** answer as their message types say (§9.3).
+**`clock`, `fs`, and `tcp`** answer their modules' requests as Appendix E.15, E.17, and E.18 say.
 
 ### 8.3 Peers
 
@@ -671,11 +681,11 @@ Same-named constructors of different types share an atom; the receiver's declare
 
 ### 8.5 Initialization
 
-Before `main` runs, the runtime evaluates in dependency order every top-level `let` of the entry point's module and of every module it depends on, directly or through others. A module the program does not depend on is not initialized. A binding depends on every top-level `let` its initializer names, and on what every function it names depends on, called or not; a lambda's body is part of its initializer. A binding is evaluated after those it depends on. `let handlers = [f]` is a cycle when `f` names `handlers`, and so is `let a = fn() = a()`. The order within an independent set is unspecified. A cycle is a compile-time error. Only `let` requires evaluation, and the `Sys.*` references are bound first. An initializer that faults (§7.4) ends the program with that fault before `main` runs. Which of two independent faulting initializers is reported is unspecified. An initializer that does not terminate prevents the remaining initializers and `main` from running.
+Before `main` runs, the runtime evaluates in the entry process, in dependency order, every top-level `let` of the entry point's module and of every module it depends on, directly or through others. A module the program does not depend on is not initialized. A binding depends on every top-level `let` its initializer names, and on what every function it names depends on, called or not; a lambda's body is part of its initializer. A binding is evaluated after those it depends on. `let handlers = [f]` is a cycle when `f` names `handlers`, and so is `let a = fn() = a()`. The order within an independent set is unspecified. A cycle is a compile-time error. Only `let` requires evaluation, and the system modules' bindings are evaluated first. An initializer runs as a body of mailbox type `Never` (§4.6): a service it spawns runs from then on, and two independent initializers that print do so in no promised order. An initializer that faults (§7.4) ends the program with that fault before `main` runs. Which of two independent faulting initializers is reported is unspecified. An initializer that does not terminate prevents the remaining initializers and `main` from running.
 
 ### 8.6 Program termination
 
-The program ends when `main` returns or faults, a fault being reported on the runtime's exit indicator. Live local processes then die with the reason `ProgramEnd`, and the runtime flushes the system processes' pending output before it stops. A signal from outside that ends the program, the host's termination or interrupt, ends it the same way, and the runtime prints nothing of its own about the signal. Workers spawned on peers are unaffected and follow their own return, `kill`, or peer loss (§10); peers observe the ending node as lost. A program that is to keep running waits in `main`.
+The program ends when the entry process dies, whatever the reason (§6.9), a fault being reported on the runtime's exit indicator. Live local processes then die with the reason `ProgramEnd`, and the runtime flushes the system processes' pending output before it stops. A signal from outside that ends the program, the host's termination, hangup, or interrupt, ends it the same way, and the runtime prints nothing of its own about the signal. Workers spawned on peers are unaffected and follow their own return, `kill`, or peer loss (§10); peers observe the ending node as lost. A program that is to keep running waits in `main`.
 
 When no forward progress is possible, the entry process faults with `Fault("deadlock")` (§7.4) and the program ends as above. No progress is possible when every live process waits in `receive` without `after` or in `Address.callForever`, no message is in flight, no monitor waits on a process the runtime did not start, and no system process or connected peer holds a timer, a subscription, a pending I/O, or a computation whose completion would deliver a message. A process spawned on a peer by this node counts as such a computation while it runs. Detection is per node. Whether a user-provided foreign process counts like a system process here is the runtime's choice.
 
@@ -685,19 +695,19 @@ Four operations ship a closure or payload, and the code it depends on, to a peer
 
 **Content addressing.** Every function, constructor, and type is identified across nodes by a hash of its normalized definition together with the hashes of what it references. Identical definitions have the same hash on every node. A type's hash includes its qualified name, so two types with the same constructors under different names are different types, as they are to the checker. Any change to a definition changes its hash, and transitively the hashes of everything that depends on it. A set of mutually recursive definitions is hashed as a group, internal references by position, and each member's identity derives from the group's hash. Normalization renames local variables, orders named fields canonically (§3.5), preserves the source evaluation order of construction expressions, and preserves the qualified names of external references.
 
-**Resolution.** Before a shipped closure runs, the peer resolves every hash it carries, transitively, from its own store or by fetching from the sender, and caches what it fetched. A resolution failure is a missing dependency, a missing `Sys.x`, or an incompatible foreign definition. For `remote` and `spawn(Peer, ...)` it is a fault of the caller. For `send` it is an asynchronous fault of the sender. A resolution failure does not invalidate other addresses on that peer; only the loss of the peer does (§10).
+**Resolution.** Before a shipped closure runs, the peer resolves every hash it carries, transitively, from its own store or by fetching from the sender, and caches what it fetched. A resolution failure is a missing dependency, a system module the peer's runtime does not provide, or an incompatible foreign definition. For `remote` and `spawn(Peer, ...)` it is a fault of the caller. For `send` it is an asynchronous fault of the sender. A resolution failure does not invalidate other addresses on that peer; only the loss of the peer does (§10).
 
 **Identity.** Types are identified by hash. Two nodes with identical declarations under the same qualified name interoperate. Two nodes with different declarations under one name hold distinct types. A shipped closure that mentions the sender's `FooMsg` uses the sender's `FooMsg` on the peer; the peer's own `FooMsg` is unrelated to it. An abstract type's hash also includes the types of its module's exported declarations: two `Stack(a)` declarations with the same name and representation are one type only if their modules export the same declarations with the same types.
 
-**Bindings.** A `Sys.*` name in shipped code resolves on the peer that runs it: a shipped `Io.println` writes on the peer. An address captured by the closure is shipped as a value and still names the process it named on the sender: an `Address` captured from the sender's `Sys.stdout` still names the sender's stdout. A top-level binding referenced by shipped code is evaluated on the peer on first use, in the peer's environment, at most once per node for each hash of its definition: `let output = Sys.stdout` is the peer's stdout when evaluated on the peer. An initializer that faults there faults the process that first uses it. Foreign declarations are not shipped: a shipped closure that references one requires a compatible definition under the same qualified name on the peer, and a missing or incompatible one is a fault at resolution.
+**Bindings.** A system module's binding in shipped code is the peer's: a shipped `Io.println` writes on the peer. An address captured by the closure is shipped as a value and still names the process it named on the sender. A top-level binding referenced by shipped code is evaluated on the peer on first use, in the peer's environment, at most once per node for each hash of its definition. Where the peer's own program has evaluated the binding, that evaluation is the one shipped code reads, so a service binding names the peer's service. A binding whose definition differs from the peer's by hash is another binding: shipped code compiled from another version of a service's module starts a second service on the peer, running the sender's version. An initializer that faults there faults the process that first uses it. Foreign declarations are not shipped: a shipped closure that references one requires a compatible definition under the same qualified name on the peer, and a missing or incompatible one is a fault at resolution.
 
 ## 9. Prelude
 
 The prelude is what §9 names. Everything else is the standard library, Appendix E: the container, string, and numeric operations and the output helpers. An operation of §9.6 in a type's namespace, `Int.compare`, is provided by that type's standard library module. `Address.call` and `Address.callForever` are the runtime's, as the rest of §9.4 and §9.5 are.
 
-The prelude's names are documented as a standard library module's declarations are (E.0 rule 6), on a page of their own, and an operation a type's module provides is documented there. A type that is the prelude's because a system reference speaks it has no example, since a program does not send to a system reference (E.0 rule 8).
+The prelude's names are documented as a standard library module's declarations are (E.0 rule 6), on a page of their own, and an operation a type's module provides is documented there.
 
-A type is the prelude's when the language's rules name it, as `Optional` for `<-` and `Down` for `monitor`; when the module of its operations is named after it, as `Map` and `Int`; or when a system reference speaks it (§9.7), as `FsMsg` and `IoError`. `Test` and `TestResult` are the prelude's for `ern --test` (§11.2). Any other type a module provides is the module's, as `Random.Seed`.
+A type is the prelude's when the language's rules name it, as `Optional` for `<-`, `Down` for `monitor`, and `RestartLimit` for `restarting`; or when the module of its operations is named after it, as `Map`, `Int`, and `Path`. `Test` and `TestResult` are the prelude's for `ern test` (§11.2). Any other type a module provides is the module's, as `Random.Seed`.
 
 ### 9.1 Built-in types (§3)
 
@@ -727,45 +737,17 @@ type Unit = Unit // the one-value type; carries no information
 type Optional(a) = None | Some(a)
 type Either(e, a) = Left(e) | Right(a)
 type Ordering = Less | Equal | Greater
-type Down = Down(reason : Reason, function : String)
+type Down = Down(reason : Reason, site : String)
 type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
-type ClockMsg = // times in milliseconds
-    After(ms : Int, to : Address(Int)) // the time it fires is sent to `to`
-  | At(at : Int, to : Address(Int))
-  | Now(reply : Reply(Int))
+type RestartLimit = RestartLimit(restarts : Int, within : Int) // within in milliseconds, §6.9
 type RemoteError = NoRemotePeer | PeerLost
 type Where = Local | Peer(String) // spawn placement, §6.2
-type Size = Size(rows : Int, columns : Int)
-type Event =
-    Key(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter | Escape
-  | Interrupt | Pasted(String) | Resized(Size)
-type TerminalMsg =
-    Subscribe(to : Address(Event), reply : Reply(Unit))
-  | Measure(reply : Reply(Optional(Size)))
-type StdinMsg = ReadLine(reply : Reply(Optional(String)))
 type Path = Path(String) // in the runtime's syntax
-type Entry = Entry(path : Path, mtime : Int, size : Int, isDir : Bool) // mtime in milliseconds since the epoch, as Clock.now; size in bytes
-type IoError = NotFound | Denied | Refused | Closed | Timeout | Other(String)
-type FsMsg =
-    ReadFile(path : Path, reply : Reply(Either(IoError, Bytes)))
-  | WriteFile(path : Path, bytes : Bytes, reply : Reply(Either(IoError, Unit)))
-  | AppendFile(path : Path, bytes : Bytes, reply : Reply(Either(IoError, Unit)))
-  | ListDir(path : Path, reply : Reply(Either(IoError, List(Entry))))
-  | Stat(path : Path, reply : Reply(Either(IoError, Entry)))
-  | MakeDir(path : Path, reply : Reply(Either(IoError, Unit)))
-  | Remove(path : Path, reply : Reply(Either(IoError, Unit)))
-  | Rename(from : Path, to : Path, reply : Reply(Either(IoError, Unit)))
-  | Copy(from : Path, to : Path, reply : Reply(Either(IoError, Unit)))
-type TcpMsg =
-    Listen(port : Int, reply : Reply(Either(IoError, Address(ListenerMsg))))
-  | Connect(host : String, port : Int, reply : Reply(Either(IoError, Address(SockMsg))))
-type ListenerMsg = Accept(reply : Reply(Either(IoError, Address(SockMsg))))
-type SockMsg = Recv(reply : Reply(Either(IoError, Bytes))) | Send(Bytes) | Close
 type Test = Test(name : String, run : () -> TestResult with Never)
 type TestResult = Passed | Failed(String)
 ```
 
-A top-level `let` of type `Test` is a test; `ern --test` runs it (§11.2).
+A top-level `let` of type `Test` is a test; `ern test` runs it (§11.2).
 
 ### 9.4 Built-in functions (§6)
 
@@ -784,6 +766,7 @@ Address.call        : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
 Address.callForever : (Address(m), (Reply(a)) -> m) -> a with n
 answer              : (Reply(a), a) -> Unit with m
 remote              : (() -> a) -> Either(RemoteError, a) with m
+restarting          : (RestartLimit, () -> Unit with n) -> () -> Unit with n
 monitor             : (Address(a), (Down) -> m) -> Unit with m
 kill                : (Address(a)) -> Unit with m
 ```
@@ -803,26 +786,14 @@ Int.compare : (Int, Int) -> Ordering // §3.10: ordering is per type
 Float.compare : (Float, Float) -> Ordering
 String.compare : (String, String) -> Ordering
 Char.compare : (Char, Char) -> Ordering
-todo : (String) -> a // §7.4: faults if reached
+fault : (String) -> a // §7.4: faults with the cause given
 ```
 
 On `Int`, `Float`, `String`, `List`, and `Bytes` an operator is the runtime's own operation. The declaration of one in the type's module, `fn Int.+(a, b) = a + b`, names that operation and is not a recursive call.
 
 ### 9.7 System references
 
-Runtime-provided, §8.2:
-
-```
-Sys.stdout : Address(String)
-Sys.stderr : Address(String)
-Sys.stdin : Address(StdinMsg)
-Sys.terminal : Address(TerminalMsg)
-Sys.clock : Address(ClockMsg)
-Sys.fs : Address(FsMsg)
-Sys.tcp : Address(TcpMsg)
-```
-
-Each is used through the standard library, §8.2.
+The prelude binds no system reference. Each is a private binding of its system module, §8.2.
 
 ## 10. Runtime Requirements
 
@@ -836,68 +807,84 @@ Each is used through the standard library, §8.2.
 - The hash and the normal form of §8.7, how nodes authenticate each other (§8.3), and the wire format are the runtime's, fixed and documented with it.
 - `Down` carries a reason distinguishable from every other.
 - The runtime detects a deadlock (§8.6).
-- A node ships code to a peer that lacks it, identified by content; dependencies resolve by hash before a shipped closure runs, types are content-addressed, `Sys.*` re-binds to the peer, and foreign code is per node, §8.7.
+- A node ships code to a peer that lacks it, identified by content; dependencies resolve by hash before a shipped closure runs, types are content-addressed, a system module's binding is the peer's, and foreign code is per node, §8.7.
 - The runtime detects the loss of a peer: every process on it is treated as dead with the reason `Fault("peer lost")`, monitors deliver `Down` (§6.9), and pending `remote` calls return `Left(PeerLost)`. Loss is terminal: a peer that reappears under the same name is a new instance, and addresses held before the loss are unrelated to it. `send` to a peer is best-effort; messages in flight at the loss are dropped without notice.
 
 ## 11. Toolchain
 
-Options are long: `--name`, or `--name value` for one that takes a value.
+The toolchain is one command, `ern`, whose first word is its job: `ern build`, `ern doc`, `ern run`, `ern test`, `ern shell`, and `ern config`. `ern --help` and `ern --version` are options. Options are long: `--name`, or `--name value` for one that takes a value. An option that names a directory ends in `-root` where the directory's layout gives namespaces (§4.2), in `-dir` where it is a plain directory, and in `-path` where it is a root that may be given more than once. A job or an option spelled as an earlier version of the toolchain spelled it is refused, and the refusal names the spelling that replaces it.
 
-### 11.1 `ernc` (compiler)
+### 11.1 `ern build` (compiler)
 
-`ernc [--source-root src-root] [--out-dir build-dir] [--load-path dir ...] file.ern` compiles a module to `file.erc`. That file carries the inferred types of the module's exported declarations and which of them are values rather than functions (§4.6); dependent modules are checked against them. It carries the module's documentation too: every doc block of §2.2, each declaration's signature, and each function's parameter list as the module writes it. On the BEAM that is the EEP 48 `Docs` chunk, which the host's own documentation tools read. `ernc [--source-root src-root] [--out-dir build-dir] [--load-path dir ...] src-dir` compiles every `.ern` under `src-dir` in dependency order, mirroring the source tree into `build-dir` and creating directories as needed. A cycle among the modules (§4.1) is reported with the modules in it. A module is recompiled when its source has changed, when the interface of a module it depends on has changed, when any interface of the standard library has changed, or when it was compiled by another build of `ernc`, another version or the same version's code changed; a change confined to a dependency's bodies does not recompile its dependents. A module outside the source root is read from its `.erc` under `build-dir`, then under each `--load-path` root, found by namespace as §11.2 finds it. Cross-module references link at load, against `.erc` files under `build-dir` and the `--load-path` roots. `--emit erl` writes the module's Erlang source as `.erl` instead, for reading; it carries no interface.
+`ern build [--source-root src-root] [--build-root build-root] [--load-path dir ...] file.ern` compiles a module to `file.erc`. That file carries the inferred types of the module's exported declarations and which of them are values rather than functions (§4.6); dependent modules are checked against them. It carries the module's documentation too: every doc block of §2.2, each declaration's signature, and each function's parameter list as the module writes it. On the BEAM that is the EEP 48 `Docs` chunk, which the host's own documentation tools read. `ern build [--source-root src-root] [--build-root build-root] [--load-path dir ...] src-dir` compiles every `.ern` under `src-dir` in dependency order, mirroring the source tree into `build-root` and creating directories as needed. A cycle among the modules (§4.1) is reported with the modules in it. A module is recompiled when its source has changed, when the interface of a module it depends on has changed, when any interface of the standard library has changed, or when it was compiled by another build of `ern`, another version or the same version's code changed; a change confined to a dependency's bodies does not recompile its dependents. A module outside the source root is read from its `.erc` under `build-root`, then under each `--load-path` root, found by namespace as §11.2 finds it. Cross-module references link at load, against `.erc` files under `build-root` and the `--load-path` roots. `--emit-erl` writes the module's Erlang source as `.erl` instead, for reading; it carries no interface.
 
-**Source root.** Each file's namespace comes from its path under the source root (§4.2). `--source-root` names it. Without it, a path under the standard library's source root (§4.2) uses that root. Otherwise single-file mode uses the current directory, and directory mode uses the directory passed to `ernc`. Output mirrors the source root, not the directory argument: `ernc --source-root src --out-dir build src/net` writes `src/net/http.ern` to `build/net/http.erc`, not `build/http.erc`. `build-dir` defaults to the source root, and to `build/stdlib` beside the toolchain for the standard library's own source root (§4.2), where its modules are built.
+**Source root.** Each file's namespace comes from its path under the source root (§4.2). `--source-root` names it. Without it, a path under the standard library's source root (§4.2) uses that root. Otherwise single-file mode uses the current directory, and directory mode uses the directory passed to `ern build`. Output mirrors the source root, not the directory argument: `ern build --source-root src --build-root build src/net` writes `src/net/http.ern` to `build/net/http.erc`, not `build/http.erc`. `build-root` defaults to the source root, and to `build/stdlib` beside the toolchain for the standard library's own source root (§4.2), where its modules are built.
 
 **Path shape.** The name of each `.ern` file compiled, and of each directory between it and the source root, is one word: a lowercase letter followed by lowercase letters and digits. A multi-word module is a nested directory, `http/parser.ern` for `Http.Parser`. Extensions are `.ern` and `.erc`. A path that breaks the rule is an error, `path component Net must be lowercase`; the root itself and files that are not modules are not checked.
 
-**Cleanup.** After a successful directory-mode compilation to `.erc`, `ernc` removes from the mirrored build subtree every `.erc` whose `.ern` no longer exists under the source root, and every directory left empty; nothing else is removed: `ernc --source-root src --out-dir build src/net` sweeps `build/net/` and leaves `build/main.erc`. `--no-clean` disables it. Single-file mode does not sweep.
+**Cleanup.** After a successful directory-mode compilation to `.erc`, `ern build` removes from the mirrored build subtree every `.erc` whose `.ern` no longer exists under the source root, and every directory left empty; nothing else is removed: `ern build --source-root src --build-root build src/net` sweeps `build/net/` and leaves `build/main.erc`. Single-file mode does not sweep.
 
-### 11.2 `ern` (runner)
+### 11.2 `ern run`, `ern test`, and `ern shell` (runner)
 
-`ern [--config-dir dir] [--load-path dir ...] [--main Qualified.name] file.erc` loads the module and, on demand, the modules on the load path. They are found by namespace: `A.B.C` is `a/b/c.erc`, each segment lowercased. A type-member reference `A.B.C.T.member` is found through the interface of `a/b/c.erc`, the module that owns `T`. The runner starts the system processes, binds their addresses to the `Sys.*` references, and calls the entry point (§8.1): the `export fn main` of the loaded module, or the function `--main` names, anywhere on the load path. The load path holds the standard library and the root of the loaded module: the directory reached from the module's file by going up one directory per segment of its namespace. `--load-path` adds directories. An Erlang module that a `foreign fn` names (§8.4) is the host's own or a `.beam` file of that name in a directory of the load path; the host's own is found first. The path-shape rule of §11.1 applies to every `.erc` opened as a module and to each directory between its load-path root and it. Other files are not checked: `.ernest/` under a load-path root is not a module.
+`ern run [--config-dir dir] [--load-path dir ...] [--main Qualified.name] file.erc` loads the module and, on demand, the modules on the load path. They are found by namespace: `A.B.C` is `a/b/c.erc`, each segment lowercased. A type-member reference `A.B.C.T.member` is found through the interface of `a/b/c.erc`, the module that owns `T`. The runner starts the system processes, binds their system modules' references to them (§8.2), and calls the entry point (§8.1): the `export fn main` of the loaded module, or the function `--main` names, anywhere on the load path. The load path holds the standard library and the root of the loaded module: the directory reached from the module's file by going up one directory per segment of its namespace. `--load-path` adds directories. An Erlang module that a `foreign fn` names (§8.4) is the host's own or a `.beam` file of that name in a directory of the load path; the host's own is found first. The path-shape rule of §11.1 applies to every `.erc` opened as a module and to each directory between its load-path root and it. Other files are not checked: `.ernest/` under a load-path root is not a module.
 
-`ern --test file.erc` runs every top-level `let` of type `Test` in the module (§9.3), exported or not, each in a process of its own after the module's initializers (§8.5). It prints each test's name with `passed`, `failed` and the text of `Failed`, or `faulted` and the cause, and exits with status 1 unless every test passed.
+`ern test file.erc` runs every top-level `let` of type `Test` in the module (§9.3), exported or not, after the module's initializers (§8.5), one at a time in the order the module declares them, each in a process of its own. It prints each test's line as the test ends: the test's name with `passed`, with `failed` and the text of `Failed`, or with `faulted` and the cause. A deadlock while a test runs (§8.6) is that test's fault, and the run goes on with the next test. `ern test` exits with status 1 unless every test passed.
 
-`ern` running a program exits with status 0 when the entry point returns. A fault of the entry process, a deadlock among them (§8.6), is printed to standard error as `fault: ` and its cause, and `ern` exits with status 1. Beneath a failure in the runtime (§7.3) or a foreign function's raise (§7.4) it prints the host's stack, a function to a line; the cause a program sees in `Down` (§6.9) is the text alone.
+`ern run` reports every fault of every process the runtime started on standard error, as it happens, a line each: the spawn site and the cause of §6.9, `Counter.worker:23 faulted: division by zero`, and `faulted, restarted:` before the cause where the process restarts (§6.9). Beneath a failure in the runtime (§7.3) or a foreign function's raise (§7.4) it prints the host's stack, a function to a line; the cause a program sees in `Down` (§6.9) is the text alone. A system process's fault is not reported. The report is the runtime's own subscriber of `Process.faults` (Appendix E.21). `ern run` exits with status 0 when the entry point returns. It exits with status 1 when the entry process faults, a deadlock among them (§8.6), or is killed, a killed entry process printing `killed` to standard error. A signal from outside that ends the program (§8.6) makes it exit with status 128 plus the signal's number.
 
-`ern [--shell] [--source-root dir] [file.erc]` adds an interactive shell with every loaded module in scope; `--shell` takes no argument and makes the file optional, and `--source-root` names where the shell finds a module's source, the working directory by default.
+`ern shell [--config-dir dir] [--load-path dir ...] [--source-root dir] [--main Qualified.name] [file.erc]` runs an interactive shell with every loaded module in scope; `--source-root` names where the shell finds a module's source, the working directory by default.
 
 **The shell.** It is the entry point (§8.1). A file's entry point is spawned beside it, so §8.6 ends the program when the shell ends, not when that entry point returns; `--main` then names the function to spawn. A file without an entry point, and without `--main`, is loaded and nothing is spawned, so a library module is put in scope to be tried. The terminal is the shell's, at a terminal and in line mode alike: `Terminal.subscribe` and `Io.readLine` from any other process fault (§7.4), and the terminal's interrupt reaches the shell as a key rather than ending the program (§8.6). A deadlock is not detected while a shell holds the terminal.
 
-**Inputs.** Each input is checked, compiled as a module of its own, and run in a process of its own. An input may declare what a module may, and every declaration it makes is the session's, so `export` at the prompt adds nothing. A `let` at the prompt binds as a `let` in a block does (§4.6), not as a top-level `let`, and stands alone in its input; `let T.name` declares a member and is a declaration like any other. Its pattern binds each name it contains, as in a block, and `let _ = e` runs `e` and binds nothing. A `let` with `<-` is refused, since no block follows it for the `<-` to end. An input that binds a name whose type the input itself does not settle is refused, with the annotation that would settle it. An input whose value, or whose `let`, is reply-carrying is refused (§6.6). An expression's value is bound to `it`, except where the input does not settle its type, which leaves `it` as it was. A diagnostic names the input as the file `input`. Bindings survive a fault or an interruption in an input. An input entered while another runs waits, and runs after it, in the order entered; the interrupt ends the running input alone. A command begins with `:` and is not an Ernest function. The shell's help lists the commands in alphabetical order. A command that takes nothing refuses an argument. A command is selected by its name or by a prefix of its name that begins no other command's name; a prefix that begins more than one is refused with the names it begins.
+**Inputs.** Each input is checked, compiled as a module of its own, and run in a process of its own. An input may declare what a module may, and every declaration it makes is the session's, so `export` at the prompt adds nothing. A `let` at the prompt binds as a `let` in a block does (§4.6), not as a top-level `let`, and stands alone in its input; `let T.name` declares a member and is a declaration like any other. Its pattern binds each name it contains, as in a block, and `let _ = e` runs `e` and binds nothing. A `let` with `<-` is refused, since no block follows it for the `<-` to end. An input that binds a name whose type the input itself does not settle is refused, with the annotation that would settle it. An input whose value, or whose `let`, is reply-carrying is refused (§6.6). An expression's value is bound to `it`, except where the input does not settle its type, which leaves `it` as it was. A diagnostic names the input as the file `input`. Bindings survive a fault or an interruption in an input. An input entered while another runs waits, and runs after it, in the order entered; the interrupt ends the running input alone.
 
-**Printing.** An expression's value is printed with its type (§11.5), except a value of type `Unit`, which prints nothing. An input that is one name, `Io.readLine`, has its type printed as the name's declaration writes it, under the declaration's own variable names. A declaration is printed with its name and type, and a type declaration with its keyword and its name. A value is printed to a depth and a length, and what they leave out prints as `...`; `:set depth n` and `:set length n` change them, and 0 sets no limit. `Io.debug` prints a value whole (E.1). With timing on, a result is followed by the time its run took. What a program writes through `Sys.stdout` and `Sys.stderr` is shown in a live region at the foot of the screen, above the input, in as many rows as `:set output` gives it, none at 0; what the shell itself says is written above the region and scrolls with the terminal, except what `Tab` and `Shift-Tab` show.
+**Commands.** A command begins with `:` and is not an Ernest function. A command that takes nothing refuses an argument. A command is selected by its name or by a prefix of its name that begins no other command's name; a prefix that begins more than one is refused with the names it begins. The commands, in the alphabetical order the shell's help lists them:
 
-**Colour.** At a terminal, and where the environment does not set `NO_COLOR`, the shell colours what it says: a fault report, a diagnostic's first line, and every refusal of a command in red, what the shell answers being plain, the type after a printed value dimmed, a name bold in a completion listing and a `Shift-Tab` brief, the parameter a signature marks in cyan, and in documentation a heading and strong emphasis bold, emphasis in italics, and a code span in cyan. A colour takes no column. Elsewhere, and in `ernc`'s diagnostics, nothing is coloured.
+- `:bindings` lists what the session declares, with their types.
+- `:browse Module` lists the exports of `Module` with their types.
+- `:doc Name` shows the documentation of `Name`.
+- `:faults` lists the faults reported since the session began, the last hundred of them.
+- `:forget name` forgets a name the session declared, and `:forget *` forgets all of them.
+- `:help` lists the commands, each with a line of help.
+- `:load Module` loads a module, as **Loading and reloading** below says.
+- `:output path` sends what programs write to the terminal or file `path`, `:output -` sends it back to the live region, and `:output` alone says where it goes.
+- `:processes` lists the live processes of the session, by spawn site.
+- `:quit` leaves the shell, as `C-d` on an empty line does.
+- `:reload` reloads the loaded modules whose source has changed, as **Loading and reloading** below says.
+- `:set depth n`, `:set length n`, `:set output n`, and `:set timing on` or `off` set the depth and the length a value is printed to, the rows of the live region, and timing; `:set` alone shows them.
+- `:type e` shows the type of `e`, which is not run.
+
+**Printing.** An expression's value is printed with its type (§11.5), except a value of type `Unit`, which prints nothing. An input that is one name, `Io.readLine`, has its type printed as the name's declaration writes it, under the declaration's own variable names. A declaration is printed with its name and type, and a type declaration with its keyword and its name. A value is printed to a depth and a length, and what they leave out prints as `...`; `:set depth n` and `:set length n` change them, and 0 sets no limit. `Io.debug` prints a value whole (E.1). With timing on, a result is followed by the time its run took. What a program writes to standard output and standard error is shown in a live region at the foot of the screen, above the input, in as many rows as `:set output` gives it, none at 0; what the shell itself says is written above the region and scrolls with the terminal, except what `Tab` and `Shift-Tab` show.
+
+**Colour.** At a terminal, and where the environment does not set `NO_COLOR`, the shell colours what it says: a fault report, a diagnostic's first line, and every refusal of a command in red, what the shell answers being plain, the type after a printed value dimmed, a name bold in a completion listing and a `Shift-Tab` brief, the parameter a signature marks in cyan, and in documentation a heading and strong emphasis bold, emphasis in italics, and a code span in cyan. A colour takes no column. Elsewhere, and in `ern build`'s diagnostics, nothing is coloured.
 
 **Scope.** The session's declarations are a scope. An unqualified name is looked up first among the names bound around it, then in the input's own declarations, then in the type-member namespace of the enclosing declaration, then in the session's, then in the prelude (§4.2). A type the session declares prints unqualified, except one a later declaration of its name has shadowed, which prints under the input that declared it: `$Input2.T` for the second input's `T`. No program can name an input, since `$` is in no identifier. A later input may declare a member of a type the session declares, `fn Coin.+` after `type Coin`, and the member is the session's; it belongs to the latest declaration of the type's name, and a type declared again starts with no members.
 
-**Faults.** The shell prints a line for each process that faults while the session runs, with the spawn site and the cause of §6.9: `Counter.worker:23 faulted: division by zero`. A process that returns, that is killed, or that ends with the program is not reported, nor is one of the shell's own, nor an input's own process, whose fault is already its answer. This is the runtime's record of how every process it started ended (§6.9), read by the shell and not by a program, which learns of a death through `monitor` alone. A spawn site in the session is written as the session writes names: in a function an input declares, by that function's name, `start:2`, and in an input's own expression as the file its diagnostics name, `input:1`, the line counted within the input.
+**Faults.** The shell prints a line for each process that faults while the session runs, as `ern run` does and in place of its report. A process that returns, that is killed, or that ends with the program is not reported, nor is one of the shell's own, nor an input's own process, whose fault is already its answer. The shell learns of the faults as a subscriber of `Process.faults` (Appendix E.21), as any program may. A spawn site in the session is written as the session writes names: in a function an input declares, by that function's name, `start:2`, and in an input's own expression as the file its diagnostics name, `input:1`, the line counted within the input.
 
-**Loading and reloading.** `:load` takes a module by its namespace. It compiles the module's source under the source root, or, where there is none, loads its compiled form from the load path or the source root; the modules it uses are loaded as `ern` loads them. The module is then in scope by its qualified name. A module the session has loaded already is refused by `:load`, since `:reload` is how it changes. `:reload` compiles again every loaded module whose source has changed, all of them before it loads any; where one fails, none is loaded and the session is as it was. A module reloaded has two versions in the session: a process still running the previous one keeps it, as §6.10 requires, and so does a binding that holds a function of it. A further reload of that module ends those processes with `Fault("its code was unloaded")` (§7.4) and forgets those bindings; the reload before it names them and ends nothing.
+**Loading and reloading.** `:load` takes a module by its namespace. It compiles the module's source under the source root, or, where there is none, loads its compiled form from the load path or the source root; the modules it uses are loaded as `ern` loads them. The module is then in scope by its qualified name. A module the session has loaded already is refused by `:load`, since `:reload` is how it changes. `:reload` compiles again every loaded module whose source has changed, all of them before it loads any; where one fails, none is loaded and the session is as it was. A module reloaded has two versions in the session: a process still running the previous one keeps it, as §6.10 requires, and so does a binding that holds a function of it. A reloaded module's service bindings (§6.5) are evaluated again: a service of the new version starts, and the service of the previous version runs on it as any process does. A further reload of that module ends those processes with `Fault("its code was unloaded")` (§7.4) and forgets those bindings; the reload before it names them and ends nothing.
 
 **Editing.** At a terminal an input may span lines, and a line wider than the screen wraps onto the rows below it as it is typed. `Enter` runs the input where the parser can finish it, and takes another line where it cannot, under the prompt `... `. An input the parser cannot finish is one that ends where the grammar expects more, an unfinished raw string or block comment among them. `M-Enter` takes another line whatever the parser says, and `Enter` on an empty line runs what there is. A paste goes into the line at the cursor, its line feeds adding lines and running nothing. The line is edited with the Emacs keys of GNU Readline, and `C-r` and `C-s` search the history backward and forward. A word is a run of letters and digits for the `M-` keys, and `C-w` kills back to a space, as in Readline. When input or output is not a terminal, the shell reads lines and does not edit them, and an input is a line.
 
-**Completion and documentation.** At a terminal `Tab` completes the name before the cursor a segment at a time: what is typed before the last `.` names a namespace, a module or a type with members, and the last segment reaches the names directly in it, a namespace completing with its dot. A segment matches by its prefix or by the starts of its words, `L.fM` reaching `List.filterMap`, and its first letter as typed, since the case of that letter says what a name is (§2.3). A namespace is offered only where it holds a name that may stand there. The names come from what may stand there: a type after `:`, a constructor in a pattern, a field inside a named constructor, a command at an input's start, and a value, constructor, or module anywhere else. After a command, what completes is what the command takes: a module for `:browse`, a module under the source root for `:load`, any name for `:doc`, a name the session declares for `:forget`, a setting for `:set` and, after `timing`, `on` or `off`, and an expression for `:type`. Nothing completes after another command. What the candidates reached by prefix share is completed, and never less than was typed. Where the candidates are reached by the starts of their words alone, the namespace they are all in is completed and the last segment is kept as typed: `L.fM` gives `List.fM`. A lone candidate is completed as far as it goes: a module with the dot after it, and a command or a setting that takes a value with a space after it. A lone candidate is listed whenever `Tab` reaches it, a name with its type and a command or a setting with its help line. Several candidates are listed by a second `Tab`, and by a `Tab` that adds nothing to the line. They are listed alphabetically, those reached by prefix before those reached by the starts of their words. Where nothing is typed, the candidates are the names the session declares, the modules in scope, and the prelude's names other than its constructors; every other name is reached by typing its first letters. `Tab` with only spaces before the cursor on its row indents four spaces. Elsewhere, with nothing before the cursor to complete, it lists what may stand there, after a command as anywhere. `Shift-Tab` on a name, the whole name the cursor stands in, shows its type, its first sentence, and the version it appeared in, and its documentation (§11.4) when pressed again. A name's documentation is its declaration's section of §11.4's page, headed by the name as the session writes it and showing the type the shell prints for it. A constructor's documentation is its type's. A module's is the head of its page: the title, the version, and the module's doc block. A name that is both a type and a module has both, the type's section first. A namespace that is neither lists what it holds, each name with its type. A name bound by a `let` at the prompt has its name and type alone. `:doc` shows the same documentation, so every name that completes after `:doc` has some. The shell shows documentation rendered for the terminal rather than as the CommonMark §11.4 writes. A heading is shown as its text, a code block without its fences, a list item behind a bullet or its number, a block quote behind a bar, and a link as its text with its address after it. Emphasis, strong emphasis, and a code span are shown in the terminal's styles where the shell colours, and as written where it does not. What the shell does not render, raw HTML among it, is shown as written. Prose wraps at the screen's width, 80 columns where there is no terminal. Inside a call, where no name at the cursor is documented, it shows the callee's signature with its parameters as declared and the one at the cursor marked, in cyan where the shell colours and between asterisks where it does not; inside a constructor, its fields, the one whose value is at the cursor marked. The call is found wherever the input stands, in a `let`, a declaration, or a command's argument. A callee that is not a function has no signature, and nothing is shown. What `Tab` and `Shift-Tab` show stands in the region under the input, and the next key takes it away. A line wider than the screen wraps. The lines the screen has no room for are counted on its last row: `and 7 more`.
+**Completion and documentation.** At a terminal `Tab` completes the name before the cursor a segment at a time: what is typed before the last `.` names a namespace, a module or a type with members, and the last segment reaches the names directly in it, a namespace completing with its dot. Where what is typed before the last `.` is a name the session binds or a module exports, or a selection from one, the last segment reaches the fields its type selects (§3.5), and so along a chain: `it.co` reaches `it.count`. A name the unfinished input binds, a parameter or a local `let`, is not completed there. A segment matches by its prefix or by the starts of its words, `L.fM` reaching `List.filterMap`, and its first letter as typed, since the case of that letter says what a name is (§2.3). A namespace is offered only where it holds a name that may stand there. The names come from what may stand there: a type after `:`, a constructor in a pattern, a field inside a named constructor, a command at an input's start, and a value, constructor, or module anywhere else. After a command, what completes is what the command takes: a module for `:browse`, a module under the source root for `:load`, any name for `:doc`, a name the session declares for `:forget`, a setting for `:set` and, after `timing`, `on` or `off`, and an expression for `:type`. Nothing completes after another command. What the candidates reached by prefix share is completed, and never less than was typed. Where the candidates are reached by the starts of their words alone, the namespace they are all in is completed and the last segment is kept as typed: `L.fM` gives `List.fM`. A lone candidate is completed as far as it goes: a module with the dot after it, and a command or a setting that takes a value with a space after it. A lone candidate is listed whenever `Tab` reaches it, a name with its type and a command or a setting with its help line. Several candidates are listed by a second `Tab`, and by a `Tab` that adds nothing to the line. They are listed alphabetically, those reached by prefix before those reached by the starts of their words. Where nothing is typed, the candidates are the names the session declares, the modules in scope, and the prelude's names other than its constructors; every other name is reached by typing its first letters. `Tab` with only spaces before the cursor on its row indents four spaces. Elsewhere, with nothing before the cursor to complete, it lists what may stand there, after a command as anywhere. `Shift-Tab` on a name, the whole name the cursor stands in, shows its type, its first sentence, and the version it appeared in, and its documentation (§11.4) when pressed again. A name's documentation is its declaration's section of §11.4's page, headed by the name as the session writes it and showing the type the shell prints for it. A constructor's documentation is its type's. A module's is the head of its page: the title, the version, and the module's doc block. A name that is both a type and a module has both, the type's section first. A namespace that is neither lists what it holds, each name with its type. A name bound by a `let` at the prompt has its name and type alone. `:doc` shows the same documentation, so every name that completes after `:doc` has some. The shell shows documentation rendered for the terminal rather than as the CommonMark §11.4 writes. A heading is shown as its text, a code block without its fences, a list item behind a bullet or its number, a block quote behind a bar, and a link as its text with its address after it. Emphasis, strong emphasis, and a code span are shown in the terminal's styles where the shell colours, and as written where it does not. What the shell does not render, raw HTML among it, is shown as written. Prose wraps at the screen's width, 80 columns where there is no terminal. Inside a call, where no name at the cursor is documented, it shows the callee's signature with its parameters as declared and the one at the cursor marked, in cyan where the shell colours and between asterisks where it does not; inside a constructor, its fields, the one whose value is at the cursor marked. The call is found wherever the input stands, in a `let`, a declaration, or a command's argument. A callee that is not a function has no signature, and nothing is shown. What `Tab` and `Shift-Tab` show stands in the region under the input, and the next key takes it away. A line wider than the screen wraps. The lines the screen has no room for are counted on its last row: `and 7 more`.
 
 **Startup and history.** At start, after the file's entry point is spawned, the shell runs the inputs in `$HOME/.ernest/startup` and then those in the configuration directory's `startup`, a line an input, neither file required. Such an input is checked and run as a typed one, a command among them, and its value is not printed; one that fails is reported with the file and the line it came from, and the session goes on. The inputs of a session at a terminal are kept in `$HOME/.ernest/history`, one input a line, a newline in an input written `\n` and a backslash `\\`. Each is appended as it is entered; a blank input and one equal to the input before it are not. The last thousand are kept, and the file is trimmed to them at start. A session whose input is not a terminal neither reads the file nor writes it. A history file that cannot be read or written is reported once, and the session goes on without one. Where the environment sets no `HOME`, a session at a terminal keeps no history and says so once, at start. `--config-dir` names the configuration directory, `./.ernest` by default.
 
 ### 11.3 Configuration setup
 
-`ern --create-config-dir dir` creates `dir/.ernest/` with `ernest.conf` and this node's private key, readable only by its owner, and does nothing else; it fails if `dir/.ernest` exists. `ernest.conf` holds this node's network address and public key and the list of peers, each with a name, a network address, a public key, and whether it accepts remote computation; Appendix C shows one. The names are what `Peer(name)` refers to.
+`ern config [--config-dir dir]` creates the configuration directory `dir`, `./.ernest` by default, with `ernest.conf` and this node's private key, readable only by its owner, and does nothing else; it fails if `dir` exists. `ernest.conf` holds this node's network address and public key and the list of peers, each with a name, a network address, a public key, and whether it accepts remote computation; Appendix C shows one. The names are what `Peer(name)` refers to.
 
 ### 11.4 Documentation extraction
 
-`ernc --doc file.ern` writes the module's documentation to stdout as CommonMark. The documentation is read from the compiled module, so `ernc --doc file.erc` writes the same text, and a source path is compiled first. The text is: a title naming the module, `# Ernest module Net.Http`, the module's `since v` line (E.0 rule 6) as *Since v.*, and the module's doc block; then, in source order, every exported declaration and every declaration with a doc block, each under a heading of its name as a caller writes it, `Net.Http.parse`, with its type (§11.5) in a code block, under the same name, a `since v` line of its own as *Since v.*, the rest of its doc block, and the doc blocks of its constructors or fields as a list. `ernc --doc src-dir` writes one such document per module into `build-dir` beside the `.erc`, and `index.md` listing them. For the standard library's own source root it also writes the prelude's page, `prelude.md`, titled `# Ernest prelude`, first in the index. The last line names the compiler's version and the source file. A declaration's heading is level two, so a heading inside its doc block is level three or deeper; a heading in the module's doc block is level two. Appendix E.0 rule 6 says what a doc block contains.
+`ern doc file.ern` writes the module's documentation to stdout as CommonMark. The documentation is read from the compiled module, so `ern doc file.erc` writes the same text, and a source path is compiled first. The text is: a title naming the module, `# Ernest module Net.Http`, the module's `since v` line (E.0 rule 6) as *Since v.*, and the module's doc block; then, in source order, every exported declaration and every declaration with a doc block, each under a heading of its name as a caller writes it, `Net.Http.parse`, with its type (§11.5) in a code block, under the same name, a `since v` line of its own as *Since v.*, the rest of its doc block, and the doc blocks of its constructors or fields as a list. `ern doc src-dir` writes one such document per module into `build-root` beside the `.erc`, and `index.md` listing them. For the standard library's own source root it also writes the prelude's page, `prelude.md`, titled `# Ernest prelude`, first in the index. The last line names `ern`'s version and the source file. A declaration's heading is level two, so a heading inside its doc block is level three or deeper; a heading in the module's doc block is level two. Appendix E.0 rule 6 says what a doc block contains.
 
 ### 11.5 Diagnostics
 
-An error is reported as `file:line:column: message`, then the source. The file is the source's path from the working directory, or its absolute path when it lies outside that directory. The source shows a gutter of line numbers, the line before, the erroneous span underlined with `^`, any second span the message depends on, underlined with `-` and labelled, and at most one `help:` line naming the fix. `--errors short` prints the first line alone. The parser reports one error per file; the checker reports every error that does not follow from another.
+An error is reported as `file:line:column: message`, then the source. The file is the source's path from the working directory, or its absolute path when it lies outside that directory. The source shows a gutter of line numbers, the line before, the erroneous span underlined with `^`, any second span the message depends on, underlined with `-` and labelled, and at most one `help:` line naming the fix. `--short-errors` prints the first line alone. The parser reports one error per file; the checker reports every error that does not follow from another.
 
 A type mismatch is reported at the innermost expression whose type is fixed: the last expression of a body or block, a branch or clause after the first, an argument, an operand, an element, or a pattern. The message shows both whole types. The label marks the span that fixed the expectation: an annotation, a callee's type, the first branch, clause, or element, the left operand, or the value matched. The help line names the part in which the types differ. An effect error names the primitive called and the function, `let`, or guard that is pure, and labels the annotation that made it so. An operator whose operand type is not determined (§4.8) is reported with the request to annotate it. A statement whose type is not `Unit` (§5.4) is reported whole, with the help line `let _ =`. A `<-` where the parser expects a delimiter has a help line that names `a < -1` (§2.6). A selector its operand's type lacks is reported at the selector, naming a constructor without the field.
 
-A printed type elides an effect variable bound to pure (§3.9). An effect variable that occurs once in a printed type, and is not process-only, is printed as pure, since the context may bind it to pure: `fn k() -> Int with m = 5` prints as `() -> Int`. The compiler shows the three inferred restrictions of §3.9. In a printed type a variable with the equality constraint is `a=` and one that is not reply-carrying `a!`: `equal : (a=, a=) -> Bool`, `discard : (a!) -> Unit`. A process-only effect variable prints unchanged, and its restriction is stated by the message that rejects a pure instantiation. A type name is printed as the module would write it (§4.2). The module's own types and the prelude's are printed unqualified. Other modules' types are printed qualified. A local type that shadows a prelude name is printed qualified. A type variable is printed under its annotation's name; an unnamed one is `a`, `b`, ... for a value variable and `e`, `e1`, ... for an effect variable, avoiding the names in use. An error at a rejected call site names the parameter and the origin of its restriction; `ernc --doc` prints restrictions the same way.
+A printed type elides an effect variable bound to pure (§3.9). An effect variable that occurs once in a printed type, and is not process-only, is printed as pure, since the context may bind it to pure: `fn k() -> Int with m = 5` prints as `() -> Int`. The compiler shows the three inferred restrictions of §3.9. In a printed type a variable with the equality constraint is `a=` and one that is not reply-carrying `a!`: `equal : (a=, a=) -> Bool`, `discard : (a!) -> Unit`. A process-only effect variable prints unchanged, and its restriction is stated by the message that rejects a pure instantiation. A type name is printed as the module would write it (§4.2). The module's own types and the prelude's are printed unqualified. Other modules' types are printed qualified. A local type that shadows a prelude name is printed qualified. A type variable is printed under its annotation's name; an unnamed one is `a`, `b`, ... for a value variable and `e`, `e1`, ... for an effect variable, avoiding the names in use. An error at a rejected call site names the parameter and the origin of its restriction; `ern doc` prints restrictions the same way.
 
 ## Appendix A. Grammar
 
@@ -1004,9 +991,8 @@ type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 type MainMsg = PongDone(Down)
 
 export fn main() -> Unit with MainMsg = {
-    let pongAddr = spawn(Local, fn() = pong());
+    let pongAddr = spawnMonitored(Local, fn() = pong(), PongDone);
     let _ = spawn(Local, fn() = ping(pongAddr, 3));
-    monitor(pongAddr, PongDone);
     receive { PongDone(_) -> Unit }
 }
 
@@ -1041,7 +1027,7 @@ fn submitter(worker : Address(WorkerMsg)) -> Unit with Never = {
 
 ## Appendix C. Configuration
 
-`ernest.conf`, as created by `ern --create-config-dir` and then edited to name two peers:
+`ernest.conf`, as created by `ern config` and then edited to name two peers:
 
 ```json
 {
@@ -1075,7 +1061,7 @@ A library over Erlang's `ets`, tables of type `set`, outside the standard librar
 
 /// A key-value table stored in the runtime's ETS backend, keyed
 /// by a value of type k with values of type v. A table lives
-/// until Ets.drop is called on it, or until the process that
+/// until Ets.close is called on it, or until the process that
 /// created it dies.
 export foreign type Table(k=, v)
 
@@ -1087,7 +1073,7 @@ export fn new() -> Table(k, v) with m =
 foreign fn rawNew(name : Foreign, opts : List(Foreign)) -> Table(k, v) with m = "ets:new/2"
 
 /// Insert or replace the entry for key.
-export fn insert(t : Table(k, v), key : k, value : v) -> Unit with m = {
+export fn put(t : Table(k, v), key : k, value : v) -> Unit with m = {
     let _ = rawInsert(t, #(key, value));
     Unit
 }
@@ -1095,13 +1081,13 @@ export fn insert(t : Table(k, v), key : k, value : v) -> Unit with m = {
 foreign fn rawInsert(t : Table(k, v), row : #(k, v)) -> Bool with m = "ets:insert/2"
 
 /// The value for key, or None if absent.
-export fn lookup(t : Table(k, v), key : k) -> Optional(v) with m =
+export fn get(t : Table(k, v), key : k) -> Optional(v) with m =
     match rawLookup(t, key) { [#(_, v)] -> Some(v) | _ -> None }
 
 foreign fn rawLookup(t : Table(k, v), key : k) -> List(#(k, v)) with m = "ets:lookup/2"
 
 /// Remove key. A key not present is not an error.
-export fn delete(t : Table(k, v), key : k) -> Unit with m = { let _ = rawDelete(t, key); Unit }
+export fn remove(t : Table(k, v), key : k) -> Unit with m = { let _ = rawDelete(t, key); Unit }
 
 foreign fn rawDelete(t : Table(k, v), key : k) -> Bool with m = "ets:delete/2"
 
@@ -1110,10 +1096,10 @@ export fn size(t : Table(k, v)) -> Int with m = rawInfo(t, Erl.atom("size"))
 
 foreign fn rawInfo(t : Table(k, v), item : Foreign) -> Int with m = "ets:info/2"
 
-/// Delete the table. All subsequent operations on it fault.
-export fn drop(t : Table(k, v)) -> Unit with m = { let _ = rawDrop(t); Unit }
+/// Close the table, deleting it. All subsequent operations on it fault.
+export fn close(t : Table(k, v)) -> Unit with m = { let _ = rawClose(t); Unit }
 
-foreign fn rawDrop(t : Table(k, v)) -> Bool with m = "ets:delete/1"
+foreign fn rawClose(t : Table(k, v)) -> Bool with m = "ets:delete/1"
 
 /// Remove all entries, leaving the table empty.
 export fn clear(t : Table(k, v)) -> Unit with m = { let _ = rawClear(t); Unit }
@@ -1121,7 +1107,7 @@ export fn clear(t : Table(k, v)) -> Unit with m = { let _ = rawClear(t); Unit }
 foreign fn rawClear(t : Table(k, v)) -> Bool with m = "ets:delete_all_objects/1"
 
 /// True if key is present in t.
-export foreign fn member(t : Table(k, v), key : k) -> Bool with m = "ets:member/2"
+export foreign fn contains(t : Table(k, v), key : k) -> Bool with m = "ets:member/2"
 
 /// All key-value pairs currently in the table, in unspecified order.
 export foreign fn toList(t : Table(k, v)) -> List(#(k, v)) with m = "ets:tab2list/1"
@@ -1130,17 +1116,17 @@ export foreign fn toList(t : Table(k, v)) -> List(#(k, v)) with m = "ets:tab2lis
 ```
 export fn main() -> Unit with Never = {
     let t = Ets.new();
-    Ets.insert(t, "a", 1);
-    Ets.insert(t, "b", 2);
-    match Ets.lookup(t, "a") {
+    Ets.put(t, "a", 1);
+    Ets.put(t, "b", 2);
+    match Ets.get(t, "a") {
         Some(n) -> Io.println(Int.toString(n))
       | None -> Io.println("missing")
     };
-    Ets.drop(t)
+    Ets.close(t)
 }
 ```
 
-The `raw` names have no `export` and are invisible outside the module; the exported `Ets.*` interface is what callers see. `Ets.Table(k, v)` has type parameters the implementation never sees: `Ets.insert(t, "a", 1)` fixes `t` to `Ets.Table(String, Int)`, and an insert with other types on the next line is a type error. Every operation has a mailbox type, `size` and `member` included: they read state that others write. `atom` is pure: the same text gives the same atom. What the type cannot say, the declaration's documentation says: a table lives until `Ets.drop`, or until the process that created it dies. A table is state that every process holding it reads and writes, which a foreign function with a mailbox type may make (§4.7) and the standard library does not (E.0 rule 1).
+The `raw` names have no `export` and are invisible outside the module; the exported `Ets.*` interface is what callers see. `Ets.Table(k, v)` has type parameters the implementation never sees: `Ets.put(t, "a", 1)` fixes `t` to `Ets.Table(String, Int)`, and a `put` with other types on the next line is a type error. Every operation has a mailbox type, `size` and `contains` included: they read state that others write. `atom` is pure: the same text gives the same atom. What the type cannot say, the declaration's documentation says: a table lives until `Ets.close`, or until the process that created it dies. A table is state that every process holding it reads and writes, which a foreign function with a mailbox type may make (§4.7) and the standard library does not (E.0 rule 1).
 
 ## Appendix E. Standard Library
 
@@ -1150,40 +1136,42 @@ E.0 is normative; a function enters this appendix by its rules before it enters 
 
 Four rules decide whether a function is in. None of them counts programs: a function enters when a rule admits it, whether or not a program has asked, and a program that wants one the rules refuse writes it itself.
 
-1. Its value lives in the runtime and Ernest cannot compute it, given the modules beneath it: the `Map` and `Set` operations, the Unicode operations on `String` and `Char`, `Int.toString` and `Float.toString`, the conversions between `Int` and `Float` and between `Int` and `Char`, the `Bytes` operations, the bit operations, `Foreign`, `Erl.atom`, `Random`, and the modules over the system references of §8.2. These are shims over `foreign fn` or over a system process, and a shim exists only where this rule applies. The line is ownership: where the runtime owns the representation, a `Map`, a `Set`, a `String`, a `Bytes`, a `Float`, its operations are the runtime's; what the language owns, `[]` and `::` among them, is written in Ernest, `List.sort` among it. Speed is not a reason for a shim; where a measurement ever demands one, it is admitted with the measurement beside it. The rule decides how an operation is carried out, never what a value is: where a value's identity, lifetime, or failure is the program's concern, it is a process (§8.2), and no shim stands in for one.
-2. It follows from the type's structure, and each kind of type has a vocabulary. A container provides the container operations of the vocabulary below, or says in its section which it lacks and why. A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, and `tryMap` and `tryFold` for a step that can fail. Text adds `startsWith`, `endsWith`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `trim`, `toLower`, `toUpper`, and a `Char` `isUpper`, `isLower`, `toUpper`, `toLower`. A path adds its segments: `join`, `split`, `parent`, `name`, `extension`, `withExtension`, `isAbsolute`. A filesystem adds files and directories: `read`, `write`, `append`, `list`, `stat`, `makeDir`, `remove`, `rename`, `copy`. A conversion to text has its inverse where the text form is unambiguous and the type has no other way in; a `Char` has `String.toList` and needs none. A type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote.
+1. Its value lives in the runtime and Ernest cannot compute it, given the modules beneath it: the primitives of `Map`, `Set`, `String`, `Bytes`, and `Path`, the Unicode operations on `String` and `Char`, `Int.toString` and `Float.toString`, the conversions between `Int` and `Float` and between `Int` and `Char`, the bit operations, `Foreign`, `Erl.atom`, `Process`, and the system modules of §8.2. These are shims over `foreign fn` or over a system process, and a shim exists only where this rule applies. The line is ownership: where the runtime owns a representation, a `Map`, a `Set`, a `String`, a `Bytes`, a `Float`, the operations that reach it are the runtime's, a few that the module's section names as its *primitives*, and the rest of the module is Ernest over them; what the language owns, `[]` and `::` among them, is written in Ernest, `List.sort` among it. A primitive passes data out and never calls an Ernest function: `toList`, not `foldLeft`. Speed is not a reason for a shim; where a measurement ever demands one, it is admitted with the measurement beside it. The rule decides how an operation is carried out, never what a value is: where a value's identity, lifetime, or failure is the program's concern, it is a process (§8.2), and no shim stands in for one.
+2. It follows from the type's structure, and each kind of type has a vocabulary. A container provides the container operations of the vocabulary below, or says in its section which it lacks and why. A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `dropLast`, `last`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, and `tryMap` and `tryFold` for a step that can fail. Text adds `startsWith`, `endsWith`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `trim`, `trimStart`, `trimEnd`, `toLower`, `toUpper`, and a `Char` `isUpper`, `isLower`, `toUpper`, `toLower`. A path adds its segments: `join`, `split`, `parent`, `name`, `extension`, `withExtension`, `isAbsolute`. A filesystem adds files and directories: `read`, `write`, `append`, `list`, `stat`, `makeDir`, `remove`, `rename`, `copy`. A conversion to text has its inverse where the text form is unambiguous and the type has no other way in; a `Char` has `String.toList` and needs none. A type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote.
 3. It is a general operation of the type, its definition is the obvious one, and no policy is buried in it: `List.foldRight`, `Float.sqrt`. A function whose result depends on a choice the library would be making for the program, a format, a locale, a tolerance, is refused whatever asks for it.
-4. It is not a composition. A function that is one pipe of two functions already here is not added: `List.concat` is `List.flatMap(xs, fn(x) = x)`, `List.sum` is `List.foldLeft(xs, 0, Int.+)`.
+4. It is not a composition. A function that is one pipe of two functions already here is not added: `List.concat` is `List.flatMap(xs, fn(x) = x)`, `List.sum` is `List.foldLeft(xs, 0, Int.+)`. Two compositions are kept as named pairs, each wanted more often than its halves: `Io.debug`, which prints `Io.show(x)` and returns `x`, and `String.trim`, which is `trimStart` then `trimEnd`.
 
-Nine rules give a function its shape.
+Nine rules give a function its shape, in the standard library and in a library outside it, as Appendix D's, which the four rules above do not reach.
 
 1. The subject comes first, callbacks last, an accumulator between them: `x |> f(a)` is `f(x, a)`. No aliases, no argument-order variants.
-2. One verb per operation, in every module that has it. The container operations are `empty`, `size`, `isEmpty`, `contains`, `get` for lookup by index or key, `put` for insertion, `remove`, `map`, `filter`, `filterMap`, `foldLeft`, `foreach`, `any`, `all`, `find`, `fromList`, and `toList`; the sum-type operations are `withDefault`, `map`, and `andThen`. A predicate is `isX`. A verb not in this list names an operation none of these does, and one verb names it in every module that has it.
-3. A conversion is named by the other type and lives in the subject's module: `String.toInt`, `String.fromList`, `Int.toString`. When one conversion has several policies, the policy is the name: `Float.round`, `Float.floor`, `Float.ceil`, `Float.truncate`.
+2. One verb per operation, in every module that has it. The container operations are `empty`, `size`, `isEmpty`, `contains`, `get` for lookup by index or key, `put` for insertion, `remove`, `map`, `filter`, `filterMap`, `foldLeft`, `foreach`, `any`, `all`, `find`, `fromList`, and `toList`; the sum-type operations are `withDefault`, `map`, and `andThen`. A predicate is `isX`. `contains` on text finds a substring, one grapheme long or longer. A verb not in this list names an operation none of these does, and one verb names it in every module that has it.
+3. A conversion is named by the other type. Between a type and one its module builds on, both directions are the building module's, `fromX` and `toX`: `String.fromList` and `String.toList`, `Map.fromList`, `Either.fromOptional`. Any other conversion is its argument's module's `toX`: `String.toInt`, `Int.toString`. A conversion exists once. When one conversion has several policies, the policy is the name: `Float.round`, `Float.floor`, `Float.ceil`, `Float.truncate`.
 4. A partial operation returns `Optional`; one with a cause returns `Either`. No function here faults except as §7.4 or the function's own section says.
-5. A function is pure unless its value lives in a process: the modules over the system references of §8.2 carry `with m`, and nothing else does. A function that calls a function it takes is effect-polymorphic in it (§3.9). A wrapping function that rule 8 delivers through is pure, as `via`'s is (§6.5).
+5. A function is pure unless its value lives in a process: a function that reaches a system reference of §8.2, or asks the runtime about its processes (E.21), carries `with m`, and nothing else does, so `Terminal.columns`, `Io.show`, and `Process.fromAddress` are pure. A function that calls a function it takes is effect-polymorphic in it (§3.9). A wrapping function that rule 8 delivers through is pure, as `via`'s is (§6.5).
 6. A module is documented as a section 3 manual page, in CommonMark (§2.2). Under `See also`, a declaration or a module is named in backticks and not linked.
    - **The module.** Its doc block says what the module is for, then has the section `Examples`, with the module's central examples, and `See also` when there is something to see. It ends with the line `since v`, the toolchain version in which the module appeared.
-   - **A declaration.** Every exported declaration has a doc block: one sentence saying what the type does not say, which occurrence `remove` removes, the order `toList` produces, the range `next` draws from; an `Errors` section when it faults, and none otherwise (rule 4); an `Examples` section with one example for an exported `type`, an abstract type's examples covering its members; `See also` when there is something to see. A declaration has the module's `since` unless its doc block ends with one of its own. The name and the type are the heading and the code block `ernc --doc` renders (§11.4).
+   - **A declaration.** Every exported declaration has a doc block: one sentence saying what the type does not say, which occurrence `remove` removes, the order `toList` produces, the range `next` draws from; an `Errors` section when it faults, and none otherwise (rule 4); an `Examples` section with one example for an exported `type`, an abstract type's examples covering its members; `See also` when there is something to see. A declaration has the module's `since` unless its doc block ends with one of its own. The name and the type are the heading and the code block `ern doc` renders (§11.4).
    - **Examples.** Every exported function except an operator, whose use is infix, is called by at least one example on the module's page, in the module's examples or its own, and an example that would repeat another is left out. An example ends in `// => v`, where `v` is what `Io.debug` prints for its value; what the example itself prints comes before it and is not part of `v`. An example that cannot run where the page's examples run, because its value is of an abstract type, because it reads a file or a socket, or because it needs a mailbox of its own, has no `// =>` line and is only type-checked.
-7. A type a module declares is listed in its section as its functions are, `foreign type Seed` in E.13, and is named for what it is within the module, never for the module. The types the runtime speaks are the prelude's, §9.3.
-8. A system reference of §8.2 is used through its standard library module, never by `send`. A function that waits takes the milliseconds as its last argument and answers `Left(Timeout)`; `Clock.now`, `Terminal.size`, `Terminal.subscribe`, `Tcp.listen`, and `Io.readLine` take none, the first four answered at once and the last waiting for the user; one that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9). In either, a time below 0 is 0, a time has no upper bound, and a moment already past is now.
+7. A type a module exports is listed in its section as its functions are, `abstract type Seed` in E.13, and is named for what it is within the module, never for the module.
+8. A system reference of §8.2 is private to its system module, and a program uses it through the module's functions. A function that waits takes the milliseconds as its last argument and answers `Left(Timeout)`; `Clock.now`, `Terminal.size`, `Terminal.subscribe`, `Tcp.listen`, `Tcp.port`, `Tcp.peer`, `Tcp.local`, and `Io.readLine` take none, all but the last answered at once and the last waiting for the user; one that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9). In either, a time below 0 is 0, a time has no upper bound, and a moment already past is now.
 9. An exported function takes no `Bool` that chooses between two behaviours. It takes a type whose constructors name them, so that the call says which: `render(doc, Plain)`, not `render(doc, false)`. A `Bool` that is the value operated on, as in `Bool.not`, is not such a choice.
 
 ### Appendix E.1. `io.ern` (namespace `Io`)
 
-Output to `Sys.stdout` and input from `Sys.stdin` (§8.2). A string goes to any other `Address(String)` by `send`.
+Output to standard output and standard error, and input from standard input, through the module's system references `stdout`, `stderr`, and `stdin` (§8.2). `Error` is the error of every system module.
 
 ```
+type Error = NotFound | Denied | Refused | Closed | Timeout | NotATerminal | Other(String)
 Io.print : (String) -> Unit with m
 Io.println : (String) -> Unit with m // appends "\n"
-Io.printError : (String) -> Unit with m // to `Sys.stderr`
+Io.printError : (String) -> Unit with m // to standard error
 Io.printlnError : (String) -> Unit with m // appends "\n"
 Io.readLine : () -> Optional(String) with m // the next line without its line feed; None at end of input
-Io.debug : (a) -> a with m // prints the value as Ernest writes it, then returns it
+Io.show : (a) -> String // the value as Ernest writes it
+Io.debug : (a) -> a with m // prints Io.show of the value and a line feed, then returns the value
 ```
 
-`Io.debug` writes to `Sys.stdout` and ends what it writes with a line feed. It prints by the argument's type at the call, each value as its literal or construction is written: a `Char` as `'a'`, `Bytes` as `<<104, 105>>`, a named constructor with its fields in canonical order (§3.5), `Snap(dir = "x", seen = 2)`. A `Map` prints as `Map.fromList` of its pairs, a `Set` as `Set.fromList` of its elements. An address, a reply, and a function print as `<address>`, `<reply>`, and `<function>`, and a value of an abstract type outside its module as `<abstract>`. Where the argument's type is a type variable or a foreign type, the value is printed by its runtime representation (§8.4): a `Char` as its `Int`, a `Bytes` that is UTF-8 as a `String`, a constructor's fields positional, and `<foreign>` where the representation reads as none of these.
+`Io.show` writes a value by the argument's type at the call, each value as its literal or construction is written: a `Char` as `'a'`, `Bytes` as `<<104, 105>>`, a named constructor with its fields in canonical order (§3.5), `Snap(dir = "x", seen = 2)`. A `Map` prints as `Map.fromList` of its pairs, a `Set` as `Set.fromList` of its elements. An address prints as `<address 84>`, the number naming the process behind it, and a `Process` as `<process 84>` (E.21). A reply and a function print as `<reply>` and `<function>`, and a value of an abstract type outside its module as `<abstract>`. Where the argument's type is a type variable or a foreign type, the value is written by its runtime representation (§8.4): a `Char` as its `Int`, a `Bytes` that is UTF-8 as a `String`, a constructor's fields positional, and `<foreign>` where the representation reads as none of these. `Io.debug` writes `Io.show`'s text to standard output.
 
 ### Appendix E.2. `list.ern` (namespace `List`)
 
@@ -1225,7 +1213,7 @@ List.tryFold : (List(a), b, (b, a) -> Either(e, b) with x) -> Either(e, b) with 
 
 ### Appendix E.3. `map.ern` (namespace `Map`)
 
-Requires equality on `k` (§3.10). The order of `keys`, `values`, `toList`, `foldLeft`, `foreach`, and `find` is unspecified.
+Requires equality on `k` (§3.10). The order of `keys`, `values`, `toList`, `foldLeft`, `foreach`, and `find` is unspecified. The primitives are `empty`, `size`, `get`, `put`, `remove`, and `toList` (E.0 rule 1).
 
 ```
 Map.empty : Map(k, v)
@@ -1245,6 +1233,7 @@ Map.any : (Map(k, v), (k, v) -> Bool with e) -> Bool with e
 Map.all : (Map(k, v), (k, v) -> Bool with e) -> Bool with e
 Map.find : (Map(k, v), (k, v) -> Bool with e) -> Optional(#(k, v)) with e // some entry that satisfies
 Map.merge : (Map(k, v), Map(k, v)) -> Map(k, v) // the second wins for a shared key
+Map.mergeWith : (Map(k, v), Map(k, v), (v, v) -> v with e) -> Map(k, v) with e // for a shared key, the function of the first's value and the second's
 Map.fromList : (List(#(k, v))) -> Map(k, v) // a later pair wins
 Map.toList : (Map(k, v)) -> List(#(k, v))
 Map.keys : (Map(k, v)) -> List(k)
@@ -1253,7 +1242,7 @@ Map.values : (Map(k, v)) -> List(v)
 
 ### Appendix E.4. `set.ern` (namespace `Set`)
 
-Requires equality on `a` (§3.10). A set has no `get`; membership is `contains`. The order of `toList`, `foldLeft`, `foreach`, and `find` is unspecified.
+Requires equality on `a` (§3.10). A set has no `get`; membership is `contains`. The order of `toList`, `foldLeft`, `foreach`, and `find` is unspecified. The primitives are `empty`, `size`, `contains`, `put`, `remove`, and `toList` (E.0 rule 1).
 
 ```
 Set.empty : Set(a)
@@ -1273,14 +1262,14 @@ Set.find : (Set(a), (a) -> Bool with e) -> Optional(a) with e // some element th
 Set.fromList : (List(a)) -> Set(a)
 Set.toList : (Set(a)) -> List(a)
 Set.union : (Set(a), Set(a)) -> Set(a)
-Set.intersect : (Set(a), Set(a)) -> Set(a)
+Set.intersection : (Set(a), Set(a)) -> Set(a)
 Set.difference : (Set(a), Set(a)) -> Set(a) // the elements of the first not in the second
 Set.isSubset : (Set(a), Set(a)) -> Bool // every element of the first is in the second
 ```
 
 ### Appendix E.5. `string.ern` (namespace `String`)
 
-A `String` is not a container: operations on its `Char`s go through `toList`. `size`, `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and index in graphemes, extended grapheme clusters, each what a reader sees as one letter. `toList` and `fromList` are `Char`s, one scalar value each, so a string holding a combining mark has more `Char`s than graphemes. `String.compare` and `String.<>` are the prelude's, §9.6; this module provides them (§9).
+A `String` is not a container: operations on its `Char`s go through `toList`. `size`, `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and index in graphemes, extended grapheme clusters, each what a reader sees as one letter. `toList` and `fromList` are `Char`s, one scalar value each, so a string holding a combining mark has more `Char`s than graphemes. The primitives are `size`, `indexOf`, `lastIndexOf`, and `slice`, the operations that need Unicode's tables, `trim`, `trimStart`, `trimEnd`, `toLower`, and `toUpper`, and the conversions to and from numbers, `Char`s, and bytes (E.0 rule 1). The rest is Ernest over them, so every search matches whole graphemes: `String.contains("e\u{301}", "e")` is `false`. `trim`, `trimStart`, and `trimEnd` remove the graphemes whose first code point is White_Space, as `Char.isSpace` says. `toLower` and `toUpper` use Unicode's full case mapping without the rules that depend on a language or a context: `String.toUpper("ß")` is `"SS"`. `String.compare` orders by code point. It and `String.<>` are the prelude's, §9.6; this module provides them (§9).
 
 ```
 String.size : (String) -> Int // graphemes
@@ -1296,6 +1285,8 @@ String.padStart : (String, Int, Char) -> String // the Char in front until the s
 String.padEnd : (String, Int, Char) -> String // the Char at the end until the size is at least the second
 String.repeat : (String, Int) -> String // n times; n below 0 is 0
 String.trim : (String) -> String // without leading and trailing whitespace
+String.trimStart : (String) -> String // without leading whitespace
+String.trimEnd : (String) -> String // without trailing whitespace
 String.toLower : (String) -> String
 String.toUpper : (String) -> String
 String.lines : (String) -> List(String) // at each line feed; a line feed at the end adds no empty line, and "" has no lines
@@ -1313,10 +1304,11 @@ String.fromUtf8 : (Bytes) -> Optional(String) // None when the bytes are not UTF
 
 ### Appendix E.6. `char.ern` (namespace `Char`)
 
-The predicates use the Unicode properties of the code point: `isDigit` is general category Nd, `isAlpha` is category L, `isSpace` is White_Space, `isUpper` is Lu, `isLower` is Ll. `Char.compare` is the prelude's, §9.6; this module provides it (§9).
+The predicates use the Unicode properties of the code point: `isDigit` is general category Nd, `isAlpha` is category L, `isSpace` is White_Space, `isUpper` is Lu, `isLower` is Ll. `isAsciiDigit` is `0` to `9` alone. `Char.compare` orders by code point; it is the prelude's, §9.6, and this module provides it (§9).
 
 ```
 Char.isDigit : (Char) -> Bool
+Char.isAsciiDigit : (Char) -> Bool
 Char.isAlpha : (Char) -> Bool
 Char.isSpace : (Char) -> Bool
 Char.isUpper : (Char) -> Bool
@@ -1357,13 +1349,13 @@ Int.toFloat : (Int) -> Float // faults outside the finite range, §3.1
 
 ### Appendix E.9. `float.ern` (namespace `Float`)
 
-`Float.compare`, `Float.negate`, and the operators are the prelude's, §9.6; this module provides them (§9). The module holds the operations of the type itself. Mathematics over collections of floats, statistics, matrices, and numerical methods, is a library.
+`Float.compare`, `Float.negate`, and the operators are the prelude's, §9.6; this module provides them (§9). The module holds the operations of the type itself. `Float.toString` gives the shortest digits that read back as the same value. From 0.0001 to below 1.0e16 in magnitude, and at `0.0`, it writes them plain, with at least one digit after the point: `0.001`, `123.0`. Beyond, it writes one digit, the point, at least one more digit, and the exponent: `1.0e16`, `1.5e-7`. The exponent's sign is written only when it is negative. Mathematics over collections of floats, statistics, matrices, and numerical methods, is a library.
 
 ```
 Float.abs : (Float) -> Float
 Float.min : (Float, Float) -> Float
 Float.max : (Float, Float) -> Float
-Float.toString : (Float) -> String // the shortest decimal that reads back as the same value
+Float.toString : (Float) -> String // the shortest digits that read back as the same value
 Float.round : (Float) -> Int // to the nearest, ties to even
 Float.truncate : (Float) -> Int // toward zero
 Float.floor : (Float) -> Int
@@ -1419,10 +1411,10 @@ Foreign.toList : (Foreign) -> Optional(List(Foreign))
 
 ### Appendix E.13. `random.ern` (namespace `Random`)
 
-The runtime's generator behind a pure interface. `Seed` is a foreign type (§3.8): made by `seed`, bound to its node, and the same seed gives the same sequence on one runtime version. A program that wants a fresh seed takes `Clock.now()`.
+The generator is SplitMix64, written in Ernest over `Int`'s bit operations. `Seed` is an abstract type made by `seed`: a seed is a value like any other and crosses nodes, and the same seed gives the same sequence everywhere. A program that wants a fresh seed takes `Clock.now()`.
 
 ```
-foreign type Seed
+abstract type Seed
 Random.seed : (Int) -> Random.Seed // numbers equal in their low 64 bits name the same sequence
 Random.next : (Random.Seed, Int) -> #(Int, Random.Seed) // uniform between 0 and the second inclusive, whatever the second's sign, and the seed after it
 Random.nextFloat : (Random.Seed) -> #(Float, Random.Seed) // uniform above 0.0 and below 1.0, and the seed after it
@@ -1430,7 +1422,7 @@ Random.nextFloat : (Random.Seed) -> #(Float, Random.Seed) // uniform above 0.0 a
 
 ### Appendix E.14. `path.ern` (namespace `Path`)
 
-`Path` is `Path(String)`, §9.3, in the runtime's syntax.
+`Path` is `Path(String)`, §9.3, in the runtime's syntax. The primitives are the host's separator and `isAbsolute` (E.0 rule 1); the rest is Ernest over `String`.
 
 ```
 Path.join : (Path, Path) -> Path // the second under the first; an absolute second stands alone
@@ -1445,7 +1437,7 @@ Path.toString : (Path) -> String
 
 ### Appendix E.15. `clock.ern` (namespace `Clock`)
 
-Over `Sys.clock`. Times are milliseconds since the epoch. An alarm fires once and cannot be cancelled: a process that no longer wants it ignores the message, and a periodic tick is scheduled after the previous one is handled.
+Over the clock's system reference (§8.2). Times are milliseconds since the epoch. An alarm fires once and cannot be cancelled: a process that no longer wants it ignores the message, and a periodic tick is scheduled after the previous one is handled.
 
 ```
 Clock.now : () -> Int with m
@@ -1455,40 +1447,52 @@ Clock.alarmAt : (Int, (Int) -> m) -> Unit with m // at the time, wrap(t) in the 
 
 ### Appendix E.16. `terminal.ern` (namespace `Terminal`)
 
-Over `Sys.terminal`.
+Over the terminal's system reference (§8.2). `columns` is Ernest over a table built from Unicode's East Asian Width and emoji data.
 
 ```
-Terminal.subscribe : ((Event) -> m) -> Unit with m // every key pressed and every resize from now on, wrapped, in the caller's mailbox; a second call replaces the first
-Terminal.size : () -> Optional(Size) with m        // the terminal's size now, None where there is no terminal
+type Size = Size(rows : Int, columns : Int)
+type Event =
+    Key(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter | Escape
+  | Interrupt | Pasted(String) | Resized(Size)
+Terminal.subscribe : ((Event) -> m) -> Either(Io.Error, Unit) with m // every key pressed and every resize from now on, wrapped, in the caller's mailbox; a second call replaces the first; Left(NotATerminal) where standard input is not a terminal
+Terminal.size : () -> Optional(Size) with m // the terminal's size now, None where standard output is not a terminal
+Terminal.columns : (String) -> Int // the columns the text takes at a terminal: an escape sequence none, a wide or emoji grapheme two, a grapheme only of combining or format characters none; a tab is the caller's
 ```
 
 ### Appendix E.17. `fs.ern` (namespace `Fs`)
 
-Over `Sys.fs`. The last argument is the milliseconds to wait.
+Over the file system's system reference (§8.2). The last argument is the milliseconds to wait.
 
 ```
-Fs.read : (Path, Int) -> Either(IoError, Bytes) with m
-Fs.write : (Path, Bytes, Int) -> Either(IoError, Unit) with m // creates or replaces
-Fs.append : (Path, Bytes, Int) -> Either(IoError, Unit) with m // creates or extends
-Fs.list : (Path, Int) -> Either(IoError, List(Entry)) with m // the entries of a directory, in unspecified order, each path the directory's joined with the entry's name
-Fs.stat : (Path, Int) -> Either(IoError, Entry) with m
-Fs.makeDir : (Path, Int) -> Either(IoError, Unit) with m // with its missing parents; an existing directory is not an error
-Fs.remove : (Path, Int) -> Either(IoError, Unit) with m // a file or an empty directory
-Fs.rename : (Path, Path, Int) -> Either(IoError, Unit) with m // the first to the second
-Fs.copy : (Path, Path, Int) -> Either(IoError, Unit) with m // a file, the first to the second; replaces
+type Entry = Entry(path : Path, mtime : Int, size : Int, isDir : Bool) // mtime in milliseconds since the epoch, as Clock.now; size in bytes
+Fs.read : (Path, Int) -> Either(Io.Error, Bytes) with m
+Fs.write : (Path, Bytes, Int) -> Either(Io.Error, Unit) with m // creates or replaces
+Fs.append : (Path, Bytes, Int) -> Either(Io.Error, Unit) with m // creates or extends
+Fs.list : (Path, Int) -> Either(Io.Error, List(Entry)) with m // the entries of a directory, in unspecified order, each path the directory's joined with the entry's name
+Fs.stat : (Path, Int) -> Either(Io.Error, Entry) with m
+Fs.makeDir : (Path, Int) -> Either(Io.Error, Unit) with m // with its missing parents; an existing directory is not an error
+Fs.remove : (Path, Int) -> Either(Io.Error, Unit) with m // a file or an empty directory
+Fs.rename : (Path, Path, Int) -> Either(Io.Error, Unit) with m // the first to the second
+Fs.copy : (Path, Path, Int) -> Either(Io.Error, Unit) with m // a file, the first to the second; replaces
 ```
 
 ### Appendix E.18. `tcp.ern` (namespace `Tcp`)
 
-Over `Sys.tcp`. A socket is a process: its address can be sent, monitored, and killed like any other, and it dies with the connection. `Tcp.write` is a send: it returns at once, and a connection that fails shows as the socket's death to a monitor and as `Left(Closed)` from the next `Tcp.read`. There are no options; framing is bitstrings (§5.11). The last argument of a function that waits is the milliseconds.
+Over TCP's system reference (§8.2). A socket is a process: its address can be sent, monitored, and killed like any other. It lives until `Tcp.close`, until it is killed, or until the program ends. After its connection closes, from either end or by a failure, each `Tcp.read` answers `Left(Closed)`, and a read after `Tcp.close` faults the reader as a call to an ended process does (§6.6). `Tcp.write` is a send: it returns at once, and a connection that fails shows as `Left(Closed)` from the next `Tcp.read`. A read, an accept, or a connect that times out has taken nothing: bytes that arrive later wait for the next read, and a connection that completes later is closed. `Tcp.port`, `Tcp.peer`, and `Tcp.local` answer `Left(Closed)` for a listener or a socket that has ended. There are no options; framing is bitstrings (§5.11). The last argument of a function that waits is the milliseconds.
 
 ```
-Tcp.listen : (Int) -> Either(IoError, Address(ListenerMsg)) with m // the port
-Tcp.accept : (Address(ListenerMsg), Int) -> Either(IoError, Address(SockMsg)) with m
-Tcp.connect : (String, Int, Int) -> Either(IoError, Address(SockMsg)) with m // host, port
-Tcp.read : (Address(SockMsg), Int) -> Either(IoError, Bytes) with m // what has arrived, at least one byte
+abstract type ListenerMsg // what a listener takes
+abstract type SockMsg // what a socket takes
+type Endpoint = Endpoint(host : String, port : Int)
+Tcp.listen : (Int) -> Either(Io.Error, Address(ListenerMsg)) with m // the port; 0 asks the system for a free one
+Tcp.port : (Address(ListenerMsg)) -> Either(Io.Error, Int) with m // the port it listens on
+Tcp.accept : (Address(ListenerMsg), Int) -> Either(Io.Error, Address(SockMsg)) with m
+Tcp.connect : (String, Int, Int) -> Either(Io.Error, Address(SockMsg)) with m // host, port
+Tcp.read : (Address(SockMsg), Int) -> Either(Io.Error, Bytes) with m // what has arrived, at least one byte
 Tcp.write : (Address(SockMsg), Bytes) -> Unit with m
 Tcp.close : (Address(SockMsg)) -> Unit with m
+Tcp.peer : (Address(SockMsg)) -> Either(Io.Error, Endpoint) with m // the connection's far end, in TCP's sense, not a peer of §8.3
+Tcp.local : (Address(SockMsg)) -> Either(Io.Error, Endpoint) with m // the connection's near end
 ```
 
 ### Appendix E.19. `erl.ern` (namespace `Erl`)
@@ -1501,7 +1505,7 @@ Erl.atom : (String) -> Foreign // the Erlang atom of the text
 
 ### Appendix E.20. `bytes.ern` (namespace `Bytes`)
 
-A `Bytes` is not a container: operations on its octets go through `toList`, which gives each as an `Int` from 0 to 255. `Bytes.<>` is the prelude's, §9.6; this module provides it. `<<...>>` builds and matches a `Bytes` at the bit level (§5.11), so there is no constructor here.
+A `Bytes` is not a container: operations on its octets go through `toList`, which gives each as an `Int` from 0 to 255. `Bytes.<>` is the prelude's, §9.6; this module provides it. `<<...>>` builds and matches a `Bytes` at the bit level (§5.11), so there is no constructor here. The primitives are `size` and `slice` (E.0 rule 1); the rest is written with the bit syntax.
 
 ```
 Bytes.size : (Bytes) -> Int // octets
@@ -1510,6 +1514,21 @@ Bytes.get : (Bytes, Int) -> Optional(Int) // the octet at the index from 0
 Bytes.slice : (Bytes, Int, Int) -> Bytes // from the index, that many octets, clipped; a negative index or count is 0
 Bytes.toList : (Bytes) -> List(Int)
 Bytes.fromList : (List(Int)) -> Optional(Bytes) // None when a value is outside 0 to 255
+```
+
+### Appendix E.21. `process.ern` (namespace `Process`)
+
+A `Process` is the identity of a process. It has equality and no ordering, exact as §3.10 says of a foreign type, so it is sound as a key of a `Map` and an element of a `Set`, and nothing can be sent to it. Across nodes a `Process` names its node. `info` is a snapshot of a live process, which may have changed when it is read; the runtime keeps nothing of a process that has ended (§6.9), so `info` answers `None` for one. `live` answers the processes the runtime started that have not ended, the system processes excepted. `faults(wrap)` delivers `wrap(r)` to the caller for every fault of every process the runtime started, the system processes' excepted, as E.0 rule 8 says of a function that delivers later. A process holds one subscription: a second call replaces the first, its wrap from then on, and a subscription ends when its process dies. A subscription to faults is no source that can deliver under §8.6, since a fault comes only from a process that runs. In a `FaultReport`, `restarted` is `true` where the process restarts after the fault (§6.9), and `trace` is the host's stack beneath a failure in the runtime or a foreign function's raise, a function to a line, and empty beneath a cause of §7.4.
+
+```
+foreign type Process
+type Info = Info(site : String, queued : Int, activity : Activity)
+type Activity = Running | Receiving | Calling
+type FaultReport = FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String)
+Process.fromAddress : (Address(m)) -> Process // the process behind the address, through every via
+Process.info : (Process) -> Optional(Info) with m // its spawn site (§6.9), the messages in its mailbox, and whether it runs, waits in a receive, or waits for a call's answer; None once it has ended
+Process.live : () -> List(Process) with m // in unspecified order
+Process.faults : ((FaultReport) -> m) -> Unit with m // every fault from now on, wrapped, in the caller's mailbox
 ```
 
 ## Appendix F. Glossary
@@ -1532,10 +1551,10 @@ Every technical term this report introduces, with the section that defines it. P
 - **content addressing** — naming a definition or type by the hash of its content. §8.7.
 - **deadlock** — no process can progress; the entry process faults with `Fault("deadlock")`. §8.6.
 - **doc block** — consecutive `///` lines, read as CommonMark. §2.2.
-- **doc comment** — `///` to end of line; attached to the following declaration. §2.2.
+- **doc comment** — `///`, not followed by a fourth `/`, to end of line; attached to the following declaration. §2.2.
 - **effect polymorphism** — a mailbox effect that is a type variable. §3.9.
 - **effect position** — the type after `with` in a function type. §3.9.
-- **entry point** — the function `ern` calls to run a program: the module's `export fn main`, or the function `--main` names. §8.1, §11.2.
+- **entry point** — the function `ern run` calls to run a program: the module's `export fn main`, or the function `--main` names. §8.1, §11.2.
 - **entry process** — the process that runs the entry point. §8.1, §8.6.
 - **equality constraint** — the restriction on a type variable compared with `==`, or on a foreign type's parameter written `k=`. §3.10, §4.7.
 - **fault** — a process death with the reason `Fault(cause)`; not catchable. §7.3, §7.4.
@@ -1567,9 +1586,11 @@ Every technical term this report introduces, with the section that defines it. P
 - **pipe** — the `|>` operator, `x |> f` = `f(x)`. §5.7.
 - **positional field** — a field on a constructor identified by position, not name. §3.5.
 - **precedence** — the binding tightness of a binary operator. §2.6.
+- **primitive** — an operation of a standard library module that reaches a representation the runtime owns; the rest of the module is Ernest over its primitives. Appendix E.0.
 - **prelude** — the small set of names the language requires to exist. §9.
 - **`Prelude`** — the prelude's own namespace, `Prelude.Close`, for a name a module has shadowed. §4.2.
 - **process** — an execution of a function with a mailbox. §6.
+- **`Process`** — the identity of a process, with equality; nothing can be sent to it. §6.5, Appendix E.21.
 - **process-only** — a function whose effect variable cannot be pure. §3.9.
 - **pure function** — a function without a mailbox type; result depends only on arguments. §0, §6.1.
 - **qualified name** — a name with a dotted namespace prefix, `Net.Http.parse`. §2.3, §4.2.
@@ -1578,21 +1599,23 @@ Every technical term this report introduces, with the section that defines it. P
 - **remote computation** — `remote(f)` evaluates a pure function on a peer. §6.7.
 - **`Reply(a)`** — a one-shot address for the answer to a request. §3.7, §6.6.
 - **reply-carrying** — a type that transitively contains a `Reply`. §6.6.
+- **restart** — `restarting`'s run of its function again after a fault, in the same process with its address and its mailbox; not a death. §6.9.
 - **reserved word** — one of eighteen keywords. §2.4.
 - **runtime** — the system that runs Ernest programs. §10.
 - **`self`** — `self()`, the current process's own address. §6.2.
 - **`send`** — `send(a, v)`, places `v` in the mailbox of `a`. §6.2.
+- **service** — a top-level binding that holds a process's address. §6.5.
 - **source root** — the directory under which a file's path gives its namespace. §4.2, §11.1.
 - **`spawn`** — `spawn(w, f)`, starts a new process; `spawnMonitored(w, f, wrap)` starts one monitored from its start. §6.2.
 - **standard library** — the modules under `stdlib/`, on the load path by default; not the prelude. §9, Appendix E.
 - **structural equality** — the meaning of `==`; two values are equal when they are built by the same constructor from equal parts. §3.10.
 - **sum type** — a type with one or more constructors. §3.5.
-- **system module** — the standard library module of a system reference's name, through which a program uses it. §8.2, Appendix E.0.
+- **system module** — the standard library module that holds a system reference, through which a program uses it. §8.2, Appendix E.0.
 - **system process** — a process the runtime starts and keeps, its implementation foreign, its address a system reference. §8.2, §8.4.
-- **system reference** — a top-level address in `Sys.*`, wired by the runtime. §8.2.
+- **system reference** — a system process's address, a private top-level binding of its system module that the runtime binds. §8.2.
 - **tail position** — a function's body, and the branches, clause bodies, and last block expressions within it. §10.
 - **taken namespace** — a namespace of the prelude or the standard library, which no other module may provide. §4.2.
-- **top-level binding** — a value bound at file scope by a `let` or provided by the runtime. §4.6, §8.2.
+- **top-level binding** — a value bound at file scope by a `let`. §4.6, §8.5.
 - **tuple** — a positional product, `#(a, b)`, `#(a, b, c)`, `#(a)`. §3.2.
 - **type member** — a name declared with its type's prefix, `fn Distance.+`, in the type's nested namespace. §4.2.
 - **type variable** — a lowercase identifier in type position; universally quantified in a `fn` or a top-level `let`. §3.9.

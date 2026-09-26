@@ -21,8 +21,8 @@ Actorson until 12 September 2026.
 first eight steps are done: the feedback list and this plan consolidated, the report read
 cold, the five themes, names and namespaces, expressions, patterns and types, processes and
 the system, the standard library under E.0, and the toolchain, the Erlang code's open
-questions, and the cold read's last findings. Step 10, the build, has begun: its gate and
-its ledger are done, and its report pass is next.
+questions, and the cold read's last findings. Step 10, the build, has begun: its gate, its
+ledger and its report pass are done, and the report's cold read is next.
 MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
@@ -332,7 +332,7 @@ The steps:
       | B5 | `Process` (steps 5, 8, G2, G9) | §6.5, §8.6 (L6), §11.2, E.0 rules 1, 5, 7, 8, E.1, a new section of Appendix E | `stdlib/process.ern`; `ern_rt` `live`, a Calling mark, fault subscribers through `wrapped/3`; `ern_show` `<process 84>`, `<address 84>`; `ern_typecheck` equality error; `ern_shell` loses eight doors; `shell.ern` keeps its hundred faults | `ern_stdlib_tests`, `ern_rt_tests`, `ern_show_tests`, `ern_shell_tests` `:processes` and `:faults`, `test/session/basic.out`; mirrors: `ern_prelude_tests` | guide §3.6, §5.2, §9.3, §10; `shell/README.md`, `shell_design.md`, `node_protocol.md`, `architecture.md`; `examples/repl.ern`'s run number, which becomes a process | B7, B1, B8, A1 | `watchDeaths`, `processes()`, `faults()`, `mine()`, `<address>`, `no equality`, `identity is expressed in the protocol`: 29 |
       | B6 | `fault`, `todo` gone (G1) | §3.7, §7.4, §9.5, §9.6 | `ern_prelude`, `ern_emitter`, `ern_rt` `todo` | `ern_emitter_tests`, `ern_stdlib_tests`, `ern_typecheck_tests`; mirrors: `ern_prelude_tests`, the template page | guide §3.4, §6.3, §6.5 and its answers to the exercises; `examples/template.ern`, `module_doc_template.md`, `shell_design.md` | none | `todo`: 41 in 12 files |
       | B7 | `Down.site` (G2) | §6.9, §9.3 | the tuple becomes `{'Down', Reason, Site}`, fields in canonical order: `ern_prelude`, `ern_rt`, `ern_cli`, `ern_shell`, `shell.ern` | `ern_rt_tests` 10, `ern_emitter_tests` 5, printed `Down(reason = ..., site = ...)`; mirrors: `declared_types_test`, the guide's §5.2 | guide §5.2, §5.6, §6.3, §6.4 | none | `function = `, `Down.function`, `{'Down', Site`: 35 in 11 files |
-      | B8 | the references in their modules (G13) | §4.2, §8.2, §8.5, §8.7, §9, §9.3, §9.7, §10, §11.2, E.0 rules 1, 5, 7, 8, E.1, E.15 to E.18, App. F; L4, L5 | `ern_prelude` loses the `Sys` values and types; `ern_emitter`; `io`, `clock`, `terminal`, `fs`, `tcp` `.ern` each bind their reference; `ern_rt` keeps `sys/1` and `kill`'s check | `ern_prelude_tests` (the §9.7 mirror shrinks), `ern_doc_tests`, `ern_emitter_tests`, `ern_typecheck_tests`, `ern_cli_tests`, `ern_shell_tests`; new: another module's message constructor refused; mirror: `kill`'s system modules against §8.2 | guide, README, `architecture.md`, `shell_design.md`, `examples/` webserver, filesync, repl, echo | A1, B2 | `Sys.` references 103, the seven message types 53, `system reference` 15, `sys.ern` 3, `IoError` 79 (L4) |
+      | B8 | the references in their modules (G13) | §4.2, §8.2, §8.5, §8.7, §9, §9.3, §9.7, §10, §11.2, E.0 rules 1, 5, 7, 8, E.1, E.15 to E.18, App. F; L4, L5 | `ern_prelude` loses the `Sys` values and types; `ern_emitter`; `io`, `clock`, `terminal`, `fs`, `tcp` `.ern` each bind their reference, private to the module; `ern_rt` keeps `sys/1`, and `kill`'s check for a system process goes, since no program can name one | `ern_prelude_tests` (the §9.7 mirror shrinks), `ern_doc_tests`, `ern_emitter_tests`, `ern_typecheck_tests`, `ern_cli_tests`, `ern_shell_tests`; new: another module's message constructor refused, a system reference not visible outside its module | guide, README, `architecture.md`, `shell_design.md`, `examples/` webserver, filesync, repl, echo | A1, B2 | `Sys.` references 103, the seven message types 53, `system reference` 15, `sys.ern` 3, `IoError` 79 (L4) |
       | B9 | `Tcp` keeps its time limit, `port`, `peer`, `local` (steps 5, 6, G7, G15), and a socket lives until `Tcp.close` (L3) | E.0 rule 8, E.18 | `tcp.ern` over `callForever`; `ern_tcp` timers, late bytes kept, a pending request a source, `peername`, `sockname`, a closed connection answering `Left(Closed)` until `Close` | `ern_tcp_tests`; new: a timed-out accept takes nothing, a late connect is closed, `callForever` on a listener no deadlock, `port` after `listen(0)`, reads after the far end closes, a read after `Tcp.close` faults; `ern_stdlib_tests` | `tcp.ern` docs, `examples/echo.ern`, `architecture.md` | B8, B3 | `answered(Address.call` in `tcp.ern` 3, `Recv(reply` 3, `Tcp.listen, and Io.readLine take none` 1, `dies with the connection` 5 |
       | B10 | `Terminal.subscribe` answers `Either` (step 5, step 9) | §8.2, §9.3 `IoError`, E.16, §11.2 | `terminal.ern`; `ern_tty` refuses before raw mode, each subscriber's wraps in order; `ern_shell` `is_terminal` goes; `shell.ern`, `snake.ern`; a `NotATerminal` arm in three matches | `ern_tty_tests`, `ern_rt_tests` sources, `ern_terminal_tests` (a piped program gets `Left(NotATerminal)`), `ern_emitter_tests`; mirrors: `declared_types_test`, `values_test` | guide §1.3, §5.5; `shell_design.md`, `shell/README.md` | B8 | `isTerminal` 3, `where there is no terminal` 7, `A program that does both faults` 1 |
       | C1 | a shim reaches the representation (step 6) | E.0 rule 1, E.3, E.4, E.5, E.14, E.20 | `map.ern`, `set.ern`, `string.ern`, `bytes.ern`, `path.ern` in Ernest over their primitives; `ern_map`, `ern_set`, `ern_string`, `ern_path` shrink, `ern_path:dirname` with them | `ern_stdlib_tests` and each edge case a contract names; new mirror: each module's `foreign fn`s equal the primitives its section names | `architecture.md`, the module pages | none | `ern_map:`/`ern_set:`/`maps:` 30, `ern_string:` six, `ern_path:` 6 |
@@ -396,9 +396,29 @@ The steps:
         joins a file and a socket, placed in the module named for input and output. E.1,
         E.15 to E.18, §9 and §9.3; the log's *The Error of Input and Output*.
 
-   3. **Every report change in one pass**, Appendix E among them, as a commit of the report
-      alone: `make xref` and `make test-docs` green, the count recorded in the log's
-      *Measure*, and a section over 600 words read for restating.
+   3. **Done 2026-09-26: every report change in one pass**, Appendix E among them, as a
+      commit of the report alone, with `make xref` and `make test-docs` green and the count
+      in the log's *Measure*. Every row of the ledger is in the report, and the new Appendix
+      E.21 is `Process`'s; Appendix B's ping-pong spawns its monitored process with
+      `spawnMonitored`. The mirror tests that read the report, `ern_prelude_tests`,
+      `ern_guide_tests` and Appendix D's, now fail until sub-step 6 builds each row, which
+      is the order this step chose. Decided in the pass where the report was silent, each
+      argued in the log's *The Report Pass of Step 10*:
+      - **A system reference is private to its module**, and a module's message types are
+        private but `Tcp`'s `ListenerMsg` and `SockMsg`, which are exported abstract. No
+        program can name a system process, so `kill`'s refusal of one leaves §6.9 and §7.4.
+      - **`restarting(limit, f)` is a function**, run wherever it is called: a fault in `f`
+        runs `f` again in the calling process, and after `n` restarts within `t`
+        milliseconds the next fault ends it (§6.9).
+      - **`ern run`'s fault line is the shell's**, `Site faulted: cause`, and `Site faulted,
+        restarted: cause` for one after which the process restarts; the entry process's
+        fault takes the same form, and `fault:` goes (§11.2).
+      - **`ern test` runs its tests one at a time**, in the order the module declares them,
+        which a deadlock that is one test's fault needs (§11.2).
+      - **A line of standard input that is not UTF-8 faults the process that asked for it**,
+        `Fault("the standard input is not UTF-8")` (§8.2, §7.4).
+      - **A process holds one subscription to faults**, a second replacing the first, as it
+        holds one to the terminal (E.21).
    4. **The whole report read cold.** A reader who took no part reads the report as it now
       stands, every section and not the changed ones alone, since the decisions cut across
       sections: a service binding reaches §4.6, §6.5, §8.5 and §8.7 at once. With it the two
