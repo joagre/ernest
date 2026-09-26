@@ -11,7 +11,7 @@
          is_unit/1, type_text/1, run/3, show/3, bindings/1, context/1, names/0,
          session_names/0, session_texts/0, source_root/0, segment/1, forget/2, browse/2, doc/2,
          documentation/1, signature/1, deaths/1, mine/0, faults/0, processes/0, load/2,
-         reload/1, is_terminal/0, version/0, colours/0, write/1, screen/1, to_screen/1,
+         reload/1, version/0, colours/0, write/1, screen/1, to_screen/1,
          output/1, unbound/1, declared/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -1617,27 +1617,19 @@ relative(File, #env{source_root = Root}) ->
         Rel -> Rel
     end.
 
-%% Report §11.2: the shell edits a line when it has a terminal and reads
-%% lines when it has not.
--spec is_terminal() -> boolean().
-is_terminal() ->
-    %% report §11.2: the keys are read and the screen painted, so the input
-    %% and the output are both the terminal; a shell whose output goes to a
-    %% file writes it plainly
-    ern_tty:is_terminal(stdin) andalso ern_tty:is_terminal(stdout).
-
 %% The toolchain's version, the top-level VERSION file, passed by the
 %% Makefile.
 -spec version() -> binary().
 version() ->
     list_to_binary(?VERSION).
 
-%% Report §11.2: the shell colours what it says at a terminal, and not where
-%% the environment sets NO_COLOR to anything, as that convention asks. The
-%% environment is the host's until MVP 2.7 gives a program its environment.
+%% Report §11.2: the shell colours what it says at a terminal, which it
+%% knows, and not where the environment sets NO_COLOR to anything, as that
+%% convention asks. The environment is the host's until MVP 2.7 gives a
+%% program its environment.
 -spec colours() -> boolean().
 colours() ->
-    is_terminal() andalso os:getenv("NO_COLOR", "") =:= "".
+    os:getenv("NO_COLOR", "") =:= "".
 
 %% The screen writes to the terminal itself: standard output is the screen's,
 %% so a screen that printed through it would print to itself.

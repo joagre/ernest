@@ -178,7 +178,7 @@ HELLO
 WORLD
 ```
 
-An entry point takes no arguments, so a program's input comes on standard input. It is read as UTF-8, and a line that is not faults the program. Input that is not text is read as bytes: `Io.read()` answers `Some(bytes)` with what has arrived, and `Io.write(bytes)` writes bytes to standard output as they are. Lines and bytes come from one stream, so a program can read a line and then the bytes after it. A program reads lines or single keys, not both: `Terminal.subscribe` gives keys as they are pressed (report §8.2).
+An entry point takes no arguments, so a program's input comes on standard input. It is read as UTF-8, and a line that is not faults the program. Input that is not text is read as bytes: `Io.read()` answers `Some(bytes)` with what has arrived, and `Io.write(bytes)` writes bytes to standard output as they are. Lines and bytes come from one stream, so a program can read a line and then the bytes after it. A program reads lines or single keys, not both: `Terminal.subscribe` gives keys as they are pressed, or answers `Left(Io.NotATerminal)` where standard input is not a terminal, so that the program can read lines instead (report §8.2).
 
 ### 1.4 Prediction exercise
 

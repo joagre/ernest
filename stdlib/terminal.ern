@@ -2,14 +2,19 @@
 /// (report §8.2). A subscriber is sent every key pressed from then on,
 /// the text of a paste as one `Pasted`, and the new size whenever the
 /// window changes, wrapped for its own mailbox, as `monitor` and
-/// `Clock.alarm` deliver. The terminal read as keys and
+/// `Clock.alarm` deliver. Where standard input is not a terminal there are
+/// no keys, and a subscription is refused. The terminal read as keys and
 /// the terminal read as lines are the same one, so a program subscribes
 /// here or reads lines with `Io.readLine`, never both.
 ///
 /// ## Examples
 ///
 /// ```ernest
-/// Terminal.subscribe(fn(event) = event)
+/// match Terminal.subscribe(fn(event) = event) {
+///     Right(_) -> "keys"
+///   | Left(Io.NotATerminal) -> "lines"
+///   | Left(_) -> "neither"
+/// }
 /// ```
 ///
 /// ## See also
@@ -43,7 +48,8 @@ export type Event =
   | Escape | Interrupt | Pasted(String) | Resized(Size)
 
 // What the terminal takes.
-type Msg = Subscribe(to : Address(Event), reply : Reply(Unit))
+type Msg =
+    Subscribe(to : Address(Event), reply : Reply(Either(Io.Error, Unit)))
   | Measure(reply : Reply(Optional(Size)))
 
 // Report §8.2: the system reference, the runtime's address of the terminal,
@@ -54,16 +60,20 @@ foreign fn system(name : Foreign) -> Address(Msg) with m = "ern_rt:sys/1"
 
 /// Every key pressed and every resize from now on, wrapped, in the
 /// caller's mailbox. It answers once the terminal is in the mode the keys
-/// need, so that nothing typed after it returns is echoed (report §8.2).
-/// A process holds one subscription: a second call replaces the first,
-/// and the keys come wrapped the new way from then on.
-export fn subscribe(wrap : (Event) -> m) -> Unit with m = {
+/// need, so that nothing typed after it returns is echoed (report §8.2),
+/// or with `Left(Io.NotATerminal)` where standard input is not a terminal,
+/// claiming nothing, so that the program can read lines instead. A process
+/// holds one subscription: a second call replaces the first, and the keys
+/// come wrapped the new way from then on. The terminal applies each
+/// subscriber's wrap itself, in order, so a wrap that does not finish
+/// delays that subscriber's keys and no other's.
+export fn subscribe(wrap : (Event) -> m) -> Either(Io.Error, Unit) with m = {
     let to = via(wrap, self());
     Address.callForever(reference, fn(r) = Subscribe(to = to, reply = r))
 }
 
-/// The terminal's size now, and `None` where there is no terminal or its
-/// size is unknown. A program that draws asks at each redraw and hears of
+/// The terminal's size now, and `None` where standard output is not a
+/// terminal or its size is unknown. A program that draws asks at each redraw and hears of
 /// a change as `Resized`.
 ///
 /// ### Examples

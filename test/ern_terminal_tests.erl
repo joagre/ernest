@@ -47,6 +47,16 @@ keys() ->
     %% an arrow is not split: no Escape arrived before the one that was sent
     ?assertEqual(1, count(Screen, <<"escape">>)).
 
+%% report §8.2, Appendix E.16: where standard input is not a terminal a
+%% subscription is refused, and the program goes on to say so
+not_a_terminal_test_() ->
+    {timeout, 60, fun not_a_terminal/0}.
+
+not_a_terminal() ->
+    ok = compile("terminal/probe.ern", "terminal"),
+    ?assertEqual({0, <<"no terminal\n">>},
+                 sh("echo x | ../bin/ern run build/terminal/probe.erc")).
+
 %% report §8.2, §8.6: a key is read as UTF-8 whatever the host's locale,
 %% and the terminal's interrupt ends a program that reads keys at once. A
 %% regression test for the raw mode set by stty alone, which turns the
@@ -83,20 +93,6 @@ terminal_restored() ->
     ?assert(count(Screen, <<"ready">>) =:= 1 andalso count(Screen, <<"escape">>) =:= 1),
     ?assertEqual(nomatch, re:run(Screen, "(^|[ \t])-echo([ \t;\r\n]|$)", [{capture, none}])),
     ?assert(count(Screen, <<"speed">>) >= 2).
-
-%% report §8.6, §8.2: at the end of input no key can come, so a program
-%% that waits only for keys is in a deadlock and faults. A regression test:
-%% the subscription went on counting as a source, and the program waited
-%% for ever. Without a terminal, so it does not cover a terminal closed
-%% under the program
-keys_at_end_of_input_test_() ->
-    {timeout, 60, fun keys_at_end_of_input/0}.
-
-keys_at_end_of_input() ->
-    ok = compile("terminal/waiting.ern", "terminal"),
-    {Status, Out} = sh("sh -c 'timeout 20 ../bin/ern run build/terminal/waiting.erc < /dev/null'"),
-    ?assertEqual(1, Status),
-    ?assertMatch({_, _}, binary:match(Out, <<"fault: deadlock">>)).
 
 %% report §8.2, §9.3, and MVP 2.5's manual check: the game is
 %% played by the arrows, `Escape` leaves, and the board's rows each start at

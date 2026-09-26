@@ -11,7 +11,7 @@ Start at `main` in [`shell.ern`](shell.ern). The file reads top to bottom:
 3. **Commands**: what a `:` line does.
 4. **The screen**: the one process that writes to the terminal.
 5. **The reader**: the keys, the line editor, completion, and documentation.
-6. **Line mode**: without a terminal there is no reader, and the session reads lines itself.
+6. **Line mode**: where standard output has no size or the reader's subscription is refused, the session reads lines itself.
 
 Then read the modules under [`shell/`](shell/) in any order. A file's path is its module's name: `shell/command.ern` is `Shell.Command`. Every module but `Shell` and `Shell.History` is pure, and each has its tests at the foot of its file.
 

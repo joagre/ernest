@@ -7,10 +7,12 @@ type Msg = E(Terminal.Event)
 
 // `ready` is printed after the subscription, not before: it is what the
 // harness waits for, and until the subscription the terminal still echoes.
-export fn main() -> Unit with Msg = {
-    Terminal.subscribe(E);
-    Io.println("ready " <> sizeText());
-    loop()
+export fn main() -> Unit with Msg = match Terminal.subscribe(E) {
+    Right(_) -> {
+        Io.println("ready " <> sizeText());
+        loop()
+    }
+  | Left(_) -> Io.println("no terminal")
 }
 
 fn sizeText() -> String with m = match Terminal.size() {

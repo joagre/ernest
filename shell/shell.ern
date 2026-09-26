@@ -82,14 +82,13 @@ foreign fn forget(env : Env, name : String) -> Either(String, Env) = "ern_shell:
 foreign fn browse(env : Env, name : String) -> Either(String, List(String)) with m =
     "ern_shell:browse/2"
 foreign fn doc(env : Env, name : String) -> Either(String, String) with m = "ern_shell:doc/2"
-foreign fn isTerminal() -> Bool with m = "ern_shell:is_terminal/0"
 // Report §11.1, §4.2: the namespace segment a path component names, asked
 // of the compiler, which owns the rule.
 foreign fn segment(name : String) -> Optional(String) = "ern_shell:segment/1"
 // The toolchain's version, which the host was built with.
 foreign fn version() -> String = "ern_shell:version/0"
-// Report §11.2: whether the shell colours what it says, at a terminal and
-// without `NO_COLOR`.
+// Report §11.2: whether `NO_COLOR` leaves the shell its colours, which it
+// uses at a terminal.
 foreign fn colours() -> Bool with m = "ern_shell:colours/0"
 foreign fn write(text : String) -> Unit with m = "ern_shell:write/1"
 foreign fn setScreen(to : Address(String)) -> Unit with m = "ern_shell:screen/1"
@@ -99,13 +98,15 @@ foreign fn holdTerminal(reader : Address(a)) -> Unit with m = "ern_rt:hold_termi
 // The session
 //
 
-// What the session is told. The reader sends `Typed` for an input entered,
-// `Interrupted` for `C-c`, `Eof` for `C-d` on an empty line, and `Ready`
-// once it holds the keyboard; the input's process sends `Done` as its run
-// ends; the front end's watcher sends `Died` for every death, and the
-// monitor on the reader `ReaderDied` for its own.
+// What the session is told. The reader sends `Ready` once it holds the
+// keyboard, or `NoKeys` where standard input is not a terminal, `Typed`
+// for an input entered, `Interrupted` for `C-c`, and `Eof` for `C-d` on an
+// empty line; the input's process sends `Done` as its run ends; the front
+// end's watcher sends `Died` for every death, and the monitor on the
+// reader `ReaderDied` for its own.
 type ShellMsg =
     Typed(String) | Eof | Interrupted | Done(Outcome) | Died(Down) | ReaderDied(Down) | Ready
+  | NoKeys
 
 // What the session carries between inputs: the front end's environment, the
 // settings `:set` changes, which are ordinary values, and whether it colours
@@ -129,7 +130,11 @@ type ScreenMsg =
   | Typing(text : String, at : Int, rows : List(String)) | Entered | Taken | Resize | Clear
   | Height(Int) | Flush(reply : Reply(Unit))
 
-type ReaderMsg = K(Terminal.Event)
+// What the reader is told: a key, and, once it holds the keyboard, the
+// screen it draws on, the inputs of the sessions before this one, and
+// whether the shell colours.
+type ReaderMsg =
+    K(Terminal.Event) | Start(screen : Address(ScreenMsg), earlier : List(String), colour : Bool)
 
 // What the reader carries between keys: the line being edited, whether
 // the history file still takes what is typed, whether this session has
@@ -149,17 +154,30 @@ let defaults = Settings(depth = 10, length = 100, timing = false, output = Shell
 
 export fn main() -> Unit with ShellMsg = {
     mine();
+    let me = self();
     // report §11.2: at a terminal the keys are read and a region painted;
-    // elsewhere lines are read and what is said is written as it comes
-    let size = if isTerminal() then Terminal.size() else None;
-    let colour = colours();
+    // elsewhere lines are read and what is said is written as it comes.
+    // Where standard output has a size the reader asks for the keys, and
+    // a refusal says that standard input is not a terminal (§8.2)
+    let keys = match Terminal.size() {
+        None -> None
+      | Some(size) -> {
+            let reader = spawn(Local, fn() = reader(me));
+            receive { Ready -> Some(#(reader, size)) | NoKeys -> None }
+        }
+    };
+    let colour = Optional.isSome(keys) && colours();
     let screen = spawn(Local, fn() = {
         mine();
-        match size {
-            Some(s) -> screenLoop(Shell.Region.new(s))
+        match keys {
+            Some(#(_, size)) -> screenLoop(Shell.Region.new(size))
           | None -> plainLoop()
         }
     });
+    // report §11.2: in line mode the session reads the lines itself, and
+    // holds the terminal, so that an input that asks for the keys or a
+    // line faults rather than taking them
+    if Optional.isNone(keys) then holdTerminal(self()) else Unit;
     // report §11.2: what a program writes goes to the tail, what the
     // session says is committed to the transcript
     setScreen(via(Wrote, screen));
@@ -171,49 +189,32 @@ export fn main() -> Unit with ShellMsg = {
     // report §11.2: the file's entry point is spawned beside the prompt,
     // and its faults reach the watcher as any other process's do
     let _ = program();
-    if size != None then {
-        let me = self();
-        // report §11.2: the inputs of the sessions before this one
-        let earlier = match Shell.History.file() {
-            None -> {
-                say(screen, "the history is not kept, since HOME is not set");
-                []
-            }
-          | Some(_) -> match Shell.History.read() {
-                Right(inputs) -> inputs
-              | Left(why) -> {
-                    say(screen, "the history could not be read: " <> trouble(why));
+    match keys {
+        Some(#(reader, _)) -> {
+            // report §11.2: the inputs of the sessions before this one
+            let earlier = match Shell.History.file() {
+                None -> {
+                    say(screen, "the history is not kept, since HOME is not set");
                     []
                 }
+              | Some(_) -> match Shell.History.read() {
+                    Right(inputs) -> inputs
+                  | Left(why) -> {
+                        say(screen, "the history could not be read: " <> trouble(why));
+                        []
+                    }
+                }
+            };
+            send(reader, Start(screen = screen, earlier = earlier, colour = colour));
+            // report §11.2: an editor that cannot read keys is no shell,
+            // so the reader's death is said and the session ends with it
+            monitor(reader, ReaderDied);
+            match startup(state, screen) {
+                Continue(state2) -> { send(screen, Said("> ")); keyLoop(state2, screen) }
+              | Leave -> finish(screen, "")
             }
-        };
-        // report §11.2: an editor that cannot read keys is no shell, so
-        // the reader is watched from its start, its death is said and the
-        // session ends with it; it is the shell's own process, which a
-        // fault report leaves out. It holds the terminal before it
-        // subscribes, so that the terminal's mode is the holder's, the
-        // interrupt a key
-        let _ = spawnMonitored(Local, fn() = {
-            mine();
-            holdTerminal(self());
-            Terminal.subscribe(K);
-            send(me, Ready);
-            readLoop(me, screen, Reading(editing = Shell.Editor.start(earlier),
-                keeping = true, hinted = false, last = Ordinary, colour = colour))
-        }, ReaderDied);
-        // report §8.2: the prompt waits for the reader to hold the
-        // keyboard, since until then the terminal is still echoing lines
-        receive { Ready -> Unit };
-        match startup(state, screen) {
-            Continue(state2) -> { send(screen, Said("> ")); keyLoop(state2, screen) }
-          | Leave -> finish(screen, "")
         }
-    } else {
-        // report §11.2: in line mode the session reads the lines itself,
-        // and holds the terminal, so that an input that asks for the keys
-        // or a line faults rather than taking them
-        holdTerminal(self());
-        match startup(state, screen) {
+      | None -> match startup(state, screen) {
             Continue(state2) -> lineLoop(state2, screen)
           | Leave -> finish(screen, "")
         }
@@ -600,6 +601,26 @@ fn drain(screen : Address(ScreenMsg)) -> Unit with m = {
 // and draws nothing itself. What a key does is `edit`, a pure function;
 // the reader sends the screen the line and the session what was entered.
 //
+
+// Report §11.2: the reader, the shell's own process, which a fault report
+// leaves out. It holds the terminal before it subscribes, so that the
+// terminal's mode is the holder's and the interrupt a key, and once it has
+// the keys it waits for the screen it draws on.
+fn reader(session : Address(ShellMsg)) -> Unit with ReaderMsg = {
+    mine();
+    holdTerminal(self());
+    match Terminal.subscribe(K) {
+        Right(_) -> {
+            send(session, Ready);
+            receive {
+                Start(screen = screen, earlier = earlier, colour = colour) ->
+                    readLoop(session, screen, Reading(editing = Shell.Editor.start(earlier),
+                        keeping = true, hinted = false, last = Ordinary, colour = colour))
+            }
+        }
+      | Left(_) -> send(session, NoKeys)
+    }
+}
 
 fn readLoop(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : Reading)
     -> Unit with ReaderMsg = {

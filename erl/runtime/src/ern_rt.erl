@@ -908,11 +908,14 @@ run_main(Main, Site, Opts) ->
     Err = maps:get(stderr, Opts, fun(Bin) -> file:write(standard_error, Bin) end),
     Input = input(stdin, Opts),
     Keys = input(keys, Opts),
+    %% report §8.2: keys come where standard input is a terminal, and from
+    %% a test's keys
+    KeysCome = maps:is_key(keys, Opts) orelse ern_tty:is_terminal(stdin),
     System = [{stdout, erlang:spawn(fun() -> stdout_loop(Out) end)},
               {stderr, erlang:spawn(fun() -> stdout_loop(Err) end)},
               {stdin, erlang:spawn(fun() -> stdin_loop(Input) end)},
               {fs, erlang:spawn(fun ern_fs:loop/0)},
-              {terminal, erlang:spawn(fun() -> ern_tty:loop(Keys) end)},
+              {terminal, erlang:spawn(fun() -> ern_tty:loop(Keys, KeysCome) end)},
               {tcp, erlang:spawn(fun ern_tcp:loop/0)},
               {clock, erlang:spawn(fun clock_loop/0)}],
     lists:foreach(fun({Name, Pid}) -> persistent_term:put({?MODULE, Name}, Pid) end, System),

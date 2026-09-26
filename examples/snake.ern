@@ -52,7 +52,15 @@ export fn main() -> Unit with GameMsg = {
     let world0 =
         World(w = w, h = h, players = Map.empty, apples = [], seed = Random.seed(42), tick = 0);
     let me = self();
-    let _ = spawn(Local, fn() = { Terminal.subscribe(fn(e) = e); player(1, me) });
+    // report §8.2: the keys are the game's input, so without a terminal
+    // the player leaves, and with the last player the game is over
+    let _ = spawn(Local, fn() = match Terminal.subscribe(fn(e) = e) {
+        Right(_) -> player(1, me)
+      | Left(_) -> {
+            Io.printlnError("snake needs a terminal, since its keys are the game's input");
+            send(me, In(Leave(1)))
+        }
+    });
     game(addPlayer(world0, 1))
 }
 

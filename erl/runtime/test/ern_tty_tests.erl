@@ -122,6 +122,61 @@ utf8_keys_test() ->
                                  end, <<"main">>,
                                  #{stdout => fun(_) -> ok end, keys => fun() -> <<"a", 255>> end})).
 
+%% report §8.2, Appendix E.16: where standard input is not a terminal a
+%% subscription is refused with Left(NotATerminal) and claims nothing, so
+%% a line can still be read, and the size is still asked of the output
+not_a_terminal_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               %% the terminal's process as the runtime starts it where no
+               %% keys can come
+               Tty = erlang:spawn(fun() -> ern_tty:loop(fun silent/0, false) end),
+               Me ! {answer, ern_rt:call_forever(Tty, fun(R) -> {'Subscribe', R, Me} end)},
+               Me ! {line, ern_rt:call_forever(ern_rt:sys(stdin), fun(R) -> {'ReadLine', R} end)},
+               exit(Tty, kill)
+           end, <<"main">>, #{stdout => fun(_) -> ok end, stdin => fun() -> "line\n" end}),
+    ?assertEqual({'Left', 'NotATerminal'}, wait(answer)),
+    ?assertEqual({'Some', <<"line">>}, wait(line)).
+
+%% report §8.6, §8.2: at the end of input no key can come, so a program
+%% that waits only for keys is in a deadlock and faults. A regression test:
+%% the subscription went on counting as a source, and the program waited
+%% for ever. It ran a program with its standard input closed until such an
+%% input came to refuse the subscription; the keys here end instead
+keys_at_end_of_input_test() ->
+    ?assertEqual({fault, <<"deadlock">>},
+                 ern_rt:run_main(fun() ->
+                                         subscribe(ern_rt:sys(terminal)),
+                                         receive never -> ok end
+                                 end, <<"main">>,
+                                 #{stdout => fun(_) -> ok end, keys => fun() -> eof end})).
+
+%% report §8.2: the terminal applies each subscriber's wrap itself, in
+%% order, so a wrap that does not finish delays that subscriber's keys and
+%% no other's
+couriers_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Tty = ern_rt:sys(terminal),
+               Main = self(),
+               Stuck = ern_rt:spawn('Local', fun() ->
+                                                subscribe(Tty, fun(E) ->
+                                                                   receive after infinity -> E end
+                                                               end),
+                                                Main ! stuck_subscribed,
+                                                receive never -> ok end
+                                            end, <<"stuck">>),
+               wait_atom(stuck_subscribed),
+               subscribe(Tty, fun(E) -> {key, E} end),
+               Tty ! {chars, "ab"},
+               Keys = [receive {key, K1} -> K1 end, receive {key, K2} -> K2 end],
+               Me ! {keys, Keys},
+               ern_rt:kill(Stuck)
+           end, <<"main">>, #{stdout => fun(_) -> ok end, keys => fun silent/0}),
+    ?assertEqual([{'Key', $a}, {'Key', $b}], wait(keys)).
+
 %% A terminal at which nothing is typed, so that a test's keys are the ones
 %% it sends the terminal's process itself.
 silent() ->
@@ -130,6 +185,13 @@ silent() ->
 subscribe(Tty) ->
     Me = ern_rt:self(),
     ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Reply, Me} end, 5000).
+
+subscribe(Tty, Wrap) ->
+    To = ern_rt:via(Wrap, ern_rt:self()),
+    ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Reply, To} end, 5000).
+
+wait_atom(Atom) ->
+    receive Atom -> Atom after 2000 -> error({no, Atom}) end.
 
 %% report §8.2, Appendix E.16: a paste is one event and not the keys of its
 %% characters, its line endings are line feeds whichever the terminal

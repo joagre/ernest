@@ -1,17 +1,18 @@
-%% Report §8.2, Appendix E.16: the process behind Terminal's reference. It answers
-%% Subscribe by remembering the address, sends every key pressed to each
-%% subscriber as a Terminal.Event, answers Size with the terminal's size,
-%% and sends Resized when that size changes. The terminal is put in the
-%% mode the keys need when the first subscriber arrives, since keys and
-%% lines are the same terminal and a program does one or the other, and
-%% restore/0 puts it back when the program ends (§8.6).
+%% Report §8.2, Appendix E.16: the process behind Terminal's reference. It
+%% answers Subscribe with Left(NotATerminal) where standard input is not a
+%% terminal, claiming nothing, and otherwise by remembering the address;
+%% it sends every key pressed to each subscriber as a Terminal.Event,
+%% through a courier of the subscriber's own that applies its wrap, answers
+%% Size with the terminal's size, and sends Resized when that size changes.
+%% The terminal is put in the mode the keys need when the first subscriber
+%% arrives, since keys and lines are the same terminal and a program does
+%% one or the other, and restore/0 puts it back when the program ends
+%% (§8.6).
 %%
-%% The mode is the host's raw mode, shell:start_interactive({noshell,
-%% raw}), with two flags put back by stty on a port that inherits the
-%% terminal: opost, without which a line feed would no longer return the
-%% carriage, and, for the shell alone, -isig, so that the interrupt is a
-%% key (§11.2). Raw mode is also what makes the size askable, io:rows and
-%% io:columns answering only while the host's terminal is in charge.
+%% The mode is stty's raw mode on a port that inherits the terminal, with
+%% two flags put back: opost, without which a line feed would no longer
+%% return the carriage, and isig, so that the interrupt ends the program,
+%% but for the shell, for which it is a key (§11.2).
 %%
 %% A resize arrives as SIGWINCH, which OTP's signal server hands to
 %% ern_tty_signal, installed with the first subscription; the size is
@@ -21,10 +22,11 @@
 %% when nothing follows; both are functions and are what the unit tests
 %% exercise. The reading itself is driven through a pseudo-terminal by
 %% test/ern_terminal_tests.erl, since 2026-09-20; loop/1 takes the input
-%% as ern_rt's stdin does, the host's standard input but in a test.
+%% as ern_rt's stdin does, the host's standard input but in a test, and
+%% whether keys can come, which a test's keys say they can.
 -module(ern_tty).
 
--export([loop/1, decode/1, flush/1, restore/0, is_terminal/1]).
+-export([loop/2, decode/1, flush/1, restore/0, is_terminal/1]).
 
 %% Report §8.2: how long a paste may take to arrive whole.
 -define(PASTE_PAUSE, 200).
@@ -41,10 +43,27 @@
 -define(PASTE_BEGIN, "\e[200~").
 -define(PASTE_END, "\e[201~").
 
-%% Open is the input, which ern_rt:read_input/1 reads.
--spec loop(fun(() -> port() | pid())) -> no_return().
-loop(Open) ->
-    loop([], {unstarted, Open}, [], none).
+%% Open is the input, which ern_rt:read_input/1 reads; Keys says whether
+%% keys can come, standard input being a terminal.
+-spec loop(fun(() -> port() | pid()), boolean()) -> no_return().
+loop(Open, true) ->
+    loop([], {unstarted, Open}, [], none);
+loop(_, false) ->
+    refusing().
+
+%% Report §8.2: where standard input is not a terminal, a subscription is
+%% refused and claims nothing, and the size is asked of standard output.
+refusing() ->
+    receive
+        {'Subscribe', Reply, Address} ->
+            case held_by_another(Address) of
+                true -> exit(ern_rt:process_of(Address), {ern, fault, ern_rt:shell_holds()});
+                false -> ern_rt:answer(Reply, {'Left', 'NotATerminal'})
+            end;
+        {'Measure', Reply} ->
+            ern_rt:answer(Reply, optional(size_now()))
+    end,
+    refusing().
 
 loop(Subscribers, Reader, Pending, Size) ->
     Pause = pause(Pending),
@@ -60,7 +79,7 @@ loop(Subscribers, Reader, Pending, Size) ->
                     Reader1 = start_reader(Reader),
                     %% report §8.2: the mode is set before the caller goes
                     %% on, so that nothing it types then is echoed
-                    ern_rt:answer(Reply, 'Unit'),
+                    ern_rt:answer(Reply, {'Right', 'Unit'}),
                     loop(subscribe(Address, Subscribers, Reader, Reader1), Reader1, Pending,
                          size_now())
             end;
@@ -114,10 +133,23 @@ pause(Pending) ->
         false -> ?ESCAPE_PAUSE
     end.
 
+deliver([], _) ->
+    ok;
 deliver(Events, Subscribers) ->
-    lists:foreach(fun(Event) ->
-                      lists:foreach(fun({_, To}) -> ern_rt:send(To, Event) end, Subscribers)
-                  end, Events).
+    lists:foreach(fun({_, Courier}) -> Courier ! {events, Events} end, Subscribers).
+
+%% Report §8.2: one subscriber's keys, in order, its wrap applied here, so
+%% that a wrap that does not finish delays that subscriber's keys and no
+%% other's; a fault in the wrap is the subscriber's (§6.5). Linked to the
+%% terminal's process, so that it ends with it.
+courier(Address) ->
+    receive
+        {to, Next} ->
+            courier(Next);
+        {events, Events} ->
+            lists:foreach(fun(Event) -> ern_rt:send(Address, Event) end, Events),
+            courier(Address)
+    end.
 
 %% Report §8.2: a process holds one subscription, the latest, keyed by the
 %% process behind its address and watched so that it ends with it. Report
@@ -126,17 +158,22 @@ deliver(Events, Subscribers) ->
 %% counts, and for a subscription that comes back after all had ended.
 subscribe(Address, Subscribers, Before, After) ->
     Pid = ern_rt:process_of(Address),
-    case lists:keymember(Pid, 1, Subscribers) of
-        true ->
-            lists:keyreplace(Pid, 1, Subscribers, {Pid, Address});
+    case lists:keyfind(Pid, 1, Subscribers) of
+        {Pid, Courier} ->
+            Courier ! {to, Address},
+            Subscribers;
         false ->
             erlang:monitor(process, Pid),
             Subscribers =:= [] andalso running(Before) andalso After =/= closed
                 andalso ern_rt:source_begin(),
-            [{Pid, Address} | Subscribers]
+            [{Pid, erlang:spawn_link(fun() -> courier(Address) end)} | Subscribers]
     end.
 
 unsubscribe(Pid, Subscribers, Reader) ->
+    case lists:keyfind(Pid, 1, Subscribers) of
+        {Pid, Courier} -> erlang:unlink(Courier), exit(Courier, kill);
+        false -> ok
+    end,
     Left = lists:keydelete(Pid, 1, Subscribers),
     Left =:= [] andalso Subscribers =/= [] andalso Reader =/= closed
         andalso ern_rt:source_end(),

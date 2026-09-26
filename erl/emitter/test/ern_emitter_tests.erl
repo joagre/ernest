@@ -19,14 +19,21 @@ run(Text) ->
     run(['M'], Text).
 
 run(Ns, Text) ->
+    run(Ns, Text, #{}).
+
+%% The same with keys that can come, as at a terminal, of which none does.
+run_at_terminal(Text) ->
+    run(['M'], Text, #{keys => fun() -> receive after infinity -> eof end end}).
+
+run(Ns, Text, Opts) ->
     {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Text),
     {ok, Mod, Bin} = ern_emitter:compile(Ns, Typed, Iface, Env),
     {module, Mod} = code:load_binary(Mod, "test", Bin),
     Me = self(),
     Result = ern_rt:run_main(fun() -> Mod:main() end, <<"main">>,
-                             #{init => fun() -> init(Mod) end,
-                               stdout => fun(B) -> Me ! {out, B} end,
-                               stdin => fun() -> eof end}),
+                             Opts#{init => fun() -> init(Mod) end,
+                                   stdout => fun(B) -> Me ! {out, B} end,
+                                   stdin => fun() -> eof end}),
     {Result, collect([])}.
 
 %% The launcher's job (report §8.5, plan 2.4): top-level lets before main.
@@ -522,10 +529,10 @@ io_debug_escapes_test() ->
 %% report §8.2: keys and lines are the same terminal, so a program that
 %% does both ends with a fault naming the side that holds it
 terminal_is_lines_or_keys_test() ->
-    {R1, _} = run("type Msg = Pressed(Terminal.Event)\n"
+    {R1, _} = run_at_terminal("type Msg = Pressed(Terminal.Event)\n"
                   "export fn main() -> Unit with Msg = {\n"
                   "    let _ = Io.readLine();\n"
-                  "    Terminal.subscribe(Pressed);\n"
+                  "    let _ = Terminal.subscribe(Pressed);\n"
                   "    receive { Pressed(_) -> Unit }\n"
                   "}\n"),
     ?assertEqual({fault, <<"the terminal is already read as lines">>}, R1).
