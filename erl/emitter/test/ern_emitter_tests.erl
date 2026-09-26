@@ -1165,6 +1165,21 @@ bitstring_defaults_test() ->
     {R, _} = run("export fn main() -> Unit with Never = { let _ = <<-1>>; Unit }\n"),
     ?assertEqual({fault, <<"segment overflow">>}, R).
 
+%% report §5.11, §5.4: a variable a bitstring pattern binds is the
+%% pattern's own, not a use of an outer name. A regression test: a local
+%% fn whose pattern bound `y` was read as depending on the later `let y`,
+%% and the compiler crashed with an Erlang exception; used after the `let`,
+%% it captured the outer `y` it never read.
+bitstring_pattern_binds_test() ->
+    Local = "    fn first(b : Bytes) -> Int = match b { <<y, _:bytes>> -> y | _ -> 0 };\n",
+    {ok, Before} = run("export fn main() -> Unit with Never = {\n" ++ Local ++
+                       "    let n = first(<<5, 6>>);\n    let y = 10;\n"
+                       "    Io.println(Int.toString(n + y))\n}\n"),
+    ?assertEqual(<<"15\n">>, Before),
+    {ok, After} = run("export fn main() -> Unit with Never = {\n    let y = 10;\n" ++ Local ++
+                      "    Io.println(Int.toString(first(<<5, 6>>) + y))\n}\n"),
+    ?assertEqual(<<"15\n">>, After).
+
 %% report §5.11, §7.4, §3.1: a Bytes shorter than its size and a negative
 %% size fault at construction; a Float narrowed to 16 bits rounds to the
 %% nearest, one too small becomes 0.0, one above the largest 16-bit float

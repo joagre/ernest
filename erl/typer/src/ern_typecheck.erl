@@ -1742,6 +1742,9 @@ typed_pattern_bindings(#p_list{elems = Es}) -> lists:append([typed_pattern_bindi
 typed_pattern_bindings(#p_cons{head = H, tail = T}) ->
     typed_pattern_bindings(H) ++ typed_pattern_bindings(T);
 typed_pattern_bindings(#p_or{alts = [A | _]}) -> typed_pattern_bindings(A);
+typed_pattern_bindings(#p_bits{segments = Segs}) ->
+    %% report §5.11: a segment's value is a variable, a literal or `_`
+    lists:append([typed_pattern_bindings(V) || #bit_seg{value = V} <- Segs]);
 typed_pattern_bindings(_) -> [].
 
 %% Generic pre-order walk over the typed AST, threading Env.

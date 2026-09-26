@@ -1465,6 +1465,9 @@ pattern_names(#p_tuple{elems = Es}) -> lists:append([pattern_names(E) || E <- Es
 pattern_names(#p_list{elems = Es}) -> lists:append([pattern_names(E) || E <- Es]);
 pattern_names(#p_cons{head = H, tail = T}) -> pattern_names(H) ++ pattern_names(T);
 pattern_names(#p_or{alts = [A | _]}) -> pattern_names(A);
+pattern_names(#p_bits{segments = Segs}) ->
+    %% report §5.11: a segment's value is a variable, a literal or `_`
+    lists:append([pattern_names(V) || #bit_seg{value = V} <- Segs]);
 pattern_names(_) -> [].
 
 %%
