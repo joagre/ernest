@@ -340,7 +340,7 @@ Set.fromList([1, 2, 3]) : Set(Int)
 
 `Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call.
 
-Map keys and set elements need equality. `==` is defined on every type except one that contains a function or an address, so a map keyed by addresses is a type error. In a printed type, a variable that needs equality is marked `=`: `List.contains : (List(a=), a=) -> Bool`.
+Map keys and set elements need equality. `==` is defined on every type except one that contains a function or an address, so a map keyed by addresses is a type error. In a printed type, a variable that needs equality is marked `=`: `List.contains : (List(a=), a=) -> Bool`. An annotation does not write the mark; the compiler infers it from the body.
 
 Ordering is separate: `a < b` asks the type's `compare`, which answers `Less`, `Equal`, or `Greater`. `Int`, `Float`, `String`, and `Char` have one, and a type of your own gets one by declaring it in its module. A function named `Money.compare` is a member of the type `Money` (§7.2):
 
@@ -1410,15 +1410,15 @@ circle 3.14159
 square 4.0
 ```
 
-`s.area()` runs the function the shape was built with, and the code that takes a `Shape` knows nothing of radii or sides. What this form cannot do is combine two values: a circle's `area` sees its own radius and no other shape's. An operation that must see inside two values of one representation, a union of two sets or a comparison, takes the second form.
+`s.area()` runs the function the shape was built with, and the code that takes a `Shape` knows nothing of radii or sides. A function may take two shapes and use what each gives, its `name` and its `area`. It cannot see either shape's radius or side, and it cannot require that the two are of one representation. An operation that needs to see inside two values of one representation, as the union of two sets does, takes the second form.
 
-**Operations passed beside the data.** The contract is a type in a module of its own, and the data is a type parameter, `s`:
+**Operations passed beside the data.** The contract is a type in a module of its own, and the representation is a type parameter, `s`, which the code that uses the contract keeps. `union` takes two values of type `s` and gives a third:
 
 ```ernest
 // sets.ern  (namespace Sets)
 /// What a set is to code written once for every representation.
-export type Operations(s, a) =
-    Operations(empty : s, add : (s, a) -> s, has : (s, a) -> Bool)
+export type Operations(s, a) = Operations(
+    empty : s, add : (s, a) -> s, has : (s, a) -> Bool, union : (s, s) -> s)
 ```
 
 Each representation depends on the contract and exports an `operations()` that fills it in. What a representation needs goes in through `operations`, here the ordered set's `compare`; `operations` is a function in both, though the hashed set takes nothing, so that the two read alike:
@@ -1426,8 +1426,8 @@ Each representation depends on the contract and exports an `operations()` that f
 ```ernest
 // sets/hashed.ern  (namespace Sets.Hashed)
 /// The built-in `Set`, as a `Sets.Operations`.
-export fn operations() -> Sets.Operations(Set(a), a) =
-    Sets.Operations(empty = Set.empty, add = Set.put, has = Set.contains)
+export fn operations() -> Sets.Operations(Set(a), a) = Sets.Operations(
+    empty = Set.empty, add = Set.put, has = Set.contains, union = Set.union)
 ```
 
 ```ernest
@@ -1438,17 +1438,20 @@ export abstract type Sorted(a) = Sorted(List(a))
 export fn operations(compare : (a, a) -> Ordering) -> Sets.Operations(Sorted(a), a) =
     Sets.Operations(
         empty = Sorted([]),
-        add = fn(Sorted(xs), x) = Sorted(insert(xs, x, compare)),
-        has = fn(Sorted(xs), x) = List.any(xs, fn(y) = compare(x, y) == Equal))
+        add = fn(Sorted(xs), x) = Sorted(merge(xs, [x], compare)),
+        has = fn(Sorted(xs), x) = List.any(xs, fn(y) = compare(x, y) == Equal),
+        union = fn(Sorted(xs), Sorted(ys)) = Sorted(merge(xs, ys, compare)))
 
-fn insert(xs : List(a), x : a, compare : (a, a) -> Ordering) -> List(a) = match xs {
-    [] -> [x]
-  | y :: rest -> match compare(x, y) {
-        Less -> x :: xs
-      | Equal -> xs
-      | Greater -> y :: insert(rest, x, compare)
+fn merge(xs : List(a), ys : List(a), compare : (a, a) -> Ordering) -> List(a) =
+    match #(xs, ys) {
+        #([], _) -> ys
+      | #(_, []) -> xs
+      | #(x :: xrest, y :: yrest) -> match compare(x, y) {
+            Less -> x :: merge(xrest, ys, compare)
+          | Equal -> x :: merge(xrest, yrest, compare)
+          | Greater -> y :: merge(xs, yrest, compare)
+        }
     }
-}
 
 /// The elements in ascending order, which no other set here gives.
 export fn toList(Sorted(xs) : Sorted(a)) -> List(a) = xs
@@ -1466,12 +1469,15 @@ fn dedupe(operations : Sets.Operations(s, a), xs : List(a)) -> List(a) = {
     List.reverse(kept)
 }
 
+fn fromList(operations : Sets.Operations(s, a), xs : List(a)) -> s =
+    List.foldLeft(xs, operations.empty, operations.add)
+
 export fn main() = {
     Io.println(String.join(dedupe(Sets.Hashed.operations(), ["b", "a", "b", "c"]), " "));
     let numbers = Sets.Ordered.operations(Int.compare);
     Io.println(String.join(List.map(dedupe(numbers, [3, 1, 3, 2]), Int.toString), " "));
-    let set = List.foldLeft([3, 1, 3, 2], numbers.empty, numbers.add);
-    Io.println(String.join(List.map(Sets.Ordered.toList(set), Int.toString), " "))
+    let both = numbers.union(fromList(numbers, [3, 1]), fromList(numbers, [2, 3]));
+    Io.println(String.join(List.map(Sets.Ordered.toList(both), Int.toString), " "))
 }
 ```
 
@@ -1483,9 +1489,9 @@ b a c
 1 2 3
 ```
 
-Reach for the first form when values of different representations meet, in one list or one message, and for the second when an operation takes two values of one representation.
+`fromList` is written once, and what it gives back is of the caller's representation: here a `Sets.Ordered.Sorted(Int)`, which `union` merges with another and `Sets.Ordered.toList` reads. Reach for the first form when values of different representations meet, in one list or one message. Reach for the second when code written once must keep the representation's type, to take two values of it or to give one back.
 
-In both, the types check each record where it is built: `circle` and `Sets.Hashed.operations()` must give every field, each of its type, or the module is refused. The code that takes the record sees only what it lists, never a radius, a `Set` or a sorted list. What a representation needs goes in when it is built, a radius or a `compare`, and what it has beyond the contract, as `Sets.Ordered.toList`, is reached through its module. Equality comes from the types, as everywhere: `Sets.Hashed.operations()` needs it because `Set(a=)` does (§2.5). Nothing checks a module beyond the record it builds: a representation need export nothing else. A service with state is different: two processes of different representations take one message type, and the caller holds an `Address(M)` (§4).
+In both, the types check each record where it is built: `circle` and `Sets.Hashed.operations()` must give every field, each of its type, or the module is refused. The code that takes the record sees only what it lists, never a radius, a `Set` or a sorted list. What a representation needs goes in when it is built, a radius or a `compare`, and what it has beyond the contract, as `Sets.Ordered.toList`, is reached through its module. Equality is inferred, as everywhere (§2.5). The annotation of `Sets.Hashed.operations` does not write it, and its type carries it from `Set.put`: `Sets.Hashed.operations : () -> Sets.Operations(Set(a=), a=)`. Nothing checks a module beyond the record it builds: a representation need export nothing else. A service with state is different: two processes of different representations take one message type, and the caller holds an `Address(M)` (§4).
 
 ### 7.4 Prediction exercise
 
