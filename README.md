@@ -30,8 +30,6 @@ The complete programs from the report's Appendix B and D, and some of the guide'
 
 - **[`docs/implementation_plan.md`](docs/implementation_plan.md)** — the roadmap: where the project stands, what is done, and what comes next.
 
-- **[`docs/build.md`](docs/build.md)** — building, testing, and installing: what it needs and the make targets.
-
 - **[`docs/review.md`](docs/review.md)** — the review before a release: its phases, what each reader is asked, and when it is done.
 
 - **[`docs/architecture.md`](docs/architecture.md)** — how the toolchain is built: the stages, what flows between them, the checker's passes, the compiler's one traversal, the runtime, the tests, and where MVP 2.5 and later hook in.
@@ -61,8 +59,8 @@ ernest_report.md   the language report (normative)
 ernest_guide.md    the guide
 docs/              decisions log, implementation plan, architecture note, style guides,
                    module documentation template, shell design, language feedback, the
-                   report's cold read, the review before a release, building and
-                   installing, Emacs mode, node protocol, code distribution
+                   report's cold read, the review before a release, installing, Emacs
+                   mode, node protocol, code distribution
 examples/          Ernest programs: the paper programs and the small ones
 erl/               the toolchain, as Erlang applications: lexer, parser,
                    typer, runtime, emitter, cli, utils (vendored getopt);
@@ -86,7 +84,27 @@ A module path segment is one lowercase word (report §11.1); a multi-word module
 
 ## Building
 
-[`docs/build.md`](docs/build.md) says what building needs, the make targets, and how Ernest is installed. `make` builds; `make test` tests.
+Erlang/OTP 29 and GNU make. The toolchain's Erlang uses no rebar3 and no OTP behaviours, by design; [`docs/style.md`](docs/style.md) says what that covers. `make test` also needs python3, for the pseudo-terminal the terminal tests run a program under; Erlang cannot open one. Emacs is optional: without it the mode's tests are skipped and the rest runs.
+
+```
+make              compile every application into its ebin/, then stdlib/, libs/, shell/
+make test         build, then run every area below
+make test-erl     the unit tests of every application under erl/, side by side;
+                  APP=typer for one
+make test-programs  the example programs, compiled and run
+make test-docs    the citations and the style
+make test-guide   the guide's examples
+make test-shell   the shell's sessions and the terminal
+make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
+make doc          write the standard library's and the prelude's pages to build/stdlib/,
+                  with index.md
+make sections     list the report sections no test cites
+make xref         check that every section citation and document path in the documents resolves
+make coverage     every section with how many tests cite it, thinnest first
+make golden       rewrite test/golden/, the Erlang the compiler emits per example
+make clean        remove build products
+make clean-emacs  remove Emacs backup, auto-save, and lock files
+```
 
 ## Using
 
