@@ -179,7 +179,12 @@ monitor(Addr, Wrap) ->
 
 -spec kill(address()) -> 'Unit'.
 kill(Addr) ->
-    exit(process_of(Addr), {ern, killed}),
+    Pid = process_of(Addr),
+    %% report §6.9: a system process is the runtime's to end
+    lists:member(Pid, [persistent_term:get({?MODULE, K}, undefined)
+                       || K <- [stdout, stderr, stdin, fs, terminal, tcp, clock]])
+        andalso fault(<<"a system process is the runtime's">>),
+    exit(Pid, {ern, killed}),
     ?UNIT.
 
 reason(normal) -> 'Returned';
@@ -229,14 +234,15 @@ reaper_loop(Waiters) ->
                 [{_, Site, alive, _, _}] ->
                     ets:delete(?PROCESSES, Pid),
                     died(Pid, Site, Reason),
+                    Down = {'Down', Site, reason(Reason)},
                     lists:foreach(fun({To, {raw, Tag}}) -> To ! {Tag, Site, Reason};
-                                     ({To, Wrap}) -> To ! Wrap({'Down', Site, reason(Reason)})
+                                     ({To, Wrap}) -> wrapped(To, Wrap, Down)
                                   end, maps:get(Pid, Waiters, []));
                 [] ->
                     %% report §6.9: the spawn site of a process the runtime
                     %% did not start, or of one that had ended, is not known
                     lists:foreach(fun({To, Wrap}) ->
-                                      To ! Wrap({'Down', <<>>, reason(Reason)})
+                                      wrapped(To, Wrap, {'Down', <<>>, reason(Reason)})
                                   end, maps:get(Pid, Waiters, [])),
                     is_map_key(Pid, Waiters) andalso source_end();
                 _ ->
@@ -252,6 +258,15 @@ reaper_loop(Waiters) ->
         end,
         reaper_loop(Waiters)
     end.
+
+%% Report §6.9, §6.5: a monitor's wrap is applied as `via`'s function is, a
+%% fault in it being the fault of the process it delivers to, and in a
+%% process of its own, so that a wrap that does not finish holds up no
+%% other delivery. The message counts as a source until it is delivered
+%% (§8.6). Linked, so that one that never finishes ends with the program.
+wrapped(To, Wrap, Msg) ->
+    source_begin(),
+    erlang:spawn_link(fun() -> deliver({via, Wrap, To}, Msg), source_end() end).
 
 %% Report §11.2: the shell reads how every process the runtime started
 %% ended (§6.9) and which are alive, and no program does: §6.3 gives a
@@ -630,9 +645,11 @@ clock_loop() ->
                 0 ->
                     %% report §6.5, E.15: the alarm's target may be an
                     %% address seen through a function, and it is sent the
-                    %% time it fired
-                    deliver(To, erlang:system_time(millisecond)),
-                    source_end();
+                    %% time it fired, from a process of its own, so that a
+                    %% function that does not finish holds up no other
+                    %% alarm; the alarm is a source until it is delivered
+                    Now = erlang:system_time(millisecond),
+                    erlang:spawn_link(fun() -> deliver(To, Now), source_end() end);
                 _ ->
                     arm(Deadline, To)
             end,

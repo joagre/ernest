@@ -95,8 +95,13 @@ MVP 3.0's, and 16 is MVP 2.7's; they stay here because they are the same questio
 
 ## 4. The standard library under E.0
 
-Decided on 2026-09-26 in three batches, and no entry is left; the plan's MVP 2.65 step 6
-names each decision.
+Decided on 2026-09-26 in three batches; the plan's MVP 2.65 step 6 names each decision. One
+entry has come since.
+
+57. **Standard input cannot be read as bytes.** `Io.readLine` answers a line of UTF-8, which
+    the cold read's 2.24 fixed as the rule whatever the locale, so a program that reads a
+    binary stream, or text in another encoding, from its standard input has no way to. Found
+    2026-09-26 in MVP 2.65's step 9. Whether E.1 gains a read of bytes, by E.0.
 
 ## 5. The toolchain and the shell
 

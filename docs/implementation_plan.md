@@ -20,8 +20,9 @@ Actorson until 12 September 2026.
 **MVP 2.65, the language and the toolchain read back after the shell, has begun.** Its
 first eight steps are done: the feedback list and this plan consolidated, the report read
 cold, the five themes, names and namespaces, expressions, patterns and types, processes and
-the system, the standard library under E.0, and the toolchain, and the Erlang code's open
-questions. Step 9, the cold read's own findings, is next.
+the system, the standard library under E.0, and the toolchain, the Erlang code's open
+questions, and the cold read's last findings. Step 10, the build, is next, with its gate
+first.
 MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
@@ -232,8 +233,22 @@ The steps:
    the shell's split in step 10; memory and atoms measured under load in MVP 2.7;
    `names()` at every `Tab`, measured at 13 ms and kept, since a cache would need an
    argument for when it lets go.
-9. **The cold read's own findings**, those no theme takes, in a batch: the report's wording,
-   its cross-references and examples, and the rules it leaves an implementer to invent.
+9. **Done 2026-09-26: the cold read's own findings**, the last ten, in one batch (the log's
+   *The Cold Read's Last Findings*). Fixed now, as defects: a `monitor` wrap that faulted
+   killed the runtime's reaper and an alarm's that never finished froze the clock, so a
+   wrap is applied as `via`'s function is, its fault the receiver's and in a process of its
+   own (§6.9); `kill` on a system process faults the caller (§6.9, §7.4). Decided, for step
+   10 to write: `send(Sys.stdout, ...)` is refused by item 47 (1.8); code-point order for
+   `compare`, `trim` by `Char.isSpace`, full case mapping without language rules (1.7, E.5,
+   E.6); the program ends when the entry process dies, a killed one printing `killed` with
+   status 1, a signal exiting 128 plus its number and printing nothing (2.19, §8.6, §11.2);
+   a line of standard input is UTF-8 whatever the locale, one carriage return before a line
+   feed dropped, a last line without one still a line (2.24, §8.2); `Float.toString`'s
+   shortest digits, plain from 0.0001 to below 1.0e16 (2.26, E.9); a Commands paragraph in
+   §11.2 held equal to the shell's list by a test (2.33); `////` an ordinary comment (3.17,
+   §2.2); `ern --test` printing each line as its test ends, a deadlock the test's fault
+   (3.30, §11.2); and the terminal's wraps delaying only their subscriber's keys (§8.2).
+   Reading bytes from standard input went to the feedback list, item 57.
 10. **What was decided is built**, in seven sub-steps, each its own commit. Step 9 comes
    first, so that the report is edited in one pass rather than two. Before step 10 begins,
    `make sections` and `make coverage` are run and kept, so that it can show every new or

@@ -346,6 +346,54 @@ runtime_failure_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({'Down', <<"Main.main:2">>, {'Fault', <<"error:badarg">>}}, wait(down)).
 
+%% report §6.9, §6.5: a monitor's wrap that faults is the fault of the
+%% process it delivers to, and the runtime goes on. A regression test: the
+%% wrap ran in the runtime's reaper, whose death left every later spawn
+%% waiting for ever.
+faulting_wrap_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Zero = zero(),
+               Watcher = ern_rt:spawn_monitored(
+                           'Local',
+                           fun() ->
+                               _ = ern_rt:spawn_monitored('Local', fun() -> ok end,
+                                                          fun(_) -> 1 div Zero end, <<"w">>),
+                               receive never -> ok end
+                           end, fun(D) -> {watcher, D} end, <<"Main.main:3">>),
+               receive {watcher, D1} -> Me ! {d1, D1} end,
+               _ = ern_rt:spawn_monitored('Local', fun() -> ok end, fun(D) -> {later, D} end,
+                                          <<"Main.main:5">>),
+               receive {later, D2} -> Me ! {d2, D2} end,
+               Watcher
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({'Down', <<"Main.main:3">>, {'Fault', <<"division by zero">>}}, wait(d1)),
+    ?assertEqual({'Down', <<"Main.main:5">>, 'Returned'}, wait(d2)).
+
+%% report §6.5, E.15: an alarm's function that never finishes holds up no
+%% other alarm. A regression test: the clock applied it itself, and froze
+%% for every process.
+endless_alarm_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Clock = ern_rt:sys(clock),
+               Endless = fun Endless(X) -> Endless(X) end,
+               ern_rt:send(Clock, {'After', 10, ern_rt:via(Endless, ern_rt:self())}),
+               ern_rt:send(Clock, {'After', 50, ern_rt:via(fun(_) -> tick end, ern_rt:self())}),
+               receive tick -> Me ! ticked end
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual(ticked, wait_atom(ticked)).
+
+%% report §6.9: a system process is the runtime's to end, and kill on one
+%% faults the caller. A regression test: kill(Sys.stdout) lost every line
+%% of output, those sent before it among them.
+kill_system_process_test() ->
+    ?assertEqual({fault, <<"a system process is the runtime's">>},
+                 ern_rt:run_main(fun() -> ern_rt:kill(ern_rt:sys(stdout)) end, <<"main">>,
+                                 #{stdout => fun(_) -> ok end})).
+
 %% An atom whose text is no integer, which the compiler cannot see through.
 zero_text() -> list_to_atom("zero").
 
