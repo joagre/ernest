@@ -4349,7 +4349,15 @@ A subscription to `Process.faults` is not a deadlock source under §8.6. The ter
 
 After the standard library's shims shrink to what reaches a representation (C1), no `foreign fn` in it takes a function, and §3.9's rule for one that does is used by a test alone. It stays: it is the type of any such declaration, a library's or a program's, and without it a callback's effect would be unstated (L8).
 
-The message types that move with their references (G13) keep names that repeat their module, `Clock.ClockMsg`, against E.0 rule 7, so they lose it; `ListenerMsg`, `SockMsg`, `StdinMsg` and `OutMsg` already name what they are. §9 keeps in the prelude a type the language's rules name or one whose module is named after it, and its third criterion, a type a system reference speaks, goes with the move. By the first two `Event` and `Size` are `Terminal`'s and `Entry` is `Fs`'s, and `Path` stays. `IoError` fits neither, since four modules answer it and none owns it; where it lives is left to discussion (L4), with whether a socket outlives its connection now that a `callForever` read of a dead one faults (L3).
+The message types that move with their references (G13) keep names that repeat their module, `Clock.ClockMsg`, against E.0 rule 7, so they lose it; `ListenerMsg`, `SockMsg`, `StdinMsg` and `OutMsg` already name what they are. §9 keeps in the prelude a type the language's rules name or one whose module is named after it, and its third criterion, a type a system reference speaks, goes with the move. By the first two `Event` and `Size` are `Terminal`'s and `Entry` is `Fs`'s, and `Path` stays. `IoError` fits neither, since four modules answer it and none owns it; where it lives is left to discussion (L4), as whether a socket outlives its connection was (L3, *A Socket Lives Until It Is Closed*).
+
+## A Socket Lives Until It Is Closed, 2026-09-26
+
+L3 of MVP 2.65's step 10 ledger. A socket's process ended with its connection, which was harmless while `Tcp.read` went through `Address.call`, since a call to an ended process answered `None` and the read gave `Left(Closed)`. Once a read carries its time limit in the request and waits with `callForever` (*A Stream Keeps Its Own Time Limit*), and a `callForever` whose callee has ended faults its caller (*A Call Ends When Its Callee Faults*), a read just after the far end hangs up faults or answers `Left(Closed)` by which of two processes ran first. An outcome decided by scheduling is invisible, against principle 3.
+
+The socket now lives until `Tcp.close`, as a descriptor does in every host: after its connection closes each read answers `Left(Closed)`, and `Tcp.close` ends the process. A read after the program's own close is a use of a closed resource and faults, as the call rule says. Going back to `Address.call` for reads was weighed and refused: it carries the time limit twice, in the request and in the call, the two racing timers item 50 removed.
+
+The cost is that a socket the program never closes keeps its process until the program ends. That is growth the program causes and can see, a defect in that program by the rule on memory, and never the runtime's; a monitor learns of the socket's end at `Tcp.close` rather than at the hang-up, which the next read reports.
 
 ## Later
 

@@ -22,7 +22,7 @@ first eight steps are done: the feedback list and this plan consolidated, the re
 cold, the five themes, names and namespaces, expressions, patterns and types, processes and
 the system, the standard library under E.0, and the toolchain, the Erlang code's open
 questions, and the cold read's last findings. Step 10, the build, has begun: its gate and
-its ledger are done, and two decisions, L3 and L4, come before its report pass.
+its ledger are done, and one decision, L4, comes before its report pass.
 MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
@@ -333,7 +333,7 @@ The steps:
       | B6 | `fault`, `todo` gone (G1) | §3.7, §7.4, §9.5, §9.6 | `ern_prelude`, `ern_emitter`, `ern_rt` `todo` | `ern_emitter_tests`, `ern_stdlib_tests`, `ern_typecheck_tests`; mirrors: `ern_prelude_tests`, the template page | guide §3.4, §6.3, §6.5 and its answers to the exercises; `examples/template.ern`, `module_doc_template.md`, `shell_design.md` | none | `todo`: 41 in 12 files |
       | B7 | `Down.site` (G2) | §6.9, §9.3 | the tuple becomes `{'Down', Reason, Site}`, fields in canonical order: `ern_prelude`, `ern_rt`, `ern_cli`, `ern_shell`, `shell.ern` | `ern_rt_tests` 10, `ern_emitter_tests` 5, printed `Down(reason = ..., site = ...)`; mirrors: `declared_types_test`, the guide's §5.2 | guide §5.2, §5.6, §6.3, §6.4 | none | `function = `, `Down.function`, `{'Down', Site`: 35 in 11 files |
       | B8 | the references in their modules (G13) | §4.2, §8.2, §8.5, §8.7, §9, §9.3, §9.7, §10, §11.2, E.0 rules 1, 5, 7, 8, E.1, E.15 to E.18, App. F; L4, L5 | `ern_prelude` loses the `Sys` values and types; `ern_emitter`; `io`, `clock`, `terminal`, `fs`, `tcp` `.ern` each bind their reference; `ern_rt` keeps `sys/1` and `kill`'s check | `ern_prelude_tests` (the §9.7 mirror shrinks), `ern_doc_tests`, `ern_emitter_tests`, `ern_typecheck_tests`, `ern_cli_tests`, `ern_shell_tests`; new: another module's message constructor refused; mirror: `kill`'s system modules against §8.2 | guide, README, `architecture.md`, `shell_design.md`, `examples/` webserver, filesync, repl, echo | A1, B2 | `Sys.` references 103, the seven message types 53, `system reference` 15, `sys.ern` 3 |
-      | B9 | `Tcp` keeps its time limit, `port`, `peer`, `local` (steps 5, 6, G7, G15) | E.0 rule 8, E.18 (L3) | `tcp.ern` over `callForever`; `ern_tcp` timers, late bytes kept, a pending request a source, `peername`, `sockname` | `ern_tcp_tests`; new: a timed-out accept takes nothing, a late connect is closed, `callForever` on a listener no deadlock, `port` after `listen(0)`; `ern_stdlib_tests` | `tcp.ern` docs, `examples/echo.ern`, `architecture.md` | B8, B3 | `answered(Address.call` in `tcp.ern` 3, `Recv(reply` 3, `Tcp.listen, and Io.readLine take none` 1 |
+      | B9 | `Tcp` keeps its time limit, `port`, `peer`, `local` (steps 5, 6, G7, G15), and a socket lives until `Tcp.close` (L3) | E.0 rule 8, E.18 | `tcp.ern` over `callForever`; `ern_tcp` timers, late bytes kept, a pending request a source, `peername`, `sockname`, a closed connection answering `Left(Closed)` until `Close` | `ern_tcp_tests`; new: a timed-out accept takes nothing, a late connect is closed, `callForever` on a listener no deadlock, `port` after `listen(0)`, reads after the far end closes, a read after `Tcp.close` faults; `ern_stdlib_tests` | `tcp.ern` docs, `examples/echo.ern`, `architecture.md` | B8, B3 | `answered(Address.call` in `tcp.ern` 3, `Recv(reply` 3, `Tcp.listen, and Io.readLine take none` 1, `dies with the connection` 5 |
       | B10 | `Terminal.subscribe` answers `Either` (step 5, step 9) | §8.2, §9.3 `IoError`, E.16, §11.2 | `terminal.ern`; `ern_tty` refuses before raw mode, each subscriber's wraps in order; `ern_shell` `is_terminal` goes; `shell.ern`, `snake.ern`; a `NotATerminal` arm in three matches | `ern_tty_tests`, `ern_rt_tests` sources, `ern_terminal_tests` (a piped program gets `Left(NotATerminal)`), `ern_emitter_tests`; mirrors: `declared_types_test`, `values_test` | guide §1.3, §5.5; `shell_design.md`, `shell/README.md` | B8 | `isTerminal` 3, `where there is no terminal` 7, `A program that does both faults` 1 |
       | C1 | a shim reaches the representation (step 6) | E.0 rule 1, E.3, E.4, E.5, E.14, E.20 | `map.ern`, `set.ern`, `string.ern`, `bytes.ern`, `path.ern` in Ernest over their primitives; `ern_map`, `ern_set`, `ern_string`, `ern_path` shrink, `ern_path:dirname` with them | `ern_stdlib_tests` and each edge case a contract names; new mirror: each module's `foreign fn`s equal the primitives its section names | `architecture.md`, the module pages | none | `ern_map:`/`ern_set:`/`maps:` 30, `ern_string:` six, `ern_path:` 6 |
       | C2 | `Random` is SplitMix64 (step 6) | E.13, E.0 rule 7's example | `random.ern` over `Int`'s bit operations; `ern_random` goes | `random_test` known answers; `stdlib_types_test` an abstract type | guide §8.4's node-bound example, which is `Random.Seed`, gets another; `architecture.md` | C1 | `foreign type Seed` 4, `bound to its node` 4, `exsss` 3 |
@@ -386,14 +386,16 @@ The steps:
         after it; `Path` stays by the second. §9's third criterion, a type a system
         reference speaks, goes.
 
-      **Two decisions for the user**, taken before sub-step 3:
-      - **L3, a socket after its connection closes.** A socket dies with its connection,
-        so under B3 a `callForever` read of a closed socket faults its caller with `callee
-        returned without answering`, where E.18 promises `Left(Closed)`. Whether the socket
-        lives until `Tcp.close`, as a descriptor does, or E.18 changes.
+      - **L3, a socket lives until `Tcp.close`**, decided with the user: after its
+        connection closes every read answers `Left(Closed)`, `Tcp.close` ends its process,
+        and a read after that faults under B3; a socket never closed lives until the program
+        ends. E.18; the log's *A Socket Lives Until It Is Closed*.
+
+      **One decision for the user**, taken before sub-step 3:
       - **L4, where `IoError` lives.** Four system modules answer it and none owns it, so §9
         without its third criterion has no place for it: `Io.Error`, or a criterion kept
         for it.
+
    3. **Every report change in one pass**, Appendix E among them, as a commit of the report
       alone: `make xref` and `make test-docs` green, the count recorded in the log's
       *Measure*, and a section over 600 words read for restating.
