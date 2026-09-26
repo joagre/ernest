@@ -151,8 +151,20 @@ The steps:
    between a shim and Ernest runs, with the abstract types it could write (items 11, 13, 42,
    46), what a function is named and where it
    lives (38, 40, 41), and what the library lacks or has in a form that misleads (7, 8, 15,
-   20, 21, 22, 23, 31, 34, 35, 44, and a connected socket's own and peer address, placed
+   20, 21, 22, 23, 31, 35, 44, and a connected socket's own and peer address, placed
    here by item 37).
+   - **Batch 1 decided 2026-09-26: a shim is only an operation that reaches the
+     representation** (items 11, 13, 42, 46, and 34 with them). E.0 rule 1 says so, and
+     each module's section names its primitives, chosen to pass data out and never to call
+     back into Ernest: `Map` and `Set` keep six shims each, `empty`, `size`, `get` or
+     `contains`, `put`, `remove`, `toList`; `String` keeps `indexOf`, `lastIndexOf`, `part`
+     and `size` for searching, its Unicode operations and its conversions, and `startsWith`,
+     `endsWith`, `contains`, `parts`, `copy` and `replace` become Ernest, so every search
+     matches whole graphemes, which E.5 says (item 34); `Bytes` keeps `size` and `part`;
+     `Path` keeps the separator and `isAbsolute`. `Random` is SplitMix64 in Ernest, `Seed` an
+     abstract type, the same sequence everywhere, as E.13 says by naming it. `Path`, `Block`
+     and `Inline` stay transparent, and a socket an address. Built in step 10, with tests of
+     each edge case a contract names. The log's *A Shim Reaches the Representation*.
 7. **The toolchain**, the fifth theme: the shell's own questions (items 29, 30 and 54), and the
    names of the options to `ernc` and `ern`. Both tools grew their options one MVP at a
    time and the set has never been read whole. Under review: the three words for a
