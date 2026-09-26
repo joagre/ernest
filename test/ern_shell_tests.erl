@@ -1112,6 +1112,33 @@ holders_freed() ->
     {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"> 43 : Int\n> 7 : Int\n> 7 : Int">>)).
 
+%% report §11.2, §7.4: a further reload of a module ends the processes of
+%% its previous version, which the reload names, and each one's fault,
+%% `its code was unloaded`, is reported as every fault is. A regression test
+%% for the move to Process.faults, which quiets no process `:reload` ends
+reload_ends_test_() ->
+    {timeout, 60, fun reload_ends/0}.
+
+reload_ends() ->
+    Dir = scratch("ern_reload_ends_"),
+    Counter = fun(N) ->
+        ["export type Msg = Get(reply : Reply(Int))\n",
+         "fn serve(n : Int) -> Unit with Msg =\n",
+         "    receive { Get(reply = r) -> { answer(r, n); serve(n) } }\n",
+         "export let service : Address(Msg) =\n",
+         "    spawn(Local, fn() -> Unit with Msg = serve(", integer_to_list(N), "))\n"]
+    end,
+    ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(1)),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, [":load Counter\n",
+                              write_source(Dir, "counter.ern", Counter(2)), ":reload\n",
+                              write_source(Dir, "counter.ern", Counter(3)), ":reload\n",
+                              "1 + 1\n"]),
+    {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"Counter: ended Counter.service:5, a process in the"
+                                             " previous version">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"Counter.service:5 faulted: its code was unloaded">>)).
+
 %% report §11.2: the commands the report's paragraph lists are the shell's
 %% own list, `Shell.Command.commands`, each once; a mirror, a list that lives
 %% in the code and in the report (CLAUDE.md)
