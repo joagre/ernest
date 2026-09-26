@@ -4447,6 +4447,18 @@ Two kinds of check are new to the project. The grammar and the type system are a
 
 The first run is the first release's, MVP 2.95, before its manual pages and its installation, since a finding may change what they build. `docs/review.md` owns the procedure; the plan holds each run's ledger and says when one runs.
 
+## The Build's Third Group, 2026-09-26
+
+MVP 2.65's step 10: `restarting`, a call that ends with its callee, and service bindings. Four things were found while building.
+
+A call pending when its callee restarts ends, even where its request was still queued behind the message that faulted, as *A Call Ends When Its Callee Faults* accepted; the first test of `restarting` raced its own crash against its call and met exactly that. The runtime notes each pending call against the process called, and the reaper forgets a dead process's notes, as callee and as caller, so the table holds only calls that wait.
+
+An initializer is checked as a body of mailbox type `Never`, and whether it is generalized turns on whether it called a process-only function. A pure function's type has an open effect variable that unifies with any mailbox, so counting every call with an effect would have refused to generalize `let empty = emptyMap()`; the checker counts a call only where its effect is process-only or a mailbox type, which is §3.9's definition.
+
+The shell's `:load` had never evaluated a loaded module's bindings, so a loaded module's value faulted with the host's `error:badarg` when it was read: a defect no test had met, since the tests loaded modules of functions. Its bindings are now evaluated in a process of the shell's own, module by module, and one that faults loads nothing. `:reload` could not keep the promise written in the report pass that a faulting binding loads nothing, since the host cannot bring a module's previous code back while its processes run it; §11.2 now says that the binding and those after it keep the previous version's values, and one the previous version lacked faults its reader with a cause of its own rather than the host's.
+
+`restarting`'s reply rule, L1, needed no check of its own: §6.6 already lets a lambda that captures a reply stand only where it is called or spawned once, and `restarting`'s argument is neither.
+
 ## Later
 
 Planned or considered, not in the language today.

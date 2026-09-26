@@ -791,8 +791,21 @@ toplevel_let_test() ->
     ?assertEqual("List(a)", type_of("export let empty = []", empty)),
     ?assertEqual("the value does not have the declared type: expected Float, found Int",
                  err("let pi : Float = 3")),
-    ?assertEqual("Io.println needs a process, and a top-level `let` is pure",
-                 err("let x = Io.println(\"a\")")).
+    %% report §4.6, §6.8: an initializer is a body of mailbox type Never,
+    %% which may print, spawn and send, and may not receive
+    ?assertEqual("Unit", type_of("export let x = Io.println(\"a\")", x)),
+    ?assertEqual("Address(Int)",
+                 type_of("export let s : Address(Int) =\n"
+                         "    spawn(Local, fn() -> Unit with Int = receive { n -> Unit })", s)),
+    ?assertEqual("a top-level initializer runs with mailbox Never and cannot receive",
+                 err("let x = receive { n -> n }")),
+    %% report §3.9, §4.6: one whose initializer calls a process-only function
+    %% is not generalized, so a variable left in its type is an error, where
+    %% a pure one generalizes
+    ?assertEqual("the type of s is not determined (Address(a)), and a top-level `let` whose"
+                 " initializer has an effect is not generalized; annotate it",
+                 err("export let s = spawn(Local, fn() = Unit)")),
+    ?assertEqual("List(a)", type_of("export let empty = List.reverse([])", empty)).
 
 %% report §3.9, §6.6: a type variable is not-reply-carrying where the body,
 %% read with it taken for a reply, would break the discipline: through a
@@ -1496,9 +1509,6 @@ effect_placement_test() ->
     ?assertEqual([{{1, 14, {1, 18}}, "`-> Unit` with no `with` declares main pure"}],
                  D1#diag.labels),
     ?assertEqual("give main a mailbox type with `with`", D1#diag.help),
-    D2 = diag("let x = Io.println(\"a\")\n"),
-    ?assertEqual([{{1, 1, {1, 24}}, "a top-level `let` is pure"}], D2#diag.labels),
-    ?assertEqual("compute the value in a function with a mailbox type", D2#diag.help),
     D3 = diag("fn f(n : Int) -> Int with Never = match n {"
               " k when Io.println(\"x\") == Unit -> 1 | _ -> 0 }\n"),
     ?assertEqual([{{1, 52, {1, 75}}, "a guard is pure (report §5.9)"}], D3#diag.labels),

@@ -159,7 +159,7 @@ At a terminal the shell edits the line with Readline's Emacs keys, and keeps a h
 
 `Tab` completes the word before the cursor, by its prefix or by its word starts, `S.pS` to `String.padStart`. It offers only what may stand there: a command after a leading `:` and what the command takes after it, a type after `:` in an annotation, a constructor in a pattern, a field inside a named constructor's parentheses. A name completed alone is shown under the line with its type, and a second `Tab`, or one with nothing to add, lists the candidates there alphabetically, until the next key. With nothing typed they are the session's names, the modules in scope, and the prelude's names other than its constructors, and every other name comes from its first letters; at the start of a row `Tab` indents instead. `Shift-Tab` shows the type, the first sentence, and the version of the name at the cursor, and pressed again its documentation. Inside a call, on no documented name, it shows the callee's signature with the parameter at the cursor marked, and inside a constructor its fields.
 
-`:load` compiles a module from its source and puts it in scope, and `:reload` compiles and loads again a loaded module whose source has changed. Where one of the changed modules does not compile, `:reload` loads none of them. Processes running the old version go on running it, and a binding that holds a function of it keeps it, until the next reload of that module, which ends the processes and forgets the bindings.
+`:load` compiles a module from its source and puts it in scope, and `:reload` compiles and loads again a loaded module whose source has changed. Where one of the changed modules does not compile, `:reload` loads none of them. Both evaluate a module's top-level bindings, so a service it declares starts, and after a reload a service of the new version runs beside the old. Processes running the old version go on running it, and a binding that holds a function of it keeps it, until the next reload of that module, which ends the processes and forgets the bindings.
 
 ### 1.3 Reading input
 
@@ -254,7 +254,7 @@ let defaultPort : Int = 8080
 export let helloBanner : String = "hello, world"
 ```
 
-A constant's initializer is pure: setup that sends or spawns belongs in `main`. Constants are evaluated in the order their references need, and a cycle among them is an error (report §8.5).
+An initializer runs before `main`, in the entry process, as a body that may spawn, send and call but not receive; a top-level `let` whose initializer spawns a process is a service, which the next chapters teach. Constants are evaluated in the order their references need, and a cycle among them is an error (report §4.6, §8.5).
 
 ### 2.3 Sum types and pattern matching
 
@@ -568,7 +568,7 @@ Without a source that fixes the type, `n + n` is a type error. Once it is fixed,
 
 Other limits worth knowing:
 
-- A `fn` and a top-level `let` are polymorphic; a `let` in a block is not. After `let xs = []` in a block, the element type of `xs` must be settled by an annotation, by a later use in the block, or by `xs` reaching the block's result.
+- A `fn` and a top-level `let` are polymorphic; a `let` in a block is not, and neither is a top-level `let` whose initializer spawns, sends, or calls, whose type must then be settled, by an annotation where nothing else settles it. After `let xs = []` in a block, the element type of `xs` must be settled by an annotation, by a later use in the block, or by `xs` reaching the block's result.
 - A `fn` declared in a block is visible in the whole block, but may be used only after the `let`s it reads (report §5.4).
 
 ### 3.4 Pure functions and functions with a mailbox effect
@@ -1747,7 +1747,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - A function says in its type whether it may send or receive (§3.4).
 - There are no exceptions, no `catch`, and no `try`. A failure is a value, a message, or a fault (§6).
 - There are no links and no exit signals, only monitors. A process that must die with another monitors it and returns.
-- There are no registered names, and addresses cannot be compared. A process is reached through an address it was given.
+- There are no registered names, and addresses cannot be compared. A process is reached through an address it was given, or through a top-level binding that holds one, a service.
 - There are no atoms in the language: constructors are the tags. `Erl.atom` makes one for a foreign call.
 - There are no OTP behaviours. A server is a `receive` loop with `Reply`, restarted in place by `restarting` (§6.4).
 - A running program replaces its code by a message that carries the new function (§4.6). Only the shell's `:reload` loads a new version of a module.

@@ -29,7 +29,7 @@
          source_end/0, timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1,
          undefined_function/3, undefined_lambda/3, remote/1, fault/1, fault/2,
          trace/1, sys/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
-         run_main/2, run_main/3, signal/1, deadlock_target/1, restarting/2,
+         binding/1, run_main/2, run_main/3, signal/1, deadlock_target/1, restarting/2,
          init_stdlib/0]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
@@ -807,6 +807,16 @@ signal(Signal) ->
             end;
         none ->
             none
+    end.
+
+%% Report §8.5, §11.2: a top-level binding's value, which '$init'/0 put.
+%% One that has none, since a binding before it faulted when the shell
+%% loaded its module, faults its reader (§7.4).
+-spec binding(term()) -> term().
+binding(Key) ->
+    case persistent_term:get(Key, '$unevaluated') of
+        '$unevaluated' -> fault(<<"the binding has no value, since one before it faulted">>);
+        Value -> Value
     end.
 
 %% Report §6.9: a function that runs F, and on a fault runs it again in the

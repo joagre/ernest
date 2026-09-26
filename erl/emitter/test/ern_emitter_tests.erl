@@ -730,6 +730,45 @@ call_ends_with_callee() ->
                     "}\n"),
     ?assertEqual(<<"None\nNone\n">>, Out).
 
+%% report §4.6, §6.5, §8.5: a service is a top-level binding whose
+%% initializer spawns the process, before main, in the entry process;
+%% functions reach it by its name, and a restarting one keeps its address
+service_binding_test() ->
+    {ok, Out} = run(
+        "export type LogMsg = Log(String) | Crash | Count(reply : Reply(Int))\n"
+        "fn logger(n : Int) -> Unit with LogMsg = receive {\n"
+        "    Log(_) -> logger(n + 1)\n"
+        "  | Crash -> fault(\"crash\")\n"
+        "  | Count(reply = r) -> { answer(r, n); logger(n) }\n"
+        "}\n"
+        "export let log : Address(LogMsg) = spawn(Local,\n"
+        "    restarting(RestartLimit(restarts = 3, within = 60000),\n"
+        "        fn() -> Unit with LogMsg = logger(0)))\n"
+        "let started = Io.println(\"started\")\n"
+        "fn note(s : String) -> Unit with m = send(log, Log(s))\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    note(\"a\");\n"
+        "    send(log, Crash);\n"
+        "    receive { after 100 -> Unit };\n"
+        "    note(\"b\");\n"
+        "    Io.println(Int.toString(Address.callForever(log, fn(r) = Count(reply = r))))\n"
+        "}\n"),
+    ?assertEqual(<<"started\n1\n">>, Out).
+
+%% report §6.9, §8.5: a process a top-level initializer spawns names that
+%% binding's declaration as its spawn site
+service_site_test() ->
+    {ok, Out} = run(
+        "type MainMsg = Died(Down)\n"
+        "export let quick : Address(Int) =\n"
+        "    spawn(Local, fn() -> Unit with Int = receive { _ -> fault(\"x\") })\n"
+        "export fn main() -> Unit with MainMsg = {\n"
+        "    monitor(quick, Died);\n"
+        "    send(quick, 1);\n"
+        "    receive { Died(Down(reason = _, site = s)) -> Io.println(s) }\n"
+        "}\n"),
+    ?assertEqual(<<"M.quick:3\n">>, Out).
+
 %% Appendix E.15, §5.6: an alarm carries the time it fired, so a
 %% single-positional constructor passes as its wrap, as `Died` does to
 %% `monitor`

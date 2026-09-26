@@ -17,7 +17,7 @@ main() ->
     end.
 
 'Stack.empty'() ->
-    persistent_term:get({ern@stack, 'Stack.empty'}).
+    ern_rt:binding({ern@stack, 'Stack.empty'}).
 
 'Stack.push'(X_3, {'Stack', Xs_4}) ->
     {'Stack', [X_3 | Xs_4]}.

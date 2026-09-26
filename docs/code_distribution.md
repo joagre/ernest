@@ -154,7 +154,7 @@ A process changes code by receiving a new function as a message in its own type 
 
 The process must cooperate. Its state lives in the arguments of its recursive function, where the runtime cannot see it, so only the process can carry the state over to new code. Upgrade is opt-in: a process whose message type has no upgrade case cannot be upgraded in place and is replaced instead.
 
-Nominal type hashes (3.4) limit what an in-place upgrade can change. An address carries the hash of its mailbox type, so the new code must keep the same message type. If the upgrade case carries a function from the current state type, the state type is part of the message type and cannot change either. Changing the protocol or the shape of the state then means replacing the process: start a new one on the new code, hand the state over by message, and point clients at the new address, which depends on a registry (node protocol, open question 8). Whether this holds, and in which form, is open question 7.
+Nominal type hashes (3.4) limit what an in-place upgrade can change. An address carries the hash of its mailbox type, so the new code must keep the same message type. If the upgrade case carries a function from the current state type, the state type is part of the message type and cannot change either. Changing the protocol or the shape of the state then means replacing the process: start a new one on the new code, hand the state over by message, and point clients at the new address, which a service binding holds only until the module that declares it is loaded again (node protocol, open question 8, decided). Whether this holds, and in which form, is open question 7.
 
 ## 9. Trust model
 

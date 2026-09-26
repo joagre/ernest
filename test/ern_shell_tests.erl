@@ -1307,6 +1307,58 @@ reload_all_or_nothing() ->
 answer(N) ->
     ["export fn answer() -> Int = ", integer_to_list(N), "\n"].
 
+%% report §11.2, §8.5: `:load` evaluates a module's top-level bindings, a
+%% service among them, before the module is in scope, and one that faults
+%% loads nothing; `:reload` evaluates them again, a service of the new
+%% version starting, and one that faults keeps, with those after it, what
+%% the previous version gave. A regression test: `:load` evaluated none,
+%% so a loaded module's value faulted with `error:badarg` when it was used
+load_evaluates_bindings_test_() ->
+    {timeout, 60, fun load_evaluates_bindings/0}.
+
+load_evaluates_bindings() ->
+    Dir = scratch("ern_load_bindings_"),
+    Counter = fun(Start) ->
+        ["export type Msg = Get(reply : Reply(Int))\n",
+         "fn serve(n : Int) -> Unit with Msg =\n",
+         "    receive { Get(reply = r) -> { answer(r, n); serve(n) } }\n",
+         "export let service : Address(Msg) =\n",
+         "    spawn(Local, fn() -> Unit with Msg = serve(", integer_to_list(Start), "))\n",
+         "export let base = ", integer_to_list(Start), " * 10\n"]
+    end,
+    Ask = "Address.callForever(Counter.service, fn(r) = Counter.Get(reply = r))\n",
+    ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(1)),
+    ok = file:write_file(filename:join(Dir, "bad.ern"),
+                         "export let zero = List.size([])\nexport let boom = 1 / zero\n"),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, [":load Counter\n",
+                              "Counter.base\n",
+                              Ask,
+                              ":load Bad\n",
+                              "Bad.zero\n",
+                              write_source(Dir, "counter.ern", Counter(2)),
+                              ":reload\n",
+                              "Counter.base\n",
+                              Ask,
+                              write_source(Dir, "counter.ern",
+                                           [Counter(3), "export let late = 1 / List.size([])\n"]),
+                              ":reload\n",
+                              "Counter.base\n",
+                              "Counter.late\n"]),
+    {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"> 10 : Int\n> 1 : Int">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"Bad: a top-level binding faulted: division by zero;"
+                                             " nothing was loaded">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"unknown name Bad.zero">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> 20 : Int\n> 2 : Int">>)),
+    %% the bindings before the one that faults take the new version's values
+    ?assertMatch({_, _}, binary:match(Out, <<"Counter: a top-level binding faulted: division by"
+                                             " zero; it and the bindings after it keep">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> 30 : Int">>)),
+    %% one the previous version did not have has no value
+    ?assertMatch({_, _}, binary:match(Out, <<"the binding has no value, since one before it"
+                                             " faulted">>)).
+
 %% A directory of its own under /tmp, for a test's sources.
 scratch(Prefix) ->
     Dir = filename:join("/tmp", Prefix ++ os:getpid() ++ "_"

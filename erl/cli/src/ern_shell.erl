@@ -1344,9 +1344,56 @@ load(Env, Name, Ns) ->
 %% loaded, and `:load`'s answer.
 with_needed(Env, Modules, Line) ->
     case needed(Env, Modules) of
-        {ok, Needed} -> {'Right', {remember(install(Env, Needed ++ Modules)), Line}};
-        {error, Text} -> {'Left', Text}
+        {ok, Needed} ->
+            All = Needed ++ Modules,
+            Env1 = install(Env, All),
+            case initialize(All) of
+                ok ->
+                    {'Right', {remember(Env1), Line}};
+                {fault, Ns, Cause} ->
+                    lists:foreach(fun({N, _, _}) -> unload(ern_emitter:module_atom(N)) end, All),
+                    {'Left', <<(binding_fault(Ns, Cause))/binary, "; nothing was loaded\n">>}
+            end;
+        {error, Text} ->
+            {'Left', Text}
     end.
+
+%% Report §11.2, §8.5: the top-level bindings of each module, dependencies
+%% first, each module's evaluated in a process of the shell's own, whose
+%% fault is this answer's and not a fault report's; ok, or the module whose
+%% binding faulted and its cause.
+initialize([]) ->
+    ok;
+initialize([{Ns, _, _} | Rest]) ->
+    Mod = ern_emitter:module_atom(Ns),
+    case erlang:function_exported(Mod, '$init', 0) of
+        true -> initialize(Ns, Mod, Rest);
+        false -> initialize(Rest)
+    end.
+
+initialize(Ns, Mod, Rest) ->
+    Ref = make_ref(),
+    Init = fun() ->
+               quiet(ern_rt:self()),
+               Mod:'$init'()
+           end,
+    _ = ern_rt:spawn_monitored('Local', Init, fun(Down) -> {Ref, Down} end, <<"Shell.load">>),
+    receive
+        {Ref, {'Down', 'Returned', _}} -> initialize(Rest);
+        {Ref, {'Down', {'Fault', Cause}, _}} -> {fault, Ns, Cause};
+        {Ref, {'Down', Reason, _}} -> {fault, Ns, atom_to_binary(Reason)}
+    end.
+
+%% Report §11.2: a reloaded module's binding that faulted, which with the
+%% bindings after it keeps what the previous version gave them.
+kept_values(Ns, Cause) ->
+    <<(binding_fault(Ns, Cause))/binary, "; it and the bindings after it keep the values of the"
+      " previous version">>.
+
+binding_fault(Ns, Cause) ->
+    <<(unicode:characters_to_binary(qname_text(Ns)))/binary, ": a top-level binding faulted: ",
+      Cause/binary>>.
+
 
 %% Report §11.2: what the modules use that the session has not loaded,
 %% each found as the runner finds it, by namespace on the load path, and
@@ -1398,9 +1445,23 @@ reload(#env{modules = Modules} = Env) ->
         _ ->
             case compile_all(Env, Changed) of
                 {ok, Needed, Compiled} ->
-                    {Env1, Lines} = lists:foldl(fun reload_one/2, {install(Env, Needed), []},
-                                                Compiled),
-                    {'Right', {remember(Env1), lists:reverse(Lines)}};
+                    %% what the changed modules use and the session had not
+                    %% loaded is loaded as `:load` loads it, first
+                    Env0 = install(Env, Needed),
+                    case initialize(Needed) of
+                        ok ->
+                            {Env1, Lines} = lists:foldl(fun reload_one/2, {Env0, []}, Compiled),
+                            Faulted = case initialize(Compiled) of
+                                          ok -> [];
+                                          {fault, Ns, Cause} -> [kept_values(Ns, Cause)]
+                                      end,
+                            {'Right', {remember(Env1), lists:reverse(Lines) ++ Faulted}};
+                        {fault, Ns, Cause} ->
+                            lists:foreach(fun({N, _, _}) -> unload(ern_emitter:module_atom(N))
+                                          end, Needed),
+                            {'Left', <<(binding_fault(Ns, Cause))/binary,
+                                       "; nothing was reloaded\n">>}
+                    end;
                 {error, Text} ->
                     {'Left', iolist_to_binary([Text, "nothing was reloaded\n"])}
             end

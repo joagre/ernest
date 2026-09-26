@@ -31,7 +31,10 @@
               vars = #{}, effect = pure, st, pending = [], deferred = [],
               ann_vars = #{}, rigid = [], effect_origin = undefined,
               groups = #{}, typed = [], errs = [], reply_vars = [],
-              reply_params = #{}, let_order = []}).
+              reply_params = #{}, let_order = [], effectful = false, effectful_lets = []}).
+%% effectful: whether the definition being checked has called a process-only
+%% function; effectful_lets: the top-level lets whose initializer has, which
+%% are not generalized (report §4.6)
 %% let_order: the module's top-level lets in the order §8.5 evaluates them,
 %% which the emitter reads.
 %% reply_params: for each declared type with parameters, whether each can
@@ -642,7 +645,7 @@ demand(Q, #env{groups = Pending} = Env) ->
 restore_scope(Checked, Env) ->
     Checked#env{vars = Env#env.vars, effect = Env#env.effect, pending = Env#env.pending,
                 deferred = Env#env.deferred, ann_vars = Env#env.ann_vars, rigid = Env#env.rigid,
-                effect_origin = Env#env.effect_origin}.
+                effect_origin = Env#env.effect_origin, effectful = Env#env.effectful}.
 
 is_value_decl(#fn_decl{}) -> true;
 is_value_decl(#let_decl{}) -> true;
@@ -875,7 +878,7 @@ check_group(Group, Env0) ->
     {Typed2, Env4} = lists:mapfoldl(fun(D, E) ->
                                         {Owner, Name} = decl_key(D),
                                         V = proplists:get_value({Owner, Name}, Placeholders),
-                                        {Scheme, St} = ern_types:generalize(V, E#env.st),
+                                        {Scheme, St} = generalized(D, V, E),
                                         member_shape(D, Scheme, E#env{st = St}),
                                         Q = value_qname(E, Owner, Name),
                                         E1 = E#env{st = St,
@@ -883,6 +886,24 @@ check_group(Group, Env0) ->
                                         {zonk_ast(set_decl_type(D, Scheme), St), E1}
                                     end, Env3, Typed),
     {Typed2, Env4}.
+
+%% Report §3.9, §4.6: a definition's scheme, generalized over its free
+%% variables, except a top-level let whose initializer calls a process-only
+%% function, which is not, and whose type may keep no variable.
+generalized(#let_decl{pos = Pos, name = Name} = D, V, #env{st = St} = Env) ->
+    case lists:member(decl_key(D), Env#env.effectful_lets) of
+        false ->
+            ern_types:generalize(V, St);
+        true ->
+            case ern_types:free_vars(V, St) of
+                [] -> {ern_types:mono(ern_types:zonk(V, St)), St};
+                _ -> fail(Pos, "the type of " ++ atom_to_list(Name) ++ " is not determined ("
+                               ++ ern_types:format(V, St) ++ "), and a top-level `let` whose"
+                               " initializer has an effect is not generalized; annotate it")
+            end
+    end;
+generalized(_, V, #env{st = St}) ->
+    ern_types:generalize(V, St).
 
 %% Report §4.8: a member named by an operator has the type (T, T) -> R for
 %% its type T, T.compare the type (T, T) -> Ordering, and T.negate the type
@@ -1073,11 +1094,13 @@ check_value(#let_decl{pos = Pos, ann = Ann, body = Body} = D, Placeholder, Env) 
                               undefined -> {undefined, #{}, Env#env.st};
                               _ -> {T, VM, S} = ann(Ann, #{}, Env), {T, VM, S}
                           end,
-    %% a top-level initializer is pure (report §4.6)
-    Env0 = Env#env{st = St, effect = pure, pending = [], deferred = [], ann_vars = AnnVars,
-                   rigid = maps:to_list(AnnVars),
-                   effect_origin = {"a top-level `let`", Pos, "a top-level `let` is pure",
-                                    "compute the value in a function with a mailbox type"}},
+    %% report §4.6: a top-level initializer is a body of mailbox type Never,
+    %% which may spawn, send, and call, and may not receive
+    Env0 = Env#env{st = St, effect = ?NEVER, effectful = false, pending = [],
+                   deferred = [], ann_vars = AnnVars, rigid = maps:to_list(AnnVars),
+                   effect_origin = {"a top-level `let`", Pos,
+                                    "a top-level initializer runs as a body of mailbox type Never",
+                                    "receive in a process the initializer spawns"}},
     {TypedBody, BodyT, Env2} =
         case AnnT of
             undefined -> infer(Body, Env0);
@@ -1085,7 +1108,12 @@ check_value(#let_decl{pos = Pos, ann = Ann, body = Body} = D, Placeholder, Env) 
                             ann_origin(Ann, AnnT, Env0), Env0)
         end,
     Env3 = unify_at(Pos, Placeholder, BodyT, Env2, "recursive use does not match the definition"),
-    {D#let_decl{body = TypedBody}, post(Pos, [], TypedBody, BodyT, Env3), restore_scope(Env3, Env)};
+    Effectful = case Env3#env.effectful of
+                    true -> [decl_key(D) | Env#env.effectful_lets];
+                    false -> Env#env.effectful_lets
+                end,
+    {D#let_decl{body = TypedBody}, post(Pos, [], TypedBody, BodyT, Env3),
+     (restore_scope(Env3, Env))#env{effectful_lets = Effectful}};
 check_value(#foreign_fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect,
                              impl = Impl} = D, Placeholder, Env) ->
     %% report §8.4: the implementation is module:function/arity
@@ -1733,7 +1761,7 @@ infer(#e_lambda{params = Params, ret = Ret, effect = Effect, body = Body} = E,
     {OT, St4} = open_effect(T, Env4#env.st),
     {E#e_lambda{params = TypedParams, body = TypedBody, type = T}, OT,
      Env4#env{st = St4, vars = Env#env.vars, effect = Env#env.effect, ann_vars = Env#env.ann_vars,
-              effect_origin = Env#env.effect_origin}};
+              effect_origin = Env#env.effect_origin, effectful = Env#env.effectful}};
 infer(E, Env) when is_record(E, e_if); is_record(E, e_match); is_record(E, e_receive) ->
     {T, St} = ern_types:fresh(Env#env.st),
     check_expr(E, T, undefined, undefined, Env#env{st = St}).
@@ -1763,9 +1791,7 @@ check_expr(#e_receive{pos = Pos, clauses = Clauses, 'after' = After} = E, Expect
            Origin, Env) ->
     {MailboxT, Env1} = mailbox_type(Pos, Env),
     case Clauses =/= [] andalso ern_types:resolve(MailboxT, Env1#env.st) =:= ?NEVER of
-        true -> fail(Pos, "a function with mailbox Never cannot receive", [],
-                     "only an `after` clause is allowed; give the function another mailbox"
-                     " type with `with`");
+        true -> never_receives(Pos, Env1#env.effect_origin);
         false -> ok
     end,
     {TypedClauses, Env2} = check_clauses(rcv, Clauses, MailboxT, undefined, Expected, Context,
@@ -1865,10 +1891,13 @@ callee_name(_) -> "the callee".
 use_effect(Pos, Name, Eff, #env{st = St, effect = Have, effect_origin = Origin} = Env) ->
     case ern_types:resolve(Eff, St) of
         pure -> Env;
-        _ ->
+        Resolved ->
             case ern_types:unify(Have, Eff, St) of
                 {ok, St1} ->
-                    Env#env{st = St1};
+                    %% report §3.9, §4.6: a call of a process-only function,
+                    %% not one whose effect is still open
+                    Env#env{st = St1,
+                            effectful = Env#env.effectful orelse process_only(Resolved, St)};
                 {error, {mismatch, _, _}} ->
                     fail(Pos, Name ++ " needs mailbox " ++ ern_types:format(Eff, St)
                               ++ ", and the mailbox here is " ++ ern_types:format(Have, St),
@@ -1878,6 +1907,17 @@ use_effect(Pos, Name, Eff, #env{st = St, effect = Have, effect_origin = Origin} 
                          labels(Origin), help(Origin))
             end
     end.
+
+%% Report §6.8, §4.6: a receive with a pattern clause where the mailbox is
+%% Never, in a function or in a top-level initializer.
+never_receives(Pos, {"a top-level `let`", _, _, Help}) ->
+    fail(Pos, "a top-level initializer runs with mailbox Never and cannot receive", [], Help);
+never_receives(Pos, _) ->
+    fail(Pos, "a function with mailbox Never cannot receive", [],
+         "only an `after` clause is allowed; give the function another mailbox type with `with`").
+
+process_only({tvar, Id}, St) -> lists:member(process_only, ern_types:flags(Id, St));
+process_only(_, _) -> true.
 
 labels(undefined) -> [];
 labels({Span, Label}) -> [{ern_diag:span(Span), Label}];

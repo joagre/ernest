@@ -220,7 +220,7 @@ decl(#fn_decl{pos = Pos, owner = O, name = N, params = Params, body = Body}, Cx)
 decl(#let_decl{pos = Pos, owner = O, name = N}, Cx) ->
     %% the getter; the value is computed by '$init'/0 (report §8.5)
     Name = fname(O, N),
-    Get = call_remote(persistent_term, get, [key(Cx, Name)]),
+    Get = call_remote(ern_rt, binding, [key(Cx, Name)]),
     Clause = at(Pos, erl_syntax:clause([], none, [Get])),
     {[at(Pos, erl_syntax:function(erl_syntax:atom(Name), [Clause]))], Cx};
 decl(#foreign_fn_decl{pos = Pos, owner = O, name = N, params = Params, impl = Impl,
