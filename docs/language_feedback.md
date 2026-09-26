@@ -7,8 +7,9 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Fifty-five have left, each decided in
-a step of the plan's MVP 2.65, which names the decision and the log entry that argues it.
+under, since the plan, the log and the code cite them. Fifty-seven have left, each decided in
+a step of the plan's MVP 2.65, which names the decision and the log entry that argues it;
+59 and 60, the last, in step 10's seventh sub-step.
 
 ## 1. Names and namespaces
 

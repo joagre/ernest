@@ -146,7 +146,8 @@ xref:
 # Report sections no test cites (every test function carries a `%% report §x.y` line).
 sections:
 	@grep -oE '^#{2,3} [0-9]+\.[0-9]+' ernest_report.md | sed 's/^#* //' | \
-	  while read s; do grep -q "§$$s\b" erl/*/test/*.erl test/*.erl || echo "§$$s"; done
+	  while read s; do grep -oh "\(guide \)\?§$$s\b" erl/*/test/*.erl test/*.erl | \
+	    grep -qv '^guide' || echo "§$$s"; done
 
 # Every report section with the number of tests citing it and its length in
 # words, thinnest first: few citations on a long section is where a rule can
@@ -155,7 +156,7 @@ coverage:
 	@awk '/^#{2,3} [0-9]+\.[0-9]+/ { if (s != "") print s, w; s = $$2; w = 0; next } \
 	      /^#/ { if (s != "") print s, w; s = ""; next } \
 	      s != "" { w += NF } END { if (s != "") print s, w }' ernest_report.md | \
-	  while read s w; do c=$$(cat erl/*/test/*.erl test/*.erl | grep -o "§$$s\b" | wc -l); \
+	  while read s w; do c=$$(cat erl/*/test/*.erl test/*.erl | grep -o "\(guide \)\?§$$s\b" | grep -v '^guide' | wc -l); \
 	    printf '%3d cites %5d words  §%s\n' $$c $$w $$s; done | sort -k1,1n -k3,3nr
 
 # Emacs backup (foo~), auto-save (#foo#), and lock (.#foo) files, anywhere.

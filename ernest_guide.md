@@ -54,7 +54,7 @@ forgot.ern:5:5: the reply-carrying value r is never consumed
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
-**Work through a process, in a function that says it does none.** The terminal is a process, so printing is sending it a message. `area` is declared pure, `-> Int` with nothing after it, and the compiler holds it to that. A function that sends or receives says so with `with`, as the help line says.
+**Work through a process, in a function that says it does none.** Standard output is a process, so printing is sending it a message. `area` is declared pure, `-> Int` with nothing after it, and the compiler holds it to that. A function that sends or receives says so with `with`, as the help line says.
 
 ```ernest-rejected
 fn area(w : Int, h : Int) -> Int = {
@@ -124,13 +124,13 @@ hello, world
 
 `-> Unit` is the result type. `Unit` is a type with one value, also written `Unit`, the result of a function whose work is its effect.
 
-`with Never` names the mailbox. A function that sends or receives runs in a process, whose mailbox takes one type of message, and its type says which with `with`. `main` runs in the program's first process, the *entry process*. `Never` is the type with no values, so a process whose mailbox is `Never` receives nothing, which suits a `main` that only sends.
+`with Never` names the mailbox. A function that sends or receives runs in a process, whose mailbox takes one type of message, and its type says which with `with`. `main` runs in the process the program starts it in, the *entry process*. `Never` is the type with no values, so a process whose mailbox is `Never` receives nothing, which suits a `main` that only sends.
 
 Two ways of writing `with` follow, and the guide's programs use both. A function that starts a process that never receives, such as `main` or the function a spawned process runs, is written `with Never`; a lambda spawned for such a process is written `fn() -> Unit with Never = ...`, since no `receive` in it settles its mailbox type. A function that only sends, such as `Io.println`, is written `with m`, a type variable, so that a process with any mailbox may call it.
 
 `Io.println` sends its text to standard output's process, which the runtime provides and `Io` alone reaches. `Io.printlnError` sends to standard error's, so a program whose output another program reads can still report trouble. Sending to a process of the runtime is one of the two ways a program reaches the world; the other is `foreign fn` (§8).
 
-`Io.debug(x)` prints any value as the source would write it and returns it, so it wraps an expression where it stands: `let n = Io.debug(f(x))`. It sends, as `Io.println` does, so it cannot hide in a pure function (report Appendix E.1).
+`Io.debug(x)` prints any value as the source would write it and returns it, so it wraps an expression where it stands: `let n = Io.debug(f(x))`. It sends, as `Io.println` does, so it cannot hide in a pure function. `Io.show(x)` is the text it prints, and is pure (report Appendix E.1).
 
 ### 1.2 The shell
 
@@ -178,7 +178,7 @@ HELLO
 WORLD
 ```
 
-An entry point takes no arguments, so a program's input comes on standard input. It is read as UTF-8, and a line that is not faults the program. Input that is not text is read as bytes: `Io.read()` answers `Some(bytes)` with what has arrived, and `Io.write(bytes)` writes bytes to standard output as they are. Lines and bytes come from one stream, so a program can read a line and then the bytes after it. A program reads lines or single keys, not both: `Terminal.subscribe` gives keys as they are pressed, or answers `Left(Io.NotATerminal)` where standard input is not a terminal, so that the program can read lines instead (report §8.2).
+An entry point takes no arguments, so a program's input comes on standard input. It is read as UTF-8, and a line that is not faults the process that read it. Input that is not text is read as bytes: `Io.read()` answers `Some(bytes)` with what has arrived, and `Io.write(bytes)` writes bytes to standard output as they are. Lines and bytes come from one stream, so a program can read a line and then the bytes after it. A program reads lines or single keys, not both: `Terminal.subscribe` gives keys as they are pressed, or answers `Left(Io.NotATerminal)` where standard input is not a terminal, so that the program can read lines instead (report §8.2).
 
 ### 1.4 Prediction exercise
 
@@ -206,7 +206,7 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 - **`Float`** — IEEE 754 binary64, finite values only. Literal: `3.14`.
 - **`Char`** — one Unicode scalar value, a code point other than a surrogate. Literal: `'a'`.
 - **`String`** — Unicode text. Literal: `"hello"`, with the escapes `\n`, `\t`, `\\`, `\"`, and `\u{1F600}` among them (report §2.5). `<>` joins two strings, and a type's `toString` makes its text: `"n = " <> Int.toString(3)`. There is no interpolation.
-- **`Bytes`** — a sequence of octets. Literal: `<<0, 1, 2>>` (§8.6).
+- **`Bytes`** — a sequence of octets, built with the bit syntax: `<<0, 1, 2>>` (§8.6).
 - **`Bool`** — `true` or `false`. `&&` and `||` short-circuit, and `!` negates.
 - **`Unit`** — one value, also called `Unit`.
 
@@ -254,7 +254,7 @@ let defaultPort : Int = 8080
 export let helloBanner : String = "hello, world"
 ```
 
-An initializer runs before `main`, in the entry process, as a body that may spawn, send and call but not receive; a top-level `let` whose initializer spawns a process is a service, which §6.5 teaches. Constants are evaluated in the order their references need, and a cycle among them is an error (report §4.6, §8.5).
+An initializer runs before `main`, in the entry process, as a body that may spawn, send and call but not receive; a top-level `let` that holds a process's address is a service, which §6.5 teaches. Constants are evaluated in the order their references need, and otherwise in the order the module declares them, and a cycle among them is an error (report §4.6, §8.5).
 
 ### 2.3 Sum types and pattern matching
 
@@ -340,7 +340,7 @@ Set.fromList([1, 2, 3]) : Set(Int)
 
 `Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call.
 
-Map keys and set elements need equality. `==` is defined on every type except one that contains a function or an address, so a map keyed by addresses is refused at its first operation. In a printed type, a variable that needs equality is marked `=`: `List.contains : (List(a=), a=) -> Bool`. An annotation does not write the mark; the compiler infers it from the body.
+Map keys and set elements need equality. `==` is defined on every type except one that contains a function or an address, so a map keyed by addresses is a type error at its first operation; key it by `Process.fromAddress(a)` instead (§5.2). In a printed type, a variable that needs equality is marked `=`: `List.contains : (List(a=), a=) -> Bool`. An annotation does not write the mark; the compiler infers it from the body.
 
 Ordering is separate: `a < b` asks the type's `compare`, which answers `Less`, `Equal`, or `Greater`. `Int`, `Float`, `String`, and `Char` have one, and a type of your own gets one by declaring it in its module. A function named `Money.compare` is a member of the type `Money` (§7.2):
 
@@ -464,15 +464,15 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 
 ### 2.9 The standard library
 
-The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char`, `Bytes`, `Bool`, `Int`, `Float`, `Optional`, `Either`, `Path`, `Random`, and a few more, and the system modules `Io`, `Clock`, `Terminal`, `Fs`, and `Tcp`, through which a program uses the runtime's system processes. It is always on the load path. Its rules let you guess a name before looking it up (report Appendix E.0):
+The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char`, `Bytes`, `Bool`, `Int`, `Float`, `Optional`, `Either`, `Path`, and a few more, `Random` among them, and the system modules `Io`, `Clock`, `Terminal`, `Fs`, and `Tcp`, through which a program uses the runtime's system processes. It is always on the load path. Its rules let you guess a name before looking it up (report Appendix E.0):
 
 - **One verb per operation, in every module that has it.** `Map.get(m, k)` and `List.get(xs, 0)`; `size`, `isEmpty`, `contains`, `put`, `remove`, `map`, `filter`, `foldLeft`, `find`, `fromList`, `toList` wherever they apply.
 - **Subject first, callbacks last**, so the pipe works: `xs |> List.foldLeft(0, fn(acc, x) = acc + x)`.
 - **A conversion is named by the other type.** Between a type and one its module builds on, both directions are the building module's, `String.fromList` and `String.toList`; any other conversion is its argument's module's `toX`: `String.toInt`, `Int.toString`.
 - **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get` and `String.toInt` return `Optional`, `Fs.read` returns `Either(Io.Error, Bytes)`.
-- **Pure unless the value lives in a process.** A function carries `with m` only where it reaches a system process or asks the runtime about its processes, as `Process.live` does, and every function that takes a function is as pure as the function it is given (§3.5).
+- **Pure unless the value lives in a process.** A function carries `with m` only where it reaches a system process or asks the runtime about its processes, as `Process.live` does, and every function that calls a function it takes is as pure as the function it is given (§3.5). One that delivers later, `Clock.alarm` or `Terminal.subscribe`, takes a pure function to make the message and acts through a process anyway.
 - **A `String` is text, not a list.** Its length and positions count what a reader sees as letters, which `String.graphemes` gives one by one; `String.toList` gives its `Char`s.
-- **A system process is used through its module**, never by `send`. A function that waits takes a timeout in milliseconds last and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. One that delivers later takes a function that makes the message: `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired.
+- **A system process is used through its module**, never by `send`. A function that waits takes a timeout in milliseconds last and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. The reads of standard input wait for input without a limit. One that delivers later takes a function that makes the message: `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired.
 
 What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it.
 
@@ -568,7 +568,7 @@ Without a source that fixes the type, `n + n` is a type error. Once it is fixed,
 
 Other limits worth knowing:
 
-- A `fn` and a top-level `let` are polymorphic; a `let` in a block is not, and neither is a top-level `let` whose initializer spawns, sends, or calls, whose type must then be settled, by an annotation where nothing else settles it. After `let xs = []` in a block, the element type of `xs` must be settled by an annotation, by a later use in the block, or by `xs` reaching the block's result.
+- A `fn` and a top-level `let` are polymorphic; a `let` in a block is not, and neither is a top-level `let` whose initializer calls a process-only function, `spawn`, `send`, `Address.call` or `Io.println` among them, whose type must then be settled, by an annotation where nothing else settles it. After `let xs = []` in a block, the element type of `xs` must be settled by an annotation, by a later use in the block, or by `xs` reaching the block's result.
 - A `fn` declared in a block is visible in the whole block, but may be used only after the `let`s it reads (report §5.4).
 
 ### 3.4 Pure functions and functions with a mailbox effect
@@ -583,11 +583,11 @@ Either kind of function can fault or run for ever: `a / b` with `b = 0` faults a
 fn apply(f, x) = f(x)
 ```
 
-The inferred type is `((a) -> b with e, a) -> b with e`: `apply` has the effect of the function it is given, so `apply(f, x)` is pure when `f` is. `List.map`, `List.foreach`, and every other function of the standard library that takes a function are the same.
+The inferred type is `((a) -> b with e, a) -> b with e`: `apply` has the effect of the function it is given, so `apply(f, x)` is pure when `f` is. `List.map`, `List.foreach`, and every other function of the standard library that calls a function it takes are the same.
 
 An effect variable may stand for a mailbox type or for pure. One that also appears inside `Address`, as in `self : () -> Address(m) with m`, stands for a mailbox type only, since an address needs one. The letters in a printed type mean nothing of their own.
 
-The process operations, `self`, `send`, `spawn`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, `kill`, and `remote`, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
+The process operations, `self`, `send`, `spawn`, `spawnMonitored`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, `kill`, and `remote`, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
 
 ### 3.6 One spawn corner: a callback's mailbox
 
@@ -672,7 +672,7 @@ A `Reply(Int)` is where an answer goes. The process that asks puts one in its re
 
 ### 4.2 A reply is answered once
 
-A `Reply` is an obligation: whoever holds one answers it exactly once, on every path, and the compiler checks it, as §0 showed. The obligation moves with the value. Sending a message that carries a reply, passing it to a function, returning it, or putting it in a constructor hands the obligation on; only `answer(r, v)` discharges it. A value that contains a reply is *reply-carrying*, as `CounterMsg` is because of `Get`, and the same rule holds for it.
+A `Reply` is an obligation: whoever holds one answers it exactly once, on every path, and the compiler checks it, as §0 showed. The obligation moves with the value. Sending a message that carries a reply, passing it to a function, returning it, or putting it in a constructor hands the obligation on; only `answer(r, v)` answers it. A constructor with no reply-carrying field, `Stop` in a type whose `Get` carries one, has no obligation to hand on. A value that contains a reply is *reply-carrying*, as `CounterMsg` is because of `Get`, and the same rule holds for it.
 
 The check is on paths, not on time. A path that calls `fault` need not answer, since the fault ends the process and every call waiting on it at once (§6.5). A path that faults inside a function it calls, or waits for ever, must still answer on paper: the compiler cannot see that it will not return, and the caller's deadline covers a wait (§4.4).
 
@@ -712,7 +712,7 @@ fn waitForData() -> Optional(Int) with Inbox = receive {
 
 `after 1000` gives up after 1000 milliseconds with no matching message, and `after 0` looks without waiting. Without `after`, the process waits for as long as it takes. A `receive` with only an `after` clause is a timed wait, the one `receive` a process with mailbox `Never` may use.
 
-A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: it compares the variables the function binds, not its top-level names, literals, and nullary constructors, orders only `Int`, `Float`, `String` and `Char`, tests a `Bool` variable, and joins these with `!`, `&&` and `||`; it calls nothing (report §6.3). For more, receive the message and `match` it.
+A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: its operands are the pattern's variables, the variables the function binds but not its top-level names, literals, and nullary constructors; it compares two of them, orders only `Int`, `Float`, `String` and `Char`, tests a `Bool` variable, and joins these with `!`, `&&` and `||`; it calls nothing (report §6.3). For more, receive the message and `match` it.
 
 If a `Wake` is already in the mailbox, `waitForData` leaves it there and waits for a `Data`; a later `receive` can take the `Wake`.
 
@@ -727,7 +727,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
 ```
 
-`Address.call(c, fn(r) = Get(reply = r), 1000)` makes a fresh `Reply`, gives it to the function that builds the request, sends the request to `c`, and waits up to 1000 ms. It returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6). `Address.callForever` waits without a deadline and returns the answer itself. When the process called ends or restarts before it answers, either call ends at once: `Address.call` returns `None`, and `Address.callForever` faults its caller with the callee's cause. A callee that only waits keeps a `callForever` caller waiting too.
+`Address.call(c, fn(r) = Get(reply = r), 1000)` makes a fresh `Reply`, gives it to the function that builds the request, sends the request to `c`, and waits up to 1000 ms. It returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6). `Address.callForever` waits without a deadline and returns the answer itself. When the process called ends or restarts before it answers, either call ends at once: `Address.call` returns `None`, and `Address.callForever` faults its caller, with the callee's cause where it faulted, and otherwise with a cause saying it was killed, returned without answering, or had ended already. A callee that only waits keeps a `callForever` caller waiting too.
 
 A server that cannot answer at once keeps the reply in a small process that answers later, since a reply-carrying value cannot wait in a list (§4.2). A queue answers a `Take` with an item it has, or spawns a waiter that holds the reply until a `Put` brings one:
 
@@ -802,7 +802,7 @@ count is 8
 
 `spawn(Local, fn() = counter(0))` starts a process on this node that runs the lambda, and returns its `Address(CounterMsg)`. `Local` says where the process runs; `Peer(name)` is another node (§8). Inside the lambda, `self()` is the new process's address, so a parent that gives the child its own address takes it first: `let me = self(); spawn(Local, fn() = child(me))`.
 
-When `main` returns, or its process ends in any other way, the program ends: every process on the node ends with the reason `ProgramEnd`, which is not a fault, and output still on its way is written first. A program stopped from outside by a termination or a hangup signal ends the same way; the terminal's interrupt ends it at once, and output still on its way may be lost (report §8.6).
+When `main` returns, or its process ends in any other way, the program ends: every process on the node ends with the reason `ProgramEnd`, which is not a fault, and output still on its way is written first. A program stopped from outside by a termination or a hangup signal ends the same way; the terminal's interrupt ends it at once, and output still on its way may be lost, unless the program reads the terminal's keys, which then deliver the interrupt as a key (report §8.2, §8.6).
 
 The count is 8 because messages from one sender arrive in the order sent: both `Inc`s come before the `Get`. Were the counter too slow, `main` would print `counter did not answer`.
 
@@ -1004,7 +1004,7 @@ A death whose run is not the one being waited for is an earlier worker's, and `w
 
 Addresses have no equality, since an address seen through `via` holds a function. The process behind an address has: `Process.fromAddress(a)` is a `Process`, which can key a `Map` or be kept in a `Set` and to which nothing can be sent. `Process.live()` lists the live processes, `Process.info(p)` tells where one was spawned, how many messages wait for it and whether it runs, and `Process.faults(wrap)` sends you every fault as it happens (report Appendix E.21). They are for seeing what runs, and a program is still written with the addresses it was given.
 
-A fault in one process does not affect another, apart from the four cases of §6.3.
+A fault in one process does not affect another, apart from the cases §6.3 lists.
 
 ### 5.3 `kill`
 
@@ -1019,7 +1019,7 @@ kill : (Address(a)) -> Unit with m
 
 ### 5.4 Deadlock
 
-When every process waits in a `receive` that nothing can ever satisfy, the entry process faults with `deadlock`, and the program ends. A process waiting for a timer, a key, a socket, or a file is waiting for something that can come, so an idle server is not deadlocked. Report §8.6 gives the exact condition.
+When every process waits in a `receive` or a `callForever` that nothing can ever satisfy, the entry process faults with `deadlock`, and the program ends. A process waiting for a timer, a key, a socket, or a file is waiting for something that can come, so an idle server is not deadlocked. Report §8.6 gives the exact condition.
 
 ### 5.5 Adapting messages with `via`
 
@@ -1218,7 +1218,7 @@ the worker spawned at Faults.main:9 faulted: division by zero
 
 `average` is pure and still faults. A type says what a function returns when it returns, not that it will. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn. The first line is `ern run`'s own: it writes every fault to standard error as it happens, the spawn site and the cause, whatever the program does about it.
 
-Four faults reach beyond their process. A fault in the entry process ends the program, and `ern run` exits with status 1. A fault in the function of an adapted address (§5.5) is the fault of the process the address names. A fault in the callback of `remote` is the fault of the process that called it (§8.1). A fault in a process that a `callForever` waits on faults the caller with the same cause (report §6.6). A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
+Some faults reach beyond their process. A fault in the entry process ends the program, and `ern run` exits with status 1, as a fault in an initializer does. A fault in a function a delivery applies, an adapted address's (§5.5) or the wrap given to `monitor`, `Clock.alarm`, `Terminal.subscribe` or `Process.faults`, is the fault of the process it delivers to. The loss of a peer faults every process on it (report §10). A fault in the callback of `remote` is the fault of the process that called it (§8.1). A fault in a process that a `callForever` waits on faults the caller with the same cause (report §6.6). A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
 
 ### 6.4 Let it crash
 
@@ -1305,7 +1305,7 @@ Some(3)
 
 `counter` is evaluated before `main` runs, in the entry process, like every top-level `let` (§2.2). An initializer may spawn, send and call, but not receive, so a service's `let` starts its process and nothing waits.
 
-`restarting(RestartLimit(restarts = 3, within = 5000), f)` is a function that runs `f`, and runs it again after a fault, in the same process, with the same address and mailbox. Whoever holds the address keeps it, so nothing is handed out again after a restart. What the loop held is gone: the count starts at zero again, as `Some(3)` shows. After three restarts within five seconds, the next fault ends the process (report §6.9).
+`restarting(RestartLimit(restarts = 3, within = 5000), f)` is a function that runs `f`, and runs it again after a fault, in the same process, with the same address and mailbox. Whoever holds the address keeps it, so nothing is handed out again after a restart. What the loop held is gone: the count starts at zero again, as `Some(3)` shows. After three restarts within five seconds, the next fault ends the process (report §6.9). A restart is not an end: no `monitor` hears of it, and the process's `Down` comes only when it ends for good.
 
 The call that was waiting when the counter faulted ends at once: `Address.call` answers `None`, and `Address.callForever` would fault the caller with the same cause. A caller that must outlive a service's faults calls with a limit. The second line is `ern run`'s report of the fault, on standard error (§6.3).
 
@@ -1709,7 +1709,7 @@ found 42
 
 A helper converts whatever its Erlang function returns to the declared type; Ernest does not. A `foreign fn` that takes a `Foreign` is given one by `Foreign.from(value)`, and `Erl.atom(name)` makes an atom (report Appendix E.12, report Appendix E.19).
 
-`libs/ets` is such a library, written out in report Appendix D, and a program adds it with `--load-path`. JSON, TLS, regular expressions and HTTP are libraries of the same kind, outside the standard library, since each carries policy of its own (report Appendix E.0).
+`libs/ets` is such a library, written out in report Appendix D, and a program adds it with `--load-path`. JSON, TLS, regular expressions and HTTP are libraries too, outside the standard library, since each carries policy of its own and a namespace of its own (report Appendix E.0).
 
 ### 8.6 Bitstrings
 
@@ -1771,7 +1771,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 
 ### 9.3 The shell
 
-An input is an expression, a declaration, or a `let`, and a command begins with `:`. `:help` lists the commands, among them these: `:type` gives an expression's type and `:doc` a name's documentation, `:browse` lists a module's exports, `:load` and `:reload` compile a module from its source, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, `:set` sets the depth and length values are printed to and turns timing on and off, and `:output` sends what programs write to another window. A command may be shortened to a prefix of its name that begins no other, `:br` for `:browse`; `:b` begins `:bindings` too, and the shell says so. Inputs entered while another runs wait, and run in the order entered.
+An input is an expression, a declaration, or a `let`, and a command begins with `:`. `:help` lists the commands, among them these: `:type` gives an expression's type and `:doc` a name's documentation, `:browse` lists a module's exports, `:load` and `:reload` compile a module from its source, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, `:set` sets the depth and length values are printed to, the rows of the live region, and timing, and `:output` sends what programs write to a terminal or a file. A command may be shortened to a prefix of its name that begins no other, `:br` for `:browse`; `:b` begins `:bindings` too, and the shell says so. Inputs entered while another runs wait, and run in the order entered.
 
 At a terminal the line is edited with Readline's Emacs keys. `Tab` completes a name, `Shift-Tab` shows its type and documentation, `C-r` searches the history, and `M-Enter` adds a line to the input. At a terminal the history is kept in `$HOME/.ernest/history`. When the shell starts it runs the inputs in `$HOME/.ernest/startup` and then those in the configuration directory's `startup`, `./.ernest` by default. A startup line may be a command, and one that fails is reported with its file and line.
 
@@ -1813,7 +1813,7 @@ Report §0 gives five principles, and the rules of the guide follow from them.
 
 1. **Least surprise decides.** A rule stays when the code it produces is what a reader who knows the rest of Ernest would write, and changes when it is not. The other four principles build the language, and this one audits the code they produce.
 2. **One way, one job.** The language and the prelude have one way to do each thing: a record is a constructor with named fields, a server is a `receive` loop, a request is a `Reply`.
-3. **Nothing invisible.** Control flow, communication, and failure show in the code or in the type.
+3. **Nothing invisible.** Control flow, communication, and failure show in the code or in the type. A top-level binding is visible where its name appears at the use site, which is what makes a service (§6.5) one.
 4. **Simple to parse.** Each construct is known by its first token, or by a later one a bounded way ahead, so a reader, like the parser, never has to look far.
 5. **Small.** Few concepts, few primitives, few reserved words.
 

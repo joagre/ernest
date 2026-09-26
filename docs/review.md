@@ -49,7 +49,7 @@ The report is read alone, as the one normative document it is, for what it says 
 
 **2a. Coverage.** Every section cited by a test, the thinnest raised, and every section's positive rule and its refusals each tested, a rule without its refusal tested being a finding.
 
-**2b. The report's own examples.** Every `ernest` block in the report compiles, and every one whose value is written runs to it, as the guide's examples do.
+**2b. The report's own examples.** Every code block of Ernest in the report compiles, and every one whose value is written runs to it, as the guide's examples do.
 
 **2c. The mirrors.** Every list that lives in the code and in a document has a test holding the two equal (CLAUDE.md, *Who owns each fact*). A reader lists the lists: the prelude, Appendix E's signatures and types, the primitives, the shell's commands, the refusals that name an MVP, the system modules, the guide's prelude declarations; each has its test, or the missing test is a finding.
 

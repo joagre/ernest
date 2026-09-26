@@ -650,9 +650,8 @@ error_span_test() ->
 %% The example programs
 %%
 
-%% report Appendix A, plan 2.1: the examples and the standard library
-%% exercise every AST record the emitter must handle, but for a bitstring
-%% with segments and a bitstring pattern
+%% report Appendix A, plan 2.1: the examples, the standard library and the
+%% libraries exercise every AST record the emitter must handle
 ast_coverage_test() ->
     {ok, Hrl} = file:read_file("../include/ern_ast.hrl"),
     {match, M} = re:run(Hrl, "-record\\(([a-z_]+),", [global, {capture, all_but_first, list}]),

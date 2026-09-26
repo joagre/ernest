@@ -718,7 +718,7 @@ terminal_holder() ->
 %% while a shell holds it, a subscriber or a reader of lines alike.
 -spec shell_holds() -> binary().
 shell_holds() ->
-    <<"the shell holds the terminal; run the program with ern to give it the keyboard">>.
+    <<"the shell holds the terminal; run the program with ern run to give it the keyboard">>.
 
 %% Report §11.2: while a shell holds the terminal, a line is read by the
 %% holder alone. Anything else that asks faults, in its own process, before

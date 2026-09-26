@@ -21,9 +21,11 @@ Actorson until 12 September 2026.
 first nine steps are done: the feedback list and this plan consolidated, the report read
 cold, the five themes, names and namespaces, expressions, patterns and types, processes and
 the system, the standard library under E.0, and the toolchain, the Erlang code's open
-questions, and the cold read's last findings. Step 10, the build, has begun: its gate, its
-ledger, its report pass, the report's cold read and the toolchain's rename are done, and the
-build in the ledger's order is next.
+questions, and the cold read's last findings. Step 10, the build, is built in all its
+sub-steps: its gate, its ledger, its report pass, the report's cold read, the toolchain's
+rename, the build in the ledger's order, and the guide's section on services with feedback
+items 59 and 60; its closing sweep, read on 2026-09-26, is what remains, and closes the
+milestone.
 MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
@@ -349,7 +351,7 @@ The steps:
       | D6 | `////` is a comment (step 9), built | §2.2, App. F | `ern_lexer`; `emacs/ernest-mode.el` | `four_slashes_is_a_doc_line_test` inverts; `emacs/test/colour.el` | `docs/emacs_mode.md` | none | `` `///` to end of line `` 2 |
       | D7 | `ern test` streams, a deadlock one test's fault (step 9), built | §11.2 | `ern_cli` `run_tests`; `ern_rt` faults the running test | `ern_cli_tests`; new: a deadlocked test then a passing one | guide §9.2, `shell_design.md`, `shell/README.md` | A1 | `It prints each test's name` 1 |
       | D8 | a function value foreign code returns is checked at each call (a standing gap), built | §7.4 | `ern_boundary` wraps such a value so each call's result is checked, as a proxy checks each message | new: a foreign function returning a function whose result is ill-typed faults at the call with `Fault("foreign return does not match T")` | the plan's standing gap goes | none | `is not checked when it is called` 1 |
-      | E1 | the holders of `it` freed (step 8) | none | `ern_shell` holders recycled as inputs are, each input's dependencies recorded, `forget` purges a holder | `ern_shell_tests` the unload tests' "not covered"; new: a holder freed, one kept by a later declaration, 2,000 inputs measured | `shell_design.md` `A session never shrinks`, `architecture.md` if the module splits | B5, A1 | `A session never shrinks`, `frees nothing`, `holder of it`: 4 |
+      | E1 | the holders of `it` freed (step 8), built | none | `ern_shell` holders recycled as inputs are, each input's dependencies recorded, `forget` purges a holder | `ern_shell_tests` the unload tests' "not covered"; new: a holder freed, one kept by a later declaration, 2,000 inputs measured | `shell_design.md` `A session never shrinks`, `architecture.md` if the module splits | B5, A1 | `A session never shrinks`, `frees nothing`, `holder of it`: 4 |
 
       **Added by sub-step 4's sweeps**, each place a row's commit also rewrites, and what the
       cold read's fixes added to a row's work:
@@ -454,7 +456,7 @@ The steps:
         `Fault("the standard input is not UTF-8")` (§8.2, §7.4).
       - **A process holds one subscription to faults**, a second replacing the first, as it
         holds one to the terminal (E.21).
-   4. **The whole report read cold**, with the two sweeps, run 2026-09-26: a reader who took
+   4. **Done 2026-09-26: the whole report read cold**, with the two sweeps: a reader who took
       no part read the report alone and found 37 places, the guide was read against the
       report and every other document against the report and the code. The guide's and the
       documents' findings that a row's build will fix are in the ledger, under *Added by
@@ -507,7 +509,7 @@ The steps:
       replaces it, and `ern config` creates the configuration directory itself. The Makefiles,
       the tests, the guide's consoles, the README, the design notes and CLAUDE.md speak the
       jobs; every later test is written against them.
-   6. **The build, in the ledger's order**, one decision or tight group a commit, each with
+   6. **Done 2026-09-26: the build, in the ledger's order**, one decision or tight group a commit, each with
       its tests and with the sentences its row's grep finds removed in the same commit;
       `make test` at the end of each group.
       Built so far: group 1, D2, D6, D7, D8, B6 and B7, group 2, C1, C3, C2, D1 and D4, and group
@@ -536,28 +538,18 @@ The steps:
         Ernest walks a string's graphemes in one pass (E.5). `Terminal.columns` is Ernest
         over it and a table `make unicode` generates from the Unicode data of the host's
         version (E.16), and the region and `libs/markdown` measure with it.
-   7. **The guide's section on services, and the closing sweep.** Feedback items 59 and 60
-      are decided first, with the user, one at a time. 59, decided and built: an error at a
-      use of a name the module's own declaration hides from the prelude labels that use
-      with the prelude's qualified name, the lookup order of §4.2 standing (§11.5; the log's
-      *The Closing of Step 10*). 60, decided and built: a path on which the prelude's
-      `fault` is called consumes every obligation open on it, the check still crossing no
-      call boundary (§6.6; the same entry). Built on
-      2026-09-26 before them: the guide's §6.5 on services; the holders of `it` freed once
-      nothing reads them, the shell's memory flat from 2,000 inputs to 8,000 where it had
-      grown 18 MB, and its atoms constant; `ern_shell` kept whole, its `:browse`, `:doc` and
-      completion reading its `#env` (the log's *The Closing of Step 10*). The section teaches a
-      service as a top-level binding, `restarting` and its `RestartLimit`, the `start` and `service`
-      pair for tests, a call that ends when its callee faults, and `fault`; §6.4's sentence
-      that a restarted service must hand out its new address goes. The section on the
-      supervisor is MVP 2.66's. `ern_shell`, its doors to the runtime gone, is measured
-      again and whether its `:browse` and `:doc` leave it is decided (step 8, *Where the
-      Toolchain's Modules Split*). The holder module of each `it`, its value and its
-      interface are freed once no module the session keeps refers to them, each input
-      recording what earlier inputs it depends on as `ern build` records a module's; measured in
-      step 8, 2,000 expressions still grow the code by 8 MB and the process heaps by 16 MB,
-      nearly all of it the holders and the environment they lengthen (*The Shell Lets Go of
-      an Input*). The document sweep closes the step.
+   7. **Done 2026-09-26: the guide's section on services, and the closing sweep.** The
+      guide's §6.5 teaches a service, the binding first, with `restarting` and its
+      `RestartLimit`, a call that ends when its callee faults, `fault`, and `start` for
+      tests. The holders of `it` are freed once nothing reads them, the shell's memory flat
+      from 2,000 inputs to 8,000 where it had grown 18 MB, and its atoms constant; `ern_shell`
+      stays whole, its `:browse`, `:doc` and completion reading its `#env`. Feedback item
+      59: an error at a use of a name the module's own declaration hides from the prelude
+      labels that use with the prelude's qualified name (§11.5). Item 60: a path on which the
+      prelude's `fault` is called consumes every obligation open on it (§6.6). The closing
+      sweep, two readers who took no part, the guide against the report and every other
+      document against the report and the code, found 32 defects, 21 matters of clarity and a tension in the report,
+      fixed in its commit. The log's *The Closing of Step 10*.
 
 ---
 
@@ -571,7 +563,7 @@ the fault report it stands on.
 
 - **`stdlib/supervisor.ern`**, in Ernest but for one shim, the in-place restart of a child,
   which only the host can do. Appendix E gains its section, with its module page and
-  examples as E.0 rule 6 asks.
+  examples as E.0 shape rule 6 asks.
 - **`examples/supervisor.ern`**, three long-lived services under one supervisor as
   top-level bindings, faulted on purpose, read back against principles 1 and 2 and E.0.
   The guide gains a section on the supervisor, after the one on services: a tree as
@@ -691,8 +683,10 @@ peers are the useful one.
   runtime's external term format; both notes drop a payload whose code cannot be fetched or
   resolved where §7.4 and §8.7 fault the caller or the sender; the distribution note hashes no
   name where §8.7's normalization keeps the qualified names of external references; both write
-  the effect `{Proc m}` where the report writes `with m`; and the protocol note's open question
-  on stopping a process is §6.9's `kill`.
+  the effect `{Proc m}` where the report writes `with m`; the protocol note's open question
+  on stopping a process is §6.9's `kill`; and the protocol note's §6.5 says no separate
+  spawn with a monitor is needed, where §9.4 has `spawnMonitored` and §6.9 answers `Unknown`
+  for a monitor made after the end.
 - **Whether `remote` stays**, `docs/language_feedback.md` item 14, decided first in this
   milestone, before `remote` is built over peers. What `remote` is for: a synchronous call
   that evaluates a pure function on the node with the lowest load among those that accept
@@ -963,14 +957,16 @@ since 2026-09-25, as another module's function is (the `e_var` row).
 | `self` | `ern_rt:self/0` |
 | `send`, `answer`, `via`, `monitor`, `kill` | `ern_rt:send/2`, `answer/2`, `via/2`, `monitor/2`, `kill/1` |
 | `spawn` | `ern_rt:spawn/3`, the third argument the spawn site for `Down` (§6.9) |
+| `spawnMonitored` | `ern_rt:spawn_monitored/4`, its wait made in the reaper with the spawn |
+| `restarting` | `ern_rt:restarting/2`, a function that runs the given one again after a fault |
 | `Address.call`, `Address.callForever` | `ern_rt:call/3`, `call_forever/2` |
 | `remote` | MVP 3; until then `ern_rt:remote/1` answers `Left(NoRemotePeer)` |
 | `Int.+` and the other `userop`s on `Int`, `Int.negate` | the inline operators above |
 | `Float.*` | inline, the operands bound first and the operation's own `badarith` caught and raised as the §7.4 fault |
 | `String.<>`, `List.<>`, `Bytes.<>` | inline as above |
 | `Int.div`, `Int.mod`, `*.compare`, `Int.toString`, ... | `'ern@int':'div'/2` and so on: the namespace's module |
-| `todo` | `ern_rt:todo/1`, which faults with `todo: ` and the text |
-| `Sys.stdout`, `Sys.clock`, `Sys.stdin`, `Sys.terminal`, `Sys.fs`, `Sys.tcp` | `ern_rt:sys(stdout)` and so on; `Io`, `Terminal`, `Fs`, `Tcp` are the namespaces' modules |
+| `fault` | `ern_rt:fault/1`, which faults with the text as the cause |
+| a system module's reference | a private binding of the module over `ern_rt:sys/1`, `ern_rt:sys(stdout)` and so on (§8.2) |
 | `Clock.*`, `Path.*`, `Random.*`, `Io.*`, `List.*`, ... | `'ern@clock':alarm/2`, `'ern@io':println/1`: the namespace's module |
 
 ### Erlang's standard library, read module by module (2026-09-18)
@@ -985,7 +981,7 @@ Ernest's concepts or toolchain replace.
 | `maps`, `dict`, `orddict`, `gb_trees`, `proplists` | `Map` | E.3 | | the four alternatives: history |
 | `sets`, `ordsets`, `gb_sets` | `Set` | E.4 | | `symmetric_difference`, `is_disjoint`: compositions |
 | `string`, `unicode` | `String`, `Char` | E.5, E.6 | | the list-based half of `string` |
-| `io`, `io_lib` | `Io` | E.1: `print`, `println`, `printError`, `printlnError`, `debug`, `readLine` | | `format`: no format strings, `<>` and `toString` are the one way |
+| `io`, `io_lib` | `Io` | E.1: `print`, `println`, `printError`, `printlnError`, `readLine`, `read`, `write`, `show`, `debug` | | `format`: no format strings, `<>` and `toString` are the one way |
 | `file`, `filelib` | `Fs` | E.17, nine functions | `watch`, and the working directory with absolute paths, MVP 2.7 | `wildcard`: a glob library. `fold_files`: five lines over `List` |
 | `filename` | `Path` | E.14, eight functions | | `absname`, `expand`: `Fs`'s, they read the working directory. `nativename`: a `Path` is in the runtime's syntax |
 | `timer` | `Clock` | `now`, `alarm`, `alarmAt` | `Clock.monotonic` | `send_interval`, `cancel`: E.15's positions. `sleep`: `receive { after ms -> Unit }`. `seconds`, `minutes`: arithmetic |
@@ -1014,7 +1010,7 @@ type classes (`toString` per type, `==` structural, `compare` per type).
 
 Erlang, OTP 29 (raised from 27 on 2026-09-20), Makefiles in the style guide's shape; EUnit
 per application under `erl/*/test`, integration tests under `test/`; the toolchain shipped as
-the escript sources in `bin/`, which put `erl/*/ebin` on the code path with no escriptize
+the escript source `bin/ern`, which puts `erl/*/ebin` on the code path with no escriptize
 step. Also decided before the start and unchanged: the `erl/` layout, one Erlang application
 per stage; the error format of §11.5; one Erlang module per Ernest module.
 

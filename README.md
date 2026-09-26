@@ -68,7 +68,7 @@ erl/               the toolchain, as Erlang applications: lexer, parser,
 test/              what spans applications: the hand-written target modules,
                    the integration tests, the guide's examples, the shell's
                    sessions, the pseudo-terminal harness, expected/, golden/,
-                   input/, session/, terminal/
+                   input/, session/, stdin/, terminal/
 bin/               ern, as an escript source
 stdlib/            the standard library as Ernest source
 shell/             the shell as Ernest source, from MVP 2.6; its README.md guides
@@ -140,11 +140,11 @@ built.
 
 ## What the toolchain accepts
 
-The toolchain is the report on one node; the plan's MVPs lift the table row by row. Everything the report describes type-checks, and what the table leaves out compiles and runs, except what MVP 2.65's step 10 is building: the report states it already, and the plan's ledger lists each decision until it is built. What runs today: pure functions with inference, `Float` and operators on user types, `foreign fn` and `foreign type` with the checks of §8.4, bitstrings, sum and abstract types, processes with typed mailboxes, `receive` with `after`, `Address.call`, `monitor` and `kill`, `<-`, `match` with any guard, top-level `let`, and modules in directories. The table is what the toolchain refuses or does not yet check, each with the MVP that lifts it in [`docs/implementation_plan.md`](docs/implementation_plan.md).
+The toolchain is the report on one node; the plan's MVPs lift the table row by row. Everything the report describes type-checks, and what the table leaves out compiles and runs. What runs today includes: pure functions with inference, `Float` and operators on user types, `foreign fn` and `foreign type` with the checks of §8.4, bitstrings, sum and abstract types, processes with typed mailboxes, `receive` with `after`, `Address.call`, `monitor` and `kill`, `<-`, `match` with any guard, top-level `let`, and modules in directories. The table is what the toolchain refuses or does not yet check, each with the MVP that lifts it in [`docs/implementation_plan.md`](docs/implementation_plan.md).
 
 | Construct | Until | What you see today |
 |---|---|---|
-| `spawn(Peer(...))`, peers, `ernest.conf` (§6.2, §8.3) | MVP 3 | `spawn` faults with `peer unreachable`; `ernest.conf` is not read, and the configuration directory holds only the shell's `startup` |
+| `spawn(Peer(...))`, peers, `ernest.conf` (§6.2, §8.3) | MVP 3 | `spawn` faults with `peer unreachable`; `ernest.conf` is not read, and of the configuration directory only the shell's `startup` is |
 | `remote` (§6.7) | MVP 3 | `Left(NoRemotePeer)` |
 
 Every refusal the toolchain makes for a later MVP's sake names in its error text the MVP that brings the thing, and a test in `erl/cli/test` fails when such a text is missing from this table. Runtime behaviour that stands in for a later MVP, the peer fault and `Left(NoRemotePeer)`, is listed by hand. `make sections` lists the report sections no test cites; the three it prints are MVP 3 material. `make coverage` lists every section with how many tests cite it and its length, thinnest first: a long section with one citation is where a rule can hide untested.

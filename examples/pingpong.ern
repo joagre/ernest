@@ -5,7 +5,7 @@
 // three request-reply rounds; main monitors pong and waits for it to end.
 // The report is normative; this file is a copy.
 //
-// Needs MVP 1. This is one of the first test programs.
+// Needs MVP 2.65, for spawnMonitored. This was one of the first test programs.
 //
 
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop

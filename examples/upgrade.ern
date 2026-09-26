@@ -8,8 +8,8 @@
 // Needs MVP 1. This is one of the first test programs.
 //
 
-type CounterMsg
-    = Inc(Int)
+type CounterMsg =
+    Inc(Int)
   | Get(reply : Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 

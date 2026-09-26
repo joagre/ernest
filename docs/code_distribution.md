@@ -2,7 +2,7 @@
 
 Status: tentative design decisions, 23 September 2026. Target: MVP 3. Consequences for MVP 1 in section 11. Companion to `node_protocol.md`, which covers nodes, addresses, connections and delivery.
 
-> **Tentative.** Everything in this document is a first pass and must be thought through again before it is built. "Decision" here means the current best answer, not a commitment. The one exception is section 11, which shapes MVP 1 and should be settled before the compiler's IR stage is written.
+> **Tentative.** Everything in this document is a first pass and must be thought through again before it is built. "Decision" here means the current best answer, not a commitment. The one exception is section 11, which asked MVP 1 for a named IR stage; MVP 1 was built without one, and the plan's MVP 3.1 records what that leaves to it.
 
 ## 1. Purpose
 

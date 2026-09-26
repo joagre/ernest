@@ -81,12 +81,12 @@ So each of these modules is tested by its `Test` values (§9.3). They are top-le
 
 ## The front end
 
-The shell reaches the host through `foreign fn`s (§4.7). Almost all of them are at the top of `shell.ern` and are answered by `erl/cli/src/ern_shell.erl`. Two are elsewhere. `holdTerminal` is the runtime's (`ern_rt`), and `Shell.History.file` declares the history file's path. The rule for what may be `foreign` is that it is only what the host alone can do. That covers the compiler's work: checking an input against the session, compiling and running it, reading the compiled interfaces for completion and the fields a value's type selects, and finding a name's documentation. The matching, the ranking, the rendering, the history file, and the parsing of commands are Ernest.
+The shell reaches the host through `foreign fn`s (§4.7). Almost all of them are at the top of `shell.ern` and are answered by `erl/cli/src/ern_shell.erl`. Two are answered elsewhere or declared elsewhere: `holdTerminal` is answered by the runtime (`ern_rt`), and `Shell.History.file` declares the history file's path. The rule for what may be `foreign` is that it is only what the host alone can do. That covers the compiler's work: checking an input against the session, compiling and running it, reading the compiled interfaces for completion and the fields a value's type selects, and finding a name's documentation. The matching, the ranking, the rendering, the history file, and the parsing of commands are Ernest.
 
 The session's state lives in two places:
 
 - `Env` is the environment an input is checked against. The shell holds it in its `State` and passes it to `check`, `load`, `reload`, `forget`, `bindings`, `browse` and `doc`.
-- The front end keeps its own copy of the session, for the reader. The reader completes and documents while an input runs, when the session cannot answer. `names`, `sessionNames`, `sessionTexts` and `documentation` read that copy. `processes` reads the runtime's table of live processes, and `faults` the watcher's record. None of them takes an `Env`.
+- The front end keeps its own copy of the session, for the reader. The reader completes and documents while an input runs, when the session cannot answer. `names`, `sessionNames`, `sessionTexts`, `documentation` and `fields` read that copy. None of them takes an `Env`. What runs and what faulted the shell reads through `Process`, as any program does.
 
 `Env`, `Checked` and `Value` are foreign types (§3.8). The shell passes them back to the front end and never looks inside them. A `foreign fn` without `with m`, such as `typeText` or `show`, is pure: it only computes from its arguments.
 

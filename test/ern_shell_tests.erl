@@ -963,7 +963,8 @@ input_reads_line() ->
     In = filename:join("/tmp", "ern_read_" ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = file:write_file(In, "Io.readLine()\n1 + 1\n"),
     {0, Out} = sh("../bin/ern shell < " ++ In),
-    ?assertMatch({_, _}, binary:match(Out, <<"the shell holds the terminal">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"the shell holds the terminal; run the program with"
+                                             " ern run to give it the keyboard">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"Some(\"1 + 1\")">>)),
     Screen = pty(alone("../bin/ern shell"),

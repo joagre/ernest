@@ -23,8 +23,8 @@
 type Token = Num(Int) | Ident(String) | Op(Char) | LParen | RParen | KwLet | KwFun | Eq | Arrow
 type LexError = BadChar(c : Char, at : Int)
 
-type Expr
-    = Lit(Int)
+type Expr =
+    Lit(Int)
   | Var(String)
   | Bin(op : Char, l : Expr, r : Expr)
   | Let(name : String, value : Expr)
@@ -38,8 +38,8 @@ type EvalError = Unbound(String) | DivZero | NotAFunction | NotANumber
 
 type TryError = Eval(EvalError) | Crashed | Timeout
 
-type ReplMsg
-    = Result(run : Int, value : Either(EvalError, Value))
+type ReplMsg =
+    Result(run : Int, value : Either(EvalError, Value))
   | Died(run : Int, down : Down)
 
 //

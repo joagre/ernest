@@ -6,7 +6,7 @@
 // clause alternatives (§5.9), and prefix negation (§5.1). Expected output:
 // "minus one", "zero", "other", "a 2", "nothing", "-3", "3", "4".
 //
-// Needs MVP 1.
+// Needs MVP 2, for clause alternatives with `or`.
 //
 
 type Snapshot = Snapshot(dir : String, seen : Int)
