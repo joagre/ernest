@@ -536,10 +536,15 @@ The steps:
         Ernest walks a string's graphemes in one pass (E.5). `Terminal.columns` is Ernest
         over it and a table `make unicode` generates from the Unicode data of the host's
         version (E.16), and the region and `libs/markdown` measure with it.
-   7. **The guide's section on services, and the closing sweep.** Feedback item 59, a
-      module's constructor hiding the prelude's without a word, is decided first: a note in
-      the error at a use that names the hidden prelude name is the recommendation, the
-      lookup order of §4.2 standing. The section teaches a
+   7. **The guide's section on services, and the closing sweep.** Feedback items 59 and 60
+      are decided first, with the user, one at a time: 59, a module's constructor hiding the
+      prelude's without a word, where a note in the error at a use that names the hidden
+      prelude name is the recommendation, the lookup order of §4.2 standing; and 60, a
+      request refused by a fault that must still be answered on that path. Built on
+      2026-09-26 before them: the guide's §6.5 on services; the holders of `it` freed once
+      nothing reads them, the shell's memory flat from 2,000 inputs to 8,000 where it had
+      grown 18 MB, and its atoms constant; `ern_shell` kept whole, its `:browse`, `:doc` and
+      completion reading its `#env` (the log's *The Closing of Step 10*). The section teaches a
       service as a top-level binding, `restarting` and its `RestartLimit`, the `start` and `service`
       pair for tests, a call that ends when its callee faults, and `fault`; §6.4's sentence
       that a restarted service must hand out its new address goes. The section on the
@@ -602,6 +607,14 @@ per-input growth reading alone had not shown. Each finding is fixed, or decided 
 where the fix changes what the language promises. A cap on a list, a table or a cache is
 never the fix, and every cache found is weighed for what it holds and when it lets go
 (CLAUDE.md, *Memory that no collection reclaims is a defect*).
+
+**The shell's code memory, diagnosed.** Noted 2026-09-26, at the close of MVP 2.65's step
+10: with the holders of `it` freed, the shell's memory is flat from 2,000 inputs to 8,000,
+but the host's code memory still rises about 0.2 KB an input while the count of loaded
+modules and of persistent terms stays constant. Undiagnosed; the likely shape is the host's
+code allocator reusing a module name that is loaded, deleted and loaded again. Read with
+`erlang:system_info({allocator, ...})` under a session of 50,000 inputs; fixed at its cause
+if it is the shell's, and decided with the user if it is the host's.
 
 **Atoms, counted.** Noted 2026-09-26: how many atoms the runtime and the toolchain make while
 a program runs, measured, since the host never collects one and a node dies at about a

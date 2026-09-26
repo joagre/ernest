@@ -1094,6 +1094,23 @@ non_entry_main() ->
     ?assertMatch({_, _}, binary:match(Refused, <<"Main.main is not an entry point: its type is"
                                                  " () -> Int with m">>)).
 
+%% report §11.2: a holder of what an input bound is freed once nothing
+%% reads it, and kept while a declared function reads it; the names it
+%% held go on meaning what they meant. A regression test for the holders
+%% of `it`, which the session kept for ever; the memory it saves is
+%% measured by hand (the log's *The Closing of Step 10*), not here
+holders_freed_test_() ->
+    {timeout, 60, fun holders_freed/0}.
+
+holders_freed() ->
+    In = filename:join("/tmp", "ern_holders_"
+                       ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = file:write_file(In, ["40 + 2\n", "fn f() -> Int = it + 1\n", "let x = 7\n",
+                              [[integer_to_list(I), "\n"] || I <- lists:seq(1, 30)],
+                              "f()\n", "x\n", "it\n"]),
+    {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"> 43 : Int\n> 7 : Int\n> 7 : Int">>)).
+
 %% report §11.2: the commands the report's paragraph lists are the shell's
 %% own list, `Shell.Command.commands`, each once; a mirror, a list that lives
 %% in the code and in the report (CLAUDE.md)

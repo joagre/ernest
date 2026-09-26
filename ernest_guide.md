@@ -254,7 +254,7 @@ let defaultPort : Int = 8080
 export let helloBanner : String = "hello, world"
 ```
 
-An initializer runs before `main`, in the entry process, as a body that may spawn, send and call but not receive; a top-level `let` whose initializer spawns a process is a service, which the next chapters teach. Constants are evaluated in the order their references need, and a cycle among them is an error (report §4.6, §8.5).
+An initializer runs before `main`, in the entry process, as a body that may spawn, send and call but not receive; a top-level `let` whose initializer spawns a process is a service, which §6.5 teaches. Constants are evaluated in the order their references need, and a cycle among them is an error (report §4.6, §8.5).
 
 ### 2.3 Sum types and pattern matching
 
@@ -1190,7 +1190,7 @@ The parser refuses the text and goes on serving. A refusal is an answer, not a f
 
 ### 6.3 A fault
 
-A fault is what the program did not expect: a division by zero, a `Float` result out of range, a `fault("...")` the program calls on an invariant it finds broken. Report §7.4 lists them all, and a failure of the runtime, out of memory among them, is one too (report §7.3). A fault ends the process it happens in, and only that process, unless the process restarts (§6.4). A process that monitors it receives a `Down` whose reason is `Fault(cause)`:
+A fault is what the program did not expect: a division by zero, a `Float` result out of range, a `fault("...")` the program calls on an invariant it finds broken. Report §7.4 lists them all, and a failure of the runtime, out of memory among them, is one too (report §7.3). A fault ends the process it happens in, and only that process, unless the process restarts (§6.5). A process that monitors it receives a `Down` whose reason is `Fault(cause)`:
 
 ```ernest
 type MainMsg = WorkerDied(Down)
@@ -1260,9 +1260,60 @@ all jobs done
 
 A process for each job is the restart: the job that faulted ends its own worker, and the next job starts with a fresh one. Of the program, only `supervise` prints; the second line is `ern run`'s report of the fault, on standard error. A worker's `Io.println` and the supervisor's are two senders to standard output's process, which the runtime does not order (§5.1), so a worker reports by a message to its supervisor.
 
-What must survive a fault lives in the process that does not fault: here the list of jobs is the supervisor's. A long-lived service restarts in place instead: `restarting(RestartLimit(restarts = 3, within = 5000), f)` is a function that runs `f` again after a fault, in the same process, with its address and its mailbox, so whoever holds the address keeps it, and after three restarts within five seconds the next fault ends the process (report §6.9). A process that must not outlive another monitors it and returns when it dies.
+What must survive a fault lives in the process that does not fault: here the list of jobs is the supervisor's. A long-lived process restarts in place instead, which §6.5 shows. A process that must not outlive another monitors it and returns when it dies.
 
-### 6.5 Prediction exercise
+### 6.5 A service
+
+A *service* is a process the program reaches by name. The name is a top-level binding whose value is the process's address, `counter` below, so a module sends to the process by writing its name, and `export` says which modules may. It is not a registry: the name is resolved by the compiler, in the module's scope, like any other name, and is typed by its declaration.
+
+```ernest
+export type CounterMsg = Add(amount : Int, reply : Reply(Int))
+
+// The service: the program's counter, reached by this name.
+export let counter : Address(CounterMsg) = start()
+
+// A counter, restarted in place after a fault. A test calls it for a
+// counter of its own.
+export fn start() -> Address(CounterMsg) with m =
+    spawn(Local, restarting(RestartLimit(restarts = 3, within = 5000), fn() = count(0)))
+
+// The counter's loop, which faults on a negative amount.
+fn count(total : Int) -> Unit with CounterMsg = receive {
+    Add(amount = n, reply = r) -> {
+        let next = added(total, n);
+        answer(r, next);
+        count(next)
+    }
+}
+
+fn added(total : Int, n : Int) -> Int =
+    if n < 0 then fault("a negative amount") else total + n
+
+export fn main() -> Unit with Never = {
+    let add = fn(n) = Address.call(counter, fn(r) = Add(amount = n, reply = r), 1000);
+    Io.println(Io.show(add(2)));
+    Io.println(Io.show(add(-1)));
+    Io.println(Io.show(add(3)))
+}
+```
+
+```console
+$ ern run counter.erc
+Some(2)
+Counter.start:9 faulted, restarted: a negative amount
+None
+Some(3)
+```
+
+`counter` is evaluated before `main` runs, in the entry process, like every top-level `let` (§2.2). An initializer may spawn, send and call, but not receive, so a service's `let` starts its process and nothing waits.
+
+`restarting(RestartLimit(restarts = 3, within = 5000), f)` is a function that runs `f`, and runs it again after a fault, in the same process, with the same address and mailbox. Whoever holds the address keeps it, so nothing is handed out again after a restart. What the loop held is gone: the count starts at zero again, as `Some(3)` shows. After three restarts within five seconds, the next fault ends the process (report §6.9).
+
+The call that was waiting when the counter faulted ends at once: `Address.call` answers `None`, and `Address.callForever` would fault the caller with the same cause. A caller that must outlive a service's faults calls with a limit. The second line is `ern run`'s report of the fault, on standard error (§6.3).
+
+`added` calls `fault`, the fault a program raises when it finds a case it will not handle; `answer(r, next)` still answers on every path, as §4.2 requires, since the fault comes first. `start` is exported beside the binding so that a test can start a counter of its own instead of sharing the program's. The binding comes right after the type it carries, and its helpers after it, so a reader meets the service before what uses it.
+
+### 6.6 Prediction exercise
 
 ```ernest
 fn first(xs : List(Int)) -> Int = match xs {
@@ -1753,7 +1804,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - There are no links and no exit signals, only monitors. A process that must die with another monitors it and returns.
 - There are no registered names, and addresses cannot be compared; the processes behind them can, `Process.fromAddress(a)`, which is a pid without the right to send. A process is reached through an address it was given, or through a top-level binding that holds one, a service.
 - There are no atoms in the language: constructors are the tags. `Erl.atom` makes one for a foreign call.
-- There are no OTP behaviours. A server is a `receive` loop with `Reply`, restarted in place by `restarting` (§6.4).
+- There are no OTP behaviours. A server is a `receive` loop with `Reply`, restarted in place by `restarting` and reached through a service binding (§6.5).
 - A running program replaces its code by a message that carries the new function (§4.6). Only the shell's `:reload` loads a new version of a module.
 - ETS is a library outside the standard library, `libs/ets`, since a table is state that processes share.
 - Nodes will talk over Ernest's own protocol and ship code by content, not over Erlang distribution (§8.2).
@@ -1796,7 +1847,7 @@ A function's number of arguments is part of its type, and `fn(x, y)` shows it wh
 
 **§5.7.** No. Per-sender FIFO orders messages from ping to pong and pong to ping, but the two processes both send to standard output's process, two senders to one process, and the runtime does not order across senders. Alternation is a *possible* trace, not a guaranteed one.
 
-**§6.5.** `main` faults with the cause `first of an empty list`, and since it is the entry process the program ends and `ern run` prints the fault, `Main.main faulted: first of an empty list` for a `main` in `main.ern`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
+**§6.6.** `main` faults with the cause `first of an empty list`, and since it is the entry process the program ends and `ern run` prints the fault, `Main.main faulted: first of an empty list` for a `main` in `main.ern`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
 
 **§7.4.** Yes. The boundary of an abstract type is its module, so every definition in `main.ern` may name the constructor, a helper or a test included; another module sees the type and its operations, never the constructor.
 

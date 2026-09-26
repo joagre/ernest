@@ -4499,6 +4499,16 @@ Two warts found at the group's end were fixed before sub-step 7. An address seen
 
 The completion of a value's fields checks the text before the last `.` in a module of its own, as `Shift-Tab` checks its callee, and asks the checker which fields that type selects by the rule selection itself follows, so a chain and an abstract type's privacy are the checker's, and a name the unfinished input binds is out of scope there, as §11.2 says. The shell's commands are held equal to §11.2's list by a test that reads both.
 
+## The Closing of Step 10, 2026-09-26
+
+MVP 2.65's step 10, sub-step 7, before the closing sweep.
+
+The guide gained its section on services, §6.5, built around one counter: the binding, `restarting` with its `RestartLimit`, the call that ends at once when its callee faults, `fault`, and the `start` beside the binding that a test calls. Writing it met §6.6's rule that a path ending in a fault must still consume a reply: a server's first way to refuse a request, a bare `fault` on its own branch, is refused, and what passes is the fault inside the answer's own computation. The guide shows the form that passes, which is ordinary code; whether a path ending in `fault` should discharge its obligations is feedback item 60, decided with item 59 before the sweep.
+
+The holders of `it` are freed. Each input records, as it is loaded, the holders its compiled code calls, read from its imports, and forgets them when it is purged; at each binding a holder that no name in the session's scope refers to and no loaded input reads has its values, code and interface freed, and its number is given to the next holder, as an input's is. A holder is otherwise one name deep, so no transitive reading is needed. Measured as in step 8, 2,000 expressions had grown the host's memory by 18.1 MB, the code by 4.5 MB, the heaps by 7.0 MB and the atoms by 3,600; now the memory is flat from 2,000 inputs to 8,000 and the atoms do not grow. Code memory still rises about 0.2 KB an input with the count of modules constant, which is undiagnosed and planned in MVP 2.7's measurements rather than assumed to be the host's.
+
+`ern_shell` was measured again with its doors gone: 1,896 lines, the collection and field completion having come in. By the rule *Where the Toolchain's Modules Split* gives, a part that threads the module's private record stays with it, and `:browse`, `:doc` and completion all read the shell's `#env`; moving them would put the record in an include for three readers. It stays whole.
+
 ## Later
 
 Planned or considered, not in the language today.

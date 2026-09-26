@@ -31,10 +31,12 @@
 %% modules make (report §11.2), which the checker takes as its fourth
 %% argument.
 -record(env, {roots = [], source_root = ".", n = 0, ifaces = [], session = #{}, beams = #{},
-              modules = #{}, holders = 0}).
-%% n: the highest input number given; holders: the number of `$Bindings`
-%% modules made, which are kept, where an input's number is given again once
-%% its module is unloaded (forget/3)
+              modules = #{}, holders = 0, free_holders = [], draining = []}).
+%% n: the highest input number given; holders: the highest `$Bindings`
+%% number given; free_holders: the numbers of holders freed (collected/1),
+%% given again first, as an input's number is once its module is unloaded
+%% (forget/3); draining: holders deleted whose old code a process still
+%% ran, purged at the next collection
 %% modules: the namespace of a module the session has loaded, to the hash
 %% of the source it was compiled from, which `:reload` compares (§11.2)
 %% beams: the namespace of an input that declared, to its compiled module,
@@ -395,6 +397,9 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
                                           #{source_hash => <<>>, deps => [], session => true}),
     {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), Beam),
     set_free_inputs(persistent_term:get({?MODULE, free_inputs}, []) -- [Ns]),
+    %% report §11.2: the holders the input reads, kept while it is loaded
+    {ok, {_, [{imports, Imports}]}} = beam_lib:chunks(Beam, [imports]),
+    set_uses(maps:put(Mod, lists:usort([M || {M, _, _} <- Imports, holder_module(M)]), uses())),
     %% report §11.2: an input that declares keeps its module for `:doc`;
     %% an expression's has no documentation, and is not kept
     Env1 = case Binds of
@@ -448,6 +453,8 @@ forget(Ns, Binds, Outcome) ->
     Freed = Purged ++ [Ns || Now =:= purged],
     Freed =/= [] andalso
         set_free_inputs(persistent_term:get({?MODULE, free_inputs}, []) ++ Freed),
+    %% report §11.2: an input purged reads no holder again
+    set_uses(maps:without([ern_emitter:module_atom(F) || F <- Freed], uses())),
     ok.
 
 set_free_inputs(Free) ->
@@ -1717,9 +1724,12 @@ bound(Env, Name, Value, Type, TEnv) ->
 %% The names an input binds, held by one module, a getter for each.
 bound(Env, [], _TEnv) ->
     Env;
-bound(#env{holders = N} = Env0, Bound, TEnv) ->
-    Env = Env0#env{holders = N + 1},
-    Holder = [list_to_atom("$Bindings" ++ integer_to_list(N + 1))],
+bound(#env{holders = N, free_holders = Free} = Env0, Bound, TEnv) ->
+    {K, Env} = case Free of
+                   [F | Rest] -> {F, Env0#env{free_holders = Rest}};
+                   [] -> {N + 1, Env0#env{holders = N + 1}}
+               end,
+    Holder = [list_to_atom("$Bindings" ++ integer_to_list(K))],
     Mod = ern_emitter:module_atom(Holder),
     St = ern_typecheck:type_state(TEnv),
     [persistent_term:put({Mod, Name}, Value) || {Name, Value, _} <- Bound],
@@ -1727,8 +1737,49 @@ bound(#env{holders = N} = Env0, Bound, TEnv) ->
     {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), holder(Mod, Names)),
     Values = maps:from_list([{Holder ++ [Name], ern_types:mono(ern_types:zonk(Type, St))}
                              || {Name, _, Type} <- Bound]),
-    session(Env, #iface{namespace = Holder, values = Values,
-                        lets = [Holder ++ [Name] || Name <- Names]}).
+    collected(session(Env, #iface{namespace = Holder, values = Values,
+                                  lets = [Holder ++ [Name] || Name <- Names]})).
+
+%% Report §11.2: a holder that no name in the session's scope refers to,
+%% and that no loaded input reads, is read by nothing again, and is freed:
+%% its values, its code and its interface, and its number is given again.
+%% What a loaded input reads is recorded as it is loaded (run/3). A holder
+%% whose old code a process is still inside is purged at the next
+%% collection instead.
+collected(#env{ifaces = Ifaces, session = S, free_holders = Free, draining = Draining} = Env) ->
+    Named = [Mod || Q <- maps:values(maps:get(values, S, #{})),
+                    holder_number(hd(Q)) =/= none, Mod <- [ern_emitter:module_atom([hd(Q)])]],
+    Read = lists:append(maps:values(uses())),
+    Dead = [I || #iface{namespace = [H]} = I <- Ifaces, holder_number(H) =/= none,
+                 not lists:member(ern_emitter:module_atom([H]), Named ++ Read)],
+    lists:foreach(fun(#iface{namespace = Ns, lets = Lets}) ->
+                      Mod = ern_emitter:module_atom(Ns),
+                      [persistent_term:erase({Mod, lists:last(Q)}) || Q <- Lets],
+                      code:delete(Mod)
+                  end, Dead),
+    {Purged, Held} = lists:partition(fun(H) -> code:soft_purge(ern_emitter:module_atom([H])) end,
+                                     Draining ++ [H || #iface{namespace = [H]} <- Dead]),
+    Env#env{ifaces = Ifaces -- Dead,
+            free_holders = Free ++ [holder_number(H) || H <- Purged],
+            draining = Held}.
+
+%% The number of a holder's namespace segment, `$Bindings<n>`, or none.
+holder_number(Segment) ->
+    case atom_to_list(Segment) of
+        "$Bindings" ++ Digits -> list_to_integer(Digits);
+        _ -> none
+    end.
+
+%% Whether a module is a holder's.
+holder_module(M) ->
+    lists:prefix(atom_to_list(ern_emitter:module_atom(['$Bindings'])), atom_to_list(M)).
+
+%% The holders each loaded input reads, by the input's module.
+uses() ->
+    persistent_term:get({?MODULE, uses}, #{}).
+
+set_uses(Uses) ->
+    uses() =/= Uses andalso persistent_term:put({?MODULE, uses}, Uses).
 
 %% Report §11.2: the session is a scope of its own. The interface behind an
 %% input joins the ones the checker is given, and what it declares joins the

@@ -77,6 +77,16 @@ MVP 3.0's, and 16 is MVP 2.7's; they stay here because they are the same questio
     new to the language asked for it at once. Planned since 2026-09-20 in MVP 2.7, which
     gives the arguments report first, in a system module, and weighs an entry point
     `main(args : List(String))` against it.
+60. **A request refused by a fault must still be answered on that path.** Found writing
+    the guide's section on services in MVP 2.65's step 10, sub-step 7. A server's first
+    way to refuse a bad request is `Add(amount = n, reply = r) -> if n < 0 then
+    fault("a negative amount") else ...`, and §6.6 refuses it: the check is static, and a
+    path that ends in a fault must consume the reply, though the fault ends the process
+    and the caller's call ends at once. What passes is the fault inside the answer's own
+    computation, `answer(r, added(total, n))`, or `answer(r, fault("..."))`, which reads
+    as answering with a fault. Against principle 1, a reader's natural code is refused
+    for a reply no one can receive. Weighed with the user: a path that ends in `fault`
+    discharging its obligations, as a diverging path could, or the rule as it stands.
 
 ## 4. The standard library under E.0
 
