@@ -1383,9 +1383,84 @@ hidden.ern:1:1: Stack is an abstract type the module keeps private, which hides 
 
 The representation may change later, a tree for the list, and the modules that use the stack still work, since none of them could name it.
 
-### 7.3 Prediction exercise
+### 7.3 One contract, several representations
 
-Can a helper in the same file as `Stack`, but not listed in its signature, match `Stack(xs)`?
+Code is often written once for a kind of thing that has several representations: a set kept in a hash, or kept sorted. Ernest writes such a contract as a record of functions, a type whose fields are the operations, in a module of its own:
+
+```ernest
+// sets.ern  (namespace Sets)
+/// What a set is to code written once for every representation.
+export type Operations(s, a) =
+    Operations(empty : s, add : (s, a) -> s, has : (s, a) -> Bool)
+```
+
+Each representation depends on the contract and exports an `operations()` that fills it in. What a representation needs goes in through `operations`, here the ordered set's `compare`; `operations` is a function in both, though the hashed set takes nothing, so that the two read alike:
+
+```ernest
+// sets/hashed.ern  (namespace Sets.Hashed)
+/// The built-in `Set`, as a `Sets.Operations`.
+export fn operations() -> Sets.Operations(Set(a), a) =
+    Sets.Operations(empty = Set.empty, add = Set.put, has = Set.contains)
+```
+
+```ernest
+// sets/ordered.ern  (namespace Sets.Ordered)
+/// A list kept in the order of a `compare`, as a `Sets.Operations`.
+export abstract type Sorted(a) = Sorted(List(a))
+
+export fn operations(compare : (a, a) -> Ordering) -> Sets.Operations(Sorted(a), a) =
+    Sets.Operations(
+        empty = Sorted([]),
+        add = fn(Sorted(xs), x) = Sorted(insert(xs, x, compare)),
+        has = fn(Sorted(xs), x) = List.any(xs, fn(y) = compare(x, y) == Equal))
+
+fn insert(xs : List(a), x : a, compare : (a, a) -> Ordering) -> List(a) = match xs {
+    [] -> [x]
+  | y :: rest -> match compare(x, y) {
+        Less -> x :: xs
+      | Equal -> xs
+      | Greater -> y :: insert(rest, x, compare)
+    }
+}
+
+/// The elements in ascending order, which no other set here gives.
+export fn toList(Sorted(xs) : Sorted(a)) -> List(a) = xs
+```
+
+Code written once takes the record, and the caller chooses the representation at the call:
+
+```ernest
+// main.ern  (namespace Main)
+fn dedupe(operations : Sets.Operations(s, a), xs : List(a)) -> List(a) = {
+    let #(_, kept) = List.foldLeft(xs, #(operations.empty, []), fn(acc, x) = {
+        let #(seen, out) = acc;
+        if operations.has(seen, x) then acc else #(operations.add(seen, x), x :: out)
+    });
+    List.reverse(kept)
+}
+
+export fn main() = {
+    Io.println(String.join(dedupe(Sets.Hashed.operations(), ["b", "a", "b", "c"]), " "));
+    let numbers = Sets.Ordered.operations(Int.compare);
+    Io.println(String.join(List.map(dedupe(numbers, [3, 1, 3, 2]), Int.toString), " "));
+    let set = List.foldLeft([3, 1, 3, 2], numbers.empty, numbers.add);
+    Io.println(String.join(List.map(Sets.Ordered.toList(set), Int.toString), " "))
+}
+```
+
+```console
+$ ernc --out-dir build .
+$ ern build/main.erc
+b a c
+3 1 2
+1 2 3
+```
+
+The types check each record where it is built, so a representation whose `add` takes the wrong arguments is refused in its own module. `dedupe` sees only `Sets.Operations`, never a `Set` or a sorted list. The contract is what the record lists and nothing more: `Sets.Ordered.toList` is an extra of that representation, reached through its module. Equality comes from the types, as everywhere: `Sets.Hashed.operations()` needs it because `Set(a=)` does (§2.5), and `Sets.Ordered` asks only for a `compare`. A service with state is different: two processes of different representations take one message type, and the caller holds an `Address(M)` (§4). What the record does not do is check a module: nothing says that `sets/hashed.ern` provides every operation `Sets.Operations` lists, except the `operations()` that builds one.
+
+### 7.4 Prediction exercise
+
+Can a helper in the same file as `Stack`, one that is not declared `Stack.` anything, match `Stack(xs)`?
 
 ## 8. Cross boundaries
 
@@ -1685,7 +1760,7 @@ A function's number of arguments is part of its type, and `fn(x, y)` shows it wh
 
 **§6.5.** `main` faults with the cause `todo: first of an empty list`, and since it is the entry process the program ends and `ern` prints `fault: todo: first of an empty list`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
 
-**§7.3.** No. Access is granted by the signature, not by the module. The helper can call `Stack.pop`, `Stack.push`, and any other listed operation, but it cannot see the constructor.
+**§7.4.** Yes. The boundary of an abstract type is its module, so every definition in `main.ern` may name the constructor, a helper or a test included; another module sees the type and its operations, never the constructor.
 
 **§8.7.** The runtime faults the sending process asynchronously, after `send` has already returned. Code that followed the `send` may have executed; the fault interrupts the process where it currently is, not at the site of `send`.
 

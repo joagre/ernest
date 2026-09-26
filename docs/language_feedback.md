@@ -7,7 +7,7 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Nineteen have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Twenty-one have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
 (decided, report §9), 2, 4 and 43 (weighed and kept, the log's *Constructor Names Stay Unique
 in a Module*, *Names Stay Qualified, Without Import or Alias* and *Two Visibilities Are
@@ -17,8 +17,9 @@ report §4.4), 49 (decided with them: the editor's state and the region are abst
 history type was weighed and left, since its one rule, the cap of a thousand inputs, a
 session does not reach, and it would make the editor depend on `Shell.History`), 3 and 5
 (weighed and kept, the log's *Constant Patterns Stay Out* and *`after` Stays Reserved*), 48
-(decided, report §8.5, the mention rule kept), 36 (already decided, report §9.6), and 39
-(decided, report §4.7).
+(decided, report §8.5, the mention rule kept), 36 (already decided, report §9.6), 39
+(decided, report §4.7), 45 (decided, report Appendix E.0 rule 9), and 52 (weighed and kept, the
+log's *One Contract, Several Representations*).
 
 ## 1. Names and namespaces
 
@@ -27,26 +28,8 @@ item 46 went to the standard library's theme.
 
 ## 2. Expressions, patterns and types
 
-How a part of a value is read, and the smaller rules of the grammar and the checker that
-writing Ernest ran into. Field selection, which led it, was decided on 2026-09-25 (report
-§3.5), and with it tuple projection (kept out) and `match` as an operand (taken, §5.9). The
-rest stand alone, and one contract over several representations (52) is the largest of them.
-
-45. **A Bool argument reads as nothing at the call.** `Markdown.render(doc, 80, false)`:
-    the `false` says colour off only to someone who knows the signature. Named arguments
-    are refused (the log's *Labeled Arguments*); whether a two-constructor type, `Plain |
-    Styled`, is the library's idiom instead.
-52. **One contract, several representations.** An abstract type hides one representation;
-    what it does not give is Java's interface or ML's signature, one API that several
-    representations provide at once, chosen per use: Erlang's `sets` and `gb_sets` share
-    their function names by convention, and a caller switches by changing the module name.
-    Ernest has three answers without a new concept: E.0 rule 2's shared verbs, the same
-    convention unchecked; a record of functions passed as a value, checked by the types and
-    verbose, which is Gleam's and Elm's answer; and, for a stateful service, a mailbox type,
-    which two processes of different representation both accept behind an `Address(M)`.
-    The gap is a pure data structure written once against "a set" and run over either
-    representation; closing it takes ML's signatures and functors or type classes, each a
-    new concept against principles 5 and 3. Whether the record of functions suffices.
+Decided on 2026-09-25 and 2026-09-26, and no entry is left; the plan's MVP 2.65 names each
+decision.
 
 ## 3. Processes and the system
 

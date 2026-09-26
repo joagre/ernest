@@ -18,8 +18,9 @@ Actorson until 12 September 2026.
 ## Where we are
 
 **MVP 2.65, the language and the toolchain read back after the shell, has begun.** Its
-first two steps are done, the feedback list and this plan consolidated and the report read
-cold; the themes follow, one at a time, the first under discussion. MVP 2.6, the shell, was closed on
+first four steps are done: the feedback list and this plan consolidated, the report read
+cold, and the first two themes, names and namespaces, and expressions, patterns and types.
+The third theme, processes and the system, is next. MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
 **Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23; MVP 2.61, the
@@ -86,7 +87,7 @@ The steps:
    two visibilities are enough (item 43), each weighed and kept. A later input may add a
    member to a session type (item 17; report §11.2). The log has an entry for each; item 46
    moved to the standard library's theme.
-4. **Expressions, patterns and types**, the second theme (items 45 and 52 left). **Decided
+4. **Done 2026-09-26: expressions, patterns and types**, the second theme. **Decided
    2026-09-25:** field selection, `e.f` where every constructor has the field (item 51; report
    §3.5); no projection from a tuple (item 18, weighed and kept out); a `match` and a
    `receive` are operands (item 19; report §5.9); a type variable is not-reply-carrying by
@@ -102,8 +103,11 @@ The steps:
    2026-09-26:** a pure function stands wherever one with a mailbox type is expected, each
    expression of a pure function type opening its effect (1.1; report §3.9); a redundant
    clause is a type error, in `match` and `receive` (2.13; report §5.9); a foreign type's
-   parameter written `k=` requires equality, as `Map`'s key does (item 39; report §4.7). The
-   log has an entry for each.
+   parameter written `k=` requires equality, as `Map`'s key does (item 39; report §4.7); one
+   contract over several representations is a record of functions, taught in the guide's §7.3,
+   and a check-only contract waits for a design (item 52, weighed and kept); an exported
+   function takes no `Bool` that chooses a behaviour, and `Markdown.render` takes a `Style`
+   (item 45; report Appendix E.0 rule 9). The log has an entry for each.
 5. **Processes and the system**, the third theme (items 9, 24, 26, 27, 28, 37, 47, 50, 53),
    the registry at its head (item 53), an address's identity with it (item 24), since
    unregistering needs equality; either outcome changes `:processes` and `Io.debug`, as item

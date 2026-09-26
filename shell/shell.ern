@@ -890,8 +890,8 @@ fn brief(text : String, width : Int, colour : Bool) -> List(String) = {
     });
     let #(versions, prose) = List.partition(paragraphs, isVersion);
     List.map(List.take(types, 1), fn(t) = Shell.Style.named(colour, t))
-        <> Markdown.render(List.map(List.take(prose, 1), sentence), width, colour)
-        <> Markdown.render(List.take(versions, 1), width, colour)
+        <> Markdown.render(List.map(List.take(prose, 1), sentence), width, styleOf(colour))
+        <> Markdown.render(List.take(versions, 1), width, styleOf(colour))
 }
 
 // Report §11.2: a paragraph's first sentence, which ends at the first `. `
@@ -920,7 +920,11 @@ fn isVersion(b : Markdown.Block) -> Bool = match b {
 // Report §11.2: a page of documentation rendered for the terminal, at its
 // width, or at 80 columns where there is no terminal.
 fn rendered(text : String, width : Int, colour : Bool) -> List(String) =
-    Markdown.render(Markdown.parse(text), width, colour)
+    Markdown.render(Markdown.parse(text), width, styleOf(colour))
+
+// How documentation is written: with the terminal's styles where the shell
+// colours what it says.
+fn styleOf(colour : Bool) -> Markdown.Style = if colour then Markdown.Styled else Markdown.Plain
 
 fn screenWidth() -> Int with m = match Terminal.size() {
     Some(Size(columns = columns)) -> columns

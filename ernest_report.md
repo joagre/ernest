@@ -1150,7 +1150,7 @@ Four rules decide whether a function is in. None of them counts programs: a func
 3. It is a general operation of the type, its definition is the obvious one, and no policy is buried in it: `List.foldRight`, `Float.sqrt`. A function whose result depends on a choice the library would be making for the program, a format, a locale, a tolerance, is refused whatever asks for it.
 4. It is not a composition. A function that is one pipe of two functions already here is not added: `List.concat` is `List.flatMap(xs, fn(x) = x)`, `List.sum` is `List.foldLeft(xs, 0, Int.+)`.
 
-Eight rules give a function its shape.
+Nine rules give a function its shape.
 
 1. The subject comes first, callbacks last, an accumulator between them: `x |> f(a)` is `f(x, a)`. No aliases, no argument-order variants.
 2. One verb per operation, in every module that has it. The container operations are `empty`, `size`, `isEmpty`, `contains`, `get` for lookup by index or key, `put` for insertion, `remove`, `map`, `filter`, `filterMap`, `foldLeft`, `foreach`, `any`, `all`, `find`, `fromList`, and `toList`; the sum-type operations are `withDefault`, `map`, and `andThen`. A predicate is `isX`. A verb not in this list names an operation none of these does, and one verb names it in every module that has it.
@@ -1163,6 +1163,7 @@ Eight rules give a function its shape.
    - **Examples.** Every exported function except an operator, whose use is infix, is called by at least one example on the module's page, in the module's examples or its own, and an example that would repeat another is left out. An example ends in `// => v`, where `v` is what `Io.debug` prints for its value; what the example itself prints comes before it and is not part of `v`. An example that cannot run where the page's examples run, because its value is of an abstract type, because it reads a file or a socket, or because it needs a mailbox of its own, has no `// =>` line and is only type-checked.
 7. A type a module declares is listed in its section as its functions are, `foreign type Seed` in E.13, and is named for what it is within the module, never for the module. The types the runtime speaks are the prelude's, §9.3.
 8. A system reference of §8.2 is used through its standard library module, never by `send`. A function that waits takes the milliseconds as its last argument and answers `Left(Timeout)`; `Clock.now`, `Terminal.size`, `Terminal.subscribe`, `Tcp.listen`, and `Io.readLine` take none, the first four answered at once and the last waiting for the user; one that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9). In either, a time below 0 is 0, a time has no upper bound, and a moment already past is now.
+9. An exported function takes no `Bool` that chooses between two behaviours. It takes a type whose constructors name them, so that the call says which: `render(doc, Plain)`, not `render(doc, false)`. A `Bool` that is the value operated on, as in `Bool.not`, is not such a choice.
 
 ### Appendix E.1. `io.ern` (namespace `Io`)
 

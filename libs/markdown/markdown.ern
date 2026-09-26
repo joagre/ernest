@@ -16,12 +16,12 @@
 /// ## Examples
 ///
 /// ```ernest
-/// Markdown.render(Markdown.parse("# Title\n\nSome *words*."), 80, false)
+/// Markdown.render(Markdown.parse("# Title\n\nSome *words*."), 80, Markdown.Plain)
 /// // => ["Title", "", "Some *words*."]
 /// ```
 ///
 /// ```ernest
-/// Markdown.render(Markdown.parse("- one\n- two"), 80, false)
+/// Markdown.render(Markdown.parse("- one\n- two"), 80, Markdown.Plain)
 /// // => ["• one", "• two"]
 /// ```
 ///
@@ -78,6 +78,21 @@ export type Block =
   | Rule
   /// Lines that are not read, an HTML block's, kept as written.
   | Raw(List(String))
+
+/// How `render` writes a document: each span as it is written, or with
+/// the terminal's styles.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Markdown.render(Markdown.parse("Some *words*."), 80, Markdown.Plain)
+/// // => ["Some *words*."]
+/// ```
+export type Style =
+    /// Emphasis, strong emphasis and code spans as they are written.
+    Plain
+  /// Bold, italics and colour, in the terminal's escape sequences.
+  | Styled
 
 //
 // Reading the blocks
@@ -616,43 +631,43 @@ fn autolink(chars : List(Char), done : List(Char)) -> Optional(#(Inline, List(Ch
 //
 
 /// The document as rows of text at most that many columns wide where a
-/// word allows, with the terminal's styles when the last argument is
-/// `true`. A heading is its text, bold with styles; a code block is
-/// indented four columns and never wrapped; a list item follows a bullet,
-/// or its number and a period whichever delimiter it was written with; a
-/// block quote follows a bar; a thematic break is a line
-/// across the width; and a link is its text with its address after it.
-/// Emphasis is in italics, strong emphasis bold, and a code span cyan
-/// with styles, and each is as written without them. Blocks are
-/// separated by an empty row.
+/// word allows, with the terminal's styles when the style is `Styled`. A
+/// heading is its text, bold with styles; a code block is indented four
+/// columns and never wrapped; a list item follows a bullet, or its number
+/// and a period whichever delimiter it was written with; a block quote
+/// follows a bar; a thematic break is a line across the width; and a link
+/// is its text with its address after it. Emphasis is in italics, strong
+/// emphasis bold, and a code span cyan with styles, and each is as
+/// written without them. Blocks are separated by an empty row.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// Markdown.render(Markdown.parse("A [link](https://example.org).\n\n    code"), 80, false)
+/// Markdown.render(
+///     Markdown.parse("A [link](https://example.org).\n\n    code"), 80, Markdown.Plain)
 /// // => ["A link (https://example.org).", "", "    code"]
 /// ```
-export fn render(blocks : List(Block), width : Int, styled : Bool) -> List(String) =
+export fn render(blocks : List(Block), width : Int, style : Style) -> List(String) =
     match blocks {
         [] -> []
-      | first :: rest -> rendered(first, width, styled)
-            <> List.flatMap(rest, fn(b) = "" :: rendered(b, width, styled))
+      | first :: rest -> rendered(first, width, style)
+            <> List.flatMap(rest, fn(b) = "" :: rendered(b, width, style))
     }
 
-fn rendered(b : Block, width : Int, styled : Bool) -> List(String) = match b {
+fn rendered(b : Block, width : Int, style : Style) -> List(String) = match b {
     Heading(text = text) ->
-        wrapped(paint(styled, "1", "22", spans(unstrong(text), styled)), width)
-  | Paragraph(text) -> wrapped(spans(text, styled), width)
+        wrapped(paint(style, "1", "22", spans(unstrong(text), style)), width)
+  | Paragraph(text) -> wrapped(spans(text, style), width)
   | Code(lines = lines) -> List.map(lines, fn(line) = if isBlank(line) then "" else "    " <> line)
-  | Quote(inner) -> List.map(render(inner, width - 2, styled), fn(row) = "│ " <> row)
-  | Items(start = start, items = items) -> itemRows(start, items, width, styled)
+  | Quote(inner) -> List.map(render(inner, width - 2, style), fn(row) = "│ " <> row)
+  | Items(start = start, items = items) -> itemRows(start, items, width, style)
   | Rule -> [String.repeat("─", width)]
   | Raw(lines) -> lines
 }
 
 // Each item after its bullet or number, the rows after its first under
 // its text; the numbers are as wide as the widest of them.
-fn itemRows(start : Optional(Int), items : List(List(Block)), width : Int, styled : Bool)
+fn itemRows(start : Optional(Int), items : List(List(Block)), width : Int, style : Style)
     -> List(String) = {
     let labels = match start {
         None -> List.map(items, fn(_) = "•")
@@ -660,7 +675,7 @@ fn itemRows(start : Optional(Int), items : List(List(Block)), width : Int, style
     };
     let size = List.foldLeft(labels, 0, fn(most, label) = Int.max(most, String.size(label))) + 1;
     List.flatMap(List.zip(labels, items), fn(#(label, item)) =
-        match render(item, width - size, styled) {
+        match render(item, width - size, style) {
             [] -> [label]
           | first :: rest -> (String.padEnd(label, size, ' ') <> first)
                 :: List.map(rest, fn(row) = if String.isEmpty(row) then row
@@ -677,29 +692,29 @@ fn unstrong(xs : List(Inline)) -> List(Inline) = List.flatMap(xs, fn(x) = match 
   | other -> [other]
 })
 
-fn spans(xs : List(Inline), styled : Bool) -> String =
-    String.join(List.map(xs, fn(x) = span(x, styled)), "")
+fn spans(xs : List(Inline), style : Style) -> String =
+    String.join(List.map(xs, fn(x) = span(x, style)), "")
 
-fn span(x : Inline, styled : Bool) -> String = match x {
+fn span(x : Inline, style : Style) -> String = match x {
     Text(s) -> s
-  | CodeSpan(s) -> marked(styled, "36", "39", "`", s)
-  | Emphasis(xs) -> marked(styled, "3", "23", "*", spans(xs, styled))
-  | Strong(xs) -> marked(styled, "1", "22", "**", spans(xs, styled))
+  | CodeSpan(s) -> marked(style, "36", "39", "`", s)
+  | Emphasis(xs) -> marked(style, "3", "23", "*", spans(xs, style))
+  | Strong(xs) -> marked(style, "1", "22", "**", spans(xs, style))
   | Link(text = text, address = address) ->
         if plain(text) == address then address
-        else spans(text, styled) <> " (" <> address <> ")"
+        else spans(text, style) <> " (" <> address <> ")"
   | Break -> "\n"
 }
 
 // A style is turned off by its own code rather than by a reset, so that
 // one inside another leaves the outer one on.
-fn paint(styled : Bool, on : String, off : String, text : String) -> String =
-    if styled then "\u{1b}[" <> on <> "m" <> text <> "\u{1b}[" <> off <> "m" else text
+fn paint(style : Style, on : String, off : String, text : String) -> String =
+    if style == Styled then "\u{1b}[" <> on <> "m" <> text <> "\u{1b}[" <> off <> "m" else text
 
 // Inline markup: in the terminal's style where there is one, and as it is
 // written where there is none, the only way plain text can show it.
-fn marked(styled : Bool, on : String, off : String, mark : String, text : String) -> String =
-    if styled then paint(true, on, off, text) else mark <> text <> mark
+fn marked(style : Style, on : String, off : String, mark : String, text : String) -> String =
+    if style == Styled then paint(style, on, off, text) else mark <> text <> mark
 
 fn plain(xs : List(Inline)) -> String = String.join(List.map(xs, fn(x) = match x {
     Text(s) -> s
@@ -847,27 +862,27 @@ let asciiNumbers = Test(name = "a list number is ASCII digits, not any script's"
     blocksAre(parse("\u{661}. x"), [Paragraph([Text("\u{661}. x")])]))
 
 let styles = Test(name = "with styles, each is turned off by its own code", run = fn() =
-    rowsAre(render(parse("**a *b* `c`**"), 80, true),
+    rowsAre(render(parse("**a *b* `c`**"), 80, Styled),
         ["\u{1b}[1ma \u{1b}[3mb\u{1b}[23m \u{1b}[36mc\u{1b}[39m\u{1b}[22m"]))
 
 let wrapping = Test(name = "a word longer than the width stands alone on its row", run = fn() =
-    rowsAre(render(parse("a abcdefghijklmnopqrstuvwxyz b"), 20, false),
+    rowsAre(render(parse("a abcdefghijklmnopqrstuvwxyz b"), 20, Plain),
         ["a", "abcdefghijklmnopqrstuvwxyz", "b"]))
 
 let styledWidth = Test(name = "a style takes no column when a row is filled", run = fn() =
-    rowsAre(render(parse("*aaaa* *bbbb* *cccc* *dddd*"), 20, true),
+    rowsAre(render(parse("*aaaa* *bbbb* *cccc* *dddd*"), 20, Styled),
         [String.join(List.map(["aaaa", "bbbb", "cccc", "dddd"], fn(w) =
             "\u{1b}[3m" <> w <> "\u{1b}[23m"), " ")]))
 
 let boldHeading = Test(name = "strong emphasis in a heading leaves the heading bold",
     run = fn() =
-        rowsAre(render(parse("# a **b** c"), 80, true), ["\u{1b}[1ma b c\u{1b}[22m"]))
+        rowsAre(render(parse("# a **b** c"), 80, Styled), ["\u{1b}[1ma b c\u{1b}[22m"]))
 
 let separated = Test(name = "blocks are separated by one empty row", run = fn() =
-    rowsAre(render(parse("a\n\n\n\nb\n\n    c"), 80, false), ["a", "", "b", "", "    c"]))
+    rowsAre(render(parse("a\n\n\n\nb\n\n    c"), 80, Plain), ["a", "", "b", "", "    c"]))
 
 let nestedRows = Test(name = "a quote inside an item is under the item's text", run = fn() =
-    rowsAre(render(parse("1. a\n\n   > q\n2. b"), 80, false), ["1. a", "", "   │ q", "2. b"]))
+    rowsAre(render(parse("1. a\n\n   > q\n2. b"), 80, Plain), ["1. a", "", "   │ q", "2. b"]))
 
 fn blocksAre(blocks : List(Block), expected : List(Block)) -> TestResult =
     if blocks == expected then Passed else Failed(Int.toString(List.size(blocks)) <> " blocks")

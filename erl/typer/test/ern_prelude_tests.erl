@@ -5,6 +5,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
+-include_lib("typer/include/ern_types.hrl").
 
 -define(REPORT, "../../../ernest_report.md").
 
@@ -26,6 +27,17 @@ values_test() ->
     Tables = lists:usort([{qname(Q), normalize(T)} || {Q, T, _} <- ern_prelude:values()]
                          ++ Compiled),
     ?assertEqual(Report, Tables).
+
+%% report Appendix E.0 rule 9: no exported function of the standard library
+%% takes a `Bool` that chooses a behaviour; `Bool`'s own module takes the
+%% value it operates on. A regression test: the library complied when the
+%% rule was written
+no_bool_choice_test() ->
+    Choosing = [Q || #iface{namespace = Ns, values = Vs} <- ern_prelude:stdlib_ifaces(),
+                     Ns =/= ['Bool'],
+                     {Q, #scheme{type = {tfn, Ps, _, _}}} <- maps:to_list(Vs),
+                     lists:member({tcon, ['Bool'], []}, Ps)],
+    ?assertEqual([], Choosing).
 
 %% report §9, Appendix E.0 rule 6: every prelude name is documented, a type
 %% and a value beside its entry, and an operation marked `module` by its
