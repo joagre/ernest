@@ -226,7 +226,17 @@ The steps:
 9. **The cold read's own findings**, those no theme takes, in a batch: the report's wording,
    its cross-references and examples, and the rules it leaves an implementer to invent.
 10. **What was decided is built**, report first as each decision already was, each change with
-   its tests, and the document sweep at the end. The guide gains a section on services: a
+   its tests, and the document sweep at the end.
+   - **The gate, before anything is built: steps 5 to 7 read back as a whole.** A reader who
+     took no part reads every log entry from *Names, Restarts and Supervision* to *Completion
+     Reaches What the Session Knows* together, against principles 5 and 1 only, and reports:
+     what the decisions add to the prelude, the standard library, the report and the
+     toolchain, counted, and what they remove; any two decisions that overlap or give a
+     second way to do one job; any decision a later one made unnecessary; and what could be
+     dropped or merged, with what the language loses if it is. Each finding is decided with
+     the user, one at a time, before step 10 builds anything. The log's *A Gate Before the
+     Build*.
+   - **Then the build.** The guide gains a section on services: a
    service as a top-level binding, `restarting` and its `Limit`, the `start` and `service`
    pair for tests, a call that ends when its callee faults, and `fault`; §6.4's sentence
    that a restarted service must hand out its new address goes.
