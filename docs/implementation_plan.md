@@ -447,13 +447,18 @@ peers are the useful one.
   the effect `{Proc m}` where the report writes `with m`; and the protocol note's open question
   on stopping a process is §6.9's `kill`.
 - **Whether `remote` stays**, `docs/language_feedback.md` item 14, decided first in this
-  milestone, before `remote` is built over peers: once `spawn(Peer(name), f)` ships code and
-  answers across nodes, `remote` may be a second way to do what a spawned process that
+  milestone, before `remote` is built over peers. What `remote` is for: a synchronous call
+  that evaluates a pure function on the node with the lowest load among those that accept
+  remote computation, the runtime choosing by load. Once `spawn(Peer(name), f)` ships code
+  and answers across nodes, `remote` may be a second way to do what a spawned process that
   answers does. If it goes, §6.7, §9.4, `RemoteError`, the `"remote-peer"` flag and the
   guide's §8.1 go with it, and the bullets above that build it are rewritten. Decided with
-  it, item 25: `spawn(Remote, f)`, a third `Where` that gives the runtime's choice of peer to
-  a process, with which `remote` is a composition; the flag would then admit any process
-  and not only a pure function.
+  it, item 25, the suggestion to spawn a process where the load is lowest:
+  `spawn(Remote, f)`, a third `Where` that gives the runtime's choice of peer to a process,
+  with which `remote` is a composition; the flag would then admit any process and not only
+  a pure function. `Peer.find` (MVP 2.65 step 5) depends on the outcome: if `remote` stays
+  and takes a named peer, `Peer.find` is its composition and goes by E.0 rule 4; otherwise
+  `Peer.find` stands, as the gate of step 10 kept it (G6).
 - **Two more places the protocol note disagrees with the report, found 2026-09-24 in the
   closing sweep of MVP 2.61**, also decided before building: the note's `spawn_at` never
   fails at the call and returns a dead address, where §6.2 faults the caller on an unknown or
