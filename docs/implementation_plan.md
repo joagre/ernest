@@ -21,7 +21,8 @@ Actorson until 12 September 2026.
 first four steps are done: the feedback list and this plan consolidated, the report read
 cold, and the first two themes, names and namespaces, and expressions, patterns and types.
 The third theme, processes and the system, has begun: names, restarts and supervision
-are decided (item 53, six questions), and address identity (item 24) is next. MVP 2.6, the shell, was closed on
+are decided (item 53, six questions), and a process's identity (item 24); `:processes` as a
+function (item 26) is next. MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
 **Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23; MVP 2.61, the
@@ -163,9 +164,15 @@ The steps:
 
    Item 53 is decided with the six and has left the feedback list. The report changes,
    §4.6, §6.5, §6.6, §6.9, §7.4, §8.5, §8.7, §9, §11.2 and E.0 rule 3, are made in step 10,
-   report first. Address identity (item 24) no longer hinges on unregistering, since nothing
-   unregisters, and is decided next on its own; either outcome changes `:processes` and
-   `Io.debug`, as item 24 says.
+   report first.
+
+   **Decided 2026-09-26: a process's identity is a `Process`** (item 24). `Address.process :
+   (Address(m)) -> Process` gives the process behind an address, every adapter removed; a
+   `Process` has equality and no ordering, and nothing can be sent to it. §3.10 keeps an
+   address without equality, since it holds a function. `Io.debug` prints `<process 84>`,
+   and an address as `<address 84>`; `:processes` and a fault line show the same identity.
+   `Down` is unchanged. Report §3.10, §6.5, §9 and E.1, and §11.2, in step 10. The log's *A
+   Process's Identity Is a `Process`*.
 6. **The standard library under E.0**, the fourth theme, in three batches: where the line
    between a shim and Ernest runs, with the abstract types it could write (items 11, 13, 42,
    46), what a function is named and where it

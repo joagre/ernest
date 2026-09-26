@@ -7,7 +7,7 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Twenty-three have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Twenty-four have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
 (decided, report §9), 2, 4 and 43 (weighed and kept, the log's *Constructor Names Stay Unique
 in a Module*, *Names Stay Qualified, Without Import or Alias* and *Two Visibilities Are
@@ -20,8 +20,9 @@ session does not reach, and it would make the editor depend on `Shell.History`),
 (decided, report §8.5, the mention rule kept), 36 (already decided, report §9.6), 39
 (decided, report §4.7), 45 (decided, report Appendix E.0 rule 9), 52 (weighed and kept, the
 log's *One Contract, Several Representations*), 9 (decided, the plan's MVP 2.65 step 5:
-`ern` prints every fault to standard error), and 53 (decided in the same step: no registry, a
-service is a top-level binding, and a restart keeps the address).
+`ern` prints every fault to standard error), 53 (decided in the same step: no registry, a
+service is a top-level binding, and a restart keeps the address), and 24 (decided there too:
+`Address.process` gives a `Process`, the identity with equality).
 
 ## 1. Names and namespaces
 
@@ -36,30 +37,11 @@ decision.
 ## 3. Processes and the system
 
 What a process is to the program that holds its address, and what the system modules
-give. Address identity (24) leads, and `:processes` as a function (26) turns on it. The
-rest are the system modules' contracts, one by one.
+give. `:processes` as a function (26) leads, now that a process has an identity. The rest
+are the system modules' contracts, one by one.
 Items 14 and 25 are MVP 3.0's, and 16 is MVP 2.7's; they are here because they are the
 same question.
 
-24. **A process has an identity no one can see.** `:processes` lists three processes spawned
-    by three inputs as `input:1` three times, and nothing tells them apart: an address prints
-    as `<address>` (E.1) and has no equality (§3.10), because `via(f, a) == a` was held to
-    have no right answer. Weighed on the principles: §6.3 says an address *identifies* a
-    process, and hiding which one is what principle 3 refuses for communication; dropping
-    the address half of §3.10's exception makes the language smaller (principle 5); a
-    subscriber list that removes a subscriber carries an id in its protocol beside the
-    address it already holds, two ways to say which process (principle 2); and a reader who
-    knows Erlang, or who has seen everything else compare structurally, predicts `a == b`
-    to mean the same process (principle 1). Principle 4 is untouched. The obstacle has an
-    answer: equality as *reaches the same process*, so `via(f, a) == a`. Its cost is in the
-    runtime: an adapted address is `{via, F, Target}`, and Erlang's `==`, which `Map`, `Set`
-    and `List.contains` use, compares `F`, so equal addresses need a representation that is
-    equal as a term, or an equality of the runtime's own. Across nodes the identity names
-    the node, as a pid does. Either outcome changes the
-    shell: with equality, §3.10 loses the address half of its exception, `Io.debug` prints
-    the identity (E.1), `<address 3>`, and `:processes` and a fault line show the same one;
-    without it, `Io.debug` keeps `<address>`, and `:processes` and a fault line number each
-    process for the shell alone.
 26. **`:processes` as a function rather than a command.** The shell's `:processes` reads
     the runtime's record of every process it started, a door §11.2 opens for the shell
     alone; a program learns of a process only by holding its address, and of a death only
