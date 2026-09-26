@@ -283,6 +283,10 @@ The steps:
         prelude keeping only the types the language's rules name. §6.9, §9.3, E and the
         `Process` section; the guide, the shell, the examples and the tests. The log's
         *Everything About a Process in Its Module*.
+      - **G8, `trim` a named pair.** E.0 rule 4 names `String.trim` beside `Io.debug`, as a
+        composition, `trimStart` then `trimEnd`, that text wants more often than either half;
+        `Map.merge` is no pipe of two functions and needs nothing. The log's *`trim` Is a
+        Named Pair*.
    2. **The ledger.** A table in this plan, a row for each decision the gate leaves: the
       report sections it changes; the Erlang modules and Ernest files it reaches; its tests,
       the new ones and the mirror tests that must change, a mirror test planned for every
