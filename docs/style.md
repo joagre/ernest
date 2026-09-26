@@ -20,6 +20,7 @@ For the toolchain's own code under `erl/`.
 - **Tests are EUnit, in `test/<module>_tests.erl`**, one test function per behaviour, named after the behaviour. A comment above each names what it tests: `%% report §x.y` for the report, the document's path for any other.
 - **No OTP behaviour for a process of the toolchain's own, and no rebar3, by design.** A callback module one of OTP's own servers calls, a signal handler, is no such process. The decisions log's *No OTP in the Toolchain* says why. `make` builds with `+debug_info -Werror`; a warning is an error.
 - **Tokens and AST nodes are plain tuples and records**, never closures or ETS state.
+- **A precondition is `Cond orelse fail(...)` on one line.** Two or more conditions before the `fail` are a `case` on them, so that a reader sees at once which message goes with which failure.
 
 ## Ernest style guide
 

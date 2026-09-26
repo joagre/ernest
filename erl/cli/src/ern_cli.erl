@@ -153,8 +153,10 @@ module_of(File, Root) ->
     Rel =/= outside orelse fail(File ++ " is not under the source root " ++ Root),
     %% report §4.2: a file of the standard library's own source root is
     %% compiled with that root only
-    is_stdlib_root(Root) orelse relative(File, stdlib_root()) =:= outside orelse
-        fail(Rel ++ " is in the standard library's source root; omit --source-root"),
+    case is_stdlib_root(Root) orelse relative(File, stdlib_root()) =:= outside of
+        true -> ok;
+        false -> fail(Rel ++ " is in the standard library's source root; omit --source-root")
+    end,
     filename:extension(Rel) =:= ".ern" orelse fail(Rel ++ " does not end in .ern"),
     Components = filename:split(filename:rootname(Rel)),
     lists:foreach(fun shape/1, Components),

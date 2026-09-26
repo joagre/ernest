@@ -673,9 +673,12 @@ register_value_name(D, #env{local_values = LV} = Env) ->
         _ -> ok
     end,
     %% report §11.2: at the prompt, a member of a type the session declares
-    Owner =:= undefined orelse maps:is_key(Owner, Env#env.local_types)
-        orelse session(types, Owner, Env) =/= error
-        orelse fail(Pos, atom_to_list(Owner) ++ " is not a type declared in this module"),
+    Declared = Owner =:= undefined orelse maps:is_key(Owner, Env#env.local_types)
+                   orelse session(types, Owner, Env) =/= error,
+    case Declared of
+        true -> ok;
+        false -> fail(Pos, atom_to_list(Owner) ++ " is not a type declared in this module")
+    end,
     %% report §4.8: an operator is declared with `fn`
     case is_record(D, let_decl) andalso is_operator(Name) of
         true -> fail(Pos, "an operator is declared with `fn`, not `let`");

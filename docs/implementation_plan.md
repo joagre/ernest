@@ -18,10 +18,10 @@ Actorson until 12 September 2026.
 ## Where we are
 
 **MVP 2.65, the language and the toolchain read back after the shell, has begun.** Its
-first seven steps are done: the feedback list and this plan consolidated, the report read
-cold, and the five themes, names and namespaces, expressions, patterns and types, processes
-and the system, the standard library under E.0, and the toolchain. Step 8, the Erlang
-code's open questions, is next.
+first eight steps are done: the feedback list and this plan consolidated, the report read
+cold, the five themes, names and namespaces, expressions, patterns and types, processes and
+the system, the standard library under E.0, and the toolchain, and the Erlang code's open
+questions. Step 9, the cold read's own findings, is next.
 MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
@@ -212,23 +212,26 @@ The steps:
      selects (§3.5), along a chain; a name the unfinished input binds is not completed, as
      §11.2 says. Built in step 10, with terminal tests. The log's *Completion Reaches What
      the Session Knows*.
-8. **The Erlang code's open questions**, from its review on 2026-09-25, gone through one by
-   one after the language is decided and before what was decided is built, since a split
-   is cheapest before the code it moves is changed. Where the code lives and how big it is:
-   splitting `ern_typecheck` (2,600 lines), `ern_emitter` and `ern_shell` (1,700 each);
-   `ern_diag` moving from the lexer to `utils`, since every stage uses it; one AST walker
-   for the copies in `ern_reply`, `ern_exhaust` and `ern_typecheck`; a `#scope` record for
-   the seven fields a definition saves and restores; the standard library's interfaces
-   decoded in two places. How it reads: the parser's `|>`, which parses its right side
-   twice and compares what is left; `Cond orelse fail(...)` in fifteen places; an effect
-   error inside an unannotated lambda, which names the enclosing function. What it holds
-   and for how long: an atom for every identifier the lexer reads, which a long session
-   grows; the process table, which never shrinks; the Tcp waiters and processes that
-   outlive a program; a subscriber subscribed twice; the session's environment in
-   `persistent_term`, and `names()` computed at every `Tab`. What it leans on: `prim_tty`
-   and `pubkey_cert_records`, OTP internals an upgrade may break; `module_info`, which no
-   Ernest function may be called. And three shapes: `compile_source`'s mixed error values,
-   `run/1` dropping the stacktrace, and the owner a qualified name records.
+8. **Done 2026-09-26: the Erlang code's open questions**, from its review on 2026-09-25,
+   gone through before what was decided is built. Fixed as found, each with its test: the
+   pipe's right operand parsed once; an unannotated lambda's effect error; `compile_source`'s
+   two shapes; a bitstring pattern's variables, whose omission crashed the compiler; one AST
+   walk; `ern_diag` in `utils`; the interface chunk's one owner, `ern_iface`; public OTP
+   calls for `prim_tty` and `pubkey_cert_records`; listeners and sockets that end with the
+   program; the chains of `orelse` before a `fail`, and the style guide's rule for them.
+   Decided with the user, each with its log entry: a function may be named `module_info`
+   (*A Function May Be Named `module_info`*); one subscription to the terminal a process
+   (§8.2, *One Subscription to the Terminal a Process*); a precondition is one line (*A
+   Precondition Is One Line*); a failure of the runtime shows its stack (*A Failure of
+   the Runtime Shows Its Stack*); what a name resolved to is recorded (*What a Name
+   Resolved To Is Recorded*); one copy of each scope rule (*One Copy of Each Scope Rule*);
+   where the modules split (*Where the Toolchain's Modules Split*); a process watched from
+   its start, `spawnMonitored`, and `Unknown` (*A Process Is Watched From Its Start*); the
+   shell lets go of an input (*The Shell Lets Go of an Input*); and an input's number given
+   again (*An Input's Number Is Given Again*). Left, each placed: the holders of `it` and
+   the shell's split in step 10; memory and atoms measured under load in MVP 2.7;
+   `names()` at every `Tab`, measured at 13 ms and kept, since a cache would need an
+   argument for when it lets go.
 9. **The cold read's own findings**, those no theme takes, in a batch: the report's wording,
    its cross-references and examples, and the rules it leaves an implementer to invent.
 10. **What was decided is built**, in seven sub-steps, each its own commit. Step 9 comes
