@@ -139,7 +139,11 @@ The steps:
      28; *Every Fault Is Delivered to Whoever Subscribes*). The shell's doors to the
      runtime's processes go.
    - **A stream keeps its own time limit**: `Tcp.read`, `accept` and `connect` carry their
-     milliseconds in the request (item 50; *A Stream Keeps Its Own Time Limit*).
+     milliseconds in the request (item 50; *A Stream Keeps Its Own Time Limit*). Found in
+     step 8: a caller waiting with `callForever` on a listener is read as a deadlock within
+     100 ms, since neither the listener nor its worker counts as a source, so the socket,
+     listener and connect processes count a pending request as a source while it waits, as
+     the terminal does (§8.6).
    - **A system message is its module's to make**, and `Sys.stdout` and `Sys.stderr` take an
      `OutMsg` (item 47; *A System Message Is Its Module's to Make*).
    - **`Tcp.port(listener)`** (item 37; *A Listener Says Its Port*).
