@@ -54,6 +54,44 @@ escape_pause_test() ->
     ?assertEqual('ArrowUp', wait(k1)),
     ?assertEqual('Escape', wait(k2)).
 
+%% report §8.2: a process holds one subscription, and a second replaces
+%% the first, its wrap from then on. A regression test: each call added the
+%% address again, and every key arrived once for each.
+second_subscription_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Tty = ern_rt:sys(terminal),
+               subscribe(Tty),
+               Wrapped = ern_rt:via(fun(E) -> {again, E} end, ern_rt:self()),
+               ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Reply, Wrapped} end, 5000),
+               %% a key delivered twice would come before the second key
+               Tty ! {chars, "a"},
+               First = receive M1 -> M1 end,
+               Tty ! {chars, "b"},
+               Second = receive M2 -> M2 end,
+               Me ! {got, [First, Second]}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual([{again, {'Key', $a}}, {again, {'Key', $b}}], wait(got)).
+
+%% report §8.2, §8.6: a subscription ends when its process dies, so the
+%% keys stop being a source that can deliver, and a program left waiting
+%% on nothing is found deadlocked. A regression test: a dead subscriber
+%% stayed in the list, and the program waited for ever.
+dead_subscriber_test_() ->
+    {timeout, 10, fun() ->
+        Never = fun() -> receive after infinity -> eof end end,
+        ?assertEqual({fault, <<"deadlock">>},
+                     ern_rt:run_main(
+                       fun() ->
+                           Tty = ern_rt:sys(terminal),
+                           Child = ern_rt:spawn('Local', fun() -> subscribe(Tty) end, <<"c">>),
+                           ern_rt:monitor(Child, fun(D) -> {down, D} end),
+                           receive {down, _} -> ok end,
+                           receive never -> ok end
+                       end, <<"main">>, #{stdout => fun(_) -> ok end, keys => Never}))
+    end}.
+
 wait(Tag) ->
     receive {Tag, V} -> V after 2000 -> timeout end.
 

@@ -66,8 +66,12 @@ loop(Subscribers, Reader, Pending, Size) ->
                     %% report §8.2: the mode is set before the caller goes
                     %% on, so that nothing it types then is echoed
                     ern_rt:answer(Reply, 'Unit'),
-                    loop([Address | Subscribers], Reader1, Pending, size_now())
+                    loop(subscribe(Address, Subscribers, Reader, Reader1), Reader1, Pending,
+                         size_now())
             end;
+        {'DOWN', _, process, Pid, _} ->
+            %% report §8.2: a subscription ends when its process dies
+            loop(unsubscribe(Pid, Subscribers, Reader), Reader, Pending, Size);
         {'Measure', Reply} ->
             ern_rt:answer(Reply, optional(size_now())),
             loop(Subscribers, Reader, Pending, Size);
@@ -78,7 +82,7 @@ loop(Subscribers, Reader, Pending, Size) ->
         closed ->
             %% report §8.6: at the end of input no key can come, so the
             %% subscription is no longer a source that can deliver
-            ern_rt:source_end(),
+            Subscribers =/= [] andalso ern_rt:source_end(),
             loop(Subscribers, closed, Pending, Size);
         resized ->
             %% report §8.2: a size that has changed is news to every subscriber
@@ -117,8 +121,35 @@ pause(Pending) ->
 
 deliver(Events, Subscribers) ->
     lists:foreach(fun(Event) ->
-                      lists:foreach(fun(To) -> ern_rt:send(To, Event) end, Subscribers)
+                      lists:foreach(fun({_, To}) -> ern_rt:send(To, Event) end, Subscribers)
                   end, Events).
+
+%% Report §8.2: a process holds one subscription, the latest, keyed by the
+%% process behind its address and watched so that it ends with it. Report
+%% §8.6: the keys are a source while someone would receive them, counted
+%% here for every subscription after the first, which start_reader/1
+%% counts, and for a subscription that comes back after all had ended.
+subscribe(Address, Subscribers, Before, After) ->
+    Pid = ern_rt:process_of(Address),
+    case lists:keymember(Pid, 1, Subscribers) of
+        true ->
+            lists:keyreplace(Pid, 1, Subscribers, {Pid, Address});
+        false ->
+            erlang:monitor(process, Pid),
+            Subscribers =:= [] andalso running(Before) andalso After =/= closed
+                andalso ern_rt:source_begin(),
+            [{Pid, Address} | Subscribers]
+    end.
+
+unsubscribe(Pid, Subscribers, Reader) ->
+    Left = lists:keydelete(Pid, 1, Subscribers),
+    Left =:= [] andalso Subscribers =/= [] andalso Reader =/= closed
+        andalso ern_rt:source_end(),
+    Left.
+
+running({unstarted, _}) -> false;
+running(closed) -> false;
+running(_) -> true.
 
 %% Report §9.3: Size(rows, columns), which the host answers only while its
 %% terminal is in charge, so before the first subscription there is none.

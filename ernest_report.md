@@ -626,7 +626,7 @@ The runtime starts its system processes and binds their addresses to top-level v
 
 **`stdin`.** `stdin` answers each `ReadLine` with the next line without its line feed, and `None` at end of input.
 
-**The terminal.** `terminal` sends each subscriber an `Event` for every key pressed and for every change of the terminal's size. It answers `Measure` with the size now, and with `None` where there is no terminal or its size is unknown. `terminal` and `stdin` are the same terminal, and a program subscribes to the terminal or reads lines, not both. A program that does both faults its entry process with `Fault("the terminal is already read as lines")`, or `as keys` (§7.4).
+**The terminal.** `terminal` sends each subscriber an `Event` for every key pressed and for every change of the terminal's size. A process holds one subscription: a second `Terminal.subscribe` replaces the first, its wrap from then on, and a subscription ends when its process dies. It answers `Measure` with the size now, and with `None` where there is no terminal or its size is unknown. `terminal` and `stdin` are the same terminal, and a program subscribes to the terminal or reads lines, not both. A program that does both faults its entry process with `Fault("the terminal is already read as lines")`, or `as keys` (§7.4).
 
 **Keys.** A subscription is answered once the terminal is in the mode the keys need: nothing typed after `subscribe` returns is echoed. While a program is subscribed, the terminal delivers each key as it is pressed and does not echo it, and the runtime restores line mode with echo when the program ends. A sequence the runtime does not name arrives as `Escape` and the characters after it. `Escape` is delivered once no escape sequence can still follow it.
 
@@ -1453,7 +1453,7 @@ Clock.alarmAt : (Int, (Int) -> m) -> Unit with m // at the time, wrap(t) in the 
 Over `Sys.terminal`.
 
 ```
-Terminal.subscribe : ((Event) -> m) -> Unit with m // every key pressed and every resize from now on, wrapped, in the caller's mailbox
+Terminal.subscribe : ((Event) -> m) -> Unit with m // every key pressed and every resize from now on, wrapped, in the caller's mailbox; a second call replaces the first
 Terminal.size : () -> Optional(Size) with m        // the terminal's size now, None where there is no terminal
 ```
 

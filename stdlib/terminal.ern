@@ -22,6 +22,8 @@
 /// Every key pressed and every resize from now on, wrapped, in the
 /// caller's mailbox. It answers once the terminal is in the mode the keys
 /// need, so that nothing typed after it returns is echoed (report §8.2).
+/// A process holds one subscription: a second call replaces the first,
+/// and the keys come wrapped the new way from then on.
 export fn subscribe(wrap : (Event) -> m) -> Unit with m = {
     let to = via(wrap, self());
     Address.callForever(Sys.terminal, fn(r) = Subscribe(to = to, reply = r))
