@@ -276,6 +276,13 @@ The steps:
         queued : Int, activity : Activity)` and `type Activity = Running | Receiving |
         Calling`, one snapshot of a live process and `None` once it has ended. The log's
         *One Question About a Process*.
+      - **G2, one name for the spawn site, and `Process` in its module.** `Down.function`
+        becomes `Down.site`, as `FaultReport` and `Process.Info` name it; `Address.process`
+        becomes `Process.fromAddress`, by step 6's conversion rule; and `Process` is
+        `process.ern`'s foreign type, with `Info`, `Activity` and `FaultReport`, the
+        prelude keeping only the types the language's rules name. §6.9, §9.3, E and the
+        `Process` section; the guide, the shell, the examples and the tests. The log's
+        *Everything About a Process in Its Module*.
    2. **The ledger.** A table in this plan, a row for each decision the gate leaves: the
       report sections it changes; the Erlang modules and Ernest files it reaches; its tests,
       the new ones and the mirror tests that must change, a mirror test planned for every
