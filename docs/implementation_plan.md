@@ -131,7 +131,7 @@ The steps:
       settled when the report is written. The log's *A Restart Has a Limit and No Strategy*.
    3. **Decided 2026-09-26: every fault reaches standard error.** `ern` prints every fault
       of every process, not only the entry process's, as the shell already does: the spawn
-      site, the cause, and `restarted` when the limit allowed a restart (report §11.3, when
+      site, the cause, and `restarted` when the limit allowed a restart (report §11.2, when
       built). `monitor` stays one message, at death (§6.9). Feedback item 9 is answered. The
       log's *Every Fault Reaches Standard Error*.
    4. **An initializer that spawns**: in which process, in what order under §8.5, how a
