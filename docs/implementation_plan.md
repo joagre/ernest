@@ -142,8 +142,14 @@ The steps:
       the pair `fn start()` and `let service = start()`, which the guide teaches. §8.7 and
       the shell's reload each gain a sentence where they meet a service. The log's *An
       Initializer Runs as a `Never` Process*.
-   5. **Across nodes**: `Log.service` on a peer is the peer's own. Reaching another node's
-      service is MVP 3.0's decision, *Finding a service on a peer*.
+   5. **Decided 2026-09-26: a peer's service is found through its binding.** A process
+      spawned on the peer reads the binding there and sends the address back, since §8.7
+      evaluates a binding shipped code names once per node. `Peer.find("a", fn() =
+      Log.service)` does it in one call, typed `(String, () -> Address(m))` to an address or
+      a failure, and is built in MVP 3.0. §8.7 gains two sentences: a node's own
+      initialization is the evaluation shipped code reads, and shipped code whose
+      definition differs by hash evaluates its own, a second service on the peer. The log's
+      *A Peer's Service Is Found Through Its Binding*.
    6. **A `Supervisor` module in the standard library**, for what `restarting` leaves out:
       a group of children, strategies across them, and the order they stop in. Written by
       every program otherwise, and E.0 rule 3's objection to a library that chooses policy
@@ -294,10 +300,12 @@ peers are the useful one.
   registry are surface the report does not have — `spawn(Peer(name), f)` is one primitive
   with a placement argument (§9.4), `monitor` is one message and no handle (§9.5), and
   §6.5 refuses a registry outright. The registry is the one of these that is a language
-  question rather than a protocol question. MVP 2.65 step 5 set the direction on one node,
-  a service as a top-level binding, and left one named decision here: **Finding a service
-  on a peer**, a typed lookup of a peer's binding checked by the type hash, or no discovery
-  and one root node that spawns onto the others; decided when the type hash is designed. The note's open question 11, a way to stop an uncooperative
+  question rather than a protocol question. MVP 2.65 step 5 decided it: a service is a top-level
+  binding, and a peer's service is found by reading its binding on the peer. Built here:
+  **`Peer.find(name, fn() = M.service)`**, and §8.7's two sentences on a node's own
+  initialization and on a definition that differs by hash. Its failure type is decided
+  with item 14, `remote`, since both evaluate a pure function on a peer; `Peer` as a
+  namespace beside the constructor `Peer` of `Where` is checked against §4.2. The note's open question 11, a way to stop an uncooperative
   process, is already answered: `kill` is the language's (§6.9), asynchronous, and a killed
   process's monitors see `Killed`; across nodes it needs a frame the note's table lacks.
 - **Where the two notes disagree with the report, found 2026-09-24**, also to be decided
