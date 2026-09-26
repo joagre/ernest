@@ -1901,10 +1901,10 @@ infer(#e_lambda{params = Params, ret = Ret, effect = Effect, body = Body} = E,
     %% the definition's annotation variables are in scope and rigid; a
     %% name new here is the lambda's own and not rigid (report §3.9)
     Env2 = Env1#env{st = mark_process_only(T, St), effect = EffT, ann_vars = AnnVars1,
-                    effect_origin = case effect_origin("the lambda", Ret, Effect, RetT, EffT, St) of
-                                        undefined -> Env#env.effect_origin;
-                                        O -> O
-                                    end},
+                    %% report §11.5: the label names the annotation that fixed the
+                    %% mailbox, and an unannotated lambda's is its own, not the
+                    %% enclosing definition's
+                    effect_origin = effect_origin("the lambda", Ret, Effect, RetT, EffT, St)},
     Context = ret_context(Ret, "the lambda body does not have the declared type"),
     {TypedBody, _BodyT, Env4} = check_expr(Body, RetT, Context, ret_origin(Ret, RetT, Env2), Env2),
     %% the body was checked as the annotation says; a lambda written pure

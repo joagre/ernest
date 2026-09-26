@@ -1515,6 +1515,18 @@ effect_origin_is_restored_after_a_nested_definition_test() ->
     ?assertEqual("Io.println needs a process, and f is pure", D2#diag.message),
     ?assertEqual("give f a mailbox type with `with`", D2#diag.help).
 
+%% report §11.5: an unannotated lambda's mailbox is its own, so an effect
+%% error inside it labels no annotation, not the enclosing definition's.
+%% A regression test: the label named `main is declared with Never`, or
+%% `run` pure, where neither annotation had fixed the lambda's mailbox.
+effect_origin_of_an_unannotated_lambda_test() ->
+    Decls = "fn g() -> Unit with String = Unit\nfn h() -> Unit with Int = Unit\n",
+    D1 = diag(Decls ++ "fn main() -> Unit with Never = { let k = fn() = { g(); h() }; Unit }\n"),
+    ?assertEqual("h needs mailbox Int, and the mailbox here is String", D1#diag.message),
+    ?assertEqual([], D1#diag.labels),
+    D2 = diag(Decls ++ "fn run() -> Int = { let k = fn() = { g(); h() }; 1 }\n"),
+    ?assertEqual([], D2#diag.labels).
+
 %% report §4.8, §3.4: an operator resolved at the end of its definition,
 %% once its operand type is known, calls its member, which is pure, in a
 %% process body and a pure one alike, for a top-level and a local fn. It
