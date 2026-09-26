@@ -1149,7 +1149,6 @@ prelude_types_test() ->
                         " | Fault(_) -> 3 | Unknown -> 4 }")),
     ?assertEqual(ok, ok("fn f(x : RestartLimit) = match x {"
                         " RestartLimit(restarts = n, within = _) -> n }")),
-    ?assertEqual(ok, ok("fn f(x : RemoteError) = match x { NoRemotePeer -> 0 | PeerLost -> 1 }")),
     ?assertEqual(ok, ok("fn f(x : Where) = match x { Local -> 0 | Peer(_) -> 1 }")).
 
 %% report §9.4, §9.5, §9.6, §9.7 and Appendix E: every prelude and stdlib

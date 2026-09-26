@@ -128,7 +128,7 @@ counter_golden_test() ->
 
 golden_names() ->
     ["hello", "counter", "upgrade", "pingpong", "stack", "patterns", "kvparser",
-     "remote", "modules/net/http", "modules/main"].
+     "modules/net/http", "modules/main"].
 
 %% report §4.6, §8.5, §11.1: a `let` is a value whatever its type, so one
 %% that holds a function is reached through its getter and called by
@@ -235,8 +235,7 @@ examples_test_() ->
                 {"pingpong", <<"ping 3\npong 3\nping 2\npong 2\nping 1\npong 1\n">>},
                 {"stack", <<"top is 2\n">>},
                 {"patterns", <<"minus one\nzero\nother\na 2\nnothing\n-3\n3\n4\n">>},
-                {"kvparser", <<"a 12\nbad key: =1\nexpected =: a\nbad number: a=x\n">>},
-                {"remote", <<"no remote peer configured\n">>}],
+                {"kvparser", <<"a 12\nbad key: =1\nexpected =: a\nbad number: a=x\n">>}],
     [{Base, fun() ->
                  {Ns, Bin} = example(Base),
                  ?assertEqual({ok, Out}, run(Ns, Bin))
@@ -1721,7 +1720,6 @@ prelude_target(Q, Text) ->
         [answer] -> {ern_rt, answer, 2};
         [monitor] -> {ern_rt, monitor, 2};
         [kill] -> {ern_rt, kill, 1};
-        [remote] -> {ern_rt, remote, 1};
         [restarting] -> {ern_rt, restarting, 2};
         [fault] -> {ern_rt, fault, 1};
         ['Address', call] -> {ern_rt, call, 3};
@@ -1733,8 +1731,7 @@ prelude_target(Q, Text) ->
     end.
 
 %% report §6.5, §6.9, §7.3, §9.5: kill is a Down with Killed, a fault a
-%% Down with its cause, via adapts a message, remote answers
-%% Left(NoRemotePeer) with no peer, all through compiled code
+%% Down with its cause, and via adapts a message, all through compiled code
 process_functions_test() ->
     {ok, Out} = run(
         "type Msg = Died(Down) | Tick\n"
@@ -1755,14 +1752,21 @@ process_functions_test() ->
         "      | _ -> Io.println(\"other\")\n"
         "    };\n"
         "    send(via(fn(u : Unit) = Tick, self()), Unit);\n"
-        "    receive { Tick -> Io.println(\"tick\") | _ -> Io.println(\"other\") };\n"
-        "    Io.println(match remote(fn() = 1) {\n"
-        "        Left(NoRemotePeer) -> \"no peer\"\n"
-        "      | Left(PeerLost) -> \"lost\"\n"
-        "      | Right(_) -> \"answered\"\n"
-        "    })\n"
+        "    receive { Tick -> Io.println(\"tick\") | _ -> Io.println(\"other\") }\n"
         "}\n"),
-    ?assertEqual(<<"killed\ndivision by zero\ntick\nno peer\n">>, Out).
+    ?assertEqual(<<"killed\ndivision by zero\ntick\n">>, Out).
+
+%% report §6.2, §6.7: work on a peer is a process spawned there, and a peer
+%% the node cannot reach faults the caller. A regression test, written
+%% after the code; one node runs until MVP 3.0, so it does not cover a
+%% peer that is reached
+peer_unreachable_test() ->
+    {R, _} = run(
+        "export fn main() -> Unit with Never = {\n"
+        "    let _ = spawn(Peer(\"foo\"), fn() -> Unit with Never = Unit);\n"
+        "    Io.println(\"spawned\")\n"
+        "}\n"),
+    ?assertEqual({fault, <<"peer unreachable">>}, R).
 
 %% report §6.9: kill on a process that has already ended has no effect,
 %% and a monitor placed after the end answers Unknown, with no spawn site,

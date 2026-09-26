@@ -560,51 +560,17 @@ lines of `spawn`, `monitor` and `receive`, met a restarted child's new address. 
 builds it, after step 10 of 2.65 has built `restarting`, `fault`, the service binding and
 the fault report it stands on.
 
-Three questions come first, each discussed and decided before the build, and recorded here
-and in the log. They left [`language_feedback.md`](language_feedback.md) for this item and
+Three questions from [`language_feedback.md`](language_feedback.md) open this item, and
 keep the numbers the log and the code cite them by. What each decides is built where it
-belongs: 14 and 25 in MVP 3.0, 16 in MVP 2.7.
+belongs.
 
-- **Item 14: is `remote` needed once the node protocol and code distribution exist?**
-  Raised while the guide was being checked, with `docs/node_protocol.md` and
-  `docs/code_distribution.md` in view. `remote(f)` (report §6.7, guide §8.1) runs a pure
-  function on the peer with the lowest load among those marked `"remote-peer": true`, the
-  runtime choosing, and
-  answers `Right(v)`, `Left(NoRemotePeer)` or `Left(PeerLost)`; a fault in `f` faults the
-  caller.
-
-  The case for removing it, on the principles. Once `spawn(Peer(name), f)` ships code and
-  answers across nodes, `remote` is a second way to do what a spawned process that answers
-  already does, `spawn` on a peer and `Address.call` for the value (principle 2). It brings
-  a type of its own, `RemoteError`, a configuration flag, and a placement policy the
-  runtime applies where the program cannot see it (principle 3). The guide's `inParallel`
-  already spawns a local process per computation around it, so the primitive does not
-  spare the program the processes it would otherwise write.
-
-  What would be lost, and has to be answered before it goes. A pure computation shipped as
-  a value is simpler to reason about than a process: no mailbox, no reply, a fault that
-  reaches the caller as if the call were local. The runtime's choice of peer is a
-  load-balancing policy that would become a library's or the program's. And `remote` is in
-  the report's prelude, §9, and the guide's examples, so removing it is a report change
-  with the log's *Remote Ergonomics* (2026-09-13) to revisit. If it goes, §6.7, §9.4,
-  `RemoteError`, the `"remote-peer"` flag and the guide's §8.1 go with it, and MVP 3.0's
-  bullets that build it are rewritten.
-- **Item 25: `spawn(Remote, f)`, the asynchronous `remote`**, decided with item 14. A
-  process already starts on a named peer, `spawn(Peer(name), f)` (§6.2), and answers
-  asynchronously; what only `remote(f)` has is the runtime's choice of peer, among those
-  §11.3 marks as accepting remote computation, and it is synchronous. A third place,
-  `type Where = Local | Peer(String) | Remote`, would give that choice to a process: a long
-  computation no longer holds the caller, and it may send more than one answer. With it,
-  `remote(f)` is `spawn(Remote, ...)` and a reply, a composition, which strengthens item
-  14's case against it by principle 2. To be answered: what `spawn(Remote, f)` does where
-  no peer accepts remote computation, where `remote` answers `Left(NoRemotePeer)` and
-  `spawn` has only an address to return, and a silent fall back to `Local` is what
-  principle 3 refuses, so it faults; and that the flag in `ernest.conf` then admits any
-  process a peer sends, where today it admits a pure function, so what a peer accepts
-  widens and §11.3 says so. The placement stays the runtime's, as unseen by the program as
-  `remote`'s is. `Peer.find` (MVP 2.65 step 5) depends on the outcome: if `remote` stays
-  and takes a named peer, `Peer.find` is its composition and goes by E.0 rule 4; otherwise
-  `Peer.find` stands, as the gate of step 10 kept it (G6).
+- **Items 14 and 25, decided 2026-09-27: `remote` is removed**, and no `spawn(Remote, f)`
+  or other placement by the runtime replaces it (report §6.7, §9; the log's *No Remote
+  Computation in the Language*). Work on a peer is a process spawned there. Choosing a
+  lightly loaded node is a library's, over two facts only the runtime has, `Peer.nodes`
+  and `Peer.runQueue`, built in MVP 3.0 with `libs/balancer`. Done in the same commit:
+  the report, the prelude, the emitter, the runtime, the guide's §8.1, and
+  `examples/remote.ern` removed.
 - **Item 16: a program cannot read its command-line arguments.** An entry point takes no
   arguments (report §8.1), and neither the prelude nor a system module gives the command
   line, so a program's inputs are written into it or read from standard input. A reader new
@@ -705,14 +671,25 @@ which is §8.7 in its easiest case. A peer whose build differs is refused with a
 3.1. Split from 3.1 on 2026-09-20, since content addressing proper is the larger half and
 peers are the useful one.
 
-- `spawn(Peer(name), f)` and `remote(f)` over the peers in `ernest.conf`, authenticated with
-  the configured keys: the connection is `ssl` with the peer's public key from `ernest.conf`
-  as the only trust, read with `public_key`, inside `ern`, and a program never sees either
-  module. `remote` picks among peers flagged `"remote-peer": true` by load, criterion chosen
-  then.
-- Peer loss as §10 says: every process on the lost peer dead with `Fault("peer lost")`,
-  monitors delivered, pending `remote` calls `Left(PeerLost)`; a peer that reappears is a new
-  instance.
+- `spawn(Peer(name), f)` over the peers in `ernest.conf`, authenticated with the configured
+  keys: the connection is `ssl` with the peer's public key from `ernest.conf` as the only
+  trust, read with `public_key`, inside `ern`, and a program never sees either module.
+- Peer loss as §10 says: every process on the lost peer dead with `Fault("peer lost")`, and
+  monitors delivered; a peer that reappears is a new instance.
+- **Placement by load, in `Peer` and a library** (MVP 2.66's items 14 and 25; the log's *No
+  Remote Computation in the Language*). `Peer.nodes : () -> List(Where) with m` answers the
+  nodes a program can place work on, `Local` first and then each peer of `ernest.conf` in
+  its order. `Peer.runQueue : () -> Int with m` answers how many processes wait to run on
+  the node that evaluates it. Both are shims by E.0 rule 1, and `Peer`'s section in
+  Appendix E states them.
+- **`libs/balancer`**, in Ernest over those two. `Balancer.pick(measure)` draws two nodes at
+  random from `Peer.nodes()`, spawns on each a process that evaluates `measure()` there and
+  sends the number back, and answers the node with the lower number, the first on a tie.
+  A node lost before it answers is dropped and another drawn; `Local` always answers, so
+  `pick` always answers a node, and with one node it answers `Local` without measuring.
+  `measure : () -> Int with m`, so `Balancer.pick(Peer.runQueue)` is the common call. Its
+  module page states the cost, two round trips per `pick`, which suits work worth sending
+  to another node and not small work.
 - **What the protocol note asks of the report**, each to be decided before it is built:
   `Down` gains `Unreachable` and a cause for an address that never had a process, since a
   watcher must tell a lost connection from a death (§9.3, §6.9); §6.4 gains that what
@@ -724,8 +701,8 @@ peers are the useful one.
   question rather than a protocol question. MVP 2.65 step 5 decided it: a service is a top-level
   binding, and a peer's service is found by reading its binding on the peer. Built here:
   **`Peer.find(name, fn() = M.service)`**, and §8.7's two sentences on a node's own
-  initialization and on a definition that differs by hash. Its failure type is decided
-  with item 14, `remote`, since both evaluate a pure function on a peer; `Peer` as a
+  initialization and on a definition that differs by hash. It answers a failure
+  rather than faulting, `Peer.Failure = NoSuchPeer | Lost`, `Peer`'s own; `Peer` as a
   namespace beside the constructor `Peer` of `Where` is checked against §4.2. The note's open question 11, a way to stop an uncooperative
   process, is already answered: `kill` is the language's (§6.9), asynchronous, and a killed
   process's monitors see `Killed`; across nodes it needs a frame the note's table lacks.
@@ -738,9 +715,6 @@ peers are the useful one.
   on stopping a process is §6.9's `kill`; and the protocol note's §6.5 says no separate
   spawn with a monitor is needed, where §9.4 has `spawnMonitored` and §6.9 answers `Unknown`
   for a monitor made after the end.
-- **Whether `remote` stays, and whether `spawn(Remote, f)` joins it**, items 14 and 25,
-  decided in MVP 2.66's opening discussion before `remote` is built over peers. If `remote`
-  goes, the bullets above that build it are rewritten then.
 - **Two more places the protocol note disagrees with the report, found 2026-09-24 in the
   closing sweep of MVP 2.61**, also decided before building: the note's `spawn_at` never
   fails at the call and returns a dead address, where §6.2 faults the caller on an unknown or
@@ -1001,7 +975,6 @@ since 2026-09-25, as another module's function is (the `e_var` row).
 | `spawnMonitored` | `ern_rt:spawn_monitored/4`, its wait made in the reaper with the spawn |
 | `restarting` | `ern_rt:restarting/2`, a function that runs the given one again after a fault |
 | `Address.call`, `Address.callForever` | `ern_rt:call/3`, `call_forever/2` |
-| `remote` | MVP 3; until then `ern_rt:remote/1` answers `Left(NoRemotePeer)` |
 | `Int.+` and the other `userop`s on `Int`, `Int.negate` | the inline operators above |
 | `Float.*` | inline, the operands bound first and the operation's own `badarith` caught and raised as the §7.4 fault |
 | `String.<>`, `List.<>`, `Bytes.<>` | inline as above |

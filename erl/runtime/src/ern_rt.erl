@@ -28,7 +28,7 @@
          proxy_for/3,
          proxy_forget/2, source_begin/0, source_begin/1, source_end/0, opened/1,
          forget_opened/1, timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1,
-         undefined_function/3, undefined_lambda/3, remote/1, fault/1, fault/2,
+         undefined_function/3, undefined_lambda/3, fault/1, fault/2,
          trace/1, sys/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
          binding/1, run_main/2, run_main/3, signal/1, deadlock_target/1, restarting/2,
          init_stdlib/0, read_input/1, input_not_utf8/0, reason/1]).
@@ -620,14 +620,6 @@ count(Pos, D) ->
     catch
         error:badarg -> ok
     end.
-
-%%
-%% Report §6.7: no peer is configured in MVP 1
-%%
-
--spec remote(fun(() -> term())) -> {'Left', 'NoRemotePeer'}.
-remote(_F) ->
-    {'Left', 'NoRemotePeer'}.
 
 %%
 %% Report §7: a process body; an exception is a fault

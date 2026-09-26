@@ -1,6 +1,6 @@
 # Ernest: Language Report
 
-Revision of 26 September 2026. Rationale, rejected alternatives, and open questions are in [`decisions.md`](docs/decisions.md).
+Revision of 27 September 2026. Rationale, rejected alternatives, and open questions are in [`decisions.md`](docs/decisions.md).
 
 ## 0. Introduction
 
@@ -202,7 +202,7 @@ A sum type whose constructors may be mentioned only in the module that declares 
 
 A type declared `foreign type T` has no constructors: its values are made and used only by foreign functions, §4.7, and can otherwise be held, passed, and sent. Its equality is §3.10's.
 
-A foreign value is bound to the node that made it: transporting a value that transitively contains one to another node faults with cause `Fault("foreign value cannot cross nodes")`. Transport is `spawn(Peer(...), f)` and `spawnMonitored(Peer(...), f, wrap)`, `send` to a remote address, the request of a call to one, the result of `remote(f)`, `answer(r, v)` to a caller on another node, and the captures of any shipped closure. The fault is the transporting process's, at the operation that transports: the caller of `spawn` or `spawnMonitored`, the sender of `send`, the caller of a call, and the process that calls `answer`. The value of `remote(f)` is transported by no process of the program, and a foreign value in it faults the caller of `remote`, as a fault in `f` does (§6.7).
+A foreign value is bound to the node that made it: transporting a value that transitively contains one to another node faults with cause `Fault("foreign value cannot cross nodes")`. Transport is `spawn(Peer(...), f)` and `spawnMonitored(Peer(...), f, wrap)`, `send` to a remote address, the request of a call to one, `answer(r, v)` to a caller on another node, and the captures of any shipped closure. The fault is the transporting process's, at the operation that transports: the caller of `spawn` or `spawnMonitored`, the sender of `send`, the caller of a call, and the process that calls `answer`.
 
 ### 3.9 Type variables and polymorphism
 
@@ -556,12 +556,7 @@ fn twice(dst : Address(Request), request : Request) -> Unit with m = {
 
 ### 6.7 Remote computation
 
-```
-remote : (() -> a) -> Either(RemoteError, a) with m
-type RemoteError = NoRemotePeer | PeerLost
-```
-
-`remote(f)` evaluates the pure function `f` on a peer the runtime chooses among those configured for remote computation and returns `Right(v)`. It returns `Left(NoRemotePeer)` when no such peer is configured, and `Left(PeerLost)` when the peer is lost before the value returns. A fault in `f` faults the caller with the same cause, as `f()` would. A resolution failure on the peer faults the caller with `Fault("peer resolution failed: ...")` (§8.7). Effectful work on a peer goes through `spawn(Peer(...), ...)`. `remote` carries a mailbox effect and is called from process code only.
+Work on a peer is a process spawned there, `spawn(Peer(name), f)` (§6.2), and its result reaches another process as a message. The program names the node at the spawn: the runtime chooses no node for it.
 
 ### 6.8 `Never`
 
@@ -620,7 +615,7 @@ Partial operations in the prelude return `Optional` or `Either`, except the foll
 - `fault(c)`, which compiles at any type: `Fault(c)`.
 - `Address.callForever` whose callee has ended, or ends or restarts before it answers (§6.6): the callee's cause, `Fault("callee was killed")`, `Fault("callee returned without answering")`, or `Fault("callee had ended")`.
 - Cross-node transport of a foreign value (§3.8): `Fault("foreign value cannot cross nodes")`.
-- `spawn(Peer(...), ...)` or `spawnMonitored(Peer(...), ...)` with an unknown or unreachable peer: `Fault("peer unreachable")`. `spawn(Peer(...), ...)`, `spawnMonitored(Peer(...), ...)`, or `remote(f)` with a resolution failure on the peer (§8.7): `Fault("peer resolution failed: ...")`. A fault in `remote`'s callback faults the caller with the callback's own cause. `send` to a remote address whose resolution fails faults the sender with the same cause, asynchronously, after `send` returns.
+- `spawn(Peer(...), ...)` or `spawnMonitored(Peer(...), ...)` with an unknown or unreachable peer: `Fault("peer unreachable")`. `spawn(Peer(...), ...)` or `spawnMonitored(Peer(...), ...)` with a resolution failure on the peer (§8.7): `Fault("peer resolution failed: ...")`. `send` to a remote address whose resolution fails faults the sender with the same cause, asynchronously, after `send` returns.
 - A foreign function that raises: `Fault("foreign function m:f/n raised ...")`. A foreign function's return is checked against its declared type when the function returns, and a reply when `Address.call` or `Address.callForever` returns it, each in the calling process and to the value's whole depth; a function value in it is checked when it is called, its result against its declared result type. A mismatch faults the calling process: `Fault("foreign return does not match T")`, `Fault("reply does not match T")`. A message from a foreign process that does not match the mailbox type faults the receiver on delivery (§8.4): `Fault("message does not match M")`. Each names the declared type.
 
 These faults come from no prelude operation. A fault in a function adapting an address faults the target with its own cause (§6.5). The loss of a peer faults every process on it with `Fault("peer lost")` (§10). A deadlock faults the entry process with `Fault("deadlock")` (§8.6), and under `ern test` the process of the test that runs (§11.2). The unloading of the code a process runs faults the process with `Fault("its code was unloaded")` (§11.2), and a use of a binding a faulting reload left without a value faults its reader with `Fault("the binding has no value, since one before it faulted")` (§11.2). Reading the terminal both as lines and as keys faults the entry process with `Fault("the terminal is already read as lines")`, or `as keys` (§8.2). While a shell holds the terminal, subscribing to it or reading a line from any other process faults that process with `Fault("the shell holds the terminal; run the program with ern run to give it the keyboard")` (§11.2). A line of standard input that is not UTF-8 faults the process that asked for it with `Fault("the standard input is not UTF-8")`, and keys that are not UTF-8 fault the entry process with the same cause (§8.2). A standard input that cannot be read faults the entry process with `Fault("the standard input could not be read: ...")`, the host's reason after the colon.
@@ -690,11 +685,11 @@ When no forward progress is possible, the entry process faults with `Fault("dead
 
 ### 8.7 Code shipping
 
-Four operations ship a closure or payload, and the code it depends on, to a peer: `spawn(Peer(name), f)` and `spawnMonitored(Peer(name), f, wrap)`, `remote(f)` and the return of its result, `send` to a remote address, and `answer(r, v)` to a caller on another node. Within a node nothing is shipped.
+Three operations ship a closure or payload, and the code it depends on, to a peer: `spawn(Peer(name), f)` and `spawnMonitored(Peer(name), f, wrap)`, `send` to a remote address, and `answer(r, v)` to a caller on another node. Within a node nothing is shipped.
 
 **Content addressing.** Every function, constructor, and type is identified across nodes by a hash of its normalized definition together with the hashes of what it references. Identical definitions have the same hash on every node. A type's hash includes its qualified name, so two types with the same constructors under different names are different types, as they are to the checker. Any change to a definition changes its hash, and transitively the hashes of everything that depends on it. A set of mutually recursive definitions is hashed as a group, internal references by position, and each member's identity derives from the group's hash. Normalization renames local variables, orders named fields canonically (§3.5), preserves the source evaluation order of construction expressions, and preserves the qualified names of external references.
 
-**Resolution.** Before a shipped closure runs, the peer resolves every hash it carries, transitively, from its own store or by fetching from the sender, and caches what it fetched. A resolution failure is a missing dependency, a system module the peer's runtime does not provide, or an incompatible foreign definition. For `remote`, `spawn(Peer, ...)`, and `spawnMonitored(Peer, ...)` it is a fault of the caller. For `send`, the request of a call, and `answer`, it is an asynchronous fault of the process that sent. A resolution failure does not invalidate other addresses on that peer; only the loss of the peer does (§10).
+**Resolution.** Before a shipped closure runs, the peer resolves every hash it carries, transitively, from its own store or by fetching from the sender, and caches what it fetched. A resolution failure is a missing dependency, a system module the peer's runtime does not provide, or an incompatible foreign definition. For `spawn(Peer, ...)` and `spawnMonitored(Peer, ...)` it is a fault of the caller. For `send`, the request of a call, and `answer`, it is an asynchronous fault of the process that sent. A resolution failure does not invalidate other addresses on that peer; only the loss of the peer does (§10).
 
 **Identity.** Types are identified by hash. Two nodes with identical declarations under the same qualified name interoperate. Two nodes with different declarations under one name hold distinct types. A shipped closure that mentions the sender's `FooMsg` uses the sender's `FooMsg` on the peer; the peer's own `FooMsg` is unrelated to it. An abstract type's hash also includes the types of its module's exported declarations: two `Stack(a)` declarations with the same name and representation are one type only if their modules export the same declarations with the same types.
 
@@ -741,7 +736,6 @@ type Ordering = Less | Equal | Greater
 type Down = Down(reason : Reason, site : String)
 type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
 type RestartLimit = RestartLimit(restarts : Int, within : Int) // within in milliseconds, §6.9
-type RemoteError = NoRemotePeer | PeerLost
 type Where = Local | Peer(String) // spawn placement, §6.2
 type Path = Path(String) // in the runtime's syntax
 type Test = Test(name : String, run : () -> TestResult with Never)
@@ -766,7 +760,6 @@ via                 : ((a) -> b, Address(b)) -> Address(a)
 Address.call        : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
 Address.callForever : (Address(m), (Reply(a)) -> m) -> a with n
 answer              : (Reply(a), a) -> Unit with m
-remote              : (() -> a) -> Either(RemoteError, a) with m
 restarting          : (RestartLimit, () -> Unit with n) -> () -> Unit with n
 monitor             : (Address(a), (Down) -> m) -> Unit with m
 kill                : (Address(a)) -> Unit with m
@@ -809,7 +802,7 @@ The prelude binds no system reference. Each is a private binding of its system m
 - `Down` carries a reason distinguishable from every other.
 - The runtime detects a deadlock (§8.6).
 - A node ships code to a peer that lacks it, identified by content; dependencies resolve by hash before a shipped closure runs, types are content-addressed, a system module's binding is the peer's, and foreign code is per node, §8.7.
-- The runtime detects the loss of a peer: every process on it is treated as dead with the reason `Fault("peer lost")`, monitors deliver `Down` (§6.9), and pending `remote` calls return `Left(PeerLost)`. Loss is terminal: a peer that reappears under the same name is a new instance, and addresses held before the loss are unrelated to it. `send` to a peer is best-effort; messages in flight at the loss are dropped without notice.
+- The runtime detects the loss of a peer: every process on it is treated as dead with the reason `Fault("peer lost")`, and monitors deliver `Down` (§6.9). Loss is terminal: a peer that reappears under the same name is a new instance, and addresses held before the loss are unrelated to it. `send` to a peer is best-effort; messages in flight at the loss are dropped without notice.
 
 ## 11. Toolchain
 
@@ -879,7 +872,7 @@ The toolchain is one command, `ern`, whose first word is its job: `ern build`, `
 
 ### 11.3 Configuration setup
 
-`ern config [--config-dir dir]` creates the configuration directory `dir`, `./.ernest` by default, with `ernest.conf` and this node's private key, readable only by its owner, and does nothing else; it fails if `dir` exists. `ernest.conf` holds this node's network address and public key and the list of peers, each with a name, a network address, a public key, and whether it accepts remote computation; Appendix C shows one. The names are what `Peer(name)` refers to.
+`ern config [--config-dir dir]` creates the configuration directory `dir`, `./.ernest` by default, with `ernest.conf` and this node's private key, readable only by its owner, and does nothing else; it fails if `dir` exists. `ernest.conf` holds this node's network address and public key and the list of peers, each with a name, a network address, and a public key; Appendix C shows one. The names are what `Peer(name)` refers to.
 
 ### 11.4 Documentation extraction
 
@@ -1044,20 +1037,18 @@ fn submitter(worker : Address(WorkerMsg)) -> Unit with Never = {
     {
       "name": "foo",
       "network-address": "145.32.64.7:8654",
-      "public-key": "<PEM public key>",
-      "remote-peer": true
+      "public-key": "<PEM public key>"
     },
     {
       "name": "bar",
       "network-address": "145.32.64.8:8654",
-      "public-key": "<PEM public key>",
-      "remote-peer": false
+      "public-key": "<PEM public key>"
     }
   ]
 }
 ```
 
-`Peer("foo")` and `Peer("bar")` name these peers in `spawn`, §6.2. `remote(f)` chooses among peers with `"remote-peer": true`, here only `foo`. The private key is in the same directory, `private-key.pem`, readable only by its owner. A freshly created file has an empty `peers` list.
+`Peer("foo")` and `Peer("bar")` name these peers in `spawn`, §6.2. The private key is in the same directory, `private-key.pem`, readable only by its owner. A freshly created file has an empty `peers` list.
 
 ## Appendix D. A Foreign Library
 
@@ -1615,7 +1606,7 @@ Every technical term this report introduces, with the section that defines it. P
 - **qualified name** — a name with a dotted namespace prefix, `Net.Http.parse`. §2.3, §4.2.
 - **`receive`** — a match over the mailbox. §6.3.
 - **redundant** — of a clause or an alternative: able to match no value those before it leave; a type error. §5.9.
-- **remote computation** — `remote(f)` evaluates a pure function on a peer. §6.7.
+- **remote computation** — work on a peer: a process spawned there. §6.7.
 - **`Reply(a)`** — a one-shot address for the answer to a request. §3.7, §6.6.
 - **reply-carrying** — a type that transitively contains a `Reply`. §6.6.
 - **restart** — `restarting`'s run of its function again after a fault, in the same process with its address and its mailbox; not a death. §6.9.

@@ -262,18 +262,6 @@ declared_types() ->
     /// // => "division by zero"
     /// ```
     type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
-    /// Why `remote` has no answer: no peer takes remote computation, or the peer
-    /// was lost before it answered (report §6.7).
-    ///
-    /// ### Examples
-    ///
-    /// ```ernest
-    /// match remote(fn() = 6 * 7) {
-    ///     Right(n) -> Some(n)
-    ///   | Left(NoRemotePeer) or Left(PeerLost) -> None
-    /// }
-    /// ```
-    type RemoteError = NoRemotePeer | PeerLost
     /// Where `spawn` starts a process: on this node, or on the peer of that name
     /// in the configuration (report §6.2).
     ///
@@ -329,7 +317,7 @@ declared_types() ->
 -spec process_only() -> [[atom()]].
 process_only() ->
     [[send], [spawn], [spawnMonitored], ['Address', call], ['Address', callForever], [answer],
-     [monitor], [kill], [remote]].
+     [monitor], [kill]].
 
 %% Qualified name, type text, and documentation, or `module` for an
 %% operation its type's module documents (report §9).
@@ -470,22 +458,6 @@ values() ->
       ```ernest
       spawn(Local, restarting(RestartLimit(restarts = 3, within = 5000),
           fn() -> Unit with Never = Unit))
-      ```
-      """/utf8>>},
-     {[remote], "(() -> a) -> Either(RemoteError, a) with m",
-      <<"""
-      Runs the pure function `f` on a peer the runtime chooses, and answers its
-      value, or why there is none (report §6.7). The toolchain runs one node
-      until peers are built, and answers `Left(NoRemotePeer)`.
-
-      ### Errors
-
-      The fault of `f`, with the same cause, as a call of `f` here would.
-
-      ### Examples
-
-      ```ernest
-      remote(fn() = 6 * 7)
       ```
       """/utf8>>},
      {[monitor], "(Address(a), (Down) -> m) -> Unit with m",

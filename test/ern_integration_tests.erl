@@ -10,10 +10,10 @@
 -define(BUILD, "../bin/ern build --source-root ../examples --build-root build ").
 
 -define(PROGRAMS, ["hello", "counter", "upgrade", "pingpong", "stack", "patterns",
-                   "kvparser", "remote"]).
+                   "kvparser"]).
 
 %% report §8.1, §8.6, §11.1, §11.2, and per program: §6.4 (pingpong),
-%% §6.6 (counter), §6.7 (remote), §6.10 (upgrade), §5.10 (patterns),
+%% §6.6 (counter), §6.10 (upgrade), §5.10 (patterns),
 %% §5.5 (kvparser), §4.4 (stack)
 %% Each program is compiled and run apart from the others, so they run in
 %% parallel (plan, MVP 2.6).

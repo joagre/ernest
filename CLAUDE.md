@@ -36,7 +36,7 @@ The rules are in the order of work: what is authoritative and who owns each fact
 - **The report changes first.** An anomaly found while implementing changes the report, then the decisions log, then the code.
 - **A change to the report or the plan is stated before it is made, not asked about.** Give the change and the argument for it, make it, and report it in the conformance section. Stop and wait only where the answer decides what gets built and guessing would throw the work away; that case is rare, and everything else is stated and done.
 - **That rare case is a design question, discussed one at a time, in prose.** The argument comes before the verdict, with a recommendation; never a form of choices.
-- **No decision is left pending.** A question a step raises is decided in the same turn, with its argument, and recorded in the plan and the log. Where guessing would throw work away, it is placed in the plan as a named decision inside a named milestone or checkpoint, never left as "open". An undiagnosed defect is planned the same way, with a date and the shape of its fix.
+- **No decision is left pending.** A question a step raises is decided in the same turn, with its argument, and recorded in the plan and the log. Where guessing would throw work away, it is discussed with the user at once, and not left waiting for the milestone that builds its answer; until it is decided it stands in the plan as a named decision inside a named milestone or checkpoint, never as "open". An undiagnosed defect is planned the same way, with a date and the shape of its fix.
 - **List the report sections a module implements before writing it.**
 - **Quote the exact section or grammar rule** when touching normative material.
 

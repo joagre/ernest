@@ -580,7 +580,6 @@ prelude_call(Pos, ['Address', call], _, Args, #e_var{type = T}, Cx) ->
 prelude_call(Pos, ['Address', callForever], _, Args, #e_var{type = T}, Cx) ->
     {Form, Cx1} = checked_reply(call_forever, Args, T, Cx),
     {at(Pos, Form), Cx1};
-prelude_call(Pos, [remote], _, Args, _, Cx) -> {at(Pos, call_remote(ern_rt, remote, Args)), Cx};
 prelude_call(Pos, [restarting], _, Args, _, Cx) ->
     {at(Pos, call_remote(ern_rt, restarting, Args)), Cx};
 prelude_call(Pos, [fault], _, [Msg], _, Cx) ->
@@ -637,7 +636,7 @@ prelude_value(_, ['Io', Name], {tfn, [P], _, _}, Cx) when Name =:= show; Name =:
     Desc = erl_syntax:abstract(descriptor(P, Cx)),
     {lambda([A], call_remote(ern_io, Name, [erl_syntax:variable(A), Desc])), Cx1};
 prelude_value(Pos, [Name], T, Cx) ->
-    case lists:member(Name, [self, send, answer, via, monitor, kill, remote, fault, restarting]) of
+    case lists:member(Name, [self, send, answer, via, monitor, kill, fault, restarting]) of
         true -> {remote_fun(ern_rt, Name, arity_of(T, Pos)), Cx};
         false -> fail(Pos, "no emission for " ++ atom_to_list(Name))
     end;

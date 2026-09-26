@@ -640,10 +640,6 @@ path_test() ->
     ?assertEqual(false, P:isAbsolute({'Path', <<"a">>})),
     ?assertEqual(<<"a">>, P:toString({'Path', <<"a">>})).
 
-%% report §6.7: no peer is configured in MVP 1
-remote_test() ->
-    ?assertEqual({'Left', 'NoRemotePeer'}, ern_rt:remote(fun() -> 1 end)).
-
 %% report §7.4
 todo_test() ->
     ?assertThrow({ern, fault, <<"x">>}, ern_rt:fault(<<"x">>)).

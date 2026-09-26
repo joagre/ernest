@@ -587,7 +587,7 @@ The inferred type is `((a) -> b with e, a) -> b with e`: `apply` has the effect 
 
 An effect variable may stand for a mailbox type or for pure. One that also appears inside `Address`, as in `self : () -> Address(m) with m`, stands for a mailbox type only, since an address needs one. The letters in a printed type mean nothing of their own.
 
-The process operations, `self`, `send`, `spawn`, `spawnMonitored`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, `kill`, and `remote`, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
+The process operations, `self`, `send`, `spawn`, `spawnMonitored`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, and `kill`, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
 
 ### 3.6 One spawn corner: a callback's mailbox
 
@@ -1218,7 +1218,7 @@ the worker spawned at Faults.main:9 faulted: division by zero
 
 `average` is pure and still faults. A type says what a function returns when it returns, not that it will. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn. The first line is `ern run`'s own: it writes every fault to standard error as it happens, the spawn site and the cause, whatever the program does about it.
 
-Some faults reach beyond their process. A fault in the entry process ends the program, and `ern run` exits with status 1, as a fault in an initializer does. A fault in a function a delivery applies, an adapted address's (§5.5) or the wrap given to `monitor`, `Clock.alarm`, `Terminal.subscribe` or `Process.faults`, is the fault of the process it delivers to. The loss of a peer faults every process on it (report §10). A fault in the callback of `remote` is the fault of the process that called it (§8.1). A fault in a process that a `callForever` waits on faults the caller with the same cause (report §6.6). A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
+Some faults reach beyond their process. A fault in the entry process ends the program, and `ern run` exits with status 1, as a fault in an initializer does. A fault in a function a delivery applies, an adapted address's (§5.5) or the wrap given to `monitor`, `Clock.alarm`, `Terminal.subscribe` or `Process.faults`, is the fault of the process it delivers to. The loss of a peer faults every process on it (report §10). A fault in a process that a `callForever` waits on faults the caller with the same cause (report §6.6). A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
 
 ### 6.4 Let it crash
 
@@ -1554,61 +1554,36 @@ Can a helper in the same file as `Stack`, one that is not declared `Stack.` anyt
 
 A program reaches outside its node's Ernest code in two ways: to peers over the network, and to foreign code on the same node.
 
-Peers are the language's, and the toolchain runs one node until they are built, in MVP 3.0. Until then the configuration is not read, `spawn(Peer(name), f)` faults with `peer unreachable`, and `remote` answers `Left(NoRemotePeer)`; §8.1 and §8.2 describe what peers will do.
+Peers are the language's, and the toolchain runs one node until they are built, in MVP 3.0. Until then the configuration is not read, `spawn(Peer(name), f)` faults with `peer unreachable`; §8.1 and §8.2 describe what peers will do.
 
 A node that talks to peers has a configuration, which a node running alone does not need. `ern config` creates it, once, in `./.ernest/`: `ernest.conf`, with this node's network address, its public key and an empty list of peers, and the private key beside it. The command fails if `./.ernest` exists. A peer is added to the list by editing `ernest.conf` (report Appendix C), and its name is what `Peer(name)` refers to.
 
-### 8.1 `remote`
+### 8.1 Work on a peer
 
-`remote` runs a pure function on a peer the runtime chooses:
-
-```console
-$ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
-> :type remote
-remote : (() -> a) -> Either(RemoteError, a) with m
-```
+Work runs on a peer in a process spawned there, and its result comes back as a message. `spawn`'s first argument places the process:
 
 ```ernest-prelude
-type RemoteError = NoRemotePeer | PeerLost
+type Where = Local | Peer(String)
 ```
 
-`f` is pure, since `remote` computes a value and returns it; work with effects on a peer runs in a process spawned there, `spawn(Peer(name), f)`.
-
-`remote` answers `Left(NoRemotePeer)` when no peer takes remote computation, and `Left(PeerLost)` when the peer is lost before it answers. A fault in `f` faults the caller with the same cause, as a local call would; work whose fault should not end the caller runs in a process of its own, monitored.
-
-`remote` waits for its answer, so several computations run at once from processes of their own, each calling `remote` and answering when asked. The answers come back in the order they were asked for:
+The program names the peer; the runtime chooses no node for it (report §6.7):
 
 ```ernest
-type Ask(a) = Ask(reply : Reply(Either(RemoteError, a)))
+// square.ern
+type Result = Result(Int)
 
-fn inParallel(fs : List(() -> a)) -> List(Either(RemoteError, a)) with m = {
-    let workers = List.map(fs, fn(f) = spawn(Local, fn() -> Unit with Ask(a) = {
-        let v = remote(f);
-        receive { Ask(reply = r) -> answer(r, v) }
-    }));
-    List.map(workers, fn(w) = Address.callForever(w, fn(r) = Ask(reply = r)))
-}
-```
-
-A minimal program that submits a computation:
-
-```ernest
 fn heavy(a : Int, b : Int) -> Int = a * a + b * b
 
-export fn main() -> Unit with Never = match remote(fn() = heavy(3, 4)) {
-    Right(n) -> Io.println("remote returned " <> Int.toString(n))
-  | Left(NoRemotePeer) -> Io.println("no remote peer configured")
-  | Left(PeerLost) -> Io.println("peer lost")
+export fn main() -> Unit with Result = {
+    let me = self();
+    let _ = spawn(Peer("foo"), fn() -> Unit with Never = send(me, Result(heavy(3, 4))));
+    receive { Result(n) -> Io.println("foo computed " <> Int.toString(n)) }
 }
 ```
 
-With a peer that `ernest.conf` lists with `"remote-peer": true`, it prints `remote returned 25`. On one node it answers the other case:
+With a peer named `foo` in `ernest.conf`, it prints `foo computed 25`. The closure takes `heavy` with it, and `me` still names this process on the peer (§8.2). On one node, today, the spawn faults with `peer unreachable`, and so does the program.
 
-```console
-$ ern run remote.erc
-no remote peer configured
-```
+A fault in `heavy` is the spawned process's, not the caller's, so a caller that must know spawns with `spawnMonitored` and receives a `Down` (§5.2). Several computations run at once as several such processes, each sending its result back.
 
 ### 8.2 Code shipping
 
