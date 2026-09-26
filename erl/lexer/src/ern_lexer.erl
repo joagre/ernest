@@ -11,12 +11,11 @@
 
 -export([tokenize/1]).
 
--include_lib("lexer/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diag.hrl").
 
 -export_type([pos/0, token/0]).
 
--type pos() :: {pos_integer(), pos_integer(), {pos_integer(), pos_integer()},
-                {pos_integer(), pos_integer()}}.
+-type pos() :: ern_diag:pos().
 %% line, column, the end (exclusive) as line and column, and the end of the
 %% previous token, from which the parser sets a node's end (report §11.5)
 -type token() ::

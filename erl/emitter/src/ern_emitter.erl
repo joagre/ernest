@@ -15,7 +15,7 @@
          iface_hash/1, module_atom/1, descriptor/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("lexer/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diag.hrl").
 -include_lib("typer/include/ern_types.hrl").
 
 -define(CHUNK, <<"ErnI">>).

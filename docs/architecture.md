@@ -15,7 +15,7 @@ One Ernest module goes through the stages below, Erlang applications under `erl/
 | typer | `ern_typecheck` with `ern_types`, `ern_prelude`, `ern_exhaust`, `ern_reply` | AST, dependency interfaces | typed AST, interface, environment |
 | emitter | `ern_emitter` | typed AST, environment | Erlang forms, then a BEAM binary with the `ErnI` and `Docs` chunks |
 | runtime | `ern_rt`, `ern_boundary`, `ern_bits`, `ern_show`, `ern_fs`, `ern_tty`, `ern_tcp`, and the standard library's shims | | what compiled code calls |
-| diagnostics | `ern_diag`, in the lexer's application | a `#diag{}` from any stage, the source | the text of §11.5, or its first line |
+| diagnostics | `ern_diag`, in `utils`, beneath every stage | a `#diag{}` from any stage, the source | the text of §11.5, or its first line |
 | cli | `ern_cli` with `ern_shell`, the shell's front end, and `ern_page`, §11.4's renderer | command lines, and the shell's inputs | `ernc` and `ern`, and a session |
 
 `emacs/` is outside this pipeline: the Emacs mode reads `.ern` files and never calls the toolchain, and [`emacs_mode.md`](emacs_mode.md) owns it.

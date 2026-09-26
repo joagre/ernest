@@ -2,7 +2,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("lexer/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diag.hrl").
 
 e(Text) ->
     {ok, E} = ern_parser:parse_expr(Text),

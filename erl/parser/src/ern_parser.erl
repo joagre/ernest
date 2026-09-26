@@ -11,7 +11,7 @@
 -export_type([error/0]).
 
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("lexer/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diag.hrl").
 
 -type error() :: ern_diag:diag().
 

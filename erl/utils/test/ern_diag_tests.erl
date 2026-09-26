@@ -2,7 +2,7 @@
 -module(ern_diag_tests).
 
 -include_lib("eunit/include/eunit.hrl").
--include_lib("lexer/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diag.hrl").
 
 -define(SRC, "fn g() -> Int =\n    f(\"x\")\nfn f(n : Int) -> Int = n\n").
 

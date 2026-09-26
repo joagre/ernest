@@ -24,7 +24,7 @@
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
--include_lib("lexer/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diag.hrl").
 
 -record(env, {ns = [], types = #{}, cons = #{}, globals = #{}, lets = #{},
               local_types = #{}, local_cons = #{}, local_values = #{}, session = #{},

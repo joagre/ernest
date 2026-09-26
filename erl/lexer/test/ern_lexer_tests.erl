@@ -1,7 +1,7 @@
 -module(ern_lexer_tests).
 
 -include_lib("eunit/include/eunit.hrl").
--include_lib("lexer/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diag.hrl").
 
 %% Token list without positions and without the trailing eof.
 toks(Text) ->

@@ -5,16 +5,21 @@
 
 -export([span/1, short/2, format/3]).
 
--export_type([span/0, diag/0]).
+-export_type([pos/0, span/0, diag/0]).
 
--include_lib("lexer/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diag.hrl").
 
 -type span() :: {pos_integer(), pos_integer(), {pos_integer(), pos_integer()}}.
 %% line, column, and the end, exclusive, as line and column
 -type diag() :: #diag{}.
 
+%% A token's position, which carries the end of the token before it as
+%% well; the lexer's `pos()` is this type.
+-type pos() :: {pos_integer(), pos_integer(), {pos_integer(), pos_integer()},
+                {pos_integer(), pos_integer()}}.
+
 %% A span from a token position or from a node position, which is one.
--spec span(ern_lexer:pos() | span()) -> span().
+-spec span(pos() | span()) -> span().
 span({L, C, End, _Before}) -> {L, C, End};
 span({_, _, _} = Span) -> Span.
 
