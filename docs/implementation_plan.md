@@ -18,9 +18,10 @@ Actorson until 12 September 2026.
 ## Where we are
 
 **MVP 2.65, the language and the toolchain read back after the shell, has begun.** Its
-first five steps are done: the feedback list and this plan consolidated, the report read
-cold, and the first three themes, names and namespaces, expressions, patterns and types,
-and processes and the system. The fourth theme, the standard library under E.0, is next.
+first six steps are done: the feedback list and this plan consolidated, the report read
+cold, and the first four themes, names and namespaces, expressions, patterns and types,
+processes and the system, and the standard library under E.0. The fifth theme, the
+toolchain, is next.
 MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
@@ -147,12 +148,9 @@ The steps:
      Has Keys*).
 
    The guide gains a section on services in step 10 and one on the supervisor in MVP 2.66.
-6. **The standard library under E.0**, the fourth theme, in three batches: where the line
-   between a shim and Ernest runs, with the abstract types it could write (items 11, 13, 42,
-   46), what a function is named and where it
-   lives (38, 40, 41), and what the library lacks or has in a form that misleads (7, 8, 15,
-   20, 21, 22, 23, 31, 35, 44, and a connected socket's own and peer address, placed
-   here by item 37).
+6. **Done 2026-09-26: the standard library under E.0**, the fourth theme, in three batches.
+   Nothing is built yet; step 10 builds it, report first, in Appendix E, each rewritten or
+   new function with tests of the edge cases its contract names.
    - **Batch 1 decided 2026-09-26: a shim is only an operation that reaches the
      representation** (items 11, 13, 42, 46, and 34 with them). E.0 rule 1 says so, and
      each module's section names its primitives, chosen to pass data out and never to call
@@ -173,6 +171,15 @@ The steps:
      rule says of text. E.0's shape rules cover the libraries under `libs/`, and `Ets` takes
      `put`, `get`, `contains`, `remove` and `close`. Built in step 10. The log's *A Name
      Follows the Vocabulary*.
+   - **Batch 3 decided 2026-09-26: what the library lacked** (items 7, 8, 15, 20, 21, 22, 23,
+     31, 35, 44, and the socket's addresses from item 37). Admitted: `Map.mergeWith`,
+     `String.trimStart` and `trimEnd`, `Char.isAsciiDigit`, `Terminal.columns` in Ernest over
+     a table from Unicode's width data, used by the shell's region and the Markdown library,
+     `Io.show`, and `Tcp.peer` and `Tcp.local`. Kept: `String.lines` (its See also gains
+     `split`), no `String.drop`, `dropWhile` or flatten (rule 4), and no text for `IoError`
+     (rule 3; `Io.show` serves a log). E.0's fifth shape rule applies `with m` to what reaches
+     a system reference, and rule 4 names the pairs the library keeps, `Io.debug` with
+     `Io.show`. The log's *What the Library Lacked*.
 7. **The toolchain**, the fifth theme: the shell's own questions (items 29, 30 and 54), and the
    names of the options to `ernc` and `ern`. Both tools grew their options one MVP at a
    time and the set has never been read whole. Under review: the three words for a

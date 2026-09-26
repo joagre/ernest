@@ -7,7 +7,7 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Thirty-eight have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Forty-eight have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
 (decided, report §9), 2, 4 and 43 (weighed and kept, the log's *Constructor Names Stay Unique
 in a Module*, *Names Stay Qualified, Without Import or Alias* and *Two Visibilities Are
@@ -29,8 +29,9 @@ a timed read, accept or connect takes its time limit into the request), 47 (deci
 a system message type's constructors are its system module's), 37 (decided there:
 `Tcp.port` answers a listener's port), 27 (decided there: `Terminal.subscribe` refuses
 where standard input is not a terminal), 11, 13, 42, 46 and 34 (decided in step 6's first
-batch: a shim is only an operation that reaches the representation), and 40, 41 and 38 (decided
-in its second: a name follows the vocabulary).
+batch: a shim is only an operation that reaches the representation), 40, 41 and 38 (decided
+in its second: a name follows the vocabulary), and 7, 8, 15, 20, 21, 22, 23, 31, 35 and 44
+(decided in its third: what the library lacked).
 
 ## 1. Names and namespaces
 
@@ -92,51 +93,8 @@ MVP 3.0's, and 16 is MVP 2.7's; they stay here because they are the same questio
 
 ## 4. The standard library under E.0
 
-Each entry is weighed on E.0's admission rules, one by one, and most are small, so they can
-be decided in batches. The first, where the line between a shim and Ernest runs, was
-decided on 2026-09-26, and the second, what a function is named and where it lives, the same
-day. Left: functions the library lacks or has in a form that misleads.
-
-8. **The width a grapheme takes on a terminal.** Since 2026-09-24 the unit a `String`
-   counts is a grapheme (E.5). A wide glyph is one grapheme and two columns, and nothing in
-   the runtime knows it; the shell's region counts one column a character, and
-   `Shell.Region.expand` is the one function that would learn it. With item 23.
-23. **The columns a styled row takes are counted twice.** `Shell.Region.columns` and the
-    Markdown library's `columns` are one function, skipping `ESC [` sequences, written in
-    two places. Neither owns the other; the question is whether what a row takes at a
-    terminal belongs to `Terminal` in Appendix E, which is where the escape sequences come
-    from.
-7. **`String.lines` is not the split a text editor wants**: it drops the empty last line,
-   so the region had to use `String.split(typed, "\n")` to show the empty row being typed
-   on. Both are documented and correct; the obvious-looking one is the wrong one.
-20. **No `String.trimStart` or `trimEnd`.** Only `trim` strips both ends. Dropping a line's
-    indentation went through `List.span` over `String.toList` and a `String.slice`, and
-    dropping a heading's closing `#`s reversed a list of characters. Erlang's
-    `string:trim/3` takes a direction and Gleam has `trim_start` and `trim_end`; whether E.0
-    admits them, one by one.
-21. **No `String.drop`.** The rest of a string from a position is
-    `String.slice(s, n, String.size(s) - n)`, written five times. E.0 rule 4 refuses a
-    composition of two functions already there, which this is; the count is an argument
-    and not the gate, and the verdict may be that it stays.
-22. **`List.span` stands in for `dropWhile`.** `let #(_, rest) = List.span(xs, p)` four
-    times, and the flattening of rows is `List.flatMap(xs, fn(x) = x)` as E.0 rule 4 says.
-    Both are the rule working as written; decided with 21, since the three are one question
-    about rule 4.
-35. **No ASCII digit test.** `Char.isDigit` is Unicode's Nd, so a format parser, the Markdown
-    library's list numbers and `String.toInt` among them, writes its own `0`-to-`9` test.
-    Whether `Char` gains one, by E.0.
-15. **No merge that combines the values of a key both maps hold.** `Map.merge` keeps the
-    second map's value, so totalling two maps of counts is a fold,
-    `Map.foldLeft(more, counts, add)` with `add(counts, word, n)`. The fold is ordinary
-    Ernest and reads well once `add` has the fold's shape, so nothing was worked around;
-    Erlang has `maps:merge_with/3` and Gleam `dict.combine`. Whether E.0's rules admit a
-    `Map.mergeWith(m, other, f)`.
-31. **An `IoError` has no text.** The shell writes `trouble(IoError)` for its messages, and
-    every program that touches a file will write the same function; whether E.17 gives
-    `IoError` a description, or E.0 rule 3 refuses it as a format policy.
-44. **No function gives the text `Io.debug` prints**, so a test can only report a value by
-    a text of its own making (the Markdown library's tests report "N blocks"). Whether E.1
-    gains `Io.show`, or a test's failure prints a value by the same printer.
+Decided on 2026-09-26 in three batches, and no entry is left; the plan's MVP 2.65 step 6
+names each decision.
 
 ## 5. The toolchain and the shell
 
