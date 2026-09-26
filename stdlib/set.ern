@@ -1,7 +1,10 @@
 /// Operations on `Set(a)`, a finite set of elements (report §9.2). The
 /// element type needs equality, which the type itself requires (report
 /// §3.10). A set has no `get`: membership is `contains`. The order of
-/// `toList`, `foldLeft`, `foreach`, and `find` is unspecified.
+/// `toList`, `foldLeft`, `foreach`, and `find` is unspecified. The
+/// primitives are `empty`, `size`, `contains`, `put`, `remove`, and
+/// `toList`, the runtime's; the rest is written over them (report Appendix
+/// E.0 rule 1).
 ///
 /// ## Examples
 ///
@@ -75,8 +78,8 @@ export fn map(s : Set(a), f : (a) -> b with e) -> Set(b) with e =
 /// Set.toList(Set.filter(Set.fromList([1, 2, 3]), fn(n) = n > 2))
 /// // => [3]
 /// ```
-export foreign fn filter(s : Set(a), p : (a) -> Bool with e) -> Set(a) with e =
-    "ern_set:filter/2"
+export fn filter(s : Set(a), p : (a) -> Bool with e) -> Set(a) with e =
+    List.foldLeft(toList(s), s, fn(acc, x) = if p(x) then acc else remove(acc, x))
 
 /// The values of the `Some` results.
 ///
@@ -98,8 +101,8 @@ export fn filterMap(s : Set(a), f : (a) -> Optional(b) with e) -> Set(b) with e 
 /// Set.foldLeft(Set.fromList([1, 2]), 0, Int.+)
 /// // => 3
 /// ```
-export foreign fn foldLeft(s : Set(a), acc : b, f : (b, a) -> b with e) -> b with e =
-    "ern_set:fold/3"
+export fn foldLeft(s : Set(a), acc : b, f : (b, a) -> b with e) -> b with e =
+    List.foldLeft(toList(s), acc, f)
 
 /// The function applied to each element for its effect.
 ///
@@ -109,8 +112,8 @@ export foreign fn foldLeft(s : Set(a), acc : b, f : (b, a) -> b with e) -> b wit
 /// Set.foreach(Set.fromList(["a"]), Io.println)
 /// // => Unit
 /// ```
-export foreign fn foreach(s : Set(a), f : (a) -> Unit with e) -> Unit with e =
-    "ern_set:foreach/2"
+export fn foreach(s : Set(a), f : (a) -> Unit with e) -> Unit with e =
+    List.foreach(toList(s), f)
 
 /// `true` when the predicate holds for some element.
 ///
@@ -138,7 +141,7 @@ export fn find(s : Set(a), p : (a) -> Bool with e) -> Optional(a) with e =
     List.find(toList(s), p)
 
 /// The set of those elements, each once.
-export foreign fn fromList(xs : List(a)) -> Set(a) = "ern_set:from_list/1"
+export fn fromList(xs : List(a)) -> Set(a) = List.foldLeft(xs, empty, put)
 
 /// The elements.
 export foreign fn toList(s : Set(a)) -> List(a) = "ern_set:to_list/1"
@@ -151,20 +154,22 @@ export foreign fn toList(s : Set(a)) -> List(a) = "ern_set:to_list/1"
 /// Set.toList(Set.union(Set.fromList([1]), Set.fromList([2])))
 /// // => [1, 2]
 /// ```
-export foreign fn union(s : Set(a), other : Set(a)) -> Set(a) = "ern_set:union/2"
+export fn union(s : Set(a), other : Set(a)) -> Set(a) = List.foldLeft(toList(other), s, put)
 
 /// The elements in both.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// Set.toList(Set.intersect(Set.fromList([1, 2]), Set.fromList([2, 3])))
+/// Set.toList(Set.intersection(Set.fromList([1, 2]), Set.fromList([2, 3])))
 /// // => [2]
 /// ```
-export foreign fn intersect(s : Set(a), other : Set(a)) -> Set(a) = "ern_set:intersect/2"
+export fn intersection(s : Set(a), other : Set(a)) -> Set(a) =
+    filter(s, fn(x) = contains(other, x))
 
 /// The elements of the first that are not in the second.
-export foreign fn difference(s : Set(a), other : Set(a)) -> Set(a) = "ern_set:difference/2"
+export fn difference(s : Set(a), other : Set(a)) -> Set(a) =
+    filter(s, fn(x) = !contains(other, x))
 
 /// `true` when every element of the first is in the second.
 ///
@@ -174,4 +179,5 @@ export foreign fn difference(s : Set(a), other : Set(a)) -> Set(a) = "ern_set:di
 /// Set.isSubset(Set.fromList([1]), Set.fromList([1, 2]))
 /// // => true
 /// ```
-export foreign fn isSubset(s : Set(a), other : Set(a)) -> Bool = "ern_set:is_subset/2"
+export fn isSubset(s : Set(a), other : Set(a)) -> Bool =
+    List.all(toList(s), fn(x) = contains(other, x))

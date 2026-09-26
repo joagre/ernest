@@ -1,7 +1,9 @@
 /// Operations on `Bytes`, a sequence of octets (report §3.1). A `Bytes` is
 /// not a container: its octets are reached through `toList`, each an `Int`
 /// from 0 to 255, and `<<...>>` builds and matches one at the bit level
-/// (report §5.11), so there is no constructor here.
+/// (report §5.11), so there is no constructor here. The primitives are
+/// `size` and `slice`, the runtime's; the rest is written with the bit
+/// syntax (report Appendix E.0 rule 1).
 ///
 /// ## Examples
 ///
@@ -46,9 +48,10 @@ export fn isEmpty(b : Bytes) -> Bool = size(b) == 0
 /// // => #(Some(8), None)
 /// ```
 export fn get(b : Bytes, i : Int) -> Optional(Int) =
-    if i < 0 || i >= size(b) then None else Some(at(b, i))
-
-foreign fn at(b : Bytes, i : Int) -> Int = "binary:at/2"
+    match slice(b, i, 1) {
+        <<n>> when i >= 0 -> Some(n)
+      | _ -> None
+    }
 
 /// The octets from the index, that many of them, clipped to what is there;
 /// a negative index or count is 0.
@@ -68,7 +71,13 @@ export fn slice(b : Bytes, from : Int, count : Int) -> Bytes = {
 foreign fn part(b : Bytes, from : Int, count : Int) -> Bytes = "binary:part/3"
 
 /// The octets, each from 0 to 255.
-export foreign fn toList(b : Bytes) -> List(Int) = "erlang:binary_to_list/1"
+export fn toList(b : Bytes) -> List(Int) = List.reverse(octets(b, []))
+
+// The octets before the rest of b, the last first.
+fn octets(b : Bytes, done : List(Int)) -> List(Int) = match b {
+    <<n, rest:bytes>> -> octets(rest, n :: done)
+  | _ -> done
+}
 
 /// The `Bytes` of those octets, or `None` when one is outside 0 to 255.
 ///
@@ -79,6 +88,6 @@ export foreign fn toList(b : Bytes) -> List(Int) = "erlang:binary_to_list/1"
 /// // => None
 /// ```
 export fn fromList(octets : List(Int)) -> Optional(Bytes) =
-    if List.all(octets, fn(n) = n >= 0 && n <= 255) then Some(pack(octets)) else None
-
-foreign fn pack(octets : List(Int)) -> Bytes = "erlang:list_to_binary/1"
+    if List.all(octets, fn(n) = n >= 0 && n <= 255)
+    then Some(List.foldLeft(octets, <<>>, fn(done, n) = <<done:bytes, n>>))
+    else None

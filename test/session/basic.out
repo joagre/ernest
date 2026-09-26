@@ -79,12 +79,17 @@ Optional.withDefault : (Optional(a), a) -> a
 
     String.trim : (String) -> String
 
-Without leading and trailing whitespace.
+Without leading and trailing whitespace: the graphemes whose first code point is
+White_Space, as `Char.isSpace` says. It is `trimStart` then `trimEnd`, a pair
+the library keeps named (report Appendix E.0 rule 4).
 
 Examples
 
     String.trim("  hi\n")
     // => "hi"
+
+    String.trim("\u{a0}a\u{3000}")
+    // => "a"
 > no command :zz; :help lists them
 > :b is :bindings or :browse
 > :f is :faults or :forget

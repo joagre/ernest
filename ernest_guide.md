@@ -468,7 +468,7 @@ The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char
 
 - **One verb per operation, in every module that has it.** `Map.get(m, k)` and `List.get(xs, 0)`; `size`, `isEmpty`, `contains`, `put`, `remove`, `map`, `filter`, `foldLeft`, `find`, `fromList`, `toList` wherever they apply.
 - **Subject first, callbacks last**, so the pipe works: `xs |> List.foldLeft(0, fn(acc, x) = acc + x)`.
-- **A conversion is named by the other type**, in the subject's module: `String.toInt`, `Int.toString`.
+- **A conversion is named by the other type.** Between a type and one its module builds on, both directions are the building module's, `String.fromList` and `String.toList`; any other conversion is its argument's module's `toX`: `String.toInt`, `Int.toString`.
 - **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get` and `String.toInt` return `Optional`, `Fs.read` returns `Either(IoError, Bytes)`.
 - **Pure unless the value lives in a process.** Only the system modules carry `with m`, and every function that takes a function is as pure as the function it is given (§3.5).
 - **A `String` is text, not a list.** Its length and positions count what a reader sees as letters; `String.toList` gives its `Char`s.
@@ -1569,10 +1569,10 @@ A peer that is lost stays lost: its processes are dead to this node, monitors re
 // ets.ern
 export foreign type Table(k=, v)
 
-export foreign fn member(t : Table(k, v), key : k) -> Bool with m = "ets:member/2"
+export foreign fn contains(t : Table(k, v), key : k) -> Bool with m = "ets:member/2"
 ```
 
-External callers write `Ets.Table` and `Ets.member`. `foreign type` declares a type whose values only foreign functions make and read; Ernest has no constructor for it and cannot match it. `foreign fn` binds a name to a function on the other side, here Erlang's `ets:member/2`. The `=` in `k=` says the keys need equality, since `ets` compares them: a table keyed by functions is a type error at its first operation, as a `Map` is (report §4.7).
+External callers write `Ets.Table` and `Ets.contains`. `foreign type` declares a type whose values only foreign functions make and read; Ernest has no constructor for it and cannot match it. `foreign fn` binds a name to a function on the other side, here Erlang's `ets:member/2`. The `=` in `k=` says the keys need equality, since `ets` compares them: a table keyed by functions is a type error at its first operation, as a `Map` is (report §4.7).
 
 The foreign side promises the declared types. A return value of the wrong shape faults the calling process when the function returns, the whole value checked, and a function in it when that function is called; an Erlang exception becomes a fault of the calling process; and a message of the wrong type from foreign code faults its receiver on delivery. Purity is not checked: a `foreign fn` declared without `with` is trusted to have no effect (report §4.7).
 
@@ -1584,20 +1584,19 @@ A value foreign code made and Ernest does not inspect has the built-in type `For
 
 A foreign value belongs to the node that made it, and sending one to another node, alone or inside a message or a closure, faults with `Fault("foreign value cannot cross nodes")`.
 
-A `Random.Seed` is such a value. The closure below captures one, so shipping it to the peer `alice` faults with that cause; on one node, today, the spawn faults with `peer unreachable` first:
+An `Ets.Table` of §8.3 is such a value, a table of the node's runtime. The closure below captures one, so shipping it to the peer `alice` faults with that cause; on one node, today, the spawn faults with `peer unreachable` first:
 
 ```ernest
 export fn main() -> Unit with Never = {
-    let seed = Random.seed(42);
-    let _ = spawn(Peer("alice"), fn() -> Unit with Never = {
-        let #(n, _) = Random.next(seed, 6);
-        Io.println(Int.toString(n))
-    });
+    let t = Ets.new();
+    Ets.put(t, "answer", 42);
+    let _ = spawn(Peer("alice"), fn() -> Unit with Never =
+        Io.println(Int.toString(Optional.withDefault(Ets.get(t, "answer"), 0))));
     Unit
 }
 ```
 
-A program that needs such state on another node sends what the state is made of and rebuilds it there: here the number 42, from which the peer makes its own seed.
+A program that needs such state on another node sends what the state is made of and rebuilds it there: here the entries, from which the peer fills a table of its own.
 
 ### 8.5 The shim pattern
 
@@ -1607,14 +1606,14 @@ A shim is a private `foreign fn` over an Erlang function and an exported Ernest 
 // ets.ern
 export foreign type Table(k=, v)
 
-export fn lookup(t : Table(k, v), key : k) -> Optional(v) with m =
+export fn get(t : Table(k, v), key : k) -> Optional(v) with m =
     match rawLookup(t, key) { [#(_, v)] -> Some(v) | _ -> None }
 
 foreign fn rawLookup(t : Table(k, v), key : k)
     -> List(#(k, v)) with m = "ets:lookup/2"
 ```
 
-`rawLookup` is the module's own, and callers use `Ets.lookup`.
+`rawLookup` is the module's own, and callers use `Ets.get`.
 
 Erlang's `{ok, V}` and `{error, R}` are not an Ernest `Either`, whose values are `{'Right', V}` and `{'Left', R}` (report §8.4).
 

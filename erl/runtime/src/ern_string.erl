@@ -1,16 +1,12 @@
-%% The shims behind String (report Appendix E.5): Erlang's Unicode
-%% operations, which rule 1 admits, each returning what the declared type
-%% says. A String is a UTF-8 binary (report §8.4), so toUtf8 is the value
-%% itself and comparison is Erlang's on binaries, which is by code point.
+%% The primitives of String (report Appendix E.5, E.0 rule 1): Erlang's
+%% Unicode operations, each returning what the declared type says; the rest
+%% of String is Ernest over them, so every search matches whole graphemes.
+%% A String is a UTF-8 binary (report §8.4), so toUtf8 is the value itself
+%% and comparison is Erlang's on binaries, which is by code point.
 -module(ern_string).
 
--export([contains/2, index_of/2, last_index_of/2, starts_with/2, ends_with/2,
-         replace/3, slice/3, trim/1, to_lower/1,
-         to_upper/1, to_int_base/2, to_float/1, to_list/1, from_list/1, from_utf8/1, to_utf8/1,
-         split/2, copy/2]).
-
--spec contains(binary(), binary()) -> boolean().
-contains(S, Sub) -> string:find(S, Sub) =/= nomatch.
+-export([index_of/2, last_index_of/2, slice/3, trim_start/1, trim_end/1, to_lower/1,
+         to_upper/1, to_int_base/2, to_float/1, to_list/1, from_list/1, from_utf8/1, to_utf8/1]).
 
 %% Appendix E.5: in the characters `string:length/1` counts, as `slice`
 %% takes them, so that the answer indexes the same string `slice` does.
@@ -32,25 +28,34 @@ last_index_of(S, Part) ->
         Suffix -> {'Some', string:length(S) - string:length(Suffix)}
     end.
 
--spec starts_with(binary(), binary()) -> boolean().
-starts_with(S, Prefix) -> string:prefix(S, Prefix) =/= nomatch.
-
--spec ends_with(binary(), binary()) -> boolean().
-ends_with(S, Suffix) ->
-    Size = byte_size(S),
-    SSize = byte_size(Suffix),
-    Size >= SSize andalso binary:part(S, Size - SSize, SSize) =:= Suffix.
-
-%% every occurrence; an empty From changes nothing
--spec replace(binary(), binary(), binary()) -> binary().
-replace(S, <<>>, _) -> S;
-replace(S, From, To) -> unicode:characters_to_binary(string:replace(S, From, To, all)).
-
 -spec slice(binary(), integer(), integer()) -> binary().
 slice(S, From, Count) -> unicode:characters_to_binary(string:slice(S, From, Count)).
 
--spec trim(binary()) -> binary().
-trim(S) -> unicode:characters_to_binary(string:trim(S)).
+%% Appendix E.5: without the leading graphemes whose first code point is
+%% White_Space, as Char.isSpace says. string:next_grapheme/1 answers the
+%% first grapheme cluster, a code point or a list of them, and the rest.
+-spec trim_start(binary()) -> binary().
+trim_start(S) ->
+    case string:next_grapheme(S) of
+        [G | Rest] ->
+            case ern_char:is_space(first(G)) of
+                true -> trim_start(unicode:characters_to_binary(Rest));
+                false -> S
+            end;
+        [] ->
+            <<>>
+    end.
+
+%% Appendix E.5: without the trailing graphemes whose first code point is
+%% White_Space.
+-spec trim_end(binary()) -> binary().
+trim_end(S) ->
+    Kept = lists:dropwhile(fun(G) -> ern_char:is_space(first(G)) end,
+                           lists:reverse(string:to_graphemes(S))),
+    unicode:characters_to_binary(lists:reverse(Kept)).
+
+first([C | _]) -> C;
+first(C) -> C.
 
 -spec to_lower(binary()) -> binary().
 to_lower(S) -> unicode:characters_to_binary(string:lowercase(S)).
@@ -92,9 +97,3 @@ from_utf8(B) ->
 
 -spec to_utf8(binary()) -> binary().
 to_utf8(S) -> S.
-
--spec split(binary(), binary()) -> [binary()].
-split(S, Sep) -> binary:split(S, Sep, [global]).
-
--spec copy(binary(), integer()) -> binary().
-copy(S, N) -> binary:copy(S, N).

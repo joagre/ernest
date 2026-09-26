@@ -1,19 +1,16 @@
-%% The shims behind Map (report Appendix E.3, rule 1): Erlang's maps, whose
-%% structure sharing is what the language wants, with Ernest's argument
-%% order, subject first, and Optional where a key may be absent.
+%% The primitives of Map (report Appendix E.3, E.0 rule 1): the operations
+%% that reach Erlang's maps, whose structure sharing is what the language
+%% wants, with Ernest's argument order, subject first, and Optional where a
+%% key may be absent. The rest of Map is Ernest over these six.
 -module(ern_map).
 
--export([empty/0, size/1, contains/2, get/2, put/3, remove/2, map/2, filter/2, filtermap/2,
-         fold/3, foreach/2]).
+-export([empty/0, size/1, get/2, put/3, remove/2, to_list/1]).
 
 -spec empty() -> map().
 empty() -> #{}.
 
 -spec size(map()) -> non_neg_integer().
 size(M) -> map_size(M).
-
--spec contains(map(), term()) -> boolean().
-contains(M, K) -> is_map_key(K, M).
 
 -spec get(map(), term()) -> {'Some', term()} | 'None'.
 get(M, K) ->
@@ -25,30 +22,11 @@ get(M, K) ->
 -spec put(map(), term(), term()) -> map().
 put(M, K, V) -> M#{K => V}.
 
+%% maps:remove/2 answers the map unchanged for a key it lacks.
 -spec remove(map(), term()) -> map().
 remove(M, K) -> maps:remove(K, M).
 
--spec map(map(), fun((term(), term()) -> term())) -> map().
-map(M, F) -> maps:map(F, M).
-
--spec filter(map(), fun((term(), term()) -> boolean())) -> map().
-filter(M, P) -> maps:filter(P, M).
-
-%% Appendix E.3: the entries the function answers Some for, that value in
-%% their place
--spec filtermap(map(), fun((term(), term()) -> {'Some', term()} | 'None')) -> map().
-filtermap(M, F) ->
-    maps:filtermap(fun(K, V) ->
-                       case F(K, V) of
-                           {'Some', W} -> {true, W};
-                           'None' -> false
-                       end
-                   end, M).
-
--spec fold(map(), term(), fun((term(), term(), term()) -> term())) -> term().
-fold(M, Acc, F) -> maps:fold(fun(K, V, A) -> F(A, K, V) end, Acc, M).
-
--spec foreach(map(), fun((term(), term()) -> 'Unit')) -> 'Unit'.
-foreach(M, F) ->
-    maps:foreach(F, M),
-    'Unit'.
+%% maps:to_list/1: the pairs in an order the map does not promise, each
+%% the tuple that is Ernest's #(k, v) (report §8.4).
+-spec to_list(map()) -> [{term(), term()}].
+to_list(M) -> maps:to_list(M).

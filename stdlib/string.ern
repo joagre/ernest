@@ -3,8 +3,12 @@
 /// `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and
 /// index in graphemes, extended grapheme clusters, each what a reader sees
 /// as one letter; `toList` and `fromList` are `Char`s, one scalar value
-/// each. The operations that fold case or trim space follow
-/// Unicode, which the runtime decides (report Appendix E.0, rule 1).
+/// each. The primitives are `size`, `indexOf`, `lastIndexOf`, `slice`, the
+/// operations that need Unicode's tables, `trimStart`, `trimEnd`,
+/// `toLower`, and `toUpper`, and the conversions `toIntBase`, `toFloat`,
+/// `toList`, `fromList`, `toUtf8`, and `fromUtf8`, the runtime's; the rest
+/// is written over them, so every search matches whole graphemes (report
+/// Appendix E.0 rule 1).
 ///
 /// ## Examples
 ///
@@ -64,7 +68,8 @@ export fn isEmpty(s : String) -> Bool = size(s) == 0
 export fn compare(a : String, b : String) -> Ordering =
     if a < b then Less else if a == b then Equal else Greater
 
-/// `true` when the second is somewhere in the first.
+/// `true` when the second is somewhere in the first, as whole graphemes; an
+/// empty second is always there.
 ///
 /// ### Examples
 ///
@@ -72,7 +77,12 @@ export fn compare(a : String, b : String) -> Ordering =
 /// #(String.contains("hello", "ell"), String.contains("hello", "x"))
 /// // => #(true, false)
 /// ```
-export foreign fn contains(s : String, part : String) -> Bool = "ern_string:contains/2"
+///
+/// ```ernest
+/// String.contains("e\u{301}", "e")
+/// // => false
+/// ```
+export fn contains(s : String, part : String) -> Bool = indexOf(s, part) != None
 
 /// Where the second begins in the first, and `None` where it is not
 /// there. An empty second is at 0.
@@ -98,7 +108,8 @@ export foreign fn indexOf(s : String, part : String) -> Optional(Int) =
 export foreign fn lastIndexOf(s : String, part : String) -> Optional(Int) =
     "ern_string:last_index_of/2"
 
-/// `true` when the string begins with the second.
+/// `true` when the string begins with the second, as whole graphemes, and
+/// for an empty second.
 ///
 /// ### Examples
 ///
@@ -106,10 +117,14 @@ export foreign fn lastIndexOf(s : String, part : String) -> Optional(Int) =
 /// #(String.startsWith("hello", "he"), String.endsWith("hello", "lo"))
 /// // => #(true, true)
 /// ```
-export foreign fn startsWith(s : String, prefix : String) -> Bool = "ern_string:starts_with/2"
+export fn startsWith(s : String, prefix : String) -> Bool = slice(s, 0, size(prefix)) == prefix
 
-/// `true` when the string ends with the second.
-export foreign fn endsWith(s : String, suffix : String) -> Bool = "ern_string:ends_with/2"
+/// `true` when the string ends with the second, as whole graphemes, and for
+/// an empty second.
+export fn endsWith(s : String, suffix : String) -> Bool = {
+    let n = size(suffix);
+    size(s) >= n && slice(s, size(s) - n, n) == suffix
+}
 
 /// Every occurrence of the second replaced by the third; an empty second
 /// changes nothing.
@@ -120,8 +135,8 @@ export foreign fn endsWith(s : String, suffix : String) -> Bool = "ern_string:en
 /// String.replace("a-b-c", "-", "+")
 /// // => "a+b+c"
 /// ```
-export foreign fn replace(s : String, from : String, to : String) -> String =
-    "ern_string:replace/3"
+export fn replace(s : String, from : String, to : String) -> String =
+    if isEmpty(from) then s else join(split(s, from), to)
 
 /// From the index, that many graphemes, clipped to what is there; a
 /// negative index starts at the beginning, and a negative count gives the
@@ -164,11 +179,14 @@ fn padding(s : String, length : Int, c : Char) -> String =
 /// String.repeat("ab", 3)
 /// // => "ababab"
 /// ```
-export fn repeat(s : String, n : Int) -> String = if n <= 0 then "" else copy(s, n)
+export fn repeat(s : String, n : Int) -> String = copies(s, n, "")
 
-foreign fn copy(s : String, n : Int) -> String = "ern_string:copy/2"
+fn copies(s : String, n : Int, done : String) -> String =
+    if n <= 0 then done else copies(s, n - 1, done <> s)
 
-/// Without leading and trailing whitespace.
+/// Without leading and trailing whitespace: the graphemes whose first code
+/// point is White_Space, as `Char.isSpace` says. It is `trimStart` then
+/// `trimEnd`, a pair the library keeps named (report Appendix E.0 rule 4).
 ///
 /// ### Examples
 ///
@@ -176,7 +194,25 @@ foreign fn copy(s : String, n : Int) -> String = "ern_string:copy/2"
 /// String.trim("  hi\n")
 /// // => "hi"
 /// ```
-export foreign fn trim(s : String) -> String = "ern_string:trim/1"
+///
+/// ```ernest
+/// String.trim("\u{a0}a\u{3000}")
+/// // => "a"
+/// ```
+export fn trim(s : String) -> String = trimEnd(trimStart(s))
+
+/// Without leading whitespace, as `trim` has it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.trimStart("  a "), String.trimEnd("  a "))
+/// // => #("a ", "  a")
+/// ```
+export foreign fn trimStart(s : String) -> String = "ern_string:trim_start/1"
+
+/// Without trailing whitespace, as `trim` has it.
+export foreign fn trimEnd(s : String) -> String = "ern_string:trim_end/1"
 
 /// The lower-case form, by Unicode.
 ///
@@ -221,9 +257,17 @@ export fn lines(s : String) -> List(String) =
 /// // => ["a", "", "b"]
 /// ```
 export fn split(s : String, separator : String) -> List(String) =
-    if isEmpty(separator) then [s] else parts(s, separator)
+    if isEmpty(separator) then [s] else List.reverse(parts(s, separator, []))
 
-foreign fn parts(s : String, separator : String) -> List(String) = "ern_string:split/2"
+// The parts found so far, the last first, and the rest of the string.
+fn parts(s : String, separator : String, done : List(String)) -> List(String) =
+    match indexOf(s, separator) {
+        None -> s :: done
+      | Some(at) -> {
+            let rest = at + size(separator);
+            parts(slice(s, rest, size(s) - rest), separator, slice(s, 0, at) :: done)
+        }
+    }
 
 /// The parts with the second between them.
 ///

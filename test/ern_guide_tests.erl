@@ -85,8 +85,12 @@ check({modules, #{files := Files, run := Run}}) ->
     ok = filelib:ensure_path(Build),
     [{0, <<>>} = sh("erlc -o " ++ Build ++ " " ++ filename:join(Dir, F))
      || {F, _} <- Files, filename:extension(F) =:= ".erl"],
+    %% guide §8.3: a program that uses a library under libs/ has it on its
+    %% load path, as every example here may
+    Libs = lists:append([["--load-path", filename:absname(L)]
+                         || L <- filelib:wildcard("../build/libs/*"), filelib:is_dir(L)]),
     ?assertEqual(0, ern_cli:ern(["build", "--short-errors", "--source-root", Dir,
-                                 "--build-root", Build, Dir], group_leader())),
+                                 "--build-root", Build | Libs] ++ [Dir], group_leader())),
     ?assertEqual(<<>>, iolist_to_binary(?capturedOutput)),
     case Run of
         none ->

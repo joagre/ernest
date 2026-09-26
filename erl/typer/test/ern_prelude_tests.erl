@@ -68,6 +68,54 @@ in_module_docs(Ns, Name) ->
             false
     end.
 
+%% report Appendix E.0 rule 1, E.3, E.4, E.5, E.14, E.20: the primitives a
+%% module's section names are the module's `foreign fn`s. An exported one
+%% is named as itself; a private one by the exported declaration that alone
+%% calls it, `slice` for String's `part`, or else by its own name.
+primitives_test() ->
+    [begin
+         {ok, Source} = file:read_file(stdlib_file(Ns)),
+         {ok, Decls} = ern_parser:parse_string(Source),
+         ?assertEqual({Ns, lists:sort(Named)}, {Ns, lists:sort(foreign_names(Decls))})
+     end || {Ns, Body} <- namespaces(section("## Appendix E.", "## Appendix F")),
+            Named <- [primitives(Body)], Named =/= []].
+
+%% The names in backticks of a section's sentence "The primitives are ...".
+primitives(Body) ->
+    Text = lists:append(Body),
+    case string:find(Text, "The primitives are") of
+        nomatch -> [];
+        Found ->
+            [Sentence | _] = string:split(Found, "(E.0 rule 1)"),
+            {match, Names} = re:run(Sentence, "`(\\w+)`", [global, {capture, [1], list}]),
+            [list_to_atom(N) || [N] <- Names]
+    end.
+
+stdlib_file([Ns]) ->
+    filename:join("../../../stdlib", string:lowercase(atom_to_list(Ns)) ++ ".ern").
+
+%% Each foreign fn under the name the report gives it.
+foreign_names(Decls) ->
+    Callers = fun(Name) ->
+                      [D || D <- Decls, not is_record(D, foreign_fn_decl),
+                            lists:member(Name, ern_ast:free_names(body(D), params(D)))]
+              end,
+    [case {Export, Callers(Name)} of
+         {true, _} -> Name;
+         {false, [#fn_decl{export = true, name = Caller}]} -> Caller;
+         {false, [#let_decl{export = true, name = Caller}]} -> Caller;
+         {false, _} -> Name
+     end || #foreign_fn_decl{name = Name, export = Export} <- Decls].
+
+%% The names a function's parameters bind, which are not calls.
+params(#fn_decl{params = Ps}) ->
+    [N || #param{pattern = P} <- Ps, {N, _} <- ern_ast:pattern_bindings(P)];
+params(_) -> [].
+
+body(#fn_decl{body = B}) -> B;
+body(#let_decl{body = B}) -> B;
+body(_) -> [].
+
 %% report §9.3: the declared types
 declared_types_test() ->
     Report = declarations(code_lines(section("### 9.3", "### 9.4"))),

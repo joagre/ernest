@@ -2,7 +2,9 @@
 /// §9.2). The key type needs equality, which the type itself requires
 /// (report §3.10), so a key holding a function or an address is a type
 /// error. The order of `keys`, `values`, `toList`, `foldLeft`, `foreach`,
-/// and `find` is unspecified.
+/// and `find` is unspecified. The primitives are `empty`, `size`, `get`,
+/// `put`, `remove`, and `toList`, the runtime's; the rest is written over
+/// them (report Appendix E.0 rule 1).
 ///
 /// ## Examples
 ///
@@ -48,7 +50,10 @@ export fn isEmpty(m : Map(k, v)) -> Bool = size(m) == 0
 /// #(Map.contains(Map.fromList([#("a", 1)]), "a"), Map.contains(Map.empty, "a"))
 /// // => #(true, false)
 /// ```
-export foreign fn contains(m : Map(k, v), key : k) -> Bool = "ern_map:contains/2"
+export fn contains(m : Map(k, v), key : k) -> Bool = match get(m, key) {
+    Some(_) -> true
+  | None -> false
+}
 
 /// The value at that key.
 export foreign fn get(m : Map(k, v), key : k) -> Optional(v) = "ern_map:get/2"
@@ -79,8 +84,8 @@ export fn update(m : Map(k, v), key : k, f : (Optional(v)) -> v with e) -> Map(k
     put(m, key, f(get(m, key)))
 
 /// Each value replaced by the function's, the key beside it.
-export foreign fn map(m : Map(k, v), f : (k, v) -> w with e) -> Map(k, w) with e =
-    "ern_map:map/2"
+export fn map(m : Map(k, v), f : (k, v) -> w with e) -> Map(k, w) with e =
+    List.foldLeft(toList(m), empty, fn(acc, #(key, value)) = put(acc, key, f(key, value)))
 
 /// The entries the predicate holds for.
 ///
@@ -90,8 +95,9 @@ export foreign fn map(m : Map(k, v), f : (k, v) -> w with e) -> Map(k, w) with e
 /// Map.toList(Map.filter(Map.fromList([#("a", 1), #("b", 2)]), fn(_, n) = n > 1))
 /// // => [#("b", 2)]
 /// ```
-export foreign fn filter(m : Map(k, v), p : (k, v) -> Bool with e) -> Map(k, v) with e =
-    "ern_map:filter/2"
+export fn filter(m : Map(k, v), p : (k, v) -> Bool with e) -> Map(k, v) with e =
+    List.foldLeft(toList(m), m, fn(acc, #(key, value)) =
+        if p(key, value) then acc else remove(acc, key))
 
 /// The entries whose value the function answers `Some` for, that value in
 /// their place.
@@ -103,8 +109,11 @@ export foreign fn filter(m : Map(k, v), p : (k, v) -> Bool with e) -> Map(k, v) 
 ///     fn(_, s) = String.toInt(s)))
 /// // => [#("a", 1)]
 /// ```
-export foreign fn filterMap(m : Map(k, v), f : (k, v) -> Optional(w) with e) -> Map(k, w) with e =
-    "ern_map:filtermap/2"
+export fn filterMap(m : Map(k, v), f : (k, v) -> Optional(w) with e) -> Map(k, w) with e =
+    List.foldLeft(toList(m), empty, fn(acc, #(key, value)) = match f(key, value) {
+        Some(w) -> put(acc, key, w)
+      | None -> acc
+    })
 
 /// The accumulator after the function has seen each entry, the accumulator
 /// first.
@@ -115,8 +124,8 @@ export foreign fn filterMap(m : Map(k, v), f : (k, v) -> Optional(w) with e) -> 
 /// Map.foldLeft(Map.fromList([#("a", 1), #("b", 2)]), 0, fn(acc, key, n) = acc + n)
 /// // => 3
 /// ```
-export foreign fn foldLeft(m : Map(k, v), acc : b, f : (b, k, v) -> b with e) -> b with e =
-    "ern_map:fold/3"
+export fn foldLeft(m : Map(k, v), acc : b, f : (b, k, v) -> b with e) -> b with e =
+    List.foldLeft(toList(m), acc, fn(a, #(key, value)) = f(a, key, value))
 
 /// The function applied to each entry for its effect.
 ///
@@ -126,8 +135,8 @@ export foreign fn foldLeft(m : Map(k, v), acc : b, f : (b, k, v) -> b with e) ->
 /// Map.foreach(Map.fromList([#("a", 1)]), fn(key, _) = Io.println(key))
 /// // => Unit
 /// ```
-export foreign fn foreach(m : Map(k, v), f : (k, v) -> Unit with e) -> Unit with e =
-    "ern_map:foreach/2"
+export fn foreach(m : Map(k, v), f : (k, v) -> Unit with e) -> Unit with e =
+    List.foreach(toList(m), fn(#(key, value)) = f(key, value))
 
 /// `true` when the predicate holds for some entry.
 ///
@@ -165,13 +174,15 @@ export fn find(m : Map(k, v), p : (k, v) -> Bool with e) -> Optional(#(k, v)) wi
 /// Map.toList(Map.merge(Map.fromList([#("a", 1)]), Map.fromList([#("a", 2)])))
 /// // => [#("a", 2)]
 /// ```
-export foreign fn merge(m : Map(k, v), other : Map(k, v)) -> Map(k, v) = "maps:merge/2"
+export fn merge(m : Map(k, v), other : Map(k, v)) -> Map(k, v) =
+    List.foldLeft(toList(other), m, fn(acc, #(key, value)) = put(acc, key, value))
 
 /// The map of those pairs, a later pair winning its key.
-export foreign fn fromList(pairs : List(#(k, v))) -> Map(k, v) = "maps:from_list/1"
+export fn fromList(pairs : List(#(k, v))) -> Map(k, v) =
+    List.foldLeft(pairs, empty, fn(acc, #(key, value)) = put(acc, key, value))
 
 /// The entries as pairs.
-export foreign fn toList(m : Map(k, v)) -> List(#(k, v)) = "maps:to_list/1"
+export foreign fn toList(m : Map(k, v)) -> List(#(k, v)) = "ern_map:to_list/1"
 
 /// The keys.
 ///
@@ -181,7 +192,7 @@ export foreign fn toList(m : Map(k, v)) -> List(#(k, v)) = "maps:to_list/1"
 /// #(Map.keys(Map.fromList([#("a", 1)])), Map.values(Map.fromList([#("a", 1)])))
 /// // => #(["a"], [1])
 /// ```
-export foreign fn keys(m : Map(k, v)) -> List(k) = "maps:keys/1"
+export fn keys(m : Map(k, v)) -> List(k) = List.map(toList(m), fn(#(key, _)) = key)
 
 /// The values.
-export foreign fn values(m : Map(k, v)) -> List(v) = "maps:values/1"
+export fn values(m : Map(k, v)) -> List(v) = List.map(toList(m), fn(#(_, value)) = value)

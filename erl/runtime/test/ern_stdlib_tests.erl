@@ -105,7 +105,7 @@ set_test() ->
     ?assertEqual(true, S:contains(S1, 2)),
     ?assertEqual(false, S:contains(S:remove(S1, 2), 2)),
     ?assertEqual([1, 2, 3], lists:sort(S:toList(S:union(S1, S:fromList([3]))))),
-    ?assertEqual([2], S:toList(S:intersect(S1, S:fromList([2, 3])))),
+    ?assertEqual([2], S:toList(S:intersection(S1, S:fromList([2, 3])))),
     ?assertEqual([1], S:toList(S:difference(S1, S:fromList([2, 3])))),
     ?assertEqual(true, S:isSubset(S:fromList([2]), S1)),
     ?assertEqual(false, S:isSubset(S1, S:fromList([2]))),
@@ -121,6 +121,32 @@ set_test() ->
     ?assertEqual('None', S:find(S1, fun(X) -> X > 2 end)).
 
 %% report Appendix E.5, §9.6
+%% report Appendix E.5, E.0 rule 1: the searches written over indexOf match
+%% whole graphemes, so a letter under a combining mark is not found alone;
+%% an empty part is at the start and the end; the trims strip White_Space
+%% by Char.isSpace, U+00A0 and U+3000 among it and U+200E not; case mapping
+%% is full, without the rules of a language or a context. Written with the
+%% searches' move to Ernest; the earlier shims split and ended by bytes.
+string_graphemes_test() ->
+    S = 'ern@string',
+    E = <<"e\x{301}"/utf8>>,
+    ?assertEqual(false, S:contains(E, <<"e">>)),
+    ?assertEqual([E], S:split(E, <<"e">>)),
+    ?assertEqual(false, S:startsWith(E, <<"e">>)),
+    ?assertEqual(false, S:endsWith(<<"ae\x{301}"/utf8>>, <<"\x{301}"/utf8>>)),
+    ?assertEqual(E, S:replace(E, <<"e">>, <<"x">>)),
+    ?assertEqual([<<"a">>, <<"b">>, <<>>], S:split(<<"a,b,">>, <<",">>)),
+    ?assertEqual(true, S:contains(<<"abc">>, <<>>)),
+    ?assertEqual(true, S:startsWith(<<"abc">>, <<>>)),
+    ?assertEqual(true, S:endsWith(<<"abc">>, <<>>)),
+    ?assertEqual(<<"a">>, S:trim(<<"\x{a0}a\x{3000}"/utf8>>)),
+    ?assertEqual(<<"\x{200e}a"/utf8>>, S:trimStart(<<" \x{200e}a"/utf8>>)),
+    ?assertEqual(<<"a ">>, S:trimStart(<<"\r\n a ">>)),
+    ?assertEqual(<<" a">>, S:trimEnd(<<" a \r\n">>)),
+    ?assertEqual(<<"SS">>, S:toUpper(<<"ß"/utf8>>)),
+    ?assertEqual(<<"σασ"/utf8>>, S:toLower(<<"ΣΑΣ"/utf8>>)),
+    ?assertEqual('Less', S:compare(<<"z">>, <<"é"/utf8>>)).
+
 string_test() ->
     S = 'ern@string',
     ?assertEqual(2, S:size(<<"hé"/utf8>>)),
@@ -502,6 +528,22 @@ foreign_test() ->
 
 %% report Appendix E.13: the same seed gives the same sequence, every draw
 %% is within the bounds on either side of zero, and the seed moves
+%% report Appendix E.9: the shortest digits, plain from 0.0001 to below
+%% 1.0e16 and with an exponent beyond, its sign only when negative, each
+%% reading back as the same value. A regression test: 1.0e15 was written with
+%% an exponent, as the host writes it.
+float_to_string_test() ->
+    F = 'ern@float',
+    S = 'ern@string',
+    Cases = [{1.0e15, <<"1000000000000000.0">>},
+             {9.999999999999998e15, <<"9999999999999998.0">>},
+             {1.0e16, <<"1.0e16">>}, {1.0e-5, <<"1.0e-5">>}, {0.0001, <<"0.0001">>},
+             {1.5e-7, <<"1.5e-7">>}, {123.0, <<"123.0">>}, {0.1, <<"0.1">>},
+             {1.2345e20, <<"1.2345e20">>}, {0.0, <<"0.0">>}, {-2.5, <<"-2.5">>},
+             {-1.0e-9, <<"-1.0e-9">>}, {12.5, <<"12.5">>}],
+    [?assertEqual({X, Text}, {X, F:toString(X)}) || {X, Text} <- Cases],
+    [?assertEqual({'Some', X}, S:toFloat(F:toString(X))) || {X, _} <- Cases].
+
 random_test() ->
     R = 'ern@random',
     Draw = fun Draw(_, _, 0) -> [];
@@ -515,6 +557,46 @@ random_test() ->
     ?assertEqual([0, 0], Draw(R:seed(1), 0, 2)),
     {_, S1} = R:next(R:seed(7), 1),
     ?assertNotEqual(R:seed(7), S1).
+
+%% report Appendix E.13: the generator is SplitMix64, so a seed's draws are
+%% the reference sequence: from 0, a draw over the whole 64-bit range is the
+%% reference output itself, and a seed names its number's low 64 bits. A
+%% regression test, written with the move from the host's `exsss`, whose
+%% sequence no report could promise.
+random_splitmix64_test() ->
+    R = 'ern@random',
+    Whole = 16#FFFF_FFFF_FFFF_FFFF,
+    {A, S1} = R:next(R:seed(0), Whole),
+    {B, S2} = R:next(S1, Whole),
+    {C, _} = R:next(S2, Whole),
+    ?assertEqual([16#E220A8397B1DCDAF, 16#6E789E6AA1B965F4, 16#06C45D188009454F], [A, B, C]),
+    ?assertEqual(R:seed(5), R:seed(5 + (1 bsl 64))),
+    {X, _} = R:nextFloat(R:seed(0)),
+    ?assertEqual((float(16#E220A8397B1DCDAF bsr 12) + 0.5) / 4503599627370496.0, X),
+    %% a bound beyond 64 bits draws from as many words as it needs
+    {Big, _} = R:next(R:seed(1), 1 bsl 100),
+    ?assert(Big >= 0 andalso Big =< 1 bsl 100).
+
+%% report Appendix E.14: Path's edge cases, now that it is Ernest over String
+%% and two primitives: a trailing separator, an absolute second operand, the
+%% root alone, a name with an empty extension, and a dot file. Written with
+%% the move, where `filename` had answered them.
+path_edges_test() ->
+    P = 'ern@path',
+    T = fun(Text) -> {'Path', Text} end,
+    ?assertEqual(<<"b">>, P:name(T(<<"a/b/">>))),
+    ?assertEqual([<<"a">>, <<"b">>], P:split(T(<<"a//b/">>))),
+    ?assertEqual({'Some', T(<<"a">>)}, P:parent(T(<<"a/b/">>))),
+    ?assertEqual(T(<<"/var">>), P:join(T(<<"/etc">>), T(<<"/var">>))),
+    ?assertEqual(T(<<"/etc/hosts">>), P:join(T(<<"/etc/">>), T(<<"hosts">>))),
+    ?assertEqual(T(<<"b">>), P:join(T(<<"">>), T(<<"b">>))),
+    ?assertEqual([<<"/">>], P:split(T(<<"/">>))),
+    ?assertEqual(<<>>, P:name(T(<<"/">>))),
+    ?assertEqual({'Some', <<>>}, P:extension(T(<<"a.">>))),
+    ?assertEqual({'Some', <<"profile">>}, P:extension(T(<<".profile">>))),
+    ?assertEqual('None', P:extension(T(<<"a.d/b">>))),
+    ?assertEqual(T(<<"a/b">>), P:withExtension(T(<<"a/b.txt/">>), <<>>)),
+    ?assertEqual(T(<<"a.d/b.md">>), P:withExtension(T(<<"a.d/b">>), <<"md">>)).
 
 %% report Appendix E.14, §9.3
 path_test() ->

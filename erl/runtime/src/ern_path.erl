@@ -1,30 +1,19 @@
-%% The shims behind Path (report Appendix E.14, rule 1): a path is in the
-%% runtime's syntax, so `filename` decides what a segment, a parent, and a
-%% root are. Each takes and gives the path's text; path.ern wraps it.
+%% The primitives of Path (report Appendix E.14, E.0 rule 1): what only the
+%% host knows of its path syntax, the separator and whether a path starts
+%% at a root, by `filename`. The rest of Path is Ernest over String.
 -module(ern_path).
 
--export([join/2, split/1, dirname/1, basename/1, extension/1, rootname/1, is_absolute/1]).
+-export([separator/0, is_absolute/1]).
 
--spec join(binary(), binary()) -> binary().
-join(A, B) -> text(filename:join(A, B)).
+%% The separator `filename:join/2` writes, `/`, or `\` on Windows.
+-spec separator() -> binary().
+separator() ->
+    case os:type() of
+        {win32, _} -> <<"\\">>;
+        _ -> <<"/">>
+    end.
 
--spec split(binary()) -> [binary()].
-split(P) -> [text(S) || S <- filename:split(P)].
-
--spec dirname(binary()) -> binary().
-dirname(P) -> text(filename:dirname(P)).
-
--spec basename(binary()) -> binary().
-basename(P) -> text(filename:basename(P)).
-
-%% with its leading dot, or empty
--spec extension(binary()) -> binary().
-extension(P) -> text(filename:extension(P)).
-
--spec rootname(binary()) -> binary().
-rootname(P) -> text(filename:rootname(P)).
-
--spec is_absolute(binary()) -> boolean().
-is_absolute(P) -> filename:pathtype(P) =:= absolute.
-
-text(S) -> unicode:characters_to_binary(S).
+%% A Path is Path(String), {'Path', Text} (report §8.4); filename:pathtype/1
+%% answers absolute for a path that starts at a root.
+-spec is_absolute({'Path', binary()}) -> boolean().
+is_absolute({'Path', P}) -> filename:pathtype(P) =:= absolute.

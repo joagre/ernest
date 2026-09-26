@@ -1,8 +1,11 @@
 /// Operations on `Path`, a file system path in the runtime's syntax
 /// (report §9.3, Appendix E.14). A `Path` is `Path(String)`, so a path is
 /// built from text and `toString` gives it back. There is no `fromString`:
-/// the constructor is it, `Path("/etc/hosts")`. What counts as a segment, a
-/// parent, or a root is the runtime's.
+/// the constructor is it, `Path("/etc/hosts")`. The primitives are
+/// `isAbsolute` and `separator`, private, the host's separator, both the
+/// runtime's; the rest is Ernest over `String` (report Appendix E.0 rule 1).
+/// An absolute path's first segment is its root, the text up to its first
+/// separator and that separator.
 ///
 /// ## Examples
 ///
@@ -30,9 +33,17 @@
 /// Path.toString(Path.join(Path("/etc"), Path("/var")))
 /// // => "/var"
 /// ```
-export fn join(p : Path, under : Path) -> Path = Path(joined(toString(p), toString(under)))
+export fn join(p : Path, under : Path) -> Path =
+    if isAbsolute(under) then under else Path(written(split(p) <> split(under)))
 
-foreign fn joined(p : String, under : String) -> String = "ern_path:join/2"
+// Segments as a path's text: after a root the next directly, else each
+// after a separator.
+fn written(segments : List(String)) -> String = match segments {
+    [] -> ""
+  | first :: rest ->
+        if String.endsWith(first, separator()) then first <> String.join(rest, separator())
+        else String.join(segments, separator())
+}
 
 /// The segments; an absolute path's first segment is the root.
 ///
@@ -42,9 +53,19 @@ foreign fn joined(p : String, under : String) -> String = "ern_path:join/2"
 /// Path.split(Path("/etc/hosts"))
 /// // => ["/", "etc", "hosts"]
 /// ```
-export fn split(p : Path) -> List(String) = segments(toString(p))
+export fn split(p : Path) -> List(String) = {
+    let text = toString(p);
+    let named = fn(t) = List.filter(String.split(t, separator()), fn(s) = !String.isEmpty(s));
+    match String.indexOf(text, separator()) {
+        Some(at) when isAbsolute(p) -> {
+            let root = String.slice(text, 0, at + 1);
+            root :: named(String.slice(text, at + 1, String.size(text)))
+        }
+      | _ -> named(text)
+    }
+}
 
-foreign fn segments(p : String) -> List(String) = "ern_path:split/1"
+foreign fn separator() -> String = "ern_path:separator/0"
 
 /// The path without its last segment, or `None` for a bare name and for the
 /// root.
@@ -66,18 +87,20 @@ export fn parent(p : Path) -> Optional(Path) = match List.dropLast(split(p)) {
 }
 
 /// The last segment.
-export fn name(p : Path) -> String = basename(toString(p))
-
-foreign fn basename(p : String) -> String = "ern_path:basename/1"
+export fn name(p : Path) -> String = match split(p) {
+    [_] when isAbsolute(p) -> ""
+  | segments -> Optional.withDefault(List.last(segments), "")
+}
 
 /// What follows the last `.` of the name, without the dot, or `None` when
 /// the name has none.
 export fn extension(p : Path) -> Optional(String) = {
-    let dotted = suffix(toString(p));
-    if String.isEmpty(dotted) then None else Some(String.slice(dotted, 1, String.size(dotted)))
+    let n = name(p);
+    match String.lastIndexOf(n, ".") {
+        Some(at) -> Some(String.slice(n, at + 1, String.size(n)))
+      | None -> None
+    }
 }
-
-foreign fn suffix(p : String) -> String = "ern_path:extension/1"
 
 /// The path with that extension in place of any it had; an empty string
 /// removes it.
@@ -90,11 +113,13 @@ foreign fn suffix(p : String) -> String = "ern_path:extension/1"
 /// // => #("a/b.md", "a/b")
 /// ```
 export fn withExtension(p : Path, ext : String) -> Path = {
-    let stem = rootname(toString(p));
+    let text = written(split(p));
+    let stem = match extension(p) {
+        Some(old) -> String.slice(text, 0, String.size(text) - String.size(old) - 1)
+      | None -> text
+    };
     if String.isEmpty(ext) then Path(stem) else Path(stem <> "." <> ext)
 }
-
-foreign fn rootname(p : String) -> String = "ern_path:rootname/1"
 
 /// `true` when the path starts at a root.
 ///
@@ -104,9 +129,7 @@ foreign fn rootname(p : String) -> String = "ern_path:rootname/1"
 /// #(Path.isAbsolute(Path("/etc")), Path.isAbsolute(Path("etc")))
 /// // => #(true, false)
 /// ```
-export fn isAbsolute(p : Path) -> Bool = absolute(toString(p))
-
-foreign fn absolute(p : String) -> Bool = "ern_path:is_absolute/1"
+export foreign fn isAbsolute(p : Path) -> Bool = "ern_path:is_absolute/1"
 
 /// The path as text, as it was written.
 export fn toString(p : Path) -> String = match p { Path(text) -> text }

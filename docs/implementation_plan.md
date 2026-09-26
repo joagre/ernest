@@ -758,8 +758,6 @@ connectors: those are libraries for others to write on Appendix D's pattern.
 
 - **§3.11, §8.3 and §8.7 have no citing test**, which `make sections` lists. All three are
   MVP 3.0 and 3.1 material and unimplemented; anything else that appears there is a gap.
-- **`e_bits` and `p_bits` are in no example**, so the AST coverage test excludes them
-  (2026-09-19).
 - **A label at the first use of the variable whose type a mismatch names** was planned for
   §3.4's placement work and not built (2026-09-18).
 
