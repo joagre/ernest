@@ -271,6 +271,11 @@ The steps:
       - **G1, `todo` goes; `fault` stays.** One prelude function ends a process with a
         cause; unfinished code writes `fault("todo: ...")`. §7.4 and §9, the example and the
         guide that used `todo` for a broken invariant. The log's *One Way to Fault*.
+      - **G9, `Process.info`.** `Process.site`, `mailboxSize` and `state` become one
+        `Process.info(p) : Optional(Process.Info) with m`, `type Info = Info(site : String,
+        queued : Int, activity : Activity)` and `type Activity = Running | Receiving |
+        Calling`, one snapshot of a live process and `None` once it has ended. The log's
+        *One Question About a Process*.
    2. **The ledger.** A table in this plan, a row for each decision the gate leaves: the
       report sections it changes; the Erlang modules and Ernest files it reaches; its tests,
       the new ones and the mirror tests that must change, a mirror test planned for every
