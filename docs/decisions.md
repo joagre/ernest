@@ -4429,6 +4429,16 @@ Feedback item 58, found by the cold read of MVP 2.65's step 10. `Tcp.close` take
 
 `Tcp.close` cannot take both, there being no overloading and the two address types differing for good reason, `Tcp.read` on a listener being a type error. Making `kill` the close with a special answer for a killed listener's accepts would be a case of the call rule that only listeners have; a new verb, `stop` or `unlisten`, would give ending a resource two words (shape rule 2). Taken: `Tcp.closeListener`, the verb `close` that `Tcp.close` and `Ets.close` give to ending a resource with the noun that says which. It is a send, an `accept` waiting on the listener answers `Left(Closed)` as a pending read does when a socket closes, and the listener's process then ends.
 
+## The Build's First Group, 2026-09-26
+
+MVP 2.65's step 10, the first group of its build: how a program ends, `////`, `ern test`, a foreign function value, `fault` and `Down.site`. Three things were found while building.
+
+The host's interrupt cannot be handled on the BEAM: `os:set_signal` refuses `sigint`, and the node, run without a shell, is ended by it at once, which a shell reports as status 130. The rule of step 9, that a signal ends the program as its entry process's end does, flushing what the system processes hold, therefore holds for termination and hangup, which OTP's signal server lets a handler take, and not for the interrupt. A wrapper that traps the interrupt and passes on a termination was weighed and left: a script in front of the node changes how the tool is started and how job control and a terminal's reads reach it, for output that is usually written already. §8.6 now says that the interrupt ends the program at once and that output not yet written may be lost; the status and the silence hold for all three.
+
+A deadlock under `ern test` is the running test's fault. The reaper, which finds a deadlock, faulted the entry process; the test runner now names the test that runs as the process to fault, and the run goes on with the next. Nothing else names such a target, so a program's deadlock is still its entry process's.
+
+A foreign function value's result is checked at each call, which needs a wrapper of the value's own arity; Erlang writes a fun of a given arity only in source, and the emitter writes one into each function's descriptor, so the boundary applies the maker the compiled code carries rather than a fixed table of arities.
+
 ## Later
 
 Planned or considered, not in the language today.
