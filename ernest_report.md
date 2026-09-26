@@ -532,7 +532,7 @@ answer              : (Reply(a), a) -> Unit with m
 - Returning it from a function whose result type is reply-carrying hands it to the caller.
 - Capturing it in a lambda hands it to the lambda, which is then reply-carrying itself. The lambda is consumed exactly once, by a call or as the function argument of `spawn` or `spawnMonitored`, and may appear nowhere else. `let f = fn() = worker(r); spawn(Local, f)` is legal; with `f()` after the `spawn`, `f` is consumed twice. `restarting(limit, f)` with such an `f` is a type error, since `restarting` may run `f` more than once. A local `fn` may not capture a reply-carrying value; such a capture is a type error.
 
-A value is bound by a parameter, a `let`, a pattern variable, a `receive` variable, a lambda's capture, or the result of a call, and each binding is an *obligation*. The check is per function and crosses no call boundary. It is static: every path makes the consumption, and whether execution reaches it is not checked, since non-termination, a fault, or an indefinite wait may prevent it.
+A value is bound by a parameter, a `let`, a pattern variable, a `receive` variable, a lambda's capture, or the result of a call, and each binding is an *obligation*. The check is per function and crosses no call boundary. It is static: every path makes the consumption, and whether execution reaches it is not checked, since non-termination, a fault, or an indefinite wait may prevent it. A path on which the prelude's `fault` is called consumes every obligation still open on it, since the fault ends the process and every call waiting on it (§7.2). A function that calls `fault` for its caller does not: the check crosses no call boundary.
 
 ```
 type Request = Get(reply : Reply(Int)) | Stop

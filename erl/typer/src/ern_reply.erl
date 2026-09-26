@@ -9,6 +9,13 @@
 %% and legal nowhere else. Linear holds a name N for a value and {lambda, N}
 %% for such a lambda bound by let.
 %%
+%% A path on which the prelude's `fault` is called consumes every obligation
+%% open on it (§6.6): its uses carry the mark {'$fault', Pos}, which no name
+%% is, so a branch that faults is left out of the comparison of branches,
+%% and a name a faulting path leaves unconsumed is not a name never
+%% consumed. The mark does not leave a lambda or a local function, whose
+%% bodies are not on the enclosing path.
+%%
 %% Report §3.9: a type variable of a parameter's type gets the no_reply flag
 %% when the body, read with that variable taken for reply-carrying, would
 %% break this discipline: a second use or none, through a `let` or a
@@ -211,6 +218,8 @@ uses(#e_call{callee = #e_var{ref = {prelude, [Spawn]}}, args = [Where, Arg | Wra
                   _ -> uses(Arg, Linear, Env)
               end,
     seq([uses(Where, Linear, Env), ArgUses | [uses(W, Linear, Env) || W <- Wrap]]);
+uses(#e_call{pos = Pos, callee = #e_var{ref = {prelude, [fault]}}, args = Args}, Linear, Env) ->
+    seq([uses(Args, Linear, Env), [{'$fault', Pos}]]);
 uses(#e_call{pos = Pos, callee = #e_var{path = [], name = F}, args = Args}, Linear, Env) ->
     %% a call consumes a capturing lambda bound by let
     Callee = case lists:member({lambda, F}, Linear) of
@@ -230,7 +239,7 @@ uses(#e_lambda{pos = Pos} = L, Linear, Env) ->
                                                 " spawnMonitored"})
     end;
 uses(#fn_decl{pos = Pos, body = Body}, Linear, Env) ->
-    case [N || {N, _} <- uses(Body, Linear, Env)] of
+    case [N || {N, _} <- uses(Body, Linear, Env), N =/= '$fault'] of
         [] -> [];
         [N | _] -> throw({type_error, Pos, "the reply-carrying value " ++ atom_to_list(N)
                                            ++ " is captured by a local function"})
@@ -298,12 +307,14 @@ captures(#e_lambda{pos = Pos, params = Params, body = Body}, Linear, Env) ->
     Inner = [N || P <- Params, N <- linear_bindings(P#param.pattern, Env)],
     BodyUses = uses(Body, Linear ++ Inner, Env),
     lists:foreach(fun(N) -> exactly_once(N, BodyUses, Pos) end, Inner),
-    [U || {N, _} = U <- BodyUses, not lists:member(N, Inner)].
+    [U || {N, _} = U <- BodyUses, not lists:member(N, Inner), N =/= '$fault'].
 
 %% Sequential composition: a second use of a name is an error there.
 seq(Lists) ->
     lists:foldl(fun(Uses, Acc) ->
-                    lists:foreach(fun({N, Pos}) ->
+                    lists:foreach(fun({'$fault', _}) ->
+                                      ok;
+                                     ({N, Pos}) ->
                                       case lists:keymember(N, 1, Acc) of
                                           true -> throw({type_error, Pos,
                                                          "the reply-carrying value "
@@ -315,10 +326,17 @@ seq(Lists) ->
                     Acc ++ Uses
                 end, [], Lists).
 
-%% Branches must consume the same names.
-branches(_Pos, []) ->
+%% Branches must consume the same names, but for a branch that faults.
+%% Where every branch faults, the whole faults.
+branches(Pos, Branches) ->
+    case [B || B <- Branches, not lists:keymember('$fault', 1, B)] of
+        [] when Branches =/= [] -> [{'$fault', Pos}];
+        Returning -> compared(Pos, Returning)
+    end.
+
+compared(_Pos, []) ->
     [];
-branches(Pos, [First | Others]) ->
+compared(Pos, [First | Others]) ->
     Names = lists:usort([N || {N, _} <- First]),
     lists:foreach(fun(Other) ->
                       case lists:usort([N || {N, _} <- Other]) of
@@ -334,11 +352,12 @@ branches(Pos, [First | Others]) ->
     First.
 
 exactly_once(N, Uses, Pos) ->
-    case count(N, Uses) of
-        1 -> ok;
-        0 -> throw({type_error, Pos, "the reply-carrying value " ++ atom_to_list(N)
+    case {count(N, Uses), lists:keymember('$fault', 1, Uses)} of
+        {1, _} -> ok;
+        {0, true} -> ok;
+        {0, false} -> throw({type_error, Pos, "the reply-carrying value " ++ atom_to_list(N)
                                      ++ " is never consumed"});
-        _ -> ok  % the second use was reported by seq
+        {_, _} -> ok  % the second use was reported by seq
     end.
 
 count(N, Uses) -> length([x || {M, _} <- Uses, M =:= N]).

@@ -1192,6 +1192,48 @@ abstract_type_test() ->
 %% report §6.6, §6.9: `restarting` may run its function more than once, so a
 %% lambda that captures a reply is refused there, by the rule that lets such
 %% a lambda stand only where it is called or spawned once
+%% report §6.6: a path on which the prelude's `fault` is called consumes
+%% every obligation open on it, in an `if` and in a `receive`; a returning
+%% path that does not answer is still refused, and so is a function that
+%% faults for its caller and a fault inside a lambda, neither of which is
+%% the path's own. Feedback item 60
+fault_path_test() ->
+    Msg = "type M = Add(amount : Int, reply : Reply(Int)) | Stop\n",
+    ?assertEqual(ok, ok(Msg ++ "fn serve() -> Unit with M = receive {\n"
+                              "    Add(amount = n, reply = r) ->\n"
+                              "        if n < 0 then fault(\"negative\")\n"
+                              "        else { answer(r, n); serve() }\n"
+                              "  | Stop -> Unit\n"
+                              "}\n")),
+    ?assertEqual(ok, ok(Msg ++ "fn serve() -> Unit with M = receive {\n"
+                              "    Add(amount = n, reply = r) -> match n {\n"
+                              "        0 -> fault(\"zero\")\n"
+                              "      | _ -> answer(r, n)\n"
+                              "    }\n"
+                              "  | Stop -> Unit\n"
+                              "}\n")),
+    ?assertEqual("the reply-carrying value r is consumed on one path but not on another",
+                 err(Msg ++ "fn serve() -> Unit with M = receive {\n"
+                            "    Add(amount = n, reply = r) ->\n"
+                            "        if n < 0 then serve() else answer(r, n)\n"
+                            "  | Stop -> Unit\n"
+                            "}\n")),
+    ?assertEqual("the reply-carrying value r is consumed on one path but not on another",
+                 err(Msg ++ "fn reject(m : String) -> Unit = fault(m)\n"
+                            "fn serve() -> Unit with M = receive {\n"
+                            "    Add(amount = n, reply = r) ->\n"
+                            "        if n < 0 then reject(\"negative\") else answer(r, n)\n"
+                            "  | Stop -> Unit\n"
+                            "}\n")),
+    ?assertEqual("the reply-carrying value r is never consumed",
+                 err(Msg ++ "fn serve() -> Unit with M = receive {\n"
+                            "    Add(amount = n, reply = r) -> {\n"
+                            "        let later = fn() -> Unit = fault(\"later\");\n"
+                            "        later()\n"
+                            "    }\n"
+                            "  | Stop -> Unit\n"
+                            "}\n")).
+
 reply_lambda_restarting_test() ->
     ?assertEqual("the reply-carrying value r is captured by a lambda that is not called, bound by"
                  " `let`, or passed directly to spawn or spawnMonitored",

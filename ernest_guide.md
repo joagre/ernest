@@ -674,7 +674,7 @@ A `Reply(Int)` is where an answer goes. The process that asks puts one in its re
 
 A `Reply` is an obligation: whoever holds one answers it exactly once, on every path, and the compiler checks it, as §0 showed. The obligation moves with the value. Sending a message that carries a reply, passing it to a function, returning it, or putting it in a constructor hands the obligation on; only `answer(r, v)` discharges it. A value that contains a reply is *reply-carrying*, as `CounterMsg` is because of `Get`, and the same rule holds for it.
 
-The check is on paths, not on time. A path that faults or waits for ever never answers, and no compiler can see that: a fault ends the call at once, and the caller's deadline covers a wait (§4.4).
+The check is on paths, not on time. A path that calls `fault` need not answer, since the fault ends the process and every call waiting on it at once (§6.5). A path that faults inside a function it calls, or waits for ever, must still answer on paper: the compiler cannot see that it will not return, and the caller's deadline covers a wait (§4.4).
 
 Since each reply is counted, a reply-carrying value is never copied or dropped. It cannot be an element of a `List`, a `Map`, a `Set`, an `Optional`, or an `Either`, nor an operand of `==` or `!=`, and `_` cannot stand for one in a pattern. A server with many requests pending keeps each reply in a process of its own, as the queue of §4.4 does. In a printed type, a variable marked `!` is one that may not hold a reply, as in `dup : (a!) -> #(a!, a!)` for a function that copies its argument. Report §6.6 gives the whole discipline.
 
@@ -1279,15 +1279,13 @@ export fn start() -> Address(CounterMsg) with m =
 
 // The counter's loop, which faults on a negative amount.
 fn count(total : Int) -> Unit with CounterMsg = receive {
-    Add(amount = n, reply = r) -> {
-        let next = added(total, n);
-        answer(r, next);
-        count(next)
-    }
+    Add(amount = n, reply = r) ->
+        if n < 0 then fault("a negative amount")
+        else {
+            answer(r, total + n);
+            count(total + n)
+        }
 }
-
-fn added(total : Int, n : Int) -> Int =
-    if n < 0 then fault("a negative amount") else total + n
 
 export fn main() -> Unit with Never = {
     let add = fn(n) = Address.call(counter, fn(r) = Add(amount = n, reply = r), 1000);
@@ -1311,7 +1309,7 @@ Some(3)
 
 The call that was waiting when the counter faulted ends at once: `Address.call` answers `None`, and `Address.callForever` would fault the caller with the same cause. A caller that must outlive a service's faults calls with a limit. The second line is `ern run`'s report of the fault, on standard error (§6.3).
 
-`added` calls `fault`, the fault a program raises when it finds a case it will not handle; `answer(r, next)` still answers on every path, as §4.2 requires, since the fault comes first. `start` is exported beside the binding so that a test can start a counter of its own instead of sharing the program's. The binding comes right after the type it carries, and its helpers after it, so a reader meets the service before what uses it.
+`fault` is the fault a program raises when it finds a case it will not handle. The path that calls it does not answer `r`, and need not (§4.2): the fault ends the counter's process, and the call waiting on it ends at once. `start` is exported beside the binding so that a test can start a counter of its own instead of sharing the program's. The binding comes right after the type it carries, and its helpers after it, so a reader meets the service before what uses it.
 
 ### 6.6 Prediction exercise
 
