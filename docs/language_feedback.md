@@ -7,7 +7,7 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Fifty have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Fifty-one have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
 (decided, report §9), 2, 4 and 43 (weighed and kept, the log's *Constructor Names Stay Unique
 in a Module*, *Names Stay Qualified, Without Import or Alias* and *Two Visibilities Are
@@ -32,7 +32,8 @@ where standard input is not a terminal), 11, 13, 42, 46 and 34 (decided in step 
 batch: a shim is only an operation that reaches the representation), 40, 41 and 38 (decided
 in its second: a name follows the vocabulary), 7, 8, 15, 20, 21, 22, 23, 31, 35 and 44
 (decided in its third: what the library lacked), 29 (a defect of the shell, fixed: a word is
-Readline's), and 30 (fixed: `:load`'s completion asks the compiler for the path rule).
+Readline's), 30 (fixed: `:load`'s completion asks the compiler for the path rule), and 54 (decided: completion
+reaches the fields of what the session or a module names).
 
 ## 1. Names and namespaces
 
@@ -99,10 +100,4 @@ names each decision.
 
 ## 5. The toolchain and the shell
 
-What the shell does that its own code, rather than the language, decides.
-
-54. **Completion after a value's `.`.** Since fields are selected (§3.5), `state.` and
-    `Tab` at the prompt could offer the fields of the value's type, as `List.` offers the
-    module's names; §11.2's completion reads what is before the last `.` as a namespace,
-    so it offers nothing. Whether completion reaches a value's fields, which needs the
-    value's type where the parser stopped.
+Decided on 2026-09-26, and no entry is left; the plan's MVP 2.65 step 7 names each decision.

@@ -18,10 +18,10 @@ Actorson until 12 September 2026.
 ## Where we are
 
 **MVP 2.65, the language and the toolchain read back after the shell, has begun.** Its
-first six steps are done: the feedback list and this plan consolidated, the report read
-cold, and the first four themes, names and namespaces, expressions, patterns and types,
-processes and the system, and the standard library under E.0. The fifth theme, the
-toolchain, is next.
+first seven steps are done: the feedback list and this plan consolidated, the report read
+cold, and the five themes, names and namespaces, expressions, patterns and types, processes
+and the system, the standard library under E.0, and the toolchain. Step 8, the Erlang
+code's open questions, is next.
 MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
@@ -180,17 +180,9 @@ The steps:
      (rule 3; `Io.show` serves a log). E.0's fifth shape rule applies `with m` to what reaches
      a system reference, and rule 4 names the pairs the library keeps, `Io.debug` with
      `Io.show`. The log's *What the Library Lacked*.
-7. **The toolchain**, the fifth theme: the shell's own questions (items 29, 30 and 54), and the
-   names of the options to `ernc` and `ern`. Both tools grew their options one MVP at a
-   time and the set has never been read whole. Under review: the three words for a
-   directory, `--source-root`, `--out-dir`, `--config-dir`, `--load-path`, and whether the
-   rule that tells them apart is worth stating; the options that are modes rather than
-   modifiers, `--doc`, `--test`, `--emit`, `--shell`, `--create-config-dir`, and whether a
-   mode is a subcommand; `--create-config-dir`, a whole job in an option's clothes that
-   names the directory's parent where `--config-dir` names the directory (the cold read's
-   3.12); `--no-clean`, the only negative; and
-   `--errors short`, a value option with one value. The names are in §11.1 to §11.4, so
-   each is a report change and worth deciding once.
+7. **Done 2026-09-26: the toolchain**, the fifth theme: the options of `ernc` and `ern`, read
+   whole for the first time, and the shell's own questions (items 29, 30 and 54). Items 29
+   and 30 were defects and are fixed; the rest is built in step 10, report first.
    - **Decided 2026-09-26: one tool, the job its first word.** `ernc` goes into `ern`:
      `ern build`, `ern doc`, `ern run`, `ern test`, `ern shell` and `ern config`, with
      `--help` and `--version` as options. §11 states the rule for a directory's option:
@@ -209,6 +201,11 @@ The steps:
      the compiler, `ern_shell:segment`, for the namespace segment a file or directory names,
      and the shell's copy of §11.1's path shape goes. The log's *The Path Rule Has One
      Owner*.
+   - **Decided 2026-09-26: completion reaches a value's fields** (item 54). After a name the
+     session binds or a module exports, and a `.`, `Tab` completes the fields its type
+     selects (§3.5), along a chain; a name the unfinished input binds is not completed, as
+     §11.2 says. Built in step 10, with terminal tests. The log's *Completion Reaches What
+     the Session Knows*.
 8. **The Erlang code's open questions**, from its review on 2026-09-25, gone through one by
    one after the language is decided and before what was decided is built, since a split
    is cheapest before the code it moves is changed. Where the code lives and how big it is:
