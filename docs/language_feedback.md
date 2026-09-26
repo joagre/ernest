@@ -101,3 +101,26 @@ names each decision.
 ## 5. The toolchain and the shell
 
 Decided on 2026-09-26, and no entry is left; the plan's MVP 2.65 step 7 names each decision.
+
+## 6. What a library should own
+
+Code that implements a published specification or a general-purpose engine by hand, which
+CLAUDE.md gives to a library under `libs/`. Found on 2026-09-26 by reading every Ernest
+program in the repository for it; `libs/markdown`, a CommonMark implementation, is already
+where such code belongs, and the Unicode width table for `Terminal.columns` was decided into
+the standard library (step 6, batch 3).
+
+55. **HTTP/1.1 written by hand in `examples/webserver.ern`.** The example parses a request
+    line and headers from the bytes it reads (`parse`, `requestLine`, `headerLines`) and
+    renders a status line, a `Content-Length` and the headers of a response: a protocol
+    (RFC 9112), and a part of it, since it ignores the version and knows no chunked body.
+    `libs/http` is among the libraries not yet written (the log's *Libraries As They Are
+    Wanted*). Whether the example waits for it, or keeps a subset it says is one, is to be
+    decided before the example is next touched.
+56. **Terminal control sequences written by hand in four places.** The shell's
+    `Shell.Style` and `Shell.Region`, `libs/markdown` and `examples/snake.ern` each write
+    ECMA-48's sequences themselves: select graphic rendition for colour and weight, cursor
+    up and right, erase in display, clear screen. `Terminal.columns` (step 6, batch 3)
+    takes the counting of them into `Terminal`, but the writing stays in four copies of a
+    published vocabulary. Whether E.16 gains the sequences a program writes, or a library
+    under `libs/` owns them.
