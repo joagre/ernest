@@ -3,14 +3,13 @@
 -export([main/0, '$fun'/2]).
 
 main() ->
-    PongAddr_1 = ern_rt:spawn('Local',
-                              fun () -> pong() end,
-                              <<"Pingpong.main:15">>),
+    PongAddr_2 = ern_rt:spawn_monitored('Local',
+                                        fun () -> pong() end,
+                                        fun (V_1) -> {'PongDone', V_1} end,
+                                        <<"Pingpong.main:15">>),
     _ = ern_rt:spawn('Local',
-                     fun () -> ping(PongAddr_1, 3) end,
+                     fun () -> ping(PongAddr_2, 3) end,
                      <<"Pingpong.main:16">>),
-    ern_rt:monitor(PongAddr_1,
-                   fun (V_2) -> {'PongDone', V_2} end),
     receive {'PongDone', _} -> 'Unit' end.
 
 ping(PongAddr_3, N_4) ->

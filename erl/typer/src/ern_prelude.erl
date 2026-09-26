@@ -247,7 +247,7 @@ declared_types() ->
     /// }
     /// // => "division by zero"
     /// ```
-    type Reason = Returned | Killed | ProgramEnd | Fault(String)
+    type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
     /// The messages `Sys.clock` takes. A program uses the `Clock` module and
     /// never sends to the clock itself (report Appendix E.0 rule 8).
     type ClockMsg = After(ms : Int, to : Address(Int)) | At(at : Int, to : Address(Int))
@@ -351,8 +351,8 @@ declared_types() ->
 %% (report §3.9).
 -spec process_only() -> [[atom()]].
 process_only() ->
-    [[send], [spawn], ['Address', call], ['Address', callForever], [answer], [monitor],
-     [kill], [remote]].
+    [[send], [spawn], [spawnMonitored], ['Address', call], ['Address', callForever], [answer],
+     [monitor], [kill], [remote]].
 
 %% Qualified name, type text, and documentation, or `module` for an
 %% operation its type's module documents (report §9).
@@ -400,6 +400,23 @@ values() ->
 
       ```ernest
       spawn(Local, fn() = receive { n -> Io.println(Int.toString(n)) })
+      ```
+      """/utf8>>},
+     {[spawnMonitored], "(Where, () -> Unit with n, (Down) -> m) -> Address(n) with m",
+      <<"""
+      Starts a process as `spawn` does, monitored by the caller from its
+      start: `wrap(d)` is put in the caller's mailbox when it ends, with its
+      reason, however soon that is (report §6.2, §6.9).
+
+      ### Errors
+
+      `Fault("peer unreachable")` when the peer is unknown or cannot be
+      reached.
+
+      ### Examples
+
+      ```ernest
+      spawnMonitored(Local, fn() -> Unit with Never = Unit, fn(d : Down) = d)
       ```
       """/utf8>>},
      %% §9.5 process functions
@@ -478,13 +495,15 @@ values() ->
      {[monitor], "(Address(a), (Down) -> m) -> Unit with m",
       <<"""
       Puts `wrap(d)` in the caller's mailbox when the process at `a` ends, or at
-      once if it has ended. Each call gives one message (report §6.9).
+      once, with the reason `Unknown`, if it has ended. Each call gives one
+      message (report §6.9). A process one starts is watched from its start
+      with `spawnMonitored`.
 
       ### Examples
 
       ```ernest
       {
-          let worker = spawn(Local, fn() -> Unit with Never = Unit);
+          let worker : Address(Int) = spawn(Local, fn() = receive { _ -> Unit });
           monitor(worker, fn(d : Down) = d)
       }
       ```

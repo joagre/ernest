@@ -140,7 +140,7 @@ It does not hold the shell's settings, which are ordinary Ernest values; the his
 The shell reports a process that faults; a compiled program keeps its silence, and `monitor` stays the one way a program learns (§6.9).
 
 - **The shell cannot monitor what it cannot address.** There is no registry, and a process is reached only through an address someone holds (§6.5).
-- **The front end is told instead.** The runtime remembers how every process it started ended, and `Down` carries the spawn site with its line (§6.9); the front end registers a watcher, which is told of every death and decides which are news.
+- **The front end is told instead.** The runtime tells a watcher of every death as it happens, and `Down` carries the spawn site with its line (§6.9); the front end registers a watcher, which is told of every death and decides which are news.
 - **Faults only.** `Returned`, `Killed`, and `ProgramEnd` are not news, and a program that spawns a process for each connection would scroll the session away.
 - **The program's processes, not the shell's own.** The shell cannot tell them apart, addresses having no equality (§6.5). Each of the shell's own processes says so from inside itself, since an address handed to a foreign function arrives as the checking proxy in front of it (§8.4) and the process behind it is not what the front end would hold. The input's own process is left out by the front end, which made it, its fault being the outcome already. So an input's fault is reported once.
 - **One line, written by the screen**, as all output is.

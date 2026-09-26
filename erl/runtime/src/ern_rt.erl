@@ -23,8 +23,9 @@
 %% checking proxies of §8.4.
 -module(ern_rt).
 
--export([send/2, process_of/1, spawn/3, self/0, via/2, call/3, call_forever/2, answer/2,
-         monitor/2, kill/1, deaths/1, live/0, proxy_for/3, proxy_forget/2, source_begin/0,
+-export([send/2, process_of/1, spawn/3, spawn_monitored/4, self/0, via/2, call/3,
+         call_forever/2, answer/2, monitor/2, kill/1, deaths/1, live/0, proxy_for/3,
+         proxy_forget/2, source_begin/0,
          source_end/0, timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1,
          undefined_function/3, undefined_lambda/3, remote/1, todo/1, fault/1, fault/2,
          trace/1, sys/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
@@ -34,9 +35,6 @@
 
 -define(UNIT, 'Unit').
 -define(PROCESSES, ern_processes).
-%% Report §6.9: how each process the runtime started ended, apart from the
-%% live ones, so that what reads the live processes never copies the dead.
--define(ENDED, ern_ended).
 %% The longest wait the host's `receive ... after` takes, in milliseconds.
 -define(SLICE, 16#FFFFFFFF).
 
@@ -86,13 +84,24 @@ behind(Pid) ->
 %% supplies it, so this is spawn/3 where the report's spawn takes two.
 -spec spawn('Local' | {'Peer', binary()}, fun(() -> term()), binary()) -> address().
 spawn('Local', Fun, Site) ->
-    Ref = make_ref(),
-    persistent_term:get({?MODULE, reaper}) ! {spawn, erlang:self(), Ref, Fun, Site},
-    receive
-        {Ref, Pid} -> Pid
-    end;
+    spawn_awaited(Fun, Site, []);
 spawn({'Peer', _Name}, _Fun, _Site) ->
     fault(<<"peer unreachable">>).
+
+%% Report §6.2, §6.9: a process monitored by the caller from its start, the
+%% wait made with the spawn, so that no end comes before it.
+-spec spawn_monitored(term(), fun(() -> term()), fun((term()) -> term()), binary()) -> pid().
+spawn_monitored('Local', Fun, Wrap, Site) ->
+    spawn_awaited(Fun, Site, [{erlang:self(), Wrap}]);
+spawn_monitored({'Peer', _Name}, _Fun, _Wrap, _Site) ->
+    fault(<<"peer unreachable">>).
+
+spawn_awaited(Fun, Site, Awaits) ->
+    Ref = make_ref(),
+    persistent_term:get({?MODULE, reaper}) ! {spawn, erlang:self(), Ref, Fun, Site, Awaits},
+    receive
+        {Ref, Pid} -> Pid
+    end.
 
 -spec self() -> address().
 self() ->
@@ -182,28 +191,29 @@ reason({ern, code_unloaded}) -> {'Fault', <<"its code was unloaded">>};
 reason({ern, fault, Msg}) -> {'Fault', Msg};
 %% report §6.9, §11.2: the host's stack is the report's, never the cause's
 reason({ern, fault, Msg, _Trace}) -> {'Fault', Msg};
-reason(noproc) -> {'Fault', <<"died before monitor">>};
+%% report §6.9: a monitor made after the end cannot say how it ended
+reason(noproc) -> 'Unknown';
 reason(Other) -> {'Fault', format("~p", [Other])}.
 
-%% The reaper: spawns on request with a monitor, records each process's
-%% end in the table, and tells whoever awaits a process how it ended.
-%% Waiters: #{Pid => [{To, Wrap}]}; Wrap(Down) is sent to To.
+%% The reaper: spawns on request with a monitor, keeps each live process's
+%% row, and tells whoever awaits a process how it ended. Report §6.9: of a
+%% process that has ended it keeps nothing, so a monitor made after the end
+%% answers Unknown. Waiters: #{Pid => [{To, Wrap}]}; Wrap(Down) is sent to
+%% To, or for the launcher, whose wait is made with the spawn so that no
+%% race can take the entry process's cause, {raw, Tag}: {Tag, Site, Reason}.
 reaper_loop(Waiters) ->
     receive
-        {spawn, From, Ref, Fun, Site} ->
+        {spawn, From, Ref, Fun, Site, Awaits} ->
             %% the process starts once its row is in the table, since a
             %% timed receive it enters first counts itself there (§8.6)
             {Pid, _MRef} = erlang:spawn_monitor(fun() -> receive Ref -> run(Fun) end end),
             ets:insert(?PROCESSES, {Pid, Site, alive, 0, 0}),
             Pid ! Ref,
             From ! {Ref, Pid},
-            reaper_loop(Waiters);
+            reaper_loop(case Awaits of [] -> Waiters; _ -> Waiters#{Pid => Awaits} end);
         {await, Pid, To, Wrap} ->
-            case {ets:lookup(?ENDED, Pid), ets:lookup(?PROCESSES, Pid)} of
-                {[{_, Site, Reason}], _} ->
-                    To ! Wrap({'Down', Site, reason(Reason)}),
-                    reaper_loop(Waiters);
-                {[], []} when not is_map_key(Pid, Waiters) ->
+            case ets:lookup(?PROCESSES, Pid) of
+                [] when not is_map_key(Pid, Waiters) ->
                     %% not one the runtime started, so it is watched from
                     %% here; report §8.6: its death would deliver a message,
                     %% which is a source while it is awaited
@@ -217,16 +227,16 @@ reaper_loop(Waiters) ->
         {'DOWN', _MRef, process, Pid, Reason} ->
             case ets:lookup(?PROCESSES, Pid) of
                 [{_, Site, alive, _, _}] ->
-                    ets:insert(?ENDED, {Pid, Site, Reason}),
                     ets:delete(?PROCESSES, Pid),
                     died(Pid, Site, Reason),
-                    lists:foreach(fun({To, Wrap}) -> To ! Wrap({'Down', Site, reason(Reason)}) end,
-                                  maps:get(Pid, Waiters, []));
+                    lists:foreach(fun({To, {raw, Tag}}) -> To ! {Tag, Site, Reason};
+                                     ({To, Wrap}) -> To ! Wrap({'Down', Site, reason(Reason)})
+                                  end, maps:get(Pid, Waiters, []));
                 [] ->
                     %% report §6.9: the spawn site of a process the runtime
-                    %% did not start is not known
+                    %% did not start, or of one that had ended, is not known
                     lists:foreach(fun({To, Wrap}) ->
-                                      To ! Wrap({'Down', <<"unknown">>, reason(Reason)})
+                                      To ! Wrap({'Down', <<>>, reason(Reason)})
                                   end, maps:get(Pid, Waiters, [])),
                     is_map_key(Pid, Waiters) andalso source_end();
                 _ ->
@@ -658,7 +668,6 @@ run_main(Main, Site) ->
           ok | {fault, binary()} | {fault, binary(), binary()}.
 run_main(Main, Site, Opts) ->
     ets:new(?PROCESSES, [named_table, public, set]),
-    ets:new(?ENDED, [named_table, public, set]),
     %% report §8.6: the sources a system process holds, counted while held
     ets:insert(?PROCESSES, {sources, 0}),
     persistent_term:erase({?MODULE, holder}),
@@ -685,18 +694,19 @@ run_main(Main, Site, Opts) ->
         %% modules are loaded here, where their order is read from them
         Stdlib = stdlib_modules(),
         Init = maps:get(init, Opts, fun() -> ok end),
-        MainPid = spawn('Local', fun() -> run_inits(Stdlib), Init(), Main() end, Site),
-        Reaper ! {await, MainPid, erlang:self(), fun(Down) -> {main_down, Run, Down} end},
+        %% report §6.9: the launcher's wait is made with the spawn, so the
+        %% entry process's cause, and the host's stack beside a failure of
+        %% the runtime (§11.2), reach it however soon the process ends
+        MainPid = spawn_awaited(fun() -> run_inits(Stdlib), Init(), Main() end, Site,
+                                [{erlang:self(), {raw, {main_down, Run}}}]),
         receive
-            {main_down, Run, {'Down', _, 'Returned'}} -> ok;
-            {main_down, Run, {'Down', _, {'Fault', Msg}}} ->
-                %% report §11.2: a failure of the runtime is reported with
-                %% the host's stack, which only the table of the ended keeps
-                case ets:lookup(?ENDED, MainPid) of
-                    [{_, _, {ern, fault, _, Trace}}] -> {fault, Msg, Trace};
-                    _ -> {fault, Msg}
+            {{main_down, Run}, _, Raw} ->
+                case {reason(Raw), Raw} of
+                    {'Returned', _} -> ok;
+                    {{'Fault', Msg}, {ern, fault, _, Trace}} -> {fault, Msg, Trace};
+                    {{'Fault', Msg}, _} -> {fault, Msg};
+                    {Other, _} -> {fault, format("~p", [Other])}
                 end;
-            {main_down, Run, {'Down', _, Other}} -> {fault, format("~p", [Other])};
             {deadlock, Run} ->
                 exit(MainPid, {ern, fault, <<"deadlock">>}),
                 {fault, <<"deadlock">>};
@@ -730,7 +740,6 @@ end_program(Run, Reaper, System) ->
         _ -> ok
     end,
     ets:delete(?PROCESSES),
-    ets:delete(?ENDED),
     flush_run(Run).
 
 %% Report §8.5: a standard library module's top-level lets, `Map.empty`
@@ -791,7 +800,7 @@ stop(Pid) ->
 %% after it ended.
 flush_run(Run) ->
     receive
-        {main_down, Run, _} -> flush_run(Run);
+        {{main_down, Run}, _, _} -> flush_run(Run);
         {deadlock, Run} -> flush_run(Run);
         {fault, Run, _} -> flush_run(Run)
     after 0 ->

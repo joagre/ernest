@@ -573,6 +573,8 @@ prelude_call(Pos, [monitor], _, Args, _, Cx) -> {at(Pos, call_remote(ern_rt, mon
 prelude_call(Pos, [kill], _, Args, _, Cx) -> {at(Pos, call_remote(ern_rt, kill, Args)), Cx};
 prelude_call(Pos, [spawn], _, Args, _, Cx) ->
     {at(Pos, call_remote(ern_rt, spawn, Args ++ [site(Pos, Cx)])), Cx};
+prelude_call(Pos, [spawnMonitored], _, Args, _, Cx) ->
+    {at(Pos, call_remote(ern_rt, spawn_monitored, Args ++ [site(Pos, Cx)])), Cx};
 prelude_call(Pos, ['Address', call], _, Args, #e_var{type = T}, Cx) ->
     {Form, Cx1} = checked_reply(call, Args, T, Cx),
     {at(Pos, Form), Cx1};
@@ -608,6 +610,10 @@ prelude_value(Pos, [spawn], _, Cx) ->
     {[W, F], Cx1} = fresh_vars(2, "A", Cx),
     Args = [erl_syntax:variable(W), erl_syntax:variable(F), site(Pos, Cx)],
     {lambda([W, F], call_remote(ern_rt, spawn, Args)), Cx1};
+prelude_value(Pos, [spawnMonitored], _, Cx) ->
+    {[W, F, Wrap], Cx1} = fresh_vars(3, "A", Cx),
+    Args = [erl_syntax:variable(V) || V <- [W, F, Wrap]] ++ [site(Pos, Cx)],
+    {lambda([W, F, Wrap], call_remote(ern_rt, spawn_monitored, Args)), Cx1};
 prelude_value(Pos, ['Address', Name], T, Cx) when Name =:= call; Name =:= callForever ->
     F = case Name of call -> call; callForever -> call_forever end,
     {Vars, Cx1} = fresh_vars(arity_of(T, Pos), "A", Cx),

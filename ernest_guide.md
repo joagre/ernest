@@ -914,9 +914,8 @@ type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 type MainMsg = PongDone(Down)
 
 export fn main() -> Unit with MainMsg = {
-    let pongAddr = spawn(Local, fn() = pong());
+    let pongAddr = spawnMonitored(Local, fn() = pong(), PongDone);
     let _ = spawn(Local, fn() = ping(pongAddr, 3));
-    monitor(pongAddr, PongDone);
     receive { PongDone(_) -> Unit }
 }
 
@@ -953,14 +952,16 @@ $ ern --shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type monitor
 monitor : (Address(a), (Down) -> m) -> Unit with m
+> :type spawnMonitored
+spawnMonitored : (Where, () -> Unit with n, (Down) -> m) -> Address(n) with m
 ```
 
 ```ernest-prelude
 type Down = Down(reason : Reason, function : String)
-type Reason = Returned | Killed | ProgramEnd | Fault(String)
+type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
 ```
 
-`monitor(child, wrap)` puts `wrap(d)` in your mailbox when `child` dies, or at once if it is dead already. `wrap` makes your message from the runtime's `Down`: in ping-pong, `PongDone` is a constructor of `MainMsg` that carries one. A `Down` says the process ended, not that it succeeded; its `reason` says how, and its `function` names the function that spawned it and the line, `Counter.main:19`.
+`monitor(child, wrap)` puts `wrap(d)` in your mailbox when `child` dies, or at once if it is dead already, with the reason `Unknown`, since the runtime keeps nothing of a process that has ended. A process you start yourself is watched from its start with `spawnMonitored(Local, f, wrap)`, `spawn` and `monitor` in one step, so that no end comes before the watch. `wrap` makes your message from the runtime's `Down`: in ping-pong, `PongDone` is a constructor of `MainMsg` that carries one. A `Down` says the process ended, not that it succeeded; its `reason` says how, and its `function` names the function that spawned it and the line, `Counter.main:19`.
 
 `wrap` is a function, so it can carry what you need to tell one death from another. A process that monitors a worker while waiting for its answer gets two messages, the answer and the death, and takes the answer; the death is still in the mailbox when the next worker is monitored. Addresses have no equality, so a `Down` cannot be asked which worker it is about. Give each worker a number and let the wrap close over it:
 
@@ -971,9 +972,8 @@ fn work(n : Int) -> Int = n * n
 
 fn runWorker(run : Int) -> Optional(Int) with MainMsg = {
     let me = self();
-    let child = spawn(Local, fn() -> Unit with Never =
-        send(me, Result(run = run, value = work(run))));
-    monitor(child, fn(d) = Died(run = run, down = d));
+    let _ = spawnMonitored(Local, fn() -> Unit with Never =
+        send(me, Result(run = run, value = work(run))), fn(d) = Died(run = run, down = d));
     waitFor(run)
 }
 
@@ -1075,8 +1075,9 @@ export fn main() -> Unit with MainMsg = {
 fn countAll(totals : Address(TallyMsg), texts : List(String)) -> Unit with MainMsg = {
     let me = self();
     List.foreach(texts, fn(text) = {
-        let worker = spawn(Local, fn() -> Unit with Never = send(me, Counted(count(text))));
-        monitor(worker, Died)
+        let _ = spawnMonitored(Local, fn() -> Unit with Never = send(me, Counted(count(text))),
+            Died);
+        Unit
     });
     collect(totals, List.size(texts))
 }
@@ -1198,8 +1199,7 @@ fn worker(count : Int) -> Unit with Never =
     Io.println(Int.toString(average(100, count)))
 
 export fn main() -> Unit with MainMsg = {
-    let w = spawn(Local, fn() = worker(0));
-    monitor(w, WorkerDied);
+    let _ = spawnMonitored(Local, fn() = worker(0), WorkerDied);
     receive {
         WorkerDied(Down(reason = Fault(cause), function = site)) ->
             Io.println("the worker spawned at " <> site <> " faulted: " <> cause)
@@ -1228,8 +1228,8 @@ fn supervise(jobs : List(Int)) -> Unit with SupMsg = match jobs {
     [] -> Io.println("all jobs done")
   | job :: rest -> {
         let me = self();
-        let worker = spawn(Local, fn() -> Unit with Never = send(me, Result(100 / job)));
-        monitor(worker, Ended);
+        let _ = spawnMonitored(Local, fn() -> Unit with Never = send(me, Result(100 / job)),
+            Ended);
         Io.println(Int.toString(job) <> ": " <> outcome());
         supervise(rest)
     }

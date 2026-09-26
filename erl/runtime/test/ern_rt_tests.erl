@@ -277,17 +277,20 @@ shell_holds_no_deadlock_test() ->
                            receive late -> ok end
                        end, <<"main">>, #{stdout => fun(_) -> ok end})).
 
-%% report §6.9: Down carries the reason and the spawn site
+%% report §6.9: Down carries the reason and the spawn site, for a monitor
+%% made while the process runs
 monitor_test() ->
     Me = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Worker = ern_rt:spawn('Local', fun() -> ok end, <<"Main.main:3">>),
+               Worker = ern_rt:spawn('Local', gated(fun() -> ok end), <<"Main.main:3">>),
                ern_rt:monitor(Worker, fun(D) -> {down, D} end),
+               Worker ! go,
                receive {down, D1} -> Me ! {d1, D1} end,
                Zero = zero(),
-               Faulty = ern_rt:spawn('Local', fun() -> 1 div Zero end, <<"Main.main:5">>),
+               Faulty = ern_rt:spawn('Local', gated(fun() -> 1 div Zero end), <<"Main.main:5">>),
                ern_rt:monitor(Faulty, fun(D) -> {down, D} end),
+               Faulty ! go,
                receive {down, D2} -> Me ! {d2, D2} end,
                Victim = ern_rt:spawn('Local', fun() -> receive never -> ok end end,
                                      <<"Main.main:7">>),
@@ -299,11 +302,11 @@ monitor_test() ->
     ?assertEqual({'Down', <<"Main.main:5">>, {'Fault', <<"division by zero">>}}, wait(d2)),
     ?assertEqual({'Down', <<"Main.main:7">>, 'Killed'}, wait(d3)).
 
-%% report §6.9, §8.6: a process that ended is remembered, so a monitor
-%% made after its end still gets the cause, and it leaves the live
-%% processes, which the idle deadlock check reads. A regression test: the
-%% check copied the row of every process that had ever lived, 143 ms at
-%% 200,000, every 100 ms the program was idle.
+%% report §6.9, §8.6: the runtime keeps nothing of a process that has
+%% ended, so a monitor made after its end answers Unknown with no spawn
+%% site. A regression test: the runtime kept a row for every process that
+%% had ever ended, which a server spawning a process per request grew
+%% without bound, and the idle deadlock check once copied them all.
 ended_rows_test() ->
     Me = self(),
     ok = ern_rt:run_main(
@@ -318,7 +321,12 @@ ended_rows_test() ->
                receive {down, D} -> Me ! {late, D} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual([], wait(row)),
-    ?assertEqual({'Down', <<"Main.main:2">>, {'Fault', <<"division by zero">>}}, wait(late)).
+    ?assertEqual({'Down', <<>>, 'Unknown'}, wait(late)).
+
+%% A process body that starts once it is told to, so that a monitor can be
+%% made while it runs.
+gated(Fun) ->
+    fun() -> receive go -> Fun() end end.
 
 %% report §7.3, §6.9, §11.2: a failure of the runtime is the host's class
 %% and reason, the entry process's fault carries the host's stack beside
@@ -331,8 +339,9 @@ runtime_failure_test() ->
                  ern_rt:run_main(Bad, <<"main">>, #{stdout => fun(_) -> ok end})),
     ok = ern_rt:run_main(
            fun() ->
-               P = ern_rt:spawn('Local', Bad, <<"Main.main:2">>),
+               P = ern_rt:spawn('Local', gated(Bad), <<"Main.main:2">>),
                ern_rt:monitor(P, fun(D) -> {down, D} end),
+               P ! go,
                receive {down, D} -> Me ! {down, D} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({'Down', <<"Main.main:2">>, {'Fault', <<"error:badarg">>}}, wait(down)).
@@ -526,7 +535,7 @@ monitor_foreign_process_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     {Before, After} = wait(counts2),
     ?assertEqual(Before, After),
-    ?assertEqual({'Down', <<"unknown">>, 'Returned'}, wait(d)).
+    ?assertEqual({'Down', <<>>, 'Returned'}, wait(d)).
 
 wait(counts2) ->
     receive {counts, B, A} -> {B, A} after 2000 -> timeout end;

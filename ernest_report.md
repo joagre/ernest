@@ -473,9 +473,10 @@ A pure function that calls a function argument runs it in the caller's process a
 ### 6.2 Built-in functions
 
 ```
-self  : () -> Address(m) with m
-send  : (Address(a), a) -> Unit with m
-spawn : (Where, () -> Unit with n) -> Address(n) with m
+self           : () -> Address(m) with m
+send           : (Address(a), a) -> Unit with m
+spawn          : (Where, () -> Unit with n) -> Address(n) with m
+spawnMonitored : (Where, () -> Unit with n, (Down) -> m) -> Address(n) with m
 
 type Where = Local | Peer(String)
 ```
@@ -483,6 +484,8 @@ type Where = Local | Peer(String)
 `self()` is the process's own address. `send(a, v)` places `v` in the mailbox of `a` and returns at once; sending to a dead process has no effect.
 
 `spawn(w, f)` starts a process that runs `f()` and returns its address. `self()` inside `f` is the new process's address; a parent that wants replies binds `let me = self();` before `spawn`. The effect `n` of `f` appears in `Address(n)` and so is a mailbox type (§3.9). A pure `f` fits, as a pure function fits wherever one with a mailbox type is expected, and `n` is then what the context makes it. A process that never receives is spawned with `fn() -> Unit with Never = ...`. A node is one running runtime; a peer is another node it knows by name, §8.3. `w` places the process: `Local` on the running node, `Peer(name)` on that peer. An unknown or unreachable peer is a fault. The captures of `f` are copied to the peer.
+
+`spawnMonitored(w, f, wrap)` starts the process as `spawn(w, f)` does, and the caller monitors it from its start (§6.9): `wrap(d)` is placed in the caller's mailbox when it ends, with its reason, however soon that is.
 
 ### 6.3 `receive`
 
@@ -520,7 +523,7 @@ answer              : (Reply(a), a) -> Unit with m
 - `send` hands it to the `receive` clause that binds the value.
 - Placing it in a constructor field or tuple component of reply-carrying type hands it to the built value.
 - Returning it from a function whose result type is reply-carrying hands it to the caller.
-- Capturing it in a lambda hands it to the lambda, which is then reply-carrying itself. The lambda is consumed exactly once, by a call or as `spawn`'s direct argument, and may appear nowhere else. `let f = fn() = worker(r); spawn(Local, f)` is legal; with `f()` after the `spawn`, `f` is consumed twice. A local `fn` may not capture a reply-carrying value; such a capture is a type error.
+- Capturing it in a lambda hands it to the lambda, which is then reply-carrying itself. The lambda is consumed exactly once, by a call or as the function argument of `spawn` or `spawnMonitored`, and may appear nowhere else. `let f = fn() = worker(r); spawn(Local, f)` is legal; with `f()` after the `spawn`, `f` is consumed twice. A local `fn` may not capture a reply-carrying value; such a capture is a type error.
 
 A value is bound by a parameter, a `let`, a pattern variable, a `receive` variable, a lambda's capture, or the result of a call, and each binding is an *obligation*. The check is per function and crosses no call boundary. It is static: every path makes the consumption, and whether execution reaches it is not checked, since non-termination, a fault, or an indefinite wait may prevent it.
 
@@ -561,7 +564,7 @@ A function with mailbox type `Never` can send but never receive: a `receive` wit
 
 ### 6.9 Death
 
-A process dies when its function returns, when `kill` is called on it, on a fault (§7.3), or when the program ends (§8.6). Its `Reason` (§9.3) says which: `Returned`, `Killed`, `Fault(cause)`, or `ProgramEnd`. `kill` is asynchronous: the target may run until the runtime interrupts it. `kill` on a process that is dead has no effect. `monitor(a, wrap)`, §9.5, places `wrap(d)` in the caller's mailbox when `a` dies; `d : Down` gives the cause. If `a` is already dead, the message is placed at once; the runtime remembers how every process it started ended. Each `monitor` call produces one message. `function` in `Down` is the qualified name of the top-level declaration in which the `spawn` that started the dead process is written, with the line where it is written: `Counter.main:19`. A `spawn` in a lambda or a local `fn` counts as written in the top-level declaration that contains it. Where `spawn` is passed as a value, it counts as written where its name is. For the entry process it is the entry point's name. There are no other links.
+A process dies when its function returns, when `kill` is called on it, on a fault (§7.3), or when the program ends (§8.6). Its `Reason` (§9.3) says which: `Returned`, `Killed`, `Fault(cause)`, or `ProgramEnd`; `Unknown` is what a `monitor` made after the end says. `kill` is asynchronous: the target may run until the runtime interrupts it. `kill` on a process that is dead has no effect. `monitor(a, wrap)`, §9.5, places `wrap(d)` in the caller's mailbox when `a` dies; `d : Down` gives the cause. If `a` is already dead, the message is placed at once, with the reason `Unknown`: the runtime keeps nothing of a process that has ended, so a `monitor` made after the end cannot say how. A `monitor` made while the process runs gets its reason, and a process started with `spawnMonitored` (§6.2) is monitored from its start. Each `monitor` call produces one message. `function` in `Down` is the qualified name of the top-level declaration in which the `spawn` that started the dead process is written, with the line where it is written: `Counter.main:19`. A `spawn` in a lambda or a local `fn` counts as written in the top-level declaration that contains it. Where `spawn` is passed as a value, it counts as written where its name is. For the entry process it is the entry point's name. With the reason `Unknown` it is the empty string. There are no other links.
 
 ### 6.10 Code replacement
 
@@ -607,7 +610,7 @@ Partial operations in the prelude return `Optional` or `Either`, except the foll
 - Bitstring construction (§5.11). A value that does not fit its width: `Fault("segment overflow")`. A dynamic total bit count, or a dynamic size of a segment bound to `Bytes`, that is not a multiple of 8: `Fault("bitstring not byte-aligned")`.
 - `todo("...")`, which compiles at any type: `Fault("todo: ...")`.
 - Cross-node transport of a foreign value (§3.8): `Fault("foreign value cannot cross nodes")`.
-- `spawn(Peer(...), ...)` with an unknown or unreachable peer: `Fault("peer unreachable")`. `spawn(Peer(...), ...)` or `remote(f)` with a resolution failure on the peer (§8.7): `Fault("peer resolution failed: ...")`. A fault in `remote`'s callback faults the caller with the callback's own cause. `send` to a remote address whose resolution fails faults the sender with the same cause, asynchronously, after `send` returns.
+- `spawn(Peer(...), ...)` or `spawnMonitored(Peer(...), ...)` with an unknown or unreachable peer: `Fault("peer unreachable")`. `spawn(Peer(...), ...)` or `remote(f)` with a resolution failure on the peer (§8.7): `Fault("peer resolution failed: ...")`. A fault in `remote`'s callback faults the caller with the callback's own cause. `send` to a remote address whose resolution fails faults the sender with the same cause, asynchronously, after `send` returns.
 - A foreign function that raises: `Fault("foreign function m:f/n raised ...")`. A foreign function's return is checked against its declared type when the function returns, and a reply when `Address.call` or `Address.callForever` returns it, each in the calling process and to the value's whole depth; a function value in it is checked when it is called, its result against its declared result type. A mismatch faults the calling process: `Fault("foreign return does not match T")`, `Fault("reply does not match T")`. A message from a foreign process that does not match the mailbox type faults the receiver on delivery (§8.4): `Fault("message does not match M")`. Each names the declared type.
 
 These faults come from no prelude operation. A fault in a function adapting an address faults the target with its own cause (§6.5). The loss of a peer faults every process on it with `Fault("peer lost")` (§10). A deadlock faults the entry process with `Fault("deadlock")` (§8.6). The unloading of the code a process runs faults the process with `Fault("its code was unloaded")` (§11.2). Reading the terminal both as lines and as keys faults the entry process with `Fault("the terminal is already read as lines")`, or `as keys` (§8.2). While a shell holds the terminal, subscribing to it or reading a line from any other process faults that process with `Fault("the shell holds the terminal; run the program with ern to give it the keyboard")` (§11.2). A standard input that cannot be read faults the entry process with `Fault("the standard input could not be read: ...")`, the host's reason after the colon.
@@ -677,7 +680,7 @@ When no forward progress is possible, the entry process faults with `Fault("dead
 
 ### 8.7 Code shipping
 
-Four operations ship a closure or payload, and the code it depends on, to a peer: `spawn(Peer(name), f)`, `remote(f)` and the return of its result, `send` to a remote address, and `answer(r, v)` to a caller on another node. Within a node nothing is shipped.
+Four operations ship a closure or payload, and the code it depends on, to a peer: `spawn(Peer(name), f)` and `spawnMonitored(Peer(name), f, wrap)`, `remote(f)` and the return of its result, `send` to a remote address, and `answer(r, v)` to a caller on another node. Within a node nothing is shipped.
 
 **Content addressing.** Every function, constructor, and type is identified across nodes by a hash of its normalized definition together with the hashes of what it references. Identical definitions have the same hash on every node. A type's hash includes its qualified name, so two types with the same constructors under different names are different types, as they are to the checker. Any change to a definition changes its hash, and transitively the hashes of everything that depends on it. A set of mutually recursive definitions is hashed as a group, internal references by position, and each member's identity derives from the group's hash. Normalization renames local variables, orders named fields canonically (§3.5), preserves the source evaluation order of construction expressions, and preserves the qualified names of external references.
 
@@ -724,7 +727,7 @@ type Optional(a) = None | Some(a)
 type Either(e, a) = Left(e) | Right(a)
 type Ordering = Less | Equal | Greater
 type Down = Down(reason : Reason, function : String)
-type Reason = Returned | Killed | ProgramEnd | Fault(String)
+type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
 type ClockMsg = // times in milliseconds
     After(ms : Int, to : Address(Int)) // the time it fires is sent to `to`
   | At(at : Int, to : Address(Int))
@@ -766,9 +769,10 @@ A top-level `let` of type `Test` is a test; `ern --test` runs it (§11.2).
 ### 9.4 Built-in functions (§6)
 
 ```
-self  : () -> Address(m) with m
-send  : (Address(a), a) -> Unit with m
-spawn : (Where, () -> Unit with n) -> Address(n) with m
+self           : () -> Address(m) with m
+send           : (Address(a), a) -> Unit with m
+spawn          : (Where, () -> Unit with n) -> Address(n) with m
+spawnMonitored : (Where, () -> Unit with n, (Down) -> m) -> Address(n) with m
 ```
 
 ### 9.5 Process functions
@@ -1578,7 +1582,7 @@ Every technical term this report introduces, with the section that defines it. P
 - **`self`** — `self()`, the current process's own address. §6.2.
 - **`send`** — `send(a, v)`, places `v` in the mailbox of `a`. §6.2.
 - **source root** — the directory under which a file's path gives its namespace. §4.2, §11.1.
-- **`spawn`** — `spawn(w, f)`, starts a new process. §6.2.
+- **`spawn`** — `spawn(w, f)`, starts a new process; `spawnMonitored(w, f, wrap)` starts one monitored from its start. §6.2.
 - **standard library** — the modules under `stdlib/`, on the load path by default; not the prelude. §9, Appendix E.
 - **structural equality** — the meaning of `==`; two values are equal when they are built by the same constructor from equal parts. §3.10.
 - **sum type** — a type with one or more constructors. §3.5.

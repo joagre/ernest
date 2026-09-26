@@ -187,18 +187,18 @@ export fn main() -> Unit with ShellMsg = {
                 }
             }
         };
-        let reader = spawn(Local, fn() = {
+        // report §11.2: an editor that cannot read keys is no shell, so
+        // the reader is watched from its start, its death is said and the
+        // session ends with it; it is the shell's own process, which a
+        // fault report leaves out
+        let reader = spawnMonitored(Local, fn() = {
             mine();
             Terminal.subscribe(K);
             send(me, Ready);
             readLoop(me, screen, Reading(editing = Shell.Editor.start(earlier),
                 keeping = true, hinted = false, last = Ordinary, colour = colour))
-        });
+        }, ReaderDied);
         holdTerminal(reader);
-        // report §11.2: an editor that cannot read keys is no shell, so
-        // the reader's death is said and the session ends with it; it is
-        // the shell's own process, which a fault report leaves out
-        monitor(reader, ReaderDied);
         // report §8.2: the prompt waits for the reader to hold the
         // keyboard, since until then the terminal is still echoing lines
         receive { Ready -> Unit };

@@ -16,8 +16,7 @@ export fn main() -> Unit with Msg = {
     match Tcp.listen(port) {
         Left(_) -> Io.printlnError("cannot listen")
       | Right(listener) -> {
-            let server = spawn(Local, fn() = serve(listener));
-            monitor(server, Served);
+            let server = spawnMonitored(Local, fn() = serve(listener), Served);
             match Tcp.connect("127.0.0.1", port, 1000) {
                 Left(_) -> Io.printlnError("cannot connect")
               | Right(socket) -> {

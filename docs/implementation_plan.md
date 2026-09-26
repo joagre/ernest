@@ -312,6 +312,13 @@ weighed against `Sys.args` before the report changes, and parsing options from t
 library's, by E.0. With `Sys.env`, the shell reads `NO_COLOR` in Ernest, where its front end
 reads it today.
 
+**Memory, read for what only grows.** Noted 2026-09-26: the Erlang code under `erl/` and
+every Ernest program in the repository, the standard library, the shell, `libs/` and
+`examples/`, read again for memory that is kept with no need, capped or not, as the table of
+ended processes was (MVP 2.65 step 8, *A Process Is Watched From Its Start*): a table, a
+cache, a list or a map that grows with the work done rather than with what is alive. Each
+finding is fixed, or decided with the user where the fix changes what the language promises.
+
 **A simple log.** Noted 2026-09-26, to be decided in this milestone: `ern` writes what it
 prints to standard error, the fault reports first among them, to a file as well, and
 perhaps only there. A very simple logger, the smallest thing that keeps a long-running

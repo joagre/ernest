@@ -191,13 +191,16 @@ uses(#e_var{pos = Pos, path = [], name = N}, Linear, _Env) ->
             case lists:member({lambda, N}, Linear) of
                 true -> throw({type_error, Pos, "the lambda " ++ atom_to_list(N)
                                                 ++ " captures a reply-carrying value and may only"
-                                                " be called or passed directly to spawn"});
+                                                " be called or passed directly to spawn or"
+                                                " spawnMonitored"});
                 false -> []
             end
     end;
-uses(#e_call{callee = #e_var{ref = {prelude, [spawn]}}, args = [Where, Arg]}, Linear, Env) ->
-    %% spawn's direct argument consumes a capturing lambda; spawn is the
-    %% prelude's as the checker resolved it, not a name spelled `spawn`
+uses(#e_call{callee = #e_var{ref = {prelude, [Spawn]}}, args = [Where, Arg | Wrap]}, Linear, Env)
+  when Spawn =:= spawn, Wrap =:= []; Spawn =:= spawnMonitored, length(Wrap) =:= 1 ->
+    %% report §6.6: the function argument of spawn or spawnMonitored
+    %% consumes a capturing lambda; each is the prelude's as the checker
+    %% resolved it, not a name spelled so
     ArgUses = case Arg of
                   #e_lambda{} -> captures(Arg, Linear, Env);
                   #e_var{pos = Pos, path = [], name = F} ->
@@ -207,7 +210,7 @@ uses(#e_call{callee = #e_var{ref = {prelude, [spawn]}}, args = [Where, Arg]}, Li
                       end;
                   _ -> uses(Arg, Linear, Env)
               end,
-    seq([uses(Where, Linear, Env), ArgUses]);
+    seq([uses(Where, Linear, Env), ArgUses | [uses(W, Linear, Env) || W <- Wrap]]);
 uses(#e_call{pos = Pos, callee = #e_var{path = [], name = F}, args = Args}, Linear, Env) ->
     %% a call consumes a capturing lambda bound by let
     Callee = case lists:member({lambda, F}, Linear) of
@@ -223,7 +226,8 @@ uses(#e_lambda{pos = Pos} = L, Linear, Env) ->
         [] -> [];
         [{N, _} | _] -> throw({type_error, Pos, "the reply-carrying value " ++ atom_to_list(N)
                                                 ++ " is captured by a lambda that is not called,"
-                                                " bound by `let`, or passed directly to spawn"})
+                                                " bound by `let`, or passed directly to spawn or"
+                                                " spawnMonitored"})
     end;
 uses(#fn_decl{pos = Pos, body = Body}, Linear, Env) ->
     case [N || {N, _} <- uses(Body, Linear, Env)] of

@@ -833,12 +833,13 @@ run_tests(Ns, Loaded, Err) ->
     end.
 
 %% One test, Test(name, run) in canonical field order, in a process of its
-%% own, monitored so that a fault is reported and not taken for the run's.
+%% own, monitored from its start so that a fault is reported, however soon
+%% it comes, and not taken for the run's (report §6.9).
 run_test({'Test', Name, Run}) ->
     Me = ern_rt:self(),
     Ref = make_ref(),
-    Pid = ern_rt:spawn('Local', fun() -> Me ! {Ref, Run()} end, Name),
-    ern_rt:monitor(Pid, fun(Down) -> {Ref, down, Down} end),
+    _ = ern_rt:spawn_monitored('Local', fun() -> Me ! {Ref, Run()} end,
+                               fun(Down) -> {Ref, down, Down} end, Name),
     Outcome = receive
                   {Ref, 'Passed'} -> returned(Ref, <<"passed">>);
                   {Ref, {'Failed', Text}} -> returned(Ref, <<"failed: ", Text/binary>>);

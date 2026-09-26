@@ -970,7 +970,7 @@ reply_test() ->
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int), b : Bool) = if b then answer(r, 1)"
                         " else answer(r, 2)")),
     ?assertEqual("the reply-carrying value r is captured by a lambda that is not called, bound by"
-                 " `let`, or passed directly to spawn",
+                 " `let`, or passed directly to spawn or spawnMonitored",
                  err(Msg ++ "fn f(r : Reply(Int)) = List.map([1], fn(x) = answer(r, x))")),
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never ="
                         " { let _ = spawn(Local, fn() -> Unit with Never = answer(r, 1)); Unit }")),
@@ -1102,7 +1102,7 @@ prelude_types_test() ->
     ?assertEqual(ok, ok("fn f(x : Ordering) = match x { Less -> 0 | Equal -> 1 | Greater -> 2 }")),
     ?assertEqual(ok, ok("fn f(x : Down) = match x { Down(reason = r, function = _) -> r }")),
     ?assertEqual(ok, ok("fn f(x : Reason) = match x { Returned -> 0 | Killed -> 1 | ProgramEnd -> 2"
-                        " | Fault(_) -> 3 }")),
+                        " | Fault(_) -> 3 | Unknown -> 4 }")),
     ?assertEqual(ok, ok("fn f(x : ClockMsg) -> Unit with Never = match x {"
                         " After(ms = _, to = _) -> Unit | At(at = _, to = _) -> Unit"
                         " | Now(reply = r) -> answer(r, 0) }")),
@@ -1164,11 +1164,11 @@ reply_lambda_test() ->
                  err(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never = {\n"
                      "    let g = fn() = worker(r);\n    Unit }")),
     ?assertEqual("the reply-carrying value g is captured by a lambda that is not called, bound by"
-                 " `let`, or passed directly to spawn",
+                 " `let`, or passed directly to spawn or spawnMonitored",
                  err(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never = {\n"
                      "    let g = fn() = worker(r);\n    List.foreach([1], fn(_) = g()) }")),
     ?assertEqual("the lambda g captures a reply-carrying value and may only be called or passed"
-                 " directly to spawn",
+                 " directly to spawn or spawnMonitored",
                  err(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never = {\n"
                      "    let g = fn() = worker(r);\n    let h = g;\n    h() }")),
     ?assertEqual("the reply-carrying value g is consumed on one path but not on another",
@@ -1537,7 +1537,7 @@ own_spawn_is_no_spawn_test() ->
              "    let f = fn() = answer(r, 1);\n"
              "    spawn(1, f)\n}\n"),
     ?assertEqual("the lambda f captures a reply-carrying value and may only be called or"
-                 " passed directly to spawn", D#diag.message).
+                 " passed directly to spawn or spawnMonitored", D#diag.message).
 
 %% report §4.8, §3.4: an operator resolved at the end of its definition,
 %% once its operand type is known, calls its member, which is pure, in a

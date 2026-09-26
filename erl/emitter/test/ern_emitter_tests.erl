@@ -1343,14 +1343,15 @@ lambda_if_test() ->
         "}\n"),
     ?assertEqual(<<"big\nsmall\n">>, Out).
 
-%% report §6.9: a monitored process that faults reports its spawn site
+%% report §6.2, §6.9: a process monitored from its start that faults
+%% reports its spawn site and its cause, however soon it faults
 monitor_site_test() ->
     {ok, Out} = run(
         "type Msg = Died(Down)\n"
         "export fn main() -> Unit with Msg = {\n"
         "    let z = List.size([]);\n"
-        "    let w = spawn(Local, fn() -> Unit with Never = { let _ = 1 / z; Unit });\n"
-        "    monitor(w, Died);\n"
+        "    let _ = spawnMonitored(Local, fn() -> Unit with Never = { let _ = 1 / z; Unit },"
+        " Died);\n"
         "    receive {\n"
         "        Died(Down(function = f, reason = Fault(msg))) -> Io.println(f <> \" \" <> msg)\n"
         "      | Died(_) -> Io.println(\"other\")\n"
@@ -1366,7 +1367,7 @@ monitor_site_test() ->
 down_site_test() ->
     {ok, Out} = run(
         "type Msg = Died(Down)\n"
-        "fn idle() -> Unit with Never = Unit\n"
+        "fn idle() -> Unit with Never = receive { after 100 -> Unit }\n"
         "fn report() -> Unit with Msg = receive {\n"
         "    Died(Down(function = f, reason = _)) -> Io.println(f)\n"
         "}\n"
@@ -1494,6 +1495,7 @@ prelude_target(Q, Text) ->
         [self] -> {ern_rt, self, 0};
         [send] -> {ern_rt, send, 2};
         [spawn] -> {ern_rt, spawn, 3};
+        [spawnMonitored] -> {ern_rt, spawn_monitored, 4};
         [via] -> {ern_rt, via, 2};
         [answer] -> {ern_rt, answer, 2};
         [monitor] -> {ern_rt, monitor, 2};
@@ -1524,8 +1526,8 @@ process_functions_test() ->
         "      | _ -> Io.println(\"other\")\n"
         "    };\n"
         "    let z = List.size([]);\n"
-        "    let f = spawn(Local, fn() -> Unit with Never = { let _ = 1 / z; Unit });\n"
-        "    monitor(f, Died);\n"
+        "    let _ = spawnMonitored(Local, fn() -> Unit with Never = { let _ = 1 / z; Unit },"
+        " Died);\n"
         "    receive {\n"
         "        Died(Down(reason = Fault(m), function = _)) -> Io.println(m)\n"
         "      | _ -> Io.println(\"other\")\n"
@@ -1541,9 +1543,9 @@ process_functions_test() ->
     ?assertEqual(<<"killed\ndivision by zero\ntick\nno peer\n">>, Out).
 
 %% report §6.9: kill on a process that has already ended has no effect,
-%% and a monitor placed after it reports the reason the process ended
-%% with. A regression test, written after the code; it does not cover
-%% kill on a system process
+%% and a monitor placed after the end answers Unknown, with no spawn site,
+%% since the runtime keeps nothing of an ended process. A regression test,
+%% written after the code; it does not cover kill on a system process
 kill_dead_test() ->
     {ok, Out} = run(
         "type Msg = Died(Down)\n"
@@ -1556,8 +1558,7 @@ kill_dead_test() ->
         "    monitor(w, Died);\n"
         "    receive { Died(d) -> { let _ = Io.debug(d); Unit } }\n"
         "}\n"),
-    ?assertEqual(<<"Down(function = \"M.main:4\", reason = Fault(\"division by zero\"))\n">>,
-                 Out).
+    ?assertEqual(<<"Down(function = \"\", reason = Unknown)\n">>, Out).
 
 %% report §8.2, §9.7: Sys.stdout is a value
 sys_stdout_test() ->
