@@ -83,6 +83,9 @@ foreign fn browse(env : Env, name : String) -> Either(String, List(String)) with
     "ern_shell:browse/2"
 foreign fn doc(env : Env, name : String) -> Either(String, String) with m = "ern_shell:doc/2"
 foreign fn isTerminal() -> Bool with m = "ern_shell:is_terminal/0"
+// Report §11.1, §4.2: the namespace segment a path component names, asked
+// of the compiler, which owns the rule.
+foreign fn segment(name : String) -> Optional(String) = "ern_shell:segment/1"
 // The toolchain's version, which the host was built with.
 foreign fn version() -> String = "ern_shell:version/0"
 // Report §11.2: whether the shell colours what it says, at a terminal and
@@ -800,34 +803,17 @@ fn sourceModules(typed : String) -> List(Shell.Complete.Name) with m = {
 fn sourceModule(prefix : String, entry : Prelude.Entry) -> Optional(Shell.Complete.Name) =
     match entry {
         Prelude.Entry(path = path, isDir = true) ->
-            if isPathWord(Path.name(path)) then {
-                let text = prefix <> capital(Path.name(path));
-                Some(Shell.Complete.Name(text = text, kind = Shell.Complete.Module,
-                    shown = text <> "."))
-            } else None
-      | Prelude.Entry(path = path) -> {
-            let stem = Path.name(Path.withExtension(path, ""));
-            if Path.extension(path) == Some("ern") && isPathWord(stem) then {
-                let text = prefix <> capital(stem);
-                Some(Shell.Complete.Name(text = text, kind = Shell.Complete.Value, shown = text))
-            } else None
-        }
+            Optional.map(segment(Path.name(path)), fn(s) = {
+                let text = prefix <> s;
+                Shell.Complete.Name(text = text, kind = Shell.Complete.Module, shown = text <> ".")
+            })
+      | Prelude.Entry(path = path) ->
+            if Path.extension(path) != Some("ern") then None
+            else Optional.map(segment(Path.name(Path.withExtension(path, ""))), fn(s) = {
+                let text = prefix <> s;
+                Shell.Complete.Name(text = text, kind = Shell.Complete.Value, shown = text)
+            })
     }
-
-// Report §11.1: a path component is a lowercase letter followed by
-// lowercase letters and digits.
-fn isPathWord(word : String) -> Bool = match String.toList(word) {
-    [] -> false
-  | first :: rest -> within(first, 'a', 'z')
-        && List.all(rest, fn(c) = within(c, 'a', 'z') || within(c, '0', '9'))
-}
-
-fn within(c : Char, low : Char, high : Char) -> Bool = c >= low && c <= high
-
-fn capital(word : String) -> String = match String.toList(word) {
-    [] -> ""
-  | first :: rest -> String.fromList(Char.toUpper(first) :: rest)
-}
 
 fn commandNames() -> List(Shell.Complete.Name) =
     List.map(Shell.Command.commands, fn(c) =

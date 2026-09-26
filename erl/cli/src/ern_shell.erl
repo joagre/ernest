@@ -9,7 +9,7 @@
 
 -export([loaded/1, start/0, program/0, startup_files/0, history_file/0, needs_more/1, check/4,
          is_unit/1, type_text/1, run/3, show/3, bindings/1, context/1, names/0,
-         session_names/0, session_texts/0, source_root/0, forget/2, browse/2, doc/2,
+         session_names/0, session_texts/0, source_root/0, segment/1, forget/2, browse/2, doc/2,
          documentation/1, signature/1, deaths/1, mine/0, faults/0, processes/0, load/2,
          reload/1, is_terminal/0, version/0, colours/0, write/1, screen/1, to_screen/1,
          output/1, unbound/1, declared/1]).
@@ -567,6 +567,16 @@ session_texts() ->
 source_root() ->
     #env{source_root = Root} = persistent_term:get({?MODULE, env}, #env{}),
     unicode:characters_to_binary(Root).
+
+%% Report §11.1, §4.2: the namespace segment a file or directory of the
+%% source root names, by the compiler's own rule, or None where it names
+%% no module.
+-spec segment(binary()) -> 'None' | {'Some', binary()}.
+segment(Name) ->
+    case ern_cli:segment(unicode:characters_to_list(Name)) of
+        {ok, Segment} -> {'Some', unicode:characters_to_binary(Segment)};
+        error -> 'None'
+    end.
 
 %% A module in scope: the module itself, its exported values and types,
 %% and the constructors of those types, each by the name a person types.

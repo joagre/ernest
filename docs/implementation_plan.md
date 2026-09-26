@@ -205,6 +205,10 @@ The steps:
      letters and digits and `C-w` back to a space, as §11.2 now says; the editor had used
      spaces for all five, against §11.2's promise of Readline's keys. The log's *A Word Is
      Readline's*.
+   - **Fixed 2026-09-26: the path rule has one owner** (item 30). `:load`'s completion asks
+     the compiler, `ern_shell:segment`, for the namespace segment a file or directory names,
+     and the shell's copy of §11.1's path shape goes. The log's *The Path Rule Has One
+     Owner*.
 8. **The Erlang code's open questions**, from its review on 2026-09-25, gone through one by
    one after the language is decided and before what was decided is built, since a split
    is cheapest before the code it moves is changed. Where the code lives and how big it is:

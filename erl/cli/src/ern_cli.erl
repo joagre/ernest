@@ -3,7 +3,7 @@
 %% tests can call it. Each entry point returns the exit status.
 -module(ern_cli).
 
--export([main/2, ernc/1, ernc/2, namespace/1, module_path/1, ern/1, ern/2,
+-export([main/2, ernc/1, ernc/2, namespace/1, segment/1, module_path/1, ern/1, ern/2,
          compile_source/3]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -183,15 +183,28 @@ module_of(File, Root) ->
 %% Report §11.1: each component is one word, a lowercase letter, then
 %% lowercase letters and digits.
 shape(Component) ->
-    case re:run(Component, "^[a-z][a-z0-9]*$") of
-        {match, _} -> ok;
-        nomatch ->
+    case word(Component) of
+        true -> ok;
+        false ->
             case re:run(Component, "[A-Z]") of
                 {match, _} -> fail("path component `" ++ Component ++ "` must be lowercase");
                 nomatch -> fail("path component `" ++ Component ++ "` must be one word: a"
                                 " lowercase letter, then lowercase letters and digits;"
                                 " a multi-word module is a directory")
             end
+    end.
+
+word(Component) ->
+    re:run(Component, "^[a-z][a-z0-9]*$") =/= nomatch.
+
+%% Report §11.1, §4.2: the namespace segment a path component names, where
+%% it is one word; the shell's `:load` completion asks here, so that the
+%% rule has one owner.
+-spec segment(string()) -> {ok, string()} | error.
+segment(Component) ->
+    case word(Component) of
+        true -> {ok, string:titlecase(Component)};
+        false -> error
     end.
 
 %% Report §4.2: the canonical typename form of each path segment.

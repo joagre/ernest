@@ -99,6 +99,18 @@ path_shape_test() ->
     ?assertEqual(1, ern_cli:ernc(["--source-root", Dir3, write(Dir3, "http_server.ern", hello())])),
     ?assertNot(filelib:is_regular(filename:join(Dir3, "http_server.erc"))).
 
+%% report §11.1, §4.2: the segment a path component names is the one the
+%% path check accepts, since the shell's `:load` completion asks for it
+%% rather than restating the rule; a regression test of the one owner
+segment_test() ->
+    ?assertEqual({ok, "Http"}, ern_cli:segment("http")),
+    ?assertEqual({ok, "V2"}, ern_cli:segment("v2")),
+    ?assertEqual(error, ern_cli:segment("Net")),
+    ?assertEqual(error, ern_cli:segment("9x")),
+    ?assertEqual(error, ern_cli:segment("http_server")),
+    ?assertEqual({'Some', <<"Http">>}, ern_shell:segment(<<"http">>)),
+    ?assertEqual('None', ern_shell:segment(<<"Bad">>)).
+
 %% report §11.1, §11.5: a parse error in directory mode is reported as
 %% file:line:column: text, status 1
 %% report §11.1: single-file mode with no --source-root uses the current
