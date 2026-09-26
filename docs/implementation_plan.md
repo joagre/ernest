@@ -21,8 +21,8 @@ Actorson until 12 September 2026.
 first four steps are done: the feedback list and this plan consolidated, the report read
 cold, and the first two themes, names and namespaces, and expressions, patterns and types.
 The third theme, processes and the system, has begun: names, restarts and supervision
-are decided (item 53, six questions), and a process's identity (item 24); `:processes` as a
-function (item 26) is next. MVP 2.6, the shell, was closed on
+are decided (item 53, six questions), a process's identity (item 24), and the live
+processes as a function (item 26); the fault log (item 28) is next. MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
 **Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23; MVP 2.61, the
@@ -173,6 +173,15 @@ The steps:
    and an address as `<address 84>`; `:processes` and a fault line show the same identity.
    `Down` is unchanged. Report §3.10, §6.5, §9 and E.1, and §11.2, in step 10. The log's *A
    Process's Identity Is a `Process`*.
+
+   **Decided 2026-09-26: the live processes are a standard library function** (item 26).
+   `stdlib/process.ern`, admitted by E.0 rule 1: `Process.live()`, the live processes the
+   runtime started, system processes excepted; `Process.site(p)`, where it was spawned;
+   `Process.mailboxSize(p)` and `Process.state(p)`, running, waiting in a `receive`, or
+   waiting for the answer to a call, each `None` once the process is dead and each a
+   snapshot, as its documentation says. The shell's `:processes` is written over them, and
+   its foreign `processes()` goes. Report §9, a new Appendix E section, and §11.2, in step
+   10. The log's *The Live Processes Are a Library Function*.
 6. **The standard library under E.0**, the fourth theme, in three batches: where the line
    between a shim and Ernest runs, with the abstract types it could write (items 11, 13, 42,
    46), what a function is named and where it

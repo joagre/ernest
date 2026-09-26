@@ -7,7 +7,7 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Twenty-four have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Twenty-five have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
 (decided, report §9), 2, 4 and 43 (weighed and kept, the log's *Constructor Names Stay Unique
 in a Module*, *Names Stay Qualified, Without Import or Alias* and *Two Visibilities Are
@@ -21,8 +21,9 @@ session does not reach, and it would make the editor depend on `Shell.History`),
 (decided, report §4.7), 45 (decided, report Appendix E.0 rule 9), 52 (weighed and kept, the
 log's *One Contract, Several Representations*), 9 (decided, the plan's MVP 2.65 step 5:
 `ern` prints every fault to standard error), 53 (decided in the same step: no registry, a
-service is a top-level binding, and a restart keeps the address), and 24 (decided there too:
-`Address.process` gives a `Process`, the identity with equality).
+service is a top-level binding, and a restart keeps the address), 24 (decided there too:
+`Address.process` gives a `Process`, the identity with equality), and 26 (decided there:
+`stdlib/process.ern` lists the live processes, and the shell reads it).
 
 ## 1. Names and namespaces
 
@@ -37,26 +38,11 @@ decision.
 ## 3. Processes and the system
 
 What a process is to the program that holds its address, and what the system modules
-give. `:processes` as a function (26) leads, now that a process has an identity. The rest
-are the system modules' contracts, one by one.
+give. The fault log (28) leads, the last of the shell's doors to the runtime. The rest are
+the system modules' contracts, one by one.
 Items 14 and 25 are MVP 3.0's, and 16 is MVP 2.7's; they are here because they are the
 same question.
 
-26. **`:processes` as a function rather than a command.** The shell's `:processes` reads
-    the runtime's record of every process it started, a door §11.2 opens for the shell
-    alone; a program learns of a process only by holding its address, and of a death only
-    through `monitor` (§6.9). Erlang's `processes()` is a function, and what it answers is
-    a value a program filters, sends to, and monitors. A prelude or standard library
-    function, `Process.live() : List(#(String, Address(...)))` or the like, would make the
-    record a value like any other, and `:processes` would be that function printed, one
-    way where there are two (principle 2), and nothing the shell sees that a program may
-    not (principle 3). Against it: a program that can enumerate processes can reach one it
-    was never handed an address to, which is the capability discipline the language keeps
-    by making an address the only way to reach a process; the element type needs the
-    mailbox type of every process, which is no one type, so the value would hold an
-    address of unknown protocol that can only be monitored; and E.0's admission rules
-    weigh a standard library function on its own. It turns on item 24, since a list of
-    addresses is only useful where addresses can be told apart.
 28. **The fault log is the host's.** `:faults` reads a list the front end keeps, where the
     session already receives every fault as a `Died` message and could keep the last
     hundred itself in Ernest. §11.2 calls it "the runtime's record", so moving it is a
