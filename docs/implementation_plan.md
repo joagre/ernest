@@ -254,7 +254,7 @@ The steps:
    first, so that the report is edited in one pass rather than two. Before step 10 begins,
    `make sections` and `make coverage` are run and kept, so that it can show every new or
    changed section gained a citing test.
-   1. **The gate: steps 5 to 7 read back as a whole.** A reader who took no part reads every
+   1. **Done 2026-09-26: the gate, steps 5 to 7 read back as a whole.** A reader who took no part reads every
       log entry from *Names, Restarts and Supervision* to *Completion Reaches What the Session
       Knows* together, against principles 5 and 1 only, and reports: what the decisions add
       to the prelude, the standard library, the report and the toolchain, counted, and what
@@ -298,6 +298,19 @@ The steps:
         restart to the one supervisor that owns the child; `Process.faults` stays for
         diagnostics, and MVP 2.66 writes why into the `Supervisor`'s documentation. The log's
         *A Supervisor Is Told by Its Own Children*.
+      - **G15, the types named.** `Tcp.peer` and `Tcp.local` answer `Either(IoError,
+        Tcp.Endpoint)`, `Endpoint(host : String, port : Int)`; `restarting`'s limit is the
+        prelude's `RestartLimit(restarts : Int, within : Int)`, which the `Supervisor` takes
+        for its group's limit too; the strategies are `Supervisor.Strategy = OneForOne |
+        OneForAll | RestForOne`. The log's *The Last Types Named*.
+      - **Kept, each with a line in the guide:** `monitor` beside `Process.faults`, the one
+        for a process one holds and the other for diagnostics (G3); spawn followed by
+        `monitor` named as the mistake `spawnMonitored` avoids (G4); `restarting` beside
+        `OneForOne`, a layer and not a duplicate (G5); the report on standard error as
+        `Process.faults`' first subscriber, said once (G11); an initializer with effects,
+        the `start` and `service` pair, and a library's service in a module of its own
+        (G14). G12, an earlier entry overtaken by a later one, is the log's history and
+        stays.
    2. **The ledger.** A table in this plan, a row for each decision the gate leaves: the
       report sections it changes; the Erlang modules and Ernest files it reaches; its tests,
       the new ones and the mirror tests that must change, a mirror test planned for every
