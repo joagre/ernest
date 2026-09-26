@@ -291,6 +291,13 @@ The steps:
         word, another context than a peer node, and E.18's line for `Tcp.peer` says so, "the
         connection's far end, in TCP's sense, not a peer of §8.3". The log's *A TCP Peer Is
         TCP's*.
+      - **G6, `Peer.find` stands**, its one dependency on item 14 written in MVP 3.0. The
+        log's *`Peer.find` Stands*.
+      - **G10, the `Supervisor` keeps its start notice.** A subscription to faults is
+        global, every supervisor receiving every fault, where the notice is one message a
+        restart to the one supervisor that owns the child; `Process.faults` stays for
+        diagnostics, and MVP 2.66 writes why into the `Supervisor`'s documentation. The log's
+        *A Supervisor Is Told by Its Own Children*.
    2. **The ledger.** A table in this plan, a row for each decision the gate leaves: the
       report sections it changes; the Erlang modules and Ernest files it reaches; its tests,
       the new ones and the mirror tests that must change, a mirror test planned for every
