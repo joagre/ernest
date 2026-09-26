@@ -302,12 +302,10 @@ export fn toInt(s : String) -> Optional(Int) =
 fn digits(chars : List(Char)) -> Optional(Int) =
     if List.isEmpty(chars) then
         None
-    else if List.all(chars, isAsciiDigit) then
+    else if List.all(chars, Char.isAsciiDigit) then
         toIntBase(fromList(chars), 10)
     else
         None
-
-fn isAsciiDigit(c : Char) -> Bool = c >= '0' && c <= '9'
 
 /// The digits and letters in that base, 2 to 36, in either case, with an
 /// optional leading `-`, or `None` for anything else, a leading `+` among

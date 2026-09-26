@@ -309,7 +309,7 @@ fn markerOf(s : String) -> Optional(Marker) = match String.toList(s) {
     c :: rest when c == '-' || c == '*' || c == '+' -> spaced(None, c, 1, rest)
   | chars -> {
         // a list number is ASCII digits, where `Char.isDigit` is any script's
-        let #(digits, rest) = List.span(chars, fn(c) = c >= '0' && c <= '9');
+        let #(digits, rest) = List.span(chars, Char.isAsciiDigit);
         match rest {
             d :: later when (d == '.' || d == ')') && digits != [] && List.size(digits) <= 9 ->
                 spaced(String.toInt(String.fromList(digits)), d, List.size(digits) + 1, later)
@@ -656,7 +656,7 @@ export fn render(blocks : List(Block), width : Int, style : Style) -> List(Strin
 
 fn rendered(b : Block, width : Int, style : Style) -> List(String) = match b {
     Heading(text = text) ->
-        wrapped(paint(style, "1", "22", spans(unstrong(text), style)), width)
+        wrapped(paint(style, Terminal.Bold, spans(unstrong(text), style)), width)
   | Paragraph(text) -> wrapped(spans(text, style), width)
   | Code(lines = lines) -> List.map(lines, fn(line) = if isBlank(line) then "" else "    " <> line)
   | Quote(inner) -> List.map(render(inner, width - 2, style), fn(row) = "│ " <> row)
@@ -697,24 +697,25 @@ fn spans(xs : List(Inline), style : Style) -> String =
 
 fn span(x : Inline, style : Style) -> String = match x {
     Text(s) -> s
-  | CodeSpan(s) -> marked(style, "36", "39", "`", s)
-  | Emphasis(xs) -> marked(style, "3", "23", "*", spans(xs, style))
-  | Strong(xs) -> marked(style, "1", "22", "**", spans(xs, style))
+  | CodeSpan(s) -> marked(style, Terminal.Foreground(Terminal.Cyan), "`", s)
+  | Emphasis(xs) -> marked(style, Terminal.Italic, "*", spans(xs, style))
+  | Strong(xs) -> marked(style, Terminal.Bold, "**", spans(xs, style))
   | Link(text = text, address = address) ->
         if plain(text) == address then address
         else spans(text, style) <> " (" <> address <> ")"
   | Break -> "\n"
 }
 
-// A style is turned off by its own code rather than by a reset, so that
-// one inside another leaves the outer one on.
-fn paint(style : Style, on : String, off : String, text : String) -> String =
-    if style == Styled then "\u{1b}[" <> on <> "m" <> text <> "\u{1b}[" <> off <> "m" else text
+// Text in the terminal's look where the rendering is styled; the terminal
+// turns a look off by its own code, so one inside another leaves the outer
+// one on (report Appendix E.16).
+fn paint(style : Style, look : Terminal.Style, text : String) -> String =
+    if style == Styled then Terminal.styled(text, look) else text
 
 // Inline markup: in the terminal's style where there is one, and as it is
 // written where there is none, the only way plain text can show it.
-fn marked(style : Style, on : String, off : String, mark : String, text : String) -> String =
-    if style == Styled then paint(style, on, off, text) else mark <> text <> mark
+fn marked(style : Style, look : Terminal.Style, mark : String, text : String) -> String =
+    if style == Styled then paint(style, look, text) else mark <> text <> mark
 
 fn plain(xs : List(Inline)) -> String = String.join(List.map(xs, fn(x) = match x {
     Text(s) -> s

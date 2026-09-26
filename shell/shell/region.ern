@@ -120,7 +120,7 @@ export fn output(r : Region, rows : Int) -> #(Region, String) =
 // the terminal's scrollback; the region is painted again at the top.
 export fn cleared(r : Region) -> #(Region, String) = {
     let #(r2, bytes) = painted(Region(..r, resting = 0), []);
-    #(r2, "\u{1b}[2J\u{1b}[H" <> bytes)
+    #(r2, Terminal.clearScreen <> bytes)
 }
 
 //
@@ -145,13 +145,14 @@ fn painted(r : Region, commits : List(String)) -> #(Region, String) = {
     #(Region(..r, resting = row), erase(r) <> written(commits) <> paint(rows, row, column(r)))
 }
 
-fn erase(r : Region) -> String = "\r" <> up(r.resting) <> "\u{1b}[0J"
+fn erase(r : Region) -> String = "\r" <> Terminal.up(r.resting) <> Terminal.clearBelow
 
 fn written(lines : List(String)) -> String =
     String.join(List.map(lines, fn(line) = line <> "\n"), "")
 
 fn paint(rows : List(String), row : Int, at : Int) -> String =
-    String.join(rows, "\n") <> up(List.size(rows) - 1 - row) <> "\r" <> right(at - 1)
+    String.join(rows, "\n") <> Terminal.up(List.size(rows) - 1 - row) <> "\r"
+        <> Terminal.right(at - 1)
 
 // The region's rows: the tail, the rows the input is typed on, and what
 // is shown under them. Each is painted with its tabs already spaces,
@@ -316,9 +317,7 @@ fn clipping(chars : List(Char), left : Int, done : String, styled : Bool) -> Str
       | _ -> if styled then done <> "\u{1b}[0m" else done
     }
 
-fn up(n : Int) -> String = if n <= 0 then "" else "\u{1b}[" <> Int.toString(n) <> "A"
 
-fn right(n : Int) -> String = if n <= 0 then "" else "\u{1b}[" <> Int.toString(n) <> "C"
 
 // The text up to each line feed, and what is left without one.
 fn split(text : String) -> #(List(String), String) = match String.split(text, "\n") {
@@ -374,14 +373,14 @@ let paintsTheLine = Test(name = "typing erases the region and paints it again", 
     let #(_, bytes) = typing(prompted(), "hi", 2, []);
     // the region is one row, so nothing is climbed; the cursor is put
     // after the prompt and what is typed
-    same(bytes, "\r\u{1b}[0J> hi\r\u{1b}[4C")
+    same(bytes, "\r\u{1b}[J> hi\r\u{1b}[4C")
 })
 
 let commitsWhatIsEntered = Test(name = "an input entered joins the transcript, a row a line",
     run = fn() = {
         let #(typed, _) = typing(prompted(), "a\nb", 3, []);
         let #(_, bytes) = entered(typed);
-        same(bytes, "\r\u{1b}[1A\u{1b}[0J> a\n... b\n\r")
+        same(bytes, "\r\u{1b}[1A\u{1b}[J> a\n... b\n\r")
     })
 
 let offersUnderTheInput = Test(name = "what Tab shows stands under the input, the cursor in it",
@@ -389,7 +388,7 @@ let offersUnderTheInput = Test(name = "what Tab shows stands under the input, th
         let #(r, bytes) = typing(prompted(), "Li", 2, ["List.map : a", "List.size : b"]);
         // three rows painted, and the cursor climbs the two under it
         if rowsOf(r) == ["> Li", "List.map : a", "List.size : b"] && resting(r) == 0
-        then same(bytes, "\r\u{1b}[0J> Li\nList.map : a\nList.size : b\u{1b}[2A\r\u{1b}[4C")
+        then same(bytes, "\r\u{1b}[J> Li\nList.map : a\nList.size : b\u{1b}[2A\r\u{1b}[4C")
         else Failed(String.join(rowsOf(r), " | "))
     })
 

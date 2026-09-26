@@ -7,7 +7,8 @@
 //
 
 // A fault, or the first line of a diagnostic: what needs the eye.
-export fn fault(on : Bool, text : String) -> String = paint(on, "31", text)
+export fn fault(on : Bool, text : String) -> String =
+    paint(on, Terminal.Foreground(Terminal.Red), text)
 
 // A diagnostic, its first line coloured as a fault, the source under it
 // plain.
@@ -17,12 +18,12 @@ export fn diagnostic(on : Bool, text : String) -> String = match String.split(te
 }
 
 // The type after a printed value, dimmed so that the value stands out.
-export fn quiet(on : Bool, text : String) -> String = paint(on, "2", text)
+export fn quiet(on : Bool, text : String) -> String = paint(on, Terminal.Dim, text)
 
 // A name in a listing or a brief, `name : type`, the name bold.
 export fn named(on : Bool, text : String) -> String = match String.indexOf(text, " : ") {
     None -> text
-  | Some(at) -> paint(on, "1", String.slice(text, 0, at))
+  | Some(at) -> paint(on, Terminal.Bold, String.slice(text, 0, at))
         <> String.slice(text, at, String.size(text) - at)
 }
 
@@ -31,11 +32,11 @@ export fn named(on : Bool, text : String) -> String = match String.indexOf(text,
 // Report §11.2: without colour it is between asterisks, since the mark
 // carries meaning where the other colours only help the eye.
 export fn emphasis(on : Bool, text : String) -> String =
-    if on || String.isEmpty(text) then paint(on, "36", text) else "*" <> text <> "*"
+    if on || String.isEmpty(text) then paint(on, Terminal.Foreground(Terminal.Cyan), text)
+    else "*" <> text <> "*"
 
-fn paint(on : Bool, code : String, text : String) -> String =
-    if !on || String.isEmpty(text) then text
-    else "\u{1b}[" <> code <> "m" <> text <> "\u{1b}[0m"
+fn paint(on : Bool, style : Terminal.Style, text : String) -> String =
+    if !on || String.isEmpty(text) then text else Terminal.styled(text, style)
 
 //
 // Tests
@@ -46,14 +47,14 @@ let off = Test(name = "without colour the text is unchanged", run = fn() =
     then Passed else Failed("coloured when off"))
 
 let faults = Test(name = "a fault is red", run = fn() =
-    if fault(true, "x") == "\u{1b}[31mx\u{1b}[0m" then Passed else Failed(fault(true, "x")))
+    if fault(true, "x") == "\u{1b}[31mx\u{1b}[39m" then Passed else Failed(fault(true, "x")))
 
 let diagnostics = Test(name = "a diagnostic's first line is red, its source plain", run = fn() =
-    if diagnostic(true, "a:1:1: bad\n1 | a") == "\u{1b}[31ma:1:1: bad\u{1b}[0m\n1 | a"
+    if diagnostic(true, "a:1:1: bad\n1 | a") == "\u{1b}[31ma:1:1: bad\u{1b}[39m\n1 | a"
     then Passed else Failed(diagnostic(true, "a:1:1: bad\n1 | a")))
 
 let names = Test(name = "a name before its type is bold", run = fn() =
-    if named(true, "List.map : (a) -> b") == "\u{1b}[1mList.map\u{1b}[0m : (a) -> b"
+    if named(true, "List.map : (a) -> b") == "\u{1b}[1mList.map\u{1b}[22m : (a) -> b"
     then Passed else Failed(named(true, "List.map : (a) -> b")))
 
 let marksWithout = Test(name = "without colour the marked parameter is between asterisks",

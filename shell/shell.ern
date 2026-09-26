@@ -45,6 +45,9 @@ foreign fn sessionTexts() -> List(String) with m = "ern_shell:session_texts/0"
 // Report §11.2: what may stand at the cursor, which the parser knows,
 // since it says what it wanted where it stopped.
 foreign fn context(before : String) -> Shell.Complete.Where with m = "ern_shell:context/1"
+// Report §11.2, §3.5: the fields the value before the last `.` selects,
+// named as typed and listed with their types.
+foreign fn fields(typed : String) -> List(Shell.Complete.Name) with m = "ern_shell:fields/1"
 // Report §11.2: the page for a name, which `Shift-Tab` shows a first
 // sentence of and then the whole of.
 foreign fn documentation(name : String) -> Optional(String) with m =
@@ -742,13 +745,14 @@ fn offering(session : Address(ShellMsg), screen : Address(ScreenMsg), reading : 
 }
 
 // Report §11.2: the names a word completes against, every one once
-// something is typed; with nothing typed, the starting points: what the
+// something is typed, with the fields a value before a `.` selects; with
+// nothing typed, the starting points: what the
 // session declares, the modules in scope, and the prelude's names that no
 // module qualifies, its constructors aside, which are mostly the messages
 // of system processes and complete from a letter.
 fn offered(typed : String) -> List(Shell.Complete.Name) with m = {
     let all = Shell.Complete.withNamespaces(names());
-    if !String.isEmpty(typed) then all
+    if !String.isEmpty(typed) then all <> fields(typed)
     else {
         // nothing typed reaches the names of one segment, so what is left
         // to leave out is the prelude's constructors

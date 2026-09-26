@@ -4487,6 +4487,16 @@ The shell lost its eight doors to the runtime's processes. Its own processes are
 
 The ledger had `examples/repl.ern`'s run number becoming a `Process`. A wrap given to `spawnMonitored` is made before the spawn, and the process it would name exists only after, so the run number stays, as the guide's §5.2 keeps its own, and the REPL's comment says why. An address prints with the number of the process behind it, `<address 84>`, a count the host keeps; the guide's tests compare its consoles with that number masked, as a time would be.
 
+## The Build's Sixth Group, 2026-09-26
+
+MVP 2.65's step 10: what the library lacked, the shell's commands in §11.2, and the completion of fields. What was found while building:
+
+`Io.show` is given its argument's type at the call as `Io.debug` is, by the same case in the emitter. `Char.isAsciiDigit` replaced four hand-written copies, two of them in parsers, the web server's session id and the REPL's lexer, that had taken any script's digits where `String.toInt` takes only ASCII's, the case the function was admitted for. The shell's style, its region's cursor moves and erasures, `libs/markdown`'s inline styles and snake's clear now write through `Terminal`, so a style is turned off by its own code rather than a reset; the region's clip, which closes whatever style it cut, keeps a reset, since no style names every style.
+
+`Terminal.columns` could not be built as decided. It counts by grapheme, and `String` gives a grapheme only by position, so walking a string's graphemes in Ernest is quadratic, and the region would do it on every row at every key. A primitive that answers a string's graphemes, admitted as `size` and `slice` are, is the decision it waits for, placed in the plan as G16.
+
+The completion of a value's fields checks the text before the last `.` in a module of its own, as `Shift-Tab` checks its callee, and asks the checker which fields that type selects by the rule selection itself follows, so a chain and an abstract type's privacy are the checker's, and a name the unfinished input binds is out of scope there, as §11.2 says. The shell's commands are held equal to §11.2's list by a test that reads both.
+
 ## Later
 
 Planned or considered, not in the language today.

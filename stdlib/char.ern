@@ -23,6 +23,16 @@
 /// `true` for a decimal digit in any script, general category Nd.
 export foreign fn isDigit(c : Char) -> Bool = "ern_char:is_digit/1"
 
+/// `true` for `'0'` to `'9'` alone, the digits `String.toInt` reads.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Char.isAsciiDigit('7'), Char.isAsciiDigit('٧'))
+/// // => #(true, false)
+/// ```
+export fn isAsciiDigit(c : Char) -> Bool = c >= '0' && c <= '9'
+
 /// `true` for a letter in any script, general category L.
 export foreign fn isAlpha(c : Char) -> Bool = "ern_char:is_alpha/1"
 

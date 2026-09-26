@@ -10,7 +10,7 @@
 -export([loaded/1, start/0, program/0, startup_files/0, history_file/0, needs_more/1, check/4,
          is_unit/1, type_text/1, run/3, show/3, bindings/1, context/1, names/0,
          session_names/0, session_texts/0, source_root/0, segment/1, forget/2, browse/2, doc/2,
-         documentation/1, signature/1, load/2,
+         documentation/1, fields/1, signature/1, load/2,
          reload/1, version/0, colours/0, write/1, screen/1, to_screen/1,
          output/1, unbound/1, declared/1]).
 
@@ -872,6 +872,33 @@ prelude_or_none(Segments) ->
 %% checked as an input of one name, without entering the session, and its
 %% declared type is printed with the parameter names its documentation
 %% carries.
+%% Report §11.2, §3.5: what a `.` after a value completes to. The text
+%% before the last `.` is checked as an input in a module of its own that
+%% does not enter the session, as `Shift-Tab`'s callee is, so a chain of
+%% selections is the checker's, and a name the unfinished input binds is
+%% not in scope; the fields its type selects are then the checker's too,
+%% each listed with its type. A namespace checks as no value and has none.
+-spec fields(binary()) -> [{'Name', 'Value', binary(), binary()}].
+fields(Typed) ->
+    Env = persistent_term:get({?MODULE, env}, #env{}),
+    case string:split(Typed, ".", trailing) of
+        [Head, _] when Head =/= <<>> ->
+            maybe
+                {ok, Binds, Expr, Ann} ?= input(Head),
+                {'Right', {_, #checked{type = T, env = TEnv}}} ?=
+                    check_module(Env#env{n = Env#env.n + 1}, ['$Fields'], {typed, <<"fields">>},
+                                 Head, input_entry(Expr, Ann), Binds),
+                St = ern_typecheck:type_state(TEnv),
+                [name('Value', [Head, ".", atom_to_list(F)],
+                      [Head, ".", atom_to_list(F), " : ", ern_types:format(FT, St)])
+                 || {F, FT} <- ern_typecheck:fields(T, TEnv)]
+            else
+                _ -> []
+            end;
+        _ ->
+            []
+    end.
+
 -spec signature(binary()) -> 'None' | {'Some', {binary(), binary(), binary()}}.
 signature(Before) ->
     case within(Before) of

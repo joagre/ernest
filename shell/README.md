@@ -81,7 +81,7 @@ So each of these modules is tested by its `Test` values (§9.3). They are top-le
 
 ## The front end
 
-The shell reaches the host through `foreign fn`s (§4.7). Almost all of them are at the top of `shell.ern` and are answered by `erl/cli/src/ern_shell.erl`. Two are elsewhere. `holdTerminal` is the runtime's (`ern_rt`), and `Shell.History.file` declares the history file's path. The rule for what may be `foreign` is that it is only what the host alone can do. That covers the compiler's work: checking an input against the session, compiling and running it, reading the compiled interfaces for completion, and finding a name's documentation. The matching, the ranking, the rendering, the history file, and the parsing of commands are Ernest.
+The shell reaches the host through `foreign fn`s (§4.7). Almost all of them are at the top of `shell.ern` and are answered by `erl/cli/src/ern_shell.erl`. Two are elsewhere. `holdTerminal` is the runtime's (`ern_rt`), and `Shell.History.file` declares the history file's path. The rule for what may be `foreign` is that it is only what the host alone can do. That covers the compiler's work: checking an input against the session, compiling and running it, reading the compiled interfaces for completion and the fields a value's type selects, and finding a name's documentation. The matching, the ranking, the rendering, the history file, and the parsing of commands are Ernest.
 
 The session's state lives in two places:
 

@@ -142,8 +142,8 @@ fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Tok
   | ')' :: r -> lex(r, i + 1, RParen :: acc)
   | '=' :: r -> lex(r, i + 1, Eq :: acc)
   | '-' :: '>' :: r -> lex(r, i + 2, Arrow :: acc)
-  | c :: _ when Char.isDigit(c) -> {
-        let #(digits, rest) = List.span(cs, Char.isDigit);
+  | c :: _ when Char.isAsciiDigit(c) -> {
+        let #(digits, rest) = List.span(cs, Char.isAsciiDigit);
         let n = match String.toInt(String.fromList(digits)) { Some(v) -> v | None -> 0 };
         lex(rest, i + List.size(digits), Num(n) :: acc)
     }

@@ -73,8 +73,8 @@ export fn subscribe(wrap : (Event) -> m) -> Either(Io.Error, Unit) with m = {
 }
 
 /// The terminal's size now, and `None` where standard output is not a
-/// terminal or its size is unknown. A program that draws asks at each redraw and hears of
-/// a change as `Resized`.
+/// terminal or its size is unknown. A program that draws asks at each
+/// redraw and hears of a change as `Resized`.
 ///
 /// ### Examples
 ///
@@ -86,3 +86,124 @@ export fn subscribe(wrap : (Event) -> m) -> Either(Io.Error, Unit) with m = {
 /// ```
 export fn size() -> Optional(Size) with m =
     Address.callForever(reference, fn(r) = Measure(reply = r))
+
+//
+// Writing to the terminal: ECMA-48's sequences, as text a program writes
+// with `Io.print` (report Appendix E.16)
+//
+
+/// The eight colours of ECMA-48.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Terminal.Foreground(Terminal.Red)
+/// ```
+export type Colour = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White
+
+/// How text is drawn: its weight, its slant, a line under it, or its
+/// colour.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Terminal.styled("warning", Terminal.Bold)
+/// // => "\u{1B}[1mwarning\u{1B}[22m"
+/// ```
+export type Style = Bold | Dim | Italic | Underline | Foreground(Colour)
+
+/// The text in the style, which is turned off after it by the style's own
+/// code, so that a style around it stays on. `Bold` and `Dim` are turned
+/// off together, since ECMA-48 has one code for both.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Terminal.styled("fault", Terminal.Foreground(Terminal.Red))
+/// // => "\u{1B}[31mfault\u{1B}[39m"
+/// ```
+export fn styled(text : String, style : Style) -> String = {
+    let #(on, off) = match style {
+        Bold -> #("1", "22")
+      | Dim -> #("2", "22")
+      | Italic -> #("3", "23")
+      | Underline -> #("4", "24")
+      | Foreground(colour) -> #("3" <> Int.toString(colourCode(colour)), "39")
+    };
+    sequence(on <> "m") <> text <> sequence(off <> "m")
+}
+
+fn colourCode(colour : Colour) -> Int = match colour {
+    Black -> 0
+  | Red -> 1
+  | Green -> 2
+  | Yellow -> 3
+  | Blue -> 4
+  | Magenta -> 5
+  | Cyan -> 6
+  | White -> 7
+}
+
+/// The cursor up that many rows; `""` for a number below 1.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Terminal.up(2)
+/// // => "\u{1B}[2A"
+/// ```
+export fn up(n : Int) -> String = move(n, "A")
+
+/// The cursor down that many rows; `""` for a number below 1.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Terminal.down(0)
+/// // => ""
+/// ```
+export fn down(n : Int) -> String = move(n, "B")
+
+/// The cursor left that many columns; `""` for a number below 1.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Terminal.left(3)
+/// // => "\u{1B}[3D"
+/// ```
+export fn left(n : Int) -> String = move(n, "D")
+
+/// The cursor right that many columns; `""` for a number below 1.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Terminal.right(1)
+/// // => "\u{1B}[1C"
+/// ```
+export fn right(n : Int) -> String = move(n, "C")
+
+fn move(n : Int, direction : String) -> String =
+    if n < 1 then "" else sequence(Int.toString(n) <> direction)
+
+/// Erases from the cursor to the end of the screen.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Io.print("\r" <> Terminal.clearBelow)
+/// ```
+export let clearBelow = sequence("J")
+
+/// Erases the screen and puts the cursor at its top left.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Io.print(Terminal.clearScreen)
+/// ```
+export let clearScreen = sequence("2J") <> sequence("H")
+
+// ECMA-48's control sequence introducer and what follows it.
+fn sequence(body : String) -> String = "\u{1b}[" <> body

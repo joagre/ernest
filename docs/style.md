@@ -31,7 +31,7 @@ Ernest is order-independent at top level; these are style choices, not correctne
 
       let commands = [
           Entry(name = "type", command = Type,
-              about = " e   the type of e, which is not run"),
+              about = " e   the type of e, which is not run")
       ]
 
   A line that opens with a binary operator (report §2.6) carries the line above on, one step in from where that line's expression begins; every further such line stands at the same step.

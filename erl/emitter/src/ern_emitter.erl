@@ -443,9 +443,9 @@ var_ref(Pos, _, Name, var, T, #cx{vars = Vars, locals = Locals} = Cx) ->
             #{Name := #local{lifted = Lifted}} = Locals,
             closure(Lifted, instances(Name, Cx), arity_of(T, Pos), Cx)
     end;
-var_ref(Pos, ['Io'], debug, _, T, Cx) ->
+var_ref(Pos, ['Io'], Name, _, T, Cx) when Name =:= show; Name =:= debug ->
     %% Appendix E.1: as a value too, the descriptor of the argument's type
-    prelude_value(Pos, ['Io', debug], T, Cx);
+    prelude_value(Pos, ['Io', Name], T, Cx);
 var_ref(Pos, _, _, {prelude, Q}, T, Cx) ->
     prelude_value(Pos, Q, T, Cx);
 var_ref(_, _, _, {own, Owner, Name}, _, Cx) ->
@@ -509,12 +509,11 @@ call(Pos, #e_var{ref = var, name = Name}, Args, Cx) ->
             App = erl_syntax:application(erl_syntax:atom(Lifted), Insts ++ ArgForms),
             {at(Pos, App), Cx1}
     end;
-call(Pos, #e_var{path = ['Io'], name = debug}, [A], Cx) ->
-    %% Appendix E.1: printed by the argument's type at the call, whether Io
-    %% is the prelude's or, once written in Ernest, the standard library's
+call(Pos, #e_var{path = ['Io'], name = Name}, [A], Cx) when Name =:= show; Name =:= debug ->
+    %% Appendix E.1: written by the argument's type at the call
     {[F], Cx1} = exprs([A], Cx),
     Desc = erl_syntax:abstract(descriptor(ern_typecheck:node_type(A), Cx)),
-    {at(Pos, call_remote(ern_io, debug, [F, Desc])), Cx1};
+    {at(Pos, call_remote(ern_io, Name, [F, Desc])), Cx1};
 call(Pos, #e_var{ref = {prelude, Q}} = Callee, Args, Cx) ->
     %% report §4.2: the prelude's, `Prelude.x` among them
     {ArgForms, Cx1} = exprs(Args, Cx),
@@ -633,10 +632,10 @@ prelude_value(_, [_, '<>'], {tfn, [P | _], _, _}, Cx) ->
     {[A, B], Cx1} = fresh_vars(2, "A", Cx),
     Body = binop('<>', resolved(P, Cx), erl_syntax:variable(A), erl_syntax:variable(B), Cx),
     {lambda([A, B], Body), Cx1};
-prelude_value(_, ['Io', debug], {tfn, [P], _, _}, Cx) ->
+prelude_value(_, ['Io', Name], {tfn, [P], _, _}, Cx) when Name =:= show; Name =:= debug ->
     {[A], Cx1} = fresh_vars(1, "A", Cx),
     Desc = erl_syntax:abstract(descriptor(P, Cx)),
-    {lambda([A], call_remote(ern_io, debug, [erl_syntax:variable(A), Desc])), Cx1};
+    {lambda([A], call_remote(ern_io, Name, [erl_syntax:variable(A), Desc])), Cx1};
 prelude_value(Pos, [Name], T, Cx) ->
     case lists:member(Name, [self, send, answer, via, monitor, kill, remote, fault, restarting]) of
         true -> {remote_fun(ern_rt, Name, arity_of(T, Pos)), Cx};

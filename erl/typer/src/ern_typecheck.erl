@@ -18,7 +18,7 @@
          prelude_con/1, prelude_cons/0, prelude_env/0, lookup_type/2, is_member_path/3,
          member_qname/3, is_reply_carrying/2, assume_reply_carrying/2, foreign_impl/1,
          declared_scheme/3, let_order/1, lookup_con/4,
-         con_info/2, is_value/2, resolve_type/2, node_type/1]).
+         con_info/2, is_value/2, resolve_type/2, node_type/1, fields/2]).
 
 -export_type([env/0, session/0]).
 
@@ -1430,6 +1430,31 @@ select_result(Pos, F, XT, Env) ->
             {Res, Env#env{st = St, deferred = [{select, Pos, F, XT, Res} | Env#env.deferred]}};
         _ ->
             resolve_select(Pos, F, XT, Env)
+    end.
+
+%% Report §3.5, §11.2: the fields a value of the type selects, each with
+%% its type, by the rule selection itself follows: those every constructor
+%% has, and none of an abstract type outside its module. The shell's
+%% completion asks it.
+-spec fields(ern_types:type(), env()) -> [{atom(), ern_types:type()}].
+fields(T, #env{st = St, types = Types} = Env) ->
+    case ern_types:resolve(T, St) of
+        {tcon, Q, _} ->
+            case maps:get(Q, Types, undefined) of
+                #tinfo{constructors = [#cinfo{fields = {named, Names}} | _]} ->
+                    lists:filtermap(fun(F) -> selected(F, T, Env) end, Names);
+                _ ->
+                    []
+            end;
+        _ ->
+            []
+    end.
+
+selected(F, T, Env) ->
+    try resolve_select(0, F, T, Env) of
+        {FT, Env1} -> {true, {F, ern_types:zonk(FT, Env1#env.st)}}
+    catch
+        throw:_ -> false
     end.
 
 %% Report §3.5: the selector f exists where every constructor of the type

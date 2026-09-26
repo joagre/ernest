@@ -177,6 +177,19 @@ export fn find(m : Map(k, v), p : (k, v) -> Bool with e) -> Optional(#(k, v)) wi
 export fn merge(m : Map(k, v), other : Map(k, v)) -> Map(k, v) =
     List.foldLeft(toList(other), m, fn(acc, #(key, value)) = put(acc, key, value))
 
+/// The entries of both, a shared key given the function of the first's
+/// value and the second's.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Map.toList(Map.mergeWith(Map.fromList([#("a", 1)]), Map.fromList([#("a", 2)]), Int.+))
+/// // => [#("a", 3)]
+/// ```
+export fn mergeWith(m : Map(k, v), other : Map(k, v), f : (v, v) -> v with e) -> Map(k, v) with e =
+    List.foldLeft(toList(other), m, fn(acc, #(key, value)) =
+        update(acc, key, fn(mine) = match mine { Some(first) -> f(first, value) | None -> value }))
+
 /// The map of those pairs, a later pair winning its key.
 export fn fromList(pairs : List(#(k, v))) -> Map(k, v) =
     List.foldLeft(pairs, empty, fn(acc, #(key, value)) = put(acc, key, value))

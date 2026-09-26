@@ -408,6 +408,36 @@ completion() ->
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.filter\r\nList.filter : (List(a)">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nList.filterMap : (List(a)">>)).
 
+%% report §11.2, §3.5: after a name the session binds and a `.`, `Tab`
+%% completes the fields its type selects, along a chain, and lists them
+%% with their types. A regression test for item 54; it does not cover a
+%% module's exported value
+field_completion_test_() ->
+    {timeout, 90, fun field_completion/0}.
+
+field_completion() ->
+    Steps = [{expect, "> "},
+             {send, hex("type P = P(count : Int, name : String)\r")},
+             {expect, "type P"},
+             {send, hex("type Q = Q(p : P)\r")},
+             {expect, "type Q"},
+             {send, hex("let q = Q(p = P(count = 2, name = \"a\"))\r")},
+             {expect, "q : Q"},
+             {send, hex("q.p.na") ++ "09"},            % Tab: along the chain
+             {expect, "q.p.name"},
+             {send, hex("\r")},
+             {expect, "\"a\" : String"},
+             {send, hex("q.p.") ++ "09" ++ "09"},      % Tab twice: the listing
+             {expect, "q.p.count : Int"},
+             {sleep, 300},
+             {send, "03"},
+             {sleep, 200},
+             {send, "04"}],
+    Bytes = pty(alone("../bin/ern shell"), Steps, 30, " --size 16x74"),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"\"a\" : String">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"q.p.count : Int">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"q.p.name : String">>)).
+
 %% report §11.2: a `Tab` that adds nothing to the line lists the
 %% candidates at once, as a second `Tab` does. A regression test for a
 %% finding of the session of real use: every command begins with `:`, so
@@ -588,13 +618,13 @@ shift_tab_colour() ->
                {send, "03"},
                {send, "04"}],
               30),
-    ?assertMatch({_, _}, binary:match(Raw, <<"xs : List(a), \e[36mf : (a) -> b with e\e[0m)">>)),
+    ?assertMatch({_, _}, binary:match(Raw, <<"xs : List(a), \e[36mf : (a) -> b with e\e[39m)">>)),
     %% the first argument marked after `let` and `:type`, the second in the
     %% declaration's body; a repaint may write a row twice, so each is looked
     %% for, not counted
-    ?assertMatch({_, _}, binary:match(Raw, <<"List.foldLeft(\e[36mxs : List(a)\e[0m, acc : b">>)),
-    ?assertMatch({_, _}, binary:match(Raw, <<"List.foldLeft(xs : List(a), \e[36macc : b\e[0m">>)),
-    ?assertMatch({_, _}, binary:match(Raw, <<"Point(x : Int, \e[36myval : Int\e[0m) -> Point">>)).
+    ?assertMatch({_, _}, binary:match(Raw, <<"List.foldLeft(\e[36mxs : List(a)\e[39m, acc : b">>)),
+    ?assertMatch({_, _}, binary:match(Raw, <<"List.foldLeft(xs : List(a), \e[36macc : b\e[39m">>)),
+    ?assertMatch({_, _}, binary:match(Raw, <<"Point(x : Int, \e[36myval : Int\e[39m) -> Point">>)).
 
 %% report §11.2: `Tab` indents only where spaces alone stand before the
 %% cursor on its row; after `(`, with nothing to complete, it lists what may
@@ -1063,6 +1093,22 @@ non_entry_main() ->
                       ++ " < " ++ filename:join(Dir, "in")),
     ?assertMatch({_, _}, binary:match(Refused, <<"Main.main is not an entry point: its type is"
                                                  " () -> Int with m">>)).
+
+%% report §11.2: the commands the report's paragraph lists are the shell's
+%% own list, `Shell.Command.commands`, each once; a mirror, a list that lives
+%% in the code and in the report (CLAUDE.md)
+commands_mirror_test() ->
+    {ok, Report} = file:read_file("../ernest_report.md"),
+    [_, Rest] = binary:split(Report, <<"**Commands.**">>),
+    [Paragraph | _] = binary:split(Rest, <<"\n\n**">>),
+    {match, Listed} = re:run(Paragraph, "^- `:([a-z]+)", [multiline, global,
+                                                         {capture, all_but_first, binary}]),
+    {ok, Source} = file:read_file("../shell/shell/command.ern"),
+    [_, AfterList] = binary:split(Source, <<"export let commands = [">>),
+    [List | _] = binary:split(AfterList, <<"\n]\n">>),
+    {match, Named} = re:run(List, "Command\\(name = \"([a-z]+)\"",
+                            [global, {capture, all_but_first, binary}]),
+    ?assertEqual(lists:sort(lists:append(Named)), lists:sort(lists:append(Listed))).
 
 %% report §11.2, Appendix E.21: the shell is a subscriber of Process.faults.
 %% An input a signal ends with a fault answers with it rather than waiting

@@ -297,6 +297,15 @@ let caseKept = Test(name = "a lower-case letter reaches no constructor", run = f
     becomes(complete(word("a"), [Name(text = "Accept", kind = Constructor, shown = "Accept"),
         Name(text = "answer", kind = Value, shown = "answer : ...")], Expression), "answer"))
 
+let fieldsComplete = Test(name = "a field completes after the value it is selected from",
+    run = fn() = {
+        let fields = [
+            Name(text = "q.p.name", kind = Value, shown = "q.p.name : String"),
+            Name(text = "q.p.count", kind = Value, shown = "q.p.count : Int")
+        ];
+        becomes(complete("q.p.na", fields, Expression), "q.p.name")
+    })
+
 let neverShorter = Test(name = "a Tab never takes away what was typed", run = fn() = {
     let names = [Name(text = "Address", kind = Module, shown = "Address."),
         Name(text = "Address.call", kind = Value, shown = "Address.call"),

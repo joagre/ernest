@@ -7,7 +7,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--define(CLEAR, <<"\e[H\e[2J">>).
+-define(CLEAR, <<"\e[2J\e[H">>).
 
 %% report §8.2, §9.3: every key pressed reaches the subscriber, a character
 %% as itself, an arrow whole rather than as Escape and two characters, and

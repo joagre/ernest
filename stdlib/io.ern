@@ -116,7 +116,22 @@ export fn read() -> Optional(Bytes) with m = Address.callForever(stdin, fn(r) = 
 /// ```
 export fn write(b : Bytes) -> Unit with m = send(stdout, b)
 
-/// The value printed as Ernest writes it, by its type at the call, and
+/// The value as Ernest writes it, by its type at the call: a value as its
+/// literal or construction is written, a named constructor's fields in
+/// canonical order (report §3.5), an address as the process behind it,
+/// `<address 84>`, and a function as `<function>`. Inside a generic
+/// function, where the type is a variable, it is written by the runtime's
+/// representation (report §8.4). It is pure.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Io.show(#('a', Some([1, 2]), <<104, 105>>))
+/// // => "#('a', Some([1, 2]), <<104, 105>>)"
+/// ```
+export foreign fn show(value : a) -> String = "ern_io:show/1"
+
+/// The value printed as `Io.show` writes it, with a line feed, and
 /// returned, so it wraps an expression where it stands: `let n =
 /// Io.debug(f(x))`. Inside a generic function, where the type is a
 /// variable, it prints by the runtime's representation (report §8.4).

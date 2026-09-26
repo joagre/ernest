@@ -177,7 +177,7 @@ fn render(world : World) -> String = {
     let row = fn(y) = String.fromList(List.map(List.range(0, world.w - 1),
         fn(x) = cell(world.players, world.apples, Pos(x = x, y = y))));
     let rows = List.map(List.range(0, world.h - 1), row);
-    "\u{1b}[H\u{1b}[2J" <> String.join(rows, "\n") <> "\n"
+    Terminal.clearScreen <> String.join(rows, "\n") <> "\n"
         <> status(world.players, world.tick) <> "\n"
 }
 

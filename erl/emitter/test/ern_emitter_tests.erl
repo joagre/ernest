@@ -514,6 +514,22 @@ io_debug_test() ->
                    "#(true, false)\n\"é中\"\n#('a', '\\'', Some('\\n'))\n#(Ready, 1)\n"
                    "<<104, 105>>\n'x'\n97\n"/utf8>>, Out).
 
+%% report Appendix E.1: Io.show writes a value by its type at the call, as
+%% a function value too, and pure, and by the runtime's representation
+%% inside a generic function
+show_test() ->
+    {ok, Out} = run(
+        "type Snap = Snap(seen : Int, dir : String)\n"
+        "fn generic(x : a) -> String = Io.show(x)\n"
+        "fn pure(c : Char) -> String = Io.show(Some(c))\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    Io.println(Io.show(Snap(dir = \"x\", seen = 2)));\n"
+        "    Io.println(pure('a'));\n"
+        "    Io.println(String.join(List.map([<<1>>, <<2, 3>>], Io.show), \" \"));\n"
+        "    Io.println(generic('a'))\n"
+        "}\n"),
+    ?assertEqual(<<"Snap(dir = \"x\", seen = 2)\nSome('a')\n<<1>> <<2, 3>>\n97\n">>, Out).
+
 %% report Appendix E.1: Io.debug writes a String as a literal, with `"`,
 %% `\\`, a line feed and a tab escaped by name, another control character
 %% by its code point, and every other character as itself. A regression
