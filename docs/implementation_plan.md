@@ -165,6 +165,14 @@ The steps:
      abstract type, the same sequence everywhere, as E.13 says by naming it. `Path`, `Block`
      and `Inline` stay transparent, and a socket an address. Built in step 10, with tests of
      each edge case a contract names. The log's *A Shim Reaches the Representation*.
+   - **Batch 2 decided 2026-09-26: a name follows the vocabulary** (items 40, 41, 38). E.0's
+     third shape rule says that between a type and one its module builds on both directions
+     are the building module's, `Map.fromList` and `Either.fromOptional`, and otherwise each
+     is its argument's module's `toX`; nothing moves. `Set.intersect` becomes
+     `Set.intersection`; `String.contains` stays a substring test, which the second shape
+     rule says of text. E.0's shape rules cover the libraries under `libs/`, and `Ets` takes
+     `put`, `get`, `contains`, `remove` and `close`. Built in step 10. The log's *A Name
+     Follows the Vocabulary*.
 7. **The toolchain**, the fifth theme: the shell's own questions (items 29, 30 and 54), and the
    names of the options to `ernc` and `ern`. Both tools grew their options one MVP at a
    time and the set has never been read whole. Under review: the three words for a

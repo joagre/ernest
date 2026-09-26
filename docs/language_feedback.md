@@ -7,7 +7,7 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Thirty-five have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Thirty-eight have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
 (decided, report §9), 2, 4 and 43 (weighed and kept, the log's *Constructor Names Stay Unique
 in a Module*, *Names Stay Qualified, Without Import or Alias* and *Two Visibilities Are
@@ -28,8 +28,9 @@ service is a top-level binding, and a restart keeps the address), 24 (decided th
 a timed read, accept or connect takes its time limit into the request), 47 (decided there:
 a system message type's constructors are its system module's), 37 (decided there:
 `Tcp.port` answers a listener's port), 27 (decided there: `Terminal.subscribe` refuses
-where standard input is not a terminal), and 11, 13, 42, 46 and 34 (decided in step 6's first
-batch: a shim is only an operation that reaches the representation).
+where standard input is not a terminal), 11, 13, 42, 46 and 34 (decided in step 6's first
+batch: a shim is only an operation that reaches the representation), and 40, 41 and 38 (decided
+in its second: a name follows the vocabulary).
 
 ## 1. Names and namespaces
 
@@ -93,18 +94,9 @@ MVP 3.0's, and 16 is MVP 2.7's; they stay here because they are the same questio
 
 Each entry is weighed on E.0's admission rules, one by one, and most are small, so they can
 be decided in batches. The first, where the line between a shim and Ernest runs, was
-decided on 2026-09-26. Two groups are left: what a function is named and where it lives
-(40, 41, 38), and functions the library lacks or has in a form that misleads (the rest).
+decided on 2026-09-26, and the second, what a function is named and where it lives, the same
+day. Left: functions the library lacks or has in a form that misleads.
 
-40. **E.0 rule 3 and the `fromList`s.** The rule puts a conversion in the subject's module,
-    yet `String.fromList`, `Map.fromList`, `Set.fromList` and `Either.fromOptional` live in
-    the target's. The rule is reworded to say so, or the functions move.
-41. **Naming inside modules.** `Set.intersect` is a verb beside the nouns `union` and
-    `difference`; `String.contains` is a substring test where the container verb means
-    membership, against rule 2's one verb for one operation.
-38. **`Ets`'s verbs** are `insert`, `lookup`, `delete`, `member`, where E.0 names the
-    container verbs `put`, `get`, `remove`, `contains`; and `drop` means another thing in
-    `List`. Whether a library follows E.0's names.
 8. **The width a grapheme takes on a terminal.** Since 2026-09-24 the unit a `String`
    counts is a grapheme (E.5). A wide glyph is one grapheme and two columns, and nothing in
    the runtime knows it; the shell's region counts one column a character, and
