@@ -1,0 +1,12 @@
+//
+// The size of each read of standard input, for ern_integration_tests: a
+// read answers what has arrived, at least one byte (report §8.2).
+//
+
+export fn main() -> Unit with Never = match Io.read() {
+    None -> Io.println("end")
+  | Some(b) -> {
+        Io.println(Int.toString(Bytes.size(b)));
+        main()
+    }
+}

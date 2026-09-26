@@ -1643,7 +1643,7 @@ colours() ->
 %% so a screen that printed through it would print to itself.
 -spec write(binary()) -> 'Unit'.
 write(Text) ->
-    io:put_chars(unicode:characters_to_binary(Text)),
+    file:write(standard_io, unicode:characters_to_binary(Text)),
     'Unit'.
 
 %% Report §11.2: the runner binds the sinks to the screen, which the shell
@@ -1658,14 +1658,35 @@ to_screen(Bin) ->
     case persistent_term:get({?MODULE, output}, undefined) of
         undefined ->
             case persistent_term:get({?MODULE, screen}, undefined) of
-                undefined -> io:put_chars(Bin);
-                Address -> ern_rt:send(Address, Bin)
+                undefined -> file:write(standard_io, Bin);
+                Address -> ern_rt:send(Address, shown(Bin))
             end;
         {_, Device} ->
             %% report §11.2: a program's output goes where `:output` sent
             %% it, which is another terminal and its own scrolling
             file:write(Device, Bin),
             ok
+    end.
+
+%% Report §11.2: the text the screen shows of what a program wrote, with
+%% U+FFFD for each byte that is not UTF-8. A character cut across two
+%% writes waits for its end, which each sink keeps, one to a process.
+shown(Bin) ->
+    Whole = <<(erase_cut())/binary, Bin/binary>>,
+    case unicode:characters_to_binary(Whole, utf8, utf8) of
+        Text when is_binary(Text) ->
+            Text;
+        {incomplete, Text, Cut} ->
+            put({?MODULE, cut}, Cut),
+            Text;
+        {error, Text, <<_, Rest/binary>>} ->
+            <<Text/binary, 16#FFFD/utf8, (shown(Rest))/binary>>
+    end.
+
+erase_cut() ->
+    case erase({?MODULE, cut}) of
+        undefined -> <<>>;
+        Cut -> Cut
     end.
 
 %% Report §11.2: where a program's output goes. A path is another terminal

@@ -4459,6 +4459,18 @@ The shell's `:load` had never evaluated a loaded module's bindings, so a loaded 
 
 `restarting`'s reply rule, L1, needed no check of its own: §6.6 already lets a lambda that captures a reply stand only where it is called or spawned once, and `restarting`'s argument is neither.
 
+## The Build's Fourth Group, 2026-09-26
+
+MVP 2.65's step 10: the system references in their modules, standard input as UTF-8 with `Io.read` and `Io.write`, `Tcp`'s time limit and its sockets' lives, and `Terminal.subscribe`'s answer. What was found while building:
+
+The mirror between Appendix E and the compiled modules had read every type qualified and every named constructor's fields in canonical order. With the system types in their modules, a module's section writes its own types unqualified and lists an abstract type without its constructors, so the mirror now reads the compiled interface the same way, and takes a constructor's field order from the module's source, since the interface keeps only the canonical one.
+
+Reading standard input as UTF-8 whatever the locale could not be done through OTP's io server. Under a locale that is not UTF-8 it hands over bytes where the report wants text, and under one that is it decodes where `Io.read` wants bytes. It also answers a request for many bytes only once they have all come or the input has ended, where §8.2 asks for what has arrived, and a read of one byte at a time is some six microseconds a byte. A port on the descriptor gives what has arrived, but the io server already watches the descriptor and the host reports the port as taking it over, so `bin/ern` starts the host with `-noinput` and the port is the runtime's alone. The port is open only while a request waits, since a port reads without pause and `yes | ern run` would otherwise grow the stdin process's mailbox until memory ran out; closed between requests, what the program has not asked for stays in the host's pipe, which holds the writer back. The keys are read through the same port, their raw mode set by `stty` alone, since OTP's raw mode takes the descriptor back. `stty raw` also turns off the interrupt, which the shell wants and a program does not, so the interrupt is turned back on for everything but the shell; that exposed a race in which the shell's reader subscribed before the session named it the terminal's holder, now closed by the reader naming itself before it subscribes. Output is written as bytes for the length of a run: the host's streams are set to take bytes as they are and put back after, and the shell writes its own text as UTF-8, which also mends its output under a locale that is not UTF-8.
+
+Two cases §8.2 did not settle were decided. Keys that are not UTF-8 end the program with the entry process's fault and the cause a line gives, since no process asked for them and a key cannot be answered with a fault as a line can. The shell's region shows each byte a program writes that is not UTF-8 as U+FFFD, the region being a display, and keeps a character cut across two writes until its end arrives; what `:output` sends elsewhere is written as it is.
+
+The initialization order of bindings that do not depend on one another was the order a graph library happened to give, and it moved with unrelated changes: a test of `:reload` that had passed began to keep a different binding's value. §11.2 says that a faulting binding and those after it keep the previous version's values, which means nothing a reader can predict while the order is unspecified, against principle 3. §8.5 now evaluates such bindings in the order the module declares them; the order of modules that do not depend on one another stays unspecified, since nothing reads it.
+
 ## Later
 
 Planned or considered, not in the language today.

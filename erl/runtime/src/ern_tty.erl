@@ -20,11 +20,11 @@
 %% Decoding is decode/1 over the bytes read, and flush/1 for what is left
 %% when nothing follows; both are functions and are what the unit tests
 %% exercise. The reading itself is driven through a pseudo-terminal by
-%% test/ern_terminal_tests.erl, since 2026-09-20; loop/1 takes the reading
-%% as a function, read_char/0 but in a test, as the runtime's stdin does.
+%% test/ern_terminal_tests.erl, since 2026-09-20; loop/1 takes the input
+%% as ern_rt's stdin does, the host's standard input but in a test.
 -module(ern_tty).
 
--export([loop/1, read_char/0, decode/1, flush/1, restore/0, is_terminal/1]).
+-export([loop/1, decode/1, flush/1, restore/0, is_terminal/1]).
 
 %% Report §8.2: how long a paste may take to arrive whole.
 -define(PASTE_PAUSE, 200).
@@ -41,15 +41,10 @@
 -define(PASTE_BEGIN, "\e[200~").
 -define(PASTE_END, "\e[201~").
 
-%% Read answers the next characters, eof, or {error, Reason}.
--spec loop(fun(() -> eof | {error, term()} | unicode:chardata())) -> no_return().
-loop(Read) ->
-    loop([], {unstarted, Read}, [], none).
-
-%% The next character the host's terminal gives.
--spec read_char() -> eof | {error, term()} | unicode:chardata().
-read_char() ->
-    io:get_chars(standard_io, "", 1).
+%% Open is the input, which ern_rt:read_input/1 reads.
+-spec loop(fun(() -> port() | pid())) -> no_return().
+loop(Open) ->
+    loop([], {unstarted, Open}, [], none).
 
 loop(Subscribers, Reader, Pending, Size) ->
     Pause = pause(Pending),
@@ -164,7 +159,7 @@ optional(Size) -> {'Some', Size}.
 
 %% The reader runs once a program has asked for keys, and not before: a
 %% program that reads lines never leaves the terminal's line mode.
-start_reader({unstarted, Read}) ->
+start_reader({unstarted, Open}) ->
     Tty = self(),
     case ern_rt:own_terminal(keys) of
         ok ->
@@ -181,32 +176,32 @@ start_reader({unstarted, Read}) ->
             ok = gen_event:add_handler(erl_signal_server, ern_tty_signal, Tty),
             %% linked, so that the reader ends with the terminal's process
             %% at the program's end and takes no key meant for what follows
-            erlang:spawn_link(fun() -> read_loop(Tty, Read) end);
+            erlang:spawn_link(fun() -> read_loop(Tty, Open) end);
         taken ->
             %% the program is already ending with the fault (report §8.2)
-            {unstarted, Read}
+            {unstarted, Open}
     end;
 start_reader(Reader) ->
     %% running, or `closed` at the end of input, which no reader reopens
     Reader.
 
-%% Report §8.2: each key as it is pressed and no echo, and the host's
-%% terminal in charge, which is what makes the size askable. The host's raw
-%% mode also stops the terminal turning a line feed into a carriage return
-%% and a line feed, and a program that draws would climb the screen a
-%% column at a time, so `opost` goes back. A paste is asked to be
+%% Report §8.2: each key as it is pressed and no echo. The mode is set by
+%% stty on the terminal itself, since the runtime reads standard input
+%% through its own port and the host's io server must not take it back.
+%% Raw mode also stops the terminal turning a line feed into a carriage
+%% return and a line feed, and a program that draws would climb the screen
+%% a column at a time, so `opost` goes back. A paste is asked to be
 %% bracketed, so that pasted text is one `Pasted` and not the keys of its
 %% characters; a terminal that does not know the request ignores it.
 %% Report §11.2: the shell reads the terminal's interrupt as a key, so its
 %% signal is turned off for the shell and for nobody else.
 raw_mode() ->
-    shell:start_interactive({noshell, raw}),
-    stty(["opost" | interrupt_mode()]),
+    stty(["raw", "-echo", "opost" | interrupt_mode()]),
     write(?PASTE_ON).
 
 interrupt_mode() ->
     case ern_rt:terminal_holder() of
-        undefined -> [];
+        undefined -> ["isig"];
         _ -> ["-isig"]
     end.
 
@@ -227,7 +222,7 @@ restore() ->
 %% output is bound to, since it is the terminal that is being spoken to.
 write(Text) ->
     case terminal() of
-        true -> io:put_chars(standard_io, Text);
+        true -> file:write(standard_io, unicode:characters_to_binary(Text));
         false -> ok
     end.
 
@@ -272,14 +267,35 @@ is_terminal(Stream) ->
     catch _:_ -> false
     end.
 
-read_loop(Keys, Read) ->
-    case Read() of
+%% Report §8.2: the keys are UTF-8, whatever the host's locale; a
+%% character may arrive in two reads, and bytes that are not UTF-8 end the
+%% program. The reader traps exits, so that its input's failure is the end
+%% of the keys, and the terminal's process ending is its own end.
+read_loop(Keys, Open) ->
+    erlang:process_flag(trap_exit, true),
+    read_loop(Keys, Open, <<>>).
+
+read_loop(Keys, Open, Partial) ->
+    case ern_rt:read_input(Open) of
+        {data, Bin} ->
+            case unicode:characters_to_list(<<Partial/binary, Bin/binary>>, utf8) of
+                Chars when is_list(Chars) ->
+                    keys(Keys, Chars),
+                    read_loop(Keys, Open, <<>>);
+                {incomplete, Chars, Rest} ->
+                    keys(Keys, Chars),
+                    read_loop(Keys, Open, Rest);
+                {error, Chars, _} ->
+                    keys(Keys, Chars),
+                    ern_rt:input_not_utf8(),
+                    Keys ! closed
+            end;
         eof -> Keys ! closed;
-        {error, _} -> Keys ! closed;
-        Data ->
-            Keys ! {chars, unicode:characters_to_list(Data)},
-            read_loop(Keys, Read)
+        {error, _} -> Keys ! closed
     end.
+
+keys(_, []) -> ok;
+keys(Keys, Chars) -> Keys ! {chars, Chars}.
 
 %% Report Appendix E.16: Event = Key(Char) | ArrowUp | ArrowDown | ArrowLeft
 %% | ArrowRight | Enter | Escape | Interrupt | Resized(Size), one list of

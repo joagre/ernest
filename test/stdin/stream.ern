@@ -1,0 +1,18 @@
+//
+// A line of standard input, then its bytes as they are, then how many there
+// were, for ern_integration_tests: lines and bytes are one stream (report
+// §8.2).
+//
+
+export fn main() -> Unit with Never = {
+    Io.println(Optional.withDefault(Io.readLine(), "none"));
+    rest(0)
+}
+
+fn rest(n : Int) -> Unit with Never = match Io.read() {
+    None -> Io.println("bytes " <> Int.toString(n))
+  | Some(b) -> {
+        Io.write(b);
+        rest(n + Bytes.size(b))
+    }
+}

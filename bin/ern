@@ -1,9 +1,12 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
+%%! -noinput
 %% The Ernest toolchain, report §11: one command whose first word is its
 %% job. Thin: puts the toolchain's erl/*/ebin, the standard library's
 %% build/stdlib and the shell's build/shell, all found relative to this
-%% script, on the code path, and calls ern_cli.
+%% script, on the code path, and calls ern_cli. The host reads no input
+%% of its own (-noinput), so that standard input is the runtime's alone
+%% (report §8.2).
 
 main(Args) ->
     Lib = filename:join([filename:dirname(filename:absname(escript:script_name())), "..", "erl"]),

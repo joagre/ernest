@@ -30,7 +30,7 @@
          undefined_function/3, undefined_lambda/3, remote/1, fault/1, fault/2,
          trace/1, sys/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
          binding/1, run_main/2, run_main/3, signal/1, deadlock_target/1, restarting/2,
-         init_stdlib/0]).
+         init_stdlib/0, read_input/1, input_not_utf8/0]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -140,6 +140,7 @@ await(Alias, Mon, Deadline) ->
     receive
         {Alias, V} -> {'Some', V};
         {Alias, restarted, _} -> 'None';
+        {Alias, fault, Cause} -> fault(Cause);
         {'DOWN', Mon, process, _, _} -> 'None'
     after remaining(Deadline) ->
         case remaining(Deadline) of
@@ -158,6 +159,10 @@ call_forever(Addr, Mk) ->
             settled(Alias, Mon, Row),
             V;
         {Alias, restarted, Cause} ->
+            settled(Alias, Mon, Row),
+            fault(Cause);
+        {Alias, fault, Cause} ->
+            %% report §8.2: a system process faults the caller it answers
             settled(Alias, Mon, Row),
             fault(Cause);
         {'DOWN', Mon, process, _, Reason} ->
@@ -195,7 +200,8 @@ settled(Alias, Mon, Row) ->
     erlang:unalias(Alias),
     receive
         {Alias, _} -> ok;
-        {Alias, restarted, _} -> ok
+        {Alias, restarted, _} -> ok;
+        {Alias, fault, _} -> ok
     after 0 ->
         ok
     end.
@@ -641,34 +647,145 @@ end_with_fault(Text) ->
     Launcher ! {fault, Run, Text},
     ok.
 
-%% Report §8.2: stdin answers each ReadLine with the next line without its
-%% line feed, None at end of input. Line is the runtime's reader, which a
-%% test replaces. Report §7.3: a read that fails is a failure of the
-%% runtime, and ends the program with a fault that names it.
-stdin_loop(Line) ->
+%% Report §8.2: standard input, read as UTF-8 whatever the host's locale,
+%% as lines and as bytes from one stream, each request taking up where the
+%% one before it stopped. Open is the input (open_input/0, or fed/1 in a
+%% test), opened for a request and closed once it is answered, so that no
+%% more is read than a request needs and a program slower than what writes
+%% to it holds the writer back. Report §7.3: a read that fails is a failure
+%% of the runtime, and ends the program with a fault that names it.
+stdin_loop(Open) ->
+    erlang:process_flag(trap_exit, true),
+    stdin_loop(Open, <<>>).
+
+stdin_loop(Open, Buffer) ->
     receive
         {'ReadLine', Reply} ->
             own_terminal(lines),
             source_begin(),
-            case Line() of
-                eof ->
-                    answer(Reply, 'None');
-                {error, Reason} ->
-                    end_with_fault(format("the standard input could not be read: ~p", [Reason]));
-                Text ->
-                    answer(Reply, {'Some', chomp(unicode:characters_to_binary(Text))})
+            Rest = case line(Open, Buffer, 0) of
+                       {eof, Left} -> answer(Reply, 'None'), Left;
+                       {{line, Line}, Left} -> answer_line(Reply, Line), Left;
+                       {{error, Reason}, Left} -> unreadable(Reason), Left
+                   end,
+            source_end(),
+            stdin_loop(Open, Rest);
+        {'Read', Reply} ->
+            own_terminal(lines),
+            source_begin(),
+            case Buffer of
+                <<>> -> bytes(Reply, read_input(Open));
+                _ -> answer(Reply, {'Some', Buffer})
             end,
             source_end(),
-            stdin_loop(Line)
+            stdin_loop(Open, <<>>);
+        {'EXIT', _, _} ->
+            %% an input closed after its answer came
+            stdin_loop(Open, Buffer)
     end.
 
-chomp(<<>>) ->
-    <<>>;
-chomp(Bin) ->
-    case binary:last(Bin) of
-        $\n -> binary:part(Bin, 0, byte_size(Bin) - 1);
-        _ -> Bin
+%% The next line and the bytes after it: the bytes before the first line
+%% feed at or after From, reading more while there is none. A last line
+%% without a line feed is a line.
+line(Open, Buffer, From) ->
+    case binary:match(Buffer, <<"\n">>, [{scope, {From, byte_size(Buffer) - From}}]) of
+        {At, 1} ->
+            <<Line:At/binary, $\n, Rest/binary>> = Buffer,
+            {{line, Line}, Rest};
+        nomatch ->
+            case read_input(Open) of
+                {data, Bin} -> line(Open, <<Buffer/binary, Bin/binary>>, byte_size(Buffer));
+                eof when Buffer =:= <<>> -> {eof, <<>>};
+                eof -> {{line, Buffer}, <<>>};
+                {error, Reason} -> {{error, Reason}, Buffer}
+            end
     end.
+
+%% Report §8.2, §7.4: a line without one carriage return before its line
+%% feed, or the fault of the process that asked, when it is not UTF-8.
+answer_line(Reply, Line) ->
+    Text = case Line of
+               <<Head:(byte_size(Line) - 1)/binary, $\r>> -> Head;
+               _ -> Line
+           end,
+    case unicode:characters_to_binary(Text, utf8, utf8) of
+        Text -> answer(Reply, {'Some', Text});
+        _ -> Reply ! {Reply, fault, not_utf8()}
+    end.
+
+%% Report §8.2: what has arrived, at least one byte, or None at the end.
+bytes(Reply, {data, Bin}) -> answer(Reply, {'Some', Bin});
+bytes(Reply, eof) -> answer(Reply, 'None');
+bytes(_, {error, Reason}) -> unreadable(Reason).
+
+unreadable(Reason) ->
+    end_with_fault(format("the standard input could not be read: ~p", [Reason])).
+
+not_utf8() ->
+    <<"the standard input is not UTF-8">>.
+
+%% Report §8.2, §7.4: keys that are not UTF-8 end the program with the
+%% fault of its entry process, since no process asked for them.
+-spec input_not_utf8() -> ok.
+input_not_utf8() ->
+    end_with_fault(not_utf8()).
+
+%% The input as it arrives, for one request: at least one byte, eof, or
+%% {error, Reason}. The input is open from the request to its first answer,
+%% and what arrived with that answer is taken with it. An exit from a link
+%% other than the input's own is the end of the process that reads.
+-spec read_input(fun(() -> port() | pid())) -> {data, binary()} | eof | {error, term()}.
+read_input(Open) ->
+    Input = Open(),
+    First = receive
+                {Input, {data, Bin}} -> {data, Bin};
+                {Input, eof} -> eof;
+                {Input, {error, Reason}} -> {error, Reason};
+                {'EXIT', Input, Reason} -> {error, Reason};
+                {'EXIT', _, Reason} -> close_input(Input), exit(Reason)
+            end,
+    close_input(Input),
+    case First of
+        {data, Head} -> {data, arrived(Input, Head)};
+        _ -> First
+    end.
+
+arrived(Input, Acc) ->
+    receive
+        {Input, {data, Bin}} -> arrived(Input, <<Acc/binary, Bin/binary>>)
+    after 0 ->
+        Acc
+    end.
+
+close_input(Input) when is_port(Input) ->
+    erlang:unlink(Input),
+    try erlang:port_close(Input) catch error:badarg -> true end,
+    flush_exit(Input);
+close_input(Input) ->
+    erlang:unlink(Input),
+    exit(Input, kill),
+    flush_exit(Input).
+
+flush_exit(Input) ->
+    receive {'EXIT', Input, _} -> ok after 0 -> ok end.
+
+%% The host's standard input, a port on its descriptor. `bin/ern` starts
+%% the host with -noinput, so that the descriptor is the runtime's alone.
+open_input() ->
+    erlang:open_port({fd, 0, 1}, [in, binary, eof, stream]).
+
+%% A test's input: Next is called once for each opening and answers what
+%% arrives then, characters, bytes as they are, eof, or {error, Reason}.
+fed(Next) ->
+    fun() ->
+            Owner = erlang:self(),
+            erlang:spawn_link(fun() -> Owner ! {erlang:self(), fed_message(Next())} end)
+    end.
+
+fed_message(eof) -> eof;
+fed_message({error, Reason}) -> {error, Reason};
+fed_message(Bin) when is_binary(Bin) -> {data, Bin};
+fed_message(Chars) -> {data, unicode:characters_to_binary(Chars)}.
 
 %% Clock's message, report Appendix E.15: After(ms, to), At(at, to), Now(reply). Alarms are
 %% delivered through the clock itself, so each is counted as a source while
@@ -720,7 +837,9 @@ arm(Deadline, To) ->
 %% are bound and the standard library's lets evaluated, for the program's
 %% own top-level lets (report §8.5); stdout, stderr =>
 %% fun((binary()) -> any()), stdin => fun(() -> eof | {error, term()} |
-%% string()) and keys => the same for the terminal's characters, for tests.
+%% unicode:chardata()), called for each read, and keys => the same for the
+%% terminal's keys, for tests (fed/1). Report §8.2: the standard streams
+%% carry bytes for the run, whatever the host's locale.
 -type outcome() :: ok | killed | {fault, binary()} | {fault, binary(), binary()}
                  | {signal, sigterm | sighup}.
 
@@ -740,13 +859,14 @@ run_main(Main, Site, Opts) ->
     persistent_term:put({?MODULE, launcher}, {erlang:self(), Run}),
     Reaper = erlang:spawn(fun() -> reaper_loop(#{}) end),
     persistent_term:put({?MODULE, reaper}, Reaper),
-    Out = maps:get(stdout, Opts, fun(Bin) -> io:put_chars(Bin) end),
-    Err = maps:get(stderr, Opts, fun(Bin) -> io:put_chars(standard_error, Bin) end),
-    Line = maps:get(stdin, Opts, fun() -> io:get_line("") end),
-    Keys = maps:get(keys, Opts, fun ern_tty:read_char/0),
+    Encodings = bytes_out(),
+    Out = maps:get(stdout, Opts, fun(Bin) -> file:write(standard_io, Bin) end),
+    Err = maps:get(stderr, Opts, fun(Bin) -> file:write(standard_error, Bin) end),
+    Input = input(stdin, Opts),
+    Keys = input(keys, Opts),
     System = [{stdout, erlang:spawn(fun() -> stdout_loop(Out) end)},
               {stderr, erlang:spawn(fun() -> stdout_loop(Err) end)},
-              {stdin, erlang:spawn(fun() -> stdin_loop(Line) end)},
+              {stdin, erlang:spawn(fun() -> stdin_loop(Input) end)},
               {fs, erlang:spawn(fun ern_fs:loop/0)},
               {terminal, erlang:spawn(fun() -> ern_tty:loop(Keys) end)},
               {tcp, erlang:spawn(fun ern_tcp:loop/0)},
@@ -779,8 +899,32 @@ run_main(Main, Site, Opts) ->
             {signal, Run, Signal} -> {signal, Signal}
         end
     after
-        end_program(Run, Reaper, System)
+        end_program(Run, Reaper, System),
+        restore_encodings(Encodings)
     end.
+
+input(Key, Opts) ->
+    case maps:find(Key, Opts) of
+        {ok, Next} -> fed(Next);
+        error -> fun open_input/0
+    end.
+
+%% Report §8.2: standard output and standard error are written as the
+%% bytes a program sends, UTF-8 text among them, so the host's streams take
+%% bytes as they are for the run; what they took before is put back after.
+bytes_out() ->
+    [{Device, Encoding} || Device <- [standard_io, standard_error],
+                           Encoding <- [encoding(Device)], Encoding =/= none,
+                           ok =:= io:setopts(Device, [{encoding, latin1}])].
+
+encoding(Device) ->
+    try proplists:get_value(encoding, io:getopts(Device), none)
+    catch _:_ -> none
+    end.
+
+restore_encodings(Encodings) ->
+    lists:foreach(fun({Device, Encoding}) -> io:setopts(Device, [{encoding, Encoding}]) end,
+                  Encodings).
 
 %% Report §11.2: under `ern test` a deadlock is the fault of the test that
 %% runs, not of the entry process; none after the test has ended.

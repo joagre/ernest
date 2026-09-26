@@ -54,8 +54,37 @@ stdin_failure_test() ->
     ?assertEqual({fault, <<"the standard input could not be read: eio">>},
                  ern_rt:run_main(Ask, <<"main">>, Quiet#{stdin => fun() -> {error, eio} end})),
     ?assertEqual(ok, ern_rt:run_main(fun() -> Me ! {line, Ask()} end, <<"main">>,
-                                     Quiet#{stdin => fun() -> "" end})),
+                                     Quiet#{stdin => fun() -> "\n" end})),
     ?assertEqual({'Some', <<>>}, wait(line)).
+
+%% report §8.2, §7.4: lines and bytes are one stream, each request taking
+%% up where the one before it stopped; a line loses its line feed and one
+%% carriage return before it, and a last line needs none; a line that is
+%% not UTF-8 faults the process that asked, and the next line is read
+stdin_stream_test() ->
+    Tab = ets:new(chunks, [public]),
+    ets:insert(Tab, {queue, [<<"ab\r\ncd">>, <<"\nrest\n">>, <<"ok\n", 255, "\nnext">>]}),
+    Next = fun() ->
+                   case ets:lookup(Tab, queue) of
+                       [{_, [C | Rest]}] -> ets:insert(Tab, {queue, Rest}), C;
+                       _ -> eof
+                   end
+           end,
+    Line = fun() -> ern_rt:call_forever(ern_rt:sys(stdin), fun(R) -> {'ReadLine', R} end) end,
+    Bytes = fun() -> ern_rt:call_forever(ern_rt:sys(stdin), fun(R) -> {'Read', R} end) end,
+    Me = self(),
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Me ! {got, [Line(), Bytes(), Line(), Line(), Line()]},
+                           Asker = ern_rt:spawn('Local', fun() -> Line() end, <<"asker">>),
+                           ern_rt:monitor(Asker, fun(D) -> {down, D} end),
+                           receive {down, D} -> Me ! {down, D} end,
+                           Me ! {after_fault, [Line(), Line(), Bytes()]}
+                       end, <<"main">>, #{stdout => fun(_) -> ok end, stdin => Next})),
+    ?assertEqual([{'Some', <<"ab">>}, {'Some', <<"cd">>}, {'Some', <<>>}, {'Some', <<"rest">>},
+                  {'Some', <<"ok">>}], wait(got)),
+    ?assertMatch({'Down', {'Fault', <<"the standard input is not UTF-8">>}, _}, wait(down)),
+    ?assertEqual([{'Some', <<"next">>}, 'None', 'None'], wait(after_fault)).
 
 %% report §8.6: a system process that has died can deliver nothing, so it
 %% does not keep a deadlock from being found. A regression test: the

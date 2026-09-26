@@ -188,6 +188,30 @@ libs() ->
     ?assertEqual([], [L || L <- Lines, binary:match(L, <<": passed">>) =:= nomatch]),
     ?assertEqual(0, Status).
 
+%% report §8.2, §7.4, Appendix E.1: standard input is UTF-8 whatever the
+%% host's locale, a line without its line feed or the carriage return
+%% before it, a last line without a line feed; a line that is not UTF-8
+%% faults; lines and bytes are one stream, and bytes go out as they are
+stdin_test_() ->
+    {timeout, 60, fun stdin/0}.
+
+stdin() ->
+    [{0, _} = sh("../bin/ern build --source-root stdin --build-root build/stdin stdin/"
+                 ++ P ++ ".ern") || P <- ["lines", "stream", "chunks"]],
+    Run = fun(Input, Program) ->
+                  sh("printf '" ++ Input ++ "' | LANG=C ../bin/ern run build/stdin/"
+                     ++ Program ++ ".erc")
+          end,
+    ?assertEqual({0, <<"[h", 16#e9/utf8, "] 2\n[zw", 16#4e2d/utf8, "] 3\n[] 0\n[last] 4\nend\n">>},
+                 Run("h\\303\\251\\r\\nzw\\344\\270\\255\\n\\nlast", "lines")),
+    ?assertEqual({1, <<"[ok] 2\nfault: the standard input is not UTF-8\n">>},
+                 Run("ok\\n\\377\\nnext\\n", "lines")),
+    ?assertEqual({0, <<"head\n", 255, 16#e9/utf8, "tail\nbytes 8\n">>},
+                 Run("head\\n\\377\\303\\251tail\\n", "stream")),
+    %% a read does not wait for more than has arrived
+    ?assertEqual({0, <<"1\n1\nend\n">>},
+                 sh("sh -c 'printf a; sleep 1; printf b' | ../bin/ern run build/stdin/chunks.erc")).
+
 %% report §4.2, §11.1: the two-module pair in directory mode
 modules_test() ->
     {0, _} = sh("../bin/ern build --build-root build/modules ../examples/modules"),

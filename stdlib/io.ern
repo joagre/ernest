@@ -40,7 +40,7 @@
 export type Error = NotFound | Denied | Refused | Closed | Timeout | NotATerminal | Other(String)
 
 // What standard input takes.
-type StdinMsg = ReadLine(reply : Reply(Optional(String)))
+type StdinMsg = ReadLine(reply : Reply(Optional(String))) | Read(reply : Reply(Optional(Bytes)))
 
 // Report §8.2: the system references, the runtime's addresses of standard
 // output, standard error and standard input, bound at each start.
@@ -81,9 +81,11 @@ export fn printError(s : String) -> Unit with m = send(stderr, String.toUtf8(s))
 /// The string to standard error, with a line feed after it.
 export fn printlnError(s : String) -> Unit with m = send(stderr, String.toUtf8(s <> "\n"))
 
-/// The next line from standard input, without its line feed, or `None` at
-/// end of input. A program reads lines or subscribes to keys, not both
-/// (report §8.2).
+/// The next line from standard input, without its line feed and without
+/// one carriage return before it, or `None` at end of input. A last line
+/// without a line feed is a line. Standard input is read as UTF-8, and a
+/// line that is not faults the caller. A program reads lines or
+/// subscribes to keys, not both (report §8.2).
 ///
 /// ### Examples
 ///
@@ -92,6 +94,27 @@ export fn printlnError(s : String) -> Unit with m = send(stderr, String.toUtf8(s
 /// ```
 export fn readLine() -> Optional(String) with m =
     Address.callForever(stdin, fn(r) = ReadLine(reply = r))
+
+/// What has arrived on standard input, at least one byte, or `None` at end
+/// of input. Lines and bytes are read from one stream, so a read takes up
+/// where the line before it stopped (report §8.2).
+///
+/// ### Examples
+///
+/// ```ernest
+/// Io.read()
+/// ```
+export fn read() -> Optional(Bytes) with m = Address.callForever(stdin, fn(r) = Read(reply = r))
+
+/// The bytes to standard output, as they are.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Io.write(<<104, 105, 10>>)
+/// // => Unit
+/// ```
+export fn write(b : Bytes) -> Unit with m = send(stdout, b)
 
 /// The value printed as Ernest writes it, by its type at the call, and
 /// returned, so it wraps an expression where it stands: `let n =

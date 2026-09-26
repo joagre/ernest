@@ -50,7 +50,7 @@ escape_pause_test() ->
                receive K1 -> Me ! {k1, K1} end,
                Tty ! {chars, "\e"},
                receive K2 -> Me ! {k2, K2} end
-           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+           end, <<"main">>, #{stdout => fun(_) -> ok end, keys => fun silent/0}),
     ?assertEqual('ArrowUp', wait(k1)),
     ?assertEqual('Escape', wait(k2)).
 
@@ -71,7 +71,7 @@ second_subscription_test() ->
                Tty ! {chars, "b"},
                Second = receive M2 -> M2 end,
                Me ! {got, [First, Second]}
-           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+           end, <<"main">>, #{stdout => fun(_) -> ok end, keys => fun silent/0}),
     ?assertEqual([{again, {'Key', $a}}, {again, {'Key', $b}}], wait(got)).
 
 %% report §8.2, §8.6: a subscription ends when its process dies, so the
@@ -97,6 +97,36 @@ wait(Tag) ->
 
 %% Report §8.2: `Subscribe` carries a reply, answered once the terminal is
 %% in the mode the keys need.
+%% report §8.2: the keys are UTF-8 whatever the host's locale, a
+%% character cut across two reads is one key, and keys that are not UTF-8
+%% end the program with its entry process's fault
+utf8_keys_test() ->
+    Me = self(),
+    Tab = ets:new(chunks, [public]),
+    ets:insert(Tab, {queue, [<<195>>, <<169>>]}),
+    Cut = fun() ->
+                  case ets:lookup(Tab, queue) of
+                      [{_, [C | Rest]}] -> ets:insert(Tab, {queue, Rest}), C;
+                      _ -> silent()
+                  end
+          end,
+    ok = ern_rt:run_main(fun() ->
+                                 subscribe(ern_rt:sys(terminal)),
+                                 receive K -> Me ! {key, K} end
+                         end, <<"main">>, #{stdout => fun(_) -> ok end, keys => Cut}),
+    ?assertEqual({'Key', 16#e9}, wait(key)),
+    ?assertEqual({fault, <<"the standard input is not UTF-8">>},
+                 ern_rt:run_main(fun() ->
+                                         subscribe(ern_rt:sys(terminal)),
+                                         receive never -> ok end
+                                 end, <<"main">>,
+                                 #{stdout => fun(_) -> ok end, keys => fun() -> <<"a", 255>> end})).
+
+%% A terminal at which nothing is typed, so that a test's keys are the ones
+%% it sends the terminal's process itself.
+silent() ->
+    receive after infinity -> eof end.
+
 subscribe(Tty) ->
     Me = ern_rt:self(),
     ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Reply, Me} end, 5000).

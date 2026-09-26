@@ -1,0 +1,12 @@
+//
+// Each line of standard input, in brackets, with its length in characters,
+// for ern_integration_tests (report §8.2).
+//
+
+export fn main() -> Unit with Never = match Io.readLine() {
+    None -> Io.println("end")
+  | Some(line) -> {
+        Io.println("[" <> line <> "] " <> Int.toString(String.size(line)));
+        main()
+    }
+}

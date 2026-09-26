@@ -13,7 +13,8 @@
 %%
 
 %% Type-check, compile, load, initialize, and run a program's main under
-%% the launcher, collecting what reaches stdout.
+%% the launcher, with an empty standard input, collecting what reaches
+%% stdout.
 run(Text) ->
     run(['M'], Text).
 
@@ -24,7 +25,8 @@ run(Ns, Text) ->
     Me = self(),
     Result = ern_rt:run_main(fun() -> Mod:main() end, <<"main">>,
                              #{init => fun() -> init(Mod) end,
-                               stdout => fun(B) -> Me ! {out, B} end}),
+                               stdout => fun(B) -> Me ! {out, B} end,
+                               stdin => fun() -> eof end}),
     {Result, collect([])}.
 
 %% The launcher's job (report §8.5, plan 2.4): top-level lets before main.
@@ -1006,6 +1008,19 @@ let_order_through_operator_test() ->
         "fn show(Vec(n)) -> String = Int.toString(n)\n"
         "export fn main() -> Unit with Never = Io.println(show(sum))\n"),
     ?assertEqual(<<"30\n">>, Out).
+
+%% report §8.5: a top-level let is evaluated after the lets it depends
+%% on, and otherwise in the order the module declares it. A regression
+%% test: the order of independent lets was the digraph's, which moved with
+%% unrelated changes, and `:reload` kept an unpredictable set of values
+let_order_declared_test() ->
+    {ok, Out} = run(
+        "let a = { Io.println(\"a\"); 1 }\n"
+        "let c = { Io.println(\"c\"); b + 1 }\n"
+        "let b = { Io.println(\"b\"); 2 }\n"
+        "let d = { Io.println(\"d\"); 4 }\n"
+        "export fn main() -> Unit with Never = Io.println(Int.toString(a + c + d))\n"),
+    ?assertEqual(<<"a\nb\nc\nd\n8\n">>, Out).
 
 %% report §4.7, §8.4: a foreign fn calls its implementation with the
 %% arguments as the ABI maps them, and a foreign type's values pass through

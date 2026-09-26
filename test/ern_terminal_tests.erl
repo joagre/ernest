@@ -47,6 +47,28 @@ keys() ->
     %% an arrow is not split: no Escape arrived before the one that was sent
     ?assertEqual(1, count(Screen, <<"escape">>)).
 
+%% report §8.2, §8.6: a key is read as UTF-8 whatever the host's locale,
+%% and the terminal's interrupt ends a program that reads keys at once. A
+%% regression test for the raw mode set by stty alone, which turns the
+%% interrupt off unless it is asked back
+utf8_key_interrupt_test_() ->
+    {timeout, 60, fun utf8_key_interrupt/0}.
+
+utf8_key_interrupt() ->
+    ok = compile("terminal/probe.ern", "terminal"),
+    {Status, Screen} = pty("LANG=C ../bin/ern run build/terminal/probe.erc",
+                           [{expect, "ready"},
+                            {send, "c3a9"},     % é, two bytes
+                            {expect, "char"},
+                            {send, "03"}],      % the interrupt
+                           15),
+    ?assertMatch({_, _}, binary:match(Screen, <<"char ", 16#e9/utf8>>)),
+    %% the interrupt ended the program rather than arriving as a key, which
+    %% the probe would print; the harness interrupts a program that is left
+    ?assertEqual(nomatch, binary:match(Screen, <<"interrupt">>)),
+    %% the harness gives a program a signal ended as minus its number
+    ?assertEqual(-2, Status).
+
 %% report §8.2: the runtime restores line mode with echo when the program
 %% ends, so the terminal is the one the program found
 terminal_restored_test_() ->

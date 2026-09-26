@@ -268,7 +268,7 @@ init_fun(Lets, Cx) ->
     {[erl_syntax:function(erl_syntax:atom('$init'), [Clause])], Cx1}.
 
 %% Report §8.5: the lets in the order the checker found, a let after
-%% those its initializer reaches.
+%% those its initializer reaches and otherwise as declared.
 let_order(Lets, #cx{env = Env}) ->
     ByKey = maps:from_list([{{O, N}, D} || #let_decl{owner = O, name = N} = D <- Lets]),
     [maps:get(K, ByKey) || K <- ern_typecheck:let_order(Env)].

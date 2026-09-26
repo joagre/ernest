@@ -1064,6 +1064,21 @@ non_entry_main() ->
     ?assertMatch({_, _}, binary:match(Refused, <<"Main.main is not an entry point: its type is"
                                                  " () -> Int with m">>)).
 
+%% report §11.2, §8.2: the shell shows each byte a program writes that is
+%% not UTF-8 as U+FFFD, a character cut across two writes whole, and text
+%% as UTF-8 whatever the host's locale
+shown_bytes_test_() ->
+    {timeout, 60, fun shown_bytes/0}.
+
+shown_bytes() ->
+    In = filename:join("/tmp", "ern_bytes_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = file:write_file(In, "Io.write(<<104, 255, 105, 10>>)\nIo.write(<<195>>)\n"
+                         "Io.write(<<169, 10>>)\nIo.println(\"h\\u{e9}\")\n"),
+    {0, Out} = sh("LANG=C ../bin/ern shell < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"h", 16#fffd/utf8, "i\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> ", 16#e9/utf8, "\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"h", 16#e9/utf8, "\n">>)).
+
 %% report §9, §11.2: `:doc` finds a prelude name's documentation, a
 %% function, a type, and a value, and still finds an operation
 %% in its type's module. A regression test: the prelude had none, and `:doc

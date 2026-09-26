@@ -585,17 +585,18 @@ check_values(Decls, Env0) ->
     Pending = maps:from_list([{group_qname(D, Env1), G} || G <- Groups, D <- G]),
     Env2 = lists:foldl(fun run_group/2, Env1#env{groups = Pending, typed = [], errs = []}, Groups),
     Errs = let_cycles(Env2#env.typed, Env2) ++ Env2#env.errs,
-    Order = case Errs of
-                [] -> initialization_order(Env2#env.typed, Env2);
-                _ -> []
-            end,
     %% restore declaration order for the typed output
     Typed = [replace_typed(D, Env2#env.typed) || D <- Decls],
+    Order = case Errs of
+                [] -> initialization_order([D || D <- Typed, is_value_decl(D)], Env2);
+                _ -> []
+            end,
     {Typed, Env2#env{groups = #{}, typed = [], errs = [], let_order = Order}, Errs}.
 
 %% Report §8.5: the order the module's top-level lets are evaluated in, a
 %% let after every let its initializer reaches, directly or through the
-%% functions it names; the cycle check has passed.
+%% functions it names, and otherwise in declaration order; the cycle check
+%% has passed.
 -spec let_order(env()) -> [{atom() | undefined, atom()}].
 let_order(#env{let_order = Order}) ->
     Order.
@@ -997,19 +998,25 @@ let_cycles(Decls, Env) ->
     digraph:delete(G),
     lists:reverse(Errs).
 
+%% Report §8.5: the lets of Decls, which are in declaration order, each
+%% after every let its initializer reaches and otherwise as declared.
 initialization_order(Decls, Env) ->
     G = reference_graph(Decls, Env),
     Lets = [decl_key(D) || #let_decl{} = D <- Decls],
-    L = digraph:new(),
-    lists:foreach(fun(K) -> digraph:add_vertex(L, K) end, Lets),
-    lists:foreach(fun(K) ->
-                      [digraph:add_edge(L, K, R)
-                       || R <- digraph_utils:reachable_neighbours([K], G), lists:member(R, Lets)]
-                  end, Lets),
-    Sorted = digraph_utils:topsort(L),
-    digraph:delete(L),
+    Needs = maps:from_list([{K, [R || R <- digraph_utils:reachable_neighbours([K], G),
+                                      R =/= K, lists:member(R, Lets)]}
+                            || K <- Lets]),
     digraph:delete(G),
-    lists:reverse(Sorted).
+    in_order(Lets, Needs, []).
+
+%% Each let once every let it needs is placed, the first declared of those
+%% that can go next first.
+in_order([], _, Placed) ->
+    lists:reverse(Placed);
+in_order(Lets, Needs, Placed) ->
+    [Next | _] = [K || K <- Lets, lists:all(fun(R) -> lists:member(R, Placed) end,
+                                             maps:get(K, Needs))],
+    in_order(Lets -- [Next], Needs, [Next | Placed]).
 
 reference_graph(Decls, Env) ->
     Keys = [decl_key(D) || D <- Decls],
