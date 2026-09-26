@@ -63,8 +63,8 @@ so a decision they must see goes here.
 ## MVP 2.65 (the language and the toolchain read back after the shell), about two weeks
 
 The shell is the first program of size written in Ernest by the people who designed it, and
-what it and the libraries felt is in [`language_feedback.md`](language_feedback.md), which
-owns that list, grouped there by theme. This item decides each entry rather than
+what it and the libraries felt was collected in [`language_feedback.md`](language_feedback.md),
+grouped by theme. This item decides each entry rather than
 collecting it, a theme at a time, in the order below: each theme decides things the next
 ones assume. It grew from about twenty questions to about sixty with the shell's close and
 the code's read-back, so the estimate is two weeks of turns where it was four days.
@@ -85,9 +85,8 @@ The steps:
    left it; this plan's "Done" is a paragraph a milestone, the detail being the log's and
    the history's.
 2. **Done 2026-09-25: the report read cold, by an implementer**, and its plain half written
-   into the report (the log's *The Report Read Cold, Its Plain Half*). What is open is in
-   [`report_cold_read.md`](report_cold_read.md), each finding under the theme that decides
-   it; what no theme takes is decided in step 9.
+   into the report (the log's *The Report Read Cold, Its Plain Half*). What was open went
+   to the theme that decides it; what no theme took was decided in step 9.
 3. **Done 2026-09-25: names and namespaces**, the feedback list's first theme. An abstract
    type's boundary is its module (items 32, 33 and 49; report §4.4). Constructor names stay
    unique in a module (item 2), names stay qualified without import or alias (item 4), and
@@ -561,6 +560,58 @@ lines of `spawn`, `monitor` and `receive`, met a restarted child's new address. 
 builds it, after step 10 of 2.65 has built `restarting`, `fault`, the service binding and
 the fault report it stands on.
 
+Three questions come first, each discussed and decided before the build, and recorded here
+and in the log. They left [`language_feedback.md`](language_feedback.md) for this item and
+keep the numbers the log and the code cite them by. What each decides is built where it
+belongs: 14 and 25 in MVP 3.0, 16 in MVP 2.7.
+
+- **Item 14: is `remote` needed once the node protocol and code distribution exist?**
+  Raised while the guide was being checked, with `docs/node_protocol.md` and
+  `docs/code_distribution.md` in view. `remote(f)` (report §6.7, guide §8.1) runs a pure
+  function on the peer with the lowest load among those marked `"remote-peer": true`, the
+  runtime choosing, and
+  answers `Right(v)`, `Left(NoRemotePeer)` or `Left(PeerLost)`; a fault in `f` faults the
+  caller.
+
+  The case for removing it, on the principles. Once `spawn(Peer(name), f)` ships code and
+  answers across nodes, `remote` is a second way to do what a spawned process that answers
+  already does, `spawn` on a peer and `Address.call` for the value (principle 2). It brings
+  a type of its own, `RemoteError`, a configuration flag, and a placement policy the
+  runtime applies where the program cannot see it (principle 3). The guide's `inParallel`
+  already spawns a local process per computation around it, so the primitive does not
+  spare the program the processes it would otherwise write.
+
+  What would be lost, and has to be answered before it goes. A pure computation shipped as
+  a value is simpler to reason about than a process: no mailbox, no reply, a fault that
+  reaches the caller as if the call were local. The runtime's choice of peer is a
+  load-balancing policy that would become a library's or the program's. And `remote` is in
+  the report's prelude, §9, and the guide's examples, so removing it is a report change
+  with the log's *Remote Ergonomics* (2026-09-13) to revisit. If it goes, §6.7, §9.4,
+  `RemoteError`, the `"remote-peer"` flag and the guide's §8.1 go with it, and MVP 3.0's
+  bullets that build it are rewritten.
+- **Item 25: `spawn(Remote, f)`, the asynchronous `remote`**, decided with item 14. A
+  process already starts on a named peer, `spawn(Peer(name), f)` (§6.2), and answers
+  asynchronously; what only `remote(f)` has is the runtime's choice of peer, among those
+  §11.3 marks as accepting remote computation, and it is synchronous. A third place,
+  `type Where = Local | Peer(String) | Remote`, would give that choice to a process: a long
+  computation no longer holds the caller, and it may send more than one answer. With it,
+  `remote(f)` is `spawn(Remote, ...)` and a reply, a composition, which strengthens item
+  14's case against it by principle 2. To be answered: what `spawn(Remote, f)` does where
+  no peer accepts remote computation, where `remote` answers `Left(NoRemotePeer)` and
+  `spawn` has only an address to return, and a silent fall back to `Local` is what
+  principle 3 refuses, so it faults; and that the flag in `ernest.conf` then admits any
+  process a peer sends, where today it admits a pure function, so what a peer accepts
+  widens and §11.3 says so. The placement stays the runtime's, as unseen by the program as
+  `remote`'s is. `Peer.find` (MVP 2.65 step 5) depends on the outcome: if `remote` stays
+  and takes a named peer, `Peer.find` is its composition and goes by E.0 rule 4; otherwise
+  `Peer.find` stands, as the gate of step 10 kept it (G6).
+- **Item 16: a program cannot read its command-line arguments.** An entry point takes no
+  arguments (report §8.1), and neither the prelude nor a system module gives the command
+  line, so a program's inputs are written into it or read from standard input. A reader new
+  to the language asked for it at once. The question is the shape: the arguments bound by
+  the runtime in a system module, as a system module's references are (§8.2), or an entry
+  point `main(args : List(String))`. MVP 2.7 builds what this decides.
+
 - **`stdlib/supervisor.ern`**, in Ernest but for one shim, the in-place restart of a child,
   which only the host can do. Appendix E gains its section, with its module page and
   examples as E.0 shape rule 6 asks.
@@ -581,9 +632,9 @@ the fault report it stands on.
 
 What a command-line program needs, report first: the program's arguments, a
 `List(String)`, and its environment, bound by the runtime as a system module's references
-are (§8.2), in a module this item names, and an exit status in §8.6. The guide's cold read asked for the arguments at once
-(`language_feedback.md` item 16, 2026-09-24); an entry point that takes a `List(String)` is
-weighed against the binding before the report changes, and parsing options from the list is a
+are (§8.2), in a module this item names, and an exit status in §8.6. Whether the arguments
+are such a binding or an entry point that takes a `List(String)` is decided in MVP 2.66's
+opening discussion (item 16), and parsing options from the list is a
 library's, by E.0. With the environment, the shell reads `NO_COLOR` in Ernest, where its front end
 reads it today.
 
@@ -687,19 +738,9 @@ peers are the useful one.
   on stopping a process is §6.9's `kill`; and the protocol note's §6.5 says no separate
   spawn with a monitor is needed, where §9.4 has `spawnMonitored` and §6.9 answers `Unknown`
   for a monitor made after the end.
-- **Whether `remote` stays**, `docs/language_feedback.md` item 14, decided first in this
-  milestone, before `remote` is built over peers. What `remote` is for: a synchronous call
-  that evaluates a pure function on the node with the lowest load among those that accept
-  remote computation, the runtime choosing by load. Once `spawn(Peer(name), f)` ships code
-  and answers across nodes, `remote` may be a second way to do what a spawned process that
-  answers does. If it goes, §6.7, §9.4, `RemoteError`, the `"remote-peer"` flag and the
-  guide's §8.1 go with it, and the bullets above that build it are rewritten. Decided with
-  it, item 25, the suggestion to spawn a process where the load is lowest:
-  `spawn(Remote, f)`, a third `Where` that gives the runtime's choice of peer to a process,
-  with which `remote` is a composition; the flag would then admit any process and not only
-  a pure function. `Peer.find` (MVP 2.65 step 5) depends on the outcome: if `remote` stays
-  and takes a named peer, `Peer.find` is its composition and goes by E.0 rule 4; otherwise
-  `Peer.find` stands, as the gate of step 10 kept it (G6).
+- **Whether `remote` stays, and whether `spawn(Remote, f)` joins it**, items 14 and 25,
+  decided in MVP 2.66's opening discussion before `remote` is built over peers. If `remote`
+  goes, the bullets above that build it are rewritten then.
 - **Two more places the protocol note disagrees with the report, found 2026-09-24 in the
   closing sweep of MVP 2.61**, also decided before building: the note's `spawn_at` never
   fails at the call and returns a dead address, where §6.2 faults the caller on an unknown or
