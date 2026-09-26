@@ -123,9 +123,12 @@ The steps:
       once and `Address.callForever` faults the caller with the same cause (report §6.6, when
       built). The lost message is not delivered again, and one without a `Reply` is lost
       silently. The log's *A Call Ends When Its Callee Faults*.
-   2. **The restart limit**, and whether `restarting` has strategies at all. As drafted it
-      has none: it restarts one process, and a strategy across siblings, `one_for_all` or
-      `rest_for_one`, is not its to have.
+   2. **Decided 2026-09-26: a restart has a limit and no strategy.** `restarting(limit, f)`,
+      with `type Limit = Limit(restarts : Int, within : Int)` in milliseconds and no default,
+      restarts on a fault only; `Returned`, `Killed` and `ProgramEnd` end the process. Past
+      the limit it dies with the last fault's cause. No strategy across siblings, which is a
+      group's, and no backoff, which is policy; both are question 6's. The name `Limit` is
+      settled when the report is written. The log's *A Restart Has a Limit and No Strategy*.
    3. **Each fault visible**, since `monitor` sees only the final death.
    4. **An initializer that spawns**: in which process, in what order under §8.5, how a
       service that is one per node is tested, and what §8.7 does with a shipped binding
@@ -135,7 +138,12 @@ The steps:
    6. **A `Supervisor` module in the standard library**, for what `restarting` leaves out:
       a group of children, strategies across them, and the order they stop in. Written by
       every program otherwise, and E.0 rule 3's objection to a library that chooses policy
-      for the program is weighed again against that.
+      for the program is weighed again against that. It borrows what `restarting` settles
+      where it can: the `Limit`, restart on a fault only, and a restart that keeps the
+      address. Whether it can keep a child's address in a group, where `restarting` restarts
+      one process from inside and nothing restarts another in place, is part of the question:
+      a child restarted by the supervisor is a new process, so its stable address would be a
+      forward through the supervisor, written once in the library.
 
    Address identity (item 24) no longer hinges on unregistering, since nothing unregisters,
    and is decided after these on its own; either outcome changes `:processes` and
