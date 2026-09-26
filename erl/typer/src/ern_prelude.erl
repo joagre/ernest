@@ -326,7 +326,7 @@ declared_types() ->
     /// The messages a connected socket takes. A program uses `Tcp.read`,
     /// `Tcp.write`, and `Tcp.close` (report Appendix E.0 rule 8).
     type SockMsg = Recv(reply : Reply(Either(IoError, Bytes))) | Send(Bytes) | Close
-    /// A test that `ern --test` runs: its name, and a function that answers
+    /// A test that `ern test` runs: its name, and a function that answers
     /// whether it passed (report §9.3, §11.2).
     ///
     /// ### Examples

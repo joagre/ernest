@@ -8,7 +8,7 @@
 
 %% report §11.2, §11.5: an expression prints its value and its type, one of
 %% type Unit prints nothing, an input that does not check shows the error
-%% ernc shows, and a fault is reported without ending the session; a `let`
+%% `ern build` shows, and a fault is reported without ending the session; a `let`
 %% binds for the inputs after it and `it` is the last value; an input
 %% declares what a module may, a later declaration of a name shadowing the
 %% one before it, and what it declared is printed a line for each; and
@@ -23,7 +23,7 @@ session_test_() ->
     {timeout, 60, fun session/0}.
 
 session() ->
-    {0, Out} = sh("../bin/ern --shell < session/basic.in"),
+    {0, Out} = sh("../bin/ern shell < session/basic.in"),
     {ok, Expected} = file:read_file("session/basic.out"),
     ?assertEqual(Expected, Out).
 
@@ -42,9 +42,9 @@ program_test_() ->
 %% entry point's address to monitor it, and each input waits for its
 %% answer. It ran on two waits of 400 ms before, and once failed under load.
 program() ->
-    {0, _} = sh("../bin/ernc --source-root session --out-dir build/session"
+    {0, _} = sh("../bin/ern build --source-root session --build-root build/session"
                 " session/counter.ern"),
-    Screen = screen(alone("../bin/ern --shell build/session/counter.erc"),
+    Screen = screen(alone("../bin/ern shell build/session/counter.erc"),
                     [{expect, "Counter.main faulted: division by zero"},
                      {send, hex("let c = Counter.start()\r")},
                      {expect, "c : Address(Counter.Msg)"},
@@ -99,7 +99,7 @@ startup() ->
                          "let shared = 2\n1 +\n:set depth 1\n"),
     In = filename:join(Node, "session.in"),
     ok = file:write_file(In, "greeting\nshared\n[[1]]\n"),
-    {0, Out} = sh("HOME=" ++ Home ++ " ../bin/ern --shell --config-dir "
+    {0, Out} = sh("HOME=" ++ Home ++ " ../bin/ern shell --config-dir "
                   ++ filename:join(Node, ".ernest") ++ " < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"\"from the user file\" : String">>)),
     %% the node's file ran after the person's, so its binding is the one
@@ -124,7 +124,7 @@ live_region_test_() ->
 live_region() ->
     Print = "spawn(Local, fn() = List.foreach(List.range(1, 12),"
             " fn(n) = Io.println(\"line \" <> Int.toString(n))))\r",
-    Screen = screen(alone("../bin/ern --shell"),
+    Screen = screen(alone("../bin/ern shell"),
                     [{expect, "> "},
                      {send, hex("1 + 1\r")},
                      {expect, "2 : Int"},
@@ -149,7 +149,7 @@ live_region() ->
 %% report §11.2, §9.3: the pure parts of the shell test themselves, the
 %% editor's function from a line and an event to what the reader must do,
 %% the history file's escaping, the region's geometry, completion's
-%% matching, and the colours, run by `ern --test` as the shell is built
+%% matching, and the colours, run by `ern test` as the shell is built
 editor_test_() ->
     {timeout, 60, fun editor/0}.
 
@@ -160,7 +160,7 @@ editor() ->
     ?assert(length(Modules) >= 7),
     %% the shell renders documentation with libs/markdown, which a run of
     %% its modules puts on the load path as any program using a library does
-    Runs = ["../bin/ern --load-path ../build/libs/markdown --test " ++ M || M <- Modules],
+    Runs = ["../bin/ern test --load-path ../build/libs/markdown " ++ M || M <- Modules],
     {Status, Out} = sh(lists:flatten(lists:join(" && ", Runs))),
     Lines = [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
     ?assertEqual([], [L || L <- Lines, binary:match(L, <<": passed">>) =:= nomatch]),
@@ -175,7 +175,7 @@ editing_test_() ->
     {timeout, 60, fun editing/0}.
 
 editing() ->
-    Screen = pty(alone("../bin/ern --shell"),
+    Screen = pty(alone("../bin/ern shell"),
                  [{expect, "> "},
                   {send, hex("1 + 22222")},
                   {expect, "22222"},
@@ -202,7 +202,7 @@ clear_test_() ->
     {timeout, 60, fun clear/0}.
 
 clear() ->
-    Screen = screen(alone("../bin/ern --shell"),
+    Screen = screen(alone("../bin/ern shell"),
                     [{expect, "> "},
                      {send, hex("111 + 111\r")},
                      {expect, "222 : Int"},
@@ -229,7 +229,7 @@ history_test_() ->
 history() ->
     Home = fresh_home(),
     File = filename:join([Home, ".ernest", "history"]),
-    _ = pty("HOME=" ++ Home ++ " ../bin/ern --shell",
+    _ = pty("HOME=" ++ Home ++ " ../bin/ern shell",
             [{expect, "> "},
              {send, hex("11 + 11\r")},
              {expect, "22 : Int"},
@@ -244,7 +244,7 @@ history() ->
     ?assertEqual([<<"11 + 11">>, <<"33 + 33">>], history_lines(File)),
     %% the session after it: the arrow recalls the last input, and `C-r`
     %% searches back for an older one
-    Screen = pty("HOME=" ++ Home ++ " ../bin/ern --shell",
+    Screen = pty("HOME=" ++ Home ++ " ../bin/ern shell",
                  [{expect, "> "},
                   {send, "1b5b41"},                 % ArrowUp
                   {expect, "33 + 33"},
@@ -262,7 +262,7 @@ history() ->
     %% is not
     ?assertEqual([<<"11 + 11">>, <<"33 + 33">>, <<"11 + 11">>], history_lines(File)),
     %% a session that is not a terminal neither reads the file nor writes it
-    {0, _} = sh("HOME=" ++ Home ++ " ../bin/ern --shell < session/basic.in"),
+    {0, _} = sh("HOME=" ++ Home ++ " ../bin/ern shell < session/basic.in"),
     ?assertEqual([<<"11 + 11">>, <<"33 + 33">>, <<"11 + 11">>], history_lines(File)).
 
 history_lines(File) ->
@@ -282,7 +282,7 @@ multiline_test_() ->
 
 multiline() ->
     Home = fresh_home(),
-    Screen = screen("HOME=" ++ Home ++ " ../bin/ern --shell",
+    Screen = screen("HOME=" ++ Home ++ " ../bin/ern shell",
                     [{expect, "> "},
                      {send, hex("1 +\r")},                % the parser wants more
                      {expect, "... "},
@@ -332,7 +332,7 @@ paste_test_() ->
     {timeout, 90, fun paste/0}.
 
 paste() ->
-    Screen = screen(alone("../bin/ern --shell"),
+    Screen = screen(alone("../bin/ern shell"),
                     [{expect, "> "},
                      %% \e[200~ 1 + <CR> 2 \e[201~
                      {send, "1b5b3230307e" ++ hex("1 +") ++ "0d" ++ hex("2") ++ "1b5b3230317e"},
@@ -358,7 +358,7 @@ tabs_test_() ->
     {timeout, 90, fun tabs/0}.
 
 tabs() ->
-    Screen = pty(alone("../bin/ern --shell"),
+    Screen = pty(alone("../bin/ern shell"),
                  [{expect, "> "},
                   %% \e[200~ a <TAB> b \e[201~, which no key could send
                   {send, "1b5b3230307e" ++ hex("a\tb") ++ "1b5b3230317e"},
@@ -393,7 +393,7 @@ completion() ->
              {send, "03"},                            % the next key
              {sleep, 200},
              {send, "04"}],
-    Screen = screen(alone("../bin/ern --shell"), Steps, 30, "16x74"),
+    Screen = screen(alone("../bin/ern shell"), Steps, 30, "16x74"),
     Lines = [L || L <- binary:split(Screen, <<"\n">>, [global]), L =/= <<>>],
     Text = iolist_to_binary(Lines),
     %% the completed name ran
@@ -404,7 +404,7 @@ completion() ->
     %% without it
     ?assertEqual(nomatch, binary:match(Text, <<"List.filterMap :">>)),
     %% it was painted under the line, the candidates with their types
-    Bytes = pty(alone("../bin/ern --shell"), Steps, 30, " --size 16x74"),
+    Bytes = pty(alone("../bin/ern shell"), Steps, 30, " --size 16x74"),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.filter\r\nList.filter : (List(a)">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nList.filterMap : (List(a)">>)).
 
@@ -417,7 +417,7 @@ listing_at_once_test_() ->
     {timeout, 60, fun listing_at_once/0}.
 
 listing_at_once() ->
-    Bytes = pty(alone("../bin/ern --shell"),
+    Bytes = pty(alone("../bin/ern shell"),
                 [{expect, "> "},
                  {send, hex(":") ++ "09"},                % one Tab
                  {expect, " more"},
@@ -441,7 +441,7 @@ shift_tab_test_() ->
 
 shift_tab() ->
     ShiftTab = "1b5b5a",
-    Bytes = pty(alone("../bin/ern --shell"),
+    Bytes = pty(alone("../bin/ern shell"),
                     [{expect, "> "},
                      {send, hex("List.map") ++ ShiftTab},
                      {expect, "The function applied to each element, in order."},
@@ -501,7 +501,7 @@ command_argument() ->
     ok = file:write_file(filename:join([Root, "http", "parser.ern"]), "export let one = 1\n"),
     ok = file:write_file(filename:join(Root, "demo.ern"), "export let two = 2\n"),
     ok = filelib:ensure_path(filename:join(Root, "Bad")),
-    Bytes = pty(alone("../bin/ern --shell --source-root " ++ Root),
+    Bytes = pty(alone("../bin/ern shell --source-root " ++ Root),
                 [{expect, "> "},
                  {send, hex(":bindings") ++ "09"},        % whole, and takes nothing
                  {expect, "what the session declares"},
@@ -559,7 +559,7 @@ shift_tab_colour_test_() ->
     {timeout, 60, fun shift_tab_colour/0}.
 
 shift_tab_colour() ->
-    Raw = raw(alone("../bin/ern --shell"),
+    Raw = raw(alone("../bin/ern shell"),
               [{expect, "> "},
                {send, hex("List.map([1], ") ++ "1b5b5a"},
                {expect, "xs : List(a)"},
@@ -607,7 +607,7 @@ tab_mid_row_test_() ->
     {timeout, 60, fun tab_mid_row/0}.
 
 tab_mid_row() ->
-    Bytes = pty(alone("../bin/ern --shell"),
+    Bytes = pty(alone("../bin/ern shell"),
                 [{expect, "> "},
                  {send, hex("let zeta = 1\r")},
                  {expect, "zeta : Int"},
@@ -632,7 +632,7 @@ review_completion_test_() ->
     {timeout, 90, fun review_completion/0}.
 
 review_completion() ->
-    Bytes = pty(alone("../bin/ern --shell"),
+    Bytes = pty(alone("../bin/ern shell"),
                 [{expect, "> "},
                  {send, hex("type Point = Point(x : Int, yval : Int)\r")},
                  %% inputs run in order, so `:bindings`' answer comes after the
@@ -677,7 +677,7 @@ wide_input_test_() ->
     {timeout, 60, fun wide_input/0}.
 
 wide_input() ->
-    Screen = screen(alone("../bin/ern --shell"),
+    Screen = screen(alone("../bin/ern shell"),
                     [{expect, "> "},
                      {send, hex("let longname = \"abcdefghijklmnopqrstuvwxyz0123456789\"")},
                      {expect, "0123456789"},
@@ -702,7 +702,7 @@ load_unreadable() ->
     ok = file:write_file(filename:join(Dir, "bad.ern"), "export fn f() -> Int = 1 \\ 2\n"),
     In = filename:join(Dir, "session.in"),
     ok = file:write_file(In, ":load Bad\n1\n"),
-    {0, Out} = sh(alone("../bin/ern --shell --source-root " ++ Dir) ++ " < " ++ In),
+    {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"bad.ern:1:26: illegal character">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"1 : Int">>)).
 
@@ -721,7 +721,7 @@ load_uncompiled_dependency() ->
     ok = file:write_file(filename:join(Dir, "dep.ern"), "export fn f() -> Int = 1\n"),
     In = filename:join(Dir, "session.in"),
     ok = file:write_file(In, ":load Top\n1\n"),
-    {0, Out} = sh(alone("../bin/ern --shell --source-root " ++ Dir) ++ " < " ++ In),
+    {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"compile Dep first">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"1 : Int">>)).
 
@@ -737,7 +737,7 @@ host_reserved_names() ->
     ok = file:write_file(In, ["let module_info = 1\n", "fn record_info(x : Int) -> Int = x\n",
                               "module_info + record_info(2)\n", "let f = record_info\n",
                               "f(5)\n"]),
-    {0, Out} = sh(alone("../bin/ern --shell") ++ " < " ++ In),
+    {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"3 : Int">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"5 : Int">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"fault">>)).
@@ -763,7 +763,7 @@ input_module_unloaded() ->
         "let _ = spawn(Local, fn() -> Unit with Never = {"
         " let _ = receive { after 300 -> Unit }; Io.println(\"late\") })\n",
         "receive { after 600 -> Unit }\n"]),
-    {0, Out} = sh(alone("../bin/ern --shell") ++ " < " ++ In),
+    {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
     [Before, After] = [binary_to_integer(N) || {match, [N]} <-
                            [re:run(L, "^> ([0-9]+) : Int$", [{capture, all_but_first, binary}])
                             || L <- binary:split(Out, <<"\n">>, [global])],
@@ -791,7 +791,7 @@ input_numbers_reused() ->
                               " \"erlang:system_info/1\"\n", Info,
                               [["1 + ", integer_to_list(I), "\n"] || I <- lists:seq(1, 200)],
                               Info]),
-    {0, Out} = sh(alone("../bin/ern --shell") ++ " < " ++ In),
+    {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
     [Before, After] = [binary_to_integer(N) || {match, [N]} <-
                            [re:run(L, "^> ([0-9]{5,}) : Int$", [{capture, all_but_first, binary}])
                             || L <- binary:split(Out, <<"\n">>, [global])]],
@@ -805,7 +805,7 @@ refusal_colour_test_() ->
     {timeout, 60, fun refusal_colour/0}.
 
 refusal_colour() ->
-    Raw = raw(alone("../bin/ern --shell"),
+    Raw = raw(alone("../bin/ern shell"),
               [{expect, "> "},
                {send, hex(":sreload\r")},
                {expect, "no command"},
@@ -834,7 +834,7 @@ context_test_() ->
     {timeout, 90, fun context/0}.
 
 context() ->
-    Screen = screen(alone("../bin/ern --shell"),
+    Screen = screen(alone("../bin/ern shell"),
                     [{expect, "> "},
                      {send, hex("type Zebra = Zebra(width : Int, height : Int)\r")},
                      %% the echo of a declaration holds its own name, so
@@ -887,7 +887,7 @@ open_binding() ->
                          "send(q, 1)\n"
                          "kill(q)\n"
                          "1 + 1\n"),
-    {0, Out} = sh("../bin/ern --shell < " ++ In),
+    {0, Out} = sh("../bin/ern shell < " ++ In),
     %% the open binding is refused, and says what would settle it
     ?assertMatch({_, _}, binary:match(Out, <<"the type of p is not determined">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"bind it with an annotation">>)),
@@ -919,7 +919,7 @@ later_member() ->
                              "Coin.compare(Coin(3), Coin(2))\n"
                              "type Coin = Coin(Float)\n"
                              "Coin(1.0) + Coin(2.0)\n"),
-    {0, Out} = sh("../bin/ern --shell < " ++ In),
+    {0, Out} = sh("../bin/ern shell < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"Coin(3) : Coin">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"true : Bool">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"Greater : Ordering">>)),
@@ -932,11 +932,11 @@ input_reads_line_test_() ->
 input_reads_line() ->
     In = filename:join("/tmp", "ern_read_" ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = file:write_file(In, "Io.readLine()\n1 + 1\n"),
-    {0, Out} = sh("../bin/ern --shell < " ++ In),
+    {0, Out} = sh("../bin/ern shell < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"the shell holds the terminal">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"Some(\"1 + 1\")">>)),
-    Screen = pty(alone("../bin/ern --shell"),
+    Screen = pty(alone("../bin/ern shell"),
                  [{expect, "> "},
                   {send, hex("Io.readLine()\r")},
                   {expect, "shell holds the terminal"},
@@ -960,7 +960,7 @@ reply_input() ->
                               Take, "\n",
                               "let x = ", Take, "\n",
                               "1 + 1\n"]),
-    {0, Out} = sh("../bin/ern --shell < " ++ In),
+    {0, Out} = sh("../bin/ern shell < " ++ In),
     Refused = binary:matches(Out, <<"an input's value cannot carry a reply">>),
     ?assertEqual(2, length(Refused)),
     ?assertEqual(nomatch, binary:match(Out, <<"Stop : Req">>)),
@@ -985,7 +985,7 @@ pattern_let() ->
                              "let Some(y) = Some(1)\n"
                              "let x <- Some(1)\n"
                              "let #(e, f) = #([], [])\n"),
-    {0, Out} = sh("../bin/ern --shell < " ++ In),
+    {0, Out} = sh("../bin/ern shell < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"> a : Int\nb : String\n> 2 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"n : String\ng : Int\np : P\n> 36 : Int\n">>)),
     %% `let _ = 5` prints nothing and binds nothing
@@ -1013,7 +1013,7 @@ effect_variable() ->
                              "f(2)\n"
                              "fn g() -> Int with e = receive { after 5 -> 5 }\n"
                              ":type g\n"),
-    {0, Out} = sh("../bin/ern --shell < " ++ In),
+    {0, Out} = sh("../bin/ern shell < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"> 5 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"the type of h is not determined by this input;"
                                              " it is () -> Unit with e">>)),
@@ -1032,9 +1032,9 @@ library_file() ->
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(filename:join(Dir, "twice.ern"), "export fn of(n : Int) -> Int = 2 * n\n"),
     ok = file:write_file(filename:join(Dir, "in"), "Twice.of(21)\n"),
-    {0, _} = sh("../bin/ernc --source-root " ++ Dir ++ " --out-dir " ++ Dir ++ " "
+    {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " --build-root " ++ Dir ++ " "
                 ++ filename:join(Dir, "twice.ern")),
-    {0, Out} = sh("HOME=" ++ Dir ++ " ../bin/ern --shell " ++ filename:join(Dir, "twice.erc")
+    {0, Out} = sh("HOME=" ++ Dir ++ " ../bin/ern shell " ++ filename:join(Dir, "twice.erc")
                   ++ " < " ++ filename:join(Dir, "in")),
     ?assertMatch({_, _}, binary:match(Out, <<"42 : Int">>)).
 
@@ -1052,14 +1052,14 @@ non_entry_main() ->
     ok = file:write_file(filename:join(Dir, "main.ern"),
                          "export fn main() -> Int with m = { Io.println(\"spawned\"); 3 }\n"),
     ok = file:write_file(filename:join(Dir, "in"), "1 + 1\n"),
-    {0, _} = sh("../bin/ernc --source-root " ++ Dir ++ " --out-dir " ++ Dir ++ " "
+    {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " --build-root " ++ Dir ++ " "
                 ++ filename:join(Dir, "main.ern")),
     Erc = filename:join(Dir, "main.erc"),
-    {0, Out} = sh("HOME=" ++ Dir ++ " ../bin/ern --shell " ++ Erc
+    {0, Out} = sh("HOME=" ++ Dir ++ " ../bin/ern shell " ++ Erc
                   ++ " < " ++ filename:join(Dir, "in")),
     ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"spawned">>)),
-    {1, Refused} = sh("HOME=" ++ Dir ++ " ../bin/ern --shell --main Main.main " ++ Erc
+    {1, Refused} = sh("HOME=" ++ Dir ++ " ../bin/ern shell --main Main.main " ++ Erc
                       ++ " < " ++ filename:join(Dir, "in")),
     ?assertMatch({_, _}, binary:match(Refused, <<"Main.main is not an entry point: its type is"
                                                  " () -> Int with m">>)).
@@ -1074,7 +1074,7 @@ prelude_doc_test_() ->
 prelude_doc() ->
     In = filename:join("/tmp", "ern_pdoc_" ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = file:write_file(In, ":doc monitor\n:doc Down\n:doc Sys.stdout\n:doc Int.compare\n"),
-    {0, Out} = sh("../bin/ern --shell < " ++ In),
+    {0, Out} = sh("../bin/ern shell < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"> monitor\n\n    monitor : ">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"type Down = Down(reason : Reason">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> Sys.stdout\n">>)),
@@ -1093,7 +1093,7 @@ one_name_type() ->
     In = filename:join("/tmp", "ern_name_" ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = file:write_file(In, ":type Io.readLine\n:type spawn\nIo.readLine\n"
                              ":type List.map([1], fn(x) = x)\n"),
-    {0, Out} = sh("../bin/ern --shell < " ++ In),
+    {0, Out} = sh("../bin/ern shell < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"Io.readLine : () -> Optional(String) with m\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"spawn : (Where, () -> Unit with n) -> Address(n)"
                                              " with m\n">>)),
@@ -1125,7 +1125,7 @@ doc_every_name() ->
                               ":doc zeta\n", ":doc sz\n", ":doc Leaf\n", ":doc Accept\n",
                               ":doc Some\n", ":doc Fs\n", ":load M\n", ":doc M.Red\n",
                               ":doc M\n", ":doc Sys\n", ":doc List\n"]),
-    {0, Out} = sh(alone("../bin/ern --shell --source-root " ++ Root) ++ " < " ++ In),
+    {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Root) ++ " < " ++ In),
     ?assertEqual(nomatch, binary:match(Out, <<"no documentation">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"Input">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> zeta\n\n    zeta : Int\n">>)),
@@ -1162,7 +1162,7 @@ session_names() ->
                               "fn start() -> Address(Int) with m = spawn(Local, fn() = ", Wait,
                               ")\n", "start()\n", "spawn(Local, fn() = ", Wait, ")\n",
                               ":processes\n"]),
-    {0, Out} = sh(alone("../bin/ern --shell") ++ " < " ++ In),
+    {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"> 1 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"input:1\nstart:1\n">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"Input">>)).
@@ -1197,7 +1197,7 @@ typing_ahead_test_() ->
     {timeout, 60, fun typing_ahead/0}.
 
 typing_ahead() ->
-    Screen = screen(alone("../bin/ern --shell"),
+    Screen = screen(alone("../bin/ern shell"),
                     [{expect, "> "},
                      {send, hex("receive { after 500 -> 1 }\r")},
                      {send, hex("2 + 2\r")},             % typed while the first runs
@@ -1236,7 +1236,7 @@ reload() ->
                               ":reload\n",
                               "Demo.answer()\n",
                               ":processes\n"]),
-    {0, Out} = sh("../bin/ern --shell --source-root " ++ Dir ++ " --load-path " ++ Dir
+    {0, Out} = sh("../bin/ern shell --source-root " ++ Dir ++ " --load-path " ++ Dir
                   ++ " < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"Demo, compiled from demo.ern">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"1 : Int">>)),
@@ -1295,7 +1295,7 @@ reload_all_or_nothing() ->
                               ":reload\n",
                               "Alpha.answer() + 20\n",
                               "Beta.answer() + 30\n"]),
-    {0, Out} = sh(alone("../bin/ern --shell --source-root " ++ Dir) ++ " < " ++ In),
+    {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"beta.ern:1:">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"nothing was reloaded">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> 11 : Int">>)),
@@ -1328,7 +1328,7 @@ load_loaded() ->
     In = filename:join(Dir, "session.in"),
     ok = file:write_file(In, [":load Demo\n", "spawn(Local, fn() = Demo.tick())\n",
                               ":load Demo\n", ":load Demo\n", ":processes\n"]),
-    {0, Out} = sh(alone("../bin/ern --shell --source-root " ++ Dir) ++ " < " ++ In),
+    {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ In),
     ?assertEqual(2, count(Out, <<"Demo is loaded already; :reload compiles it again">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"input:1\n">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"no process of the session's is running">>)).
@@ -1350,12 +1350,12 @@ input_namespace() ->
     ok = file:write_file(In, ["fn f() -> Int = 1\n", "let x = 2\n", ":load Input1\n",
                               ":load Bindings2\n", "f() + x\n", "Input1.answer()\n",
                               "Bindings2.answer()\n"]),
-    {0, Out} = sh(alone("../bin/ern --shell --source-root " ++ Dir) ++ " < " ++ In),
+    {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"> 3 : Int">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> 7 : Int">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> 8 : Int">>)).
 
-%% report §11.2, §11.1: `:load` finds what the module uses as `ernc`
+%% report §11.2, §11.1: `:load` finds what the module uses as `ern build`
 %% finds it, on every root of the load path. A regression test: the
 %% compiler the shell calls read the dependencies' interfaces from the
 %% first root alone, and did not look on the load path for a dependency
@@ -1372,11 +1372,11 @@ load_path_dependency() ->
     ok = file:write_file(filename:join(Lib, "dep.ern"), answer(5)),
     ok = file:write_file(filename:join(Src, "user.ern"),
                          "export fn twice() -> Int = Dep.answer() * 2\n"),
-    {0, _} = sh("../bin/ernc --source-root " ++ Lib ++ " --out-dir " ++ Second ++ " "
+    {0, _} = sh("../bin/ern build --source-root " ++ Lib ++ " --build-root " ++ Second ++ " "
                 ++ filename:join(Lib, "dep.ern")),
     In = filename:join(Dir, "session.in"),
     ok = file:write_file(In, [":load User\n", "User.twice()\n"]),
-    {0, Out} = sh(alone("../bin/ern --shell --source-root " ++ Src ++ " --load-path " ++ First
+    {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Src ++ " --load-path " ++ First
                         ++ " --load-path " ++ Second) ++ " < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"User, compiled from user.ern">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> 10 : Int">>)).
@@ -1484,7 +1484,7 @@ terminal() ->
            " fn(a, b) = a + b) }",
     %% every step waits for what the screen shows, so that a shell slower
     %% under load is waited for rather than raced
-    Screen = pty(alone("../bin/ern --shell"),
+    Screen = pty(alone("../bin/ern shell"),
                  [{expect, "> "},
                   {send, hex("1 + 5")},
                   {expect, "1 + 5"},
@@ -1513,7 +1513,7 @@ no_home_test_() ->
 
 no_home() ->
     {ok, Version} = file:read_file("../VERSION"),
-    Screen = pty("env -u HOME ../bin/ern --shell",
+    Screen = pty("env -u HOME ../bin/ern shell",
                  [{expect, "HOME is not set"},
                   {send, hex("1 + 1\r")},
                   {expect, "2 : Int"},

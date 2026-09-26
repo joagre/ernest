@@ -6,7 +6,7 @@ This guide teaches Ernest to a programmer who knows another language, and it nee
 
 Ernest is a functional language for concurrent programs, built on two ideas. A pure function computes a value from its arguments and does nothing else, and the compiler infers its type. A process runs a function and receives messages of one type in its mailbox, and processes are how a program acts on the world. A function that sends or receives says so in its type, and runs only in a process. Every other rule says how the two appear in each other's code.
 
-The rules let the compiler find, before the program runs, the mistakes concurrent programs are prone to. Four follow, each as a program and what `ernc`, the compiler, says about it.
+The rules let the compiler find, before the program runs, the mistakes concurrent programs are prone to. Four follow, each as a program and what `ern build`, the compiler, says about it.
 
 **A message the process does not take.** The counter receives `CounterMsg`, so the address `spawn` returns takes a `CounterMsg` and nothing else.
 
@@ -25,7 +25,7 @@ export fn main() -> Unit with Never = {
 ```
 
 ```console
-$ ernc message.ern
+$ ern build message.ern
 message.ern:10:13: the argument does not fit send: expected CounterMsg, found String
  9 |     let c = spawn(Local, fn() = counter(0));
 10 |     send(c, "increment")
@@ -47,7 +47,7 @@ fn counter(n : Int) -> Unit with CounterMsg = receive {
 ```
 
 ```console
-$ ernc forgot.ern
+$ ern build forgot.ern
 forgot.ern:5:5: the reply-carrying value r is never consumed
 4 |     Inc(k) -> counter(n + k)
 5 |   | Get(reply = r) -> counter(n)
@@ -64,7 +64,7 @@ fn area(w : Int, h : Int) -> Int = {
 ```
 
 ```console
-$ ernc area.ern
+$ ern build area.ern
 area.ern:2:5: Io.println needs a process, and area is pure
 1 | fn area(w : Int, h : Int) -> Int = {
   |                              --- `-> Int` with no `with` declares area pure
@@ -83,7 +83,7 @@ export fn main() -> Unit with Never = {
 ```
 
 ```console
-$ ernc notes.ern
+$ ern build notes.ern
 notes.ern:2:5: this statement's value is discarded: expected Unit, found Either(IoError, Unit)
 1 | export fn main() -> Unit with Never = {
 2 |     Fs.write(Path("notes.txt"), String.toUtf8("buy milk"), 1000);
@@ -111,12 +111,12 @@ export fn main() -> Unit with Never = Io.println("hello, world")
 Compile and run:
 
 ```console
-$ ernc hello.ern         # produces hello.erc
-$ ern hello.erc          # runs main()
+$ ern build hello.ern         # produces hello.erc
+$ ern run hello.erc          # runs main()
 hello, world
 ```
 
-`ernc` compiles a `.ern` file to a compiled module, `.erc`. `ern` loads it and the modules it uses, the standard library among them, starts the runtime's processes, and calls `main`. §9 lists both tools' options.
+`ern` is the whole toolchain, and its first word is the job. `ern build` compiles a `.ern` file to a compiled module, `.erc`. `ern run` loads it and the modules it uses, the standard library among them, starts the runtime's processes, and calls `main`. §9 lists each job's options.
 
 ### 1.1 What the line says
 
@@ -134,10 +134,10 @@ Two ways of writing `with` follow, and the guide's programs use both. A function
 
 ### 1.2 The shell
 
-`ern --shell` starts a shell. An input is an expression, a declaration, or a `let`. It is checked and run when it is entered, after any input still running, and an expression's value is printed with its type and kept as `it`.
+`ern shell` starts a shell. An input is an expression, a declaration, or a `let`. It is checked and run when it is entered, after any input still running, and an expression's value is printed with its type and kept as `it`.
 
 ```console
-$ ern --shell
+$ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > 1 + 2
 3 : Int
@@ -153,7 +153,7 @@ square : (Int) -> Int
 hello
 ```
 
-A value of type `Unit` prints nothing, so the last input shows only what it wrote. A command begins with `:`. `:type e` prints the type of `e` without running it, `:doc List.sort` prints the documentation of `List.sort`, and `:help` lists the rest. `ern --shell hello.erc` starts the shell with `hello`'s module in scope and its `main` running beside it. A module without `main` is put in scope with nothing running, to be tried at the prompt.
+A value of type `Unit` prints nothing, so the last input shows only what it wrote. A command begins with `:`. `:type e` prints the type of `e` without running it, `:doc List.sort` prints the documentation of `List.sort`, and `:help` lists the rest. `ern shell hello.erc` starts the shell with `hello`'s module in scope and its `main` running beside it. A module without `main` is put in scope with nothing running, to be tried at the prompt.
 
 At a terminal the shell edits the line with Readline's Emacs keys, and keeps a history across sessions that `C-r` searches. An input the parser cannot finish takes another line. What programs write appears in a region at the foot of the screen, apart from the inputs, and a process that faults is reported at the prompt with the place it was spawned. A fault, an error, and a refused command are shown in red and a result's type dimmed, and documentation is styled, unless the environment sets `NO_COLOR`. A line wider than the screen wraps as it is typed.
 
@@ -173,7 +173,7 @@ export fn main() -> Unit with Never = match Io.readLine() {
 ```
 
 ```console
-$ printf 'hello\nworld\n' | ern upper.erc
+$ printf 'hello\nworld\n' | ern run upper.erc
 HELLO
 WORLD
 ```
@@ -213,7 +213,7 @@ Everything in Ernest is immutable. Bindings introduce names; there is no assignm
 A raw string, between backticks, is taken exactly as written, with no escapes. It is the form for text full of backslashes or quotes, and for text over several lines, since a line break in it is part of the text. The shell prints a string as a `"..."` literal, so it shows what the raw string saved writing:
 
 ```console
-$ ern --shell
+$ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > let number = `\d+(\.\d+)?`
 number : String
@@ -230,7 +230,7 @@ number : String
 At the prompt, as in a block, `let` binds a name:
 
 ```console
-$ ern --shell
+$ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > let x = 5
 x : Int
@@ -292,7 +292,7 @@ Three shapes of constructor, with different usage:
 For constructors that carry several things, name each field:
 
 ```console
-$ ern --shell
+$ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > type Person = Person(name : String, age : Int)
 type Person
@@ -317,7 +317,7 @@ A type with several constructors has a field only where every constructor has it
 **Lists** are `List(a)`, with `[]` for the empty list and `::`, right-associative, to add an element in front. **Tuples** are `#(...)`, of fixed size and positional. **Maps and sets** have no literal syntax and are built with functions. In the session, `|>` passes a value on as the first argument (§2.8), and `fn(v) = ...` is a function written in place (§3.2):
 
 ```console
-$ ern --shell
+$ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > let xs = 1 :: [2, 3]
 xs : List(Int)
@@ -354,7 +354,7 @@ export fn main() -> Unit with Never =
 ```
 
 ```console
-$ ern money.erc
+$ ern run money.erc
 cheaper
 ```
 
@@ -363,7 +363,7 @@ cheaper
 The same patterns appear in `match` clauses, `let` bindings, and function parameters. A `let` and a parameter need an *irrefutable* pattern, one that cannot fail to match: a name, `_`, a tuple of irrefutable patterns, the only constructor of its type with irrefutable fields, or an irrefutable pattern with `as`, which comes below.
 
 ```console
-$ ern --shell
+$ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > let #(x, y) = #(3, 4)
 x : Int
@@ -383,7 +383,7 @@ h : Int
 A name in a pattern *introduces* a binding; it does not compare with a variable already bound. To compare, use a guard:
 
 ```console
-$ ern --shell
+$ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > let x = 3
 x : Int
@@ -454,7 +454,7 @@ A block is an `Optional` chain or an `Either` chain, never both. To run a step t
 Ernest's stdlib is subject-first. `|>` reads left-to-right:
 
 ```console
-$ ern --shell
+$ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > "abc" |> String.toList |> List.reverse |> String.fromList
 "cba" : String
@@ -481,7 +481,7 @@ What a type does not say, the entry in Appendix E does: `List.sort` is stable, `
 Sections 2 to 5 build one program, a word counter, a stage in each. Here it is values at the prompt: a text, its words, and a count kept in a map.
 
 ```console
-$ ern --shell
+$ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > let text = "the cat and the hat"
 text : String
@@ -502,7 +502,7 @@ Map.fromList([#("the", 2)]) : Map(String, Int)
 Given:
 
 ```console
-$ ern --shell
+$ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > type Person = Person(name : String, age : Int)
 type Person
@@ -532,7 +532,7 @@ Function arity is fixed and part of the type. `hypotenuseSquared(3, 4)` is `25`.
 ### 3.2 Lambdas and closures
 
 ```console
-$ ern --shell
+$ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > let add1 = fn(x) = x + 1
 add1 : (Int) -> Int
@@ -594,7 +594,7 @@ The process operations, `self`, `send`, `spawn`, `receive`, `answer`, `Address.c
 `spawn`'s callback has type `() -> Unit with n`, and the `n` is also the mailbox of the `Address(n)` it returns. A pure function fits wherever one with a mailbox type is expected, so a pure callback is spawned too, and its mailbox is whatever the address is used as. When nothing says, the type of the address is not determined. A process that never receives is spawned with the mailbox `Never`:
 
 ```console
-$ ern --shell
+$ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type spawn
 spawn : (Where, () -> Unit with n) -> Address(n) with m
@@ -627,11 +627,11 @@ fn byCount(#(w1, c1) : #(String, Int), #(w2, c2) : #(String, Int)) -> Ordering =
     if c1 != c2 then Int.compare(c2, c1) else String.compare(w1, w2)
 ```
 
-`words` splits on spaces and drops the empty strings two spaces leave. `count` folds the words into a map with `add`. `top` sorts the pairs by count, most first and by word where counts are equal, and keeps `n` of them. `byCount` is not exported, and its parameters are patterns that take the pairs apart. `ern --shell words.erc` loads the module and runs nothing, since it has no `main`:
+`words` splits on spaces and drops the empty strings two spaces leave. `count` folds the words into a map with `add`. `top` sorts the pairs by count, most first and by word where counts are equal, and keeps `n` of them. `byCount` is not exported, and its parameters are patterns that take the pairs apart. `ern shell words.erc` loads the module and runs nothing, since it has no `main`:
 
 ```console
-$ ernc words.ern
-$ ern --shell words.erc
+$ ern build words.ern
+$ ern shell words.erc
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > Words.count("the cat and the hat")
 Map.fromList([#("and", 1), #("cat", 1), #("hat", 1), #("the", 2)]) : Map(String, Int)
@@ -690,7 +690,7 @@ fn twice(dst : Address(CounterMsg), msg : CounterMsg) -> Unit with m = {
 ```
 
 ```console
-$ ernc resend.ern
+$ ern build resend.ern
 resend.ern:5:15: the reply-carrying value msg is consumed twice
 4 |     send(dst, msg);
 5 |     send(dst, msg)
@@ -721,7 +721,7 @@ If a `Wake` is already in the mailbox, `waitForData` leaves it there and waits f
 Synchronous request-reply, used from the caller side:
 
 ```console
-$ ern --shell
+$ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type Address.call
 Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
@@ -765,7 +765,7 @@ export fn main() -> Unit with MainMsg = {
 ```
 
 ```console
-$ ern queue.erc
+$ ern run queue.erc
 took 7
 ```
 
@@ -795,8 +795,8 @@ export fn main() -> Unit with Never = {
 ```
 
 ```console
-$ ernc counter.ern
-$ ern counter.erc
+$ ern build counter.ern
+$ ern run counter.erc
 count is 8
 ```
 
@@ -861,8 +861,8 @@ export fn main() -> Unit with Never = {
 ```
 
 ```console
-$ ernc counter.ern
-$ ern counter.erc
+$ ern build counter.ern
+$ ern run counter.erc
 before upgrade: 8
 after upgrade: 10
 ```
@@ -886,8 +886,8 @@ export fn tally(counts : Map(String, Int)) -> Unit with TallyMsg = receive {
 `Add` brings a map of counts, and `Map.foldLeft` adds each word's count in with `add`, which takes the map, a word, and a count, the order the fold gives them. `Top` is a request, so it carries a `Reply`.
 
 ```console
-$ ernc words.ern
-$ ern --shell words.erc
+$ ern build words.ern
+$ ern shell words.erc
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > let t = spawn(Local, fn() = Words.tally(Map.empty))
 t : Address(Words.TallyMsg)
@@ -948,7 +948,7 @@ The output is likely `ping 3`, `pong 3`, `ping 2`, and so on, but not certain. M
 ### 5.2 `monitor` and `Down`
 
 ```console
-$ ern --shell
+$ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type monitor
 monitor : (Address(a), (Down) -> m) -> Unit with m
@@ -995,7 +995,7 @@ export fn main() -> Unit with MainMsg = {
 ```
 
 ```console
-$ ern runs.erc
+$ ern run runs.erc
 run 1: 1
 run 2: 4
 ```
@@ -1007,7 +1007,7 @@ A fault in one process does not affect another, apart from the three cases of §
 ### 5.3 `kill`
 
 ```console
-$ ern --shell
+$ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type kill
 kill : (Address(a)) -> Unit with m
@@ -1026,7 +1026,7 @@ When every process waits in a `receive` that nothing can ever satisfy, the progr
 Between your own processes the general form is `via`:
 
 ```console
-$ ern --shell
+$ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type via
 via : ((a) -> b, Address(b)) -> Address(a)
@@ -1095,8 +1095,8 @@ fn collect(totals : Address(TallyMsg), left : Int) -> Unit with MainMsg =
 ```
 
 ```console
-$ ernc words.ern
-$ ern words.erc
+$ ern build words.ern
+$ ern run words.erc
 the 4
 and 2
 cat 2
@@ -1143,7 +1143,7 @@ export fn main() -> Unit with Never = {
 ```
 
 ```console
-$ ern config.erc
+$ ern run config.erc
 port 8080, 4 workers
 no config: workers is not a number
 ```
@@ -1179,7 +1179,7 @@ export fn main() -> Unit with Never = {
 ```
 
 ```console
-$ ern ask.erc
+$ ern run ask.erc
 parsed 42
 refused: forty-two is not a number
 ```
@@ -1209,7 +1209,7 @@ export fn main() -> Unit with MainMsg = {
 ```
 
 ```console
-$ ern faults.erc
+$ ern run faults.erc
 the worker spawned at Faults.main:9 faulted: division by zero
 ```
 
@@ -1247,7 +1247,7 @@ export fn main() -> Unit with SupMsg = supervise([4, 0, 5])
 ```
 
 ```console
-$ ern jobs.erc
+$ ern run jobs.erc
 4: 25
 0: failed, division by zero
 5: 20
@@ -1300,23 +1300,23 @@ export fn main() -> Unit with Never = match Net.Http.parse("GET /") {
 Compile file-by-file and run:
 
 ```console
-$ ernc net/http.ern              # produces net/http.erc
-$ ernc main.ern                  # produces main.erc
-$ ern main.erc                   # net/http.erc is found under main.erc's root, which is on the load path
+$ ern build net/http.ern              # produces net/http.erc
+$ ern build main.ern                  # produces main.erc
+$ ern run main.erc                   # net/http.erc is found under main.erc's root, which is on the load path
 GET /
 ```
 
 Or compile the whole tree at once, into `build/`:
 
 ```console
-$ ernc --out-dir build .         # walks the source tree, writes build/net/http.erc and build/main.erc
-$ ern build/main.erc
+$ ern build --build-root build .         # walks the source tree, writes build/net/http.erc and build/main.erc
+$ ern run build/main.erc
 GET /
 ```
 
 Directory mode compiles the modules in the order their dependencies need, and a second run compiles again only what changed (§9.1).
 
-**The file's path is its namespace.** A file at `a/b/c.ern` under the source root declares the namespace `A.B.C`: each directory and the file name is one lowercase word, and the namespace capitalizes each. A module of two words is a directory, `http/parser.ern` for `Http.Parser`. The source root is `--source-root dir`; without it, the directory `ernc` is given, or for a single file the working directory. A module may not take a namespace the prelude or the standard library has, so `io.ern` at the root is refused (report §4.2, report §11.1).
+**The file's path is its namespace.** A file at `a/b/c.ern` under the source root declares the namespace `A.B.C`: each directory and the file name is one lowercase word, and the namespace capitalizes each. A module of two words is a directory, `http/parser.ern` for `Http.Parser`. The source root is `--source-root dir`; without it, the directory `ern build` is given, or for a single file the working directory. A module may not take a namespace the prelude or the standard library has, so `io.ern` at the root is refused (report §4.2, report §11.1).
 
 **Declarations use local names.** In `net/http.ern`, `export fn parse(...)` declares `parse`, which the code outside reaches as `Net.Http.parse`, and the code inside by either name.
 
@@ -1334,19 +1334,19 @@ let addsTwo = Test(name = "adds two", run = fn() -> TestResult with Never =
 ```
 
 ```console
-$ ernc checks.ern
-$ ern --test checks.erc
+$ ern build checks.ern
+$ ern test checks.erc
 adds two: passed
 ```
 
-`ern --test` runs every test of the module, each in a process of its own, and prints each as passed, failed with its text, or faulted with its cause. A test runs in a process, so it may spawn and send (report §11.2).
+`ern test` runs every test of the module, each in a process of its own, and prints each as passed, failed with its text, or faulted with its cause. A test runs in a process, so it may spawn and send (report §11.2).
 
-**Documenting a module.** A `///` block documents the declaration on the line after it, and one first in the file, with a blank line after it, documents the module. The text is CommonMark; `ernc --doc` renders the module as a page, and the shell's `:doc` shows a declaration's part of it, or a module's head, rendered for the terminal. What a module's documentation contains is report Appendix E.0 rule 6, and [`docs/module_doc_template.md`](docs/module_doc_template.md) shows it on an example module.
+**Documenting a module.** A `///` block documents the declaration on the line after it, and one first in the file, with a blank line after it, documents the module. The text is CommonMark; `ern doc` renders the module as a page, and the shell's `:doc` shows a declaration's part of it, or a module's head, rendered for the terminal. What a module's documentation contains is report Appendix E.0 rule 6, and [`docs/module_doc_template.md`](docs/module_doc_template.md) shows it on an example module.
 
-**Entry point.** `ern main.erc` runs `export fn main`, and `--main` runs another exported function that takes no arguments and returns `Unit`. A project with several programs keeps each entry point in a module of its own:
+**Entry point.** `ern run main.erc` runs `export fn main`, and `--main` runs another exported function that takes no arguments and returns `Unit`. A project with several programs keeps each entry point in a module of its own:
 
 ```console
-$ ern --main Tools.check build/main.erc
+$ ern run --main Tools.check build/main.erc
 ```
 
 ### 7.2 Abstract types
@@ -1374,7 +1374,7 @@ abstract type Stack(a) = Stack(List(a))
 ```
 
 ```console
-$ ernc hidden.ern
+$ ern build hidden.ern
 hidden.ern:1:1: Stack is an abstract type the module keeps private, which hides its constructors from no module
 1 | abstract type Stack(a) = Stack(List(a))
   | ^^^^^^^^
@@ -1404,8 +1404,8 @@ export fn main() = List.foreach([circle(1.0), square(2.0)], fn(s) =
 ```
 
 ```console
-$ ernc shapes.ern
-$ ern shapes.erc
+$ ern build shapes.ern
+$ ern run shapes.erc
 circle 3.14159
 square 4.0
 ```
@@ -1482,8 +1482,8 @@ export fn main() = {
 ```
 
 ```console
-$ ernc --out-dir build .
-$ ern build/main.erc
+$ ern build --build-root build .
+$ ern run build/main.erc
 b a c
 3 1 2
 1 2 3
@@ -1503,14 +1503,14 @@ A program reaches outside its node's Ernest code in two ways: to peers over the 
 
 Peers are the language's, and the toolchain runs one node until they are built, in MVP 3.0. Until then the configuration is not read, `spawn(Peer(name), f)` faults with `peer unreachable`, and `remote` answers `Left(NoRemotePeer)`; §8.1 and §8.2 describe what peers will do.
 
-A node that talks to peers has a configuration, which a node running alone does not need. `ern --create-config-dir .` creates it, once, in `./.ernest/`: `ernest.conf`, with this node's network address, its public key and an empty list of peers, and the private key beside it. The command fails if `./.ernest` exists. A peer is added to the list by editing `ernest.conf` (report Appendix C), and its name is what `Peer(name)` refers to.
+A node that talks to peers has a configuration, which a node running alone does not need. `ern config` creates it, once, in `./.ernest/`: `ernest.conf`, with this node's network address, its public key and an empty list of peers, and the private key beside it. The command fails if `./.ernest` exists. A peer is added to the list by editing `ernest.conf` (report Appendix C), and its name is what `Peer(name)` refers to.
 
 ### 8.1 `remote`
 
 `remote` runs a pure function on a peer the runtime chooses:
 
 ```console
-$ ern --shell
+$ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type remote
 remote : (() -> a) -> Either(RemoteError, a) with m
@@ -1553,7 +1553,7 @@ export fn main() -> Unit with Never = match remote(fn() = heavy(3, 4)) {
 With a peer that `ernest.conf` lists with `"remote-peer": true`, it prints `remote returned 25`. On one node it answers the other case:
 
 ```console
-$ ern remote.erc
+$ ern run remote.erc
 no remote peer configured
 ```
 
@@ -1650,8 +1650,8 @@ export fn main() -> Unit with Never = match lookup("answer") {
 
 ```console
 $ erlc -o build store_helper.erl
-$ ernc --out-dir build store.ern
-$ ern build/store.erc
+$ ern build --build-root build store.ern
+$ ern run build/store.erc
 found 42
 ```
 
@@ -1697,25 +1697,25 @@ Suppose `send(remoteAddr, msg)` returns immediately, and 50 ms later the peer re
 
 ## 9. Tools
 
-Two commands and a shell, and a mode for Emacs. Report §11 defines each option.
+One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --help` lists the jobs and `ern build --help` a job's options; report §11 defines each.
 
-### 9.1 `ernc`, the compiler
+### 9.1 `ern build` and `ern doc`, the compiler
 
-- `ernc hello.ern` compiles one module to `hello.erc`, beside it.
-- `ernc --out-dir build src` compiles every module under `src` in dependency order, mirroring the tree into `build`. A module is compiled again only when its source, an interface it depends on, any interface of the standard library, or the compiler has changed, and a `.erc` whose source is gone is removed.
-- `--source-root dir` names the directory a module's namespace is read from, as §7.1 describes. `--load-path dir` adds compiled modules from outside the tree, such as a library.
-- `--errors short` prints the first line of each error only, `file:line:column: message`, for a tool to read.
-- `--doc file.ern` writes the module's documentation as CommonMark. `--doc src` writes a page for each module under `src` and an `index.md`, and for the standard library's root a `prelude.md` as well.
-- `--emit erl` writes the Erlang the module compiles to, for reading.
+- `ern build hello.ern` compiles one module to `hello.erc`, beside it.
+- `ern build --build-root build src` compiles every module under `src` in dependency order, mirroring the tree into `build`. A module is compiled again only when its source, an interface it depends on, any interface of the standard library, or the compiler has changed, and a `.erc` whose source is gone is removed.
+- `--source-root dir` names the directory a module's namespace is read from, as §7.1 describes. `--load-path dir` adds compiled modules from outside the tree, such as a library, and may be given more than once.
+- `--short-errors` prints the first line of each error only, `file:line:column: message`, for a tool to read.
+- `--emit-erl` writes the Erlang the module compiles to, for reading.
+- `ern doc file.ern` writes the module's documentation as CommonMark. `ern doc src` writes a page for each module under `src` and an `index.md`, and for the standard library's root a `prelude.md` as well.
 
-### 9.2 `ern`, the runner
+### 9.2 `ern run`, `ern test`, `ern shell` and `ern config`
 
-- `ern hello.erc` runs `main` and exits with status 0 when it returns. A fault of the entry process is printed as `fault: ` and its cause, and the status is 1 (§6.3).
+- `ern run hello.erc` runs `main` and exits with status 0 when it returns. A fault of the entry process is printed as `fault: ` and its cause, and the status is 1 (§6.3).
 - `--main Module.name` runs another exported function of no arguments instead of `main`.
 - `--load-path dir` adds compiled modules and Erlang `.beam` files the program needs (§8.5).
-- `--test module.erc` runs the module's tests and exits with status 1 unless all passed (§7.1).
-- `--shell`, with or without a file, starts the shell (§1.2). A file's `main`, or the function `--main` names, runs beside it; a file without either is loaded with nothing running. `--source-root dir` names where `:load` finds a module's source, and `--config-dir dir` the configuration directory.
-- `--create-config-dir .` makes the configuration a node with peers needs (§8).
+- `ern test module.erc` runs the module's tests and exits with status 1 unless all passed (§7.1).
+- `ern shell`, with or without a file, starts the shell (§1.2). A file's `main`, or the function `--main` names, runs beside it; a file without either is loaded with nothing running. `--source-root dir` names where `:load` finds a module's source, and `--config-dir dir` the configuration directory.
+- `ern config` makes the configuration a node with peers needs (§8), in `./.ernest` or the directory `--config-dir` names.
 
 ### 9.3 The shell
 
@@ -1725,7 +1725,7 @@ At a terminal the line is edited with Readline's Emacs keys. `Tab` completes a n
 
 ### 9.4 Emacs
 
-`emacs/ernest-mode.el` highlights Ernest, indents it as the style guide does, and lets `M-x compile` with `ernc` jump to each error. [`docs/emacs_mode.md`](docs/emacs_mode.md) says how to load it and what it leaves to your own configuration.
+`emacs/ernest-mode.el` highlights Ernest, indents it as the style guide does, and lets `M-x compile` with `ern build` jump to each error. [`docs/emacs_mode.md`](docs/emacs_mode.md) says how to load it and what it leaves to your own configuration.
 
 ## 10. From Erlang
 

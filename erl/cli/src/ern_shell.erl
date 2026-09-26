@@ -117,7 +117,7 @@ unfinished({error, #diag{incomplete = Incomplete}}) -> Incomplete;
 unfinished(_) -> false.
 
 %% Report §11.2: an input is checked before it is run; a failure is §11.5's
-%% text, as `ernc` shows it, under the name of where the input came from:
+%% text, as `ern build` shows it, under the name of where the input came from:
 %% `input` for one that was typed, the file's path for one from a startup
 %% file.
 -spec check(#env{}, binary(), pos_integer(), binary()) ->
@@ -803,7 +803,7 @@ not_module(Text) ->
               " letter, as in Http.Parser">>}.
 
 %% Report §11.2, §11.4: the documentation of one declaration, as
-%% `ernc --doc` renders it, read from the module that declares it: an input
+%% `ern doc` renders it, read from the module that declares it: an input
 %% of this session, or a module on the load path.
 -spec doc(#env{}, binary()) -> {'Left', binary()} | {'Right', binary()}.
 doc(Env, Text) ->
@@ -1282,7 +1282,7 @@ processes() ->
     lists:sort([Site || {Pid, Site} <- ern_rt:live(), not lists:member(Pid, Own)]).
 
 %% Report §11.2: `:load` takes a module by its namespace. Its source under
-%% the source root is compiled as `ernc` would compile it and nothing is
+%% the source root is compiled as `ern build` would compile it and nothing is
 %% written; a module with no source there is loaded from its compiled
 %% form, on the load path. Afterwards it is in scope by its qualified
 %% name, as every loaded module is (§4.2). A module the session has loaded
@@ -1519,7 +1519,7 @@ compile_source(#env{source_root = Root} = Env, File) ->
 
 %% Report §11.2, §11.1: where a compiled module is found by its namespace,
 %% one `:load` names or one a module uses: the load path, and then the
-%% source root, which is where `ernc` writes by default.
+%% source root, which is where `ern build` writes by default.
 load_path(#env{roots = Roots, source_root = Root}) ->
     lists:uniq(Roots ++ [filename:absname(Root)]).
 

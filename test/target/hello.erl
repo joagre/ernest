@@ -1,4 +1,4 @@
-%% Target: what ernc produces for examples/hello.ern. Hand-written first, run
+%% Target: what ern build produces for examples/hello.ern. Hand-written first, run
 %% against ern_rt, then the golden test for the emitter. The module atom is
 %% the module's path with @ for / and the prefix ern@, so Ernest never
 %% claims a bare name on the BEAM (plan 2.4); the file is compiled from

@@ -78,7 +78,7 @@ Every part follows the same design: the decisions are pure functions, and the pr
 
 Two of the types are abstract (§4.4): `Shell.Editor.State` and `Shell.Region.Region`. The shell holds them and hands them back, and only their own modules take them apart, so the editor alone keeps the cursor inside the line and the region alone keeps the tail within its rows.
 
-So each of these modules is tested by its `Test` values (§9.3). They are top-level `let`s of type `Test`, found by their type, wherever they stand. `ern --test` runs them, and `make test-shell` runs them for every module. The pure tests cannot reach the wiring between the processes. `test/ern_shell_tests.erl` covers that by running the shell under a pseudo-terminal (`test/ern_pty.py`).
+So each of these modules is tested by its `Test` values (§9.3). They are top-level `let`s of type `Test`, found by their type, wherever they stand. `ern test` runs them, and `make test-shell` runs them for every module. The pure tests cannot reach the wiring between the processes. `test/ern_shell_tests.erl` covers that by running the shell under a pseudo-terminal (`test/ern_pty.py`).
 
 ## The front end
 
@@ -106,9 +106,9 @@ The session's state lives in two places:
 ## Building and trying it
 
 ```
-make                                          # builds the shell into build/shell
-bin/ern --shell                               # a session
-bin/ern --shell build/main.erc                # a session beside a running program
-bin/ern --test build/shell/shell/editor.erc   # one module's tests
-make test-shell                               # every module's tests, and the terminal sessions
+make                                        # builds the shell into build/shell
+bin/ern shell                               # a session
+bin/ern shell build/main.erc                # a session beside a running program
+bin/ern test build/shell/shell/editor.erc   # one module's tests
+make test-shell                             # every module's tests, and the terminal sessions
 ```

@@ -79,7 +79,7 @@ Stated so that nobody looks for it.
 - **Nothing knows the language, only its shape.** No `eldoc`, no `xref`, no completion in
   the buffer, no jump to a definition in another module. `imenu`, `C-M-a` and `C-M-e` work
   inside the file. What a name means is `M-x compile`'s answer.
-- **No `comint` mode over `ern --shell`**, no folding, no `prettify-symbols`, and no keymap
+- **No `comint` mode over `ern shell`**, no folding, no `prettify-symbols`, and no keymap
   of its own: it takes `prog-mode`'s.
 - **It is installed by path, not as a package.** No `Version:` or `Package-Requires:`
   headers, and it is not on MELPA.

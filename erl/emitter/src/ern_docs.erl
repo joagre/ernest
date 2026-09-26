@@ -1,5 +1,5 @@
 %% Report §11.1, §11.4, EEP 48: the documentation chunk "Docs" of a compiled
-%% module, which `ernc --doc`, the shell's `:doc` and the host's own tools
+%% module, which `ern doc`, the shell's `:doc` and the host's own tools
 %% read: how it is built from a checked module, and how it is read back.
 -module(ern_docs).
 
@@ -11,7 +11,7 @@
 chunk_name() ->
     <<"Docs">>.
 
-%% Report §11.1, EEP 48: the module's documentation, read by `ernc --doc`
+%% Report §11.1, EEP 48: the module's documentation, read by `ern doc`
 %% (§11.4) and by the host's own tools. One entry per declaration §11.4
 %% renders, in source order: its signature as the page shows it, its doc
 %% block verbatim, and, for a type, its constructors, fields, and signature

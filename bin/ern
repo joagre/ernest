@@ -1,12 +1,13 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
-%% The Ernest runner, report §11.2. Thin: puts the toolchain's erl/*/ebin,
-%% the standard library's build/stdlib and the shell's build/shell, all
-%% found relative to this script, on the code path, and calls ern_cli.
+%% The Ernest toolchain, report §11: one command whose first word is its
+%% job. Thin: puts the toolchain's erl/*/ebin, the standard library's
+%% build/stdlib and the shell's build/shell, all found relative to this
+%% script, on the code path, and calls ern_cli.
 
 main(Args) ->
     Lib = filename:join([filename:dirname(filename:absname(escript:script_name())), "..", "erl"]),
     code:add_pathsa(filelib:wildcard(filename:join([Lib, "*", "ebin"]))),
     code:add_patha(filename:join([Lib, "..", "build", "stdlib"])),
     code:add_patha(filename:join([Lib, "..", "build", "shell"])),
-    ern_cli:main(ern, Args).
+    ern_cli:main(Args).

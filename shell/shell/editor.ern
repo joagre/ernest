@@ -5,7 +5,7 @@
 // `Escape` and the key after it are `Meta` and that key (§8.2).
 //
 // Pure, and tested on its own: the tests at the foot of this file are
-// what `ern --test` runs (§9.3). The reader holds a `State` and reads it
+// what `ern test` runs (§9.3). The reader holds a `State` and reads it
 // through the functions here, since its constructor is this module's.
 //
 
@@ -350,7 +350,7 @@ fn alphanumeric(text : String, i : Int) -> Bool = match String.toList(String.sli
 }
 
 //
-// The tests (report §9.3), run by `ern --test build/shell/shell/editor.erc`,
+// The tests (report §9.3), run by `ern test build/shell/shell/editor.erc`,
 // which `make test` does. Each plays a list of events onto a fresh line
 // and reads off the text and the cursor.
 //

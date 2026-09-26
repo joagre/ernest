@@ -16,7 +16,7 @@ tmp() ->
 
 %% A tool run with the captured output as its error device, so a test
 %% reads what the user sees on stderr.
-ernc_err(Args) -> ern_cli:ernc(Args, group_leader()).
+build_err(Args) -> ern_cli:ern(["build" | Args], group_leader()).
 ern_err(Args) -> ern_cli:ern(Args, group_leader()).
 
 write(Dir, Rel, Text) ->
@@ -45,16 +45,16 @@ pair(Dir) ->
     Dir.
 
 %%
-%% ernc, report §11.1
+%% ern build, report §11.1
 %%
 
 %% report §11.1, §11.2, §8.1: a file compiles to .erc beside it and runs
 single_file_test() ->
     Dir = tmp(),
     File = write(Dir, "hello.ern", hello()),
-    ?assertEqual(0, ern_cli:ernc(["--source-root", Dir, File])),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     ?assert(filelib:is_regular(filename:join(Dir, "hello.erc"))),
-    ?assertEqual(0, ern_cli:ern([filename:join(Dir, "hello.erc")])),
+    ?assertEqual(0, ern_cli:ern(["run", filename:join(Dir, "hello.erc")])),
     ?assertEqual(<<"hello, world\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §4.1, §4.2, §11.1: a module is one file carrying a namespace;
@@ -62,17 +62,17 @@ single_file_test() ->
 %% mirrored build tree; §11.2 loads the dependency by namespace
 directory_mode_test() ->
     Dir = pair(tmp()),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assert(filelib:is_regular(Dir ++ "/build/net/http.erc")),
     ?assert(filelib:is_regular(Dir ++ "/build/main.erc")),
-    ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"GET /\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §11.1: output mirrors the source root, not the directory argument
 source_root_test() ->
     Dir = pair(tmp()),
-    ?assertEqual(0, ern_cli:ernc(["--source-root", Dir ++ "/src", "--out-dir", Dir ++ "/build",
-                                  Dir ++ "/src/net"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir ++ "/src",
+                                 "--build-root", Dir ++ "/build", Dir ++ "/src/net"])),
     ?assert(filelib:is_regular(Dir ++ "/build/net/http.erc")),
     ?assertNot(filelib:is_regular(Dir ++ "/build/http.erc")).
 
@@ -80,23 +80,24 @@ source_root_test() ->
 %% compiled into the build directory already
 dependency_not_built_test() ->
     Dir = pair(tmp()),
-    ?assertEqual(1, ern_cli:ernc(["--source-root", Dir ++ "/src", "--out-dir", Dir ++ "/build",
-                                  Dir ++ "/src/main.ern"])),
-    ?assertEqual(0, ern_cli:ernc(["--source-root", Dir ++ "/src", "--out-dir", Dir ++ "/build",
-                                  Dir ++ "/src/net"])),
-    ?assertEqual(0, ern_cli:ernc(["--source-root", Dir ++ "/src", "--out-dir", Dir ++ "/build",
-                                  Dir ++ "/src/main.ern"])).
+    ?assertEqual(1, ern_cli:ern(["build", "--source-root", Dir ++ "/src",
+                                 "--build-root", Dir ++ "/build", Dir ++ "/src/main.ern"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir ++ "/src",
+                                 "--build-root", Dir ++ "/build", Dir ++ "/src/net"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir ++ "/src",
+                                 "--build-root", Dir ++ "/build", Dir ++ "/src/main.ern"])).
 
 %% report §11.1: path components below the root are one lowercase word each
 path_shape_test() ->
     Dir = tmp(),
     File = write(Dir, "Net/http.ern", hello()),
-    ?assertEqual(1, ern_cli:ernc(["--source-root", Dir, File])),
+    ?assertEqual(1, ern_cli:ern(["build", "--source-root", Dir, File])),
     ?assertNot(filelib:is_regular(filename:join(Dir, "Net/http.erc"))),
     Dir2 = tmp(),
-    ?assertEqual(1, ern_cli:ernc(["--source-root", Dir2, write(Dir2, "9x.ern", hello())])),
+    ?assertEqual(1, ern_cli:ern(["build", "--source-root", Dir2, write(Dir2, "9x.ern", hello())])),
     Dir3 = tmp(),
-    ?assertEqual(1, ern_cli:ernc(["--source-root", Dir3, write(Dir3, "http_server.ern", hello())])),
+    ?assertEqual(1, ern_cli:ern(["build", "--source-root", Dir3,
+                                 write(Dir3, "http_server.ern", hello())])),
     ?assertNot(filelib:is_regular(filename:join(Dir3, "http_server.erc"))).
 
 %% report §11.1, §4.2: the segment a path component names is the one the
@@ -114,14 +115,14 @@ segment_test() ->
 %% report §11.1, §11.5: a parse error in directory mode is reported as
 %% file:line:column: text, status 1
 %% report §11.1: single-file mode with no --source-root uses the current
-%% directory, so `ernc a.ern` in a project's directory works
+%% directory, so `ern build a.ern` in a project's directory works
 default_root_test() ->
     Dir = tmp(),
     write(Dir, "hello.ern", hello()),
     {ok, Cwd} = file:get_cwd(),
     ok = file:set_cwd(Dir),
     try
-        ?assertEqual(0, ern_cli:ernc(["hello.ern"])),
+        ?assertEqual(0, ern_cli:ern(["build", "hello.ern"])),
         ?assert(filelib:is_regular(filename:join(Dir, "hello.erc")))
     after
         file:set_cwd(Cwd)
@@ -132,7 +133,7 @@ default_root_test() ->
 parse_error_test() ->
     Dir = tmp(),
     File = write(Dir, "a.ern", "export fn f() -> Int = \n"),
-    ?assertEqual(1, ernc_err(["--out-dir", Dir ++ "/build", Dir])),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir])),
     Out = iolist_to_binary(?capturedOutput),
     ?assertEqual(<<(list_to_binary(File))/binary, ":2:1: expected an expression instead of"
                    " end of input\n1 | export fn f() -> Int = \n2 | \n  | ^\n\n">>,
@@ -147,10 +148,10 @@ appendix_d_library_test() ->
     [Lib, Main | _] = appendix_d_blocks(),
     write(Dir, "lib/ets.ern", Lib),
     write(Dir, "src/main.ern", Main),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build/lib", Dir ++ "/lib"])),
-    ?assertEqual(0, ern_cli:ernc(["--load-path", Dir ++ "/build/lib", "--out-dir",
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build/lib", Dir ++ "/lib"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--load-path", Dir ++ "/build/lib", "--build-root",
                                   Dir ++ "/build/src", Dir ++ "/src"])),
-    ?assertEqual(0, ern_cli:ern(["--load-path", Dir ++ "/build/lib",
+    ?assertEqual(0, ern_cli:ern(["run", "--load-path", Dir ++ "/build/lib",
                                  Dir ++ "/build/src/main.erc"])),
     ?assertEqual(<<"1\n">>, iolist_to_binary(?capturedOutput)).
 
@@ -166,8 +167,8 @@ foreign_beam_on_load_path_test() ->
     write(Dir, "src/main.ern",
           "foreign fn twice(n : Int) -> Int = \"ern_cli_helper:twice/1\"\n"
           "export fn main() -> Unit with Never = Io.println(Int.toString(twice(21)))\n"),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(0, ern_cli:ern(["--load-path", Dir ++ "/beams", Dir ++ "/build/main.erc"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", "--load-path", Dir ++ "/beams", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"42\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §11.1: without the root that holds a module's dependency, the
@@ -177,8 +178,8 @@ load_path_needed_test() ->
     [Lib, Main | _] = appendix_d_blocks(),
     write(Dir, "lib/ets.ern", Lib),
     write(Dir, "src/main.ern", Main),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build/lib", Dir ++ "/lib"])),
-    ?assertEqual(1, ernc_err(["--out-dir", Dir ++ "/build/src", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build/lib", Dir ++ "/lib"])),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build/src", Dir ++ "/src"])),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
                                       <<"unknown name Ets.new">>)).
 
@@ -214,11 +215,11 @@ operators_across_modules_test() ->
           "    Io.println(Float.toString((a * b) + 0.5));\n"
           "    Io.println(Bool.toString(a < b))\n"
           "}\n"),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"3\n2.5\ntrue\n">>, iolist_to_binary(?capturedOutput)),
     write(Dir, "src/bad.ern", "export fn f(a : Geo.Vec.Vec, b) = a - b\n"),
-    ?assertEqual(1, ernc_err(["--errors", "short", "--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, build_err(["--short-errors", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput),
                                     "bad.ern:1:35: `-` is not defined on Geo.Vec.Vec\n$")),
     ?assertNot(filelib:is_regular(Dir ++ "/build/bad.erc")).
@@ -239,8 +240,8 @@ type_member_across_modules_test() ->
           "    let _ = Io.debug(#(s, 2));\n"
           "    Unit\n"
           "}\n"),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     %% report Appendix E.1: an abstract value outside its module
     ?assertEqual(<<"1\n#(<abstract>, 2)\n">>, iolist_to_binary(?capturedOutput)).
 
@@ -249,12 +250,12 @@ prelude_namespace_test() ->
     Dir = tmp(),
     write(Dir, "src/io.ern", "export fn println(s : String) -> Unit with m = Unit\n"),
     write(Dir, "src/main.ern", hello()),
-    ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertNot(filelib:is_regular(Dir ++ "/build/main.erc")),
     %% nor the name of the prelude itself, which `Prelude.X` reaches
     Dir2 = tmp(),
     write(Dir2, "src/prelude.ern", "export fn f() -> Int = 1\n"),
-    ?assertEqual(1, ernc_err(["--out-dir", Dir2 ++ "/build", Dir2 ++ "/src"])),
+    ?assertEqual(1, build_err(["--build-root", Dir2 ++ "/build", Dir2 ++ "/src"])),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
                                       <<"takes the prelude namespace Prelude">>)).
 
@@ -267,7 +268,7 @@ taken_namespace_names_owner_test() ->
       fun(File) ->
               Dir = tmp(),
               write(Dir, "src/" ++ File, "export fn f() -> Int = 1\n"),
-              ?assertEqual(1, ernc_err(["--out-dir", Dir ++ "/build", Dir ++ "/src"]))
+              ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"]))
       end, ["event.ern", "sys.ern", "io.ern"]),
     Out = iolist_to_binary(?capturedOutput),
     ?assertMatch({_, _}, binary:match(Out, <<"event.ern takes the prelude namespace Event">>)),
@@ -287,8 +288,8 @@ prelude_value_runs_test() ->
           "    Prelude.send(Sys.stdout, Int.toString(send(1)) <> \"\\n\");\n"
           "    say(Sys.stdout, \"two\\n\")\n"
           "}\n"),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"1\ntwo\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §4.2: a module namespace may not coincide with a type namespace
@@ -297,15 +298,15 @@ namespace_clash_test() ->
     Dir = tmp(),
     write(Dir, "src/main.ern", "type Stack = Stack(Int)\n" ++ hello()),
     write(Dir, "src/main/stack.ern", "export fn push(n : Int) -> Int = n\n"),
-    ?assertEqual(1, ernc_err(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertMatch({match, _},
                  re:run(iolist_to_binary(?capturedOutput),
                         "main/stack.ern and type Stack in main.ern share the namespace"
                         " Main.Stack")),
     ?assertNot(filelib:is_regular(Dir ++ "/build/main.erc")),
-    Single = ["--source-root", Dir ++ "/src", "--out-dir", Dir ++ "/build"],
-    ?assertEqual(1, ernc_err(Single ++ [Dir ++ "/src/main.ern"])),
-    ?assertEqual(1, ernc_err(Single ++ [Dir ++ "/src/main/stack.ern"])).
+    Single = ["--source-root", Dir ++ "/src", "--build-root", Dir ++ "/build"],
+    ?assertEqual(1, build_err(Single ++ [Dir ++ "/src/main.ern"])),
+    ?assertEqual(1, build_err(Single ++ [Dir ++ "/src/main/stack.ern"])).
 
 %% report §4.2: where no type of the parent's clashes with it, a module
 %% under the parent's namespace is reached from the parent by its whole
@@ -319,8 +320,8 @@ nested_module_test() ->
           "fn count(i : Main.Stack.Item) -> Int = Main.Stack.push(i)\n"
           "export fn main() -> Unit with m =\n"
           "    Io.println(Int.toString(count(Main.Stack.Item(1))))\n"),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"2\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §8.6, §7.4, §11.2: ern reports a deadlock as the entry process's
@@ -329,8 +330,8 @@ deadlock_test() ->
     Dir = tmp(),
     write(Dir, "src/main.ern",
           "type Msg = Ping\nexport fn main() -> Unit with Msg = receive { Ping -> Unit }\n"),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(1, ern_err([Dir ++ "/build/main.erc"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_err(["run", Dir ++ "/build/main.erc"])),
     ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput), "^fault: deadlock\n")).
 
 %% report §4.4: an abstract type's constructor is not visible outside its module
@@ -340,7 +341,7 @@ abstract_constructor_outside_test() ->
           "export abstract type Stack(a) = Stack(List(a))\n"
           "export let Stack.empty = Stack([])\n" ++ hello()),
     write(Dir, "src/other.ern", "export fn f() -> Main.Stack(Int) = Main.Stack([])\n"),
-    ?assertEqual(1, ernc_err(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertMatch({match, _},
                  re:run(iolist_to_binary(?capturedOutput),
                         "Main.Stack is the constructor of an abstract type and is not visible"
@@ -362,8 +363,8 @@ case_distinct_names_test() ->
           "export fn main() -> Unit with m = Io.println(Int.toString(\n"
           "    STACK.get(STACK(3)) * 100 + Main.STACK.get(STACK(4)) * 10 + Main.Stack.one()))\n"),
     write(Dir, "src/main/stack.ern", "export fn one() -> Int = 1\n"),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"341\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §3.5, §4.4: an abstract type's fields have no selector outside its
@@ -375,7 +376,7 @@ abstract_field_outside_test() ->
           "export let Box.one = Box(n = 1)\n"
           "export fn inside(b : Box) -> Int = b.n\n" ++ hello()),
     write(Dir, "src/other.ern", "export fn g() -> Int = Main.Box.one.n\n"),
-    ?assertEqual(1, ernc_err(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertMatch({match, _},
                  re:run(iolist_to_binary(?capturedOutput),
                         "Main.Box is abstract, and its fields are its module's alone")).
@@ -386,28 +387,28 @@ self_qualified_module_test() ->
     write(Dir, "src/main.ern", "export fn g() -> Int = 1\nexport fn f() -> Int = Main.g()\n"
                                "export fn main() -> Unit with Never ="
                                " Io.println(Int.toString(f()))\n"),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])).
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])).
 
 %% report §4.2: the standard library's own source root may take prelude
 %% namespaces, and no other root may
 stdlib_root_test() ->
     Dir = tmp(),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", "../../../stdlib"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", "../../../stdlib"])),
     ?assert(filelib:is_regular(Dir ++ "/build/bool.erc")),
     write(Dir, "src/bool.ern", "export fn not(b : Bool) -> Bool = b\n"),
-    ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/b2", Dir ++ "/src"])).
+    ?assertEqual(1, ern_cli:ern(["build", "--build-root", Dir ++ "/b2", Dir ++ "/src"])).
 
 %% report §4.2, §11.1: a file under the standard library's source root is
 %% compiled with that root, the default for it; another root is an error
 stdlib_file_takes_its_root_test() ->
     Dir = tmp(),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir, "../../../stdlib/optional.ern"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir, "../../../stdlib/optional.ern"])),
     %% report §11.1: and builds into build/stdlib, where its dependencies are
-    ?assertEqual(0, ern_cli:ernc(["--doc", "../../../stdlib/float.ern"])),
+    ?assertEqual(0, ern_cli:ern(["doc", "../../../stdlib/float.ern"])),
     ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput),
                                     "# Ernest module Float")),
     ?assert(filelib:is_regular(Dir ++ "/optional.erc")),
-    ?assertEqual(1, ern_cli:ernc(["--source-root", "../../..", "--out-dir", Dir,
+    ?assertEqual(1, ern_cli:ern(["build", "--source-root", "../../..", "--build-root", Dir,
                                   "../../../stdlib/optional.ern"])).
 
 %% report §11.2: a failed test's text prints as it was written (a
@@ -417,12 +418,12 @@ test_runner_unicode_test() ->
     write(Dir, "src/checks.ern",
           <<"let dash = Test(name = \"dash\", run = fn() -> TestResult with Never =\n"
             "    Failed(\"a — b\"))\n"/utf8>>),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(1, ern_cli:ern(["--test", Dir ++ "/build/checks.erc"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/checks.erc"])),
     Out = unicode:characters_to_binary(?capturedOutput),
     ?assertMatch({_, _}, binary:match(Out, <<"dash: failed: a — b\n"/utf8>>)).
 
-%% report §9.3, §11.2: ern --test runs every top-level let of type Test,
+%% report §9.3, §11.2: ern test runs every top-level let of type Test,
 %% exported or not, each in its own process, reports each, and exits 1
 %% unless every one passed
 test_runner_test() ->
@@ -435,30 +436,30 @@ test_runner_test() ->
           "    Failed(\"expected 3\"))\n"
           "let divides = Test(name = \"divides\", run = fn() -> TestResult with Never =\n"
           "    if 1 / (add(1, 1) - 2) == 0 then Passed else Passed)\n"),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(1, ern_cli:ern(["--test", Dir ++ "/build/checks.erc"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/checks.erc"])),
     Out = iolist_to_binary(?capturedOutput),
     ?assertMatch({match, _}, re:run(Out, "adds two: passed\n")),
     ?assertMatch({match, _}, re:run(Out, "wrong: failed: expected 3\n")),
     ?assertMatch({match, _}, re:run(Out, "divides: faulted: division by zero\n")),
     write(Dir, "src2/ok.ern",
           "let fine = Test(name = \"fine\", run = fn() -> TestResult with Never = Passed)\n"),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build2", Dir ++ "/src2"])),
-    ?assertEqual(0, ern_cli:ern(["--test", Dir ++ "/build2/ok.erc"])).
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build2", Dir ++ "/src2"])),
+    ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/build2/ok.erc"])).
 
 %% report §4.2: a module may not take a namespace of a standard library
 %% module written in Ernest
 stdlib_namespace_test() ->
     Dir = tmp(),
     write(Dir, "src/erl.ern", "export fn atom(s : String) -> String = s\n"),
-    ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])).
+    ?assertEqual(1, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])).
 
 %% report §4.1, §11.1: a module cycle is an error naming the modules
 module_cycle_test() ->
     Dir = tmp(),
     write(Dir, "a.ern", "export fn f() -> Int = B.g()\n"),
     write(Dir, "b.ern", "export fn g() -> Int = A.f()\n"),
-    ?assertEqual(1, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir])).
+    ?assertEqual(1, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir])).
 
 %% report §4.1, §11.1: a module cycle refused leaves nothing behind in the
 %% process that compiled. A regression test: the graph the order is found
@@ -468,10 +469,10 @@ module_cycle_leaves_no_table_test() ->
     Dir = tmp(),
     write(Dir, "a.ern", "export fn f() -> Int = B.g()\n"),
     write(Dir, "b.ern", "export fn g() -> Int = A.f()\n"),
-    Args = ["--out-dir", Dir ++ "/build", Dir],
-    ?assertEqual(1, ernc_err(Args)),
+    Args = ["--build-root", Dir ++ "/build", Dir],
+    ?assertEqual(1, build_err(Args)),
     Tables = length(ets:all()),
-    ?assertEqual(1, ernc_err(Args)),
+    ?assertEqual(1, build_err(Args)),
     ?assertEqual(Tables, length(ets:all())).
 
 %% report §11.1: a module is recompiled when its source, a dependency's
@@ -479,12 +480,12 @@ module_cycle_leaves_no_table_test() ->
 %% not when only a dependency's bodies changed
 recompile_rule_test() ->
     Dir = pair(tmp()),
-    Args = ["--out-dir", Dir ++ "/build", Dir ++ "/src"],
-    ?assertEqual(0, ern_cli:ernc(Args)),
+    Args = ["--build-root", Dir ++ "/build", Dir ++ "/src"],
+    ?assertEqual(0, ern_cli:ern(["build" | Args])),
     {ok, Main1} = file:read_file(Dir ++ "/build/main.erc"),
     {ok, Http1} = file:read_file(Dir ++ "/build/net/http.erc"),
     %% nothing changed: nothing rewritten
-    ?assertEqual(0, ern_cli:ernc(Args)),
+    ?assertEqual(0, ern_cli:ern(["build" | Args])),
     ?assertEqual({ok, Main1}, file:read_file(Dir ++ "/build/main.erc")),
     %% a body change in the dependency: it is rebuilt, its dependent is not
     write(Dir, "src/net/http.ern",
@@ -492,7 +493,7 @@ recompile_rule_test() ->
           "export fn parse(s : String) -> Optional(Request) =\n"
           "    if s == \"GET /\" then Some(Request(method = \"GET\", path = \"/\"))\n"
           "    else None\n"),
-    ?assertEqual(0, ern_cli:ernc(Args)),
+    ?assertEqual(0, ern_cli:ern(["build" | Args])),
     {ok, Http2} = file:read_file(Dir ++ "/build/net/http.erc"),
     ?assertNotEqual(Http1, Http2),
     ?assertEqual({ok, Main1}, file:read_file(Dir ++ "/build/main.erc")),
@@ -502,25 +503,25 @@ recompile_rule_test() ->
           "export fn parse(s : String) -> Optional(Request) =\n"
           "    if s == \"GET /\" then Some(Request(method = \"GET\", path = \"/\")) else None\n"
           "export fn version() -> Int = 2\n"),
-    ?assertEqual(0, ern_cli:ernc(Args)),
+    ?assertEqual(0, ern_cli:ern(["build" | Args])),
     ?assertNotEqual({ok, Main1}, file:read_file(Dir ++ "/build/main.erc")),
     {ok, Main3} = file:read_file(Dir ++ "/build/main.erc"),
     %% a module built against other standard library interfaces is rebuilt
     ok = file:write_file(Dir ++ "/build/main.erc",
                          forge(Main3, fun(C) -> C#{stdlib => <<"another">>} end)),
-    ?assertEqual(0, ern_cli:ernc(Args)),
+    ?assertEqual(0, ern_cli:ern(["build" | Args])),
     ?assertEqual({ok, Main3}, file:read_file(Dir ++ "/build/main.erc")),
-    %% a module built by another version of ernc is rebuilt
+    %% a module built by another version of ern is rebuilt
     ok = file:write_file(Dir ++ "/build/main.erc",
                          forge(Main3, fun(C) -> C#{compiler => <<"0.0.0">>} end)),
-    ?assertEqual(0, ern_cli:ernc(Args)),
+    ?assertEqual(0, ern_cli:ern(["build" | Args])),
     ?assertEqual({ok, Main3}, file:read_file(Dir ++ "/build/main.erc")),
     %% and one built by another build of this version, whose code changed: a
     %% regression test, since the version alone was compared and a changed
     %% compiler kept what it had built before
     ok = file:write_file(Dir ++ "/build/main.erc",
                          forge(Main3, fun(C) -> C#{compiler => <<?VERSION>>} end)),
-    ?assertEqual(0, ern_cli:ernc(Args)),
+    ?assertEqual(0, ern_cli:ern(["build" | Args])),
     ?assertEqual({ok, Main3}, file:read_file(Dir ++ "/build/main.erc")).
 
 %% A compiled module with its interface chunk changed by F.
@@ -534,37 +535,35 @@ forge(Beam, F) ->
     Forged.
 
 %% report §11.1: the sweep removes .erc files whose source is gone and
-%% directories left empty; --no-clean keeps them; single-file mode does
-%% not sweep
+%% directories left empty; single-file mode does not sweep
 sweep_test() ->
     Dir = pair(tmp()),
-    Args = ["--out-dir", Dir ++ "/build", Dir ++ "/src"],
-    ?assertEqual(0, ern_cli:ernc(Args)),
+    Args = ["--build-root", Dir ++ "/build", Dir ++ "/src"],
+    ?assertEqual(0, ern_cli:ern(["build" | Args])),
     write(Dir, "src/main.ern", hello()),
     ok = file:delete(Dir ++ "/src/net/http.ern"),
-    ?assertEqual(0, ern_cli:ernc(["--no-clean" | Args])),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir ++ "/src",
+                                 "--build-root", Dir ++ "/build", Dir ++ "/src/main.ern"])),
     ?assert(filelib:is_regular(Dir ++ "/build/net/http.erc")),
-    ?assertEqual(0, ern_cli:ernc(["--source-root", Dir ++ "/src", "--out-dir", Dir ++ "/build",
-                                  Dir ++ "/src/main.ern"])),
-    ?assert(filelib:is_regular(Dir ++ "/build/net/http.erc")),
-    ?assertEqual(0, ern_cli:ernc(Args)),
+    ?assertEqual(0, ern_cli:ern(["build" | Args])),
     ?assertNot(filelib:is_dir(Dir ++ "/build/net")),
     ?assert(filelib:is_regular(Dir ++ "/build/main.erc")).
 
-%% report §11.1: --emit erl writes the Erlang source and no .erc
+%% report §11.1: --emit-erl writes the Erlang source and no .erc
 emit_erl_test() ->
     Dir = pair(tmp()),
-    ?assertEqual(0, ern_cli:ernc(["--emit", "erl", "--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--emit-erl", "--build-root", Dir ++ "/build",
+                                 Dir ++ "/src"])),
     {ok, Src} = file:read_file(Dir ++ "/build/net/http.erl"),
     ?assertMatch({_, _}, binary:match(Src, <<"-module(ern@net@http).">>)),
     ?assertNot(filelib:is_regular(Dir ++ "/build/net/http.erc")),
-    ?assertEqual(1, ern_cli:ernc(["--emit", "asm", Dir ++ "/src"])).
+    ?assertEqual(1, ern_cli:ern(["build", "--emit", "asm", Dir ++ "/src"])).
 
 %% report §11.1, §11.5: an error is file:line:column: text, status 1
 compile_error_test() ->
     Dir = tmp(),
     File = write(Dir, "bad.ern", "export fn main() -> Unit with Never = Io.println(1)\n"),
-    ?assertEqual(1, ernc_err(["--source-root", Dir, File])),
+    ?assertEqual(1, build_err(["--source-root", Dir, File])),
     ?assertEqual(<<(list_to_binary(File))/binary, ":1:50: the argument does not fit Io.println:"
                    " expected String, found Int\n"
                    "1 | export fn main() -> Unit with Never = Io.println(1)\n"
@@ -574,21 +573,21 @@ compile_error_test() ->
                  iolist_to_binary(?capturedOutput)),
     ?assertNot(filelib:is_regular(filename:join(Dir, "bad.erc"))).
 
-%% report §11.5: --errors short is the first line alone
+%% report §11.5: --short-errors is the first line alone
 errors_short_test() ->
     Dir = tmp(),
     File = write(Dir, "bad.ern", "export fn main() -> Unit with Never = Io.println(1)\n"),
-    ?assertEqual(1, ernc_err(["--errors", "short", "--source-root", Dir, File])),
+    ?assertEqual(1, build_err(["--short-errors", "--source-root", Dir, File])),
     ?assertEqual(<<(list_to_binary(File))/binary, ":1:50: the argument does not fit Io.println:"
                    " expected String, found Int\n">>,
                  iolist_to_binary(?capturedOutput)).
 
 %% report §11.5: an error prints its source line whole, whatever the line
-%% holds (a regression test: a character outside Latin-1 crashed ernc)
+%% holds (a regression test: a character outside Latin-1 crashed the compiler)
 error_on_unicode_line_test() ->
     Dir = tmp(),
     File = write(Dir, "twice.ern", <<"fn twice(n) = n + n  // Int — or Float\n"/utf8>>),
-    ?assertEqual(1, ernc_err(["--source-root", Dir, File])),
+    ?assertEqual(1, build_err(["--source-root", Dir, File])),
     Out = unicode:characters_to_binary(?capturedOutput),
     Line = <<"1 | fn twice(n) = n + n  // Int — or Float\n"/utf8>>,
     ?assertMatch({_, _}, binary:match(Out, Line)).
@@ -601,7 +600,7 @@ error_names_file_from_cwd_test() ->
     {ok, Cwd} = file:get_cwd(),
     ok = file:set_cwd(Dir),
     try
-        ?assertEqual(1, ernc_err(["--errors", "short", "bad.ern"])),
+        ?assertEqual(1, build_err(["--short-errors", "bad.ern"])),
         ?assertMatch(<<"bad.ern:1:50: ", _/binary>>, iolist_to_binary(?capturedOutput))
     after
         file:set_cwd(Cwd)
@@ -616,8 +615,8 @@ fault_test() ->
                  "    let z = List.size([]);\n"
                  "    Io.println(Int.toString(1 / z))\n"
                  "}\n"),
-    ?assertEqual(0, ern_cli:ernc(["--source-root", Dir, File])),
-    ?assertEqual(1, ern_err([filename:join(Dir, "boom.erc")])),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    ?assertEqual(1, ern_err(["run", filename:join(Dir, "boom.erc")])),
     ?assertEqual(<<"fault: division by zero\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §11.2, §7.3, §7.4: beneath a foreign function's raise the fault
@@ -630,8 +629,8 @@ fault_stack_test() ->
     File = write(Dir, "raise.ern",
                  "foreign fn pick(i : Int, t : Int) -> Int = \"erlang:element/2\"\n"
                  "export fn main() -> Unit with Never = Io.println(Int.toString(pick(5, 3)))\n"),
-    ?assertEqual(0, ern_cli:ernc(["--source-root", Dir, File])),
-    ?assertEqual(1, ern_err([filename:join(Dir, "raise.erc")])),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    ?assertEqual(1, ern_err(["run", filename:join(Dir, "raise.erc")])),
     [First, Second | _] = binary:split(iolist_to_binary(?capturedOutput), <<"\n">>, [global]),
     ?assertEqual(<<"fault: foreign function erlang:element/2 raised error:badarg">>, First),
     ?assertEqual(<<"    erlang:element/2">>, Second).
@@ -651,7 +650,7 @@ doc_test() ->
                  "/// Documented but private.\n"
                  "fn twice(n : Int) -> Int = 2 * n\n"
                  "fn hidden(n : Int) -> Int = n\n"),
-    ?assertEqual(0, ern_cli:ernc(["--doc", "--source-root", Dir, File])),
+    ?assertEqual(0, ern_cli:ern(["doc", "--source-root", Dir, File])),
     Out = iolist_to_binary(?capturedOutput),
     Expect = fun(Text) -> ?assertMatch({_, _}, binary:match(Out, Text)) end,
     Expect(<<"# Ernest module Shapes\n\n## Shapes.Shape\n\n```ernest\n"
@@ -666,11 +665,11 @@ doc_test() ->
              "Documented but private.\n">>),
     ?assertEqual(nomatch, binary:match(Out, <<"hidden">>)),
     %% a type error is reported as for a compilation
-    ?assertEqual(1, ern_cli:ernc(["--doc", "--source-root", Dir,
+    ?assertEqual(1, ern_cli:ern(["doc", "--source-root", Dir,
                                   write(Dir, "bad.ern", "export fn f() -> Int = \"s\"\n")])).
 
 %% report §11.1, §11.4: the documentation comes from the compiled module,
-%% so --doc on a .erc writes what --doc on its source writes, and asking a
+%% so `ern doc` on a .erc writes what it writes on its source, and asking a
 %% source for its page writes nothing
 doc_from_compiled_test() ->
     Dir = tmp(),
@@ -680,11 +679,11 @@ doc_from_compiled_test() ->
                 "/// Twice n.\n"
                 "export fn twice(n : Int) -> Int = 2 * n\n"),
     Out = filename:join(Dir, "build"),
-    ?assertEqual(0, ern_cli:ernc(["--doc", "--source-root", Dir, "--out-dir", Out, Src])),
+    ?assertEqual(0, ern_cli:ern(["doc", "--source-root", Dir, "--build-root", Out, Src])),
     FromSource = iolist_to_binary(?capturedOutput),
     ?assertEqual(false, filelib:is_regular(filename:join(Out, "shapes.erc"))),
-    ?assertEqual(0, ern_cli:ernc(["--source-root", Dir, "--out-dir", Out, Src])),
-    ?assertEqual(0, ern_cli:ernc(["--doc", filename:join(Out, "shapes.erc")])),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, "--build-root", Out, Src])),
+    ?assertEqual(0, ern_cli:ern(["doc", filename:join(Out, "shapes.erc")])),
     %% the captured output is everything this test printed, so the page twice
     ?assertEqual(<<FromSource/binary, FromSource/binary>>, iolist_to_binary(?capturedOutput)),
     ?assertMatch({_, _}, binary:match(FromSource, <<"## Shapes.twice">>)).
@@ -700,7 +699,7 @@ docs_chunk_test() ->
                 "/// Twice n.\n"
                 "export fn twice(n : Int) -> Int = 2 * n\n"),
     Out = filename:join(Dir, "build"),
-    ?assertEqual(0, ern_cli:ernc(["--source-root", Dir, "--out-dir", Out, Src])),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, "--build-root", Out, Src])),
     {ok, Beam} = file:read_file(filename:join(Out, "shapes.erc")),
     {ok, Docs} = ern_docs:read(Beam),
     {docs_v1, _, ernest, <<"text/markdown">>, none, Meta, Entries} = Docs,
@@ -721,14 +720,14 @@ docs_chunk_test() ->
     true = code:delete(Mod),
     true = code:del_path(Out).
 
-%% report §9, §11.4: `ernc --doc` of the standard library's own source root
+%% report §9, §11.4: `ern doc` of the standard library's own source root
 %% writes the prelude's page, first in the index, beside the modules' pages
 prelude_page_test_() ->
     {timeout, 120, fun prelude_page/0}.
 
 prelude_page() ->
     Dir = tmp(),
-    ?assertEqual(0, ern_cli:ernc(["--doc", "--out-dir", Dir, "../../../stdlib"])),
+    ?assertEqual(0, ern_cli:ern(["doc", "--build-root", Dir, "../../../stdlib"])),
     {ok, Index} = file:read_file(filename:join(Dir, "index.md")),
     ?assertMatch(<<"# Modules\n\n- [Prelude](prelude.md)\n", _/binary>>, Index),
     {ok, Page} = file:read_file(filename:join(Dir, "prelude.md")),
@@ -738,13 +737,13 @@ prelude_page() ->
     ?assertMatch({_, _}, binary:match(Page, <<"from the prelude, report §9."/utf8>>)).
 
 %% report §11.4, Appendix E.0 rule 6: docs/module_doc_template.md is what
-%% `ernc --doc` renders for examples/template.ern, after its marker line
+%% `ern doc` renders for examples/template.ern, after its marker line
 doc_template_test() ->
     Src = example("template.ern"),
-    ?assertEqual(0, ern_cli:ernc(["--doc", "--source-root", filename:dirname(Src), Src])),
+    ?assertEqual(0, ern_cli:ern(["doc", "--source-root", filename:dirname(Src), Src])),
     Out = iolist_to_binary(?capturedOutput),
     {ok, File} = file:read_file("../../../docs/module_doc_template.md"),
-    Marker = <<"<!-- generated: ernc --doc examples/template.ern -->\n">>,
+    Marker = <<"<!-- generated: ern doc examples/template.ern -->\n">>,
     [_, Generated] = binary:split(File, Marker),
     %% the last line names the compiler's version, which is compared to itself
     ?assertEqual(without_footer(Generated), without_footer(Out)),
@@ -765,10 +764,10 @@ doc_template_test() ->
                   [<<"Template.Point">>, <<"Template.Shape">>, <<"Template.Stack">>,
                    <<"Template.checked">>]),
     ?assertMatch({match, _},
-                 re:run(Out, "\n---\n\nGenerated by ernc [0-9.]+ from template.ern.\n$")).
+                 re:run(Out, "\n---\n\nGenerated by ern [0-9.]+ from template.ern.\n$")).
 
 without_footer(Doc) ->
-    hd(binary:split(Doc, <<"\n---\n\nGenerated by ernc">>)).
+    hd(binary:split(Doc, <<"\n---\n\nGenerated by ern ">>)).
 
 %% README, "What the toolchain accepts": every error text in erl/*/src or in
 %% the shell's own Ernest source that names an MVP appears in the README's
@@ -800,18 +799,51 @@ mvp_refusals_in_readme_test() ->
 %% report §11: --version prints the top-level VERSION file's content
 version_test() ->
     {ok, V} = file:read_file("../../../VERSION"),
-    ?assertEqual(0, ern_cli:ernc(["--version"])),
-    ?assertEqual(<<"ernc ", (string:trim(V))/binary, "\n">>, iolist_to_binary(?capturedOutput)).
+    ?assertEqual(0, ern_cli:ern(["--version"])),
+    ?assertEqual(<<"ern ", (string:trim(V))/binary, "\n">>, iolist_to_binary(?capturedOutput)).
 
-%% report §11: options are long; --help and --version stop with status 0
+%% report §11: options are long; --help and --version stop with status 0,
+%% and a job's --help lists its options
 options_test() ->
-    ?assertEqual(1, ern_cli:ernc(["-o", "x", example("hello.ern")])),
-    ?assertEqual(1, ernc_err([])),
+    ?assertEqual(1, ern_cli:ern(["build", "-o", "x", example("hello.ern")])),
+    ?assertEqual(1, build_err([])),
     ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput),
-                                    "^ernc: one file or directory argument is required\nUsage: ")),
-    ?assertEqual(0, ern_cli:ernc(["--version"])),
-    ?assertEqual(0, ern_cli:ernc(["--help"])),
-    ?assertEqual(0, ern_cli:ern(["--help"])).
+                                    "^ern build: one file or directory argument is required\n"
+                                    "Usage: ern build ")),
+    ?assertEqual(0, ern_cli:ern(["--version"])),
+    ?assertEqual(0, ern_cli:ern(["--help"])),
+    [?assertEqual(0, ern_cli:ern([Job, "--help"]))
+     || Job <- ["build", "doc", "run", "test", "shell", "config"]].
+
+%% report §11: the first word is the job, and none is refused with the jobs
+%% named
+job_first_test() ->
+    ?assertEqual(1, ern_err([])),
+    ?assertEqual(1, ern_err(["compile", "x.ern"])),
+    Out = iolist_to_binary(?capturedOutput),
+    ?assertMatch({_, _}, binary:match(Out, <<"ern: a job is required\nUsage: ern <job>">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"ern: no job compile; the jobs are build, doc,"
+                                             " run, test, shell and config">>)).
+
+%% report §11: a spelling of the toolchain before its jobs is refused, and
+%% the refusal names the spelling that replaces it
+old_spellings_test() ->
+    File = example("hello.ern"),
+    Refused = [{["x.erc"], <<"the job comes first: ern run x.erc">>},
+               {["--shell"], <<"--shell is now the job: ern shell">>},
+               {["--test", "x.erc"], <<"--test is now the job: ern test">>},
+               {["--doc", File], <<"--doc is now the job: ern doc">>},
+               {["--create-config-dir", "d"], <<"--create-config-dir is now the job ern config">>},
+               {["--load-path", "d", "x.erc"], <<"--load-path comes after the job">>},
+               {["build", "--out-dir", "b", File], <<"--out-dir is now --build-root">>},
+               {["build", "--no-clean", File], <<"--no-clean is gone">>},
+               {["build", "--errors", "short", File], <<"--errors short is now --short-errors">>},
+               {["build", "--emit", "erl", File], <<"--emit erl is now --emit-erl">>},
+               {["run", "--shell"], <<"--shell is now the job: ern shell">>},
+               {["run", "--test", "x.erc"], <<"--test is now the job: ern test">>}],
+    lists:foreach(fun({Args, _}) -> ?assertEqual(1, ern_err(Args)) end, Refused),
+    Out = iolist_to_binary(?capturedOutput),
+    [?assertMatch({_, _}, binary:match(Out, Text)) || {_, Text} <- Refused].
 
 %%
 %% ern, report §11.2 and §11.3
@@ -820,11 +852,11 @@ options_test() ->
 %% report §11.2: --load-path adds roots searched by namespace
 load_path_test() ->
     Dir = pair(tmp()),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ok = filelib:ensure_dir(Dir ++ "/lib/net/http.erc"),
     ok = file:rename(Dir ++ "/build/net/http.erc", Dir ++ "/lib/net/http.erc"),
-    ?assertEqual(1, ern_cli:ern([Dir ++ "/build/main.erc"])),
-    ?assertEqual(0, ern_cli:ern(["--load-path", Dir ++ "/lib", Dir ++ "/build/main.erc"])),
+    ?assertEqual(1, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
+    ?assertEqual(0, ern_cli:ern(["run", "--load-path", Dir ++ "/lib", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"GET /\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §11.2: --main picks another exported entry point; one that takes
@@ -834,11 +866,11 @@ main_option_test() ->
     write(Dir, "src/tools.ern",
           "export fn check() -> Unit with Never = Io.println(\"checked\")\n"
           "export fn twice(n : Int) -> Int = 2 * n\n"),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(0, ern_cli:ern(["--main", "Tools.check", Dir ++ "/build/main.erc"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", "--main", "Tools.check", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"checked\n">>, iolist_to_binary(?capturedOutput)),
-    ?assertEqual(1, ern_cli:ern(["--main", "Tools.twice", Dir ++ "/build/main.erc"])),
-    ?assertEqual(1, ern_cli:ern(["--main", "check", Dir ++ "/build/main.erc"])).
+    ?assertEqual(1, ern_cli:ern(["run", "--main", "Tools.twice", Dir ++ "/build/main.erc"])),
+    ?assertEqual(1, ern_cli:ern(["run", "--main", "check", Dir ++ "/build/main.erc"])).
 
 %% report §8.1, §11.2: an entry point is an exported fn of type
 %% `() -> Unit`, with a mailbox type or pure; a function of another shape
@@ -848,8 +880,8 @@ entry_point_shape_test() ->
     Run = fun(Source, Args) ->
                   Dir = tmp(),
                   File = write(Dir, "main.ern", Source),
-                  ?assertEqual(0, ern_cli:ernc(["--source-root", Dir, File])),
-                  ern_err(Args ++ [filename:join(Dir, "main.erc")])
+                  ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+                  ern_err(["run" | Args] ++ [filename:join(Dir, "main.erc")])
           end,
     ?assertEqual(1, Run("export fn main() -> Int = 3\n", [])),
     ?assertEqual(1, Run("export let main = fn() -> Unit with Never = Io.println(\"x\")\n",
@@ -882,8 +914,8 @@ init_order_test() ->
           "let total = Lib.Values.base + 2\n"
           "export fn main() -> Unit with Never =\n"
           "    send(Lib.Values.out, Int.toString(total) <> \"\\n\")\n"),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(0, ern_cli:ern([Dir ++ "/build/main.erc"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"42\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §8.5, §11.2: a module on the source root that the program does
@@ -898,12 +930,12 @@ init_only_dependencies_test() ->
           "export let zero = List.size([])\n"
           "export let boom = 1 / zero\n"),
     write(Dir, "src/main.ern", hello()),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(0, ern_err([Dir ++ "/build/main.erc"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_err(["run", Dir ++ "/build/main.erc"])),
     write(Dir, "src/main.ern",
           "export fn main() -> Unit with Never = Io.println(Int.toString(Lib.Boom.zero))\n"),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(1, ern_err([Dir ++ "/build/main.erc"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_err(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"hello, world\nfault: division by zero\n">>,
                  iolist_to_binary(?capturedOutput)).
 
@@ -915,34 +947,40 @@ fault_status_test() ->
                  "    let z = List.size([]);\n"
                  "    Io.println(Int.toString(1 / z))\n"
                  "}\n"),
-    ?assertEqual(0, ern_cli:ernc(["--source-root", Dir, File])),
-    ?assertEqual(1, ern_cli:ern([filename:join(Dir, "boom.erc")])).
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    ?assertEqual(1, ern_cli:ern(["run", filename:join(Dir, "boom.erc")])).
 
 %% report §11.2: the file must lie at the path of its namespace
 misplaced_module_test() ->
     Dir = pair(tmp()),
-    ?assertEqual(0, ern_cli:ernc(["--out-dir", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ok = file:rename(Dir ++ "/build/net/http.erc", Dir ++ "/build/http.erc"),
-    ?assertEqual(1, ern_cli:ern([Dir ++ "/build/http.erc"])),
-    ?assertEqual(1, ern_cli:ern([Dir ++ "/build/nothing.erc"])).
+    ?assertEqual(1, ern_cli:ern(["run", Dir ++ "/build/http.erc"])),
+    ?assertEqual(1, ern_cli:ern(["run", Dir ++ "/build/nothing.erc"])).
 
-%% report §11.2, plan 3.1: the shell is not in this toolchain yet, with or
-%% without a file
-shell_test() ->
-    ?assertEqual(1, ern_cli:ern(["--shell"])),
-    ?assertEqual(1, ern_cli:ern(["--shell", "--load-path", ".", example("hello.ern")])).
+%% report §11.3: without --config-dir, `ern config` creates ./.ernest
+config_default_dir_test() ->
+    Dir = tmp(),
+    {ok, Cwd} = file:get_cwd(),
+    ok = file:set_cwd(Dir),
+    try
+        ?assertEqual(0, ern_cli:ern(["config"]))
+    after
+        ok = file:set_cwd(Cwd)
+    end,
+    ?assert(filelib:is_regular(Dir ++ "/.ernest/ernest.conf")).
 
 %% report §11.3, Appendix C: the configuration directory with an empty
-%% peer list and a private key readable only by its owner; a second
-%% creation fails
+%% peer list and a private key readable only by its owner, created where
+%% --config-dir names it; a second creation fails
 create_config_dir_test() ->
-    Dir = tmp(),
-    ?assertEqual(0, ern_cli:ern(["--create-config-dir", Dir])),
-    {ok, Conf} = file:read_file(Dir ++ "/.ernest/ernest.conf"),
+    Dir = tmp() ++ "/.ernest",
+    ?assertEqual(0, ern_cli:ern(["config", "--config-dir", Dir])),
+    {ok, Conf} = file:read_file(Dir ++ "/ernest.conf"),
     #{<<"peers">> := [], <<"public-key">> := <<"-----BEGIN PUBLIC KEY-----", _/binary>>,
       <<"network-address">> := _} = json:decode(Conf),
-    {ok, Info} = file:read_file_info(Dir ++ "/.ernest/private-key.pem"),
+    {ok, Info} = file:read_file_info(Dir ++ "/private-key.pem"),
     ?assertEqual(8#600, element(8, Info) band 8#777),
-    {ok, Pem} = file:read_file(Dir ++ "/.ernest/private-key.pem"),
+    {ok, Pem} = file:read_file(Dir ++ "/private-key.pem"),
     ?assertMatch([{'PrivateKeyInfo', _, not_encrypted}], public_key:pem_decode(Pem)),
-    ?assertEqual(1, ern_cli:ern(["--create-config-dir", Dir])).
+    ?assertEqual(1, ern_cli:ern(["config", "--config-dir", Dir])).

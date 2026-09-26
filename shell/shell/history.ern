@@ -97,7 +97,7 @@ fn undo(rest : String, done : String) -> String =
 fn from(s : String, n : Int) -> String = String.slice(s, n, String.size(s) - n)
 
 //
-// The tests (report §9.3), run by `ern --test`, which `make test` does.
+// The tests (report §9.3), run by `ern test`, which `make test` does.
 // The file itself is tested through the shell, in `test/`.
 //
 

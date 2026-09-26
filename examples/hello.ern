@@ -1,7 +1,7 @@
 //
 // Hello world
 //
-// From the guide, §1. Compile with ernc hello.ern and run with ern hello.erc.
+// From the guide, §1. Compile with ern build hello.ern and run with ern run hello.erc.
 //
 // Needs MVP 1.
 //

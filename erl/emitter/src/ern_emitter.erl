@@ -116,7 +116,7 @@ forms(Ns, Decls, Env, Deps, Session) ->
     erl_syntax:revert_forms(Attrs ++ Functions).
 
 %% Report §9.3, §11.2: '$tests'/0 lists the module's tests, every top-level
-%% let of type Test, exported or not, for `ern --test`.
+%% let of type Test, exported or not, for `ern test`.
 tests_fun(Lets) ->
     Names = [fname(O, N) || #let_decl{owner = O, name = N, type = Scheme} <- Lets,
                             element(3, Scheme) =:= {tcon, ['Test'], []}],
@@ -151,7 +151,7 @@ deps_fun(Deps) ->
     [erl_syntax:function(erl_syntax:atom('$deps'),
                          [erl_syntax:clause([], none, [Mods])])].
 
-%% The module as Erlang source, for --emit erl (report §11.1).
+%% The module as Erlang source, for --emit-erl (report §11.1).
 -spec erl_source([atom()], [tuple()], ern_typecheck:env()) -> iolist().
 erl_source(Ns, Decls, Env) ->
     Forms = forms(Ns, Decls, Env),

@@ -1,7 +1,7 @@
 ;;; editing.el --- What the mode gives beyond colour and indentation  -*- lexical-binding: t; -*-
 
 ;; Moving over declarations, `imenu', naming the declaration point is in,
-;; and the regexp `M-x compile' reads `ernc' with.  Run from `emacs/':
+;; and the regexp `M-x compile' reads `ern build' with.  Run from `emacs/':
 ;;
 ;;     emacs -Q -batch -l test/editing.el
 
@@ -84,7 +84,7 @@
                                                       ernest-imenu-generic-expression))))))
     (ernest-editing--want "imenu over a raw string" names '("real"))))
 
-;; the diagnostic `ernc' prints, read the way `M-x compile' reads it
+;; the diagnostic `ern build' prints, read the way `M-x compile' reads it
 (let* ((entry (assq 'ernest compilation-error-regexp-alist-alist))
        (re (nth 1 entry))
        (line "/home/a person/src/ernest/stdlib/list.ern:2:13: unknown name y"))

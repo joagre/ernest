@@ -1,10 +1,13 @@
-%% Plan, MVP 1: the programs compiled with bin/ernc and run with bin/ern
+%% Plan, MVP 1: the programs compiled with bin/ern build and run with bin/ern
 %% as a user would, output compared as a multiset of lines with
 %% expected/<name>.out, since prints from different processes interleave
 %% by scheduling. Run from this directory by its Makefile.
 -module(ern_integration_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+
+%% Report §11.1: an example compiled into test/build.
+-define(BUILD, "../bin/ern build --source-root ../examples --build-root build ").
 
 -define(PROGRAMS, ["hello", "counter", "upgrade", "pingpong", "stack", "patterns",
                    "kvparser", "remote"]).
@@ -18,9 +21,9 @@ programs_test_() ->
     {inparallel, [{Name, {timeout, 60, fun() -> program(Name) end}} || Name <- ?PROGRAMS]}.
 
 program(Name) ->
-    {0, _} = sh("../bin/ernc --source-root ../examples --out-dir build ../examples/" ++ Name
+    {0, _} = sh(?BUILD ++ "../examples/" ++ Name
                 ++ ".ern"),
-    {0, Out} = sh("../bin/ern build/" ++ Name ++ ".erc"),
+    {0, Out} = sh("../bin/ern run build/" ++ Name ++ ".erc"),
     ?assertEqual(expected(Name), lines(Out)).
 
 %% Plan, MVP 2.5: the paper programs that the doors of step 4 opened.
@@ -30,7 +33,7 @@ program(Name) ->
 
 compiles_test_() ->
     {inparallel, [{Name, fun() ->
-                {0, _} = sh("../bin/ernc --source-root ../examples --out-dir build ../examples/"
+                {0, _} = sh(?BUILD ++ "../examples/"
                             ++ Name ++ ".ern"),
                 ?assert(filelib:is_regular("build/" ++ Name ++ ".erc"))
             end} || Name <- ?COMPILES]}.
@@ -44,8 +47,8 @@ repl_test_() ->
     {timeout, 60, fun repl/0}.
 
 repl() ->
-    {0, _} = sh("../bin/ernc --source-root ../examples --out-dir build ../examples/repl.ern"),
-    {0, Out} = sh("../bin/ern build/repl.erc < input/repl.in"),
+    {0, _} = sh(?BUILD ++ "../examples/repl.ern"),
+    {0, Out} = sh("../bin/ern run build/repl.erc < input/repl.in"),
     ?assertEqual(expected("repl"), lines(Out)).
 
 %% Paper program 2 (plan, MVP 2.5): the syncer runs until it is
@@ -57,7 +60,7 @@ filesync_test_() ->
     {timeout, 60, fun filesync/0}.
 
 filesync() ->
-    {0, _} = sh("../bin/ernc --source-root ../examples --out-dir build ../examples/filesync.ern"),
+    {0, _} = sh(?BUILD ++ "../examples/filesync.ern"),
     Dir = "build/filesync",
     ok = reset(Dir),
     ok = file:write_file(Dir ++ "/a/greeting.txt", <<"hello from a\n">>),
@@ -67,7 +70,7 @@ filesync() ->
     Older = calendar:gregorian_seconds_to_datetime(
               calendar:datetime_to_gregorian_seconds(calendar:local_time()) - 7200),
     ok = file:change_time(Dir ++ "/a/notes.txt", Older),
-    Out = run_for(Dir, "../../../bin/ern ../../build/filesync.erc", 4),
+    Out = run_for(Dir, "../../../bin/ern run ../../build/filesync.erc", 4),
     %% report §8.6: the signal ends the program as returning from main does,
     %% so what was written is there and the runtime says nothing of its own
     ?assert(lists:member(<<"conflict: notes.txt">>, Out)),
@@ -106,8 +109,8 @@ webserver_test_() ->
     {timeout, 60, fun webserver/0}.
 
 webserver() ->
-    {0, _} = sh("../bin/ernc --source-root ../examples --out-dir build ../examples/webserver.ern"),
-    Port = open_port({spawn, "../bin/ern build/webserver.erc"},
+    {0, _} = sh(?BUILD ++ "../examples/webserver.ern"),
+    Port = open_port({spawn, "../bin/ern run build/webserver.erc"},
                      [exit_status, stderr_to_stdout, binary]),
     {os_pid, Pid} = erlang:port_info(Port, os_pid),
     try
@@ -151,7 +154,7 @@ cookie_of(Answer) ->
     [Sid | _] = binary:split(After, <<";">>),
     Sid.
 
-%% report §9.3, plan MVP 3.2: every library's own tests, run by `ern --test`
+%% report §9.3, plan MVP 3.2: every library's own tests, run by `ern test`
 %% over its compiled modules, as the shell's are
 libs_test_() ->
     {timeout, 60, fun libs/0}.
@@ -159,7 +162,7 @@ libs_test_() ->
 libs() ->
     Modules = filelib:wildcard("../build/libs/*/**/*.erc"),
     ?assert(lists:any(fun(M) -> filename:basename(M) =:= "markdown.erc" end, Modules)),
-    Runs = ["../bin/ern --test " ++ M || M <- Modules],
+    Runs = ["../bin/ern test " ++ M || M <- Modules],
     {Status, Out} = sh(lists:flatten(lists:join(" && ", Runs))),
     Lines = [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
     ?assertEqual([], [L || L <- Lines, binary:match(L, <<": passed">>) =:= nomatch]),
@@ -167,8 +170,8 @@ libs() ->
 
 %% report §4.2, §11.1: the two-module pair in directory mode
 modules_test() ->
-    {0, _} = sh("../bin/ernc --out-dir build/modules ../examples/modules"),
-    {0, Out} = sh("../bin/ern build/modules/main.erc"),
+    {0, _} = sh("../bin/ern build --build-root build/modules ../examples/modules"),
+    {0, Out} = sh("../bin/ern run build/modules/main.erc"),
     ?assertEqual(expected("modules"), lines(Out)).
 
 expected(Name) ->

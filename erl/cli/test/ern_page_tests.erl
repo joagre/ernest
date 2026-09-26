@@ -1,5 +1,5 @@
 %% Report §11.4: the renderer of the documentation a compiled module
-%% carries. `ernc --doc` writes the whole page, which ern_cli_tests covers;
+%% carries. `ern doc` writes the whole page, which ern_cli_tests covers;
 %% this is the one declaration the shell's `:doc` prints (§11.2).
 -module(ern_page_tests).
 

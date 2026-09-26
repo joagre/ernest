@@ -773,7 +773,7 @@ fn afterSequence(chars : List(Char)) -> List(Char) = match chars {
 }
 
 //
-// The tests (report §9.3), run by `ern --test` as every library's are.
+// The tests (report §9.3), run by `ern test` as every library's are.
 //
 
 let headings = Test(name = "an ATX heading drops its closing marks", run = fn() =

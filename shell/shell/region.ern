@@ -327,7 +327,7 @@ fn split(text : String) -> #(List(String), String) = match String.split(text, "\
 }
 
 //
-// The tests (report §9.3), run by `ern --test`, which `make test` does.
+// The tests (report §9.3), run by `ern test`, which `make test` does.
 // The region is pure, so a test reads the bytes it would have written.
 //
 

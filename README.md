@@ -4,7 +4,7 @@ A functional language for explicit process protocols. Mailbox effects and linear
 
 ## Status
 
-The toolchain is written in Erlang: lexer, parser, type checker, runtime, the compiler to BEAM, and the two programs `ernc` and `ern` under `bin/`, with every example program the toolchain runs compiled and run as a test. Where the project stands and what comes next is "Where we are" in [`docs/implementation_plan.md`](docs/implementation_plan.md).
+The toolchain is written in Erlang: lexer, parser, type checker, runtime, the compiler to BEAM, and the one command `ern` under `bin/`, with every example program the toolchain runs compiled and run as a test. Where the project stands and what comes next is "Where we are" in [`docs/implementation_plan.md`](docs/implementation_plan.md).
 
 ## Reading order
 
@@ -66,7 +66,7 @@ test/              what spans applications: the hand-written target modules,
                    the integration tests, the guide's examples, the shell's
                    sessions, the pseudo-terminal harness, expected/, golden/,
                    input/, session/, terminal/
-bin/               ernc and ern, as escript sources
+bin/               ern, as an escript source
 stdlib/            the standard library as Ernest source
 shell/             the shell as Ernest source, from MVP 2.6; its README.md guides
                    a reader through the code
@@ -105,22 +105,22 @@ make clean-emacs  remove Emacs backup, auto-save, and lock files
 
 ## Using
 
-`bin/ernc` compiles, `bin/ern` runs; both take long options only (report §11).
+`bin/ern` is the toolchain, its first word the job, with long options only (report §11).
 
 ```
-bin/ernc examples/hello.ern                  # writes examples/hello.erc
-bin/ern examples/hello.erc                   # hello, world
-bin/ernc --out-dir build examples/modules    # a source tree, in dependency order
-bin/ern build/main.erc                       # loads net/http.erc by namespace
-bin/ernc --emit erl examples/hello.ern       # the Erlang source, for reading
-bin/ernc --doc stdlib/list.ern               # the module's documentation as CommonMark
-bin/ernc --errors short examples/hello.ern   # the first line of each error only
-bin/ern --create-config-dir .                # .ernest/ with a key pair
-bin/ern --shell                              # a shell over the standard library
-bin/ern --shell build/main.erc               # a shell beside a running program
-bin/ern --test build/shell/shell/editor.erc  # the module's tests
-bin/ernc --load-path build/libs/ets --out-dir build/app app   # a program using a library
-bin/ern --load-path build/libs/ets build/app/main.erc         # and run with it
+bin/ern build examples/hello.ern                  # writes examples/hello.erc
+bin/ern run examples/hello.erc                    # hello, world
+bin/ern build --build-root build examples/modules # a source tree, in dependency order
+bin/ern run build/main.erc                        # loads net/http.erc by namespace
+bin/ern build --emit-erl examples/hello.ern       # the Erlang source, for reading
+bin/ern doc stdlib/list.ern                       # the module's documentation as CommonMark
+bin/ern build --short-errors examples/hello.ern   # the first line of each error only
+bin/ern config                                    # ./.ernest with a key pair
+bin/ern shell                                     # a shell over the standard library
+bin/ern shell build/main.erc                      # a shell beside a running program
+bin/ern test build/shell/shell/editor.erc         # the module's tests
+bin/ern build --load-path build/libs/ets --build-root build/app app  # a program using a library
+bin/ern run --load-path build/libs/ets build/app/main.erc           # and run with it
 ```
 
 At a terminal the shell edits the line with Readline's Emacs keys, keeps a history in

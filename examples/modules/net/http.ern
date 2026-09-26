@@ -3,10 +3,10 @@
 //
 // From the guide, §7.1. This file's path under the source root, net/http.ern,
 // gives it the namespace Net.Http; main.ern calls Net.Http.parse. Build the
-// pair with ernc --out-dir build examples/modules and run with
+// pair with ern build --build-root build examples/modules and run with
 // ern build/main.erc.
 //
-// Needs net/http.ern compiled first; ernc directory mode does both in dependency
+// Needs net/http.ern compiled first; ern build's directory mode does both in dependency
 // order (§11.1).
 //
 

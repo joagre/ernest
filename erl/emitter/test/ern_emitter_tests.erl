@@ -110,7 +110,7 @@ counter_golden_test() ->
     ?assertEqual(target_forms("counter.erl"), example_forms("counter")).
 
 %%
-%% Golden files: the Erlang source of every MVP 1 example, as --emit erl
+%% Golden files: the Erlang source of every MVP 1 example, as --emit-erl
 %% writes it, kept under test/golden and regenerated with make golden
 %%
 
@@ -297,7 +297,7 @@ stale_chunk_test() ->
     {ok, _, IfaceT, _} = ern_typecheck:check_string(['M'], "export fn id(x : t) -> t = x\n"),
     ?assertEqual(ern_iface:hash(IfaceA), ern_iface:hash(IfaceT)).
 
-%% report §11.1: --emit erl gives the module as Erlang source
+%% report §11.1: --emit-erl gives the module as Erlang source
 erl_source_test() ->
     {Ns, Bin} = example("hello"),
     {ok, Typed, _, Env} = ern_typecheck:check_string(Ns, Bin),
@@ -1197,7 +1197,7 @@ lookup_order_test() ->
 
 %% A function may be named `module_info` or `record_info`, which the host
 %% gives every module: the emitter compiles them under names no Ernest name
-%% can spell. A regression test: ernc refused them with Erlang's "function
+%% can spell. A regression test: the compiler refused them with Erlang's "function
 %% module_info/0 already defined", and the shell faulted. Not covered here:
 %% a call from another module, which the shell test reaches.
 host_reserved_names_test() ->

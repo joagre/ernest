@@ -96,7 +96,7 @@ floats_test() ->
 
 %% report §2.5: a float literal beyond the largest finite Float is an error
 %% at the literal, not a crash; one below the smallest is 0.0. A regression
-%% test, written after the fix; it covers the lexer alone, not how ernc or
+%% test, written after the fix; it covers the lexer alone, not how `ern build` or
 %% the shell shows the diagnostic.
 float_literal_out_of_range_test() ->
     ?assertEqual({1, 5, "the float literal is beyond the largest finite Float"},

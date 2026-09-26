@@ -1,10 +1,10 @@
-%% The two programs of report §11: ernc (§11.1, §11.4) and ern (§11.2,
-%% §11.3). The escripts under bin/ are thin; everything is here so that the
-%% tests can call it. Each entry point returns the exit status.
+%% The toolchain of report §11: one command, ern, whose first word is its
+%% job, build and doc (§11.1, §11.4), run, test and shell (§11.2), and config
+%% (§11.3). The escript under bin/ is thin; everything is here so that the
+%% tests can call it. The entry point returns the exit status.
 -module(ern_cli).
 
--export([main/2, ernc/1, ernc/2, namespace/1, segment/1, module_path/1, ern/1, ern/2,
-         compile_source/3]).
+-export([main/1, ern/1, ern/2, namespace/1, segment/1, module_path/1, compile_source/3]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -15,89 +15,155 @@
 %% Entry
 %%
 
--spec main(ernc | ern, [string()]) -> no_return().
-main(Tool, Args) ->
-    halt(?MODULE:Tool(Args, standard_error)).
+-spec main([string()]) -> no_return().
+main(Args) ->
+    halt(ern(Args, standard_error)).
 
-%% Run a tool with its options parsed by getopt. --help and --version
-%% print and stop with status 0; a usage error prints the message and the
-%% usage on Err, the error device, any other error one line, both with
-%% status 1. Err is standard_error for the escripts; a test passes its
-%% own device and reads what the user would see.
-tool(Tool, Spec, Positional, Args, Fun, Err) ->
+-spec ern([string()]) -> 0 | 1.
+ern(Args) ->
+    ern(Args, standard_error).
+
+%% Report §11: the first word is the job, and --help and --version stand
+%% alone. Err is the error device, standard_error for the escript; a test
+%% passes its own and reads what the user would see.
+-spec ern([string()], io:device()) -> 0 | 1.
+ern(["--help"], _Err) ->
+    usage(standard_io),
+    0;
+ern(["--version"], _Err) ->
+    io:format("ern ~s~n", [?VERSION]),
+    0;
+ern([Word | Args], Err) ->
+    case lists:keyfind(Word, 1, jobs()) of
+        {Word, Spec, Positional, Fun} -> job(Word, Spec, Positional, Args, Fun, Err);
+        false -> refuse(no_job(Word), Err)
+    end;
+ern([], Err) ->
+    refuse("a job is required", Err).
+
+%% The jobs of §11, each with its options, what follows them, and its
+%% function.
+jobs() ->
+    [{"build", build_options(), "file.ern | src-dir", fun build/3},
+     {"doc", doc_options(), "file.ern | file.erc | src-dir", fun doc/3},
+     {"run", run_options(), "file.erc", fun run/3},
+     {"test", test_options(), "file.erc", fun test/3},
+     {"shell", shell_options(), "[file.erc]", fun shell/3},
+     {"config", config_options(), "", fun config/3}].
+
+%% Report §11: a first word that is no job. A spelling of the toolchain
+%% before its jobs is refused with the one that replaces it.
+no_job("--shell") -> "--shell is now the job: ern shell";
+no_job("--test") -> "--test is now the job: ern test";
+no_job("--doc") -> "--doc is now the job: ern doc";
+no_job("--create-config-dir") ->
+    "--create-config-dir is now the job ern config, whose --config-dir names the directory itself";
+no_job("-" ++ _ = Word) -> Word ++ " comes after the job: ern <job> " ++ Word;
+no_job(Word) ->
+    case filename:extension(Word) of
+        ".erc" -> "the job comes first: ern run " ++ Word;
+        _ -> "no job " ++ Word ++ "; the jobs are build, doc, run, test, shell and config"
+    end.
+
+refuse(Msg, Err) ->
+    io:format(Err, "ern: ~ts~n", [Msg]),
+    usage(Err),
+    1.
+
+usage(Device) ->
+    io:format(Device, "Usage: ern <job> [options] ...~n~n"
+              "  build   compile a module, or every module under a directory~n"
+              "  doc     write the documentation of a module or a directory~n"
+              "  run     run a program~n"
+              "  test    run the tests of a module~n"
+              "  shell   run an interactive shell~n"
+              "  config  create the configuration directory~n~n"
+              "ern <job> --help lists a job's options; ern --version prints the version.~n",
+              []).
+
+%% Run a job with its options parsed by getopt. --help prints and stops
+%% with status 0; a usage error prints the message and the job's usage on
+%% Err, any other error one line, both with status 1.
+job(Job, Spec, Positional, Args, Fun, Err) ->
+    Name = "ern " ++ Job,
     try
+        lists:foreach(fun(A) ->
+                          case old_option(A) of
+                              none -> ok;
+                              Msg -> usage_fail(Msg)
+                          end
+                      end, Args),
         {Opts, Rest} = case getopt:parse(Spec, Args) of
                            {ok, Parsed} -> Parsed;
                            {error, {Reason, Data}} ->
                                usage_fail(getopt:format_error(Spec, {Reason, Data}))
                        end,
-        case {lists:member(help, Opts), lists:member(version, Opts)} of
-            {true, _} -> usage(Spec, Tool, Positional, standard_io), 0;
-            {_, true} -> io:format("~s ~s~n", [Tool, ?VERSION]), 0;
-            _ -> Fun(Opts, Rest, Err)
+        case lists:member(help, Opts) of
+            true -> job_usage(Spec, Name, Positional, standard_io), 0;
+            false -> Fun(Opts, Rest, Err)
         end
     catch
-        throw:{cli_usage, Msg} ->
-            io:format(Err, "~s: ~ts~n", [Tool, Msg]),
-            usage(Spec, Tool, Positional, Err),
+        throw:{cli_usage, Msg2} ->
+            io:format(Err, "~s: ~ts~n", [Name, Msg2]),
+            job_usage(Spec, Name, Positional, Err),
             1;
-        throw:{cli_error, Msg} ->
-            io:format(Err, "~s: ~ts~n", [Tool, Msg]),
+        throw:{cli_error, Msg3} ->
+            io:format(Err, "~s: ~ts~n", [Name, Msg3]),
             1
     end.
 
+%% Report §11: an option as the toolchain spelled it before its jobs,
+%% refused with the spelling that replaces it.
+old_option("--out-dir" ++ _) -> "--out-dir is now --build-root";
+old_option("--no-clean") ->
+    "--no-clean is gone; a separate output takes a separate --build-root";
+old_option("--errors" ++ _) -> "--errors short is now --short-errors";
+old_option("--emit" ++ Rest) when Rest =/= "-erl" -> "--emit erl is now --emit-erl";
+old_option("--create-config-dir" ++ _) ->
+    "--create-config-dir is now the job ern config, whose --config-dir names the directory itself";
+old_option("--shell") -> "--shell is now the job: ern shell";
+old_option("--test") -> "--test is now the job: ern test";
+old_option("--doc") -> "--doc is now the job: ern doc";
+old_option(_) -> none.
+
 %% getopt's usage text on any device; getopt:usage/4 takes only an atom.
-usage(Spec, Tool, Positional, Device) ->
+job_usage(Spec, Name, Positional, Device) ->
     io:format(Device, "~ts ~ts~n~n~ts~n",
-              [getopt:usage_cmd_line(atom_to_list(Tool), Spec), Positional,
-               getopt:usage_options(Spec)]).
+              [getopt:usage_cmd_line(Name, Spec), Positional, getopt:usage_options(Spec)]).
+
+help_option() ->
+    {help, undefined, "help", undefined, "print this text"}.
 
 %%
-%% ernc, report §11.1 and §11.4
+%% ern build and ern doc, report §11.1 and §11.4
 %%
 
-ernc_options() ->
+build_options() ->
     [{source_root, undefined, "source-root", string,
       "the directory whose layout yields namespaces"},
-     {out_dir, undefined, "out-dir", string,
+     {build_root, undefined, "build-root", string,
       "where the compiled tree goes; default: the source root"},
      {load_path, undefined, "load-path", string,
       "a root of compiled modules a module may use; may be repeated"},
-     {emit, undefined, "emit", string, "erl: write the module's Erlang source instead of .erc"},
-     {no_clean, undefined, "no-clean", undefined,
-      "keep stale .erc files under the build directory"},
-     {doc, undefined, "doc", undefined,
-      "write the documentation of a file to stdout, of a directory into the build directory"},
-     {errors, undefined, "errors", string, "short: the first line of each error only"},
-     {help, undefined, "help", undefined, "print this text"},
-     {version, undefined, "version", undefined, "print the version"}].
+     {emit_erl, undefined, "emit-erl", undefined,
+      "write the module's Erlang source instead of .erc"},
+     {short_errors, undefined, "short-errors", undefined,
+      "the first line of each error only"},
+     help_option()].
 
--spec ernc([string()]) -> 0 | 1.
-ernc(Args) ->
-    ernc(Args, standard_error).
+doc_options() ->
+    [Opt || {Key, _, _, _, _} = Opt <- build_options(), Key =/= emit_erl].
 
--spec ernc([string()], io:device()) -> 0 | 1.
-ernc(Args, Err) ->
-    tool(ernc, ernc_options(), "file.ern | src-dir", Args, fun ernc_main/3, Err).
+build(Opts, [Path], Err) ->
+    compile(Opts, Path, Err);
+build(_Opts, _Rest, _Err) ->
+    usage_fail("one file or directory argument is required").
 
-ernc_main(Opts, Rest, Err) ->
-    case {Rest, lists:member(doc, Opts)} of
-        {[Path], true} -> doc(Opts, Path, Err);
-        {[Path], false} -> ernc_compile(Opts, Path, Err);
-        _ -> usage_fail("one file or directory argument is required")
-    end.
-
-ernc_compile(Opts, Path, Err) ->
-    Emit = case proplists:get_value(emit, Opts) of
-               undefined -> erc;
-               "erl" -> erl;
-               Other -> usage_fail("unknown --emit kind " ++ Other ++ "; erl is the only kind")
+compile(Opts, Path, Err) ->
+    Emit = case lists:member(emit_erl, Opts) of
+               true -> erl;
+               false -> erc
            end,
-    case proplists:get_value(errors, Opts) of
-        undefined -> ok;
-        "short" -> ok;
-        Kind -> usage_fail("unknown --errors kind " ++ Kind ++ "; short is the only kind")
-    end,
     filelib:is_file(Path) orelse fail("no such file or directory " ++ Path),
     DirMode = filelib:is_dir(Path),
     Root = source_root(Opts, Path, case DirMode of true -> Path; false -> "." end),
@@ -112,7 +178,7 @@ ernc_compile(Opts, Path, Err) ->
         Order = compile_order(Modules, Root, load_path(Opts)),
         Std = stdlib_hash(Root),
         lists:foldl(fun(M, Ifaces) -> build(M, Ifaces, Dirs, Emit, Std) end, #{}, Order),
-        case DirMode andalso Emit =:= erc andalso not lists:member(no_clean, Opts) of
+        case DirMode andalso Emit =:= erc of
             true -> sweep(absolute(Path), Root, OutDir);
             false -> ok
         end,
@@ -122,10 +188,10 @@ ernc_compile(Opts, Path, Err) ->
     end.
 
 %% Report §11.5: each error as ern_diag renders it, the first line alone
-%% under --errors short; status 1. The file is named from the working
+%% under --short-errors; status 1. The file is named from the working
 %% directory when it lies under it.
 report_errors(Opts, File, Errors, Err) ->
-    Short = proplists:get_value(errors, Opts) =:= "short",
+    Short = lists:member(short_errors, Opts),
     Source = case file:read_file(File) of
                  {ok, Bin} -> Bin;
                  _ -> <<>>
@@ -348,11 +414,11 @@ source_root(Opts, Path, Default) ->
         Root -> absolute(Root)
     end.
 
-%% Report §11.1: the build directory is --out-dir; without it, the source
+%% Report §11.1: the build directory is --build-root; without it, the source
 %% root, and `build/stdlib` for the standard library's own root, where the
 %% Makefile builds it.
 out_dir(Opts, Root) ->
-    case proplists:get_value(out_dir, Opts) of
+    case proplists:get_value(build_root, Opts) of
         undefined ->
             case is_stdlib_root(Root) of
                 true -> absolute(filename:join([filename:dirname(stdlib_root()), "build",
@@ -410,7 +476,7 @@ build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces,
                     ok = filelib:ensure_dir(Erc),
                     case Emit of
                         erl ->
-                            Src = ["%% Generated by ernc from ", Rel, "\n",
+                            Src = ["%% Generated by ern build from ", Rel, "\n",
                                    ern_emitter:erl_source(Ns, Typed, Env)],
                             ok = file:write_file(Out ++ ".erl", Src);
                         erc ->
@@ -479,7 +545,7 @@ current(Erc, SourceHash, DepHashes, Std) ->
         _ -> false
     end.
 
-%% Report §11.1: the build of ernc, its version and a hash of the modules
+%% Report §11.1: the build of ern, its version and a hash of the modules
 %% that compile, so that a compiler changed under one version is another.
 compiler_build() ->
     Mods = [ern_lexer, ern_diag, ern_parser, ern_types, ern_typecheck, ern_reply, ern_exhaust,
@@ -525,10 +591,10 @@ remove_empty(Dir, Top) ->
 %% build directory, one document per module and an index. The modules are
 %% compiled first, so every document is of a module that type-checks and
 %% every dependency has an interface.
-doc(Opts, Path, Err) ->
+doc(Opts, [Path], Err) ->
     case filelib:is_dir(Path) of
         true ->
-            case ernc_compile(Opts -- [doc], Path, Err) of
+            case compile(Opts, Path, Err) of
                 0 -> doc_dir(Opts, Path);
                 Status -> Status
             end;
@@ -540,7 +606,9 @@ doc(Opts, Path, Err) ->
             catch
                 throw:{errors, F, Errors} -> report_errors(Opts, F, Errors, Err)
             end
-    end.
+    end;
+doc(_Opts, _Rest, _Err) ->
+    usage_fail("one file or directory argument is required").
 
 %% Report §11.4: the documentation comes from the compiled module. A `.erc`
 %% is read; a source is compiled first, in memory, so that asking for a page
@@ -599,38 +667,51 @@ prelude_page(true, OutDir) ->
     ["- [Prelude](prelude.md)\n"].
 
 %%
-%% ern, report §11.2 and §11.3
+%% ern run, ern test, ern shell and ern config, report §11.2 and §11.3
 %%
 
-ern_options() ->
-    [{config_dir, undefined, "config-dir", string,
-      "the configuration directory; default ./.ernest"},
-     {load_path, undefined, "load-path", string, "a root of compiled modules; may be repeated"},
-     {main, undefined, "main", string, "the entry point, a qualified exported function"},
-     {shell, undefined, "shell", undefined, "add an interactive shell to the running program"},
+config_dir_option() ->
+    {config_dir, undefined, "config-dir", string, "the configuration directory; default ./.ernest"}.
+
+load_path_option() ->
+    {load_path, undefined, "load-path", string, "a root of compiled modules; may be repeated"}.
+
+main_option() ->
+    {main, undefined, "main", string, "the entry point, a qualified exported function"}.
+
+run_options() ->
+    [config_dir_option(), load_path_option(), main_option(), help_option()].
+
+test_options() ->
+    [config_dir_option(), load_path_option(), help_option()].
+
+shell_options() ->
+    [config_dir_option(), load_path_option(),
      {source_root, undefined, "source-root", string,
       "where the shell finds a module's source; default the working directory"},
-     {test, undefined, "test", undefined, "run the module's tests instead of its entry point"},
-     {create_config_dir, undefined, "create-config-dir", string,
-      "create dir/.ernest with a configuration and a private key, and stop"},
-     {help, undefined, "help", undefined, "print this text"},
-     {version, undefined, "version", undefined, "print the version"}].
+     main_option(), help_option()].
 
--spec ern([string()]) -> 0 | 1.
-ern(Args) ->
-    ern(Args, standard_error).
+config_options() ->
+    [config_dir_option(), help_option()].
 
--spec ern([string()], io:device()) -> 0 | 1.
-ern(Args, Err) ->
-    tool(ern, ern_options(), "file.erc", Args, fun ern_main/3, Err).
+run(Opts, [File], Err) ->
+    quiet_signals(),
+    {Ns, Roots, Loaded} = program(File, Opts),
+    run_entry(Opts, Ns, Roots, Loaded, Err);
+run(_Opts, _Rest, _Err) ->
+    usage_fail("one .erc file argument is required").
 
-ern_main(Opts, Rest, Err) ->
-    case {proplists:get_value(create_config_dir, Opts), lists:member(shell, Opts), Rest} of
-        {Dir, _, []} when Dir =/= undefined -> create_config_dir(Dir);
-        {undefined, true, Rest2} -> shell(Opts, Rest2, Err);
-        {undefined, false, [File]} -> run(Opts, File, Err);
-        _ -> usage_fail("one .erc file argument is required")
-    end.
+test(Opts, [File], Err) ->
+    quiet_signals(),
+    {Ns, _Roots, Loaded} = program(File, Opts),
+    run_tests(Ns, Loaded, Err);
+test(_Opts, _Rest, _Err) ->
+    usage_fail("one .erc file argument is required").
+
+config(Opts, [], _Err) ->
+    create_config_dir(proplists:get_value(config_dir, Opts, ".ernest"));
+config(_Opts, _Rest, _Err) ->
+    usage_fail("config takes no argument").
 
 %% Report §11.2: the shell is the entry process, and a file's entry point is
 %% spawned beside it, so §8.6 ends the program when the shell ends and not
@@ -665,7 +746,7 @@ shell(Opts, Rest, Err) ->
                                       history => history_file()}),
                    init_fun(Loaded1);
                _ ->
-                   usage_fail("--shell takes at most one .erc file")
+                   usage_fail("at most one .erc file argument")
            end,
     %% report §11.2: the sinks are the screen's, which the shell names
     Sink = fun(Bin) -> ern_shell:to_screen(Bin) end,
@@ -683,14 +764,6 @@ report_fault(Err, {fault, Msg}) ->
     io:format(Err, "fault: ~ts~n", [Msg]);
 report_fault(Err, {fault, Msg, Trace}) ->
     io:format(Err, "fault: ~ts~n~ts", [Msg, Trace]).
-
-run(Opts, File, Err) ->
-    quiet_signals(),
-    {Ns, Roots, Loaded} = program(File, Opts),
-    case lists:member(test, Opts) of
-        true -> run_tests(Ns, Loaded, Err);
-        false -> run_entry(Opts, Ns, Roots, Loaded, Err)
-    end.
 
 %% The module of a `.erc`, its load path, and every module loaded for it:
 %% the file's own dependencies first (report §11.2, §4.2).
@@ -747,7 +820,7 @@ history_file() ->
     end.
 
 %% Report §11.2: a module compiled from its source for the shell, as
-%% `ernc` would compile it but in memory, since `:load` and `:reload`
+%% `ern build` would compile it but in memory, since `:load` and `:reload`
 %% write nothing. `Root` is the source root and `Dirs` the load path, the
 %% roots a dependency outside the source root is found under by its
 %% namespace, in order (§11.1). A refusal is a sentence, and diagnostics
@@ -765,7 +838,7 @@ compile_source(File, Root, Dirs) ->
         Hash = crypto:hash(sha256, Source),
         case ern_typecheck:check(Ns, Decls, [I || {_, I} <- DepIfaces]) of
             {ok, Typed, Iface, Env} ->
-                %% the dependencies are recorded as `ernc` records them, so
+                %% the dependencies are recorded as `ern build` records them, so
                 %% the shell loads them before the module (report §11.2)
                 Build = #{source_hash => Hash, deps => DepHashes,
                           source => list_to_binary(filename:basename(Rel))},
@@ -964,11 +1037,11 @@ load(Ns, Roots, Loaded) ->
             end
     end.
 
-%% Report §11.3, Appendix C: a configuration with no peers and this node's
-%% key pair; the network address is a placeholder to edit.
-create_config_dir(Dir) ->
-    Conf = filename:join(Dir, ".ernest"),
-    not filelib:is_dir(Conf) orelse fail(Conf ++ " exists"),
+%% Report §11.3, Appendix C: the configuration directory itself, with a
+%% configuration of no peers and this node's key pair; the network address
+%% is a placeholder to edit.
+create_config_dir(Conf) ->
+    not filelib:is_file(Conf) orelse fail(Conf ++ " exists"),
     Key = public_key:generate_key({namedCurve, ed25519}),
     Private = public_key:pem_encode([public_key:pem_entry_encode('PrivateKeyInfo', Key)]),
     %% the key names its curve, {namedCurve, Oid}, as its parameters

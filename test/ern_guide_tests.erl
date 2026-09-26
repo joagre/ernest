@@ -10,13 +10,13 @@
 %% the next fenced
 %% block is a `console` block, the program its `$ ern` line names is run,
 %% with the options the line gives, and its output compared with the
-%% console's lines that are not commands; `$ printf 'a\nb\n' | ern x.erc`
+%% console's lines that are not commands; `$ printf 'a\nb\n' | ern run x.erc`
 %% gives the program those lines on standard input. A block marked `ernest-rejected`
 %% fails to compile, and for a reason of its own: not a parse error and not
-%% an unknown name. When a console follows it, its `$ ernc` line names the
+%% an unknown name. When a console follows it, its `$ ern build` line names the
 %% file and the error is compared whole. A console whose command is
-%% `$ ern --shell` is a session: its `> ` lines are the inputs, and the rest
-%% is what the shell prints; `$ ern --shell words.erc` after a module is a
+%% `$ ern shell` is a session: its `> ` lines are the inputs, and the rest
+%% is what the shell prints; `$ ern shell words.erc` after a module is a
 %% session with that module loaded. A block marked `ernest-prelude` holds
 %% the prelude's own declarations, each one of `ern_prelude`'s as written.
 %% Any other block is a fragment, which nothing checks.
@@ -71,7 +71,7 @@ guide_examples_test_() ->
     [{inparallel, [{Name, {timeout, 60, fun() -> check(U) end}} || {Name, U} <- Apart]}
      | [{Name, {timeout, 60, fun() -> check(U) end}} || {Name, U} <- Here]].
 
-own_node({modules, #{run := {Flags, _, Inputs, _}}}) -> Flags =:= "--shell " orelse Inputs =/= [];
+own_node({modules, #{run := {Flags, _, Inputs, _}}}) -> Flags =:= "shell " orelse Inputs =/= [];
 own_node({modules, _}) -> false;
 own_node(_) -> true.
 
@@ -85,13 +85,13 @@ check({modules, #{files := Files, run := Run}}) ->
     ok = filelib:ensure_path(Build),
     [{0, <<>>} = sh("erlc -o " ++ Build ++ " " ++ filename:join(Dir, F))
      || {F, _} <- Files, filename:extension(F) =:= ".erl"],
-    ?assertEqual(0, ern_cli:ernc(["--errors", "short", "--source-root", Dir, "--out-dir", Build,
-                                  Dir], group_leader())),
+    ?assertEqual(0, ern_cli:ern(["build", "--short-errors", "--source-root", Dir,
+                                 "--build-root", Build, Dir], group_leader())),
     ?assertEqual(<<>>, iolist_to_binary(?capturedOutput)),
     case Run of
         none ->
             ok;
-        {Flags, Module, [], Expected} when Flags =/= "--shell " ->
+        {Flags, Module, [], Expected} when Flags =/= "shell " ->
             %% in this node: the program's output is what the test captures
             Args = string:lexemes(Flags, " ") ++ [filename:join(Build, Module)],
             ?assertEqual(0, ern_cli:ern(Args, group_leader())),
@@ -107,7 +107,7 @@ check({modules, #{files := Files, run := Run}}) ->
 check({rejected, #{files := [{F, Code}], shown := Shown}}) ->
     Dir = tmp(),
     ok = write(filename:join(Dir, F), Code),
-    {Status, Out} = sh("cd " ++ Dir ++ " && " ++ filename:absname("../bin/ernc") ++ " " ++ F),
+    {Status, Out} = sh("cd " ++ Dir ++ " && " ++ filename:absname("../bin/ern") ++ " build " ++ F),
     ?assertMatch({1, _}, {Status, Out}),
     %% rejected for its own reason, not for a slip in the example
     ?assertEqual(nomatch, re:run(Out, "^[^:\\s]+:[0-9]+:[0-9]+: (expected |unknown name)",
@@ -121,7 +121,7 @@ check({session, #{inputs := Inputs, shown := Expected}}) ->
     In = filename:join(Dir, "inputs"),
     ok = write(In, [[I, <<"\n">>] || I <- Inputs]),
     {0, Out} = sh("cd " ++ Dir ++ " && HOME=" ++ Dir ++ " " ++ filename:absname("../bin/ern")
-                  ++ " --shell < " ++ In),
+                  ++ " shell < " ++ In),
     ?assertEqual(trim(Expected), session_end(Out)).
 
 %% A session not at a terminal echoes no input, and ends at the last
@@ -164,7 +164,7 @@ group([{N, <<"ernest-rejected">>, _, Code} | Rest], Seen) ->
                         none -> {file_of(Code), none}
                     end,
     [{rejected, #{line => N, files => [{File, join(Code)}], shown => Shown}} | group(Rest, Seen)];
-group([{N, <<"console">>, _, [<<"$ ern --shell">> | Lines]} | Rest], Seen) ->
+group([{N, <<"console">>, _, [<<"$ ern shell">> | Lines]} | Rest], Seen) ->
     [{session, #{line => N, inputs => inputs(Lines), shown => session_shown(Lines)}}
      | group(Rest, Seen)];
 group([{N, Info, Heading, Code} = B | Rest], Seen) when Info =:= <<"ernest">>;
@@ -230,18 +230,20 @@ file_of(Code) ->
         Path -> Path
     end.
 
-%% The next fenced block, when it is a console: the options and the module
-%% its `$ ern` line runs, and the lines it shows that are not commands.
+%% The next fenced block, when it is a console: the job, its options and the
+%% module its `$ ern run`, `test` or `shell` line runs, and the lines it
+%% shows that are not commands.
 run([{_, <<"console">>, _, Lines} | _]) ->
     Commands = [L || <<"$ ", _/binary>> = L <- Lines],
     Output = [L || L <- Lines, not lists:member(L, Commands)],
-    Runs = [{Piped, Flags, M}
+    Runs = [{Piped, Job ++ " " ++ Flags, M}
             || C <- Commands,
-               {match, [Piped, Flags, M]}
-                   <- [re:run(C, "^\\$ (?:printf '([^']*)' \\| )?ern ((?:--[a-z]+ )*)(?:\\S*/)?"
-                                 "([a-z0-9]+\\.erc)", [{capture, all_but_first, list}])]],
+               {match, [Piped, Job, Flags, M]}
+                   <- [re:run(C, "^\\$ (?:printf '([^']*)' \\| )?ern (run|test|shell) "
+                                 "((?:--[a-z]+ \\S+ )*)(?:\\S*/)?([a-z0-9]+\\.erc)",
+                              [{capture, all_but_first, list}])]],
     case Runs of
-        [{_, "--shell " = Flags, Module} | _] ->
+        [{_, "shell " = Flags, Module} | _] ->
             {Flags, Module, inputs(Output), session_shown(Output)};
         [{Piped, Flags, Module} | _] ->
             Stdin = [L || L <- string:split(Piped, "\\n", all), L =/= ""],
@@ -252,10 +254,11 @@ run([{_, <<"console">>, _, Lines} | _]) ->
 run(_) ->
     none.
 
-%% The next fenced block, when it is a console whose command is `$ ernc`:
+%% The next fenced block, when it is a console whose command is `$ ern build`:
 %% the file it compiles, and the lines it shows.
 compiled([{_, <<"console">>, _, [Command | Lines]} | _]) ->
-    case re:run(Command, "^\\$ ernc ([a-z0-9]+\\.ern)$", [{capture, all_but_first, list}]) of
+    case re:run(Command, "^\\$ ern build ([a-z0-9]+\\.ern)$",
+                [{capture, all_but_first, list}]) of
         {match, [File]} -> {File, join(Lines)};
         nomatch -> none
     end;

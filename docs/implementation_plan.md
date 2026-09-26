@@ -9,8 +9,8 @@ them.
 Read "Where we are" first. The milestones follow in order, then the standing gaps, then what
 is done, then the tables worth keeping.
 
-The toolchain is `ernc`, which compiles `.ern` to `.erc`, and `ern`, which runs a `.erc` and
-adds a shell on request. Written in Erlang on OTP 29, one person. The language was called
+The toolchain is one command, `ern`, whose first word is its job: `ern build` compiles `.ern`
+to `.erc`, `ern run` runs a `.erc`, and `ern shell` starts a shell. Written in Erlang on OTP 29, one person. The language was called
 Actorson until 12 September 2026.
 
 ---
@@ -22,8 +22,8 @@ first nine steps are done: the feedback list and this plan consolidated, the rep
 cold, the five themes, names and namespaces, expressions, patterns and types, processes and
 the system, the standard library under E.0, and the toolchain, the Erlang code's open
 questions, and the cold read's last findings. Step 10, the build, has begun: its gate, its
-ledger, its report pass and the report's cold read are done, and four decisions come before
-its rename.
+ledger, its report pass, the report's cold read and the toolchain's rename are done, and the
+build in the ledger's order is next.
 MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
@@ -324,7 +324,7 @@ The steps:
 
       | Row | Decision | Report | Code | Tests | Documents | After | Grep, hits |
       |---|---|---|---|---|---|---|---|
-      | A1 | `ern` subcommands (step 7) | §7.4, §8.1, §9, §9.3, §11 and §11.1 to §11.5, App. C, E.0 rule 6 | `bin/ernc` goes; `ern_cli` options, usage, refusals, the generated header; `ern_page` footer; `ern_rt` fault text; `Makefile`, `test/Makefile` | `ern_cli_tests` (95 calls), `ern_shell_tests`, `ern_integration_tests`, `ern_terminal_tests`, `ern_guide_tests` console grammar, `emacs/test/editing.el`; mirror: the template page's marker; new: each subcommand, each old spelling refused | README, guide §1, §7.1, §9 and 57 console lines, `architecture.md`, `shell_design.md`, `module_doc_template.md`, `emacs_mode.md`, `shell/README.md`, example headers, CLAUDE.md's line on `ernc` | none | `ernc`, `--out-dir`, `--no-clean`, `--errors`, `--emit`, `--create-config-dir`, `ern --test`/`--shell`/`--doc`, `ern x.erc`: 498 in 40 files |
+      | A1 | `ern` subcommands (step 7), built in sub-step 5 | §7.4, §8.1, §9, §9.3, §11 and §11.1 to §11.5, App. C, E.0 rule 6 | `bin/ernc` goes; `ern_cli` options, usage, refusals, the generated header; `ern_page` footer; `ern_rt` fault text; `Makefile`, `test/Makefile` | `ern_cli_tests` (95 calls), `ern_shell_tests`, `ern_integration_tests`, `ern_terminal_tests`, `ern_guide_tests` console grammar, `emacs/test/editing.el`; mirror: the template page's marker; new: each subcommand, each old spelling refused | README, guide §1, §7.1, §9 and 57 console lines, `architecture.md`, `shell_design.md`, `module_doc_template.md`, `emacs_mode.md`, `shell/README.md`, example headers, CLAUDE.md's line on `ernc` | none | `ernc`, `--out-dir`, `--no-clean`, `--errors`, `--emit`, `--create-config-dir`, `ern --test`/`--shell`/`--doc`, `ern x.erc`: 498 in 40 files |
       | A2 | completion of fields (step 7) | §11.2 | `ern_shell` context, one copy of §3.5's selection through `ern_typecheck:resolve_select/4`; `shell.ern` `offered`, a foreign fn; `complete.ern` | `ern_shell_tests` `completion_test_`; `complete.ern`'s `Test`s | guide §1.2, `shell_design.md`, `shell/README.md` | A1 | `names a namespace`, `segment by segment`, `completes the word before the cursor`: 5 |
       | B1 | `restarting` (step 5) | §6.5, §6.6 (L1), §6.9, §7.3, §9.3, §9.5 | `ern_prelude`, `ern_emitter`, `ern_rt` restart loop, window, reaper row, pending calls ended, `restarted`; `ern_reply` | `ern_rt_tests` same pid and mailbox, the limit; `ern_typecheck_tests` a reply-carrying function refused; mirrors: `ern_prelude_tests` | guide services section, §6.4, §10; `architecture.md`, `node_protocol.md` | none | `A fault ends the process that meets it`, `a new process with a new address`, `fifteen lines`: 4 |
       | B2 | service bindings (step 5) | §4.6 (L2), §6.5, §6.8, §8.5, §8.7, §11.2 | `ern_typecheck` initializer as a `Never` body, generalization; `ern_emitter` `init_fun`; `ern_shell` load and reload; `ern_cli` | `ern_typecheck_tests` two change; new: spawn and send allowed, `receive` refused, two services in a cycle, a reload with a service | guide §2.2, §6.4, services section; `shell_design.md`, `node_protocol.md`, `architecture.md` | B1 | `initializer is pure`, `Effectful setup belongs`, `no registry`, `cannot reach a process the program spawned`: 13 |
@@ -500,9 +500,12 @@ The steps:
         `Tcp.close` stops a socket, an `accept` waiting on it answering `Left(Closed)`, so a
         server shuts down without a fault (E.18). Built with B9. The log's *A Listener Is
         Closed by Name*.
-   5. **The toolchain first.** `ern build` and its siblings replace `ernc` before anything
-      else is built, since the rename reaches the Makefile, the tests, the README, the guide
-      and the Emacs mode, and every later test is then written against the final commands.
+   5. **Done 2026-09-26: the toolchain first**, the ledger's A1. `bin/ernc` is gone and `ern`
+      takes its job as its first word, `build`, `doc`, `run`, `test`, `shell` or `config`,
+      each with its own options; a spelling from before the jobs is refused with the one that
+      replaces it, and `ern config` creates the configuration directory itself. The Makefiles,
+      the tests, the guide's consoles, the README, the design notes and CLAUDE.md speak the
+      jobs; every later test is written against them.
    6. **The build, in the ledger's order**, one decision or tight group a commit, each with
       its tests and with the sentences its row's grep finds removed in the same commit;
       `make test` at the end of each group.
@@ -514,7 +517,7 @@ The steps:
       again and whether its `:browse` and `:doc` leave it is decided (step 8, *Where the
       Toolchain's Modules Split*). The holder module of each `it`, its value and its
       interface are freed once no module the session keeps refers to them, each input
-      recording what earlier inputs it depends on as `ernc` records a module's; measured in
+      recording what earlier inputs it depends on as `ern build` records a module's; measured in
       step 8, 2,000 expressions still grow the code by 8 MB and the process heaps by 16 MB,
       nearly all of it the holders and the environment they lengthen (*The Shell Lets Go of
       an Input*). The document sweep closes the step.
@@ -739,7 +742,7 @@ later, when there is a package story. Named so far:
 
 ## Not in any MVP
 
-A canonical formatter, `ernc --format`, one style and no configuration, mechanical over the
+A canonical formatter, `ern format`, one style and no configuration, mechanical over the
 grammar; it lands before a second person writes Ernest. `Slot(a)`, a one-shot credit parallel
 to `Reply(a)`, is out on principles 2 and 5; the log holds its shape if the verdict is
 revisited. String interpolation is declined for now on principles 2, 3 and 4. Erlang
@@ -949,10 +952,10 @@ Ernest's concepts or toolchain replace.
 | `calendar` | `Time` | | a `Time` type and its parts, MVP 3.2 | formatting: a format is the program's, rule 3 |
 | `binary` | `Bytes` | E.20, and `<>` | | `split`, `match`, `replace`, `encode_unsigned`: `<<...>>` and the `Int` operations |
 | `array`, `queue` | | | | `List` and `Map` give both, rule 4; a persistent array is a library |
-| `eunit` | `Test` | §9.3's `Test` and `TestResult`, run by `ern --test` (§11.2) | | |
+| `eunit` | `Test` | §9.3's `Test` and `TestResult`, run by `ern test` (§11.2) | | |
 | `base64`, `json`, `uri_string`, `re`, `crypto`, `zlib`, `dets`, `digraph`, `sofs`, `erl_tar`, `zip`, `disk_log`; the applications `ssl`, `inets`, `xmerl`, `public_key`, `asn1`, `mnesia`, `snmp` | libraries | | | each a namespace of its own on Appendix D's pattern, never stdlib |
-| `observer`, `dbg`, `cover`, `debugger`, `dialyzer`, `edoc`, `common_test`, `syntax_tools`, `parsetools`, `argparse`, `escript` | | | | tooling: `ernc --doc`, Ernest's own types, the compiler, `ern`; an argument parser is a library |
-| `gen_*`, `supervisor`, `proc_lib`, `sys`, `logger`, `application`, `code`, `rpc`, `erpc`, `global`, `pg`, `net_kernel`, `persistent_term`, `atomics`, `counters`, `init`, `heart`, `os_mon`, `wx`, `erl_*`, the shell | | | | a function with a mailbox type, the standard library's `Supervisor` (MVP 2.66), `send` to a sink, MVP 3's distribution, the runtime's internals, `ernc` and `ern` |
+| `observer`, `dbg`, `cover`, `debugger`, `dialyzer`, `edoc`, `common_test`, `syntax_tools`, `parsetools`, `argparse`, `escript` | | | | tooling: `ern doc`, Ernest's own types, the compiler, `ern`; an argument parser is a library |
+| `gen_*`, `supervisor`, `proc_lib`, `sys`, `logger`, `application`, `code`, `rpc`, `erpc`, `global`, `pg`, `net_kernel`, `persistent_term`, `atomics`, `counters`, `init`, `heart`, `os_mon`, `wx`, `erl_*`, the shell | | | | a function with a mailbox type, the standard library's `Supervisor` (MVP 2.66), `send` to a sink, MVP 3's distribution, the runtime's internals, `ern` |
 
 Gleam's `gleam_stdlib` v1.0.5, Elixir's core and Haskell's `base` were read the same way, and
 what they have that this table does not take is a position, not a gap: `gleam/order`,

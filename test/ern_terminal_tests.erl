@@ -20,7 +20,7 @@ keys_test_() ->
 
 keys() ->
     ok = compile("terminal/probe.ern", "terminal"),
-    {0, Screen} = pty("../bin/ern build/terminal/probe.erc",
+    {0, Screen} = pty("../bin/ern run build/terminal/probe.erc",
                       [{expect, "ready"},
                        {send, "78"},        % x
                        {expect, "char x"},
@@ -54,7 +54,7 @@ terminal_restored_test_() ->
 
 terminal_restored() ->
     ok = compile("terminal/probe.ern", "terminal"),
-    {_, Screen} = pty("stty -a; ../bin/ern build/terminal/probe.erc; stty -a",
+    {_, Screen} = pty("stty -a; ../bin/ern run build/terminal/probe.erc; stty -a",
                       [{expect, "ready"}, {send, "1b"}], 15),
     %% the terminal is described before and after, and is never left without
     %% echo; `-echoe` and its like are not `-echo`
@@ -72,7 +72,7 @@ keys_at_end_of_input_test_() ->
 
 keys_at_end_of_input() ->
     ok = compile("terminal/waiting.ern", "terminal"),
-    {Status, Out} = sh("sh -c 'timeout 20 ../bin/ern build/terminal/waiting.erc < /dev/null'"),
+    {Status, Out} = sh("sh -c 'timeout 20 ../bin/ern run build/terminal/waiting.erc < /dev/null'"),
     ?assertEqual(1, Status),
     ?assertMatch({_, _}, binary:match(Out, <<"fault: deadlock">>)).
 
@@ -88,7 +88,7 @@ snake() ->
     %% ticks to show: the game's own clock is what those sleeps wait for.
     %% It runs the program compiled here, not one another suite left in
     %% build/, which a run of this area alone does not have
-    {0, Screen} = pty("../bin/ern build/examples/snake.erc",
+    {0, Screen} = pty("../bin/ern run build/examples/snake.erc",
                       [{expect, "tick "},
                        {send, "1b5b42"},    % ArrowDown
                        {sleep, 1500},
@@ -115,7 +115,7 @@ head(Frame) ->
                   {X, _} <- [binary:match(Row, <<"@">>)]]).
 
 compile(Source, Root) ->
-    {0, _} = sh("../bin/ernc --source-root " ++ Root ++ " --out-dir build/"
+    {0, _} = sh("../bin/ern build --source-root " ++ Root ++ " --build-root build/"
                 ++ filename:basename(Root) ++ " " ++ Source),
     ok.
 

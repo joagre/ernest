@@ -1,4 +1,4 @@
-%% Target: what ernc produces for examples/counter.ern. Hand-written first,
+%% Target: what ern build produces for examples/counter.ern. Hand-written first,
 %% run against ern_rt, then the golden test for the emitter.
 %%
 %% Values follow the ABI of report §8.4. The type

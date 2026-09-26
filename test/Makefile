@@ -1,8 +1,8 @@
 # The terminal tests need python3, which opens the pseudo-terminal that
 # Erlang cannot (ern_pty.py).
 #
-# The integration tests: every MVP 1 program compiled with bin/ernc and run
-# with bin/ern, output compared with expected/<name>.out; the document
+# The integration tests: every MVP 1 program compiled with bin/ern build and run
+# with bin/ern run, output compared with expected/<name>.out; the document
 # tests, every citation in a live document resolving to a heading; the
 # style tests, what docs/style.md says a machine can check; the guide's
 # examples, compiled and run; and the shell and the terminal, driven through
@@ -42,7 +42,7 @@ guide: $(BEAMS) prepare
 shell: $(BEAMS) prepare
 	$(call EUNIT,$(SHELL_TESTS))
 
-# A changed compiler with an unchanged VERSION leaves ernc's build records
+# A changed compiler with an unchanged VERSION leaves the build records
 # valid (report §11.1), so the programs compiled here are thrown away
 # whenever a toolchain beam is newer than the last run, as the standard
 # library's build does.

@@ -232,7 +232,7 @@ fn shareds(a : String, b : String, upTo : Int) -> String =
     else String.slice(a, 0, upTo)
 
 //
-// The tests (report §9.3), run by `ern --test`, which `make test` does.
+// The tests (report §9.3), run by `ern test`, which `make test` does.
 //
 
 let only = Test(name = "one candidate completes to the whole of itself", run = fn() =

@@ -5,9 +5,9 @@ APPS = utils lexer parser typer runtime emitter cli
 
 # What the Ernest trees are built from: the compiler's beams, and each
 # tree's sources and the directories that hold them, so that a source
-# added or removed is seen and ernc's sweep of §11.1 runs. Each tree is a
+# added or removed is seen and the sweep of §11.1 runs. Each tree is a
 # stamp file that make rebuilds only when one of these is newer, so a make
-# with nothing to do starts no ernc; ernc's own build records then decide
+# with nothing to do starts no build; the build records then decide
 # what inside a tree to compile.
 TOOL = $(wildcard erl/*/ebin/*.beam)
 # The top directory is written `dir/.`, since `stdlib`, `libs` and `shell`
@@ -22,16 +22,16 @@ stdlib: build/stdlib/.built
 libs: build/libs/.built
 shell: build/shell/.built
 
-# The standard library written in Ernest: stdlib/ compiled by ernc into
+# The standard library written in Ernest: stdlib/ compiled by ern build into
 # build/stdlib under its Erlang module name, where the tools put it on the
 # code path and the checker reads its interface (plan, MVP 2.5).
-# A changed compiler with an unchanged VERSION leaves ernc's build records
+# A changed compiler with an unchanged VERSION leaves the build records
 # valid (report §11.1), so the tree is rebuilt whenever a compiler beam is
 # newer than the last standard library build.
 build/stdlib/.built: $(TOOL) $(call sources,stdlib)
 	@if [ -n "$$(find erl -name '*.beam' -newer $@ 2>/dev/null)" ] \
 	   || [ ! -f $@ ]; then rm -rf build/stdlib; fi
-	@bin/ernc --out-dir build/stdlib stdlib
+	@bin/ern build --build-root build/stdlib stdlib
 	@for f in build/stdlib/*.erc; do \
 	  cp $$f build/stdlib/ern@$$(basename $$f .erc).beam; done
 	@touch $@
@@ -44,19 +44,19 @@ build/libs/.built: build/stdlib/.built $(TOOL) $(call sources,libs)
 	@for d in libs/*/; do n=$$(basename $$d); \
 	  if [ -n "$$(find erl -name '*.beam' -newer build/libs/$$n/.built 2>/dev/null)" ] \
 	     || [ ! -f build/libs/$$n/.built ]; then rm -rf build/libs/$$n; fi; \
-	  bin/ernc --source-root $$d --out-dir build/libs/$$n $$d || exit 1; \
+	  bin/ern build --source-root $$d --build-root build/libs/$$n $$d || exit 1; \
 	  touch build/libs/$$n/.built; done
 	@touch $@
 
 # The shell, written in Ernest (report §11.2, plan MVP 2.6): shell/ compiled
-# by ernc into build/shell, where `ern --shell` finds it on the code path.
+# by ern build into build/shell, where `ern shell` finds it on the code path.
 # It renders documentation with libs/markdown, which it is compiled against
 # and which ships beside it. Rebuilt when a compiler beam is newer, as the
 # standard library is.
 build/shell/.built: build/stdlib/.built build/libs/.built $(TOOL) $(call sources,shell)
 	@if [ -n "$$(find erl -name '*.beam' -newer $@ 2>/dev/null)" ] \
 	   || [ ! -f $@ ]; then rm -rf build/shell; fi
-	@bin/ernc --load-path build/libs/markdown --out-dir build/shell shell
+	@bin/ern build --load-path build/libs/markdown --build-root build/shell shell
 	@find build/shell -name '*.erc' | while read f; do \
 	  m=$${f#build/shell/}; \
 	  cp $$f build/shell/ern@$$(echo $${m%.erc} | tr / @).beam; done
@@ -66,7 +66,7 @@ build/shell/.built: build/stdlib/.built build/libs/.built $(TOOL) $(call sources
 # The standard library's pages, one per module beside its .erc in
 # build/stdlib, and index.md listing them (report §11.4).
 doc: all
-	@bin/ernc --doc --out-dir build/stdlib stdlib
+	@bin/ern doc --build-root build/stdlib stdlib
 
 # The tests by area (plan, MVP 2.6). `make test` runs
 # every area; a change that touches one area runs that area's target, as
