@@ -11,15 +11,13 @@
 %% and `let p <- e` becomes a case (report §5.5).
 -module(ern_emitter).
 
--export([compile/4, compile/5, forms/3, erl_source/3, read_interface/1, read_docs/1,
-         iface_hash/1, module_atom/1, descriptor/2]).
+-export([compile/4, compile/5, forms/3, erl_source/3, read_docs/1,
+         module_atom/1, descriptor/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("utils/include/ern_diag.hrl").
 -include_lib("typer/include/ern_types.hrl").
 
--define(CHUNK, <<"ErnI">>).
--define(CHUNK_FORMAT, 2).
 %% EEP 48: the documentation chunk every BEAM documentation tool reads.
 -define(DOCS, <<"Docs">>).
 
@@ -43,9 +41,6 @@
 %% Entry points
 %%
 
--type chunk() :: #{iface := #iface{}, source_hash := binary(), deps := [{[atom()], binary()}],
-                   compiler => binary(), stdlib => binary() | none}.
-
 -spec compile([atom()], [tuple()], #iface{}, ern_typecheck:env()) ->
           {ok, atom(), binary()} | {error, [error()]}.
 compile(Ns, Decls, Iface, Env) ->
@@ -64,10 +59,10 @@ compile(Ns, Decls, Iface, Env, Build) ->
         Forms = forms(Ns, Decls, Env, [D || {D, _} <- maps:get(deps, Build, [])],
                       maps:get(session, Build, false)),
         Meta = maps:without([source, session], Build),
-        Chunk = term_to_binary(Meta#{format => ?CHUNK_FORMAT, iface => canonical_iface(Iface)}),
+        Chunk = ern_iface:encode(Meta, Iface),
         Docs = term_to_binary(docs(Ns, Decls, Env, maps:get(source, Build, <<>>))),
-        case compile:forms(Forms, [return_errors, debug_info,
-                                   {extra_chunks, [{?CHUNK, Chunk}, {?DOCS, Docs}]}]) of
+        Chunks = [{ern_iface:chunk_name(), Chunk}, {?DOCS, Docs}],
+        case compile:forms(Forms, [return_errors, debug_info, {extra_chunks, Chunks}]) of
             {ok, Mod, Bin} -> {ok, Mod, Bin};
             {ok, Mod, Bin, _Warnings} -> {ok, Mod, Bin};
             {error, Errors, _} -> {error, erl_errors(Errors)}
@@ -163,26 +158,6 @@ deps_fun(Deps) ->
 erl_source(Ns, Decls, Env) ->
     Forms = forms(Ns, Decls, Env),
     [erl_prettypr:format(erl_syntax:form_list(Forms)), "\n"].
-
-%% The chunk of a compiled module, the interface as the checker takes it.
-%% A chunk of another format, from another version of the compiler, reads
-%% as an error, which makes the module stale (report §11.1).
--spec read_interface(binary() | file:filename()) -> {ok, chunk()} | {error, string()}.
-read_interface(Beam) ->
-    case beam_lib:chunks(Beam, [binary_to_list(?CHUNK)]) of
-        {ok, {_, [{_, Chunk}]}} ->
-            try binary_to_term(Chunk) of
-                #{format := ?CHUNK_FORMAT, iface := {iface, Ns, Types, Values, Lets}} = Map ->
-                    {ok, Map#{iface => #iface{namespace = Ns, types = maps:from_list(Types),
-                                              values = maps:from_list(Values), lets = Lets}}};
-                _ ->
-                    {error, "the interface chunk is of another compiler version"}
-            catch _:_ ->
-                {error, "the interface chunk is of another compiler version"}
-            end;
-        {error, beam_lib, Reason} ->
-            {error, lists:flatten(beam_lib:format_error(Reason))}
-    end.
 
 %% Report §11.1, EEP 48: the module's documentation, read by `ernc --doc`
 %% (§11.4) and by the host's own tools. One entry per declaration §11.4
@@ -334,10 +309,6 @@ syn(#t_fn{params = Ps, ret = R, effect = E}) ->
     ["(", lists:join(", ", [syn(P) || P <- Ps]), ") -> ", syn(R),
      case E of undefined -> ""; _ -> [" with ", syn(E)] end].
 
--spec iface_hash(#iface{}) -> binary().
-iface_hash(Iface) ->
-    crypto:hash(sha256, term_to_binary(canonical_iface(Iface, strip))).
-
 %% Report §4.2, plan 2.4: the path with @ for / and the prefix ern@.
 -spec module_atom([atom()]) -> atom().
 module_atom(Ns) ->
@@ -352,34 +323,6 @@ erl_errors(PerFile) ->
 line_of(Pos) when is_tuple(Pos) -> element(1, Pos);
 line_of(L) when is_integer(L) -> L;
 line_of(_) -> 0.
-
-%% Quantified variables renumbered and maps as sorted lists, so that equal
-%% interfaces have equal bytes (plan 2.4). The hash leaves the variables'
-%% names out: a renamed annotation changes no dependent.
-canonical_iface(Iface) ->
-    canonical_iface(Iface, keep).
-
-canonical_iface(#iface{namespace = Ns, types = Ts, values = Vs, lets = Lets}, Names) ->
-    {iface, Ns, lists:sort(maps:to_list(Ts)),
-     lists:sort([{Q, canonical_scheme(S, Names)} || {Q, S} <- maps:to_list(Vs)]),
-     lists:sort(Lets)}.
-
-canonical_scheme(#scheme{vars = Vars, type = T, names = Names}, Keep) ->
-    Map = maps:from_list([{Id, N} || {{Id, _}, N} <- lists:zip(Vars, lists:seq(1, length(Vars)))]),
-    #scheme{vars = [{maps:get(Id, Map), Flags} || {Id, Flags} <- Vars],
-            type = renumber(T, Map),
-            names = case Keep of
-                        keep -> maps:from_list([{maps:get(Id, Map), N}
-                                                || {Id, N} <- maps:to_list(Names)]);
-                        strip -> #{}
-                    end}.
-
-renumber({tvar, Id}, Map) -> {tvar, maps:get(Id, Map, Id)};
-renumber({tcon, N, As}, Map) -> {tcon, N, [renumber(A, Map) || A <- As]};
-renumber({ttuple, Es}, Map) -> {ttuple, [renumber(E, Map) || E <- Es]};
-renumber({tfn, Ps, E, R}, Map) -> {tfn, [renumber(P, Map) || P <- Ps], renumber(E, Map),
-                                   renumber(R, Map)};
-renumber(T, _) -> T.
 
 %%
 %% Declarations

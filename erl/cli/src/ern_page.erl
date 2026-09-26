@@ -14,7 +14,7 @@
 %% documentation chunk and the namespace in its interface chunk (§11.1).
 -spec page(binary() | file:filename()) -> iolist().
 page(Beam) ->
-    {ok, #{iface := #iface{namespace = Ns}}} = ern_emitter:read_interface(Beam),
+    {ok, #{iface := #iface{namespace = Ns}}} = ern_iface:read(Beam),
     {ok, Docs} = ern_emitter:read_docs(Beam),
     render(["Ernest module ", qname(Ns)], qname(Ns) ++ ".", Docs).
 
@@ -29,7 +29,7 @@ prelude_page() ->
 %% module declares is `:browse`'s to list.
 -spec module_head(binary() | file:filename()) -> iolist().
 module_head(Beam) ->
-    {ok, #{iface := #iface{namespace = Ns}}} = ern_emitter:read_interface(Beam),
+    {ok, #{iface := #iface{namespace = Ns}}} = ern_iface:read(Beam),
     {ok, {docs_v1, _, ernest, _, ModDoc, _, _}} = ern_emitter:read_docs(Beam),
     head(["Ernest module ", qname(Ns)], ModDoc).
 
@@ -103,7 +103,7 @@ since_line(V) -> ["*Since ", V, ".*\n\n"].
 %% it is written, so that no name is made of what a person typed.
 -spec declaration(binary() | file:filename(), binary()) -> {ok, iolist()} | none.
 declaration(Beam, Name) ->
-    {ok, #{iface := #iface{namespace = Ns}}} = ern_emitter:read_interface(Beam),
+    {ok, #{iface := #iface{namespace = Ns}}} = ern_iface:read(Beam),
     {ok, {docs_v1, _, ernest, _, _, _, Entries}} = ern_emitter:read_docs(Beam),
     case find(Name, Entries) of
         {ok, E} -> {ok, entry(E, qname(Ns) ++ ".")};

@@ -394,7 +394,7 @@ stdlib_namespaces() ->
 build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces,
       [OutDir | _] = Dirs, Emit, Std) ->
     DepIfaces = [dep_iface(D, Ifaces, Dirs) || D <- Deps],
-    DepHashes = lists:sort([{D, ern_emitter:iface_hash(I)} || {D, I} <- DepIfaces]),
+    DepHashes = lists:sort([{D, ern_iface:hash(I)} || {D, I} <- DepIfaces]),
     {ok, Source} = file:read_file(File),
     SourceHash = crypto:hash(sha256, Source),
     Out = filename:join(OutDir, filename:rootname(Rel)),
@@ -435,7 +435,7 @@ stdlib_hash(Root) ->
     case is_stdlib_root(Root) of
         true -> none;
         false ->
-            Hashes = lists:sort([{I#iface.namespace, ern_emitter:iface_hash(I)}
+            Hashes = lists:sort([{I#iface.namespace, ern_iface:hash(I)}
                                  || I <- ern_prelude:stdlib_ifaces()]),
             crypto:hash(sha256, term_to_binary(Hashes))
     end.
@@ -487,7 +487,7 @@ compiler_build() ->
 
 read_erc(Erc) ->
     case file:read_file(Erc) of
-        {ok, Bin} -> ern_emitter:read_interface(Bin);
+        {ok, Bin} -> ern_iface:read(Bin);
         {error, Reason} -> {error, file:format_error(Reason)}
     end.
 
@@ -690,7 +690,7 @@ program(File, Opts) ->
     filename:extension(File) =:= ".erc" orelse fail(File ++ " does not end in .erc"),
     Abs = absolute(File),
     {ok, Bin} = file:read_file(Abs),
-    Ns = case ern_emitter:read_interface(Bin) of
+    Ns = case ern_iface:read(Bin) of
              {ok, #{iface := #iface{namespace = N}}} -> N;
              {error, Why} -> fail(File ++ ": " ++ Why)
          end,
@@ -715,7 +715,7 @@ host_path(Roots) ->
 ifaces(Loaded) ->
     [{I, H} || Mod <- lists:reverse(Loaded),
                {ok, Bin} <- [file:read_file(code:which(Mod))],
-               {ok, #{iface := I, source_hash := H}} <- [ern_emitter:read_interface(Bin)]].
+               {ok, #{iface := I, source_hash := H}} <- [ern_iface:read(Bin)]].
 
 %% Report §11.2: where the startup files are, the person's first and then
 %% the node's; the shell reads them and finds out whether they are there.
@@ -751,7 +751,7 @@ compile_source(File, Root, Dirs) ->
         [#mod{ns = Ns, rel = Rel, decls = Decls, deps = Deps}] =
             compile_order([module_of(absolute(File), Root)], Root, Dirs),
         DepIfaces = [dep_iface(D, #{}, Dirs) || D <- Deps],
-        DepHashes = lists:sort([{D, ern_emitter:iface_hash(I)} || {D, I} <- DepIfaces]),
+        DepHashes = lists:sort([{D, ern_iface:hash(I)} || {D, I} <- DepIfaces]),
         {ok, Source} = file:read_file(File),
         Hash = crypto:hash(sha256, Source),
         case ern_typecheck:check(Ns, Decls, [I || {_, I} <- DepIfaces]) of
@@ -908,7 +908,7 @@ entry_point(Opts, Ns, Roots, Loaded) ->
 entry_shape(Mod, Fn) ->
     {ok, Bin} = file:read_file(code:which(Mod)),
     {ok, #{iface := #iface{namespace = Ns, values = Values, lets = Lets}}} =
-        ern_emitter:read_interface(Bin),
+        ern_iface:read(Bin),
     Q = Ns ++ [Fn],
     case maps:find(Q, Values) of
         error ->
@@ -944,7 +944,7 @@ load(Ns, Roots, Loaded) ->
                                   ++ ") on the load path")
                    end,
             {ok, Bin} = file:read_file(File),
-            {ok, #{deps := Deps}} = ern_emitter:read_interface(Bin),
+            {ok, #{deps := Deps}} = ern_iface:read(Bin),
             Loaded1 = lists:foldl(fun({D, _}, L) -> load(D, Roots, L) end, Loaded, Deps),
             code:purge(Mod),
             case code:load_binary(Mod, File, Bin) of

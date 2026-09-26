@@ -146,7 +146,7 @@ let_of_function_type_remote_test() ->
     {ok, MMod, MBin} = ern_emitter:compile(['M'], MTyped, MIface, MEnv),
     {module, MMod} = code:load_binary(MMod, "test", MBin),
     %% the interface the dependent is checked against is the compiled one
-    {ok, #{iface := Iface}} = ern_emitter:read_interface(MBin),
+    {ok, #{iface := Iface}} = ern_iface:read(MBin),
     ?assertEqual([['M', g], ['M', h]], lists:sort(Iface#iface.lets)),
     {ok, Decls} = ern_parser:parse_string(
                     "export fn main() -> Unit with m = {\n"
@@ -262,7 +262,7 @@ docs_chunk_test() ->
     ?assertEqual([shape], maps:get(params, FnMeta)),
     %% the interface chunk keeps its own shape, the source name being the
     %% documentation's
-    {ok, Read} = ern_emitter:read_interface(Beam),
+    {ok, Read} = ern_iface:read(Beam),
     ?assertEqual(false, is_map_key(source, Read)).
 
 %% report §11.1, plan 2.4: the interface travels in the BEAM chunk ErnI
@@ -274,12 +274,12 @@ iface_chunk_test() ->
     Build = #{source_hash => <<"s">>, deps => [{['Net', 'Http'], <<"h">>}]},
     {ok, 'ern@stack', Beam} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
     {ok, #{iface := Read, source_hash := <<"s">>, deps := [{['Net', 'Http'], <<"h">>}]}} =
-        ern_emitter:read_interface(Beam),
+        ern_iface:read(Beam),
     ?assertEqual(['Stack'], Read#iface.namespace),
     ?assert(is_map_key(['Stack', 'Stack', push], Read#iface.values)),
-    ?assertEqual(ern_emitter:iface_hash(Iface), ern_emitter:iface_hash(Read)),
+    ?assertEqual(ern_iface:hash(Iface), ern_iface:hash(Read)),
     {ok, _, Iface2, _} = ern_typecheck:check_string(Ns, <<"fn f(x) = x\n", Bin/binary>>),
-    ?assertEqual(ern_emitter:iface_hash(Iface), ern_emitter:iface_hash(Iface2)).
+    ?assertEqual(ern_iface:hash(Iface), ern_iface:hash(Iface2)).
 
 %% report §11.1: a chunk of another compiler version reads as an error,
 %% so the module counts as stale; and the interface hash ignores the names
@@ -292,10 +292,10 @@ stale_chunk_test() ->
     Old = term_to_binary((binary_to_term(Chunk))#{format => 0}),
     {ok, _, Stale} = compile:forms([{attribute, 1, module, x}],
                                    [binary, {extra_chunks, [{<<"ErnI">>, Old}]}]),
-    ?assertMatch({error, _}, ern_emitter:read_interface(Stale)),
+    ?assertMatch({error, _}, ern_iface:read(Stale)),
     {ok, _, IfaceA, _} = ern_typecheck:check_string(['M'], "export fn id(x : a) -> a = x\n"),
     {ok, _, IfaceT, _} = ern_typecheck:check_string(['M'], "export fn id(x : t) -> t = x\n"),
-    ?assertEqual(ern_emitter:iface_hash(IfaceA), ern_emitter:iface_hash(IfaceT)).
+    ?assertEqual(ern_iface:hash(IfaceA), ern_iface:hash(IfaceT)).
 
 %% report §11.1: --emit erl gives the module as Erlang source
 erl_source_test() ->

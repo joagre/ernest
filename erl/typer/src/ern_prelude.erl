@@ -637,18 +637,12 @@ stdlib_ifaces() ->
                                          filename:basename(D) =:= "stdlib"])),
     lists:append([stdlib_iface(F) || F <- Files]).
 
+%% A standard library module whose interface cannot be read is a broken
+%% build of the toolchain, said as such, never a namespace left out.
 stdlib_iface(File) ->
-    case beam_lib:chunks(File, ["ErnI"]) of
-        {ok, {_, [{_, Chunk}]}} ->
-            try binary_to_term(Chunk) of
-                #{iface := {iface, Ns, Types, Values, Lets}} ->
-                    [#iface{namespace = Ns, types = maps:from_list(Types),
-                            values = maps:from_list(Values), lets = Lets}];
-                _ ->
-                    []
-            catch _:_ ->
-                []
-            end;
-        _ ->
-            []
+    case ern_iface:read(File) of
+        {ok, #{iface := Iface}} ->
+            [Iface];
+        {error, Reason} ->
+            error({broken_standard_library, File, Reason, "rebuild it with make"})
     end.

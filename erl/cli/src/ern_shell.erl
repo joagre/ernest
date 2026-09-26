@@ -1282,7 +1282,7 @@ needed(Env, Modules) ->
 needed(_Env, _Beam, {error, _} = Error) ->
     Error;
 needed(#env{modules = Loaded} = Env, Beam, {ok, _} = Found) ->
-    {ok, #{deps := Deps}} = ern_emitter:read_interface(Beam),
+    {ok, #{deps := Deps}} = ern_iface:read(Beam),
     lists:foldl(fun(_, {error, _} = Error) ->
                         Error;
                    ({Ns, _}, {ok, Acc}) ->
@@ -1425,7 +1425,7 @@ install(Env, Modules) ->
 install(#env{ifaces = Ifaces, modules = Modules} = Env, Ns, Beam, Hash) ->
     Mod = ern_emitter:module_atom(Ns),
     {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), Beam),
-    {ok, #{iface := Iface}} = ern_emitter:read_interface(Beam),
+    {ok, #{iface := Iface}} = ern_iface:read(Beam),
     Env#env{ifaces = [I || I <- Ifaces, I#iface.namespace =/= Ns] ++ [Iface],
             modules = Modules#{Ns => Hash},
             beams = maps:put(Ns, Beam, Env#env.beams)}.
@@ -1460,7 +1460,7 @@ compiled_of(Env, Ns) ->
     case [F || R <- load_path(Env), F <- [filename:join(R, Rel)], filelib:is_regular(F)] of
         [File | _] ->
             {ok, Bin} = file:read_file(File),
-            case ern_emitter:read_interface(Bin) of
+            case ern_iface:read(Bin) of
                 {ok, #{source_hash := Hash}} -> {ok, File, Bin, Hash};
                 {error, _} -> none
             end;
