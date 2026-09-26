@@ -7,7 +7,7 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Twenty-six have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Twenty-seven have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
 (decided, report §9), 2, 4 and 43 (weighed and kept, the log's *Constructor Names Stay Unique
 in a Module*, *Names Stay Qualified, Without Import or Alias* and *Two Visibilities Are
@@ -23,8 +23,9 @@ log's *One Contract, Several Representations*), 9 (decided, the plan's MVP 2.65 
 `ern` prints every fault to standard error), 53 (decided in the same step: no registry, a
 service is a top-level binding, and a restart keeps the address), 24 (decided there too:
 `Address.process` gives a `Process`, the identity with equality), 26 (decided there:
-`stdlib/process.ern` lists the live processes, and the shell reads it), and 28 (decided there:
-`Process.faults` delivers every fault, and the shell keeps its own log).
+`stdlib/process.ern` lists the live processes, and the shell reads it), 28 (decided there:
+`Process.faults` delivers every fault, and the shell keeps its own log), and 50 (decided there:
+a timed read, accept or connect takes its time limit into the request).
 
 ## 1. Names and namespaces
 
@@ -43,11 +44,6 @@ give: the system modules' contracts, one by one.
 Items 14 and 25 are MVP 3.0's, and 16 is MVP 2.7's; they are here because they are the
 same question.
 
-50. **A read that timed out loses what arrives after it.** `Tcp.read(sock, 100)` answers
-    `Left(Timeout)`, and the bytes that arrive next go to the reply nobody waits for, which
-    §6.6 discards; the next read waits for the bytes after them. Right for a reply, wrong
-    for a stream. Found by the review of the runtime. Whether E.18's read keeps what came
-    late for the next read, or a timed read is not offered on a stream at all.
 47. **A socket's protocol is not for programs.** `send(sock, Close)` stands beside
     `Tcp.close`; E.0 rule 8 says a system reference is used only through its module, and
     E.18 does not say the same of `SockMsg`.

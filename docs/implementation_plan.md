@@ -22,8 +22,7 @@ first four steps are done: the feedback list and this plan consolidated, the rep
 cold, and the first two themes, names and namespaces, and expressions, patterns and types.
 The third theme, processes and the system, has begun: names, restarts and supervision
 are decided (item 53, six questions), a process's identity (item 24), the live
-processes as a function (item 26), and the fault log (item 28); the system modules' items,
-50, 47, 37 and 27, are next. MVP 2.6, the shell, was closed on
+processes as a function (item 26), and the fault log (item 28), and a stream's time limit (item 50); items 47, 37 and 27 are next. MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
 **Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23; MVP 2.61, the
@@ -124,7 +123,10 @@ The steps:
       request was sent to faults or dies before it answers, `Address.call` returns `None` at
       once and `Address.callForever` faults the caller with the same cause (report §6.6, when
       built). The lost message is not delivered again, and one without a `Reply` is lost
-      silently. The log's *A Call Ends When Its Callee Faults*.
+      silently. The log's *A Call Ends When Its Callee Faults*. Completed with item 50: a
+      callee that returned without answering faults a `callForever` caller with
+      `Fault("callee returned without answering")`, one that was killed with
+      `Fault("callee was killed")`, and one that ended with the program gives nothing.
    2. **Decided 2026-09-26: a restart has a limit and no strategy.** `restarting(limit, f)`,
       with `type Limit = Limit(restarts : Int, within : Int)` in milliseconds and no default,
       restarts on a fault only; `Returned`, `Killed` and `ProgramEnd` end the process. Past
@@ -192,6 +194,13 @@ The steps:
    `watchDeaths` and `faults()` go, and §11.2's sentence on a record the shell alone reads
    goes with them. MVP 2.7's simple log can be written over it. The log's *Every Fault Is
    Delivered to Whoever Subscribes*.
+
+   **Decided 2026-09-26: a stream keeps its own time limit** (item 50). `Tcp.read`,
+   `Tcp.accept` and `Tcp.connect` keep their signatures, and the milliseconds travel in the
+   request: the socket process answers `Left(Timeout)` itself and buffers what comes later,
+   the accept and the connect use the host's own time limit, and the Ernest side waits with
+   `Address.callForever`. E.18 gains that a read, accept or connect that times out has taken
+   nothing. The log's *A Stream Keeps Its Own Time Limit*.
 6. **The standard library under E.0**, the fourth theme, in three batches: where the line
    between a shim and Ernest runs, with the abstract types it could write (items 11, 13, 42,
    46), what a function is named and where it
