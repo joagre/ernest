@@ -7,7 +7,7 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Twenty-five have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Twenty-six have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
 (decided, report §9), 2, 4 and 43 (weighed and kept, the log's *Constructor Names Stay Unique
 in a Module*, *Names Stay Qualified, Without Import or Alias* and *Two Visibilities Are
@@ -22,8 +22,9 @@ session does not reach, and it would make the editor depend on `Shell.History`),
 log's *One Contract, Several Representations*), 9 (decided, the plan's MVP 2.65 step 5:
 `ern` prints every fault to standard error), 53 (decided in the same step: no registry, a
 service is a top-level binding, and a restart keeps the address), 24 (decided there too:
-`Address.process` gives a `Process`, the identity with equality), and 26 (decided there:
-`stdlib/process.ern` lists the live processes, and the shell reads it).
+`Address.process` gives a `Process`, the identity with equality), 26 (decided there:
+`stdlib/process.ern` lists the live processes, and the shell reads it), and 28 (decided there:
+`Process.faults` delivers every fault, and the shell keeps its own log).
 
 ## 1. Names and namespaces
 
@@ -38,15 +39,10 @@ decision.
 ## 3. Processes and the system
 
 What a process is to the program that holds its address, and what the system modules
-give. The fault log (28) leads, the last of the shell's doors to the runtime. The rest are
-the system modules' contracts, one by one.
+give: the system modules' contracts, one by one.
 Items 14 and 25 are MVP 3.0's, and 16 is MVP 2.7's; they are here because they are the
 same question.
 
-28. **The fault log is the host's.** `:faults` reads a list the front end keeps, where the
-    session already receives every fault as a `Died` message and could keep the last
-    hundred itself in Ernest. §11.2 calls it "the runtime's record", so moving it is a
-    report question, and one with item 26.
 50. **A read that timed out loses what arrives after it.** `Tcp.read(sock, 100)` answers
     `Left(Timeout)`, and the bytes that arrive next go to the reply nobody waits for, which
     §6.6 discards; the next read waits for the bytes after them. Right for a reply, wrong

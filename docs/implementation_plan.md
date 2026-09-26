@@ -21,8 +21,9 @@ Actorson until 12 September 2026.
 first four steps are done: the feedback list and this plan consolidated, the report read
 cold, and the first two themes, names and namespaces, and expressions, patterns and types.
 The third theme, processes and the system, has begun: names, restarts and supervision
-are decided (item 53, six questions), a process's identity (item 24), and the live
-processes as a function (item 26); the fault log (item 28) is next. MVP 2.6, the shell, was closed on
+are decided (item 53, six questions), a process's identity (item 24), the live
+processes as a function (item 26), and the fault log (item 28); the system modules' items,
+50, 47, 37 and 27, are next. MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
 **Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23; MVP 2.61, the
@@ -182,6 +183,15 @@ The steps:
    snapshot, as its documentation says. The shell's `:processes` is written over them, and
    its foreign `processes()` goes. Report §9, a new Appendix E section, and §11.2, in step
    10. The log's *The Live Processes Are a Library Function*.
+
+   **Decided 2026-09-26: every fault is delivered to whoever subscribes** (item 28).
+   `Process.faults(wrap)` delivers a `FaultReport(process, site, cause, restarted)` for
+   every fault of every process the runtime started, as E.0 rule 8 delivers, for as long
+   as the subscriber lives. `ern`'s report of every fault is the runtime's own subscriber.
+   The shell subscribes, prints, and keeps its last hundred faults in Ernest; its
+   `watchDeaths` and `faults()` go, and §11.2's sentence on a record the shell alone reads
+   goes with them. MVP 2.7's simple log can be written over it. The log's *Every Fault Is
+   Delivered to Whoever Subscribes*.
 6. **The standard library under E.0**, the fourth theme, in three batches: where the line
    between a shim and Ernest runs, with the abstract types it could write (items 11, 13, 42,
    46), what a function is named and where it
@@ -263,7 +273,8 @@ reads it today.
 prints to standard error, the fault reports first among them, to a file as well, and
 perhaps only there. A very simple logger, the smallest thing that keeps a long-running
 program's faults; whether it is an option to `ern` or a runtime-bound value in §8.2 is the
-decision.
+decision. `Process.faults` (MVP 2.65 step 5, item 28) is beneath it, so the log of faults can
+be a process written in Ernest that subscribes and appends.
 
 **The report lists the libraries that exist**, `libs/ets` and `libs/markdown`, in a new
 informative appendix, one section per library with its signatures and contracts, and a mirror
