@@ -2,7 +2,7 @@
 
 Ernest is a functional language for concurrent programs, designed by the user (joagre). Two concepts: pure functions (Hindley-Milner) and processes with typed mailboxes. [`ernest_report.md`](ernest_report.md) is the full report.
 
-The rules are in the order of work: what is authoritative and who owns each fact, the repository, before code, design, defects and gaps, tests, writing, reading back, and when a task is done. Each rule is stated once.
+The rules are in the order of work: what is authoritative and who owns each fact, the repository, before code, design, shims, defects and gaps, tests, writing, reading back, and when a task is done. Each rule is stated once.
 
 ## Authority
 
@@ -35,8 +35,8 @@ The rules are in the order of work: what is authoritative and who owns each fact
 
 - **The report changes first.** An anomaly found while implementing changes the report, then the decisions log, then the code.
 - **A change to the report or the plan is stated before it is made, not asked about.** Give the change and the argument for it, make it, and report it in the conformance section. Stop and wait only where the answer decides what gets built and guessing would throw the work away; that case is rare, and everything else is stated and done.
+- **That rare case is a design question, discussed one at a time, in prose.** The argument comes before the verdict, with a recommendation; never a form of choices.
 - **No decision is left pending.** A question a step raises is decided in the same turn, with its argument, and recorded in the plan and the log. Where guessing would throw work away, it is placed in the plan as a named decision inside a named milestone or checkpoint, never left as "open". An undiagnosed defect is planned the same way, with a date and the shape of its fix.
-- **A design question is discussed one at a time, in prose.** The argument comes before the verdict, with a recommendation; never a form of choices.
 - **List the report sections a module implements before writing it.**
 - **Quote the exact section or grammar rule** when touching normative material.
 
@@ -46,6 +46,9 @@ The rules are in the order of work: what is authoritative and who owns each fact
 - **Features are judged on the principles.** A feature enters or stays out by the five principles, and a standard library function by E.0's four admission rules, weighed one by one. How many programs ask for it decides nothing; a feature is not deferred until one asks. A library under `libs/` is not a feature of the language: one is written when our work needs it, when someone asks for it, or when we want it.
 - **The log names the principle that decided.** A "Later" entry states the verdict and what would change it, never a count of programs as its trigger.
 - **Bring options, not defenses.** When a proposed simplification seems to conflict with a principle, first check whether the principle is being applied too dogmatically. The ambient `Sys.*` values were once refused on a misreading of "nothing invisible".
+
+## Shims
+
 - **`foreign` is only what the host alone can do, in every Ernest we write.** One rule, and the standard library is not exempt from it: a `foreign fn` is admitted where Ernest cannot express the work *given the layers beneath it*, and nowhere else. The shell reads its history file in Ernest because `Fs` is beneath it; `String.toUpper` is a shim because nothing is beneath `String` but the host and its Unicode tables. Reading a file, splitting it, escaping it, trimming it, sorting a list is ordinary programming and is written in Ernest. E.0 rule 1 is the report's half of this rule and the normative one for the standard library; where the two differ it is the report that is corrected.
 - **Performance is never the reason for a shim.** Write it in Ernest, and if a measurement later demands otherwise, that comes back as a decision with the numbers beside it.
 - **Whether a type's representation is the runtime's is a decision of its own**, not an exemption from the `foreign` rule. `Map` is Erlang's map and `String` a binary, so the operations that reach the representation are the host's, and the rest are Ernest over them; that choice is recorded in Appendix E.0 and the log, and it is revisitable. What it never licenses is a shim for a value the language already owns.
