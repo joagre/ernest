@@ -272,7 +272,9 @@ The steps:
       service as a top-level binding, `restarting` and its `Limit`, the `start` and `service`
       pair for tests, a call that ends when its callee faults, and `fault`; §6.4's sentence
       that a restarted service must hand out its new address goes. The section on the
-      supervisor is MVP 2.66's. The document sweep closes the step.
+      supervisor is MVP 2.66's. `ern_shell`, its doors to the runtime gone, is measured
+      again and whether its `:browse` and `:doc` leave it is decided (step 8, *Where the
+      Toolchain's Modules Split*). The document sweep closes the step.
 
 ---
 

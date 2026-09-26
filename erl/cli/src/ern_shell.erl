@@ -382,7 +382,7 @@ one_name(Typed) ->
 -spec run(#env{}, #checked{}, term()) -> term().
 run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
                   binds = Binds}, To) ->
-    Desc = ern_emitter:descriptor(T, TEnv),
+    Desc = ern_descriptor:describe(T, TEnv, []),
     {ok, Mod, Beam} = ern_emitter:compile(Ns, Typed, Iface, TEnv,
                                           #{source_hash => <<>>, deps => [], session => true}),
     {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), Beam),
@@ -915,7 +915,7 @@ parameters(Env, Path, Name) ->
         none ->
             [];
         _ ->
-            {ok, {docs_v1, _, _, _, _, _, Entries}} = ern_emitter:read_docs(Beam),
+            {ok, {docs_v1, _, _, _, _, _, Entries}} = ern_docs:read(Beam),
             case [Ps || {{function, K, _}, _, _, _, #{params := Ps}} <- Entries,
                         lists:member(atom_to_binary(K), Keys)] of
                 [Ps | _] -> Ps;

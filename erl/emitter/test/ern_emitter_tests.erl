@@ -247,7 +247,7 @@ docs_chunk_test() ->
     Build = #{source_hash => <<>>, deps => [], source => <<"shapes.ern">>},
     {ok, 'ern@shapes', Beam} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
     {ok, {docs_v1, _, ernest, <<"text/markdown">>, ModDoc, Meta, Entries}} =
-        ern_emitter:read_docs(Beam),
+        ern_docs:read(Beam),
     ?assertEqual(#{<<"en">> => <<"The module.">>}, ModDoc),
     ?assertEqual(<<"shapes.ern">>, maps:get(source, Meta)),
     [{{type, 'Shape', 0}, _, Signature, Doc, TypeMeta},

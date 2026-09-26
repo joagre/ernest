@@ -15,7 +15,7 @@
 -spec page(binary() | file:filename()) -> iolist().
 page(Beam) ->
     {ok, #{iface := #iface{namespace = Ns}}} = ern_iface:read(Beam),
-    {ok, Docs} = ern_emitter:read_docs(Beam),
+    {ok, Docs} = ern_docs:read(Beam),
     render(["Ernest module ", qname(Ns)], qname(Ns) ++ ".", Docs).
 
 %% Report §9, §11.4: the prelude's page, from the documentation its table
@@ -30,7 +30,7 @@ prelude_page() ->
 -spec module_head(binary() | file:filename()) -> iolist().
 module_head(Beam) ->
     {ok, #{iface := #iface{namespace = Ns}}} = ern_iface:read(Beam),
-    {ok, {docs_v1, _, ernest, _, ModDoc, _, _}} = ern_emitter:read_docs(Beam),
+    {ok, {docs_v1, _, ernest, _, ModDoc, _, _}} = ern_docs:read(Beam),
     head(["Ernest module ", qname(Ns)], ModDoc).
 
 render(Title, Prefix, {docs_v1, _, ernest, _, ModDoc, Meta, Entries}) ->
@@ -104,7 +104,7 @@ since_line(V) -> ["*Since ", V, ".*\n\n"].
 -spec declaration(binary() | file:filename(), binary()) -> {ok, iolist()} | none.
 declaration(Beam, Name) ->
     {ok, #{iface := #iface{namespace = Ns}}} = ern_iface:read(Beam),
-    {ok, {docs_v1, _, ernest, _, _, _, Entries}} = ern_emitter:read_docs(Beam),
+    {ok, {docs_v1, _, ernest, _, _, _, Entries}} = ern_docs:read(Beam),
     case find(Name, Entries) of
         {ok, E} -> {ok, entry(E, qname(Ns) ++ ".")};
         none -> none
@@ -129,7 +129,7 @@ session_declaration(Beam, Name, Signature) ->
                   none ->
                       [];
                   _ ->
-                      {ok, {docs_v1, _, ernest, _, _, _, Es}} = ern_emitter:read_docs(Beam),
+                      {ok, {docs_v1, _, ernest, _, _, _, Es}} = ern_docs:read(Beam),
                       Es
               end,
     case find(Name, Entries) of
@@ -159,7 +159,7 @@ prelude_declaration(Name) ->
 since(prelude) ->
     module_since(ern_prelude:docs());
 since(Beam) ->
-    {ok, Docs} = ern_emitter:read_docs(Beam),
+    {ok, Docs} = ern_docs:read(Beam),
     module_since(Docs).
 
 module_since({docs_v1, _, _, _, #{<<"en">> := T}, _, _}) -> element(2, split_since(T));

@@ -553,7 +553,7 @@ values() ->
       <<"The process that opens sockets; the `Tcp` module speaks to it.">>}].
 
 %% Report §9, §11.4: the prelude's documentation, as an EEP 48 chunk of the
-%% shape ern_emitter:docs/4 builds for a module, so that one renderer serves
+%% shape ern_docs:build/4 builds for a module, so that one renderer serves
 %% both. An operation its type's module documents is not repeated here.
 -spec docs() -> tuple().
 docs() ->

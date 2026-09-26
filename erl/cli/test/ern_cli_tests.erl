@@ -702,7 +702,7 @@ docs_chunk_test() ->
     Out = filename:join(Dir, "build"),
     ?assertEqual(0, ern_cli:ernc(["--source-root", Dir, "--out-dir", Out, Src])),
     {ok, Beam} = file:read_file(filename:join(Out, "shapes.erc")),
-    {ok, Docs} = ern_emitter:read_docs(Beam),
+    {ok, Docs} = ern_docs:read(Beam),
     {docs_v1, _, ernest, <<"text/markdown">>, none, Meta, Entries} = Docs,
     ?assertEqual(<<"shapes.ern">>, maps:get(source, Meta)),
     %% the parameter list as written, for the shell's completion

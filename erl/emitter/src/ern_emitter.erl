@@ -11,15 +11,13 @@
 %% and `let p <- e` becomes a case (report §5.5).
 -module(ern_emitter).
 
--export([compile/4, compile/5, forms/3, erl_source/3, read_docs/1,
-         module_atom/1, function_atom/1, descriptor/2]).
+-export([compile/4, compile/5, forms/3, erl_source/3, module_atom/1, function_atom/1,
+         function_name/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("utils/include/ern_diag.hrl").
 -include_lib("typer/include/ern_types.hrl").
 
-%% EEP 48: the documentation chunk every BEAM documentation tool reads.
--define(DOCS, <<"Docs">>).
 
 %% Emission context, threaded through everything. vars: Ernest name =>
 %% Erlang variable name; locals: local fn name => #local{} (see Blocks);
@@ -60,8 +58,8 @@ compile(Ns, Decls, Iface, Env, Build) ->
                       maps:get(session, Build, false)),
         Meta = maps:without([source, session], Build),
         Chunk = ern_iface:encode(Meta, Iface),
-        Docs = term_to_binary(docs(Ns, Decls, Env, maps:get(source, Build, <<>>))),
-        Chunks = [{ern_iface:chunk_name(), Chunk}, {?DOCS, Docs}],
+        Docs = term_to_binary(ern_docs:build(Ns, Decls, Env, maps:get(source, Build, <<>>))),
+        Chunks = [{ern_iface:chunk_name(), Chunk}, {ern_docs:chunk_name(), Docs}],
         case compile:forms(Forms, [return_errors, debug_info, {extra_chunks, Chunks}]) of
             {ok, Mod, Bin} -> {ok, Mod, Bin};
             {ok, Mod, Bin, _Warnings} -> {ok, Mod, Bin};
@@ -159,156 +157,6 @@ erl_source(Ns, Decls, Env) ->
     Forms = forms(Ns, Decls, Env),
     [erl_prettypr:format(erl_syntax:form_list(Forms)), "\n"].
 
-%% Report §11.1, EEP 48: the module's documentation, read by `ernc --doc`
-%% (§11.4) and by the host's own tools. One entry per declaration §11.4
-%% renders, in source order: its signature as the page shows it, its doc
-%% block verbatim, and, for a type, its constructors, fields, and signature
-%% entries in the metadata, so a reader of the chunk needs no markdown.
--spec read_docs(binary() | file:filename()) -> {ok, tuple()} | {error, string()}.
-read_docs(Beam) ->
-    case beam_lib:chunks(Beam, [binary_to_list(?DOCS)]) of
-        {ok, {_, [{_, Chunk}]}} ->
-            try binary_to_term(Chunk) of
-                {docs_v1, _, ernest, _, _, _, _} = Docs -> {ok, Docs};
-                _ -> {error, "the documentation chunk is of another compiler version"}
-            catch _:_ ->
-                {error, "the documentation chunk is of another compiler version"}
-            end;
-        {error, beam_lib, Reason} ->
-            {error, lists:flatten(beam_lib:format_error(Reason))}
-    end.
-
-docs(Ns, Decls, Env, Source) ->
-    ModDoc = case [T || #module_doc{text = T} <- Decls] of
-                 [T | _] -> #{<<"en">> => T};
-                 [] -> none
-             end,
-    Prefix = qname(Ns) ++ ".",
-    {docs_v1, erl_anno:new(0), ernest, <<"text/markdown">>, ModDoc, #{source => Source},
-     [doc_entry(D, Prefix, Env) || D <- Decls, documented(D)]}.
-
-doc_entry(D, Prefix, Env) ->
-    {doc_key(D), erl_anno:new(line_of(doc_pos(D))), doc_signature(D, Prefix, Env),
-     case doc_of(D) of
-         undefined -> none;
-         Doc -> #{<<"en">> => Doc}
-     end,
-     doc_meta(D)}.
-
-%% A type declaration is a type entry; everything else is a function of the
-%% module, under the name and arity the emission gives it.
-doc_key(#type_decl{name = N, params = Ps}) -> {type, N, length(Ps)};
-doc_key(#abstract_decl{type = #type_decl{name = N, params = Ps}}) -> {type, N, length(Ps)};
-doc_key(#foreign_type_decl{name = N, params = Ps}) -> {type, N, length(Ps)};
-doc_key(D) ->
-    {F, A} = export(D),
-    {function, F, A}.
-
-doc_signature(D, Prefix, Env) ->
-    [unicode:characters_to_binary(L)
-     || L <- string:split(signature(D, Prefix, Env), "\n", all)].
-
-%% The parameter list as the module writes it, for the shell's completion,
-%% and a type's documented parts, for a reader that renders them itself.
-doc_meta(#fn_decl{params = Ps}) -> #{params => param_names(Ps)};
-doc_meta(#foreign_fn_decl{params = Ps}) -> #{params => param_names(Ps)};
-doc_meta(#type_decl{constructors = Cs}) -> #{items => [constructor_item(C) || C <- Cs]};
-doc_meta(_) -> #{}.
-
-%% A parameter's name as written; one that is not a plain variable shows
-%% as `_`, since the shell completes names and has no source to quote.
-param_names(Ps) ->
-    [case Pat of #p_var{name = N} -> N; _ -> '_' end || #param{pattern = Pat} <- Ps].
-
-constructor_item(#constructor{doc = Doc, name = N, fields = Fields}) ->
-    #{kind => constructor, name => N, doc => doc_or_none(Doc),
-      fields => [#{name => F, type => text(syn(T)), doc => doc_or_none(FDoc)}
-                 || #field{doc = FDoc, name = F, type = T} <- named_fields(Fields)]}.
-
-doc_or_none(undefined) -> none;
-doc_or_none(Doc) -> Doc.
-
-named_fields({named, Fs}) -> Fs;
-named_fields(_) -> [].
-
-text(IoList) -> unicode:characters_to_binary(IoList).
-
-%% Report §11.4: every exported declaration, and every declaration with a
-%% doc block.
-documented(#module_doc{}) -> false;
-documented(D) -> doc_exported(D) orelse doc_of(D) =/= undefined.
-
-doc_pos(#type_decl{pos = P}) -> P;
-doc_pos(#abstract_decl{pos = P}) -> P;
-doc_pos(#foreign_type_decl{pos = P}) -> P;
-doc_pos(#fn_decl{pos = P}) -> P;
-doc_pos(#foreign_fn_decl{pos = P}) -> P;
-doc_pos(#let_decl{pos = P}) -> P.
-
-doc_exported(#type_decl{export = E}) -> E;
-doc_exported(#abstract_decl{export = E}) -> E;
-doc_exported(#fn_decl{export = E}) -> E;
-doc_exported(#let_decl{export = E}) -> E;
-doc_exported(#foreign_type_decl{export = E}) -> E;
-doc_exported(#foreign_fn_decl{export = E}) -> E.
-
-doc_of(#type_decl{doc = D}) -> D;
-doc_of(#abstract_decl{doc = D}) -> D;
-doc_of(#fn_decl{doc = D}) -> D;
-doc_of(#let_decl{doc = D}) -> D;
-doc_of(#foreign_type_decl{doc = D}) -> D;
-doc_of(#foreign_fn_decl{doc = D}) -> D.
-
-%% The declaration's type: inferred schemes for fn and let, the
-%% declaration itself for the type forms, an abstract type without its
-%% representation.
-signature(#fn_decl{owner = O, name = N, type = Scheme}, Prefix, Env) ->
-    text([Prefix, atom_to_list(shown_name(O, N)), " : ",
-          ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
-signature(#let_decl{owner = O, name = N, type = Scheme}, Prefix, Env) ->
-    text([Prefix, atom_to_list(shown_name(O, N)), " : ",
-          ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
-signature(#foreign_fn_decl{owner = O, name = N, params = Ps, ret = R, effect = E}, Prefix, _) ->
-    Type = #t_fn{params = [T || #param{type = T} <- Ps], ret = R, effect = E},
-    text([Prefix, atom_to_list(shown_name(O, N)), " : ", syn(Type)]);
-signature(#type_decl{} = D, _, _) ->
-    text(type_text(D));
-signature(#abstract_decl{type = #type_decl{name = TName, params = Ps}}, _, _) ->
-    text(["abstract type ", atom_to_list(TName), params_text(Ps)]);
-signature(#foreign_type_decl{name = N, params = Ps, eq = Eq}, _, _) ->
-    %% report §4.7: a parameter that requires equality is written `k=`
-    text(["foreign type ", atom_to_list(N),
-          params_text([case lists:member(P, Eq) of
-                           true -> list_to_atom(atom_to_list(P) ++ "=");
-                           false -> P
-                       end || P <- Ps])]).
-
-type_text(#type_decl{name = N, params = Ps, constructors = Cs}) ->
-    ["type ", atom_to_list(N), params_text(Ps), " = ",
-     lists:join(" | ", [constructor_text(C) || C <- Cs])].
-
-params_text([]) -> "";
-params_text(Ps) -> ["(", lists:join(", ", [atom_to_list(P) || P <- Ps]), ")"].
-
-constructor_text(#constructor{name = N, fields = none}) ->
-    atom_to_list(N);
-constructor_text(#constructor{name = N, fields = {positional, T}}) ->
-    [atom_to_list(N), "(", syn(T), ")"];
-constructor_text(#constructor{name = N, fields = {named, Fs}}) ->
-    [atom_to_list(N), "(",
-     lists:join(", ", [[atom_to_list(F), " : ", syn(T)] || #field{name = F, type = T} <- Fs]),
-     ")"].
-
-%% A syntactic type as written.
-syn(#t_con{path = P, name = N, args = []}) -> qname(P ++ [N]);
-syn(#t_con{path = P, name = N, args = As}) ->
-    [qname(P ++ [N]), "(", lists:join(", ", [syn(A) || A <- As]), ")"];
-syn(#t_var{name = N}) -> atom_to_list(N);
-syn(#t_tuple{elems = Es}) -> ["#(", lists:join(", ", [syn(E) || E <- Es]), ")"];
-syn(#t_fn{params = Ps, ret = R, effect = E}) ->
-    ["(", lists:join(", ", [syn(P) || P <- Ps]), ") -> ", syn(R),
-     case E of undefined -> ""; _ -> [" with ", syn(E)] end].
-
 %% Report §4.2, plan 2.4: the path with @ for / and the prefix ern@.
 -spec module_atom([atom()]) -> atom().
 module_atom(Ns) ->
@@ -356,9 +204,11 @@ function_atom(module_info) -> 'module_info$';
 function_atom(record_info) -> 'record_info$';
 function_atom(N) -> N.
 
-%% The name as the program writes it, for the documentation.
-shown_name(undefined, N) -> N;
-shown_name(Owner, N) -> fname(Owner, N).
+%% The Erlang function a top-level declaration compiles to, its owner a type
+%% or undefined, for the documentation chunk's keys.
+-spec function_name(atom() | undefined, atom()) -> atom().
+function_name(Owner, Name) ->
+    fname(Owner, Name).
 
 decl(#fn_decl{pos = Pos, owner = O, name = N, params = Params, body = Body}, Cx) ->
     Name = fname(O, N),
@@ -447,7 +297,7 @@ expr(#e_bits{pos = Pos, segments = Segs}, Cx) ->
     %% leaves the bit count open
     {Fields, {Cx1, Open}} =
         lists:mapfoldl(fun(#bit_seg{value = V, specs = Specs}, {C, O}) ->
-                           {ok, Spec} = ern_typecheck:segment_spec(Specs),
+                           {ok, Spec} = ern_bitspec:spec(Specs),
                            {VF, C1} = expr(V, C),
                            {SizeF, C2} = size_form(Spec, C1),
                            Checked = segment_value(Spec, VF, SizeF),
@@ -933,111 +783,15 @@ check_text(Prefix, T, Cx) ->
 text_binary(Prefix, T, #cx{env = Env}) ->
     unicode:characters_to_binary(Prefix ++ ern_types:format(T, ern_typecheck:type_state(Env))).
 
-%% Appendix E.1: the descriptor of a type, for a printer outside a compiled
-%% module. The shell prints a value with it as `Io.debug` prints one, the
-%% printer being the same (report §11.2).
--spec descriptor(term(), ern_typecheck:env()) -> term().
-descriptor(T, Env) when not is_tuple(Env) orelse element(1, Env) =/= cx ->
-    descriptor(T, #cx{env = Env});
-descriptor(T, #cx{env = Env} = Cx) ->
-    {D, _} = desc(ern_types:zonk(T, ern_typecheck:type_state(Env)), #{}, Cx),
-    D.
-
-%% Seen maps each user type enclosing the one being described to the id
-%% its mu binds, so a recursive type refers back instead of unfolding; a
-%% sibling is described in full, since a ref reaches only an enclosing mu.
-desc({tvar, _}, Seen, _) -> {any, Seen};
-desc(pure, Seen, _) -> {any, Seen};
-desc({ttuple, Es}, Seen, Cx) ->
-    {Ds, Seen1} = descs(Es, Seen, Cx),
-    {{tuple, Ds}, Seen1};
-desc({tfn, Ps, _, _}, Seen, _) -> {{'fun', length(Ps)}, Seen};
-desc({tcon, ['Int'], []}, Seen, _) -> {int, Seen};
-desc({tcon, ['Float'], []}, Seen, _) -> {float, Seen};
-desc({tcon, ['Bool'], []}, Seen, _) -> {bool, Seen};
-desc({tcon, ['Char'], []}, Seen, _) -> {char, Seen};
-desc({tcon, ['String'], []}, Seen, _) -> {string, Seen};
-desc({tcon, ['Bytes'], []}, Seen, _) -> {bytes, Seen};
-desc({tcon, ['Address'], [M]}, Seen, Cx) ->
-    %% the address's messages, for the proxy that exposes it (report §8.4)
-    {D, Seen1} = desc(M, Seen, Cx),
-    {{pid, D, text_binary("message does not match ", M, Cx)}, Seen1};
-desc({tcon, ['Reply'], _}, Seen, _) -> {ref, Seen};
-desc({tcon, ['Foreign'], []}, Seen, _) -> {any, Seen};
-desc({tcon, ['Never'], []}, Seen, _) -> {never, Seen};
-desc({tcon, ['List'], [A]}, Seen, Cx) ->
-    {D, Seen1} = desc(A, Seen, Cx),
-    {{list, D}, Seen1};
-desc({tcon, ['Map'], [K, V]}, Seen, Cx) ->
-    {[DK, DV], Seen1} = descs([K, V], Seen, Cx),
-    {{map, DK, DV}, Seen1};
-desc({tcon, ['Set'], [A]}, Seen, Cx) ->
-    {D, Seen1} = desc(A, Seen, Cx),
-    {{set, D}, Seen1};
-desc({tcon, Q, Args} = T, Seen, #cx{env = Env} = Cx) ->
-    case Seen of
-        #{T := Id} ->
-            {{ref, Id}, Seen};
-        _ ->
-            case ern_typecheck:lookup_type(Q, Env) of
-                #tinfo{foreign = true} ->
-                    {any, Seen};
-                #tinfo{constructors = Cs, abstract = Abstract} ->
-                    Id = map_size(Seen) + 1,
-                    {ConDs, _} =
-                        lists:mapfoldl(fun(#cinfo{name = Tag, fields = Spec} = C, S) ->
-                                           {Ds, S1} = descs(fields(C, Args, Cx), S, Cx),
-                                           {con_desc(Tag, Spec, Ds), S1}
-                                       end, Seen#{T => Id}, Cs),
-                    Con = {con, ConDs},
-                    D = case refers(Con, Id) of
-                            true -> {mu, Id, Con};
-                            false -> Con
-                        end,
-                    %% report §4.4: seen from outside its module, an abstract
-                    %% type's representation is not the program's to print
-                    case Abstract andalso lists:droplast(Q) =/= Cx#cx.ns of
-                        true -> {{abstract, D}, Seen};
-                        false -> {D, Seen}
-                    end
-            end
-    end.
-
-%% A named constructor's descriptor keeps its field names, in canonical
-%% order (report §3.5), for printing.
-con_desc(Tag, {named, Names}, Ds) -> {Tag, Ds, Names};
-con_desc(Tag, _, Ds) -> {Tag, Ds}.
+%% Appendix E.1, §8.4: the descriptor of a type, which ern_descriptor
+%% makes, an abstract type seen from this module.
+descriptor(T, #cx{env = Env, ns = Ns}) ->
+    ern_descriptor:describe(T, Env, Ns).
 
 has_address({pid, _, _}) -> true;
 has_address(T) when is_tuple(T) -> lists:any(fun has_address/1, tuple_to_list(T));
 has_address(L) when is_list(L) -> lists:any(fun has_address/1, L);
 has_address(_) -> false.
-
-refers({ref, Id}, Id) -> true;
-refers(T, Id) when is_tuple(T) -> lists:any(fun(X) -> refers(X, Id) end, tuple_to_list(T));
-refers(L, Id) when is_list(L) -> lists:any(fun(X) -> refers(X, Id) end, L);
-refers(_, _) -> false.
-
-descs(Ts, Seen, Cx) ->
-    lists:mapfoldl(fun(T, S) -> desc(T, S, Cx) end, Seen, Ts).
-
-%% A constructor's field types at the type's arguments: its scheme is
-%% quantified over the type's parameters, which its result type lists in
-%% order as distinct variables once instantiated.
-fields(#cinfo{scheme = Scheme}, Args, #cx{env = Env}) ->
-    {FT, _} = ern_types:instantiate(Scheme, ern_typecheck:type_state(Env)),
-    {FieldTs, {tcon, _, Params}} = case FT of
-                                       {tfn, Fs, _, R} -> {Fs, R};
-                                       R -> {[], R}
-                                   end,
-    Sub = maps:from_list(lists:zip([Id || {tvar, Id} <- Params], Args)),
-    [subst(F, Sub) || F <- FieldTs].
-
-subst({tvar, Id} = T, Sub) -> maps:get(Id, Sub, T);
-subst({tcon, Q, Args}, Sub) -> {tcon, Q, [subst(A, Sub) || A <- Args]};
-subst({ttuple, Es}, Sub) -> {ttuple, [subst(E, Sub) || E <- Es]};
-subst({tfn, Ps, E, R}, Sub) -> {tfn, [subst(P, Sub) || P <- Ps], subst(E, Sub), subst(R, Sub)};
-subst(pure, _) -> pure.
 
 %%
 %% Constructors, report §8.4
@@ -1457,7 +1211,7 @@ pattern(#p_bits{pos = Pos, segments = Segs}, Cx) ->
     %% fails the match
     {Fields, Cx1} =
         lists:mapfoldl(fun(#bit_seg{value = V, specs = Specs}, C) ->
-                           {ok, Spec} = ern_typecheck:segment_spec(Specs),
+                           {ok, Spec} = ern_bitspec:spec(Specs),
                            {SizeF, C1} = size_form(Spec, C),
                            {VF, C2} = bits_pattern_value(Spec, V, C1),
                            {erl_syntax:binary_field(VF, SizeF, type_specs(Spec)), C2}

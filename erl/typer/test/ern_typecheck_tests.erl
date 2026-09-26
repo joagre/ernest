@@ -1627,7 +1627,7 @@ bitstring_specifier_kinds_test() ->
     ?assertEqual(ok, ok("fn f(b : Bytes) -> Int = match b {"
                         " <<n:size(16)-signed-little, _:bytes>> -> n | _ -> 0 }")),
     ?assertMatch({ok, #{kind := int, size := {const, 8}, endian := big, sign := unsigned}},
-                 ern_typecheck:segment_spec([])).
+                 ern_bitspec:spec([])).
 
 %% report §5.11: a pattern binds each segment at its type; a size sees the
 %% earlier segments and is pure; a segment pattern is a variable, `_`, or
