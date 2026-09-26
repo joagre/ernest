@@ -7,7 +7,7 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Twenty-one have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Twenty-two have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
 (decided, report §9), 2, 4 and 43 (weighed and kept, the log's *Constructor Names Stay Unique
 in a Module*, *Names Stay Qualified, Without Import or Alias* and *Two Visibilities Are
@@ -18,8 +18,9 @@ history type was weighed and left, since its one rule, the cap of a thousand inp
 session does not reach, and it would make the editor depend on `Shell.History`), 3 and 5
 (weighed and kept, the log's *Constant Patterns Stay Out* and *`after` Stays Reserved*), 48
 (decided, report §8.5, the mention rule kept), 36 (already decided, report §9.6), 39
-(decided, report §4.7), 45 (decided, report Appendix E.0 rule 9), and 52 (weighed and kept, the
-log's *One Contract, Several Representations*).
+(decided, report §4.7), 45 (decided, report Appendix E.0 rule 9), 52 (weighed and kept, the
+log's *One Contract, Several Representations*), and 9 (decided, the plan's MVP 2.65 step 5:
+`ern` prints every fault to standard error).
 
 ## 1. Names and namespaces
 
@@ -84,12 +85,6 @@ same question.
     session already receives every fault as a `Died` message and could keep the last
     hundred itself in Ernest. §11.2 calls it "the runtime's record", so moving it is a
     report question, and one with item 26.
-9. **A fault in a foreign function's *return* is silent to the caller's caller.** `fields_of`
-   answered Erlang strings where the ABI wants binaries, so §8.4's boundary faulted the
-   reader, correctly, and the shell became a zombie that painted but never read a key. The
-   fault was right; nothing said it. The shell now monitors its reader and says so, but
-   the general shape is worth a thought: a process that dies of a boundary fault takes its
-   silence with it unless someone monitors it.
 50. **A read that timed out loses what arrives after it.** `Tcp.read(sock, 100)` answers
     `Left(Timeout)`, and the bytes that arrive next go to the reply nobody waits for, which
     §6.6 discards; the next read waits for the bytes after them. Right for a reply, wrong

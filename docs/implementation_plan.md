@@ -129,7 +129,11 @@ The steps:
       the limit it dies with the last fault's cause. No strategy across siblings, which is a
       group's, and no backoff, which is policy; both are question 6's. The name `Limit` is
       settled when the report is written. The log's *A Restart Has a Limit and No Strategy*.
-   3. **Each fault visible**, since `monitor` sees only the final death.
+   3. **Decided 2026-09-26: every fault reaches standard error.** `ern` prints every fault
+      of every process, not only the entry process's, as the shell already does: the spawn
+      site, the cause, and `restarted` when the limit allowed a restart (report §11.3, when
+      built). `monitor` stays one message, at death (§6.9). Feedback item 9 is answered. The
+      log's *Every Fault Reaches Standard Error*.
    4. **An initializer that spawns**: in which process, in what order under §8.5, how a
       service that is one per node is tested, and what §8.7 does with a shipped binding
       that spawns.
@@ -241,6 +245,12 @@ exit status in §8.6. The guide's cold read asked for the arguments at once
 weighed against `Sys.args` before the report changes, and parsing options from the list is a
 library's, by E.0. With `Sys.env`, the shell reads `NO_COLOR` in Ernest, where its front end
 reads it today.
+
+**A simple log.** Noted 2026-09-26, to be decided in this milestone: `ern` writes what it
+prints to standard error, the fault reports first among them, to a file as well, and
+perhaps only there. A very simple logger, the smallest thing that keeps a long-running
+program's faults; whether it is an option to `ern` or a runtime-bound value in §8.2 is the
+decision.
 
 **The report lists the libraries that exist**, `libs/ets` and `libs/markdown`, in a new
 informative appendix, one section per library with its signatures and contracts, and a mirror
