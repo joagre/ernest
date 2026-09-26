@@ -221,7 +221,7 @@ number : String
 "\\d+(\\.\\d+)?" : String
 ```
 
-`Int` division `/` and remainder `%` by zero fault, and so does `Float` arithmetic whose result would not be finite. `Int.div` and `Int.mod` return `Optional(Int)` instead. A fault ends the process (§6).
+`Int` division `/` and remainder `%` by zero fault, and so does `Float` arithmetic whose result would not be finite. `Int.div` and `Int.mod` return `Optional(Int)` instead. A fault ends the process, or restarts it where it was started to restart (§6).
 
 `Int` and `Float` are separate types, and nothing converts between them implicitly: `1 + 2.0` is a type error. Convert with `Int.toFloat`, or with `Float.round`, `Float.floor`, `Float.ceil`, or `Float.truncate`.
 
@@ -674,7 +674,7 @@ A `Reply(Int)` is where an answer goes. The process that asks puts one in its re
 
 A `Reply` is an obligation: whoever holds one answers it exactly once, on every path, and the compiler checks it, as §0 showed. The obligation moves with the value. Sending a message that carries a reply, passing it to a function, returning it, or putting it in a constructor hands the obligation on; only `answer(r, v)` discharges it. A value that contains a reply is *reply-carrying*, as `CounterMsg` is because of `Get`, and the same rule holds for it.
 
-The check is on paths, not on time. A path that faults or waits for ever never answers, and no compiler can see that; the caller's deadline covers it (§4.4).
+The check is on paths, not on time. A path that faults or waits for ever never answers, and no compiler can see that: a fault ends the call at once, and the caller's deadline covers a wait (§4.4).
 
 Since each reply is counted, a reply-carrying value is never copied or dropped. It cannot be an element of a `List`, a `Map`, a `Set`, an `Optional`, or an `Either`, nor an operand of `==` or `!=`, and `_` cannot stand for one in a pattern. A server with many requests pending keeps each reply in a process of its own, as the queue of §4.4 does. In a printed type, a variable marked `!` is one that may not hold a reply, as in `dup : (a!) -> #(a!, a!)` for a function that copies its argument. Report §6.6 gives the whole discipline.
 
@@ -727,7 +727,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
 ```
 
-`Address.call(c, fn(r) = Get(reply = r), 1000)` makes a fresh `Reply`, gives it to the function that builds the request, sends the request to `c`, and waits up to 1000 ms. It returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6). `Address.callForever` waits without a deadline and returns the answer itself; if none comes, the caller waits for ever.
+`Address.call(c, fn(r) = Get(reply = r), 1000)` makes a fresh `Reply`, gives it to the function that builds the request, sends the request to `c`, and waits up to 1000 ms. It returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6). `Address.callForever` waits without a deadline and returns the answer itself. When the process called ends or restarts before it answers, either call ends at once: `Address.call` returns `None`, and `Address.callForever` faults its caller with the callee's cause. A callee that only waits keeps a `callForever` caller waiting too.
 
 A server that cannot answer at once keeps the reply in a small process that answers later, since a reply-carrying value cannot wait in a list (§4.2). A queue answers a `Take` with an item it has, or spawns a waiter that holds the reply until a `Put` brings one:
 
@@ -1002,7 +1002,7 @@ run 2: 4
 
 A death whose run is not the one being waited for is an earlier worker's, and `waitFor` passes over it. Identity is part of the protocol you write, and the wrap is where you put it.
 
-A fault in one process does not affect another, apart from the three cases of §6.3.
+A fault in one process does not affect another, apart from the four cases of §6.3.
 
 ### 5.3 `kill`
 
@@ -1032,7 +1032,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 via : ((a) -> b, Address(b)) -> Address(a)
 ```
 
-`via(convert, target)` is an `Address(a)`: an `a` sent to it arrives at `target` as `convert(a)`. A worker written to report to an `Address(Either(String, Int))` knows nothing of your `GameMsg`; you give it `via(Done, self())`, and its result arrives as `Done(r)`. An adapted address is not a process and costs nothing to keep. A fault in `convert` ends the target's process, not the sender's (report §6.5), so keep `convert` to shaping the value.
+`via(convert, target)` is an `Address(a)`: an `a` sent to it arrives at `target` as `convert(a)`. A worker written to report to an `Address(Either(String, Int))` knows nothing of your `GameMsg`; you give it `via(Done, self())`, and its result arrives as `Done(r)`. An adapted address is not a process and costs nothing to keep. A fault in `convert` is the target's fault, not the sender's (report §6.5), so keep `convert` to shaping the value.
 
 `Clock.alarm` fires once. A periodic tick is scheduled again after each tick is handled, and only then: a loop that scheduled one on every message would add a timer per key pressed. Two functions keep the two apart:
 
@@ -1110,7 +1110,7 @@ Given the ping-pong program, does the runtime guarantee ping and pong's `Io.prin
 
 ## 6. Handle failure
 
-Something goes wrong in one of three ways, and each has its place. A failure the caller can act on is a value. A failure another process must act on is a message. What the program did not expect is a fault, which ends the process it happens in, and the processes that watch it decide what follows. Nothing is caught: there is no exception to throw and no handler to catch one, so the path a failure takes is always in the code.
+Something goes wrong in one of three ways, and each has its place. A failure the caller can act on is a value. A failure another process must act on is a message. What the program did not expect is a fault, which ends the process it happens in, or restarts it in place, and the processes that watch it decide what follows. Nothing is caught: there is no exception to throw and no handler to catch one, so the path a failure takes is always in the code.
 
 ### 6.1 A value
 
@@ -1152,7 +1152,7 @@ no config: workers is not a number
 
 ### 6.2 A message
 
-Between processes a failure is part of the protocol. A request whose work can fail is answered with an `Either`, and the process that asked handles a `Left` as it handles any answer. `Address.call` adds a case of its own, `None`, for an answer that did not come in time; a deadline is the only way to tell a slow process from one that will never answer.
+Between processes a failure is part of the protocol. A request whose work can fail is answered with an `Either`, and the process that asked handles a `Left` as it handles any answer. `Address.call` adds a case of its own, `None`, for an answer that did not come: in time, or at all, since a call ends at once when the process called ends or restarts. A deadline tells a slow process from one that waits and never answers.
 
 ```ernest
 type ParserMsg = Parse(text : String, reply : Reply(Either(String, Int)))
@@ -1188,7 +1188,7 @@ The parser refuses the text and goes on serving. A refusal is an answer, not a f
 
 ### 6.3 A fault
 
-A fault is what the program did not expect: a division by zero, a `Float` result out of range, a `fault("...")` the program calls on an invariant it finds broken. Report §7.4 lists them all, and a failure of the runtime, out of memory among them, is one too (report §7.3). A fault ends the process it happens in, and only that process. A process that monitors it receives a `Down` whose reason is `Fault(cause)`:
+A fault is what the program did not expect: a division by zero, a `Float` result out of range, a `fault("...")` the program calls on an invariant it finds broken. Report §7.4 lists them all, and a failure of the runtime, out of memory among them, is one too (report §7.3). A fault ends the process it happens in, and only that process, unless the process restarts (§6.4). A process that monitors it receives a `Down` whose reason is `Fault(cause)`:
 
 ```ernest
 type MainMsg = WorkerDied(Down)
@@ -1215,7 +1215,7 @@ the worker spawned at Faults.main:9 faulted: division by zero
 
 `average` is pure and still faults. A type says what a function returns when it returns, not that it will. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn.
 
-Three faults reach beyond their process. A fault in the entry process ends the program: `ern` prints `fault: ` and the cause, and exits with status 1. A fault in the function of an adapted address (§5.5) is the fault of the process the address names. A fault in the callback of `remote` is the fault of the process that called it (§8.1). A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
+Four faults reach beyond their process. A fault in the entry process ends the program: `ern` prints `fault: ` and the cause, and exits with status 1. A fault in the function of an adapted address (§5.5) is the fault of the process the address names. A fault in the callback of `remote` is the fault of the process that called it (§8.1). A fault in a process that a `callForever` waits on faults the caller with the same cause (report §6.6). A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
 
 ### 6.4 Let it crash
 
@@ -1256,7 +1256,7 @@ all jobs done
 
 A process for each job is the restart: the job that faulted ends its own worker, and the next job starts with a fresh one. Only `supervise` prints. A worker's `Io.println` and the supervisor's are two senders to `Sys.stdout`, which the runtime does not order (§5.1), so a worker reports by a message to its supervisor.
 
-What must survive a fault lives in the process that does not fault: here the list of jobs is the supervisor's. A process that restarts a long-lived service gets a new process with a new address, and whoever held the old address must be sent the new one, since there is no registry to look it up in (report §6.5). A process that must not outlive another monitors it and returns when it dies.
+What must survive a fault lives in the process that does not fault: here the list of jobs is the supervisor's. A long-lived service restarts in place instead: `restarting(RestartLimit(restarts = 3, within = 5000), f)` is a function that runs `f` again after a fault, in the same process, with its address and its mailbox, so whoever holds the address keeps it, and after three restarts within five seconds the next fault ends the process (report §6.9). A process that must not outlive another monitors it and returns when it dies.
 
 ### 6.5 Prediction exercise
 
@@ -1749,7 +1749,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - There are no links and no exit signals, only monitors. A process that must die with another monitors it and returns.
 - There are no registered names, and addresses cannot be compared. A process is reached through an address it was given.
 - There are no atoms in the language: constructors are the tags. `Erl.atom` makes one for a foreign call.
-- There are no OTP behaviours. A server is a `receive` loop with `Reply`, and a supervisor is §6.4's fifteen lines.
+- There are no OTP behaviours. A server is a `receive` loop with `Reply`, restarted in place by `restarting` (§6.4).
 - A running program replaces its code by a message that carries the new function (§4.6). Only the shell's `:reload` loads a new version of a module.
 - ETS is a library outside the standard library, `libs/ets`, since a table is state that processes share.
 - Nodes will talk over Ernest's own protocol and ship code by content, not over Erlang distribution (§8.2).

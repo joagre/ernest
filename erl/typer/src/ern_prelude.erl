@@ -273,6 +273,16 @@ declared_types() ->
     /// spawn(Local, fn() -> Unit with Never = Unit)
     /// ```
     type Where = Local | Peer(String)
+    /// How often `restarting` restarts: at most `restarts` times within
+    /// `within` milliseconds, the next fault ending the process (report
+    /// §6.9). A count or a time below 0 is 0.
+    ///
+    /// ### Examples
+    ///
+    /// ```ernest
+    /// RestartLimit(restarts = 3, within = 5000)
+    /// ```
+    type RestartLimit = RestartLimit(restarts : Int, within : Int)
     /// The terminal's window, in rows and columns, as the terminal reports it
     /// (report §8.2).
     type Size = Size(rows : Int, columns : Int)
@@ -474,6 +484,25 @@ values() ->
 
       ```ernest
       spawn(Local, fn() = receive { #(n, r) -> answer(r, n * 2) })
+      ```
+      """/utf8>>},
+     {[restarting], "(RestartLimit, () -> Unit with n) -> () -> Unit with n",
+      <<"""
+      A function that runs `f()` and, when `f` faults, runs it again in the
+      same process: the process keeps its address and its mailbox, the
+      message being handled is lost, and every call waiting for its answer
+      ends (report §6.9). A restart is not a death; no `monitor` is told.
+
+      ### Errors
+
+      The fault of `f` after the limit's restarts within its time, with that
+      fault's cause.
+
+      ### Examples
+
+      ```ernest
+      spawn(Local, restarting(RestartLimit(restarts = 3, within = 5000),
+          fn() -> Unit with Never = Unit))
       ```
       """/utf8>>},
      {[remote], "(() -> a) -> Either(RemoteError, a) with m",

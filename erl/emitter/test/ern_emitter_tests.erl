@@ -596,8 +596,8 @@ long_time_test() ->
 %% report §8.6: a process blocked in Address.callForever waits without a
 %% limit, as an untimed receive does, so a call to a server that waits in
 %% an untimed receive for something else is a deadlock. A regression test,
-%% written after the code; it does not cover a callForever to a process
-%% that has already ended
+%% written after the code; a callForever to a process that has ended is
+%% call_ends_with_callee_test_'s
 call_forever_deadlock_test() ->
     {R, _} = run("type Req = Get(reply : Reply(Int)) | Other\n"
                  "fn server() -> Unit with Req = receive { Other -> Unit }\n"
@@ -607,6 +607,128 @@ call_forever_deadlock_test() ->
                  "    Unit\n"
                  "}\n"),
     ?assertEqual({fault, <<"deadlock">>}, R).
+
+%% report §6.9, §9.5: a process whose function is `restarting`'s runs it
+%% again after a fault, keeping its address and its mailbox, the message
+%% being handled lost and the state its function starts from. The call is
+%% made once the crash has been handled, since a call pending at a restart
+%% ends with it (call_ends_with_callee_test_)
+restart_keeps_address_test() ->
+    {ok, Out} = run(
+        "type Msg = Bump | Crash | Get(reply : Reply(Int))\n"
+        "fn loop(n : Int) -> Unit with Msg = receive {\n"
+        "    Bump -> loop(n + 1)\n"
+        "  | Crash -> fault(\"crash\")\n"
+        "  | Get(reply = r) -> { answer(r, n); loop(n) }\n"
+        "}\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    let limit = RestartLimit(restarts = 3, within = 60000);\n"
+        "    let s = spawn(Local, restarting(limit, fn() -> Unit with Msg = loop(0)));\n"
+        "    send(s, Bump);\n"
+        "    send(s, Crash);\n"
+        "    receive { after 100 -> Unit };\n"
+        "    send(s, Bump);\n"
+        "    Io.println(Int.toString(Address.callForever(s, fn(r) = Get(reply = r))))\n"
+        "}\n"),
+    ?assertEqual(<<"1\n">>, Out).
+
+%% report §6.9: past the limit the next fault ends the process with its
+%% cause, which is its one death a monitor is told of; a restart is none,
+%% and a limit of no restarts ends it at the first fault
+restart_limit_test() ->
+    Program = fun(Restarts) ->
+        "type Msg = Crash\n"
+        "type MainMsg = Died(Down)\n"
+        "fn loop(n : Int) -> Unit with Msg = receive { Crash -> fault(Int.toString(n)) }\n"
+        "fn count() -> Unit with Msg = loop(1)\n"
+        "export fn main() -> Unit with MainMsg = {\n"
+        "    let limit = RestartLimit(restarts = " ++ Restarts ++ ", within = 60000);\n"
+        "    let s = spawnMonitored(Local, restarting(limit, count), Died);\n"
+        "    send(s, Crash);\n"
+        "    send(s, Crash);\n"
+        "    receive {\n"
+        "        Died(Down(reason = Fault(c), site = _)) -> Io.println(\"ended \" <> c)\n"
+        "      | Died(_) -> Io.println(\"other\")\n"
+        "    };\n"
+        "    receive { Died(_) -> Io.println(\"twice\") | after 100 -> Unit }\n"
+        "}\n"
+    end,
+    ?assertEqual({ok, <<"ended 1\n">>}, run(Program("1"))),
+    ?assertEqual({ok, <<"ended 1\n">>}, run(Program("0"))),
+    ?assertEqual({ok, <<"ended 1\n">>}, run(Program("-2"))).
+
+%% report §6.9: returning and a kill end a restarting process as they end
+%% any; only a fault restarts
+restart_only_on_fault_test() ->
+    {ok, Out} = run(
+        "type Msg = Stop\n"
+        "type MainMsg = Died(Down)\n"
+        "fn waits() -> Unit with Msg = receive { Stop -> Unit }\n"
+        "export fn main() -> Unit with MainMsg = {\n"
+        "    let limit = RestartLimit(restarts = 5, within = 60000);\n"
+        "    let a = spawnMonitored(Local, restarting(limit, waits), Died);\n"
+        "    send(a, Stop);\n"
+        "    receive { Died(Down(reason = r, site = _)) -> { let _ = Io.debug(r); Unit } };\n"
+        "    let b = spawnMonitored(Local, restarting(limit, waits), Died);\n"
+        "    kill(b);\n"
+        "    receive { Died(Down(reason = r, site = _)) -> { let _ = Io.debug(r); Unit } };\n"
+        "    Unit\n"
+        "}\n"),
+    ?assertEqual(<<"Returned\nKilled\n">>, Out).
+
+%% report §6.6, §7.4: a call ends at once when its callee faults, is
+%% killed, returns, or had ended, before it answers: Address.call answers
+%% None, and callForever faults the caller with the callee's cause or says
+%% how it ended; a restart ends the calls waiting on the process the same
+%% way. A regression test of the rule's first build: a callForever to a
+%% dead callee waited for a deadlock, and a call for its time
+call_ends_with_callee_test_() ->
+    {timeout, 30, fun call_ends_with_callee/0}.
+
+call_ends_with_callee() ->
+    Types = "type Msg = Ask(reply : Reply(Int)) | Stop\n"
+            "type MainMsg = Died(Down)\n",
+    Faulty = "fn faulty() -> Unit with Msg = receive {\n"
+             "    Ask(reply = r) -> { fault(\"bad request\"); answer(r, 1) }\n"
+             "  | Stop -> Unit\n"
+             "}\n",
+    Ask = "fn(r) = Ask(reply = r)",
+    Forever = fun(Setup) ->
+        Types ++ Faulty ++
+        "fn waits() -> Unit with Msg = receive { Stop -> Unit }\n"
+        "fn quiet() -> Unit with Msg = receive { Ask(reply = r) -> "
+        "receive { after 60000 -> answer(r, 1) } | Stop -> Unit }\n"
+        "export fn main() -> Unit with MainMsg = {\n" ++ Setup ++
+        "    Io.println(Int.toString(Address.callForever(s, " ++ Ask ++ ")))\n"
+        "}\n"
+    end,
+    ?assertMatch({{fault, <<"bad request">>}, _},
+                 run(Forever("    let s = spawn(Local, faulty);\n"))),
+    ?assertMatch({{fault, <<"callee was killed">>}, _},
+                 run(Forever("    let s = spawn(Local, quiet);\n"
+                             "    let _ = spawn(Local, fn() -> Unit with Never =\n"
+                             "        receive { after 50 -> kill(s) });\n"))),
+    ?assertMatch({{fault, <<"callee returned without answering">>}, _},
+                 run(Forever("    let s = spawn(Local, waits);\n"
+                             "    let _ = spawn(Local, fn() -> Unit with Never =\n"
+                             "        receive { after 50 -> send(s, Stop) });\n"))),
+    ?assertMatch({{fault, <<"callee had ended">>}, _},
+                 run(Forever("    let s = spawnMonitored(Local, fn() -> Unit with Msg = Unit,\n"
+                             "        Died);\n"
+                             "    receive { Died(_) -> Unit };\n"))),
+    ?assertMatch({{fault, <<"bad request">>}, _},
+                 run(Forever("    let limit = RestartLimit(restarts = 5, within = 60000);\n"
+                             "    let s = spawn(Local, restarting(limit, faulty));\n"))),
+    {ok, Out} = run(Types ++ Faulty ++
+                    "export fn main() -> Unit with MainMsg = {\n"
+                    "    let limit = RestartLimit(restarts = 5, within = 60000);\n"
+                    "    let s = spawn(Local, restarting(limit, faulty));\n"
+                    "    let t = spawn(Local, faulty);\n"
+                    "    let _ = Io.debug(Address.call(s, " ++ Ask ++ ", 60000));\n"
+                    "    let _ = Io.debug(Address.call(t, " ++ Ask ++ ", 60000));\n"
+                    "    Unit\n"
+                    "}\n"),
+    ?assertEqual(<<"None\nNone\n">>, Out).
 
 %% Appendix E.15, §5.6: an alarm carries the time it fired, so a
 %% single-positional constructor passes as its wrap, as `Died` does to
@@ -1523,6 +1645,7 @@ prelude_target(Q, Text) ->
         [monitor] -> {ern_rt, monitor, 2};
         [kill] -> {ern_rt, kill, 1};
         [remote] -> {ern_rt, remote, 1};
+        [restarting] -> {ern_rt, restarting, 2};
         [fault] -> {ern_rt, fault, 1};
         ['Address', call] -> {ern_rt, call, 3};
         ['Address', callForever] -> {ern_rt, call_forever, 2};

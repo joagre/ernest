@@ -582,6 +582,8 @@ prelude_call(Pos, ['Address', callForever], _, Args, #e_var{type = T}, Cx) ->
     {Form, Cx1} = checked_reply(call_forever, Args, T, Cx),
     {at(Pos, Form), Cx1};
 prelude_call(Pos, [remote], _, Args, _, Cx) -> {at(Pos, call_remote(ern_rt, remote, Args)), Cx};
+prelude_call(Pos, [restarting], _, Args, _, Cx) ->
+    {at(Pos, call_remote(ern_rt, restarting, Args)), Cx};
 prelude_call(Pos, [fault], _, [Msg], _, Cx) ->
     {at(Pos, call_remote(ern_rt, fault, [Msg])), Cx};
 prelude_call(Pos, ['Int', Op], [L | _], [LF, RF], _, Cx) when Op =:= '+'; Op =:= '-'; Op =:= '*';
@@ -639,7 +641,7 @@ prelude_value(_, ['Sys', Name], _, Cx) ->
     %% report §9.7: every system reference is the runtime's, by its name
     {call_remote(ern_rt, sys, [erl_syntax:atom(Name)]), Cx};
 prelude_value(Pos, [Name], T, Cx) ->
-    case lists:member(Name, [self, send, answer, via, monitor, kill, remote, fault]) of
+    case lists:member(Name, [self, send, answer, via, monitor, kill, remote, fault, restarting]) of
         true -> {remote_fun(ern_rt, Name, arity_of(T, Pos)), Cx};
         false -> fail(Pos, "no emission for " ++ atom_to_list(Name))
     end;

@@ -29,12 +29,16 @@
          source_end/0, timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1,
          undefined_function/3, undefined_lambda/3, remote/1, fault/1, fault/2,
          trace/1, sys/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
-         run_main/2, run_main/3, signal/1, deadlock_target/1, init_stdlib/0]).
+         run_main/2, run_main/3, signal/1, deadlock_target/1, restarting/2,
+         init_stdlib/0]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
 -define(UNIT, 'Unit').
 -define(PROCESSES, ern_processes).
+%% report §6.6, §6.9: each pending call, {Callee, Caller, Alias}, so that a
+%% callee that restarts ends the calls waiting on it
+-define(CALLS, ern_calls).
 %% The longest wait the host's `receive ... after` takes, in milliseconds.
 -define(SLICE, 16#FFFFFFFF).
 
@@ -122,41 +126,78 @@ via(F, Target) ->
 -spec call(address(), fun((reply()) -> term()), integer()) -> 'None' | {'Some', term()}.
 call(Addr, Mk, Ms) ->
     line_guard(Addr),
-    Alias = erlang:alias([reply]),
+    {Alias, Mon, Row} = pending(Addr),
     deliver(Addr, Mk(Alias)),
     timed(),
-    await(Alias, deadline(Ms)).
+    Answer = await(Alias, Mon, deadline(Ms)),
+    untimed(),
+    settled(Alias, Mon, Row),
+    Answer.
 
-await(Alias, Deadline) ->
+%% Report §6.6: the answer, or None after the deadline, or at once when the
+%% callee ends or restarts before it answers.
+await(Alias, Mon, Deadline) ->
     receive
-        {Alias, V} ->
-            untimed(),
-            {'Some', V}
+        {Alias, V} -> {'Some', V};
+        {Alias, restarted, _} -> 'None';
+        {'DOWN', Mon, process, _, _} -> 'None'
     after remaining(Deadline) ->
         case remaining(Deadline) of
-            0 ->
-                untimed(),
-                erlang:unalias(Alias),
-                %% an answer that came between the timeout and the unalias
-                %% is late as well, and is not left in the caller's mailbox
-                receive
-                    {Alias, _} -> ok
-                after 0 ->
-                    ok
-                end,
-                'None';
-            _ ->
-                await(Alias, Deadline)
+            0 -> 'None';
+            _ -> await(Alias, Mon, Deadline)
         end
     end.
 
 -spec call_forever(address(), fun((reply()) -> term())) -> term().
 call_forever(Addr, Mk) ->
     line_guard(Addr),
-    Alias = erlang:alias([reply]),
+    {Alias, Mon, Row} = pending(Addr),
     deliver(Addr, Mk(Alias)),
     receive
-        {Alias, V} -> V
+        {Alias, V} ->
+            settled(Alias, Mon, Row),
+            V;
+        {Alias, restarted, Cause} ->
+            settled(Alias, Mon, Row),
+            fault(Cause);
+        {'DOWN', Mon, process, _, Reason} ->
+            settled(Alias, Mon, Row),
+            ended(reason(Reason))
+    end.
+
+%% Report §6.6, §7.4: a callForever whose callee ended faults the caller with
+%% the callee's cause, or says how it ended; with the program the caller
+%% ends too.
+ended({'Fault', Cause}) -> fault(Cause);
+ended('Killed') -> fault(<<"callee was killed">>);
+ended('Returned') -> fault(<<"callee returned without answering">>);
+ended('Unknown') -> fault(<<"callee had ended">>);
+ended('ProgramEnd') ->
+    %% a signal, not an exception, which run/1 would take for a fault
+    exit(erlang:self(), {ern, program_end}),
+    receive after infinity -> ok end.
+
+%% A call's reply alias, a monitor of the process behind the address, and
+%% the call noted against that process, so that its restart ends the call.
+pending(Addr) ->
+    Callee = process_of(Addr),
+    Alias = erlang:alias([reply]),
+    Mon = erlang:monitor(process, Callee),
+    Row = {Callee, erlang:self(), Alias},
+    ets:insert(?CALLS, Row),
+    {Alias, Mon, Row}.
+
+%% The call is over: its row goes, its monitor goes, and an answer that
+%% came late is not left in the caller's mailbox.
+settled(Alias, Mon, Row) ->
+    ets:delete_object(?CALLS, Row),
+    erlang:demonitor(Mon, [flush]),
+    erlang:unalias(Alias),
+    receive
+        {Alias, _} -> ok;
+        {Alias, restarted, _} -> ok
+    after 0 ->
+        ok
     end.
 
 -spec answer(reply(), term()) -> 'Unit'.
@@ -233,6 +274,10 @@ reaper_loop(Waiters) ->
             case ets:lookup(?PROCESSES, Pid) of
                 [{_, Site, alive, _, _}] ->
                     ets:delete(?PROCESSES, Pid),
+                    %% its pending calls, as the one called and as the caller;
+                    %% a caller learns of a callee's end by its own monitor
+                    ets:delete(?CALLS, Pid),
+                    ets:match_delete(?CALLS, {'_', Pid, '_'}),
                     died(Pid, Site, Reason),
                     Down = {'Down', reason(Reason), Site},
                     lists:foreach(fun({To, {raw, Tag}}) -> To ! {Tag, Site, Reason};
@@ -689,6 +734,7 @@ run_main(Main, Site) ->
 -spec run_main(fun(() -> term()), binary(), map()) -> outcome().
 run_main(Main, Site, Opts) ->
     ets:new(?PROCESSES, [named_table, public, set]),
+    ets:new(?CALLS, [named_table, public, bag]),
     %% report §8.6: the sources a system process holds, counted while held
     ets:insert(?PROCESSES, {sources, 0}),
     persistent_term:erase({?MODULE, holder}),
@@ -763,6 +809,40 @@ signal(Signal) ->
             none
     end.
 
+%% Report §6.9: a function that runs F, and on a fault runs it again in the
+%% same process, until the limit's restarts within its milliseconds have
+%% happened, when the next fault ends the process with its cause. Only a
+%% fault restarts: a kill and the program's end are exit signals, which no
+%% try catches, and F returning ends it as any process ends.
+-spec restarting({'RestartLimit', integer(), integer()}, fun(() -> term())) -> fun(() -> term()).
+restarting({'RestartLimit', Restarts, Within}, F) ->
+    fun() -> restarts(F, max(Restarts, 0), max(Within, 0), []) end.
+
+restarts(F, Restarts, Within, Times) ->
+    try
+        F()
+    catch
+        Class:Reason:Stack ->
+            Fault = fault_reason(Class, Reason, Stack),
+            Now = erlang:monotonic_time(millisecond),
+            Recent = [T || T <- Times, Now - T < Within],
+            case length(Recent) < Restarts of
+                true ->
+                    restarted(element(3, Fault)),
+                    restarts(F, Restarts, Within, [Now | Recent]);
+                false ->
+                    %% raised again as the fault it is, for run/1 to end the
+                    %% process with, its stack beside it where it had one
+                    throw(Fault)
+            end
+    end.
+
+%% Report §6.6, §6.9: a restart ends every call waiting on the process, each
+%% caller told the cause, which a callForever faults with.
+restarted(Cause) ->
+    lists:foreach(fun({_, _, Alias}) -> Alias ! {Alias, restarted, Cause} end,
+                  ets:take(?CALLS, erlang:self())).
+
 %% Report §8.6: every local process ends with ProgramEnd, the sinks' output
 %% is flushed, the system processes and the reaper are stopped, and the
 %% terminal goes back as the program found it (§8.2).
@@ -787,6 +867,7 @@ end_program(Run, Reaper, System) ->
         _ -> ok
     end,
     ets:delete(?PROCESSES),
+    ets:delete(?CALLS),
     %% a signal after the run has nothing to end (signal/1)
     persistent_term:erase({?MODULE, launcher}),
     flush_run(Run).

@@ -1146,6 +1146,20 @@ abstract_type_test() ->
                  err("abstract type Stack(a) = Stack(List(a))")),
     ?assertEqual("Nope is not a type declared in this module", err("fn Nope.f() = 1")).
 
+%% report §6.6, §6.9: `restarting` may run its function more than once, so a
+%% lambda that captures a reply is refused there, by the rule that lets such
+%% a lambda stand only where it is called or spawned once
+reply_lambda_restarting_test() ->
+    ?assertEqual("the reply-carrying value r is captured by a lambda that is not called, bound by"
+                 " `let`, or passed directly to spawn or spawnMonitored",
+                 err("fn worker(r : Reply(Int)) -> Unit with m = answer(r, 1)\n"
+                     "fn f(r : Reply(Int)) -> Unit with Never = {\n"
+                     "    let limit = RestartLimit(restarts = 1, within = 1);\n"
+                     "    let g = restarting(limit, fn() -> Unit with Never = worker(r));\n"
+                     "    let _ = spawn(Local, g);\n"
+                     "    Unit\n"
+                     "}\n")).
+
 %% report §6.6: a lambda that captures a reply-carrying value is reply-carrying
 %% itself, consumed exactly once by a call or as spawn's direct argument,
 %% bindable by let, and legal nowhere else

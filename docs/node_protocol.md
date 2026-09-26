@@ -263,7 +263,7 @@ Additions to the prelude. All operations are in `{Proc m}`. Signatures in the no
 
 ## 12. Alternatives considered and rejected
 
-- **Addresses that survive restarts.** A process that has died is dead; a new process under the same name is another process, possibly with other state. Durable identity belongs to a registry.
+- **Addresses that survive a death.** A process that has died is dead; a new process under the same name is another process, possibly with other state. A process that restarts after a fault keeps its address because it has not died (report §6.9), and durable identity across a death belongs to a registry.
 - **Counter as `LocalId`.** Simpler, but addresses could be guessed.
 - **Proxy process per remote address.** Costly, and gives nothing the connection process does not.
 - **Address without type hash.** An address to a mailbox with a changed type could be passed to code expecting the old type.
