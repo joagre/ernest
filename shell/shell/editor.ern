@@ -139,7 +139,7 @@ fn character(state : State, c : Char) -> Edit = {
       | '\u{8}' or '\u{7f}' -> Typing(back(state)) // Backspace and C-h
       | '\u{b}' -> Typing(killFrom(state, String.size(text))) // C-k
       | '\u{15}' -> Typing(killTo(state, 0)) // C-u
-      | '\u{17}' -> Typing(killTo(state, wordLeft(text, at))) // C-w
+      | '\u{17}' -> Typing(killTo(state, wordLeft(text, at, unspaced))) // C-w
       | '\u{19}' -> Typing(insert(state, kill)) // C-y
       | '\u{c}' -> Clear(state) // C-l
       | '\t' -> Completing(state) // the reader has the names to complete against
@@ -164,10 +164,10 @@ fn meta(state : State, event : Event) -> Edit = {
       | Key('[') -> Typing(State(..state, pending = Bracket))
       | Key('<') -> Typing(walkTo(state, List.size(state.history)))
       | Key('>') -> Typing(walkTo(state, 0))
-      | Key('b') -> Typing(State(..state, at = wordLeft(text, at)))
-      | Key('f') -> Typing(State(..state, at = wordRight(text, at)))
-      | Key('d') -> Typing(killFrom(state, wordRight(text, at)))
-      | Key('\u{8}') or Key('\u{7f}') -> Typing(killTo(state, wordLeft(text, at)))
+      | Key('b') -> Typing(State(..state, at = wordLeft(text, at, alphanumeric)))
+      | Key('f') -> Typing(State(..state, at = wordRight(text, at, alphanumeric)))
+      | Key('d') -> Typing(killFrom(state, wordRight(text, at, alphanumeric)))
+      | Key('\u{8}') or Key('\u{7f}') -> Typing(killTo(state, wordLeft(text, at, alphanumeric)))
       | Key(_) -> Typing(state) // an unbound Meta key does nothing
       // every other key does what it does, `Escape` before it or not
       | other -> plain(state, other)
@@ -318,29 +318,36 @@ fn killFrom(state : State, to : Int) -> State = {
 
 fn from(text : String, at : Int) -> String = String.slice(text, at, String.size(text) - at)
 
-// The start of the word before the cursor: over the spaces before it,
-// then over the word itself.
-fn wordLeft(text : String, at : Int) -> Int = overWord(text, overSpace(text, at, -1), -1)
+// report §11.2: the start of the word before the cursor, over what is not
+// in a word and then over the word itself; `inWord` says what a word is,
+// a run of letters and digits for the Meta keys and anything but a space
+// for C-w, as in Readline.
+fn wordLeft(text : String, at : Int, inWord : (String, Int) -> Bool) -> Int =
+    over(text, over(text, at, -1, fn(t, i) = !inWord(t, i)), -1, inWord)
 
 // The end of the word after the cursor.
-fn wordRight(text : String, at : Int) -> Int = overWord(text, overSpace(text, at, 1), 1)
+fn wordRight(text : String, at : Int, inWord : (String, Int) -> Bool) -> Int =
+    over(text, over(text, at, 1, fn(t, i) = !inWord(t, i)), 1, inWord)
 
-fn overSpace(text : String, at : Int, step : Int) -> Int =
+// From `at`, a step at a time, while the character stepped over satisfies `p`.
+fn over(text : String, at : Int, step : Int, p : (String, Int) -> Bool) -> Int =
     if beyond(text, at, step) then at
-    else if space(text, at + Int.min(step, 0)) then overSpace(text, at + step, step)
+    else if p(text, at + Int.min(step, 0)) then over(text, at + step, step, p)
     else at
-
-fn overWord(text : String, at : Int, step : Int) -> Int =
-    if beyond(text, at, step) then at
-    else if space(text, at + Int.min(step, 0)) then at
-    else overWord(text, at + step, step)
 
 // The character a step away is off the line, so the walk over the word
 // stops there.
 fn beyond(text : String, at : Int, step : Int) -> Bool =
     at + Int.min(step, 0) < 0 || at + Int.max(step, 0) > String.size(text)
 
-fn space(text : String, i : Int) -> Bool = String.slice(text, i, 1) == " "
+fn unspaced(text : String, i : Int) -> Bool = String.slice(text, i, 1) != " "
+
+// A grapheme is judged by its first code point, which is what Char's
+// predicates see.
+fn alphanumeric(text : String, i : Int) -> Bool = match String.toList(String.slice(text, i, 1)) {
+    c :: _ -> Char.isAlpha(c) || Char.isDigit(c)
+  | [] -> false
+}
 
 //
 // The tests (report §9.3), run by `ern --test build/shell/shell/editor.erc`,
@@ -379,6 +386,25 @@ let wordsForward = Test(name = "M-f goes to the end of the word after", run = fn
 
 let killWordForward = Test(name = "M-d kills the word after the cursor", run = fn() =
     reads(play(keys("one two") <> [ctrl('a'), Escape] <> keys("d")), " two", 0))
+
+// report §11.2: the Meta keys' word is a run of letters and digits, and
+// C-w's runs back to a space. Regression tests: the ones above use "one
+// two", where the two agree, and passed while every key stopped at spaces
+// only. Not covered: a grapheme of several code points inside a word.
+let wordsBackInCode = Test(name = "M-b stops at a letter after punctuation", run = fn() =
+    reads(play(keys("List.map(xs") <> [Escape] <> keys("b")), "List.map(xs", 9))
+
+let wordsForwardInCode = Test(name = "M-f stops at the end of letters", run = fn() =
+    reads(play(keys("List.map(xs") <> [ctrl('a'), Escape] <> keys("f")), "List.map(xs", 4))
+
+let killWordForwardInCode = Test(name = "M-d kills letters and digits only", run = fn() =
+    reads(play(keys("List.map(xs") <> [ctrl('a'), Escape] <> keys("d")), ".map(xs", 0))
+
+let killWordBackInCode = Test(name = "M-Backspace kills letters and digits only", run = fn() =
+    reads(play(keys("List.map(xs") <> [Escape, Key('\u{7f}')]), "List.map(", 9))
+
+let killToSpaceInCode = Test(name = "C-w kills back to a space", run = fn() =
+    reads(play(keys("f List.map(xs") <> [ctrl('w')]), "f ", 2))
 
 let submits = Test(name = "Enter submits what was typed", run = fn() =
     match play(keys("hi") <> [Enter]) {

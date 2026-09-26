@@ -201,6 +201,10 @@ The steps:
      `--emit-erl`. A refusal of an old spelling names the new one. Report §11.1 to §11.4,
      the README, the guide's tools page, the Makefile, the Emacs mode and the tests change
      together in step 10. The log's *One Tool, the Job Its First Word*.
+   - **Fixed 2026-09-26: a word is Readline's** (item 29). The `M-` keys walk over runs of
+     letters and digits and `C-w` back to a space, as §11.2 now says; the editor had used
+     spaces for all five, against §11.2's promise of Readline's keys. The log's *A Word Is
+     Readline's*.
 8. **The Erlang code's open questions**, from its review on 2026-09-25, gone through one by
    one after the language is decided and before what was decided is built, since a split
    is cheapest before the code it moves is changed. Where the code lives and how big it is:

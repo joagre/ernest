@@ -7,7 +7,7 @@ MVP, which the entry names. An entry ends in a report change, a "Later" entry in
 or a line saying it was weighed and left alone, and then it leaves this file.
 
 The entries are grouped by the question they share, and keep the numbers they were found
-under, since the plan, the log and the code cite them. Forty-eight have left: 1 (decided, report
+under, since the plan, the log and the code cite them. Forty-nine have left: 1 (decided, report
 §4.2, `Prelude.X`), 6 (done, E.5's `indexOf`), 10 (a defect of the shell, fixed), 12
 (decided, report §9), 2, 4 and 43 (weighed and kept, the log's *Constructor Names Stay Unique
 in a Module*, *Names Stay Qualified, Without Import or Alias* and *Two Visibilities Are
@@ -30,8 +30,9 @@ a system message type's constructors are its system module's), 37 (decided there
 `Tcp.port` answers a listener's port), 27 (decided there: `Terminal.subscribe` refuses
 where standard input is not a terminal), 11, 13, 42, 46 and 34 (decided in step 6's first
 batch: a shim is only an operation that reaches the representation), 40, 41 and 38 (decided
-in its second: a name follows the vocabulary), and 7, 8, 15, 20, 21, 22, 23, 31, 35 and 44
-(decided in its third: what the library lacked).
+in its second: a name follows the vocabulary), 7, 8, 15, 20, 21, 22, 23, 31, 35 and 44
+(decided in its third: what the library lacked), and 29 (a defect of the shell, fixed: a word is
+Readline's).
 
 ## 1. Names and namespaces
 
@@ -108,5 +109,3 @@ What the shell does that its own code, rather than the language, decides.
     module's names; §11.2's completion reads what is before the last `.` as a namespace,
     so it offers nothing. Whether completion reaches a value's fields, which needs the
     value's type where the parser stopped.
-29. **The editor's words are split at spaces only**, so `M-b` over `List.map(xs` jumps it
-    whole; Readline's words are alphanumeric runs. Which the shell should follow.
