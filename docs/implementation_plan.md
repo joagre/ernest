@@ -225,21 +225,48 @@ The steps:
    `run/1` dropping the stacktrace, and the owner a qualified name records.
 9. **The cold read's own findings**, those no theme takes, in a batch: the report's wording,
    its cross-references and examples, and the rules it leaves an implementer to invent.
-10. **What was decided is built**, report first as each decision already was, each change with
-   its tests, and the document sweep at the end.
-   - **The gate, before anything is built: steps 5 to 7 read back as a whole.** A reader who
-     took no part reads every log entry from *Names, Restarts and Supervision* to *Completion
-     Reaches What the Session Knows* together, against principles 5 and 1 only, and reports:
-     what the decisions add to the prelude, the standard library, the report and the
-     toolchain, counted, and what they remove; any two decisions that overlap or give a
-     second way to do one job; any decision a later one made unnecessary; and what could be
-     dropped or merged, with what the language loses if it is. Each finding is decided with
-     the user, one at a time, before step 10 builds anything. The log's *A Gate Before the
-     Build*.
-   - **Then the build.** The guide gains a section on services: a
-   service as a top-level binding, `restarting` and its `Limit`, the `start` and `service`
-   pair for tests, a call that ends when its callee faults, and `fault`; §6.4's sentence
-   that a restarted service must hand out its new address goes.
+10. **What was decided is built**, in seven sub-steps, each its own commit. Step 9 comes
+   first, so that the report is edited in one pass rather than two. Before step 10 begins,
+   `make sections` and `make coverage` are run and kept, so that it can show every new or
+   changed section gained a citing test.
+   1. **The gate: steps 5 to 7 read back as a whole.** A reader who took no part reads every
+      log entry from *Names, Restarts and Supervision* to *Completion Reaches What the Session
+      Knows* together, against principles 5 and 1 only, and reports: what the decisions add
+      to the prelude, the standard library, the report and the toolchain, counted, and what
+      they remove; any two decisions that overlap or give a second way to do one job; any
+      decision a later one made unnecessary; and what could be dropped or merged, with what
+      the language loses if it is. Each finding is decided with the user, one at a time,
+      before anything below is written. The log's *A Gate Before the Build*.
+   2. **The ledger.** A table in this plan, a row for each decision the gate leaves: the
+      report sections it changes; the Erlang modules and Ernest files it reaches; its tests,
+      the new ones and the mirror tests that must change, a mirror test planned for every
+      new list that lives in the code and the report (the owners of the system message
+      types, `Process`'s section, the new prelude names); the documents it reaches, the
+      guide, the README, the shell's design note and `shell/README.md`, the module pages,
+      `examples/` and the Emacs mode; and what it depends on, `Process` before
+      `Process.faults`, `restarting` before `Supervisor`. The dependencies give the order of
+      sub-step 6. Each row carries the grep that finds what the decision makes false, `ernc`,
+      `--out-dir`, `intersect`, `Ets.insert`, the guide's §6.4 sentence on a new address and
+      the like, so that the commit that builds it removes every such sentence.
+   3. **Every report change in one pass**, Appendix E among them, as a commit of the report
+      alone: `make xref` and `make test-docs` green, the count recorded in the log's
+      *Measure*, and a section over 600 words read for restating.
+   4. **The whole report read cold.** A reader who took no part reads the report as it now
+      stands, every section and not the changed ones alone, since the decisions cut across
+      sections: a service binding reaches §4.6, §6.5, §8.5 and §8.7 at once. With it the two
+      sweeps a batch of report changes asks for, the guide against the report and every other
+      document against the report and the code. What they find is decided before the build.
+   5. **The toolchain first.** `ern build` and its siblings replace `ernc` before anything
+      else is built, since the rename reaches the Makefile, the tests, the README, the guide
+      and the Emacs mode, and every later test is then written against the final commands.
+   6. **The build, in the ledger's order**, one decision or tight group a commit, each with
+      its tests and with the sentences its row's grep finds removed in the same commit;
+      `make test` at the end of each group.
+   7. **The guide's section on services, and the closing sweep.** The section teaches a
+      service as a top-level binding, `restarting` and its `Limit`, the `start` and `service`
+      pair for tests, a call that ends when its callee faults, and `fault`; §6.4's sentence
+      that a restarted service must hand out its new address goes. The section on the
+      supervisor is MVP 2.66's. The document sweep closes the step.
 
 ---
 
