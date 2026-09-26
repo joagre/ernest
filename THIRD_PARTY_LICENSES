@@ -8,7 +8,7 @@ under their own licenses, reproduced here in full.
 
 getopt
 
-  Path:     lib/utils/src/getopt.erl
+  Path:     erl/utils/src/getopt.erl
   Upstream: https://github.com/jcomellas/getopt
   Copied:   2026-09-17, unmodified
   License:  BSD 3-Clause ("New BSD License")

@@ -21,8 +21,8 @@ Actorson until 12 September 2026.
 first eight steps are done: the feedback list and this plan consolidated, the report read
 cold, the five themes, names and namespaces, expressions, patterns and types, processes and
 the system, the standard library under E.0, and the toolchain, the Erlang code's open
-questions, and the cold read's last findings. Step 10, the build, is next, with its gate
-first.
+questions, and the cold read's last findings. Step 10, the build, has begun: its gate and
+its ledger are done, and two decisions, L3 and L4, come before its report pass.
 MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
@@ -131,8 +131,9 @@ The steps:
      `monitor` stays one message at death (item 9; *Every Fault Reaches Standard Error*).
    - **A peer's service is found through its binding**, and `Peer.find` does it in one
      call in MVP 3.0 (*A Peer's Service Is Found Through Its Binding*).
-   - **A `Supervisor` in the standard library, and `fault(cause)` in the prelude**, built in
-     MVP 2.66 (*A `Supervisor` in the Standard Library, and `fault`*).
+   - **A `Supervisor` in the standard library, and `fault(cause)` in the prelude**, the
+     supervisor built in MVP 2.66 and `fault` in step 10 (*A `Supervisor` in the Standard
+     Library, and `fault`*).
    - **A process's identity is a `Process`**, from `Address.process`, with equality; an
      address keeps none (item 24; *A Process's Identity Is a `Process`*).
    - **`stdlib/process.ern`**: `Process.live`, `site`, `mailboxSize`, `state` (item 26; *The
@@ -311,17 +312,88 @@ The steps:
         the `start` and `service` pair, and a library's service in a module of its own
         (G14). G12, an earlier entry overtaken by a later one, is the log's history and
         stays.
-   2. **The ledger.** A table in this plan, a row for each decision the gate leaves: the
-      report sections it changes; the Erlang modules and Ernest files it reaches; its tests,
-      the new ones and the mirror tests that must change, a mirror test planned for every
-      new list that lives in the code and the report (the owners of the system message
-      types, `Process`'s section, the new prelude names); the documents it reaches, the
-      guide, the README, the shell's design note and `shell/README.md`, the module pages,
-      `examples/` and the Emacs mode; and what it depends on, `Process` before
-      `Process.faults`, `restarting` before `Supervisor`. The dependencies give the order of
-      sub-step 6. Each row carries the grep that finds what the decision makes false, `ernc`,
-      `--out-dir`, `intersect`, `Ets.insert`, the guide's §6.4 sentence on a new address and
-      the like, so that the commit that builds it removes every such sentence.
+   2. **Done 2026-09-26: the ledger.** A table in this plan, a row for each decision the gate
+      leaves: the report sections it changes; the Erlang modules and Ernest files it reaches;
+      its tests, the new ones and the mirror tests that must change; the documents it
+      reaches; what it depends on; and the grep that finds what it makes false, so that the
+      commit that builds it removes every such sentence. Three readers who took no part
+      filled it on 2026-09-26; the counts leave out this plan and the log. A row names the
+      decision it builds by its step and the log entry, and the order below is what the
+      dependencies give.
+
+      | Row | Decision | Report | Code | Tests | Documents | After | Grep, hits |
+      |---|---|---|---|---|---|---|---|
+      | A1 | `ern` subcommands (step 7) | §7.4, §8.1, §9, §9.3, §11 and §11.1 to §11.5, App. C, E.0 rule 6 | `bin/ernc` goes; `ern_cli` options, usage, refusals, the generated header; `ern_page` footer; `ern_rt` fault text; `Makefile`, `test/Makefile` | `ern_cli_tests` (95 calls), `ern_shell_tests`, `ern_integration_tests`, `ern_terminal_tests`, `ern_guide_tests` console grammar, `emacs/test/editing.el`; mirror: the template page's marker; new: each subcommand, each old spelling refused | README, guide §1, §7.1, §9 and 57 console lines, `architecture.md`, `shell_design.md`, `module_doc_template.md`, `emacs_mode.md`, `shell/README.md`, example headers, CLAUDE.md's line on `ernc` | none | `ernc`, `--out-dir`, `--no-clean`, `--errors`, `--emit`, `--create-config-dir`, `ern --test`/`--shell`/`--doc`, `ern x.erc`: 498 in 40 files |
+      | A2 | completion of fields (step 7) | §11.2 | `ern_shell` context, one copy of §3.5's selection through `ern_typecheck:resolve_select/4`; `shell.ern` `offered`, a foreign fn; `complete.ern` | `ern_shell_tests` `completion_test_`; `complete.ern`'s `Test`s | guide §1.2, `shell_design.md`, `shell/README.md` | A1 | `names a namespace`, `segment by segment`, `completes the word before the cursor`: 5 |
+      | B1 | `restarting` (step 5) | §6.5, §6.6 (L1), §6.9, §7.3, §9.3, §9.5 | `ern_prelude`, `ern_emitter`, `ern_rt` restart loop, window, reaper row, pending calls ended, `restarted`; `ern_reply` | `ern_rt_tests` same pid and mailbox, the limit; `ern_typecheck_tests` a reply-carrying function refused; mirrors: `ern_prelude_tests` | guide services section, §6.4, §10; `architecture.md`, `node_protocol.md` | none | `A fault ends the process that meets it`, `a new process with a new address`, `fifteen lines`: 4 |
+      | B2 | service bindings (step 5) | §4.6 (L2), §6.5, §6.8, §8.5, §8.7, §11.2 | `ern_typecheck` initializer as a `Never` body, generalization; `ern_emitter` `init_fun`; `ern_shell` load and reload; `ern_cli` | `ern_typecheck_tests` two change; new: spawn and send allowed, `receive` refused, two services in a cycle, a reload with a service | guide §2.2, §6.4, services section; `shell_design.md`, `node_protocol.md`, `architecture.md` | B1 | `initializer is pure`, `Effectful setup belongs`, `no registry`, `cannot reach a process the program spawned`: 13 |
+      | B3 | a call ends when its callee faults (step 5) | §6.6, §7.2, §7.4 | `ern_rt` `call`, `call_forever` watch the callee, through `via` | `call_forever_deadlock_test`; new: a dead, faulted, killed, returned callee; the cause passed on | guide §0, §4.4, §6.2 | B1 | `waits for ever`, `waits without limit`, `the only way to tell a slow process`: 7 |
+      | B4 | every fault to stderr (step 5, G11) | §11.2 | `ern_rt` `died`, `run_main` the reporter as first subscriber; `ern_cli` `report_fault` | new: a worker's fault on stderr, `restarted`, a system process's not printed; changed output: `test/expected/repl.out`, guide §6.3 and §6.4 consoles | guide §6.3, §6.4 (`Only supervise prints`), §9.2; `shell_design.md`, `shell/README.md`, `architecture.md` | with B5 | `A fault of the entry process`, `read by the shell and not by a program`, `Only \`supervise\` prints`: 6 |
+      | B5 | `Process` (steps 5, 8, G2, G9) | §6.5, §8.6 (L6), §11.2, E.0 rules 1, 5, 7, 8, E.1, a new section of Appendix E | `stdlib/process.ern`; `ern_rt` `live`, a Calling mark, fault subscribers through `wrapped/3`; `ern_show` `<process 84>`, `<address 84>`; `ern_typecheck` equality error; `ern_shell` loses eight doors; `shell.ern` keeps its hundred faults | `ern_stdlib_tests`, `ern_rt_tests`, `ern_show_tests`, `ern_shell_tests` `:processes` and `:faults`, `test/session/basic.out`; mirrors: `ern_prelude_tests` | guide §3.6, §5.2, §9.3, §10; `shell/README.md`, `shell_design.md`, `node_protocol.md`, `architecture.md`; `examples/repl.ern`'s run number, which becomes a process | B7, B1, B8, A1 | `watchDeaths`, `processes()`, `faults()`, `mine()`, `<address>`, `no equality`, `identity is expressed in the protocol`: 29 |
+      | B6 | `fault`, `todo` gone (G1) | §3.7, §7.4, §9.5, §9.6 | `ern_prelude`, `ern_emitter`, `ern_rt` `todo` | `ern_emitter_tests`, `ern_stdlib_tests`, `ern_typecheck_tests`; mirrors: `ern_prelude_tests`, the template page | guide §3.4, §6.3, §6.5 and its answers to the exercises; `examples/template.ern`, `module_doc_template.md`, `shell_design.md` | none | `todo`: 41 in 12 files |
+      | B7 | `Down.site` (G2) | §6.9, §9.3 | the tuple becomes `{'Down', Reason, Site}`, fields in canonical order: `ern_prelude`, `ern_rt`, `ern_cli`, `ern_shell`, `shell.ern` | `ern_rt_tests` 10, `ern_emitter_tests` 5, printed `Down(reason = ..., site = ...)`; mirrors: `declared_types_test`, the guide's §5.2 | guide §5.2, §5.6, §6.3, §6.4 | none | `function = `, `Down.function`, `{'Down', Site`: 35 in 11 files |
+      | B8 | the references in their modules (G13) | §4.2, §8.2, §8.5, §8.7, §9, §9.3, §9.7, §10, §11.2, E.0 rules 1, 5, 7, 8, E.1, E.15 to E.18, App. F; L4, L5 | `ern_prelude` loses the `Sys` values and types; `ern_emitter`; `io`, `clock`, `terminal`, `fs`, `tcp` `.ern` each bind their reference; `ern_rt` keeps `sys/1` and `kill`'s check | `ern_prelude_tests` (the §9.7 mirror shrinks), `ern_doc_tests`, `ern_emitter_tests`, `ern_typecheck_tests`, `ern_cli_tests`, `ern_shell_tests`; new: another module's message constructor refused; mirror: `kill`'s system modules against §8.2 | guide, README, `architecture.md`, `shell_design.md`, `examples/` webserver, filesync, repl, echo | A1, B2 | `Sys.` references 103, the seven message types 53, `system reference` 15, `sys.ern` 3 |
+      | B9 | `Tcp` keeps its time limit, `port`, `peer`, `local` (steps 5, 6, G7, G15) | E.0 rule 8, E.18 (L3) | `tcp.ern` over `callForever`; `ern_tcp` timers, late bytes kept, a pending request a source, `peername`, `sockname` | `ern_tcp_tests`; new: a timed-out accept takes nothing, a late connect is closed, `callForever` on a listener no deadlock, `port` after `listen(0)`; `ern_stdlib_tests` | `tcp.ern` docs, `examples/echo.ern`, `architecture.md` | B8, B3 | `answered(Address.call` in `tcp.ern` 3, `Recv(reply` 3, `Tcp.listen, and Io.readLine take none` 1 |
+      | B10 | `Terminal.subscribe` answers `Either` (step 5, step 9) | §8.2, §9.3 `IoError`, E.16, §11.2 | `terminal.ern`; `ern_tty` refuses before raw mode, each subscriber's wraps in order; `ern_shell` `is_terminal` goes; `shell.ern`, `snake.ern`; a `NotATerminal` arm in three matches | `ern_tty_tests`, `ern_rt_tests` sources, `ern_terminal_tests` (a piped program gets `Left(NotATerminal)`), `ern_emitter_tests`; mirrors: `declared_types_test`, `values_test` | guide §1.3, §5.5; `shell_design.md`, `shell/README.md` | B8 | `isTerminal` 3, `where there is no terminal` 7, `A program that does both faults` 1 |
+      | C1 | a shim reaches the representation (step 6) | E.0 rule 1, E.3, E.4, E.5, E.14, E.20 | `map.ern`, `set.ern`, `string.ern`, `bytes.ern`, `path.ern` in Ernest over their primitives; `ern_map`, `ern_set`, `ern_string`, `ern_path` shrink, `ern_path:dirname` with them | `ern_stdlib_tests` and each edge case a contract names; new mirror: each module's `foreign fn`s equal the primitives its section names | `architecture.md`, the module pages | none | `ern_map:`/`ern_set:`/`maps:` 30, `ern_string:` six, `ern_path:` 6 |
+      | C2 | `Random` is SplitMix64 (step 6) | E.13, E.0 rule 7's example | `random.ern` over `Int`'s bit operations; `ern_random` goes | `random_test` known answers; `stdlib_types_test` an abstract type | guide §8.4's node-bound example, which is `Random.Seed`, gets another; `architecture.md` | C1 | `foreign type Seed` 4, `bound to its node` 4, `exsss` 3 |
+      | C3 | names follow the vocabulary (step 6) | E.0 shape rules 2 and 3, E.4, App. D | `set.ern` `intersection`; `libs/ets` `put`, `get`, `contains`, `remove`, `close` | `ern_stdlib_tests`; mirror: `appendix_d_library_test` | guide §2.9, §8.3, §8.5 | C1 | `intersect` 7, `Ets.insert`/`lookup`/`member`/`delete`/`drop` 16 |
+      | C4 | what the library lacked (step 6, G8) | E.0 rule 4 and shape rule 5, E.1, E.3, E.5, E.6, E.16 | `mergeWith`, `trimStart`, `trimEnd`, `Char.isAsciiDigit`, `Terminal.columns` over a width table in `terminal.ern`, `Io.show` with the emitter's case; the shell's region and `libs/markdown` use `columns` | `ern_stdlib_tests`, `ern_doc_tests`, `values_test`, `ern_emitter_tests`, a wide glyph in the terminal harness | THIRD_PARTY_LICENSES (Unicode's data), `shell_design.md`'s open question, guide §2.9, `examples/repl.ern` and `webserver.ern` | D1, B8, B10 | `Only the system modules carry`, `It is not a composition`, `One character is one column`, `c >= '0' && c <= '9'`: 7 |
+      | D1 | code-point order, `trim` by `Char.isSpace` (step 9) | §3.10, E.5, E.6 | `ern_string` trim; `compare` and case mapping already conform | `string_test`: U+00A0 and U+3000 stripped, U+200E kept | `string.ern` docs, `test/session/basic.out` | none | `without leading and trailing` 3 |
+      | D2 | how a program ends (step 9) | §8.6, §11.2 | `ern_cli` a signal handler exits 128 plus the signal; `run_main` prints `killed` | `ern_cli_tests`, `ern_integration_tests` status 143, SIGHUP 129 | guide §6.3, §9.2 | none | `The program ends when main returns or faults`, `exits with status 0 when`: 3 |
+      | D3 | standard input is UTF-8 (step 9) | §8.2, E.1 | `ern_rt`'s reader reads bytes and checks UTF-8 | integration under `LANG=C`: UTF-8, CRLF, no last line feed, invalid bytes | `io.ern` doc, guide §1.3 | B8 | `without its line feed` 3 |
+      | D4 | `Float.toString` (step 9, L7) | E.9 | `ern_float:to_string`, `ern_show:float_text` | `float_test` at 0.0001, 1.0e15, 1.0e16, 1.0e-5, each read back | `float.ern` doc | none | `shortest decimal that reads back` 2 |
+      | D5 | the shell's commands in §11.2 (step 9) | §11.2 | `shell/shell/command.ern` | new mirror: the paragraph against the command list | `shell_design.md`, guide §1.2, §9.3, `shell/README.md` | A1, B5 | `The shell's help lists the commands` 1 |
+      | D6 | `////` is a comment (step 9) | §2.2, App. F | `ern_lexer`; `emacs/ernest-mode.el` | `four_slashes_is_a_doc_line_test` inverts; `emacs/test/colour.el` | `docs/emacs_mode.md` | none | `` `///` to end of line `` 2 |
+      | D7 | `ern test` streams, a deadlock one test's fault (step 9) | §11.2 | `ern_cli` `run_tests`; `ern_rt` faults the running test | `ern_cli_tests`; new: a deadlocked test then a passing one | guide §9.2, `shell_design.md`, `shell/README.md` | A1 | `It prints each test's name` 1 |
+      | E1 | the holders of `it` freed (step 8) | none | `ern_shell` holders recycled as inputs are, each input's dependencies recorded, `forget` purges a holder | `ern_shell_tests` the unload tests' "not covered"; new: a holder freed, one kept by a later declaration, 2,000 inputs measured | `shell_design.md` `A session never shrinks`, `architecture.md` if the module splits | B5, A1 | `A session never shrinks`, `frees nothing`, `holder of it`: 4 |
+
+      What the readers found against the code, each a row's work: D2's three defects, SIGHUP
+      ignored, SIGTERM exiting 0 and a killed entry printing `fault: 'Killed'`; D1 built but
+      for `trim`, which keeps U+00A0 and U+3000 and strips U+200E; D3's garbled line under
+      `LANG=C`; D4's `1.0e15`, where plain digits are decided; and D6 inverting a test the
+      log's *Warts Audit* added to follow the report as it then stood, which it still does.
+
+      **The order of sub-step 6**, a group a `make test`: first D2, D6, D7, B6 and B7, the
+      rules that need nothing; then the library, C1 with C3, C2, D1 and D4; then the
+      processes, B1, B3 and B2; then the system modules, B8, D3, B9 and B10; then B5 with
+      B4, as G11 builds them; last C4, D5 and A2. A1 is sub-step 5, and E1 goes with
+      sub-step 7.
+
+      **Decided with the ledger**, each argued in the log's *What the Ledger Found*:
+      - **L1, `restarting`'s function is never reply-carrying.** It runs its function more
+        than once, so a captured `Reply` would be answered more than once; §6.6 says so and
+        the checker refuses it.
+      - **L2, an initializer with an effect is not generalized.** A top-level `let` whose
+        initializer calls a process-only function (§3.9) is typed as a block `let` is, a
+        variable left unresolved a type error at the binding; a pure initializer generalizes
+        as now. §4.6.
+      - **L5, a system reference is a `let` over its module's private `foreign fn`**, an
+        initializer with an effect under B2, evaluated at each start; the grammar gains
+        nothing.
+      - **L6, a subscription to faults is not a source** (§8.6): a fault comes only from a
+        process that runs, so a program in which none can is still deadlocked.
+      - **L7, an exponent carries a sign only when negative**, `1.0e16` and `1.0e-5`, as
+        §2's literals are written.
+      - **L8, §3.9's rule for a `foreign fn` that takes a function stays**, though after C1
+        no `foreign fn` of the standard library takes one: it types a library's or a
+        program's.
+      - **Under E.0 rule 7, the moved types lose their module's name**: `ClockMsg` becomes
+        `Clock.Msg`, `FsMsg` `Fs.Msg`, `TerminalMsg` `Terminal.Msg`, `TcpMsg` `Tcp.Msg`,
+        and `ListenerMsg`, `SockMsg`, `StdinMsg` and `OutMsg` keep their names in `Tcp` and
+        `Io`. `Event` and `Size` go to `Terminal` and `Entry` to `Fs`, since §9 keeps in
+        the prelude only a type the language's rules name or one whose module is named
+        after it; `Path` stays by the second. §9's third criterion, a type a system
+        reference speaks, goes.
+
+      **Two decisions for the user**, taken before sub-step 3:
+      - **L3, a socket after its connection closes.** A socket dies with its connection,
+        so under B3 a `callForever` read of a closed socket faults its caller with `callee
+        returned without answering`, where E.18 promises `Left(Closed)`. Whether the socket
+        lives until `Tcp.close`, as a descriptor does, or E.18 changes.
+      - **L4, where `IoError` lives.** Four system modules answer it and none owns it, so §9
+        without its third criterion has no place for it: `Io.Error`, or a criterion kept
+        for it.
    3. **Every report change in one pass**, Appendix E among them, as a commit of the report
       alone: `make xref` and `make test-docs` green, the count recorded in the log's
       *Measure*, and a section over 600 words read for restating.

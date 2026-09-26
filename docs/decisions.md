@@ -4333,6 +4333,24 @@ The gate of MVP 2.65's step 10, its finding G10. The `Supervisor` decided in ste
 
 The gate of MVP 2.65's step 10, its finding G15, the last: types decided without a name or a place, which the ledger needs. The activity of a process had been named in *One Question About a Process* and `FaultReport` placed in *Everything About a Process in Its Module*; `Peer.find`'s failure type waits with item 14. `Tcp.peer` and `Tcp.local` answered a pair of a host and a port, which a program takes apart where a record reads by its fields (§3.5, principle 1): they answer `Tcp.Endpoint`, `Endpoint(host : String, port : Int)`, whose `port` is the word `Tcp.port` answers. `restarting`'s limit had the placeholder `Limit`, which beside `Where` in the prelude says too little: it is `RestartLimit(restarts : Int, within : Int)`, and the `Supervisor` takes the same type for its group, one limit with one meaning. The strategies are `Supervisor.Strategy = OneForOne | OneForAll | RestForOne`, OTP's names, which a reader from Erlang or Gleam knows. With this the gate closed: nine findings decided, five kept with a line in the guide, and one left to the log's history.
 
+## What the Ledger Found, 2026-09-26
+
+The ledger of MVP 2.65's step 10 read every decision against the code it reaches, and five places where the report was silent came out of it; each is decided here, two are left to discussion, and the renames follow a rule already written.
+
+`restarting` runs its function again after a fault, so a `Reply` its function captured would be answered once a run. §6.6 already refuses a reply-carrying lambda consumed more than once and names the two functions that consume one, `spawn` and `spawnMonitored`; `restarting` is not among them, and its function is refused, which states the exactly-once rule where it applies rather than adding one (L1).
+
+A top-level `let` generalizes its free variables, which was sound while every initializer was pure. An initializer that spawns returns an `Address(m)` whose `m` nothing may fix, and generalized it would accept an `Int` from one sender and a `String` from another. The fix already exists in §4.6 for a block `let`: a variable nothing resolves is an error at the binding. An initializer that calls a process-only function is typed that way, and a pure one generalizes as before, so `let Stack.empty : Stack(a) = Stack([])` keeps its meaning (L2). The rule is by effect rather than by the syntactic shape of the initializer, since the checker already knows the effect and the shape would refuse pure initializers that are calls.
+
+A system reference moved into its module (G13) needs a way to be bound. The grammar has no `foreign let`, and adding one would be a second declaration form for one job; a `let` over the module's private `foreign fn` is already an initializer with an effect once B2 is built, evaluated at each start, which the tests that run many programs in one node need (L5).
+
+A subscription to `Process.faults` is not a deadlock source under §8.6. The terminal counts because a key comes from outside; a fault comes only from a process that runs, so where none can run none will fault, and the program is deadlocked whatever it subscribed to (L6).
+
+`d.ddde±n` in step 9 left the sign of a positive exponent open. §2 writes a literal `1.0e-9` and never `1.0e+9`, and one spelling for one value is principle 2's; the sign is written only when negative (L7).
+
+After the standard library's shims shrink to what reaches a representation (C1), no `foreign fn` in it takes a function, and §3.9's rule for one that does is used by a test alone. It stays: it is the type of any such declaration, a library's or a program's, and without it a callback's effect would be unstated (L8).
+
+The message types that move with their references (G13) keep names that repeat their module, `Clock.ClockMsg`, against E.0 rule 7, so they lose it; `ListenerMsg`, `SockMsg`, `StdinMsg` and `OutMsg` already name what they are. §9 keeps in the prelude a type the language's rules name or one whose module is named after it, and its third criterion, a type a system reference speaks, goes with the move. By the first two `Event` and `Size` are `Terminal`'s and `Entry` is `Fs`'s, and `Path` stays. `IoError` fits neither, since four modules answer it and none owns it; where it lives is left to discussion (L4), with whether a socket outlives its connection now that a `callForever` read of a dead one faults (L3).
+
 ## Later
 
 Planned or considered, not in the language today.
