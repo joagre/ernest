@@ -26,9 +26,9 @@
 -export([send/2, process_of/1, spawn/3, self/0, via/2, call/3, call_forever/2, answer/2,
          monitor/2, kill/1, deaths/1, live/0, proxy_for/3, proxy_forget/2, source_begin/0,
          source_end/0, timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1,
-         undefined_function/3, undefined_lambda/3, remote/1, todo/1, fault/1, sys/1,
-         hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1, run_main/2,
-         run_main/3, init_stdlib/0]).
+         undefined_function/3, undefined_lambda/3, remote/1, todo/1, fault/1, fault/2,
+         trace/1, sys/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
+         run_main/2, run_main/3, init_stdlib/0]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -61,7 +61,7 @@ deliver({via, F, Target}, Msg) ->
     try F(Msg) of
         Adapted -> deliver(Target, Adapted)
     catch
-        Class:Reason -> exit(process_of(Target), fault_reason(Class, Reason))
+        Class:Reason:Stack -> exit(process_of(Target), fault_reason(Class, Reason, Stack))
     end;
 deliver(Pid, Msg) ->
     Pid ! Msg.
@@ -180,6 +180,8 @@ reason({ern, program_end}) -> 'ProgramEnd';
 %% has replaced twice
 reason({ern, code_unloaded}) -> {'Fault', <<"its code was unloaded">>};
 reason({ern, fault, Msg}) -> {'Fault', Msg};
+%% report §6.9, §11.2: the host's stack is the report's, never the cause's
+reason({ern, fault, Msg, _Trace}) -> {'Fault', Msg};
 reason(noproc) -> {'Fault', <<"died before monitor">>};
 reason(Other) -> {'Fault', format("~p", [Other])}.
 
@@ -452,17 +454,45 @@ run(Fun) ->
     try
         Fun()
     catch
-        Class:Reason -> exit(fault_reason(Class, Reason))
+        Class:Reason:Stack -> exit(fault_reason(Class, Reason, Stack))
     end.
 
-%% Report §7.4: what a host error is as an Ernest fault.
-fault_reason(error, badarith) -> {ern, fault, <<"division by zero">>};
-fault_reason(throw, {ern, fault, Msg}) -> {ern, fault, Msg};
-fault_reason(Class, Reason) -> {ern, fault, format("~p:~p", [Class, Reason])}.
+%% Report §7.3, §7.4: what a host error is as an Ernest fault. A failure of
+%% the runtime is the host's class and reason, and carries the host's stack
+%% beside it for the report a person reads (§11.2).
+fault_reason(error, badarith, _) -> {ern, fault, <<"division by zero">>};
+fault_reason(throw, {ern, fault, Msg}, _) -> {ern, fault, Msg};
+fault_reason(throw, {ern, fault, Msg, Trace}, _) -> {ern, fault, Msg, Trace};
+fault_reason(Class, Reason, Stack) ->
+    {ern, fault, format("~p:~p", [Class, Reason]), trace(Stack)}.
 
 -spec fault(binary()) -> no_return().
 fault(Msg) ->
     throw({ern, fault, Msg}).
+
+%% A fault with the host's stack beside its cause, a foreign function's
+%% raise (§7.4).
+-spec fault(binary(), binary()) -> no_return().
+fault(Msg, Trace) ->
+    throw({ern, fault, Msg, Trace}).
+
+%% Report §11.2: the host's stack as lines to print beneath a fault, the
+%% innermost first, each a function and where in its source it was.
+-spec trace([tuple()]) -> binary().
+trace(Stack) ->
+    unicode:characters_to_binary(
+      [io_lib:format("    ~p:~p/~p~ts~n", [M, F, arity(A), place(Info)])
+       || {M, F, A, Info} <- lists:sublist(Stack, 12)]).
+
+arity(A) when is_list(A) -> length(A);
+arity(A) -> A.
+
+place(Info) ->
+    case {proplists:get_value(file, Info), proplists:get_value(line, Info)} of
+        {undefined, _} -> "";
+        {File, undefined} -> io_lib:format(" (~ts)", [File]);
+        {File, Line} -> io_lib:format(" (~ts:~B)", [File, Line])
+    end.
 
 %%
 %% Report §8.2, §9.7: system references
@@ -620,11 +650,12 @@ arm(Deadline, To) ->
 %% own top-level lets (report §8.5); stdout, stderr =>
 %% fun((binary()) -> any()), stdin => fun(() -> eof | {error, term()} |
 %% string()) and keys => the same for the terminal's characters, for tests.
--spec run_main(fun(() -> term()), binary()) -> ok | {fault, binary()}.
+-spec run_main(fun(() -> term()), binary()) -> ok | {fault, binary()} | {fault, binary(), binary()}.
 run_main(Main, Site) ->
     run_main(Main, Site, #{}).
 
--spec run_main(fun(() -> term()), binary(), map()) -> ok | {fault, binary()}.
+-spec run_main(fun(() -> term()), binary(), map()) ->
+          ok | {fault, binary()} | {fault, binary(), binary()}.
 run_main(Main, Site, Opts) ->
     ets:new(?PROCESSES, [named_table, public, set]),
     ets:new(?ENDED, [named_table, public, set]),
@@ -658,7 +689,13 @@ run_main(Main, Site, Opts) ->
         Reaper ! {await, MainPid, erlang:self(), fun(Down) -> {main_down, Run, Down} end},
         receive
             {main_down, Run, {'Down', _, 'Returned'}} -> ok;
-            {main_down, Run, {'Down', _, {'Fault', Msg}}} -> {fault, Msg};
+            {main_down, Run, {'Down', _, {'Fault', Msg}}} ->
+                %% report §11.2: a failure of the runtime is reported with
+                %% the host's stack, which only the table of the ended keeps
+                case ets:lookup(?ENDED, MainPid) of
+                    [{_, _, {ern, fault, _, Trace}}] -> {fault, Msg, Trace};
+                    _ -> {fault, Msg}
+                end;
             {main_down, Run, {'Down', _, Other}} -> {fault, format("~p", [Other])};
             {deadlock, Run} ->
                 exit(MainPid, {ern, fault, <<"deadlock">>}),

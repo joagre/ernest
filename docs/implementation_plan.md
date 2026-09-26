@@ -137,7 +137,9 @@ The steps:
    - **`stdlib/process.ern`**: `Process.live`, `site`, `mailboxSize`, `state` (item 26; *The
      Live Processes Are a Library Function*) and `Process.faults` with `FaultReport` (item
      28; *Every Fault Is Delivered to Whoever Subscribes*). The shell's doors to the
-     runtime's processes go.
+     runtime's processes go. A `FaultReport` carries the host's stack as a field `trace`,
+     empty beneath a §7.4 cause, and every printed fault shows it, the shell's lines among
+     them (step 8; *A Failure of the Runtime Shows Its Stack*).
    - **A stream keeps its own time limit**: `Tcp.read`, `accept` and `connect` carry their
      milliseconds in the request (item 50; *A Stream Keeps Its Own Time Limit*). Found in
      step 8: a caller waiting with `callForever` on a listener is read as a deadlock within

@@ -670,10 +670,17 @@ shell(Opts, Rest, Err) ->
     case ern_rt:run_main(fun() -> Mod:main() end, <<"Shell.main">>,
                          #{stdout => Sink, stderr => Sink, init => Init}) of
         ok -> 0;
-        {fault, Msg} ->
-            io:format(Err, "fault: ~ts~n", [Msg]),
+        Fault ->
+            report_fault(Err, Fault),
             1
     end.
+
+%% Report §11.2: the entry process's fault on standard error, and beneath a
+%% failure of the runtime or a foreign function's raise the host's stack.
+report_fault(Err, {fault, Msg}) ->
+    io:format(Err, "fault: ~ts~n", [Msg]);
+report_fault(Err, {fault, Msg, Trace}) ->
+    io:format(Err, "fault: ~ts~n~ts", [Msg, Trace]).
 
 run(Opts, File, Err) ->
     quiet_signals(),
@@ -820,8 +827,8 @@ run_tests(Ns, Loaded, Err) ->
                 [] -> 0;
                 _ -> 1
             end;
-        {fault, Msg} ->
-            io:format(Err, "fault: ~ts~n", [Msg]),
+        Fault ->
+            report_fault(Err, Fault),
             1
     end.
 
@@ -854,9 +861,9 @@ run_entry(Opts, Ns, Roots, Loaded, Err) ->
     Fn = ern_emitter:function_atom(EntryFn),
     case ern_rt:run_main(fun() -> EntryMod:Fn() end, Site, #{init => Init}) of
         ok -> 0;
-        {fault, Msg} ->
+        Fault ->
             %% report §8.6: a deadlock is the entry process's fault
-            io:format(Err, "fault: ~ts~n", [Msg]),
+            report_fault(Err, Fault),
             1
     end.
 

@@ -620,6 +620,22 @@ fault_test() ->
     ?assertEqual(1, ern_err([filename:join(Dir, "boom.erc")])),
     ?assertEqual(<<"fault: division by zero\n">>, iolist_to_binary(?capturedOutput)).
 
+%% report §11.2, §7.3, §7.4: beneath a foreign function's raise the fault
+%% line has the host's stack, a function to a line, naming the function
+%% that raised; beneath a §7.4 cause, as above, it has nothing. A
+%% regression test: the stack was dropped, and a failure of the runtime
+%% named no module and no line.
+fault_stack_test() ->
+    Dir = tmp(),
+    File = write(Dir, "raise.ern",
+                 "foreign fn pick(i : Int, t : Int) -> Int = \"erlang:element/2\"\n"
+                 "export fn main() -> Unit with Never = Io.println(Int.toString(pick(5, 3)))\n"),
+    ?assertEqual(0, ern_cli:ernc(["--source-root", Dir, File])),
+    ?assertEqual(1, ern_err([filename:join(Dir, "raise.erc")])),
+    [First, Second | _] = binary:split(iolist_to_binary(?capturedOutput), <<"\n">>, [global]),
+    ?assertEqual(<<"fault: foreign function erlang:element/2 raised error:badarg">>, First),
+    ?assertEqual(<<"    erlang:element/2">>, Second).
+
 %% report §11.4, §11.5: every exported and every documented declaration,
 %% with its type and its doc comment, as Markdown
 doc_test() ->

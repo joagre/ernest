@@ -84,7 +84,8 @@ failed_start_test() ->
     true = code:add_patha(Dir),
     Quiet = #{stdout => fun(_) -> ok end},
     try
-        ?assertMatch({fault, _}, ern_rt:run_main(fun() -> ok end, <<"main">>, Quiet))
+        %% the fault of a failure in the runtime carries the host's stack
+        ?assertMatch({fault, _, _}, ern_rt:run_main(fun() -> ok end, <<"main">>, Quiet))
     after
         code:del_path(Dir),
         code:purge(Mod),
@@ -318,6 +319,26 @@ ended_rows_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual([], wait(row)),
     ?assertEqual({'Down', <<"Main.main:2">>, {'Fault', <<"division by zero">>}}, wait(late)).
+
+%% report §7.3, §6.9, §11.2: a failure of the runtime is the host's class
+%% and reason, the entry process's fault carries the host's stack beside
+%% it, and a monitor's Down carries the text alone. A regression test: the
+%% stack was dropped.
+runtime_failure_test() ->
+    Me = self(),
+    Bad = fun() -> binary_to_integer(atom_to_binary(zero_text())) end,
+    ?assertMatch({fault, <<"error:badarg">>, <<"    erlang:binary_to_integer/1", _/binary>>},
+                 ern_rt:run_main(Bad, <<"main">>, #{stdout => fun(_) -> ok end})),
+    ok = ern_rt:run_main(
+           fun() ->
+               P = ern_rt:spawn('Local', Bad, <<"Main.main:2">>),
+               ern_rt:monitor(P, fun(D) -> {down, D} end),
+               receive {down, D} -> Me ! {down, D} end
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({'Down', <<"Main.main:2">>, {'Fault', <<"error:badarg">>}}, wait(down)).
+
+%% An atom whose text is no integer, which the compiler cannot see through.
+zero_text() -> list_to_atom("zero").
 
 %% report §7.3, §7.4, §11.2: a process whose code the shell unloads dies
 %% with the fault that says so; the shell ends it as `exit/2` does here

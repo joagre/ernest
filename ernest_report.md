@@ -596,7 +596,7 @@ The error crosses a process boundary and is in the message: `Either`, or a const
 
 ### 7.3 Faults
 
-A fault ends the process that meets it, with the reason `Fault(cause)` that `Down` carries (§6.9). The code cannot see it, and nothing catches it. Its causes are those §7.4 lists, each with its text, and a failure in the runtime, out of memory among them. A process that is killed, or that ends with the program, has not faulted.
+A fault ends the process that meets it, with the reason `Fault(cause)` that `Down` carries (§6.9). The code cannot see it, and nothing catches it. Its causes are those §7.4 lists, each with its text, and a failure in the runtime, out of memory among them, whose text is the host's class and reason: `Fault("error:badarg")`. A process that is killed, or that ends with the program, has not faulted.
 
 ### 7.4 Causes of faults
 
@@ -854,7 +854,7 @@ Options are long: `--name`, or `--name value` for one that takes a value.
 
 `ern --test file.erc` runs every top-level `let` of type `Test` in the module (§9.3), exported or not, each in a process of its own after the module's initializers (§8.5). It prints each test's name with `passed`, `failed` and the text of `Failed`, or `faulted` and the cause, and exits with status 1 unless every test passed.
 
-`ern` running a program exits with status 0 when the entry point returns. A fault of the entry process, a deadlock among them (§8.6), is printed to standard error as `fault: ` and its cause, and `ern` exits with status 1.
+`ern` running a program exits with status 0 when the entry point returns. A fault of the entry process, a deadlock among them (§8.6), is printed to standard error as `fault: ` and its cause, and `ern` exits with status 1. Beneath a failure in the runtime (§7.3) or a foreign function's raise (§7.4) it prints the host's stack, a function to a line; the cause a program sees in `Down` (§6.9) is the text alone.
 
 `ern [--shell] [--source-root dir] [file.erc]` adds an interactive shell with every loaded module in scope; `--shell` takes no argument and makes the file optional, and `--source-root` names where the shell finds a module's source, the working directory by default.
 

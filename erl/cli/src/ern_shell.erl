@@ -397,6 +397,7 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
                                #value{term = V, desc = Desc}}
                           catch
                               throw:{ern, fault, Msg} -> {'Faulted', Msg};
+                              throw:{ern, fault, Msg, _} -> {'Faulted', Msg};
                               Class:Reason -> {'Faulted', fault_text(Class, Reason)}
                           end,
                 ern_rt:send(To, Outcome)

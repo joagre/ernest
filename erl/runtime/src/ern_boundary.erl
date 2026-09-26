@@ -23,10 +23,12 @@ foreign(M, F, Args, ArgDescs, Desc, Text) ->
     V = try ern_rt:in_foreign(fun() -> apply(M, F, Exposed) end)
         catch
             throw:{ern, _, _} = Passing -> throw(Passing);
-            Class:Reason ->
+            throw:{ern, _, _, _} = Passing -> throw(Passing);
+            Class:Reason:Stack ->
                 ern_rt:fault(unicode:characters_to_binary(
                                io_lib:format("foreign function ~s:~s/~B raised ~p:~p",
-                                             [M, F, length(Args), Class, Reason])))
+                                             [M, F, length(Args), Class, Reason])),
+                             ern_rt:trace(Stack))
         end,
     value(Desc, V, Text).
 

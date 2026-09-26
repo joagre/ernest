@@ -903,7 +903,8 @@ foreign_faults_test() ->
     ?assertEqual(<<"3\n">>, Out),
     {R4, _} = run("foreign fn boom(x : Int) -> Int = \"erlang:error/1\"\n"
                   ++ Main ++ "Io.println(Int.toString(boom(7)))\n"),
-    ?assertEqual({fault, <<"foreign function erlang:error/1 raised error:7">>}, R4),
+    %% report §11.2: the raise carries the host's stack beside its cause
+    ?assertMatch({fault, <<"foreign function erlang:error/1 raised error:7">>, <<_/binary>>}, R4),
     {R5, _} = run("foreign fn each(f : (Int) -> Unit with m, xs : List(Int)) -> Unit with m"
                   " = \"lists:foreach/2\"\n"
                   ++ Main ++ "each(fn(n : Int) -> Unit with Never = todo(\"later\"), [1])\n"),
