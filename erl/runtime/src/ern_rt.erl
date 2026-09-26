@@ -29,7 +29,7 @@
          source_end/0, timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1,
          undefined_function/3, undefined_lambda/3, remote/1, todo/1, fault/1, fault/2,
          trace/1, sys/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
-         run_main/2, run_main/3, signal/1, init_stdlib/0]).
+         run_main/2, run_main/3, signal/1, deadlock_target/1, init_stdlib/0]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -252,8 +252,15 @@ reaper_loop(Waiters) ->
     after 100 ->
         case deadlocked() of
             true ->
-                {Launcher, Run} = persistent_term:get({?MODULE, launcher}),
-                Launcher ! {deadlock, Run};
+                %% report §8.6, §11.2: the entry process's fault, or under
+                %% `ern test` the fault of the test that runs
+                case ets:take(?PROCESSES, deadlock_target) of
+                    [{_, Target}] ->
+                        exit(Target, {ern, fault, <<"deadlock">>});
+                    [] ->
+                        {Launcher, Run} = persistent_term:get({?MODULE, launcher}),
+                        Launcher ! {deadlock, Run}
+                end;
             false -> ok
         end,
         reaper_loop(Waiters)
@@ -737,6 +744,16 @@ run_main(Main, Site, Opts) ->
     after
         end_program(Run, Reaper, System)
     end.
+
+%% Report §11.2: under `ern test` a deadlock is the fault of the test that
+%% runs, not of the entry process; none after the test has ended.
+-spec deadlock_target(pid() | none) -> ok.
+deadlock_target(none) ->
+    ets:delete(?PROCESSES, deadlock_target),
+    ok;
+deadlock_target(Pid) ->
+    ets:insert(?PROCESSES, {deadlock_target, Pid}),
+    ok.
 
 %% Report §8.6: the host's termination or hangup ends the run in progress
 %% as the end of its entry process does; none when no run is in progress.

@@ -1339,7 +1339,7 @@ $ ern test checks.erc
 adds two: passed
 ```
 
-`ern test` runs every test of the module, each in a process of its own, and prints each as passed, failed with its text, or faulted with its cause. A test runs in a process, so it may spawn and send (report §11.2).
+`ern test` runs every test of the module, one at a time in the order the module declares them, each in a process of its own, and prints each as it ends: passed, failed with its text, or faulted with its cause. A test runs in a process, so it may spawn and send, and a test left waiting with nothing to wake it is faulted with `deadlock` while the run goes on (report §11.2).
 
 **Documenting a module.** A `///` block documents the declaration on the line after it, and one first in the file, with a blank line after it, documents the module. The text is CommonMark; `ern doc` renders the module as a page, and the shell's `:doc` shows a declaration's part of it, or a module's head, rendered for the terminal. What a module's documentation contains is report Appendix E.0 rule 6, and [`docs/module_doc_template.md`](docs/module_doc_template.md) shows it on an example module.
 

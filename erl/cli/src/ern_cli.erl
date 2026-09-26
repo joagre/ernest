@@ -880,8 +880,9 @@ init_fun(Loaded) ->
                       end, lists:reverse(Loaded))
     end.
 
-%% Report §11.2: every test of the module, each in a process of its own;
-%% status 1 unless every one passed.
+%% Report §11.2: every test of the module, one at a time in the order the
+%% module declares them, each in a process of its own and its line printed
+%% as it ends; status 1 unless every one passed.
 run_tests(Ns, Loaded, Err) ->
     Mod = ern_emitter:module_atom(Ns),
     Me = self(),
@@ -890,38 +891,39 @@ run_tests(Ns, Loaded, Err) ->
                            true -> Mod:'$tests'();
                            false -> []
                        end,
-               Me ! {ern_tests, [run_test(T) || T <- Tests]}
+               Passed = [run_test(T) || T <- Tests],
+               Me ! {ern_tests, lists:all(fun(P) -> P end, Passed)}
            end,
     Site = unicode:characters_to_binary(qname(Ns) ++ ".$tests"),
     case ern_rt:run_main(Main, Site, #{init => init_fun(Loaded)}) of
         ok ->
-            Results = receive {ern_tests, R} -> R after 0 -> [] end,
-            lists:foreach(fun({Name, Outcome}) ->
-                              io:format("~ts: ~ts~n", [Name, Outcome])
-                          end, Results),
-            case [N || {N, Outcome} <- Results, Outcome =/= <<"passed">>] of
-                [] -> 0;
-                _ -> 1
+            receive
+                {ern_tests, true} -> 0;
+                {ern_tests, false} -> 1
             end;
-        Fault ->
-            report_fault(Err, Fault),
-            1
+        Other ->
+            outcome(Err, Other)
     end.
 
 %% One test, Test(name, run) in canonical field order, in a process of its
 %% own, monitored from its start so that a fault is reported, however soon
-%% it comes, and not taken for the run's (report §6.9).
+%% it comes, and not taken for the run's (report §6.9). A deadlock while it
+%% runs is its fault (§11.2). Its line goes through standard output's
+%% process, after what the test wrote there; whether it passed is returned.
 run_test({'Test', Name, Run}) ->
     Me = ern_rt:self(),
     Ref = make_ref(),
-    _ = ern_rt:spawn_monitored('Local', fun() -> Me ! {Ref, Run()} end,
-                               fun(Down) -> {Ref, down, Down} end, Name),
+    Pid = ern_rt:spawn_monitored('Local', fun() -> Me ! {Ref, Run()} end,
+                                 fun(Down) -> {Ref, down, Down} end, Name),
+    ok = ern_rt:deadlock_target(Pid),
     Outcome = receive
                   {Ref, 'Passed'} -> returned(Ref, <<"passed">>);
                   {Ref, {'Failed', Text}} -> returned(Ref, <<"failed: ", Text/binary>>);
                   {Ref, down, {'Down', _, Reason}} -> <<"faulted: ", (cause(Reason))/binary>>
               end,
-    {Name, Outcome}.
+    ok = ern_rt:deadlock_target(none),
+    ern_rt:sys(stdout) ! <<Name/binary, ": ", Outcome/binary, "\n">>,
+    Outcome =:= <<"passed">>.
 
 %% A test that returned still sends its Down; it is taken so that it is not
 %% left in the runner's mailbox.

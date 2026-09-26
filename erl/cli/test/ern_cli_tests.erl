@@ -447,6 +447,33 @@ test_runner_test() ->
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build2", Dir ++ "/src2"])),
     ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/build2/ok.erc"])).
 
+%% report §11.2, §8.6: `ern test` runs its tests one at a time in the order
+%% the module declares them, printing each line as the test ends, after
+%% what the test wrote; a deadlock while a test runs is that test's fault,
+%% and the run goes on with the next. A regression test: the lines were
+%% printed after every test had run, and a deadlock ended the whole run.
+test_runner_streams_test_() ->
+    {timeout, 60, fun test_runner_streams/0}.
+
+test_runner_streams() ->
+    Dir = tmp(),
+    write(Dir, "src/checks.ern",
+          "type Msg = Go | Ask(reply : Reply(Int))\n"
+          "fn waiter() -> Unit with Msg = receive { Go -> Unit }\n"
+          "let first = Test(name = \"first\", run = fn() -> TestResult with Never = {\n"
+          "    Io.println(\"inside first\");\n"
+          "    Passed\n"
+          "})\n"
+          "let stuck = Test(name = \"stuck\", run = fn() -> TestResult with Never = {\n"
+          "    let w = spawn(Local, waiter);\n"
+          "    if Address.callForever(w, fn(r) = Ask(reply = r)) == 0 then Passed else Passed\n"
+          "})\n"
+          "let last = Test(name = \"last\", run = fn() -> TestResult with Never = Passed)\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_err(["test", Dir ++ "/build/checks.erc"])),
+    ?assertEqual(<<"inside first\nfirst: passed\nstuck: faulted: deadlock\nlast: passed\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
 %% report §4.2: a module may not take a namespace of a standard library
 %% module written in Ernest
 stdlib_namespace_test() ->
