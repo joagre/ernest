@@ -44,6 +44,8 @@ same question.
     has no other way to reach those who held the old one (MVP 2.66, the guide's §6.4). A
     table per node from name to address, or the argument that addresses handed on in
     messages suffice. Unregistering needs address equality, so item 24 is decided with it.
+    The direction was set on 2026-09-26, in the plan's MVP 2.65 step 5, and the entry leaves
+    when its six questions are decided.
 24. **A process has an identity no one can see.** `:processes` lists three processes spawned
     by three inputs as `input:1` three times, and nothing tells them apart: an address prints
     as `<address>` (E.1) and has no equality (§3.10), because `via(f, a) == a` was held to

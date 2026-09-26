@@ -20,7 +20,8 @@ Actorson until 12 September 2026.
 **MVP 2.65, the language and the toolchain read back after the shell, has begun.** Its
 first four steps are done: the feedback list and this plan consolidated, the report read
 cold, and the first two themes, names and namespaces, and expressions, patterns and types.
-The third theme, processes and the system, is next. MVP 2.6, the shell, was closed on
+The third theme, processes and the system, has begun: its direction for names, restarts
+and supervision is set, and its questions are decided one at a time. MVP 2.6, the shell, was closed on
 2026-09-25, and the code read back after it the same day, both under "Done".
 
 **Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23; MVP 2.61, the
@@ -108,10 +109,33 @@ The steps:
    and a check-only contract waits for a design (item 52, weighed and kept); an exported
    function takes no `Bool` that chooses a behaviour, and `Markdown.render` takes a `Style`
    (item 45; report Appendix E.0 rule 9). The log has an entry for each.
-5. **Processes and the system**, the third theme (items 9, 24, 26, 27, 28, 37, 47, 50, 53),
-   the registry at its head (item 53), an address's identity with it (item 24), since
-   unregistering needs equality; either outcome changes `:processes` and `Io.debug`, as item
-   24 says. Items 14 and 25 stay with MVP 3.0 and 16 with MVP 2.7.
+5. **Processes and the system**, the third theme (items 9, 24, 26, 27, 28, 37, 47, 50, 53).
+   Items 14 and 25 stay with MVP 3.0 and 16 with MVP 2.7. **The direction, set 2026-09-26**
+   (item 53; the log's *Names, Restarts and Supervision*): no registry. A process spawned
+   through `restarting(f)` keeps its address and its mailbox across a fault, and runs `f`
+   again from its start; the message it was handling is lost. A service is a top-level
+   binding, `export let service : Address(M) = spawn(Local, restarting(...))`, reached by
+   its name as `Sys.stdout` is, typed by its declaration, and granted by `export`. This
+   revokes §4.6's pure initializer and adds the top-level binding to §6.5's ways of holding
+   an address. Nothing is built before the questions below are decided, in this order:
+   1. **The message lost with the fault**, and a `Reply` it carries.
+   2. **The restart limit**, and whether `restarting` has strategies at all. As drafted it
+      has none: it restarts one process, and a strategy across siblings, `one_for_all` or
+      `rest_for_one`, is not its to have.
+   3. **Each fault visible**, since `monitor` sees only the final death.
+   4. **An initializer that spawns**: in which process, in what order under §8.5, how a
+      service that is one per node is tested, and what §8.7 does with a shipped binding
+      that spawns.
+   5. **Across nodes**: `Log.service` on a peer is the peer's own. Reaching another node's
+      service is MVP 3.0's decision, *Finding a service on a peer*.
+   6. **A `Supervisor` module in the standard library**, for what `restarting` leaves out:
+      a group of children, strategies across them, and the order they stop in. Written by
+      every program otherwise, and E.0 rule 3's objection to a library that chooses policy
+      for the program is weighed again against that.
+
+   Address identity (item 24) no longer hinges on unregistering, since nothing unregisters,
+   and is decided after these on its own; either outcome changes `:processes` and
+   `Io.debug`, as item 24 says.
 6. **The standard library under E.0**, the fourth theme, in three batches: where the line
    between a shim and Ernest runs, with the abstract types it could write (items 11, 13, 42,
    46), what a function is named and where it
@@ -157,6 +181,12 @@ The steps:
 The claim has stood since 2026-09-13 and has never been tested: a supervisor is fifteen
 lines of `spawn`, `monitor` and `receive`, so Ernest needs no behaviour for it. This item
 tests it by writing one, and decides what it should be, if anything.
+
+**Superseded in part, 2026-09-26.** MVP 2.65 step 5 set a direction that answers the first
+three bullets below: `restarting(f)` keeps a restarted process's address, a service is a
+top-level binding, and whether the standard library has a `Supervisor` is that step's sixth
+question. What stays here is the experiment, `examples/supervisor.ern`, written against what
+step 5 decides; the bullets are rewritten when it is decided.
 
 - **Not in the language.** §6.9 gives monitors and no links, and §0's fifth principle keeps the surface
   small; a behaviour would be a second way to structure processes beside the three
@@ -237,9 +267,10 @@ peers are the useful one.
   registry are surface the report does not have — `spawn(Peer(name), f)` is one primitive
   with a placement argument (§9.4), `monitor` is one message and no handle (§9.5), and
   §6.5 refuses a registry outright. The registry is the one of these that is a language
-  question rather than a protocol question, and it belongs with MVP 2.65's list: without
-  one, a service another node started cannot be reached, since only spawning or being sent
-  an address gives you one. The note's open question 11, a way to stop an uncooperative
+  question rather than a protocol question. MVP 2.65 step 5 set the direction on one node,
+  a service as a top-level binding, and left one named decision here: **Finding a service
+  on a peer**, a typed lookup of a peer's binding checked by the type hash, or no discovery
+  and one root node that spawns onto the others; decided when the type hash is designed. The note's open question 11, a way to stop an uncooperative
   process, is already answered: `kill` is the language's (§6.9), asynchronous, and a killed
   process's monitors see `Killed`; across nodes it needs a frame the note's table lacks.
 - **Where the two notes disagree with the report, found 2026-09-24**, also to be decided
