@@ -25,6 +25,7 @@ export fn main() -> Unit with Msg = {
                     roundTrips(socket, rounds);
                     let elapsed = Clock.now() - started;
                     Tcp.close(socket);
+                    Tcp.closeListener(listener);
                     Io.println(Int.toString(rounds) <> " round trips in "
                         <> Int.toString(elapsed) <> " ms")
                 }
@@ -50,11 +51,13 @@ fn serve(listener : Address(Tcp.ListenerMsg)) -> Unit with Never =
       | Left(_) -> Unit
     }
 
+// A socket lives until it is closed, so the server closes the one whose
+// connection has ended (report Appendix E.18).
 fn echo(socket : Address(Tcp.SockMsg)) -> Unit with Never =
     match Tcp.read(socket, 5000) {
         Right(bytes) -> {
             Tcp.write(socket, bytes);
             echo(socket)
         }
-      | Left(_) -> Unit
+      | Left(_) -> Tcp.close(socket)
     }

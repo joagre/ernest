@@ -25,8 +25,8 @@
 
 -export([send/2, process_of/1, spawn/3, spawn_monitored/4, self/0, via/2, call/3,
          call_forever/2, answer/2, monitor/2, kill/1, deaths/1, live/0, proxy_for/3,
-         proxy_forget/2, source_begin/0,
-         source_end/0, timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1,
+         proxy_forget/2, source_begin/0, source_begin/1, source_end/0, opened/1,
+         forget_opened/1, timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1,
          undefined_function/3, undefined_lambda/3, remote/1, fault/1, fault/2,
          trace/1, sys/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
          binding/1, run_main/2, run_main/3, signal/1, deadlock_target/1, restarting/2,
@@ -320,8 +320,15 @@ reaper_loop(Waiters) ->
 %% other delivery. The message counts as a source until it is delivered
 %% (§8.6). Linked, so that one that never finishes ends with the program.
 wrapped(To, Wrap, Msg) ->
-    source_begin(),
-    erlang:spawn_link(fun() -> deliver({via, Wrap, To}, Msg), source_end() end).
+    counted_link(fun() -> deliver({via, Wrap, To}, Msg) end).
+
+%% Report §8.6: a process that will deliver a message, counted as a source
+%% from before it starts until its work is done, and linked, so that one
+%% that never finishes ends with the process that started it.
+counted_link(Work) ->
+    Pid = erlang:spawn_link(fun() -> receive go -> Work(), source_end() end end),
+    source_begin(Pid),
+    Pid ! go.
 
 %% Report §11.2: the shell reads how every process the runtime started
 %% ended (§6.9) and which are alive, and no program does: §6.3 gives a
@@ -386,7 +393,8 @@ quiet_system() ->
                                   undefined -> true;
                                   Pid -> quiet(Pid)
                               end
-                          end, [stdout, stderr, stdin, fs, terminal, tcp, clock, deaths]).
+                          end, [stdout, stderr, stdin, fs, terminal, tcp, clock, deaths])
+        andalso lists:all(fun quiet/1, opened()).
 
 %% A system process that has died can deliver nothing.
 quiet(Pid) ->
@@ -434,26 +442,63 @@ proxy_forget(Key, Proxy) ->
     end,
     ok.
 
-%% Report §8.6: what a system process holds that can still deliver, a
-%% timer, a subscription, or a read in progress. Each is counted while it
-%% is held, since a process that is inside a read cannot answer a question.
+%% Report §8.6: what a system process, a listener, or a socket holds that
+%% can still deliver, a timer, a subscription, or a request in progress.
+%% Each is counted while it is held, since a process that is inside a read
+%% cannot answer a question, and counted against its holder, whose row goes
+%% when its count is 0 or when it is forgotten (forget_opened/1). A holder
+%% may be counted by the process that starts it, before it runs, so that
+%% no answer comes before its count.
 -spec source_begin() -> ok.
 source_begin() ->
-    try ets:update_counter(?PROCESSES, sources, {2, 1}) catch _:_ -> 0 end,
+    source_begin(erlang:self()).
+
+-spec source_begin(pid()) -> ok.
+source_begin(Holder) ->
+    Key = {source, Holder},
+    try ets:update_counter(?PROCESSES, Key, {2, 1}, {Key, 0}) catch _:_ -> 0 end,
     ok.
 
 -spec source_end() -> ok.
 source_end() ->
-    try ets:update_counter(?PROCESSES, sources, {2, -1}) catch _:_ -> 0 end,
+    Key = {source, erlang:self()},
+    try ets:update_counter(?PROCESSES, Key, {2, -1}) of
+        0 -> ets:delete_object(?PROCESSES, {Key, 0});
+        _ -> true
+    catch _:_ ->
+        true
+    end,
     ok.
 
 sources() ->
-    try ets:lookup(?PROCESSES, sources) of
-        [{sources, N}] -> N;
-        _ -> 1
+    try
+        lists:sum([N || [N] <- ets:match(?PROCESSES, {{source, '_'}, '$1'})])
     catch _:_ ->
         1
     end.
+
+%% Report §8.6, Appendix E.18: a listener or a socket, which a system
+%% module's functions open, is checked as a system process is, a request
+%% in its mailbox being a message in flight. It is recorded by the process
+%% that starts it, before its address is given out, and forgotten with its
+%% sources when it ends, which the process it is linked to learns.
+-spec opened(pid()) -> ok.
+opened(Pid) ->
+    try ets:insert(?PROCESSES, {{opened, Pid}}) catch _:_ -> true end,
+    ok.
+
+-spec forget_opened(pid()) -> ok.
+forget_opened(Pid) ->
+    try
+        ets:delete(?PROCESSES, {opened, Pid}),
+        ets:delete(?PROCESSES, {source, Pid})
+    catch _:_ ->
+        true
+    end,
+    ok.
+
+opened() ->
+    try [Pid || [Pid] <- ets:match(?PROCESSES, {{opened, '$1'}})] catch _:_ -> [] end.
 
 %% A timed receive counts itself in before and out first in every body,
 %% so tail position holds; the compiler emits the calls (report §8.6).
@@ -809,7 +854,8 @@ clock_loop() ->
                     %% function that does not finish holds up no other
                     %% alarm; the alarm is a source until it is delivered
                     Now = erlang:system_time(millisecond),
-                    erlang:spawn_link(fun() -> deliver(To, Now), source_end() end);
+                    counted_link(fun() -> deliver(To, Now) end),
+                    source_end();
                 _ ->
                     arm(Deadline, To)
             end,
@@ -851,8 +897,6 @@ run_main(Main, Site) ->
 run_main(Main, Site, Opts) ->
     ets:new(?PROCESSES, [named_table, public, set]),
     ets:new(?CALLS, [named_table, public, bag]),
-    %% report §8.6: the sources a system process holds, counted while held
-    ets:insert(?PROCESSES, {sources, 0}),
     persistent_term:erase({?MODULE, holder}),
     persistent_term:erase({?MODULE, deaths}),
     Run = make_ref(),

@@ -1,9 +1,12 @@
 /// TCP over its system process, which opens sockets (report §8.2).
 /// A socket is a process: its address can be sent, monitored, killed, and
-/// adapted with `via` like any other, and it dies with the connection, so a
-/// program learns of a peer going away the way it learns of any process
-/// ending. There are no socket options; framing is bitstrings (report
-/// §5.11). The last argument of a function that waits is the milliseconds.
+/// adapted with `via` like any other. It lives until `Tcp.close`: after its
+/// connection closes, from either end, each read answers `Left(Closed)`.
+/// A listener lives until `Tcp.closeListener`. A read, an accept, or a
+/// connect that times out has taken nothing, so bytes that arrive later
+/// wait for the next read. There are no socket options; framing is
+/// bitstrings (report §5.11). The last argument of a function that waits
+/// is the milliseconds.
 ///
 /// ## Examples
 ///
@@ -12,18 +15,23 @@
 ///
 /// ```ernest
 /// {
-///     let listener <- Tcp.listen(7000);
+///     let listener <- Tcp.listen(0);
+///     let port <- Tcp.port(listener);
 ///     let _ = spawn(Local, fn() = match Tcp.accept(listener, 1000) {
-///         Right(peer) -> match Tcp.read(peer, 1000) {
-///             Right(bytes) -> Tcp.write(peer, bytes)
-///           | Left(_) -> Unit
+///         Right(peer) -> {
+///             match Tcp.read(peer, 1000) {
+///                 Right(bytes) -> Tcp.write(peer, bytes)
+///               | Left(_) -> Unit
+///             };
+///             Tcp.close(peer)
 ///         }
 ///       | Left(_) -> Unit
 ///     });
-///     let client <- Tcp.connect("127.0.0.1", 7000, 1000);
+///     let client <- Tcp.connect("127.0.0.1", port, 1000);
 ///     Tcp.write(client, String.toUtf8("ping"));
 ///     let answer = Tcp.read(client, 1000);
 ///     Tcp.close(client);
+///     Tcp.closeListener(listener);
 ///     answer
 /// }
 /// ```
@@ -31,34 +39,52 @@
 /// ## See also
 ///
 /// `Bytes` for what a socket carries, `monitor` for learning that a
-/// connection ended.
+/// socket was closed.
 ///
 /// since 0.1.0
 
-/// What a listener takes; a program uses `Tcp.accept` (report Appendix
-/// E.18).
+/// What a listener takes; a program uses `Tcp.accept`, `Tcp.port`, and
+/// `Tcp.closeListener` (report Appendix E.18).
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// Either.map(Tcp.listen(0), fn(listener) = listener)
 /// ```
-export abstract type ListenerMsg = Accept(reply : Reply(Either(Io.Error, Address(SockMsg))))
+export abstract type ListenerMsg =
+    Accept(ms : Int, reply : Reply(Either(Io.Error, Address(SockMsg))))
+  | Port(reply : Reply(Either(Io.Error, Int)))
+  | CloseListener
 
 /// What a connected socket takes; a program uses `Tcp.read`, `Tcp.write`,
-/// and `Tcp.close` (report Appendix E.18).
+/// `Tcp.close`, `Tcp.peer`, and `Tcp.local` (report Appendix E.18).
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// Tcp.connect("127.0.0.1", 7000, 1000)
 /// ```
-export abstract type SockMsg = Recv(reply : Reply(Either(Io.Error, Bytes))) | Send(Bytes) | Close
+export abstract type SockMsg =
+    Recv(ms : Int, reply : Reply(Either(Io.Error, Bytes)))
+  | Send(Bytes)
+  | Close
+  | FarEnd(reply : Reply(Either(Io.Error, Endpoint)))
+  | NearEnd(reply : Reply(Either(Io.Error, Endpoint)))
+
+/// An end of a connection: the host's address as text, and the port.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Tcp.Endpoint(host = "127.0.0.1", port = 7000).port
+/// // => 7000
+/// ```
+export type Endpoint = Endpoint(host : String, port : Int)
 
 // What TCP's system process takes.
 type Msg =
     Listen(port : Int, reply : Reply(Either(Io.Error, Address(ListenerMsg))))
-  | Connect(host : String, port : Int, reply : Reply(Either(Io.Error, Address(SockMsg))))
+  | Connect(host : String, port : Int, ms : Int, reply : Reply(Either(Io.Error, Address(SockMsg))))
 
 // Report §8.2: the system reference, the runtime's address of the TCP process,
 // bound at each start.
@@ -66,41 +92,106 @@ let reference : Address(Msg) = system(Erl.atom("tcp"))
 
 foreign fn system(name : Foreign) -> Address(Msg) with m = "ern_rt:sys/1"
 
-/// A listener on that port; port 0 asks the runtime for a free one.
+/// A listener on that port; port 0 asks the system for a free one, which
+/// `Tcp.port` tells.
 export fn listen(port : Int) -> Either(Io.Error, Address(ListenerMsg)) with m =
     Address.callForever(reference, fn(r) = Listen(port = port, reply = r))
 
-/// The next connection to the listener, or `Left(Io.Timeout)` when none comes
-/// in time.
+/// The port the listener listens on.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// {
-///     let listener <- Tcp.listen(7001);
-///     Tcp.accept(listener, 10)
+///     let listener <- Tcp.listen(0);
+///     let port <- Tcp.port(listener);
+///     Tcp.closeListener(listener);
+///     Right(port > 0)
+/// }
+/// // => Right(true)
+/// ```
+export fn port(listener : Address(ListenerMsg)) -> Either(Io.Error, Int) with m =
+    Address.callForever(listener, fn(r) = Port(reply = r))
+
+/// The next connection to the listener, or `Left(Io.Timeout)` when none
+/// comes in time, having taken none; `Left(Io.Closed)` when the listener is
+/// closed while it waits.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let listener <- Tcp.listen(0);
+///     let answer = Tcp.accept(listener, 10);
+///     Tcp.closeListener(listener);
+///     answer
 /// }
 /// ```
 export fn accept(listener : Address(ListenerMsg), ms : Int)
     -> Either(Io.Error, Address(SockMsg)) with m =
-    answered(Address.call(listener, fn(r) = Accept(reply = r), ms))
+    Address.callForever(listener, fn(r) = Accept(ms = ms, reply = r))
 
-/// A connection to that host and port.
+/// A connection to that host and port, or `Left(Io.Timeout)` when it is not
+/// made in time; one made later is closed.
 export fn connect(host : String, port : Int, ms : Int)
     -> Either(Io.Error, Address(SockMsg)) with m =
-    answered(Address.call(reference, fn(r) = Connect(host = host, port = port, reply = r), ms))
+    Address.callForever(reference, fn(r) = Connect(host = host, port = port, ms = ms, reply = r))
 
-/// What has arrived, at least one octet, or `Left(Closed)` when the peer
-/// has closed, or `Left(Io.Timeout)` when nothing comes in time.
+/// What has arrived, at least one byte, or `Left(Io.Closed)` once the
+/// connection has closed and what came before is read, or
+/// `Left(Io.Timeout)` when nothing comes in time, having taken nothing.
 export fn read(socket : Address(SockMsg), ms : Int) -> Either(Io.Error, Bytes) with m =
-    answered(Address.call(socket, fn(r) = Recv(reply = r), ms))
+    Address.callForever(socket, fn(r) = Recv(ms = ms, reply = r))
 
-/// Writes the octets to the socket.
+/// Writes the bytes to the socket. It is a send: a connection that fails
+/// shows as `Left(Io.Closed)` from the next read.
 export fn write(socket : Address(SockMsg), bytes : Bytes) -> Unit with m =
     send(socket, Send(bytes))
 
 /// Closes the socket, which ends its process.
 export fn close(socket : Address(SockMsg)) -> Unit with m = send(socket, Close)
 
-fn answered(answer : Optional(Either(Io.Error, a))) -> Either(Io.Error, a) =
-    Optional.withDefault(answer, Left(Io.Timeout))
+/// Stops the listener, which ends its process; an accept waiting on it
+/// answers `Left(Io.Closed)`.
+export fn closeListener(listener : Address(ListenerMsg)) -> Unit with m =
+    send(listener, CloseListener)
+
+/// The connection's far end, in TCP's sense, not a peer of report §8.3, or
+/// `Left(Io.Closed)` once the connection has closed.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let listener <- Tcp.listen(0);
+///     let port <- Tcp.port(listener);
+///     let client <- Tcp.connect("127.0.0.1", port, 1000);
+///     let far = Tcp.peer(client);
+///     Tcp.close(client);
+///     Tcp.closeListener(listener);
+///     Either.map(far, fn(e) = e.port == port)
+/// }
+/// // => Right(true)
+/// ```
+export fn peer(socket : Address(SockMsg)) -> Either(Io.Error, Endpoint) with m =
+    Address.callForever(socket, fn(r) = FarEnd(reply = r))
+
+/// The connection's near end, or `Left(Io.Closed)` once the connection has
+/// closed.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let listener <- Tcp.listen(0);
+///     let port <- Tcp.port(listener);
+///     let client <- Tcp.connect("127.0.0.1", port, 1000);
+///     let near = Tcp.local(client);
+///     Tcp.close(client);
+///     Tcp.closeListener(listener);
+///     Either.map(near, fn(e) = e.host)
+/// }
+/// // => Right("127.0.0.1")
+/// ```
+export fn local(socket : Address(SockMsg)) -> Either(Io.Error, Endpoint) with m =
+    Address.callForever(socket, fn(r) = NearEnd(reply = r))
