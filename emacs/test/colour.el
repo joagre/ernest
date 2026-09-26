@@ -20,6 +20,7 @@
 type Shape = Dot | Circle(radius : Int)
 
 // It isn't a string, and neither is what follows it.
+//// A ruler, which is no doc comment.
 export fn merge(left : List(a), right : List(a)) -> List(a) =
     let tag = 'a';
     let name = \"circle\";
@@ -52,6 +53,7 @@ export fn Int.<>(a : Int, b : Int) -> Int = a
   (ernest-colour--check "type" 'font-lock-keyword-face)
   (ernest-colour--check "Shape" 'font-lock-type-face)
   (ernest-colour--check "// It isn't" 'font-lock-comment-delimiter-face)
+  (ernest-colour--check "//// A ruler" 'font-lock-comment-delimiter-face)
   (ernest-colour--check "merge" 'font-lock-function-name-face)
   (ernest-colour--check "List(a)" 'font-lock-type-face)
   (ernest-colour--check "->" 'font-lock-operator-face)

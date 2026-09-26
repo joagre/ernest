@@ -66,6 +66,9 @@ lex([$\n | R], L, _C, Prev, Acc) ->
     lex(R, L + 1, 1, Prev, Acc);
 lex([Ch | R], L, C, Prev, Acc) when Ch =:= $\s; Ch =:= $\t; Ch =:= $\r ->
     lex(R, L, C + 1, Prev, Acc);
+%% report §2.2: `///` begins a doc comment and `////` an ordinary one
+lex("////" ++ R, L, C, Prev, Acc) ->
+    lex(skip_line(R), L, C, Prev, Acc);
 lex("///" ++ R, L, C, Prev, Acc) ->
     {Text, Rest, L1} = doc_block(R, L, []),
     lex(Rest, L1, 1, {L1, 1}, [{doc, {L, C, {L1, 1}, Prev}, Text} | Acc]);
@@ -158,6 +161,7 @@ next_doc_line(_) -> no.
 
 next_doc_line_start([Ch | R]) when Ch =:= $\s; Ch =:= $\t; Ch =:= $\r ->
     next_doc_line_start(R);
+next_doc_line_start("////" ++ _) -> no;
 next_doc_line_start("///" ++ R) -> {yes, R};
 next_doc_line_start(_) -> no.
 

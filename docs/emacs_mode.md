@@ -10,7 +10,7 @@ its own header says how to load it. It needs Emacs 29 or later, the first with
 
 Derived from `prog-mode`, not from CC Mode.
 
-- A syntax table for `//` and `/* */` comments, `///` doc comments with a face of their own,
+- A syntax table for `//` and `/* */` comments, `///` doc comments with a face of their own, `////` being an ordinary comment,
   strings, backtick raw strings that may span lines, and a `syntax-propertize-function` for
   char literals.
 - Font lock from report §2: reserved words, uppercase-initial names as types and

@@ -148,9 +148,12 @@ line_comment_test() ->
     ?assertEqual([{ident, a}], toks("a // comment at eof")).
 
 %% report §2.2
-four_slashes_is_a_doc_line_test() ->
-    %% the report says /// starts a doc line; a fourth slash is text
-    ?assertEqual([{doc, <<"/ ruler">>}, {ident, a}], toks("//// ruler\na")).
+four_slashes_is_a_comment_test() ->
+    %% a doc comment is `///` not followed by a fourth slash, so `////` is
+    %% an ordinary comment, and it ends a doc block
+    ?assertEqual([{ident, a}], toks("//// ruler\na")),
+    ?assertEqual([{doc, <<"one">>}, {ident, a}], toks("/// one\n//// ruler\na")),
+    ?assertEqual([{doc, <<"">>}, {ident, a}], toks("///\na")).
 
 %% report §2.2
 block_comment_test() ->
