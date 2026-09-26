@@ -851,7 +851,8 @@ run_entry(Opts, Ns, Roots, Loaded, Err) ->
     {EntryMod, EntryFn, Loaded1} = entry_point(Opts, Ns, Roots, Loaded),
     Init = init_fun(Loaded1),
     Site = entry_site(EntryMod, EntryFn),
-    case ern_rt:run_main(fun() -> EntryMod:EntryFn() end, Site, #{init => Init}) of
+    Fn = ern_emitter:function_atom(EntryFn),
+    case ern_rt:run_main(fun() -> EntryMod:Fn() end, Site, #{init => Init}) of
         ok -> 0;
         {fault, Msg} ->
             %% report §8.6: a deadlock is the entry process's fault

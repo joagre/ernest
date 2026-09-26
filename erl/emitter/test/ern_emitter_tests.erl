@@ -1165,6 +1165,21 @@ bitstring_defaults_test() ->
     {R, _} = run("export fn main() -> Unit with Never = { let _ = <<-1>>; Unit }\n"),
     ?assertEqual({fault, <<"segment overflow">>}, R).
 
+%% A function may be named `module_info` or `record_info`, which the host
+%% gives every module: the emitter compiles them under names no Ernest name
+%% can spell. A regression test: ernc refused them with Erlang's "function
+%% module_info/0 already defined", and the shell faulted. Not covered here:
+%% a call from another module, which the shell test reaches.
+host_reserved_names_test() ->
+    {ok, Out} = run("export fn module_info() -> Int = 7\n"
+                    "fn record_info(x : Int) -> Int = x + 1\n"
+                    "export let total = module_info() + record_info(1)\n"
+                    "export fn main() -> Unit with Never = {\n"
+                    "    Io.println(Int.toString(total));\n"
+                    "    Io.println(Int.toString(List.foldLeft(List.map([1, 2], record_info), 0,"
+                    " fn(a, b) = a + b)))\n}\n"),
+    ?assertEqual(<<"9\n5\n">>, Out).
+
 %% report §5.11, §5.4: a variable a bitstring pattern binds is the
 %% pattern's own, not a use of an outer name. A regression test: a local
 %% fn whose pattern bound `y` was read as depending on the later `let y`,

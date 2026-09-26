@@ -62,7 +62,7 @@ Also: a selected field (§3.5) is `erlang:element/2` where every constructor of 
 
 `compile/5` runs `compile:forms` with the interface as the extra chunk `ErnI`: a map with a format number, the canonical interface (variables renumbered, lists sorted), the source hash, per dependency the hash of the interface compiled against, the hash of the standard library's interfaces, and the `ernc` version that built it. `ern_iface` owns the chunk: `encode/2` writes it, `read/1` reads it back, a chunk of another format being an error, so the module counts as stale, and `hash/1` leaves variable names out. `erl_source/3` is `--emit erl`.
 
-Module atoms are `ern@` and the path with `@` for `/`: `ern@net@http`. Type members keep their prefix: `'Stack.push'/2`.
+Module atoms are `ern@` and the path with `@` for `/`: `ern@net@http`. Type members keep their prefix: `'Stack.push'/2`. A top-level function or value named `module_info` or `record_info`, names the host gives every module, compiles as `'module_info$'` and `'record_info$'`, `$` being in no Ernest name; `ern_emitter:function_atom/1` is the one mapping, and the runner and the shell call an entry point and a prompt binding through it.
 
 ## The runtime
 

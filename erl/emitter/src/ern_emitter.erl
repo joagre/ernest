@@ -12,7 +12,7 @@
 -module(ern_emitter).
 
 -export([compile/4, compile/5, forms/3, erl_source/3, read_docs/1,
-         module_atom/1, descriptor/2]).
+         module_atom/1, function_atom/1, descriptor/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("utils/include/ern_diag.hrl").
@@ -263,14 +263,14 @@ doc_of(#foreign_fn_decl{doc = D}) -> D.
 %% declaration itself for the type forms, an abstract type without its
 %% representation.
 signature(#fn_decl{owner = O, name = N, type = Scheme}, Prefix, Env) ->
-    text([Prefix, atom_to_list(fname(O, N)), " : ",
+    text([Prefix, atom_to_list(shown_name(O, N)), " : ",
           ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
 signature(#let_decl{owner = O, name = N, type = Scheme}, Prefix, Env) ->
-    text([Prefix, atom_to_list(fname(O, N)), " : ",
+    text([Prefix, atom_to_list(shown_name(O, N)), " : ",
           ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
 signature(#foreign_fn_decl{owner = O, name = N, params = Ps, ret = R, effect = E}, Prefix, _) ->
     Type = #t_fn{params = [T || #param{type = T} <- Ps], ret = R, effect = E},
-    text([Prefix, atom_to_list(fname(O, N)), " : ", syn(Type)]);
+    text([Prefix, atom_to_list(shown_name(O, N)), " : ", syn(Type)]);
 signature(#type_decl{} = D, _, _) ->
     text(type_text(D));
 signature(#abstract_decl{type = #type_decl{name = TName, params = Ps}}, _, _) ->
@@ -343,8 +343,22 @@ export(#fn_decl{owner = O, name = N, params = Ps}) -> {fname(O, N), length(Ps)};
 export(#foreign_fn_decl{owner = O, name = N, params = Ps}) -> {fname(O, N), length(Ps)};
 export(#let_decl{owner = O, name = N}) -> {fname(O, N), 0}.
 
-fname(undefined, N) -> N;
+fname(undefined, N) -> function_atom(N);
 fname(Owner, N) -> list_to_atom(atom_to_list(Owner) ++ "." ++ atom_to_list(N)).
+
+%% The Erlang function a top-level Ernest name compiles to: its own name,
+%% but for the names the host gives every module, `module_info/0,1` and the
+%% pseudo-function `record_info/2`, which get a `$`, as no Ernest name can
+%% spell. A program may name a function anything; the collision is the
+%% host's, and nothing the program or the report sees.
+-spec function_atom(atom()) -> atom().
+function_atom(module_info) -> 'module_info$';
+function_atom(record_info) -> 'record_info$';
+function_atom(N) -> N.
+
+%% The name as the program writes it, for the documentation.
+shown_name(undefined, N) -> N;
+shown_name(Owner, N) -> fname(Owner, N).
 
 decl(#fn_decl{pos = Pos, owner = O, name = N, params = Params, body = Body}, Cx) ->
     Name = fname(O, N),
@@ -757,7 +771,7 @@ remote_name(Path, Name, Env) ->
             %% Path is Module ++ [Owner]: the member lives in Module
             {module_atom(lists:droplast(Path)), fname(lists:last(Path), Name)};
         false ->
-            {module_atom(Path), Name}
+            {module_atom(Path), function_atom(Name)}
     end.
 
 closure(Lifted, Insts, Arity, Cx) ->

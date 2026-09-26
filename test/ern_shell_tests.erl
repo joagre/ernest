@@ -725,6 +725,23 @@ load_uncompiled_dependency() ->
     ?assertMatch({_, _}, binary:match(Out, <<"compile Dep first">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"1 : Int">>)).
 
+%% report §11.2: a binding and a function may take the names the host gives
+%% every module, and a later input reaches them. A regression test: a
+%% `let module_info` faulted inside the shell, and a later input calling
+%% `record_info` reached the host's function.
+host_reserved_names_test_() ->
+    {timeout, 60, fun host_reserved_names/0}.
+
+host_reserved_names() ->
+    In = filename:join("/tmp", "ern_reserved_" ++ os:getpid() ++ ".in"),
+    ok = file:write_file(In, ["let module_info = 1\n", "fn record_info(x : Int) -> Int = x\n",
+                              "module_info + record_info(2)\n", "let f = record_info\n",
+                              "f(5)\n"]),
+    {0, Out} = sh(alone("../bin/ern --shell") ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"3 : Int">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"5 : Int">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"fault">>)).
+
 %% report §11.2: every refusal of a command is red, as a diagnostic's first
 %% line is, and an answer is plain. A regression test for a finding of the
 %% session of real use: `:load`'s refusal was red and `:set`'s was not, the

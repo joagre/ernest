@@ -77,7 +77,8 @@ remember(Env) ->
 program() ->
     case persistent_term:get({?MODULE, loaded}, #{}) of
         #{entry := {Mod, Fn, Site}} ->
-            {'Some', ern_rt:spawn('Local', fun() -> Mod:Fn() end, Site)};
+            F = ern_emitter:function_atom(Fn),
+            {'Some', ern_rt:spawn('Local', fun() -> Mod:F() end, Site)};
         _ ->
             'None'
     end.
@@ -1678,10 +1679,11 @@ holder_beam(Mod, Names) ->
     Forms = [erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Mod)]),
              erl_syntax:attribute(erl_syntax:atom(export),
                                   [erl_syntax:list(
-                                     [erl_syntax:arity_qualifier(erl_syntax:atom(Name),
-                                                                 erl_syntax:integer(0))
+                                     [erl_syntax:arity_qualifier(
+                                        erl_syntax:atom(ern_emitter:function_atom(Name)),
+                                        erl_syntax:integer(0))
                                       || Name <- Names])])
-             | [erl_syntax:function(erl_syntax:atom(Name),
+             | [erl_syntax:function(erl_syntax:atom(ern_emitter:function_atom(Name)),
                                     [erl_syntax:clause([], none, [Get(Name)])])
                 || Name <- Names]],
     {ok, _, Bin} = compile:forms([erl_syntax:revert(F) || F <- Forms], [return_errors]),
