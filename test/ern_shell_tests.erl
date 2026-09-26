@@ -706,6 +706,25 @@ load_unreadable() ->
     ?assertMatch({_, _}, binary:match(Out, <<"bad.ern:1:26: illegal character">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"1 : Int">>)).
 
+%% report §11.2: `:load` loads the modules a module uses in their compiled
+%% form, and refuses one whose dependency is not compiled with a sentence
+%% naming it. A regression test of compile_source's refusal, which the
+%% shell had told apart from diagnostics by the shape of a list.
+load_uncompiled_dependency_test_() ->
+    {timeout, 60, fun load_uncompiled_dependency/0}.
+
+load_uncompiled_dependency() ->
+    Dir = filename:join("/tmp", "ern_dep_" ++ os:getpid() ++ "_"
+                        ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(filename:join(Dir, "top.ern"), "export fn g() -> Int = Dep.f()\n"),
+    ok = file:write_file(filename:join(Dir, "dep.ern"), "export fn f() -> Int = 1\n"),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, ":load Top\n1\n"),
+    {0, Out} = sh(alone("../bin/ern --shell --source-root " ++ Dir) ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"compile Dep first">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"1 : Int">>)).
+
 %% report §11.2: every refusal of a command is red, as a diagnostic's first
 %% line is, and an answer is plain. A regression test for a finding of the
 %% session of real use: `:load`'s refusal was red and `:set`'s was not, the

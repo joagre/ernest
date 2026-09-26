@@ -741,9 +741,11 @@ history_file() ->
 %% `ernc` would compile it but in memory, since `:load` and `:reload`
 %% write nothing. `Root` is the source root and `Dirs` the load path, the
 %% roots a dependency outside the source root is found under by its
-%% namespace, in order (§11.1).
+%% namespace, in order (§11.1). A refusal is a sentence, and diagnostics
+%% come with the file they are in.
 -spec compile_source(file:filename(), file:filename(), [file:filename(), ...]) ->
-          {ok, [atom()], binary(), binary()} | {error, file:filename(), [term()]}.
+          {ok, [atom()], binary(), binary()} | {refused, string()}
+          | {error, file:filename(), [ern_diag:diag()]}.
 compile_source(File, Root, Dirs) ->
     try
         [#mod{ns = Ns, rel = Rel, decls = Decls, deps = Deps}] =
@@ -766,7 +768,7 @@ compile_source(File, Root, Dirs) ->
                 {error, File, Errors}
         end
     catch
-        throw:{cli_error, Message} -> {error, File, [Message]};
+        throw:{cli_error, Message} -> {refused, Message};
         %% a source that does not lex or parse is refused as one that does
         %% not check is, its diagnostics given back and not raised
         throw:{errors, Failed, Unread} -> {error, Failed, Unread}

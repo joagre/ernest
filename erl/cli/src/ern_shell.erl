@@ -1434,12 +1434,12 @@ compile_source(#env{source_root = Root} = Env, File) ->
     case ern_cli:compile_source(File, Root, load_path(Env)) of
         {ok, Ns, Beam, Hash} ->
             {ok, Ns, Beam, Hash};
-        {error, _, [Text]} when is_list(Text) ->
+        {refused, Text} ->
             {error, unicode:characters_to_binary([Text, "\n"])};
-        {error, _, Diags} ->
-            {ok, Source} = file:read_file(File),
+        {error, Failed, Diags} ->
+            {ok, Source} = file:read_file(Failed),
             {error, unicode:characters_to_binary(
-                      [ern_diag:format(File, Source, D) || D <- Diags])}
+                      [ern_diag:format(Failed, Source, D) || D <- Diags])}
     end.
 
 %% Report §11.2, §11.1: where a compiled module is found by its namespace,
