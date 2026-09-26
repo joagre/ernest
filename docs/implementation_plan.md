@@ -148,7 +148,8 @@ The steps:
      listener and connect processes count a pending request as a source while it waits, as
      the terminal does (§8.6).
    - **A system message is its module's to make**, and `Sys.stdout` and `Sys.stderr` take an
-     `OutMsg` (item 47; *A System Message Is Its Module's to Make*).
+     `OutMsg` (item 47; *A System Message Is Its Module's to Make*). The means changed at the gate, G13: each reference and
+     message type moves into its module.
    - **`Tcp.port(listener)`** (item 37; *A Listener Says Its Port*).
    - **`Terminal.subscribe` answers `Left(NotATerminal)`** where standard input is not a
      terminal, and the shell's `isTerminal()` goes (item 27; *A Subscription Says Whether It
@@ -260,7 +261,13 @@ The steps:
       they remove; any two decisions that overlap or give a second way to do one job; any
       decision a later one made unnecessary; and what could be dropped or merged, with what
       the language loses if it is. Each finding is decided with the user, one at a time,
-      before anything below is written. The log's *A Gate Before the Build*.
+      before anything below is written. The log's *A Gate Before the Build*. Run on
+      2026-09-26 over steps 5 to 9, since step 8 changed the language too; decided so far:
+      - **G13, the system references live in their modules.** Each `Sys.*` reference moves
+        into its system module as a top-level binding the runtime binds, `Clock.reference`,
+        and its message type with it, abstract under §4.4; `OutMsg`, item 47's owner table
+        and its mirror test go. §8.2, §9.7, E.0 rules 7 and 8, and each system module's
+        section. The log's *The System References Live in Their Modules*.
    2. **The ledger.** A table in this plan, a row for each decision the gate leaves: the
       report sections it changes; the Erlang modules and Ernest files it reaches; its tests,
       the new ones and the mirror tests that must change, a mirror test planned for every
