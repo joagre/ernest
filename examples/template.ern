@@ -102,7 +102,7 @@ export fn area(s : Shape) -> Int = match s {
 ///
 /// ### Errors
 ///
-/// Faults with `Fault("todo: negative radius")` on a negative radius, the
+/// Faults with `Fault("negative radius")` on a negative radius, the
 /// one fault in this module.
 ///
 /// ### Examples
@@ -112,7 +112,7 @@ export fn area(s : Shape) -> Int = match s {
 /// // => 4
 /// ```
 export fn checked(radius : Int) -> Int =
-    if radius < 0 then todo("negative radius") else radius
+    if radius < 0 then fault("negative radius") else radius
 
 /// Half of a whole number, toward zero. Private, and documented, so it
 /// appears in the module's documentation among the exported declarations.

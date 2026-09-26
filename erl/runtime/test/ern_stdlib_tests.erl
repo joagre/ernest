@@ -544,4 +544,4 @@ remote_test() ->
 
 %% report §7.4
 todo_test() ->
-    ?assertThrow({ern, fault, <<"todo: x">>}, ern_rt:todo(<<"x">>)).
+    ?assertThrow({ern, fault, <<"x">>}, ern_rt:fault(<<"x">>)).

@@ -908,8 +908,8 @@ foreign_faults_test() ->
     ?assertMatch({fault, <<"foreign function erlang:error/1 raised error:7">>, <<_/binary>>}, R4),
     {R5, _} = run("foreign fn each(f : (Int) -> Unit with m, xs : List(Int)) -> Unit with m"
                   " = \"lists:foreach/2\"\n"
-                  ++ Main ++ "each(fn(n : Int) -> Unit with Never = todo(\"later\"), [1])\n"),
-    ?assertEqual({fault, <<"todo: later">>}, R5).
+                  ++ Main ++ "each(fn(n : Int) -> Unit with Never = fault(\"later\"), [1])\n"),
+    ?assertEqual({fault, <<"later">>}, R5).
 
 %% report §7.4: a function value foreign code returns is checked when it is
 %% called, its result against its declared result type, in the caller, and
@@ -1292,11 +1292,16 @@ division_fault_test() ->
                       "}\n"),
     ?assertEqual({fault, <<"division by zero">>}, Result).
 
-%% report §7.4: todo compiles at any type and faults if reached
-todo_test() ->
-    {Result, _} = run("fn later() -> Int = todo(\"later\")\n"
+%% report §7.4, §9.6: fault compiles at any type and faults with its cause
+fault_test() ->
+    {Result, _} = run("fn later() -> Int = fault(\"later\")\n"
                       "export fn main() -> Unit with Never = Io.println(Int.toString(later()))\n"),
-    ?assertEqual({fault, <<"todo: later">>}, Result).
+    ?assertEqual({fault, <<"later">>}, Result).
+
+%% report §9.6: `todo` is no longer the prelude's, `fault` taking its place
+todo_is_unknown_test() ->
+    ?assertMatch({error, _}, ern_typecheck:check_string(['M'],
+                                                         "fn later() -> Int = todo(\"x\")\n")).
 
 %% report §5.6, §8.4: named fields in canonical order, and update from a
 %% base value
@@ -1518,7 +1523,7 @@ prelude_target(Q, Text) ->
         [monitor] -> {ern_rt, monitor, 2};
         [kill] -> {ern_rt, kill, 1};
         [remote] -> {ern_rt, remote, 1};
-        [todo] -> {ern_rt, todo, 1};
+        [fault] -> {ern_rt, fault, 1};
         ['Address', call] -> {ern_rt, call, 3};
         ['Address', callForever] -> {ern_rt, call_forever, 2};
         ['Sys', _] -> {ern_rt, sys, 1};

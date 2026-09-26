@@ -26,7 +26,7 @@ values_test() ->
     %% agree, twice and so unequal to the report when they do not
     Tables = lists:usort([{qname(Q), normalize(T)} || {Q, T, _} <- ern_prelude:values()]
                          ++ Compiled),
-    ?assertEqual(Report, Tables).
+    same(Report, Tables).
 
 %% report Appendix E.0 rule 9: no exported function of the standard library
 %% takes a `Bool` that chooses a behaviour; `Bool`'s own module takes the
@@ -72,7 +72,7 @@ in_module_docs(Ns, Name) ->
 declared_types_test() ->
     Report = declarations(code_lines(section("### 9.3", "### 9.4"))),
     Tables = declarations(string:split(ern_prelude:declared_types(), "\n", all)),
-    ?assertEqual(Report, Tables).
+    same(Report, Tables).
 
 %% report Appendix E: the types the standard library declares, by
 %% namespace, read from the modules' compiled interfaces, whose parameters
@@ -86,7 +86,7 @@ stdlib_types_test() ->
     Compiled = [{Ns, rename(compiled_decl(Ns, TI))}
                 || I <- ern_prelude:stdlib_ifaces(), Ns <- [element(2, I)],
                    TI <- maps:values(element(3, I))],
-    ?assertEqual(lists:sort([{Ns, rename(D)} || {Ns, D} <- Report]), lists:sort(Compiled)).
+    same(lists:sort([{Ns, rename(D)} || {Ns, D} <- Report]), lists:sort(Compiled)).
 
 %% A printed type without the marks of the inferred restrictions.
 unmarked(Text) ->
@@ -165,8 +165,14 @@ builtin_types_test() ->
     Named = [{list_to_atom(N), arity(Ps)}
              || L <- code_lines(section("### 9.1", "### 9.3")),
                 [N, Ps] <- [captures(L, "^([A-Z]\\w*)(\\([^)]*\\)|) ")]],
-    ?assertEqual(lists:sort(Base ++ Named),
-                 lists:sort([{N, A} || {N, A, _} <- ern_prelude:builtin_types()])).
+    same(lists:sort(Base ++ Named),
+         lists:sort([{N, A} || {N, A, _} <- ern_prelude:builtin_types()])).
+
+%% The report's list and the code's equal, in order; where they are not, the
+%% failure shows first what each has that the other lacks.
+same(Report, Code) ->
+    ?assertEqual({[], []}, {Report -- Code, Code -- Report}),
+    ?assertEqual(Report, Code).
 
 %%
 %% Reading the report

@@ -536,7 +536,7 @@ statement_is_unit_test() ->
     ?assertEqual(ok, ok(Check ++ "fn f() = { let _ = check(-1); 1 }")),
     ?assertEqual(ok, ok("fn f(a : Address(Int)) -> Int with m = { send(a, 1); 2 }")),
     %% a statement whose type is still open is settled at Unit
-    ?assertEqual(ok, ok("fn f() -> Int = { todo(\"later\"); 1 }")).
+    ?assertEqual(ok, ok("fn f() -> Int = { fault(\"later\"); 1 }")).
 
 %% report §5.4
 local_fn_forward_reference_test() ->

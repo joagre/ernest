@@ -575,7 +575,7 @@ Other limits worth knowing:
 
 A function whose type has no `with` is *pure*. It cannot send, receive, spawn, ask for its own address, or call a `foreign fn` that has an effect. A function with `with M` may act through a process whose mailbox takes `M`.
 
-Either kind of function can fault or run for ever: `a / b` with `b = 0` faults although its type is `(Int, Int) -> Int`, and `todo("...")` has every type and faults when it is reached. The `with` says only that a function acts through a process, not whether it can fault (§6).
+Either kind of function can fault or run for ever: `a / b` with `b = 0` faults although its type is `(Int, Int) -> Int`, and `fault("...")` has every type and faults when it is reached. The `with` says only that a function acts through a process, not whether it can fault (§6).
 
 ### 3.5 Higher-order and effect polymorphism
 
@@ -1188,7 +1188,7 @@ The parser refuses the text and goes on serving. A refusal is an answer, not a f
 
 ### 6.3 A fault
 
-A fault is what the program did not expect: a division by zero, a `todo` reached, a `Float` result out of range. Report §7.4 lists them all, and a failure of the runtime, out of memory among them, is one too (report §7.3). A fault ends the process it happens in, and only that process. A process that monitors it receives a `Down` whose reason is `Fault(cause)`:
+A fault is what the program did not expect: a division by zero, a `Float` result out of range, a `fault("...")` the program calls on an invariant it finds broken. Report §7.4 lists them all, and a failure of the runtime, out of memory among them, is one too (report §7.3). A fault ends the process it happens in, and only that process. A process that monitors it receives a `Down` whose reason is `Fault(cause)`:
 
 ```ernest
 type MainMsg = WorkerDied(Down)
@@ -1263,7 +1263,7 @@ What must survive a fault lives in the process that does not fault: here the lis
 ```ernest
 fn first(xs : List(Int)) -> Int = match xs {
     x :: _ -> x
-  | [] -> todo("first of an empty list")
+  | [] -> fault("first of an empty list")
 }
 ```
 
@@ -1793,7 +1793,7 @@ A function's number of arguments is part of its type, and `fn(x, y)` shows it wh
 
 **§5.7.** No. Per-sender FIFO orders messages from ping to pong and pong to ping, but the two processes both send to `Sys.stdout`, two senders to one process, and the runtime does not order across senders. Alternation is a *possible* trace, not a guaranteed one.
 
-**§6.5.** `main` faults with the cause `todo: first of an empty list`, and since it is the entry process the program ends and `ern` prints `fault: todo: first of an empty list`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
+**§6.5.** `main` faults with the cause `first of an empty list`, and since it is the entry process the program ends and `ern run` prints `fault: first of an empty list`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
 
 **§7.4.** Yes. The boundary of an abstract type is its module, so every definition in `main.ern` may name the constructor, a helper or a test included; another module sees the type and its operations, never the constructor.
 

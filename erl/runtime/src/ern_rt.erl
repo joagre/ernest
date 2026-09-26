@@ -27,7 +27,7 @@
          call_forever/2, answer/2, monitor/2, kill/1, deaths/1, live/0, proxy_for/3,
          proxy_forget/2, source_begin/0,
          source_end/0, timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1,
-         undefined_function/3, undefined_lambda/3, remote/1, todo/1, fault/1, fault/2,
+         undefined_function/3, undefined_lambda/3, remote/1, fault/1, fault/2,
          trace/1, sys/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
          run_main/2, run_main/3, signal/1, deadlock_target/1, init_stdlib/0]).
 
@@ -470,14 +470,6 @@ remote(_F) ->
     {'Left', 'NoRemotePeer'}.
 
 %%
-%% Report §7.4: todo faults if reached
-%%
-
--spec todo(binary()) -> no_return().
-todo(Msg) ->
-    fault(<<"todo: ", Msg/binary>>).
-
-%%
 %% Report §7: a process body; an exception is a fault
 %%
 
@@ -498,6 +490,8 @@ fault_reason(throw, {ern, fault, Msg, Trace}, _) -> {ern, fault, Msg, Trace};
 fault_reason(Class, Reason, Stack) ->
     {ern, fault, format("~p:~p", [Class, Reason]), trace(Stack)}.
 
+%% Report §7.4, §9.6: a fault with the cause given, the prelude's `fault`
+%% and every fault the runtime raises.
 -spec fault(binary()) -> no_return().
 fault(Msg) ->
     throw({ern, fault, Msg}).

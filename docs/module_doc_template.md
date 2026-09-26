@@ -149,7 +149,7 @@ The radius itself when it is not negative.
 
 ### Errors
 
-Faults with `Fault("todo: negative radius")` on a negative radius, the
+Faults with `Fault("negative radius")` on a negative radius, the
 one fault in this module.
 
 ### Examples

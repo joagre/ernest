@@ -539,19 +539,21 @@ values() ->
      {['Int', compare], "(Int, Int) -> Ordering", module},
      {['Float', compare], "(Float, Float) -> Ordering", module},
      {['Char', compare], "(Char, Char) -> Ordering", module},
-     {[todo], "(String) -> a",
+     {[fault], "(String) -> a",
       <<"""
-      Stands for code not written yet: it has every type, and faults when it is
-      reached (report §7.4).
+      Ends the process with the cause given: it has every type, and nothing
+      catches the fault (report §7.3, §7.4). It is for an invariant broken
+      beyond recovery; a failure the caller can handle is an `Optional` or an
+      `Either`. Code not written yet is `fault("todo: ...")`.
 
       ### Errors
 
-      `Fault("todo: " <> text)`.
+      `Fault(text)`.
 
       ### Examples
 
       ```ernest
-      fn() -> Int = todo("the parser")
+      fn(xs : List(Int)) -> Int = match xs { x :: _ -> x | [] -> fault("never empty here") }
       ```
       """/utf8>>},
      %% §9.7 system references; a program uses them through their modules
@@ -626,7 +628,7 @@ prelude_doc() ->
     <<"""
     The names every module has without writing a module's name: the built-in
     types, the types the language's rules and the system references speak, the
-    process functions, `todo`, and the system references (report §9). An
+    process functions, `fault`, and the system references (report §9). An
     operation in a type's namespace, `Int.compare`, is documented by that
     type's module.
 
