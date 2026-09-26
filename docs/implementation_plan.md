@@ -560,9 +560,9 @@ lines of `spawn`, `monitor` and `receive`, met a restarted child's new address. 
 builds it, after step 10 of 2.65 has built `restarting`, `fault`, the service binding and
 the fault report it stands on.
 
-Three questions from [`language_feedback.md`](language_feedback.md) open this item, and
-keep the numbers the log and the code cite them by. What each decides is built where it
-belongs.
+Three questions from [`language_feedback.md`](language_feedback.md) opened this item and
+were decided before its build; they keep the numbers the log and the code cite them by, and
+each is built where it belongs.
 
 - **Items 14 and 25, decided 2026-09-27: `remote` is removed**, and no `spawn(Remote, f)`
   or other placement by the runtime replaces it (report §6.7, §9; the log's *No Remote
@@ -571,12 +571,10 @@ belongs.
   and `Peer.runQueue`, built in MVP 3.0 with `libs/balancer`. Done in the same commit:
   the report, the prelude, the emitter, the runtime, the guide's §8.1, and
   `examples/remote.ern` removed.
-- **Item 16: a program cannot read its command-line arguments.** An entry point takes no
-  arguments (report §8.1), and neither the prelude nor a system module gives the command
-  line, so a program's inputs are written into it or read from standard input. A reader new
-  to the language asked for it at once. The question is the shape: the arguments bound by
-  the runtime in a system module, as a system module's references are (§8.2), or an entry
-  point `main(args : List(String))`. MVP 2.7 builds what this decides.
+- **Item 16, decided 2026-09-27: the command line is `Os`'s**, a system module whose
+  bindings `Os.arguments` and `Os.environment` the runtime makes (§8.2; the log's *A
+  Program's Command Line Is `Os`'s*). No entry point takes the arguments. `Os.run`, which
+  runs a host program, joins them. MVP 2.7 builds all three.
 
 - **`stdlib/supervisor.ern`**, in Ernest but for one shim, the in-place restart of a child,
   which only the host can do. Appendix E gains its section, with its module page and
@@ -596,13 +594,32 @@ belongs.
 
 ## MVP 2.7 (a program started from a command line, and the appendix of libraries), about a week
 
-What a command-line program needs, report first: the program's arguments, a
-`List(String)`, and its environment, bound by the runtime as a system module's references
-are (§8.2), in a module this item names, and an exit status in §8.6. Whether the arguments
-are such a binding or an entry point that takes a `List(String)` is decided in MVP 2.66's
-opening discussion (item 16), and parsing options from the list is a
-library's, by E.0. With the environment, the shell reads `NO_COLOR` in Ernest, where its front end
-reads it today.
+What a command-line program needs, report first, in a system module `Os` (§8.2, Appendix E),
+decided 2026-09-27 in MVP 2.66's opening discussion (item 16; the log's *A Program's Command
+Line Is `Os`'s*). What waits is the exit status in §8.6, the next question of that discussion.
+
+- **`Os.arguments : List(String)`**, the words after the module in `ern run file.erc a b`,
+  without the program's name; everything after the module is the program's. An argument
+  that is not UTF-8 makes `ern run` refuse to start, naming it (§11.2). Under `ern test` and
+  in the shell it is the empty list. Parsing options from the list is a library's, by E.0.
+- **`Os.environment : Map(String, String)`**, read with `Map.get`. A variable whose name or
+  value is not UTF-8 is left out, and the report says so. With it, the shell reads
+  `NO_COLOR` in Ernest, where its front end reads it today.
+- **`Os.run(command, ms)`**, which runs a host program to its end:
+  `Os.run(Os.Command(program = "ls", arguments = ["-l", "/tmp"], input = <<>>), 5000)`
+  answers `Right(Os.Finished(status, stdout, stderr))`, or `Left` with an `Io.Error`:
+  `NotFound` or `Denied` when the program cannot start, `Timeout` when the milliseconds
+  pass, the command then killed. No shell stands between: each argument reaches the program
+  as it is, and a program that wants a shell runs `sh` with `-c`. A status other than 0 is
+  the program's answer, not a `Left`. `stdout` and `stderr` are `Bytes`, as standard input
+  carries bytes (item 57). The command's standard input is `input` and then its end; it
+  never reads the terminal. It inherits the program's environment and working directory.
+  The milliseconds are the last argument, as `Tcp`'s are. The shim is a port the system
+  process opens, which delivers the output in chunks and then the status; collecting them
+  is Ernest. A command whose output a process reads while it runs waits, as a `Tcp`
+  socket's model would give it.
+- `Os` is a system module with its own `reference` (§8.2), so a running command counts as
+  pending work in §8.6's check for a deadlock.
 
 **Memory, read for what only grows.** Noted 2026-09-26. The line it draws: waste the garbage
 collector reclaims is allowed, and growth over time that no collection reclaims is a defect,
