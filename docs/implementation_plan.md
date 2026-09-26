@@ -522,7 +522,10 @@ The steps:
       Fourth Group*). A listener and a socket are sources while a request waits on them,
       and their mailboxes are read as a system process's (§8.6). The shell's reader asks
       for the keys before the session paints anything, and a refusal is line mode.
-   7. **The guide's section on services, and the closing sweep.** The section teaches a
+   7. **The guide's section on services, and the closing sweep.** Feedback item 59, a
+      module's constructor hiding the prelude's without a word, is decided first: a note in
+      the error at a use that names the hidden prelude name is the recommendation, the
+      lookup order of §4.2 standing. The section teaches a
       service as a top-level binding, `restarting` and its `RestartLimit`, the `start` and `service`
       pair for tests, a call that ends when its callee faults, and `fault`; §6.4's sentence
       that a restarted service must hand out its new address goes. The section on the

@@ -12,8 +12,18 @@ a step of the plan's MVP 2.65, which names the decision and the log entry that a
 
 ## 1. Names and namespaces
 
-Decided on 2026-09-25, and no entry is left; the plan's MVP 2.65 names each decision, and
-item 46 went to the standard library's theme.
+Decided on 2026-09-25; the plan's MVP 2.65 names each decision, and item 46 went to the
+standard library's theme. One entry has been found since.
+
+59. **A module's constructor hides the prelude's of the same name, without a word.** Found
+    building MVP 2.65's step 10, B9: `tcp.ern` gave a private message of its sockets the
+    constructor `Local`, and the module's own example, `spawn(Local, ...)`, was refused
+    with "Local has named fields; write Local(field = value, ...)", which names the
+    module's constructor and says nothing of the prelude's `Local` it hides. §4.2's lookup
+    puts a module's declarations before the prelude, so the hiding is the rule; what felt
+    against principle 3 is that neither the declaration nor the error shows it. `tcp.ern`
+    names its constructors `FarEnd` and `NearEnd`, which say more in any case. Decided in
+    the plan's MVP 2.65 step 10, sub-step 7.
 
 ## 2. Expressions, patterns and types
 
