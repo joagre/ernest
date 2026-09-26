@@ -317,7 +317,9 @@ weighed against `Sys.args` before the report changes, and parsing options from t
 library's, by E.0. With `Sys.env`, the shell reads `NO_COLOR` in Ernest, where its front end
 reads it today.
 
-**Memory, read for what only grows.** Noted 2026-09-26: the Erlang code under `erl/` and
+**Memory, read for what only grows.** Noted 2026-09-26. The line it draws: waste the garbage
+collector reclaims is allowed, and growth over time that no collection reclaims is a defect,
+in the runtime, in the toolchain and the shell, and in Ernest code alike. The Erlang code under `erl/` and
 every Ernest program in the repository, the standard library, the shell, `libs/` and
 `examples/`, read again for memory that is kept with no need, capped or not, as the table of
 ended processes was (MVP 2.65 step 8, *A Process Is Watched From Its Start*): a table, a
@@ -326,7 +328,16 @@ reading is checked by measurement: representative programs, the examples, the sh
 long session, a server under many requests, each run under load with the host's memory, its
 atoms and its processes measured before and after, as the shell was in step 8, whose
 per-input growth reading alone had not shown. Each finding is fixed, or decided with the user
-where the fix changes what the language promises.
+where the fix changes what the language promises. A cap on a list, a table or a cache is
+never the fix, and every cache found is weighed for what it holds and when it lets go
+(CLAUDE.md, *Memory that no collection reclaims is a defect*).
+
+**Atoms, counted.** Noted 2026-09-26: how many atoms the runtime and the toolchain make while
+a program runs, measured, since the host never collects one and a node dies at about a
+million: those the emitted code makes, those a shim or a system module makes from a value it
+is given, and those the shell makes per input, which step 8 of MVP 2.65 cut from four to the
+two of `it`'s holder, and step 10 to none. Each source found is bounded by what the program
+holds, or decided with the user.
 
 **A simple log.** Noted 2026-09-26, to be decided in this milestone: `ern` writes what it
 prints to standard error, the fault reports first among them, to a file as well, and

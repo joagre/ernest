@@ -31,7 +31,10 @@
 %% modules make (report §11.2), which the checker takes as its fourth
 %% argument.
 -record(env, {roots = [], source_root = ".", n = 0, ifaces = [], session = #{}, beams = #{},
-              modules = #{}}).
+              modules = #{}, holders = 0}).
+%% n: the highest input number given; holders: the number of `$Bindings`
+%% modules made, which are kept, where an input's number is given again once
+%% its module is unloaded (forget/3)
 %% modules: the namespace of a module the session has loaded, to the hash
 %% of the source it was compiled from, which `:reload` compares (§11.2)
 %% beams: the namespace of an input that declared, to its compiled module,
@@ -124,13 +127,18 @@ check(#env{n = N} = Env, From, First, Input) ->
                  <<"input">> -> {typed, From};
                  _ -> {file, From, First}
              end,
-    Ns = input_namespace(N + 1),
+    %% an input takes the number of one whose module was unloaded, whose
+    %% name is an atom already, before a new one (report §2.3)
+    {Ns, N1} = case persistent_term:get({?MODULE, free_inputs}, []) of
+                   [Free | _] -> {Free, N};
+                   [] -> {input_namespace(N + 1), N + 1}
+               end,
     case input(Input) of
         {ok, Binds, Expr, Ann} ->
-            checked(check_module(Env#env{n = N + 1}, Ns, Origin, Input,
+            checked(check_module(Env#env{n = N1}, Ns, Origin, Input,
                                  input_entry(Expr, Ann), Binds));
         {decls, Decls} ->
-            checked(check_module(Env#env{n = N + 1}, Ns, Origin, Input, Decls, decls));
+            checked(check_module(Env#env{n = N1}, Ns, Origin, Input, Decls, decls));
         {error, Diag} ->
             {'Left', diagnostic(Origin, Input, [Diag])}
     end.
@@ -386,6 +394,7 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
     {ok, Mod, Beam} = ern_emitter:compile(Ns, Typed, Iface, TEnv,
                                           #{source_hash => <<>>, deps => [], session => true}),
     {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), Beam),
+    set_free_inputs(persistent_term:get({?MODULE, free_inputs}, []) -- [Ns]),
     %% report §11.2: an input that declares keeps its module for `:doc`;
     %% an expression's has no documentation, and is not kept
     Env1 = case Binds of
@@ -405,7 +414,7 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
                               throw:{ern, fault, Msg, _} -> {'Faulted', Msg};
                               Class:Reason -> {'Faulted', fault_text(Class, Reason)}
                           end,
-                forget(Mod, Binds, Outcome),
+                forget(Ns, Binds, Outcome),
                 ern_rt:send(To, Outcome)
             end,
     ern_rt:spawn('Local', Input, <<"input:1">>).
@@ -416,26 +425,43 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
 %% spawned still runs it, which keeps it until that process ends; each
 %% later input tries the purge again. An input that declares keeps its
 %% module, since its names are the session's.
-forget(Mod, Binds, Outcome) ->
-    Unpurged = [M || M <- persistent_term:get({?MODULE, unpurged}, []),
-                     not code:soft_purge(M)],
-    Done = case {Binds, Outcome} of
-               {decls, _} -> true;
-               {_, {'Ok', _, #value{term = V}}} -> holds_code_of(V, Mod) orelse unload(Mod);
-               {_, {'Faulted', _}} -> unload(Mod)
+forget(Ns, Binds, Outcome) ->
+    Mod = ern_emitter:module_atom(Ns),
+    Pending = persistent_term:get({?MODULE, unpurged}, []),
+    {Purged, Unpurged} = lists:partition(fun(P) -> code:soft_purge(ern_emitter:module_atom(P)) end,
+                                         Pending),
+    Now = case {Binds, Outcome} of
+              {decls, _} -> kept;
+              {_, {'Ok', _, #value{term = V}}} ->
+                  case holds_code_of(V, Mod) of
+                      true -> kept;
+                      false -> unload(Mod)
+                  end;
+              {_, {'Faulted', _}} -> unload(Mod)
+          end,
+    Left = case Now of
+               unpurged -> [Ns | Unpurged];
+               _ -> Unpurged
            end,
-    Left = case Done of
-               true -> Unpurged;
-               false -> [Mod | Unpurged]
-           end,
-    Left =/= persistent_term:get({?MODULE, unpurged}, [])
-        andalso persistent_term:put({?MODULE, unpurged}, Left),
+    Left =/= Pending andalso persistent_term:put({?MODULE, unpurged}, Left),
+    %% report §2.3: an unloaded input's number, and so its name's atoms, are
+    %% given to the next input
+    Freed = Purged ++ [Ns || Now =:= purged],
+    Freed =/= [] andalso
+        set_free_inputs(persistent_term:get({?MODULE, free_inputs}, []) ++ Freed),
     ok.
 
-%% Deleted, and whether its code could be purged too.
+set_free_inputs(Free) ->
+    persistent_term:get({?MODULE, free_inputs}, []) =/= Free
+        andalso persistent_term:put({?MODULE, free_inputs}, Free).
+
+%% Deleted, and purged unless a process still runs it.
 unload(Mod) ->
     code:delete(Mod),
-    code:soft_purge(Mod).
+    case code:soft_purge(Mod) of
+        true -> purged;
+        false -> unpurged
+    end.
 
 %% Whether a value holds a function of the module, in its data or in a
 %% function's captures.
@@ -1664,8 +1690,9 @@ bound(Env, Name, Value, Type, TEnv) ->
 %% The names an input binds, held by one module, a getter for each.
 bound(Env, [], _TEnv) ->
     Env;
-bound(#env{n = N} = Env, Bound, TEnv) ->
-    Holder = [list_to_atom("$Bindings" ++ integer_to_list(N))],
+bound(#env{holders = N} = Env0, Bound, TEnv) ->
+    Env = Env0#env{holders = N + 1},
+    Holder = [list_to_atom("$Bindings" ++ integer_to_list(N + 1))],
     Mod = ern_emitter:module_atom(Holder),
     St = ern_typecheck:type_state(TEnv),
     [persistent_term:put({Mod, Name}, Value) || {Name, Value, _} <- Bound],

@@ -745,31 +745,57 @@ host_reserved_names() ->
 %% report §11.2: an input that declares nothing is done with its module once
 %% it has its answer: the module is unloaded, unless what the input bound
 %% holds one of its functions, and a process the input spawned keeps it
-%% until that process ends. A regression test: every input's module stayed
-%% loaded for the rest of the session. Not covered: the holder of `it`,
-%% which step 10 of MVP 2.65 frees.
+%% until that process ends, and a value holding one of its functions still
+%% calls it. A regression test: every input's module stayed loaded for the
+%% rest of the session. Not covered: the holder of `it`, which step 10 of
+%% MVP 2.65 frees.
 input_module_unloaded_test_() ->
     {timeout, 60, fun input_module_unloaded/0}.
 
 input_module_unloaded() ->
     In = filename:join("/tmp", "ern_unload_" ++ os:getpid() ++ ".in"),
+    Count = "List.size(loadedModules())\n",
     ok = file:write_file(In, [
-        "foreign fn loaded(m : Foreign) -> Bool with m = \"erlang:module_loaded/1\"\n",
-        "foreign fn old(m : Foreign) -> Bool with m = \"erlang:check_old_code/1\"\n",
-        "1 + 1\n",
-        "loaded(Erl.atom(\"ern@$input3\"))\n",
+        "foreign fn loadedModules() -> List(Foreign) with m = \"code:all_loaded/0\"\n",
+        Count, [["1 + ", integer_to_list(I), "\n"] || I <- lists:seq(1, 50)], Count,
         "fn(x : Int) -> Int = x + 1\n",
         "it(41)\n",
         "let _ = spawn(Local, fn() -> Unit with Never = {"
         " let _ = receive { after 300 -> Unit }; Io.println(\"late\") })\n",
-        "old(Erl.atom(\"ern@$input7\"))\n",
-        "receive { after 600 -> Unit }\n",
-        "old(Erl.atom(\"ern@$input7\"))\n"]),
+        "receive { after 600 -> Unit }\n"]),
     {0, Out} = sh(alone("../bin/ern --shell") ++ " < " ++ In),
-    Answers = [L || L <- binary:split(Out, <<"\n">>, [global]),
-                    binary:match(L, [<<" : Bool">>, <<" : Int">>, <<"late">>]) =/= nomatch],
-    ?assertEqual([<<"> 2 : Int">>, <<"> false : Bool">>, <<"> 42 : Int">>, <<"> > true : Bool">>,
-                  <<"> late">>, <<"> false : Bool">>], Answers).
+    [Before, After] = [binary_to_integer(N) || {match, [N]} <-
+                           [re:run(L, "^> ([0-9]+) : Int$", [{capture, all_but_first, binary}])
+                            || L <- binary:split(Out, <<"\n">>, [global])],
+                       binary_to_integer(N) > 100],
+    %% each expression leaves its holder of `it` loaded, and its own module
+    %% not
+    ?assert(After - Before =< 50 + 5),
+    ?assertMatch({_, _}, binary:match(Out, <<"> 42 : Int">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"late">>)).
+
+%% report §2.3, §11.2: an input whose module was unloaded gives its number,
+%% and so its name's atoms, to the next input, so expressions cost no atoms
+%% of their own. A regression test: each input took a new number, and the
+%% host never collects an atom. Not covered: the two atoms of the holder
+%% each expression makes for `it`, which step 10 of MVP 2.65 frees; the
+%% bound below allows them and a few the session makes on its own, and an
+%% input that took a new number, four atoms, breaks it.
+input_numbers_reused_test_() ->
+    {timeout, 120, fun input_numbers_reused/0}.
+
+input_numbers_reused() ->
+    In = filename:join("/tmp", "ern_atoms_" ++ os:getpid() ++ ".in"),
+    Info = "info(Erl.atom(\"atom_count\"))\n",
+    ok = file:write_file(In, ["foreign fn info(k : Foreign) -> Int with m ="
+                              " \"erlang:system_info/1\"\n", Info,
+                              [["1 + ", integer_to_list(I), "\n"] || I <- lists:seq(1, 200)],
+                              Info]),
+    {0, Out} = sh(alone("../bin/ern --shell") ++ " < " ++ In),
+    [Before, After] = [binary_to_integer(N) || {match, [N]} <-
+                           [re:run(L, "^> ([0-9]{5,}) : Int$", [{capture, all_but_first, binary}])
+                            || L <- binary:split(Out, <<"\n">>, [global])]],
+    ?assert(After - Before =< 3 * 200).
 
 %% report §11.2: every refusal of a command is red, as a diagnostic's first
 %% line is, and an answer is plain. A regression test for a finding of the
