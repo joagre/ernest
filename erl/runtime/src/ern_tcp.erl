@@ -8,56 +8,65 @@
 
 -export([loop/0]).
 
+%% Report §8.6: every listener and socket is linked to this process, which
+%% the runtime kills when the program ends, so none outlives it; this
+%% process traps the exits, so that one ending takes nothing else with it.
 -spec loop() -> no_return().
 loop() ->
+    process_flag(trap_exit, true),
+    serve(erlang:self()).
+
+serve(Tcp) ->
     receive
         {'Listen', Port, Reply} ->
-            erlang:spawn(fun() -> listen(Port, Reply) end),
-            loop();
+            erlang:spawn(fun() -> listen(Tcp, Port, Reply) end),
+            serve(Tcp);
         {'Connect', Host, Port, Reply} ->
-            erlang:spawn(fun() -> connect(Host, Port, Reply) end),
-            loop()
+            erlang:spawn(fun() -> connect(Tcp, Host, Port, Reply) end),
+            serve(Tcp);
+        {'EXIT', _, _} ->
+            serve(Tcp)
     end.
 
-listen(Port, Reply) ->
+listen(Tcp, Port, Reply) ->
     Options = [binary, {active, false}, {reuseaddr, true}, {packet, raw}],
     case gen_tcp:listen(Port, Options) of
         {ok, Socket} ->
-            Listener = erlang:spawn(fun() -> listener_loop(Socket) end),
+            Listener = erlang:spawn(fun() -> link(Tcp), listener_loop(Tcp, Socket) end),
             gen_tcp:controlling_process(Socket, Listener),
             ern_rt:answer(Reply, {'Right', Listener});
         {error, Reason} ->
             ern_rt:answer(Reply, {'Left', io_error(Reason)})
     end.
 
-connect(Host, Port, Reply) ->
+connect(Tcp, Host, Port, Reply) ->
     Options = [binary, {active, false}, {packet, raw}],
     case gen_tcp:connect(unicode:characters_to_list(Host), Port, Options) of
-        {ok, Socket} -> ern_rt:answer(Reply, {'Right', socket_process(Socket)});
+        {ok, Socket} -> ern_rt:answer(Reply, {'Right', socket_process(Tcp, Socket)});
         {error, Reason} -> ern_rt:answer(Reply, {'Left', io_error(Reason)})
     end.
 
 %% A listener answers each Accept, one worker per request, so that a slow
 %% peer does not hold up the next accept.
-listener_loop(Socket) ->
+listener_loop(Tcp, Socket) ->
     receive
         {'Accept', Reply} ->
-            erlang:spawn(fun() -> accept(Socket, Reply) end),
-            listener_loop(Socket)
+            erlang:spawn(fun() -> accept(Tcp, Socket, Reply) end),
+            listener_loop(Tcp, Socket)
     end.
 
 %% the worker owns what it accepts, and hands it to the socket process,
 %% which is the only legal chain: only an owner may pass a socket on
-accept(Socket, Reply) ->
+accept(Tcp, Socket, Reply) ->
     case gen_tcp:accept(Socket) of
         {ok, Connection} ->
-            ern_rt:answer(Reply, {'Right', socket_process(Connection)});
+            ern_rt:answer(Reply, {'Right', socket_process(Tcp, Connection)});
         {error, Reason} ->
             ern_rt:answer(Reply, {'Left', io_error(Reason)})
     end.
 
-socket_process(Socket) ->
-    Owner = erlang:spawn(fun() -> socket_loop(Socket, [], []) end),
+socket_process(Tcp, Socket) ->
+    Owner = erlang:spawn(fun() -> link(Tcp), socket_loop(Socket, [], []) end),
     gen_tcp:controlling_process(Socket, Owner),
     Owner.
 

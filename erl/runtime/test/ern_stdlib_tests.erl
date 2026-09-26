@@ -471,6 +471,18 @@ tcp_test() ->
     ?assertEqual([{'Right', <<"ping">>}, {'Right', <<"pong">>}, {'Left', 'Closed'}],
                  collect(tcp, [])).
 
+%% report §8.6, Appendix E.18: a listener ends with the program, so the
+%% port is free for the next. A regression test: listeners and sockets
+%% were started outside the runtime's reach and outlived their program,
+%% and a second program listening on the port was refused `eaddrinuse`.
+tcp_ends_with_program_test() ->
+    Me = self(),
+    T = 'ern@tcp',
+    Listen = fun() -> Me ! {listened, element(1, T:listen(7412))} end,
+    ?assertEqual(ok, ern_rt:run_main(Listen, <<"first">>, #{})),
+    ?assertEqual(ok, ern_rt:run_main(Listen, <<"second">>, #{})),
+    ?assertEqual(['Right', 'Right'], collect(listened, [])).
+
 %% report Appendix E.12, §3.8, §8.4
 foreign_test() ->
     F = 'ern@foreign',
