@@ -19,7 +19,7 @@ The report, [`ernest_report.md`](../ernest_report.md), is the one normative docu
 - **[`emacs_mode.md`](emacs_mode.md)**: the Emacs major mode.
 - **[`shell/README.md`](../shell/README.md)**: a guide to the shell's code.
 
-What the language requires is the report's §9, the prelude; the standard library is its Appendix E, and what enters it is Appendix E.0's rules. A library under `libs/` is added to a program's load path when it is wanted, and which libraries are first-party is the plan's MVP 3.2.
+What the language requires is the report's §9, the prelude; the standard library is its Appendix E, and what enters it is Appendix E.0's rules. A library under `libs/` is added to a program's load path when it is wanted; Appendix G lists them, and which libraries are first-party is the plan's MVP 3.2.
 
 ## The layout of the repository
 

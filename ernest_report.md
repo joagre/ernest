@@ -22,6 +22,7 @@ Revision of 27 September 2026. Rationale, rejected alternatives, and open questi
 - [Appendix D. A Foreign Library](#appendix-d-a-foreign-library)
 - [Appendix E. Standard Library](#appendix-e-standard-library)
 - [Appendix F. Glossary](#appendix-f-glossary)
+- [Appendix G. Libraries](#appendix-g-libraries)
 <!-- /contents -->
 
 ## 0. Introduction
@@ -1698,3 +1699,39 @@ Every technical term this report introduces, with the section that defines it. P
 - **`via`** — `via(f, addr)` is the address `addr` seen through `f`. §6.5, §9.5.
 - **wildcard** — the pattern `_`; matches anything, binds nothing. §2.3, §5.10.
 - **`with`** — the mailbox-type marker on a function type, `with M`. §3.4, §6.1.
+
+## Appendix G. Libraries
+
+Informative. The libraries this project writes, each a directory under `libs/` and a source root of its own, which a program adds to its load path when it is compiled and when it is run (§11.1, §11.2). None is part of the language or of the standard library. Each follows Appendix E.0's shape rules and documents itself as shape rule 6 asks. A library written elsewhere follows Appendix D and is not listed here.
+
+### Appendix G.1. `libs/ets` (namespace `Ets`)
+
+Tables of the runtime, Erlang's `ets` tables of type `set`, which Appendix D shows abridged. A table holds a value of type `v` at each key of type `k`, and keys are compared as the runtime compares its terms. A table belongs to the process that made it and ends with that process or with `close`, and every operation on a table that has ended faults. Any process on the node that holds a table reads and writes it. `put` replaces the entry a key had, `remove` of a key that is not there does nothing, `clear` leaves the table empty, and `toList` answers the entries in unspecified order.
+
+```
+foreign type Table(k=, v)
+Ets.new : () -> Table(k, v) with m
+Ets.put : (Table(k, v), k, v) -> Unit with m
+Ets.get : (Table(k, v), k) -> Optional(v) with m
+Ets.contains : (Table(k, v), k) -> Bool with m
+Ets.remove : (Table(k, v), k) -> Unit with m
+Ets.size : (Table(k, v)) -> Int with m
+Ets.clear : (Table(k, v)) -> Unit with m
+Ets.close : (Table(k, v)) -> Unit with m
+Ets.toList : (Table(k, v)) -> List(#(k, v)) with m
+```
+
+### Appendix G.2. `libs/markdown` (namespace `Markdown`)
+
+CommonMark 0.31, read into blocks and inlines and laid out as text for a terminal. `parse` reads headings, paragraphs, code blocks, block quotes, lists, and thematic breaks, and inside them code spans, emphasis, strong emphasis, links, images, and hard line breaks. A line ends in a line feed, a carriage return, or both, and a tab is four columns. What `parse` does not read is kept as written: an HTML block is a `Raw` block, and inline HTML, an entity, and a link by reference stay in the text. Emphasis follows a simpler rule than the specification's: a mark opens before a character other than a space and closes after one, the nearest run of as many marks closes it, and a run of three or more is text. `render` lays the blocks out as rows at most `width` columns wide where a word allows, an empty row between two blocks, with the terminal's styles (Appendix E.16) when the style is `Styled` and each span as it was written when it is `Plain`.
+
+```
+type Inline = Text(String) | CodeSpan(String) | Emphasis(List(Inline)) | Strong(List(Inline))
+  | Link(text : List(Inline), address : String) | Break
+type Block = Heading(level : Int, text : List(Inline)) | Paragraph(List(Inline))
+  | Code(info : String, lines : List(String)) | Quote(List(Block))
+  | Items(start : Optional(Int), items : List(List(Block))) | Rule | Raw(List(String))
+type Style = Plain | Styled
+Markdown.parse : (String) -> List(Block)
+Markdown.render : (List(Block), Int, Style) -> List(String)
+```

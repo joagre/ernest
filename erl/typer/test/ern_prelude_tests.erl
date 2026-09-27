@@ -132,10 +132,35 @@ stdlib_types_test() ->
     Report = lists:sort(lists:append(
                           [[{Ns, D} || D <- declarations(code_lines(Body))]
                            || {Ns, Body} <- Sections])),
-    Compiled = [{Ns, rename(compiled_decl(Ns, TI))}
+    Compiled = [{Ns, rename(compiled_decl(TI, stdlib_file(Ns)))}
                 || I <- ern_prelude:stdlib_ifaces(), Ns <- [element(2, I)],
                    TI <- maps:values(element(3, I))],
     same(lists:sort([{Ns, rename(D)} || {Ns, D} <- Report]), lists:sort(Compiled)).
+
+%% report Appendix G: every library under libs/ has a section, and each
+%% section's signatures and types are the library's compiled interface,
+%% as Appendix E's are the standard library's
+libraries_test() ->
+    Sections = libraries(section("## Appendix G.", "## Appendix H")),
+    Dirs = [filename:basename(D) || D <- filelib:wildcard("../../../libs/*"), filelib:is_dir(D)],
+    ?assertEqual(lists:sort(Dirs), lists:sort([Lib || {Lib, _, _} <- Sections])),
+    St = ern_typecheck:type_state(ern_typecheck:prelude_env()),
+    lists:foreach(
+      fun({Lib, Ns, Body}) ->
+              Source = filename:join(["../../../libs", Lib, Lib ++ ".ern"]),
+              {ok, Erc} = file:read_file(filename:join(["../../../build/libs", Lib,
+                                                        Lib ++ ".erc"])),
+              {ok, #{iface := I}} = ern_iface:read(Erc),
+              Ns = element(2, I),
+              Printed = fun(Q, S) -> normalize(own(Q, unmarked(ern_types:format_scheme(S, St))))
+                        end,
+              same(lists:sort(lists:append([signature(L) || L <- code_lines(Body)])),
+                   lists:sort([{qname(Q), Printed(Q, S)}
+                               || {Q, S} <- maps:to_list(element(4, I))])),
+              same(lists:sort([rename(unmarked(D)) || D <- declarations(code_lines(Body))]),
+                   lists:sort([rename(compiled_decl(TI, Source))
+                               || TI <- maps:values(element(3, I))]))
+      end, Sections).
 
 %% A printed type without the marks of the inferred restrictions.
 unmarked(Text) ->
@@ -160,8 +185,9 @@ rename(Decl) ->
             Decl
     end.
 
-%% A compiled type's declaration, as the appendix writes it.
-compiled_decl(_Ns, TI) when element(7, TI) ->
+%% A compiled type's declaration, as the appendix writes it, the field
+%% order read from the module's source.
+compiled_decl(TI, _Source) when element(7, TI) ->
     %% report §3.8: a foreign type has no constructors, and its parameters
     %% are names rather than variables
     Q = element(2, TI),
@@ -171,11 +197,12 @@ compiled_decl(_Ns, TI) when element(7, TI) ->
                _ -> "(" ++ lists:join(", ", [atom_to_list(P) || P <- Params]) ++ ")"
            end,
     normalize(lists:flatten(["foreign type ", atom_to_list(lists:last(Q)), Head]));
-compiled_decl(_Ns, #tinfo{abstract = true, qname = Q, params = []}) ->
+compiled_decl(#tinfo{abstract = true, qname = Q, params = []}, _Source) ->
     %% report §4.4: an abstract type is listed without its constructors
     "abstract type " ++ atom_to_list(lists:last(Q));
-compiled_decl(Ns, TI) ->
+compiled_decl(TI, Source) ->
     Q = element(2, TI),
+    Ns = lists:droplast(Q),
     Params = element(3, TI),
     Names = maps:from_list(lists:zip([Id || {tvar, Id} <- Params],
                                      [[C] || C <- lists:seq($a, $a + length(Params) - 1)])),
@@ -183,15 +210,15 @@ compiled_decl(Ns, TI) ->
                [] -> "";
                _ -> "(" ++ lists:join(", ", [maps:get(Id, Names) || {tvar, Id} <- Params]) ++ ")"
            end,
-    Order = declared_fields(Ns),
+    Order = declared_fields(Source),
     Cons = [con_text(C, Ns, Names, Order) || C <- element(4, TI)],
     normalize(lists:flatten(["type ", atom_to_list(lists:last(Q)), Head, " = ",
                              lists:join(" | ", Cons)])).
 
 %% The field names of each constructor of a module's source, in the order
 %% declared, which the interface does not keep (its fields are canonical).
-declared_fields(Ns) ->
-    {ok, Source} = file:read_file(stdlib_file(Ns)),
+declared_fields(File) ->
+    {ok, Source} = file:read_file(File),
     {ok, Decls} = ern_parser:parse_string(Source),
     Types = [T || #type_decl{} = T <- Decls]
         ++ [T || #abstract_decl{type = T} <- Decls],
@@ -273,6 +300,17 @@ namespaces([H | Ls]) ->
             {Body, Rest} = lists:splitwith(fun(L) -> not lists:prefix("### ", L) end, Ls),
             [{[list_to_atom(Ns)], Body} | namespaces(Rest)];
         _ -> namespaces(Ls)
+    end.
+
+%% Appendix G's sections, each with its library's directory and namespace
+%% from the heading.
+libraries([]) -> [];
+libraries([H | Ls]) ->
+    case captures(H, "^### Appendix G\\.\\d+\\. `libs/(\\w+)` \\(namespace `(\\w+)`\\)") of
+        [Lib, Ns] ->
+            {Body, Rest} = lists:splitwith(fun(L) -> not lists:prefix("### ", L) end, Ls),
+            [{Lib, [list_to_atom(Ns)], Body} | libraries(Rest)];
+        _ -> libraries(Ls)
     end.
 
 %% A signature line, `Name, Name : Type // comment`, as {name, type} pairs;

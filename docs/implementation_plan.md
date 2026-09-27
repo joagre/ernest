@@ -638,17 +638,12 @@ section in `ernest.conf`, and no `--daemon` flag. What `ern` owns, built in this
   how a program is stopped and what it exits with, a systemd unit, and `nohup`. MVP 2.95's
   installation and manual pages point at it.
 
-**The report lists the libraries that exist**, `libs/ets` and `libs/markdown`, in a new
-informative appendix, one section per library with its signatures and contracts, and a mirror
-test holding each compiled interface equal to it, as `ern_prelude_tests` holds the prelude to
-Appendix E. Third-party libraries are not listed; Appendix D is what they follow.
-
-**What Ernest adds, discussed again.** Noted 2026-09-27, a decision for this milestone:
-whether the README's and the guide's list of what Ernest adds (held equal by a test) should
-name more than the four it names, deadlock detection first among the candidates (§8.6: a
-program in which nothing can progress ends with a fault that says so, rather than hanging),
-and what else of the language's rationale a first reader should meet there, each weighed by
-whether it is Ernest's own or where Ernest's parts meet, as the four are.
+**The report lists the libraries, built 2026-09-27** (Appendix G; the log's *The Libraries in
+the Report*): Appendix G, informative, a section for each library under `libs/`, `libs/ets`
+and `libs/markdown`, with its contract and listing, which `ern_prelude_tests`'s
+`libraries_test` holds equal to each compiled interface, as it holds Appendix E to the
+standard library's. A library added under `libs/` gets its section, or the test fails.
+Third-party libraries are not listed; Appendix D is what they follow.
 
 **Mailbox back pressure, discussed again.** Noted 2026-09-27, a decision for this
 milestone: whether a mailbox stays unbounded, back pressure being the program's own (§10;
@@ -656,6 +651,13 @@ the log's *Backpressure* and *The Corpus Decisions, Re-judged*, which kept it so
 a credit type out), or the language or the runtime gives some, as Pony's runtime slows a
 sender to a flooded mailbox. Weighed on the principles, beside what `Tcp.read` and
 `Os.read` already do by taking a stream only while a read waits.
+
+**What Ernest adds, discussed again.** Noted 2026-09-27, a decision for this milestone:
+whether the README's and the guide's list of what Ernest adds (held equal by a test) should
+name more than the four it names, deadlock detection first among the candidates (§8.6: a
+program in which nothing can progress ends with a fault that says so, rather than hanging),
+and what else of the language's rationale a first reader should meet there, each weighed by
+whether it is Ernest's own or where Ernest's parts meet, as the four are.
 
 **The guide read for its order.** Noted 2026-09-27: the guide is a first user's way in, so
 its sections are read in order, as a newcomer reads them, for whether each concept is
