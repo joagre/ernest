@@ -68,7 +68,8 @@ The rules are in the order of work: what is authoritative and who owns each fact
 
 - **Every report section has a test.** Each has at least one test whose comment cites it (`%% report §5.4`); a section without a test is not implemented, and `make sections` names it (`docs/development.md`, *Building*).
 - **A test written after the code is a regression test.** Say so, and name what it does not cover. A test that passed on its first run has confirmed the code, not discovered anything; what has actually found defects here is the terminal harness under load, a read-back of the resulting code, an independent reader, and the user.
-- **Run the check that fits the change, and the whole suite once per plan item.** What each kind of change runs is [`docs/coherence.md`](docs/coherence.md)'s, and the whole of `make test` runs once per plan item, before the commit that closes it.
+- **Run the check that fits the change, and the whole suite once per plan item.** The commands each kind of change runs are [`docs/coherence.md`](docs/coherence.md)'s, and the whole of `make test` runs once per plan item, before the commit that closes it.
+- **The readers run before a release, and when the user asks.** The rows of `docs/coherence.md` that a reader runs, and [`docs/review.md`](docs/review.md), are gone through before a release, and for a change only when the user asks for them. A change's own read-back (*Reading back*) is no reader's row, and is always done.
 
 ## Writing
 
@@ -86,7 +87,7 @@ The rules are in the order of work: what is authoritative and who owns each fact
 ## Done
 
 - **Stop after each plan item.** Finish it fully, with its tests, documents, conformance section, and commit, then report the status and any open report question, and wait. The next item starts in the next turn, since each is a rule with design choices the user wants to see before the next builds on it.
-- **Done means four things:** the tests and the coherence checks for what the item touched pass, as [`docs/coherence.md`](docs/coherence.md) says; the conformance section is written; every known gap is in the plan; and the same commit removes every sentence elsewhere, in the table of `docs/development.md`, the plan's tables, or an example's header, that says the item still waits.
+- **Done means four things:** the tests for what the item touched pass, as [`docs/coherence.md`](docs/coherence.md) says; the conformance section is written; every known gap is in the plan; and the same commit removes every sentence elsewhere, in the table of `docs/development.md`, the plan's tables, or an example's header, that says the item still waits.
 - **Commit only after the checks pass.** A commit follows a passing check, never a command chained after it with `;`. Push only when the user says so.
 - **Every message that reports code work ends with a "Report conformance" section.** It lists the sections applied; every place the report was silent and what was done; and every deliberate omission, with the MVP that will lift it and the error the code gives meanwhile. If nothing was silent, it says "none". The section is not optional, and "tests green" does not replace it.
 

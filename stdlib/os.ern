@@ -1,10 +1,13 @@
-/// The host's programs, run over Os's system process (report §8.2,
-/// Appendix E.23). `run` runs a program to its end and answers its exit
-/// status and what it wrote to its standard output and to its standard
-/// error, each as bytes, or why it did not run to its end. The program is
-/// found as the host finds a command, a name without `/` in the
-/// directories of `PATH`, and each argument reaches it as it is: no shell
-/// stands between, and a program that wants one runs `sh` with `-c`.
+/// The host: the program's command line and environment, its exit status,
+/// and the host's programs, run over Os's system process (report §8.2,
+/// Appendix E.23). A running program is a process, as a `Tcp` socket is:
+/// `start` answers its address, `read` answers what it wrote, piece by
+/// piece, `write` and `closeInput` feed it, and `kill` and `monitor` work
+/// on it as on any process. `run` runs a program to its end and answers
+/// all it wrote. The program is found as the host finds a command, a name
+/// without `/` in the directories of `PATH`, and each argument reaches it
+/// as it is: no shell stands between, and a program that wants one runs
+/// `sh` with `-c`.
 ///
 /// ## Examples
 ///
@@ -17,12 +20,12 @@
 /// ## See also
 ///
 /// `String.fromUtf8` for output that is text, `Io.Error` for why a program
-/// did not run.
+/// did not run, `Tcp` for the other process a program talks to in bytes.
 ///
 /// since 0.1.0
 
-/// A program to run: its name, its arguments, and what it reads as its
-/// input before the end of its input.
+/// A program to run: its name, its arguments, and what it reads first as
+/// its input.
 ///
 /// ### Examples
 ///
@@ -32,9 +35,23 @@
 /// ```
 export type Command = Command(program : String, arguments : List(String), input : Bytes)
 
-/// How a program ended: its exit status, 128 and the signal's number for a
-/// program a signal ended, and what it wrote to its standard output and to
-/// its standard error.
+/// A piece of what a running program wrote, to its standard output or to
+/// its standard error, and last its exit status: 128 and the signal's
+/// number for a program a signal ended.
+///
+/// ### Examples
+///
+/// ```ernest
+/// match Os.Exited(0) {
+///     Os.Exited(status) -> status
+///   | _ -> -1
+/// }
+/// // => 0
+/// ```
+export type Output = Stdout(Bytes) | Stderr(Bytes) | Exited(Int)
+
+/// How a program ended: its exit status, and all it wrote to its standard
+/// output and to its standard error.
 ///
 /// ### Examples
 ///
@@ -44,18 +61,24 @@ export type Command = Command(program : String, arguments : List(String), input 
 /// ```
 export type Finished = Finished(status : Int, stdout : Bytes, stderr : Bytes)
 
+/// What a running program takes; a program uses `Os.read`, `Os.write`, and
+/// `Os.closeInput` (report Appendix E.23).
+///
+/// ### Examples
+///
+/// ```ernest
+/// Os.start(Os.Command(program = "cat", arguments = [], input = <<>>), 5000)
+/// ```
+export abstract type ProgramMsg =
+    Read(reply : Reply(Either(Io.Error, Output)))
+  | Write(Bytes)
+  | CloseInput
+
 // What Os's system process takes: a program to start, with the process
 // whose death kills it.
 type Msg =
     Start(command : Command, ms : Int, owner : Process,
-        reply : Reply(Either(Io.Error, Address(RunMsg))))
-
-// What a program's run takes: a request for what the program sent next.
-type RunMsg = Next(reply : Reply(Either(Io.Error, Event)))
-
-// What a program sent: a piece of its output or of its standard error, or
-// its exit status, which is the last.
-type Event = Stdout(Bytes) | Stderr(Bytes) | Exited(Int)
+        reply : Reply(Either(Io.Error, Address(ProgramMsg))))
 
 // Report §8.2: the system reference, the runtime's address of Os's process,
 // bound at each start.
@@ -63,21 +86,159 @@ let reference : Address(Msg) = system(Erl.atom("os"))
 
 foreign fn system(name : Foreign) -> Address(Msg) with m = "ern_rt:sys/1"
 
-/// Runs the program to its end, within `ms` milliseconds. The program reads
-/// `input` and then the end of its input, never the standard input of the
-/// program that runs it, and inherits that program's environment and
-/// working directory. A status other than 0 is the program's answer, not a
-/// `Left`. The run ends when the program has exited and its output and
-/// standard error have both ended. A program still running when the time
-/// runs out, or when the process that called `run` dies, is killed, with
-/// the processes it started that are still in its process group.
+/// The words after the module on `ern run`'s command line, whatever they
+/// look like, bound when the program starts; `ern run` refuses one that is
+/// not UTF-8. In the shell and under `ern test` there are none.
+///
+/// ### Examples
+///
+/// ```ernest
+/// match Os.arguments {
+///     [name] -> Io.println("hello, " <> name)
+///   | _ -> Io.printlnError("usage: hello name")
+/// }
+/// ```
+export let arguments : List(String) = commandLine()
+
+foreign fn commandLine() -> List(String) with m = "ern_rt:arguments/0"
+
+/// The program's environment, bound when the program starts. A variable
+/// whose name or value is not UTF-8 is left out, and a name the host gives
+/// twice keeps its first value.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Map.get(Os.environment, "HOME")
+/// ```
+export let environment : Map(String, String) = hostEnvironment()
+
+foreign fn hostEnvironment() -> Map(String, String) with m = "ern_os:environment/0"
+
+/// Ends the program with that exit status, as the end of its entry process
+/// ends it (report §8.6), and does not return. It ends the program, not a
+/// process; a process ends by returning or by `kill`. In the shell and
+/// under `ern test` it faults the process that calls it with
+/// `exited with status n`, and ends neither.
+///
+/// ### Errors
+///
+/// A status outside 0 to 255 faults the caller.
+///
+/// ### Examples
+///
+/// ```ernest
+/// match Os.arguments {
+///     [] -> { Io.printlnError("usage: tool file..."); Os.exit(2) }
+///   | files -> files
+/// }
+/// ```
+export foreign fn exit(status : Int) -> a with m = "ern_rt:exit_program/1"
+
+/// Starts the program and answers its address. The program reads `input`,
+/// then what `Os.write` gives it, until `Os.closeInput` ends its input,
+/// and never the standard input of the program that runs it; it inherits
+/// that program's environment and working directory. When `ms`
+/// milliseconds have passed since the start, a program still running is
+/// killed. It is killed too when its process is killed, and when the
+/// process that called `start` dies, with the processes it started that
+/// are still in its process group.
 ///
 /// ### Errors
 ///
 /// `Left(NotFound)` when the program is not found, `Left(Denied)` when it
-/// may not be run, `Left(Timeout)` when the milliseconds pass first, and
-/// `Left(Other("an argument holds U+0000"))` for a name or an argument no
-/// program could be given.
+/// may not be run, and `Left(Other("an argument holds U+0000"))` for a name
+/// or an argument no program could be given.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let cat <- Os.start(Os.Command(program = "cat", arguments = [],
+///         input = String.toUtf8("hi")), 5000);
+///     Os.closeInput(cat);
+///     Os.read(cat)
+/// }
+/// // => Right(Stdout(<<104, 105>>))
+/// ```
+export fn start(command : Command, ms : Int) -> Either(Io.Error, Address(ProgramMsg)) with m = {
+    let owner = Process.fromAddress(self());
+    Address.callForever(reference,
+        fn(r) = Start(command = command, ms = ms, owner = owner, reply = r))
+}
+
+/// The next piece of what the program wrote, to its standard output or to
+/// its standard error, in the order the host delivered them, and last its
+/// exit status, once it has exited and both have ended. The host takes the
+/// program's output only while a read waits, so a program that no one
+/// reads waits on its output. A status other than 0 is the program's
+/// answer, not a `Left`. The program's process ends once it has answered
+/// the exit status or `Left(Timeout)`.
+///
+/// ### Errors
+///
+/// `Left(Timeout)` once the program was killed for its time. A read after
+/// the program's process has ended faults as `Address.callForever` does.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let sh <- Os.start(Os.Command(program = "sh", arguments = ["-c", "echo no >&2; exit 1"],
+///         input = <<>>), 5000);
+///     let first <- Os.read(sh);
+///     let last <- Os.read(sh);
+///     Right(#(first, last))
+/// }
+/// // => Right(#(Stderr(<<110, 111, 10>>), Exited(1)))
+/// ```
+export fn read(program : Address(ProgramMsg)) -> Either(Io.Error, Output) with m =
+    Address.callForever(program, fn(r) = Read(reply = r))
+
+/// Gives the bytes to the program as its input, after what it was given
+/// before. It is a send: bytes given after `Os.closeInput`, or once the
+/// program has closed its input, are dropped.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let cat <- Os.start(Os.Command(program = "cat", arguments = [], input = <<>>), 5000);
+///     Os.write(cat, String.toUtf8("hi"));
+///     Os.read(cat)
+/// }
+/// // => Right(Stdout(<<104, 105>>))
+/// ```
+export fn write(program : Address(ProgramMsg), bytes : Bytes) -> Unit with m =
+    send(program, Write(bytes))
+
+/// Ends the program's input once what it was given before is written.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let wc <- Os.start(Os.Command(program = "wc", arguments = ["-c"], input = <<1, 2>>), 5000);
+///     Os.closeInput(wc);
+///     Either.map(Os.read(wc), fn(o) = match o {
+///         Os.Stdout(bytes) -> String.trim(Optional.withDefault(String.fromUtf8(bytes), ""))
+///       | _ -> ""
+///     })
+/// }
+/// // => Right("2")
+/// ```
+export fn closeInput(program : Address(ProgramMsg)) -> Unit with m = send(program, CloseInput)
+
+/// Runs the program to its end: starts it, ends its input after `input`,
+/// and reads it until it has exited, within `ms` milliseconds of its start.
+/// It answers the exit status and all the program wrote to its standard
+/// output and to its standard error, or why it did not run to its end.
+///
+/// ### Errors
+///
+/// As `Os.start` and `Os.read`: `Left(NotFound)`, `Left(Denied)`,
+/// `Left(Other("an argument holds U+0000"))`, and `Left(Timeout)` when the
+/// milliseconds pass first.
 ///
 /// ### Examples
 ///
@@ -87,20 +248,19 @@ foreign fn system(name : Foreign) -> Address(Msg) with m = "ern_rt:sys/1"
 /// // => Right(Some("hi"))
 /// ```
 export fn run(command : Command, ms : Int) -> Either(Io.Error, Finished) with m = {
-    let owner = Process.fromAddress(self());
-    let running <- Address.callForever(reference,
-        fn(r) = Start(command = command, ms = ms, owner = owner, reply = r));
-    collect(running, [], [])
+    let program <- start(command, ms);
+    closeInput(program);
+    collect(program, [], [])
 }
 
-// What the program sent, gathered until its exit status, the pieces of
-// each stream kept newest first.
-fn collect(running : Address(RunMsg), out : List(Bytes), err : List(Bytes))
+// What the program wrote, read until its exit status, the pieces of each
+// stream kept newest first.
+fn collect(program : Address(ProgramMsg), out : List(Bytes), err : List(Bytes))
     -> Either(Io.Error, Finished) with m = {
-    let event <- Address.callForever(running, fn(r) = Next(reply = r));
-    match event {
-        Stdout(bytes) -> collect(running, bytes :: out, err)
-      | Stderr(bytes) -> collect(running, out, bytes :: err)
+    let output <- read(program);
+    match output {
+        Stdout(bytes) -> collect(program, bytes :: out, err)
+      | Stderr(bytes) -> collect(program, out, bytes :: err)
       | Exited(status) ->
             Right(Finished(status = status, stdout = joined(out), stderr = joined(err)))
     }

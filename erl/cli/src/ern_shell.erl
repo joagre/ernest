@@ -7,11 +7,11 @@
 %% input declares is the module's declarations.
 -module(ern_shell).
 
--export([loaded/1, start/0, program/0, startup_files/0, history_file/0, needs_more/1, check/4,
+-export([loaded/1, start/0, program/0, startup_files/0, needs_more/1, check/4,
          is_unit/1, type_text/1, run/3, show/3, bindings/1, context/1, names/0,
          session_names/0, session_texts/0, source_root/0, segment/1, forget/2, browse/2, doc/2,
          documentation/1, fields/1, signature/1, load/2,
-         reload/1, version/0, colours/0, write/1, screen/1, to_screen/1,
+         reload/1, version/0, write/1, screen/1, to_screen/1,
          output/1, unbound/1, declared/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -95,17 +95,6 @@ program() ->
 startup_files() ->
     What = persistent_term:get({?MODULE, loaded}, #{}),
     [unicode:characters_to_binary(File) || File <- maps:get(startups, What, [])].
-
-%% Report §11.2: where the person's history is kept, and none where the
-%% environment names no home. The shell does the reading and the writing
-%% itself, in Ernest.
--spec history_file() -> 'None' | {'Some', binary()}.
-history_file() ->
-    What = persistent_term:get({?MODULE, loaded}, #{}),
-    case maps:get(history, What, none) of
-        none -> 'None';
-        File -> {'Some', unicode:characters_to_binary(File)}
-    end.
 
 %% Report §11.2: at a terminal the shell takes another line where the
 %% parser cannot finish the input. Both readings are tried, the expression
@@ -1581,14 +1570,6 @@ relative(File, #env{source_root = Root}) ->
 -spec version() -> binary().
 version() ->
     list_to_binary(?VERSION).
-
-%% Report §11.2: the shell colours what it says at a terminal, which it
-%% knows, and not where the environment sets NO_COLOR to anything, as that
-%% convention asks. The environment is the host's until MVP 2.7 gives a
-%% program its environment.
--spec colours() -> boolean().
-colours() ->
-    os:getenv("NO_COLOR", "") =:= "".
 
 %% The screen writes to the terminal itself: standard output is the screen's,
 %% so a screen that printed through it would print to itself.

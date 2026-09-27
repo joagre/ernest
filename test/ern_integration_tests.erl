@@ -218,6 +218,41 @@ stdin() ->
     ?assertEqual({0, <<"1\n1\nend\n">>},
                  sh("sh -c 'printf a; sleep 1; printf b' | ../bin/ern run build/stdin/chunks.erc")).
 
+%% report §11.2, Appendix E.23, E.17: as the host gives them, under a UTF-8
+%% locale and under C, whose names the host takes as bytes: `ern run`
+%% refuses an argument that is not UTF-8 by its position, the environment
+%% leaves out a value that is not UTF-8, and ern run exits with the status
+%% Os.exit gives. A regression test, written after the code; where the host
+%% has no C.UTF-8 locale both runs read bytes, and a name the environment
+%% gives twice is not covered, since a shell cannot give one.
+os_test_() ->
+    {timeout, 60, fun os/0}.
+
+os() ->
+    Src = "build/os/src",
+    ok = filelib:ensure_path(Src),
+    ok = file:write_file(Src ++ "/args.ern",
+                         "export fn main() -> Unit with Never = {\n"
+                         "    Io.println(Io.show(Os.arguments));\n"
+                         "    Os.exit(List.size(Os.arguments))\n"
+                         "}\n"),
+    ok = file:write_file(Src ++ "/env.ern",
+                         "fn get(name : String) -> Optional(String) =\n"
+                         "    Map.get(Os.environment, name)\n"
+                         "export fn main() -> Unit with Never =\n"
+                         "    Io.println(Io.show(#(get(\"ERN_OK\"), get(\"ERN_BAD\"))))\n"),
+    {0, _} = sh("../bin/ern build --source-root build/os/src --build-root build/os build/os/src"),
+    lists:foreach(
+      fun(Locale) ->
+              Run = "env LC_ALL=" ++ Locale ++ " ../bin/ern run build/os/",
+              ?assertEqual({2, <<"[\"a b\", \"--x\"]\n">>}, sh(Run ++ "args.erc 'a b' --x")),
+              ?assertEqual({1, <<"ern run: argument 2 is not UTF-8\n">>},
+                           sh(Run ++ "args.erc ok \"$(printf '\\377')\"")),
+              ?assertEqual({0, <<"#(Some(\"caf", 16#e9/utf8, "\"), None)\n">>},
+                           sh("env ERN_OK=\"$(printf 'caf\\303\\251')\" "
+                              "ERN_BAD=\"$(printf 'caf\\351')\" " ++ Run ++ "env.erc"))
+      end, ["C.UTF-8", "C"]).
+
 %% report §4.2, §11.1: the two-module pair in directory mode
 modules_test() ->
     {0, _} = sh("../bin/ern build --build-root build/modules ../examples/modules"),

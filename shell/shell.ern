@@ -86,9 +86,6 @@ foreign fn doc(env : Env, name : String) -> Either(String, String) with m = "ern
 foreign fn segment(name : String) -> Optional(String) = "ern_shell:segment/1"
 // The toolchain's version, which the host was built with.
 foreign fn version() -> String = "ern_shell:version/0"
-// Report §11.2: whether `NO_COLOR` leaves the shell its colours, which it
-// uses at a terminal.
-foreign fn colours() -> Bool with m = "ern_shell:colours/0"
 foreign fn write(text : String) -> Unit with m = "ern_shell:write/1"
 foreign fn setScreen(to : Address(String)) -> Unit with m = "ern_shell:screen/1"
 foreign fn holdTerminal(reader : Address(a)) -> Unit with m = "ern_rt:hold_terminal/1"
@@ -167,7 +164,7 @@ export fn main() -> Unit with ShellMsg = {
             receive { Ready -> Some(#(reader, size)) | NoKeys -> None }
         }
     };
-    let colour = Optional.isSome(keys) && colours();
+    let colour = Optional.isSome(keys) && colours;
     let screen = spawn(Local, fn() = match keys {
         Some(#(_, size)) -> screenLoop(Shell.Region.new(size))
       | None -> plainLoop()
@@ -194,7 +191,7 @@ export fn main() -> Unit with ShellMsg = {
     match keys {
         Some(#(reader, _)) -> {
             // report §11.2: the inputs of the sessions before this one
-            let earlier = match Shell.History.file() {
+            let earlier = match Shell.History.file {
                 None -> {
                     say(screen, "the history is not kept, since HOME is not set");
                     []
@@ -222,6 +219,10 @@ export fn main() -> Unit with ShellMsg = {
         }
     }
 }
+
+// Report §11.2: the shell colours what it says at a terminal, and not where
+// the environment sets `NO_COLOR` to anything, as that convention asks.
+let colours = Optional.withDefault(Map.get(Os.environment, "NO_COLOR"), "") == ""
 
 // One input, from either reader: checked, run in a process of its own, its
 // value printed with its type. An expression of type Unit prints nothing.

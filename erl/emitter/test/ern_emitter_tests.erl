@@ -2052,10 +2052,12 @@ os_run(Program, Arguments, Input, Ms) ->
          "export fn main() -> Unit with Never = Io.println(show(Os.run(Os.Command(program = ",
          Program, ", arguments = ", Arguments, ", input = ", Input, "), ", Ms, ")))\n"]).
 
-%% A directory of the test's own, for a program to leave a mark in.
+%% A directory of the test's own, for a program to leave a mark in; one an
+%% earlier run left under the same name is removed first.
 scratch() ->
     Dir = filename:join(os:getenv("TMPDIR", "/tmp"),
                         "ern_os_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    file:del_dir_r(Dir),
     ok = filelib:ensure_path(Dir),
     Dir.
 
@@ -2126,6 +2128,207 @@ fs_path_with_nul_test() ->
 os_run_is_a_source_test() ->
     ?assertEqual({ok, <<"0|Some(\"\")|Some(\"\")\n">>},
                  os_run("\"sleep\"", "[\"0.5\"]", "<<>>", "5000")).
+
+%%
+%% Report Appendix E.23: a running program is a process, Os.start's
+%% address, read and fed piece by piece. Regression tests, written after
+%% the code; the host's output order within one stream is its own, and a
+%% name the host gives twice in the environment is not covered here.
+%%
+
+%% What a program wrote, a line a piece, until its exit status or why not.
+drain() ->
+    "fn text(b : Bytes) -> String = Optional.withDefault(String.fromUtf8(b), \"?\")\n"
+    "fn drain(p : Address(Os.ProgramMsg)) -> Unit with m = match Os.read(p) {\n"
+    "    Right(Os.Stdout(b)) -> { Io.print(\"out \" <> text(b)); drain(p) }\n"
+    "  | Right(Os.Stderr(b)) -> { Io.print(\"err \" <> text(b)); drain(p) }\n"
+    "  | Right(Os.Exited(s)) -> Io.println(\"exit \" <> Int.toString(s))\n"
+    "  | Left(e) -> Io.println(Io.show(e))\n"
+    "}\n".
+
+%% Appendix E.23: each read answers the next piece from either stream, in
+%% the order the host delivered them, and last the exit status
+os_start_reads_in_order_test() ->
+    {ok, Out} = run([drain(),
+        "export fn main() -> Unit with Never = match Os.start(Os.Command(program = \"sh\",\n"
+        "    arguments = [\"-c\", \"echo a; sleep 0.1; echo b >&2; sleep 0.1; echo c; exit 4\"],\n"
+        "    input = <<>>), 5000) {\n"
+        "    Right(p) -> drain(p)\n"
+        "  | Left(e) -> Io.println(Io.show(e))\n"
+        "}\n"]),
+    ?assertEqual(<<"out a\nerr b\nout c\nexit 4\n">>, Out).
+
+%% Appendix E.23: the host takes the program's output only while a read
+%% waits, so a program that writes more than a pipe holds, and that no one
+%% reads, waits on its output and has not gone on to leave its mark
+os_start_output_waits_for_a_read_test() ->
+    Mark = filename:join(scratch(), "mark"),
+    {ok, Out} = run([
+        "fn drain(p : Address(Os.ProgramMsg), n : Int) -> Int with m = match Os.read(p) {\n"
+        "    Right(Os.Exited(_)) -> n\n"
+        "  | Right(_) -> drain(p, n + 1)\n"
+        "  | Left(_) -> -1\n"
+        "}\n"
+        "fn marked() -> Bool with m = Either.isRight(Fs.stat(Path(\"", Mark, "\"), 1000))\n"
+        "export fn main() -> Unit with Never = match Os.start(Os.Command(program = \"sh\",\n"
+        "    arguments = [\"-c\", \"head -c 1000000 /dev/zero; touch ", Mark, "\"],\n"
+        "    input = <<>>), 5000) {\n"
+        "    Right(p) -> {\n"
+        "        receive { after 300 -> Unit };\n"
+        "        let before = marked();\n"
+        "        let pieces = drain(p, 0);\n"
+        "        Io.println(Io.show(#(before, pieces > 0, marked())))\n"
+        "    }\n"
+        "  | Left(e) -> Io.println(Io.show(e))\n"
+        "}\n"]),
+    ?assertEqual(<<"#(false, true, true)\n">>, Out).
+
+%% Appendix E.23: the program reads `input`, then what write gives it,
+%% until closeInput; what is written after that is dropped
+os_start_write_then_close_test() ->
+    {ok, Out} = run([
+        "fn collect(p : Address(Os.ProgramMsg), got : Bytes) -> Bytes with m = match Os.read(p) {\n"
+        "    Right(Os.Stdout(b)) -> collect(p, got <> b)\n"
+        "  | _ -> got\n"
+        "}\n"
+        "export fn main() -> Unit with Never = match Os.start(Os.Command(program = \"cat\",\n"
+        "    arguments = [], input = String.toUtf8(\"a\")), 5000) {\n"
+        "    Right(p) -> {\n"
+        "        Os.write(p, String.toUtf8(\"b\"));\n"
+        "        Os.closeInput(p);\n"
+        "        Os.write(p, String.toUtf8(\"c\"));\n"
+        "        Io.println(Io.show(String.fromUtf8(collect(p, <<>>))))\n"
+        "    }\n"
+        "  | Left(e) -> Io.println(Io.show(e))\n"
+        "}\n"]),
+    ?assertEqual(<<"Some(\"ab\")\n">>, Out).
+
+%% Appendix E.23, report §6.9: a running program is a process, which
+%% `monitor` watches and `kill` stops, the program and its process group
+%% with it; one that has answered its exit status has returned
+os_program_is_a_process_test() ->
+    Dir = scratch(),
+    Pids = filename:join(Dir, "pids"),
+    {ok, Out} = run([
+        "type Msg = Ended(Down)\n"
+        "fn started(script : String) -> Address(Os.ProgramMsg) with Msg =\n"
+        "    match Os.start(Os.Command(program = \"sh\", arguments = [\"-c\", script],\n"
+        "        input = <<>>), 5000) {\n"
+        "        Right(p) -> p\n"
+        "      | Left(_) -> fault(\"not started\")\n"
+        "    }\n"
+        "fn reason() -> String with Msg =\n"
+        "    receive { Ended(Down(reason = r, site = _)) -> Io.show(r) }\n"
+        "export fn main() -> Unit with Msg = {\n"
+        "    let sleeper = started(\"sleep 10 & echo $$ $! > ", Pids, "; wait\");\n"
+        "    receive { after 300 -> Unit };\n"
+        "    monitor(sleeper, Ended);\n"
+        "    kill(sleeper);\n"
+        "    Io.println(reason());\n"
+        "    let quick = started(\"exit 0\");\n"
+        "    monitor(quick, Ended);\n"
+        "    let _ = Os.read(quick);\n"
+        "    Io.println(reason())\n"
+        "}\n"]),
+    ?assertEqual(<<"Killed\nReturned\n">>, Out),
+    timer:sleep(200),
+    {ok, Written} = file:read_file(Pids),
+    [begin
+         {Status, _} = sh("kill -0 " ++ binary_to_list(Pid)),
+         ?assertNotEqual(0, Status)
+     end || Pid <- binary:split(Written, [<<" ">>, <<"\n">>], [global, trim_all])].
+
+%% Appendix E.23: after the program's time, a read answers Timeout and the
+%% program's process ends, so the read after it faults as a call to an
+%% ended process does (report §6.6)
+os_start_time_limit_test() ->
+    {Result, Out} = run(
+        "export fn main() -> Unit with Never = match Os.start(Os.Command(program = \"sleep\",\n"
+        "    arguments = [\"10\"], input = <<>>), 100) {\n"
+        "    Right(p) -> {\n"
+        "        Io.println(Io.show(Os.read(p)));\n"
+        "        receive { after 100 -> Unit };\n"
+        "        Io.println(Io.show(Os.read(p)))\n"
+        "    }\n"
+        "  | Left(e) -> Io.println(Io.show(e))\n"
+        "}\n"),
+    ?assertEqual(<<"Left(Timeout)\n">>, Out),
+    ?assertEqual({fault, <<"callee had ended">>}, Result).
+
+%% Appendix E.23, report §8.6: Os.exit ends the program with its status,
+%% from any process, the output written before it flushed; a status
+%% outside 0 to 255 faults the caller (§7.4)
+os_exit_test() ->
+    ?assertEqual({{exit, 3}, <<"bye\n">>},
+                 run("export fn main() -> Unit with Never = {\n"
+                     "    Io.println(\"bye\");\n"
+                     "    Os.exit(3)\n"
+                     "}\n")),
+    ?assertEqual({{exit, 5}, <<>>},
+                 run("export fn main() -> Unit with Never = {\n"
+                     "    let _ = spawn(Local, fn() -> Unit with Never = Os.exit(5));\n"
+                     "    receive { after 5000 -> Unit }\n"
+                     "}\n")),
+    ?assertEqual({{fault, <<"an exit status is from 0 to 255">>}, <<>>},
+                 run("export fn main() -> Unit with Never = Os.exit(256)\n")).
+
+%% report §11.2: where Os.exit faults its caller, as in the shell and under
+%% `ern test`, it ends only the process that calls it
+os_exit_faults_where_asked_test() ->
+    ?assertEqual({{fault, <<"exited with status 2">>}, <<>>},
+                 run(['M'], "export fn main() -> Unit with Never = Os.exit(2)\n",
+                     #{exit => fault})).
+
+%% Appendix E.23, report §11.2: Os.arguments is what the launcher was
+%% given, and the empty list where it was given none
+os_arguments_test() ->
+    Main = "export fn main() -> Unit with Never = Io.println(Io.show(Os.arguments))\n",
+    ?assertEqual({ok, <<"[\"a\", \"b c\", \"--x\"]\n">>},
+                 run(['M'], Main, #{arguments => [<<"a">>, <<"b c">>, <<"--x">>]})),
+    ?assertEqual({ok, <<"[]\n">>}, run(Main)).
+
+%% Appendix E.17: a name in a directory that is not UTF-8 is left out of
+%% Fs.list; a regression test for the host's warning printed in its place
+fs_list_leaves_out_names_not_utf8_test() ->
+    Dir = scratch(),
+    ok = file:write_file(<<(list_to_binary(Dir))/binary, "/caf", 16#e9>>, <<>>),
+    ok = file:write_file(filename:join(Dir, "ok"), <<>>),
+    {ok, Out} = run(["export fn main() -> Unit with Never = match Fs.list(Path(\"", Dir,
+                     "\"), 1000) {\n"
+                     "    Right(entries) -> Io.println(Io.show(List.map(entries,\n"
+                     "        fn(e) = Path.name(e.path))))\n"
+                     "  | Left(e) -> Io.println(Io.show(e))\n"
+                     "}\n"]),
+    ?assertEqual(<<"[\"ok\"]\n">>, Out).
+
+%% report §8.5: a module the program does not depend on is not initialized,
+%% though it is on the code path; a regression test for the shell's modules,
+%% which every run initialized, before the standard library's
+unrelated_module_not_initialized_test() ->
+    {ok, Typed, Iface, Env} = ern_typecheck:check_string(['Aside'],
+        "let noisy = Io.debug(\"initialized\")\n"),
+    {ok, Mod, Bin} = ern_emitter:compile(['Aside'], Typed, Iface, Env),
+    Dir = scratch(),
+    ok = file:write_file(filename:join(Dir, atom_to_list(Mod) ++ ".beam"), Bin),
+    true = code:add_patha(Dir),
+    try
+        ?assertEqual({ok, <<"ran\n">>},
+                     run("export fn main() -> Unit with Never = Io.println(\"ran\")\n"))
+    after
+        code:del_path(Dir),
+        code:purge(Mod),
+        code:delete(Mod)
+    end.
+
+sh(Cmd) ->
+    Port = open_port({spawn, Cmd}, [exit_status, stderr_to_stdout, binary]),
+    sh_collect(Port, []).
+
+sh_collect(Port, Acc) ->
+    receive
+        {Port, {data, D}} -> sh_collect(Port, [D | Acc]);
+        {Port, {exit_status, S}} -> {S, iolist_to_binary(lists:reverse(Acc))}
+    end.
 
 %% report §10: a tail call takes constant stack space, through the branches
 %% of an `if`, the clauses of a `match`, and the last expression of a block:

@@ -18,7 +18,8 @@ Actorson until 12 September 2026.
 ## Where we are
 
 **MVP 2.66, the standard library's `Supervisor`, is done** (2026-09-27), and MVP 2.7, a
-program started from a command line, is next. MVP 2.65, the language and the toolchain read
+program started from a command line, is under way: `Os` is built (2026-09-27), and the
+memory, atoms, log and appendix of libraries items remain. MVP 2.65, the language and the toolchain read
 back after the shell, closed with its sweep on 2026-09-26; its steps stay below as the record
 the log's entries point into. MVP 2.6, the shell, was closed on 2026-09-25, and the code read
 back after it the same day, both under "Done".
@@ -557,48 +558,23 @@ decided 2026-09-27 in MVP 2.66's opening discussion (item 16; the log's *A Progr
 Line Is `Os`'s*), and the exit status the same day (the log's *A Program Ends With
 `Os.exit`*).
 
-- **`Os.arguments : List(String)`**, the words after the module in `ern run file.erc a b`,
-  without the program's name; everything after the module is the program's. An argument
-  that is not UTF-8 makes `ern run` refuse to start, naming it (§11.2). Under `ern test` and
-  in the shell it is the empty list. Parsing options from the list is a library's, by E.0.
-  Guide §1.3 then teaches a program's input with `Os.arguments`, before standard input,
-  since arguments are the first input a program started from a command line takes.
-- **`Os.environment : Map(String, String)`**, read with `Map.get`. A variable whose name or
-  value is not UTF-8 is left out, and the report says so. With it, the shell reads
-  `NO_COLOR` in Ernest, where its front end reads it today.
-- **`Os.run(command, ms)`**, which runs a host program to its end:
-  `Os.run(Os.Command(program = "ls", arguments = ["-l", "/tmp"], input = <<>>), 5000)`
-  answers `Right(Os.Finished(status, stdout, stderr))`, or `Left` with an `Io.Error`:
-  `NotFound` or `Denied` when the program cannot start, `Timeout` when the milliseconds
-  pass, the command then killed. No shell stands between: each argument reaches the program
-  as it is, and a program that wants a shell runs `sh` with `-c`. A status other than 0 is
-  the program's answer, not a `Left`. `stdout` and `stderr` are `Bytes`, as standard input
-  carries bytes (item 57). The command's standard input is `input` and then its end; it
-  never reads the terminal. It inherits the program's environment and working directory.
-  The milliseconds are the last argument, as `Tcp`'s are. The shim is a port the system
-  process opens, which delivers the output in chunks and then the status; collecting them
-  is Ernest. Built 2026-09-27 (Appendix E.23; the log's *`Os.run` Runs Through a Helper in
-  C*): a port alone cannot keep the standard error apart, end the input while the output is
-  read, or kill the program, so a helper in C, `ern_exec`, runs it, and a run is a process
-  that answers `Next` with what the program sent, over which `Os.run` is Ernest; the
-  primitives are private until the next bullet exports them.
-- **A running program is a process, as a `Tcp` socket is**, decided 2026-09-27 (the log's *A
-  Running Program Is a Process*): `Os.start(command, ms)` answers its address, `Os.read`
-  its next `Stdout(bytes)`, `Stderr(bytes)` or, last, `Exited(status)`, and `Os.write` and
-  `Os.closeInput` feed it; `kill` stops it and `monitor` watches it. The milliseconds bound
-  the program's life, after which it is killed and a read answers `Left(Timeout)`, so that
-  `Os.run` is Ernest over the four, the named pair E.0 rule 4 keeps. Its process ends once it
-  has answered `Exited`, or when it is killed, and a read after that faults. The helper reads
-  the program's output only while a read waits, so a program no one reads is held back.
-- `Os` is a system module with its own `reference` (§8.2), so a running command counts as
-  pending work in §8.6's check for a deadlock.
-- **`Os.exit(status : Int) -> a with m`**, which ends the program as §8.6 ends it, live
-  processes dying with `ProgramEnd` and pending output flushed, and exits with `status`. A
-  program that does not call it exits 0 when `main` returns and 1 on a fault, as today. A
-  status outside 0 to 255 faults the caller (§7.4). In the shell it ends the input it runs
-  in, not the shell, which answers `exited with status n`; under `ern test` the test fails
-  with `exited with status n` and the run goes on (§11.2). Its module page says in a line
-  that it ends the program, not a process, which is `kill` or a return.
+**`Os`, built 2026-09-27** (§8.2, §8.6, §11.2, Appendix E.23; the log's *`Os.run` Runs
+Through a Helper in C*, *A Running Program Is a Process*, *The Environment Read Through
+the Helper* and *What Building `Os` Found*). `Os.arguments` is the words after the module on `ern run`'s line, an argument
+that is not UTF-8 refused by its position, and the empty list in the shell and under `ern
+test`. `Os.environment` leaves out a variable that is not UTF-8, read from the helper
+`ern_exec` since the host decodes such a value without a sign, and `Fs.list` leaves out such
+a name. `Os.exit` ends the program with its status, and in the shell and under `ern test`
+faults its caller with `exited with status n`. A running program is a process: `Os.start`
+answers its address, `Os.read` its next piece of output or its exit status, taken only while
+a read waits, `Os.write` and `Os.closeInput` feed it, and `Os.run` is Ernest over the four.
+Guide §1.3 teaches `Os.arguments` before standard input, and the shell reads `NO_COLOR` and
+its history's `HOME` through `Os.environment`. Building it found three defects in what was
+there, each fixed with a regression test: every run initialized the modules on the code
+path that are not the standard library's, the shell's among them, before the standard
+library's (§8.5); a `monitor` of a process the runtime did not start, a socket or a running
+program, was made only when the reaper came to it, so a `kill` just after it answered
+`Unknown` (§6.9); and `ern test` reported a test that faulted at once twice (§11.2).
 
 **Memory, read for what only grows.** Noted 2026-09-26, by CLAUDE.md's *Memory that no
 collection reclaims is a defect*. The Erlang code under `erl/` and every Ernest program in
@@ -647,7 +623,7 @@ A release is the language reviewed whole, documented where a reader looks, and i
 
 1. **Manual pages, investigated.** `ern doc` writes a module's page as CommonMark today (report §11.4); an option writes it as a manual page instead, so that `man Ernest.List` answers at a terminal. The doc blocks are CommonMark, and `libs/markdown` already parses it for the shell, so the investigation is a renderer to roff beside the terminal's. Decided here, with the user, before it is built: **the pages' names and section**, `Ernest.List` in section 3 with a suffix of Ernest's own, as Erlang's `3erl` and Perl's `3pm` are, or another; whether the toolchain has an `ern(1)` page, and what owns its text, since §11 does.
 2. **An installation.** `make install` builds Ernest and installs it under a prefix, `/usr/local` by default, and `make uninstall` removes it. Decided here, with the user, before it is built, and written then as a design note, `docs/install.md`: **how it is relocatable without a configure step**, the direction discussed on 2026-09-26 being `PREFIX` and `DESTDIR` as make variables and an installed `bin/ern` that finds its tree by following its own link; **the layout under the prefix**, the toolchain's tree in `lib/ernest` and the manual pages in `share/man/man3`; what the installation requires beside it, Erlang/OTP 29 on the path; and the operating systems the release supports, decided 2026-09-27: Linux and macOS, which the README names and `review.md`'s R6 runs on.
-3. **The review**, performed just before the release, decided 2026-09-27, so that it reviews the manual pages and the installation with the rest, as [`review.md`](review.md) says; every finding is decided before the tag. Its ledger is a table here, as MVP 2.65's step 10 had. The tools the coherence rows need are built before the review begins, each with its tests: `make dialyzer` and an Erlang xref target ([`coherence.md`](coherence.md) C13), the report's blocks marked as the guide's are and the test of its examples (C17), the program that reads Appendix A (C18), and the catalogue of one small program for every error the lexer, the parser and the checker give (C21). The review's own tools are built as it reaches them: the run under `+T 9` and under load (`review.md` R2), and the test that runs the README's and `docs/development.md`'s commands in a fresh clone (R4). What a first release leaves out, MVP 3.9 takes: the written argument that a well-typed program does not go wrong, the generator of programs that type-check, and the property runner for the standard library's laws.
+3. **The review**, performed just before the release, decided 2026-09-27, so that it reviews the manual pages and the installation with the rest, as [`review.md`](review.md) says; every finding is decided before the tag. The readers of [`coherence.md`](coherence.md) run here, over the whole, and for a change only when the user asks, decided 2026-09-27 (the log's *The Readers Run Before a Release*). Its ledger is a table here, as MVP 2.65's step 10 had. The tools the coherence rows need are built before the review begins, each with its tests: `make dialyzer` and an Erlang xref target ([`coherence.md`](coherence.md) C13), the report's blocks marked as the guide's are and the test of its examples (C17), the program that reads Appendix A (C18), and the catalogue of one small program for every error the lexer, the parser and the checker give (C21). The review's own tools are built as it reaches them: the run under `+T 9` and under load (`review.md` R2), and the test that runs the README's and `docs/development.md`'s commands in a fresh clone (R4). What a first release leaves out, MVP 3.9 takes: the written argument that a well-typed program does not go wrong, the generator of programs that type-check, and the property runner for the standard library's laws.
 
 4. **The release**, tagged once the review is done, with its notes (`review.md`, *Done*).
 
@@ -1046,7 +1022,7 @@ Ernest's concepts or toolchain replace.
 
 | Erlang | Ernest | In Appendix E | Waiting, and when | Out, and why |
 |---|---|---|---|---|
-| `erlang` BIFs | the language; `Int`, `Float`, `String`, `Char` | `spawn`, `self`, `send`, `monitor` as §9.4 and §9.5; `abs`, `min`, `max`, rounding, `toString`, `toFloat`, the bit operations | an exit status for §8.6, the arguments and the environment, MVP 2.7 | `register`, `whereis`: §6.5 has no registry. `link`, `exit`, `throw`, `catch`: §7 and §6.9. `term_to_binary`: MVP 3's transport. `phash2`, `md5`: a hashing library. `make_ref`: identity is a `Process` (E.21). `iolist_to_binary`: `String.fromList`, `<>`. `memory`, `system_info`: the runtime's |
+| `erlang` BIFs | the language; `Int`, `Float`, `String`, `Char` | `spawn`, `self`, `send`, `monitor` as §9.4 and §9.5; `abs`, `min`, `max`, rounding, `toString`, `toFloat`, the bit operations; the exit status, the arguments and the environment in `Os`, E.23 | | `register`, `whereis`: §6.5 has no registry. `link`, `exit`, `throw`, `catch`: §7 and §6.9. `term_to_binary`: MVP 3's transport. `phash2`, `md5`: a hashing library. `make_ref`: identity is a `Process` (E.21). `iolist_to_binary`: `String.fromList`, `<>`. `memory`, `system_info`: the runtime's |
 | `lists` | `List` | E.2, thirty-one functions and `<>` | | `first`, `rest`, `flatten`, `count`, `map2`, `sum`, `max`, `min`: one pipe each, rule 4. `scan`, `mapFold`, `window`, `chunk`: a `foldLeft` with an accumulator, and each hides a choice about the ends. `permutations`, `transpose`, `combinations`: specialities. `key*`: `Map` |
 | `maps`, `dict`, `orddict`, `gb_trees`, `proplists` | `Map` | E.3 | | the four alternatives: history |
 | `sets`, `ordsets`, `gb_sets` | `Set` | E.4 | | `symmetric_difference`, `is_disjoint`: compositions |
@@ -1059,7 +1035,7 @@ Ernest's concepts or toolchain replace.
 | `math` | `Float` | the operators, `abs`, `min`, `max`, `round`, `floor`, `ceil`, `truncate`, `toString`, `sqrt`, `pow`, `exp`, `log`, the trigonometry | | `looselyEquals`: the tolerance is the program's. `toPrecision`: a format, and §9.6 has no format strings |
 | `gen_tcp`, `inet`, `socket`, `ssl` | `Tcp` | E.18 | `Udp` as its own module, a later MVP | socket options: tuning is a library's. TLS: `libs/tls` in MVP 3.2 |
 | `ets` | `libs/ets` | Appendix D | | match specifications, `qlc`: `Ets` is a key-value table |
-| `os` | a system module, MVP 2.7 | | the environment and the arguments, MVP 2.7 | `cmd`: a door to the system a program opens itself, MVP 3 at the earliest |
+| `os` | `Os` | E.23: `arguments`, `environment`, `exit`, `start`, `read`, `write`, `closeInput`, `run` | | `cmd`: a shell between, which a program asks for by running `sh` with `-c` |
 | `calendar` | `Time` | | a `Time` type and its parts, MVP 3.2 | formatting: a format is the program's, rule 3 |
 | `binary` | `Bytes` | E.20, and `<>` | | `split`, `match`, `replace`, `encode_unsigned`: `<<...>>` and the `Int` operations |
 | `array`, `queue` | | | | `List` and `Map` give both, rule 4; a persistent array is a library |

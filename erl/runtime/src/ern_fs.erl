@@ -37,8 +37,8 @@ handle({'AppendFile', Bytes, Path, Reply}) ->
     answer(Reply, unit(file:write_file(text(Path), Bytes, [append])));
 handle({'ListDir', Path, Reply}) ->
     Dir = text(Path),
-    answer(Reply, case file:list_dir(Dir) of
-                      {ok, Names} -> entries(Dir, lists:sort(Names));
+    answer(Reply, case file:list_dir_all(Dir) of
+                      {ok, Names} -> entries(Dir, lists:sort(utf8_names(Names)));
                       Error -> Error
                   end);
 handle({'Stat', Path, Reply}) ->
@@ -69,6 +69,20 @@ unit(ok) -> {ok, 'Unit'};
 unit(Other) -> Other.
 
 text({'Path', Bin}) -> Bin.
+
+%% Report Appendix E.17: a name that is not UTF-8 is left out. The host
+%% gives a name decoded where its names are UTF-8, and one that is not as
+%% its bytes; where they are not, it gives every name's bytes.
+utf8_names(Names) ->
+    [Bytes || Bytes <- lists:map(fun name_bytes/1, Names),
+              is_binary(unicode:characters_to_binary(Bytes, utf8, utf8))].
+
+name_bytes(Name) when is_binary(Name) -> Name;
+name_bytes(Name) ->
+    case file:native_name_encoding() of
+        utf8 -> unicode:characters_to_binary(Name);
+        latin1 -> list_to_binary(Name)
+    end.
 
 entries(Dir, Names) ->
     lists:foldl(fun(_, {error, _} = Error) ->

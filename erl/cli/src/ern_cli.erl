@@ -15,18 +15,23 @@
 %% Entry
 %%
 
--spec main([string()]) -> no_return().
+%% A word of the command line as the host gives it: decoded, or, where the
+%% host's names are UTF-8 and the word is not, what decoding it left.
+-type word() :: string() | {error | incomplete, string(), binary()}.
+
+-spec main([word()]) -> no_return().
 main(Args) ->
     halt(ern(Args, standard_error)).
 
--spec ern([string()]) -> 0 | 1.
+-spec ern([word()]) -> 0..255.
 ern(Args) ->
     ern(Args, standard_error).
 
 %% Report §11: the first word is the job, and --help and --version stand
 %% alone. Err is the error device, standard_error for the escript; a test
-%% passes its own and reads what the user would see.
--spec ern([string()], io:device()) -> 0 | 1.
+%% passes its own and reads what the user would see. The status is 0 or 1,
+%% or a run's, which Os.exit or a signal may give (§11.2).
+-spec ern([word()], io:device()) -> 0..255.
 ern(["--help"], _Err) ->
     usage(standard_io),
     0;
@@ -46,7 +51,7 @@ ern([], Err) ->
 jobs() ->
     [{"build", build_options(), "file.ern | src-dir", fun build/3},
      {"doc", doc_options(), "file.ern | file.erc | src-dir", fun doc/3},
-     {"run", run_options(), "file.erc", fun run/3},
+     {"run", run_options(), "file.erc [argument]...", fun run/3},
      {"test", test_options(), "file.erc", fun test/3},
      {"shell", shell_options(), "[file.erc]", fun shell/3},
      {"config", config_options(), "", fun config/3}].
@@ -86,21 +91,25 @@ usage(Device) ->
 %% Err, any other error one line, both with status 1.
 job(Job, Spec, Positional, Args, Fun, Err) ->
     Name = "ern " ++ Job,
+    {Own, Program} = case Job of
+                         "run" -> program_words(Spec, Args, []);
+                         _ -> {Args, []}
+                     end,
     try
         lists:foreach(fun(A) ->
                           case old_option(A) of
                               none -> ok;
                               Msg -> usage_fail(Msg)
                           end
-                      end, Args),
-        {Opts, Rest} = case getopt:parse(Spec, Args) of
+                      end, Own),
+        {Opts, Rest} = case getopt:parse(Spec, Own) of
                            {ok, Parsed} -> Parsed;
                            {error, {Reason, Data}} ->
                                usage_fail(getopt:format_error(Spec, {Reason, Data}))
                        end,
         case lists:member(help, Opts) of
             true -> job_usage(Spec, Name, Positional, standard_io), 0;
-            false -> Fun(Opts, Rest, Err)
+            false -> Fun(Opts, Rest ++ Program, Err)
         end
     catch
         throw:{cli_usage, Msg2} ->
@@ -111,6 +120,25 @@ job(Job, Spec, Positional, Args, Fun, Err) ->
             io:format(Err, "~s: ~ts~n", [Name, Msg3]),
             1
     end.
+
+%% Report §11.2: the words after `ern run`'s file are the program's,
+%% whatever they look like, so they are split off before the options are
+%% read: the job's own words, the file last, and the program's. An option
+%% that takes a value takes the next word, unless it is written with `=`.
+program_words(Spec, ["-" ++ _ = Option | Rest], Own) when Option =/= "-" ->
+    case {Rest, takes_value(Spec, Option)} of
+        {[Value | Rest1], true} -> program_words(Spec, Rest1, [Value, Option | Own]);
+        _ -> program_words(Spec, Rest, [Option | Own])
+    end;
+program_words(_Spec, [File | Rest], Own) ->
+    {lists:reverse([File | Own]), Rest};
+program_words(_Spec, [], Own) ->
+    {lists:reverse(Own), []}.
+
+takes_value(Spec, "--" ++ Long) ->
+    lists:any(fun({_, _, L, Type, _}) -> L =:= Long andalso Type =/= undefined end, Spec);
+takes_value(_Spec, _Short) ->
+    false.
 
 %% Report §11: an option as the toolchain spelled it before its jobs,
 %% refused with the spelling that replaces it.
@@ -694,12 +722,30 @@ shell_options() ->
 config_options() ->
     [config_dir_option(), help_option()].
 
-run(Opts, [File], Err) ->
+run(Opts, [File | Words], Err) ->
+    Arguments = program_arguments(Words, 1),
     quiet_signals(),
     {Ns, Roots, Loaded} = program(File, Opts),
-    run_entry(Opts, Ns, Roots, Loaded, Err);
-run(_Opts, _Rest, _Err) ->
+    run_entry(Opts, Ns, Roots, Loaded, Arguments, Err);
+run(_Opts, [], _Err) ->
     usage_fail("one .erc file argument is required").
+
+%% Report §11.2, Appendix E.23: the program's arguments, Os.arguments, as
+%% UTF-8 text, one that is not UTF-8 refused by its position before
+%% anything runs. Where the host's names are UTF-8 it gives an argument
+%% decoded, and one that is not as a tuple; where they are not, it gives
+%% an argument's bytes.
+program_arguments([], _N) ->
+    [];
+program_arguments([Word | Words], N) ->
+    Bytes = case file:native_name_encoding() of
+                utf8 when is_list(Word) -> unicode:characters_to_binary(Word);
+                latin1 -> list_to_binary(Word);
+                utf8 -> not_utf8
+            end,
+    is_binary(Bytes) andalso is_binary(unicode:characters_to_binary(Bytes, utf8, utf8))
+        orelse fail(io_lib:format("argument ~B is not UTF-8", [N])),
+    [Bytes | program_arguments(Words, N + 1)].
 
 test(Opts, [File], Err) ->
     quiet_signals(),
@@ -726,15 +772,16 @@ shell(Opts, Rest, Err) ->
         {module, Mod} -> ok;
         _ -> fail("the shell is not built; run make")
     end,
+    %% report §8.5: the shell's own modules are initialized as a program's
+    %% are, before those of the file it loads
     Init = case Rest of
                [] ->
                    host_path(load_path(Opts)),
                    ern_shell:loaded(#{roots => load_path(Opts),
                                       source_root => source_root(Opts, ".", "."),
                                       ifaces => [], entry => none,
-                                      startups => startups(Opts),
-                                      history => history_file()}),
-                   fun() -> ok end;
+                                      startups => startups(Opts)}),
+                   init_fun([Mod]);
                [File] ->
                    {Ns, Roots, Loaded} = program(File, Opts),
                    {Entry, Loaded1} = shell_entry(Opts, Ns, Roots, Loaded),
@@ -742,16 +789,17 @@ shell(Opts, Rest, Err) ->
                                       source_root => source_root(Opts, File, "."),
                                       ifaces => ifaces(Loaded1),
                                       entry => Entry,
-                                      startups => startups(Opts),
-                                      history => history_file()}),
-                   init_fun(Loaded1);
+                                      startups => startups(Opts)}),
+                   init_fun(Loaded1 ++ [Mod]);
                _ ->
                    usage_fail("at most one .erc file argument")
            end,
     %% report §11.2: the sinks are the screen's, which the shell names
     Sink = fun(Bin) -> ern_shell:to_screen(Bin) end,
+    %% report §11.2: Os.exit faults the process that calls it
     shell_outcome(Err, ern_rt:run_main(fun() -> Mod:main() end, <<"Shell.main">>,
-                                       #{stdout => Sink, stderr => Sink, init => Init})).
+                                       #{stdout => Sink, stderr => Sink, init => Init,
+                                         exit => fault})).
 
 %% Report §11.2: every fault on standard error as it happens, a line each,
 %% the spawn site and the cause, and beneath a failure of the runtime or a
@@ -818,14 +866,6 @@ startups(Opts) ->
            end,
     Home ++ [filename:join(Config, "startup")].
 
-%% Report §11.2: where the person's history is kept. Only where it is is
-%% the host's to say; the shell reads and writes it in Ernest.
-history_file() ->
-    case os:getenv("HOME") of
-        false -> none;
-        Dir -> filename:join([Dir, ".ernest", "history"])
-    end.
-
 %% Report §11.2: a module compiled from its source for the shell, as
 %% `ern build` would compile it but in memory, since `:load` and `:reload`
 %% write nothing. `Root` is the source root and `Dirs` the load path, the
@@ -876,9 +916,10 @@ quiet_signals() ->
 
 %% Report §11.2: the status a run ends `ern` with, and what it prints of
 %% its entry process's end: nothing when it returned, `killed` when it was
-%% killed, its fault, and nothing for a signal, whose status is 128 plus
-%% its number.
+%% killed, its fault, nothing for a signal, whose status is 128 plus its
+%% number, and nothing for Os.exit, whose status is its own.
 outcome(_Err, ok) -> 0;
+outcome(_Err, {exit, Status}) -> Status;
 outcome(Err, killed) -> io:format(Err, "killed~n", []), 1;
 outcome(_Err, {signal, Signal}) -> ern_signals:status(Signal);
 %% report §11.2: the entry process's fault has been reported as it happened
@@ -894,11 +935,7 @@ shell_outcome(Err, Other) -> outcome(Err, Other).
 %% Report §8.5: every top-level let of the loaded modules, dependencies
 %% first, once the runtime has bound the system references.
 init_fun(Loaded) ->
-    fun() ->
-        lists:foreach(fun(Mod) ->
-                          erlang:function_exported(Mod, '$init', 0) andalso Mod:'$init'()
-                      end, lists:reverse(Loaded))
-    end.
+    fun() -> ern_rt:init_modules(lists:reverse(Loaded)) end.
 
 %% Report §11.2: every test of the module, one at a time in the order the
 %% module declares them, each in a process of its own and its line printed
@@ -921,7 +958,8 @@ run_tests(Ns, Loaded, Err) ->
                    element(3, Report) =:= persistent_term:get({?MODULE, test}, none)
                        orelse report_fault(Report)
                end,
-    Opts = reporting(#{init => init_fun(Loaded)}, Err),
+    %% report §11.2: Os.exit faults the test that calls it
+    Opts = reporting(#{init => init_fun(Loaded), exit => fault}, Err),
     case ern_rt:run_main(Main, Site, Opts#{faults => Reporter}) of
         ok ->
             receive
@@ -940,12 +978,14 @@ run_tests(Ns, Loaded, Err) ->
 run_test({'Test', Name, Run}) ->
     Me = ern_rt:self(),
     Ref = make_ref(),
-    Pid = ern_rt:spawn_monitored('Local', fun() -> Me ! {Ref, Run()} end,
+    Pid = ern_rt:spawn_monitored('Local', fun() -> receive {Ref, go} -> Me ! {Ref, Run()} end end,
                                  fun(Down) -> {Ref, down, Down} end, Name),
     ok = ern_rt:deadlock_target(Pid),
     %% the reporter hears of the test's fault before this process does,
-    %% so the test is forgotten only once its end is here
+    %% so the test is known before it runs and forgotten only once its end
+    %% is here
     persistent_term:put({?MODULE, test}, Pid),
+    Pid ! {Ref, go},
     Outcome = receive
                   {Ref, 'Passed'} -> returned(Ref, <<"passed">>);
                   {Ref, {'Failed', Text}} -> returned(Ref, <<"failed: ", Text/binary>>);
@@ -964,14 +1004,14 @@ returned(Ref, Outcome) ->
 cause({'Fault', Msg}) -> Msg;
 cause(Reason) -> atom_to_binary(Reason).
 
-run_entry(Opts, Ns, Roots, Loaded, Err) ->
+run_entry(Opts, Ns, Roots, Loaded, Arguments, Err) ->
     {EntryMod, EntryFn, Loaded1} = entry_point(Opts, Ns, Roots, Loaded),
     Init = init_fun(Loaded1),
     Site = entry_site(EntryMod, EntryFn),
     Fn = ern_emitter:function_atom(EntryFn),
     %% report §8.6: a deadlock is the entry process's fault
     outcome(Err, ern_rt:run_main(fun() -> EntryMod:Fn() end, Site,
-                                 reporting(#{init => Init}, Err))).
+                                 reporting(#{init => Init, arguments => Arguments}, Err))).
 
 %% Report §11.2: the entry point the shell spawns beside it, or none for a
 %% file without one, which is loaded to be tried. A `main` that is not an

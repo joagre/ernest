@@ -71,7 +71,7 @@ guide_examples_test_() ->
     [{inparallel, [{Name, {timeout, 60, fun() -> check(U) end}} || {Name, U} <- Apart]}
      | [{Name, {timeout, 60, fun() -> check(U) end}} || {Name, U} <- Here]].
 
-own_node({modules, #{run := {Flags, _, Inputs, _}}}) -> Flags =:= "shell " orelse Inputs =/= [];
+own_node({modules, #{run := {Flags, _, _, Inputs, _}}}) -> Flags =:= "shell " orelse Inputs =/= [];
 own_node({modules, _}) -> false;
 own_node(_) -> true.
 
@@ -95,22 +95,23 @@ check({modules, #{files := Files, run := Run}}) ->
     case Run of
         none ->
             ok;
-        {Flags, Module, [], Expected} when Flags =/= "shell " ->
+        {Flags, Module, Words, [], Expected} when Flags =/= "shell " ->
             %% in this node: the program's output is what the test captures
-            Args = string:lexemes(Flags, " ") ++ [filename:join(Build, Module)],
+            Args = string:lexemes(Flags, " ") ++ [filename:join(Build, Module) | Words],
             ErrFile = filename:join(Dir, "stderr"),
             {ok, Err} = file:open(ErrFile, [write]),
             ?assertEqual(0, ern_cli:ern(Args, Err)),
             ok = file:close(Err),
             {ok, Errors} = file:read_file(ErrFile),
             same_streams(Expected, iolist_to_binary(?capturedOutput), Errors);
-        {Flags, Module, Inputs, Expected} ->
+        {Flags, Module, Words, Inputs, Expected} ->
             In = filename:join(Dir, "inputs"),
             ok = write(In, [[I, <<"\n">>] || I <- Inputs]),
             ErrFile = filename:join(Dir, "stderr"),
             {0, Printed} = sh("cd " ++ Dir ++ " && HOME=" ++ Dir ++ " "
                               ++ filename:absname("../bin/ern") ++ " " ++ Flags
-                              ++ filename:join(Build, Module) ++ " < " ++ In
+                              ++ filename:join(Build, Module) ++ [[" ", W] || W <- Words]
+                              ++ " < " ++ In
                               ++ " 2> " ++ ErrFile),
             {ok, Errors} = file:read_file(ErrFile),
             same_streams(Expected, session_end(Printed), Errors)
@@ -202,7 +203,7 @@ group([{N, Info, Heading, Code} = B | Rest], Seen) when Info =:= <<"ernest">>;
             %% a module the console runs is the file the console names
             Run = run(Rest),
             File = case Run of
-                       {_, Module, _, _} -> filename:rootname(Module) ++ ".ern";
+                       {_, Module, _, _, _} -> filename:rootname(Module) ++ ".ern";
                        none -> "example.ern"
                    end,
             [{modules, #{line => N, files => [{File, join(Code)}], run => Run}}
@@ -255,24 +256,25 @@ file_of(Code) ->
         Path -> Path
     end.
 
-%% The next fenced block, when it is a console: the job, its options and the
-%% module its `$ ern run`, `test` or `shell` line runs, and the lines it
-%% shows that are not commands.
+%% The next fenced block, when it is a console: the job, its options, the
+%% module its `$ ern run`, `test` or `shell` line runs and the words after
+%% it, and the lines it shows that are not commands.
 run([{_, <<"console">>, _, Lines} | _]) ->
     Commands = [L || <<"$ ", _/binary>> = L <- Lines],
     Output = [L || L <- Lines, not lists:member(L, Commands)],
-    Runs = [{Piped, Job ++ " " ++ Flags, M}
+    Runs = [{Piped, Job ++ " " ++ Flags, M, string:lexemes(Words, " ")}
             || C <- Commands,
-               {match, [Piped, Job, Flags, M]}
+               {match, [Piped, Job, Flags, M, Words]}
                    <- [re:run(C, "^\\$ (?:printf '([^']*)' \\| )?ern (run|test|shell) "
-                                 "((?:--[a-z]+ \\S+ )*)(?:\\S*/)?([a-z0-9]+\\.erc)",
+                                 "((?:--[a-z]+ \\S+ )*)(?:\\S*/)?([a-z0-9]+\\.erc)"
+                                 "((?: +[^#\\s]\\S*)*) *(?:#.*)?$",
                               [{capture, all_but_first, list}])]],
     case Runs of
-        [{_, "shell " = Flags, Module} | _] ->
-            {Flags, Module, inputs(Output), session_shown(Output)};
-        [{Piped, Flags, Module} | _] ->
+        [{_, "shell " = Flags, Module, Words} | _] ->
+            {Flags, Module, Words, inputs(Output), session_shown(Output)};
+        [{Piped, Flags, Module, Words} | _] ->
             Stdin = [L || L <- string:split(Piped, "\\n", all), L =/= ""],
-            {Flags, Module, Stdin, join(Output)};
+            {Flags, Module, Words, Stdin, join(Output)};
         [] ->
             none
     end;

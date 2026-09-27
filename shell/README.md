@@ -60,7 +60,7 @@ While an input runs, the reader goes on reading keys. `await` receives only `Don
 | `Shell.Editor` | [`shell/editor.ern`](shell/editor.ern) | The line editor. It takes a `State` and a `Terminal.Event` and gives an `Edit`. It implements Readline's Emacs keys, the walk through the history, and the incremental search. |
 | `Shell.Complete` | [`shell/complete.ern`](shell/complete.ern) | Completion: it matches a word against names, by prefix and by the starts of their words, and finds what the candidates share. |
 | `Shell.Region` | [`shell/region.ern`](shell/region.ern) | The live region at the foot of the terminal. Each event takes the region and gives the region after it and the bytes to write. |
-| `Shell.History` | [`shell/history.ern`](shell/history.ern) | The history file, over `Fs`: reading it, trimming it, appending to it, and the escaping that keeps each input on one line. Only the file's path is `foreign`. |
+| `Shell.History` | [`shell/history.ern`](shell/history.ern) | The history file, over `Os` and `Fs`: finding it under `HOME`, reading it, trimming it, appending to it, and the escaping that keeps each input on one line. |
 | `Shell.Style` | [`shell/style.ern`](shell/style.ern) | The colours. Each function takes whether colour is on. Without colour the text is unchanged, except that a marked parameter is put between asterisks. |
 | `Markdown` | [`libs/markdown`](../libs/markdown/markdown.ern) | A library, not part of the shell. It renders documentation for `:doc` and `Shift-Tab`. |
 
@@ -81,7 +81,7 @@ So each of these modules is tested by its `Test` values (§9.3). They are top-le
 
 ## The front end
 
-The shell reaches the host through `foreign fn`s (§4.7). Almost all of them are at the top of `shell.ern` and are answered by `erl/cli/src/ern_shell.erl`. Two are answered elsewhere or declared elsewhere: `holdTerminal` is answered by the runtime (`ern_rt`), and `Shell.History.file` declares the history file's path. The rule for what may be `foreign` is that it is only what the host alone can do. That covers the compiler's work: checking an input against the session, compiling and running it, reading the compiled interfaces for completion and the fields a value's type selects, and finding a name's documentation. The matching, the ranking, the rendering, the history file, and the parsing of commands are Ernest.
+The shell reaches the host through `foreign fn`s (§4.7). All of them are at the top of `shell.ern`, and all but `holdTerminal`, which the runtime (`ern_rt`) answers, are answered by `erl/cli/src/ern_shell.erl`. The rule for what may be `foreign` is that it is only what the host alone can do. That covers the compiler's work: checking an input against the session, compiling and running it, reading the compiled interfaces for completion and the fields a value's type selects, and finding a name's documentation. The matching, the ranking, the rendering, the history file, and the parsing of commands are Ernest.
 
 The session's state lives in two places:
 

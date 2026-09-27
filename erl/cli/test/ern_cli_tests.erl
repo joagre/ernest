@@ -481,6 +481,44 @@ test_runner_streams() ->
     ?assertEqual(<<"inside first\nfirst: passed\nstuck: faulted: deadlock\nlast: passed\n">>,
                  iolist_to_binary(?capturedOutput)).
 
+%% report §11.2, Appendix E.23: under `ern test` Os.arguments is the empty
+%% list, and Os.exit faults the test that calls it and the run goes on.
+%% Written after the code, it found that a test faulting at once was
+%% reported twice, its line and a fault on standard error, since it could
+%% fault before the runner knew it as the test that runs.
+test_runner_os_test() ->
+    Dir = tmp(),
+    write(Dir, "src/checks.ern",
+          "let none = Test(name = \"none\", run = fn() -> TestResult with Never =\n"
+          "    if Os.arguments == [] then Passed else Failed(\"arguments\"))\n"
+          "let exits = Test(name = \"exits\", run = fn() -> TestResult with Never = Os.exit(2))\n"
+          "let later = Test(name = \"later\", run = fn() -> TestResult with Never = Passed)\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_err(["test", Dir ++ "/build/checks.erc"])),
+    ?assertEqual(<<"none: passed\nexits: faulted: exited with status 2\nlater: passed\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
+%% report §11.2, Appendix E.23: the words after `ern run`'s file are the
+%% program's, whatever they look like, and the job's options come before
+%% the file; an argument that is not UTF-8, as the host gives one, is
+%% refused by its position before anything runs; and `ern run` exits with
+%% the status Os.exit gives. A regression test, written after the code; the
+%% host's own forms of an argument are ern_integration_tests' to cover.
+run_arguments_test() ->
+    Dir = tmp(),
+    write(Dir, "src/args.ern",
+          "export fn main() -> Unit with Never = {\n"
+          "    Io.println(Io.show(Os.arguments));\n"
+          "    Os.exit(List.size(Os.arguments))\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Erc = Dir ++ "/build/args.erc",
+    ?assertEqual(3, ern_cli:ern(["run", "--load-path", Dir ++ "/build", Erc,
+                                 "--main", "x", "a b"])),
+    ?assertEqual(1, ern_err(["run", Erc, "ok", {incomplete, "caf", <<16#e9>>}])),
+    ?assertEqual(<<"[\"--main\", \"x\", \"a b\"]\nern run: argument 2 is not UTF-8\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
 %% report §4.2: a module may not take a namespace of a standard library
 %% module written in Ernest
 stdlib_namespace_test() ->

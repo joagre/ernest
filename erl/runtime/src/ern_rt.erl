@@ -32,7 +32,8 @@
          trace/1, sys/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
          binding/1, run_main/2, run_main/3, signal/1, deadlock_target/1, restarting/2,
          restart_now/0, ask_restart/1, start_cause/0,
-         init_stdlib/0, read_input/1, input_not_utf8/0, reason/1]).
+         init_stdlib/0, init_modules/1, read_input/1, input_not_utf8/0, reason/1, arguments/0,
+         exit_program/1]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -228,12 +229,15 @@ answer(Reply, V) ->
 
 %% Every monitor is the reaper's: it holds the wrap and delivers the cause,
 %% at once if the process is already dead. A process the runtime did not
-%% start, a system process or a socket, is watched from there too, so a
-%% monitor costs no process of its own (report §6.9).
+%% start, a system process, a socket or a running program, is watched from
+%% there too, so a monitor costs no process of its own (report §6.9). The
+%% monitor is made when the reaper says so, so that a process killed just
+%% after it is seen to die rather than found already ended.
 -spec monitor(address(), fun((term()) -> term())) -> 'Unit'.
 monitor(Addr, Wrap) ->
-    persistent_term:get({?MODULE, reaper}) ! {await, process_of(Addr), erlang:self(), Wrap},
-    ?UNIT.
+    Ref = make_ref(),
+    persistent_term:get({?MODULE, reaper}) ! {await, process_of(Addr), erlang:self(), Wrap, Ref},
+    receive {Ref, watched} -> ?UNIT end.
 
 -spec kill(address()) -> 'Unit'.
 kill(Addr) ->
@@ -272,19 +276,21 @@ reaper_loop(Waiters) ->
             Pid ! Ref,
             From ! {Ref, Pid},
             reaper_loop(case Awaits of [] -> Waiters; _ -> Waiters#{Pid => Awaits} end);
-        {await, Pid, To, Wrap} ->
-            case ets:lookup(?PROCESSES, Pid) of
-                [] when not is_map_key(Pid, Waiters) ->
-                    %% not one the runtime started, so it is watched from
-                    %% here; report §8.6: its death would deliver a message,
-                    %% which is a source while it is awaited
-                    erlang:monitor(process, Pid),
-                    source_begin(),
-                    reaper_loop(Waiters#{Pid => [{To, Wrap}]});
-                _ ->
-                    reaper_loop(maps:update_with(Pid, fun(L) -> [{To, Wrap} | L] end,
-                                                 [{To, Wrap}], Waiters))
-            end;
+        {await, Pid, To, Wrap, Ref} ->
+            Waiters1 = case ets:lookup(?PROCESSES, Pid) of
+                           [] when not is_map_key(Pid, Waiters) ->
+                               %% not one the runtime started, so it is watched
+                               %% from here; report §8.6: its death would deliver
+                               %% a message, which is a source while it is awaited
+                               erlang:monitor(process, Pid),
+                               source_begin(),
+                               Waiters#{Pid => [{To, Wrap}]};
+                           _ ->
+                               maps:update_with(Pid, fun(L) -> [{To, Wrap} | L] end,
+                                                [{To, Wrap}], Waiters)
+                       end,
+            To ! {Ref, watched},
+            reaper_loop(Waiters1);
         {report, Pid, Site, Fault} ->
             report(Pid, Site, Fault, true),
             reaper_loop(Waiters);
@@ -946,19 +952,23 @@ arm(Deadline, To) ->
 
 %% Runs Main as the entry process and returns ok, killed if it was killed,
 %% {fault, Message} if it faulted, a deadlock among the faults (report §8.6:
-%% the entry process faults with `Fault("deadlock")`), or {signal, Signal}
-%% if the host's termination or hangup ended the program. Every local process is then ended with
+%% the entry process faults with `Fault("deadlock")`), {exit, Status} if a
+%% process called Os.exit, or {signal, Signal} if the host's termination or
+%% hangup ended the program. Every local process is then ended with
 %% ProgramEnd and stdout is flushed, however the run ended. Opts: init => a
 %% function run in main's process before Main, after the system references
 %% are bound and the standard library's lets evaluated, for the program's
-%% own top-level lets (report §8.5); faults => fun((FaultReport) -> any()),
+%% own top-level lets (report §8.5); arguments => the program's arguments,
+%% Os.arguments, none by default; exit => fault, where Os.exit faults its
+%% caller rather than ending the program, as in the shell and under `ern
+%% test` (report §11.2); faults => fun((FaultReport) -> any()),
 %% given every fault as it happens (report §11.2); stdout, stderr =>
 %% fun((binary()) -> any()), stdin => fun(() -> eof | {error, term()} |
 %% unicode:chardata()), called for each read, and keys => the same for the
 %% terminal's keys, for tests (fed/1). Report §8.2: the standard streams
 %% carry bytes for the run, whatever the host's locale.
 -type outcome() :: ok | killed | {fault, binary()} | {fault, binary(), binary()}
-                 | {signal, sigterm | sighup}.
+                 | {exit, 0..255} | {signal, sigterm | sighup}.
 
 -spec run_main(fun(() -> term()), binary()) -> outcome().
 run_main(Main, Site) ->
@@ -977,6 +987,8 @@ run_main(Main, Site, Opts) ->
     end,
     Run = make_ref(),
     persistent_term:put({?MODULE, launcher}, {erlang:self(), Run}),
+    persistent_term:put({?MODULE, arguments}, maps:get(arguments, Opts, [])),
+    persistent_term:put({?MODULE, exit}, maps:get(exit, Opts, program)),
     Reaper = erlang:spawn(fun() -> reaper_loop(#{}) end),
     persistent_term:put({?MODULE, reaper}, Reaper),
     Encodings = bytes_out(),
@@ -1033,8 +1045,33 @@ await_main(MainPid, Run) ->
         {fault, Run, Text} ->
             exit(MainPid, {ern, fault, Text}),
             await_main(MainPid, Run);
+        {exit, Run, Status} ->
+            {exit, Status};
         {signal, Run, Signal} ->
             {signal, Signal}
+    end.
+
+%% Report Appendix E.23: the words after the module on `ern run`'s command
+%% line, which the launcher was given; none in the shell and under `ern
+%% test` (§11.2).
+-spec arguments() -> [binary()].
+arguments() ->
+    persistent_term:get({?MODULE, arguments}, []).
+
+%% Report §8.6, Appendix E.23: Os.exit ends the program with its status,
+%% the launcher ending every process as it does at the entry process's end;
+%% the caller waits for its own end there. In the shell and under `ern test`
+%% it faults the caller instead (§11.2).
+-spec exit_program(integer()) -> no_return().
+exit_program(Status) ->
+    Status >= 0 andalso Status =< 255 orelse fault(<<"an exit status is from 0 to 255">>),
+    case persistent_term:get({?MODULE, exit}, program) of
+        fault ->
+            fault(format("exited with status ~B", [Status]));
+        program ->
+            {Launcher, Run} = persistent_term:get({?MODULE, launcher}),
+            Launcher ! {exit, Run, Status},
+            receive after infinity -> ok end
     end.
 
 input(Key, Opts) ->
@@ -1239,13 +1276,26 @@ end_program(Run, Reaper, System) ->
 init_stdlib() ->
     run_inits(stdlib_modules()).
 
-%% The installed modules, loaded, in the order their initializers run.
+%% The standard library's modules, loaded, in the order their initializers
+%% run: every ern@ module in a `stdlib` directory on the code path, as the
+%% checker finds them (ern_prelude:stdlib_ifaces/0). The shell's modules
+%% are on the same path and are not the standard library's; the shell
+%% initializes them as a program's own (init_modules/1).
 stdlib_modules() ->
     Files = lists:usort(lists:append([filelib:wildcard(filename:join(D, "ern@*.beam"))
-                                      || D <- code:get_path()])),
+                                      || D <- code:get_path(),
+                                         filename:basename(D) =:= "stdlib"])),
     Mods = [list_to_atom(filename:basename(File, ".beam")) || File <- Files],
     lists:foreach(fun(Mod) -> code:ensure_loaded(Mod) end, Mods),
     ordered(Mods).
+
+%% Report §8.5: the top-level lets of the modules given and of the modules
+%% they depend on through `'$deps'/0`, dependencies first, each module once;
+%% the order of the list is kept where no dependency decides it.
+-spec init_modules([module()]) -> ok.
+init_modules(Mods) ->
+    {Order, _} = lists:foldl(fun(Mod, Acc) -> visit(Mod, all, Acc) end, {[], #{}}, Mods),
+    run_inits(lists:reverse(Order)).
 
 run_inits(Mods) ->
     lists:foreach(fun(Mod) ->
@@ -1267,13 +1317,16 @@ visit(Mod, Mods, {Order, Seen}) ->
         #{Mod := _} ->
             {Order, Seen};
         _ ->
-            Deps = [D || D <- deps_of(Mod), lists:member(D, Mods)],
+            Deps = [D || D <- deps_of(Mod), Mods =:= all orelse lists:member(D, Mods)],
             {Order1, Seen1} = lists:foldl(fun(D, Acc) -> visit(D, Mods, Acc) end,
                                           {Order, Seen#{Mod => true}}, Deps),
             {[Mod | Order1], Seen1}
     end.
 
+%% A module is loaded as the error handler loads one, counted as a foreign
+%% call, since init_modules/1 runs in the entry process (report §8.6).
 deps_of(Mod) ->
+    load(Mod),
     case erlang:function_exported(Mod, '$deps', 0) of
         true -> Mod:'$deps'();
         false -> []
@@ -1290,7 +1343,8 @@ flush_run(Run) ->
     receive
         {{main_down, Run}, _, _} -> flush_run(Run);
         {deadlock, Run} -> flush_run(Run);
-        {fault, Run, _} -> flush_run(Run)
+        {fault, Run, _} -> flush_run(Run);
+        {exit, Run, _} -> flush_run(Run)
     after 0 ->
         ok
     end.

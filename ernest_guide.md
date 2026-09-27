@@ -182,6 +182,23 @@ At a terminal the shell edits the line with Readline's Emacs keys, and keeps a h
 
 ### 1.3 Reading input
 
+A program's first input is its command line. An entry point takes no arguments: the words after the module on `ern run`'s line are `Os.arguments`, a list of strings.
+
+```ernest
+export fn main() -> Unit with Never = match Os.arguments {
+    [] -> { Io.printlnError("usage: greet name..."); Os.exit(2) }
+  | names -> List.foreach(names, fn(name) = Io.println("hello, " <> name))
+}
+```
+
+```console
+$ ern run greet.erc Ada Grace
+hello, Ada
+hello, Grace
+```
+
+`Os.exit(status)` ends the program with that exit status. A program whose `main` returns exits with 0, and one whose entry process faults exits with 1. The environment is `Os.environment`, a map from names to values: `Map.get(Os.environment, "HOME")` answers `Some(dir)` where the home directory is set.
+
 `Io.readLine()` waits for a line of standard input and answers `Some(line)`, or `None` at its end. A program that reads its input to the end loops:
 
 ```ernest
@@ -197,7 +214,7 @@ HELLO
 WORLD
 ```
 
-An entry point takes no arguments, so a program's input comes on standard input. It is read as UTF-8, and a line that is not faults the process that read it. Input that is not text is read as bytes: `Io.read()` answers `Some(bytes)` with what has arrived, and `Io.write(bytes)` writes bytes to standard output as they are. Lines and bytes come from one stream, so a program can read a line and then the bytes after it. A program reads lines or single keys, not both: `Terminal.subscribe` gives keys as they are pressed, or answers `Left(Io.NotATerminal)` where standard input is not a terminal, so that the program can read lines instead (report §8.2).
+Standard input is read as UTF-8, and a line that is not faults the process that read it. Input that is not text is read as bytes: `Io.read()` answers `Some(bytes)` with what has arrived, and `Io.write(bytes)` writes bytes to standard output as they are. Lines and bytes come from one stream, so a program can read a line and then the bytes after it. A program reads lines or single keys, not both: `Terminal.subscribe` gives keys as they are pressed, or answers `Left(Io.NotATerminal)` where standard input is not a terminal, so that the program can read lines instead (report §8.2).
 
 ### 1.4 Prediction exercise
 

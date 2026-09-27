@@ -1,5 +1,5 @@
 /*
- * ern_exec: runs one program for Os.run (report Appendix E.23), doing what
+ * ern_exec: runs one program for Os.start (report Appendix E.23), doing what
  * the host's ports cannot: the program's standard error apart from its
  * output, the end of its input while its output is still read, and a kill
  * of the program with its process group. It is C99 over POSIX.1-2008 alone,
@@ -9,15 +9,24 @@
  * them. The runtime and this helper talk over fd 0 and fd 1 in frames of a
  * 4-byte big-endian length followed by a tag byte and the frame's data.
  *
- *   To the program: 'i' bytes of its input, 'e' the end of its input. The
- *   end of fd 0 means the runtime has let go of the run: the program and
- *   its process group are killed, and the helper ends.
+ *   To the program: 'i' bytes of its input, dropped after 'e' or once the
+ *   program has closed its input; 'e' the end of its input; 'n' a request
+ *   for the next piece of its output. The end of fd 0 means the runtime has
+ *   let go of the run: the program and its process group are killed, and
+ *   the helper ends.
  *
  *   From the program: 's' it started; 'f' and an error's name, it did not
- *   start; 'o' bytes of its output; 'r' bytes of its standard error; 'x'
- *   and a 4-byte big-endian status, once it has exited and both its output
- *   and its standard error have ended. A status is the program's exit code,
- *   or 128 and the signal's number for a program a signal ended.
+ *   start; 'o' bytes of its output; 'r' bytes of its standard error, each
+ *   answering one 'n', so that a program no one asks waits on its output;
+ *   'x' and a 4-byte big-endian status, once it has exited and both its
+ *   output and its standard error have ended. A status is the program's
+ *   exit code, or 128 and the signal's number for a program a signal ended.
+ *
+ * With no program, the helper writes its environment, which it inherited
+ * as exec passes it, byte for byte: a 'v' frame for each variable, NAME=VALUE,
+ * and an 'x' frame. Report Appendix E.23: the runtime reads the program's
+ * environment so, since the host decodes a value that is not UTF-8 without
+ * a sign.
  */
 #define _POSIX_C_SOURCE 200809L
 #include <errno.h>
@@ -32,6 +41,8 @@
 #include <unistd.h>
 
 #define CHUNK 65536
+
+extern char **environ;
 
 static pid_t program = -1;
 
@@ -109,9 +120,14 @@ int main(int argc, char **argv)
 {
     int in[2], out[2], err[2], failed[2];
 
-    if (argc < 2)
-        return 2;
     signal(SIGPIPE, SIG_IGN);
+    if (argc < 2) {
+        char **variable;
+        for (variable = environ; *variable != NULL; variable++)
+            frame('v', (const unsigned char *)*variable, strlen(*variable));
+        frame('x', (const unsigned char *)"\0\0\0\0", 4);
+        return 0;
+    }
     if (pipe(in) < 0 || pipe(out) < 0 || pipe(err) < 0 || pipe(failed) < 0)
         return 1;
     fcntl(failed[1], F_SETFD, FD_CLOEXEC);
@@ -172,6 +188,7 @@ int main(int argc, char **argv)
         unsigned char *body = NULL;
         size_t body_size = 0, body_got = 0;
         int input_ended = 0, runtime_open = 1;
+        size_t wanted = 0;
         int program_in = in[1], program_out = out[0], program_err = err[0];
         unsigned char buffer[CHUNK];
 
@@ -180,8 +197,13 @@ int main(int argc, char **argv)
             int n = 0, i_runtime = -1, i_out = -1, i_err = -1, i_in = -1;
 
             if (runtime_open) { fds[n].fd = 0; fds[n].events = POLLIN; i_runtime = n++; }
-            if (program_out >= 0) { fds[n].fd = program_out; fds[n].events = POLLIN; i_out = n++; }
-            if (program_err >= 0) { fds[n].fd = program_err; fds[n].events = POLLIN; i_err = n++; }
+            /* the program's output is taken only while the runtime asks */
+            if (program_out >= 0 && wanted > 0) {
+                fds[n].fd = program_out; fds[n].events = POLLIN; i_out = n++;
+            }
+            if (program_err >= 0 && wanted > 0) {
+                fds[n].fd = program_err; fds[n].events = POLLIN; i_err = n++;
+            }
             if (program_in >= 0 && pending_size > 0) {
                 fds[n].fd = program_in; fds[n].events = POLLOUT; i_in = n++;
             }
@@ -221,10 +243,16 @@ int main(int argc, char **argv)
                     body_got += (size_t)got;
                 }
                 if (head_got == sizeof head && body_got == body_size) {
-                    if (body_size > 0 && body[0] == 'i')
-                        add_pending(body + 1, body_size - 1);
+                    /* input after its end, or after the program closed
+                       it, is dropped */
+                    if (body_size > 0 && body[0] == 'i') {
+                        if (program_in >= 0 && !input_ended)
+                            add_pending(body + 1, body_size - 1);
+                    }
                     else if (body_size > 0 && body[0] == 'e')
                         input_ended = 1;
+                    else if (body_size > 0 && body[0] == 'n')
+                        wanted++;
                     free(body);
                     body = NULL;
                     head_got = 0;
@@ -250,17 +278,21 @@ int main(int argc, char **argv)
 
             if (i_out >= 0 && fds[i_out].revents) {
                 ssize_t got = read(program_out, buffer, sizeof buffer);
-                if (got > 0)
+                if (got > 0) {
                     frame('o', buffer, (size_t)got);
+                    wanted--;
+                }
                 else if (got == 0 || errno != EINTR) {
                     close(program_out);
                     program_out = -1;
                 }
             }
-            if (i_err >= 0 && fds[i_err].revents) {
+            if (i_err >= 0 && fds[i_err].revents && wanted > 0) {
                 ssize_t got = read(program_err, buffer, sizeof buffer);
-                if (got > 0)
+                if (got > 0) {
                     frame('r', buffer, (size_t)got);
+                    wanted--;
+                }
                 else if (got == 0 || errno != EINTR) {
                     close(program_err);
                     program_err = -1;

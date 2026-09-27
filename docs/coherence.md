@@ -1,6 +1,6 @@
 # Coherence
 
-Whether the project agrees with itself: the report with its principles and with itself, the teaching documents and every other document with the report and the code, and the code with the report, with the principles and with its own standards. This document owns what a change runs, by a command or by a reader, and when each check passes. [`review.md`](review.md) begins by running every row.
+Whether the project agrees with itself: the report with its principles and with itself, the teaching documents and every other document with the report and the code, and the code with the report, with the principles and with its own standards. This document owns what a change runs, by a command or by a reader, and when each check passes. The commands run with every change. The rows a reader runs are gone through before a release, over the whole as the table's last line says, and for a change only when the user asks for them, the table saying which rows such a request runs. [`review.md`](review.md) begins by running every row.
 
 ## What a change runs
 

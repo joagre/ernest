@@ -1069,6 +1069,24 @@ library_file() ->
                   ++ " < " ++ filename:join(Dir, "in")),
     ?assertMatch({_, _}, binary:match(Out, <<"42 : Int">>)).
 
+%% report §11.2, Appendix E.23: in the shell Os.arguments is the empty list,
+%% and Os.exit faults the input that calls it and ends neither the input
+%% after it nor the shell; its environment is the host's. A regression
+%% test, written after the code.
+shell_os_test_() ->
+    {timeout, 60, fun shell_os/0}.
+
+shell_os() ->
+    Dir = filename:join("/tmp", "ern_os_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(filename:join(Dir, "in"),
+                         "Os.arguments\nOs.exit(2)\nMap.get(Os.environment, \"ERN_SEEN\")\n"),
+    {0, Out} = sh("HOME=" ++ Dir ++ " ERN_SEEN=yes ../bin/ern shell < "
+                  ++ filename:join(Dir, "in")),
+    ?assertMatch({_, _}, binary:match(Out, <<"[] : List(String)">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"fault: exited with status 2">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"Some(\"yes\") : Optional(String)">>)).
+
 %% report §11.2, §8.1: a `main` that is not an entry point leaves the file
 %% without one, so it is loaded and nothing is spawned; `--main` naming it
 %% is refused. Written with the change: the shell spawned any exported

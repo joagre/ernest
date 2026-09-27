@@ -3,10 +3,10 @@
 // this one, kept in `$HOME/.ernest/history`, one input a line with a
 // newline written `\n` and a backslash `\\`.
 //
-// Only the path is the host's. The reading, the appending, the escaping
-// and the trimming are ordinary Ernest over `Fs`, `String` and `List`,
-// which is where the line between Ernest and `foreign` runs
-// (docs/decisions.md).
+// It is ordinary Ernest over `Os`, `Fs`, `String` and `List`: the home
+// directory from the environment, and the reading, the appending, the
+// escaping and the trimming, which is where the line between Ernest and
+// `foreign` runs (docs/decisions.md).
 //
 
 // Report §11.2: how many inputs the file keeps.
@@ -15,16 +15,17 @@ let kept = 1000
 // How long to wait for the file system, which is a local file.
 let wait = 5000
 
-// The host's alone: the file in the person's home directory, and none
-// where the environment names no home.
-export foreign fn file() -> Optional(String) with m = "ern_shell:history_file/0"
+// The file in the person's home directory, and none where the environment
+// names no home.
+export let file : Optional(Path) =
+    Optional.map(Map.get(Os.environment, "HOME"),
+        fn(home) = Path.join(Path(home), Path(".ernest/history")))
 
 // The inputs of the sessions before this one, newest first. A file that
 // holds more than the last thousand is trimmed to them as it is read.
-export fn read() -> Either(Io.Error, List(String)) with m = match file() {
+export fn read() -> Either(Io.Error, List(String)) with m = match file {
     None -> Right([])
-  | Some(name) -> {
-        let path = Path(name);
+  | Some(path) -> {
         match Fs.read(path, wait) {
             // no file yet: a first session has no history and makes none
             Left(Io.NotFound) -> Right([])
@@ -56,10 +57,9 @@ fn text(inputs : List(String)) -> String =
 
 // One input, appended as the shell takes it. The directory is made when
 // it is not there, as it is not before a first session.
-export fn add(input : String) -> Either(Io.Error, Unit) with m = match file() {
+export fn add(input : String) -> Either(Io.Error, Unit) with m = match file {
     None -> Right(Unit)
-  | Some(name) -> {
-        let path = Path(name);
+  | Some(path) -> {
         match made(path) {
             Left(why) -> Left(why)
           | Right(_) -> Fs.append(path, String.toUtf8(encode(input) <> "\n"), wait)

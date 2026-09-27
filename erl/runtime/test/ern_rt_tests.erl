@@ -161,7 +161,8 @@ dead_system_process_test() ->
 %% raised out of run_main, and left the process table and the system
 %% processes behind, so the next run failed to make its table
 failed_start_test() ->
-    Dir = filename:join(filename:basedir(user_cache, "ern_rt_tests"), "failed_start"),
+    %% the standard library is what a `stdlib` directory on the path holds
+    Dir = filename:join([filename:basedir(user_cache, "ern_rt_tests"), "failed_start", "stdlib"]),
     ok = filelib:ensure_path(Dir),
     Mod = 'ern@zz_failed_start',
     Forms = [{attribute, 1, module, Mod}, {attribute, 1, export, [{'$init', 0}]},
