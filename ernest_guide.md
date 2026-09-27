@@ -807,6 +807,46 @@ took 7
 
 The waiter's lambda captures `r` and is given straight to `spawn`, which hands the obligation to the new process. The queue keeps the waiters' addresses, which may be in a list.
 
+**Pacing.** A mailbox has no limit. A process that sends faster than its receiver takes messages fills the receiver's mailbox, and the node's memory with it. A call paces its caller, since the caller waits for each answer before it asks again. A stream of messages is paced by a window of credits: the receiver grants a number of messages, and the sender waits for the next grant when it has sent them.
+
+```ernest
+type ConsumerMsg = Item(Int) | Last
+
+type ProducerMsg = Credit(Int)
+
+// Sends the items from `next` to `last` while it has credit, and waits for
+// more when it has none.
+fn produce(to : Address(ConsumerMsg), next : Int, last : Int, credit : Int)
+    -> Unit with ProducerMsg =
+    if next > last then send(to, Last)
+    else if credit == 0 then receive { Credit(n) -> produce(to, next, last, n) }
+    else { send(to, Item(next)); produce(to, next + 1, last, credit - 1) }
+
+// Takes the items, granting ten more each time it has taken ten.
+fn consume(from : Address(ProducerMsg), taken : Int, sum : Int) -> Unit with ConsumerMsg =
+    receive {
+        Item(n) -> {
+            if (taken + 1) % 10 == 0 then send(from, Credit(10)) else Unit;
+            consume(from, taken + 1, sum + n)
+        }
+      | Last -> Io.println("sum " <> Int.toString(sum))
+    }
+
+export fn main() -> Unit with ConsumerMsg = {
+    let me = self();
+    let producer = spawn(Local, fn() -> Unit with ProducerMsg = produce(me, 1, 100, 0));
+    send(producer, Credit(10));
+    consume(producer, 0, 0)
+}
+```
+
+```console
+$ ern run pacing.erc
+sum 5050
+```
+
+However slow the consumer, no more than ten items wait in its mailbox. Where nothing paces a queue, `Process.info` shows it building: for a live process it answers `Some(info)`, and `info.queued` is the number of messages waiting in its mailbox. The runtime paces its own streams the same way: `Io.println`, `Tcp.write` and `Os.write` return once their stream has taken the bytes, so a program's output goes at the pace of what reads it.
+
 ### 4.5 Running the counter
 
 The counter of §4.1 with a `main` that uses it, in `counter.ern`:

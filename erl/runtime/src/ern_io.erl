@@ -18,5 +18,6 @@ debug(V) -> debug(V, any).
 -spec debug(term(), term()) -> term().
 debug(V, Desc) ->
     Line = <<(show(V, Desc))/binary, "\n">>,
-    ern_rt:send(ern_rt:sys(stdout), Line),
+    %% report §8.2: Io.OutMsg's Write(bytes, reply), answered once written
+    ern_rt:call_forever(ern_rt:sys(stdout), fun(Reply) -> {'Write', Line, Reply} end),
     V.

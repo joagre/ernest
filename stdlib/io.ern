@@ -2,6 +2,8 @@
 /// input, through the module's system references `stdout`, `stderr`, and
 /// `stdin` (report §8.2). Each is a system process, so printing is a
 /// message and carries the caller's mailbox effect; pure code cannot print.
+/// A write returns once its stream has taken the bytes, and waits while the
+/// stream is behind, so a program is held to the pace of what reads it.
 /// `Error` is the error of every system module.
 ///
 /// ## Examples
@@ -42,10 +44,14 @@ export type Error = NotFound | Denied | Refused | Closed | Timeout | NotATermina
 // What standard input takes.
 type StdinMsg = ReadLine(reply : Reply(Optional(String))) | Read(reply : Reply(Optional(Bytes)))
 
+// What standard output and standard error take: bytes to write, answered
+// once the stream has taken them (report §8.2).
+type OutMsg = Write(bytes : Bytes, reply : Reply(Unit))
+
 // Report §8.2: the system references, the runtime's addresses of standard
 // output, standard error and standard input, bound at each start.
-let stdout : Address(Bytes) = system(Erl.atom("stdout"))
-let stderr : Address(Bytes) = system(Erl.atom("stderr"))
+let stdout : Address(OutMsg) = system(Erl.atom("stdout"))
+let stderr : Address(OutMsg) = system(Erl.atom("stderr"))
 let stdin : Address(StdinMsg) = system(Erl.atom("stdin"))
 
 foreign fn system(name : Foreign) -> Address(a) with m = "ern_rt:sys/1"
@@ -60,10 +66,14 @@ foreign fn system(name : Foreign) -> Address(a) with m = "ern_rt:sys/1"
 /// Io.println("and half")
 /// // => Unit
 /// ```
-export fn print(s : String) -> Unit with m = send(stdout, String.toUtf8(s))
+export fn print(s : String) -> Unit with m = written(stdout, String.toUtf8(s))
 
 /// The string to standard output, with a line feed after it.
-export fn println(s : String) -> Unit with m = send(stdout, String.toUtf8(s <> "\n"))
+export fn println(s : String) -> Unit with m = written(stdout, String.toUtf8(s <> "\n"))
+
+// The bytes to a stream, once it has taken them.
+fn written(stream : Address(OutMsg), bytes : Bytes) -> Unit with m =
+    Address.callForever(stream, fn(r) = Write(bytes = bytes, reply = r))
 
 /// The string to standard error, as it is, without a line feed. Standard
 /// error is a second sink, for a program whose output something else reads;
@@ -76,10 +86,10 @@ export fn println(s : String) -> Unit with m = send(stdout, String.toUtf8(s <> "
 /// Io.printlnError("open the file")
 /// // => Unit
 /// ```
-export fn printError(s : String) -> Unit with m = send(stderr, String.toUtf8(s))
+export fn printError(s : String) -> Unit with m = written(stderr, String.toUtf8(s))
 
 /// The string to standard error, with a line feed after it.
-export fn printlnError(s : String) -> Unit with m = send(stderr, String.toUtf8(s <> "\n"))
+export fn printlnError(s : String) -> Unit with m = written(stderr, String.toUtf8(s <> "\n"))
 
 /// The next line from standard input, without its line feed and without
 /// one carriage return before it, or `None` at end of input. A last line
@@ -114,7 +124,7 @@ export fn read() -> Optional(Bytes) with m = Address.callForever(stdin, fn(r) = 
 /// Io.write(<<104, 105, 10>>)
 /// // => Unit
 /// ```
-export fn write(b : Bytes) -> Unit with m = send(stdout, b)
+export fn write(b : Bytes) -> Unit with m = written(stdout, b)
 
 /// The value as Ernest writes it, by its type at the call: a value as its
 /// literal or construction is written, a named constructor's fields in

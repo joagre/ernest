@@ -645,12 +645,19 @@ and `libs/markdown`, with its contract and listing, which `ern_prelude_tests`'s
 standard library's. A library added under `libs/` gets its section, or the test fails.
 Third-party libraries are not listed; Appendix D is what they follow.
 
-**Mailbox back pressure, discussed again.** Noted 2026-09-27, a decision for this
-milestone: whether a mailbox stays unbounded, back pressure being the program's own (§10;
-the log's *Backpressure* and *The Corpus Decisions, Re-judged*, which kept it so and left
-a credit type out), or the language or the runtime gives some, as Pony's runtime slows a
-sender to a flooded mailbox. Weighed on the principles, beside what `Tcp.read` and
-`Os.read` already do by taking a stream only while a read waits.
+**Back pressure, decided 2026-09-27** (§8.2, §10, Appendix E.18, E.23; the log's *Back
+Pressure, Again*). A mailbox stays unbounded, with no back pressure in the language or the
+runtime: with selective receive a process may wait for one message while others pile up, so
+a sender held back by a full mailbox would wait on it for good, and a `receive` without it
+would undo `Address.call` and the reply discipline. What is built instead:
+
+- **A write waits for its stream.** `Io.print` and its kin, `Tcp.write` and `Os.write` return
+  once their stream has taken the bytes, and wait while it is behind, as a write does in every
+  host; they had returned at once, and two million lines to a slow reader held 650 MB of the
+  node. Each is a call its stream answers, so selective receive plays no part. A write to a
+  socket or a running program that has ended faults as a read does.
+- **Guide §4 teaches pacing**: a call paces its caller, a window of credits paces a stream,
+  and `Process.info(p).queued` shows a queue building.
 
 **What Ernest adds, discussed again.** Noted 2026-09-27, a decision for this milestone:
 whether the README's and the guide's list of what Ernest adds (held equal by a test) should

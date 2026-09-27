@@ -151,8 +151,12 @@ socket_loop(Socket, Waiting, Buffer, State) ->
                     ern_rt:answer(Reply, {'Right', Buffer}),
                     socket_loop(Socket, Waiting, <<>>, State)
             end;
-        {'Send', Bytes} ->
-            case State =:= open andalso gen_tcp:send(Socket, Bytes) of
+        %% report Appendix E.18: answered once the socket has taken the
+        %% bytes, gen_tcp holding this process while the connection is behind
+        {'Send', Bytes, Reply} ->
+            Sent = State =:= open andalso gen_tcp:send(Socket, Bytes),
+            ern_rt:answer(Reply, 'Unit'),
+            case Sent of
                 {error, _} -> socket_loop(Socket, closed(Waiting), Buffer, closed);
                 _ -> socket_loop(Socket, Waiting, Buffer, State)
             end;

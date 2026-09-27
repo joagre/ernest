@@ -2410,6 +2410,116 @@ work_makes_no_atoms_test_() ->
         ?assertEqual(<<"0\n">>, Out)
     end}.
 
+%%
+%% Report §8.2, Appendix E.18, E.23: a write returns once its stream has
+%% taken the bytes, and waits while the stream is behind. Regression
+%% tests, written after the code: each write returned at once, and what the
+%% reader had not taken was held in the node.
+%%
+
+%% A writer of four megabytes, and whether it has finished after half a
+%% second in which nothing reads, then after everything is read.
+paced(Setup) ->
+    run(["type Msg = Done | Ended(Down)\n",
+         Setup,
+         "fn chunk() -> Bytes = String.toUtf8(String.repeat(\"x\", 65536))\n"
+         "fn writes(write : (Bytes) -> Unit with Never, n : Int) -> Unit with Never =\n"
+         "    if n == 0 then Unit else { write(chunk()); writes(write, n - 1) }\n"
+         "fn done(me : Address(Msg)) -> Bool with Msg =\n"
+         "    receive { Done -> true | after 0 -> false }\n"]).
+
+%% Appendix E.23: a program that stops reading its input, since no one
+%% reads its output, holds its writer, and a write after its end faults
+os_write_waits_test() ->
+    {ok, Out} = paced(
+        "fn drain(p : Address(Os.ProgramMsg), n : Int) -> Int with Msg = match Os.read(p) {\n"
+        "    Right(Os.Stdout(b)) -> drain(p, n + Bytes.size(b))\n"
+        "  | _ -> n\n"
+        "}\n"
+        "export fn main() -> Unit with Msg = match Os.start(Os.Command(program = \"cat\",\n"
+        "    arguments = [], input = <<>>), 30000) {\n"
+        "    Right(p) -> {\n"
+        "        let me = self();\n"
+        "        let _ = spawn(Local, fn() -> Unit with Never = {\n"
+        "            writes(fn(b) = Os.write(p, b), 64);\n"
+        "            Os.closeInput(p);\n"
+        "            send(me, Done)\n"
+        "        });\n"
+        "        receive { after 500 -> Unit };\n"
+        "        let early = done(me);\n"
+        "        let n = drain(p, 0);\n"
+        "        receive { Done -> Unit };\n"
+        "        Io.println(Io.show(#(early, n)));\n"
+        "        let _ = spawnMonitored(Local, fn() -> Unit with Never = Os.write(p, <<1>>),\n"
+        "            Ended);\n"
+        "        receive { Ended(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
+        "    }\n"
+        "  | Left(e) -> Io.println(Io.show(e))\n"
+        "}\n"),
+    ?assertMatch({match, _}, re:run(Out, "^#\\(false, 4194304\\)\nFault\\(\"callee (had ended|"
+                                         "returned without answering)\"\\)\n$")).
+
+%% Appendix E.18: a socket whose far end does not read holds its writer,
+%% and a write to a socket that has been closed faults
+tcp_write_waits_test() ->
+    {ok, Out} = paced(
+        "fn drain(s : Address(Tcp.SockMsg), n : Int) -> Int with Msg =\n"
+        "    if n >= 4194304 then n\n"
+        "    else match Tcp.read(s, 5000) {\n"
+        "        Right(b) -> drain(s, n + Bytes.size(b))\n"
+        "      | Left(_) -> n\n"
+        "    }\n"
+        "export fn main() -> Unit with Msg = match Tcp.listen(0) {\n"
+        "    Right(l) -> match Tcp.port(l) {\n"
+        "        Right(port) -> {\n"
+        "            let me = self();\n"
+        "            let _ = spawn(Local, fn() -> Unit with Never = match\n"
+        "                Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
+        "                    Right(c) -> { writes(fn(b) = Tcp.write(c, b), 64); send(me, Done) }\n"
+        "                  | Left(_) -> Unit\n"
+        "                });\n"
+        "            match Tcp.accept(l, 5000) {\n"
+        "                Right(s) -> {\n"
+        "                    receive { after 500 -> Unit };\n"
+        "                    let early = done(me);\n"
+        "                    let n = drain(s, 0);\n"
+        "                    receive { Done -> Unit };\n"
+        "                    Tcp.close(s);\n"
+        "                    receive { after 50 -> Unit };\n"
+        "                    Io.println(Io.show(#(early, n)));\n"
+        "                    let _ = spawnMonitored(Local,\n"
+        "                        fn() -> Unit with Never = Tcp.write(s, <<1>>), Ended);\n"
+        "                    receive {\n"
+        "                        Ended(Down(reason = r, site = _)) -> Io.println(Io.show(r))\n"
+        "                    }\n"
+        "                }\n"
+        "              | Left(e) -> Io.println(Io.show(e))\n"
+        "            }\n"
+        "        }\n"
+        "      | Left(e) -> Io.println(Io.show(e))\n"
+        "    }\n"
+        "  | Left(e) -> Io.println(Io.show(e))\n"
+        "}\n"),
+    ?assertEqual(<<"#(false, 4194304)\nFault(\"callee had ended\")\n">>, Out).
+
+%% Report §8.2: a write to standard output returns once the stream has taken
+%% it, so a program writing to a slow stream goes at its pace
+io_write_waits_test() ->
+    Me = self(),
+    {ok, Typed, Iface, Env} = ern_typecheck:check_string(['M'],
+        "export fn main() -> Unit with Never = {\n"
+        "    let before = Clock.now();\n"
+        "    List.foreach(List.range(1, 10), fn(n) = Io.println(Int.toString(n)));\n"
+        "    Io.printlnError(Int.toString(Clock.now() - before))\n"
+        "}\n"),
+    {ok, Mod, Bin} = ern_emitter:compile(['M'], Typed, Iface, Env),
+    {module, Mod} = code:load_binary(Mod, "test", Bin),
+    ok = ern_rt:run_main(fun() -> Mod:main() end, <<"main">>,
+                         #{stdout => fun(_) -> timer:sleep(50) end,
+                           stderr => fun(B) -> Me ! {err, B} end}),
+    Elapsed = receive {err, B} -> binary_to_integer(string:trim(B)) after 5000 -> none end,
+    ?assert(Elapsed >= 450).
+
 %% report §8.5: a module the program does not depend on is not initialized,
 %% though it is on the code path; a regression test for the shell's modules,
 %% which every run initialized, before the standard library's

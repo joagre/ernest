@@ -66,7 +66,7 @@ export abstract type ListenerMsg =
 /// ```
 export abstract type SockMsg =
     Recv(ms : Int, reply : Reply(Either(Io.Error, Bytes)))
-  | Send(Bytes)
+  | Send(bytes : Bytes, reply : Reply(Unit))
   | Close
   | FarEnd(reply : Reply(Either(Io.Error, Endpoint)))
   | NearEnd(reply : Reply(Either(Io.Error, Endpoint)))
@@ -143,10 +143,16 @@ export fn connect(host : String, port : Int, ms : Int)
 export fn read(socket : Address(SockMsg), ms : Int) -> Either(Io.Error, Bytes) with m =
     Address.callForever(socket, fn(r) = Recv(ms = ms, reply = r))
 
-/// Writes the bytes to the socket. It is a send: a connection that fails
+/// Writes the bytes to the socket, and returns once the socket has taken
+/// them, waiting while the connection is behind. A connection that fails
 /// shows as `Left(Io.Closed)` from the next read.
+///
+/// ### Errors
+///
+/// A write to a socket that has been closed faults as
+/// `Address.callForever` does on an ended process.
 export fn write(socket : Address(SockMsg), bytes : Bytes) -> Unit with m =
-    send(socket, Send(bytes))
+    Address.callForever(socket, fn(r) = Send(bytes = bytes, reply = r))
 
 /// Closes the socket, which ends its process.
 export fn close(socket : Address(SockMsg)) -> Unit with m = send(socket, Close)

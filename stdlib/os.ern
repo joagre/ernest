@@ -71,7 +71,7 @@ export type Finished = Finished(status : Int, stdout : Bytes, stderr : Bytes)
 /// ```
 export abstract type ProgramMsg =
     Read(reply : Reply(Either(Io.Error, Output)))
-  | Write(Bytes)
+  | Write(bytes : Bytes, reply : Reply(Unit))
   | CloseInput
 
 // What Os's system process takes: a program to start, with the process
@@ -196,8 +196,17 @@ export fn read(program : Address(ProgramMsg)) -> Either(Io.Error, Output) with m
     Address.callForever(program, fn(r) = Read(reply = r))
 
 /// Gives the bytes to the program as its input, after what it was given
-/// before. It is a send: bytes given after `Os.closeInput`, or once the
-/// program has closed its input, are dropped.
+/// before, and returns once the program has taken them, waiting while it is
+/// behind. A program that stops reading its input, as one whose output no
+/// one reads may, holds its writer; a program that both takes much input
+/// and writes much output is written to by one process and read by another.
+/// Bytes given after `Os.closeInput`, or once the program has closed its
+/// input, are dropped.
+///
+/// ### Errors
+///
+/// A write after the program's process has ended faults as
+/// `Address.callForever` does.
 ///
 /// ### Examples
 ///
@@ -210,7 +219,7 @@ export fn read(program : Address(ProgramMsg)) -> Either(Io.Error, Output) with m
 /// // => Right(Stdout(<<104, 105>>))
 /// ```
 export fn write(program : Address(ProgramMsg), bytes : Bytes) -> Unit with m =
-    send(program, Write(bytes))
+    Address.callForever(program, fn(r) = Write(bytes = bytes, reply = r))
 
 /// Ends the program's input once what it was given before is written.
 ///

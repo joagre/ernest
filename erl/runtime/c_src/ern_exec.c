@@ -16,8 +16,11 @@
  *   the helper ends.
  *
  *   From the program: 's' it started; 'f' and an error's name, it did not
- *   start; 'o' bytes of its output; 'r' bytes of its standard error, each
- *   answering one 'n', so that a program no one asks waits on its output;
+ *   start; 'a' the program has taken the bytes of one 'i', or they were
+ *   dropped, one for each 'i' in order, so that a writer waits while the
+ *   program is behind; 'o' bytes of its output; 'r' bytes of its standard
+ *   error, each answering one 'n', so that a program no one asks waits on
+ *   its output;
  *   'x' and a 4-byte big-endian status, once it has exited and both its
  *   output and its standard error have ended. A status is the program's
  *   exit code, or 128 and the signal's number for a program a signal ended.
@@ -98,6 +101,41 @@ static const char *error_name(int error)
 /* The input not yet written to the program, as a growing buffer. */
 static unsigned char *pending = NULL;
 static size_t pending_size = 0, pending_capacity = 0;
+
+/* The end of each 'i' not yet answered by an 'a', as a count of the input's
+   bytes from its start, oldest first; taken is how many the program has
+   taken, accepted how many were given. */
+static uint64_t *ends = NULL;
+static size_t ends_count = 0, ends_capacity = 0;
+static uint64_t accepted = 0, taken = 0;
+
+static void push_end(uint64_t end)
+{
+    if (ends_count == ends_capacity) {
+        size_t capacity = ends_capacity ? 2 * ends_capacity : 64;
+        uint64_t *grown = realloc(ends, capacity * sizeof *ends);
+        if (grown == NULL) {
+            kill_program();
+            _exit(1);
+        }
+        ends = grown;
+        ends_capacity = capacity;
+    }
+    ends[ends_count++] = end;
+}
+
+/* An 'a' for every 'i' whose bytes the program has taken, or, where its
+   input is gone, for every 'i' still waiting. */
+static void acknowledge(int dropped)
+{
+    size_t n = 0;
+    while (n < ends_count && (dropped || ends[n] <= taken)) {
+        frame('a', NULL, 0);
+        n++;
+    }
+    memmove(ends, ends + n, (ends_count - n) * sizeof *ends);
+    ends_count -= n;
+}
 
 static void add_pending(const unsigned char *data, size_t size)
 {
@@ -246,8 +284,13 @@ int main(int argc, char **argv)
                     /* input after its end, or after the program closed
                        it, is dropped */
                     if (body_size > 0 && body[0] == 'i') {
-                        if (program_in >= 0 && !input_ended)
+                        if (program_in >= 0 && !input_ended) {
                             add_pending(body + 1, body_size - 1);
+                            accepted += body_size - 1;
+                            push_end(accepted);
+                        } else {
+                            frame('a', NULL, 0);
+                        }
                     }
                     else if (body_size > 0 && body[0] == 'e')
                         input_ended = 1;
@@ -264,13 +307,16 @@ int main(int argc, char **argv)
                 if (wrote > 0) {
                     memmove(pending, pending + wrote, pending_size - (size_t)wrote);
                     pending_size -= (size_t)wrote;
+                    taken += (uint64_t)wrote;
                 } else if (wrote < 0 && errno != EAGAIN && errno != EINTR) {
                     /* the program closed its input: what it did not take is dropped */
                     pending_size = 0;
                     close(program_in);
                     program_in = -1;
+                    acknowledge(1);
                 }
             }
+            acknowledge(0);
             if (program_in >= 0 && input_ended && pending_size == 0) {
                 close(program_in);
                 program_in = -1;
@@ -301,9 +347,11 @@ int main(int argc, char **argv)
         }
 
         /* Both outputs have ended; the run ends when the program exits,
-           unless the runtime lets go of it first. */
+           unless the runtime lets go of it first. Input it did not take is
+           dropped. */
         if (program_in >= 0)
             close(program_in);
+        acknowledge(1);
         for (;;) {
             int status;
             pid_t done = waitpid(program, &status, WNOHANG);

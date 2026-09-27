@@ -303,6 +303,30 @@ stream_gone() ->
     ?assertEqual({ok, <<"141\n">>}, file:read_file(Dir ++ "/status")),
     ?assertEqual({ok, <<>>}, file:read_file(Dir ++ "/err")).
 
+%% report §8.2: a program writing faster than its reader reads is held to
+%% the reader's pace, so what it has written and the reader has not taken
+%% is not held in the node. A regression test, written after the code: two
+%% million lines to a pipe read late held about 650 MB, where the node
+%% itself takes under 100.
+paced_output_test_() ->
+    {timeout, 60, fun paced_output/0}.
+
+paced_output() ->
+    Dir = "build/paced",
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/flood.ern",
+                         "fn loop(n : Int) -> Unit with Never =\n"
+                         "    if n == 0 then Unit\n"
+                         "    else { Io.println(\"a line of output a slow reader takes late\");\n"
+                         "        loop(n - 1) }\n"
+                         "export fn main() -> Unit with Never = loop(2000000)\n"),
+    {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/flood.ern"),
+    {0, Out} = sh("sh -c '../bin/ern run " ++ Dir ++ "/flood.erc | { sleep 4; cat > /dev/null; } & "
+                  "sleep 3; ps -eo rss,comm,args | grep \"beam.smp.*[f]lood.erc\" | head -1; "
+                  "wait'"),
+    [Rss | _] = string:lexemes(binary_to_list(Out), " \n"),
+    ?assert(list_to_integer(Rss) < 250000).
+
 %% report §11.2: where standard error is a file, a fault line begins with
 %% the time, in UTC as RFC 3339 writes it; where it is a service manager's
 %% journal, as JOURNAL_STREAM names it, it does not, and a terminal's is

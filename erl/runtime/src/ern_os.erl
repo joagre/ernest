@@ -59,7 +59,10 @@ started(Port, Input, Ms, Owner, Reply) ->
     erlang:port_command(Port, <<"i", Input/binary>>),
     Watch = erlang:monitor(process, Owner),
     Deadline = ern_rt:deadline(Ms),
-    starting(#{port => Port, watch => Watch, deadline => Deadline, timer => arm(Deadline)},
+    %% the input given at the start is answered by the helper as a write is,
+    %% with no one waiting for it
+    starting(#{port => Port, watch => Watch, deadline => Deadline, timer => arm(Deadline),
+               writes => queue:in(none, queue:new())},
              Reply).
 
 helper_failed() ->
@@ -96,21 +99,30 @@ starting(#{port := Port} = Run, Reply) ->
 %% status once the program has exited and both its outputs have ended,
 %% which it can learn only while a read waits; so a read waits for every
 %% frame it sends. The exit status is the last answer, and the process
-%% returns after it.
+%% returns after it. Report Appendix E.23: a write is answered when the
+%% helper says the program has taken its bytes, one `a` for each input in
+%% order, the replies kept in the run's `writes`, so that a writer waits
+%% while the program is behind; what still waits when the program ends is
+%% answered then.
 running(#{port := Port} = Run, Waiting) ->
     receive
         {'Read', Reply} ->
             erlang:port_command(Port, <<"n">>),
             running(Run, queue:in(Reply, Waiting));
-        {'Write', Bytes} ->
+        {'Write', Bytes, Reply} ->
             erlang:port_command(Port, <<"i", Bytes/binary>>),
-            running(Run, Waiting);
+            running(Run#{writes := queue:in(Reply, maps:get(writes, Run))}, Waiting);
+        {Port, {data, <<"a">>}} ->
+            {{value, Written}, Rest} = queue:out(maps:get(writes, Run)),
+            Written =:= none orelse ern_rt:answer(Written, 'Unit'),
+            running(Run#{writes := Rest}, Waiting);
         'CloseInput' ->
             erlang:port_command(Port, <<"e">>),
             running(Run, Waiting);
         {Port, {data, <<"x", Status:32>>}} ->
             {{value, Reply}, _} = queue:out(Waiting),
             stop(Run),
+            unwritten(Run),
             answered(Reply, {'Right', {'Exited', Status}});
         {Port, {data, <<Tag, Bytes/binary>>}} ->
             {{value, Reply}, Rest} = queue:out(Waiting),
@@ -119,15 +131,22 @@ running(#{port := Port} = Run, Waiting) ->
         {Port, {exit_status, _}} ->
             %% the helper ended with no status to send: it failed
             stop(Run),
+            unwritten(Run),
             over(Waiting, {'Left', helper_failed()});
         {'DOWN', _, process, _, _} ->
             killed(Run);
         {timeout, _} = Tick ->
             case timed_out(Run, Tick) of
                 {again, Run1} -> running(Run1, Waiting);
-                over -> stop(Run), over(Waiting, {'Left', 'Timeout'})
+                over -> stop(Run), unwritten(Run), over(Waiting, {'Left', 'Timeout'})
             end
     end.
+
+%% The writes still waiting when the program has ended: their bytes are
+%% dropped, as a write after the end of the input is.
+unwritten(#{writes := Writes}) ->
+    [ern_rt:answer(R, 'Unit') || R <- queue:to_list(Writes), R =/= none],
+    ok.
 
 piece($o, Bytes) -> {'Stdout', Bytes};
 piece($r, Bytes) -> {'Stderr', Bytes}.
@@ -148,7 +167,7 @@ over(Waiting, Answer) ->
 over(Answer) ->
     receive
         {'Read', Reply} -> ern_rt:answer(Reply, Answer);
-        {'Write', _} -> over(Answer);
+        {'Write', _, Written} -> ern_rt:answer(Written, 'Unit'), over(Answer);
         'CloseInput' -> over(Answer);
         {'DOWN', _, process, _, _} -> exit({ern, killed})
     end.

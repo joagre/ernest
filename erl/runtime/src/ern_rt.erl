@@ -771,7 +771,11 @@ sys(Name) ->
 %% Report §8.2: stdout and stderr each write what they receive, as bytes,
 %% through the function a run was given, or to a file descriptor through a
 %% port of their own, which says when the stream can no longer be written:
-%% the program then ends (§8.6), and the stream's process with it.
+%% the program then ends (§8.6), and the stream's process with it. A
+%% program's write, Io.OutMsg's Write(bytes, reply), is answered once the
+%% bytes are taken, the port holding this process while it is busy, so that
+%% the writer waits while the stream is behind; the runtime's own lines, a
+%% fault's report and a test's, are bytes alone.
 stream({fd, Fd}, Name) ->
     process_flag(trap_exit, true),
     port_loop(erlang:open_port({fd, 0, Fd}, [out, binary]), Name);
@@ -782,6 +786,10 @@ stdout_loop(Out) ->
     receive
         {flush, From, Ref} ->
             From ! {Ref, flushed},
+            stdout_loop(Out);
+        {'Write', Bin, Reply} ->
+            Out(Bin),
+            answer(Reply, ?UNIT),
             stdout_loop(Out);
         Bin when is_binary(Bin) ->
             Out(Bin),
@@ -795,14 +803,25 @@ port_loop(Port, Name) ->
                 ok -> From ! {Ref, flushed}, port_loop(Port, Name);
                 gone -> gone(Name)
             end;
+        {'Write', Bin, Reply} ->
+            case written(Port, Bin) of
+                ok -> answer(Reply, ?UNIT), port_loop(Port, Name);
+                gone -> gone(Name)
+            end;
         Bin when is_binary(Bin) ->
-            try erlang:port_command(Port, Bin) of
-                true -> port_loop(Port, Name)
-            catch
-                error:badarg -> gone(Name)
+            case written(Port, Bin) of
+                ok -> port_loop(Port, Name);
+                gone -> gone(Name)
             end;
         {'EXIT', Port, _} ->
             gone(Name)
+    end.
+
+written(Port, Bin) ->
+    try erlang:port_command(Port, Bin) of
+        true -> ok
+    catch
+        error:badarg -> gone
     end.
 
 %% What the port was given is written, or the stream has gone.
