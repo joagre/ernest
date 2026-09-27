@@ -21,9 +21,14 @@
 ;;     (add-to-list 'auto-mode-alist '("\\.ern\\'" . ernest-mode))
 ;;
 ;; This line lays out each Ernest buffer as it is saved, with `ern
-;; format', which `ernest-format-command' names:
+;; format':
 ;;
 ;;     (add-hook 'ernest-mode-hook #'ernest-format-on-save-mode)
+;;
+;; `ern' is looked for on `exec-path', where an Emacs started from a
+;; desktop menu may not have the repository's `bin/'.  This line names it:
+;;
+;;     (setq ernest-format-command (expand-file-name "~/src/ernest/bin/ern"))
 
 ;;; Code:
 
