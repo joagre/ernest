@@ -124,7 +124,7 @@ Ten kinds, all run by `make test`:
 - The shell: `test/ern_shell_tests.erl` runs sessions in line mode against their expected output and drives the shell under the pseudo-terminal harness, its keys, region, completion, and documentation; `test/ern_terminal_tests.erl` drives §8.2's keys, the terminal's restoration, and the snake game. `test/ern_integration_tests.erl`'s `libs_test_` runs every library's `Test` values.
 - The Emacs mode: `make test-emacs`, last in `make test`, runs the mode's own tests under `emacs/test/`, each in an Emacs of its own and side by side (`docs/emacs_mode.md`).
 
-`make test` runs every kind; each area has a target of its own, `test-erl`, `test-programs`, `test-docs`, `test-guide`, `test-shell`, and `test-emacs`, which CLAUDE.md maps to the changes that need them. The applications' unit tests run side by side under `make -j`; the guide test compiles and runs a module's example in its own node through `ern_cli:ern/2`, and runs a shell session, a program given standard input, or a rejected example in a node of its own, those in parallel; the integration programs run in parallel.
+`make test` runs every kind; each area has a target of its own, `test-erl`, `test-programs`, `test-docs`, `test-guide`, `test-shell`, and `test-emacs`, which `docs/coherence.md` maps to the changes that need them. The applications' unit tests run side by side under `make -j`; the guide test compiles and runs a module's example in its own node through `ern_cli:ern/2`, and runs a shell session, a program given standard input, or a rejected example in a node of its own, those in parallel; the integration programs run in parallel.
 
 ## Where MVP 2.5 and later hook in
 

@@ -13,6 +13,7 @@ The documents that cite or describe a change are found by searching the reposito
 | §0 or Appendix E.0 | `make test-docs` | C4 over the whole report, and C14 over the code E.0 governs |
 | §11.5 | `make test-docs` | C21 once built |
 | the guide | `make test-guide`, `make test-docs` | C9 for the sections changed; C10 with one newcomer for a section added |
+| the README | `make test-docs` | C11 for it; C10 with one newcomer, who reads it and stops |
 | `shell/README.md` | `make test-docs` | C11 for it; C10 with one shell reader for a section added |
 | another document | `make test-docs`, or `make xref` for citations and paths alone | C11 for it |
 | a rule document: CLAUDE.md, `docs/style.md`, this document, `review.md` | `make test-docs`, and `make test` for `docs/style.md` | C11 for every document that applies it, and for `docs/style.md` C13 and C14 over the code it governs |
@@ -22,7 +23,7 @@ The documents that cite or describe a change are found by searching the reposito
 | `shell/` | `make test-shell` | C14 for the shell; C19; C11 for `shell/README.md` and `docs/shell_design.md` |
 | `libs/` | `make test-erl APP=runtime`, which reads their pages | C14 for the library; C15 for its page |
 | `examples/` | `make test-programs` | C14 for the example; C11 for every document that cites it |
-| `bin/ern`, the Makefiles, `tools/` | `make test` | C11 for the README, CLAUDE.md's *Tests* and `docs/architecture.md`; C19 for `bin/ern` |
+| `bin/ern`, the Makefiles, `tools/` | `make test` | C11 for `docs/development.md`, CLAUDE.md's *Tests* and `docs/architecture.md`; C19 for `bin/ern` |
 | the Emacs mode | `make test-emacs` | C16 |
 | a vendored file or a table built from another's data | `make test` | C20 |
 | the section numbers of a document other than the report, whose never change | `make xref` | C12 |
@@ -33,7 +34,7 @@ The documents that cite or describe a change are found by searching the reposito
 
 | | What agrees | Checked by | Passes when |
 |---|---|---|---|
-| C1 | the report's sections and their tests | `make sections` (the README, *Building*); a reader of the tests of each section the item changed, and of every section before a release | `make sections` lists only the sections the plan's *Standing gaps* names, and each section read has a test of each rule it states and each refusal |
+| C1 | the report's sections and their tests | `make sections` (`docs/development.md`, *Building*); a reader of the tests of each section the item changed, and of every section before a release | `make sections` lists only the sections the plan's *Standing gaps* names, and each section read has a test of each rule it states and each refusal |
 | C2 | the documents' citations and paths, and the report's and the guide's contents lists | `make xref`, `make test-docs` | green: every citation names a heading, every path named exists, and each contents list equals its headings |
 | C3 | every list that lives in the code and in a document | the mirror tests; a reader who lists the lists | green, and every list has a test holding the two equal |
 | C4 | the report and its principles | the principles reader | its findings decided |
@@ -42,7 +43,7 @@ The documents that cite or describe a change are found by searching the reposito
 | C7 | the report and those who build and program from it | the implementer and the programmer, reading cold | their findings decided |
 | C8 | the report and its register | the register reader | its findings decided |
 | C9 | the guide and the report | `make test-guide`; the guide's sweep reader | green, and its findings decided |
-| C10 | a teaching document and a newcomer | the newcomer, or for `shell/README.md` the shell reader | its findings decided |
+| C10 | the README and a teaching document, and a newcomer | the newcomer, or for `shell/README.md` the shell reader | its findings decided |
 | C11 | every other document and the report and the code | the documents' sweep reader | its findings decided |
 | C12 | citations of renumbered sections and their meaning | a reader of every citation of the old numbers | each still names what its sentence means |
 | C13 | the Erlang and the C, and the report and `docs/style.md` | Dialyzer and Erlang's xref, `make dialyzer` and the target MVP 2.95 names, once built; the code reader | Dialyzer and the xref target clean, and its findings decided |
@@ -73,7 +74,7 @@ The documents that cite or describe a change are found by searching the reposito
 - **C6, C7, the cold readers.** "You know Erlang, Haskell or ML, Rust and Go, but not Ernest. Read `ernest_report.md`'s `<sections>`, and nothing else." The adversary reports two sections that disagree, prose against Appendix A, a signature against its prose, and a rule another makes unreachable. The implementer reports every place one who builds a conforming toolchain must guess, and every case the rules leave silent. The programmer reports every example that would not compile under the rules as written, every name used before it is defined, and every reference that points at the wrong section.
 - **C8, the register reader.** "Read `<sections>` of `ernest_report.md` for sentences that argue rather than state, and every section over 600 words for restating, against CLAUDE.md's *Writing*."
 - **C9, C11, the sweep readers.** "Read `<document>`, or its changed sections, against `ernest_report.md` and the code it describes; report every statement that is false or stale, and every fact restated outside its owner or owned by no document, checking CLAUDE.md's *Who owns each fact*; in the guide, also every job it teaches two ways."
-- **C10, the newcomer.** "You know another language and not Ernest. Read `ernest_guide.md` alone, doing its exercises with `bin/ern` as it says, then write `<program>` with only what it taught you: a chat server, a tool over files, a game at a terminal, or a pipeline over standard input. Report every place you were lost, every message you did not understand, and everything you wanted and could not find." For a section added, the newcomer reads the guide up to and through that section and does its exercises. A program that shows what no example does joins `examples/`.
+- **C10, the newcomer.** "You know another language and not Ernest. Read `README.md`, then `ernest_guide.md` alone, doing its exercises with `bin/ern` as it says, then write `<program>` with only what it taught you: a chat server, a tool over files, a game at a terminal, or a pipeline over standard input. Report what on the README put you off or told you too little to go on, every place you were lost, every message you did not understand, and everything you wanted and could not find." For a section added, the newcomer reads the guide up to and through that section and does its exercises. A program that shows what no example does joins `examples/`.
 - **C10, the shell reader.** "You know Ernest and not the shell's code. Read `shell/README.md` alone, then find in `shell/` what it says is there. Report every place you were lost or it led you wrong."
 - **C13, the code reader.** "Read `erl/<app>/src` and `erl/<app>/test`, or `erl/runtime/c_src`, against `docs/style.md` and the report sections its comments cite. Report defects, dead code, missing specs, comments that no longer hold, and code that could be shorter and clearer."
 - **C14, the Ernest reader.** "Read `<area>` against the report sections it implements, Appendix E.0, and the principles. Report defects, code that could be shorter and clearer, and what a reader who knows the rest of Ernest would not predict."

@@ -46,7 +46,7 @@ build/stdlib/.built: $(TOOL) $(call sources,stdlib)
 	  cp $$f build/stdlib/ern@$$(basename $$f .erc).beam; done
 	@touch $@
 
-# The libraries (plan, MVP 2.7): each libs/<name>/ is a source root of its
+# The libraries (plan, MVP 3.2): each libs/<name>/ is a source root of its
 # own, compiled into build/libs/<name>, which a program adds with
 # --load-path. Rebuilt when a compiler beam is newer, as the standard
 # library is.
@@ -88,7 +88,7 @@ unicode:
 
 # The tests by area (plan, MVP 2.6). `make test` runs
 # every area; a change that touches one area runs that area's target, as
-# CLAUDE.md maps them.
+# docs/coherence.md maps them.
 test: all
 	@$(MAKE) -s test-erl
 	@$(MAKE) -C test test

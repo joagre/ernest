@@ -1,156 +1,33 @@
 # Ernest
 
-A functional language for explicit process protocols. Mailbox effects and linear replies are part of the type system. Two organizing ideas: pure functions with Hindley-Milner types, and processes with typed mailboxes. On BEAM (Erlang OTP 29).
+Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is pure functions, whose types the compiler infers, and processes that talk through typed mailboxes. Most of its parts come from elsewhere: the Erlang runtime's processes, Gleam's static types on that runtime, and Unison's code known by the hash of its definition. What Ernest adds is where the parts meet:
 
-## Status
+- **The mailbox in the function's type.** A process receives one type of message, and the functions it runs say so, `with CounterMsg`. An address carries the same type, so every `send` is checked against its receiver. Gleam types the channel a message travels on; Ernest types the process.
+- **Checked replies.** A request carries a `Reply`, answered exactly once on every path, which the compiler checks as it checks types. `Address.call` waits with a deadline, so an answer that never comes is a case the program handles.
+- **Purity in the type.** `with` separates the functions that may send or receive from those that cannot. A pure function computes and returns, and the compiler holds it to that.
+- **Distribution by content, planned and not yet built.** Unison's content addressing, on the Erlang runtime. Every function and type is known by a hash of its definition, a type's name included, so a message is checked across nodes as it is within one. Code travels only with a process spawned on a peer, which brings the definitions it needs, the peer fetching what it has not seen; a message between nodes is values. Two nodes need not run the same version of a program, and two versions of a type are two types, never one type read two ways.
 
-The toolchain is written in Erlang: lexer, parser, type checker, runtime, the compiler to BEAM, and the one command `ern` under `bin/`, with every example program the toolchain runs compiled and run as a test. Where the project stands and what comes next is "Where we are" in [`docs/implementation_plan.md`](docs/implementation_plan.md).
+It is young. The language and its toolchain are complete enough for programs on one node, and programs across nodes come after the first release, which is on its way; where the project stands is "Where we are" in the [plan](docs/implementation_plan.md).
 
-## Reading order
+## Trying it
 
-### Start here
-
-- **[`ernest_report.md`](ernest_report.md)** — the language report. Normative. Everything else in this repo defers to it. About twenty pages of rules in twelve numbered sections, 0 through 11, in the register of a Wirth report, no rationale and no restating, plus six appendices: grammar (A), examples (B), configuration (C), a foreign-library walk-through (D), the standard library (E), and a glossary (F). The reasons are in the decisions log.
-
-- **[`ernest_guide.md`](ernest_guide.md)** — the guide, *Programming in Ernest*: the language taught to a programmer who knows another, with examples the tests compile and run.
-
-### Then the small programs
-
-The complete programs from the report's Appendix B and D, and some of the guide's, are collected under [`examples/`](examples/). Each program's header comment says where it comes from and what it needs; `template.ern`, a documented module with no header comment, is described by [`docs/module_doc_template.md`](docs/module_doc_template.md). Together with the standard library and the libraries, the examples exercise every construct of the grammar, and a test keeps it so.
-
-**What the toolchain runs.** The guide's own examples are compiled, run, and compared with the output it shows by `test/ern_guide_tests.erl`. The programs under `examples/` that `make test` compiles and runs are the `PROGRAMS` macro in `test/ern_integration_tests.erl`, with their expected output under `test/expected/` and the Erlang they compile to under `test/golden/`. The `modules` pair runs there too, and the paper programs have tests of their own: `repl` on a fixed input, `filesync` given two directories, and `webserver` asked twice over one session, each stopped when it has shown what it must. `snake` wants a terminal, so `ern_terminal_tests` plays it under a pseudo-terminal, and `echo` is a measurement run by hand; the rest of `examples/` is type-checked only, and each file's header says where it stands.
-
-### Then the paper programs
-
-[`examples/snake.ern`](examples/snake.ern), [`examples/repl.ern`](examples/repl.ern), [`examples/filesync.ern`](examples/filesync.ern), and [`examples/webserver.ern`](examples/webserver.ern), in that order; guide §14 says what each one shows.
-
-### Then, as reference material
-
-- **[`docs/decisions.md`](docs/decisions.md)** — dated design decisions and their rationale. What was tried, what was rejected, why the report says what it says. Not normative — the report wins any conflict. Browse as needed; not intended to be read straight through.
-
-- **[`docs/implementation_plan.md`](docs/implementation_plan.md)** — the roadmap: where the project stands, what is done, and what comes next.
-
-- **[`docs/coherence.md`](docs/coherence.md)** — the checks that the project agrees with itself, and when each runs.
-
-- **[`docs/review.md`](docs/review.md)** — what a release adds to those checks, and when a review is done.
-
-- **[`docs/architecture.md`](docs/architecture.md)** — how the toolchain is built: the stages, what flows between them, the checker's passes, the compiler's one traversal, the runtime, the tests, and where MVP 2.5 and later hook in.
-
-## Ground rules
-
-- **`ernest_report.md` is the single normative document.** Nothing else in this repo overrides it.
-- **Appendix A of the report is the grammar.** Any conflict between prose and Appendix A is resolved in favor of Appendix A.
-- **Section 0 of the report is the five principles.** They break ties when the design admits options.
-- **The decisions log is rationale only.** It's updated when the report is updated. Historical entries are dated and reflect their point in time.
-- **Example programs are illustrative.** They test the report by putting it through real programs. When they surface an anomaly, the report changes first, then the log, then the code.
-
-## Layout of the language
-
-Four layers:
-
-- **Language.** The rules in `ernest_report.md`: syntax, types, processes, evaluation. Small and stable.
-- **Prelude.** What the report requires to exist, §9: the built-in and declared types, the process functions, the operations the operators resolve to, and the system references. A prelude operation in a type's namespace is provided by that type's standard library module.
-- **Standard library** (Appendix E). On the load path by default: one module per namespace of Appendix E, mostly one per type and one per system process, which is the way a program uses a system process (§8.2). Appendix E.0 has the rules for what enters and how it is named. The modules are Ernest under `stdlib/`, since the plan's MVP 2.5.
-- **Libraries.** Everything else, `Json`, `Tls`, `Regex`, `Http`, and the rest: written on the foreign-library pattern of Appendix D, by anyone, added to a program's load path when wanted. Which are first-party under `libs/`, and when, is the plan's MVP 3.2; `libs/ets` and `libs/markdown` are there, and the shell renders documentation with the second. The line between the standard library and a library is Appendix E.0: a namespace of its own with policy inside is a library, however useful.
-
-## Layout of the repository
+On Linux or macOS, with Erlang/OTP 29, GNU make and a C compiler:
 
 ```
-VERSION            the toolchain's version, read at build time
-ernest_report.md   the language report (normative)
-ernest_guide.md    the guide
-docs/              decisions log, implementation plan, architecture note, style guides,
-                   module documentation template, shell design, language feedback, the
-                   coherence checks, the review before a release, Emacs mode, node
-                   protocol, code distribution
-examples/          Ernest programs: the paper programs and the small ones
-erl/               the toolchain, as Erlang applications: lexer, parser,
-                   typer, runtime, emitter, cli, utils (vendored getopt);
-                   each has src/, include/, ebin/, test/; the runtime also
-                   c_src/, ern_exec's C source, and priv/, where make builds it
-test/              what spans applications: the hand-written target modules,
-                   the integration tests, the guide's examples, the shell's
-                   sessions, the pseudo-terminal harness, expected/, golden/,
-                   input/, session/, stdin/, terminal/
-bin/               ern, as an escript source
-stdlib/            the standard library as Ernest source
-shell/             the shell as Ernest source, from MVP 2.6; its README.md guides
-                   a reader through the code
-emacs/             ernest-mode.el, the Emacs major mode, and its tests under test/
-build/             build products, not in git: build/stdlib/, build/shell/, and
-                   build/libs/ from make, the standard library's pages from make doc
-libs/              the first-party libraries, each a source root a program adds
-                   with --load-path: ets, markdown
-tools/             generators of tables the sources hold: unicode_width.escript
-                   writes Terminal.columns' table, run by make unicode
+make
+bin/ern build examples/hello.ern
+bin/ern run examples/hello.erc     # hello, world
+bin/ern shell                      # :quit to leave
 ```
 
-A module path segment is one lowercase word (report §11.1); a multi-word module is a nested directory. Files that are not modules use underscores.
+The guide writes `ern`: put this repository's `bin/` on your `PATH`.
 
-## Building
+## Reading more
 
-Linux or macOS, with Erlang/OTP 29, GNU make, and a C compiler, `cc`, for the one helper written in C, which runs a program for `Os.run`. The toolchain's Erlang uses no rebar3 and no OTP behaviours, by design; [`docs/style.md`](docs/style.md) says what that covers. `make test` also needs python3, for the pseudo-terminal the terminal tests run a program under; Erlang cannot open one. Emacs is optional: without it the mode's tests are skipped and the rest runs.
-
-```
-make              compile every application into its ebin/, then stdlib/, libs/, shell/
-make test         build, then run every area below
-make test-erl     the unit tests of every application under erl/, side by side;
-                  APP=typer for one
-make test-programs  the example programs, compiled and run
-make test-docs    the citations and the style
-make test-guide   the guide's examples
-make test-shell   the shell's sessions and the terminal
-make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
-make doc          write the standard library's and the prelude's pages to build/stdlib/,
-                  with index.md
-make sections     list the report sections no test cites
-make xref         check that every section citation and document path in the documents resolves
-make coverage     every section with how many tests cite it, thinnest first
-make golden       rewrite test/golden/, the Erlang the compiler emits per example
-make contents     rewrite the contents lists of the report and the guide from their headings
-make unicode UC_SPEC=dir
-                  write Terminal.columns' table from Unicode's data in dir, OTP's
-                  lib/stdlib/uc_spec of the host's version
-make clean        remove build products
-make clean-emacs  remove Emacs backup, auto-save, and lock files
-```
-
-## Using
-
-`bin/ern` is the toolchain, its first word the job, with long options only (report §11).
-
-```
-bin/ern build examples/hello.ern                  # writes examples/hello.erc
-bin/ern run examples/hello.erc                    # hello, world
-bin/ern build --build-root build examples/modules # a source tree, in dependency order
-bin/ern run build/main.erc                        # loads net/http.erc by namespace
-bin/ern build --emit-erl examples/hello.ern       # the Erlang source, for reading
-bin/ern doc stdlib/list.ern                       # the module's documentation as CommonMark
-bin/ern build --short-errors examples/hello.ern   # the first line of each error only
-bin/ern config                                    # ./.ernest with a key pair
-bin/ern shell                                     # a shell over the standard library
-bin/ern shell build/main.erc                      # a shell beside a running program
-bin/ern test build/shell/shell/editor.erc         # the module's tests
-bin/ern build --load-path build/libs/ets --build-root build/app app  # a program using a library
-bin/ern run --load-path build/libs/ets build/app/main.erc           # and run with it
-```
-
-At a terminal the shell edits the line with Readline's Emacs keys, keeps a history in
-`$HOME/.ernest/history`, takes another line where the parser cannot finish an input,
-completes a name with `Tab` and shows its documentation with `Shift-Tab`, and shows what
-programs write in a region at the foot of the screen; `:help` lists its commands.
-Report §11.2 states what it does and [`docs/shell_design.md`](docs/shell_design.md) how it is
-built.
-
-## What the toolchain accepts
-
-The toolchain is the report on one node; the plan's MVPs lift the table row by row. Everything the report describes type-checks, and what the table leaves out compiles and runs. What runs today includes: pure functions with inference, `Float` and operators on user types, `foreign fn` and `foreign type` with the checks of §8.4, bitstrings, sum and abstract types, processes with typed mailboxes, `receive` with `after`, `Address.call`, `monitor` and `kill`, `<-`, `match` with any guard, top-level `let`, and modules in directories. The table is what the toolchain refuses or does not yet check, each with the MVP that lifts it in [`docs/implementation_plan.md`](docs/implementation_plan.md).
-
-| Construct | Until | What you see today |
-|---|---|---|
-| `spawn(Peer(...))`, peers, `ernest.conf` (§6.2, §8.3) | MVP 3 | `spawn` faults with `peer unreachable`; `ernest.conf` is not read, and of the configuration directory only the shell's `startup` is |
-
-Every refusal the toolchain makes for a later MVP's sake names in its error text the MVP that brings the thing, and a test in `erl/cli/test` fails when such a text is missing from this table. Runtime behaviour that stands in for a later MVP, the peer fault, is listed by hand. `make sections` lists the report sections no test cites; the three it prints are MVP 3 material. `make coverage` lists every section with how many tests cite it and its length, thinnest first: a long section with one citation is where a rule can hide untested.
+- **[The guide](ernest_guide.md)**, *Programming in Ernest*, teaches the language to a programmer who knows another. Start here.
+- **[`examples/`](examples/)** holds complete programs, from `hello.ern` to a game at a terminal, [`snake.ern`](examples/snake.ern), and a small web server, [`webserver.ern`](examples/webserver.ern); guide §14 says what each shows.
+- **[The report](ernest_report.md)** is where the details are: the language's definition, which everything else defers to.
+- **[Working on Ernest](docs/development.md)** is for those who work on the language and its toolchain.
 
 ## License
 

@@ -15,13 +15,14 @@
 -define(BEGIN, <<"<!-- contents -->">>).
 -define(END, <<"<!-- /contents -->">>).
 
-%% report §11, README "Building": `make xref`
+%% report §11, docs/development.md "Building": `make xref`
 citations_resolve_test() ->
     Report = read("ernest_report.md"),
     Guide = read("ernest_guide.md"),
     ReportHeads = headings(Report),
     GuideHeads = headings(Guide),
-    Live = ["ernest_report.md", "README.md", "CLAUDE.md", "docs/implementation_plan.md",
+    Live = ["ernest_report.md", "README.md", "docs/development.md", "CLAUDE.md",
+            "docs/implementation_plan.md",
             "docs/architecture.md", "docs/shell_design.md", "docs/module_doc_template.md",
             "docs/coherence.md", "docs/review.md", "docs/style.md", "docs/emacs_mode.md",
             "docs/node_protocol.md", "docs/code_distribution.md", "shell/README.md"]
@@ -32,7 +33,7 @@ citations_resolve_test() ->
                                       not resolves(C, guide, ReportHeads, GuideHeads)],
     ?assertEqual([], Dangling).
 
-%% ernest_report.md, ernest_guide.md, README "Building": a document's
+%% ernest_report.md, ernest_guide.md, docs/development.md "Building": a document's
 %% contents list is its top-level sections, its headings of level two, each
 %% linked to its heading, which `make contents` writes
 contents_test() ->
@@ -98,13 +99,25 @@ anchored(Heads) ->
           end, #{}, Heads),
     Anchored.
 
-%% docs/style.md, README "Layout of the repository": a document that says
+%% README.md, guide §0, CLAUDE.md *Who owns each fact*: the front
+%% page's list of what Ernest adds is the guide's, word for word, so that the
+%% two cannot drift apart
+what_ernest_adds_test() ->
+    ?assertEqual(adds(read("ernest_guide.md")), adds(read("README.md"))).
+
+adds(Bin) ->
+    [_, Rest] = binary:split(Bin, <<"What Ernest adds is where the parts meet:\n\n">>),
+    [List | _] = binary:split(Rest, <<"\n\n">>),
+    List.
+
+%% docs/style.md, docs/development.md "The layout of the repository": a document that says
 %% where things are names things that are there. The report and the guide
 %% name paths a program might have, `net/http.ern`, and the plan and the
-%% naming record name paths that are gone or not yet written, so the four
+%% naming record name paths that are gone or not yet written, so the five
 %% checked here are the ones that describe the repository as it is.
 document_paths_test() ->
-    Where = ["README.md", "CLAUDE.md", "docs/architecture.md", "docs/style.md"],
+    Where = ["README.md", "docs/development.md", "CLAUDE.md", "docs/architecture.md",
+             "docs/style.md"],
     Missing = [{F, P} || F <- Where, P <- paths(read(F)),
                          not exists(P)],
     ?assertEqual([], Missing).
