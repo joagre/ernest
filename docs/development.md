@@ -30,7 +30,7 @@ ernest_guide.md    the guide
 docs/              the documents listed above, and this one
 examples/          Ernest programs: the paper programs and the small ones
 erl/               the toolchain, as Erlang applications: lexer, parser,
-                   typer, runtime, emitter, cli, utils (vendored getopt);
+                   format, typer, runtime, emitter, cli, utils (vendored getopt);
                    each has src/, include/, ebin/, test/; the runtime also
                    c_src/, ern_exec's C source, and priv/, where make builds it
 test/              what spans applications: the hand-written target modules,
@@ -74,6 +74,8 @@ make xref         check that every section citation and document path in the doc
 make coverage     every section with how many tests cite it and its length, thinnest first
 make golden       rewrite test/golden/, the Erlang the compiler emits per example
 make contents     rewrite the contents lists of the report and the guide from their headings
+make format       lay out every Ernest module, and the Ernest blocks of the report and the
+                  guide, as ern format does (report §11.6)
 make unicode UC_SPEC=dir
                   write Terminal.columns' table from Unicode's data in dir, OTP's
                   lib/stdlib/uc_spec of the host's version

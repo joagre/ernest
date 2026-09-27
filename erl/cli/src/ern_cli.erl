@@ -1,6 +1,6 @@
 %% The toolchain of report §11: one command, ern, whose first word is its
-%% job, build and doc (§11.1, §11.4), run, test and shell (§11.2), and config
-%% (§11.3). The escript under bin/ is thin; everything is here so that the
+%% job, build and doc (§11.1, §11.4), format (§11.6), run, test and shell
+%% (§11.2), and config (§11.3). The escript under bin/ is thin; everything is here so that the
 %% tests can call it. The entry point returns the exit status.
 -module(ern_cli).
 
@@ -58,6 +58,7 @@ ern([], Err) ->
 jobs() ->
     [{"build", build_options(), "file.ern | src-dir", fun build/3},
      {"doc", doc_options(), "file.ern | file.erc | src-dir", fun doc/3},
+     {"format", format_options(), "file.ern | src-dir ... | -", fun format/3},
      {"run", run_options(), "file.erc [argument]...", fun run/3},
      {"test", test_options(), "file.erc", fun test/3},
      {"shell", shell_options(), "[file.erc]", fun shell/3},
@@ -74,7 +75,7 @@ no_job("-" ++ _ = Word) -> Word ++ " comes after the job: ern <job> " ++ Word;
 no_job(Word) ->
     case filename:extension(Word) of
         ".erc" -> "the job comes first: ern run " ++ Word;
-        _ -> "no job " ++ Word ++ "; the jobs are build, doc, run, test, shell and config"
+        _ -> "no job " ++ Word ++ "; the jobs are build, doc, format, run, test, shell and config"
     end.
 
 refuse(Msg, Err) ->
@@ -86,6 +87,7 @@ usage(Device) ->
     io:format(Device, "Usage: ern <job> [options] ...~n~n"
               "  build   compile a module, or every module under a directory~n"
               "  doc     write the documentation of a module or a directory~n"
+              "  format  lay out modules as the style guide does~n"
               "  run     run a program~n"
               "  test    run the tests of a module~n"
               "  shell   run an interactive shell~n"
@@ -231,11 +233,7 @@ report_errors(Opts, File, Errors, Err) ->
                  {ok, Bin} -> Bin;
                  _ -> <<>>
              end,
-    {ok, Cwd} = file:get_cwd(),
-    Shown = case relative(File, Cwd) of
-                outside -> absolute(File);
-                Rel -> Rel
-            end,
+    Shown = shown(File),
     lists:foreach(fun(D) ->
                       Text = case Short of
                                  true -> ern_diag:short(Shown, D);
@@ -244,6 +242,14 @@ report_errors(Opts, File, Errors, Err) ->
                       io:format(Err, "~ts~n", [Text])
                   end, Errors),
     1.
+
+%% A file named from the working directory where it lies under it.
+shown(File) ->
+    {ok, Cwd} = file:get_cwd(),
+    case relative(File, Cwd) of
+        outside -> absolute(File);
+        Rel -> Rel
+    end.
 
 %% Report §11.1: every `.ern` under a directory, passing over each file and
 %% directory whose name begins with a dot, which is no module.
@@ -712,6 +718,87 @@ prelude_page(true, OutDir) ->
     ok = file:write_file(filename:join(OutDir, "prelude.md"),
                          unicode:characters_to_binary(ern_page:prelude_page())),
     ["- [Prelude](prelude.md)\n"].
+
+%%
+%% ern format, report §11.6
+%%
+
+format_options() ->
+    [{check, undefined, "check", undefined,
+      "name the modules not laid out, and change none"},
+     {short_errors, undefined, "short-errors", undefined,
+      "the first line of each error only"},
+     help_option()].
+
+%% Report §11.6: each module named, and every module under each directory
+%% named, laid out in place; with --check, each one not laid out named on
+%% standard output and none changed, the status 1 when there was one; with
+%% `-`, standard input laid out onto standard output. A module that does
+%% not parse is left as it is and its diagnostic written, the status 1.
+format(Opts, ["-"], Err) ->
+    Text = read_input(open_input(), []),
+    case ern_format:format(Text) of
+        {ok, Text} -> format_result(Opts, Text, same);
+        {ok, Out} -> format_result(Opts, Out, changed);
+        {error, D} ->
+            io:format(Err, "~ts~n", [error_text(Opts, "-", Text, D)]),
+            1
+    end;
+format(_Opts, [], _Err) ->
+    usage_fail("a file, a directory or - is required");
+format(Opts, Paths, Err) ->
+    lists:foreach(fun(P) ->
+                      filelib:is_file(P) orelse fail("no such file or directory " ++ P)
+                  end, Paths),
+    Files = lists:append([case filelib:is_dir(P) of
+                              true -> sources(P);
+                              false -> [P]
+                          end || P <- Paths]),
+    Results = [format_file(Opts, F, Err) || F <- Files],
+    case lists:all(fun(R) -> R =:= ok end, Results) of
+        true -> 0;
+        false -> 1
+    end.
+
+format_result(Opts, Out, Same) ->
+    case {lists:member(check, Opts), Same} of
+        {false, _} -> io:put_chars(Out), 0;
+        {true, same} -> 0;
+        {true, changed} -> io:format("-~n"), 1
+    end.
+
+format_file(Opts, File, Err) ->
+    {ok, Text} = file:read_file(File),
+    case ern_format:format(Text) of
+        {ok, Text} -> ok;
+        {ok, Out} ->
+            case lists:member(check, Opts) of
+                true -> io:format("~ts~n", [shown(File)]), changed;
+                false -> ok = file:write_file(File, Out)
+            end;
+        {error, D} ->
+            io:format(Err, "~ts~n", [error_text(Opts, shown(File), Text, D)]),
+            error
+    end.
+
+error_text(Opts, Shown, Source, D) ->
+    case lists:member(short_errors, Opts) of
+        true -> ern_diag:short(Shown, D);
+        false -> ern_diag:format(Shown, Source, D)
+    end.
+
+%% Standard input to its end, through a port on its descriptor, since
+%% `bin/ern` starts the host with -noinput.
+open_input() ->
+    erlang:open_port({fd, 0, 1}, [in, binary, eof, stream]).
+
+read_input(Port, Acc) ->
+    receive
+        {Port, {data, Data}} -> read_input(Port, [Data | Acc]);
+        {Port, eof} ->
+            port_close(Port),
+            iolist_to_binary(lists:reverse(Acc))
+    end.
 
 %%
 %% ern run, ern test, ern shell and ern config, report §11.2 and §11.3

@@ -72,11 +72,9 @@ fn store(counts : Map(SessionId, Int)) -> Unit with SessionMsg =
     }
 
 // The acceptor: one handler process per connection.
-fn acceptor(
-    sessions : Address(SessionMsg),
-    seq : Int,
-    listener : Address(Tcp.ListenerMsg)
-) -> Unit with Never =
+fn acceptor(sessions : Address(SessionMsg),
+            seq : Int,
+            listener : Address(Tcp.ListenerMsg)) -> Unit with Never =
     match Tcp.accept(listener, 60000) {
         Right(sock) -> {
             let _ = spawn(Local, fn() = handler(sessions, seq, sock));
@@ -87,11 +85,7 @@ fn acceptor(
     }
 
 // One process per connection: reads a request, writes a response, closes.
-fn handler(
-    sessions : Address(SessionMsg),
-    seq : Int,
-    sock : Address(Tcp.SockMsg)
-) -> Unit with m =
+fn handler(sessions : Address(SessionMsg), seq : Int, sock : Address(Tcp.SockMsg)) -> Unit with m =
     match Tcp.read(sock, 5000) {
         Right(bytes) -> match parse(bytes) {
             Left(_) -> {
@@ -146,22 +140,19 @@ fn headerLines(lines : List(String)) -> Either(ParseError, List(#(String, String
       | [] -> Right([])
     }
 
-fn headerPairs(
-    lines : List(String),
-    acc : List(#(String, String))
-) -> Either(ParseError, List(#(String, String))) =
+fn headerPairs(lines : List(String),
+               acc : List(#(String, String))) -> Either(ParseError, List(#(String, String))) =
     match lines {
         [] -> Right(List.reverse(acc))
-      | line :: rest ->
-            if String.trim(line) == "" then Right(List.reverse(acc))
-            else match String.split(line, ":") {
-                name :: first :: more -> {
-                    let value = String.join(first :: more, ":");
-                    headerPairs(rest, #(String.toLower(String.trim(name)),
-                        String.trim(value)) :: acc)
-                }
-              | _ -> Left(BadHeader(line))
+      | line :: rest -> if String.trim(line) == "" then
+            Right(List.reverse(acc))
+        else match String.split(line, ":") {
+            name :: first :: more -> {
+                let value = String.join(first :: more, ":");
+                headerPairs(rest, #(String.toLower(String.trim(name)), String.trim(value)) :: acc)
             }
+          | _ -> Left(BadHeader(line))
+        }
     }
 
 fn render(response : Response) -> Bytes = {
@@ -174,7 +165,7 @@ fn render(response : Response) -> Bytes = {
 
 fn cookie(request : Request, name : String) -> Optional(String) =
     Optional.andThen(List.find(request.headers, fn(#(n, _)) = n == "cookie"),
-        fn(#(_, v)) = cookieValue(String.split(v, ";"), name))
+                     fn(#(_, v)) = cookieValue(String.split(v, ";"), name))
 
 fn cookieValue(parts : List(String), name : String) -> Optional(String) =
     match parts {
@@ -187,7 +178,7 @@ fn cookieValue(parts : List(String), name : String) -> Optional(String) =
 
 fn withCookie(response : Response, name : String, value : String) -> Response =
     Response(..response,
-        headers = #("set-cookie", name <> "=" <> value <> "; path=/") :: response.headers)
+             headers = #("set-cookie", name <> "=" <> value <> "; path=/") :: response.headers)
 
 fn errorText(e : Io.Error) -> String =
     match e {

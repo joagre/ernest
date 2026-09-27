@@ -82,11 +82,10 @@ export fn contains(xs : List(a), x : a) -> Bool =
 export fn get(xs : List(a), i : Int) -> Optional(a) =
     if i < 0 then
         None
-    else
-        match xs {
-            [] -> None
-          | y :: rest -> if i == 0 then Some(y) else get(rest, i - 1)
-        }
+    else match xs {
+        [] -> None
+      | y :: rest -> if i == 0 then Some(y) else get(rest, i - 1)
+    }
 
 /// The list without the first element that equals `x`, or the list itself
 /// when none does.
@@ -136,11 +135,10 @@ export fn filter(xs : List(a), p : (a) -> Bool with e) -> List(a) with e =
 export fn filterMap(xs : List(a), f : (a) -> Optional(b) with e) -> List(b) with e =
     match xs {
         [] -> []
-      | y :: rest ->
-            match f(y) {
-                Some(v) -> v :: filterMap(rest, f)
-              | None -> filterMap(rest, f)
-            }
+      | y :: rest -> match f(y) {
+            Some(v) -> v :: filterMap(rest, f)
+          | None -> filterMap(rest, f)
+        }
     }
 
 /// The accumulator after the function has seen each element from the left,
@@ -247,21 +245,19 @@ export fn last(xs : List(a)) -> Optional(a) =
 export fn take(xs : List(a), n : Int) -> List(a) =
     if n <= 0 then
         []
-    else
-        match xs {
-            [] -> []
-          | y :: rest -> y :: take(rest, n - 1)
-        }
+    else match xs {
+        [] -> []
+      | y :: rest -> y :: take(rest, n - 1)
+    }
 
 /// All but the first `n` elements; `n` below 0 drops none.
 export fn drop(xs : List(a), n : Int) -> List(a) =
     if n <= 0 then
         xs
-    else
-        match xs {
-            [] -> []
-          | _ :: rest -> drop(rest, n - 1)
-        }
+    else match xs {
+        [] -> []
+      | _ :: rest -> drop(rest, n - 1)
+    }
 
 /// All but the last element; the empty list stays empty.
 ///
@@ -289,12 +285,11 @@ export fn dropLast(xs : List(a)) -> List(a) =
 export fn span(xs : List(a), p : (a) -> Bool with e) -> #(List(a), List(a)) with e =
     match xs {
         [] -> #([], [])
-      | y :: rest ->
-            if p(y) then {
-                let #(prefix, tail) = span(rest, p);
-                #(y :: prefix, tail)
-            } else
-                #([], xs)
+      | y :: rest -> if p(y) then {
+            let #(prefix, tail) = span(rest, p);
+            #(y :: prefix, tail)
+        } else
+            #([], xs)
     }
 
 /// The elements the predicate holds for and those it does not, each in
@@ -395,16 +390,14 @@ fn halves(xs : List(a)) -> #(List(a), List(a)) = {
     #(take(xs, half), drop(xs, half))
 }
 
-fn merge(left : List(a), right : List(a), compare : (a, a) -> Ordering with e)
-    -> List(a) with e =
+fn merge(left : List(a), right : List(a), compare : (a, a) -> Ordering with e) -> List(a) with e =
     match #(left, right) {
         #([], _) -> right
       | #(_, []) -> left
-      | #(l :: ls, r :: rs) ->
-            match compare(l, r) {
-                Greater -> r :: merge(left, rs, compare)
-              | _ -> l :: merge(ls, right, compare)
-            }
+      | #(l :: ls, r :: rs) -> match compare(l, r) {
+            Greater -> r :: merge(left, rs, compare)
+          | _ -> l :: merge(ls, right, compare)
+        }
     }
 
 /// The pairs of elements at the same index, to the length of the shorter
@@ -493,8 +486,7 @@ export fn tryMap(xs : List(a), f : (a) -> Either(e, b) with x) -> Either(e, List
 /// List.tryFold([1, 2], 0, fn(acc, n) = if n > 1 then Left("big") else Right(acc + n))
 /// // => Left("big")
 /// ```
-export fn tryFold(xs : List(a), acc : b, f : (b, a) -> Either(e, b) with x)
-    -> Either(e, b) with x =
+export fn tryFold(xs : List(a), acc : b, f : (b, a) -> Either(e, b) with x) -> Either(e, b) with x =
     match xs {
         [] -> Right(acc)
       | y :: rest -> {

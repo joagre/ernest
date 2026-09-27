@@ -25,12 +25,8 @@ type Token = Num(Int) | Ident(String) | Op(Char) | LParen | RParen | KwLet | KwF
 type LexError = BadChar(c : Char, at : Int)
 
 type Expr =
-    Lit(Int)
-  | Var(String)
-  | Bin(op : Char, l : Expr, r : Expr)
-  | Let(name : String, value : Expr)
-  | Fun(param : String, body : Expr)
-  | App(f : Expr, arg : Expr)
+    Lit(Int) | Var(String) | Bin(op : Char, l : Expr, r : Expr) | Let(name : String, value : Expr)
+  | Fun(param : String, body : Expr) | App(f : Expr, arg : Expr)
 
 type ParseError = Unexpected(Token) | Eof
 
@@ -40,9 +36,7 @@ type EvalError = Unbound(String) | DivZero | NotAFunction | NotANumber
 
 type TryError = Eval(EvalError) | Crashed | Timeout
 
-type ReplMsg =
-    Result(run : Int, value : Either(EvalError, Value))
-  | Died(run : Int, down : Down)
+type ReplMsg = Result(run : Int, value : Either(EvalError, Value)) | Died(run : Int, down : Down)
 
 //
 // Program
@@ -89,8 +83,10 @@ fn repl(env : Map(String, Value), run : Int) -> Unit with ReplMsg =
 // kill the child if it does not answer.
 fn try(env : Map(String, Value), e : Expr, run : Int) -> Either(TryError, Value) with ReplMsg = {
     let me = self(); // not self() inside the lambda: that is the child's
-    let child = spawnMonitored(Local, fn() -> Unit with Never =
-        send(me, Result(run = run, value = eval(env, e))), fn(d) = Died(run = run, down = d));
+    let child = spawnMonitored(Local,
+                               fn() -> Unit with Never =
+                                   send(me, Result(run = run, value = eval(env, e))),
+                               fn(d) = Died(run = run, down = d));
     await(child, run)
 }
 
@@ -164,7 +160,10 @@ fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Tok
       | '-' :: '>' :: r -> lex(r, i + 2, Arrow :: acc)
       | c :: _ when Char.isAsciiDigit(c) -> {
             let #(digits, rest) = List.span(cs, Char.isAsciiDigit);
-            let n = match String.toInt(String.fromList(digits)) { Some(v) -> v | None -> 0 };
+            let n = match String.toInt(String.fromList(digits)) {
+                Some(v) -> v
+              | None -> 0
+            };
             lex(rest, i + List.size(digits), Num(n) :: acc)
         }
       | c :: _ when Char.isAlpha(c) -> {
@@ -192,7 +191,10 @@ fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Tok
 
 fn parse(ts : List(Token)) -> Either(ParseError, Expr) = {
     let #(e, rest) <- expr(ts);
-    match rest { [] -> Right(e) | t :: _ -> Left(Unexpected(t)) }
+    match rest {
+        [] -> Right(e)
+      | t :: _ -> Left(Unexpected(t))
+    }
 }
 
 fn expr(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
@@ -270,7 +272,10 @@ fn atom(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
 fn eval(env : Map(String, Value), e : Expr) -> Either(EvalError, Value) =
     match e {
         Lit(n) -> Right(N(n))
-      | Var(x) -> match Map.get(env, x) { Some(v) -> Right(v) | None -> Left(Unbound(x)) }
+      | Var(x) -> match Map.get(env, x) {
+            Some(v) -> Right(v)
+          | None -> Left(Unbound(x))
+        }
       | Fun(param = p, body = b) -> Right(Closure(param = p, body = b, env = env))
       | Let(value = v) -> eval(env, v) // the REPL binds the name, see repl
       | Bin(op = op, l = l, r = r) -> {
@@ -294,7 +299,10 @@ fn arith(op : Char, a : Value, b : Value) -> Either(EvalError, Value) =
             '+' -> Right(N(x + y))
           | '-' -> Right(N(x - y))
           | '*' -> Right(N(x * y))
-          | _ -> match Int.div(x, y) { Some(q) -> Right(N(q)) | None -> Left(DivZero) }
+          | _ -> match Int.div(x, y) {
+                Some(q) -> Right(N(q))
+              | None -> Left(DivZero)
+            }
         }
       | _ -> Left(NotANumber)
     }

@@ -25,7 +25,9 @@ fn loop(n : Int) -> Unit with Msg = {
 /// sees both the output and the report while a later input is running.
 export fn boom() -> Unit with Unit = {
     Clock.alarm(100, fn(_) = Unit);
-    receive { _ -> Unit };
+    receive {
+        _ -> Unit
+    };
     Io.println("worker here");
     let n = 1 / 0;
     Unit
@@ -35,7 +37,9 @@ export fn boom() -> Unit with Unit = {
 /// a program's first write are a race no test should depend on.
 export fn main() -> Unit with Unit = {
     Clock.alarm(150, fn(_) = Unit);
-    receive { _ -> Unit };
+    receive {
+        _ -> Unit
+    };
     let n = 1 / 0;
     Unit
 }

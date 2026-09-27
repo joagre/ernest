@@ -37,11 +37,10 @@ main([Dir]) ->
     Table = runs(lists:sort(maps:to_list(Classes))),
     Version = io_lib:format("~B.~B", [Major, Minor]),
     Lines = [?BEGIN ++ " from Unicode " ++ Version ++ "'s data, under the Unicode",
-             "// License v3 (THIRD_PARTY_LICENSES); not edited by hand.",
-             "let widthTable = ["]
+             "// License v3 (THIRD_PARTY_LICENSES); not edited by hand."]
         ++ rows([io_lib:format("#(0x~s, 0x~s, ~s)", [code(Lo), code(Hi), Class])
                  || {Lo, Hi, Class} <- Table])
-        ++ ["]", ?END],
+        ++ [?END],
     {ok, Source} = file:read_file(?TERMINAL),
     [Before, Rest] = string:split(Source, ?BEGIN),
     [_, After] = string:split(Rest, ?END),
@@ -108,16 +107,11 @@ runs([], Lo, Hi, Class) -> [{Lo, Hi, Class}].
 
 %% The entries as many to a line as fit in 100 characters, each line a
 %% step in (docs/style.md).
+%% The table as ern format lays it out (report §11.6): too long for one
+%% line, so an entry a line, each under the first.
 rows(Entries) ->
-    rows([lists:flatten(E) || E <- Entries], "    ", []).
-
-rows([], Line, Lines) ->
-    lists:reverse([Line | Lines]);
-rows([E | Rest], Line, Lines) ->
-    Comma = case Rest of [] -> ""; _ -> "," end,
-    Item = E ++ Comma,
-    case Line of
-        "    " -> rows(Rest, Line ++ Item, Lines);
-        _ when length(Line) + 1 + length(Item) =< 100 -> rows(Rest, Line ++ " " ++ Item, Lines);
-        _ -> rows(Rest, "    " ++ Item, [Line | Lines])
-    end.
+    Open = "let widthTable = [",
+    Pad = lists:duplicate(length(Open), $\s),
+    [First | Rest] = [lists:flatten(E) || E <- Entries],
+    [Open ++ First ++ "," | [Pad ++ E ++ "," || E <- lists:droplast(Rest)]]
+        ++ [Pad ++ lists:last(Rest) ++ "]"].

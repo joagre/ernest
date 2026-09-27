@@ -18,11 +18,11 @@
     ("bar.ern" . "4")                   ; a receive whose next line is a bare |
     ("block.ern" . "kept")              ; an unclosed block comment
     ("brace.ern" . "4")                 ; a block whose } is missing
-    ("comma.ern" . "8")                 ; a constructor with a trailing comma
+    ("comma.ern" . "22")                ; a constructor with a trailing comma
     ("comment.ern" . "0")               ; a comment before a closing brace
     ("constructor.ern" . "0")           ; constructors spelled as reserved words
     ("equals.ern" . "4")                ; a line ending in =
-    ("minus.ern" . "4")                 ; a negative element after a comma
+    ("minus.ern" . "15")                ; a negative element after a comma
     ("pipe.ern" . "4")                  ; lines an operator carries on
     ("prose.ern" . "0")                 ; an apostrophe in a comment
     ("raw.ern" . "kept")                ; an unclosed raw string

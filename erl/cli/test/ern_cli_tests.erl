@@ -14,6 +14,27 @@ tmp() ->
     ok = filelib:ensure_path(Dir),
     Dir.
 
+%% report §11.6: ern format lays out a module in place, every module under
+%% a directory, and with --check names each one not laid out, changing
+%% none, the status 1; a module that does not parse is left as it is, its
+%% diagnostic written. Regression test; the layout is ern_format_tests'.
+format_test() ->
+    Dir = tmp(),
+    Loose = write(Dir, "loose.ern", "fn f(x) = x+1\n"),
+    Neat = write(Dir, "neat.ern", "fn g(y) =\n    y\n"),
+    ?assertEqual(1, ern_err(["format", "--check", Dir])),
+    ?assertEqual(Loose ++ "\n", binary_to_list(iolist_to_binary(?capturedOutput))),
+    ?assertEqual({ok, <<"fn f(x) = x+1\n">>}, file:read_file(Loose)),
+    ?assertEqual(0, ern_err(["format", "--check", Neat])),
+    ?assertEqual(0, ern_err(["format", Loose, Neat])),
+    ?assertEqual({ok, <<"fn f(x) =\n    x + 1\n">>}, file:read_file(Loose)),
+    ?assertEqual({ok, <<"fn g(y) =\n    y\n">>}, file:read_file(Neat)),
+    Broken = write(Dir, "broken.ern", "fn h( = 1\n"),
+    ?assertEqual(1, ern_err(["format", Broken])),
+    ?assertEqual({ok, <<"fn h( = 1\n">>}, file:read_file(Broken)),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"broken.ern:1:">>)),
+    ?assertEqual(1, ern_err(["format"])).
+
 %% A tool run with the captured output as its error device, so a test
 %% reads what the user sees on stderr.
 build_err(Args) -> ern_cli:ern(["build" | Args], group_leader()).
@@ -935,7 +956,7 @@ job_first_test() ->
     Out = iolist_to_binary(?capturedOutput),
     ?assertMatch({_, _}, binary:match(Out, <<"ern: a job is required\nUsage: ern <job>">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"ern: no job compile; the jobs are build, doc,"
-                                             " run, test, shell and config">>)).
+                                             " format, run, test, shell and config">>)).
 
 %% report §11: a spelling of the toolchain before its jobs is refused, and
 %% the refusal names the spelling that replaces it

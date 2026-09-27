@@ -52,12 +52,18 @@ export type Activity = Running | Receiving | Calling
 /// ### Examples
 ///
 /// ```ernest
-/// Process.FaultReport(process = Process.fromAddress(self()), site = "Main.worker:3",
-///     cause = "division by zero", restarted = false, trace = "").cause
+/// Process.FaultReport(process = Process.fromAddress(self()),
+///                     site = "Main.worker:3",
+///                     cause = "division by zero",
+///                     restarted = false,
+///                     trace = "").cause
 /// // => "division by zero"
 /// ```
-export type FaultReport =
-    FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String)
+export type FaultReport = FaultReport(process : Process,
+                                      site : String,
+                                      cause : String,
+                                      restarted : Bool,
+                                      trace : String)
 
 /// The process behind the address, through every `via`. Addresses have no
 /// equality; the processes behind them have (report §3.10).

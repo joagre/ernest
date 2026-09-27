@@ -12,8 +12,8 @@
 /// ## Examples
 ///
 /// ```ernest
-/// Either.map(Os.run(Os.Command(program = "sh", arguments = ["-c", "exit 3"], input = <<>>),
-///     5000), fn(f) = f.status)
+/// Either.map(Os.run(Os.Command(program = "sh", arguments = ["-c", "exit 3"], input = <<>>), 5000),
+///            fn(f) = f.status)
 /// // => Right(3)
 /// ```
 ///
@@ -70,15 +70,15 @@ export type Finished = Finished(status : Int, stdout : Bytes, stderr : Bytes)
 /// Os.start(Os.Command(program = "cat", arguments = [], input = <<>>), 5000)
 /// ```
 export abstract type ProgramMsg =
-    Read(reply : Reply(Either(Io.Error, Output)))
-  | Write(bytes : Bytes, reply : Reply(Unit))
+    Read(reply : Reply(Either(Io.Error, Output))) | Write(bytes : Bytes, reply : Reply(Unit))
   | CloseInput
 
 // What Os's system process takes: a program to start, with the process
 // whose death kills it.
-type Msg =
-    Start(command : Command, ms : Int, owner : Process,
-        reply : Reply(Either(Io.Error, Address(ProgramMsg))))
+type Msg = Start(command : Command,
+                 ms : Int,
+                 owner : Process,
+                 reply : Reply(Either(Io.Error, Address(ProgramMsg))))
 
 // Report §8.2: the system reference, the runtime's address of Os's process,
 // bound at each start.
@@ -161,8 +161,10 @@ export foreign fn exit(status : Int) -> a with m =
 ///
 /// ```ernest
 /// {
-///     let cat <- Os.start(Os.Command(program = "cat", arguments = [],
-///         input = String.toUtf8("hi")), 5000);
+///     let cat <- Os.start(Os.Command(program = "cat",
+///                                    arguments = [],
+///                                    input = String.toUtf8("hi")),
+///                         5000);
 ///     Os.closeInput(cat);
 ///     Os.read(cat)
 /// }
@@ -171,7 +173,7 @@ export foreign fn exit(status : Int) -> a with m =
 export fn start(command : Command, ms : Int) -> Either(Io.Error, Address(ProgramMsg)) with m = {
     let owner = Process.fromAddress(self());
     Address.callForever(reference,
-        fn(r) = Start(command = command, ms = ms, owner = owner, reply = r))
+                        fn(r) = Start(command = command, ms = ms, owner = owner, reply = r))
 }
 
 /// The next piece of what the program wrote, to its standard output or to
@@ -191,8 +193,10 @@ export fn start(command : Command, ms : Int) -> Either(Io.Error, Address(Program
 ///
 /// ```ernest
 /// {
-///     let sh <- Os.start(Os.Command(program = "sh", arguments = ["-c", "echo no >&2; exit 1"],
-///         input = <<>>), 5000);
+///     let sh <- Os.start(Os.Command(program = "sh",
+///                                   arguments = ["-c", "echo no >&2; exit 1"],
+///                                   input = <<>>),
+///                        5000);
 ///     let first <- Os.read(sh);
 ///     let last <- Os.read(sh);
 ///     Right(#(first, last))
@@ -261,7 +265,8 @@ export fn closeInput(program : Address(ProgramMsg)) -> Unit with m =
 ///
 /// ```ernest
 /// Either.map(Os.run(Os.Command(program = "cat", arguments = [], input = String.toUtf8("hi")),
-///     5000), fn(f) = String.fromUtf8(f.stdout))
+///                   5000),
+///            fn(f) = String.fromUtf8(f.stdout))
 /// // => Right(Some("hi"))
 /// ```
 export fn run(command : Command, ms : Int) -> Either(Io.Error, Finished) with m = {
@@ -272,8 +277,9 @@ export fn run(command : Command, ms : Int) -> Either(Io.Error, Finished) with m 
 
 // What the program wrote, read until its exit status, the pieces of each
 // stream kept newest first.
-fn collect(program : Address(ProgramMsg), out : List(Bytes), err : List(Bytes))
-    -> Either(Io.Error, Finished) with m = {
+fn collect(program : Address(ProgramMsg),
+           out : List(Bytes),
+           err : List(Bytes)) -> Either(Io.Error, Finished) with m = {
     let output <- read(program);
     match output {
         Stdout(bytes) -> collect(program, bytes :: out, err)

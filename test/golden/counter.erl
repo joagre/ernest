@@ -5,7 +5,7 @@
 main() ->
     C_1 = ern_rt:spawn('Local',
                        fun () -> counter(0) end,
-                       <<"Counter.main:17">>),
+                       <<"Counter.main:16">>),
     ern_rt:send(C_1, {'Inc', 5}),
     ern_rt:send(C_1, {'Inc', 3}),
     case ern_boundary:value('$type_1'(),

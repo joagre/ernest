@@ -15,11 +15,14 @@ type MainMsg = PongDone(Down)
 export fn main() -> Unit with MainMsg = {
     let pongAddr = spawnMonitored(Local, fn() = pong(), PongDone);
     let _ = spawn(Local, fn() = ping(pongAddr, 3));
-    receive { PongDone(_) -> Unit }
+    receive {
+        PongDone(_) -> Unit
+    }
 }
 
 fn ping(pongAddr : Address(PongMsg), n : Int) -> Unit with m =
-    if n == 0 then send(pongAddr, Stop)
+    if n == 0 then
+        send(pongAddr, Stop)
     else {
         Io.println("ping " <> Int.toString(n));
         match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {

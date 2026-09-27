@@ -1,0 +1,241 @@
+%% The formatter: each rule of docs/style.md's layout on a small module,
+%% what report §11.6 says it keeps, and a module that does not parse.
+%% Regression tests, written with the formatter after the repository had
+%% been laid out by it; test/ern_style_tests.erl's formatted_test_ holds
+%% the repository's own modules and documents in its layout. Not covered
+%% here: every production of Appendix A in every position, which the
+%% repository's sources exercise.
+-module(ern_format_tests).
+
+-include_lib("eunit/include/eunit.hrl").
+
+%% The lines a text of lines is laid out as.
+laid(Lines) ->
+    {ok, Out} = ern_format:format(iolist_to_binary(lists:join("\n", Lines))),
+    binary:split(string:trim(Out, trailing, "\n"), <<"\n">>, [global]).
+
+%% A text laid out is laid out already.
+fixed(Lines) ->
+    Text = iolist_to_binary([lists:join("\n", Lines), "\n"]),
+    ?assertEqual({ok, Text}, ern_format:format(Text)).
+
+%% report §11.6: only line breaks and the spaces between tokens change; a
+%% literal's spelling, a parenthesis and the form a pipe took stay
+keeps_what_was_written_test() ->
+    ?assertEqual([<<"fn f(x) =">>,
+                  <<"    (x + 0x1F_FF) |> g">>,
+                  <<>>,
+                  <<"fn h(x) =">>,
+                  <<"    x |> f() |> `raw`">>],
+                 laid(["fn f(x)=(x+0x1F_FF)|>g", "fn h(x) = x |> f() |> `raw`"])).
+
+%% docs/style.md: a function's head ends at `=` and its body begins on the
+%% next line, one step in; a block's brace ends the head's line
+head_test() ->
+    ?assertEqual([<<"fn f(x : Int) -> Int =">>,
+                  <<"    x + 1">>,
+                  <<>>,
+                  <<"fn g() = {">>,
+                  <<"    let y = 1;">>,
+                  <<"    y">>,
+                  <<"}">>],
+                 laid(["fn f(x : Int) -> Int = x + 1", "fn g() = { let y = 1; y }"])).
+
+%% docs/style.md: a bracket that does not fit holds one item a line, each
+%% under the first, and closes on the last; one that fits stays on its line
+bracket_test() ->
+    Head = "fn run(state : State, screen : Address(ScreenMsg), from : String, line : Int, "
+           "input : String, printing : Bool) -> State with ShellMsg = go(state)",
+    ?assertEqual([<<"fn run(state : State,">>,
+                  <<"       screen : Address(ScreenMsg),">>,
+                  <<"       from : String,">>,
+                  <<"       line : Int,">>,
+                  <<"       input : String,">>,
+                  <<"       printing : Bool) -> State with ShellMsg =">>,
+                  <<"    go(state)">>],
+                 laid([Head])),
+    fixed(["let point = Point(x = 1, y = 2)"]).
+
+%% docs/style.md: a last item that opens a brace keeps the items on the
+%% bracket's line, its contents a step in from that line
+hug_test() ->
+    ?assertEqual([<<"let s = spawn(Local, fn() = {">>,
+                  <<"    tick();">>,
+                  <<"    s">>,
+                  <<"})">>],
+                 laid(["let s = spawn(Local, fn() = { tick(); s })"])).
+
+%% docs/style.md: a match, a receive and a block run over lines however
+%% short, an arm a line, a further one led by its bar
+brace_test() ->
+    ?assertEqual([<<"fn f(x) =">>,
+                  <<"    match x {">>,
+                  <<"        Some(y) -> y">>,
+                  <<"      | None -> 0">>,
+                  <<"    }">>],
+                 laid(["fn f(x) = match x { Some(y) -> y | None -> 0 }"])).
+
+%% docs/style.md: an `if` stays on one line when it fits, and otherwise
+%% breaks at every `then` and `else`, `else if` on one line; a block
+%% branch stays beside its `then`, and `else` follows its brace
+if_test() ->
+    fixed(["let a = if b then c else d"]),
+    ?assertEqual([<<"fn f(x) =">>,
+                  <<"    if x < 0 then">>,
+                  <<"        \"a negative number, which the rest of this does not take\"">>,
+                  <<"    else if x == 0 then">>,
+                  <<"        \"zero\"">>,
+                  <<"    else">>,
+                  <<"        \"positive\"">>],
+                 laid(["fn f(x) = if x < 0 then \"a negative number, which the rest of this"
+                       " does not take\" else if x == 0 then \"zero\" else \"positive\""])),
+    ?assertEqual([<<"fn g(x) =">>,
+                  <<"    if x then {">>,
+                  <<"        a();">>,
+                  <<"        b()">>,
+                  <<"    } else">>,
+                  <<"        c()">>],
+                 laid(["fn g(x) = if x then { a(); b() } else c()"])).
+
+%% docs/style.md: an arm's body stays on its line when it fits, or when its
+%% first line ends in a brace or `then`, and otherwise begins the next line
+arm_test() ->
+    ?assertEqual([<<"fn f(x) =">>,
+                  <<"    match x {">>,
+                  <<"        Markdown.Paragraph([Markdown.Emphasis([Markdown.Text(text)])]) ->">>,
+                  <<"            String.startsWith(text, \"Since \")">>,
+                  <<"      | _ -> if x then">>,
+                  <<"            \"a branch long enough that this if cannot stand on one line"
+                    " with its else\"">>,
+                  <<"        else">>,
+                  <<"            \"no\"">>,
+                  <<"    }">>],
+                 laid(["fn f(x) = match x {",
+                       "    Markdown.Paragraph([Markdown.Emphasis([Markdown.Text(text)])]) ->"
+                       " String.startsWith(text, \"Since \")",
+                       "  | _ -> if x then \"a branch long enough that this if cannot stand on"
+                       " one line with its else\" else \"no\"",
+                       "}"])).
+
+%% docs/style.md: a lambda has no rule of its own; its body is an arm's
+lambda_test() ->
+    fixed(["let f = List.map(xs, fn(x) = x + 1)"]),
+    ?assertEqual([<<"let names = List.map(Shell.Command.commands,">>,
+                  <<"                     fn(c) =">>,
+                  <<"                         Shell.Complete.Name(text = \":\" <> c.name,">>,
+                  <<"                                             kind = Shell.Complete.Value,">>,
+                  <<"                                             "
+                    "shown = Shell.Command.line(c)))">>],
+                 laid(["let names = List.map(Shell.Command.commands, fn(c) ="
+                       " Shell.Complete.Name(text = \":\" <> c.name, kind = Shell.Complete.Value,"
+                       " shown = Shell.Command.line(c)))"])).
+
+%% docs/style.md: a line an operator opens carries its expression on, a step
+%% in; an operator binding tighter carries on the operand above, a step more
+operators_test() ->
+    ?assertEqual([<<"let ok = negative == \":set depth takes 0 or more\"">>,
+                  <<"    && unknown">>,
+                  <<"        == \":set takes depth, length, output or timing, and not a thing"
+                    " more than these four ones\"">>],
+                 laid(["let ok = negative == \":set depth takes 0 or more\" && unknown =="
+                       " \":set takes depth, length, output or timing, and not a thing more"
+                       " than these four ones\""])).
+
+%% docs/style.md: a type whose alternatives run past the line breaks after
+%% its `=` and fills the lines, a doc block before a later one at its bar
+types_test() ->
+    ?assertEqual([<<"type ShellMsg =">>,
+                  <<"    Typed(String) | Eof | Interrupted | Done(Outcome)"
+                    " | Reported(Process.FaultReport) | Ready">>,
+                  <<"  | NoKeys">>],
+                 laid(["type ShellMsg = Typed(String) | Eof | Interrupted | Done(Outcome)"
+                       " | Reported(Process.FaultReport) | Ready | NoKeys"])),
+    fixed(["type Inline =",
+           "    /// Text.",
+           "    Text(String)",
+           "  /// A break.",
+           "  | Break"]),
+    %% a doc block before the first field puts the fields a step in
+    fixed(["type Point = Point(",
+           "    /// Across.",
+           "    x : Int,",
+           "    /// Up.",
+           "    y : Int)"]).
+
+%% report §11.6: a comment stays beside the token it was beside: a line
+%% comment ends its line, one on a line of its own stands at the code's
+%% indentation, and one before a closing brace with the content before it
+comments_test() ->
+    ?assertEqual([<<"// A file's comment.">>,
+                  <<"fn f(x) = {">>,
+                  <<"    // the first">>,
+                  <<"    let y = [1, // one">>,
+                  <<"             2];">>,
+                  <<"    y /* inline */ + x">>,
+                  <<"    // the last">>,
+                  <<"}">>],
+                 laid(["// A file's comment.",
+                       "fn f(x) = {",
+                       "// the first",
+                       "  let y = [1, // one",
+                       " 2];",
+                       "  y /* inline */ + x",
+                       "        // the last",
+                       "}"])).
+
+%% report §11.6: a comment that ends the text, with no line feed after it,
+%% is kept; it had been lost (regression test)
+last_comment_test() ->
+    ?assertEqual({ok, <<"fn f(n) =\n    n * 2 // doubled\n">>},
+                 ern_format:format(<<"fn f(n) =\n    n * 2       // doubled">>)).
+
+%% report §11.6: a blank line inside a construct is kept, one where there
+%% were several, and none after an opening bracket or before a closing
+%% one; one blank line stands between two top-level declarations
+blank_lines_test() ->
+    ?assertEqual([<<"fn f() = {">>,
+                  <<"    let a = 1;">>,
+                  <<>>,
+                  <<"    a">>,
+                  <<"}">>,
+                  <<>>,
+                  <<"fn g() =">>,
+                  <<"    2">>],
+                 laid(["fn f() = {", "", "    let a = 1;", "", "", "", "    a", "", "}",
+                       "fn g() = 2"])).
+
+%% report §11.6: a doc block is kept as written, and the Ernest examples in
+%% it are laid out as a function's body is
+doc_examples_test() ->
+    ?assertEqual([<<"/// Adds one.">>,
+                  <<"///">>,
+                  <<"/// ```ernest">>,
+                  <<"/// match f(1) {">>,
+                  <<"///     2 -> true">>,
+                  <<"///   | _ -> false">>,
+                  <<"/// }">>,
+                  <<"/// // => true">>,
+                  <<"/// ```">>,
+                  <<"export fn f(n : Int) -> Int =">>,
+                  <<"    n + 1">>],
+                 laid(["/// Adds one.",
+                       "///",
+                       "/// ```ernest",
+                       "/// match f(1) { 2 -> true | _ -> false }",
+                       "/// // => true",
+                       "/// ```",
+                       "export fn f(n : Int) -> Int = n + 1"])).
+
+%% report §11.6: a module that does not parse is not laid out
+not_parsed_test() ->
+    ?assertMatch({error, _}, ern_format:format(<<"fn f( = 1">>)),
+    ?assertMatch({error, _}, ern_format:format(<<"let s = \"open">>)).
+
+%% report §11.6: in a CommonMark text, an Ernest block that parses as a
+%% module or as a function's body is laid out, and any other is left
+markdown_test() ->
+    In = <<"Text.\n\n```ernest\nfn f() = { a; b }\n```\n\n```ernest\n1 +\n```\n\n"
+           "```ernest-rejected\nlet x = match y { A -> 1 }\n```\n">>,
+    ?assertEqual(<<"Text.\n\n```ernest\nfn f() = {\n    a;\n    b\n}\n```\n\n```ernest\n1 +\n"
+                   "```\n\n```ernest-rejected\nlet x = match y {\n    A -> 1\n}\n```\n">>,
+                 ern_format:markdown(In)).

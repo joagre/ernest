@@ -25,9 +25,7 @@ type Change = Change(path : Path, mtime : Int)
 type Ack = Stored | Conflict | Failed(Io.Error)
 
 type SyncMsg =
-    Link(Address(SyncMsg))
-  | Tick
-  | Listed(Either(Io.Error, List(Fs.Entry)))
+    Link(Address(SyncMsg)) | Tick | Listed(Either(Io.Error, List(Fs.Entry)))
   | Put(path : Path, mtime : Int, bytes : Bytes, ack : Reply(Ack))
 
 //
@@ -96,14 +94,12 @@ fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) -> Unit w
 }
 
 // Store a file from the peer. Newer local file: conflict.
-fn store(
-    dir : Path,
-    seen : Map(Path, Int),
-    p : Path,
-    m : Int,
-    bytes : Bytes,
-    ack : Reply(Ack)
-) -> Unit with SyncMsg = {
+fn store(dir : Path,
+         seen : Map(Path, Int),
+         p : Path,
+         m : Int,
+         bytes : Bytes,
+         ack : Reply(Ack)) -> Unit with SyncMsg = {
     // p is the peer's bare name (report E.17); here it is under this directory
     let here = Path.join(dir, p);
     match Map.get(seen, here) {

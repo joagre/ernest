@@ -26,8 +26,9 @@ export fn quiet(on : Bool, text : String) -> String =
 export fn named(on : Bool, text : String) -> String =
     match String.indexOf(text, " : ") {
         None -> text
-      | Some(at) -> paint(on, Terminal.Bold, String.slice(text, 0, at))
-            <> String.slice(text, at, String.size(text) - at)
+      | Some(at) ->
+            paint(on, Terminal.Bold, String.slice(text, 0, at))
+                <> String.slice(text, at, String.size(text) - at)
     }
 
 // The parameter at the cursor in a signature, in the terminal's cyan, which
@@ -35,8 +36,10 @@ export fn named(on : Bool, text : String) -> String =
 // Report §11.2: without colour it is between asterisks, since the mark
 // carries meaning where the other colours only help the eye.
 export fn emphasis(on : Bool, text : String) -> String =
-    if on || String.isEmpty(text) then paint(on, Terminal.Foreground(Terminal.Cyan), text)
-    else "*" <> text <> "*"
+    if on || String.isEmpty(text) then
+        paint(on, Terminal.Foreground(Terminal.Cyan), text)
+    else
+        "*" <> text <> "*"
 
 fn paint(on : Bool, style : Terminal.Style, text : String) -> String =
     if !on || String.isEmpty(text) then text else Terminal.styled(text, style)
@@ -45,25 +48,44 @@ fn paint(on : Bool, style : Terminal.Style, text : String) -> String =
 // Tests
 //
 
-let off = Test(name = "without colour the text is unchanged", run = fn() =
-    if fault(false, "f faulted") == "f faulted" && named(false, "a : Int") == "a : Int"
-    then Passed else Failed("coloured when off"))
+let off = Test(name = "without colour the text is unchanged",
+               run = fn() =
+                   if fault(false, "f faulted") == "f faulted"
+                       && named(false, "a : Int") == "a : Int" then
+                       Passed
+                   else
+                       Failed("coloured when off"))
 
-let faults = Test(name = "a fault is red", run = fn() =
-    if fault(true, "x") == "\u{1b}[31mx\u{1b}[39m" then Passed else Failed(fault(true, "x")))
+let faults = Test(name = "a fault is red",
+                  run = fn() = if fault(true, "x") == "\u{1b}[31mx\u{1b}[39m" then
+                      Passed
+                  else
+                      Failed(fault(true, "x")))
 
-let diagnostics = Test(name = "a diagnostic's first line is red, its source plain", run = fn() =
-    if diagnostic(true, "a:1:1: bad\n1 | a") == "\u{1b}[31ma:1:1: bad\u{1b}[39m\n1 | a"
-    then Passed else Failed(diagnostic(true, "a:1:1: bad\n1 | a")))
+let diagnostics = Test(name = "a diagnostic's first line is red, its source plain",
+                       run = fn() =
+                           if diagnostic(true, "a:1:1: bad\n1 | a")
+                               == "\u{1b}[31ma:1:1: bad\u{1b}[39m\n1 | a" then
+                               Passed
+                           else
+                               Failed(diagnostic(true, "a:1:1: bad\n1 | a")))
 
-let names = Test(name = "a name before its type is bold", run = fn() =
-    if named(true, "List.map : (a) -> b") == "\u{1b}[1mList.map\u{1b}[22m : (a) -> b"
-    then Passed else Failed(named(true, "List.map : (a) -> b")))
+let names = Test(name = "a name before its type is bold",
+                 run = fn() =
+                     if named(true, "List.map : (a) -> b")
+                         == "\u{1b}[1mList.map\u{1b}[22m : (a) -> b" then
+                         Passed
+                     else
+                         Failed(named(true, "List.map : (a) -> b")))
 
 let marksWithout = Test(name = "without colour the marked parameter is between asterisks",
-    run = fn() =
-        if emphasis(false, "f : Int") == "*f : Int*" then Passed
-        else Failed(emphasis(false, "f : Int")))
+                        run = fn() = if emphasis(false, "f : Int") == "*f : Int*" then
+                            Passed
+                        else
+                            Failed(emphasis(false, "f : Int")))
 
-let empties = Test(name = "an empty text takes no colour", run = fn() =
-    if emphasis(true, "") == "" then Passed else Failed("coloured nothing"))
+let empties = Test(name = "an empty text takes no colour",
+                   run = fn() = if emphasis(true, "") == "" then
+                       Passed
+                   else
+                       Failed("coloured nothing"))

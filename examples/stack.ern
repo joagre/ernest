@@ -25,4 +25,7 @@ export fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) =
     Stack(x :: xs)
 
 export fn Stack.pop(Stack(xs) : Stack(a)) -> Optional(#(a, Stack(a))) =
-    match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
+    match xs {
+        [] -> None
+      | x :: rest -> Some(#(x, Stack(rest)))
+    }

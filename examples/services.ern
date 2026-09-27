@@ -11,19 +11,18 @@
 //
 
 type StoreMsg =
-    Put(key : String, value : Int)
-  | Get(key : String, reply : Reply(Optional(Int)))
-  | Corrupt
+    Put(key : String, value : Int) | Get(key : String, reply : Reply(Optional(Int))) | Corrupt
 
 type IdMsg = NextId(reply : Reply(Int))
 
 type AuditMsg = Record(String) | Entries(reply : Reply(List(String)))
 
 let services : Address(Supervisor.Msg) = spawn(Local,
-    Supervisor.group(Supervisor.RestForOne, RestartLimit(restarts = 3, within = 10000)))
+                                               Supervisor.group(Supervisor.RestForOne,
+                                                                RestartLimit(restarts = 3,
+                                                                             within = 10000)))
 
-let store : Address(StoreMsg) =
-    spawn(Local, Supervisor.child(services, fn() = storing(Map.empty)))
+let store : Address(StoreMsg) = spawn(Local, Supervisor.child(services, fn() = storing(Map.empty)))
 
 fn storing(items : Map(String, Int)) -> Unit with StoreMsg =
     receive {
@@ -45,8 +44,7 @@ fn counting(next : Int) -> Unit with IdMsg =
         }
     }
 
-let audit : Address(AuditMsg) =
-    spawn(Local, Supervisor.child(services, fn() = recording([])))
+let audit : Address(AuditMsg) = spawn(Local, Supervisor.child(services, fn() = recording([])))
 
 fn recording(entries : List(String)) -> Unit with AuditMsg =
     receive {
@@ -64,7 +62,9 @@ export fn main() -> Unit with Never = {
     send(store, Corrupt);
     // the restart is asynchronous, and a call made during it may be answered from the old
     // state or end (report §6.6); main waits so that its output is the same on every run
-    receive { after 500 -> Unit };
+    receive {
+        after 500 -> Unit
+    };
     report("after the restart")
 }
 
@@ -81,6 +81,12 @@ fn report(moment : String) -> Unit with m = {
     };
     let entries = Address.callForever(audit, fn(r) = Entries(reply = r));
     let id = Address.callForever(ids, fn(r) = NextId(reply = r));
-    Io.println(moment <> ": apples " <> apples <> ", next id " <> Int.toString(id)
-        <> ", audit [" <> String.join(entries, "; ") <> "]")
+    Io.println(moment
+                   <> ": apples "
+                   <> apples
+                   <> ", next id "
+                   <> Int.toString(id)
+                   <> ", audit ["
+                   <> String.join(entries, "; ")
+                   <> "]")
 }

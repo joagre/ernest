@@ -67,8 +67,7 @@ export fn get(b : Bytes, i : Int) -> Optional(Int) =
 /// ```
 export fn slice(b : Bytes, from : Int, count : Int) -> Bytes = {
     let start = Int.max(from, 0);
-    if count <= 0 || start >= size(b) then <<>>
-    else part(b, start, Int.min(count, size(b) - start))
+    if count <= 0 || start >= size(b) then <<>> else part(b, start, Int.min(count, size(b) - start))
 }
 
 foreign fn part(b : Bytes, from : Int, count : Int) -> Bytes =
@@ -94,6 +93,7 @@ fn octets(b : Bytes, done : List(Int)) -> List(Int) =
 /// // => None
 /// ```
 export fn fromList(octets : List(Int)) -> Optional(Bytes) =
-    if List.all(octets, fn(n) = n >= 0 && n <= 255)
-    then Some(List.foldLeft(octets, <<>>, fn(done, n) = <<done:bytes, n>>))
-    else None
+    if List.all(octets, fn(n) = n >= 0 && n <= 255) then
+        Some(List.foldLeft(octets, <<>>, fn(done, n) = <<done:bytes, n>>))
+    else
+        None

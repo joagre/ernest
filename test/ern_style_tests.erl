@@ -3,6 +3,8 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-export([write_formatted/0]).
+
 -define(ROOT, "..").
 
 %% The documents whose ```ernest fences the Ernest style guide governs.
@@ -38,69 +40,44 @@ no_tab_test() ->
     ?assertEqual([], [{F, N} || F <- Files, {N, Line} <- numbered(F),
                                 lists:member($\t, Line)]).
 
-%% docs/style.md: one statement a line; a line of Ernest holds no `;` with
-%% more code after it, in every module, every example in a module's doc
-%% blocks, and every Ernest block of the guide and the report. A string, a
-%% character and a comment are not code, and an input at the shell's prompt,
-%% a console's line, is not checked. Written with the rule.
-one_statement_a_line_test() ->
-    Lines = [{F, N, L} || F <- modules(), {N, L} <- ernest_lines(F)]
-        ++ [{F, N, L} || F <- ?DOCUMENTS, {N, L} <- lists:append(fences(numbered(F)))],
-    ?assertEqual([], [{F, N} || {F, N, L} <- Lines, more_after_semicolon(L)]).
-
-%% docs/style.md: a function's head ends at `=` and its body begins on the
-%% next line, one step in from the line the head begins on, a `foreign
-%% fn`'s string as a body; a body that is a block opens its brace at the
-%% end of the head's line, and nothing follows the brace there. Read from
-%% the tokens of every text one_statement_a_line_test reads. Written with
-%% the rule.
-function_head_test() ->
-    ?assertEqual([], [{F, N} || {F, Toks} <- ernest_tokens(), N <- head_breaks(Toks)]).
-
-%% docs/style.md: a block holds more than one statement, in every text
-%% one_statement_a_line_test reads. A brace after an expression or after
-%% `receive` holds clauses and is not a block. Written with the rule.
+%% docs/style.md: a block holds more than one statement, in every module,
+%% every example in a module's doc blocks, and every Ernest block of the
+%% guide and the report. A brace after an expression or after `receive`
+%% holds clauses and is not a block. Written with the rule.
 block_of_one_test() ->
     ?assertEqual([], [{F, N} || {F, Toks} <- ernest_tokens(), N <- blocks_of_one(Toks)]).
 
-%% docs/style.md: a blank line stands above each top-level declaration,
-%% above the comment or doc block that stands directly over it, in every
-%% text one_statement_a_line_test reads. A declaration is a first token on
-%% its line outside every bracket, and a `fn` before a `(` is a lambda's.
-%% Written with the rule.
-blank_line_between_declarations_test() ->
-    ?assertEqual([], [{F, N} || {F, Lines} <- ernest_texts(),
-                               N <- crowded(Lines, tokens(F, Lines))]).
+%% report §11.6, docs/style.md: every module is in the layout `ern format`
+%% writes, the examples of its doc blocks with it, and so is every Ernest
+%% block of the guide and the report that parses; `make format` lays out
+%% what is not. Written with the formatter, as the style guide's hand-made
+%% checks of a statement a line, a function's head and the blank line
+%% between declarations, which it holds, went.
+formatted_test_() ->
+    {timeout, 120,
+     fun() ->
+         ?assertEqual([], [F || F <- modules(), not formatted(F)]),
+         ?assertEqual([], [F || F <- ?DOCUMENTS, not document_formatted(F)])
+     end}.
 
-crowded(Lines, Toks) ->
-    Text = maps:from_list(Lines),
-    [line(T) || T <- declarations(Toks, 0, 0), not spaced(Text, line(T) - 1)].
+formatted(F) ->
+    {ok, Bin} = file:read_file(filename:join(?ROOT, F)),
+    ern_format:format(Bin) =:= {ok, Bin}.
 
-%% The tokens that begin a top-level declaration: each first on its line,
-%% outside every bracket.
-declarations([], _, _) -> [];
-declarations([T | Rest], Depth, Last) ->
-    Starts = Depth =:= 0 andalso line(T) =/= Last andalso declaration(T, Rest),
-    [T || Starts] ++ declarations(Rest, Depth + depth(T), line(T)).
+document_formatted(F) ->
+    {ok, Bin} = file:read_file(filename:join(?ROOT, F)),
+    ern_format:markdown(Bin) =:= Bin.
 
-declaration({Kind, _}, _) when Kind =:= export; Kind =:= 'let'; Kind =:= type;
-                               Kind =:= abstract; Kind =:= foreign -> true;
-declaration({fn, _}, [{'(', _} | _]) -> false;
-declaration({fn, _}, _) -> true;
-declaration(_, _) -> false.
-
-%% Whether the line above a declaration, past its comments, is blank or
-%% the text's start.
-spaced(Text, N) ->
-    case maps:find(N, Text) of
-        error -> true;
-        {ok, L} ->
-            case string:trim(L) of
-                "" -> true;
-                "//" ++ _ -> spaced(Text, N - 1);
-                _ -> false
-            end
-    end.
+%% The Ernest blocks of the documents laid out, for `make format`.
+write_formatted() ->
+    lists:foreach(fun(F) ->
+                      Path = filename:join(?ROOT, F),
+                      {ok, Bin} = file:read_file(Path),
+                      case ern_format:markdown(Bin) of
+                          Bin -> ok;
+                          Out -> ok = file:write_file(Path, Out)
+                      end
+                  end, ?DOCUMENTS).
 
 %% The modules the Ernest style guide governs.
 modules() ->
@@ -111,12 +88,6 @@ modules() ->
                     not editor_artifact(filename:basename(F))],
     ?assert(length(Modules) > 20),
     Modules.
-
-%% A module's lines of Ernest: its code, and the examples in its doc blocks.
-ernest_lines(F) ->
-    {Docs, Code} = lists:partition(fun({_, L}) -> lists:prefix("///", string:trim(L)) end,
-                                   numbered(F)),
-    Code ++ lists:append(fences(doc_lines(Docs))).
 
 doc_lines(Docs) ->
     [{N, lists:nthtail(3, string:trim(L, leading))} || {N, L} <- Docs].
@@ -165,38 +136,6 @@ tokens(F, [{First, _} | _] = Lines) ->
             error({not_lexed, F, First})
     end.
 
-%% The lines of the function heads that break the rule. A `fn` followed
-%% by a name declares a function; a lambda's is followed by `(`.
-head_breaks(Toks) ->
-    First = maps:from_list(lists:reverse([{line(T), column(T)} || T <- Toks])),
-    head_breaks(Toks, First).
-
-head_breaks([], _) -> [];
-head_breaks([{foreign, _} = Foreign, {fn, _} | Rest], First) ->
-    {Eq, [Impl | _]} = after_head(Rest),
-    Broken = line(Impl) =:= line(Eq)
-        orelse column(Impl) =/= maps:get(line(Foreign), First) + 4,
-    [line(Eq) || Broken] ++ head_breaks(Rest, First);
-head_breaks([{fn, _} = Fn, {Kind, _, _} = Name | Rest], First)
-  when Kind =:= ident; Kind =:= typename ->
-    {Eq, [Body | After]} = after_head(Rest),
-    Broken = case Body of
-                 {'{', _} -> line(Body) =/= line(Eq) orelse line(hd(After)) =:= line(Body);
-                 _ -> line(Body) =:= line(Eq)
-                          orelse column(Body) =/= maps:get(line(Fn), First) + 4
-             end,
-    [line(Eq) || Broken] ++ head_breaks([Name | Rest], First);
-head_breaks([_ | Rest], First) ->
-    head_breaks(Rest, First).
-
-%% The `=` that ends a head, the first outside a bracket after the
-%% parameters open, and the tokens after it.
-after_head(Toks) ->
-    equals(lists:dropwhile(fun(T) -> element(1, T) =/= '(' end, Toks), 0).
-
-equals([{'=', _} = Eq | Rest], 0) -> {Eq, Rest};
-equals([T | Rest], Depth) -> equals(Rest, Depth + depth(T)).
-
 %% The lines of the blocks of one statement. A brace is a block's unless
 %% it follows an expression or `receive`, where it holds clauses.
 blocks_of_one(Toks) ->
@@ -228,29 +167,6 @@ depth({Kind, _}) ->
 depth(_) -> 0.
 
 line(T) -> element(1, element(2, T)).
-
-column(T) -> element(2, element(2, T)).
-
-%% Whether a `;` has code after it on the line, strings, characters and a
-%% comment aside.
-more_after_semicolon(Line) ->
-    Code = code_of(Line),
-    case string:split(Code, ";") of
-        [_, After] -> string:trim(After) =/= "" orelse more_after_semicolon(After);
-        [_] -> false
-    end.
-
-code_of([]) -> [];
-code_of("//" ++ _) -> [];
-code_of([$" | Rest]) -> [$" | code_of(after_quote(Rest, $"))];
-code_of([$', $\\, _, $' | Rest]) -> "''" ++ code_of(Rest);
-code_of([$', _, $' | Rest]) -> "''" ++ code_of(Rest);
-code_of([C | Rest]) -> [C | code_of(Rest)].
-
-after_quote([], _) -> [];
-after_quote([$\\, _ | Rest], Q) -> after_quote(Rest, Q);
-after_quote([Q | Rest], Q) -> Rest;
-after_quote([_ | Rest], Q) -> after_quote(Rest, Q).
 
 %% docs/style.md: every Erlang module is ern_<thing>, unique across the
 %% repository, and a module compiled from an Ernest source is ern@<namespace>;
@@ -286,6 +202,21 @@ emacs_mode_mirrors_the_lexer_test() ->
     Painted = strings_of(Mode, "(defconst ernest-operators"),
     ?assert(length(Painted) > 5),
     ?assertEqual([], Painted -- Symbols).
+
+%% docs/emacs_mode.md: the Emacs mode restates how tightly each binary
+%% operator binds, which places a line an operator opens, so a test keeps
+%% its table equal to the parser's. Written with the table.
+%% report §2.6
+emacs_mode_mirrors_the_parser_test() ->
+    Parser = read("erl/parser/src/ern_parser.erl"),
+    Mode = read("emacs/ernest-mode.el"),
+    {match, InParser} = re:run(Parser, "^prec\\('([^']+)'\\) -> \\{([0-9]+),",
+                               [global, multiline, {capture, all_but_first, list}]),
+    {match, InMode} = re:run(body(Mode, "(defconst ernest--precedence"),
+                             "\\(\"([^\"]+)\" \\. ([0-9]+)\\)",
+                             [global, {capture, all_but_first, list}]),
+    ?assert(length(InParser) > 10),
+    ?assertEqual(lists:sort(InParser), lists:sort(InMode)).
 
 %% The strings, or the atoms, of the list that opens at Marker: the same
 %% two shapes in Erlang and in Elisp.

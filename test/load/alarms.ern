@@ -17,7 +17,8 @@ export fn main() -> Unit with Msg =
     round(1)
 
 fn round(n : Int) -> Unit with Msg =
-    if n > rounds then Unit
+    if n > rounds then
+        Unit
     else {
         work(batch);
         mark(n);
@@ -25,7 +26,8 @@ fn round(n : Int) -> Unit with Msg =
     }
 
 fn work(left : Int) -> Unit with Msg =
-    if left == 0 then Unit
+    if left == 0 then
+        Unit
     else {
         once();
         work(left - 1)
@@ -33,8 +35,14 @@ fn work(left : Int) -> Unit with Msg =
 
 fn once() -> Unit with Msg = {
     Clock.alarm(1, Tick);
-    receive { Tick(_) -> Unit };
+    receive {
+        Tick(_) -> Unit
+    };
     Clock.alarmAt(Clock.now(), Tick);
-    receive { Tick(_) -> Unit };
-    receive { after 0 -> Unit }
+    receive {
+        Tick(_) -> Unit
+    };
+    receive {
+        after 0 -> Unit
+    }
 }

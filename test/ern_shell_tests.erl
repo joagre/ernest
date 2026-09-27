@@ -1245,7 +1245,7 @@ commands_mirror_test() ->
                                                          {capture, all_but_first, binary}]),
     {ok, Source} = file:read_file("../shell/shell/command.ern"),
     [_, AfterList] = binary:split(Source, <<"export let commands = [">>),
-    [List | _] = binary:split(AfterList, <<"\n]\n">>),
+    [List | _] = binary:split(AfterList, <<")]\n">>),
     {match, Named} = re:run(List, "Command\\(name = \"([a-z]+)\"",
                             [global, {capture, all_but_first, binary}]),
     ?assertEqual(lists:sort(lists:append(Named)), lists:sort(lists:append(Listed))).

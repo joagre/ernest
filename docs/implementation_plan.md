@@ -17,8 +17,9 @@ Actorson until 12 September 2026.
 
 ## Where we are
 
-**MVP 2.8, the formatter, is next** (decided 2026-09-27), ahead of MVP 2.7's last two items,
-what Ernest adds and the guide read for its order. The rest of MVP 2.7, a program started from
+**MVP 2.8's formatter and the Emacs mode's layout are built** (2026-09-27). Next is its item 4,
+the decision whether a `let`'s value follows the body rule, then item 3, format on save in
+Emacs, and then MVP 2.7's last two items, what Ernest adds and the guide read for its order. The rest of MVP 2.7, a program started from
 a command line, is built: `Os`, the memory and atoms items, running as a service, the appendix
 of libraries and back pressure (2026-09-27). MVP 2.66, the standard library's `Supervisor`, is
 done (2026-09-27). MVP 2.65, the language and the toolchain read
@@ -49,7 +50,7 @@ so a decision they must see goes here.
 | MVP 2.65 | the language and the toolchain read back | done 2026-09-26 |
 | MVP 2.66 | the standard library's `Supervisor` | done 2026-09-27 |
 | MVP 2.7 | a program started from a command line, and the appendix of libraries | two items left, after 2.8 |
-| **MVP 2.8** | **the formatter** | **next** |
+| **MVP 2.8** | **the formatter** | **items 1-2 done 2026-09-27; a `let`'s value, then format on save** |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | MVP 2.95 | the first release: manual pages, an installation, the review | after 2.7 |
 | MVP 3.0 | peers | |
@@ -685,28 +686,21 @@ built next, ahead of MVP 2.7's last two items: the layout rules of `docs/style.m
 settled, and the code keeps an older form only until the formatter runs (the log's *The
 Formatter Before the Release* and *Layout for the Reader*).
 
-1. **The formatter.** One style, `docs/style.md`'s, and no configuration; it writes a module
-   in that style, and with `--check` says which modules are not, which then stands for the
-   style test's hand-made checks. Its risk, named: the comments. The lexer drops an ordinary
-   comment, and the tree the checker reads has dropped a literal's spelling, redundant
-   parentheses and blank lines, so the formatter works from what was written, the lexer
-   keeping each comment with the token beside it. Its first run brings the code to the five
-   rules the code does not yet follow: a bracket's items aligned, a brace over lines, a
-   bracket that does not fit broken one item a line, an `if` broken whole, and a body broken
-   where it does not fit. The layout was tried by hand on `shell/shell.ern` on 2026-09-27;
-   the formatter's run on it is read against that trial, and a difference is decided before
-   the run is committed. Tested by the formatting of a formatted module being itself, by
-   what it writes parsing to the tree it read, and by the standard library, the shell and
-   the examples, once formatted, coming back unchanged. Decided here, with the user, before
-   it is built: **whether it formats the Ernest blocks of the report, the guide and the doc
-   blocks**, which the style test reads as it reads a module.
-2. **The Emacs mode indents what the formatter writes**, in the commit of the formatter's first
-   run, since `make test` holds the mode to every source ([`emacs_mode.md`](emacs_mode.md)). A
-   line inside a parenthesis or a square bracket whose first item follows it on its line
-   stands under that item, and a step inside such an item counts from its column; a line an
-   operator carries on steps from the line its expression began on, past brackets that have
-   closed. The cases of `emacs/test/broken/` written in the older form are written again in
-   the new.
+1. **The formatter, built 2026-09-27** (report §11.6; the log's *What the Formatter Keeps*).
+   `ern format` lays out each module named, every module under a directory, or standard
+   input, changing only line breaks and spaces, and `--check` names each module not laid out.
+   `make format` lays out every source and the Ernest blocks of the report and the guide, and
+   `formatted_test_` holds all of them, in place of the style test's hand-made checks of a
+   statement a line, a function's head and the blank line between declarations. Decided with
+   the user: a doc block's examples are `ern format`'s, and the report's and the guide's
+   blocks the repository's, through that test and `make format`. Its first run laid out 57
+   files; read against the hand trial of `shell.ern`, it matched but where the writer had
+   named a value, and four refinements it found are in the log's entry.
+2. **The Emacs mode indents what the formatter writes, built 2026-09-27**
+   ([`emacs_mode.md`](emacs_mode.md)): a bracket's items aligned, a brace's contents from the
+   line its construct began on, and a line an operator opens by how tightly the operator
+   binds, from a table `emacs_mode_mirrors_the_parser_test` holds equal to the parser's.
+   `reindent`, `flatten` and `typing` hold it to the formatted repository.
 3. **Format on save in Emacs**, decided 2026-09-27, as go-mode's `gofmt-before-save` and
    rust-analyzer do for their languages: the mode formats a buffer by running `ern format` on
    it as it is saved. `ern format` reads a module from standard input and writes it to
@@ -715,6 +709,11 @@ Formatter Before the Release* and *Layout for the Reader*).
    on by itself there. A buffer that does not parse is saved as it was typed, and the mode
    shows the formatter's diagnostic: saving is never refused. `emacs_mode.md`'s sentence that
    the mode never calls the toolchain changes with it.
+4. **A `let`'s value, decided with the user before item 3 is built.** The first run showed a
+   `let` whose value does not fit keeping it on the `let`'s line and aligning its brackets
+   far to the right, `export let log : Address(LogMsg) = spawn(Local,` in report §6.5, where
+   the source had the value a step in on the next line. The rules say where an arm's and a
+   lambda's body go and nothing of a `let`'s value; the question is whether it follows them.
 
 ---
 

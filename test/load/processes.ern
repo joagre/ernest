@@ -23,7 +23,8 @@ export fn main() -> Unit with Msg =
     round(1)
 
 fn round(n : Int) -> Unit with Msg =
-    if n > rounds then Unit
+    if n > rounds then
+        Unit
     else {
         work(batch);
         mark(n);
@@ -31,7 +32,8 @@ fn round(n : Int) -> Unit with Msg =
     }
 
 fn work(left : Int) -> Unit with Msg =
-    if left == 0 then Unit
+    if left == 0 then
+        Unit
     else {
         once();
         work(left - 1)
@@ -43,7 +45,9 @@ fn once() -> Unit with Msg = {
     let _ = Address.call(w, fn(r) = Ask(reply = r), 1000);
     monitor(w, Ended);
     kill(w);
-    receive { Ended(_) -> Unit };
+    receive {
+        Ended(_) -> Unit
+    };
     // a call whose answer comes after its time, and one never answered
     let s = spawn(Local, slow);
     let _ = Address.call(s, fn(r) = Ask(reply = r), 1);
@@ -53,14 +57,21 @@ fn once() -> Unit with Msg = {
     kill(q);
     // a process that faults, watched from its start
     let _ = spawnMonitored(Local, fn() -> Unit with Never = fault("on purpose"), Ended);
-    receive { Ended(_) -> Unit };
+    receive {
+        Ended(_) -> Unit
+    };
     // a watch on the service by a process that ends before it
     let _ = spawnMonitored(Local, fn() -> Unit with Msg = monitor(keeper, Ended), Ended);
-    receive { Ended(_) -> Unit };
+    receive {
+        Ended(_) -> Unit
+    };
     // a subscription to faults that ends with its process
-    let _ = spawnMonitored(Local, fn() -> Unit with Process.FaultReport = Process.faults(fn(r) = r),
-        Ended);
-    receive { Ended(_) -> Unit }
+    let _ = spawnMonitored(Local,
+                           fn() -> Unit with Process.FaultReport = Process.faults(fn(r) = r),
+                           Ended);
+    receive {
+        Ended(_) -> Unit
+    }
 }
 
 fn worker() -> Unit with WorkMsg =
@@ -75,7 +86,9 @@ fn worker() -> Unit with WorkMsg =
 fn slow() -> Unit with WorkMsg =
     receive {
         Ask(reply = r) -> {
-            receive { after 5 -> Unit };
+            receive {
+                after 5 -> Unit
+            };
             answer(r, 1);
             slow()
         }
@@ -83,4 +96,6 @@ fn slow() -> Unit with WorkMsg =
     }
 
 fn silent() -> Unit with WorkMsg =
-    receive { Stop -> Unit }
+    receive {
+        Stop -> Unit
+    }

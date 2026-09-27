@@ -169,9 +169,12 @@ foreign fn squareRoot(x : Float) -> Float =
 /// // => #(Some(1024.0), None, None)
 /// ```
 export fn pow(base : Float, exponent : Float) -> Optional(Float) =
-    if base < 0.0 && Int.toFloat(truncate(exponent)) != exponent then None
-    else if base == 0.0 && exponent < 0.0 then None
-    else Some(power(base, exponent))
+    if base < 0.0 && Int.toFloat(truncate(exponent)) != exponent then
+        None
+    else if base == 0.0 && exponent < 0.0 then
+        None
+    else
+        Some(power(base, exponent))
 
 foreign fn power(base : Float, exponent : Float) -> Float =
     "ern_float:pow/2"

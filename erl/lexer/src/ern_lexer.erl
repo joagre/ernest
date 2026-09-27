@@ -9,7 +9,7 @@
 %% line is Line plus the number of "\n" in the text.
 -module(ern_lexer).
 
--export([tokenize/1]).
+-export([tokenize/1, tokenize/2]).
 
 -include_lib("utils/include/ern_diag.hrl").
 
@@ -27,6 +27,7 @@
   | {ident, pos(), atom()}
   | {typename, pos(), atom()}
   | {doc, pos(), unicode:unicode_binary()}
+  | {comment, pos(), unicode:unicode_binary()}
   | {atom(), pos()}.
 
 -define(RESERVED, [type, abstract, with, foreign, match, 'when', 'receive', 'after', 'or',
@@ -40,9 +41,17 @@
 
 -spec tokenize(unicode:chardata()) -> {ok, [token()]} | {error, ern_diag:diag()}.
 tokenize(Data) ->
+    tokenize(Data, []).
+
+%% With `comments`, every ordinary comment is a token too, `{comment, Pos,
+%% Text}` with the text as written, for the formatter (report §11.6); it
+%% moves no other token's previous end, so the parser's spans are the same.
+-spec tokenize(unicode:chardata(), [comments]) -> {ok, [token()]} | {error, ern_diag:diag()}.
+tokenize(Data, Options) ->
+    Keep = lists:member(comments, Options),
     case unicode:characters_to_list(Data) of
         Chars when is_list(Chars) ->
-            try lex(strip_bom(Chars), 1, 1, {1, 1}, []) of
+            try lex(strip_bom(Chars), 1, 1, {1, 1}, [], Keep) of
                 Tokens -> {ok, Tokens}
             catch
                 throw:{lex_error, Line, Col, Message, Incomplete} ->
@@ -60,24 +69,25 @@ strip_bom(Chars) -> Chars.
 %% Main loop. Acc is reversed; Prev is the end of the last token emitted.
 %%
 
-lex([], L, C, Prev, Acc) ->
+lex([], L, C, Prev, Acc, _Keep) ->
     lists:reverse([{eof, {L, C, {L, C}, Prev}} | Acc]);
-lex([$\n | R], L, _C, Prev, Acc) ->
-    lex(R, L + 1, 1, Prev, Acc);
-lex([Ch | R], L, C, Prev, Acc) when Ch =:= $\s; Ch =:= $\t; Ch =:= $\r ->
-    lex(R, L, C + 1, Prev, Acc);
+lex([$\n | R], L, _C, Prev, Acc, Keep) ->
+    lex(R, L + 1, 1, Prev, Acc, Keep);
+lex([Ch | R], L, C, Prev, Acc, Keep) when Ch =:= $\s; Ch =:= $\t; Ch =:= $\r ->
+    lex(R, L, C + 1, Prev, Acc, Keep);
 %% report §2.2: `///` begins a doc comment and `////` an ordinary one
-lex("////" ++ R, L, C, Prev, Acc) ->
-    lex(skip_line(R), L, C, Prev, Acc);
-lex("///" ++ R, L, C, Prev, Acc) ->
+lex("////" ++ R, L, C, Prev, Acc, Keep) ->
+    line_comment("////", R, L, C, Prev, Acc, Keep);
+lex("///" ++ R, L, C, Prev, Acc, Keep) ->
     {Text, Rest, L1} = doc_block(R, L, []),
-    lex(Rest, L1, 1, {L1, 1}, [{doc, {L, C, {L1, 1}, Prev}, Text} | Acc]);
-lex("//" ++ R, L, C, Prev, Acc) ->
-    lex(skip_line(R), L, C, Prev, Acc);
-lex("/*" ++ R, L, C, Prev, Acc) ->
+    lex(Rest, L1, 1, {L1, 1}, [{doc, {L, C, {L1, 1}, Prev}, Text} | Acc], Keep);
+lex("//" ++ R, L, C, Prev, Acc, Keep) ->
+    line_comment("//", R, L, C, Prev, Acc, Keep);
+lex("/*" ++ R = S, L, C, Prev, Acc, Keep) ->
     {Rest, L1, C1} = block_comment(R, 1, L, C + 2, L, C),
-    lex(Rest, L1, C1, Prev, Acc);
-lex([Ch | _] = S, L, C, Prev, Acc) when Ch >= $0, Ch =< $9 ->
+    Text = lists:sublist(S, length(S) - length(Rest)),
+    lex(Rest, L1, C1, Prev, comment(Keep, Text, {L, C, {L1, C1}, Prev}, Acc), Keep);
+lex([Ch | _] = S, L, C, Prev, Acc, Keep) when Ch >= $0, Ch =< $9 ->
     {Kind, V, Rest, C1} = number(S, L, C),
     %% report §2.5: nothing word-like directly after a number
     case Rest of
@@ -91,31 +101,32 @@ lex([Ch | _] = S, L, C, Prev, Acc) when Ch >= $0, Ch =< $9 ->
         [] ->
             ok
     end,
-    lex(Rest, L, C1, {L, C1}, [{Kind, {L, C, {L, C1}, Prev}, V} | Acc]);
-lex([$" | R], L, C, Prev, Acc) ->
+    lex(Rest, L, C1, {L, C1}, [{Kind, {L, C, {L, C1}, Prev}, V} | Acc], Keep);
+lex([$" | R], L, C, Prev, Acc, Keep) ->
     {Chars, Rest, L1, C1} = string_body(R, L, C + 1, L, C, []),
     lex(Rest, L1, C1, {L1, C1},
-        [{string, {L, C, {L1, C1}, Prev}, unicode:characters_to_binary(Chars)} | Acc]);
-lex([$` | R], L, C, Prev, Acc) ->
+        [{string, {L, C, {L1, C1}, Prev}, unicode:characters_to_binary(Chars)} | Acc], Keep);
+lex([$` | R], L, C, Prev, Acc, Keep) ->
     %% report §2.5: a raw string, no escapes, may span lines
     {Chars, Rest, L1, C1} = raw_body(R, L, C + 1, L, C, []),
     lex(Rest, L1, C1, {L1, C1},
-        [{string, {L, C, {L1, C1}, Prev}, unicode:characters_to_binary(Chars)} | Acc]);
-lex([$' | R], L, C, Prev, Acc) ->
+        [{string, {L, C, {L1, C1}, Prev}, unicode:characters_to_binary(Chars)} | Acc], Keep);
+lex([$' | R], L, C, Prev, Acc, Keep) ->
     {Ch, Rest, C1} = char_body(R, L, C),
-    lex(Rest, L, C1, {L, C1}, [{char, {L, C, {L, C1}, Prev}, Ch} | Acc]);
-lex([Ch | _] = S, L, C, Prev, Acc) when Ch >= $a, Ch =< $z; Ch =:= $_ ->
+    lex(Rest, L, C1, {L, C1}, [{char, {L, C, {L, C1}, Prev}, Ch} | Acc], Keep);
+lex([Ch | _] = S, L, C, Prev, Acc, Keep) when Ch >= $a, Ch =< $z; Ch =:= $_ ->
     {Name, Rest} = take_word(S, L, C),
     C1 = C + length(Name),
-    lex(Rest, L, C1, {L, C1}, [word_token(Name, {L, C, {L, C1}, Prev}) | Acc]);
-lex([Ch | _] = S, L, C, Prev, Acc) when Ch >= $A, Ch =< $Z ->
+    lex(Rest, L, C1, {L, C1}, [word_token(Name, {L, C, {L, C1}, Prev}) | Acc], Keep);
+lex([Ch | _] = S, L, C, Prev, Acc, Keep) when Ch >= $A, Ch =< $Z ->
     {Name, Rest} = take_word(S, L, C),
     C1 = C + length(Name),
-    lex(Rest, L, C1, {L, C1}, [{typename, {L, C, {L, C1}, Prev}, list_to_atom(Name)} | Acc]);
-lex(S, L, C, Prev, Acc) ->
+    lex(Rest, L, C1, {L, C1}, [{typename, {L, C, {L, C1}, Prev}, list_to_atom(Name)} | Acc],
+        Keep);
+lex(S, L, C, Prev, Acc, Keep) ->
     case symbol(S, ?SYMBOLS) of
         {Sym, Rest, Len} ->
-            lex(Rest, L, C + Len, {L, C + Len}, [{Sym, {L, C, {L, C + Len}, Prev}} | Acc]);
+            lex(Rest, L, C + Len, {L, C + Len}, [{Sym, {L, C, {L, C + Len}, Prev}} | Acc], Keep);
         none ->
             error_at(L, C, io_lib:format("illegal character '~ts'", [[hd(S)]]))
     end.
@@ -124,9 +135,15 @@ lex(S, L, C, Prev, Acc) ->
 %% Comments
 %%
 
-skip_line([$\n | _] = R) -> R;
-skip_line([_ | R]) -> skip_line(R);
-skip_line([]) -> [].
+%% A `//` or `////` comment runs to the end of its line.
+line_comment(Opener, R, L, C, Prev, Acc, Keep) ->
+    {Body, Rest} = take_line(R),
+    Text = Opener ++ Body,
+    End = C + length(Text),
+    lex(Rest, L, End, Prev, comment(Keep, Text, {L, C, {L, End}, Prev}, Acc), Keep).
+
+comment(true, Text, Pos, Acc) -> [{comment, Pos, unicode:characters_to_binary(Text)} | Acc];
+comment(false, _Text, _Pos, Acc) -> Acc.
 
 %% Consecutive /// lines join with "\n". One space after /// is dropped.
 %% Returns the rest starting at the line after the block.

@@ -320,7 +320,10 @@ export fn Stack.push(x, Stack(xs)) =
     Stack(x :: xs)
 
 export fn Stack.pop(Stack(xs)) =
-    match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
+    match xs {
+        [] -> None
+      | x :: rest -> Some(#(x, Stack(rest)))
+    }
 
 export fn size(Stack(xs)) =
     List.size(xs)
@@ -542,8 +545,9 @@ Messages from one process to another are received in sending order. Between diff
 Addresses have no equality (§3.10). The process behind an address is `Process.fromAddress(a)`, a value with equality that nothing can be sent to (Appendix E.21). There is no registry. A process reaches another through an address it holds or received, or through a top-level binding that holds one, which is a *service*:
 
 ```ernest
-export let log : Address(LogMsg) =
-    spawn(Local, restarting(RestartLimit(restarts = 3, within = 5000), logger))
+export let log : Address(LogMsg) = spawn(Local,
+                                         restarting(RestartLimit(restarts = 3, within = 5000),
+                                                    logger))
 ```
 
 `restarting` keeps the service's address across its faults (§6.9). The address is the permission to send, and a service binding grants it to the modules that see the binding (§4.2).
@@ -575,13 +579,13 @@ type Request = Get(reply : Reply(Int)) | Stop
 
 fn serve(request : Request) -> Unit with m =
     match request {
-        Get(reply = r) -> answer(r, 42)  // accepted: r is answered on its one path
-      | Stop -> Unit                     // Stop carries no reply
+        Get(reply = r) -> answer(r, 42) // accepted: r is answered on its one path
+      | Stop -> Unit // Stop carries no reply
     }
 
 fn twice(dst : Address(Request), request : Request) -> Unit with m = {
     send(dst, request);
-    send(dst, request)               // rejected: request is consumed twice
+    send(dst, request) // rejected: request is consumed twice
 }
 ```
 
@@ -615,8 +619,7 @@ A process replaces its code by a message in its own type that carries the new lo
 
 ```ernest
 type CounterMsg =
-    Inc(Int)
-  | Get(reply : Reply(Int))
+    Inc(Int) | Get(reply : Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
 fn counter(n : Int) -> Unit with CounterMsg =
@@ -860,7 +863,7 @@ The prelude binds no system reference. Each is a private binding of its system m
 
 ## 11. Toolchain
 
-The toolchain is one command, `ern`, whose first word is its job: `ern build`, `ern doc`, `ern run`, `ern test`, `ern shell`, and `ern config`. `ern --help` and `ern --version` are options. Options are long: `--name`, or `--name value` for one that takes a value. An option that names a directory ends in `-root` where the directory's layout gives namespaces (§4.2), in `-dir` where it is a plain directory, and in `-path` where it is a root that may be given more than once. A job or an option spelled as an earlier version of the toolchain spelled it is refused, and the refusal names the spelling that replaces it.
+The toolchain is one command, `ern`, whose first word is its job: `ern build`, `ern doc`, `ern format`, `ern run`, `ern test`, `ern shell`, and `ern config`. `ern --help` and `ern --version` are options. Options are long: `--name`, or `--name value` for one that takes a value. An option that names a directory ends in `-root` where the directory's layout gives namespaces (§4.2), in `-dir` where it is a plain directory, and in `-path` where it is a root that may be given more than once. A job or an option spelled as an earlier version of the toolchain spelled it is refused, and the refusal names the spelling that replaces it.
 
 ### 11.1 `ern build` (compiler)
 
@@ -934,11 +937,17 @@ The toolchain is one command, `ern`, whose first word is its job: `ern build`, `
 
 ### 11.5 Diagnostics
 
-An error is reported as `file:line:column: message`, then the source. The file is the source's path from the working directory, or its absolute path when it lies outside that directory. The source shows a gutter of line numbers, the line before, the erroneous span underlined with `^`, any second span the message depends on, underlined with `-` and labelled, and at most one `help:` line naming the fix. `--short-errors`, which `ern build` and `ern doc` take, prints the first line alone. The parser reports one error per file; the checker reports every error that does not follow from another.
+An error is reported as `file:line:column: message`, then the source. The file is the source's path from the working directory, or its absolute path when it lies outside that directory. The source shows a gutter of line numbers, the line before, the erroneous span underlined with `^`, any second span the message depends on, underlined with `-` and labelled, and at most one `help:` line naming the fix. `--short-errors`, which `ern build`, `ern doc` and `ern format` take, prints the first line alone. The parser reports one error per file; the checker reports every error that does not follow from another.
 
 A type mismatch is reported at the innermost expression whose type is fixed: the last expression of a body or block, a branch or clause after the first, an argument, an operand, an element, or a pattern. The message shows both whole types. The label marks the span that fixed the expectation: an annotation, a callee's type, the first branch, clause, or element, the left operand, or the value matched. The help line names the part in which the types differ. An effect error names the primitive called and the function, `let`, or guard that is pure, and labels the annotation that made it so. An operator whose operand type is not determined (§4.8) is reported with the request to annotate it. A statement whose type is not `Unit` (§5.4) is reported whole, with the help line `let _ =`. A `<-` where the parser expects a delimiter has a help line that names `a < -1` (§2.6). A selector its operand's type lacks is reported at the selector, naming a constructor without the field. An error whose span holds a use of a name the module's own declaration hides from the prelude (§4.2) labels that use with the prelude's qualified name: `Local` here is this module's constructor, and the prelude's is `Prelude.Local`.
 
 A printed type elides an effect variable bound to pure (§3.9). An effect variable that occurs once in a printed type, and is not process-only, is printed as pure, since the context may bind it to pure: `fn k() -> Int with m = 5` prints as `() -> Int`. The compiler shows the three inferred restrictions of §3.9. In a printed type a variable with the equality constraint is `a=` and one that is not reply-carrying `a!`: `equal : (a=, a=) -> Bool`, `discard : (a!) -> Unit`. A process-only effect variable prints unchanged, and its restriction is stated by the message that rejects a pure instantiation. A type name is printed as the module would write it (§4.2). The module's own types and the prelude's are printed unqualified. Other modules' types are printed qualified. A local type that shadows a prelude name is printed qualified. A type variable is printed under its annotation's name; an unnamed one is `a`, `b`, ... for a value variable and `e`, `e1`, ... for an effect variable, avoiding the names in use. An error at a rejected call site names the parameter and the origin of its restriction; `ern doc` prints restrictions the same way.
+
+### 11.6 `ern format`
+
+`ern format [--check] [--short-errors] path...` lays out each module named, and every module under each directory named, as `ern build` finds them (§11.1), in the one layout of the style guide that comes with Ernest, `docs/style.md`, and writes it back in place. The layout has no options. `ern format -` lays out the module on standard input and writes it to standard output. With `--check` nothing is written back: the path of each module not in the layout is written to standard output, a line each, and the exit status is 1 if there is one. A module that does not parse is left as it is, its diagnostic is written as §11.5 says, and the exit status is 1.
+
+Only line breaks and the spaces between tokens change. Every token is written as it was written, so a literal keeps its spelling and a parenthesis stays. Every comment stays beside the token it was beside. A blank line inside a construct is kept, one where there were several, except after an opening bracket and before a closing one. One blank line stands between two top-level declarations. A doc block is kept as written, and each Ernest example in it that parses as a module or as a function's body is laid out as one; any other is left as it is.
 
 ## Appendix A. Grammar
 
@@ -1019,8 +1028,7 @@ The counter of §6.10, with a `main` that exercises `Inc` and `Get`. `Upgrade` i
 
 ```ernest
 type CounterMsg =
-    Inc(Int)
-  | Get(reply : Reply(Int))
+    Inc(Int) | Get(reply : Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
 export fn main() -> Unit with m = {
@@ -1052,11 +1060,14 @@ type MainMsg = PongDone(Down)
 export fn main() -> Unit with MainMsg = {
     let pongAddr = spawnMonitored(Local, fn() = pong(), PongDone);
     let _ = spawn(Local, fn() = ping(pongAddr, 3));
-    receive { PongDone(_) -> Unit }
+    receive {
+        PongDone(_) -> Unit
+    }
 }
 
 fn ping(pongAddr : Address(PongMsg), n : Int) -> Unit with m =
-    if n == 0 then send(pongAddr, Stop)
+    if n == 0 then
+        send(pongAddr, Stop)
     else {
         Io.println("ping " <> Int.toString(n));
         match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
@@ -1145,7 +1156,10 @@ foreign fn rawInsert(t : Table(k, v), row : #(k, v)) -> Bool with m =
 
 /// The value for key, or None if absent.
 export fn get(t : Table(k, v), key : k) -> Optional(v) with m =
-    match rawLookup(t, key) { [#(_, v)] -> Some(v) | _ -> None }
+    match rawLookup(t, key) {
+        [#(_, v)] -> Some(v)
+      | _ -> None
+    }
 
 foreign fn rawLookup(t : Table(k, v), key : k) -> List(#(k, v)) with m =
     "ets:lookup/2"

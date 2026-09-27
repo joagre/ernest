@@ -19,4 +19,7 @@ Sixty-one have been decided or moved to the plan; the next entry is 63.
     appears at the use site is still visible. A module alias, declared once at the top of a
     file, would be a second name for the same module (principle 2). The alternatives are an
     alias, a verdict that it stays as it is, or a module split so that most uses fall inside
-    the module they name.
+    the module they name. The formatter's first run (MVP 2.8) made it cost columns as well: a
+    bracket's items align after the qualified name, so `Shell.Complete.Name(` puts its fields
+    at column 60 and more, and the shell's `"timing"` arm had no layout within 100 columns
+    until the writer named a value.

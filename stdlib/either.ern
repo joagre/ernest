@@ -36,7 +36,10 @@
 /// // => true
 /// ```
 export fn isLeft(r : Either(e, a)) -> Bool =
-    match r { Left(_) -> true | Right(_) -> false }
+    match r {
+        Left(_) -> true
+      | Right(_) -> false
+    }
 
 /// `true` for `Right`.
 ///
@@ -47,11 +50,17 @@ export fn isLeft(r : Either(e, a)) -> Bool =
 /// // => false
 /// ```
 export fn isRight(r : Either(e, a)) -> Bool =
-    match r { Left(_) -> false | Right(_) -> true }
+    match r {
+        Left(_) -> false
+      | Right(_) -> true
+    }
 
 /// The value in `Right`, or the default for `Left`.
 export fn withDefault(r : Either(e, a), default : a) -> a =
-    match r { Right(x) -> x | Left(_) -> default }
+    match r {
+        Right(x) -> x
+      | Left(_) -> default
+    }
 
 /// The first `Either` that is `Right`, or the second `Left` when neither
 /// is.
@@ -63,12 +72,18 @@ export fn withDefault(r : Either(e, a), default : a) -> a =
 /// // => Right(2)
 /// ```
 export fn orElse(r : Either(e, a), other : Either(e, a)) -> Either(e, a) =
-    match r { Right(_) -> r | Left(_) -> other }
+    match r {
+        Right(_) -> r
+      | Left(_) -> other
+    }
 
 /// `Right` of the function applied to the value, or the `Left` unchanged;
 /// the function is not called on `Left`.
 export fn map(r : Either(e, a), f : (a) -> b with x) -> Either(e, b) with x =
-    match r { Right(v) -> Right(f(v)) | Left(c) -> Left(c) }
+    match r {
+        Right(v) -> Right(f(v))
+      | Left(c) -> Left(c)
+    }
 
 /// `Left` of the function applied to the cause, or the `Right` unchanged.
 ///
@@ -79,12 +94,18 @@ export fn map(r : Either(e, a), f : (a) -> b with x) -> Either(e, b) with x =
 /// // => Left("bad!")
 /// ```
 export fn mapLeft(r : Either(e, a), g : (e) -> b with x) -> Either(b, a) with x =
-    match r { Left(c) -> Left(g(c)) | Right(v) -> Right(v) }
+    match r {
+        Left(c) -> Left(g(c))
+      | Right(v) -> Right(v)
+    }
 
 /// The function's result for `Right`, or the `Left` unchanged without
 /// calling it: one step of a chain in which any step may fail.
 export fn andThen(r : Either(e, a), f : (a) -> Either(e, b) with x) -> Either(e, b) with x =
-    match r { Right(v) -> f(v) | Left(c) -> Left(c) }
+    match r {
+        Right(v) -> f(v)
+      | Left(c) -> Left(c)
+    }
 
 /// `Some` of the value in `Right`, or `None`; the cause is dropped.
 ///
@@ -95,7 +116,10 @@ export fn andThen(r : Either(e, a), f : (a) -> Either(e, b) with x) -> Either(e,
 /// // => Some(3)
 /// ```
 export fn toOptional(r : Either(e, a)) -> Optional(a) =
-    match r { Right(v) -> Some(v) | Left(_) -> None }
+    match r {
+        Right(v) -> Some(v)
+      | Left(_) -> None
+    }
 
 /// `Right` of the value in `Some`, or `Left` of the given cause for `None`.
 ///
@@ -106,4 +130,7 @@ export fn toOptional(r : Either(e, a)) -> Optional(a) =
 /// // => Left("missing")
 /// ```
 export fn fromOptional(o : Optional(a), cause : e) -> Either(e, a) =
-    match o { Some(v) -> Right(v) | None -> Left(cause) }
+    match o {
+        Some(v) -> Right(v)
+      | None -> Left(cause)
+    }

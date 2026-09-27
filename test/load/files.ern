@@ -19,7 +19,8 @@ export fn main() -> Unit with Never = {
 }
 
 fn round(n : Int) -> Unit with Never =
-    if n > rounds then Unit
+    if n > rounds then
+        Unit
     else {
         work(batch);
         mark(n);
@@ -27,7 +28,8 @@ fn round(n : Int) -> Unit with Never =
     }
 
 fn work(left : Int) -> Unit with Never =
-    if left == 0 then Unit
+    if left == 0 then
+        Unit
     else {
         once();
         work(left - 1)

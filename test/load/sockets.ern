@@ -43,7 +43,8 @@ fn echo(peer : Address(Tcp.SockMsg)) -> Unit with Never = {
 }
 
 fn round(port : Int, n : Int) -> Unit with Never =
-    if n > rounds then Unit
+    if n > rounds then
+        Unit
     else {
         work(port, batch);
         mark(n);
@@ -51,7 +52,8 @@ fn round(port : Int, n : Int) -> Unit with Never =
     }
 
 fn work(port : Int, left : Int) -> Unit with Never =
-    if left == 0 then Unit
+    if left == 0 then
+        Unit
     else {
         once(port);
         work(port, left - 1)

@@ -35,7 +35,10 @@
 /// // => true
 /// ```
 export fn isSome(o : Optional(a)) -> Bool =
-    match o { Some(_) -> true | None -> false }
+    match o {
+        Some(_) -> true
+      | None -> false
+    }
 
 /// `true` for `None`.
 ///
@@ -46,11 +49,17 @@ export fn isSome(o : Optional(a)) -> Bool =
 /// // => false
 /// ```
 export fn isNone(o : Optional(a)) -> Bool =
-    match o { Some(_) -> false | None -> true }
+    match o {
+        Some(_) -> false
+      | None -> true
+    }
 
 /// The value in `Some`, or the default for `None`.
 export fn withDefault(o : Optional(a), default : a) -> a =
-    match o { Some(x) -> x | None -> default }
+    match o {
+        Some(x) -> x
+      | None -> default
+    }
 
 /// The first `Optional` that is `Some`, or `None` when neither is.
 ///
@@ -61,14 +70,23 @@ export fn withDefault(o : Optional(a), default : a) -> a =
 /// // => Some(2)
 /// ```
 export fn orElse(o : Optional(a), other : Optional(a)) -> Optional(a) =
-    match o { Some(_) -> o | None -> other }
+    match o {
+        Some(_) -> o
+      | None -> other
+    }
 
 /// `Some` of the function applied to the value, or `None`; the function is
 /// not called on `None`.
 export fn map(o : Optional(a), f : (a) -> b with e) -> Optional(b) with e =
-    match o { Some(x) -> Some(f(x)) | None -> None }
+    match o {
+        Some(x) -> Some(f(x))
+      | None -> None
+    }
 
 /// The function's result for `Some`, or `None` without calling it: one step
 /// of a chain in which any step may find nothing.
 export fn andThen(o : Optional(a), f : (a) -> Optional(b) with e) -> Optional(b) with e =
-    match o { Some(x) -> f(x) | None -> None }
+    match o {
+        Some(x) -> f(x)
+      | None -> None
+    }

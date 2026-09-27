@@ -103,8 +103,9 @@ export fn map(m : Map(k, v), f : (k, v) -> w with e) -> Map(k, w) with e =
 /// // => [#("b", 2)]
 /// ```
 export fn filter(m : Map(k, v), p : (k, v) -> Bool with e) -> Map(k, v) with e =
-    List.foldLeft(toList(m), m, fn(acc, #(key, value)) =
-        if p(key, value) then acc else remove(acc, key))
+    List.foldLeft(toList(m),
+                  m,
+                  fn(acc, #(key, value)) = if p(key, value) then acc else remove(acc, key))
 
 /// The entries whose value the function answers `Some` for, that value in
 /// their place.
@@ -112,8 +113,7 @@ export fn filter(m : Map(k, v), p : (k, v) -> Bool with e) -> Map(k, v) with e =
 /// ### Examples
 ///
 /// ```ernest
-/// Map.toList(Map.filterMap(Map.fromList([#("a", "1"), #("b", "x")]),
-///     fn(_, s) = String.toInt(s)))
+/// Map.toList(Map.filterMap(Map.fromList([#("a", "1"), #("b", "x")]), fn(_, s) = String.toInt(s)))
 /// // => [#("a", 1)]
 /// ```
 export fn filterMap(m : Map(k, v), f : (k, v) -> Optional(w) with e) -> Map(k, w) with e =
@@ -194,8 +194,12 @@ export fn merge(m : Map(k, v), other : Map(k, v)) -> Map(k, v) =
 /// // => [#("a", 3)]
 /// ```
 export fn mergeWith(m : Map(k, v), other : Map(k, v), f : (v, v) -> v with e) -> Map(k, v) with e =
-    List.foldLeft(toList(other), m, fn(acc, #(key, value)) =
-        update(acc, key, fn(mine) = match mine { Some(first) -> f(first, value) | None -> value }))
+    List.foldLeft(toList(other),
+                  m,
+                  fn(acc, #(key, value)) = update(acc, key, fn(mine) = match mine {
+                      Some(first) -> f(first, value)
+                    | None -> value
+                  }))
 
 /// The map of those pairs, a later pair winning its key.
 export fn fromList(pairs : List(#(k, v))) -> Map(k, v) =

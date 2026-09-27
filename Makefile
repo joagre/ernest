@@ -1,7 +1,12 @@
 # Top-level build. Each application under erl/ has its own src/Makefile;
 # this one just runs them in order.
 
-APPS = utils lexer parser typer runtime emitter cli
+APPS = utils lexer parser format typer runtime emitter cli
+
+# Every Ernest source of the repository, which `make format` lays out and
+# the Emacs mode's tests read (report §11.6, docs/emacs_mode.md).
+ERNEST_SOURCES = stdlib/*.ern shell/*.ern shell/shell/*.ern examples/*.ern \
+		examples/modules/*.ern examples/modules/*/*.ern test/*/*.ern libs/*/*.ern
 
 # What the Ernest trees are built from: the compiler's beams, and each
 # tree's sources and the directories that hold them, so that a source
@@ -164,6 +169,12 @@ xref:
 contents:
 	@$(MAKE) -s -C test contents
 
+# Every Ernest source laid out, and the Ernest blocks of the guide and the
+# report (report §11.6); `make test` fails while one is not.
+format: all
+	@bin/ern format $(ERNEST_SOURCES)
+	@$(MAKE) -s -C test format
+
 # Report sections no test cites (every test function carries a `%% report §x.y` line):
 # every numbered section and every appendix, a chapter cited through its sections.
 sections:
@@ -188,8 +199,7 @@ clean-emacs:
 	find . -path ./.git -prune -o \( -name '*~' -o -name '#*#' -o -name '.#*' \) -print0 \
 	  | xargs -0 rm -f
 
-EMACS_CORPUS = ../stdlib/*.ern ../shell/*.ern ../shell/shell/*.ern ../examples/*.ern \
-		../examples/modules/*.ern ../examples/modules/*/*.ern ../test/*/*.ern ../libs/*/*.ern
+EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
 .PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load test-emacs \
-        $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents stdlib shell doc unicode
+        $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents format stdlib shell doc unicode

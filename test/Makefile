@@ -58,6 +58,9 @@ xref: $(EBIN)/ern_docs_tests.beam
 contents: $(EBIN)/ern_docs_tests.beam
 	erl -noshell -pa $(EBIN) -eval 'ern_docs_tests:write_contents(), halt().'
 
+format: $(EBIN)/ern_style_tests.beam
+	erl -noshell -pa ../erl/*/ebin -pa $(EBIN) -eval 'ern_style_tests:write_formatted(), halt().'
+
 # The load programs under load/ and the shell under a long session, each in
 # a node of its own, as docs/memory.md says; not part of `test`, and run
 # before every release (docs/review.md). Each prints its samples and whether

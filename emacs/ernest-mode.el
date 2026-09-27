@@ -50,6 +50,14 @@
   '("->" "<-" "::" "<>" "|>" "==" "!=" "<=" ">=" "&&" "||" "..")
   "The operators font lock paints, a subset of Appendix A's symbols.")
 
+(defconst ernest--precedence
+  '(("*" . 7) ("/" . 7) ("%" . 7) ("+" . 6) ("-" . 6) ("<>" . 6) ("::" . 5)
+    ("==" . 4) ("!=" . 4) ("<" . 4) ("<=" . 4) (">" . 4) (">=" . 4)
+    ("&&" . 3) ("||" . 2) ("|>" . 1))
+  "How tightly each binary operator binds, higher tighter (report section 2.6).
+It restates the parser's table, which `emacs_mode_mirrors_the_parser_test'
+in test/ern_style_tests.erl checks.")
+
 (defconst ernest-constants
   '("true" "false")
   "The literals that read as words (report section 2.5).")
@@ -288,17 +296,26 @@ A signature broken over lines is the only place this happens."
              (looking-at-p ernest--declaration-re))
            (not (ernest--head-ended-p start here))))))
 
+(defun ernest--operator-line-p ()
+  "Whether this line opens with an operator that carries the line above on."
+  (save-excursion
+    (back-to-indentation)
+    (and (looking-at-p ernest--continuation-re)
+         (not (ernest--clause-bar-p))
+         (not (ernest--after-separator-p)))))
+
 (defun ernest--continues-p ()
   "Whether this line carries the line above on rather than starting something.
 A line opening with an operator carries on, and so does a declaration's
-head broken over lines.  A body under `=' or `then' does not: it is a new
-logical line, one step in."
-  (save-excursion
-    (back-to-indentation)
-    (or (and (looking-at-p ernest--continuation-re)
-             (not (ernest--clause-bar-p))
-             (not (ernest--after-separator-p)))
-        (ernest--in-head-p))))
+head broken over lines, but for an item of a bracket that aligns its
+items.  A body under `=' or `then' does not: it is a new logical line,
+one step in."
+  (or (ernest--operator-line-p)
+      (and (ernest--in-head-p)
+           (save-excursion
+             (back-to-indentation)
+             (let ((open (nth 1 (syntax-ppss))))
+               (not (and open (ernest--first-item-column open))))))))
 
 (defun ernest--declaration-p ()
   "Whether point, at a line's first token, opens a declaration.
@@ -306,30 +323,153 @@ logical line, one step in."
   (and (looking-at-p ernest--declaration-re)
        (not (looking-at-p "fn[ \t]*("))))
 
-(defun ernest--anchor-base (&optional carried)
+(defun ernest--anchor-base (&optional carried open)
   "The base column of the logical line point is on.
 A declaration's head broken over lines is one logical line, so its body
 is not carried out to the right.  With CARRIED, so is a line an operator
 carries on, which puts every such line at one step; a bracket opened on
-one steps in from where it stands."
+one steps in from where it stands.  With OPEN, the walk stops at the
+line OPEN opened on, where no construct inside it can have begun before,
+and a bracket that aligns its items gives the column of its first item,
+which stands as if it began the line."
   (save-excursion
     (let ((seen 0))
-      (while (and (if carried (ernest--continues-p) (ernest--in-head-p))
+      (while (and (not (ernest--opened-here-p open))
+                  (if carried
+                      (or (ernest--operator-line-p) (ernest--in-head-p))
+                    (ernest--in-head-p))
                   (< seen 100)                  ; a broken buffer ends the walk
                   (save-excursion (ernest--previous-code-line)))
         (setq seen (1+ seen))
         (ernest--previous-code-line))
-      (ernest--line-base))))
+      (or (and (ernest--opened-here-p open)
+               (ernest--first-item-column open))
+          (ernest--line-base)))))
+
+(defun ernest--carried-base (open)
+  "The base column of the expression the operator line point is on carries on.
+The walk goes back past the lines an operator binding at least as tightly
+opens, which carry the same expression on, and stops at the line an
+operator binding more loosely opens, whose operand this line carries on:
+`&& x' above `== y' begins the operand `x == y'.  It stops, too, at the
+line OPEN opened on."
+  (let ((binds (ernest--precedence-here))
+        (seen 0))
+    (ernest--expression-line open)
+    (while (and (not (ernest--opened-here-p open))
+                (or (and (ernest--operator-line-p) (>= (ernest--precedence-here) binds))
+                    (ernest--in-head-p))
+                (< seen 100)                    ; a broken buffer ends the walk
+                (save-excursion (ernest--previous-code-line)))
+      (setq seen (1+ seen))
+      (ernest--expression-line open))
+    (or (and (ernest--opened-here-p open) (ernest--first-item-column open))
+        (ernest--line-base))))
+
+(defun ernest--precedence-here ()
+  "How tightly the operator this line opens with binds, or 0 for none."
+  (save-excursion
+    (back-to-indentation)
+    (let ((best 0) (length 0))
+      (dolist (entry ernest--precedence best)
+        (when (and (> (length (car entry)) length)
+                   (looking-at-p (regexp-quote (car entry))))
+          (setq best (cdr entry)
+                length (length (car entry))))))))
+
+(defun ernest--opened-here-p (open)
+  "Whether the bracket at OPEN opened on the line point is on."
+  (and open (<= (line-beginning-position) open (line-end-position))))
+
+(defun ernest--expression-line (open)
+  "Move to the line the expression a line inside OPEN carries on begins on.
+That is the previous code line, or, where that line begins inside a
+bracket deeper than OPEN, the line that bracket opened on."
+  (ernest--previous-code-line)
+  (ernest--climb open))
+
+(defun ernest--climb (open)
+  "Move to the line the construct on this line began on, inside OPEN.
+Where the line begins inside a bracket deeper than OPEN, that bracket
+closed on it, and what it closes began on the line the bracket opened on."
+  (let ((seen 0) inner)
+    (while (and (setq inner (save-excursion (back-to-indentation) (nth 1 (syntax-ppss))))
+                (or (null open) (> inner open))
+                (< seen 100))                   ; a broken buffer ends the walk
+      (setq seen (1+ seen))
+      (goto-char inner)
+      (beginning-of-line))))
+
+(defun ernest--brace-base (brace)
+  "The column the contents of the brace at BRACE step in from.
+That is the line the construct holding the brace began on, past a
+bracket closed before the brace, as a match's scrutinee broken over
+lines.  A bracket opened on that line whose first item holds the brace,
+and which holds a further item, aligns its items, and the brace steps
+from its first item; one whose last item holds the brace hugs it, and
+the brace steps from the line.  Where nothing follows the brace yet it
+is taken as hugged."
+  (save-excursion
+    (goto-char brace)
+    (let ((open (nth 1 (syntax-ppss brace)))
+          (inner brace)
+          (base nil))
+      (ernest--climb open)
+      (while (and (null base) open (ernest--opened-here-p open))
+        (if (and (ernest--first-item-p open inner) (ernest--more-items-p open inner))
+            (setq base (ernest--first-item-column open)))
+        (setq inner open
+              open (nth 1 (syntax-ppss open))))
+      (or base (ernest--anchor-base)))))
+
+(defun ernest--first-item-p (open pos)
+  "Whether POS lies in the first item of the bracket at OPEN."
+  (save-excursion
+    (let ((found nil))
+      (goto-char (1+ open))
+      (while (and (not found) (re-search-forward "," pos t))
+        (let ((state (save-excursion (syntax-ppss (match-beginning 0)))))
+          (when (and (not (nth 8 state)) (eql (nth 1 state) open))
+            (setq found t))))
+      (not found))))
+
+(defun ernest--more-items-p (open pos)
+  "Whether the bracket at OPEN holds a further item after POS."
+  (save-excursion
+    (let ((found nil)
+          (end (or (ignore-errors (scan-lists open 1 0)) (point-max))))
+      (goto-char pos)
+      (while (and (not found) (re-search-forward "," end t))
+        (let ((state (save-excursion (syntax-ppss (match-beginning 0)))))
+          (when (and (not (nth 8 state)) (eql (nth 1 state) open))
+            (setq found t))))
+      found)))
+
+(defun ernest--first-item-column (open)
+  "The column of the first item after the bracket at OPEN, or nil.
+A parenthesis or a square bracket whose first item follows it on its
+line aligns its items under that one.  A brace, and a bracket that ends
+its line, align nothing."
+  (save-excursion
+    (goto-char open)
+    (when (memq (char-after) '(?\( ?\[))
+      (forward-char 1)
+      (skip-chars-forward " \t")
+      (unless (or (eolp) (looking-at-p "/[/*]"))
+        (current-column)))))
 
 (defun ernest--content-column (open)
   "The column ordinary content sits at inside the bracket at OPEN.
-With OPEN nil it is a declaration's body, which is a step in from the
-declaration's own line; the style guide says a step and never an
-alignment, so nothing here looks at what follows the bracket."
+Under the bracket's first item when it aligns its items, and otherwise a
+step in from the line the bracket opened on.  With OPEN nil it is a
+declaration's body, which is a step in from the declaration's own line."
   (if open
-      (save-excursion
-        (goto-char open)
-        (+ (ernest--anchor-base) ernest-indent-offset))
+      (or (ernest--first-item-column open)
+          (if (eq (char-after open) ?{)
+              (+ (ernest--brace-base open) ernest-indent-offset)
+            (save-excursion
+              (goto-char open)
+              (+ (ernest--anchor-base) ernest-indent-offset))))
     (let ((start (ernest--declaration-start)))
       (if (< start (line-beginning-position))
           ernest-indent-offset
@@ -371,7 +511,7 @@ or a comment, is skipped, and so is one an earlier WORD has taken."
                 (setq pending (1+ pending))
               (if (> pending 0)
                   (setq pending (1- pending))
-                (setq base (ernest--anchor-base)))))))
+                (setq base (ernest--anchor-base nil (nth 1 state))))))))
       base)))
 
 (defun ernest-calculate-indent ()
@@ -399,7 +539,9 @@ regexps here match it whatever `case-fold-search' the user has."
        ;; a declaration begins in column zero
        ((and (null open) (ernest--declaration-p)) 0)
        ;; a closing bracket returns to the line its opener began on
-       ((and open (memq first '(?\) ?\] ?\})))
+       ((and open (eq first ?\}))
+        (ernest--brace-base open))
+       ((and open (memq first '(?\) ?\])))
         (save-excursion (goto-char open) (ernest--anchor-base)))
        ;; a clause's bar sits two spaces to the left of its arms
        ((ernest--clause-bar-p)
@@ -413,14 +555,13 @@ regexps here match it whatever `case-fold-search' the user has."
        ;; an operator or a broken head carries the line above on, a step
        ;; in from where that line's expression begins
        ((ernest--continues-p)
-        (+ (save-excursion (ernest--previous-code-line) (ernest--anchor-base t))
-           ernest-indent-offset))
-       ;; a body opened at the end of the line before
+        (+ (save-excursion (ernest--carried-base open)) ernest-indent-offset))
+       ;; a body opened at the end of the line before, a step in from the
+       ;; line its construct began on
        ((save-excursion
           (and (ernest--previous-code-line)
-               (or (null open) (> (point) open))
                (ernest--opens-body-p)))
-        (+ (save-excursion (ernest--previous-code-line) (ernest--anchor-base))
+        (+ (save-excursion (ernest--expression-line open) (ernest--anchor-base t open))
            ernest-indent-offset))
        ;; inside a bracket, its content; outside every bracket, with no
        ;; body or continuation pending, the next declaration

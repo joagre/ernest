@@ -16,9 +16,9 @@ Derived from `prog-mode`, not from CC Mode.
 - Font lock from report §2: reserved words, uppercase-initial names as types and
   constructors, the name a declaration introduces, qualified names, operators, and the
   numeric literals of §2.5.
-- Indentation to [`style.md`](style.md), which owns it, but for the alignment of a bracket's
-  items: the mode steps them in, as the code still does, until the formatter's first run
-  (plan, MVP 2.8).
+- Indentation to [`style.md`](style.md), which owns it, the layout `ern format` writes (report
+  §11.6); `reindent.el` over the repository's sources, which the formatter has laid out, holds
+  the two to one layout.
 - `imenu`, `beginning-of-defun`, `end-of-defun`, `add-log-current-defun-function`.
 - `compilation-error-regexp-alist` for `file:line:col: message`, since Emacs's own `gnu`
   entry refuses a file name with a space in it.
@@ -51,7 +51,7 @@ enforce both rules in the repository.
 The mode's reserved words and operators restate Appendix A, so
 `emacs_mode_mirrors_the_lexer_test` in `test/ern_style_tests.erl` checks them against the
 lexer: the reserved words are the lexer's, and every operator the mode paints is one of the
-lexer's symbols.
+lexer's symbols. How tightly each binary operator binds, which places a line an operator opens, restates §2.6, and `emacs_mode_mirrors_the_parser_test` holds it equal to the parser's table.
 
 ## How it is judged
 

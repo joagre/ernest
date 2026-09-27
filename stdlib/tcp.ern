@@ -53,8 +53,7 @@
 /// ```
 export abstract type ListenerMsg =
     Accept(ms : Int, reply : Reply(Either(Io.Error, Address(SockMsg))))
-  | Port(reply : Reply(Either(Io.Error, Int)))
-  | CloseListener
+  | Port(reply : Reply(Either(Io.Error, Int))) | CloseListener
 
 /// What a connected socket takes; a program uses `Tcp.read`, `Tcp.write`,
 /// `Tcp.close`, `Tcp.peer`, and `Tcp.local` (report Appendix E.18).
@@ -66,8 +65,7 @@ export abstract type ListenerMsg =
 /// ```
 export abstract type SockMsg =
     Recv(ms : Int, reply : Reply(Either(Io.Error, Bytes)))
-  | Send(bytes : Bytes, reply : Reply(Unit))
-  | Close
+  | Send(bytes : Bytes, reply : Reply(Unit)) | Close
   | FarEnd(reply : Reply(Either(Io.Error, Endpoint)))
   | NearEnd(reply : Reply(Either(Io.Error, Endpoint)))
 
@@ -128,14 +126,15 @@ export fn port(listener : Address(ListenerMsg)) -> Either(Io.Error, Int) with m 
 ///     answer
 /// }
 /// ```
-export fn accept(listener : Address(ListenerMsg), ms : Int)
-    -> Either(Io.Error, Address(SockMsg)) with m =
+export fn accept(listener : Address(ListenerMsg),
+                 ms : Int) -> Either(Io.Error, Address(SockMsg)) with m =
     Address.callForever(listener, fn(r) = Accept(ms = ms, reply = r))
 
 /// A connection to that host and port, or `Left(Io.Timeout)` when it is not
 /// made in time; one made later is closed.
-export fn connect(host : String, port : Int, ms : Int)
-    -> Either(Io.Error, Address(SockMsg)) with m =
+export fn connect(host : String,
+                  port : Int,
+                  ms : Int) -> Either(Io.Error, Address(SockMsg)) with m =
     Address.callForever(reference, fn(r) = Connect(host = host, port = port, ms = ms, reply = r))
 
 /// What has arrived, at least one byte, or `Left(Io.Closed)` once the

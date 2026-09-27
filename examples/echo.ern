@@ -26,8 +26,10 @@ export fn main() -> Unit with Msg = {
                     let elapsed = Clock.now() - started;
                     Tcp.close(socket);
                     Tcp.closeListener(listener);
-                    Io.println(Int.toString(rounds) <> " round trips in "
-                        <> Int.toString(elapsed) <> " ms")
+                    Io.println(Int.toString(rounds)
+                                   <> " round trips in "
+                                   <> Int.toString(elapsed)
+                                   <> " ms")
                 }
             }
         }

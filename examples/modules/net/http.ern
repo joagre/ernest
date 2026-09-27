@@ -11,5 +11,4 @@
 export type Request = Request(method : String, path : String)
 
 export fn parse(s : String) -> Optional(Request) =
-    if s == "GET /" then Some(Request(method = "GET", path = "/"))
-    else None
+    if s == "GET /" then Some(Request(method = "GET", path = "/")) else None

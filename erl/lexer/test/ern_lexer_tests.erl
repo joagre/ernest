@@ -162,6 +162,18 @@ block_comment_test() ->
     ?assertEqual([{ident, a}, {ident, b}], toks("a /* multi\nline\n*/ b")),
     ?assertEqual({1, 3, "unterminated block comment"}, err("a /* x /* y */")).
 
+%% report §2.2, §11.6: with the formatter's `comments` option every
+%% ordinary comment is a token, as written, and the other tokens' spans
+%% are the same; without it there are none. Regression test.
+comment_tokens_test() ->
+    Src = <<"a // one\n/* two /* three */ */ b //// four">>,
+    {ok, With} = ern_lexer:tokenize(Src, [comments]),
+    ?assertEqual([{ident, a}, {comment, <<"// one">>}, {comment, <<"/* two /* three */ */">>},
+                  {ident, b}, {comment, <<"//// four">>}, eof],
+                 [case T of {K, _, V} -> {K, V}; {K, _} -> K end || T <- With]),
+    {ok, Without} = ern_lexer:tokenize(Src),
+    ?assertEqual(Without, [T || T <- With, element(1, T) =/= comment]).
+
 %% report §2.2
 doc_block_test() ->
     ?assertEqual([{doc, <<"one\ntwo">>}, {ident, a}], toks("/// one\n/// two\na")),
