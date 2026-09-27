@@ -50,8 +50,8 @@ export fn main() -> Unit with Never = {
     put("pears", 5);
     report("before");
     send(store, Corrupt);
-    // a call made while the group restarts would end at once (report §6.6), and nothing
-    // says when the restart is over, so main waits (docs/language_feedback.md item 61)
+    // the restart is asynchronous, and a call made during it may be answered from the old
+    // state or end (report §6.6); main waits so that its output is the same on every run
     receive { after 500 -> Unit };
     report("after the restart")
 }

@@ -935,7 +935,8 @@ subtree, and `kill(sup)` stopping a group through a watcher, the last child firs
 message every wait takes, since BEAM cannot raise a fault in another process (§6.9;
 `callee was restarted` in §6.6 and §7.4; the log's *A Sibling Restarts at Its Next Wait* and
 *The `Supervisor`'s Shape*). `examples/services.ern` and the guide's §6.6 show it. Writing
-them found feedback item 61, how a client knows that a group's restart is over.
+them found feedback item 61, how a client knows that a group's restart is over; it stays as
+it is, since a fault is asynchronous (the log's *The `Supervisor`'s Shape*).
 
 ---
 
