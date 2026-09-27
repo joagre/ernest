@@ -11,7 +11,7 @@ What a release adds to [`coherence.md`](coherence.md). A review begins on a clea
 | R3 | `make load`, and the reading, as [`memory.md`](memory.md) says | every load flat by its bounds, and what the reading found decided; a growth is a finding, fixed as CLAUDE.md's *Defects and gaps* says |
 | R4 | the commands of the README and of `docs/development.md`, in a fresh clone on a machine with only what they say is needed | each does what they say |
 | R5 | the installation: installed into a temporary prefix, moved to another, run from there (`ern run`, `ern shell`, `ern doc`, a manual page), and uninstalled | each works, and nothing is left |
-| R6 | the suite on the OTP versions and the operating systems the README names, under `LANG=C`, and the shell in a plain terminal, in `tmux`, and with `NO_COLOR` set | green, and the shell colours as §11.2's *Colour* says |
+| R6 | the suite on Linux and on macOS under the OTP version the README names, once under `LANG=C`, and the shell once each in a plain terminal, in `tmux`, and with `NO_COLOR` set | green, and the shell colours as §11.2's *Colour* says |
 | R7 | every declaration added to an existing module since the last release, and the modules the last release compiled, of which the first release has none | each declaration carries a `since` line with the new version (E.0 shape rule 6), and the current toolchain, given the old `.erc` beside its source, builds it again rather than loading it (§11.1) |
 
 ## The readers
