@@ -9,8 +9,9 @@
 // `foreign` runs (docs/decisions.md).
 //
 
-// Report §11.2: how many inputs the file keeps.
-let kept = 1000
+// Report §11.2: how many inputs the history keeps, in the session and in
+// the file.
+export let kept = 1000
 
 // How long to wait for the file system, which is a local file.
 let wait = 5000

@@ -1,0 +1,59 @@
+//
+// A load for the standard library's Supervisor (plan, MVP 2.7): each round
+// the same children fault and restart in place, under one strategy and
+// another, and children join and return, then a mark (test/ern_load.erl).
+//
+
+type WorkMsg = Ask(reply : Reply(Int)) | Crash
+
+foreign fn mark(round : Int) -> Unit with m = "ern_load:mark/1"
+
+let rounds = 14
+
+let batch = 100
+
+let limit = RestartLimit(restarts = 1000000, within = 1000)
+
+let single : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForOne, limit))
+
+let alone : Address(WorkMsg) = spawn(Local, Supervisor.child(single, working))
+
+let all : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForAll, limit))
+
+let first : Address(WorkMsg) = spawn(Local, Supervisor.child(all, working))
+
+let second : Address(WorkMsg) = spawn(Local, Supervisor.child(all, working))
+
+fn working() -> Unit with WorkMsg = receive {
+    Ask(reply = r) -> { answer(r, 1); working() }
+  | Crash -> fault("on purpose")
+}
+
+export fn main() -> Unit with Never = round(1)
+
+fn round(n : Int) -> Unit with Never =
+    if n > rounds then Unit
+    else { work(batch); mark(n); round(n + 1) }
+
+fn work(left : Int) -> Unit with Never =
+    if left == 0 then Unit
+    else { once(); work(left - 1) }
+
+fn once() -> Unit with Never = {
+    crash(alone);
+    crash(second);
+    let _ = spawn(Local, Supervisor.child(single, fn() -> Unit with Never = Unit));
+    Unit
+}
+
+// A crash, and a call that waits until the child answers again.
+fn crash(child : Address(WorkMsg)) -> Unit with Never = {
+    send(child, Crash);
+    answered(child)
+}
+
+fn answered(child : Address(WorkMsg)) -> Unit with Never =
+    match Address.call(child, fn(r) = Ask(reply = r), 1000) {
+        Some(_) -> Unit
+      | None -> answered(child)
+    }

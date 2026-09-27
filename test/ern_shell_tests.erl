@@ -827,6 +827,60 @@ input_numbers_reused() ->
                             || L <- binary:split(Out, <<"\n">>, [global])]],
     ?assert(After - Before =< 3 * 200).
 
+%% report §2.3, §11.2: a declaration made again, and an input whose value is
+%% a function once nothing holds it, give their modules and numbers back,
+%% so they cost no atoms of their own. A regression test, written after the
+%% code: every declaration kept its module for the rest of the session.
+%% The bound allows what the session makes on its own.
+declarations_let_go_test_() ->
+    {timeout, 120, fun declarations_let_go/0}.
+
+declarations_let_go() ->
+    In = filename:join("/tmp", "ern_decls_" ++ os:getpid() ++ ".in"),
+    Info = "info(Erl.atom(\"atom_count\"))\n",
+    ok = file:write_file(In, ["foreign fn info(k : Foreign) -> Int with m ="
+                              " \"erlang:system_info/1\"\n", Info,
+                              [["fn f(n : Int) -> Int = n * ", integer_to_list(I), "\n",
+                                "type Shape = Circle(Int) | Square(Int)\n",
+                                "fn(n : Int) -> Int = n + ", integer_to_list(I), "\n"]
+                               || I <- lists:seq(1, 100)],
+                              Info]),
+    {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
+    [Before, After] = [binary_to_integer(N) || {match, [N]} <-
+                           [re:run(L, "^> ([0-9]{5,}) : Int$", [{capture, all_but_first, binary}])
+                            || L <- binary:split(Out, <<"\n">>, [global])]],
+    ?assert(After - Before =< 60).
+
+%% report §11.2, §6.10: a declaration made again is let go only when
+%% nothing reaches it: a function declared after it still calls it, a
+%% binding holding its function or a value of its type keeps it, and a
+%% process running its code runs on. Written with the code that lets it go.
+declarations_kept_while_reached_test_() ->
+    {timeout, 120, fun declarations_kept_while_reached/0}.
+
+declarations_kept_while_reached() ->
+    In = filename:join("/tmp", "ern_reached_" ++ os:getpid() ++ ".in"),
+    ok = file:write_file(In, ["fn f(n : Int) -> Int = n\n",
+                              "fn g(n : Int) -> Int = f(n) + 1\n",
+                              "let h = f\n",
+                              "type T = A(Int) | B\n",
+                              "let a = A(7)\n",
+                              "fn later() -> Unit with Never = {"
+                              " receive { after 400 -> Unit }; Io.println(\"old code ran\") }\n",
+                              "let _ = spawn(Local, later)\n",
+                              "fn f(n : Int) -> Int = n * 100\n",
+                              "type T = C\n",
+                              "fn later() -> Unit with Never = Unit\n",
+                              [["1 + ", integer_to_list(I), "\n"] || I <- lists:seq(1, 30)],
+                              "g(1)\n", "h(3)\n", "a\n", "f(1)\n",
+                              "receive { after 600 -> Unit }\n"]),
+    {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"> 2 : Int">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> 3 : Int">>)),
+    ?assertMatch({match, _}, re:run(Out, "A\\(7\\) : \\$Input[0-9]+\\.T")),
+    ?assertMatch({_, _}, binary:match(Out, <<"> 100 : Int">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"old code ran">>)).
+
 %% report §11.2: every refusal of a command is red, as a diagnostic's first
 %% line is, and an answer is plain. A regression test for a finding of the
 %% session of real use: `:load`'s refusal was red and `:set`'s was not, the

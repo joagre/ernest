@@ -1,0 +1,56 @@
+//
+// A load for Tcp (plan, MVP 2.7): a server under many requests. Each round
+// the same connections are made to an echo server, one message each way,
+// then closed, and a read times out on one, then a mark (test/ern_load.erl).
+//
+
+foreign fn mark(round : Int) -> Unit with m = "ern_load:mark/1"
+
+let rounds = 14
+
+let batch = 200
+
+export fn main() -> Unit with Never = match Tcp.listen(0) {
+    Right(listener) -> match Tcp.port(listener) {
+        Right(port) -> {
+            let _ = spawn(Local, fn() -> Unit with Never = serve(listener));
+            round(port, 1)
+        }
+      | Left(e) -> Io.println(Io.show(e))
+    }
+  | Left(e) -> Io.println(Io.show(e))
+}
+
+fn serve(listener : Address(Tcp.ListenerMsg)) -> Unit with Never = {
+    match Tcp.accept(listener, 60000) {
+        Right(peer) -> { let _ = spawn(Local, fn() -> Unit with Never = echo(peer)); Unit }
+      | Left(_) -> Unit
+    };
+    serve(listener)
+}
+
+fn echo(peer : Address(Tcp.SockMsg)) -> Unit with Never = {
+    match Tcp.read(peer, 1000) {
+        Right(bytes) -> Tcp.write(peer, bytes)
+      | Left(_) -> Unit
+    };
+    Tcp.close(peer)
+}
+
+fn round(port : Int, n : Int) -> Unit with Never =
+    if n > rounds then Unit
+    else { work(port, batch); mark(n); round(port, n + 1) }
+
+fn work(port : Int, left : Int) -> Unit with Never =
+    if left == 0 then Unit
+    else { once(port); work(port, left - 1) }
+
+fn once(port : Int) -> Unit with Never = match Tcp.connect("127.0.0.1", port, 1000) {
+    Right(client) -> {
+        let _ = Tcp.read(client, 0);
+        Tcp.write(client, String.toUtf8("ping"));
+        let _ = Tcp.read(client, 1000);
+        Tcp.close(client)
+    }
+  | Left(e) -> Io.println(Io.show(e))
+}

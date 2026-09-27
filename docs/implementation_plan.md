@@ -576,17 +576,23 @@ library's (§8.5); a `monitor` of a process the runtime did not start, a socket 
 program, was made only when the reaper came to it, so a `kill` just after it answered
 `Unknown` (§6.9); and `ern test` reported a test that faulted at once twice (§11.2).
 
-**Memory, read for what only grows.** Noted 2026-09-26, by CLAUDE.md's *Memory that no
-collection reclaims is a defect*. The Erlang code under `erl/` and every Ernest program in
-the repository, the standard library, the shell, `libs/` and `examples/`, read again for
-memory kept with no need, capped or not, as the table of ended processes was (MVP 2.65 step
-8, *A Process Is Watched From Its Start*): a table, a cache, a list or a map that grows with
-the work done rather than with what is alive. The reading is checked by measurement, as the
-shell's was in step 8, whose per-input growth reading alone had not shown. The item names
-its load programs, the examples, the shell under a long session and a server under many
-requests among them, the iterations each runs, and the noise within which memory, atoms
-and processes count as flat; `review.md`'s R3 runs them before every release. Each finding
-is fixed, or decided with the user where the fix changes what the language promises.
+**Memory, read for what only grows, built 2026-09-27** ([`memory.md`](memory.md); the log's
+*What the Loads Found*). `make load` runs seven loads, the runtime's processes, the
+`Supervisor`, `Tcp`, `Os`, `Fs`, `Clock` and the shell under a long session, fourteen rounds
+each, and holds the atoms, processes, ports, rows, persistent terms and the reaper's memory
+to no growth at all after a warm-up of six, and the node's memory to 128 KB; `review.md`'s R3
+runs it. They and the reading found four growths, each fixed at its cause with a regression
+test: every declaration at the prompt, and every input whose value is a function, kept its
+module and its number for the rest of the session, which the shell now lets go once nothing
+reaches it (§11.2); a wait on a process was kept until that process died, even once its
+waiter had died, and a waiter's list kept a process that had ended (§6.9); and the session's
+history grew past the thousand inputs §11.2 keeps, which the report now says of the session
+as of the file. Repeating the loads also found a false deadlock (§8.6): the check read its
+counts before its snapshots, and could not see a request still in transit to a system
+process, so it now reads them between the snapshots, and a call waiting on a system process
+counts, as an alarm does once the clock has answered it. The check stays a poll, the only way
+the host allows, and reads the counts of pending work first, so an idle program waiting on
+anything pays a few rows.
 
 **The shell's code memory, diagnosed.** Noted 2026-09-26, at the close of MVP 2.65's step
 10: with the holders of `it` freed, the shell's memory is flat from 2,000 inputs to 8,000,
@@ -614,6 +620,26 @@ be a process written in Ernest that subscribes and appends.
 informative appendix, one section per library with its signatures and contracts, and a mirror
 test holding each compiled interface equal to it, as `ern_prelude_tests` holds the prelude to
 Appendix E. Third-party libraries are not listed; Appendix D is what they follow.
+
+**What Ernest adds, discussed again.** Noted 2026-09-27, a decision for this milestone:
+whether the README's and the guide's list of what Ernest adds (held equal by a test) should
+name more than the four it names, deadlock detection first among the candidates (§8.6: a
+program in which nothing can progress ends with a fault that says so, rather than hanging),
+and what else of the language's rationale a first reader should meet there, each weighed by
+whether it is Ernest's own or where Ernest's parts meet, as the four are.
+
+**Mailbox back pressure, discussed again.** Noted 2026-09-27, a decision for this
+milestone: whether a mailbox stays unbounded, back pressure being the program's own (§10;
+the log's *Backpressure* and *The Corpus Decisions, Re-judged*, which kept it so and left
+a credit type out), or the language or the runtime gives some, as Pony's runtime slows a
+sender to a flooded mailbox. Weighed on the principles, beside what `Tcp.read` and
+`Os.read` already do by taking a stream only while a read waits.
+
+**The guide read for its order.** Noted 2026-09-27: the guide is a first user's way in, so
+its sections are read in order, as a newcomer reads them, for whether each concept is
+introduced before it is used. A use before its introduction either moves, or points ahead
+to the section that introduces it where moving would break a stage's own order. Each
+section is read against what the sections before it have taught.
 
 ---
 

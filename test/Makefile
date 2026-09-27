@@ -58,6 +58,24 @@ xref: $(EBIN)/ern_docs_tests.beam
 contents: $(EBIN)/ern_docs_tests.beam
 	erl -noshell -pa $(EBIN) -eval 'ern_docs_tests:write_contents(), halt().'
 
+# The load programs under load/ and the shell under a long session, each in
+# a node of its own, as docs/memory.md says; not part of `test`, and run
+# before every release (docs/review.md). Each prints its samples and whether
+# it stayed flat, into build/load/ as well.
+LOADS = processes supervisors sockets programs files alarms
+LOAD = erl -noinput -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN)
+load: $(EBIN)/ern_load.beam prepare
+	@mkdir -p build/load/home
+	@for p in $(LOADS); do \
+	  ../bin/ern build --source-root load --build-root build/load load/$$p.ern || exit 1; done
+	@$(LOAD) -eval 'ern_load:main(["inputs", "build/load/shell.in"])'
+	@status=0; \
+	for p in $(LOADS); do $(LOAD) -eval "ern_load:main([\"$$p\"])" 2>/dev/null || status=1; done; \
+	HOME=$(abspath build/load/home) $(LOAD) -pa $(abspath ../build/shell) \
+	  -eval 'ern_load:main(["shell"])' < build/load/shell.in > build/load/shell.out 2>&1 \
+	  || status=1; \
+	cat build/load/shell.txt; exit $$status
+
 clean:
 	rm -rf $(EBIN) build
 
@@ -67,4 +85,4 @@ $(EBIN)/%.beam: %.erl | $(EBIN)
 $(EBIN):
 	mkdir -p $(EBIN)
 
-.PHONY: test programs docs guide shell prepare xref clean
+.PHONY: test programs docs guide shell prepare xref load clean

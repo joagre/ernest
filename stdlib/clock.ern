@@ -17,8 +17,11 @@
 /// since 0.1.0
 
 // What the clock takes: times in milliseconds, the time an alarm fires
-// sent to its `to`.
-type Msg = After(ms : Int, to : Address(Int)) | At(at : Int, to : Address(Int))
+// sent to its `to`. An alarm is answered once the clock holds it, so that
+// the caller goes on only when it is counted as pending (report §8.6).
+type Msg =
+    After(ms : Int, to : Address(Int), reply : Reply(Unit))
+  | At(at : Int, to : Address(Int), reply : Reply(Unit))
   | Now(reply : Reply(Int))
 
 // Report §8.2: the system reference, the runtime's address of the clock,
@@ -39,8 +42,10 @@ export fn now() -> Int with m = Address.callForever(reference, fn(r) = Now(reply
 /// ```ernest
 /// Clock.alarm(10, fn(_) = Unit)
 /// ```
-export fn alarm(ms : Int, wrap : (Int) -> m) -> Unit with m =
-    send(reference, After(ms = ms, to = via(wrap, self())))
+export fn alarm(ms : Int, wrap : (Int) -> m) -> Unit with m = {
+    let to = via(wrap, self());
+    Address.callForever(reference, fn(r) = After(ms = ms, to = to, reply = r))
+}
 
 /// At that time, `wrap(t)` arrives in the caller's mailbox, `t` the time it
 /// fired; a time already past arrives at once.
@@ -50,5 +55,7 @@ export fn alarm(ms : Int, wrap : (Int) -> m) -> Unit with m =
 /// ```ernest
 /// Clock.alarmAt(Clock.now() + 10, fn(_) = Unit)
 /// ```
-export fn alarmAt(at : Int, wrap : (Int) -> m) -> Unit with m =
-    send(reference, At(at = at, to = via(wrap, self())))
+export fn alarmAt(at : Int, wrap : (Int) -> m) -> Unit with m = {
+    let to = via(wrap, self());
+    Address.callForever(reference, fn(r) = At(at = at, to = to, reply = r))
+}

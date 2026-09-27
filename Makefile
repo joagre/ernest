@@ -119,6 +119,10 @@ test-guide: all
 test-shell: all
 	@$(MAKE) -C test shell
 
+# The loads of docs/memory.md, which a release runs (docs/review.md R3).
+load: all
+	@$(MAKE) -C test load
+
 # The Emacs mode's tests (docs/emacs_mode.md). It is an editor and not
 # part of the toolchain, so a machine without Emacs skips them; they are
 # the only tests `make test` will run and not have built. EMACS names the
@@ -185,5 +189,5 @@ clean-emacs:
 EMACS_CORPUS = ../stdlib/*.ern ../shell/*.ern ../shell/shell/*.ern ../examples/*.ern \
 		../examples/modules/*.ern ../examples/modules/*/*.ern ../test/*/*.ern ../libs/*/*.ern
 
-.PHONY: all libs test test-erl test-programs test-docs test-guide test-shell test-emacs \
+.PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load test-emacs \
         $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents stdlib shell doc unicode

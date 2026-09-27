@@ -1,0 +1,31 @@
+//
+// A load for Clock and timed waits (plan, MVP 2.7): each round the same
+// alarms fire and are taken, and the same waits time out, then a mark
+// (test/ern_load.erl).
+//
+
+type Msg = Tick(Int)
+
+foreign fn mark(round : Int) -> Unit with m = "ern_load:mark/1"
+
+let rounds = 14
+
+let batch = 500
+
+export fn main() -> Unit with Msg = round(1)
+
+fn round(n : Int) -> Unit with Msg =
+    if n > rounds then Unit
+    else { work(batch); mark(n); round(n + 1) }
+
+fn work(left : Int) -> Unit with Msg =
+    if left == 0 then Unit
+    else { once(); work(left - 1) }
+
+fn once() -> Unit with Msg = {
+    Clock.alarm(1, Tick);
+    receive { Tick(_) -> Unit };
+    Clock.alarmAt(Clock.now(), Tick);
+    receive { Tick(_) -> Unit };
+    receive { after 0 -> Unit }
+}

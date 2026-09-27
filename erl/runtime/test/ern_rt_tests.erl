@@ -155,6 +155,27 @@ dead_system_process_test() ->
                                      receive never -> ok end
                                  end, <<"main">>, #{stdout => fun(_) -> ok end})).
 
+%% report §8.6: an idle program that waits on something pending is answered
+%% by the deadlock check from the counts of pending work, not by reading
+%% every process. Written after the code, to hold its cost: the order that
+%% read every process twice before anything cheaper, ten times a second,
+%% fails it.
+idle_check_is_cheap_test() ->
+    Quiet = #{stdout => fun(_) -> ok end},
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           [ern_rt:spawn('Local', fun() -> receive never -> ok end end, <<"w">>)
+                            || _ <- lists:seq(1, 2000)],
+                           ern_rt:source_begin(),
+                           Reaper = persistent_term:get({ern_rt, reaper}),
+                           ern_rt:in_foreign(fun() -> timer:sleep(300) end),
+                           {reductions, Before} = erlang:process_info(Reaper, reductions),
+                           ern_rt:in_foreign(fun() -> timer:sleep(1000) end),
+                           {reductions, After} = erlang:process_info(Reaper, reductions),
+                           ern_rt:source_end(),
+                           ?assert(After - Before < 10000)
+                       end, <<"main">>, Quiet)).
+
 %% report §8.5, §8.6: an initializer of the standard library that faults
 %% ends the program with that fault, and the program is ended as one that
 %% ran, so the next one starts. A regression test: such an initializer
@@ -245,7 +266,7 @@ deadlock_test() ->
                                      end, <<"main">>, Quiet)),
     ?assertEqual(ok, ern_rt:run_main(fun() ->
                                          Clock = ern_rt:sys(clock),
-                                         ern_rt:send(Clock, {'After', 250, ern_rt:self()}),
+                                         alarm(Clock, 250, ern_rt:self()),
                                          receive At when is_integer(At) -> ok end
                                      end, <<"main">>, Quiet)),
     ?assertEqual(ok, ern_rt:run_main(fun() ->
@@ -328,8 +349,8 @@ clock_long_time_test() ->
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
                            Clock = ern_rt:sys(clock),
-                           ern_rt:send(Clock, {'After', 10000000000000, ern_rt:self()}),
-                           ern_rt:send(Clock, {'After', 10, ern_rt:self()}),
+                           alarm(Clock, 10000000000000, ern_rt:self()),
+                           alarm(Clock, 10, ern_rt:self()),
                            receive At when is_integer(At) -> ok end,
                            Me ! {alive, erlang:is_process_alive(Clock)}
                        end, <<"main">>, Quiet)),
@@ -469,8 +490,8 @@ endless_alarm_test() ->
            fun() ->
                Clock = ern_rt:sys(clock),
                Endless = fun Endless(X) -> Endless(X) end,
-               ern_rt:send(Clock, {'After', 10, ern_rt:via(Endless, ern_rt:self())}),
-               ern_rt:send(Clock, {'After', 50, ern_rt:via(fun(_) -> tick end, ern_rt:self())}),
+               alarm(Clock, 10, ern_rt:via(Endless, ern_rt:self())),
+               alarm(Clock, 50, ern_rt:via(fun(_) -> tick end, ern_rt:self())),
                receive tick -> Me ! ticked end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(ticked, wait_atom(ticked)).
@@ -516,7 +537,7 @@ clock_test() ->
            fun() ->
                Clock = ern_rt:sys(clock),
                {'Some', T} = ern_rt:call(Clock, fun(R) -> {'Now', R} end, 1000),
-               ern_rt:send(Clock, {'After', 5, ern_rt:self()}),
+               alarm(Clock, 5, ern_rt:self()),
                %% Appendix E.15: the alarm carries the time it fired
                receive Fired when is_integer(Fired) -> Me ! {clock_ok, Fired >= T} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
@@ -589,8 +610,7 @@ via_in_flight_test() ->
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
                            Clock = ern_rt:sys(clock),
-                           ern_rt:send(Clock, {'After', 400,
-                                               ern_rt:via(fun(_) -> tick end, ern_rt:self())}),
+                           alarm(Clock, 400, ern_rt:via(fun(_) -> tick end, ern_rt:self())),
                            receive tick -> ok end
                        end, <<"main">>, #{stdout => fun(_) -> ok end})).
 
@@ -607,8 +627,7 @@ via_is_not_a_process_test() ->
                Clock = ern_rt:sys(clock),
                Mine = ern_rt:self(),
                lists:foreach(fun(_) ->
-                                 ern_rt:send(Clock, {'After', 1,
-                                                     ern_rt:via(fun(_) -> tick end, Mine)})
+                                 alarm(Clock, 1, ern_rt:via(fun(_) -> tick end, Mine))
                              end, lists:seq(1, 100)),
                lists:foreach(fun(_) -> receive tick -> ok end end, lists:seq(1, 100)),
                Me ! {counts, Before, settled(Before, 100)}
@@ -742,3 +761,8 @@ nap() ->
     ern_rt:timed(),
     timer:sleep(50),
     ern_rt:untimed().
+
+%% Report Appendix E.15: an alarm as `Clock.alarm` sets one, After(ms,
+%% reply, to) in canonical field order, answered once the clock holds it.
+alarm(Clock, Ms, To) ->
+    'Unit' = ern_rt:call_forever(Clock, fun(R) -> {'After', Ms, R, To} end).

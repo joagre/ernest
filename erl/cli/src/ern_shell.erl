@@ -386,9 +386,16 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
                                           #{source_hash => <<>>, deps => [], session => true}),
     {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), Beam),
     set_free_inputs(persistent_term:get({?MODULE, free_inputs}, []) -- [Ns]),
-    %% report §11.2: the holders the input reads, kept while it is loaded
+    %% report §11.2: the session's modules the input calls, and those whose
+    %% types its declarations name, kept while it is (collected/2)
     {ok, {_, [{imports, Imports}]}} = beam_lib:chunks(Beam, [imports]),
-    set_uses(maps:put(Mod, lists:usort([M || {M, _, _} <- Imports, holder_module(M)]), uses())),
+    Named = case Binds of
+                decls -> mentions(Iface, Ns);
+                _ -> []
+            end,
+    set_uses(maps:put(Mod, {Ns, lists:usort([M || {M, _, _} <- Imports, session_module(M),
+                                                  M =/= Mod] ++ Named)},
+                      uses())),
     %% report §11.2: an input that declares keeps its module for `:doc`;
     %% an expression's has no documentation, and is not kept
     Env1 = case Binds of
@@ -416,8 +423,9 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
 %% its module once it has its answer, unless what it bound holds one of the
 %% module's functions: it is deleted, and purged unless a process the input
 %% spawned still runs it, which keeps it until that process ends; each
-%% later input tries the purge again. An input that declares keeps its
-%% module, since its names are the session's.
+%% later input tries the purge again. An input that declares, and one whose
+%% value holds its functions, is kept while the session can reach it, and
+%% collected/2 lets it go.
 forget(Ns, Binds, Outcome) ->
     Mod = ern_emitter:module_atom(Ns),
     Pending = persistent_term:get({?MODULE, unpurged}, []),
@@ -426,7 +434,7 @@ forget(Ns, Binds, Outcome) ->
     Now = case {Binds, Outcome} of
               {decls, _} -> kept;
               {_, {'Ok', _, #value{term = V}}} ->
-                  case holds_code_of(V, Mod) of
+                  case lists:member(Mod, fun_modules(V, [])) of
                       true -> kept;
                       false -> unload(Mod)
                   end;
@@ -458,19 +466,20 @@ unload(Mod) ->
         false -> unpurged
     end.
 
-%% Whether a value holds a function of the module, in its data or in a
+%% The modules whose functions a value holds, in its data or in a
 %% function's captures.
-holds_code_of(F, Mod) when is_function(F) ->
-    element(2, erlang:fun_info(F, module)) =:= Mod
-        orelse holds_code_of(element(2, erlang:fun_info(F, env)), Mod);
-holds_code_of(T, Mod) when is_tuple(T) ->
-    holds_code_of(tuple_to_list(T), Mod);
-holds_code_of([H | Rest], Mod) ->
-    holds_code_of(H, Mod) orelse holds_code_of(Rest, Mod);
-holds_code_of(M, Mod) when is_map(M) ->
-    holds_code_of(maps:to_list(M), Mod);
-holds_code_of(_, _) ->
-    false.
+fun_modules(F, Acc) when is_function(F) ->
+    {module, Mod} = erlang:fun_info(F, module),
+    {env, Captured} = erlang:fun_info(F, env),
+    fun_modules(Captured, [Mod | Acc]);
+fun_modules(T, Acc) when is_tuple(T) ->
+    fun_modules(tuple_to_list(T), Acc);
+fun_modules([H | Rest], Acc) ->
+    fun_modules(Rest, fun_modules(H, Acc));
+fun_modules(M, Acc) when is_map(M) ->
+    fun_modules(maps:to_list(M), Acc);
+fun_modules(_, Acc) ->
+    Acc.
 
 %% An input that declares runs its initializers and nothing else. Report
 %% §8.5: a module's top-level values are computed by them, which the runner
@@ -697,7 +706,7 @@ session_state(#env{session = S, ifaces = Ifaces}) ->
 %% unloaded, since a value made before carries the type it was made with.
 -spec forget(#env{}, binary()) -> {'Left', binary()} | {'Right', #env{}}.
 forget(Env, <<"*">>) ->
-    {'Right', remember(Env#env{session = #{}})};
+    {'Right', remember(collected(Env#env{session = #{}}, none))};
 forget(#env{session = S} = Env, Text) ->
     Values = maps:get(values, S, #{}),
     Types = maps:get(types, S, #{}),
@@ -707,11 +716,12 @@ forget(#env{session = S} = Env, Text) ->
             Members = [{O, M} || {O, M} <- maps:keys(Values), O =:= Name],
             Gone = constructors(maps:get(Name, Types, none), Cons, Env),
             %% remembered, since completion and `Shift-Tab` read the
-            %% session from where the front end keeps it
-            {'Right', remember(Env#env{session = S#{values => maps:without([Name | Members],
-                                                                           Values),
-                                                    types => maps:remove(Name, Types),
-                                                    cons => maps:without(Gone, Cons)}})};
+            %% session from where the front end keeps it; what nothing
+            %% reaches any longer is let go
+            Env1 = Env#env{session = S#{values => maps:without([Name | Members], Values),
+                                        types => maps:remove(Name, Types),
+                                        cons => maps:without(Gone, Cons)}},
+            {'Right', remember(collected(Env1, none))};
         _ ->
             {'Left', <<"the session declares no ", Text/binary>>}
     end.
@@ -1662,17 +1672,24 @@ close_output() ->
 %% value is held by a module of its own, as a module's own value is
 %% (§8.5's store), so a later input reads it with the call the emitter
 %% already makes for another module's value.
-bind(Env, decls, _Ns, _Value, _Type, _TEnv, Iface) ->
-    session(Env, Iface);
-bind(Env, it, _Ns, Value, Type, TEnv, _Iface) ->
+bind(Env, decls, Ns, _Value, _Type, _TEnv, Iface) ->
+    %% the functions its own values hold join what the input needs
+    Mod = ern_emitter:module_atom(Ns),
+    Held = lists:foldl(fun({_, V}, Acc) -> fun_modules(V, Acc) end, [], stored(Mod)),
+    {Ns, Needs} = maps:get(Mod, uses()),
+    set_uses(maps:put(Mod, {Ns, lists:usort(Needs ++ [M || M <- Held, session_module(M),
+                                                           M =/= Mod])},
+                      uses())),
+    collected(session(Env, Iface), Mod);
+bind(Env, it, Ns, Value, Type, TEnv, _Iface) ->
     case open(Type, TEnv) of
         true -> Env;
-        false -> bound(Env, it, Value, Type, TEnv)
+        false -> bound(Env, [{it, Value, Type}], TEnv, Ns)
     end;
-bind(Env, {names, Names}, _Ns, Value, Type, TEnv, _Iface) ->
-    bound(Env, components(Names, Value, Type, TEnv), TEnv);
-bind(Env, Name, _Ns, Value, Type, TEnv, _Iface) ->
-    bound(Env, Name, Value, Type, TEnv).
+bind(Env, {names, Names}, Ns, Value, Type, TEnv, _Iface) ->
+    bound(Env, components(Names, Value, Type, TEnv), TEnv, Ns);
+bind(Env, Name, Ns, Value, Type, TEnv, _Iface) ->
+    bound(Env, [{Name, Value, Type}], TEnv, Ns).
 
 %% Each name a pattern bound, with its value and type: the whole of the
 %% input's value for one name, a component of its tuple for more.
@@ -1699,13 +1716,12 @@ open(Type, TEnv) ->
     St = ern_typecheck:type_state(TEnv),
     ern_types:free_vars(ern_types:zonk(Type, St), St) =/= [].
 
-bound(Env, Name, Value, Type, TEnv) ->
-    bound(Env, [{Name, Value, Type}], TEnv).
-
-%% The names an input binds, held by one module, a getter for each.
-bound(Env, [], _TEnv) ->
+%% The names an input binds, held by one module, a getter for each, which
+%% needs the session's modules whose functions the values hold and whose
+%% types their types name.
+bound(Env, [], _TEnv, _Input) ->
     Env;
-bound(#env{holders = N, free_holders = Free} = Env0, Bound, TEnv) ->
+bound(#env{holders = N, free_holders = Free} = Env0, Bound, TEnv, Input) ->
     {K, Env} = case Free of
                    [F | Rest] -> {F, Env0#env{free_holders = Rest}};
                    [] -> {N + 1, Env0#env{holders = N + 1}}
@@ -1718,31 +1734,83 @@ bound(#env{holders = N, free_holders = Free} = Env0, Bound, TEnv) ->
     {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), holder(Mod, Names)),
     Values = maps:from_list([{Holder ++ [Name], ern_types:mono(ern_types:zonk(Type, St))}
                              || {Name, _, Type} <- Bound]),
-    collected(session(Env, #iface{namespace = Holder, values = Values,
-                                  lets = [Holder ++ [Name] || Name <- Names]})).
+    Iface = #iface{namespace = Holder, values = Values, lets = [Holder ++ [Name] || Name <- Names]},
+    Held = lists:foldl(fun({_, Value, _}, Acc) -> fun_modules(Value, Acc) end, [], Bound),
+    set_uses(maps:put(Mod, {Holder, lists:usort([M || M <- Held, session_module(M)]
+                                                ++ mentions(Iface, Holder))},
+                      uses())),
+    collected(session(Env, Iface), ern_emitter:module_atom(Input)).
 
-%% Report §11.2: a holder that no name in the session's scope refers to,
-%% and that no loaded input reads, is read by nothing again, and is freed:
-%% its values, its code and its interface, and its number is given again.
-%% What a loaded input reads is recorded as it is loaded (run/3). A holder
-%% whose old code a process is still inside is purged at the next
-%% collection instead.
-collected(#env{ifaces = Ifaces, session = S, free_holders = Free, draining = Draining} = Env) ->
-    Named = [Mod || Q <- maps:values(maps:get(values, S, #{})),
-                    holder_number(hd(Q)) =/= none, Mod <- [ern_emitter:module_atom([hd(Q)])]],
-    Read = lists:append(maps:values(uses())),
-    Dead = [I || #iface{namespace = [H]} = I <- Ifaces, holder_number(H) =/= none,
-                 not lists:member(ern_emitter:module_atom([H]), Named ++ Read)],
-    lists:foreach(fun(#iface{namespace = Ns, lets = Lets}) ->
+%% Report §11.2: the session's modules are the holders of what inputs
+%% bound, the inputs that declared, and the inputs whose value holds one of
+%% their functions. One is kept while the session can reach it, and let go
+%% when it cannot: its values, its code, its interface, and its number,
+%% which a later holder or input takes (report §2.3). What reaches one is a
+%% name in the session's scope, the input running, a module whose old code
+%% a process is still inside, and, from any of them, what that module needs
+%% (uses/0). A module whose old code a process is inside is purged at a
+%% later collection, holders here and inputs here and at each input's end
+%% (forget/3).
+collected(#env{ifaces = Ifaces, session = S, beams = Beams, free_holders = Free,
+               draining = Draining} = Env, Current) ->
+    Uses = uses(),
+    Unpurged = persistent_term:get({?MODULE, unpurged}, []),
+    Old = [ern_emitter:module_atom(Ns) || Ns <- Unpurged]
+        ++ [ern_emitter:module_atom([H]) || H <- Draining],
+    Named = [ern_emitter:module_atom([hd(Q)]) || Which <- [values, types, cons],
+                                                 Q <- maps:values(maps:get(Which, S, #{})),
+                                                 session_segment(hd(Q))],
+    Live = reached(Named ++ [M || M <- [Current | Old], M =/= none], Uses, #{}),
+    Dead = [Ns || M := {Ns, _} <- Uses, not is_map_key(M, Live)],
+    lists:foreach(fun(Ns) ->
                       Mod = ern_emitter:module_atom(Ns),
-                      [persistent_term:erase({Mod, lists:last(Q)}) || Q <- Lets],
+                      [persistent_term:erase(Key) || {Key, _} <- stored(Mod)],
                       code:delete(Mod)
                   end, Dead),
-    {Purged, Held} = lists:partition(fun(H) -> code:soft_purge(ern_emitter:module_atom([H])) end,
-                                     Draining ++ [H || #iface{namespace = [H]} <- Dead]),
-    Env#env{ifaces = Ifaces -- Dead,
+    {DeadHolders, DeadInputs} = lists:partition(fun([Seg]) -> holder_number(Seg) =/= none end,
+                                                Dead),
+    Purgeable = fun(Ns) -> code:soft_purge(ern_emitter:module_atom(Ns)) end,
+    {Purged, Held} = lists:partition(fun(H) -> Purgeable([H]) end,
+                                     Draining ++ [H || [H] <- DeadHolders]),
+    {InputsPurged, InputsHeld} = lists:partition(Purgeable, Unpurged ++ DeadInputs),
+    InputsHeld =/= Unpurged andalso persistent_term:put({?MODULE, unpurged}, InputsHeld),
+    InputsPurged =/= [] andalso
+        set_free_inputs(persistent_term:get({?MODULE, free_inputs}, []) ++ InputsPurged),
+    set_uses(maps:without([ern_emitter:module_atom(Ns)
+                           || Ns <- [[H] || H <- Purged] ++ InputsPurged], Uses)),
+    Env#env{ifaces = [I || #iface{namespace = Ns} = I <- Ifaces, not lists:member(Ns, Dead)],
+            beams = maps:without(Dead, Beams),
             free_holders = Free ++ [holder_number(H) || H <- Purged],
             draining = Held}.
+
+%% The values a module's top-level bindings hold, each under its key, as
+%% the emitter keeps them (report §8.5).
+stored(Mod) ->
+    [{Key, V} || {{M, _} = Key, V} <- persistent_term:get(), M =:= Mod].
+
+%% The session's modules the given ones reach, through what each needs.
+reached([], _Uses, Live) ->
+    Live;
+reached([M | Rest], Uses, Live) when is_map_key(M, Live) ->
+    reached(Rest, Uses, Live);
+reached([M | Rest], Uses, Live) ->
+    Needs = case Uses of
+                #{M := {_, N}} -> N;
+                _ -> []
+            end,
+    reached(Needs ++ Rest, Uses, Live#{M => true}).
+
+%% The session's modules whose names a term mentions, but its own: a type an
+%% interface names is such a mention.
+mentions(Term, [Own]) ->
+    lists:usort([ern_emitter:module_atom([A]) || A <- atoms(Term, []), A =/= Own,
+                                                 session_segment(A)]).
+
+atoms(A, Acc) when is_atom(A) -> [A | Acc];
+atoms(T, Acc) when is_tuple(T) -> atoms(tuple_to_list(T), Acc);
+atoms([H | Rest], Acc) -> atoms(Rest, atoms(H, Acc));
+atoms(M, Acc) when is_map(M) -> atoms(maps:to_list(M), Acc);
+atoms(_, Acc) -> Acc.
 
 %% The number of a holder's namespace segment, `$Bindings<n>`, or none.
 holder_number(Segment) ->
@@ -1751,11 +1819,22 @@ holder_number(Segment) ->
         _ -> none
     end.
 
-%% Whether a module is a holder's.
-holder_module(M) ->
-    lists:prefix(atom_to_list(ern_emitter:module_atom(['$Bindings'])), atom_to_list(M)).
+%% Whether a namespace segment, or a module, is one the session made
+%% (report §2.3).
+session_segment(Segment) ->
+    case atom_to_list(Segment) of
+        "$Bindings" ++ _ -> true;
+        "$Input" ++ _ -> true;
+        _ -> false
+    end.
 
-%% The holders each loaded input reads, by the input's module.
+session_module(M) ->
+    Name = atom_to_list(M),
+    lists:prefix("ern@$bindings", Name) orelse lists:prefix("ern@$input", Name).
+
+%% What each session module needs of the others, by the module: the
+%% namespace it is, and the session's modules its code calls, whose types
+%% its interface names, and whose functions its values hold.
 uses() ->
     persistent_term:get({?MODULE, uses}, #{}).
 

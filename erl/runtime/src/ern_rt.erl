@@ -42,6 +42,11 @@
 %% report §6.6, §6.9: each pending call, {Callee, Caller, Alias}, so that a
 %% callee that restarts ends the calls waiting on it
 -define(CALLS, ern_calls).
+%% report §8.6: what a system process, a listener, a socket or a running
+%% program holds that can still deliver, {{source, Holder}, Count}, and the
+%% processes the system modules opened, {{opened, Pid}}: few rows, so that
+%% the deadlock check reads them without reading every process's
+-define(HELD, ern_held).
 %% The longest wait the host's `receive ... after` takes, in milliseconds.
 -define(SLICE, 16#FFFFFFFF).
 
@@ -266,7 +271,11 @@ reason(Other) -> {'Fault', format("~p", [Other])}.
 %% answers Unknown. Waiters: #{Pid => [{To, Wrap}]}; Wrap(Down) is sent to
 %% To, or for the launcher, whose wait is made with the spawn so that no
 %% race can take the entry process's cause, {raw, Tag}: {Tag, Site, Reason}.
-reaper_loop(Waiters) ->
+%% Watching: #{To => [Pid]}, the processes each waiter awaits, so that a
+%% waiter's death takes its waits with it: nothing is left to deliver them
+%% to. Watched: #{Pid => MRef}, a process the runtime did not start, watched
+%% here only while someone awaits it.
+reaper_loop(Waiters, Watching, Watched) ->
     receive
         {spawn, From, Ref, Fun, Site, Awaits} ->
             %% the process starts once its row is in the table, since a
@@ -275,25 +284,27 @@ reaper_loop(Waiters) ->
             ets:insert(?PROCESSES, {Pid, Site, alive, 0, 0}),
             Pid ! Ref,
             From ! {Ref, Pid},
-            reaper_loop(case Awaits of [] -> Waiters; _ -> Waiters#{Pid => Awaits} end);
+            reaper_loop(case Awaits of [] -> Waiters; _ -> Waiters#{Pid => Awaits} end,
+                        Watching, Watched);
         {await, Pid, To, Wrap, Ref} ->
-            Waiters1 = case ets:lookup(?PROCESSES, Pid) of
-                           [] when not is_map_key(Pid, Waiters) ->
+            Watched1 = case ets:lookup(?PROCESSES, Pid) of
+                           [] when not is_map_key(Pid, Watched) ->
                                %% not one the runtime started, so it is watched
                                %% from here; report §8.6: its death would deliver
                                %% a message, which is a source while it is awaited
-                               erlang:monitor(process, Pid),
                                source_begin(),
-                               Waiters#{Pid => [{To, Wrap}]};
+                               Watched#{Pid => erlang:monitor(process, Pid)};
                            _ ->
-                               maps:update_with(Pid, fun(L) -> [{To, Wrap} | L] end,
-                                                [{To, Wrap}], Waiters)
+                               Watched
                        end,
             To ! {Ref, watched},
-            reaper_loop(Waiters1);
+            reaper_loop(maps:update_with(Pid, fun(L) -> [{To, Wrap} | L] end, [{To, Wrap}],
+                                         Waiters),
+                        maps:update_with(To, fun(L) -> [Pid | L] end, [Pid], Watching),
+                        Watched1);
         {report, Pid, Site, Fault} ->
             report(Pid, Site, Fault, true),
-            reaper_loop(Waiters);
+            reaper_loop(Waiters, Watching, Watched);
         {'DOWN', _MRef, process, Pid, Reason} ->
             case ets:lookup(?PROCESSES, Pid) of
                 [{_, Site, alive, _, _}] ->
@@ -313,11 +324,17 @@ reaper_loop(Waiters) ->
                     lists:foreach(fun({To, Wrap}) ->
                                       wrapped(To, Wrap, {'Down', reason(Reason), <<>>})
                                   end, maps:get(Pid, Waiters, [])),
-                    is_map_key(Pid, Waiters) andalso source_end();
+                    is_map_key(Pid, Watched) andalso source_end();
                 _ ->
                     ok
             end,
-            reaper_loop(maps:remove(Pid, Waiters))
+            %% its waiters no longer await it, and its own waits go
+            Watching1 = lists:foldl(fun({To, _}, W) -> forgotten(To, Pid, W) end,
+                                    maps:remove(Pid, Watching), maps:get(Pid, Waiters, [])),
+            {Waiters1, Watched1} = unwatched(Pid, maps:get(Pid, Watching, []),
+                                             maps:remove(Pid, Waiters),
+                                             maps:remove(Pid, Watched)),
+            reaper_loop(Waiters1, Watching1, Watched1)
     after 100 ->
         case deadlocked() of
             true ->
@@ -332,7 +349,32 @@ reaper_loop(Waiters) ->
                 end;
             false -> ok
         end,
-        reaper_loop(Waiters)
+        reaper_loop(Waiters, Watching, Watched)
+    end.
+
+%% A process a waiter awaited, taken from what the waiter watches once the
+%% process has ended.
+forgotten(To, Pid, Watching) ->
+    case maps:get(To, Watching, []) -- [Pid] of
+        [] -> maps:remove(To, Watching);
+        Left -> Watching#{To => Left}
+    end.
+
+%% The waits of a waiter that died, taken from the processes it awaited. A
+%% process the runtime did not start that no one awaits any longer is no
+%% longer watched, and no longer a source (report §8.6).
+unwatched(_To, [], Waiters, Watched) ->
+    {Waiters, Watched};
+unwatched(To, [Pid | Rest], Waiters, Watched) ->
+    case [W || {By, _} = W <- maps:get(Pid, Waiters, []), By =/= To] of
+        [] when is_map_key(Pid, Watched) ->
+            erlang:demonitor(maps:get(Pid, Watched), [flush]),
+            source_end(),
+            unwatched(To, Rest, maps:remove(Pid, Waiters), maps:remove(Pid, Watched));
+        [] ->
+            unwatched(To, Rest, maps:remove(Pid, Waiters), Watched);
+        Left ->
+            unwatched(To, Rest, Waiters#{Pid => Left}, Watched)
     end.
 
 %% Report §6.9, §6.5: a monitor's wrap is applied as `via`'s function is, a
@@ -443,32 +485,61 @@ died(Pid, Site, Reason) ->
 
 %% Report §8.6. Two snapshots of every live process's status and reduction
 %% count, equal, with every status waiting, prove that nothing ran between
-%% them; a timed receive, a foreign call in progress, and a source held by
-%% a system process are what can still deliver.
+%% them; what is counted is read between them, so that it is what held
+%% while nothing ran, and not what held before a process ran on. A timed
+%% receive, a foreign call in progress, a source held by a system process,
+%% and a call waiting on one are what can still deliver.
 %%
-%% A message in flight to a system process would deliver too, and a system
-%% process is not in the table, so each one's mailbox and status are read
+%% The check runs when the reaper has been idle a while, and what can still
+%% deliver is read first, the cheapest first: an idle program that waits on
+%% something, a socket or an alarm, is answered from a few rows, and only a
+%% program in which nothing can deliver has its processes read, twice.
+%%
+%% A system process is not in the table, so its mailbox and status are read
 %% as well: between taking a message out and counting the source it holds,
-%% it is running rather than waiting, and the check sees that. The reaper
-%% is the process making the check, so its own mailbox is what is read of
-%% it. §8.6 leaves a foreign process that can deliver to the runtime. Report
-%% §11.2: nothing is a deadlock while a shell holds the terminal.
+%% it is running rather than waiting, and the check sees that. A request a
+%% program sends to it is counted by the sender before it is sent, as a call
+%% (calling_the_system/0), since a request still in transit is not seen at
+%% its receiver. The reaper is the process making the check, so its own
+%% mailbox is what is read of it. §8.6 leaves a foreign process that can
+%% deliver to the runtime. Report §11.2: nothing is a deadlock while a
+%% shell holds the terminal.
 deadlocked() ->
     terminal_holder() =:= undefined
-        andalso deadlocked([{Pid, T, F} || {Pid, _, T, F} <- live_rows()]).
-
-deadlocked(Rows) ->
-    Rows =/= []
-        andalso lists:all(fun({_, T, F}) -> T =:= 0 andalso F =:= 0 end, Rows)
-        andalso sources() =:= 0
-        andalso quiet_system()
+        andalso nothing_delivers()
         andalso begin
-                    Pids = [Pid || {Pid, _, _} <- Rows],
+                    Pids = [Pid || {Pid, _, _, _} <- live_rows()],
                     First = snapshot(Pids),
-                    lists:all(fun({_, S}) -> S =:= waiting end, [{P, St} || {P, St, _} <- First])
+                    Pids =/= []
+                        andalso lists:all(fun({_, S, _}) -> S =:= waiting end, First)
+                        andalso nothing_delivers()
                         andalso snapshot(Pids) =:= First
-                        andalso quiet_system()
                 end.
+
+nothing_delivers() ->
+    sources() =:= 0
+        andalso not calling_the_system()
+        andalso quiet_system()
+        andalso not counted().
+
+%% Whether a process is in a timed receive or a foreign call, found at the
+%% first such row.
+counted() ->
+    ets:select(?PROCESSES, [{{'_', '_', alive, '$1', '$2'},
+                             [{'orelse', {'>', '$1', 0}, {'>', '$2', 0}}], [true]}], 1)
+        =/= '$end_of_table'.
+
+%% A call waiting on a system process, a listener, a socket or a running
+%% program is a pending I/O from before its request is sent, as the call's
+%% row is (pending/1): signals from two senders are not ordered, so a
+%% request still in transit is not seen at its receiver.
+calling_the_system() ->
+    Held = [Pid || Key <- [stdout, stderr, stdin, fs, terminal, tcp, os, clock],
+                   Pid <- [persistent_term:get({?MODULE, Key}, undefined)], Pid =/= undefined]
+        ++ opened(),
+    try lists:any(fun({Callee, _, _}) -> lists:member(Callee, Held) end, ets:tab2list(?CALLS))
+    catch _:_ -> false
+    end.
 
 quiet_system() ->
     element(2, erlang:process_info(erlang:self(), message_queue_len)) =:= 0
@@ -540,14 +611,14 @@ source_begin() ->
 -spec source_begin(pid()) -> ok.
 source_begin(Holder) ->
     Key = {source, Holder},
-    try ets:update_counter(?PROCESSES, Key, {2, 1}, {Key, 0}) catch _:_ -> 0 end,
+    try ets:update_counter(?HELD, Key, {2, 1}, {Key, 0}) catch _:_ -> 0 end,
     ok.
 
 -spec source_end() -> ok.
 source_end() ->
     Key = {source, erlang:self()},
-    try ets:update_counter(?PROCESSES, Key, {2, -1}) of
-        0 -> ets:delete_object(?PROCESSES, {Key, 0});
+    try ets:update_counter(?HELD, Key, {2, -1}) of
+        0 -> ets:delete_object(?HELD, {Key, 0});
         _ -> true
     catch _:_ ->
         true
@@ -556,7 +627,7 @@ source_end() ->
 
 sources() ->
     try
-        lists:sum([N || [N] <- ets:match(?PROCESSES, {{source, '_'}, '$1'})])
+        lists:sum([N || [N] <- ets:match(?HELD, {{source, '_'}, '$1'})])
     catch _:_ ->
         1
     end.
@@ -568,21 +639,21 @@ sources() ->
 %% sources when it ends, which the process it is linked to learns.
 -spec opened(pid()) -> ok.
 opened(Pid) ->
-    try ets:insert(?PROCESSES, {{opened, Pid}}) catch _:_ -> true end,
+    try ets:insert(?HELD, {{opened, Pid}}) catch _:_ -> true end,
     ok.
 
 -spec forget_opened(pid()) -> ok.
 forget_opened(Pid) ->
     try
-        ets:delete(?PROCESSES, {opened, Pid}),
-        ets:delete(?PROCESSES, {source, Pid})
+        ets:delete(?HELD, {opened, Pid}),
+        ets:delete(?HELD, {source, Pid})
     catch _:_ ->
         true
     end,
     ok.
 
 opened() ->
-    try [Pid || [Pid] <- ets:match(?PROCESSES, {{opened, '$1'}})] catch _:_ -> [] end.
+    try [Pid || [Pid] <- ets:match(?HELD, {{opened, '$1'}})] catch _:_ -> [] end.
 
 %% A timed receive counts itself in before and out first in every body,
 %% so tail position holds; the compiler emits the calls (report §8.6).
@@ -913,13 +984,17 @@ fed_message(Chars) -> {data, unicode:characters_to_binary(Chars)}.
 %% it is pending (report §8.6).
 clock_loop() ->
     receive
-        {'After', Ms, To} ->
+        %% an alarm is answered once it is counted, so that the caller
+        %% goes on waiting only on what is counted (report §8.6)
+        {'After', Ms, Reply, To} ->
             source_begin(),
             arm(deadline(Ms), To),
+            answer(Reply, ?UNIT),
             clock_loop();
-        {'At', At, To} ->
+        {'At', At, Reply, To} ->
             source_begin(),
             arm(deadline(At - erlang:system_time(millisecond)), To),
+            answer(Reply, ?UNIT),
             clock_loop();
         {fire, Deadline, To} ->
             case remaining(Deadline) of
@@ -978,6 +1053,7 @@ run_main(Main, Site) ->
 run_main(Main, Site, Opts) ->
     ets:new(?PROCESSES, [named_table, public, set]),
     ets:new(?CALLS, [named_table, public, bag]),
+    ets:new(?HELD, [named_table, public, set]),
     persistent_term:erase({?MODULE, holder}),
     %% report §11.2: `ern run` reports every fault, the runtime's own
     %% subscriber, given here as a function
@@ -989,7 +1065,7 @@ run_main(Main, Site, Opts) ->
     persistent_term:put({?MODULE, launcher}, {erlang:self(), Run}),
     persistent_term:put({?MODULE, arguments}, maps:get(arguments, Opts, [])),
     persistent_term:put({?MODULE, exit}, maps:get(exit, Opts, program)),
-    Reaper = erlang:spawn(fun() -> reaper_loop(#{}) end),
+    Reaper = erlang:spawn(fun() -> reaper_loop(#{}, #{}, #{}) end),
     persistent_term:put({?MODULE, reaper}, Reaper),
     Encodings = bytes_out(),
     Out = maps:get(stdout, Opts, fun(Bin) -> file:write(standard_io, Bin) end),
@@ -1263,6 +1339,7 @@ end_program(Run, Reaper, System) ->
     end,
     ets:delete(?PROCESSES),
     ets:delete(?CALLS),
+    ets:delete(?HELD),
     %% a signal after the run has nothing to end (signal/1)
     persistent_term:erase({?MODULE, launcher}),
     flush_run(Run).
