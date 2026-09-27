@@ -581,8 +581,15 @@ Line Is `Os`'s*), and the exit status the same day (the log's *A Program Ends Wi
   C*): a port alone cannot keep the standard error apart, end the input while the output is
   read, or kill the program, so a helper in C, `ern_exec`, runs it, and a run is a process
   that answers `Next` with what the program sent, over which `Os.run` is Ernest; the
-  primitives are private. Decided in this item, before it closes: whether they are exported,
-  so that a process reads a program's output while it runs, or placed in a named milestone.
+  primitives are private until the next bullet exports them.
+- **A running program is a process, as a `Tcp` socket is**, decided 2026-09-27 (the log's *A
+  Running Program Is a Process*): `Os.start(command, ms)` answers its address, `Os.read`
+  its next `Stdout(bytes)`, `Stderr(bytes)` or, last, `Exited(status)`, and `Os.write` and
+  `Os.closeInput` feed it; `kill` stops it and `monitor` watches it. The milliseconds bound
+  the program's life, after which it is killed and a read answers `Left(Timeout)`, so that
+  `Os.run` is Ernest over the four, the named pair E.0 rule 4 keeps. Its process ends once it
+  has answered `Exited`, or when it is killed, and a read after that faults. The helper reads
+  the program's output only while a read waits, so a program no one reads is held back.
 - `Os` is a system module with its own `reference` (§8.2), so a running command counts as
   pending work in §8.6's check for a deadlock.
 - **`Os.exit(status : Int) -> a with m`**, which ends the program as §8.6 ends it, live
