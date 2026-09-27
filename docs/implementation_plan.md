@@ -636,6 +636,16 @@ Appendix E. Third-party libraries are not listed; Appendix D is what they follow
 A release is the language reviewed whole, documented where a reader looks, and installed where a user runs it. Placed after MVP 2.7, which gives a program its arguments, its environment and its exit status, so that what is installed is a tool a command line can use, and before MVP 3.0, whose peers are a second release's.
 
 1. **The review first**, whole, by [`review.md`](review.md), before anything else in this item: a finding may change what the other two build. Its ledger is a table here, as MVP 2.65's step 10 had. The review needs tools the repository lacks, each built as the review reaches the phase that uses it, with its own tests: a checker of Appendix A's FIRST sets (phase 1c); a generator of programs from the grammar, and of programs that type-check (1c, 2d); a test that compiles and runs the report's own examples (2b); a small runner of properties in the test utilities, for the standard library's laws (2e); `make dialyzer` and an Erlang xref target (3a); the load programs, shared with MVP 2.7's memory item (3c); a run of the suite under the emulator's modified timing (3d); and a test that runs the README's commands in a fresh clone (4d).
+
+   **A sceptical reading, a decision to take with the user**, proposed 2026-09-27: beside
+   phase 1b, which reads the report for what goes against the principles, a reading that
+   asks of each rule what it buys and what the language would lose without it. The night's
+   discussions of 2026-09-27 found what the cold reads and the sweeps had not: `remote`
+   removed, code shipped only with a spawn, a check made needless by typing, supervision
+   kept to one node, each from one rule doubted. To decide: whether it joins
+   [`review.md`](review.md) as a phase of its own, who reads, the user, a reader primed for
+   it, or both, and whether it also runs earlier than this review, section by section.
+
 2. **Manual pages, investigated.** `ern doc` writes a module's page as CommonMark today (report §11.4); an option writes it as a manual page instead, so that `man Ernest.List` answers at a terminal. The doc blocks are CommonMark, and `libs/markdown` already parses it for the shell, so the investigation is a renderer to roff beside the terminal's. Decided here, with the user, before it is built: **the pages' names and section**, `Ernest.List` in section 3 with a suffix of Ernest's own, as Erlang's `3erl` and Perl's `3pm` are, or another; whether the toolchain has an `ern(1)` page, and what owns its text, since §11 does.
 3. **An installation.** `make install` builds Ernest and installs it under a prefix, `/usr/local` by default, and `make uninstall` removes it. Decided here, with the user, before it is built, and written then as a design note, `docs/install.md`: **how it is relocatable without a configure step**, the direction discussed on 2026-09-26 being `PREFIX` and `DESTDIR` as make variables and an installed `bin/ern` that finds its tree by following its own link; **the layout under the prefix**, the toolchain's tree in `lib/ernest` and the manual pages in `share/man/man3`; and what the installation requires beside it, Erlang/OTP 29 on the path.
 4. **The release**, tagged once the review is done and the two above are built, with its notes (review phase 4h).
