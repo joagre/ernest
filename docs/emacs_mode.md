@@ -16,7 +16,9 @@ Derived from `prog-mode`, not from CC Mode.
 - Font lock from report §2: reserved words, uppercase-initial names as types and
   constructors, the name a declaration introduces, qualified names, operators, and the
   numeric literals of §2.5.
-- Indentation to [`style.md`](style.md), which owns it.
+- Indentation to [`style.md`](style.md), which owns it, but for the alignment of a bracket's
+  items: the mode steps them in, as the code still does, until the formatter's first run
+  (plan, MVP 2.8).
 - `imenu`, `beginning-of-defun`, `end-of-defun`, `add-log-current-defun-function`.
 - `compilation-error-regexp-alist` for `file:line:col: message`, since Emacs's own `gnu`
   entry refuses a file name with a space in it.

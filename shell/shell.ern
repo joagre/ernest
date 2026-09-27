@@ -459,8 +459,10 @@ fn taking(state : State, screen : Address(ScreenMsg), line : String) -> Unit wit
 fn readerDied(screen : Address(ScreenMsg), colour : Bool, down : Down) -> Unit with ShellMsg =
     match down {
         Down(reason = Returned) -> finish(screen, "")
-      | other -> finish(screen, Shell.Style.fault(colour,
-            "the shell stopped reading the keyboard: " <> faultLine(other)) <> "\n")
+      | other -> {
+            let text = "the shell stopped reading the keyboard: " <> faultLine(other);
+            finish(screen, Shell.Style.fault(colour, text) <> "\n")
+        }
     }
 
 // Report §11.2: what faulted while the session was reading. In line mode

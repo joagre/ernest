@@ -17,9 +17,11 @@ Actorson until 12 September 2026.
 
 ## Where we are
 
-**MVP 2.66, the standard library's `Supervisor`, is done** (2026-09-27), and MVP 2.7, a
-program started from a command line, is under way: `Os` is built (2026-09-27), and the
-memory, atoms, log and appendix of libraries items remain. MVP 2.65, the language and the toolchain read
+**MVP 2.8, the formatter, is next** (decided 2026-09-27), ahead of MVP 2.7's last two items,
+what Ernest adds and the guide read for its order. The rest of MVP 2.7, a program started from
+a command line, is built: `Os`, the memory and atoms items, running as a service, the appendix
+of libraries and back pressure (2026-09-27). MVP 2.66, the standard library's `Supervisor`, is
+done (2026-09-27). MVP 2.65, the language and the toolchain read
 back after the shell, closed with its sweep on 2026-09-26; its steps stay below as the record
 the log's entries point into. MVP 2.6, the shell, was closed on 2026-09-25, and the code read
 back after it the same day, both under "Done".
@@ -46,9 +48,10 @@ so a decision they must see goes here.
 | MVP 2.61 | the guide as the user's document | done 2026-09-24, out of order |
 | MVP 2.65 | the language and the toolchain read back | done 2026-09-26 |
 | MVP 2.66 | the standard library's `Supervisor` | done 2026-09-27 |
-| **MVP 2.7** | **a program started from a command line, and the appendix of libraries** | **next** |
+| MVP 2.7 | a program started from a command line, and the appendix of libraries | two items left, after 2.8 |
+| **MVP 2.8** | **the formatter** | **next** |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
-| MVP 2.95 | the first release: manual pages, an installation, a formatter, the review | after 2.7 |
+| MVP 2.95 | the first release: manual pages, an installation, the review | after 2.7 |
 | MVP 3.0 | peers | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -674,28 +677,56 @@ section is read against what the sections before it have taught.
 
 ---
 
-## MVP 2.95 (the first release: manual pages, an installation, a formatter, and the review), about three weeks
+## MVP 2.8 (the formatter), about a week
+
+`ern format`, and the Emacs mode brought to the same layout and formatting on save. Moved
+here on 2026-09-27 from MVP 2.95, where it had gone the same day from *Not in any MVP*, and
+built next, ahead of MVP 2.7's last two items: the layout rules of `docs/style.md` are
+settled, and the code keeps an older form only until the formatter runs (the log's *The
+Formatter Before the Release* and *Layout for the Reader*).
+
+1. **The formatter.** One style, `docs/style.md`'s, and no configuration; it writes a module
+   in that style, and with `--check` says which modules are not, which then stands for the
+   style test's hand-made checks. Its risk, named: the comments. The lexer drops an ordinary
+   comment, and the tree the checker reads has dropped a literal's spelling, redundant
+   parentheses and blank lines, so the formatter works from what was written, the lexer
+   keeping each comment with the token beside it. Its first run brings the code to the five
+   rules the code does not yet follow: a bracket's items aligned, a brace over lines, a
+   bracket that does not fit broken one item a line, an `if` broken whole, and a body broken
+   where it does not fit. The layout was tried by hand on `shell/shell.ern` on 2026-09-27;
+   the formatter's run on it is read against that trial, and a difference is decided before
+   the run is committed. Tested by the formatting of a formatted module being itself, by
+   what it writes parsing to the tree it read, and by the standard library, the shell and
+   the examples, once formatted, coming back unchanged. Decided here, with the user, before
+   it is built: **whether it formats the Ernest blocks of the report, the guide and the doc
+   blocks**, which the style test reads as it reads a module.
+2. **The Emacs mode indents what the formatter writes**, in the commit of the formatter's first
+   run, since `make test` holds the mode to every source ([`emacs_mode.md`](emacs_mode.md)). A
+   line inside a parenthesis or a square bracket whose first item follows it on its line
+   stands under that item, and a step inside such an item counts from its column; a line an
+   operator carries on steps from the line its expression began on, past brackets that have
+   closed. The cases of `emacs/test/broken/` written in the older form are written again in
+   the new.
+3. **Format on save in Emacs**, decided 2026-09-27, as go-mode's `gofmt-before-save` and
+   rust-analyzer do for their languages: the mode formats a buffer by running `ern format` on
+   it as it is saved. `ern format` reads a module from standard input and writes it to
+   standard output for this, since a buffer being saved is not yet the file. It is turned on
+   by one line in the init file, which `emacs_mode.md` shows, since a major mode turns nothing
+   on by itself there. A buffer that does not parse is saved as it was typed, and the mode
+   shows the formatter's diagnostic: saving is never refused. `emacs_mode.md`'s sentence that
+   the mode never calls the toolchain changes with it.
+
+---
+
+## MVP 2.95 (the first release: manual pages, an installation, and the review), about three weeks
 
 A release is the language reviewed whole, documented where a reader looks, and installed where a user runs it. The first one is for other programmers to install and use, decided 2026-09-27 (the log's *The First Release Is for Others*): Ernest for programs on one node. Peers are the next release's, which the table of `docs/development.md` already says and the release notes state once. Placed after MVP 2.7, which gives a program its arguments, its environment and its exit status, so that what is installed is a tool a command line can use, and before MVP 3.0.
 
 1. **Manual pages, investigated.** `ern doc` writes a module's page as CommonMark today (report §11.4); an option writes it as a manual page instead, so that `man Ernest.List` answers at a terminal. The doc blocks are CommonMark, and `libs/markdown` already parses it for the shell, so the investigation is a renderer to roff beside the terminal's. Decided here, with the user, before it is built: **the pages' names and section**, `Ernest.List` in section 3 with a suffix of Ernest's own, as Erlang's `3erl` and Perl's `3pm` are, or another; whether the toolchain has an `ern(1)` page, and what owns its text, since §11 does.
 2. **An installation.** `make install` builds Ernest and installs it under a prefix, `/usr/local` by default, and `make uninstall` removes it. Decided here, with the user, before it is built, and written then as a design note, `docs/install.md`: **how it is relocatable without a configure step**, the direction discussed on 2026-09-26 being `PREFIX` and `DESTDIR` as make variables and an installed `bin/ern` that finds its tree by following its own link; **the layout under the prefix**, the toolchain's tree in `lib/ernest` and the manual pages in `share/man/man3`; what the installation requires beside it, Erlang/OTP 29 on the path; and the operating systems the release supports, decided 2026-09-27: Linux and macOS, which the README names and `review.md`'s R6 runs on.
-3. **A formatter**, `ern format`, moved here on 2026-09-27 from *Not in any MVP*, since it was
-   to land before a second person writes Ernest and the first release is where others begin
-   (the log's *The Formatter Before the Release*): one style, `docs/style.md`'s, and no
-   configuration; it writes a module in that style, and with `--check` says which modules are
-   not, which then stands for the style test's hand-made checks. Its risk, named: the comments.
-   The lexer drops an ordinary comment, and the tree the checker reads has dropped a literal's
-   spelling, redundant parentheses and blank lines, so the formatter works from what was
-   written, the lexer keeping each comment with the token beside it. Its first run brings the
-   code to the two rules of `docs/style.md` decided 2026-09-27 that the code does not yet
-   follow, `then` and `else` over lines and a bracket closed on a line of its own (the log's
-   *Layout for the Reader*). Tested by the formatting of a formatted module being itself, by
-   what it writes parsing to the tree it read, and by the standard library, the shell and the
-   examples, once formatted, coming back unchanged. The review then reads code in one form.
-4. **The review**, performed just before the release, decided 2026-09-27, so that it reviews the manual pages and the installation with the rest, as [`review.md`](review.md) says; every finding is decided before the tag. The readers of [`coherence.md`](coherence.md) run here, about eight of them, and for a change only when the user asks, decided 2026-09-27 (the log's *The Readers Run Before a Release* and *Enough Coherence*). Its ledger is a table here, as MVP 2.65's step 10 had. The machines the coherence rows need are built before the review begins, each with its tests, and a quick one joins `make test`: `make dialyzer`, `make calls` (Erlang's xref), `make untested` (OTP's `cover`) and `make sanitize` (the helper in C under the sanitizers and Clang's analyzer) ([`coherence.md`](coherence.md) C13); `make unused`, the private Ernest declarations nothing uses (C14); the report's blocks marked as the guide's are and the test of its examples (C17); the program that checks Appendix A's FIRST sets (C18); the test that every borrowed file and table is listed with its licence (C20); the catalogue of one small program for every error the lexer, the parser and the checker give (C21); and `make garbled`, the front end given garbled sources (C22), decided 2026-09-27 (the log's *Enough Coherence*). The review's own tools are built as it reaches them: the runs under `+T 9` and three times under load (`review.md` R2), and the test that runs the README's and `docs/development.md`'s commands in a fresh clone (R4). What a first release leaves out, MVP 3.9 takes: the written argument that a well-typed program does not go wrong, the generator of programs that type-check, and the property runner for the standard library's laws.
+3. **The review**, performed just before the release, decided 2026-09-27, so that it reviews the manual pages and the installation with the rest, as [`review.md`](review.md) says; every finding is decided before the tag. The readers of [`coherence.md`](coherence.md) run here, about eight of them, and for a change only when the user asks, decided 2026-09-27 (the log's *The Readers Run Before a Release* and *Enough Coherence*). Its ledger is a table here, as MVP 2.65's step 10 had. The machines the coherence rows need are built before the review begins, each with its tests, and a quick one joins `make test`: `make dialyzer`, `make calls` (Erlang's xref), `make untested` (OTP's `cover`) and `make sanitize` (the helper in C under the sanitizers and Clang's analyzer) ([`coherence.md`](coherence.md) C13); `make unused`, the private Ernest declarations nothing uses (C14); the report's blocks marked as the guide's are and the test of its examples (C17); the program that checks Appendix A's FIRST sets (C18); the test that every borrowed file and table is listed with its licence (C20); the catalogue of one small program for every error the lexer, the parser and the checker give (C21); and `make garbled`, the front end given garbled sources (C22), decided 2026-09-27 (the log's *Enough Coherence*). The review's own tools are built as it reaches them: the runs under `+T 9` and three times under load (`review.md` R2), and the test that runs the README's and `docs/development.md`'s commands in a fresh clone (R4). What a first release leaves out, MVP 3.9 takes: the written argument that a well-typed program does not go wrong, the generator of programs that type-check, and the property runner for the standard library's laws.
 
-5. **The release**, tagged once the review is done, with its notes (`review.md`, *Done*).
+4. **The release**, tagged once the review is done, with its notes (`review.md`, *Done*).
 
 ## MVP 3.0 (peers), about three weeks
 

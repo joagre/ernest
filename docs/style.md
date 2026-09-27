@@ -24,7 +24,7 @@ For the toolchain's own code under `erl/`.
 
 ## Ernest style guide
 
-Ernest is order-independent at top level; these are style choices, not correctness. Follow them consistently. `test/ern_style_tests.erl` checks four of them: a blank line between declarations, one statement a line and a block of more than one, and a function's head. Two are not yet the code's form, `then` and `else` over lines and a bracket closed on its own line; the formatter brings the code to them (plan, MVP 2.95), and each says so.
+Ernest is order-independent at top level; these are style choices, not correctness. Follow them consistently. `test/ern_style_tests.erl` checks four of them: a blank line between declarations, one statement a line and a block of more than one, and a function's head. Five are not yet the code's form: a bracket's items aligned, a brace over lines, a bracket that does not fit broken one item a line, an `if` broken whole, and a body broken where it does not fit. Each says so. The formatter brings the code to them (plan, MVP 2.8). Until its first run the code keeps the form it has, and new code is written in that form too, so that no file holds two.
 
 - **Top-down layout.** Types first. Then the module's service bindings, each followed by its helpers, since what comes after uses them. Then `main` (in program modules) or exported functions (in library modules). Each root's helpers follow immediately below it, before the next root. Shared helpers go with the first user, or in a bottom utilities section if genuinely shared.
 - **A blank line stands between top-level declarations.** A declaration's comment or doc block stands directly above it, and the blank line stands above that.
@@ -38,24 +38,24 @@ Ernest is order-independent at top level; these are style choices, not correctne
       foreign fn names() -> List(Shell.Complete.Name) with m =
           "ern_shell:names/0"
 
-- **Indentation is a step, never an alignment.** A body, a continuation and an argument list broken over lines are each one step in from the line the construct begins on. Never line a token up under a bracket, an `->`, an `=` or a trailing comment.
+- **Indentation is a step, and only a bracket's items align.** A line stands one step in from the line on which the innermost construct still open around it began. A construct is a bracket or a brace, a body after a `=`, `->`, `then` or `else` that ends a line, or an expression that an operator carries on. A line that begins by closing a construct, with a closing bracket or brace or with `else`, stands at the line the construct began on. A line stands where its first token stands; a clause's bar is not counted, and the line stands where the pattern after the bar begins. The items of a bracket that breaks align under its first item (below), and an item counts as beginning a line where it stands. Nothing else is lined up: not under an `->`, an `=` or a trailing comment. The formatter brings the code to the alignment; the code still steps a bracket's items in.
 
-      let commands = [
-          Entry(
-              name = "type", command = Type,
-              about = " e   the type of e, which is not run"
-          )
-      ]
-
-  A line that opens with a binary operator (report §2.6) carries the line above on, one step in from where that line's expression begins; every further such line stands at the same step.
+  A line that opens with a binary operator (report §2.6) carries on the expression above it. It stands one step in from the line that expression begins on, and every further such line stands at the same step.
 
       let bytes = Response(status = StatusCode.ok, headers = [], body = body)
           |> withCookie("sid", SessionId.text(id))
           |> render;
 
-- **One statement a line, and a block holds more than one.** One expression is written bare, without braces around it. A block is written over lines, one statement to a line: its opening brace ends the line the block begins on, and its closing brace stands alone at that line's indentation, in a clause as anywhere. An input at the shell's prompt, which without a terminal is one line, is written as it is typed.
+- **One statement a line, and a block holds more than one.** One expression is written bare, without braces around it. A block holds its statements one to a line, as the next rule says. An input at the shell's prompt, which without a terminal is one line, is written as it is typed.
 
-      else {
+- **A brace runs over lines.** A block, a `match` and a `receive` are written over lines however short they are. The opening brace ends the line it stands on. The statements or the arms stand one to a line, one step in. The closing brace begins a line at the indentation of the line the brace opened on, and what follows it, an `else`, a `then`, a `;`, a `)` or an operator, follows it on that line. The formatter brings the code to this rule; the code still holds matches on one line.
+
+      let readers = match keys {
+          Some(#(reader, _)) -> [Process.fromAddress(reader)]
+        | None -> []
+      };
+
+      } else {
           send(to, Item(next));
           produce(to, next + 1, last, credit - 1)
       }
@@ -65,12 +65,34 @@ Ernest is order-independent at top level; these are style choices, not correctne
             counter(n)
         }
 
-      | Some(path) -> match Fs.read(path, wait) {
-            Left(why) -> Left(why)
-          | Right(bytes) -> Right(inputs(bytes))
-        }
+- **A bracket that does not fit holds one item a line, aligned under the first.** A bracket is a parenthesis, a square bracket or a bitstring's `<<`: a call's arguments, a function's parameters, a constructor's fields where it is declared and where it is built, a tuple, a list and a bitstring. A bracket and its items stay on one line when the whole line fits in 100 characters. Otherwise the first item stays on the bracket's line, each further item stands on a line of its own under the first, and the closing bracket ends the last item's line. What follows the closing bracket, a return type, a `;` or an operator, follows it on that line. The outermost bracket of a line breaks first, and each line that results is laid out again by these rules. A bracket that holds one item does not break. The formatter brings the code to this rule.
 
-- **`then` and `else` end their lines, and each branch begins the next line, one step in.** `then` stays on the line its `if` begins on. `else` returns to that line's indentation, and `else if` is written on one line. The code takes this form with the formatter (plan, MVP 2.95) and keeps the older one until then, `then` and `else` returning to the `if`'s line with their branches beside them.
+      fn run(state : State,
+             screen : Address(ScreenMsg),
+             from : String,
+             line : Int,
+             input : String,
+             printing : Bool) -> State with ShellMsg =
+          match check(state.env, from, line, input) { ... }
+
+      readLoop(session,
+               screen,
+               Reading(editing = Shell.Editor.start(earlier),
+                       keeping = true,
+                       hinted = false,
+                       last = Ordinary,
+                       colour = colour))
+
+  A last item whose first line ends in a brace, a lambda whose body is a block, a `match` or a `receive`, stays on the bracket's line when that line fits up to the brace. The brace's contents stand one step in from that line, and the brace and the bracket close together.
+
+      let screen = spawn(Local, fn() = match keys {
+          Some(#(_, size)) -> screenLoop(Shell.Region.new(size))
+        | None -> plainLoop()
+      });
+
+- **An `if` stays on one line when it fits, and otherwise breaks at `then` and `else`.** Each branch then begins the next line, one step in. `else` returns to the indentation of the line the `if` began on, whether that line begins with the `if`, a `let`, a pattern or a lambda's `fn`. A branch whose first line ends in a brace or a `then` stays on its `then` or `else` line when that line fits: `then {`, `else {`, `else match x {`, and `else if`, which is written on one line. The formatter brings the code to this rule; the code still holds `then` and `else` returning to the `if`'s line with their branches beside them.
+
+      let rows = if listed then listing(completion, reading.colour) else [];
 
       if from < 1 || from > List.size(history) then
           None
@@ -79,7 +101,20 @@ Ernest is order-independent at top level; these are style choices, not correctne
       else
           find(history, query, from + step, step)
 
-- **A function's head ends at `=`, and its body begins on the next line, one step in.** A body of one short line is no exception.
+- **The body of an arm or a lambda stays on its line when it fits.** The body after an arm's `->`, or after a lambda's `=`, stays on that line when it fits there whole, or when its first line ends in a brace or a `then` and that line fits. Otherwise it begins the next line, one step in. A lambda has no other rule of its own. The formatter brings the code to this rule.
+
+      | Some(path) -> match Fs.read(path, wait) {
+            Left(why) -> Left(why)
+          | Right(bytes) -> Right(inputs(bytes))
+        }
+
+      match b {
+          Markdown.Paragraph([Markdown.Emphasis([Markdown.Text(text)])]) ->
+              String.startsWith(text, "Since ")
+        | _ -> false
+      }
+
+- **A function's head ends at `=`, and its body begins on the next line, one step in.** A body of one short line is no exception. The head's parameters are a bracket, and break as one does.
 
       fn walk(state : State, step : Int) -> State =
           walkTo(state, state.back + step)
@@ -102,29 +137,6 @@ Ernest is order-independent at top level; these are style choices, not correctne
       export foreign fn toUpper(s : String) -> String =
           "ern_string:to_upper/1"
 
-- **A signature broken over lines continues one step in**, which is where its body goes too. A parameter list that runs over lines is a bracket, and closes as the next rule says.
-
-      fn merge(left : List(a), right : List(a), compare : (a, a) -> Ordering with e)
-          -> List(a) with e =
-          match #(left, right) { ... }
-
-- **A bracket whose contents run over lines closes on a line of its own**, at the indentation of the line it opened on, as a block's brace does. What follows the bracket, a return type, a `;` or an operator, follows it on that line. Brackets opened on one line close together on one line. The code takes this form with the formatter (plan, MVP 2.95) and keeps the older one until then, a closing bracket ending the line of the contents' last.
-
-      fn handler(
-          sessions : Address(SessionMsg),
-          seq : Int,
-          sock : Address(Tcp.SockMsg)
-      ) -> Unit with m =
-          match Tcp.read(sock, 5000) { ... }
-
-      let words = Test(name = "a word ends where a name cannot go on", run = fn() = {
-          let seen = word("1 + List.ma");
-          if seen == "List.ma" then
-              Passed
-          else
-              Failed(seen)
-      })
-
 - **A clause bar sits two spaces left of its arms.** A type whose alternatives run past the line breaks after the `=`.
 
       match xs {
@@ -136,6 +148,12 @@ Ernest is order-independent at top level; these are style choices, not correctne
           Typed(String) | Eof | Interrupted | Done(Outcome) | Reported(Process.FaultReport)
         | ReaderDied(Down) | Ready | NoKeys
 
-- **Split a long expression rather than let a line run past 100 characters.**
+- **Split a long expression by these rules, and name a part of it where the split reads worse than a name.** The formatter will split, but only the writer can name.
+
+      | other -> {
+            let text = "the shell stopped reading the keyboard: " <> faultLine(other);
+            finish(screen, Shell.Style.fault(colour, text) <> "\n")
+        }
+
 - **Block-comment banners for sections.** Open with `//` on its own line, one or more `// text` lines, close with `//` on its own line. Blank line before the opening, blank line after the closing. Not `// Section ----------`.
 - **A module with a doc block has no header banner.** The module's `///` block is its header (report §2.2); a banner in such a file marks a section, never the file.
