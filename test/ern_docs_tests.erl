@@ -146,19 +146,25 @@ read(Rel) ->
 examples() ->
     [filename:join("examples", F)
      || F <- filelib:wildcard("**/*.ern", filename:join(?ROOT, "examples")),
-        hd(filename:basename(F)) =/= $.].
+        not editor_file(F)].
 
 %% The shell's Ernest source, whose comments cite the report as the
 %% standard library's do.
 shell() ->
     [filename:join("shell", F)
-     || F <- filelib:wildcard("**/*.ern", filename:join(?ROOT, "shell"))].
+     || F <- filelib:wildcard("**/*.ern", filename:join(?ROOT, "shell")),
+        not editor_file(F)].
 
 stdlib() ->
     [filename:join("stdlib", F)
-     || F <- filelib:wildcard("*.ern", filename:join(?ROOT, "stdlib"))]
+     || F <- filelib:wildcard("*.ern", filename:join(?ROOT, "stdlib")), not editor_file(F)]
     ++ [filename:join("libs", F)
-        || F <- filelib:wildcard("*/*.ern", filename:join(?ROOT, "libs"))].
+        || F <- filelib:wildcard("*/*.ern", filename:join(?ROOT, "libs")), not editor_file(F)].
+
+%% An editor's lock file, `.#editor.ern`, a link to nothing while the file
+%% is open, and its auto-save file, `#editor.ern#`: neither is a module.
+editor_file(F) ->
+    lists:member(hd(filename:basename(F)), ".#").
 
 %% "3.9", "3", "Appendix A", "E.12" for the headings of a document.
 headings(Bin) ->
