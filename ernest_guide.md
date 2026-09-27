@@ -656,23 +656,7 @@ An effect variable may stand for a mailbox type or for pure. One that also appea
 
 The process operations, `self`, `send`, `spawn`, `spawnMonitored`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, and `kill`, which §4 and §5 teach, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
 
-### 3.6 One spawn corner: a callback's mailbox
-
-`spawn`'s callback has type `() -> Unit with n`, and the `n` is also the mailbox of the `Address(n)` it returns. A pure function fits wherever one with a mailbox type is expected, so a pure callback is spawned too, and its mailbox is whatever the address is used as. When nothing says, the type of the address is not determined, and a kept address must have one. A process that never receives is spawned with the mailbox `Never`, written on its lambda, `fn() -> Unit with Never = ...`, since no `receive` in it settles the type; an address dropped with `let _ =`, as ping-pong's is in §5.1, needs none:
-
-```console
-$ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
-> :type spawn
-spawn : (Where, () -> Unit with n) -> Address(n) with m
-> spawn(Local, fn() -> Unit = Unit)
-<address 84> : Address(a)
-`it` is unchanged: this input did not determine the type of its value
-> spawn(Local, fn() -> Unit with Never = Unit)
-<address 87> : Address(Never)
-```
-
-### 3.7 The word counter as functions
+### 3.6 The word counter as functions
 
 The counter becomes functions in a file of its own. A file is a module named after it, so the functions of `words.ern` are `Words.count` and the rest to the code outside it (§7.1).
 
@@ -706,7 +690,7 @@ Map.fromList([#("and", 1), #("cat", 1), #("hat", 1), #("the", 2)]) : Map(String,
 [#("the", 2), #("and", 1)] : List(#(String, Int))
 ```
 
-### 3.8 Prediction exercise
+### 3.7 Prediction exercise
 
 Given:
 
@@ -739,6 +723,20 @@ fn counter(n : Int) -> Unit with CounterMsg =
 `counter` keeps its state in the parameter `n`, and its mailbox takes `CounterMsg`. `receive` waits for a message that matches a clause and evaluates that clause. Both clauses call `counter` again with the new state; a tail call does not grow the stack, so the loop runs for ever.
 
 `let c = spawn(Local, fn() = counter(0))` starts a process that runs the lambda, and `c` is its address, an `Address(CounterMsg)`. `Local` says the process runs on this node, the runtime the program runs in; `Peer(name)` is another node (§8). `send(c, Inc(5))` puts `Inc(5)` in the mailbox of the process at `c` and returns at once, without waiting for it to be received. `self()` is the address of the process that calls it, so a parent that gives a child its own address takes it first: `let me = self(); spawn(Local, fn() = child(me))`.
+
+`spawn`'s callback has type `() -> Unit with n`, and the `n` is also the mailbox of the `Address(n)` it returns. A pure function fits wherever one with a mailbox type is expected, so a pure callback is spawned too, and its mailbox is whatever the address is used as. When nothing says, the type of the address is not determined, and a kept address must have one. A process that never receives is spawned with the mailbox `Never`, written on its lambda, `fn() -> Unit with Never = ...`, since no `receive` in it settles the type; an address dropped with `let _ =`, as ping-pong's is in §5.1, needs none:
+
+```console
+$ ern shell
+Ernest 0.1.0. :help for the commands, :quit to leave.
+> :type spawn
+spawn : (Where, () -> Unit with n) -> Address(n) with m
+> spawn(Local, fn() -> Unit = Unit)
+<address 84> : Address(a)
+`it` is unchanged: this input did not determine the type of its value
+> spawn(Local, fn() -> Unit with Never = Unit)
+<address 87> : Address(Never)
+```
 
 A `Reply(Int)` is where an answer goes. The process that asks puts one in its request, and the process that receives the request answers it with `answer(r, n)`.
 
@@ -2101,7 +2099,7 @@ A function's number of arguments is part of its type, and `fn(x, y)` shows it wh
 
 **§2.11.** No. Ernest has no assignment. `q` is a separate `Person` value; `p` is still `Person(name = "Alice", age = 30)`.
 
-**§3.8.** `map2`'s inferred type is `((a) -> b with e, a, a) -> #(b, b) with e`. The call binds `a = Int`, `b = Unit`, and `e` to the mailbox effect of `send`, the same as the enclosing function's.
+**§3.7.** `map2`'s inferred type is `((a) -> b with e, a, a) -> #(b, b) with e`. The call binds `a = Int`, `b = Unit`, and `e` to the mailbox effect of `send`, the same as the enclosing function's.
 
 **§4.8.** No. The timeout only bounds the caller's wait. The recipient may still be processing the request or may answer later; the late answer is silently discarded but the work done on the recipient side is not undone.
 
