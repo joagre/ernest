@@ -17,10 +17,9 @@ type IdMsg = NextId(reply : Reply(Int))
 
 type AuditMsg = Record(String) | Entries(reply : Reply(List(String)))
 
-let services : Address(Supervisor.Msg) = spawn(Local,
-                                               Supervisor.group(Supervisor.RestForOne,
-                                                                RestartLimit(restarts = 3,
-                                                                             within = 10000)))
+let services : Address(Supervisor.Msg) =
+    spawn(Local,
+          Supervisor.group(Supervisor.RestForOne, RestartLimit(restarts = 3, within = 10000)))
 
 let store : Address(StoreMsg) = spawn(Local, Supervisor.child(services, fn() = storing(Map.empty)))
 

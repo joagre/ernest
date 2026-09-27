@@ -169,10 +169,10 @@ export fn applied(text : String,
 // namespace they are all in is completed and the last segment is kept as
 // typed: `L.fM` gives `List.fM`. With no namespace, or several, nothing is.
 fn namespaced(loose : List(Name), typed : String) -> String = {
-    let spaces = List.unique(List.map(loose,
-                                      fn(name) =
-                                          String.join(List.dropLast(String.split(name.text, ".")),
-                                                      ".")));
+    let spaces =
+        List.unique(List.map(loose,
+                             fn(name) =
+                                 String.join(List.dropLast(String.split(name.text, ".")), ".")));
     match #(spaces, List.last(String.split(typed, "."))) {
         #([space], Some(last)) -> if String.isEmpty(space) then "" else space <> "." <> last
       | _ -> ""
@@ -184,8 +184,8 @@ fn namespaced(loose : List(Name), typed : String) -> String = {
 fn matches(typed : String, names : List(Name)) -> #(List(Name), List(Name)) = {
     let parts = String.split(typed, ".");
     let exact = List.filter(names, fn(name) = reaches(parts, name, true));
-    let loose = List.filter(names,
-                            fn(name) = reaches(parts, name, false) && !reaches(parts, name, true));
+    let loose =
+        List.filter(names, fn(name) = reaches(parts, name, false) && !reaches(parts, name, true));
     #(alphabetical(exact), alphabetical(loose))
 }
 
@@ -261,34 +261,39 @@ fn shareds(a : String, b : String, upTo : Int) -> String =
 // The tests (report §9.3), run by `ern test`, which `make test` does.
 //
 
-let only = Test(name = "one candidate completes to the whole of itself",
-                run = fn() = becomes(complete(word("List.ma"), library(), Expression), "List.map"))
+let only =
+    Test(name = "one candidate completes to the whole of itself",
+         run = fn() = becomes(complete(word("List.ma"), library(), Expression), "List.map"))
 
-let module = Test(name = "a module completes to its name and a dot",
-                  run = fn() = becomes(complete(word("Li"), library(), Expression), "List."))
+let module =
+    Test(name = "a module completes to its name and a dot",
+         run = fn() = becomes(complete(word("Li"), library(), Expression), "List."))
 
-let sharing = Test(name = "several candidates give what they share",
-                   run = fn() =
-                       becomes(complete(word("List.f"), library(), Expression), "List.filter"))
+let sharing =
+    Test(name = "several candidates give what they share",
+         run = fn() = becomes(complete(word("List.f"), library(), Expression), "List.filter"))
 
-let abbreviation = Test(name = "an abbreviation reaches a name by its word starts",
-                        run = fn() =
-                            becomes(complete(word("List.fM"), library(), Expression),
-                                    "List.filterMap"))
+let abbreviation =
+    Test(name = "an abbreviation reaches a name by its word starts",
+         run = fn() = becomes(complete(word("List.fM"), library(), Expression), "List.filterMap"))
 
-let shortModule = Test(name = "a segment is abbreviated too",
-                       run = fn() =
-                           becomes(complete(word("L.fm"), library(), Expression), "List.filterMap"))
+let shortModule =
+    Test(name = "a segment is abbreviated too",
+         run = fn() = becomes(complete(word("L.fm"), library(), Expression), "List.filterMap"))
 
-let prefixFirst = Test(name = "a prefix is listed before an abbreviation",
-                       run = fn() = match complete(word("List.f"), library(), Expression) {
-                           Completion(candidates = Name(text = first) :: _) ->
-                               if first == "List.filter" then Passed else Failed(first)
-                         | _ -> Failed("no candidates")
-                       })
+let prefixFirst =
+    Test(name = "a prefix is listed before an abbreviation",
+         run = fn() = match complete(word("List.f"), library(), Expression) {
+             Completion(candidates = Name(text = first) :: _) -> if first == "List.filter" then
+                 Passed
+             else
+                 Failed(first)
+           | _ -> Failed("no candidates")
+         })
 
-let noneAtAll = Test(name = "a word that reaches nothing completes to nothing",
-                     run = fn() = becomes(complete(word("Zz"), library(), Expression), ""))
+let noneAtAll =
+    Test(name = "a word that reaches nothing completes to nothing",
+         run = fn() = becomes(complete(word("Zz"), library(), Expression), ""))
 
 let words = Test(name = "a word ends where a name cannot go on", run = fn() = {
     let seen = word("1 + List.ma");
@@ -317,109 +322,104 @@ let nothingTyped = Test(name = "nothing typed reaches the names of one segment",
     if List.size(candidates) == 2 then Passed else Failed(Int.toString(List.size(candidates)))
 })
 
-let oneSegment = Test(name = "a segment reaches no name deeper than it",
-                      run = fn() = match complete(word("L"), library(), Expression) {
-                          Completion(word = w, candidates = [_]) -> if w == "List." then
-                              Passed
-                          else
-                              Failed(w)
-                        | Completion(candidates = candidates) ->
-                              Failed(Int.toString(List.size(candidates)))
-                      })
+let oneSegment =
+    Test(name = "a segment reaches no name deeper than it",
+         run = fn() = match complete(word("L"), library(), Expression) {
+             Completion(word = w, candidates = [_]) -> if w == "List." then Passed else Failed(w)
+           | Completion(candidates = candidates) -> Failed(Int.toString(List.size(candidates)))
+         })
 
-let caseKept = Test(name = "a lower-case letter reaches no constructor",
-                    run = fn() =
-                        becomes(complete(word("a"),
-                                         [Name(text = "Accept",
-                                               kind = Constructor,
-                                               shown = "Accept"),
-                                          Name(text = "answer",
-                                               kind = Value,
-                                               shown = "answer : ...")],
-                                         Expression),
-                                "answer"))
+let caseKept =
+    Test(name = "a lower-case letter reaches no constructor",
+         run = fn() =
+             becomes(complete(word("a"),
+                              [Name(text = "Accept", kind = Constructor, shown = "Accept"),
+                               Name(text = "answer", kind = Value, shown = "answer : ...")],
+                              Expression),
+                     "answer"))
 
-let fieldsComplete = Test(name = "a field completes after the value it is selected from",
-                          run = fn() = {
-                              let fields = [Name(text = "q.p.name",
-                                                 kind = Value,
-                                                 shown = "q.p.name : String"),
-                                            Name(text = "q.p.count",
-                                                 kind = Value,
-                                                 shown = "q.p.count : Int")];
-                              becomes(complete("q.p.na", fields, Expression), "q.p.name")
-                          })
+let fieldsComplete =
+    Test(name = "a field completes after the value it is selected from", run = fn() = {
+        let fields =
+            [Name(text = "q.p.name", kind = Value, shown = "q.p.name : String"),
+             Name(text = "q.p.count", kind = Value, shown = "q.p.count : Int")];
+        becomes(complete("q.p.na", fields, Expression), "q.p.name")
+    })
 
 let neverShorter = Test(name = "a Tab never takes away what was typed", run = fn() = {
-    let names = [Name(text = "Address", kind = Module, shown = "Address."),
-                 Name(text = "Address.call", kind = Value, shown = "Address.call"),
-                 Name(text = "ArrowDown", kind = Constructor, shown = "ArrowDown")];
-    let aside = [Name(text = "filterMap", kind = Value, shown = "filterMap"),
-                 Name(text = "flatMap", kind = Value, shown = "flatMap")];
+    let names =
+        [Name(text = "Address", kind = Module, shown = "Address."),
+         Name(text = "Address.call", kind = Value, shown = "Address.call"),
+         Name(text = "ArrowDown", kind = Constructor, shown = "ArrowDown")];
+    let aside =
+        [Name(text = "filterMap", kind = Value, shown = "filterMap"),
+         Name(text = "flatMap", kind = Value, shown = "flatMap")];
     let a = complete("Ad", names, Expression).word;
     let b = complete("fm", aside, Expression).word;
     if a == "Address." && b == "" then Passed else Failed(a <> " | " <> b)
 })
 
-let keepsTheLast = Test(name = "an abbreviation keeps its last segment as typed",
-                        run = fn() =
-                            becomes(complete("L.fM",
-                                             library()
-                                                 <> [Name(text = "List.flatMap",
-                                                          kind = Value,
-                                                          shown = "List.flatMap : ...")],
-                                             Expression),
-                                    "List.fM"))
+let keepsTheLast =
+    Test(name = "an abbreviation keeps its last segment as typed",
+         run = fn() =
+             becomes(complete("L.fM",
+                              library()
+                                  <> [Name(text = "List.flatMap",
+                                           kind = Value,
+                                           shown = "List.flatMap : ...")],
+                              Expression),
+                     "List.fM"))
 
-let heldOnly = Test(name = "a namespace is offered only where it holds what may stand there",
-                    run = fn() = {
-                        let names = withNamespaces([Name(text = "Net.get",
-                                                         kind = Value,
-                                                         shown = "Net.get"),
-                                                    Name(text = "Shell.Region.Region",
-                                                         kind = Type,
-                                                         shown = "type Shell.Region.Region")]);
-                        let w = complete("S", names, TypeName).word;
-                        if w == "Shell." then Passed else Failed(w)
-                    })
+let heldOnly =
+    Test(name = "a namespace is offered only where it holds what may stand there", run = fn() = {
+        let names =
+            withNamespaces([Name(text = "Net.get", kind = Value, shown = "Net.get"),
+                            Name(text = "Shell.Region.Region",
+                                 kind = Type,
+                                 shown = "type Shell.Region.Region")]);
+        let w = complete("S", names, TypeName).word;
+        if w == "Shell." then Passed else Failed(w)
+    })
 
-let wholeWord = Test(name = "the whole name the cursor stands in",
-                     run = fn() =
-                         if wordAt("x + List.m(1)", 8) == "List.m"
-                             && wordAt("List.map xs", 6) == "List.map" then
-                             Passed
-                         else
-                             Failed(wordAt("List.map xs", 6)))
+let wholeWord =
+    Test(name = "the whole name the cursor stands in",
+         run = fn() =
+             if wordAt("x + List.m(1)", 8) == "List.m"
+                 && wordAt("List.map xs", 6) == "List.map" then
+                 Passed
+             else
+                 Failed(wordAt("List.map xs", 6)))
 
-let namespaces = Test(name = "a type with members is a namespace, completing with its dot",
-                      run = fn() =
-                          becomes(complete(word("Ad"),
-                                           withNamespaces([Name(text = "Address.call",
-                                                                kind = Value,
-                                                                shown = "Address.call")]),
-                                           Expression),
-                                  "Address."))
+let namespaces =
+    Test(name = "a type with members is a namespace, completing with its dot",
+         run = fn() =
+             becomes(complete(word("Ad"),
+                              withNamespaces([Name(text = "Address.call",
+                                                   kind = Value,
+                                                   shown = "Address.call")]),
+                              Expression),
+                     "Address."))
 
-let anything = Test(name = "a command's own names are all admitted, types among them",
-                    run = fn() = becomes(complete(word("In"), library(), Anything), "Int"))
+let anything =
+    Test(name = "a command's own names are all admitted, types among them",
+         run = fn() = becomes(complete(word("In"), library(), Anything), "Int"))
 
-let inAType = Test(name = "a type position takes types and modules only",
-                   run = fn() = becomes(complete(word("In"), library(), TypeName), "Int"))
+let inAType =
+    Test(name = "a type position takes types and modules only",
+         run = fn() = becomes(complete(word("In"), library(), TypeName), "Int"))
 
-let inAPattern = Test(name = "a pattern position takes constructors",
-                      run = fn() = becomes(complete(word("So"), library(), Pattern), "Some"))
+let inAPattern =
+    Test(name = "a pattern position takes constructors",
+         run = fn() = becomes(complete(word("So"), library(), Pattern), "Some"))
 
-let inFields = Test(name = "a field position takes the fields of its constructor",
-                    run = fn() =
-                        becomes(complete("na",
-                                         library(),
-                                         Fields([Name(text = "name",
-                                                      kind = Value,
-                                                      shown = "name : String"),
-                                                 Name(text = "level",
-                                                      kind = Value,
-                                                      shown = "level : Int")])),
-                                "name"))
+let inFields =
+    Test(name = "a field position takes the fields of its constructor",
+         run = fn() =
+             becomes(complete("na",
+                              library(),
+                              Fields([Name(text = "name", kind = Value, shown = "name : String"),
+                                      Name(text = "level", kind = Value, shown = "level : Int")])),
+                     "name"))
 
 fn library() -> List(Name) =
     [Name(text = "List", kind = Module, shown = "module List"),

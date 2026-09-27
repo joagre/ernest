@@ -282,7 +282,7 @@ decl(#fn_decl{export = E, owner = O, params = Ps, ret = R, effect = F, body = B}
          _ -> {nest, 4, [hardline, ex(B, X)]}
      end];
 decl(#let_decl{export = E, owner = O, ann = A, body = B}, X) ->
-    [export(E), tok('let'), sp(), name(O), ann(A, X), sp(), tok('='), sp(), ex(B, X)];
+    [export(E), tok('let'), sp(), name(O), ann(A, X), sp(), tok('='), {body, ex(B, X)}];
 decl(#type_decl{export = E, params = Ps, constructors = Cs}, X) ->
     [export(E), type_decl(Ps, Cs, X)];
 decl(#abstract_decl{export = E, type = #type_decl{params = Ps, constructors = Cs}}, X) ->
@@ -418,7 +418,7 @@ stmts(Ss, X) ->
     lists:join([tok(';'), hardline], [stmt(S, X) || S <- Ss]).
 
 stmt(#binding{pattern = P, ann = A, expr = E}, X) ->
-    [tok('let'), sp(), pat(P, X), ann(A, X), sp(), tok(), sp(), ex(E, X)];
+    [tok('let'), sp(), pat(P, X), ann(A, X), sp(), tok(), {body, ex(E, X)}];
 stmt(#fn_decl{} = F, X) -> decl(F, X);
 stmt(E, X) -> ex(E, X).
 

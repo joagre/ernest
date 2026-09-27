@@ -100,9 +100,10 @@ fn handler(sessions : Address(SessionMsg), seq : Int, sock : Address(Tcp.SockMsg
                 };
                 let visits = Address.callForever(sessions, fn(r) = Visit(id = id, reply = r));
                 let body = "Visit number " <> Int.toString(visits);
-                let bytes = Response(status = StatusCode.ok, headers = [], body = body)
-                    |> withCookie("sid", SessionId.text(id))
-                    |> render;
+                let bytes =
+                    Response(status = StatusCode.ok, headers = [], body = body)
+                        |> withCookie("sid", SessionId.text(id))
+                        |> render;
                 Tcp.write(sock, bytes);
                 Tcp.close(sock)
             }

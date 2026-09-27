@@ -545,9 +545,8 @@ Messages from one process to another are received in sending order. Between diff
 Addresses have no equality (§3.10). The process behind an address is `Process.fromAddress(a)`, a value with equality that nothing can be sent to (Appendix E.21). There is no registry. A process reaches another through an address it holds or received, or through a top-level binding that holds one, which is a *service*:
 
 ```ernest
-export let log : Address(LogMsg) = spawn(Local,
-                                         restarting(RestartLimit(restarts = 3, within = 5000),
-                                                    logger))
+export let log : Address(LogMsg) =
+    spawn(Local, restarting(RestartLimit(restarts = 3, within = 5000), logger))
 ```
 
 `restarting` keeps the service's address across its faults (§6.9). The address is the permission to send, and a service binding grants it to the modules that see the binding (§4.2).

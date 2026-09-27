@@ -557,11 +557,12 @@ fn spanText(chars : List(Char)) -> String =
 fn emphasis(mark : Char, chars : List(Char), pending : List(Char)) -> List(Inline) = {
     let #(run, rest) = List.span(chars, fn(c) = c == mark);
     let size = List.size(run);
-    let intraword = mark == '_'
-        && match pending {
-            p :: _ -> isWordChar(p)
-          | [] -> false
-        };
+    let intraword =
+        mark == '_'
+            && match pending {
+                p :: _ -> isWordChar(p)
+              | [] -> false
+            };
     let opens = match rest {
         c :: _ -> c != ' ' && c != '\n'
       | [] -> false
@@ -603,13 +604,14 @@ fn closingRun(chars : List(Char),
                 p :: _ -> p != ' ' && p != '\n'
               | [] -> false
             };
-            let closes = List.size(run) == size
-                && afterText
-                && !(mark == '_'
-                         && match rest {
-                             n :: _ -> isWordChar(n)
-                           | [] -> false
-                         });
+            let closes =
+                List.size(run) == size
+                    && afterText
+                    && !(mark == '_'
+                             && match rest {
+                                 n :: _ -> isWordChar(n)
+                               | [] -> false
+                             });
             if closes then
                 Some(#(List.reverse(done), rest))
             else
@@ -855,152 +857,169 @@ fn filled(pieces : List(String), width : Int, row : String, rows : List(String))
 // The tests (report §9.3), run by `ern test` as every library's are.
 //
 
-let headings = Test(name = "an ATX heading drops its closing marks",
-                    run = fn() =
-                        blocksAre(parse("### Three ###\n####### seven"),
-                                  [Heading(level = 3, text = [Text("Three")]),
-                                   Paragraph([Text("####### seven")])]))
+let headings =
+    Test(name = "an ATX heading drops its closing marks",
+         run = fn() =
+             blocksAre(parse("### Three ###\n####### seven"),
+                       [Heading(level = 3, text = [Text("Three")]),
+                        Paragraph([Text("####### seven")])]))
 
-let setext = Test(name = "a line of = or - under a paragraph makes it a heading",
-                  run = fn() =
-                      blocksAre(parse("One\n===\n\nTwo\n---"),
-                                [Heading(level = 1, text = [Text("One")]),
-                                 Heading(level = 2, text = [Text("Two")])]))
+let setext =
+    Test(name = "a line of = or - under a paragraph makes it a heading",
+         run = fn() =
+             blocksAre(parse("One\n===\n\nTwo\n---"),
+                       [Heading(level = 1, text = [Text("One")]),
+                        Heading(level = 2, text = [Text("Two")])]))
 
-let fences = Test(name = "a fence runs to one as long, and keeps what is inside",
-                  run = fn() =
-                      blocksAre(parse("````ernest\n```\n# not a heading\n````\nafter"),
-                                [Code(info = "ernest", lines = ["```", "# not a heading"]),
-                                 Paragraph([Text("after")])]))
+let fences =
+    Test(name = "a fence runs to one as long, and keeps what is inside",
+         run = fn() =
+             blocksAre(parse("````ernest\n```\n# not a heading\n````\nafter"),
+                       [Code(info = "ernest", lines = ["```", "# not a heading"]),
+                        Paragraph([Text("after")])]))
 
-let unclosedFence = Test(name = "a fence that never closes runs to the end",
-                         run = fn() =
-                             blocksAre(parse("```\na\n\nb"),
-                                       [Code(info = "", lines = ["a", "", "b"])]))
+let unclosedFence =
+    Test(name = "a fence that never closes runs to the end",
+         run = fn() = blocksAre(parse("```\na\n\nb"), [Code(info = "", lines = ["a", "", "b"])]))
 
-let indentedCode = Test(name = "an indented block keeps its inner blank lines",
-                        run = fn() =
-                            blocksAre(parse("    a\n\n    b\n\nc"),
-                                      [Code(info = "", lines = ["a", "", "b"]),
-                                       Paragraph([Text("c")])]))
+let indentedCode =
+    Test(name = "an indented block keeps its inner blank lines",
+         run = fn() =
+             blocksAre(parse("    a\n\n    b\n\nc"),
+                       [Code(info = "", lines = ["a", "", "b"]), Paragraph([Text("c")])]))
 
-let tabs = Test(name = "a tab is four columns",
-                run = fn() = blocksAre(parse("\tcode"), [Code(info = "", lines = ["code"])]))
+let tabs =
+    Test(name = "a tab is four columns",
+         run = fn() = blocksAre(parse("\tcode"), [Code(info = "", lines = ["code"])]))
 
-let quotes = Test(name = "a quote holds blocks, and a lazy line continues it",
-                  run = fn() =
-                      blocksAre(parse("> # In\n> text\nlazy"),
-                                [Quote([Heading(level = 1, text = [Text("In")]),
-                                        Paragraph([Text("text lazy")])])]))
+let quotes =
+    Test(name = "a quote holds blocks, and a lazy line continues it",
+         run = fn() =
+             blocksAre(parse("> # In\n> text\nlazy"),
+                       [Quote([Heading(level = 1, text = [Text("In")]),
+                               Paragraph([Text("text lazy")])])]))
 
-let ordered = Test(name = "an ordered list keeps its first number",
-                   run = fn() =
-                       blocksAre(parse("3. a\n4. b"),
-                                 [Items(start = Some(3),
-                                        items = [[Paragraph([Text("a")])],
-                                                 [Paragraph([Text("b")])]])]))
+let ordered =
+    Test(name = "an ordered list keeps its first number",
+         run = fn() =
+             blocksAre(parse("3. a\n4. b"),
+                       [Items(start = Some(3),
+                              items = [[Paragraph([Text("a")])], [Paragraph([Text("b")])]])]))
 
-let kinds = Test(name = "a different bullet begins a new list",
-                 run = fn() =
-                     blocksAre(parse("- a\n+ b"),
-                               [Items(start = None, items = [[Paragraph([Text("a")])]]),
-                                Items(start = None, items = [[Paragraph([Text("b")])]])]))
+let kinds =
+    Test(name = "a different bullet begins a new list",
+         run = fn() =
+             blocksAre(parse("- a\n+ b"),
+                       [Items(start = None, items = [[Paragraph([Text("a")])]]),
+                        Items(start = None, items = [[Paragraph([Text("b")])]])]))
 
-let looseItems = Test(name = "an item holds the indented blocks after a blank line",
-                      run = fn() =
-                          blocksAre(parse("- a\n\n  b\n- c"),
-                                    [Items(start = None,
-                                           items = [[Paragraph([Text("a")]),
-                                                     Paragraph([Text("b")])],
-                                                    [Paragraph([Text("c")])]])]))
+let looseItems =
+    Test(name = "an item holds the indented blocks after a blank line",
+         run = fn() =
+             blocksAre(parse("- a\n\n  b\n- c"),
+                       [Items(start = None,
+                              items = [[Paragraph([Text("a")]), Paragraph([Text("b")])],
+                                       [Paragraph([Text("c")])]])]))
 
-let interrupted = Test(name = "a list interrupts a paragraph, a number other than 1 does not",
-                       run = fn() =
-                           blocksAre(parse("a\n- b\n\nc\n2. d"),
-                                     [Paragraph([Text("a")]),
-                                      Items(start = None, items = [[Paragraph([Text("b")])]]),
-                                      Paragraph([Text("c 2. d")])]))
+let interrupted =
+    Test(name = "a list interrupts a paragraph, a number other than 1 does not",
+         run = fn() =
+             blocksAre(parse("a\n- b\n\nc\n2. d"),
+                       [Paragraph([Text("a")]),
+                        Items(start = None, items = [[Paragraph([Text("b")])]]),
+                        Paragraph([Text("c 2. d")])]))
 
-let html = Test(name = "an HTML block is kept as written, an autolink is not HTML",
-                run = fn() =
-                    blocksAre(parse("<div>\n*x*\n</div>\n\n<https://a.org>"),
-                              [Raw(["<div>", "*x*", "</div>"]),
-                               Paragraph([Link(address = "https://a.org",
-                                               text = [Text("https://a.org")])])]))
+let html =
+    Test(name = "an HTML block is kept as written, an autolink is not HTML",
+         run = fn() =
+             blocksAre(parse("<div>\n*x*\n</div>\n\n<https://a.org>"),
+                       [Raw(["<div>", "*x*", "</div>"]),
+                        Paragraph([Link(address = "https://a.org",
+                                        text = [Text("https://a.org")])])]))
 
-let escapes = Test(name = "a backslash escapes punctuation and ends a line hard",
-                   run = fn() =
-                       inlinesAre("\\*a\\* b\\\nc  \nd",
-                                  [Text("*a* b"), Break, Text("c"), Break, Text("d")]))
+let escapes =
+    Test(name = "a backslash escapes punctuation and ends a line hard",
+         run = fn() =
+             inlinesAre("\\*a\\* b\\\nc  \nd", [Text("*a* b"), Break, Text("c"), Break, Text("d")]))
 
-let codeSpans = Test(name = "a code span is literal, and trims one space at each end",
-                     run = fn() =
-                         inlinesAre("`` a ` b `` and `*x*`",
-                                    [CodeSpan("a ` b"), Text(" and "), CodeSpan("*x*")]))
+let codeSpans =
+    Test(name = "a code span is literal, and trims one space at each end",
+         run = fn() =
+             inlinesAre("`` a ` b `` and `*x*`",
+                        [CodeSpan("a ` b"), Text(" and "), CodeSpan("*x*")]))
 
-let nesting = Test(name = "emphasis nests inside strong emphasis",
-                   run = fn() =
-                       inlinesAre("**a *b* c**",
-                                  [Strong([Text("a "), Emphasis([Text("b")]), Text(" c")])]))
+let nesting =
+    Test(name = "emphasis nests inside strong emphasis",
+         run = fn() =
+             inlinesAre("**a *b* c**", [Strong([Text("a "), Emphasis([Text("b")]), Text(" c")])]))
 
-let intraword = Test(name = "an underscore inside a word is text",
-                     run = fn() =
-                         inlinesAre("snake_case_name and _it_",
-                                    [Text("snake_case_name and "), Emphasis([Text("it")])]))
+let intraword =
+    Test(name = "an underscore inside a word is text",
+         run = fn() =
+             inlinesAre("snake_case_name and _it_",
+                        [Text("snake_case_name and "), Emphasis([Text("it")])]))
 
-let unmatched = Test(name = "a mark that nothing closes is text",
-                     run = fn() = inlinesAre("a * b and *c", [Text("a * b and *c")]))
+let unmatched =
+    Test(name = "a mark that nothing closes is text",
+         run = fn() = inlinesAre("a * b and *c", [Text("a * b and *c")]))
 
-let links = Test(name = "a link's title is read past, an image is a link",
-                 run = fn() =
-                     inlinesAre("[a [b]](u \"t\") ![i](p)",
-                                [Link(address = "u", text = [Text("a [b]")]),
-                                 Text(" "),
-                                 Link(address = "p", text = [Text("i")])]))
+let links =
+    Test(name = "a link's title is read past, an image is a link",
+         run = fn() =
+             inlinesAre("[a [b]](u \"t\") ![i](p)",
+                        [Link(address = "u", text = [Text("a [b]")]),
+                         Text(" "),
+                         Link(address = "p", text = [Text("i")])]))
 
-let notALink = Test(name = "brackets with no address after them are text",
-                    run = fn() = inlinesAre("[a] and [b][ref]", [Text("[a] and [b][ref]")]))
+let notALink =
+    Test(name = "brackets with no address after them are text",
+         run = fn() = inlinesAre("[a] and [b][ref]", [Text("[a] and [b][ref]")]))
 
-let lineEndings = Test(name = "a line may end in a carriage return, alone or before a feed",
-                       run = fn() =
-                           blocksAre(parse("a\r\nb\r\n\r\nc\rd"),
-                                     [Paragraph([Text("a b")]), Paragraph([Text("c d")])]))
+let lineEndings =
+    Test(name = "a line may end in a carriage return, alone or before a feed",
+         run = fn() =
+             blocksAre(parse("a\r\nb\r\n\r\nc\rd"),
+                       [Paragraph([Text("a b")]), Paragraph([Text("c d")])]))
 
-let asciiNumbers = Test(name = "a list number is ASCII digits, not any script's",
-                        run = fn() =
-                            blocksAre(parse("\u{661}. x"), [Paragraph([Text("\u{661}. x")])]))
+let asciiNumbers =
+    Test(name = "a list number is ASCII digits, not any script's",
+         run = fn() = blocksAre(parse("\u{661}. x"), [Paragraph([Text("\u{661}. x")])]))
 
-let styles = Test(name = "with styles, each is turned off by its own code",
-                  run = fn() =
-                      rowsAre(render(parse("**a *b* `c`**"), 80, Styled),
-                              ["\u{1b}[1ma \u{1b}[3mb\u{1b}[23m \u{1b}[36mc\u{1b}[39m\u{1b}[22m"]))
+let styles =
+    Test(name = "with styles, each is turned off by its own code",
+         run = fn() =
+             rowsAre(render(parse("**a *b* `c`**"), 80, Styled),
+                     ["\u{1b}[1ma \u{1b}[3mb\u{1b}[23m \u{1b}[36mc\u{1b}[39m\u{1b}[22m"]))
 
-let wrapping = Test(name = "a word longer than the width stands alone on its row",
-                    run = fn() =
-                        rowsAre(render(parse("a abcdefghijklmnopqrstuvwxyz b"), 20, Plain),
-                                ["a", "abcdefghijklmnopqrstuvwxyz", "b"]))
+let wrapping =
+    Test(name = "a word longer than the width stands alone on its row",
+         run = fn() =
+             rowsAre(render(parse("a abcdefghijklmnopqrstuvwxyz b"), 20, Plain),
+                     ["a", "abcdefghijklmnopqrstuvwxyz", "b"]))
 
-let styledWidth = Test(name = "a style takes no column when a row is filled",
-                       run = fn() =
-                           rowsAre(render(parse("*aaaa* *bbbb* *cccc* *dddd*"), 20, Styled),
-                                   [String.join(List.map(["aaaa", "bbbb", "cccc", "dddd"],
-                                                         fn(w) = "\u{1b}[3m" <> w <> "\u{1b}[23m"),
-                                                " ")]))
+let styledWidth =
+    Test(name = "a style takes no column when a row is filled",
+         run = fn() =
+             rowsAre(render(parse("*aaaa* *bbbb* *cccc* *dddd*"), 20, Styled),
+                     [String.join(List.map(["aaaa", "bbbb", "cccc", "dddd"],
+                                           fn(w) = "\u{1b}[3m" <> w <> "\u{1b}[23m"),
+                                  " ")]))
 
-let boldHeading = Test(name = "strong emphasis in a heading leaves the heading bold",
-                       run = fn() =
-                           rowsAre(render(parse("# a **b** c"), 80, Styled),
-                                   ["\u{1b}[1ma b c\u{1b}[22m"]))
+let boldHeading =
+    Test(name = "strong emphasis in a heading leaves the heading bold",
+         run = fn() =
+             rowsAre(render(parse("# a **b** c"), 80, Styled), ["\u{1b}[1ma b c\u{1b}[22m"]))
 
-let separated = Test(name = "blocks are separated by one empty row",
-                     run = fn() =
-                         rowsAre(render(parse("a\n\n\n\nb\n\n    c"), 80, Plain),
-                                 ["a", "", "b", "", "    c"]))
+let separated =
+    Test(name = "blocks are separated by one empty row",
+         run = fn() =
+             rowsAre(render(parse("a\n\n\n\nb\n\n    c"), 80, Plain), ["a", "", "b", "", "    c"]))
 
-let nestedRows = Test(name = "a quote inside an item is under the item's text",
-                      run = fn() =
-                          rowsAre(render(parse("1. a\n\n   > q\n2. b"), 80, Plain),
-                                  ["1. a", "", "   │ q", "2. b"]))
+let nestedRows =
+    Test(name = "a quote inside an item is under the item's text",
+         run = fn() =
+             rowsAre(render(parse("1. a\n\n   > q\n2. b"), 80, Plain),
+                     ["1. a", "", "   │ q", "2. b"]))
 
 fn blocksAre(blocks : List(Block), expected : List(Block)) -> TestResult =
     if blocks == expected then Passed else Failed(Int.toString(List.size(blocks)) <> " blocks")

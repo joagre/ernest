@@ -835,9 +835,10 @@ fn queue(items : List(Int), waiters : List(Address(WaiterMsg))) -> Unit with Que
 export fn main() -> Unit with MainMsg = {
     let q = spawn(Local, fn() = queue([], []));
     let me = self();
-    let _ = spawn(Local,
-                  fn() -> Unit with Never =
-                      send(me, Took(Address.callForever(q, fn(r) = Take(reply = r)))));
+    let _ =
+        spawn(Local,
+              fn() -> Unit with Never =
+                  send(me, Took(Address.callForever(q, fn(r) = Take(reply = r)))));
     send(q, Put(7));
     receive {
         Took(x) -> Io.println("took " <> Int.toString(x))
@@ -1125,9 +1126,10 @@ fn work(n : Int) -> Int =
 
 fn runWorker(run : Int) -> Optional(Int) with MainMsg = {
     let me = self();
-    let _ = spawnMonitored(Local,
-                           fn() -> Unit with Never = send(me, Result(run = run, value = work(run))),
-                           fn(d) = Died(run = run, down = d));
+    let _ =
+        spawnMonitored(Local,
+                       fn() -> Unit with Never = send(me, Result(run = run, value = work(run))),
+                       fn(d) = Died(run = run, down = d));
     waitFor(run)
 }
 
@@ -1236,9 +1238,8 @@ export fn main() -> Unit with MainMsg = {
 fn countAll(totals : Address(TallyMsg), texts : List(String)) -> Unit with MainMsg = {
     let me = self();
     List.foreach(texts, fn(text) = {
-        let _ = spawnMonitored(Local,
-                               fn() -> Unit with Never = send(me, Counted(count(text))),
-                               Died);
+        let _ =
+            spawnMonitored(Local, fn() -> Unit with Never = send(me, Counted(count(text))), Died);
         Unit
     });
     collect(totals, List.size(texts))
@@ -1399,9 +1400,8 @@ fn supervise(jobs : List(Int)) -> Unit with SupMsg =
         [] -> Io.println("all jobs done")
       | job :: rest -> {
             let me = self();
-            let _ = spawnMonitored(Local,
-                                   fn() -> Unit with Never = send(me, Result(100 / job)),
-                                   Ended);
+            let _ =
+                spawnMonitored(Local, fn() -> Unit with Never = send(me, Result(100 / job)), Ended);
             Io.println(Int.toString(job) <> ": " <> outcome());
             supervise(rest)
         }
@@ -1425,7 +1425,7 @@ export fn main() -> Unit with SupMsg =
 ```console
 $ ern run jobs.erc
 4: 25
-Jobs.supervise:8 faulted: division by zero
+Jobs.supervise:9 faulted: division by zero
 0: failed, division by zero
 5: 20
 all jobs done
@@ -1493,10 +1493,8 @@ The call that was waiting when the counter faulted ends at once: `Address.call` 
 // pair.ern
 type CounterMsg = Add(amount : Int, reply : Reply(Int))
 
-let group : Address(Supervisor.Msg) = spawn(Local,
-                                            Supervisor.group(Supervisor.OneForAll,
-                                                             RestartLimit(restarts = 3,
-                                                                          within = 5000)))
+let group : Address(Supervisor.Msg) =
+    spawn(Local, Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 3, within = 5000)))
 
 let visits : Address(CounterMsg) = spawn(Local, Supervisor.child(group, fn() = count(0)))
 
@@ -1528,7 +1526,7 @@ export fn main() -> Unit with Never = {
 ```console
 $ ern run pair.erc
 Some(2) Some(5)
-Pair.visits:9 faulted, restarted: a negative amount
+Pair.visits:7 faulted, restarted: a negative amount
 None
 Some(1) Some(1)
 ```
@@ -1613,11 +1611,9 @@ Directory mode compiles the modules in the order their dependencies need, and a 
 fn add(a : Int, b : Int) -> Int =
     a + b
 
-let addsTwo = Test(name = "adds two",
-                   run = fn() -> TestResult with Never = if add(1, 1) == 2 then
-                       Passed
-                   else
-                       Failed("not two"))
+let addsTwo =
+    Test(name = "adds two",
+         run = fn() -> TestResult with Never = if add(1, 1) == 2 then Passed else Failed("not two"))
 ```
 
 ```console
@@ -1872,9 +1868,10 @@ An `Ets.Table` of §8.3 is such a value, a table of the node's runtime. The clos
 export fn main() -> Unit with Never = {
     let t = Ets.new();
     Ets.put(t, "answer", 42);
-    let _ = spawn(Peer("alice"),
-                  fn() -> Unit with Never =
-                      Io.println(Int.toString(Optional.withDefault(Ets.get(t, "answer"), 0))));
+    let _ =
+        spawn(Peer("alice"),
+              fn() -> Unit with Never =
+                  Io.println(Int.toString(Optional.withDefault(Ets.get(t, "answer"), 0))));
     Unit
 }
 ```

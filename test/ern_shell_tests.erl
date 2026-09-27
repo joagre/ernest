@@ -1244,7 +1244,7 @@ commands_mirror_test() ->
     {match, Listed} = re:run(Paragraph, "^- `:([a-z]+)", [multiline, global,
                                                          {capture, all_but_first, binary}]),
     {ok, Source} = file:read_file("../shell/shell/command.ern"),
-    [_, AfterList] = binary:split(Source, <<"export let commands = [">>),
+    [_, AfterList] = binary:split(Source, <<"export let commands =">>),
     [List | _] = binary:split(AfterList, <<")]\n">>),
     {match, Named} = re:run(List, "Command\\(name = \"([a-z]+)\"",
                             [global, {capture, all_but_first, binary}]),

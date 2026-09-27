@@ -17,9 +17,9 @@ Actorson until 12 September 2026.
 
 ## Where we are
 
-**MVP 2.8's formatter and the Emacs mode's layout are built** (2026-09-27). Next is its item 4,
-the decision whether a `let`'s value follows the body rule, then item 3, format on save in
-Emacs, and then MVP 2.7's last two items, what Ernest adds and the guide read for its order. The rest of MVP 2.7, a program started from
+**MVP 2.8's formatter and the Emacs mode's layout are built** (2026-09-27), a `let`'s value
+laid out as a body. Next is its item 3, format on save in Emacs, and then MVP 2.7's last two
+items, what Ernest adds and the guide read for its order. The rest of MVP 2.7, a program started from
 a command line, is built: `Os`, the memory and atoms items, running as a service, the appendix
 of libraries and back pressure (2026-09-27). MVP 2.66, the standard library's `Supervisor`, is
 done (2026-09-27). MVP 2.65, the language and the toolchain read
@@ -50,7 +50,7 @@ so a decision they must see goes here.
 | MVP 2.65 | the language and the toolchain read back | done 2026-09-26 |
 | MVP 2.66 | the standard library's `Supervisor` | done 2026-09-27 |
 | MVP 2.7 | a program started from a command line, and the appendix of libraries | two items left, after 2.8 |
-| **MVP 2.8** | **the formatter** | **items 1-2 done 2026-09-27; a `let`'s value, then format on save** |
+| **MVP 2.8** | **the formatter** | **items 1, 2 and 4 done 2026-09-27; format on save next** |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | MVP 2.95 | the first release: manual pages, an installation, the review | after 2.7 |
 | MVP 3.0 | peers | |
@@ -709,11 +709,11 @@ Formatter Before the Release* and *Layout for the Reader*).
    on by itself there. A buffer that does not parse is saved as it was typed, and the mode
    shows the formatter's diagnostic: saving is never refused. `emacs_mode.md`'s sentence that
    the mode never calls the toolchain changes with it.
-4. **A `let`'s value, decided with the user before item 3 is built.** The first run showed a
-   `let` whose value does not fit keeping it on the `let`'s line and aligning its brackets
-   far to the right, `export let log : Address(LogMsg) = spawn(Local,` in report §6.5, where
-   the source had the value a step in on the next line. The rules say where an arm's and a
-   lambda's body go and nothing of a `let`'s value; the question is whether it follows them.
+4. **A `let`'s value is a body, decided with the user and built 2026-09-27**
+   ([`style.md`](style.md); the log's *What the Formatter Keeps*): after a `let`'s `=` or
+   `<-` it stays on the line when it fits, whole or up to a brace or `then`, and otherwise
+   begins the next line, a step in, as an arm's and a lambda's body do. The first run had kept
+   such a value on its line and aligned its brackets far to the right; 21 files moved again.
 
 ---
 

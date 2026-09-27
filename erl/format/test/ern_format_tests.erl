@@ -120,22 +120,46 @@ arm_test() ->
 %% docs/style.md: a lambda has no rule of its own; its body is an arm's
 lambda_test() ->
     fixed(["let f = List.map(xs, fn(x) = x + 1)"]),
-    ?assertEqual([<<"let names = List.map(Shell.Command.commands,">>,
-                  <<"                     fn(c) =">>,
-                  <<"                         Shell.Complete.Name(text = \":\" <> c.name,">>,
-                  <<"                                             kind = Shell.Complete.Value,">>,
-                  <<"                                             "
-                    "shown = Shell.Command.line(c)))">>],
+    ?assertEqual([<<"let names =">>,
+                  <<"    List.map(Shell.Command.commands,">>,
+                  <<"             fn(c) =">>,
+                  <<"                 Shell.Complete.Name(text = \":\" <> c.name,">>,
+                  <<"                                     kind = Shell.Complete.Value,">>,
+                  <<"                                     shown = Shell.Command.line(c)))">>],
                  laid(["let names = List.map(Shell.Command.commands, fn(c) ="
                        " Shell.Complete.Name(text = \":\" <> c.name, kind = Shell.Complete.Value,"
                        " shown = Shell.Command.line(c)))"])).
 
+%% docs/style.md: a `let`'s value is a body, as an arm's and a lambda's
+%% are: on the `let`'s line when it fits whole or its first line ends in a
+%% brace or `then`, and otherwise on the next line, a step in
+let_test() ->
+    ?assertEqual([<<"let group : Address(Supervisor.Msg) =">>,
+                  <<"    spawn(Local, Supervisor.group(Supervisor.OneForAll,"
+                    " RestartLimit(restarts = 3, within = 5000)))">>],
+                 laid(["let group : Address(Supervisor.Msg) = spawn(Local,"
+                       " Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 3,"
+                       " within = 5000)))"])),
+    fixed(["let readers = match keys {",
+           "    Some(#(reader, _)) -> [Process.fromAddress(reader)]",
+           "  | None -> []",
+           "}"]),
+    ?assertEqual([<<"fn f(x) = {">>,
+                  <<"    let y <-">>,
+                  <<"        Either.map(Fs.read(Path(\"a file name of thir"
+                    "ty-seven character\"), 5000), String.fromUtf8);">>,
+                  <<"    y">>,
+                  <<"}">>],
+                 laid(["fn f(x) = { let y <- Either.map(Fs.read(Path(\"a file name of thir"
+                       "ty-seven character\"), 5000), String.fromUtf8); y }"])).
+
 %% docs/style.md: a line an operator opens carries its expression on, a step
 %% in; an operator binding tighter carries on the operand above, a step more
 operators_test() ->
-    ?assertEqual([<<"let ok = negative == \":set depth takes 0 or more\"">>,
-                  <<"    && unknown">>,
-                  <<"        == \":set takes depth, length, output or timing, and not a thing"
+    ?assertEqual([<<"let ok =">>,
+                  <<"    negative == \":set depth takes 0 or more\"">>,
+                  <<"        && unknown">>,
+                  <<"            == \":set takes depth, length, output or timing, and not a thing"
                     " more than these four ones\"">>],
                  laid(["let ok = negative == \":set depth takes 0 or more\" && unknown =="
                        " \":set takes depth, length, output or timing, and not a thing more"
@@ -169,8 +193,9 @@ comments_test() ->
     ?assertEqual([<<"// A file's comment.">>,
                   <<"fn f(x) = {">>,
                   <<"    // the first">>,
-                  <<"    let y = [1, // one">>,
-                  <<"             2];">>,
+                  <<"    let y =">>,
+                  <<"        [1, // one">>,
+                  <<"         2];">>,
                   <<"    y /* inline */ + x">>,
                   <<"    // the last">>,
                   <<"}">>],

@@ -48,12 +48,8 @@ export fn main() -> Unit with GameMsg = {
     // that size: a `Resized` is ignored, the snake and the apples being
     // placed for the board they are on.
     let #(w, h) = board();
-    let world0 = World(w = w,
-                       h = h,
-                       players = Map.empty,
-                       apples = [],
-                       seed = Random.seed(42),
-                       tick = 0);
+    let world0 =
+        World(w = w, h = h, players = Map.empty, apples = [], seed = Random.seed(42), tick = 0);
     let me = self();
     // report §8.2: the keys are the game's input, so without a terminal
     // the player leaves, and with the last player the game is over
@@ -202,9 +198,10 @@ fn taken(world : World, pos : Pos) -> Bool =
 // The whole screen every tick: the terminal is cleared and drawn from the top,
 // so a tick's picture replaces the one before it.
 fn render(world : World) -> String = {
-    let row = fn(y) =
-        String.fromList(List.map(List.range(0, world.w - 1),
-                                 fn(x) = cell(world.players, world.apples, Pos(x = x, y = y))));
+    let row =
+        fn(y) =
+            String.fromList(List.map(List.range(0, world.w - 1),
+                                     fn(x) = cell(world.players, world.apples, Pos(x = x, y = y))));
     let rows = List.map(List.range(0, world.h - 1), row);
     Terminal.clearScreen
         <> String.join(rows, "\n")

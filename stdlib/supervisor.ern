@@ -28,9 +28,10 @@
 ///
 /// ```ernest
 /// {
-///     let sup = spawn(Local,
-///                     Supervisor.group(Supervisor.OneForOne,
-///                                      RestartLimit(restarts = 3, within = 5000)));
+///     let sup =
+///         spawn(Local,
+///               Supervisor.group(Supervisor.OneForOne,
+///                                RestartLimit(restarts = 3, within = 5000)));
 ///     let echo = spawn(Local, Supervisor.child(sup, fn() -> Unit with Reply(Int) = receive {
 ///         r -> answer(r, 42)
 ///     }));
@@ -219,9 +220,10 @@ fn stopAll(children : List(Member)) -> Unit with Watch =
 ///
 /// ```ernest
 /// {
-///     let sup = spawn(Local,
-///                     Supervisor.group(Supervisor.OneForOne,
-///                                      RestartLimit(restarts = 3, within = 5000)));
+///     let sup =
+///         spawn(Local,
+///               Supervisor.group(Supervisor.OneForOne,
+///                                RestartLimit(restarts = 3, within = 5000)));
 ///     spawn(Local, Supervisor.child(sup, fn() -> Unit with Int = receive {
 ///         _ -> Unit
 ///     }))

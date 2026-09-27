@@ -18,9 +18,9 @@ let wait = 5000
 
 // The file in the person's home directory, and none where the environment
 // names no home.
-export let file : Optional(Path) = Optional.map(Map.get(Os.environment, "HOME"),
-                                                fn(home) =
-                                                    Path.join(Path(home), Path(".ernest/history")))
+export let file : Optional(Path) =
+    Optional.map(Map.get(Os.environment, "HOME"),
+                 fn(home) = Path.join(Path(home), Path(".ernest/history")))
 
 // The inputs of the sessions before this one, newest first. A file that
 // holds more than the last thousand is trimmed to them as it is read.
@@ -107,23 +107,23 @@ fn from(s : String, n : Int) -> String =
 // The file itself is tested through the shell, in `test/`.
 //
 
-let plain = Test(name = "an input without a newline is written as it is",
-                 run = fn() = same("1 + 2"))
+let plain =
+    Test(name = "an input without a newline is written as it is", run = fn() = same("1 + 2"))
 
-let newlines = Test(name = "a newline is written as an escape and read back",
-                    run = fn() = if encode("a\nb") == "a\\nb" then
-                        same("a\nb")
-                    else
-                        Failed(encode("a\nb")))
+let newlines =
+    Test(name = "a newline is written as an escape and read back",
+         run = fn() = if encode("a\nb") == "a\\nb" then same("a\nb") else Failed(encode("a\nb")))
 
-let backslash = Test(name = "a backslash is doubled, so `\\n` is not a newline",
-                     run = fn() = if encode("a\\nb") == "a\\\\nb" then
-                         same("a\\nb")
-                     else
-                         Failed(encode("a\\nb")))
+let backslash =
+    Test(name = "a backslash is doubled, so `\\n` is not a newline",
+         run = fn() = if encode("a\\nb") == "a\\\\nb" then
+             same("a\\nb")
+         else
+             Failed(encode("a\\nb")))
 
-let both = Test(name = "a backslash before a newline reads back whole",
-                run = fn() = same("let s = \"\\\\\";\nlet t = 2"))
+let both =
+    Test(name = "a backslash before a newline reads back whole",
+         run = fn() = same("let s = \"\\\\\";\nlet t = 2"))
 
 let empty = Test(name = "an empty input reads back empty", run = fn() = same(""))
 

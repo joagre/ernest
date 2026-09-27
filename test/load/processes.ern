@@ -66,9 +66,10 @@ fn once() -> Unit with Msg = {
         Ended(_) -> Unit
     };
     // a subscription to faults that ends with its process
-    let _ = spawnMonitored(Local,
-                           fn() -> Unit with Process.FaultReport = Process.faults(fn(r) = r),
-                           Ended);
+    let _ =
+        spawnMonitored(Local,
+                       fn() -> Unit with Process.FaultReport = Process.faults(fn(r) = r),
+                       Ended);
     receive {
         Ended(_) -> Unit
     }

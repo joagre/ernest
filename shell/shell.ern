@@ -1015,11 +1015,12 @@ fn argument(line : String, at : Int, typed : String) -> Shell.Complete.Completio
                                                   Shell.Complete.Anything),
                           at == String.size(line))
           | "timing" -> {
-                let words = List.map(["on", "off"],
-                                     fn(word) =
-                                         Shell.Complete.Name(text = word,
-                                                             kind = Shell.Complete.Value,
-                                                             shown = word));
+                let words =
+                    List.map(["on", "off"],
+                             fn(word) =
+                                 Shell.Complete.Name(text = word,
+                                                     kind = Shell.Complete.Value,
+                                                     shown = word));
                 Shell.Complete.complete(typed, words, Shell.Complete.Anything)
             }
           | _ -> Shell.Complete.nothing
@@ -1066,9 +1067,10 @@ fn argumentNames(kind : Shell.Command.Completes,
 // namespace and a `.ern` file a module, each named by §11.1's path shape.
 fn sourceModules(typed : String) -> List(Shell.Complete.Name) with m = {
     let finished = List.dropLast(String.split(typed, "."));
-    let dir = List.foldLeft(finished,
-                            Path(sourceRoot()),
-                            fn(path, segment) = Path.join(path, Path(String.toLower(segment))));
+    let dir =
+        List.foldLeft(finished,
+                      Path(sourceRoot()),
+                      fn(path, segment) = Path.join(path, Path(String.toLower(segment))));
     let prefix = String.join(List.map(finished, fn(segment) = segment <> "."), "");
     match Fs.list(dir, fileWait) {
         Left(_) -> []

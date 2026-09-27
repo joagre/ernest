@@ -88,9 +88,9 @@ fn step(s : Seed) -> #(Int, Seed) =
     match s {
         Seed(state) -> {
             let counter = Int.bitAnd(state + 0x9E37_79B9_7F4A_7C15, mask);
-            let a = Int.bitAnd(Int.bitXor(counter, Int.shiftRight(counter, 30))
-                                   * 0xBF58_476D_1CE4_E5B9,
-                               mask);
+            let a =
+                Int.bitAnd(Int.bitXor(counter, Int.shiftRight(counter, 30)) * 0xBF58_476D_1CE4_E5B9,
+                           mask);
             let b = Int.bitAnd(Int.bitXor(a, Int.shiftRight(a, 27)) * 0x94D0_49BB_1331_11EB, mask);
             #(Int.bitXor(b, Int.shiftRight(b, 31)), Seed(counter))
         }

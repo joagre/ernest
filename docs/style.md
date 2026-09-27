@@ -81,10 +81,13 @@ Ernest is order-independent at top level; these are style choices, not correctne
       else
           find(history, query, from + step, step)
 
-- **The body of an arm or a lambda stays on its line when it fits**, whole or up to a brace or a `then` that ends its first line, and otherwise begins the next line, one step in. A lambda has no other rule of its own.
+- **The body of an arm, a lambda or a `let` stays on its line when it fits**, whole or up to a brace or a `then` that ends its first line, and otherwise begins the next line, one step in. The body is what follows an arm's `->`, a lambda's `=`, and a `let`'s `=` or `<-`. Neither a lambda nor a `let` has another rule of its own.
 
       | Markdown.Paragraph([Markdown.Emphasis([Markdown.Text(text)])]) ->
             String.startsWith(text, "Since ")
+
+      let group : Address(Supervisor.Msg) =
+          spawn(Local, Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 3, within = 5000)))
 
 - **A function's head ends at `=`, and its body begins on the next line, one step in**, however short; a body that is a block opens its brace at the end of the head's line, and a `foreign fn`'s implementation string stands where a body does.
 
