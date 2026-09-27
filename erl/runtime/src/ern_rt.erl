@@ -31,6 +31,7 @@
          undefined_function/3, undefined_lambda/3, fault/1, fault/2,
          trace/1, sys/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
          binding/1, run_main/2, run_main/3, signal/1, deadlock_target/1, restarting/2,
+         restart_now/0, ask_restart/1, start_cause/0,
          init_stdlib/0, read_input/1, input_not_utf8/0, reason/1]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
@@ -133,7 +134,11 @@ call(Addr, Mk, Ms) ->
     Answer = await(Alias, Mon, deadline(Ms)),
     untimed(),
     settled(Alias, Mon, Row),
-    Answer.
+    case Answer of
+        %% report §6.9: a restart asked for is taken at a call's wait
+        '$ern_restart' -> restart_now();
+        _ -> Answer
+    end.
 
 %% Report §6.6: the answer, or None after the deadline, or at once when the
 %% callee ends or restarts before it answers.
@@ -142,7 +147,8 @@ await(Alias, Mon, Deadline) ->
         {Alias, V} -> {'Some', V};
         {Alias, restarted, _} -> 'None';
         {Alias, fault, Cause} -> fault(Cause);
-        {'DOWN', Mon, process, _, _} -> 'None'
+        {'DOWN', Mon, process, _, _} -> 'None';
+        '$ern_restart' -> '$ern_restart'
     after remaining(Deadline) ->
         case remaining(Deadline) of
             0 -> 'None';
@@ -168,7 +174,11 @@ call_forever(Addr, Mk) ->
             fault(Cause);
         {'DOWN', Mon, process, _, Reason} ->
             settled(Alias, Mon, Row),
-            ended(reason(Reason))
+            ended(reason(Reason));
+        '$ern_restart' ->
+            %% report §6.9: a restart asked for is taken at a call's wait
+            settled(Alias, Mon, Row),
+            restart_now()
     end.
 
 %% Report §6.6, §7.4: a callForever whose callee ended faults the caller with
@@ -419,6 +429,7 @@ live_rows() ->
 %% subscription to faults it held ends with it.
 died(Pid, Site, Reason) ->
     ets:delete(?PROCESSES, {faults, Pid}),
+    ets:delete(?PROCESSES, {restart, Pid}),
     case reason(Reason) of
         {'Fault', _} -> report(Pid, Site, Reason, false);
         _ -> ok
@@ -1089,12 +1100,77 @@ binding(Key) ->
 %% try catches, and F returning ends it as any process ends.
 -spec restarting({'RestartLimit', integer(), integer()}, fun(() -> term())) -> fun(() -> term()).
 restarting({'RestartLimit', Restarts, Within}, F) ->
-    fun() -> restarts(F, max(Restarts, 0), max(Within, 0), []) end.
+    fun() ->
+        Level = restartable(),
+        try
+            restarts(F, max(Restarts, 0), max(Within, 0), [], Level)
+        after
+            Level =:= outer andalso unrestartable()
+        end
+    end.
 
-restarts(F, Restarts, Within, Times) ->
+%% Report §6.9, Appendix E.22: a restarting process can be asked to restart,
+%% by a priority message to an alias of its own that the runtime keeps
+%% beside it, taken before its other messages at its next wait. The
+%% outermost restarting function of the process is the one asked, and the
+%% one whose start start_cause/0 tells; one nested in it is neither.
+restartable() ->
+    case ets_lookup(?PROCESSES, {restart, erlang:self()}) of
+        [_] ->
+            inner;
+        [] ->
+            ets:insert(?PROCESSES, {{restart, erlang:self()}, erlang:alias([priority])}),
+            put('$ern_start', 'First'),
+            outer
+    end.
+
+%% The outermost restarting function has ended: the process is no longer
+%% asked to restart.
+unrestartable() ->
+    [{_, Alias}] = ets_lookup(?PROCESSES, {restart, erlang:self()}),
+    erlang:unalias(Alias),
+    ets:delete(?PROCESSES, {restart, erlang:self()}),
+    erase('$ern_start'),
+    %% a request that came as the function returned is not taken later
+    receive '$ern_restart' -> ok after 0 -> ok end.
+
+%% Report §6.9: the clause every wait has for a restart asked for.
+-spec restart_now() -> no_return().
+restart_now() ->
+    throw('$ern_restart').
+
+%% Appendix E.22: the supervisor's request that a child restart; a process
+%% that has ended, or has not yet begun to restart, is not asked.
+-spec ask_restart(pid()) -> 'Unit'.
+ask_restart(Pid) ->
+    case ets_lookup(?PROCESSES, {restart, Pid}) of
+        [{_, Alias}] -> erlang:send(Alias, '$ern_restart', [priority]);
+        [] -> ok
+    end,
+    ?UNIT.
+
+%% Appendix E.22: why the restarting function the caller runs in began:
+%% the first time, after a fault, or because it was asked.
+-spec start_cause() -> 'First' | 'AfterFault' | 'Asked'.
+start_cause() ->
+    case get('$ern_start') of
+        undefined -> 'First';
+        Cause -> Cause
+    end.
+
+restarts(F, Restarts, Within, Times, Level) ->
     try
         F()
     catch
+        throw:'$ern_restart' when Level =:= outer ->
+            %% report §6.9: a restart asked for is no fault, counts against
+            %% no limit, and is not reported; the calls waiting on the
+            %% process end as at a fault
+            put('$ern_start', 'Asked'),
+            restarted(<<"callee was restarted">>),
+            restarts(F, Restarts, Within, Times, Level);
+        throw:'$ern_restart' ->
+            throw('$ern_restart');
         Class:Reason:Stack ->
             Fault = fault_reason(Class, Reason, Stack),
             Now = erlang:monotonic_time(millisecond),
@@ -1109,7 +1185,8 @@ restarts(F, Restarts, Within, Times) ->
                            end,
                     persistent_term:get({?MODULE, reaper}) ! {report, erlang:self(), Site, Fault},
                     restarted(element(3, Fault)),
-                    restarts(F, Restarts, Within, [Now | Recent]);
+                    Level =:= outer andalso put('$ern_start', 'AfterFault'),
+                    restarts(F, Restarts, Within, [Now | Recent], Level);
                 false ->
                     %% raised again as the fault it is, for run/1 to end the
                     %% process with, its stack beside it where it had one

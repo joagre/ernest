@@ -698,3 +698,46 @@ zero() ->
 subscribe(Tty) ->
     Me = ern_rt:self(),
     ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Reply, Me} end, 5000).
+
+%% report §6.9, Appendix E.22: a process that is not restarting is never
+%% asked, nor is one that has ended; a restarting one restarts at its wait,
+%% the cause of its new start `Asked`, and the time it restarted is not
+%% counted against its limit. A regression test, written after the code; it
+%% does not cover a process that computes without waiting, which is never
+%% restarted and so shows nothing to wait for
+ask_restart_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Plain = ern_rt:spawn('Local', fun() -> receive never -> ok end end, <<"M.p:1">>),
+               Once = ern_rt:restarting({'RestartLimit', 0, 5000},
+                                        fun() ->
+                                            Me ! {started, ern_rt:start_cause()},
+                                            %% the clause the emitter gives every receive
+                                            receive
+                                                '$ern_restart' -> ern_rt:restart_now();
+                                                never -> ok
+                                            end
+                                        end),
+               Child = ern_rt:spawn('Local', Once, <<"M.c:2">>),
+               nap(),
+               ern_rt:ask_restart(ern_rt:process_of(Plain)),
+               ern_rt:ask_restart(ern_rt:process_of(Child)),
+               ern_rt:ask_restart(ern_rt:process_of(Child)),
+               nap(),
+               Me ! {plain, ern_rt:info(ern_rt:process_of(Plain)) =/= 'None'},
+               ern_rt:kill(Child),
+               nap(),
+               Me ! {ended, ern_rt:ask_restart(ern_rt:process_of(Child))},
+               ern_rt:kill(Plain)
+           end, <<"main">>, #{}),
+    Started = [receive {started, S} -> S after 1000 -> timeout end || _ <- [1, 2, 3]],
+    ?assertEqual(['First', 'Asked', 'Asked'], Started),
+    ?assertEqual(true, receive {plain, P} -> P after 1000 -> timeout end),
+    ?assertEqual('Unit', receive {ended, E} -> E after 1000 -> timeout end).
+
+%% A pause that the check for a deadlock counts as a timed wait (§8.6).
+nap() ->
+    ern_rt:timed(),
+    timer:sleep(50),
+    ern_rt:untimed().

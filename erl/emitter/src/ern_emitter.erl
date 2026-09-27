@@ -370,7 +370,12 @@ expr(#e_receive{pos = Pos, clauses = Clauses, 'after' = After}, Cx) ->
     %% checker holds it to, so it is an Erlang guard here; a message from a
     %% foreign process was checked by the proxy that delivered it (§8.4)
     {Parts, Cx1} = lists:mapfoldl(fun simple_clauses/2, Cx, Clauses),
-    {Binds, ClauseForms} = join_parts(Parts),
+    {Binds, OwnForms} = join_parts(Parts),
+    %% report §6.9: a restart a supervisor asks for arrives before every
+    %% other message and is taken here, first
+    ClauseForms = [erl_syntax:clause([erl_syntax:atom('$ern_restart')], none,
+                                     [call_remote(ern_rt, restart_now, [])])
+                   | OwnForms],
     case After of
         undefined ->
             {at(Pos, with_binds(Binds, erl_syntax:receive_expr(ClauseForms))), Cx1};

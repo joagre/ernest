@@ -59,8 +59,13 @@ main() ->
 %%   | Get(reply = r) -> { answer(r, n); counter(n) }
 %%   | Upgrade(migrate = m, next = k) -> k(m(n))
 %% }
+%%
+%% Every receive takes first the restart a supervisor asks for (report
+%% §6.9), which arrives before every other message.
 counter(N) ->
     receive
+        '$ern_restart' ->
+            ern_rt:restart_now();
         {'Inc', K} ->
             counter(N + K);
         {'Get', R} ->

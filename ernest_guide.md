@@ -1222,7 +1222,7 @@ Some faults reach beyond their process. A fault in the entry process ends the pr
 
 ### 6.4 Let it crash
 
-A worker need not guard against what it did not expect. It faults, and the process that watches it decides what follows: it tries again, gives up, or ends too. The recovery is written once, in the watcher, and the worker's code is only its work. The watcher is a supervisor, and it is spawn, monitor, and receive:
+A worker need not guard against what it did not expect. It faults, and the process that watches it decides what follows: it tries again, gives up, or ends too. The recovery is written once, in the watcher, and the worker's code is only its work. The watcher supervises the worker, and it is spawn, monitor, and receive:
 
 ```ernest
 type SupMsg = Result(Int) | Ended(Down)
@@ -1260,7 +1260,7 @@ all jobs done
 
 A process for each job is the restart: the job that faulted ends its own worker, and the next job starts with a fresh one. Of the program, only `supervise` prints; the second line is `ern run`'s report of the fault, on standard error. A worker's `Io.println` and the supervisor's are two senders to standard output's process, which the runtime does not order (§5.1), so a worker reports by a message to its supervisor.
 
-What must survive a fault lives in the process that does not fault: here the list of jobs is the supervisor's. A long-lived process restarts in place instead, which §6.5 shows. A process that must not outlive another monitors it and returns when it dies.
+What must survive a fault lives in the process that does not fault: here the list of jobs is the watcher's. A long-lived process restarts in place instead, which §6.5 shows, and a group of them restarts together under the standard library's `Supervisor`, which §6.6 shows. A process that must not outlive another monitors it and returns when it dies.
 
 ### 6.5 A service
 
@@ -1311,7 +1311,57 @@ The call that was waiting when the counter faulted ends at once: `Address.call` 
 
 `fault` is the fault a program raises when it finds a case it will not handle. The path that calls it does not answer `r`, and need not (§4.2): the fault ends the counter's process, and the call waiting on it ends at once. `start` is exported beside the binding so that a test can start a counter of its own instead of sharing the program's. The binding comes right after the type it carries, and its helpers after it, so a reader meets the service before what uses it.
 
-### 6.6 Prediction exercise
+### 6.6 A supervisor
+
+`restarting` restarts one process. A *supervisor* restarts a group of processes, its children, together when one of them faults, and gives up when they fault too often. The standard library's `Supervisor` is one (report Appendix E.22). The program spawns the supervisor and each child, usually as service bindings:
+
+```ernest
+// pair.ern
+type CounterMsg = Add(amount : Int, reply : Reply(Int))
+
+let group : Address(Supervisor.Msg) = spawn(Local,
+    Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 3, within = 5000)))
+
+let visits : Address(CounterMsg) = spawn(Local, Supervisor.child(group, fn() = count(0)))
+let sales : Address(CounterMsg) = spawn(Local, Supervisor.child(group, fn() = count(0)))
+
+fn count(total : Int) -> Unit with CounterMsg = receive {
+    Add(amount = n, reply = r) ->
+        if n < 0 then fault("a negative amount")
+        else {
+            answer(r, total + n);
+            count(total + n)
+        }
+}
+
+fn add(c : Address(CounterMsg), n : Int) -> Optional(Int) with m =
+    Address.call(c, fn(r) = Add(amount = n, reply = r), 1000)
+
+export fn main() -> Unit with Never = {
+    Io.println(Io.show(add(visits, 2)) <> " " <> Io.show(add(sales, 5)));
+    Io.println(Io.show(add(visits, -1)));
+    receive { after 500 -> Unit };
+    Io.println(Io.show(add(visits, 1)) <> " " <> Io.show(add(sales, 1)))
+}
+```
+
+```console
+$ ern run pair.erc
+Some(2) Some(5)
+Pair.visits:7 faulted, restarted: a negative amount
+None
+Some(1) Some(1)
+```
+
+`Supervisor.group(strategy, limit)` is the function the supervisor runs, and `Supervisor.child(group, f)` the function a child runs. The program spawns each, as it spawns what `restarting` answers, so the fault line names the child's binding. A child joins the group before `f` runs, and waits until the supervisor has it; after a fault it runs `f` again in place, as under `restarting`.
+
+The strategy says which siblings restart with the child that faulted. `OneForOne` restarts none. `OneForAll` restarts every other child, so `sales` starts from zero too. `RestForOne` restarts the children that joined after it, for services that use the ones before them. A sibling runs on until it next waits, in a `receive` or for a call's answer, and restarts there, with the same address and mailbox; a sibling that computes without waiting is not restarted. Its restart is not a fault, so `ern run` reports only the fault of `visits`. A call waiting on a sibling as it restarts ends: `Address.call` answers `None`, and `Address.callForever` faults with `callee was restarted` (report §6.9). So for a moment after a fault, a call to a sibling may be answered from its old state, end, or be answered from its new one, and nothing says when the restart is over. `main` waits before it asks again; how a client should know is an open question (`docs/language_feedback.md`, item 61).
+
+The limit is the group's. When its children have faulted `restarts` times within `within` milliseconds, the next fault makes the supervisor give up: it faults, with `supervisor restart limit reached`. A supervisor is a child like any other, `spawn(Local, Supervisor.child(parent, Supervisor.group(...)))`, so groups form a tree. A supervisor under a parent restarts in place when it gives up, or when its parent restarts it with a sibling, and asks each of its children to restart; every binding keeps its address, and the fault is the parent's to count. A supervisor at the root that gives up dies.
+
+When a supervisor dies, given up, killed, or of a defect of its own, its children are killed after it, the last to join first, each once the one before has ended; so `kill(group)` stops a group. A killed process runs nothing more, so a child that must finish its work, a file to flush, is sent a message of its own protocol first. A child that returns or is killed leaves the group, and a child may join at any time, so one supervisor also holds the children a program starts while it runs, one per connection.
+
+### 6.7 Prediction exercise
 
 ```ernest
 fn first(xs : List(Int)) -> Int = match xs {
@@ -1777,7 +1827,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - There are no links and no exit signals, only monitors. A process that must die with another monitors it and returns.
 - There are no registered names, and addresses cannot be compared; the processes behind them can, `Process.fromAddress(a)`, which is a pid without the right to send. A process is reached through an address it was given, or through a top-level binding that holds one, a service.
 - There are no atoms in the language: constructors are the tags. `Erl.atom` makes one for a foreign call.
-- There are no OTP behaviours. A server is a `receive` loop with `Reply`, restarted in place by `restarting` and reached through a service binding (§6.5).
+- There are no OTP behaviours. A server is a `receive` loop with `Reply`, restarted in place by `restarting` and reached through a service binding (§6.5). A supervision tree is the standard library's `Supervisor`, its children restarted in place so that their bindings keep their addresses (§6.6).
 - A running program replaces its code by a message that carries the new function (§4.6). Only the shell's `:reload` loads a new version of a module.
 - ETS is a library outside the standard library, `libs/ets`, since a table is state that processes share.
 - Nodes will talk over Ernest's own protocol and ship code by content, not over Erlang distribution (§8.2).
@@ -1820,7 +1870,7 @@ A function's number of arguments is part of its type, and `fn(x, y)` shows it wh
 
 **§5.7.** No. Per-sender FIFO orders messages from ping to pong and pong to ping, but the two processes both send to standard output's process, two senders to one process, and the runtime does not order across senders. Alternation is a *possible* trace, not a guaranteed one.
 
-**§6.6.** `main` faults with the cause `first of an empty list`, and since it is the entry process the program ends and `ern run` prints the fault, `Main.main faulted: first of an empty list` for a `main` in `main.ern`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
+**§6.7.** `main` faults with the cause `first of an empty list`, and since it is the entry process the program ends and `ern run` prints the fault, `Main.main faulted: first of an empty list` for a `main` in `main.ern`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
 
 **§7.4.** Yes. The boundary of an abstract type is its module, so every definition in `main.ern` may name the constructor, a helper or a test included; another module sees the type and its operations, never the constructor.
 

@@ -17,17 +17,11 @@ Actorson until 12 September 2026.
 
 ## Where we are
 
-**MVP 2.65, the language and the toolchain read back after the shell, has begun.** Its
-first nine steps are done: the feedback list and this plan consolidated, the report read
-cold, the five themes, names and namespaces, expressions, patterns and types, processes and
-the system, the standard library under E.0, and the toolchain, the Erlang code's open
-questions, and the cold read's last findings. Step 10, the build, is built in all its
-sub-steps: its gate, its ledger, its report pass, the report's cold read, the toolchain's
-rename, the build in the ledger's order, and the guide's section on services with feedback
-items 59 and 60; its closing sweep, read on 2026-09-26, is what remains, and closes the
-milestone.
-MVP 2.6, the shell, was closed on
-2026-09-25, and the code read back after it the same day, both under "Done".
+**MVP 2.66, the standard library's `Supervisor`, is done** (2026-09-27), and MVP 2.7, a
+program started from a command line, is next. MVP 2.65, the language and the toolchain read
+back after the shell, closed with its sweep on 2026-09-26; its steps stay below as the record
+the log's entries point into. MVP 2.6, the shell, was closed on 2026-09-25, and the code read
+back after it the same day, both under "Done".
 
 **Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23; MVP 2.61, the
 guide as the user's document, on 2026-09-24, after which CLAUDE.md was rewritten for
@@ -49,9 +43,9 @@ so a decision they must see goes here.
 | MVP 2.5 | a complete standard library | done 2026-09-20 |
 | MVP 2.6 | the shell | done 2026-09-25 |
 | MVP 2.61 | the guide as the user's document | done 2026-09-24, out of order |
-| **MVP 2.65** | **the language and the toolchain read back** | **begun 2026-09-25** |
-| MVP 2.66 | the standard library's `Supervisor` | after 2.65 |
-| MVP 2.7 | a program started from a command line, and the appendix of libraries | |
+| MVP 2.65 | the language and the toolchain read back | done 2026-09-26 |
+| MVP 2.66 | the standard library's `Supervisor` | done 2026-09-27 |
+| **MVP 2.7** | **a program started from a command line, and the appendix of libraries** | **next** |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | MVP 2.95 | the first release: the review, manual pages, an installation | after 2.7 |
 | MVP 3.0 | peers | |
@@ -60,7 +54,10 @@ so a decision they must see goes here.
 
 ---
 
-## MVP 2.65 (the language and the toolchain read back after the shell), about two weeks
+## MVP 2.65 (the language and the toolchain read back after the shell), done 2026-09-26
+
+Done; its paragraph is under "Done". Its steps are kept here as the record the log points
+into.
 
 The shell is the first program of size written in Ernest by the people who designed it, and
 what it and the libraries felt was collected in [`language_feedback.md`](language_feedback.md),
@@ -552,75 +549,6 @@ The steps:
 
 ---
 
-## MVP 2.66 (the standard library's `Supervisor`), about three days
-
-MVP 2.65 step 5 decided what a supervisor is (question 6; the log's *A `Supervisor` in the
-Standard Library, and `fault`*), after the claim of 2026-09-13, that a supervisor is fifteen
-lines of `spawn`, `monitor` and `receive`, met a restarted child's new address. This item
-builds it, after step 10 of 2.65 has built `restarting`, `fault`, the service binding and
-the fault report it stands on.
-
-Three questions from [`language_feedback.md`](language_feedback.md) opened this item and
-were decided before its build; they keep the numbers the log and the code cite them by, and
-each is built where it belongs.
-
-- **Items 14 and 25, decided 2026-09-27: `remote` is removed**, and no `spawn(Remote, f)`
-  or other placement by the runtime replaces it (report §6.7, §9; the log's *No Remote
-  Computation in the Language*). Work on a peer is a process spawned there. Choosing a
-  lightly loaded node is a library's, over two facts only the runtime has, `Peer.nodes`
-  and `Peer.runQueue`, built in MVP 3.0 with `libs/balancer`. Done in the same commit:
-  the report, the prelude, the emitter, the runtime, the guide's §8.1, and
-  `examples/remote.ern` removed.
-- **Item 16, decided 2026-09-27: the command line is `Os`'s**, a system module whose
-  bindings `Os.arguments` and `Os.environment` the runtime makes (§8.2; the log's *A
-  Program's Command Line Is `Os`'s*). No entry point takes the arguments. `Os.run`, which
-  runs a host program, and `Os.exit`, which ends the program with a status, join them.
-  MVP 2.7 builds all four.
-
-- **`stdlib/supervisor.ern`**, in Ernest over the runtime's in-place restart of a sibling.
-  Appendix E gains its section, with its module page and examples as E.0 shape rule 6
-  asks, and §6.9 a sentence that a `restarting` process also runs `f` again when its
-  supervisor restarts it.
-- **A sibling restarts at its next wait**, decided 2026-09-27 (the log's *A Sibling Restarts
-  at Its Next Wait*). BEAM cannot raise a fault in another process, so step 5's in-place
-  restart of a sibling is a priority message the supervisor sends, OTP 28's, which goes
-  before the mailbox's other messages. The emitter gives every `receive` one clause for it,
-  the runtime's waits in `Address.call` and `Address.callForever` the same, and
-  `restarting`'s loop runs `f` again on it, neither counted against the child's limit nor
-  reported as a fault. The rule the report states: a child restarted by its supervisor
-  finishes the message in hand and restarts at its next wait, or at once if it waits, its
-  address and mailbox kept. A child that computes without waiting is not restarted. A
-  supervisor is itself a `restarting` process, so a tree restarts in place, level by
-  level, and the service bindings keep their addresses. Refused: children as new processes,
-  which leaves a binding holding a dead address or needs a registry, a forwarder, or a
-  handle every address operation looks up; and `OneForOne` alone, which stops a tree at
-  one level.
-- **The `Supervisor`'s shape**, decided one question at a time (the log's *The
-  `Supervisor`'s Shape*). A child is added at any time, when the program starts or while it
-  runs, so a pool of children started at run time is the same supervisor and not a second
-  kind; a child that returns or is killed leaves the group, and the supervisor forgets it.
-  The caller writes the `spawn`, as with `restarting`: `Supervisor.child(sup, f)` answers
-  the function a process runs, which joins the group, waiting until the supervisor has it,
-  and then runs `f`; so the child's site (§6.9) and its placement are the caller's. A
-  supervisor is spawned the same way, `spawn(Local, Supervisor.group(strategy, limit))`,
-  its address an `Address(Supervisor.Msg)` whose message type is abstract. The group's
-  limit is the only one: a child restarts in place after each fault until the group passes
-  it, and then the supervisor signals every child to restart and faults. Under a parent it
-  restarts in place and its children join it again, each with the number it first joined
-  with, so the order holds; at the root it dies and its watcher kills the children.
-- **`examples/supervisor.ern`**, three long-lived services under one supervisor as
-  top-level bindings, faulted on purpose, read back against principles 1 and 2 and E.0.
-  The guide gains a section on the supervisor, after the one on services: a tree as
-  top-level bindings, the three strategies, the group's limit, and stopping.
-- **Two things to settle in the build, report first where the report is silent.** A
-  supervisor that faults by a defect of its own, not by `fault`, leaves its children
-  running, since nothing owns a process; a watcher the module spawns beside it, holding
-  the children's addresses and killing them on its `Down`, is written in Ernest. And
-  stopping a child is `kill`, which gives it no chance to finish; a child that must
-  finish carries a stop message in its own protocol, which the module cannot impose.
-
----
-
 ## MVP 2.7 (a program started from a command line, and the appendix of libraries), about a week
 
 What a command-line program needs, report first, in a system module `Os` (§8.2, Appendix E),
@@ -646,8 +574,9 @@ Line Is `Os`'s*), and the exit status the same day (the log's *A Program Ends Wi
   never reads the terminal. It inherits the program's environment and working directory.
   The milliseconds are the last argument, as `Tcp`'s are. The shim is a port the system
   process opens, which delivers the output in chunks and then the status; collecting them
-  is Ernest. A command whose output a process reads while it runs waits, as a `Tcp`
-  socket's model would give it.
+  is Ernest. Decided in this item, before `Os.run` is built: whether a command whose
+  output a process reads while it runs, a process holding a port as a `Tcp` socket does,
+  is built here or placed in a named milestone.
 - `Os` is a system module with its own `reference` (§8.2), so a running command counts as
   pending work in §8.6's check for a deadlock.
 - **`Os.exit(status : Int) -> a with m`**, which ends the program as §8.6 ends it, live
@@ -977,6 +906,36 @@ twenty-five defects fixed, each with a regression test, and the report's §2.3, 
 changed first where a fix needed a rule. The shell gained `Shell.Command` and
 [`shell/README.md`](../shell/README.md). The log's *The Code Read Back* has the decisions,
 the feedback list the Ernest questions it raised, and MVP 2.65's step 8 the Erlang ones.
+
+### MVP 2.65 — the language and the toolchain read back (done 2026-09-26)
+
+Every entry the shell and the libraries raised against the principles was decided, in ten
+steps: the feedback list consolidated, the report read cold, five themes (names and
+namespaces; expressions, patterns and types; processes and the system; the standard library
+under E.0; the toolchain), the Erlang code's open questions, the cold read's last findings,
+and the build of all of it in step 10, with its gate, its ledger, a second cold read and a
+closing sweep. What it gave the language: the abstract type's boundary at its module, field
+selection, a pure function standing for one with a mailbox, services as top-level bindings
+with `restarting` and `fault`, `Process` and every fault delivered, the system references in
+their modules, standard input as bytes, and one tool, `ern`. Its steps stay under its
+heading above, as the record the log's dated entries from 2026-09-25 and 2026-09-26 point
+into.
+
+### MVP 2.66 — the standard library's `Supervisor` (done 2026-09-27)
+
+Its opening decided the three questions left in the feedback list. `remote` left the
+language, placement by load going to MVP 3.0's `Peer.nodes`, `Peer.runQueue` and
+`libs/balancer` (items 14 and 25; §6.7; the log's *No Remote Computation in the Language*).
+The command line is `Os`'s, with `Os.run` and `Os.exit`, built in MVP 2.7 (item 16; the log's
+*A Program's Command Line Is `Os`'s* and *A Program Ends With `Os.exit`*). The build is
+`stdlib/supervisor.ern` (Appendix E.22): `Supervisor.group(strategy, limit)` and
+`Supervisor.child(sup, f)`, each spawned by its caller, one limit, the group's, three
+strategies, children that join at any time, a supervisor restarted in place restarting its
+subtree, and `kill(sup)` stopping a group through a watcher, the last child first. A sibling restarts at its next wait, through a priority
+message every wait takes, since BEAM cannot raise a fault in another process (§6.9;
+`callee was restarted` in §6.6 and §7.4; the log's *A Sibling Restarts at Its Next Wait* and
+*The `Supervisor`'s Shape*). `examples/services.ern` and the guide's §6.6 show it. Writing
+them found feedback item 61, how a client knows that a group's restart is over.
 
 ---
 

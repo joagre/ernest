@@ -1,0 +1,3 @@
+before: apples 3, next id 3, audit [1: put apples; 2: put pears]
+Services.store:26 faulted, restarted: the store was corrupted
+after the restart: apples none, next id 1, audit []

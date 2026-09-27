@@ -22,6 +22,7 @@ main() ->
 
 counter(N_4) ->
     receive
+        '$ern_restart' -> ern_rt:restart_now();
         {'Inc', K_5} -> counter(N_4 + K_5);
         {'Get', R_6} ->
             ern_rt:answer(R_6, N_4),

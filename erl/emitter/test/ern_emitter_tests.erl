@@ -127,7 +127,7 @@ counter_golden_test() ->
 -define(GOLDEN, "../../../test/golden/").
 
 golden_names() ->
-    ["hello", "counter", "upgrade", "pingpong", "stack", "patterns", "kvparser",
+    ["hello", "counter", "upgrade", "pingpong", "stack", "patterns", "kvparser", "services",
      "modules/net/http", "modules/main"].
 
 %% report §4.6, §8.5, §11.1: a `let` is a value whatever its type, so one
@@ -235,7 +235,9 @@ examples_test_() ->
                 {"pingpong", <<"ping 3\npong 3\nping 2\npong 2\nping 1\npong 1\n">>},
                 {"stack", <<"top is 2\n">>},
                 {"patterns", <<"minus one\nzero\nother\na 2\nnothing\n-3\n3\n4\n">>},
-                {"kvparser", <<"a 12\nbad key: =1\nexpected =: a\nbad number: a=x\n">>}],
+                {"kvparser", <<"a 12\nbad key: =1\nexpected =: a\nbad number: a=x\n">>},
+                {"services", <<"before: apples 3, next id 3, audit [1: put apples; 2: put pears]\n"
+                               "after the restart: apples none, next id 1, audit []\n">>}],
     [{Base, fun() ->
                  {Ns, Bin} = example(Base),
                  ?assertEqual({ok, Out}, run(Ns, Bin))
@@ -1755,6 +1757,286 @@ process_functions_test() ->
         "    receive { Tick -> Io.println(\"tick\") | _ -> Io.println(\"other\") }\n"
         "}\n"),
     ?assertEqual(<<"killed\ndivision by zero\ntick\n">>, Out).
+
+%%
+%% Report §6.9 and Appendix E.22: a supervisor's group. Each child is a
+%% counter that a restart sets back to 0, and that faults on Boom.
+%%
+
+supervised(Strategy, Limit, Names, Main) ->
+    run(["type Msg = Ask(reply : Reply(Int)) | Boom\n"
+         "let sup : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.",
+         Strategy, ", ", Limit, "))\n",
+         [["let ", N, " : Address(Msg) = spawn(Local, Supervisor.child(sup, fn() = count(0)))\n"]
+          || N <- Names],
+         "fn count(n : Int) -> Unit with Msg = receive {\n"
+         "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
+         "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
+         "}\n"
+         "fn ask(c : Address(Msg)) -> Int with m = Address.callForever(c, fn(r) = Ask(reply = r))\n"
+         "fn show(c : Address(Msg)) -> String with m = Int.toString(ask(c))\n"
+         "fn pause() -> Unit with m = receive { after 100 -> Unit }\n",
+         Main]).
+
+-define(LIMIT, "RestartLimit(restarts = 3, within = 5000)").
+
+%% report §6.9, Appendix E.22: under OneForAll a fault restarts every
+%% sibling in place, at its next wait, its address kept
+one_for_all_restarts_siblings_test() ->
+    {ok, Out} = supervised("OneForAll", ?LIMIT, ["a", "b"],
+        "export fn main() -> Unit with Never = {\n"
+        "    let _ = ask(a); let _ = ask(b);\n"
+        "    send(a, Boom);\n"
+        "    pause();\n"
+        "    Io.println(show(a) <> \" \" <> show(b))\n"
+        "}\n"),
+    ?assertEqual(<<"0 0\n">>, Out).
+
+%% Appendix E.22: under OneForOne a fault restarts only the child that
+%% faulted
+one_for_one_restarts_the_child_alone_test() ->
+    {ok, Out} = supervised("OneForOne", ?LIMIT, ["a", "b"],
+        "export fn main() -> Unit with Never = {\n"
+        "    let _ = ask(a); let _ = ask(b);\n"
+        "    send(a, Boom);\n"
+        "    pause();\n"
+        "    Io.println(show(a) <> \" \" <> show(b))\n"
+        "}\n"),
+    ?assertEqual(<<"0 1\n">>, Out).
+
+%% Appendix E.22: under RestForOne a fault restarts the children that
+%% joined after the one that faulted, and not those before it
+rest_for_one_restarts_later_children_test() ->
+    {ok, Out} = supervised("RestForOne", ?LIMIT, ["a", "b", "c"],
+        "export fn main() -> Unit with Never = {\n"
+        "    let _ = ask(a); let _ = ask(b); let _ = ask(c);\n"
+        "    send(b, Boom);\n"
+        "    pause();\n"
+        "    Io.println(show(a) <> \" \" <> show(b) <> \" \" <> show(c))\n"
+        "}\n"),
+    ?assertEqual(<<"1 0 0\n">>, Out).
+
+%% report §6.9: a restart asked for is no fault, and no fault is reported
+%% for it; only the child that faulted is
+restart_asked_for_is_no_fault_test() ->
+    {ok, Out} = supervised("OneForAll", ?LIMIT, ["a", "b", "c"],
+        "export fn main() -> Unit with Process.FaultReport = {\n"
+        "    Process.faults(fn(f) = f);\n"
+        "    send(a, Boom);\n"
+        "    pause();\n"
+        "    let _ = ask(b);\n"
+        "    Io.println(Int.toString(reports(0)))\n"
+        "}\n"
+        "fn reports(n : Int) -> Int with Process.FaultReport ="
+        " receive { _ -> reports(n + 1) | after 100 -> n }\n"),
+    ?assertEqual(<<"1\n">>, Out).
+
+%% report §6.6, §6.9: a call waiting on a child when its supervisor
+%% restarts it ends, and callForever faults with the cause that says so;
+%% the child restarts at the wait inside its handling of the request
+call_ends_at_asked_restart_test() ->
+    {R, _} = run(
+        "type Msg = Slow(reply : Reply(Int)) | Boom\n"
+        "let sup : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForAll,"
+        " RestartLimit(restarts = 3, within = 5000)))\n"
+        "let a : Address(Msg) = spawn(Local, Supervisor.child(sup, fn() = serve()))\n"
+        "let b : Address(Msg) = spawn(Local, Supervisor.child(sup, fn() = serve()))\n"
+        "fn serve() -> Unit with Msg = receive {\n"
+        "    Slow(reply = r) -> { receive { after 500 -> Unit }; answer(r, 1); serve() }\n"
+        "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
+        "}\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    let _ = spawn(Local, fn() -> Unit with Never = {\n"
+        "        receive { after 50 -> Unit };\n"
+        "        send(a, Boom)\n"
+        "    });\n"
+        "    let _ = Address.callForever(b, fn(r) = Slow(reply = r));\n"
+        "    Io.println(\"answered\")\n"
+        "}\n"),
+    ?assertEqual({fault, <<"callee was restarted">>}, R).
+
+%% Appendix E.22: past its limit a group faults; at the root it dies, and
+%% its watcher kills its children
+limit_ends_the_group_test() ->
+    {ok, Out} = supervised("OneForOne", "RestartLimit(restarts = 1, within = 5000)", ["a"],
+        "type Seen = Died(Down)\n"
+        "export fn main() -> Unit with Seen = {\n"
+        "    monitor(a, Died);\n"
+        "    send(a, Boom);\n"
+        "    pause();\n"
+        "    send(a, Boom);\n"
+        "    receive {\n"
+        "        Died(Down(reason = Killed, site = _)) -> Io.println(\"killed\")\n"
+        "      | Died(_) -> Io.println(\"other\")\n"
+        "    }\n"
+        "}\n"),
+    ?assertEqual(<<"killed\n">>, Out).
+
+%% Appendix E.22: kill(sup) stops the group, the children killed in the
+%% reverse of the order they joined, each once the one before has ended
+kill_stops_in_reverse_order_test() ->
+    {ok, Out} = supervised("OneForOne", ?LIMIT, ["a", "b", "c"],
+        "type Seen = Died(String)\n"
+        "export fn main() -> Unit with Seen = {\n"
+        "    let _ = ask(a); let _ = ask(b); let _ = ask(c);\n"
+        "    monitor(a, fn(_) = Died(\"a\"));\n"
+        "    monitor(b, fn(_) = Died(\"b\"));\n"
+        "    monitor(c, fn(_) = Died(\"c\"));\n"
+        "    kill(sup);\n"
+        "    Io.println(String.join([next(), next(), next()], \" \"))\n"
+        "}\n"
+        "fn next() -> String with Seen = receive { Died(n) -> n }\n"),
+    ?assertEqual(<<"c b a\n">>, Out).
+
+%% Appendix E.22: a supervisor that is a child restarts in place past its
+%% limit, its children restarted with it, their addresses kept
+nested_group_restarts_in_place_test() ->
+    {ok, Out} = run(
+        "type Msg = Ask(reply : Reply(Int)) | Boom\n"
+        "let top : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForOne,"
+        " RestartLimit(restarts = 5, within = 5000)))\n"
+        "let sub : Address(Supervisor.Msg) = spawn(Local, Supervisor.child(top,"
+        " Supervisor.group(Supervisor.OneForOne, RestartLimit(restarts = 0, within = 5000))))\n"
+        "let a : Address(Msg) = spawn(Local, Supervisor.child(sub, fn() = count(0)))\n"
+        "let b : Address(Msg) = spawn(Local, Supervisor.child(sub, fn() = count(0)))\n"
+        "fn count(n : Int) -> Unit with Msg = receive {\n"
+        "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
+        "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
+        "}\n"
+        "fn ask(c : Address(Msg)) -> Int with m = Address.callForever(c, fn(r) = Ask(reply = r))\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    let _ = ask(a); let _ = ask(b);\n"
+        "    send(a, Boom);\n"
+        "    receive { after 100 -> Unit };\n"
+        "    Io.println(Int.toString(ask(a)) <> \" \" <> Int.toString(ask(b)))\n"
+        "}\n"),
+    ?assertEqual(<<"0 0\n">>, Out).
+
+%% Appendix E.22: a supervisor restarted in place counts its limit afresh,
+%% and a fault it counted before the restart does not expire from the new
+%% count. A regression test for alarms of an earlier run lowering the
+%% count; the gaps around the old alarm, at 1000 ms, are 150 ms and more
+count_survives_restart_in_place_test() ->
+    {ok, Out} = run(
+        "type Msg = Ask(reply : Reply(Int)) | Boom\n"
+        "let top : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForOne,"
+        " RestartLimit(restarts = 5, within = 5000)))\n"
+        "let sub : Address(Supervisor.Msg) = spawn(Local, Supervisor.child(top,"
+        " Supervisor.group(Supervisor.OneForOne, RestartLimit(restarts = 1, within = 1000))))\n"
+        "let a : Address(Msg) = spawn(Local, Supervisor.child(sub, fn() = count(0)))\n"
+        "let b : Address(Msg) = spawn(Local, Supervisor.child(sub, fn() = count(0)))\n"
+        "fn count(n : Int) -> Unit with Msg = receive {\n"
+        "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
+        "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
+        "}\n"
+        "fn ask(c : Address(Msg)) -> Int with m = Address.callForever(c, fn(r) = Ask(reply = r))\n"
+        "fn wait(ms : Int) -> Unit with m = receive { after ms -> Unit }\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    send(a, Boom);\n"
+        "    wait(50);\n"
+        "    send(a, Boom);\n"
+        "    wait(250);\n"
+        "    let _ = ask(b); let _ = ask(b);\n"
+        "    send(a, Boom);\n"
+        "    wait(850);\n"
+        "    send(a, Boom);\n"
+        "    wait(100);\n"
+        "    Io.println(Int.toString(ask(b)))\n"
+        "}\n"),
+    ?assertEqual(<<"0\n">>, Out).
+
+%% Appendix E.22: a child that starts after its supervisor has ended
+%% faults once with a cause that says so, and does not restart. A
+%% regression test for a child that joined inside its restart loop and
+%% restarted without end
+child_of_ended_supervisor_test() ->
+    {R, _} = run(
+        "let sup : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForOne,"
+        " RestartLimit(restarts = 3, within = 5000)))\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    kill(sup);\n"
+        "    receive { after 50 -> Unit };\n"
+        "    let c = Supervisor.child(sup, fn() -> Unit with Never = Unit);\n"
+        "    c()\n"
+        "}\n"),
+    ?assertEqual({fault, <<"the supervisor has ended">>}, R).
+
+%% report §6.9, Appendix E.22: a root group past its limit faults, and its
+%% children are killed; none reports a fault it did not have. A regression
+%% test for children that, asked to restart, rejoined the dead supervisor
+%% and reported that as their own fault
+limit_reports_only_real_faults_test() ->
+    {ok, Out} = supervised("OneForOne", "RestartLimit(restarts = 1, within = 5000)",
+        ["a", "b", "c"],
+        "export fn main() -> Unit with Process.FaultReport = {\n"
+        "    let _ = ask(a); let _ = ask(b); let _ = ask(c);\n"
+        "    Process.faults(fn(f) = f);\n"
+        "    send(a, Boom);\n"
+        "    pause();\n"
+        "    send(a, Boom);\n"
+        "    Io.println(String.join(causes([]), \"; \"))\n"
+        "}\n"
+        "fn causes(seen : List(String)) -> List(String) with Process.FaultReport = receive {\n"
+        "    f -> causes(seen <> [f.cause])\n"
+        "  | after 300 -> seen\n"
+        "}\n"),
+    ?assertEqual(<<"division by zero; division by zero; supervisor restart limit reached\n">>,
+                 Out).
+
+%% Appendix E.22: a supervisor that its parent restarts asks its own
+%% children to restart, so a subtree restarts with its root. A regression
+%% test for a supervisor restarted in place that left its children running
+parent_restarts_subtree_test() ->
+    {ok, Out} = run(
+        "type Msg = Ask(reply : Reply(Int)) | Boom\n"
+        "let top : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForAll,"
+        " RestartLimit(restarts = 5, within = 5000)))\n"
+        "let x : Address(Msg) = spawn(Local, Supervisor.child(top, fn() = count(0)))\n"
+        "let sub : Address(Supervisor.Msg) = spawn(Local, Supervisor.child(top,"
+        " Supervisor.group(Supervisor.OneForOne, RestartLimit(restarts = 5, within = 5000))))\n"
+        "let c : Address(Msg) = spawn(Local, Supervisor.child(sub, fn() = count(0)))\n"
+        "fn count(n : Int) -> Unit with Msg = receive {\n"
+        "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
+        "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
+        "}\n"
+        "fn ask(a : Address(Msg)) -> Int with m = Address.callForever(a, fn(r) = Ask(reply = r))\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    let _ = ask(c); let _ = ask(c);\n"
+        "    send(x, Boom);\n"
+        "    receive { after 100 -> Unit };\n"
+        "    Io.println(Int.toString(ask(c)))\n"
+        "}\n"),
+    ?assertEqual(<<"0\n">>, Out).
+
+%% report §6.9: a restart asked for runs the child's own function again,
+%% even where that function runs a restarting function of its own. A
+%% regression test for the inner function taking the restart
+restart_reaches_the_outer_function_test() ->
+    {ok, Out} = run(
+        "type Msg = Ask(reply : Reply(Int)) | Boom\n"
+        "type LogMsg = Started | Count(reply : Reply(Int))\n"
+        "let log : Address(LogMsg) = spawn(Local, fn() = logging(0))\n"
+        "fn logging(n : Int) -> Unit with LogMsg = receive {\n"
+        "    Started -> logging(n + 1)\n"
+        "  | Count(reply = r) -> { answer(r, n); logging(n) }\n"
+        "}\n"
+        "let sup : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForAll,"
+        " RestartLimit(restarts = 5, within = 5000)))\n"
+        "let a : Address(Msg) = spawn(Local, Supervisor.child(sup, fn() = count(0)))\n"
+        "let b : Address(Msg) = spawn(Local, Supervisor.child(sup, fn() = {\n"
+        "    send(log, Started);\n"
+        "    restarting(RestartLimit(restarts = 5, within = 5000), fn() = count(0))()\n"
+        "}))\n"
+        "fn count(n : Int) -> Unit with Msg = receive {\n"
+        "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
+        "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
+        "}\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    send(a, Boom);\n"
+        "    receive { after 100 -> Unit };\n"
+        "    Io.println(Int.toString(Address.callForever(log, fn(r) = Count(reply = r))))\n"
+        "}\n"),
+    ?assertEqual(<<"2\n">>, Out).
 
 %% report §6.2, §6.7: work on a peer is a process spawned there, and a peer
 %% the node cannot reach faults the caller. A regression test, written

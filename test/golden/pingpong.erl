@@ -10,7 +10,10 @@ main() ->
     _ = ern_rt:spawn('Local',
                      fun () -> ping(PongAddr_2, 3) end,
                      <<"Pingpong.main:16">>),
-    receive {'PongDone', _} -> 'Unit' end.
+    receive
+        '$ern_restart' -> ern_rt:restart_now();
+        {'PongDone', _} -> 'Unit'
+    end.
 
 ping(PongAddr_3, N_4) ->
     case N_4 =:= 0 of
@@ -34,6 +37,7 @@ ping(PongAddr_3, N_4) ->
 
 pong() ->
     receive
+        '$ern_restart' -> ern_rt:restart_now();
         {'Ping', N_6, R_7} ->
             ern@io:println(<<"pong ",
                              (ern@int:toString(N_6))/binary>>),

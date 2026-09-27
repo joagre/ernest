@@ -38,6 +38,7 @@ main() ->
 
 counter(N_7) ->
     receive
+        '$ern_restart' -> ern_rt:restart_now();
         {'Inc', K_8} -> counter(N_7 + K_8);
         {'Get', R_9} ->
             ern_rt:answer(R_9, N_7),
@@ -47,6 +48,7 @@ counter(N_7) ->
 
 doublingCounter(N_12) ->
     receive
+        '$ern_restart' -> ern_rt:restart_now();
         {'Inc', K_13} -> doublingCounter(N_12 + 2 * K_13);
         {'Get', R_14} ->
             ern_rt:answer(R_14, N_12),
