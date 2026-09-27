@@ -492,6 +492,12 @@ doc_comments_test() ->
     %% a doc comment inside an expression is a comment
     ?assertMatch([#fn_decl{doc = undefined, body = #e_block{}}],
                  ds("fn f() = {\n    /// not a doc\n    1\n}")),
+    %% and so is one above a lambda, which `fn` before a bracket opens; it
+    %% had failed as an expression expected (regression test)
+    ?assertMatch([#let_decl{body = #e_lambda{}}],
+                 ds("let f =\n    /// not a doc\n    fn(x) = x")),
+    ?assertMatch([#fn_decl{body = #e_call{args = [_, #e_lambda{}]}}],
+                 ds("fn g() =\n    List.map(xs, /// not a doc\n        fn(x) = x)")),
     ?assertMatch([#fn_decl{body = #e_block{stmts = [#fn_decl{doc = <<"local">>}, _]}}],
                  ds("fn f() = {\n    /// local\n    fn g() = 1;\n    g()\n}")).
 

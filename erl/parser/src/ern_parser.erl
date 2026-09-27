@@ -106,7 +106,7 @@ prune_docs(Ts) ->
 prune_docs([{doc, Pos, Text} = D, Next | R], InType, Depth) ->
     Adjacent = line(Next) =:= doc_end(Pos, Text) + 1,
     Keep = Adjacent andalso
-           (lists:member(sym(Next), ?DECL_START)
+           (declaration_start(Next, R)
             orelse (InType andalso lists:member(sym(Next), [typename, ident, '|']))),
     Rest = prune_docs([Next | R], InType, Depth),
     case Keep of
@@ -126,6 +126,10 @@ prune_docs([T | R], InType, Depth) ->
     [T | prune_docs(R, InType1, Depth1)];
 prune_docs([], _, _) ->
     [].
+
+%% `fn` before a bracket opens a lambda, not a declaration.
+declaration_start({fn, _}, [{'(', _} | _]) -> false;
+declaration_start(T, _) -> lists:member(sym(T), ?DECL_START).
 
 %%
 %% Program and declarations
