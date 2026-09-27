@@ -298,7 +298,7 @@ terminal() ->
 
 %% Whether the stream is a terminal, as the io server of the standard
 %% streams reports it (the `stdin` and `stdout` options of io:getopts/1).
--spec is_terminal(stdin | stdout) -> boolean().
+-spec is_terminal(stdin | stdout | stderr) -> boolean().
 is_terminal(Stream) ->
     try proplists:get_value(Stream, io:getopts(standard_io), false) =:= true
     catch _:_ -> false

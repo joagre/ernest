@@ -612,32 +612,36 @@ shell makes an atom of each distinct name typed at it, about three for a name bo
 declared and one for a name mentioned, and none for a name typed again; kept, bounded by what
 a person types, as the host's lambda entries are.
 
-**A simple log.** Noted 2026-09-26, to be decided in this milestone: `ern` writes what it
-prints to standard error, the fault reports first among them, to a file as well, and
-perhaps only there. A very simple logger, the smallest thing that keeps a long-running
-program's faults; whether it is an option to `ern run` or a system module's binding (§8.2) is
-the decision. `Process.faults` (MVP 2.65 step 5, item 28) is beneath it, so the log of faults can
-be a process written in Ernest that subscribes and appends.
+**Running as a service, decided 2026-09-27** (the log's *Running as a Service*), which took
+the place of three items: a simple log, a standard stream that has gone, and a `--daemon`
+flag. A program runs in the foreground under a service manager, systemd or launchd, or with
+`nohup`, and standard error is its log, which the host routes and keeps: no log file, no log
+section in `ernest.conf`, and no `--daemon` flag. What `ern` owns, built in this item:
+
+- **A stream that has gone.** A run whose standard output or standard error can no longer be
+  written, its reader gone or its device failing, ends as §8.6 ends a program, with status
+  141, 128 plus `SIGPIPE`'s number, as a shell reports a broken pipe (§8.2, §11.2). Found
+  2026-09-27: `ern run app.erc | head -1` went on to its end and then hung, the host printing
+  its own report of the failed write. The runtime writes the two streams through ports of its
+  own, which say when a write fails, and the host's own writer is kept out of a run. A stream
+  closed before the run starts is the host's to reopen, and it opens it on the null device, as
+  `>/dev/null` would.
+- **A time on `ern`'s own fault lines** where standard error is neither a terminal nor the
+  journal of a service manager, which stamps each line itself: the UTC time as RFC 3339 writes
+  it, to the millisecond, before the line (§11.2). A program's own output, on either stream,
+  is never changed; times on its own lines come from MVP 3.2's `Time`.
+- **A stop asked for is a signal's end.** After the host's termination or hangup ends the
+  program and its output is flushed, `ern run` ends by that signal itself, so that a service
+  manager counts the stop as clean, where it had exited with 128 plus its number, which a
+  shell reports the same way (§11.2).
+- **Guide §9.5 teaches it**: where the output goes, what a fault line looks like in a file,
+  how a program is stopped and what it exits with, a systemd unit, and `nohup`. MVP 2.95's
+  installation and manual pages point at it.
 
 **The report lists the libraries that exist**, `libs/ets` and `libs/markdown`, in a new
 informative appendix, one section per library with its signatures and contracts, and a mirror
 test holding each compiled interface equal to it, as `ern_prelude_tests` holds the prelude to
 Appendix E. Third-party libraries are not listed; Appendix D is what they follow.
-
-**A standard stream that has gone, found 2026-09-27.** A run whose standard output is a pipe
-whose reader has ended, `ern run app.erc | head -1`, goes on to its end and then hangs there
-instead of ending, and the host prints its own report of the failed write among the
-program's output; with standard output closed, what the program writes vanishes without a
-sign. The report says nothing of a write to a standard stream that cannot be written. The
-fix: §8.2 states the rule, the inclination being the host's own, a program whose standard
-output or standard error has gone ends as a signal ends it (§8.6), with 128 plus `SIGPIPE`'s
-number, as a shell reports it; the runtime keeps the host's report out of the program's
-output; and the end no longer waits on a stream that cannot take what it flushes.
-
-**A `--daemon` flag, discussed.** Noted 2026-09-27, a decision for this milestone: whether
-`ern run` detaches from its terminal itself, as `erl -detached` does, or leaves that to a
-service manager or `nohup`, and where a detached program's standard output and standard
-error then go; weighed with *A simple log* and *A standard stream that has gone*.
 
 **What Ernest adds, discussed again.** Noted 2026-09-27, a decision for this milestone:
 whether the README's and the guide's list of what Ernest adds (held equal by a test) should

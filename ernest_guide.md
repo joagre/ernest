@@ -1844,6 +1844,31 @@ At a terminal the line is edited with Readline's Emacs keys. `Tab` completes a n
 
 `emacs/ernest-mode.el` highlights Ernest, indents it as the style guide does, and lets `M-x compile` with `ern build` jump to each error. [`docs/emacs_mode.md`](docs/emacs_mode.md) says how to load it and what it leaves to your own configuration.
 
+### 9.5 Running a program as a service
+
+A program meant to keep running is run in the foreground and left to a service manager, which starts it, restarts it, and keeps what it writes; `ern` has no mode of its own for it. Standard output is the program's, and standard error is where `ern run` reports every fault, so the two streams are its log. A unit for systemd:
+
+```ini
+[Unit]
+Description=The chat server
+
+[Service]
+ExecStart=/usr/local/bin/ern run /srv/chat/build/main.erc
+WorkingDirectory=/srv/chat
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+systemd keeps both streams in its journal, which stamps every line, and `journalctl -u chat` reads them. Where standard error is a file instead, each fault line begins with its time, in UTC: `2026-09-27T14:22:11.836Z Chat.room:31 faulted: division by zero`. At a terminal and in the journal it does not. Without a service manager, `nohup` keeps a program running once its terminal has closed:
+
+```console
+$ nohup ern run build/main.erc >> chat.log 2>&1 &
+```
+
+`kill` stops the program as §9.2 says: its output is flushed, and `ern run` ends by the signal, which systemd counts as a stop it asked for. A program that ends on its own gives the manager its reason with `Os.exit(status)` (§1.3), and `Restart=on-failure` starts again one that ends with any status but 0. A program whose output can no longer be written, because what reads it has ended, ends too, with status 141, as `ern run app.erc | head -1` shows. `ern` never changes what a program writes, on either stream.
+
 ## 10. From Erlang
 
 Ernest runs on the Erlang runtime, and a program in it is processes that send messages, as in Erlang. What an Erlang programmer knows mostly carries over. What differs is where the types reach.

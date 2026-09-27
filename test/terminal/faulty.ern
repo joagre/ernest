@@ -1,0 +1,10 @@
+//
+// A program that faults, for the terminal tests: its fault line at a
+// terminal has no time (report §11.2).
+//
+
+export fn main() -> Unit with Never = {
+    let z = List.size([]);
+    let _ = 1 / z;
+    Unit
+}

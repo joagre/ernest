@@ -768,7 +768,16 @@ place(Info) ->
 sys(Name) ->
     persistent_term:get({?MODULE, Name}).
 
-%% Report §8.2: stdout and stderr each write what they receive, as bytes.
+%% Report §8.2: stdout and stderr each write what they receive, as bytes,
+%% through the function a run was given, or to a file descriptor through a
+%% port of their own, which says when the stream can no longer be written:
+%% the program then ends (§8.6), and the stream's process with it.
+stream({fd, Fd}, Name) ->
+    process_flag(trap_exit, true),
+    port_loop(erlang:open_port({fd, 0, Fd}, [out, binary]), Name);
+stream(Out, _Name) ->
+    stdout_loop(Out).
+
 stdout_loop(Out) ->
     receive
         {flush, From, Ref} ->
@@ -778,6 +787,36 @@ stdout_loop(Out) ->
             Out(Bin),
             stdout_loop(Out)
     end.
+
+port_loop(Port, Name) ->
+    receive
+        {flush, From, Ref} ->
+            case drained(Port) of
+                ok -> From ! {Ref, flushed}, port_loop(Port, Name);
+                gone -> gone(Name)
+            end;
+        Bin when is_binary(Bin) ->
+            try erlang:port_command(Port, Bin) of
+                true -> port_loop(Port, Name)
+            catch
+                error:badarg -> gone(Name)
+            end;
+        {'EXIT', Port, _} ->
+            gone(Name)
+    end.
+
+%% What the port was given is written, or the stream has gone.
+drained(Port) ->
+    case erlang:port_info(Port, queue_size) of
+        {queue_size, 0} -> ok;
+        {queue_size, _} -> receive {'EXIT', Port, _} -> gone after 1 -> drained(Port) end;
+        undefined -> gone
+    end.
+
+gone(Name) ->
+    {Launcher, Run} = persistent_term:get({?MODULE, launcher}),
+    Launcher ! {gone, Run, Name},
+    ok.
 
 %% Report §8.2: keys and lines are the same terminal, so a program does one
 %% or the other; doing both ends the program with a fault, as Deadlock ends
@@ -1028,8 +1067,9 @@ arm(Deadline, To) ->
 %% Runs Main as the entry process and returns ok, killed if it was killed,
 %% {fault, Message} if it faulted, a deadlock among the faults (report §8.6:
 %% the entry process faults with `Fault("deadlock")`), {exit, Status} if a
-%% process called Os.exit, or {signal, Signal} if the host's termination or
-%% hangup ended the program. Every local process is then ended with
+%% process called Os.exit, {gone, Stream} if standard output or standard
+%% error could no longer be written, or {signal, Signal} if the host's
+%% termination or hangup ended the program. Every local process is then ended with
 %% ProgramEnd and stdout is flushed, however the run ended. Opts: init => a
 %% function run in main's process before Main, after the system references
 %% are bound and the standard library's lets evaluated, for the program's
@@ -1038,12 +1078,14 @@ arm(Deadline, To) ->
 %% caller rather than ending the program, as in the shell and under `ern
 %% test` (report §11.2); faults => fun((FaultReport) -> any()),
 %% given every fault as it happens (report §11.2); stdout, stderr =>
-%% fun((binary()) -> any()), stdin => fun(() -> eof | {error, term()} |
-%% unicode:chardata()), called for each read, and keys => the same for the
-%% terminal's keys, for tests (fed/1). Report §8.2: the standard streams
-%% carry bytes for the run, whatever the host's locale.
+%% fun((binary()) -> any()), or {fd, N} to write to the file descriptor
+%% through a port, which learns when the stream has gone (§8.2); stdin =>
+%% fun(() -> eof | {error, term()} | unicode:chardata()), called for each
+%% read, and keys => the same for the terminal's keys, for tests (fed/1).
+%% Report §8.2: the standard streams carry bytes for the run, whatever the
+%% host's locale.
 -type outcome() :: ok | killed | {fault, binary()} | {fault, binary(), binary()}
-                 | {exit, 0..255} | {signal, sigterm | sighup}.
+                 | {exit, 0..255} | {gone, stdout | stderr} | {signal, sigterm | sighup}.
 
 -spec run_main(fun(() -> term()), binary()) -> outcome().
 run_main(Main, Site) ->
@@ -1075,8 +1117,8 @@ run_main(Main, Site, Opts) ->
     %% report §8.2: keys come where standard input is a terminal, and from
     %% a test's keys
     KeysCome = maps:is_key(keys, Opts) orelse ern_tty:is_terminal(stdin),
-    System = [{stdout, erlang:spawn(fun() -> stdout_loop(Out) end)},
-              {stderr, erlang:spawn(fun() -> stdout_loop(Err) end)},
+    System = [{stdout, erlang:spawn(fun() -> stream(Out, stdout) end)},
+              {stderr, erlang:spawn(fun() -> stream(Err, stderr) end)},
               {stdin, erlang:spawn(fun() -> stdin_loop(Input) end)},
               {fs, erlang:spawn(fun ern_fs:loop/0)},
               {terminal, erlang:spawn(fun() -> ern_tty:loop(Keys, KeysCome) end)},
@@ -1123,6 +1165,8 @@ await_main(MainPid, Run) ->
             await_main(MainPid, Run);
         {exit, Run, Status} ->
             {exit, Status};
+        {gone, Run, Stream} ->
+            {gone, Stream};
         {signal, Run, Signal} ->
             {signal, Signal}
     end.
@@ -1421,7 +1465,8 @@ flush_run(Run) ->
         {{main_down, Run}, _, _} -> flush_run(Run);
         {deadlock, Run} -> flush_run(Run);
         {fault, Run, _} -> flush_run(Run);
-        {exit, Run, _} -> flush_run(Run)
+        {exit, Run, _} -> flush_run(Run);
+        {gone, Run, _} -> flush_run(Run)
     after 0 ->
         ok
     end.

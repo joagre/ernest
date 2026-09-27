@@ -8,6 +8,7 @@
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
+-include_lib("kernel/include/file.hrl").
 
 %% VERSION is the top-level VERSION file, passed by the Makefile.
 
@@ -19,9 +20,15 @@
 %% host's names are UTF-8 and the word is not, what decoding it left.
 -type word() :: string() | {error | incomplete, string(), binary()}.
 
+%% The escript: a run writes to the process's own standard output and
+%% standard error (reporting/2), and a run a signal ended ends by that
+%% signal once it has flushed (report §11.2).
 -spec main([word()]) -> no_return().
 main(Args) ->
-    halt(ern(Args, standard_error)).
+    persistent_term:put({?MODULE, streams}, fds),
+    Status = ern(Args, standard_error),
+    ern_signals:ended() =:= none orelse ern_signals:die(ern_signals:ended(), Status),
+    halt(Status).
 
 -spec ern([word()]) -> 0..255.
 ern(Args) ->
@@ -807,18 +814,47 @@ shell(Opts, Rest, Err) ->
 %% error's process, so that it keeps its place among what the program
 %% wrote there, and is flushed with it when the program ends. The runtime's
 %% own subscriber of Process.faults (Appendix E.21).
-report_fault({'FaultReport', Cause, _Process, Restarted, Site, Trace}) ->
+%% Where standard error is neither a terminal nor a service manager's
+%% journal, each line begins with the time, in UTC as RFC 3339 writes it.
+report_fault({'FaultReport', Cause, _Process, Restarted, Site, Trace}, Stamped) ->
     Faulted = case Restarted of
                   true -> <<" faulted, restarted: ">>;
                   false -> <<" faulted: ">>
               end,
-    ern_rt:send(ern_rt:sys(stderr), <<Site/binary, Faulted/binary, Cause/binary, "\n",
-                                      Trace/binary>>).
+    Time = case Stamped of
+               true -> [calendar:system_time_to_rfc3339(erlang:system_time(millisecond),
+                                                        [{unit, millisecond}, {offset, "Z"}]),
+                        " "];
+               false -> []
+           end,
+    ern_rt:send(ern_rt:sys(stderr), iolist_to_binary([Time, Site, Faulted, Cause, "\n", Trace])).
 
-%% The options of a run that reports its faults, its standard error being
-%% the error device, standard_error but in a test.
+%% The options of a run that reports its faults. From the command line the
+%% program writes to the process's own standard output and standard error,
+%% through ports that learn when a stream has gone (report §8.2), and a
+%% fault line carries its time where standard error is neither a terminal
+%% nor a journal (§11.2); in a test, standard error is the test's device.
 reporting(Opts, Err) ->
-    Opts#{faults => fun report_fault/1, stderr => fun(Bin) -> file:write(Err, Bin) end}.
+    case persistent_term:get({?MODULE, streams}, device) of
+        fds ->
+            Stamped = not ern_tty:is_terminal(stderr) andalso not journal(),
+            Opts#{faults => fun(R) -> report_fault(R, Stamped) end,
+                  stdout => {fd, 1}, stderr => {fd, 2}};
+        device ->
+            Opts#{faults => fun(R) -> report_fault(R, false) end,
+                  stderr => fun(Bin) -> file:write(Err, Bin) end}
+    end.
+
+%% Report §11.2: whether standard error is a service manager's journal,
+%% which systemd says by JOURNAL_STREAM, the device and inode of the
+%% stream it gave, so that a stream a shell has since redirected is not.
+journal() ->
+    case {os:getenv("JOURNAL_STREAM"), file:read_file_info("/dev/stderr")} of
+        {false, _} -> false;
+        {Stream, {ok, #file_info{major_device = Device, inode = Inode}}} ->
+            Stream =:= integer_to_list(Device) ++ ":" ++ integer_to_list(Inode);
+        _ -> false
+    end.
 
 %% The module of a `.erc`, its load path, and every module loaded for it:
 %% the file's own dependencies first (report §11.2, §4.2).
@@ -920,6 +956,9 @@ quiet_signals() ->
 %% number, and nothing for Os.exit, whose status is its own.
 outcome(_Err, ok) -> 0;
 outcome(_Err, {exit, Status}) -> Status;
+%% report §8.2, §11.2: a stream that can no longer be written, as a shell
+%% reports a broken pipe
+outcome(_Err, {gone, _Stream}) -> 128 + 13;
 outcome(Err, killed) -> io:format(Err, "killed~n", []), 1;
 outcome(_Err, {signal, Signal}) -> ern_signals:status(Signal);
 %% report §11.2: the entry process's fault has been reported as it happened
@@ -954,12 +993,13 @@ run_tests(Ns, Loaded, Err) ->
     Site = unicode:characters_to_binary(qname(Ns) ++ ".$tests"),
     %% report §11.2: a test's own fault is its line, and every other is
     %% reported as `ern run` reports it
-    Reporter = fun(Report) ->
-                   element(3, Report) =:= persistent_term:get({?MODULE, test}, none)
-                       orelse report_fault(Report)
-               end,
     %% report §11.2: Os.exit faults the test that calls it
     Opts = reporting(#{init => init_fun(Loaded), exit => fault}, Err),
+    Report = maps:get(faults, Opts),
+    Reporter = fun(R) ->
+                   element(3, R) =:= persistent_term:get({?MODULE, test}, none)
+                       orelse Report(R)
+               end,
     case ern_rt:run_main(Main, Site, Opts#{faults => Reporter}) of
         ok ->
             receive

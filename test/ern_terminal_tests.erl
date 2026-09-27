@@ -57,6 +57,18 @@ not_a_terminal() ->
     ?assertEqual({0, <<"no terminal\n">>},
                  sh("echo x | ../bin/ern run build/terminal/probe.erc")).
 
+%% report §11.2: at a terminal a fault line is as the reader watches it
+%% happen, without the time it begins with in a file. Written with the code.
+unstamped_at_a_terminal_test_() ->
+    {timeout, 60, fun unstamped_at_a_terminal/0}.
+
+unstamped_at_a_terminal() ->
+    ok = compile("terminal/faulty.ern", "terminal"),
+    {1, Screen} = pty("../bin/ern run build/terminal/faulty.erc",
+                      [{expect, "division by zero"}], 30),
+    ?assertMatch({match, _}, re:run(Screen, "^Faulty\\.main faulted: division by zero",
+                                    [multiline])).
+
 %% report §8.2, §8.6: a key is read as UTF-8 whatever the host's locale,
 %% and the terminal's interrupt ends a program that reads keys at once. A
 %% regression test for the raw mode set by stty alone, which turns the

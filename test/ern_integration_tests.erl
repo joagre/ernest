@@ -5,6 +5,7 @@
 -module(ern_integration_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("kernel/include/file.hrl").
 
 %% Report §11.1: an example compiled into test/build.
 -define(BUILD, "../bin/ern build --source-root ../examples --build-root build ").
@@ -24,7 +25,7 @@ program(Name) ->
     {0, _} = sh(?BUILD ++ "../examples/" ++ Name
                 ++ ".ern"),
     {0, Out} = sh("../bin/ern run build/" ++ Name ++ ".erc"),
-    ?assertEqual(expected(Name), lines(Out)).
+    ?assertEqual(expected(Name), unstamped(lines(Out))).
 
 %% Plan, MVP 2.5: the paper programs that the doors of step 4 opened.
 %% snake waits for a terminal, so it is only compiled here and ern_terminal_tests
@@ -96,14 +97,16 @@ del(Dir) ->
 
 %% A program that runs until it is stopped: started in Dir, stopped after
 %% Seconds with the signal named. Its status and its output are returned,
-%% standard error with standard output.
+%% standard error with standard output, and not the shell's own report of
+%% a job a signal ended.
 run_for(Dir, Cmd, Seconds, Signal) ->
     %% sh -c, since open_port runs the command with exec and `cd` is a builtin
-    {_, Out} = sh("sh -c 'cd " ++ Dir ++ " && { " ++ Cmd ++ " & p=$!; sleep "
-                  ++ integer_to_list(Seconds) ++ "; kill -" ++ Signal
-                  ++ " $p 2>/dev/null; wait $p; echo status $?; }'"),
-    [<<"status ", S/binary>> | Rest] = lists:reverse(lines(Out)),
-    {binary_to_integer(S), lists:reverse(Rest)}.
+    {_, Status} = sh("sh -c 'cd " ++ Dir ++ " && { " ++ Cmd ++ " > run.out 2>&1 & p=$!; sleep "
+                     ++ integer_to_list(Seconds) ++ "; kill -" ++ Signal
+                     ++ " $p 2>/dev/null; wait $p; echo status $?; }' 2>/dev/null"),
+    <<"status ", S/binary>> = string:trim(Status),
+    {ok, Out} = file:read_file(filename:join(Dir, "run.out")),
+    {binary_to_integer(S), lines(Out)}.
 
 %% report §8.6, §11.2: the host's hangup ends a program as its termination
 %% does, printing nothing, with status 128 plus the signal's number. A
@@ -233,8 +236,9 @@ stdin() ->
     ?assertEqual({1, <<"[ok] 2\n">>},
                  sh("printf 'ok\\n\\377\\nnext\\n' | LANG=C ../bin/ern run build/stdin/lines.erc 2>"
                     ++ Err)),
-    ?assertEqual({ok, <<"Lines.main faulted: the standard input is not UTF-8\n">>},
-                 file:read_file(Err)),
+    {ok, Said} = file:read_file(Err),
+    ?assertEqual([<<"Lines.main faulted: the standard input is not UTF-8">>],
+                 unstamped(lines(Said))),
     ?assertEqual({0, <<"head\n", 255, 16#e9/utf8, "tail\nbytes 8\n">>},
                  Run("head\\n\\377\\303\\251tail\\n", "stream")),
     %% a read does not wait for more than has arrived
@@ -276,6 +280,83 @@ os() ->
                               "ERN_BAD=\"$(printf 'caf\\351')\" " ++ Run ++ "env.erc"))
       end, ["C.UTF-8", "C"]).
 
+%% report §8.2, §8.6, §11.2: a run whose standard output has lost its
+%% reader ends at once, with status 141, as a shell reports a broken pipe,
+%% and the host says nothing of its own. A regression test, written after
+%% the code: the run went on to its end and then hung, and the host printed
+%% its report of the failed write among the program's output.
+stream_gone_test_() ->
+    {timeout, 60, fun stream_gone/0}.
+
+stream_gone() ->
+    Dir = "build/gone",
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/chatty.ern",
+                         "fn loop(n : Int) -> Unit with Never =\n"
+                         "    if n == 0 then Io.printlnError(\"finished\")\n"
+                         "    else { Io.println(\"line\"); loop(n - 1) }\n"
+                         "export fn main() -> Unit with Never = loop(100000000)\n"),
+    {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/chatty.ern"),
+    {0, Out} = sh("sh -c '{ ../bin/ern run " ++ Dir ++ "/chatty.erc 2> " ++ Dir
+                  ++ "/err; echo $? > " ++ Dir ++ "/status; } | head -1'"),
+    ?assertEqual(<<"line\n">>, Out),
+    ?assertEqual({ok, <<"141\n">>}, file:read_file(Dir ++ "/status")),
+    ?assertEqual({ok, <<>>}, file:read_file(Dir ++ "/err")).
+
+%% report §11.2: where standard error is a file, a fault line begins with
+%% the time, in UTC as RFC 3339 writes it; where it is a service manager's
+%% journal, as JOURNAL_STREAM names it, it does not, and a terminal's is
+%% ern_terminal_tests' to show. Written with the code.
+stamped_test_() ->
+    {timeout, 60, fun stamped/0}.
+
+stamped() ->
+    Dir = "build/stamped",
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/faulty.ern",
+                         "export fn main() -> Unit with Never = {\n"
+                         "    let z = List.size([]);\n"
+                         "    let _ = 1 / z;\n"
+                         "    Unit\n"
+                         "}\n"),
+    {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/faulty.ern"),
+    Err = Dir ++ "/err",
+    {1, _} = sh("../bin/ern run " ++ Dir ++ "/faulty.erc 2> " ++ Err),
+    {ok, Stamped} = file:read_file(Err),
+    ?assertMatch({match, _}, re:run(Stamped, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:"
+                                              "[0-9]{2}\\.[0-9]{3}Z Faulty\\.main faulted: "
+                                              "division by zero\n$")),
+    ok = file:write_file(Err, <<>>),
+    {ok, #file_info{major_device = Device, inode = Inode}} = file:read_file_info(Err),
+    {1, _} = sh("env JOURNAL_STREAM=" ++ integer_to_list(Device) ++ ":" ++ integer_to_list(Inode)
+                ++ " ../bin/ern run " ++ Dir ++ "/faulty.erc 2> " ++ Err),
+    ?assertEqual({ok, <<"Faulty.main faulted: division by zero\n">>}, file:read_file(Err)).
+
+%% report §8.6, §11.2: the host's termination and hangup end `ern run` by the
+%% signal itself once its output is flushed, so that the process that started
+%% it sees a signal's end, as a service manager counts a stop it asked for.
+%% A regression test, written after the code: it exited with 128 plus the
+%% signal's number, which a shell reads the same and a service manager as a
+%% failure.
+signal_end_test_() ->
+    {timeout, 60, fun signal_end/0}.
+
+signal_end() ->
+    Dir = "build/hangup",
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/waits.ern",
+                         "export fn main() -> Unit with Never =\n"
+                         "    receive { after 60000 -> Io.println(\"late\") }\n"),
+    {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
+    Python = "import subprocess, time, signal\n"
+             "for s in (signal.SIGTERM, signal.SIGHUP):\n"
+             "    p = subprocess.Popen(['../bin/ern', 'run', '" ++ Dir ++ "/waits.erc'])\n"
+             "    time.sleep(2)\n"
+             "    p.send_signal(s)\n"
+             "    print(p.wait(timeout=30))\n",
+    ok = file:write_file(Dir ++ "/signals.py", Python),
+    ?assertEqual({0, <<"-15\n-1\n">>}, sh("python3 " ++ Dir ++ "/signals.py")).
+
 %% report §4.2, §11.1: the two-module pair in directory mode
 modules_test() ->
     {0, _} = sh("../bin/ern build --build-root build/modules ../examples/modules"),
@@ -288,6 +369,13 @@ expected(Name) ->
 
 lines(Bin) ->
     lists:sort(binary:split(Bin, <<"\n">>, [global, trim])).
+
+%% Report §11.2: `ern run`'s fault lines as a terminal shows them, without
+%% the time a line begins with where standard error is a file or a pipe,
+%% as it is here; stamped_test_ checks the time itself.
+unstamped(Lines) ->
+    lists:sort([re:replace(L, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z ", "", [{return, binary}])
+                || L <- Lines]).
 
 sh(Cmd) ->
     Port = open_port({spawn, Cmd}, [exit_status, stderr_to_stdout, binary]),
