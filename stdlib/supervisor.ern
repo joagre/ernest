@@ -205,7 +205,8 @@ fn stopAll(children : List(Member)) -> Unit with Watch = match children {
 /// ### Errors
 ///
 /// `Fault("the supervisor has ended")` when `sup` has ended before the
-/// child joins.
+/// child joins, and `Fault("a child runs on its supervisor's node")` when
+/// `sup` is on another node, which MVP 3.0 checks once there are peers.
 ///
 /// ### Examples
 ///

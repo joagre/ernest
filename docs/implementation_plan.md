@@ -713,6 +713,11 @@ peers are the useful one.
   where it was made applies the function on delivery; one made around another node's process
   faults. Both notes were revised the same day, so a message fetches nothing and no fetch
   pauses a connection.
+- **A supervisor's children run on its node**, decided 2026-09-27 (Appendix E.22; the log's
+  *The `Supervisor`'s Shape*). Built here: `Supervisor.child` asks the runtime, through a
+  private shim, whether `sup` is on the child's node, and faults with `a child runs on its
+  supervisor's node` before it joins when it is not. Until peers exist every process is on
+  one node, so the check has nothing to find.
 
 ---
 
