@@ -33,7 +33,7 @@ Whether the project agrees with itself: the report with its principles and with 
 
 ## Readers
 
-- **A reader who took no part reads.** Every finding no test found came from the terminal harness under load, a read-back of code, an independent reader, or the user.
+- **A reader who took no part reads**, since what no test found has come from such readers (CLAUDE.md, *Tests*).
 - **One lens a reader.** A reader is given one row's question and the files that answer it, and nothing that argues for the text; a cold reader is never given the log.
 - **Every finding is decided.** It is fixed with a regression test, planned in a named milestone with its shape, or weighed and kept with a line in the log. The report changes first.
 - **A reader hands in** a numbered list, most serious first, each finding with where, a short quote, what is wrong, and a one-line fix, defects apart from matters of clarity; it reads only the files named and edits nothing.
