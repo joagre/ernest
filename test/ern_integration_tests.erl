@@ -120,6 +120,29 @@ hangup() ->
     {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
     ?assertEqual({129, []}, run_for(Dir, "../../../bin/ern run waits.erc", 2, "HUP")).
 
+%% report §8.6, §11.2: the host's interrupt ends a program at once, printing
+%% nothing, with status 128 plus the signal's number. The run is started
+%% from here rather than by a shell, which would start it with the
+%% interrupt ignored. Written after the code, with the sentence of §11.2
+%% that states the status.
+interrupt_test_() ->
+    {timeout, 60, fun interrupt/0}.
+
+interrupt() ->
+    Dir = "build/interrupt",
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/waits.ern",
+                         "export fn main() -> Unit with Never =\n"
+                         "    receive { after 60000 -> Io.println(\"late\") }\n"),
+    {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
+    Port = open_port({spawn_executable, "../bin/ern"},
+                     [{args, ["run", Dir ++ "/waits.erc"]}, exit_status, stderr_to_stdout,
+                      binary]),
+    {os_pid, Pid} = erlang:port_info(Port, os_pid),
+    timer:sleep(2000),
+    _ = os:cmd("kill -INT " ++ integer_to_list(Pid)),
+    ?assertEqual({130, <<>>}, collect(Port, [])).
+
 %% Paper program 1 (plan, MVP 2.5): the server serves until it is
 %% stopped, so the harness starts it, makes two requests over one session,
 %% and stops it. The second request carries the cookie the first set, and
