@@ -417,7 +417,8 @@ map_key_equality_test() ->
 %% Effects (report §3.9, §6.1)
 %%
 
-%% report §3.9, §6.1
+%% report §0, §3.9, §6.1: a function that acts through its process names its
+%% mailbox in its type, and one that does not is pure
 effects_test() ->
     ?assertEqual("() -> Unit with e", type_of("export fn main() = Io.println(\"x\")", main)),
     ?assertEqual("() -> Unit with Never",

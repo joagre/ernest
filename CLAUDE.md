@@ -13,7 +13,7 @@ The rules are in the order of work: what is authoritative and who owns each fact
 ## Who owns each fact
 
 - **Each fact has one owner.** The report owns the language, [`docs/decisions.md`](docs/decisions.md) the rationale, [`docs/implementation_plan.md`](docs/implementation_plan.md) the roadmap, the code and its tests what is built, and [`docs/architecture.md`](docs/architecture.md) how the code is arranged.
-- **The other documents own one thing each.** [`docs/style.md`](docs/style.md) owns the code's form; the README the layout and the commands; a design note its component's design (`docs/shell_design.md`, `docs/node_protocol.md`, `docs/code_distribution.md`); [`shell/README.md`](shell/README.md) how the shell's code reads; [`docs/emacs_mode.md`](docs/emacs_mode.md) the Emacs mode; [`docs/module_doc_template.md`](docs/module_doc_template.md) the worked example of a documented module, which a test holds equal to `ern doc`'s output; [`docs/review.md`](docs/review.md) the review before a release; and [`docs/language_feedback.md`](docs/language_feedback.md) what writing Ernest has felt against the principles, until a plan item decides it.
+- **The other documents own one thing each.** [`docs/style.md`](docs/style.md) owns the code's form; the README the layout and the commands; a design note its component's design (`docs/shell_design.md`, `docs/node_protocol.md`, `docs/code_distribution.md`); [`shell/README.md`](shell/README.md) how the shell's code reads; [`docs/emacs_mode.md`](docs/emacs_mode.md) the Emacs mode; [`docs/module_doc_template.md`](docs/module_doc_template.md) the worked example of a documented module, which a test holds equal to `ern doc`'s output; [`docs/coherence.md`](docs/coherence.md) the checks that the project agrees with itself, and when each runs; [`docs/review.md`](docs/review.md) what a release adds to them; and [`docs/language_feedback.md`](docs/language_feedback.md) what writing Ernest has felt against the principles, and what a coherence reader found that questions the language, until a plan item decides it.
 - **The decisions log is rationale only.** It says why the report and the plan say what they say, and changes with them. It is never normative.
 - **The plan and the programs under `examples/` are illustrative.** They are the roadmap and the motivating examples, not sources of truth about the language.
 - **Every other document points at the owner and does not restate it.** The README says where things are, not what they are.
@@ -66,32 +66,27 @@ The rules are in the order of work: what is authoritative and who owns each fact
 
 ## Tests
 
-- **Every report section has a test.** Each has at least one test whose comment cites it (`%% report §5.4`); a section without a test is not implemented. `make sections` lists the sections without one, `make coverage` how thinly each is cited, and `make xref`, also part of `make test`, fails on a citation that names no heading.
+- **Every report section has a test.** Each has at least one test whose comment cites it (`%% report §5.4`); a section without a test is not implemented, and `make sections` names it (the README, *Building*).
 - **A test written after the code is a regression test.** Say so, and name what it does not cover. A test that passed on its first run has confirmed the code, not discovered anything; what has actually found defects here is the terminal harness under load, a read-back of the resulting code, an independent reader, and the user.
-- **Run the check that fits the change, and the whole suite once per plan item.** A change runs the areas it touches: under `erl/<app>`, `make test-erl APP=<app>` and `make test-programs`; under `stdlib/`, `make test-erl APP=runtime` and `make test-programs`; under `shell/`, `make test-shell`; the guide, `make test-guide` and `make test-docs`; any other document, `make test-docs` (or `make xref` for the section citations and document paths alone); the Emacs mode, `make test-emacs`. A change to the checker, the emitter, or the runtime reaches every area, and runs `make test`. The whole of `make test` runs once per plan item, before the commit that closes it.
+- **Run the check that fits the change, and the whole suite once per plan item.** What each kind of change runs is [`docs/coherence.md`](docs/coherence.md)'s, and the whole of `make test` runs once per plan item, before the commit that closes it.
 
 ## Writing
 
 - **The report and the guide are tight, in a Wirth language report's register.** State the rule; no rationale, no restating.
-- **Clear before short.** A rule reads easily at first pass, in plain sentences, one rule per sentence, its exception and its example in sentences of their own, never compressed into a cryptic one. A sentence is cut for restating or rationale, never for the count alone.
+- **Clear before short.** A rule reads easily at first pass, in plain sentences, one rule per sentence, its exception and its example in sentences of their own, never compressed into a cryptic one. A sentence is cut for restating or rationale, never for the count alone: there is no word limit, and a long section is kept when every sentence states a rule of its own.
 - **A report edit updates the revision date** in its line 3.
-- **The report's section numbers never change.** Other documents, the tests, and the code cite them, so an edit stays inside the existing headings, and a new rule goes into the section it belongs to.
-- **A report section over 600 words is read for restating.** There is no word limit; a long section is kept when every sentence states a rule of its own.
+- **The report's section numbers never change.** Other documents, the tests, and the code cite them. A new rule goes into the section it belongs to. A section is never renumbered, removed, or put between two others; where no existing section can hold a rule, a new one is added at the end of its chapter or appendix. The guide's numbers change only where a section cannot be placed otherwise.
 - **Compiler behaviour goes to §11** of the report.
 - **The log records arguments, never who proposed them.** No document or message names who suggested an idea, or that person's role; it states the argument.
 
 ## Reading back
 
-- **Read the result back before reporting it.** After a design change, read the resulting Ernest code as a reader who knows the rest of Ernest would, against principles 1 and 2 and Appendix E.0, and say what surprised. The principles apply to the standard library and the toolchain as much as to the language.
-- **A change to a section the guide teaches is followed by a re-read of the guide** against it.
-- **Sweep the documents after a batch of report changes, and at the end of every plan step.** Two readings, the guide against the report and every other document against the report and the code; both have found real defects every time. A reader who did not write the text reads best.
-- **After renumbering a document's sections, read every citation of the old numbers.** The citation check confirms that a number exists, not that it still names what the sentence means.
-- **A document meant to teach is read cold.** A reader who knows another language and not Ernest reads it alone, and where they got lost is fixed; a check against the report does not show whether it teaches.
+- **Read the result back before reporting it.** After a design change, read the resulting Ernest code as a reader who knows the rest of Ernest would, against the principles and Appendix E.0, and say what surprised. The principles apply to the standard library and the toolchain as much as to the language.
 
 ## Done
 
 - **Stop after each plan item.** Finish it fully, with its tests, documents, conformance section, and commit, then report the status and any open report question, and wait. The next item starts in the next turn, since each is a rule with design choices the user wants to see before the next builds on it.
-- **Done means four things:** the tests pass; the conformance section is written; every known gap is in the plan; and the same commit removes every sentence elsewhere, in the README's table, the plan's tables, or an example's header, that says the item still waits.
+- **Done means four things:** the tests and the coherence checks for what the item touched pass, as [`docs/coherence.md`](docs/coherence.md) says; the conformance section is written; every known gap is in the plan; and the same commit removes every sentence elsewhere, in the README's table, the plan's tables, or an example's header, that says the item still waits.
 - **Commit only after the checks pass.** A commit follows a passing check, never a command chained after it with `;`. Push only when the user says so.
 - **Every message that reports code work ends with a "Report conformance" section.** It lists the sections applied; every place the report was silent and what was done; and every deliberate omission, with the MVP that will lift it and the error the code gives meanwhile. If nothing was silent, it says "none". The section is not optional, and "tests green" does not replace it.
 

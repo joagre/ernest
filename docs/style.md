@@ -5,7 +5,7 @@ The style guides for the two languages of this repository, Erlang and Ernest. CL
 Four rules hold whatever the language, and `test/ern_style_tests.erl` checks the second, the third, and the fourth's Erlang half:
 
 - A step of indentation is four spaces.
-- No file holds a tab.
+- No file holds a tab, but a Makefile, whose recipes need one.
 - A line of code is at most 100 characters. Prose in markdown may be longer.
 - A name in a namespace the repository shares with other code carries the repository's name: an Erlang module begins `ern`, an Emacs Lisp symbol `ernest-`.
 

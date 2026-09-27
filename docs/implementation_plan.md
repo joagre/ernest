@@ -561,6 +561,8 @@ Line Is `Os`'s*), and the exit status the same day (the log's *A Program Ends Wi
   without the program's name; everything after the module is the program's. An argument
   that is not UTF-8 makes `ern run` refuse to start, naming it (§11.2). Under `ern test` and
   in the shell it is the empty list. Parsing options from the list is a library's, by E.0.
+  Guide §1.3 then teaches a program's input with `Os.arguments`, before standard input,
+  since arguments are the first input a program started from a command line takes.
 - **`Os.environment : Map(String, String)`**, read with `Map.get`. A variable whose name or
   value is not UTF-8 is left out, and the report says so. With it, the shell reads
   `NO_COLOR` in Ernest, where its front end reads it today.
@@ -591,22 +593,17 @@ Line Is `Os`'s*), and the exit status the same day (the log's *A Program Ends Wi
   with `exited with status n` and the run goes on (§11.2). Its module page says in a line
   that it ends the program, not a process, which is `kill` or a return.
 
-**Memory, read for what only grows.** Noted 2026-09-26. The line it draws: waste the garbage
-collector reclaims is allowed, and growth over time that no collection reclaims is a defect,
-in the runtime, in the toolchain and the shell, and in Ernest code alike. The Erlang code under `erl/` and
-every Ernest program in the repository, the standard library, the shell, `libs/` and
-`examples/`, read again for memory that is kept with no need, capped or not, as the table of
-ended processes was (MVP 2.65 step 8, *A Process Is Watched From Its Start*): a table, a
-cache, a list or a map that grows with the work done rather than with what is alive. The
-reading is checked by measurement: representative programs, the examples, the shell under a
-long session, a server under many requests, each run under load with the host's memory, its
-atoms and its processes measured before and after, as the shell was in step 8, whose
-per-input growth reading alone had not shown. Each finding is fixed, or decided with the user
-where the fix changes what the language promises. A cap on a list, a table or a cache is
-never the fix, and every cache found is weighed for what it holds and when it lets go
-(CLAUDE.md, *Memory that no collection reclaims is a defect*). The item names its load programs,
-a server under many requests among them, the iterations each runs, and the growth it
-tolerates in memory, atoms and processes; `review.md`'s R3 runs them before every release.
+**Memory, read for what only grows.** Noted 2026-09-26, by CLAUDE.md's *Memory that no
+collection reclaims is a defect*. The Erlang code under `erl/` and every Ernest program in
+the repository, the standard library, the shell, `libs/` and `examples/`, read again for
+memory kept with no need, capped or not, as the table of ended processes was (MVP 2.65 step
+8, *A Process Is Watched From Its Start*): a table, a cache, a list or a map that grows with
+the work done rather than with what is alive. The reading is checked by measurement, as the
+shell's was in step 8, whose per-input growth reading alone had not shown. The item names
+its load programs, the examples, the shell under a long session and a server under many
+requests among them, the iterations each runs, and the noise within which memory, atoms
+and processes count as flat; `review.md`'s R3 runs them before every release. Each finding
+is fixed, or decided with the user where the fix changes what the language promises.
 
 **The shell's code memory, diagnosed.** Noted 2026-09-26, at the close of MVP 2.65's step
 10: with the holders of `it` freed, the shell's memory is flat from 2,000 inputs to 8,000,
@@ -643,7 +640,7 @@ A release is the language reviewed whole, documented where a reader looks, and i
 
 1. **Manual pages, investigated.** `ern doc` writes a module's page as CommonMark today (report §11.4); an option writes it as a manual page instead, so that `man Ernest.List` answers at a terminal. The doc blocks are CommonMark, and `libs/markdown` already parses it for the shell, so the investigation is a renderer to roff beside the terminal's. Decided here, with the user, before it is built: **the pages' names and section**, `Ernest.List` in section 3 with a suffix of Ernest's own, as Erlang's `3erl` and Perl's `3pm` are, or another; whether the toolchain has an `ern(1)` page, and what owns its text, since §11 does.
 2. **An installation.** `make install` builds Ernest and installs it under a prefix, `/usr/local` by default, and `make uninstall` removes it. Decided here, with the user, before it is built, and written then as a design note, `docs/install.md`: **how it is relocatable without a configure step**, the direction discussed on 2026-09-26 being `PREFIX` and `DESTDIR` as make variables and an installed `bin/ern` that finds its tree by following its own link; **the layout under the prefix**, the toolchain's tree in `lib/ernest` and the manual pages in `share/man/man3`; what the installation requires beside it, Erlang/OTP 29 on the path; and the operating systems the release supports, decided 2026-09-27: Linux and macOS, which the README names and `review.md`'s R6 runs on.
-3. **The review**, performed just before the release, decided 2026-09-27, so that it reviews the manual pages and the installation with the rest; every finding is decided before the tag. [`review.md`](review.md) owns it: every row of [`coherence.md`](coherence.md) whole, then a release's own rows. Its ledger is a table here, as MVP 2.65's step 10 had. The tools the coherence rows need are built before the review begins, each with its tests: `make dialyzer` and an Erlang xref target (`coherence.md` C13), the test of the report's own examples (C17), the program that reads Appendix A (C18), and the catalogue of one small program for every error the checker gives (C21). The review's own tools are built as it reaches them: the run under `+T` and under load (`review.md` R2), and the test that runs the README's commands in a fresh clone (R4). What a first release leaves out, MVP 3.9 takes: the written argument that a well-typed program does not go wrong, the generator of programs that type-check, and the property runner for the standard library's laws.
+3. **The review**, performed just before the release, decided 2026-09-27, so that it reviews the manual pages and the installation with the rest, as [`review.md`](review.md) says; every finding is decided before the tag. Its ledger is a table here, as MVP 2.65's step 10 had. The tools the coherence rows need are built before the review begins, each with its tests: `make dialyzer` and an Erlang xref target ([`coherence.md`](coherence.md) C13), the report's blocks marked as the guide's are and the test of its examples (C17), the program that reads Appendix A (C18), and the catalogue of one small program for every error the lexer, the parser and the checker give (C21). The review's own tools are built as it reaches them: the run under `+T 9` and under load (`review.md` R2), and the test that runs the README's commands in a fresh clone (R4). What a first release leaves out, MVP 3.9 takes: the written argument that a well-typed program does not go wrong, the generator of programs that type-check, and the property runner for the standard library's laws.
 
 4. **The release**, tagged once the review is done, with its notes (`review.md`, *Done*).
 

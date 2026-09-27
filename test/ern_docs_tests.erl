@@ -23,8 +23,9 @@ citations_resolve_test() ->
     GuideHeads = headings(Guide),
     Live = ["ernest_report.md", "README.md", "CLAUDE.md", "docs/implementation_plan.md",
             "docs/architecture.md", "docs/shell_design.md", "docs/module_doc_template.md",
-            "docs/coherence.md", "docs/review.md"]
-        ++ examples() ++ stdlib(),
+            "docs/coherence.md", "docs/review.md", "docs/style.md", "docs/emacs_mode.md",
+            "docs/node_protocol.md", "docs/code_distribution.md", "shell/README.md"]
+        ++ examples() ++ stdlib() ++ shell(),
     Dangling =
         [{F, C} || F <- Live, C <- cites(read(F)), not resolves(C, report, ReportHeads, GuideHeads)]
         ++ [{"ernest_guide.md", C} || C <- cites(Guide),
@@ -133,6 +134,12 @@ examples() ->
     [filename:join("examples", F)
      || F <- filelib:wildcard("**/*.ern", filename:join(?ROOT, "examples")),
         hd(filename:basename(F)) =/= $.].
+
+%% The shell's Ernest source, whose comments cite the report as the
+%% standard library's do.
+shell() ->
+    [filename:join("shell", F)
+     || F <- filelib:wildcard("**/*.ern", filename:join(?ROOT, "shell"))].
 
 stdlib() ->
     [filename:join("stdlib", F)

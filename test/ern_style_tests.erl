@@ -6,11 +6,11 @@
 -define(ROOT, "..").
 
 %% docs/style.md: code lines are at most 100 characters, in the compiler's
-%% Erlang and in Ernest alike; the vendored getopt keeps its upstream form
+%% Erlang, its C and in Ernest alike; the vendored getopt keeps its upstream form
 line_length_test() ->
-    Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "test/*.erl", "stdlib/**/*.ern",
-                "examples/**/*.ern", "shell/**/*.ern", "test/**/*.ern", "test/*.py",
-                "emacs/*.el", "emacs/test/*.el", "libs/**/*.ern"],
+    Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "erl/*/c_src/*.c", "test/*.erl",
+                "stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern", "test/**/*.ern",
+                "test/*.py", "emacs/*.el", "emacs/test/*.el", "libs/**/*.ern"],
     Files = [F || P <- Patterns, F <- filelib:wildcard(P, ?ROOT),
                   filename:basename(F) =/= "getopt.erl",
                   not editor_artifact(filename:basename(F))],
@@ -20,9 +20,11 @@ line_length_test() ->
                       string:length(Line) > 100],
     ?assertEqual([], Long).
 
-%% docs/style.md: no file holds a tab; the vendored getopt keeps its upstream form
+%% docs/style.md: no file holds a tab but a Makefile; the vendored getopt keeps its
+%% upstream form
 no_tab_test() ->
-    Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "erl/*/include/*.hrl", "test/*.erl",
+    Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "erl/*/include/*.hrl", "erl/*/c_src/*.c",
+                "test/*.erl",
                 "stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern", "test/**/*.ern",
                 "test/*.py", "emacs/*.el", "emacs/test/*.el", "emacs/test/broken/*.ern",
                 "libs/**/*.ern", "libs/*/*.md", "*.md", "docs/*.md"],

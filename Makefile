@@ -158,11 +158,14 @@ xref:
 contents:
 	@$(MAKE) -s -C test contents
 
-# Report sections no test cites (every test function carries a `%% report §x.y` line).
+# Report sections no test cites (every test function carries a `%% report §x.y` line):
+# every numbered section and every appendix, a chapter cited through its sections.
 sections:
-	@grep -oE '^#{2,3} [0-9]+\.[0-9]+' ernest_report.md | sed 's/^#* //' | \
-	  while read s; do grep -oh "\(guide \)\?§$$s\b" erl/*/test/*.erl test/*.erl | \
-	    grep -qv '^guide' || echo "§$$s"; done
+	@grep -oE '^#{2,3} ([0-9]+(\.[0-9]+)?\.? |Appendix [A-F](\.[0-9]+)?\.)' ernest_report.md | \
+	  sed -E 's/^#+ //; s/\.? $$//; s/\.$$//; s/^([0-9])/§\1/' | \
+	  while read -r s; do p=$$(printf '%s' "$$s" | sed 's/\./\\./g'); \
+	    grep -ohE "(guide )?$$p\b" erl/*/test/*.erl test/*.erl | \
+	    grep -qv '^guide' || echo "$$s"; done
 
 # Every report section with the number of tests citing it and its length in
 # words, thinnest first: few citations on a long section is where a rule can

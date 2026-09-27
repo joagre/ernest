@@ -2127,6 +2127,42 @@ os_run_is_a_source_test() ->
     ?assertEqual({ok, <<"0|Some(\"\")|Some(\"\")\n">>},
                  os_run("\"sleep\"", "[\"0.5\"]", "<<>>", "5000")).
 
+%% report §10: a tail call takes constant stack space, through the branches
+%% of an `if`, the clauses of a `match`, and the last expression of a block:
+%% ten million calls run in a process whose heap, its stack counted, may not
+%% pass a hundred thousand words
+tail_calls_constant_stack_test() ->
+    {ok, Typed, Iface, Env} = ern_typecheck:check_string(['M'],
+        "export fn count(n : Int, acc : Int) -> Int =\n"
+        "    if n == 0 then acc\n"
+        "    else match n % 2 {\n"
+        "        0 -> { let next = acc + 1; count(n - 1, next) }\n"
+        "      | _ -> count(n - 1, acc + 1)\n"
+        "    }\n"),
+    {ok, Mod, Bin} = ern_emitter:compile(['M'], Typed, Iface, Env),
+    {module, Mod} = code:load_binary(Mod, "test", Bin),
+    Me = self(),
+    {_, Ref} = spawn_opt(fun() -> Me ! {counted, Mod:count(10000000, 0)} end,
+                         [monitor, {max_heap_size, #{size => 100000, kill => true,
+                                                      error_logger => false}}]),
+    Result = receive {counted, N} -> N; {'DOWN', Ref, process, _, Why} -> {died, Why} end,
+    ?assertEqual(10000000, Result).
+
+%% report §10: processes are scheduled preemptively, so one that computes
+%% for ever does not keep another from running; and Int has arbitrary
+%% precision
+preemption_and_precision_test() ->
+    {ok, Out} = run(
+        "fn spin(n : Int) -> Int = spin(n + 1)\n"
+        "fn power(b : Int, e : Int) -> Int = if e == 0 then 1 else b * power(b, e - 1)\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    let w = spawn(Local, fn() -> Unit with Never = { let _ = spin(0); Unit });\n"
+        "    receive { after 50 -> Unit };\n"
+        "    Io.println(Int.toString(power(2, 100)));\n"
+        "    kill(w)\n"
+        "}\n"),
+    ?assertEqual(<<"1267650600228229401496703205376\n">>, Out).
+
 %% report §6.2, §6.7: work on a peer is a process spawned there, and a peer
 %% the node cannot reach faults the caller. A regression test, written
 %% after the code; one node runs until MVP 3.0, so it does not cover a
