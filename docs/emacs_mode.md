@@ -27,7 +27,7 @@ Derived from `prog-mode`, not from CC Mode.
   replaces only the white space that differs, so point, the mark and every window stay on
   their text. A buffer that does not parse is left as it is, and the diagnostic is shown in
   the buffer `*ern format*`, naming the buffer where the formatter names standard input `-`.
-  `ernest-format-on-save-mode` runs it as a buffer is saved, and never refuses the save.
+  `ernest-format-on-save-mode` runs it as a buffer is saved, and never refuses the save; a formatter that cannot run is reported in `*ern format*` too.
   `ernest-format-command` names the `ern` it runs.
 
 It calls the toolchain only to lay out a buffer; the compiler is `M-x compile`'s.
@@ -61,7 +61,11 @@ between tokens and keeps one inside a string or a comment:
 (add-hook 'ernest-mode-hook #'ernest-format-on-save-mode)
 ```
 
-`ern` is found on `exec-path`; `ernest-format-command` names another.
+`ern` is found on `exec-path`; `ernest-format-command` names another. An Emacs started from a desktop menu has the `PATH` of the login session, not the one a shell's startup file sets, and `bin/ern` reached through a link does not yet find its tree (MVP 2.95), so naming the checkout's own is the sure way:
+
+```elisp
+(setq ernest-format-command (expand-file-name "~/src/ernest/bin/ern"))
+```
 
 The mode's reserved words and operators restate Appendix A, so
 `emacs_mode_mirrors_the_lexer_test` in `test/ern_style_tests.erl` checks them against the
@@ -83,7 +87,7 @@ runs, and then runs them; `make test` runs them last, and a machine without Emac
 | `broken.el` over `broken/` | each half-typed buffer keeps its indentation, and a fresh line at its end takes the column a person expects |
 | `colour.el` | one check for each kind of face, and what must not be painted |
 | `editing.el` | `imenu`, declaration movement, the diagnostic regexp |
-| `format.el` | a buffer is laid out with point on its token; `shell.ern`, every line moved to column zero, comes back as it was, point and mark in place; a buffer that does not parse is left as typed and its diagnostic names it; a formatter's text that differs beyond white space is refused; the init file's line lays out a buffer as it is saved, and a buffer that does not parse, or an `ern` that is not there, is saved as typed |
+| `format.el` | a buffer is laid out with point on its token; `shell.ern`, every line moved to column zero, comes back as it was, point and mark in place; a buffer that does not parse is left as typed and its diagnostic names it; a formatter's text that differs beyond white space is refused; the init file's line lays out a buffer as it is saved, and a buffer that does not parse, or an `ern` that is not there, is saved as typed, and `*ern format*` says why |
 
 `reindent.el` and `flatten.el` cannot find a defect in a line the mode itself placed. A case in `broken/`,
 written to [`style.md`](style.md) by hand, can.

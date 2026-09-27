@@ -691,7 +691,10 @@ buffer `*ern format*'."
               (progn
                 (ernest--format-apply out)
                 (ernest--format-clear))
-            (ernest--format-show err name default-directory)))
+            (ernest--format-show (with-temp-buffer
+                                   (insert-file-contents err)
+                                   (buffer-string))
+                                 name default-directory)))
       (kill-buffer out)
       (delete-file err))))
 
@@ -754,15 +757,17 @@ on the token after it."
     (delete-region (point) (- end suffix))
     (insert-before-markers (substring want prefix (- (length want) suffix)))))
 
-(defun ernest--format-show (err name directory)
-  "Show the diagnostic in the file ERR, for the buffer NAME in DIRECTORY.
+(defun ernest--format-show (text name directory)
+  "Show TEXT, why the buffer NAME in DIRECTORY was not laid out.
+It is the formatter's diagnostic, or why the formatter did not run.
 The formatter names standard input `-', so NAME takes its place, and
 the diagnostic's position can be followed as a compilation's can."
   (let ((errors (get-buffer-create ernest--format-errors)))
     (with-current-buffer errors
       (let ((inhibit-read-only t))
         (erase-buffer)
-        (insert-file-contents err)
+        (insert text)
+        (goto-char (point-min))
         (when (looking-at-p "-:")
           (delete-char 1)
           (insert name)))
@@ -780,10 +785,14 @@ the diagnostic's position can be followed as a compilation's can."
           (kill-buffer errors))))))
 
 (defun ernest--format-before-save ()
-  "Lay out the buffer as it is saved.  Nothing here refuses the save."
+  "Lay out the buffer as it is saved.  Nothing here refuses the save.
+A formatter that cannot run is reported in the buffer `*ern format*',
+since a message would be hidden at once by the save's own."
   (condition-case failure
       (ernest-format-buffer)
-    (error (message "Not laid out: %s" (error-message-string failure)))))
+    (error
+     (ernest--format-show (format "Not laid out: %s\n" (error-message-string failure))
+                          (buffer-name) default-directory))))
 
 (define-minor-mode ernest-format-on-save-mode
   "Lay out the buffer with `ernest-format-buffer' each time it is saved.

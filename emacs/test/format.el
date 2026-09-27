@@ -125,7 +125,14 @@
                                  (nth 2 case))
             (when (equal (nth 0 case) "broken.ern")
               (ernest-format--want "the diagnostic on save" (ernest-format--diagnostic)
-                                   "broken.ern:1:7: expected a pattern instead of `=`")))
+                                   "broken.ern:1:7: expected a pattern instead of `=`"))
+            ;; a formatter that cannot run is shown where a diagnostic is,
+            ;; since the save's own message would hide a message at once
+            (when (equal (nth 0 case) "missing.ern")
+              (ernest-format--want "why a save was not laid out"
+                                   (string-prefix-p "Not laid out: Searching for program"
+                                                    (ernest-format--diagnostic))
+                                   t)))
           (kill-buffer buffer)))
     (delete-directory directory t)))
 
