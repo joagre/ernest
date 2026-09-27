@@ -241,9 +241,17 @@ stdin() ->
                  unstamped(lines(Said))),
     ?assertEqual({0, <<"head\n", 255, 16#e9/utf8, "tail\nbytes 8\n">>},
                  Run("head\\n\\377\\303\\251tail\\n", "stream")),
-    %% a read does not wait for more than has arrived
+    %% a read does not wait for more than has arrived: the second byte is
+    %% written once the program has said it read the first, so that how long
+    %% the host takes to start, about as long as the one second the writer
+    %% had paused, plays no part (it had failed when the start took longer)
     ?assertEqual({0, <<"1\n1\nend\n">>},
-                 sh("sh -c 'printf a; sleep 1; printf b' | ../bin/ern run build/stdin/chunks.erc")).
+                 sh("sh -c 'rm -f build/stdin/in build/stdin/out; mkfifo build/stdin/in; "
+                    "../bin/ern run build/stdin/chunks.erc < build/stdin/in > build/stdin/out & "
+                    "exec 3> build/stdin/in; printf a >&3; n=0; "
+                    "until grep -q 1 build/stdin/out || [ $n -ge 400 ]; "
+                    "do sleep 0.05; n=$((n + 1)); done; "
+                    "printf b >&3; exec 3>&-; wait; cat build/stdin/out'")).
 
 %% report §11.2, Appendix E.23, E.17: as the host gives them, under a UTF-8
 %% locale and under C, whose names the host takes as bytes: `ern run`
