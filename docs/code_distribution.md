@@ -148,7 +148,7 @@ Because the whole transitive closure is present before anything runs, and a hash
 
 If the exchange fails, the spawn fails, and the caller of `spawn` faults (report §8.7). The node protocol's section 6.4, where a failed spawn gives a dead address instead, is among the places the plan's MVP 3.0 brings in line.
 
-A message needs no exchange. It holds no function, since one faults the sender at the `send` (report §3.11), and its types are those of the mailbox type of the process it goes to, which that process's node holds, since the process runs code that names them. A message whose type hash does not match the receiving code is dropped (node protocol, section 5.4).
+A message needs no exchange. It holds no function, since one faults the sender at the `send` (report §3.11), and its types are those of the mailbox type of the process it goes to, which that process's node holds, since the process runs code that names them. A message whose type hash does not match the receiving code cannot come from a correct peer, since typing keeps the hashes equal (report §8.7, *Identity*), and the connection is torn down (node protocol, section 4.2).
 
 ## 8. Code change in running processes
 

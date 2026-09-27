@@ -747,10 +747,10 @@ answer is the first.
 - Every definition gets a hash of its typed AST; modules are named by hash; a registry per
   node `{Hash -> Module}`. A function spawned on a peer carries its hash, and a node that
   lacks it fetches the code from the sender. Erlang's module distribution is not used.
-- Two nodes with different versions of one type: a message carries its type hash, and one
-  whose hash differs from what the receiving code expects is dropped (node protocol,
-  section 5.4). Fetching on receipt, the other shape the log weighed, left with *Code Travels
-  Only With a Spawn*: a message fetches nothing.
+- Two nodes with different versions of one type never meet in a message, decided
+  2026-09-27 (§8.7, *Identity*): an address carries its mailbox type's hash and is obtained
+  only through typed operations, so the hashes are equal by typing. A frame that breaks it
+  comes from a faulty peer and tears the connection down (node protocol, section 4.2).
 - The library fetcher, decided 2026-09-19: `ern fetch name url` fetches a library's source
   tree from a git URL into a directory on the load path, compiles it, and records the hashes
   of its definitions. No resolver, no semver, no lockfile beyond those hashes, and no

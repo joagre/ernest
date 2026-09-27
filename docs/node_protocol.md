@@ -61,7 +61,7 @@ An address on the wire has four fields:
 3. `LocalId`: a random 128-bit value. Not a counter, so addresses cannot be guessed.
 4. Type hash of the mailbox's message type.
 
-On decoding, the receiver checks that the type hash matches the type its code expects. An address to a mailbox whose message type has changed can therefore not be passed to code that believes in the old type.
+On decoding, the receiver checks that the type hash matches the type its code expects. Typing already guarantees it: an address is obtained only through typed operations, so a message always reaches a process whose mailbox type has the hash the sender's code gives it (report §8.7, *Identity*). A frame that fails the check comes from a faulty or hostile peer, and the receiver tears the connection down (section 5.2's teardown), rather than dropping the frame alone.
 
 ### 4.3 Implementation on BEAM
 
@@ -102,7 +102,6 @@ Delivery is never guaranteed. A message is dropped when:
 - the connection is torn down with the message still queued (5.2),
 - the destination process is dead or its node has restarted,
 - the destination node is absent from the peer table (3.4),
-- a type hash in the message does not match the type the receiving code expects (sections 4.2 and 10).
 
 The sender is not told of any of these; there is no error path back.
 
