@@ -155,5 +155,5 @@ Ernest is order-independent at top level; these are style choices, not correctne
             finish(screen, Shell.Style.fault(colour, text) <> "\n")
         }
 
-- **Block-comment banners for sections.** Open with `//` on its own line, one or more `// text` lines, close with `//` on its own line. Blank line before the opening, blank line after the closing. Not `// Section ----------`.
+- **Block-comment banners for sections.** Open with `//` on its own line, one or more `// text` lines, close with `//` on its own line. Blank line before the opening, blank line after the closing.
 - **A module with a doc block has no header banner.** The module's `///` block is its header (report §2.2); a banner in such a file marks a section, never the file.
