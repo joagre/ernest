@@ -23,8 +23,14 @@ Derived from `prog-mode`, not from CC Mode.
 - `compilation-error-regexp-alist` for `file:line:col: message`, since Emacs's own `gnu`
   entry refuses a file name with a space in it.
 - `auto-mode-alist` for `.ern`.
+- `ernest-format-buffer`, which lays out the buffer with `ern format -` (report §11.6). It
+  replaces only the white space that differs, so point, the mark and every window stay on
+  their text. A buffer that does not parse is left as it is, and the diagnostic is shown in
+  the buffer `*ern format*`, naming the buffer where the formatter names standard input `-`.
+  `ernest-format-on-save-mode` runs it as a buffer is saved, and never refuses the save.
+  `ernest-format-command` names the `ern` it runs.
 
-It never calls the compiler; `M-x compile` does.
+It calls the toolchain only to lay out a buffer; the compiler is `M-x compile`'s.
 
 ## What it leaves to the user
 
@@ -43,10 +49,19 @@ file show both:
 ```
 
 The indicator stands at `fill-column`. `whitespace-line-column` nil makes `whitespace-mode`
-mark lines past `fill-column` rather than past its default of 80. Nothing converts a tab on
-save: `untabify` would also rewrite a tab inside a string, which is part of the string's
+mark lines past `fill-column` rather than past its default of 80. The mode does not
+`untabify` on save, which would also rewrite a tab inside a string, part of the string's
 value (report §2.5). `no_tab_test` and `line_length_test` in `test/ern_style_tests.erl`
 enforce both rules in the repository.
+
+This line lays out each buffer as it is saved, with `ern format`, which then replaces a tab
+between tokens and keeps one inside a string or a comment:
+
+```elisp
+(add-hook 'ernest-mode-hook #'ernest-format-on-save-mode)
+```
+
+`ern` is found on `exec-path`; `ernest-format-command` names another.
 
 The mode's reserved words and operators restate Appendix A, so
 `emacs_mode_mirrors_the_lexer_test` in `test/ern_style_tests.erl` checks them against the
@@ -55,9 +70,9 @@ lexer's symbols. How tightly each binary operator binds, which places a line an 
 
 ## How it is judged
 
-Seven tests under `emacs/test/`. `make test-emacs` runs them and `make test` runs them last;
-a machine without Emacs skips them. `make test-emacs EMACS=path` runs them under another
-Emacs. Each prints what it measured.
+Eight tests under `emacs/test/`. `make test-emacs` builds the toolchain, which `format.el`
+runs, and then runs them; `make test` runs them last, and a machine without Emacs skips them.
+`make test-emacs EMACS=path` runs them under another Emacs. Each prints what it measured.
 
 | Test | What must hold |
 | --- | --- |
@@ -68,6 +83,7 @@ Emacs. Each prints what it measured.
 | `broken.el` over `broken/` | each half-typed buffer keeps its indentation, and a fresh line at its end takes the column a person expects |
 | `colour.el` | one check for each kind of face, and what must not be painted |
 | `editing.el` | `imenu`, declaration movement, the diagnostic regexp |
+| `format.el` | a buffer is laid out with point on its token; `shell.ern`, every line moved to column zero, comes back as it was, point and mark in place; a buffer that does not parse is left as typed and its diagnostic names it; a formatter's text that differs beyond white space is refused; the init file's line lays out a buffer as it is saved, and a buffer that does not parse, or an `ern` that is not there, is saved as typed |
 
 `reindent.el` and `flatten.el` cannot find a defect in a line the mode itself placed. A case in `broken/`,
 written to [`style.md`](style.md) by hand, can.
@@ -86,5 +102,5 @@ Stated so that nobody looks for it.
 - **It is installed by path, not as a package.** No `Version:` or `Package-Requires:`
   headers, and it is not on MELPA.
 - **Indentation is line by line.** There is no `indent-region-function`.
-- **It never changes the buffer on its own.** Nothing runs on save, and no minor mode is
-  turned on.
+- **It turns nothing on.** Laying out on save is the init file's line, and no other minor
+  mode is turned on.

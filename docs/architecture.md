@@ -19,7 +19,7 @@ One Ernest module goes through the stages below, Erlang applications under `erl/
 | diagnostics | `ern_diag`, in `utils`, beneath every stage | a `#diag{}` from any stage, the source | the text of §11.5, or its first line |
 | cli | `ern_cli` with `ern_shell`, the shell's front end, `ern_page`, §11.4's renderer, and `ern_signals`, §8.6's signal handler | command lines, and the shell's inputs | `ern` and its jobs, and a session |
 
-`emacs/` is outside this pipeline: the Emacs mode reads `.ern` files and never calls the toolchain, and [`emacs_mode.md`](emacs_mode.md) owns it.
+`emacs/` is outside this pipeline: the Emacs mode reads `.ern` files and calls the toolchain only as `ern format -`, and [`emacs_mode.md`](emacs_mode.md) owns it.
 
 `VERSION` at the top of the repository is the toolchain's version; every application's Makefile passes it to `erlc` as the macro `VERSION`, which `ern_cli` prints for `--version` and in a documentation page's last line. `utils` holds the vendored `getopt`. The escript `bin/ern` adds `erl/*/ebin`, `build/stdlib` and `build/shell` to the code path relative to its own location, starts the host with `-noinput`, and calls `ern_cli:main/1`.
 

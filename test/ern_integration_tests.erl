@@ -395,6 +395,17 @@ modules_test() ->
     {0, Out} = sh("../bin/ern run build/modules/main.erc"),
     ?assertEqual(expected("modules"), lines(Out)).
 
+%% report §11.6: `ern format -` lays out standard input onto standard
+%% output; with --check it names `-` if the module is not laid out; a
+%% module that does not parse gives its diagnostic under the name `-`, the
+%% status 1, and nothing else. A regression test, written after the code.
+format_input_test() ->
+    Loose = "sh -c 'printf \"fn f(x) = x+1\\n\" | ../bin/ern format ",
+    ?assertEqual({0, <<"fn f(x) =\n    x + 1\n">>}, sh(Loose ++ "-'")),
+    ?assertEqual({1, <<"-\n">>}, sh(Loose ++ "--check -'")),
+    ?assertEqual({1, <<"-:1:7: expected a pattern instead of `=`\n">>},
+                 sh("sh -c 'printf \"fn h( = 1\\n\" | ../bin/ern format --short-errors -'")).
+
 expected(Name) ->
     {ok, Bin} = file:read_file("expected/" ++ Name ++ ".out"),
     lines(Bin).

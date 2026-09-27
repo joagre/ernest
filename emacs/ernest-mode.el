@@ -5,10 +5,11 @@
 ;; The mode for `.ern' files.  docs/emacs_mode.md designs it, and says
 ;; what it does and what it does not do.
 ;;
-;; Nothing here calls the compiler.  A buffer being edited is broken most
-;; of the time, so colouring and indentation are the buffer's own work;
-;; the compiler is reached through `M-x compile', and
-;; `compilation-error-regexp-alist' takes its diagnostics.
+;; A buffer being edited is broken most of the time, so colouring and
+;; indentation are the buffer's own work.  The toolchain is reached in
+;; two places: `ernest-format-buffer' runs `ern format', and `M-x
+;; compile' the compiler, whose diagnostics
+;; `compilation-error-regexp-alist' takes.
 
 ;;; Installation:
 
@@ -18,6 +19,11 @@
 ;;     (add-to-list 'load-path "~/src/ernest/emacs")
 ;;     (autoload 'ernest-mode "ernest-mode" "Major mode for Ernest." t)
 ;;     (add-to-list 'auto-mode-alist '("\\.ern\\'" . ernest-mode))
+;;
+;; This line lays out each Ernest buffer as it is saved, with `ern
+;; format', which `ernest-format-command' names:
+;;
+;;     (add-hook 'ernest-mode-hook #'ernest-format-on-save-mode)
 
 ;;; Code:
 
@@ -35,6 +41,11 @@
 (defcustom ernest-clause-offset 2
   "Spaces before a `|' that leads a clause, so the clause aligns with the first."
   :type 'integer
+  :group 'ernest)
+
+(defcustom ernest-format-command "ern"
+  "The `ern' to run: a name on the variable `exec-path', or a file."
+  :type 'string
   :group 'ernest)
 
 ;;; Words and operators.  These restate Appendix A, so
@@ -648,6 +659,139 @@ not to this one."
       ("Type" ,(concat exported "\\(?:abstract[ \t]+\\|foreign[ \t]+\\)?type[ \t]+" upper) 1)
       ("Value" ,(concat exported "let[ \t]+" name) 1)))
   "What `imenu' offers: the declarations, by kind.")
+
+;;; Formatting.  `ern format -' lays out the buffer from standard input,
+;;; since a buffer being saved is not yet its file (report section 11.6).
+
+(defconst ernest--format-errors "*ern format*"
+  "The buffer that shows why the buffer last laid out was not.")
+
+(defconst ernest--format-space " \t\r\n"
+  "The white space between tokens, all that `ern format' changes.")
+
+(defun ernest-format-buffer ()
+  "Lay out the buffer as `ern format' does, keeping point on its text.
+Only the white space that differs is replaced, so point, the mark and
+every window stay where they were in the text.  A buffer that does not
+parse is left as it is, and the formatter's diagnostic is shown in the
+buffer `*ern format*'."
+  (interactive)
+  (let ((out (generate-new-buffer " *ern format output*" t))
+        (err (make-temp-file "ern-format"))
+        (name (if buffer-file-name
+                  (file-name-nondirectory buffer-file-name)
+                (buffer-name)))
+        (coding-system-for-read 'utf-8)
+        (coding-system-for-write 'utf-8))
+    (unwind-protect
+        (save-restriction
+          (widen)
+          (if (eql 0 (call-process-region (point-min) (point-max) ernest-format-command
+                                          nil (list out err) nil "format" "-"))
+              (progn
+                (ernest--format-apply out)
+                (ernest--format-clear))
+            (ernest--format-show err name default-directory)))
+      (kill-buffer out)
+      (delete-file err))))
+
+(defun ernest--format-apply (out)
+  "Make the buffer's text the text of the buffer OUT, the formatter's.
+The two hold the same characters but for white space, so both are
+walked together and each run of white space that differs is replaced.
+Anything else that differs is an error, and the buffer is left as it
+was."
+  (let ((word (concat "^" ernest--format-space))
+        (edits nil))
+    (save-excursion
+      (goto-char (point-min))
+      (with-current-buffer out (goto-char (point-min)))
+      ;; a run of white space, which may differ, then a run of the rest,
+      ;; which may not
+      (while (let ((start (point))
+                   (want (ernest--format-take out ernest--format-space)))
+               (skip-chars-forward ernest--format-space)
+               (unless (string= (buffer-substring-no-properties start (point)) want)
+                 (push (list start (point) want) edits))
+               (not (and (eobp) (with-current-buffer out (eobp)))))
+        (let* ((here (point))
+               (there (with-current-buffer out (point)))
+               (run (min (- (save-excursion (skip-chars-forward word) (point)) here)
+                         (with-current-buffer out
+                           (- (save-excursion (skip-chars-forward word) (point)) there)))))
+          (unless (and (> run 0)
+                       (eql 0 (compare-buffer-substrings nil here (+ here run)
+                                                         out there (+ there run))))
+            (error "The formatter changed more than white space at %d" here))
+          (forward-char run)
+          (with-current-buffer out (forward-char run)))))
+    ;; from the last to the first, so each edit's positions still hold
+    (save-excursion
+      (dolist (edit edits)
+        (apply #'ernest--format-replace edit)))))
+
+(defun ernest--format-take (out chars)
+  "The run of CHARS at point in the buffer OUT, which point moves past."
+  (with-current-buffer out
+    (let ((start (point)))
+      (skip-chars-forward chars)
+      (buffer-substring-no-properties start (point)))))
+
+(defun ernest--format-replace (start end want)
+  "Make the white space from START to END WANT, changing only what differs.
+What the two share at either end stays, so a line whose indentation
+alone changes keeps its line break, and a point after the change stays
+on the token after it."
+  (let* ((have (buffer-substring-no-properties start end))
+         (prefix (1- (abs (compare-strings have nil nil want nil nil))))
+         (limit (- (min (length have) (length want)) prefix))
+         (suffix 0))
+    (while (and (< suffix limit)
+                (eq (aref have (- (length have) suffix 1))
+                    (aref want (- (length want) suffix 1))))
+      (setq suffix (1+ suffix)))
+    (goto-char (+ start prefix))
+    (delete-region (point) (- end suffix))
+    (insert-before-markers (substring want prefix (- (length want) suffix)))))
+
+(defun ernest--format-show (err name directory)
+  "Show the diagnostic in the file ERR, for the buffer NAME in DIRECTORY.
+The formatter names standard input `-', so NAME takes its place, and
+the diagnostic's position can be followed as a compilation's can."
+  (let ((errors (get-buffer-create ernest--format-errors)))
+    (with-current-buffer errors
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert-file-contents err)
+        (when (looking-at-p "-:")
+          (delete-char 1)
+          (insert name)))
+      (compilation-mode)
+      (setq default-directory directory))
+    (display-buffer errors)))
+
+(defun ernest--format-clear ()
+  "Take away the diagnostic of a buffer not laid out, now that one was."
+  (let ((errors (get-buffer ernest--format-errors)))
+    (when errors
+      (let ((window (get-buffer-window errors)))
+        (if window
+            (quit-window t window)
+          (kill-buffer errors))))))
+
+(defun ernest--format-before-save ()
+  "Lay out the buffer as it is saved.  Nothing here refuses the save."
+  (condition-case failure
+      (ernest-format-buffer)
+    (error (message "Not laid out: %s" (error-message-string failure)))))
+
+(define-minor-mode ernest-format-on-save-mode
+  "Lay out the buffer with `ernest-format-buffer' each time it is saved.
+A buffer that does not parse is saved as it was typed."
+  :group 'ernest
+  (if ernest-format-on-save-mode
+      (add-hook 'before-save-hook #'ernest--format-before-save nil t)
+    (remove-hook 'before-save-hook #'ernest--format-before-save t)))
 
 ;;; The mode
 

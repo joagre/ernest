@@ -132,11 +132,12 @@ load: all
 
 # The Emacs mode's tests (docs/emacs_mode.md). It is an editor and not
 # part of the toolchain, so a machine without Emacs skips them; they are
-# the only tests `make test` will run and not have built. EMACS names the
-# Emacs to run them under: `make test-emacs EMACS=/opt/emacs-29/bin/emacs`.
+# the only tests `make test` will run and not have built. `format` runs
+# `ern format`, so the toolchain is built first. EMACS names the Emacs to
+# run them under: `make test-emacs EMACS=/opt/emacs-29/bin/emacs`.
 EMACS ?= emacs
-EMACS_TESTS = lint colour editing broken reindent flatten typing
-test-emacs:
+EMACS_TESTS = lint colour editing broken reindent flatten typing format
+test-emacs: all
 	@if ! command -v $(EMACS) >/dev/null 2>&1; then \
 	  if [ "$(origin EMACS)" = file ]; then \
 	    echo "  Emacs not installed; the mode's tests were skipped."; exit 0; fi; \

@@ -17,9 +17,9 @@ Actorson until 12 September 2026.
 
 ## Where we are
 
-**MVP 2.8's formatter and the Emacs mode's layout are built** (2026-09-27), a `let`'s value
-laid out as a body. Next is its item 3, format on save in Emacs, and then MVP 2.7's last two
-items, what Ernest adds and the guide read for its order. The rest of MVP 2.7, a program started from
+**MVP 2.8, the formatter, is done** (2026-09-28): `ern format`, the Emacs mode indenting as it
+lays out, and a buffer laid out as it is saved. Next are MVP 2.7's last two items, what
+Ernest adds and the guide read for its order. The rest of MVP 2.7, a program started from
 a command line, is built: `Os`, the memory and atoms items, running as a service, the appendix
 of libraries and back pressure (2026-09-27). MVP 2.66, the standard library's `Supervisor`, is
 done (2026-09-27). MVP 2.65, the language and the toolchain read
@@ -29,8 +29,8 @@ back after it the same day, both under "Done".
 
 **Taken out of order and done:** MVP 2.9, the Emacs mode, on 2026-09-23; MVP 2.61, the
 guide as the user's document, on 2026-09-24, after which CLAUDE.md was rewritten for
-clarity, every rule kept; and `libs/markdown`, now MVP 3.2's, on 2026-09-25. All three are
-under "Done".
+clarity, every rule kept; `libs/markdown`, now MVP 3.2's, on 2026-09-25; and MVP 2.8, the
+formatter, on 2026-09-28. All four are under "Done".
 
 **The rhythm.** One item a turn, with its tests, its documents, its conformance section and
 its commit; then a stop for review before the next. The user reads the plan and not the log,
@@ -49,8 +49,8 @@ so a decision they must see goes here.
 | MVP 2.61 | the guide as the user's document | done 2026-09-24, out of order |
 | MVP 2.65 | the language and the toolchain read back | done 2026-09-26 |
 | MVP 2.66 | the standard library's `Supervisor` | done 2026-09-27 |
-| MVP 2.7 | a program started from a command line, and the appendix of libraries | two items left, after 2.8 |
-| **MVP 2.8** | **the formatter** | **items 1, 2 and 4 done 2026-09-27; format on save next** |
+| **MVP 2.7** | **a program started from a command line, and the appendix of libraries** | **two items left, next** |
+| MVP 2.8 | the formatter | done 2026-09-28, out of order |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | MVP 2.95 | the first release: manual pages, an installation, the review | after 2.7 |
 | MVP 3.0 | peers | |
@@ -678,45 +678,6 @@ section is read against what the sections before it have taught.
 
 ---
 
-## MVP 2.8 (the formatter), about a week
-
-`ern format`, and the Emacs mode brought to the same layout and formatting on save. Moved
-here on 2026-09-27 from MVP 2.95, where it had gone the same day from *Not in any MVP*, and
-built next, ahead of MVP 2.7's last two items: the layout rules of `docs/style.md` are
-settled, and the code keeps an older form only until the formatter runs (the log's *The
-Formatter Before the Release* and *Layout for the Reader*).
-
-1. **The formatter, built 2026-09-27** (report §11.6; the log's *What the Formatter Keeps*).
-   `ern format` lays out each module named, every module under a directory, or standard
-   input, changing only line breaks and spaces, and `--check` names each module not laid out.
-   `make format` lays out every source and the Ernest blocks of the report and the guide, and
-   `formatted_test_` holds all of them, in place of the style test's hand-made checks of a
-   statement a line, a function's head and the blank line between declarations. Decided with
-   the user: a doc block's examples are `ern format`'s, and the report's and the guide's
-   blocks the repository's, through that test and `make format`. Its first run laid out 57
-   files; read against the hand trial of `shell.ern`, it matched but where the writer had
-   named a value, and four refinements it found are in the log's entry.
-2. **The Emacs mode indents what the formatter writes, built 2026-09-27**
-   ([`emacs_mode.md`](emacs_mode.md)): a bracket's items aligned, a brace's contents from the
-   line its construct began on, and a line an operator opens by how tightly the operator
-   binds, from a table `emacs_mode_mirrors_the_parser_test` holds equal to the parser's.
-   `reindent`, `flatten` and `typing` hold it to the formatted repository.
-3. **Format on save in Emacs**, decided 2026-09-27, as go-mode's `gofmt-before-save` and
-   rust-analyzer do for their languages: the mode formats a buffer by running `ern format` on
-   it as it is saved. `ern format` reads a module from standard input and writes it to
-   standard output for this, since a buffer being saved is not yet the file. It is turned on
-   by one line in the init file, which `emacs_mode.md` shows, since a major mode turns nothing
-   on by itself there. A buffer that does not parse is saved as it was typed, and the mode
-   shows the formatter's diagnostic: saving is never refused. `emacs_mode.md`'s sentence that
-   the mode never calls the toolchain changes with it.
-4. **A `let`'s value is a body, decided with the user and built 2026-09-27**
-   ([`style.md`](style.md); the log's *What the Formatter Keeps*): after a `let`'s `=` or
-   `<-` it stays on the line when it fits, whole or up to a brace or `then`, and otherwise
-   begins the next line, a step in, as an arm's and a lambda's body do. The first run had kept
-   such a value on its line and aligned its brackets far to the right; 21 files moved again.
-
----
-
 ## MVP 2.95 (the first release: manual pages, an installation, and the review), about three weeks
 
 A release is the language reviewed whole, documented where a reader looks, and installed where a user runs it. The first one is for other programmers to install and use, decided 2026-09-27 (the log's *The First Release Is for Others*): Ernest for programs on one node. Peers are the next release's, which the table of `docs/development.md` already says and the release notes state once. Placed after MVP 2.7, which gives a program its arguments, its environment and its exit status, so that what is installed is a tool a command line can use, and before MVP 3.0.
@@ -1076,6 +1037,22 @@ message every wait takes, since BEAM cannot raise a fault in another process (§
 *The `Supervisor`'s Shape*). `examples/services.ern` and the guide's §6.6 show it. Writing
 them found feedback item 61, how a client knows that a group's restart is over; it stays as
 it is, since a fault is asynchronous (the log's *The `Supervisor`'s Shape*).
+
+### MVP 2.8 — the formatter (done 2026-09-28)
+
+`ern format` lays out each module named, every module under a directory, or standard input,
+changing only line breaks and spaces, and `--check` names each module not laid out (report
+§11.6; the log's *What the Formatter Keeps*). `make format` lays out every source and the
+Ernest blocks of the report and the guide, and `formatted_test_` holds all of them to it. The
+layout is `docs/style.md`'s, settled on a trial of `shell.ern` and amended by the first run,
+a `let`'s value laid out as a body with it (the log's *Layout for the Reader*). The Emacs mode
+indents as the formatter lays out, from a table of how tightly each operator binds that a
+test holds equal to the parser's, and `reindent`, `flatten` and `typing` hold it to the
+formatted repository. `ernest-format-on-save-mode`, turned on by one line in the init file,
+lays out a buffer as it is saved, replacing only the white space that differs, and never
+refuses the save ([`emacs_mode.md`](emacs_mode.md); the log's *Format on Save*). Moved here
+from MVP 2.95 and built ahead of MVP 2.7's last two items (the log's *The Formatter Before
+the Release*).
 
 ---
 
