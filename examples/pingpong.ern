@@ -23,7 +23,10 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> Unit with m =
         Io.println("ping " <> Int.toString(n));
         match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
             Some(_) -> ping(pongAddr, n - 1)
-          | None -> { Io.println("pong is not answering"); send(pongAddr, Stop) }
+          | None -> {
+                Io.println("pong is not answering");
+                send(pongAddr, Stop)
+            }
         }
     }
 

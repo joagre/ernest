@@ -16,11 +16,18 @@ export fn main() -> Unit with Msg = round(1)
 
 fn round(n : Int) -> Unit with Msg =
     if n > rounds then Unit
-    else { work(batch); mark(n); round(n + 1) }
+    else {
+        work(batch);
+        mark(n);
+        round(n + 1)
+    }
 
 fn work(left : Int) -> Unit with Msg =
     if left == 0 then Unit
-    else { once(); work(left - 1) }
+    else {
+        once();
+        work(left - 1)
+    }
 
 fn once() -> Unit with Msg = {
     Clock.alarm(1, Tick);

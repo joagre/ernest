@@ -23,13 +23,34 @@ fn sizeText() -> String with m = match Terminal.size() {
 
 fn loop() -> Unit with Msg = receive {
     E(Terminal.Escape) -> Io.println("escape")
-  | E(Terminal.ArrowUp) -> { Io.println("up"); loop() }
-  | E(Terminal.ArrowDown) -> { Io.println("down"); loop() }
-  | E(Terminal.ArrowLeft) -> { Io.println("left"); loop() }
-  | E(Terminal.ArrowRight) -> { Io.println("right"); loop() }
-  | E(Terminal.Enter) -> { Io.println("enter"); loop() }
-  | E(Terminal.Interrupt) -> { Io.println("interrupt"); loop() }
-  | E(Terminal.Key(c)) -> { Io.println("char " <> Char.toString(c)); loop() }
+  | E(Terminal.ArrowUp) -> {
+        Io.println("up");
+        loop()
+    }
+  | E(Terminal.ArrowDown) -> {
+        Io.println("down");
+        loop()
+    }
+  | E(Terminal.ArrowLeft) -> {
+        Io.println("left");
+        loop()
+    }
+  | E(Terminal.ArrowRight) -> {
+        Io.println("right");
+        loop()
+    }
+  | E(Terminal.Enter) -> {
+        Io.println("enter");
+        loop()
+    }
+  | E(Terminal.Interrupt) -> {
+        Io.println("interrupt");
+        loop()
+    }
+  | E(Terminal.Key(c)) -> {
+        Io.println("char " <> Char.toString(c));
+        loop()
+    }
   | E(Terminal.Pasted(text)) -> {
         Io.println("pasted " <> String.replace(text, "\n", "|"));
         loop()

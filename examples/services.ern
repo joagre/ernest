@@ -27,14 +27,20 @@ let store : Address(StoreMsg) =
 
 fn storing(items : Map(String, Int)) -> Unit with StoreMsg = receive {
     Put(key = k, value = v) -> storing(Map.put(items, k, v))
-  | Get(key = k, reply = r) -> { answer(r, Map.get(items, k)); storing(items) }
+  | Get(key = k, reply = r) -> {
+        answer(r, Map.get(items, k));
+        storing(items)
+    }
   | Corrupt -> fault("the store was corrupted")
 }
 
 let ids : Address(IdMsg) = spawn(Local, Supervisor.child(services, fn() = counting(1)))
 
 fn counting(next : Int) -> Unit with IdMsg = receive {
-    NextId(reply = r) -> { answer(r, next); counting(next + 1) }
+    NextId(reply = r) -> {
+        answer(r, next);
+        counting(next + 1)
+    }
 }
 
 let audit : Address(AuditMsg) =
@@ -42,7 +48,10 @@ let audit : Address(AuditMsg) =
 
 fn recording(entries : List(String)) -> Unit with AuditMsg = receive {
     Record(e) -> recording(entries <> [e])
-  | Entries(reply = r) -> { answer(r, entries); recording(entries) }
+  | Entries(reply = r) -> {
+        answer(r, entries);
+        recording(entries)
+    }
 }
 
 export fn main() -> Unit with Never = {

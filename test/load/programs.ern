@@ -14,11 +14,18 @@ export fn main() -> Unit with Never = round(1)
 
 fn round(n : Int) -> Unit with Never =
     if n > rounds then Unit
-    else { work(batch); mark(n); round(n + 1) }
+    else {
+        work(batch);
+        mark(n);
+        round(n + 1)
+    }
 
 fn work(left : Int) -> Unit with Never =
     if left == 0 then Unit
-    else { once(); work(left - 1) }
+    else {
+        once();
+        work(left - 1)
+    }
 
 fn once() -> Unit with Never = {
     let _ = Os.run(Os.Command(program = "cat", arguments = [], input = String.toUtf8("hi")), 5000);
@@ -28,7 +35,10 @@ fn once() -> Unit with Never = {
       | Left(_) -> Unit
     };
     match Os.start(Os.Command(program = "sleep", arguments = ["10"], input = <<>>), 1) {
-        Right(p) -> { let _ = Os.read(p); Unit }
+        Right(p) -> {
+            let _ = Os.read(p);
+            Unit
+        }
       | Left(_) -> Unit
     }
 }

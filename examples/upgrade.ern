@@ -31,12 +31,18 @@ export fn main() -> Unit with m = {
 
 fn counter(n : Int) -> Unit with CounterMsg = receive {
     Inc(k) -> counter(n + k)
-  | Get(reply = r) -> { answer(r, n); counter(n) }
+  | Get(reply = r) -> {
+        answer(r, n);
+        counter(n)
+    }
   | Upgrade(migrate = m, next = k) -> k(m(n))
 }
 
 fn doublingCounter(n : Int) -> Unit with CounterMsg = receive {
     Inc(k) -> doublingCounter(n + 2 * k)
-  | Get(reply = r) -> { answer(r, n); doublingCounter(n) }
+  | Get(reply = r) -> {
+        answer(r, n);
+        doublingCounter(n)
+    }
   | Upgrade(migrate = m, next = k) -> k(m(n))
 }

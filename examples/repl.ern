@@ -60,7 +60,10 @@ fn repl(env : Map(String, Value), run : Int) -> Unit with ReplMsg = match Io.rea
             repl(env, run)
         }
       | Right(ts) -> match parse(ts) {
-            Left(e) -> { Io.println(ParseError.toString(e)); repl(env, run) }
+            Left(e) -> {
+                Io.println(ParseError.toString(e));
+                repl(env, run)
+            }
           | Right(e) -> {
                 let v = try(env, e, run + 1);
                 match #(e, v) {
@@ -68,7 +71,10 @@ fn repl(env : Map(String, Value), run : Int) -> Unit with ReplMsg = match Io.rea
                         show(Right(val));
                         repl(Map.put(env, x, val), run + 1)
                     }
-                  | #(_, r) -> { show(r); repl(env, run + 1) }
+                  | #(_, r) -> {
+                        show(r);
+                        repl(env, run + 1)
+                    }
                 }
             }
         }
@@ -94,7 +100,10 @@ fn await(child : Address(Never), run : Int) -> Either(TryError, Value) with Repl
     Result(run = r, value = v) when r == run -> Either.mapLeft(v, Eval)
   | Died(run = r) when r == run -> Left(Crashed) // a fault in the child
   | Result or Died -> await(child, run) // an earlier expression's child
-  | after 2000 -> { kill(child); Left(Timeout) }
+  | after 2000 -> {
+        kill(child);
+        Left(Timeout)
+    }
 }
 
 fn show(r : Either(TryError, Value)) -> Unit with ReplMsg = Io.println(match r {
@@ -184,7 +193,10 @@ fn expr(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) = match ts
 }
 
 fn sum(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
-    { let #(l, r) <- prod(ts); sumRest(l, r) }
+    {
+        let #(l, r) <- prod(ts);
+        sumRest(l, r)
+    }
 
 fn sumRest(l : Expr, ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) = match ts {
     Op(c) :: r when c == '+' || c == '-' -> {
@@ -195,7 +207,10 @@ fn sumRest(l : Expr, ts : List(Token)) -> Either(ParseError, #(Expr, List(Token)
 }
 
 fn prod(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
-    { let #(l, r) <- app(ts); prodRest(l, r) }
+    {
+        let #(l, r) <- app(ts);
+        prodRest(l, r)
+    }
 
 fn prodRest(l : Expr, ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) = match ts {
     Op(c) :: r when c == '*' || c == '/' -> {
@@ -206,7 +221,10 @@ fn prodRest(l : Expr, ts : List(Token)) -> Either(ParseError, #(Expr, List(Token
 }
 
 fn app(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
-    { let #(f, r) <- atom(ts); appRest(f, r) }
+    {
+        let #(f, r) <- atom(ts);
+        appRest(f, r)
+    }
 
 fn appRest(f : Expr, ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
     match atom(ts) {

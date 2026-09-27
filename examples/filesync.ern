@@ -48,7 +48,10 @@ export fn main() -> Unit with SyncMsg = {
 
 // Waiting phase: receive the peer's address, then the loop.
 fn start(dir : Path) -> Unit with SyncMsg = receive {
-    Link(peer) -> { send(self(), Tick); syncer(dir, peer, Map.empty) }
+    Link(peer) -> {
+        send(self(), Tick);
+        syncer(dir, peer, Map.empty)
+    }
 }
 
 // The sync process: one per directory.

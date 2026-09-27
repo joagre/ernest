@@ -35,6 +35,64 @@ no_tab_test() ->
     ?assertEqual([], [{F, N} || F <- Files, {N, Line} <- numbered(F),
                                 lists:member($\t, Line)]).
 
+%% docs/style.md: one statement a line; a line of Ernest holds no `;` with
+%% more code after it, in every module, every example in a module's doc
+%% blocks, and every Ernest block of the guide and the report. A string, a
+%% character and a comment are not code, and an input at the shell's prompt,
+%% a console's line, is not checked. Written with the rule.
+one_statement_a_line_test() ->
+    Modules = [F || P <- ["stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern",
+                          "libs/**/*.ern", "test/**/*.ern"],
+                    F <- filelib:wildcard(P, ?ROOT),
+                    not lists:prefix("test/build/", F),
+                    not editor_artifact(filename:basename(F))],
+    ?assert(length(Modules) > 20),
+    Lines = [{F, N, L} || F <- Modules, {N, L} <- ernest_lines(F)]
+        ++ [{F, N, L} || F <- ["ernest_guide.md", "ernest_report.md"],
+                         {N, L} <- fenced(numbered(F))],
+    ?assertEqual([], [{F, N} || {F, N, L} <- Lines, more_after_semicolon(L)]).
+
+%% A module's lines of Ernest: its code, and the examples in its doc blocks.
+ernest_lines(F) ->
+    {Docs, Code} = lists:partition(fun({_, L}) -> lists:prefix("///", string:trim(L)) end,
+                                   numbered(F)),
+    Code ++ fenced([{N, lists:nthtail(3, string:trim(L, leading))} || {N, L} <- Docs]).
+
+%% The lines inside the ```ernest fences, an example that must not compile
+%% among them.
+fenced(Lines) ->
+    fenced(Lines, false).
+
+fenced([], _) -> [];
+fenced([{N, L} | Rest], In) ->
+    case {lists:prefix("```", string:trim(L)), In} of
+        {true, false} -> fenced(Rest, lists:prefix("```ernest", string:trim(L)));
+        {true, true} -> fenced(Rest, false);
+        {false, true} -> [{N, L} | fenced(Rest, true)];
+        {false, false} -> fenced(Rest, false)
+    end.
+
+%% Whether a `;` has code after it on the line, strings, characters and a
+%% comment aside.
+more_after_semicolon(Line) ->
+    Code = code_of(Line),
+    case string:split(Code, ";") of
+        [_, After] -> string:trim(After) =/= "" orelse more_after_semicolon(After);
+        [_] -> false
+    end.
+
+code_of([]) -> [];
+code_of("//" ++ _) -> [];
+code_of([$" | Rest]) -> [$" | code_of(after_quote(Rest, $"))];
+code_of([$', $\\, _, $' | Rest]) -> "''" ++ code_of(Rest);
+code_of([$', _, $' | Rest]) -> "''" ++ code_of(Rest);
+code_of([C | Rest]) -> [C | code_of(Rest)].
+
+after_quote([], _) -> [];
+after_quote([$\\, _ | Rest], Q) -> after_quote(Rest, Q);
+after_quote([Q | Rest], Q) -> Rest;
+after_quote([_ | Rest], Q) -> after_quote(Rest, Q).
+
 %% docs/style.md: every Erlang module is ern_<thing>, unique across the
 %% repository, and a module compiled from an Ernest source is ern@<namespace>;
 %% the one exception is a vendored file, which THIRD_PARTY_LICENSES names

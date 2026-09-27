@@ -90,10 +90,22 @@ fn drain(world : World, n : Int) -> World with GameMsg =
 
 // One process per player: translates keys into Input.
 fn player(id : Int, game : Address(GameMsg)) -> Unit with Terminal.Event = receive {
-    Terminal.ArrowUp -> { send(game, In(Turn(id = id, dir = N))); player(id, game) }
-  | Terminal.ArrowDown -> { send(game, In(Turn(id = id, dir = S))); player(id, game) }
-  | Terminal.ArrowLeft -> { send(game, In(Turn(id = id, dir = W))); player(id, game) }
-  | Terminal.ArrowRight -> { send(game, In(Turn(id = id, dir = E))); player(id, game) }
+    Terminal.ArrowUp -> {
+        send(game, In(Turn(id = id, dir = N)));
+        player(id, game)
+    }
+  | Terminal.ArrowDown -> {
+        send(game, In(Turn(id = id, dir = S)));
+        player(id, game)
+    }
+  | Terminal.ArrowLeft -> {
+        send(game, In(Turn(id = id, dir = W)));
+        player(id, game)
+    }
+  | Terminal.ArrowRight -> {
+        send(game, In(Turn(id = id, dir = E)));
+        player(id, game)
+    }
   | Terminal.Escape -> send(game, In(Leave(id)))
   | _ -> player(id, game)
 }

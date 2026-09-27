@@ -209,7 +209,10 @@ export fn main() -> Unit with ShellMsg = {
             // so the reader's death is said and the session ends with it
             monitor(reader, ReaderDied);
             match startup(state, screen) {
-                Continue(state2) -> { send(screen, Said("> ")); keyLoop(state2, screen) }
+                Continue(state2) -> {
+                    send(screen, Said("> "));
+                    keyLoop(state2, screen)
+                }
               | Leave -> finish(screen, "")
             }
         }
@@ -238,7 +241,10 @@ fn quietly(state : State, screen : Address(ScreenMsg), from : String, line : Int
 fn run(state : State, screen : Address(ScreenMsg), from : String, line : Int, input : String,
     printing : Bool) -> State with ShellMsg = {
     match check(state.env, from, line, input) {
-        Left(text) -> { diagnose(screen, state.colour, text); state }
+        Left(text) -> {
+            diagnose(screen, state.colour, text);
+            state
+        }
       | Right(#(env2, checked)) -> {
             // report §11.2: the run is what timing measures, not the check
             let started = Clock.now();
@@ -260,7 +266,10 @@ fn startup(state : State, screen : Address(ScreenMsg)) -> Next with ShellMsg =
 fn fileInputs(screen : Address(ScreenMsg), file : String)
     -> List(#(String, Int, String)) with m = match Fs.read(Path(file), fileWait) {
     Left(Io.NotFound) -> []
-  | Left(why) -> { say(screen, file <> " could not be read: " <> trouble(why)); [] }
+  | Left(why) -> {
+        say(screen, file <> " could not be read: " <> trouble(why));
+        []
+    }
   | Right(bytes) -> {
         let text = Optional.withDefault(String.fromUtf8(bytes), "");
         let numbered = List.indexed(String.lines(text));
@@ -325,7 +334,11 @@ fn await(state : State, screen : Address(ScreenMsg), checked : Checked, child : 
         if printing then timed(screen, state.settings, started) else Unit;
         state
     }
-  | Interrupted -> { kill(child); say(screen, "Killed"); state }
+  | Interrupted -> {
+        kill(child);
+        say(screen, "Killed");
+        state
+    }
   | Reported(report) ->
         // report §11.2: an input's own fault is its answer; the input
         // catches what it raises, so a report of its process is a fault a
@@ -347,9 +360,15 @@ fn timed(screen : Address(ScreenMsg), settings : Settings, started : Int) -> Uni
     else Unit
 
 fn keyLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = receive {
-    Typed(line) -> { send(screen, Taken); taking(state, screen, line) }
+    Typed(line) -> {
+        send(screen, Taken);
+        taking(state, screen, line)
+    }
   | Eof -> finish(screen, "\n")
-  | Interrupted -> { prompt(screen); keyLoop(state, screen) }
+  | Interrupted -> {
+        prompt(screen);
+        keyLoop(state, screen)
+    }
   | Reported(report) -> keyLoop(reported(state, screen, report), screen)
   | ReaderDied(down) -> readerDied(screen, state.colour, down)
   // the end of a run that `Interrupted` killed, which `await` no longer
@@ -361,10 +380,16 @@ fn keyLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = r
 // ran and so waited for it.
 fn taking(state : State, screen : Address(ScreenMsg), line : String) -> Unit with ShellMsg =
     match String.trim(line) {
-        "" -> { prompt(screen); keyLoop(state, screen) }
+        "" -> {
+            prompt(screen);
+            keyLoop(state, screen)
+        }
       | input -> match submit(state, screen, input) {
             Leave -> finish(screen, "")
-          | Continue(state2) -> { prompt(screen); keyLoop(state2, screen) }
+          | Continue(state2) -> {
+                prompt(screen);
+                keyLoop(state2, screen)
+            }
         }
     }
 
@@ -460,44 +485,83 @@ fn obey(state : State, screen : Address(ScreenMsg), action : Shell.Command.Actio
     let State(env = env, settings = settings, colour = colour) = state;
     match action {
         Shell.Command.Quit -> Leave
-      | Shell.Command.Help -> { printLines(screen, Shell.Command.help()); Continue(state) }
+      | Shell.Command.Help -> {
+            printLines(screen, Shell.Command.help());
+            Continue(state)
+        }
       | Shell.Command.Bindings -> match bindings(env) {
-            [] -> { say(screen, "the session declares nothing yet"); Continue(state) }
-          | lines -> { printLines(screen, lines); Continue(state) }
+            [] -> {
+                say(screen, "the session declares nothing yet");
+                Continue(state)
+            }
+          | lines -> {
+                printLines(screen, lines);
+                Continue(state)
+            }
         }
       | Shell.Command.Type -> match check(env, "input", 1, arg) {
-            Left(text) -> { diagnose(screen, colour, text); Continue(state) }
+            Left(text) -> {
+                diagnose(screen, colour, text);
+                Continue(state)
+            }
           | Right(#(env2, checked)) -> {
                 say(screen, arg <> " : " <> typeText(checked));
                 Continue(State(..state, env = env2))
             }
         }
       | Shell.Command.Forget -> match forget(env, arg) {
-            Left(text) -> { refuse(screen, colour, text); Continue(state) }
+            Left(text) -> {
+                refuse(screen, colour, text);
+                Continue(state)
+            }
           | Right(env2) -> Continue(State(..state, env = env2))
         }
       | Shell.Command.Browse -> match browse(env, arg) {
-            Left(text) -> { refuse(screen, colour, text); Continue(state) }
-          | Right(lines) -> { printLines(screen, lines); Continue(state) }
+            Left(text) -> {
+                refuse(screen, colour, text);
+                Continue(state)
+            }
+          | Right(lines) -> {
+                printLines(screen, lines);
+                Continue(state)
+            }
         }
       | Shell.Command.Doc -> match doc(env, arg) {
-            Left(text) -> { refuse(screen, colour, text); Continue(state) }
+            Left(text) -> {
+                refuse(screen, colour, text);
+                Continue(state)
+            }
           | Right(text) -> {
                 printLines(screen, rendered(text, screenWidth(), colour));
                 Continue(state)
             }
         }
       | Shell.Command.Output -> match output(arg) {
-            Left(text) -> { refuse(screen, colour, text); Continue(state) }
-          | Right(text) -> { say(screen, text); Continue(state) }
+            Left(text) -> {
+                refuse(screen, colour, text);
+                Continue(state)
+            }
+          | Right(text) -> {
+                say(screen, text);
+                Continue(state)
+            }
         }
       | Shell.Command.Set -> Continue(State(..state, settings = set(screen, colour, settings, arg)))
       | Shell.Command.Processes -> match sessionProcesses(state.own) {
-            [] -> { say(screen, "no process of the session's is running"); Continue(state) }
-          | sites -> { printLines(screen, sites); Continue(state) }
+            [] -> {
+                say(screen, "no process of the session's is running");
+                Continue(state)
+            }
+          | sites -> {
+                printLines(screen, sites);
+                Continue(state)
+            }
         }
       | Shell.Command.Faults -> match List.reverse(state.faults) {
-            [] -> { say(screen, "no process has faulted"); Continue(state) }
+            [] -> {
+                say(screen, "no process has faulted");
+                Continue(state)
+            }
           | reports -> {
                 printLines(screen,
                     List.map(reports, fn(r) = Shell.Style.fault(colour, reportLine(r))));
@@ -505,14 +569,20 @@ fn obey(state : State, screen : Address(ScreenMsg), action : Shell.Command.Actio
             }
         }
       | Shell.Command.Load -> match load(env, arg) {
-            Left(text) -> { diagnose(screen, colour, text); Continue(state) }
+            Left(text) -> {
+                diagnose(screen, colour, text);
+                Continue(state)
+            }
           | Right(#(env2, line)) -> {
                 say(screen, line);
                 Continue(State(..state, env = env2))
             }
         }
       | Shell.Command.Reload -> match reload(env) {
-            Left(text) -> { diagnose(screen, colour, text); Continue(state) }
+            Left(text) -> {
+                diagnose(screen, colour, text);
+                Continue(state)
+            }
           | Right(#(env2, lines)) -> {
                 printLines(screen, lines);
                 Continue(State(..state, env = env2))
@@ -526,9 +596,15 @@ fn obey(state : State, screen : Address(ScreenMsg), action : Shell.Command.Actio
 // took.
 fn set(screen : Address(ScreenMsg), colour : Bool, settings : Settings, arg : String)
     -> Settings with m =
-    if String.isEmpty(arg) then { printLines(screen, settingLines(settings)); settings }
+    if String.isEmpty(arg) then {
+        printLines(screen, settingLines(settings));
+        settings
+    }
     else match Shell.Command.setting(arg) {
-        Left(text) -> { refuse(screen, colour, text); settings }
+        Left(text) -> {
+            refuse(screen, colour, text);
+            settings
+        }
       | Right(Shell.Command.Depth(n)) -> Settings(..settings, depth = n)
       | Right(Shell.Command.Length(n)) -> Settings(..settings, length = n)
       | Right(Shell.Command.OutputRows(n)) -> {
@@ -577,7 +653,10 @@ fn screenLoop(r : Shell.Region.Region) -> Unit with ScreenMsg = {
         }
       | Clear -> Shell.Region.cleared(r)
       | Height(rows) -> Shell.Region.output(r, rows)
-      | Flush(reply = reply) -> { answer(reply, Unit); #(r, "") }
+      | Flush(reply = reply) -> {
+            answer(reply, Unit);
+            #(r, "")
+        }
     };
     write(bytes);
     screenLoop(next)

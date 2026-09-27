@@ -129,7 +129,10 @@ foreign fn hostEnvironment() -> Map(String, String) with m = "ern_os:environment
 ///
 /// ```ernest
 /// match Os.arguments {
-///     [] -> { Io.printlnError("usage: tool file..."); Os.exit(2) }
+///     [] -> {
+///         Io.printlnError("usage: tool file...");
+///         Os.exit(2)
+///     }
 ///   | files -> files
 /// }
 /// ```

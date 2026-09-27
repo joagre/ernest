@@ -2,7 +2,7 @@
 
 The style guides for the two languages of this repository, Erlang and Ernest. CLAUDE.md imports this file; the rules are read every session.
 
-Four rules hold whatever the language, and `test/ern_style_tests.erl` checks the second, the third, and the fourth's Erlang half:
+Four rules hold whatever the language, and `test/ern_style_tests.erl` checks the second, the third, and the fourth's Erlang half, and of the Ernest style guide's, one statement a line:
 
 - A step of indentation is four spaces.
 - No file holds a tab, but a Makefile, whose recipes need one.
@@ -39,6 +39,18 @@ Ernest is order-independent at top level; these are style choices, not correctne
       let bytes = Response(status = StatusCode.ok, headers = [], body = body)
           |> withCookie("sid", SessionId.text(id))
           |> render;
+
+- **One statement a line.** A block of more than one statement is written over lines, one statement to a line: its opening brace ends the line the block begins on, and its closing brace stands alone at that line's indentation, in a clause as anywhere. An input at the shell's prompt, which without a terminal is one line, is written as it is typed.
+
+      else {
+          send(to, Item(next));
+          produce(to, next + 1, last, credit - 1)
+      }
+
+      | Get(reply = r) -> {
+            answer(r, n);
+            counter(n)
+        }
 
 - **`then` and `else` return to the line their `if` begins on.**
 

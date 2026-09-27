@@ -34,7 +34,10 @@ type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
 
 fn counter(n : Int) -> Unit with CounterMsg = receive {
     Inc(k) -> counter(n + k)
-  | Get(reply = r) -> { answer(r, n); counter(n) }
+  | Get(reply = r) -> {
+        answer(r, n);
+        counter(n)
+    }
 }
 
 export fn main() -> Unit with Never = {
@@ -45,9 +48,9 @@ export fn main() -> Unit with Never = {
 
 ```console
 $ ern build message.ern
-message.ern:10:13: the argument does not fit send: expected CounterMsg, found String
- 9 |     let c = spawn(Local, fn() = counter(0));
-10 |     send(c, "increment")
+message.ern:13:13: the argument does not fit send: expected CounterMsg, found String
+12 |     let c = spawn(Local, fn() = counter(0));
+13 |     send(c, "increment")
    |     ---- send : (Address(a), a) -> Unit with e
    |             ^^^^^^^^^^^
 ```
@@ -186,7 +189,10 @@ A program's first input is its command line. An entry point takes no arguments: 
 
 ```ernest
 export fn main() -> Unit with Never = match Os.arguments {
-    [] -> { Io.printlnError("usage: greet name..."); Os.exit(2) }
+    [] -> {
+        Io.printlnError("usage: greet name...");
+        Os.exit(2)
+    }
   | names -> List.foreach(names, fn(name) = Io.println("hello, " <> name))
 }
 ```
@@ -203,7 +209,10 @@ hello, Grace
 
 ```ernest
 export fn main() -> Unit with Never = match Io.readLine() {
-    Some(line) -> { Io.println(String.toUpper(line)); main() }
+    Some(line) -> {
+        Io.println(String.toUpper(line));
+        main()
+    }
   | None -> Unit
 }
 ```
@@ -698,7 +707,10 @@ type CounterMsg =
 
 fn counter(n : Int) -> Unit with CounterMsg = receive {
     Inc(k) -> counter(n + k)
-  | Get(reply = r) -> { answer(r, n); counter(n) }
+  | Get(reply = r) -> {
+        answer(r, n);
+        counter(n)
+    }
 }
 ```
 
@@ -777,11 +789,17 @@ type MainMsg = Took(Int)
 fn queue(items : List(Int), waiters : List(Address(WaiterMsg))) -> Unit with QueueMsg =
     receive {
         Put(x) -> match waiters {
-            w :: rest -> { send(w, Item(x)); queue(items, rest) }
+            w :: rest -> {
+                send(w, Item(x));
+                queue(items, rest)
+            }
           | [] -> queue(items <> [x], [])
         }
       | Take(reply = r) -> match items {
-            x :: rest -> { answer(r, x); queue(rest, waiters) }
+            x :: rest -> {
+                answer(r, x);
+                queue(rest, waiters)
+            }
           | [] -> {
                 let w = spawn(Local, fn() -> Unit with WaiterMsg =
                     receive { Item(x) -> answer(r, x) });
@@ -820,7 +838,10 @@ fn produce(to : Address(ConsumerMsg), next : Int, last : Int, credit : Int)
     -> Unit with ProducerMsg =
     if next > last then send(to, Last)
     else if credit == 0 then receive { Credit(n) -> produce(to, next, last, n) }
-    else { send(to, Item(next)); produce(to, next + 1, last, credit - 1) }
+    else {
+        send(to, Item(next));
+        produce(to, next + 1, last, credit - 1)
+    }
 
 // Takes the items, granting ten more each time it has taken ten.
 fn consume(from : Address(ProducerMsg), taken : Int, sum : Int) -> Unit with ConsumerMsg =
@@ -856,7 +877,10 @@ type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
 
 fn counter(n : Int) -> Unit with CounterMsg = receive {
     Inc(k) -> counter(n + k)
-  | Get(reply = r) -> { answer(r, n); counter(n) }
+  | Get(reply = r) -> {
+        answer(r, n);
+        counter(n)
+    }
 }
 
 export fn main() -> Unit with Never = {
@@ -897,7 +921,10 @@ type CounterMsg =
 
 fn counter(n : Int) -> Unit with CounterMsg = receive {
     Inc(k) -> counter(n + k)
-  | Get(reply = r) -> { answer(r, n); counter(n) }
+  | Get(reply = r) -> {
+        answer(r, n);
+        counter(n)
+    }
   | Upgrade(migrate = m, next = k) -> k(m(n))
 }
 ```
@@ -910,7 +937,10 @@ A replacement loop that doubles each increment:
 // counter.ern
 fn doublingCounter(n : Int) -> Unit with CounterMsg = receive {
     Inc(k) -> doublingCounter(n + 2 * k)
-  | Get(reply = r) -> { answer(r, n); doublingCounter(n) }
+  | Get(reply = r) -> {
+        answer(r, n);
+        doublingCounter(n)
+    }
   | Upgrade(migrate = m, next = k) -> k(m(n))
 }
 ```
@@ -955,7 +985,10 @@ export type TallyMsg = Add(Map(String, Int)) | Top(n : Int, reply : Reply(List(#
 
 export fn tally(counts : Map(String, Int)) -> Unit with TallyMsg = receive {
     Add(more) -> tally(Map.foldLeft(more, counts, add))
-  | Top(n = n, reply = r) -> { answer(r, top(counts, n)); tally(counts) }
+  | Top(n = n, reply = r) -> {
+        answer(r, top(counts, n));
+        tally(counts)
+    }
 }
 ```
 
@@ -1001,7 +1034,10 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> Unit with m =
         Io.println("ping " <> Int.toString(n));
         match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
             Some(_) -> ping(pongAddr, n - 1)
-          | None -> { Io.println("pong is not answering"); send(pongAddr, Stop) }
+          | None -> {
+                Io.println("pong is not answering");
+                send(pongAddr, Stop)
+            }
         }
     }
 
@@ -1163,7 +1199,10 @@ fn countAll(totals : Address(TallyMsg), texts : List(String)) -> Unit with MainM
 fn collect(totals : Address(TallyMsg), left : Int) -> Unit with MainMsg =
     if left == 0 then Unit
     else receive {
-        Counted(counts) -> { send(totals, Add(counts)); collect(totals, left - 1) }
+        Counted(counts) -> {
+            send(totals, Add(counts));
+            collect(totals, left - 1)
+        }
       | Died(Down(reason = Fault(cause), site = _)) -> {
             Io.println("a worker faulted: " <> cause);
             collect(totals, left - 1)

@@ -129,14 +129,14 @@ report(Moment_17) ->
                                      ern@supervisor:child(services(),
                                                           fun () -> counting(1)
                                                           end),
-                                     <<"Services.ids:34">>)),
+                                     <<"Services.ids:37">>)),
     persistent_term:put({ern@services, audit},
                         ern_rt:spawn('Local',
                                      ern@supervisor:child(services(),
                                                           fun () ->
                                                                   recording([])
                                                           end),
-                                     <<"Services.audit:41">>)),
+                                     <<"Services.audit:47">>)),
     ok.
 
 '$fun'(main, 0) -> fun main/0.
