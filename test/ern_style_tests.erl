@@ -5,6 +5,9 @@
 
 -define(ROOT, "..").
 
+%% The documents whose ```ernest fences the Ernest style guide governs.
+-define(DOCUMENTS, ["ernest_guide.md", "ernest_report.md"]).
+
 %% docs/style.md: code lines are at most 100 characters, in the compiler's
 %% Erlang, its C and in Ernest alike; the vendored getopt keeps its upstream form
 line_length_test() ->
@@ -41,36 +44,147 @@ no_tab_test() ->
 %% character and a comment are not code, and an input at the shell's prompt,
 %% a console's line, is not checked. Written with the rule.
 one_statement_a_line_test() ->
+    Lines = [{F, N, L} || F <- modules(), {N, L} <- ernest_lines(F)]
+        ++ [{F, N, L} || F <- ?DOCUMENTS, {N, L} <- lists:append(fences(numbered(F)))],
+    ?assertEqual([], [{F, N} || {F, N, L} <- Lines, more_after_semicolon(L)]).
+
+%% docs/style.md: a function's head ends at `=` and its body begins on the
+%% next line, one step in from the line the head begins on; a body that is
+%% a block opens its brace at the end of the head's line, and nothing
+%% follows the brace there; a `foreign fn`'s string stays on the head's
+%% line. Read from the tokens of every text one_statement_a_line_test
+%% reads. Written with the rule.
+function_head_test() ->
+    ?assertEqual([], [{F, N} || {F, Toks} <- ernest_tokens(), N <- head_breaks(Toks)]).
+
+%% docs/style.md: a block holds more than one statement, in every text
+%% one_statement_a_line_test reads. A brace after an expression or after
+%% `receive` holds clauses and is not a block. Written with the rule.
+block_of_one_test() ->
+    ?assertEqual([], [{F, N} || {F, Toks} <- ernest_tokens(), N <- blocks_of_one(Toks)]).
+
+%% The modules the Ernest style guide governs.
+modules() ->
     Modules = [F || P <- ["stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern",
                           "libs/**/*.ern", "test/**/*.ern"],
                     F <- filelib:wildcard(P, ?ROOT),
                     not lists:prefix("test/build/", F),
                     not editor_artifact(filename:basename(F))],
     ?assert(length(Modules) > 20),
-    Lines = [{F, N, L} || F <- Modules, {N, L} <- ernest_lines(F)]
-        ++ [{F, N, L} || F <- ["ernest_guide.md", "ernest_report.md"],
-                         {N, L} <- fenced(numbered(F))],
-    ?assertEqual([], [{F, N} || {F, N, L} <- Lines, more_after_semicolon(L)]).
+    Modules.
 
 %% A module's lines of Ernest: its code, and the examples in its doc blocks.
 ernest_lines(F) ->
     {Docs, Code} = lists:partition(fun({_, L}) -> lists:prefix("///", string:trim(L)) end,
                                    numbered(F)),
-    Code ++ fenced([{N, lists:nthtail(3, string:trim(L, leading))} || {N, L} <- Docs]).
+    Code ++ lists:append(fences(doc_lines(Docs))).
 
-%% The lines inside the ```ernest fences, an example that must not compile
+doc_lines(Docs) ->
+    [{N, lists:nthtail(3, string:trim(L, leading))} || {N, L} <- Docs].
+
+%% The ```ernest fences, each its lines, an example that must not compile
 %% among them.
-fenced(Lines) ->
-    fenced(Lines, false).
+fences(Lines) ->
+    fences(Lines, none).
 
-fenced([], _) -> [];
-fenced([{N, L} | Rest], In) ->
+fences([], _) -> [];
+fences([{N, L} | Rest], In) ->
     case {lists:prefix("```", string:trim(L)), In} of
-        {true, false} -> fenced(Rest, lists:prefix("```ernest", string:trim(L)));
-        {true, true} -> fenced(Rest, false);
-        {false, true} -> [{N, L} | fenced(Rest, true)];
-        {false, false} -> fenced(Rest, false)
+        {true, none} ->
+            case lists:prefix("```ernest", string:trim(L)) of
+                true -> fences(Rest, []);
+                false -> fences(Rest, other)
+            end;
+        {true, other} -> fences(Rest, none);
+        {true, Fence} -> [lists:reverse(Fence) | fences(Rest, none)];
+        {false, other} -> fences(Rest, other);
+        {false, none} -> fences(Rest, none);
+        {false, Fence} -> fences(Rest, [{N, L} | Fence])
     end.
+
+%% Each text of Ernest as the lexer's tokens, their lines the file's: a
+%% module whole, each example of its doc blocks, and each fence of the
+%% documents. A text the lexer refuses fails the test with its file.
+ernest_tokens() ->
+    Texts = [{F, numbered(F)} || F <- modules()]
+        ++ [{F, Fence} || F <- modules(),
+                          Fence <- fences(doc_lines([{N, L} || {N, L} <- numbered(F),
+                                                               lists:prefix("///",
+                                                                            string:trim(L))]))]
+        ++ [{F, Fence} || F <- ?DOCUMENTS, Fence <- fences(numbered(F))],
+    [{F, tokens(F, Lines)} || {F, Lines} <- Texts, Lines =/= []].
+
+tokens(F, [{First, _} | _] = Lines) ->
+    case ern_lexer:tokenize(lists:join("\n", [L || {_, L} <- Lines])) of
+        {ok, Toks} ->
+            [setelement(2, T, setelement(1, element(2, T), line(T) + First - 1)) || T <- Toks];
+        {error, _} ->
+            error({not_lexed, F, First})
+    end.
+
+%% The lines of the function heads that break the rule. A `fn` followed
+%% by a name declares a function; a lambda's is followed by `(`.
+head_breaks(Toks) ->
+    First = maps:from_list(lists:reverse([{line(T), column(T)} || T <- Toks])),
+    head_breaks(Toks, First).
+
+head_breaks([], _) -> [];
+head_breaks([{foreign, _}, {fn, _} | Rest], First) ->
+    {Eq, [Impl | _]} = after_head(Rest),
+    [line(Eq) || line(Impl) =/= line(Eq)] ++ head_breaks(Rest, First);
+head_breaks([{fn, _} = Fn, {Kind, _, _} = Name | Rest], First)
+  when Kind =:= ident; Kind =:= typename ->
+    {Eq, [Body | After]} = after_head(Rest),
+    Broken = case Body of
+                 {'{', _} -> line(Body) =/= line(Eq) orelse line(hd(After)) =:= line(Body);
+                 _ -> line(Body) =:= line(Eq)
+                          orelse column(Body) =/= maps:get(line(Fn), First) + 4
+             end,
+    [line(Eq) || Broken] ++ head_breaks([Name | Rest], First);
+head_breaks([_ | Rest], First) ->
+    head_breaks(Rest, First).
+
+%% The `=` that ends a head, the first outside a bracket after the
+%% parameters open, and the tokens after it.
+after_head(Toks) ->
+    equals(lists:dropwhile(fun(T) -> element(1, T) =/= '(' end, Toks), 0).
+
+equals([{'=', _} = Eq | Rest], 0) -> {Eq, Rest};
+equals([T | Rest], Depth) -> equals(Rest, Depth + depth(T)).
+
+%% The lines of the blocks of one statement. A brace is a block's unless
+%% it follows an expression or `receive`, where it holds clauses.
+blocks_of_one(Toks) ->
+    blocks_of_one(Toks, none).
+
+blocks_of_one([], _) -> [];
+blocks_of_one([{'{', _} = B | Rest], Before) ->
+    [line(B) || not ends_expression(Before), statements(Rest, 0) =:= 1]
+        ++ blocks_of_one(Rest, B);
+blocks_of_one([T | Rest], _) ->
+    blocks_of_one(Rest, T).
+
+statements([{'}', _} | _], 0) -> 1;
+statements([{';', _} | Rest], 0) -> 1 + statements(Rest, 0);
+statements([T | Rest], Depth) -> statements(Rest, Depth + depth(T)).
+
+%% A name or a literal, a token of three, ends an expression, as a
+%% closing bracket does.
+ends_expression({_, _, _}) -> true;
+ends_expression({Kind, _}) -> lists:member(Kind, [')', ']', '}', '>>', 'receive']);
+ends_expression(none) -> false.
+
+depth({Kind, _}) ->
+    case Kind of
+        _ when Kind =:= '('; Kind =:= '#('; Kind =:= '['; Kind =:= '{'; Kind =:= '<<' -> 1;
+        _ when Kind =:= ')'; Kind =:= ']'; Kind =:= '}'; Kind =:= '>>' -> -1;
+        _ -> 0
+    end;
+depth(_) -> 0.
+
+line(T) -> element(1, element(2, T)).
+
+column(T) -> element(2, element(2, T)).
 
 %% Whether a `;` has code after it on the line, strings, characters and a
 %% comment aside.

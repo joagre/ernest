@@ -35,7 +35,8 @@
 /// since 0.1.0
 
 /// The first, then the second.
-export fn String.<>(a : String, b : String) -> String = a <> b
+export fn String.<>(a : String, b : String) -> String =
+    a <> b
 
 /// The number of graphemes, extended grapheme clusters, which is neither
 /// the number of octets nor the number of `Char`s: `e` with a combining
@@ -71,7 +72,8 @@ export foreign fn size(s : String) -> Int = "string:length/1"
 export foreign fn graphemes(s : String) -> List(String) = "ern_string:graphemes/1"
 
 /// `true` for the empty string.
-export fn isEmpty(s : String) -> Bool = size(s) == 0
+export fn isEmpty(s : String) -> Bool =
+    size(s) == 0
 
 /// The order of the code points, which `<` and the other comparisons use.
 ///
@@ -98,7 +100,8 @@ export fn compare(a : String, b : String) -> Ordering =
 /// String.contains("e\u{301}", "e")
 /// // => false
 /// ```
-export fn contains(s : String, part : String) -> Bool = indexOf(s, part) != None
+export fn contains(s : String, part : String) -> Bool =
+    indexOf(s, part) != None
 
 /// Where the second begins in the first, and `None` where it is not
 /// there. An empty second is at 0.
@@ -109,8 +112,7 @@ export fn contains(s : String, part : String) -> Bool = indexOf(s, part) != None
 /// #(String.indexOf("hello", "ll"), String.indexOf("hello", "x"))
 /// // => #(Some(2), None)
 /// ```
-export foreign fn indexOf(s : String, part : String) -> Optional(Int) =
-    "ern_string:index_of/2"
+export foreign fn indexOf(s : String, part : String) -> Optional(Int) = "ern_string:index_of/2"
 
 /// Where the second begins last in the first, and `None` where it is not
 /// there. An empty second is at the first's size.
@@ -121,8 +123,8 @@ export foreign fn indexOf(s : String, part : String) -> Optional(Int) =
 /// #(String.lastIndexOf("hello", "l"), String.lastIndexOf("hello", "x"))
 /// // => #(Some(3), None)
 /// ```
-export foreign fn lastIndexOf(s : String, part : String) -> Optional(Int) =
-    "ern_string:last_index_of/2"
+export foreign fn lastIndexOf(s : String, part : String)
+    -> Optional(Int) = "ern_string:last_index_of/2"
 
 /// `true` when the string begins with the second, as whole graphemes, and
 /// for an empty second.
@@ -133,7 +135,8 @@ export foreign fn lastIndexOf(s : String, part : String) -> Optional(Int) =
 /// #(String.startsWith("hello", "he"), String.endsWith("hello", "lo"))
 /// // => #(true, true)
 /// ```
-export fn startsWith(s : String, prefix : String) -> Bool = slice(s, 0, size(prefix)) == prefix
+export fn startsWith(s : String, prefix : String) -> Bool =
+    slice(s, 0, size(prefix)) == prefix
 
 /// `true` when the string ends with the second, as whole graphemes, and for
 /// an empty second.
@@ -178,11 +181,13 @@ foreign fn part(s : String, from : Int, count : Int) -> String = "ern_string:sli
 /// #(String.padStart("7", 3, '0'), String.padEnd("7", 3, '.'))
 /// // => #("007", "7..")
 /// ```
-export fn padStart(s : String, length : Int, c : Char) -> String = padding(s, length, c) <> s
+export fn padStart(s : String, length : Int, c : Char) -> String =
+    padding(s, length, c) <> s
 
 /// The `Char` at the end until the string is at least that many graphemes
 /// long.
-export fn padEnd(s : String, length : Int, c : Char) -> String = s <> padding(s, length, c)
+export fn padEnd(s : String, length : Int, c : Char) -> String =
+    s <> padding(s, length, c)
 
 fn padding(s : String, length : Int, c : Char) -> String =
     repeat(Char.toString(c), length - size(s))
@@ -195,7 +200,8 @@ fn padding(s : String, length : Int, c : Char) -> String =
 /// String.repeat("ab", 3)
 /// // => "ababab"
 /// ```
-export fn repeat(s : String, n : Int) -> String = copies(s, n, "")
+export fn repeat(s : String, n : Int) -> String =
+    copies(s, n, "")
 
 fn copies(s : String, n : Int, done : String) -> String =
     if n <= 0 then done else copies(s, n - 1, done <> s)
@@ -215,7 +221,8 @@ fn copies(s : String, n : Int, done : String) -> String =
 /// String.trim("\u{a0}a\u{3000}")
 /// // => "a"
 /// ```
-export fn trim(s : String) -> String = trimEnd(trimStart(s))
+export fn trim(s : String) -> String =
+    trimEnd(trimStart(s))
 
 /// Without leading whitespace, as `trim` has it.
 ///

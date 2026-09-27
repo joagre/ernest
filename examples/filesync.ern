@@ -47,12 +47,13 @@ export fn main() -> Unit with SyncMsg = {
 //
 
 // Waiting phase: receive the peer's address, then the loop.
-fn start(dir : Path) -> Unit with SyncMsg = receive {
-    Link(peer) -> {
-        send(self(), Tick);
-        syncer(dir, peer, Map.empty)
+fn start(dir : Path) -> Unit with SyncMsg =
+    receive {
+        Link(peer) -> {
+            send(self(), Tick);
+            syncer(dir, peer, Map.empty)
+        }
     }
-}
 
 // The sync process: one per directory.
 fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) -> Unit with SyncMsg =
@@ -156,14 +157,16 @@ fn changed(old : Map(Path, Int), Fs.Entry(path = p, mtime = m) : Fs.Entry) -> Op
 fn snapshot(entries : List(Fs.Entry)) -> Map(Path, Int) =
     List.foldLeft(entries, Map.empty, fn(acc, entry) = Map.put(acc, entry.path, entry.mtime))
 
-fn conflictPath(p : Path) -> Path = Path(Path.toString(p) <> ".conflict")
+fn conflictPath(p : Path) -> Path =
+    Path(Path.toString(p) <> ".conflict")
 
-fn errorText(e : Io.Error) -> String = match e {
-    Io.NotFound -> "no such file"
-  | Io.Denied -> "permission denied"
-  | Io.Refused -> "refused"
-  | Io.Closed -> "closed"
-  | Io.Timeout -> "timed out"
-  | Io.NotATerminal -> "not a terminal"
-  | Io.Other(text) -> text
-}
+fn errorText(e : Io.Error) -> String =
+    match e {
+        Io.NotFound -> "no such file"
+      | Io.Denied -> "permission denied"
+      | Io.Refused -> "refused"
+      | Io.Closed -> "closed"
+      | Io.Timeout -> "timed out"
+      | Io.NotATerminal -> "not a terminal"
+      | Io.Other(text) -> text
+    }

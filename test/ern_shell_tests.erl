@@ -58,7 +58,7 @@ program() ->
                      {send, hex("spawn(Local, fn() = Counter.boom())\r")},
                      {expect, "input:1 faulted: division by zero"},
                      {send, hex(":processes\r")},
-                     {expect, "Counter.start:10"},
+                     {expect, "Counter.start:11"},
                      {send, hex(":faults\r")},
                      {expect, "Counter.main faulted: division by zero"},
                      {expect, "input:1 faulted: division by zero"},

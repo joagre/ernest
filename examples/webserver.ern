@@ -58,14 +58,15 @@ fn sessionStore() -> Unit with SessionMsg = {
     store(Map.empty)
 }
 
-fn store(counts : Map(SessionId, Int)) -> Unit with SessionMsg = receive {
-    Visit(id = id, reply = r) -> {
-        let n = Optional.withDefault(Map.get(counts, id), 0) + 1;
-        answer(r, n);
-        store(Map.put(counts, id, n))
+fn store(counts : Map(SessionId, Int)) -> Unit with SessionMsg =
+    receive {
+        Visit(id = id, reply = r) -> {
+            let n = Optional.withDefault(Map.get(counts, id), 0) + 1;
+            answer(r, n);
+            store(Map.put(counts, id, n))
+        }
+      | Forget -> sessionStore()
     }
-  | Forget -> sessionStore()
-}
 
 // The acceptor: one handler process per connection.
 fn acceptor(
@@ -87,7 +88,7 @@ fn handler(
     sessions : Address(SessionMsg),
     seq : Int,
     sock : Address(Tcp.SockMsg)
-) -> Unit with m = {
+) -> Unit with m =
     match Tcp.read(sock, 5000) {
         Right(bytes) -> match parse(bytes) {
             Left(_) -> {
@@ -111,7 +112,6 @@ fn handler(
         }
       | Left(_) -> Tcp.close(sock) // nothing arrived in time
     }
-}
 
 //
 // Pure code: HTTP parsing and rendering
@@ -126,37 +126,40 @@ fn parse(b : Bytes) -> Either(ParseError, Request) = {
 }
 
 // "GET /path HTTP/1.1"; the version is not used.
-fn requestLine(lines : List(String)) -> Either(ParseError, #(String, String)) = match lines {
-    line :: _ -> match String.split(String.trim(line), " ") {
-        method :: path :: _ -> Right(#(method, path))
-      | _ -> Left(BadRequestLine)
+fn requestLine(lines : List(String)) -> Either(ParseError, #(String, String)) =
+    match lines {
+        line :: _ -> match String.split(String.trim(line), " ") {
+            method :: path :: _ -> Right(#(method, path))
+          | _ -> Left(BadRequestLine)
+        }
+      | [] -> Left(BadRequestLine)
     }
-  | [] -> Left(BadRequestLine)
-}
 
 // The lines after the request line, up to the empty one. A name is lowercased,
 // since a header name is case-insensitive; a value keeps any colons in it.
-fn headerLines(lines : List(String)) -> Either(ParseError, List(#(String, String))) = match lines {
-    _ :: rest -> headerPairs(rest, [])
-  | [] -> Right([])
-}
+fn headerLines(lines : List(String)) -> Either(ParseError, List(#(String, String))) =
+    match lines {
+        _ :: rest -> headerPairs(rest, [])
+      | [] -> Right([])
+    }
 
 fn headerPairs(
     lines : List(String),
     acc : List(#(String, String))
-) -> Either(ParseError, List(#(String, String))) = match lines {
-    [] -> Right(List.reverse(acc))
-  | line :: rest ->
-        if String.trim(line) == "" then Right(List.reverse(acc))
-        else match String.split(line, ":") {
-            name :: first :: more -> {
-                let value = String.join(first :: more, ":");
-                headerPairs(rest, #(String.toLower(String.trim(name)),
-                    String.trim(value)) :: acc)
+) -> Either(ParseError, List(#(String, String))) =
+    match lines {
+        [] -> Right(List.reverse(acc))
+      | line :: rest ->
+            if String.trim(line) == "" then Right(List.reverse(acc))
+            else match String.split(line, ":") {
+                name :: first :: more -> {
+                    let value = String.join(first :: more, ":");
+                    headerPairs(rest, #(String.toLower(String.trim(name)),
+                        String.trim(value)) :: acc)
+                }
+              | _ -> Left(BadHeader(line))
             }
-          | _ -> Left(BadHeader(line))
-        }
-}
+    }
 
 fn render(response : Response) -> Bytes = {
     let body = String.toUtf8(response.body);
@@ -170,27 +173,29 @@ fn cookie(request : Request, name : String) -> Optional(String) =
     Optional.andThen(List.find(request.headers, fn(#(n, _)) = n == "cookie"),
         fn(#(_, v)) = cookieValue(String.split(v, ";"), name))
 
-fn cookieValue(parts : List(String), name : String) -> Optional(String) = match parts {
-    [] -> None
-  | part :: rest -> match String.split(String.trim(part), "=") {
-        k :: v :: _ when k == name -> Some(v)
-      | _ -> cookieValue(rest, name)
+fn cookieValue(parts : List(String), name : String) -> Optional(String) =
+    match parts {
+        [] -> None
+      | part :: rest -> match String.split(String.trim(part), "=") {
+            k :: v :: _ when k == name -> Some(v)
+          | _ -> cookieValue(rest, name)
+        }
     }
-}
 
 fn withCookie(response : Response, name : String, value : String) -> Response =
     Response(..response,
         headers = #("set-cookie", name <> "=" <> value <> "; path=/") :: response.headers)
 
-fn errorText(e : Io.Error) -> String = match e {
-    Io.NotFound -> "no such file"
-  | Io.Denied -> "permission denied"
-  | Io.Refused -> "refused"
-  | Io.Closed -> "closed"
-  | Io.Timeout -> "timed out"
-  | Io.NotATerminal -> "not a terminal"
-  | Io.Other(text) -> text
-}
+fn errorText(e : Io.Error) -> String =
+    match e {
+        Io.NotFound -> "no such file"
+      | Io.Denied -> "permission denied"
+      | Io.Refused -> "refused"
+      | Io.Closed -> "closed"
+      | Io.Timeout -> "timed out"
+      | Io.NotATerminal -> "not a terminal"
+      | Io.Other(text) -> text
+    }
 
 //
 // Abstract-type definitions
@@ -198,9 +203,12 @@ fn errorText(e : Io.Error) -> String = match e {
 
 let StatusCode.ok = StatusCode(200)
 let StatusCode.notFound = StatusCode(404)
-fn StatusCode.render(StatusCode(n)) = if n == 200 then "200 OK" else "404 Not Found"
+fn StatusCode.render(StatusCode(n)) =
+    if n == 200 then "200 OK" else "404 Not Found"
 
-fn SessionId.fresh(n) = SessionId(Int.toString(n)) // good enough on paper
+fn SessionId.fresh(n) =
+    SessionId(Int.toString(n)) // good enough on paper
 fn SessionId.parse(t) =
     if List.all(String.toList(t), Char.isAsciiDigit) then Some(SessionId(t)) else None
-fn SessionId.text(SessionId(t)) = t
+fn SessionId.text(SessionId(t)) =
+    t

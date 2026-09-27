@@ -66,9 +66,8 @@ export fn said(r : Region, text : String) -> #(Region, String) = {
 // It joins the transcript above the region and the prompt stays, since
 // the input that prompt belongs to is still being typed; what the
 // session says takes the prompt with it, an input having finished.
-export fn noted(r : Region, text : String) -> #(Region, String) = {
+export fn noted(r : Region, text : String) -> #(Region, String) =
     painted(Region(..r, tail = []), r.tail <> [text])
-}
 
 // What a program writes goes to the tail. A line the tail no longer has
 // room for is committed as it leaves, so the terminal's scrollback holds
@@ -89,23 +88,23 @@ export fn typing(r : Region, text : String, at : Int, offered : List(String))
 // The input is finished: it joins the transcript, a row for each of its
 // lines with the prompt each was typed after, and the region stops
 // drawing it and what was shown under it.
-export fn entered(r : Region) -> #(Region, String) = match r {
-    // nothing typed and no prompt, an input typed ahead and interrupted,
-    // leaves no row
-    Region(tail = tail, prompt = "", typed = "") ->
-        painted(Region(..r, at = 0, offered = [], tail = []), tail)
-  | Region(tail = tail) ->
-        painted(Region(..r, prompt = "", typed = "", at = 0, offered = [], tail = []),
-            tail <> inputRows(r))
-}
+export fn entered(r : Region) -> #(Region, String) =
+    match r {
+        // nothing typed and no prompt, an input typed ahead and interrupted,
+        // leaves no row
+        Region(tail = tail, prompt = "", typed = "") ->
+            painted(Region(..r, at = 0, offered = [], tail = []), tail)
+      | Region(tail = tail) ->
+            painted(Region(..r, prompt = "", typed = "", at = 0, offered = [], tail = []),
+                tail <> inputRows(r))
+    }
 
 // Report §11.2: the session has taken an input, so the prompt it said is
 // spent. An input typed while another ran was entered with no prompt, and
 // the prompt said after that other's answer is not this input's; it goes,
 // so that what the session says next starts a row of its own.
-export fn taken(r : Region) -> #(Region, String) = {
+export fn taken(r : Region) -> #(Region, String) =
     if String.isEmpty(r.prompt) then #(r, "") else painted(Region(..r, prompt = ""), [])
-}
 
 // The window has changed; the tail may no longer fit.
 export fn resized(r : Region, size : Terminal.Size) -> #(Region, String) =
@@ -145,7 +144,8 @@ fn painted(r : Region, commits : List(String)) -> #(Region, String) = {
     #(Region(..r, resting = row), erase(r) <> written(commits) <> paint(rows, row, column(r)))
 }
 
-fn erase(r : Region) -> String = "\r" <> Terminal.up(r.resting) <> Terminal.clearBelow
+fn erase(r : Region) -> String =
+    "\r" <> Terminal.up(r.resting) <> Terminal.clearBelow
 
 fn written(lines : List(String)) -> String =
     String.join(List.map(lines, fn(line) = line <> "\n"), "")
@@ -193,12 +193,13 @@ fn offeredRows(r : Region) -> List(String) = {
 }
 
 // The lines, each its rows, that fit in that many rows, from the first.
-fn fitting(lines : List(List(String)), room : Int) -> List(List(String)) = match lines {
-    [] -> []
-  | rows :: rest ->
-        if List.size(rows) > room then []
-        else rows :: fitting(rest, room - List.size(rows))
-}
+fn fitting(lines : List(List(String)), room : Int) -> List(List(String)) =
+    match lines {
+        [] -> []
+      | rows :: rest ->
+            if List.size(rows) > room then []
+            else rows :: fitting(rest, room - List.size(rows))
+    }
 
 // A row cut into rows of the window's width. Each continuation begins
 // with every escape sequence the rows before it held, in order, so that
@@ -216,14 +217,15 @@ fn wrapped(line : String, width : Int) -> List(String) =
 // after them. A grapheme wider than what is left ends the row, but for
 // the first, which a row always takes, so a narrow window moves on.
 fn past(graphemes : List(String), left : Int, sequences : String, taken : Bool)
-    -> #(String, List(String)) = match sequence(graphemes) {
-    Some(#(s, tail)) -> past(tail, left, sequences <> s, taken)
-  | None -> match graphemes {
-        g :: rest when fits(g, left, taken) ->
-            past(rest, left - Terminal.columns(g), sequences, true)
-      | _ -> #(sequences, graphemes)
+    -> #(String, List(String)) =
+    match sequence(graphemes) {
+        Some(#(s, tail)) -> past(tail, left, sequences <> s, taken)
+      | None -> match graphemes {
+            g :: rest when fits(g, left, taken) ->
+                past(rest, left - Terminal.columns(g), sequences, true)
+          | _ -> #(sequences, graphemes)
+        }
     }
-}
 
 // Whether the grapheme goes on the row with that many columns left.
 fn fits(g : String, left : Int, taken : Bool) -> Bool = {
@@ -233,25 +235,28 @@ fn fits(g : String, left : Int, taken : Bool) -> Bool = {
 
 // An escape sequence at the head of the graphemes, `ESC [` to its final
 // character, and what follows it.
-fn sequence(graphemes : List(String)) -> Optional(#(String, List(String))) = match graphemes {
-    "\u{1b}" :: "[" :: rest -> {
-        let tail = afterSequence(rest);
-        let taken = List.take(graphemes, List.size(graphemes) - List.size(tail));
-        Some(#(String.join(taken, ""), tail))
+fn sequence(graphemes : List(String)) -> Optional(#(String, List(String))) =
+    match graphemes {
+        "\u{1b}" :: "[" :: rest -> {
+            let tail = afterSequence(rest);
+            let taken = List.take(graphemes, List.size(graphemes) - List.size(tail));
+            Some(#(String.join(taken, ""), tail))
+        }
+      | _ -> None
     }
-  | _ -> None
-}
 
-fn afterSequence(graphemes : List(String)) -> List(String) = match graphemes {
-    [] -> []
-  | g :: rest -> if final(g) then rest else afterSequence(rest)
-}
+fn afterSequence(graphemes : List(String)) -> List(String) =
+    match graphemes {
+        [] -> []
+      | g :: rest -> if final(g) then rest else afterSequence(rest)
+    }
 
 // The character that ends a sequence, `m` among them.
-fn final(g : String) -> Bool = match String.toList(g) {
-    [c] -> Char.toInt(c) >= 0x40 && Char.toInt(c) <= 0x7E
-  | _ -> false
-}
+fn final(g : String) -> Bool =
+    match String.toList(g) {
+        [c] -> Char.toInt(c) >= 0x40 && Char.toInt(c) <= 0x7E
+      | _ -> false
+    }
 
 fn tailRowsOf(r : Region) -> List(String) = {
     let all = if String.isEmpty(r.writing) then r.tail else r.tail <> [r.writing];
@@ -262,14 +267,16 @@ fn tailRowsOf(r : Region) -> List(String) = {
 // prompt and the rest after `... `. `String.lines` is not this split: a
 // text that ends in a line feed is being typed on a new empty row, and
 // that row is shown.
-fn inputRows(r : Region) -> List(String) = match String.split(r.typed, "\n") {
-    [] -> [r.prompt]
-  | first :: rest -> (r.prompt <> first) :: List.map(rest, fn(line) = continuation <> line)
-}
+fn inputRows(r : Region) -> List(String) =
+    match String.split(r.typed, "\n") {
+        [] -> [r.prompt]
+      | first :: rest -> (r.prompt <> first) :: List.map(rest, fn(line) = continuation <> line)
+    }
 
 // The tail's height: what `:set output` asks for, and never more than
 // the screen has room for, the input having the last word.
-fn height(r : Region) -> Int = Int.min(r.output, Int.max(0, r.size.rows / 2 - 1))
+fn height(r : Region) -> Int =
+    Int.min(r.output, Int.max(0, r.size.rows / 2 - 1))
 
 // The row of the region the cursor rests on: the tail's rows, the screen
 // rows of the input's lines before the cursor's, and the rows the cursor's
@@ -284,7 +291,8 @@ fn resting(r : Region) -> Int = {
 // The column the cursor rests in, on the row its line wraps onto: what the
 // line holds before the cursor, tabs and all, is as many columns as it
 // paints.
-fn column(r : Region) -> Int = offset(r) % Int.max(1, r.size.columns) + 1
+fn column(r : Region) -> Int =
+    offset(r) % Int.max(1, r.size.columns) + 1
 
 // The columns before the cursor on its line, the prompt or `... ` among
 // them.
@@ -301,14 +309,16 @@ fn offset(r : Region) -> Int = {
 // region places its rows and its cursor by column, so it writes what it
 // has measured rather than leaving the tab to the terminal's own stops;
 // every other grapheme takes the columns `Terminal.columns` gives it.
-fn expand(row : String) -> String = expanding(String.graphemes(row), "")
+fn expand(row : String) -> String =
+    expanding(String.graphemes(row), "")
 
-fn expanding(graphemes : List(String), done : String) -> String = match graphemes {
-    [] -> done
-  | "\t" :: rest ->
-        expanding(rest, done <> String.repeat(" ", tabStop - Terminal.columns(done) % tabStop))
-  | g :: rest -> expanding(rest, done <> g)
-}
+fn expanding(graphemes : List(String), done : String) -> String =
+    match graphemes {
+        [] -> done
+      | "\t" :: rest ->
+            expanding(rest, done <> String.repeat(" ", tabStop - Terminal.columns(done) % tabStop))
+      | g :: rest -> expanding(rest, done <> g)
+    }
 
 // A row cut to the window's width keeps its escape sequences whole, and
 // one cut short after a sequence ends with the reset, so the colour of
@@ -319,22 +329,24 @@ fn clip(line : String, width : Int) -> String =
     else clipping(String.graphemes(line), width, "", false, false)
 
 fn clipping(graphemes : List(String), left : Int, done : String, styled : Bool, taken : Bool)
-    -> String = match sequence(graphemes) {
-    Some(#(s, tail)) -> clipping(tail, left, done <> s, true, taken)
-  | None -> match graphemes {
-        g :: rest when fits(g, left, taken) ->
-            clipping(rest, left - Terminal.columns(g), done <> g, styled, true)
-      | _ -> if styled then done <> "\u{1b}[0m" else done
+    -> String =
+    match sequence(graphemes) {
+        Some(#(s, tail)) -> clipping(tail, left, done <> s, true, taken)
+      | None -> match graphemes {
+            g :: rest when fits(g, left, taken) ->
+                clipping(rest, left - Terminal.columns(g), done <> g, styled, true)
+          | _ -> if styled then done <> "\u{1b}[0m" else done
+        }
     }
-}
 
 
 
 // The text up to each line feed, and what is left without one.
-fn split(text : String) -> #(List(String), String) = match String.split(text, "\n") {
-    [] -> #([], "")
-  | parts -> #(List.dropLast(parts), Optional.withDefault(List.last(parts), ""))
-}
+fn split(text : String) -> #(List(String), String) =
+    match String.split(text, "\n") {
+        [] -> #([], "")
+      | parts -> #(List.dropLast(parts), Optional.withDefault(List.last(parts), ""))
+    }
 
 //
 // The tests (report §9.3), run by `ern test`, which `make test` does.

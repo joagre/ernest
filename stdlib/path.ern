@@ -38,12 +38,13 @@ export fn join(p : Path, under : Path) -> Path =
 
 // Segments as a path's text: after a root the next directly, else each
 // after a separator.
-fn written(segments : List(String)) -> String = match segments {
-    [] -> ""
-  | first :: rest ->
-        if String.endsWith(first, separator()) then first <> String.join(rest, separator())
-        else String.join(segments, separator())
-}
+fn written(segments : List(String)) -> String =
+    match segments {
+        [] -> ""
+      | first :: rest ->
+            if String.endsWith(first, separator()) then first <> String.join(rest, separator())
+            else String.join(segments, separator())
+    }
 
 /// The segments; an absolute path's first segment is the root.
 ///
@@ -81,16 +82,18 @@ foreign fn separator() -> String = "ern_path:separator/0"
 /// #(Path.parent(Path("a/b/")), Path.parent(Path("./x")), Path.parent(Path("/")))
 /// // => #(Some(Path("a")), Some(Path(".")), None)
 /// ```
-export fn parent(p : Path) -> Optional(Path) = match List.dropLast(split(p)) {
-    [] -> None
-  | first :: rest -> Some(List.foldLeft(rest, Path(first), fn(up, s) = join(up, Path(s))))
-}
+export fn parent(p : Path) -> Optional(Path) =
+    match List.dropLast(split(p)) {
+        [] -> None
+      | first :: rest -> Some(List.foldLeft(rest, Path(first), fn(up, s) = join(up, Path(s))))
+    }
 
 /// The last segment.
-export fn name(p : Path) -> String = match split(p) {
-    [_] when isAbsolute(p) -> ""
-  | segments -> Optional.withDefault(List.last(segments), "")
-}
+export fn name(p : Path) -> String =
+    match split(p) {
+        [_] when isAbsolute(p) -> ""
+      | segments -> Optional.withDefault(List.last(segments), "")
+    }
 
 /// What follows the last `.` of the name, without the dot, or `None` when
 /// the name has none.
@@ -132,4 +135,5 @@ export fn withExtension(p : Path, ext : String) -> Path = {
 export foreign fn isAbsolute(p : Path) -> Bool = "ern_path:is_absolute/1"
 
 /// The path as text, as it was written.
-export fn toString(p : Path) -> String = match p { Path(text) -> text }
+export fn toString(p : Path) -> String =
+    match p { Path(text) -> text }

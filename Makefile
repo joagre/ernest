@@ -11,8 +11,10 @@ APPS = utils lexer parser typer runtime emitter cli
 # what inside a tree to compile.
 TOOL = $(wildcard erl/*/ebin/*.beam)
 # The top directory is written `dir/.`, since `stdlib`, `libs` and `shell`
-# are also the names of targets.
-sources = $(shell find $(1) -name '*.ern') $(1)/. $(shell find $(1) -mindepth 1 -type d)
+# are also the names of targets. A name that begins with a dot, an editor's
+# lock file among them, is no source (report §11.1).
+sources = $(shell find $(1) -mindepth 1 -name '.*' -prune -o -name '*.ern' -print) $(1)/. \
+	$(shell find $(1) -mindepth 1 -name '.*' -prune -o -type d -print)
 
 # The helper that runs a program for Os.run (report Appendix E.23), written
 # in C since the host's ports cannot keep a program's standard error apart,

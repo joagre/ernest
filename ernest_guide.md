@@ -32,13 +32,14 @@ The rules let the compiler find, before the program runs, the mistakes concurren
 ```ernest-rejected
 type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
 
-fn counter(n : Int) -> Unit with CounterMsg = receive {
-    Inc(k) -> counter(n + k)
-  | Get(reply = r) -> {
-        answer(r, n);
-        counter(n)
+fn counter(n : Int) -> Unit with CounterMsg =
+    receive {
+        Inc(k) -> counter(n + k)
+      | Get(reply = r) -> {
+            answer(r, n);
+            counter(n)
+        }
     }
-}
 
 export fn main() -> Unit with Never = {
     let c = spawn(Local, fn() = counter(0));
@@ -48,9 +49,9 @@ export fn main() -> Unit with Never = {
 
 ```console
 $ ern build message.ern
-message.ern:13:13: the argument does not fit send: expected CounterMsg, found String
-12 |     let c = spawn(Local, fn() = counter(0));
-13 |     send(c, "increment")
+message.ern:14:13: the argument does not fit send: expected CounterMsg, found String
+13 |     let c = spawn(Local, fn() = counter(0));
+14 |     send(c, "increment")
    |     ---- send : (Address(a), a) -> Unit with e
    |             ^^^^^^^^^^^
 ```
@@ -62,18 +63,19 @@ Every error in a program has this form: the position as `file:line:column`, the 
 ```ernest-rejected
 type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
 
-fn counter(n : Int) -> Unit with CounterMsg = receive {
-    Inc(k) -> counter(n + k)
-  | Get(reply = r) -> counter(n)
-}
+fn counter(n : Int) -> Unit with CounterMsg =
+    receive {
+        Inc(k) -> counter(n + k)
+      | Get(reply = r) -> counter(n)
+    }
 ```
 
 ```console
 $ ern build forgot.ern
-forgot.ern:5:5: the reply-carrying value r is never consumed
-4 |     Inc(k) -> counter(n + k)
-5 |   | Get(reply = r) -> counter(n)
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+forgot.ern:6:9: the reply-carrying value r is never consumed
+5 |         Inc(k) -> counter(n + k)
+6 |       | Get(reply = r) -> counter(n)
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 **Work through a process, in a function that says it does none.** Standard output is a process, so printing is sending it a message. `area` is declared pure, `-> Int` with nothing after it, and the compiler holds it to that. A function that sends or receives says so with `with`, as the help line says.
@@ -127,7 +129,8 @@ Sections 1 to 8 are eight stages: run a program, compute with values, pass behav
 A program is a module that exports a function `main`. Put this line in `hello.ern`:
 
 ```ernest
-export fn main() -> Unit with Never = Io.println("hello, world")
+export fn main() -> Unit with Never =
+    Io.println("hello, world")
 ```
 
 Compile and run:
@@ -188,13 +191,14 @@ At a terminal the shell edits the line with Readline's Emacs keys, and keeps a h
 A program's first input is its command line. An entry point takes no arguments: the words after the module on `ern run`'s line are `Os.arguments`, a list of strings.
 
 ```ernest
-export fn main() -> Unit with Never = match Os.arguments {
-    [] -> {
-        Io.printlnError("usage: greet name...");
-        Os.exit(2)
+export fn main() -> Unit with Never =
+    match Os.arguments {
+        [] -> {
+            Io.printlnError("usage: greet name...");
+            Os.exit(2)
+        }
+      | names -> List.foreach(names, fn(name) = Io.println("hello, " <> name))
     }
-  | names -> List.foreach(names, fn(name) = Io.println("hello, " <> name))
-}
 ```
 
 ```console
@@ -208,13 +212,14 @@ hello, Grace
 `Io.readLine()` waits for a line of standard input and answers `Some(line)`, or `None` at its end. A program that reads its input to the end loops:
 
 ```ernest
-export fn main() -> Unit with Never = match Io.readLine() {
-    Some(line) -> {
-        Io.println(String.toUpper(line));
-        main()
+export fn main() -> Unit with Never =
+    match Io.readLine() {
+        Some(line) -> {
+            Io.println(String.toUpper(line));
+            main()
+        }
+      | None -> Unit
     }
-  | None -> Unit
-}
 ```
 
 ```console
@@ -230,13 +235,15 @@ Standard input is read as UTF-8, and a line that is not faults the process that 
 Consider two variations on hello-world, (a) with no annotation:
 
 ```ernest
-export fn main() = Io.println("hello, world")
+export fn main() =
+    Io.println("hello, world")
 ```
 
 and (b) with `-> Unit`:
 
 ```ernest-rejected
-export fn main() -> Unit = Io.println("hello, world")
+export fn main() -> Unit =
+    Io.println("hello, world")
 ```
 
 Which of these compile?
@@ -308,12 +315,13 @@ A type declaration names its cases. `Direction` has four *constructors*, and `ma
 ```ernest
 type Direction = North | South | East | West
 
-fn opposite(d : Direction) -> Direction = match d {
-    North -> South
-  | South -> North
-  | East -> West
-  | West -> East
-}
+fn opposite(d : Direction) -> Direction =
+    match d {
+        North -> South
+      | South -> North
+      | East -> West
+      | West -> East
+    }
 ```
 
 The compiler checks that clauses cover every case; a missing case is a type error. So is a clause that can never match, because the clauses above it take every value it would: after `North -> South`, a second `North -> ...` is never reached.
@@ -392,7 +400,8 @@ Ordering is separate: `a < b` asks the type's `compare`, which answers `Less`, `
 ```ernest
 type Money = Money(Int)
 
-fn Money.compare(Money(a) : Money, Money(b) : Money) -> Ordering = Int.compare(a, b)
+fn Money.compare(Money(a) : Money, Money(b) : Money) -> Ordering =
+    Int.compare(a, b)
 
 export fn main() -> Unit with Never =
     Io.println(if Money(3) < Money(5) then "cheaper" else "not cheaper")
@@ -444,15 +453,17 @@ A clause may list several patterns separated by `or`; it matches when any of the
 type Direction = North | South | East | West
 type Move = Forward(Int) | Back(Int) | Stay
 
-fn axis(d : Direction) -> String = match d {
-    North or South -> "vertical"
-  | East or West -> "horizontal"
-}
+fn axis(d : Direction) -> String =
+    match d {
+        North or South -> "vertical"
+      | East or West -> "horizontal"
+    }
 
-fn step(m : Move) -> Int = match m {
-    Forward(n) or Back(n) when n > 0 -> n
-  | _ -> 0
-}
+fn step(m : Move) -> Int =
+    match m {
+        Forward(n) or Back(n) when n > 0 -> n
+      | _ -> 0
+    }
 ```
 
 A guard after the alternatives sees the shared variables. The same works in `receive`. `Some(x) or None -> x` is a type error, since `None` binds no `x` (report §5.9).
@@ -566,8 +577,10 @@ Functions are values. This section is about writing them and passing them around
 ### 3.1 Definitions and arity
 
 ```ernest
-fn double(n : Int) -> Int = n * 2
-fn hypotenuseSquared(a : Int, b : Int) -> Int = a * a + b * b
+fn double(n : Int) -> Int =
+    n * 2
+fn hypotenuseSquared(a : Int, b : Int) -> Int =
+    a * a + b * b
 ```
 
 A function body is either a single expression (like `n * 2`) or a block; a block's final statement is an expression, without a trailing semicolon. Arguments evaluate strict left-to-right before the call.
@@ -600,13 +613,15 @@ A lambda's body extends as far as the text allows: to the `,`, `;`, `:`, `|`, `-
 Ernest infers types Hindley-Milner style. You can omit annotations on parameters and returns:
 
 ```ernest
-fn double(n) = n * 2       // inferred (Int) -> Int
+fn double(n) =
+    n * 2       // inferred (Int) -> Int
 ```
 
 `*` on `Int` fixes `n : Int`. But **Ernest does not infer a "numeric type" or default to `Int`**:
 
 ```ernest-rejected
-fn twice(n) = n + n        // n's type ambiguous — annotate: (n : Int) or (n : Float)
+fn twice(n) =
+    n + n        // n's type ambiguous — annotate: (n : Int) or (n : Float)
 ```
 
 Without a source that fixes the type, `n + n` is a type error. Once it is fixed, `+` is that type's: `Int.+` for an `Int`, `Distance.+` for a user type that declares it as a member, `fn Distance.+`, and `Int.+` is also a function value, as in `List.foldLeft(xs, 0, Int.+)` (report §4.8, report §5.6).
@@ -625,7 +640,8 @@ Either kind of function can fault or run for ever: `a / b` with `b = 0` faults a
 ### 3.5 Higher-order and effect polymorphism
 
 ```ernest
-fn apply(f, x) = f(x)
+fn apply(f, x) =
+    f(x)
 ```
 
 The inferred type is `((a) -> b with e, a) -> b with e`: `apply` has the effect of the function it is given, so `apply(f, x)` is pure when `f` is. `List.map`, `List.foreach`, and every other function of the standard library that calls a function it takes are the same.
@@ -689,7 +705,8 @@ Map.fromList([#("and", 1), #("cat", 1), #("hat", 1), #("the", 2)]) : Map(String,
 Given:
 
 ```ernest
-fn map2(f, x, y) = #(f(x), f(y))
+fn map2(f, x, y) =
+    #(f(x), f(y))
 ```
 
 What does the compiler infer for `map2` when called as `map2(fn(n) = send(addr, n), 1, 2)`?
@@ -705,13 +722,14 @@ type CounterMsg =
     Inc(Int)
   | Get(reply : Reply(Int))
 
-fn counter(n : Int) -> Unit with CounterMsg = receive {
-    Inc(k) -> counter(n + k)
-  | Get(reply = r) -> {
-        answer(r, n);
-        counter(n)
+fn counter(n : Int) -> Unit with CounterMsg =
+    receive {
+        Inc(k) -> counter(n + k)
+      | Get(reply = r) -> {
+            answer(r, n);
+            counter(n)
+        }
     }
-}
 ```
 
 `counter` keeps its state in the parameter `n`, and its mailbox takes `CounterMsg`. `receive` waits for a message that matches a clause and evaluates that clause. Both clauses call `counter` again with the new state; a tail call does not grow the stack, so the loop runs for ever.
@@ -752,10 +770,11 @@ resend.ern:5:15: the reply-carrying value msg is consumed twice
 ```ernest
 type Inbox = Data(Int) | Wake
 
-fn waitForData() -> Optional(Int) with Inbox = receive {
-    Data(n) -> Some(n)
-  | after 1000 -> None
-}
+fn waitForData() -> Optional(Int) with Inbox =
+    receive {
+        Data(n) -> Some(n)
+      | after 1000 -> None
+    }
 ```
 
 `after 1000` gives up after 1000 milliseconds with no matching message, and `after 0` looks without waiting. Without `after`, the process waits for as long as it takes. A `receive` with only an `after` clause is a timed wait, the one `receive` a process with mailbox `Never` may use.
@@ -875,13 +894,14 @@ The counter of §4.1 with a `main` that uses it, in `counter.ern`:
 ```ernest
 type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
 
-fn counter(n : Int) -> Unit with CounterMsg = receive {
-    Inc(k) -> counter(n + k)
-  | Get(reply = r) -> {
-        answer(r, n);
-        counter(n)
+fn counter(n : Int) -> Unit with CounterMsg =
+    receive {
+        Inc(k) -> counter(n + k)
+      | Get(reply = r) -> {
+            answer(r, n);
+            counter(n)
+        }
     }
-}
 
 export fn main() -> Unit with Never = {
     let c = spawn(Local, fn() = counter(0));
@@ -919,14 +939,15 @@ type CounterMsg =
   | Get(reply : Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
-fn counter(n : Int) -> Unit with CounterMsg = receive {
-    Inc(k) -> counter(n + k)
-  | Get(reply = r) -> {
-        answer(r, n);
-        counter(n)
+fn counter(n : Int) -> Unit with CounterMsg =
+    receive {
+        Inc(k) -> counter(n + k)
+      | Get(reply = r) -> {
+            answer(r, n);
+            counter(n)
+        }
+      | Upgrade(migrate = m, next = k) -> k(m(n))
     }
-  | Upgrade(migrate = m, next = k) -> k(m(n))
-}
 ```
 
 `Upgrade` carries two functions: `migrate` turns the old state into the new, and `next` is the new loop. `k(m(n))` is a tail call into the new loop with the migrated state.
@@ -935,14 +956,15 @@ A replacement loop that doubles each increment:
 
 ```ernest
 // counter.ern
-fn doublingCounter(n : Int) -> Unit with CounterMsg = receive {
-    Inc(k) -> doublingCounter(n + 2 * k)
-  | Get(reply = r) -> {
-        answer(r, n);
-        doublingCounter(n)
+fn doublingCounter(n : Int) -> Unit with CounterMsg =
+    receive {
+        Inc(k) -> doublingCounter(n + 2 * k)
+      | Get(reply = r) -> {
+            answer(r, n);
+            doublingCounter(n)
+        }
+      | Upgrade(migrate = m, next = k) -> k(m(n))
     }
-  | Upgrade(migrate = m, next = k) -> k(m(n))
-}
 ```
 
 And a `main` that upgrades after the first `Get`:
@@ -983,13 +1005,14 @@ A tally is a process that holds the counts and adds to them. `words.ern` continu
 // words.ern, continued
 export type TallyMsg = Add(Map(String, Int)) | Top(n : Int, reply : Reply(List(#(String, Int))))
 
-export fn tally(counts : Map(String, Int)) -> Unit with TallyMsg = receive {
-    Add(more) -> tally(Map.foldLeft(more, counts, add))
-  | Top(n = n, reply = r) -> {
-        answer(r, top(counts, n));
-        tally(counts)
+export fn tally(counts : Map(String, Int)) -> Unit with TallyMsg =
+    receive {
+        Add(more) -> tally(Map.foldLeft(more, counts, add))
+      | Top(n = n, reply = r) -> {
+            answer(r, top(counts, n));
+            tally(counts)
+        }
     }
-}
 ```
 
 `Add` brings a map of counts, and `Map.foldLeft` adds each word's count in with `add`, which takes the map, a word, and a count, the order the fold gives them. `Top` is a request, so it carries a `Reply`.
@@ -1041,14 +1064,15 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> Unit with m =
         }
     }
 
-fn pong() -> Unit with PongMsg = receive {
-    Ping(n = n, reply = r) -> {
-        Io.println("pong " <> Int.toString(n));
-        answer(r, n);
-        pong()
+fn pong() -> Unit with PongMsg =
+    receive {
+        Ping(n = n, reply = r) -> {
+            Io.println("pong " <> Int.toString(n));
+            answer(r, n);
+            pong()
+        }
+      | Stop -> Unit
     }
-  | Stop -> Unit
-}
 ```
 
 `ping` never receives, so its mailbox `m` is any type; it must be a real one, since `Address.call` runs only in a process (§3.5).
@@ -1080,7 +1104,8 @@ type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
 ```ernest
 type MainMsg = Result(run : Int, value : Int) | Died(run : Int, down : Down)
 
-fn work(n : Int) -> Int = n * n
+fn work(n : Int) -> Int =
+    n * n
 
 fn runWorker(run : Int) -> Optional(Int) with MainMsg = {
     let me = self();
@@ -1089,16 +1114,18 @@ fn runWorker(run : Int) -> Optional(Int) with MainMsg = {
     waitFor(run)
 }
 
-fn waitFor(run : Int) -> Optional(Int) with MainMsg = receive {
-    Result(run = r, value = v) when r == run -> Some(v)
-  | Died(run = r, down = _) when r == run -> None
-  | Died(run = _, down = _) -> waitFor(run)
-}
+fn waitFor(run : Int) -> Optional(Int) with MainMsg =
+    receive {
+        Result(run = r, value = v) when r == run -> Some(v)
+      | Died(run = r, down = _) when r == run -> None
+      | Died(run = _, down = _) -> waitFor(run)
+    }
 
-fn report(run : Int) -> Unit with MainMsg = match runWorker(run) {
-    Some(v) -> Io.println("run " <> Int.toString(run) <> ": " <> Int.toString(v))
-  | None -> Io.println("run " <> Int.toString(run) <> ": the worker died")
-}
+fn report(run : Int) -> Unit with MainMsg =
+    match runWorker(run) {
+        Some(v) -> Io.println("run " <> Int.toString(run) <> ": " <> Int.toString(v))
+      | None -> Io.println("run " <> Int.toString(run) <> ": the worker died")
+    }
 
 export fn main() -> Unit with MainMsg = {
     report(1);
@@ -1154,17 +1181,19 @@ via : ((a) -> b, Address(b)) -> Address(a)
 type GameMsg = Tick(Int) | Input(Char)
 type World = World(score : Int)
 
-fn step(w : World) -> World = World(score = w.score + 1)
+fn step(w : World) -> World =
+    World(score = w.score + 1)
 
 fn game(state : World) -> Unit with GameMsg = {
     Clock.alarm(100, Tick);
     waitForTick(state)
 }
 
-fn waitForTick(state : World) -> Unit with GameMsg = receive {
-    Tick(_) -> game(step(state))
-  | Input(_) -> waitForTick(state)
-}
+fn waitForTick(state : World) -> Unit with GameMsg =
+    receive {
+        Tick(_) -> game(step(state))
+      | Input(_) -> waitForTick(state)
+    }
 ```
 
 `game` schedules one alarm and hands over to `waitForTick`, which takes inputs without touching the alarm; only a `Tick` returns to `game`, which schedules the next. `step` reads the world's field by selecting it, `w.score`.
@@ -1247,11 +1276,12 @@ fn parse(port : String, workers : String) -> Either(String, Config) = {
     Right(Config(port = p, workers = w))
 }
 
-fn show(c : Either(String, Config)) -> String = match c {
-    Right(Config(port = p, workers = w)) ->
-        "port " <> Int.toString(p) <> ", " <> Int.toString(w) <> " workers"
-  | Left(reason) -> "no config: " <> reason
-}
+fn show(c : Either(String, Config)) -> String =
+    match c {
+        Right(Config(port = p, workers = w)) ->
+            "port " <> Int.toString(p) <> ", " <> Int.toString(w) <> " workers"
+      | Left(reason) -> "no config: " <> reason
+    }
 
 export fn main() -> Unit with Never = {
     Io.println(show(parse("8080", "4")));
@@ -1274,12 +1304,13 @@ Between processes a failure is part of the protocol. A request whose work can fa
 ```ernest
 type ParserMsg = Parse(text : String, reply : Reply(Either(String, Int)))
 
-fn parser() -> Unit with ParserMsg = receive {
-    Parse(text = t, reply = r) -> {
-        answer(r, Either.fromOptional(String.toInt(t), t <> " is not a number"));
-        parser()
+fn parser() -> Unit with ParserMsg =
+    receive {
+        Parse(text = t, reply = r) -> {
+            answer(r, Either.fromOptional(String.toInt(t), t <> " is not a number"));
+            parser()
+        }
     }
-}
 
 fn ask(p : Address(ParserMsg), text : String) -> String with m =
     match Address.call(p, fn(r) = Parse(text = text, reply = r), 1000) {
@@ -1310,7 +1341,8 @@ A fault is what the program did not expect: a division by zero, a `Float` result
 ```ernest
 type MainMsg = WorkerDied(Down)
 
-fn average(total : Int, count : Int) -> Int = total / count
+fn average(total : Int, count : Int) -> Int =
+    total / count
 
 fn worker(count : Int) -> Unit with Never =
     Io.println(Int.toString(average(100, count)))
@@ -1327,8 +1359,8 @@ export fn main() -> Unit with MainMsg = {
 
 ```console
 $ ern run faults.erc
-Faults.main:9 faulted: division by zero
-the worker spawned at Faults.main:9 faulted: division by zero
+Faults.main:10 faulted: division by zero
+the worker spawned at Faults.main:10 faulted: division by zero
 ```
 
 `average` is pure and still faults. A type says what a function returns when it returns, not that it will. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn. The first line is `ern run`'s own: it writes every fault to standard error as it happens, the spawn site and the cause, whatever the program does about it.
@@ -1342,32 +1374,35 @@ A worker need not guard against what it did not expect. It faults, and the proce
 ```ernest
 type SupMsg = Result(Int) | Ended(Down)
 
-fn supervise(jobs : List(Int)) -> Unit with SupMsg = match jobs {
-    [] -> Io.println("all jobs done")
-  | job :: rest -> {
-        let me = self();
-        let _ = spawnMonitored(Local, fn() -> Unit with Never = send(me, Result(100 / job)),
-            Ended);
-        Io.println(Int.toString(job) <> ": " <> outcome());
-        supervise(rest)
+fn supervise(jobs : List(Int)) -> Unit with SupMsg =
+    match jobs {
+        [] -> Io.println("all jobs done")
+      | job :: rest -> {
+            let me = self();
+            let _ = spawnMonitored(Local, fn() -> Unit with Never = send(me, Result(100 / job)),
+                Ended);
+            Io.println(Int.toString(job) <> ": " <> outcome());
+            supervise(rest)
+        }
     }
-}
 
 // The worker's answer, or the fault that ended it. A worker that returned
 // has sent its answer, so after its end the answer is taken too, whichever
 // arrived first, and neither is left for the next worker.
-fn outcome() -> String with SupMsg = receive {
-    Ended(Down(reason = Fault(cause), site = _)) -> "failed, " <> cause
-  | Ended(_) -> receive { Result(n) -> Int.toString(n) }
-}
+fn outcome() -> String with SupMsg =
+    receive {
+        Ended(Down(reason = Fault(cause), site = _)) -> "failed, " <> cause
+      | Ended(_) -> receive { Result(n) -> Int.toString(n) }
+    }
 
-export fn main() -> Unit with SupMsg = supervise([4, 0, 5])
+export fn main() -> Unit with SupMsg =
+    supervise([4, 0, 5])
 ```
 
 ```console
 $ ern run jobs.erc
 4: 25
-Jobs.supervise:7 faulted: division by zero
+Jobs.supervise:8 faulted: division by zero
 0: failed, division by zero
 5: 20
 all jobs done
@@ -1393,14 +1428,15 @@ export fn start() -> Address(CounterMsg) with m =
     spawn(Local, restarting(RestartLimit(restarts = 3, within = 5000), fn() = count(0)))
 
 // The counter's loop, which faults on a negative amount.
-fn count(total : Int) -> Unit with CounterMsg = receive {
-    Add(amount = n, reply = r) ->
-        if n < 0 then fault("a negative amount")
-        else {
-            answer(r, total + n);
-            count(total + n)
-        }
-}
+fn count(total : Int) -> Unit with CounterMsg =
+    receive {
+        Add(amount = n, reply = r) ->
+            if n < 0 then fault("a negative amount")
+            else {
+                answer(r, total + n);
+                count(total + n)
+            }
+    }
 
 export fn main() -> Unit with Never = {
     let add = fn(n) = Address.call(counter, fn(r) = Add(amount = n, reply = r), 1000);
@@ -1440,14 +1476,15 @@ let group : Address(Supervisor.Msg) = spawn(Local,
 let visits : Address(CounterMsg) = spawn(Local, Supervisor.child(group, fn() = count(0)))
 let sales : Address(CounterMsg) = spawn(Local, Supervisor.child(group, fn() = count(0)))
 
-fn count(total : Int) -> Unit with CounterMsg = receive {
-    Add(amount = n, reply = r) ->
-        if n < 0 then fault("a negative amount")
-        else {
-            answer(r, total + n);
-            count(total + n)
-        }
-}
+fn count(total : Int) -> Unit with CounterMsg =
+    receive {
+        Add(amount = n, reply = r) ->
+            if n < 0 then fault("a negative amount")
+            else {
+                answer(r, total + n);
+                count(total + n)
+            }
+    }
 
 fn add(c : Address(CounterMsg), n : Int) -> Optional(Int) with m =
     Address.call(c, fn(r) = Add(amount = n, reply = r), 1000)
@@ -1479,10 +1516,11 @@ When a supervisor dies, given up, killed, or of a defect of its own, its childre
 ### 6.7 Prediction exercise
 
 ```ernest
-fn first(xs : List(Int)) -> Int = match xs {
-    x :: _ -> x
-  | [] -> fault("first of an empty list")
-}
+fn first(xs : List(Int)) -> Int =
+    match xs {
+        x :: _ -> x
+      | [] -> fault("first of an empty list")
+    }
 ```
 
 What happens when `main` calls `first([])`, and how would you make the empty list the caller's to handle?
@@ -1506,11 +1544,12 @@ export fn parse(s : String) -> Optional(Request) =
 
 ```ernest
 // main.ern  (namespace Main)
-export fn main() -> Unit with Never = match Net.Http.parse("GET /") {
-    Some(Net.Http.Request(method = method, path = path)) ->
-        Io.println(method <> " " <> path)
-  | None -> Io.println("bad request")
-}
+export fn main() -> Unit with Never =
+    match Net.Http.parse("GET /") {
+        Some(Net.Http.Request(method = method, path = path)) ->
+            Io.println(method <> " " <> path)
+      | None -> Io.println("bad request")
+    }
 ```
 
 `main.ern` names the constructor `Net.Http.Request` by its whole name, as it names the function.
@@ -1545,7 +1584,8 @@ Directory mode compiles the modules in the order their dependencies need, and a 
 **Testing a module.** A test is a top-level `let` of the prelude type `Test`, a name and a function returning `Passed` or `Failed(text)`:
 
 ```ernest
-fn add(a : Int, b : Int) -> Int = a + b
+fn add(a : Int, b : Int) -> Int =
+    a + b
 
 let addsTwo = Test(name = "adds two", run = fn() -> TestResult with Never =
     if add(1, 1) == 2 then Passed else Failed("not two"))
@@ -1576,11 +1616,13 @@ An abstract type keeps its representation to its module: every definition in the
 export abstract type Stack(a) = Stack(List(a))
 
 export let Stack.empty : Stack(a) = Stack([])
-export fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) = Stack(x :: xs)
+export fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) =
+    Stack(x :: xs)
 export fn Stack.pop(Stack(xs) : Stack(a)) -> Optional(#(a, Stack(a))) =
     match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
 
-export fn Stack.size(Stack(xs) : Stack(a)) -> Int = List.size(xs)
+export fn Stack.size(Stack(xs) : Stack(a)) -> Int =
+    List.size(xs)
 ```
 
 Inside `main.ern` the operations are `Stack.push` and the rest, and any definition may take a `Stack` apart, a private helper or a test included. Outside, they are `Main.Stack.push`, and `Main.Stack([])` is an error: another module sees the type and the operations, never the constructor.
@@ -1615,10 +1657,12 @@ type Shape = Shape(name : String, area : () -> Float)
 fn circle(radius : Float) -> Shape =
     Shape(name = "circle", area = fn() = 3.14159 * radius * radius)
 
-fn square(side : Float) -> Shape = Shape(name = "square", area = fn() = side * side)
+fn square(side : Float) -> Shape =
+    Shape(name = "square", area = fn() = side * side)
 
-export fn main() = List.foreach([circle(1.0), square(2.0)], fn(s) =
-    Io.println(s.name <> " " <> Float.toString(s.area())))
+export fn main() =
+    List.foreach([circle(1.0), square(2.0)], fn(s) =
+        Io.println(s.name <> " " <> Float.toString(s.area())))
 ```
 
 ```console
@@ -1644,8 +1688,9 @@ Each representation depends on the contract and exports an `operations()` that f
 ```ernest
 // sets/hashed.ern  (namespace Sets.Hashed)
 /// The built-in `Set`, as a `Sets.Operations`.
-export fn operations() -> Sets.Operations(Set(a), a) = Sets.Operations(
-    empty = Set.empty, add = Set.put, has = Set.contains, union = Set.union)
+export fn operations() -> Sets.Operations(Set(a), a) =
+    Sets.Operations(
+        empty = Set.empty, add = Set.put, has = Set.contains, union = Set.union)
 ```
 
 ```ernest
@@ -1672,7 +1717,8 @@ fn merge(xs : List(a), ys : List(a), compare : (a, a) -> Ordering) -> List(a) =
     }
 
 /// The elements in ascending order, which no other set here gives.
-export fn toList(Sorted(xs) : Sorted(a)) -> List(a) = xs
+export fn toList(Sorted(xs) : Sorted(a)) -> List(a) =
+    xs
 ```
 
 Code written once takes the record, and the caller chooses the representation at the call:
@@ -1737,7 +1783,8 @@ The program names the peer; the runtime chooses no node for it (report §6.7):
 // square.ern
 type Result = Result(Int)
 
-fn heavy(a : Int, b : Int) -> Int = a * a + b * b
+fn heavy(a : Int, b : Int) -> Int =
+    a * a + b * b
 
 export fn main() -> Unit with Result = {
     let me = self();
@@ -1836,10 +1883,11 @@ The Ernest `foreign fn` binds to that helper, and the term it returns is already
 // store.ern (namespace Store)
 export foreign fn lookup(key : String) -> Either(String, Int) with m = "store_helper:lookup/1"
 
-export fn main() -> Unit with Never = match lookup("answer") {
-    Right(n) -> Io.println("found " <> Int.toString(n))
-  | Left(reason) -> Io.println(reason)
-}
+export fn main() -> Unit with Never =
+    match lookup("answer") {
+        Right(n) -> Io.println("found " <> Int.toString(n))
+      | Left(reason) -> Io.println(reason)
+    }
 ```
 
 `ern` finds an Erlang module of your own as a `.beam` in a directory of its load path, which includes the root of the module it runs (report §11.2):
@@ -1863,10 +1911,11 @@ Building and parsing binary formats:
 fn frame(len : Int, body : Bytes) -> Bytes =
     <<len:size(16)-big, body:bytes>>
 
-fn parseFrame(bytes : Bytes) -> Optional(#(Int, Bytes, Bytes)) = match bytes {
-    <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> -> Some(#(len, body, rest))
-  | _ -> None
-}
+fn parseFrame(bytes : Bytes) -> Optional(#(Int, Bytes, Bytes)) =
+    match bytes {
+        <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> -> Some(#(len, body, rest))
+      | _ -> None
+    }
 ```
 
 Specifiers, joined with `-`:

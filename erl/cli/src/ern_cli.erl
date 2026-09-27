@@ -204,7 +204,7 @@ compile(Opts, Path, Err) ->
     Root = source_root(Opts, Path, case DirMode of true -> Path; false -> "." end),
     OutDir = out_dir(Opts, Root),
     Files = case DirMode of
-                true -> [filename:join(Path, F) || F <- filelib:wildcard("**/*.ern", Path)];
+                true -> sources(Path);
                 false -> [Path]
             end,
     Modules = [module_of(absolute(F), Root) || F <- Files],
@@ -244,6 +244,18 @@ report_errors(Opts, File, Errors, Err) ->
                       io:format(Err, "~ts~n", [Text])
                   end, Errors),
     1.
+
+%% Report §11.1: every `.ern` under a directory, passing over each file and
+%% directory whose name begins with a dot, which is no module.
+sources(Dir) ->
+    {ok, Names} = file:list_dir(Dir),
+    lists:append([begin
+                      Path = filename:join(Dir, Name),
+                      case filelib:is_dir(Path) of
+                          true -> sources(Path);
+                          false -> [Path || filename:extension(Name) =:= ".ern"]
+                      end
+                  end || Name <- lists:sort(Names), hd(Name) =/= $.]).
 
 %% A source file as a module: its namespace from its path under the root,
 %% with the path shape rule of §11.1.
@@ -676,7 +688,7 @@ beam_of(Opts, Path) ->
 doc_dir(Opts, Path) ->
     Root = source_root(Opts, Path, Path),
     OutDir = out_dir(Opts, Root),
-    Files = [filename:join(Path, F) || F <- filelib:wildcard("**/*.ern", Path)],
+    Files = sources(Path),
     Mods = compile_order([module_of(absolute(F), Root) || F <- Files], Root),
     Entries = [begin
                    Rel = module_path(Ns) ++ ".md",

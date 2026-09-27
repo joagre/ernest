@@ -40,7 +40,8 @@ foreign fn emptyMap() -> Map(k, v) = "ern_map:empty/0"
 export foreign fn size(m : Map(k, v)) -> Int = "ern_map:size/1"
 
 /// `true` for the map with no entries.
-export fn isEmpty(m : Map(k, v)) -> Bool = size(m) == 0
+export fn isEmpty(m : Map(k, v)) -> Bool =
+    size(m) == 0
 
 /// `true` when the map has an entry with that key.
 ///
@@ -50,10 +51,11 @@ export fn isEmpty(m : Map(k, v)) -> Bool = size(m) == 0
 /// #(Map.contains(Map.fromList([#("a", 1)]), "a"), Map.contains(Map.empty, "a"))
 /// // => #(true, false)
 /// ```
-export fn contains(m : Map(k, v), key : k) -> Bool = match get(m, key) {
-    Some(_) -> true
-  | None -> false
-}
+export fn contains(m : Map(k, v), key : k) -> Bool =
+    match get(m, key) {
+        Some(_) -> true
+      | None -> false
+    }
 
 /// The value at that key.
 export foreign fn get(m : Map(k, v), key : k) -> Optional(v) = "ern_map:get/2"
@@ -205,7 +207,9 @@ export foreign fn toList(m : Map(k, v)) -> List(#(k, v)) = "ern_map:to_list/1"
 /// #(Map.keys(Map.fromList([#("a", 1)])), Map.values(Map.fromList([#("a", 1)])))
 /// // => #(["a"], [1])
 /// ```
-export fn keys(m : Map(k, v)) -> List(k) = List.map(toList(m), fn(#(key, _)) = key)
+export fn keys(m : Map(k, v)) -> List(k) =
+    List.map(toList(m), fn(#(key, _)) = key)
 
 /// The values.
-export fn values(m : Map(k, v)) -> List(v) = List.map(toList(m), fn(#(_, value)) = value)
+export fn values(m : Map(k, v)) -> List(v) =
+    List.map(toList(m), fn(#(_, value)) = value)

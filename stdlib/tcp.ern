@@ -155,7 +155,8 @@ export fn write(socket : Address(SockMsg), bytes : Bytes) -> Unit with m =
     Address.callForever(socket, fn(r) = Send(bytes = bytes, reply = r))
 
 /// Closes the socket, which ends its process.
-export fn close(socket : Address(SockMsg)) -> Unit with m = send(socket, Close)
+export fn close(socket : Address(SockMsg)) -> Unit with m =
+    send(socket, Close)
 
 /// Stops the listener, which ends its process; an accept waiting on it
 /// answers `Left(Io.Closed)`.

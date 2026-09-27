@@ -23,11 +23,12 @@ export fn main() -> Unit with m = {
     }
 }
 
-fn counter(n : Int) -> Unit with CounterMsg = receive {
-    Inc(k) -> counter(n + k)
-  | Get(reply = r) -> {
-        answer(r, n);
-        counter(n)
+fn counter(n : Int) -> Unit with CounterMsg =
+    receive {
+        Inc(k) -> counter(n + k)
+      | Get(reply = r) -> {
+            answer(r, n);
+            counter(n)
+        }
+      | Upgrade(migrate = m, next = k) -> k(m(n))
     }
-  | Upgrade(migrate = m, next = k) -> k(m(n))
-}

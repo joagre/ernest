@@ -40,7 +40,7 @@ Ernest is order-independent at top level; these are style choices, not correctne
           |> withCookie("sid", SessionId.text(id))
           |> render;
 
-- **One statement a line.** A block of more than one statement is written over lines, one statement to a line: its opening brace ends the line the block begins on, and its closing brace stands alone at that line's indentation, in a clause as anywhere. An input at the shell's prompt, which without a terminal is one line, is written as it is typed.
+- **One statement a line, and a block holds more than one.** One expression is written bare, without braces around it. A block is written over lines, one statement to a line: its opening brace ends the line the block begins on, and its closing brace stands alone at that line's indentation, in a clause as anywhere. An input at the shell's prompt, which without a terminal is one line, is written as it is typed.
 
       else {
           send(to, Item(next));
@@ -52,6 +52,11 @@ Ernest is order-independent at top level; these are style choices, not correctne
             counter(n)
         }
 
+      | Some(path) -> match Fs.read(path, wait) {
+            Left(why) -> Left(why)
+          | Right(bytes) -> Right(inputs(bytes))
+        }
+
 - **`then` and `else` return to the line their `if` begins on.**
 
       if from < 1 || from > List.size(history) then None
@@ -60,6 +65,26 @@ Ernest is order-independent at top level; these are style choices, not correctne
 
       if List.any(Map.values(ps), fn(q) = List.contains(tailOf(q), head))
       then Player(..p, alive = false) else p
+
+- **A function's head ends at `=`, and its body begins on the next line, one step in.** A body of one short line is no exception.
+
+      fn walk(state : State, step : Int) -> State =
+          walkTo(state, state.back + step)
+
+      export fn midSequence(state : State) -> Bool =
+          match state {
+              State(pending = Plain) -> false
+            | _ -> true
+          }
+
+  A body that is a block is written as every block is: its brace ends the head's line.
+
+      fn run(state : State, input : String) -> State with ShellMsg = {
+          let checked = check(state.env, input);
+          await(state, checked)
+      }
+
+  A `foreign fn`'s implementation string stays on the head's line, since it is not a body.
 
 - **A signature broken over lines continues one step in**, which is where its body goes too.
 

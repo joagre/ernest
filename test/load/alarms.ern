@@ -12,7 +12,8 @@ let rounds = 14
 
 let batch = 500
 
-export fn main() -> Unit with Msg = round(1)
+export fn main() -> Unit with Msg =
+    round(1)
 
 fn round(n : Int) -> Unit with Msg =
     if n > rounds then Unit

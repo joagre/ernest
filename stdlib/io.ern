@@ -66,10 +66,12 @@ foreign fn system(name : Foreign) -> Address(a) with m = "ern_rt:sys/1"
 /// Io.println("and half")
 /// // => Unit
 /// ```
-export fn print(s : String) -> Unit with m = written(stdout, String.toUtf8(s))
+export fn print(s : String) -> Unit with m =
+    written(stdout, String.toUtf8(s))
 
 /// The string to standard output, with a line feed after it.
-export fn println(s : String) -> Unit with m = written(stdout, String.toUtf8(s <> "\n"))
+export fn println(s : String) -> Unit with m =
+    written(stdout, String.toUtf8(s <> "\n"))
 
 // The bytes to a stream, once it has taken them.
 fn written(stream : Address(OutMsg), bytes : Bytes) -> Unit with m =
@@ -86,10 +88,12 @@ fn written(stream : Address(OutMsg), bytes : Bytes) -> Unit with m =
 /// Io.printlnError("open the file")
 /// // => Unit
 /// ```
-export fn printError(s : String) -> Unit with m = written(stderr, String.toUtf8(s))
+export fn printError(s : String) -> Unit with m =
+    written(stderr, String.toUtf8(s))
 
 /// The string to standard error, with a line feed after it.
-export fn printlnError(s : String) -> Unit with m = written(stderr, String.toUtf8(s <> "\n"))
+export fn printlnError(s : String) -> Unit with m =
+    written(stderr, String.toUtf8(s <> "\n"))
 
 /// The next line from standard input, without its line feed and without
 /// one carriage return before it, or `None` at end of input. A last line
@@ -114,7 +118,8 @@ export fn readLine() -> Optional(String) with m =
 /// ```ernest
 /// Io.read()
 /// ```
-export fn read() -> Optional(Bytes) with m = Address.callForever(stdin, fn(r) = Read(reply = r))
+export fn read() -> Optional(Bytes) with m =
+    Address.callForever(stdin, fn(r) = Read(reply = r))
 
 /// The bytes to standard output, as they are.
 ///
@@ -124,7 +129,8 @@ export fn read() -> Optional(Bytes) with m = Address.callForever(stdin, fn(r) = 
 /// Io.write(<<104, 105, 10>>)
 /// // => Unit
 /// ```
-export fn write(b : Bytes) -> Unit with m = written(stdout, b)
+export fn write(b : Bytes) -> Unit with m =
+    written(stdout, b)
 
 /// The value as Ernest writes it, by its type at the call: a value as its
 /// literal or construction is written, a named constructor's fields in

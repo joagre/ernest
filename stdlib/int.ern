@@ -21,27 +21,32 @@
 /// since 0.1.0
 
 /// The sum.
-export fn Int.+(a : Int, b : Int) -> Int = a + b
+export fn Int.+(a : Int, b : Int) -> Int =
+    a + b
 
 /// The difference.
-export fn Int.-(a : Int, b : Int) -> Int = a - b
+export fn Int.-(a : Int, b : Int) -> Int =
+    a - b
 
 /// The product.
-export fn Int.*(a : Int, b : Int) -> Int = a * b
+export fn Int.*(a : Int, b : Int) -> Int =
+    a * b
 
 /// The quotient, truncated toward zero: `-7 / 3` is `-2`.
 ///
 /// ### Errors
 ///
 /// Faults with `Fault("division by zero")` when `b` is `0`; `Int.div` does not.
-export fn Int./(a : Int, b : Int) -> Int = a / b
+export fn Int./(a : Int, b : Int) -> Int =
+    a / b
 
 /// The remainder of `/`, with the sign of `a`: `-7 % 3` is `-1`.
 ///
 /// ### Errors
 ///
 /// Faults with `Fault("division by zero")` when `b` is `0`; `Int.mod` does not.
-export fn Int.%(a : Int, b : Int) -> Int = a % b
+export fn Int.%(a : Int, b : Int) -> Int =
+    a % b
 
 /// `-n`, which prefix `-` calls.
 ///
@@ -51,13 +56,16 @@ export fn Int.%(a : Int, b : Int) -> Int = a % b
 /// Int.negate(5)
 /// // => -5
 /// ```
-export fn negate(n : Int) -> Int = -n
+export fn negate(n : Int) -> Int =
+    -n
 
 /// `a / b`, or `None` when `b` is `0`.
-export fn div(a : Int, b : Int) -> Optional(Int) = if b == 0 then None else Some(a / b)
+export fn div(a : Int, b : Int) -> Optional(Int) =
+    if b == 0 then None else Some(a / b)
 
 /// `a % b`, or `None` when `b` is `0`.
-export fn mod(a : Int, b : Int) -> Optional(Int) = if b == 0 then None else Some(a % b)
+export fn mod(a : Int, b : Int) -> Optional(Int) =
+    if b == 0 then None else Some(a % b)
 
 /// The numeric order, which `<` and the other comparisons use.
 ///
@@ -71,7 +79,8 @@ export fn compare(a : Int, b : Int) -> Ordering =
     if a < b then Less else if a > b then Greater else Equal
 
 /// The magnitude.
-export fn abs(n : Int) -> Int = if n < 0 then -n else n
+export fn abs(n : Int) -> Int =
+    if n < 0 then -n else n
 
 /// The smaller.
 ///
@@ -81,10 +90,12 @@ export fn abs(n : Int) -> Int = if n < 0 then -n else n
 /// Int.min(1, 2)
 /// // => 1
 /// ```
-export fn min(a : Int, b : Int) -> Int = if a < b then a else b
+export fn min(a : Int, b : Int) -> Int =
+    if a < b then a else b
 
 /// The larger.
-export fn max(a : Int, b : Int) -> Int = if a > b then a else b
+export fn max(a : Int, b : Int) -> Int =
+    if a > b then a else b
 
 /// Bitwise and, on the two's complement form.
 ///

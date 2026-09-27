@@ -35,7 +35,8 @@
 /// Either.isLeft(Left(1))
 /// // => true
 /// ```
-export fn isLeft(r : Either(e, a)) -> Bool = match r { Left(_) -> true | Right(_) -> false }
+export fn isLeft(r : Either(e, a)) -> Bool =
+    match r { Left(_) -> true | Right(_) -> false }
 
 /// `true` for `Right`.
 ///
@@ -45,7 +46,8 @@ export fn isLeft(r : Either(e, a)) -> Bool = match r { Left(_) -> true | Right(_
 /// Either.isRight(Left(1))
 /// // => false
 /// ```
-export fn isRight(r : Either(e, a)) -> Bool = match r { Left(_) -> false | Right(_) -> true }
+export fn isRight(r : Either(e, a)) -> Bool =
+    match r { Left(_) -> false | Right(_) -> true }
 
 /// The value in `Right`, or the default for `Left`.
 export fn withDefault(r : Either(e, a), default : a) -> a =

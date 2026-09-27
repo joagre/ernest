@@ -204,7 +204,7 @@ A Unicode scalar value is a code point other than a surrogate, U+0000 through U+
 
 Declared with `type`, §4.3. A constructor has no fields, exactly one positional field, or named fields:
 
-```
+```ernest
 type Optional(a) = None | Some(a)
 type Snapshot = Snapshot(dir : Path, seen : Map(Path, Int))
 ```
@@ -285,11 +285,15 @@ A *module* is one source file, ending in `.ern`: the unit of compilation and of 
 
 **Taken namespaces.** A module namespace may not coincide with a namespace of the prelude or the standard library. The prelude's namespaces are `Prelude` and the name of every type §9 lists: `down.ern` at the source root is an error, and so is `io.ern`, a namespace of the standard library. The standard library's own source root, shipped with the toolchain, is the exception: its files provide those namespaces. A file under it is compiled with it as the source root (§11.1); another source root is an error.
 
-```
+```ernest
 // net/http.ern
 export type Request = Request(method : String, path : String)
-export fn parse(s : String) -> Optional(Request) = ...
-fn helper(x) = ...        // private to net/http.ern
+export fn parse(s : String) -> Optional(Request) =
+    ...
+
+// private to net/http.ern
+fn helper(x) =
+    ...
 ```
 
 **Type members.** A type `T` declared in a module, concrete or abstract, is a nested namespace. Its members are declared with the single prefix `T.`, as in `fn Distance.+` and `let Stack.empty`, and are exported at `Module.T.member`. The namespace belongs to the file that declares the type. A module namespace may not coincide with it: `main/stack.ern` is an error when `main.ern` declares `Stack`. In `main.ern`, `Main.Stack.push` is therefore its own member where it declares `Stack`, and the module `Main.Stack`'s `push` where it does not. The coincidence is exact: `main.ern` may declare `STACK` beside `main/stack.ern`, and a module may declare two types whose names differ only in case.
@@ -304,14 +308,20 @@ fn helper(x) = ...        // private to net/http.ern
 
 `abstract type T = ...` declares a type whose constructors may appear only in the module that declares it. Every definition of that module may use them, a private one or a test included; another module sees the type and not its constructors. An abstract type is exported: one the module keeps private is an error, since it hides from no other module.
 
-```
+```ernest
 // main.ern  (namespace Main)
 export abstract type Stack(a) = Stack(List(a))
 
 export let Stack.empty = Stack([])
-export fn Stack.push(x, Stack(xs)) = Stack(x :: xs)
-export fn Stack.pop(Stack(xs)) = match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
-export fn size(Stack(xs)) = List.size(xs)
+
+export fn Stack.push(x, Stack(xs)) =
+    Stack(x :: xs)
+
+export fn Stack.pop(Stack(xs)) =
+    match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
+
+export fn size(Stack(xs)) =
+    List.size(xs)
 ```
 
 External callers see `Main.Stack`, `Main.Stack.push`, and `Main.size`; `Stack(...)` is refused outside `main.ern`. A module may declare several abstract types.
@@ -423,7 +433,7 @@ A nullary constructor is a value. A single-positional constructor is a function 
 
 `x |> e` applies `e`, a function value or a call, with `x` inserted as the first argument: `x |> f` is `f(x)`, `x |> f(a, b)` is `f(x, a, b)`.
 
-```
+```ernest
 let words = input |> String.trim |> String.toLower |> String.toList
 ```
 
@@ -463,14 +473,15 @@ A segment without specifiers is `int` of size 8. A segment is `big` and `unsigne
 
 A bitstring's total bit count, in construction and in a pattern, is a multiple of 8. A `bytes` segment has a byte-multiple size, whatever its unit; a sub-octet field is `int`: `x:size(3)-bytes-unit(1)` is an error, a 3-bit field is `x:size(3)-int`. A violation of these rules the compiler can see is a compile-time error; one that depends on a dynamic size faults at construction (§7.4) or fails to match. A value that does not fit its width faults at construction, a literal included. A segment pattern is a variable, `_`, or a literal of the segment's type. `size(Expr)` in a pattern is a variable, an `Int` literal, or `+`, `-`, or `*` applied to these. The variable is bound by an earlier segment of the same bitstring, or is in scope where the pattern stands and is not bound at top level: a parameter, a block `let`, a pattern variable of an enclosing clause, or a lambda's capture. A variable bound elsewhere in the same pattern is not in scope in its sizes. Any other segment pattern or size expression is a type error. A negative or out-of-range size fails the match. Construction evaluates the segments left to right. A `bytes` value fits a sized segment only when it is exactly that long. A negative size fits no value. A `float` value is rounded to a 16- or 32-bit width to nearest, ties to even, and a value too small for the width becomes `0.0`; one whose magnitude exceeds the width's largest finite value does not fit. `<<>>` is the empty `Bytes`.
 
-```
+```ernest
 fn frame(len : Int, body : Bytes) -> Bytes =
     <<len:size(16)-big, body:bytes>>
 
-fn parseFrame(bytes : Bytes) -> Optional(#(Int, Bytes, Bytes)) = match bytes {
-    <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> -> Some(#(len, body, rest))
-  | _ -> None
-}
+fn parseFrame(bytes : Bytes) -> Optional(#(Int, Bytes, Bytes)) =
+    match bytes {
+        <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> -> Some(#(len, body, rest))
+      | _ -> None
+    }
 ```
 
 `parseFrame` matches a 16-bit big-endian length, then `len` bytes of body, then the rest. For coverage (§5.9) a bitstring pattern, at any depth, counts as matching no value. A position that holds one is covered only by a `_` or a variable at that position in another clause: `Some(<<x>>) | Some(_) | None`. Bitstrings compile to the runtime's bit syntax, §10.
@@ -528,7 +539,7 @@ Messages from one process to another are received in sending order. Between diff
 
 Addresses have no equality (§3.10). The process behind an address is `Process.fromAddress(a)`, a value with equality that nothing can be sent to (Appendix E.21). There is no registry. A process reaches another through an address it holds or received, or through a top-level binding that holds one, which is a *service*:
 
-```
+```ernest
 export let log : Address(LogMsg) =
     spawn(Local, restarting(RestartLimit(restarts = 3, within = 5000), logger))
 ```
@@ -557,13 +568,14 @@ answer              : (Reply(a), a) -> Unit with m
 
 A value is bound by a parameter, a `let`, a pattern variable, a `receive` variable, a lambda's capture, or the result of a call, and each binding is an *obligation*. The check is per function and crosses no call boundary. It is static: every path makes the consumption, and whether execution reaches it is not checked, since non-termination, a fault, or an indefinite wait may prevent it. A path on which the prelude's `fault` is called consumes every obligation still open on it, since the fault ends the process and every call waiting on it (§7.2). A function that calls `fault` for its caller does not: the check crosses no call boundary.
 
-```
+```ernest
 type Request = Get(reply : Reply(Int)) | Stop
 
-fn serve(request : Request) -> Unit with m = match request {
-    Get(reply = r) -> answer(r, 42)  // accepted: r is answered on its one path
-  | Stop -> Unit                     // Stop carries no reply
-}
+fn serve(request : Request) -> Unit with m =
+    match request {
+        Get(reply = r) -> answer(r, 42)  // accepted: r is answered on its one path
+      | Stop -> Unit                     // Stop carries no reply
+    }
 
 fn twice(dst : Address(Request), request : Request) -> Unit with m = {
     send(dst, request);
@@ -599,17 +611,21 @@ A child of a `Supervisor` (Appendix E.22) also runs `f()` again when its supervi
 
 A process replaces its code by a message in its own type that carries the new loop, and switches with a tail call:
 
-```
+```ernest
 type CounterMsg =
     Inc(Int)
   | Get(reply : Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
-fn counter(n : Int) -> Unit with CounterMsg = receive {
-    Inc(k) -> counter(n + k)
-  | Get(reply = r) -> { answer(r, n); counter(n) }
-  | Upgrade(migrate = m, next = k) -> k(m(n))
-}
+fn counter(n : Int) -> Unit with CounterMsg =
+    receive {
+        Inc(k) -> counter(n + k)
+      | Get(reply = r) -> {
+            answer(r, n);
+            counter(n)
+        }
+      | Upgrade(migrate = m, next = k) -> k(m(n))
+    }
 ```
 
 A function does not cross nodes in a message (§3.11), so a process on another node is sent its `Upgrade` by a process spawned on that node, which the spawn gives the new function: `spawn(Peer(name), fn() = send(c, Upgrade(migrate = m, next = k)))`. The language has no other mechanism for code replacement. The shell's reload (§11.2) runs new calls on the new code and never changes the code a running process runs; a process whose code the shell can no longer keep faults with `Fault("its code was unloaded")` (§7.4).
@@ -754,7 +770,7 @@ A parameter written with `=` requires equality of its argument, as a foreign typ
 
 ### 9.3 Declared types
 
-```
+```ernest
 type Unit = Unit // the one-value type; carries no information
 type Optional(a) = None | Some(a)
 type Either(e, a) = Left(e) | Right(a)
@@ -840,7 +856,7 @@ The toolchain is one command, `ern`, whose first word is its job: `ern build`, `
 
 **Source root.** Each file's namespace comes from its path under the source root (§4.2). `--source-root` names it. Without it, a path under the standard library's source root (§4.2) uses that root. Otherwise single-file mode uses the current directory, and directory mode uses the directory passed to `ern build`. Output mirrors the source root, not the directory argument: `ern build --source-root src --build-root build src/net` writes `src/net/http.ern` to `build/net/http.erc`, not `build/http.erc`. `build-root` defaults to the source root, and to `build/stdlib` beside the toolchain for the standard library's own source root (§4.2), where its modules are built.
 
-**Path shape.** The name of each `.ern` file compiled, and of each directory between it and the source root, is one word: a lowercase letter followed by lowercase letters and digits. A multi-word module is a nested directory, `http/parser.ern` for `Http.Parser`. Extensions are `.ern` and `.erc`. A path that breaks the rule is an error, `path component Net must be lowercase`; the root itself and files that are not modules are not checked.
+**Path shape.** The name of each `.ern` file compiled, and of each directory between it and the source root, is one word: a lowercase letter followed by lowercase letters and digits. A multi-word module is a nested directory, `http/parser.ern` for `Http.Parser`. Extensions are `.ern` and `.erc`. A path that breaks the rule is an error, `path component Net must be lowercase`; the root itself and files that are not modules are not checked. In directory mode, a file or directory under `src-dir` whose name begins with a dot is not a module and is passed over, as an editor's lock file `.#http.ern` is.
 
 **Cleanup.** After a successful directory-mode compilation to `.erc`, `ern build` removes from the mirrored build subtree every `.erc` whose `.ern` no longer exists under the source root, and every directory left empty; nothing else is removed: `ern build --source-root src --build-root build src/net` sweeps `build/net/` and leaves `build/main.erc`. Single-file mode does not sweep.
 
@@ -989,7 +1005,7 @@ FieldPats   = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 
 The counter of §6.10, with a `main` that exercises `Inc` and `Get`. `Upgrade` is not exercised here; it is covered by the fragment in §6.10.
 
-```
+```ernest
 type CounterMsg =
     Inc(Int)
   | Get(reply : Reply(Int))
@@ -1005,14 +1021,18 @@ export fn main() -> Unit with m = {
     }
 }
 
-fn counter(n : Int) -> Unit with CounterMsg = receive {
-    Inc(k) -> counter(n + k)
-  | Get(reply = r) -> { answer(r, n); counter(n) }
-  | Upgrade(migrate = m, next = k) -> k(m(n))
-}
+fn counter(n : Int) -> Unit with CounterMsg =
+    receive {
+        Inc(k) -> counter(n + k)
+      | Get(reply = r) -> {
+            answer(r, n);
+            counter(n)
+        }
+      | Upgrade(migrate = m, next = k) -> k(m(n))
+    }
 ```
 
-```
+```ernest
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 type MainMsg = PongDone(Down)
 
@@ -1028,21 +1048,25 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> Unit with m =
         Io.println("ping " <> Int.toString(n));
         match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
             Some(_) -> ping(pongAddr, n - 1)
-          | None -> { Io.println("pong is not answering"); send(pongAddr, Stop) }
+          | None -> {
+                Io.println("pong is not answering");
+                send(pongAddr, Stop)
+            }
         }
     }
 
-fn pong() -> Unit with PongMsg = receive {
-    Ping(n = n, reply = r) -> {
-        Io.println("pong " <> Int.toString(n));
-        answer(r, n);
-        pong()
+fn pong() -> Unit with PongMsg =
+    receive {
+        Ping(n = n, reply = r) -> {
+            Io.println("pong " <> Int.toString(n));
+            answer(r, n);
+            pong()
+        }
+      | Stop -> Unit
     }
-  | Stop -> Unit
-}
 ```
 
-```
+```ernest
 type WorkerMsg = DoWork(f : (String) -> Bytes, arg : String)
 
 fn submitter(worker : Address(WorkerMsg)) -> Unit with Never = {
@@ -1080,7 +1104,7 @@ fn submitter(worker : Address(WorkerMsg)) -> Unit with Never = {
 
 A library over Erlang's `ets`, tables of type `set`, outside the standard library; a program adds its compiled root to the load path (§11.1, §11.2). Raw bindings are module-local, unqualified; the library is ordinary Ernest over them. The values `ets` returns match the ABI of §8.4 without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and `[{K, V}]` is `List(#(k, v))`. An API that answers Erlang's `{ok, V} | {error, R}` needs the helper E.19 describes; the `ets` calls below do not use that convention.
 
-```
+```ernest
 // ets.ern  (namespace Ets)
 
 /// A key-value table stored in the runtime's ETS backend, keyed
@@ -1111,22 +1135,32 @@ export fn get(t : Table(k, v), key : k) -> Optional(v) with m =
 foreign fn rawLookup(t : Table(k, v), key : k) -> List(#(k, v)) with m = "ets:lookup/2"
 
 /// Remove key. A key not present is not an error.
-export fn remove(t : Table(k, v), key : k) -> Unit with m = { let _ = rawDelete(t, key); Unit }
+export fn remove(t : Table(k, v), key : k) -> Unit with m = {
+    let _ = rawDelete(t, key);
+    Unit
+}
 
 foreign fn rawDelete(t : Table(k, v), key : k) -> Bool with m = "ets:delete/2"
 
 /// The number of entries in the table.
-export fn size(t : Table(k, v)) -> Int with m = rawInfo(t, Erl.atom("size"))
+export fn size(t : Table(k, v)) -> Int with m =
+    rawInfo(t, Erl.atom("size"))
 
 foreign fn rawInfo(t : Table(k, v), item : Foreign) -> Int with m = "ets:info/2"
 
 /// Close the table, deleting it. All subsequent operations on it fault.
-export fn close(t : Table(k, v)) -> Unit with m = { let _ = rawClose(t); Unit }
+export fn close(t : Table(k, v)) -> Unit with m = {
+    let _ = rawClose(t);
+    Unit
+}
 
 foreign fn rawClose(t : Table(k, v)) -> Bool with m = "ets:delete/1"
 
 /// Remove all entries, leaving the table empty.
-export fn clear(t : Table(k, v)) -> Unit with m = { let _ = rawClear(t); Unit }
+export fn clear(t : Table(k, v)) -> Unit with m = {
+    let _ = rawClear(t);
+    Unit
+}
 
 foreign fn rawClear(t : Table(k, v)) -> Bool with m = "ets:delete_all_objects/1"
 
@@ -1137,7 +1171,7 @@ export foreign fn contains(t : Table(k, v), key : k) -> Bool with m = "ets:membe
 export foreign fn toList(t : Table(k, v)) -> List(#(k, v)) with m = "ets:tab2list/1"
 ```
 
-```
+```ernest
 export fn main() -> Unit with Never = {
     let t = Ets.new();
     Ets.put(t, "a", 1);

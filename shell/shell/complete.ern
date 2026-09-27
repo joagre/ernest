@@ -95,30 +95,33 @@ fn start(before : String, at : Int) -> Int =
 fn inName(c : String) -> Bool =
     c == "." || c == "_" || String.toList(c) != [] && isNameChar(c)
 
-fn isNameChar(c : String) -> Bool = match String.toList(c) {
-    [ch] -> Char.isAlpha(ch) || Char.isDigit(ch)
-  | _ -> false
-}
+fn isNameChar(c : String) -> Bool =
+    match String.toList(c) {
+        [ch] -> Char.isAlpha(ch) || Char.isDigit(ch)
+      | _ -> false
+    }
 
 // A module completes to its name and a dot, since the next `Tab`
 // completes inside it; everything else to its name.
-fn whole(name : Name) -> String = match name {
-    Name(text = text, kind = Module) -> text <> "."
-  | Name(text = text) -> text
-}
+fn whole(name : Name) -> String =
+    match name {
+        Name(text = text, kind = Module) -> text <> "."
+      | Name(text = text) -> text
+    }
 
 // Report §11.2: what a context admits. An expression takes values,
 // constructors and the modules they are in; a type takes types and
 // modules; a pattern takes constructors and modules; a field position
 // takes the fields of its constructor and nothing else. A declaration
 // is where an input may also be an expression, so it admits both.
-fn admitted(names : List(Name), where : Where) -> List(Name) = match where {
-    Fields(fields) -> fields
-  | Anything -> names
-  | TypeName -> held(names, fn(name) = isKind(name, Type))
-  | Pattern -> held(names, fn(name) = isKind(name, Constructor))
-  | _ -> held(names, fn(name) = !isKind(name, Type))
-}
+fn admitted(names : List(Name), where : Where) -> List(Name) =
+    match where {
+        Fields(fields) -> fields
+      | Anything -> names
+      | TypeName -> held(names, fn(name) = isKind(name, Type))
+      | Pattern -> held(names, fn(name) = isKind(name, Constructor))
+      | _ -> held(names, fn(name) = !isKind(name, Type))
+    }
 
 // Report §11.2: the names that may stand there, and the namespaces that
 // hold one, at any depth: after `:`, `Net` holds no type and is not
@@ -130,21 +133,23 @@ fn held(names : List(Name), stands : (Name) -> Bool) -> List(Name) =
       | _ -> stands(name)
     })
 
-fn isKind(name : Name, kind : Kind) -> Bool = name.kind == kind
+fn isKind(name : Name, kind : Kind) -> Bool =
+    name.kind == kind
 
 // The line a completion leaves, and where the cursor lands in it: the
 // word before the cursor is replaced, since an abbreviation is no
 // prefix of what it reaches.
 export fn applied(text : String, at : Int, typed : String, completion : Completion)
-    -> #(String, Int) = match completion {
-    Completion(word = "") -> #(text, at)
-  | Completion(word = new) -> {
-        let start = at - String.size(typed);
-        #(String.slice(text, 0, start) <> new
-            <> String.slice(text, at, String.size(text) - at),
-            start + String.size(new))
+    -> #(String, Int) =
+    match completion {
+        Completion(word = "") -> #(text, at)
+      | Completion(word = new) -> {
+            let start = at - String.size(typed);
+            #(String.slice(text, 0, start) <> new
+                <> String.slice(text, at, String.size(text) - at),
+                start + String.size(new))
+        }
     }
-}
 
 //
 // Matching: what is typed reaches a name by prefix or by abbreviation,
@@ -177,10 +182,11 @@ fn matches(typed : String, names : List(Name)) -> #(List(Name), List(Name)) = {
 
 // Report §11.2: candidates are listed alphabetically, by the text a person
 // types.
-fn alphabetical(names : List(Name)) -> List(Name) = List.sort(names, fn(a, b) =
-    // two names alike, a module and its directory, by the line shown
-    if a.text == b.text then String.compare(a.shown, b.shown)
-    else String.compare(a.text, b.text))
+fn alphabetical(names : List(Name)) -> List(Name) =
+    List.sort(names, fn(a, b) =
+        // two names alike, a module and its directory, by the line shown
+        if a.text == b.text then String.compare(a.shown, b.shown)
+        else String.compare(a.text, b.text))
 
 // Report §11.2: a name is reached a segment at a time, so what is typed
 // reaches the names of as many segments as it has; a namespace's members
@@ -222,10 +228,11 @@ fn abbreviates(part : List(Char), segment : List(Char), atStart : Bool) -> Bool 
 
 // The longest text every candidate begins with, which a first `Tab`
 // puts in even where the name is still ambiguous.
-fn common(texts : List(String)) -> String = match texts {
-    [] -> ""
-  | first :: rest -> List.foldLeft(rest, first, fn(shared, text) = shareds(shared, text, 0))
-}
+fn common(texts : List(String)) -> String =
+    match texts {
+        [] -> ""
+      | first :: rest -> List.foldLeft(rest, first, fn(shared, text) = shareds(shared, text, 0))
+    }
 
 fn shareds(a : String, b : String, upTo : Int) -> String =
     if upTo >= String.size(a) || upTo >= String.size(b) then String.slice(a, 0, upTo)
@@ -355,14 +362,15 @@ let inFields = Test(name = "a field position takes the fields of its constructor
             Name(text = "name", kind = Value, shown = "name : String"),
             Name(text = "level", kind = Value, shown = "level : Int")])), "name"))
 
-fn library() -> List(Name) = [
-    Name(text = "List", kind = Module, shown = "module List"),
-    Name(text = "List.map", kind = Value, shown = "List.map : ..."),
-    Name(text = "List.filter", kind = Value, shown = "List.filter : ..."),
-    Name(text = "List.filterMap", kind = Value, shown = "List.filterMap : ..."),
-    Name(text = "Int", kind = Type, shown = "type Int"),
-    Name(text = "Some", kind = Constructor, shown = "Some : (a) -> Optional(a)")
-]
+fn library() -> List(Name) =
+    [
+        Name(text = "List", kind = Module, shown = "module List"),
+        Name(text = "List.map", kind = Value, shown = "List.map : ..."),
+        Name(text = "List.filter", kind = Value, shown = "List.filter : ..."),
+        Name(text = "List.filterMap", kind = Value, shown = "List.filterMap : ..."),
+        Name(text = "Int", kind = Type, shown = "type Int"),
+        Name(text = "Some", kind = Constructor, shown = "Some : (a) -> Optional(a)")
+    ]
 
 fn becomes(completion : Completion, text : String) -> TestResult =
     if completion.word == text then Passed

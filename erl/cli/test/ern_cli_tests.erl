@@ -100,6 +100,20 @@ path_shape_test() ->
                                  write(Dir3, "http_server.ern", hello())])),
     ?assertNot(filelib:is_regular(filename:join(Dir3, "http_server.erc"))).
 
+%% report §11.1: directory mode passes over a file or directory whose name
+%% begins with a dot, as Emacs's lock file, a dangling link named `.#` and
+%% the file's name. A regression test, written after the fix, of a lock
+%% file that stopped `make`; a name beginning with `#` ends in `#` and is
+%% no `.ern`, so it is not covered.
+dot_names_passed_over_test() ->
+    Dir = tmp(),
+    write(Dir, "main.ern", hello()),
+    ok = file:make_symlink("someone@host.4242", filename:join(Dir, ".#main.ern")),
+    write(Dir, ".cache/stale.ern", "not Ernest"),
+    ?assertEqual(0, ern_cli:ern(["build", Dir])),
+    ?assert(filelib:is_regular(filename:join(Dir, "main.erc"))),
+    ?assertNot(filelib:is_regular(filename:join(Dir, ".cache/stale.erc"))).
+
 %% report §11.1, §4.2: the segment a path component names is the one the
 %% path check accepts, since the shell's `:load` completion asks for it
 %% rather than restating the rule; a regression test of the one owner

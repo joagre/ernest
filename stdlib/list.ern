@@ -30,7 +30,8 @@
 /// since 0.1.0
 
 /// The elements of the first list, then those of the second.
-export fn List.<>(xs : List(a), ys : List(a)) -> List(a) = xs <> ys
+export fn List.<>(xs : List(a), ys : List(a)) -> List(a) =
+    xs <> ys
 
 /// The number of elements.
 ///
@@ -40,7 +41,8 @@ export fn List.<>(xs : List(a), ys : List(a)) -> List(a) = xs <> ys
 /// #(List.size([1, 2, 3]), List.isEmpty([]))
 /// // => #(3, true)
 /// ```
-export fn size(xs : List(a)) -> Int = sizeFrom(xs, 0)
+export fn size(xs : List(a)) -> Int =
+    sizeFrom(xs, 0)
 
 fn sizeFrom(xs : List(a), n : Int) -> Int =
     match xs {
@@ -335,7 +337,8 @@ export fn unique(xs : List(a)) -> List(a) =
 /// List.indexed(["a", "b"])
 /// // => [#(0, "a"), #(1, "b")]
 /// ```
-export fn indexed(xs : List(a)) -> List(#(Int, a)) = indexedFrom(xs, 0)
+export fn indexed(xs : List(a)) -> List(#(Int, a)) =
+    indexedFrom(xs, 0)
 
 fn indexedFrom(xs : List(a), i : Int) -> List(#(Int, a)) =
     match xs {
@@ -362,7 +365,8 @@ export fn repeat(x : a, n : Int) -> List(a) =
 /// List.reverse([1, 2, 3])
 /// // => [3, 2, 1]
 /// ```
-export fn reverse(xs : List(a)) -> List(a) = foldLeft(xs, [], fn(acc, y) = y :: acc)
+export fn reverse(xs : List(a)) -> List(a) =
+    foldLeft(xs, [], fn(acc, y) = y :: acc)
 
 /// The elements in the order `compare` gives, stable: two elements it calls
 /// `Equal` keep the order they had.

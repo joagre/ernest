@@ -695,7 +695,7 @@ examples_parse_test_() ->
 
 %% report §1, Appendix A: the grammar fragments in the sections are Appendix
 %% A's rules; Appendix A is the truth and this test keeps the fragments equal
-%% to it
+%% to it. The grammar stands in the bare fences; an ```ernest fence is code.
 grammar_fragments_test() ->
     {ok, Bin} = file:read_file("../../../ernest_report.md"),
     Text = unicode:characters_to_list(Bin),
@@ -710,7 +710,7 @@ grammar_fragments_test() ->
     Rules = fun(T) ->
                 maps:from_list(
                   [{N, re:replace(R, "\\s+", " ", [global, unicode, {return, list}])}
-                   || [B] <- All(T, "```\n([\\s\\S]*?)```", []),
+                   || ["", B] <- All(T, "```(\\w*)\n([\\s\\S]*?)```", []),
                       [R, N] <- All(B, "^((\\w+)\\s*=[\\s\\S]*?\\s\\.)$", [multiline])])
             end,
     InAppendix = Rules(Appendix),

@@ -30,11 +30,12 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> Unit with m =
         }
     }
 
-fn pong() -> Unit with PongMsg = receive {
-    Ping(n = n, reply = r) -> {
-        Io.println("pong " <> Int.toString(n));
-        answer(r, n);
-        pong()
+fn pong() -> Unit with PongMsg =
+    receive {
+        Ping(n = n, reply = r) -> {
+            Io.println("pong " <> Int.toString(n));
+            answer(r, n);
+            pong()
+        }
+      | Stop -> Unit
     }
-  | Stop -> Unit
-}

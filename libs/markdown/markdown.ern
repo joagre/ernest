@@ -114,15 +114,16 @@ export fn parse(text : String) -> List(Block) =
 fn lineFeeds(text : String) -> String =
     String.replace(String.replace(text, "\r\n", "\n"), "\r", "\n")
 
-fn blocks(lines : List(String)) -> List(Block) = match lines {
-    [] -> []
-  | line :: rest ->
-        if isBlank(line) then blocks(rest)
-        else {
-            let #(b, later) = block(line, rest);
-            b :: blocks(later)
-        }
-}
+fn blocks(lines : List(String)) -> List(Block) =
+    match lines {
+        [] -> []
+      | line :: rest ->
+            if isBlank(line) then blocks(rest)
+            else {
+                let #(b, later) = block(line, rest);
+                b :: blocks(later)
+            }
+    }
 
 // The block that begins at a line that is not blank, and the lines after it:
 // the first kind of block that begins there, and a paragraph where none does.
@@ -130,13 +131,14 @@ fn block(line : String, rest : List(String)) -> #(Block, List(String)) =
     if indent(line) >= 4 then indented(line :: rest, []) else begun(starts(), line, rest)
 
 fn begun(tries : List((String, List(String)) -> Optional(#(Block, List(String)))),
-    line : String, rest : List(String)) -> #(Block, List(String)) = match tries {
-    [] -> paragraph(rest, [unindented(line)])
-  | start :: more -> match start(line, rest) {
-        Some(found) -> found
-      | None -> begun(more, line, rest)
+    line : String, rest : List(String)) -> #(Block, List(String)) =
+    match tries {
+        [] -> paragraph(rest, [unindented(line)])
+      | start :: more -> match start(line, rest) {
+            Some(found) -> found
+          | None -> begun(more, line, rest)
+        }
     }
-}
 
 // Each kind of block that may begin at a line, in the order they are tried;
 // a function rather than a `let`, which would be a cycle, since they reach back to it (§8.5).
@@ -172,27 +174,31 @@ fn interrupts(line : String) -> Bool =
 
 // A list interrupts a paragraph only with an item that is not empty, and
 // an ordered one only when it starts at 1.
-fn interruptingMarker(s : String) -> Bool = match markerOf(s) {
-    Some(Marker(start = start, width = width)) ->
-        !isBlank(String.slice(s, width, String.size(s) - width))
-            && (start == None || start == Some(1))
-  | None -> false
-}
+fn interruptingMarker(s : String) -> Bool =
+    match markerOf(s) {
+        Some(Marker(start = start, width = width)) ->
+            !isBlank(String.slice(s, width, String.size(s) - width))
+                && (start == None || start == Some(1))
+      | None -> false
+    }
 
 // A tab stands for the spaces to the next multiple of four columns.
-fn expanded(line : String) -> String = String.fromList(List.reverse(
-    List.foldLeft(String.toList(line), [], fn(done, c) =
-        if c == '\t' then List.repeat(' ', 4 - List.size(done) % 4) <> done
-        else c :: done)))
+fn expanded(line : String) -> String =
+    String.fromList(List.reverse(
+        List.foldLeft(String.toList(line), [], fn(done, c) =
+            if c == '\t' then List.repeat(' ', 4 - List.size(done) % 4) <> done
+            else c :: done)))
 
-fn isBlank(line : String) -> Bool = String.isEmpty(String.trim(line))
+fn isBlank(line : String) -> Bool =
+    String.isEmpty(String.trim(line))
 
 fn indent(line : String) -> Int = {
     let #(spaces, _) = List.span(String.toList(line), fn(c) = c == ' ');
     List.size(spaces)
 }
 
-fn unindented(line : String) -> String = String.slice(line, indent(line), String.size(line))
+fn unindented(line : String) -> String =
+    String.slice(line, indent(line), String.size(line))
 
 // A line without the first n columns of its indentation, or all of them
 // where it has fewer.
@@ -229,34 +235,37 @@ fn closed(text : String) -> String = {
 }
 
 // Three or more of one of `-`, `*`, `_`, spaces between them allowed.
-fn isRule(s : String) -> Bool = match List.filter(String.toList(s), fn(c) = c != ' ') {
-    first :: rest ->
-        (first == '-' || first == '*' || first == '_') && List.size(rest) >= 2
-            && List.all(rest, fn(c) = c == first)
-  | [] -> false
-}
+fn isRule(s : String) -> Bool =
+    match List.filter(String.toList(s), fn(c) = c != ' ') {
+        first :: rest ->
+            (first == '-' || first == '*' || first == '_') && List.size(rest) >= 2
+                && List.all(rest, fn(c) = c == first)
+      | [] -> false
+    }
 
 // An opening fence: its character, its length, and its info string.
-fn fenceOf(s : String) -> Optional(#(Char, Int, String)) = match String.toList(s) {
-    c :: _ when c == '`' || c == '~' -> {
-        let #(marks, rest) = List.span(String.toList(s), fn(d) = d == c);
-        let info = String.trim(String.fromList(rest));
-        if List.size(marks) < 3 || (c == '`' && String.contains(info, "`")) then None
-        else Some(#(c, List.size(marks), info))
+fn fenceOf(s : String) -> Optional(#(Char, Int, String)) =
+    match String.toList(s) {
+        c :: _ when c == '`' || c == '~' -> {
+            let #(marks, rest) = List.span(String.toList(s), fn(d) = d == c);
+            let info = String.trim(String.fromList(rest));
+            if List.size(marks) < 3 || (c == '`' && String.contains(info, "`")) then None
+            else Some(#(c, List.size(marks), info))
+        }
+      | _ -> None
     }
-  | _ -> None
-}
 
 // A fenced block runs to a closing fence of its character at least as
 // long as the opening one, or to the end of the document; its lines lose
 // the indentation the opening fence had.
 fn fenced(mark : Char, size : Int, info : String, by : Int, lines : List(String),
-    done : List(String)) -> #(Block, List(String)) = match lines {
-    [] -> #(Code(info = info, lines = List.reverse(done)), [])
-  | line :: rest ->
-        if closes(line, mark, size) then #(Code(info = info, lines = List.reverse(done)), rest)
-        else fenced(mark, size, info, by, rest, dedented(line, by) :: done)
-}
+    done : List(String)) -> #(Block, List(String)) =
+    match lines {
+        [] -> #(Code(info = info, lines = List.reverse(done)), [])
+      | line :: rest ->
+            if closes(line, mark, size) then #(Code(info = info, lines = List.reverse(done)), rest)
+            else fenced(mark, size, info, by, rest, dedented(line, by) :: done)
+    }
 
 fn closes(line : String, mark : Char, size : Int) -> Bool =
     indent(line) < 4 && {
@@ -294,29 +303,31 @@ fn quoted(lines : List(String), done : List(String)) -> #(Block, List(String)) =
 
 // A line continues a paragraph lazily when the line before it was
 // paragraph text and it begins no block of its own.
-fn continues(line : String, done : List(String)) -> Bool = match done {
-    previous :: _ -> !isBlank(line) && !isBlank(previous) && !interrupts(line)
-        && indent(previous) < 4
-  | [] -> false
-}
+fn continues(line : String, done : List(String)) -> Bool =
+    match done {
+        previous :: _ -> !isBlank(line) && !isBlank(previous) && !interrupts(line)
+            && indent(previous) < 4
+      | [] -> false
+    }
 
 // A list item's marker: the number an ordered item carries, the character
 // that makes it, a bullet or the delimiter after the number, and the
 // columns up to the item's text.
 type Marker = Marker(start : Optional(Int), mark : Char, width : Int)
 
-fn markerOf(s : String) -> Optional(Marker) = match String.toList(s) {
-    c :: rest when c == '-' || c == '*' || c == '+' -> spaced(None, c, 1, rest)
-  | chars -> {
-        // a list number is ASCII digits, where `Char.isDigit` is any script's
-        let #(digits, rest) = List.span(chars, Char.isAsciiDigit);
-        match rest {
-            d :: later when (d == '.' || d == ')') && digits != [] && List.size(digits) <= 9 ->
-                spaced(String.toInt(String.fromList(digits)), d, List.size(digits) + 1, later)
-          | _ -> None
+fn markerOf(s : String) -> Optional(Marker) =
+    match String.toList(s) {
+        c :: rest when c == '-' || c == '*' || c == '+' -> spaced(None, c, 1, rest)
+      | chars -> {
+            // a list number is ASCII digits, where `Char.isDigit` is any script's
+            let #(digits, rest) = List.span(chars, Char.isAsciiDigit);
+            match rest {
+                d :: later when (d == '.' || d == ')') && digits != [] && List.size(digits) <= 9 ->
+                    spaced(String.toInt(String.fromList(digits)), d, List.size(digits) + 1, later)
+              | _ -> None
+            }
         }
     }
-}
 
 // The marker is followed by one to four spaces, or by the end of the
 // line; more than four leave the rest to the item as indentation.
@@ -358,11 +369,12 @@ fn listed(lines : List(String), first : Marker, items : List(List(Block)))
 fn listOf(marker : Marker, items : List(List(Block))) -> Block =
     Items(start = marker.start, items = items)
 
-fn sameKind(a : Marker, b : Marker) -> Bool = match #(a, b) {
-    #(Marker(start = None, mark = x), Marker(start = None, mark = y)) -> x == y
-  | #(Marker(start = Some(_), mark = x), Marker(start = Some(_), mark = y)) -> x == y
-  | _ -> false
-}
+fn sameKind(a : Marker, b : Marker) -> Bool =
+    match #(a, b) {
+        #(Marker(start = None, mark = x), Marker(start = None, mark = y)) -> x == y
+      | #(Marker(start = Some(_), mark = x), Marker(start = Some(_), mark = y)) -> x == y
+      | _ -> false
+    }
 
 fn startsItem(line : String, first : Marker) -> Bool =
     indent(line) < 4 && match markerOf(unindented(line)) {
@@ -391,19 +403,21 @@ fn itemLines(lines : List(String), at : Int, done : List(String))
 // An HTML block begins with `<` and a tag, a comment, or a declaration,
 // and runs to a blank line. `<` before an address is an autolink and not
 // HTML.
-fn isHtml(s : String) -> Bool = match String.toList(s) {
-    '<' :: c :: rest -> {
-        let #(tag, _) = List.span(rest, fn(d) = d != '>');
-        (Char.isAlpha(c) || c == '/' || c == '!' || c == '?')
-            && !List.any(tag, fn(d) = d == ':' || d == '@')
+fn isHtml(s : String) -> Bool =
+    match String.toList(s) {
+        '<' :: c :: rest -> {
+            let #(tag, _) = List.span(rest, fn(d) = d != '>');
+            (Char.isAlpha(c) || c == '/' || c == '!' || c == '?')
+                && !List.any(tag, fn(d) = d == ':' || d == '@')
+        }
+      | _ -> false
     }
-  | _ -> false
-}
 
-fn raw(lines : List(String), done : List(String)) -> #(Block, List(String)) = match lines {
-    line :: rest when !isBlank(line) -> raw(rest, line :: done)
-  | _ -> #(Raw(List.reverse(done)), lines)
-}
+fn raw(lines : List(String), done : List(String)) -> #(Block, List(String)) =
+    match lines {
+        line :: rest when !isBlank(line) -> raw(rest, line :: done)
+      | _ -> #(Raw(List.reverse(done)), lines)
+    }
 
 // A paragraph runs to a blank line or a line that begins another block; a
 // line of `=` or `-` under it makes it a heading.
@@ -420,60 +434,64 @@ fn textOf(done : List(String)) -> List(Inline) =
     inlines(String.join(List.reverse(done), "\n"))
 
 // 1 for a line of `=`, 2 for a line of `-`, 0 for any other.
-fn underline(s : String) -> Int = match String.toList(String.trim(s)) {
-    c :: rest when (c == '=' || c == '-') && List.all(rest, fn(d) = d == c) ->
-        if c == '=' then 1 else 2
-  | _ -> 0
-}
+fn underline(s : String) -> Int =
+    match String.toList(String.trim(s)) {
+        c :: rest when (c == '=' || c == '-') && List.all(rest, fn(d) = d == c) ->
+            if c == '=' then 1 else 2
+      | _ -> 0
+    }
 
 //
 // Reading the inlines
 //
 
-fn inlines(text : String) -> List(Inline) = merged(scan(String.toList(String.trim(text)), []))
+fn inlines(text : String) -> List(Inline) =
+    merged(scan(String.toList(String.trim(text)), []))
 
 // The inlines of the characters, `pending` holding the text read so far,
 // last first.
-fn scan(chars : List(Char), pending : List(Char)) -> List(Inline) = match chars {
-    [] -> flushed(pending, [])
-  | '\\' :: '\n' :: rest -> flushed(pending, Break :: scan(rest, []))
-  | '\\' :: c :: rest when isPunctuation(c) -> scan(rest, c :: pending)
-  | '\n' :: rest -> {
-        let #(spaces, before) = List.span(pending, fn(c) = c == ' ');
-        if List.size(spaces) >= 2 then flushed(before, Break :: scan(rest, []))
-        else scan(rest, ' ' :: before)
-    }
-  | '`' :: _ -> {
-        let #(ticks, rest) = List.span(chars, fn(c) = c == '`');
-        match closingTicks(rest, List.size(ticks), []) {
-            Some(#(code, later)) -> flushed(pending, CodeSpan(code) :: scan(later, []))
-          | None -> scan(rest, List.reverse(ticks) <> pending)
+fn scan(chars : List(Char), pending : List(Char)) -> List(Inline) =
+    match chars {
+        [] -> flushed(pending, [])
+      | '\\' :: '\n' :: rest -> flushed(pending, Break :: scan(rest, []))
+      | '\\' :: c :: rest when isPunctuation(c) -> scan(rest, c :: pending)
+      | '\n' :: rest -> {
+            let #(spaces, before) = List.span(pending, fn(c) = c == ' ');
+            if List.size(spaces) >= 2 then flushed(before, Break :: scan(rest, []))
+            else scan(rest, ' ' :: before)
         }
+      | '`' :: _ -> {
+            let #(ticks, rest) = List.span(chars, fn(c) = c == '`');
+            match closingTicks(rest, List.size(ticks), []) {
+                Some(#(code, later)) -> flushed(pending, CodeSpan(code) :: scan(later, []))
+              | None -> scan(rest, List.reverse(ticks) <> pending)
+            }
+        }
+      | c :: _ when c == '*' || c == '_' -> emphasis(c, chars, pending)
+      | '!' :: '[' :: rest -> match linked(rest) {
+            Some(#(link, later)) -> flushed(pending, link :: scan(later, []))
+          | None -> scan(rest, '[' :: '!' :: pending)
+        }
+      | '[' :: rest -> match linked(rest) {
+            Some(#(link, later)) -> flushed(pending, link :: scan(later, []))
+          | None -> scan(rest, '[' :: pending)
+        }
+      | '<' :: rest -> match autolink(rest, []) {
+            Some(#(link, later)) -> flushed(pending, link :: scan(later, []))
+          | None -> scan(rest, '<' :: pending)
+        }
+      | c :: rest -> scan(rest, c :: pending)
     }
-  | c :: _ when c == '*' || c == '_' -> emphasis(c, chars, pending)
-  | '!' :: '[' :: rest -> match linked(rest) {
-        Some(#(link, later)) -> flushed(pending, link :: scan(later, []))
-      | None -> scan(rest, '[' :: '!' :: pending)
-    }
-  | '[' :: rest -> match linked(rest) {
-        Some(#(link, later)) -> flushed(pending, link :: scan(later, []))
-      | None -> scan(rest, '[' :: pending)
-    }
-  | '<' :: rest -> match autolink(rest, []) {
-        Some(#(link, later)) -> flushed(pending, link :: scan(later, []))
-      | None -> scan(rest, '<' :: pending)
-    }
-  | c :: rest -> scan(rest, c :: pending)
-}
 
 fn flushed(pending : List(Char), later : List(Inline)) -> List(Inline) =
     if pending == [] then later else Text(String.fromList(List.reverse(pending))) :: later
 
-fn merged(xs : List(Inline)) -> List(Inline) = match xs {
-    Text(a) :: Text(b) :: rest -> merged(Text(a <> b) :: rest)
-  | x :: rest -> x :: merged(rest)
-  | [] -> []
-}
+fn merged(xs : List(Inline)) -> List(Inline) =
+    match xs {
+        Text(a) :: Text(b) :: rest -> merged(Text(a <> b) :: rest)
+      | x :: rest -> x :: merged(rest)
+      | [] -> []
+    }
 
 fn isPunctuation(c : Char) -> Bool =
     String.contains("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", Char.toString(c))
@@ -494,12 +512,13 @@ fn closingTicks(chars : List(Char), size : Int, done : List(Char))
       | c :: rest -> closingTicks(rest, size, c :: done)
     }
 
-fn spanText(chars : List(Char)) -> String = match chars {
-    ' ' :: rest when rest != [] && List.last(rest) == Some(' ')
-        && List.any(rest, fn(c) = c != ' ') ->
-            String.fromList(List.dropLast(rest))
-  | _ -> String.fromList(chars)
-}
+fn spanText(chars : List(Char)) -> String =
+    match chars {
+        ' ' :: rest when rest != [] && List.last(rest) == Some(' ')
+            && List.any(rest, fn(c) = c != ' ') ->
+                String.fromList(List.dropLast(rest))
+      | _ -> String.fromList(chars)
+    }
 
 // Emphasis is one `*` or `_`, strong emphasis two, around text that does
 // not begin or end with a space; `_` inside a word is text. A run with no
@@ -548,7 +567,8 @@ fn closingRun(chars : List(Char), mark : Char, size : Int, done : List(Char))
       | c :: rest -> closingRun(rest, mark, size, c :: done)
     }
 
-fn isWordChar(c : Char) -> Bool = Char.isAlpha(c) || Char.isDigit(c)
+fn isWordChar(c : Char) -> Bool =
+    Char.isAlpha(c) || Char.isDigit(c)
 
 // A link: its text up to the `]` that balances the `[`, then `(`, the
 // address, an optional title in quotes, and `)`.
@@ -654,16 +674,18 @@ export fn render(blocks : List(Block), width : Int, style : Style) -> List(Strin
             <> List.flatMap(rest, fn(b) = "" :: rendered(b, width, style))
     }
 
-fn rendered(b : Block, width : Int, style : Style) -> List(String) = match b {
-    Heading(text = text) ->
-        wrapped(paint(style, Terminal.Bold, spans(unstrong(text), style)), width)
-  | Paragraph(text) -> wrapped(spans(text, style), width)
-  | Code(lines = lines) -> List.map(lines, fn(line) = if isBlank(line) then "" else "    " <> line)
-  | Quote(inner) -> List.map(render(inner, width - 2, style), fn(row) = "│ " <> row)
-  | Items(start = start, items = items) -> itemRows(start, items, width, style)
-  | Rule -> [String.repeat("─", width)]
-  | Raw(lines) -> lines
-}
+fn rendered(b : Block, width : Int, style : Style) -> List(String) =
+    match b {
+        Heading(text = text) ->
+            wrapped(paint(style, Terminal.Bold, spans(unstrong(text), style)), width)
+      | Paragraph(text) -> wrapped(spans(text, style), width)
+      | Code(lines = lines) ->
+            List.map(lines, fn(line) = if isBlank(line) then "" else "    " <> line)
+      | Quote(inner) -> List.map(render(inner, width - 2, style), fn(row) = "│ " <> row)
+      | Items(start = start, items = items) -> itemRows(start, items, width, style)
+      | Rule -> [String.repeat("─", width)]
+      | Raw(lines) -> lines
+    }
 
 // Each item after its bullet or number, the rows after its first under
 // its text; the numbers are as wide as the widest of them.
@@ -685,26 +707,28 @@ fn itemRows(start : Optional(Int), items : List(List(Block)), width : Int, style
 
 // A heading is bold already, so strong emphasis inside it is its text; its
 // own bold would end the heading's where it ends.
-fn unstrong(xs : List(Inline)) -> List(Inline) = List.flatMap(xs, fn(x) = match x {
-    Strong(inner) -> unstrong(inner)
-  | Emphasis(inner) -> [Emphasis(unstrong(inner))]
-  | Link(text = inner, address = address) -> [Link(address = address, text = unstrong(inner))]
-  | other -> [other]
-})
+fn unstrong(xs : List(Inline)) -> List(Inline) =
+    List.flatMap(xs, fn(x) = match x {
+        Strong(inner) -> unstrong(inner)
+      | Emphasis(inner) -> [Emphasis(unstrong(inner))]
+      | Link(text = inner, address = address) -> [Link(address = address, text = unstrong(inner))]
+      | other -> [other]
+    })
 
 fn spans(xs : List(Inline), style : Style) -> String =
     String.join(List.map(xs, fn(x) = span(x, style)), "")
 
-fn span(x : Inline, style : Style) -> String = match x {
-    Text(s) -> s
-  | CodeSpan(s) -> marked(style, Terminal.Foreground(Terminal.Cyan), "`", s)
-  | Emphasis(xs) -> marked(style, Terminal.Italic, "*", spans(xs, style))
-  | Strong(xs) -> marked(style, Terminal.Bold, "**", spans(xs, style))
-  | Link(text = text, address = address) ->
-        if plain(text) == address then address
-        else spans(text, style) <> " (" <> address <> ")"
-  | Break -> "\n"
-}
+fn span(x : Inline, style : Style) -> String =
+    match x {
+        Text(s) -> s
+      | CodeSpan(s) -> marked(style, Terminal.Foreground(Terminal.Cyan), "`", s)
+      | Emphasis(xs) -> marked(style, Terminal.Italic, "*", spans(xs, style))
+      | Strong(xs) -> marked(style, Terminal.Bold, "**", spans(xs, style))
+      | Link(text = text, address = address) ->
+            if plain(text) == address then address
+            else spans(text, style) <> " (" <> address <> ")"
+      | Break -> "\n"
+    }
 
 // Text in the terminal's look where the rendering is styled; the terminal
 // turns a look off by its own code, so one inside another leaves the outer
@@ -717,14 +741,15 @@ fn paint(style : Style, look : Terminal.Style, text : String) -> String =
 fn marked(style : Style, look : Terminal.Style, mark : String, text : String) -> String =
     if style == Styled then paint(style, look, text) else mark <> text <> mark
 
-fn plain(xs : List(Inline)) -> String = String.join(List.map(xs, fn(x) = match x {
-    Text(s) -> s
-  | CodeSpan(s) -> s
-  | Emphasis(inner) -> plain(inner)
-  | Strong(inner) -> plain(inner)
-  | Link(text = inner) -> plain(inner)
-  | Break -> " "
-}), "")
+fn plain(xs : List(Inline)) -> String =
+    String.join(List.map(xs, fn(x) = match x {
+        Text(s) -> s
+      | CodeSpan(s) -> s
+      | Emphasis(inner) -> plain(inner)
+      | Strong(inner) -> plain(inner)
+      | Link(text = inner) -> plain(inner)
+      | Break -> " "
+    }), "")
 
 // Text broken at spaces into rows of at most the width, a word longer
 // than the width alone on its row; a hard break always starts a row, and
@@ -874,10 +899,11 @@ let nestedRows = Test(name = "a quote inside an item is under the item's text", 
 fn blocksAre(blocks : List(Block), expected : List(Block)) -> TestResult =
     if blocks == expected then Passed else Failed(Int.toString(List.size(blocks)) <> " blocks")
 
-fn inlinesAre(text : String, expected : List(Inline)) -> TestResult = match parse(text) {
-    [Paragraph(xs)] -> if xs == expected then Passed else Failed(plain(xs))
-  | _ -> Failed("not one paragraph")
-}
+fn inlinesAre(text : String, expected : List(Inline)) -> TestResult =
+    match parse(text) {
+        [Paragraph(xs)] -> if xs == expected then Passed else Failed(plain(xs))
+      | _ -> Failed("not one paragraph")
+    }
 
 fn rowsAre(rows : List(String), expected : List(String)) -> TestResult =
     if rows == expected then Passed

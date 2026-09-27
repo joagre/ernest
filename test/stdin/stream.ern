@@ -9,10 +9,11 @@ export fn main() -> Unit with Never = {
     rest(0)
 }
 
-fn rest(n : Int) -> Unit with Never = match Io.read() {
-    None -> Io.println("bytes " <> Int.toString(n))
-  | Some(b) -> {
-        Io.write(b);
-        rest(n + Bytes.size(b))
+fn rest(n : Int) -> Unit with Never =
+    match Io.read() {
+        None -> Io.println("bytes " <> Int.toString(n))
+      | Some(b) -> {
+            Io.write(b);
+            rest(n + Bytes.size(b))
+        }
     }
-}

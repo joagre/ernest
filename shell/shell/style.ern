@@ -12,20 +12,23 @@ export fn fault(on : Bool, text : String) -> String =
 
 // A diagnostic, its first line coloured as a fault, the source under it
 // plain.
-export fn diagnostic(on : Bool, text : String) -> String = match String.split(text, "\n") {
-    [] -> text
-  | first :: rest -> String.join(fault(on, first) :: rest, "\n")
-}
+export fn diagnostic(on : Bool, text : String) -> String =
+    match String.split(text, "\n") {
+        [] -> text
+      | first :: rest -> String.join(fault(on, first) :: rest, "\n")
+    }
 
 // The type after a printed value, dimmed so that the value stands out.
-export fn quiet(on : Bool, text : String) -> String = paint(on, Terminal.Dim, text)
+export fn quiet(on : Bool, text : String) -> String =
+    paint(on, Terminal.Dim, text)
 
 // A name in a listing or a brief, `name : type`, the name bold.
-export fn named(on : Bool, text : String) -> String = match String.indexOf(text, " : ") {
-    None -> text
-  | Some(at) -> paint(on, Terminal.Bold, String.slice(text, 0, at))
-        <> String.slice(text, at, String.size(text) - at)
-}
+export fn named(on : Bool, text : String) -> String =
+    match String.indexOf(text, " : ") {
+        None -> text
+      | Some(at) -> paint(on, Terminal.Bold, String.slice(text, 0, at))
+            <> String.slice(text, at, String.size(text) - at)
+    }
 
 // The parameter at the cursor in a signature, in the terminal's cyan, which
 // its theme chooses, so that it reads on a dark screen and a light one.

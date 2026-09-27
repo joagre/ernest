@@ -24,7 +24,8 @@
 /// since 0.1.0
 
 /// The octets of the first, then those of the second.
-export fn Bytes.<>(a : Bytes, b : Bytes) -> Bytes = a <> b
+export fn Bytes.<>(a : Bytes, b : Bytes) -> Bytes =
+    a <> b
 
 /// The number of octets.
 ///
@@ -37,7 +38,8 @@ export fn Bytes.<>(a : Bytes, b : Bytes) -> Bytes = a <> b
 export foreign fn size(b : Bytes) -> Int = "erlang:byte_size/1"
 
 /// `true` for the empty `Bytes`.
-export fn isEmpty(b : Bytes) -> Bool = size(b) == 0
+export fn isEmpty(b : Bytes) -> Bool =
+    size(b) == 0
 
 /// The octet at the index, counting from 0, or `None` beyond either end.
 ///
@@ -71,13 +73,15 @@ export fn slice(b : Bytes, from : Int, count : Int) -> Bytes = {
 foreign fn part(b : Bytes, from : Int, count : Int) -> Bytes = "binary:part/3"
 
 /// The octets, each from 0 to 255.
-export fn toList(b : Bytes) -> List(Int) = List.reverse(octets(b, []))
+export fn toList(b : Bytes) -> List(Int) =
+    List.reverse(octets(b, []))
 
 // The octets before the rest of b, the last first.
-fn octets(b : Bytes, done : List(Int)) -> List(Int) = match b {
-    <<n, rest:bytes>> -> octets(rest, n :: done)
-  | _ -> done
-}
+fn octets(b : Bytes, done : List(Int)) -> List(Int) =
+    match b {
+        <<n, rest:bytes>> -> octets(rest, n :: done)
+      | _ -> done
+    }
 
 /// The `Bytes` of those octets, or `None` when one is outside 0 to 255.
 ///

@@ -46,40 +46,42 @@ type ReplMsg =
 // Program
 //
 
-export fn main() -> Unit with ReplMsg = repl(Map.empty, 0)
+export fn main() -> Unit with ReplMsg =
+    repl(Map.empty, 0)
 
 //
 // Processes
 //
 
-fn repl(env : Map(String, Value), run : Int) -> Unit with ReplMsg = match Io.readLine() {
-    None -> Unit // end of input
-  | Some(text) -> match tokenize(text) {
-        Left(BadChar(c = c, at = i)) -> {
-            Io.println("illegal character " <> Char.toString(c) <> " at " <> Int.toString(i));
-            repl(env, run)
-        }
-      | Right(ts) -> match parse(ts) {
-            Left(e) -> {
-                Io.println(ParseError.toString(e));
+fn repl(env : Map(String, Value), run : Int) -> Unit with ReplMsg =
+    match Io.readLine() {
+        None -> Unit // end of input
+      | Some(text) -> match tokenize(text) {
+            Left(BadChar(c = c, at = i)) -> {
+                Io.println("illegal character " <> Char.toString(c) <> " at " <> Int.toString(i));
                 repl(env, run)
             }
-          | Right(e) -> {
-                let v = try(env, e, run + 1);
-                match #(e, v) {
-                    #(Let(name = x), Right(val)) -> {
-                        show(Right(val));
-                        repl(Map.put(env, x, val), run + 1)
-                    }
-                  | #(_, r) -> {
-                        show(r);
-                        repl(env, run + 1)
+          | Right(ts) -> match parse(ts) {
+                Left(e) -> {
+                    Io.println(ParseError.toString(e));
+                    repl(env, run)
+                }
+              | Right(e) -> {
+                    let v = try(env, e, run + 1);
+                    match #(e, v) {
+                        #(Let(name = x), Right(val)) -> {
+                            show(Right(val));
+                            repl(Map.put(env, x, val), run + 1)
+                        }
+                      | #(_, r) -> {
+                            show(r);
+                            repl(env, run + 1)
+                        }
                     }
                 }
             }
         }
     }
-}
 
 // try as a process: evaluate in a child, wait at most two seconds,
 // kill the child if it does not answer.
@@ -96,74 +98,85 @@ fn try(env : Map(String, Value), e : Expr, run : Int) -> Either(TryError, Value)
 // E.21) exists only after the spawn its wrap is made for, so the run
 // number in the message is what tells this child's news from an earlier
 // child's.
-fn await(child : Address(Never), run : Int) -> Either(TryError, Value) with ReplMsg = receive {
-    Result(run = r, value = v) when r == run -> Either.mapLeft(v, Eval)
-  | Died(run = r) when r == run -> Left(Crashed) // a fault in the child
-  | Result or Died -> await(child, run) // an earlier expression's child
-  | after 2000 -> {
-        kill(child);
-        Left(Timeout)
+fn await(child : Address(Never), run : Int) -> Either(TryError, Value) with ReplMsg =
+    receive {
+        Result(run = r, value = v) when r == run -> Either.mapLeft(v, Eval)
+      | Died(run = r) when r == run -> Left(Crashed) // a fault in the child
+      | Result or Died -> await(child, run) // an earlier expression's child
+      | after 2000 -> {
+            kill(child);
+            Left(Timeout)
+        }
     }
-}
 
-fn show(r : Either(TryError, Value)) -> Unit with ReplMsg = Io.println(match r {
-    Right(N(n)) -> Int.toString(n)
-  | Right(Closure) -> "<fun>"
-  | Left(Eval(e)) -> "error: " <> EvalError.toString(e)
-  | Left(Crashed) -> "crashed"
-  | Left(Timeout) -> "aborted after 2 s"
-})
+fn show(r : Either(TryError, Value)) -> Unit with ReplMsg =
+    Io.println(match r {
+        Right(N(n)) -> Int.toString(n)
+      | Right(Closure) -> "<fun>"
+      | Left(Eval(e)) -> "error: " <> EvalError.toString(e)
+      | Left(Crashed) -> "crashed"
+      | Left(Timeout) -> "aborted after 2 s"
+    })
 
-fn ParseError.toString(e : ParseError) -> String = match e {
-    Unexpected(t) -> "unexpected " <> Token.toString(t)
-  | Eof -> "unexpected end of input"
-}
+fn ParseError.toString(e : ParseError) -> String =
+    match e {
+        Unexpected(t) -> "unexpected " <> Token.toString(t)
+      | Eof -> "unexpected end of input"
+    }
 
-fn Token.toString(t : Token) -> String = match t {
-    Num(n) -> Int.toString(n)
-  | Ident(x) -> x
-  | Op(c) -> Char.toString(c)
-  | LParen -> "("
-  | RParen -> ")"
-  | KwLet -> "let"
-  | KwFun -> "fun"
-  | Eq -> "="
-  | Arrow -> "->"
-}
+fn Token.toString(t : Token) -> String =
+    match t {
+        Num(n) -> Int.toString(n)
+      | Ident(x) -> x
+      | Op(c) -> Char.toString(c)
+      | LParen -> "("
+      | RParen -> ")"
+      | KwLet -> "let"
+      | KwFun -> "fun"
+      | Eq -> "="
+      | Arrow -> "->"
+    }
 
-fn EvalError.toString(e : EvalError) -> String = match e {
-    Unbound(x) -> "unbound " <> x
-  | DivZero -> "division by zero"
-  | NotAFunction -> "not a function"
-  | NotANumber -> "not a number"
-}
+fn EvalError.toString(e : EvalError) -> String =
+    match e {
+        Unbound(x) -> "unbound " <> x
+      | DivZero -> "division by zero"
+      | NotAFunction -> "not a function"
+      | NotANumber -> "not a number"
+    }
 
 //
 // Pure code: lexer
 //
 
-fn tokenize(t : String) -> Either(LexError, List(Token)) = lex(String.toList(t), 0, [])
+fn tokenize(t : String) -> Either(LexError, List(Token)) =
+    lex(String.toList(t), 0, [])
 
-fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Token)) = match cs {
-    [] -> Right(List.reverse(acc))
-  | ' ' :: r -> lex(r, i + 1, acc)
-  | '(' :: r -> lex(r, i + 1, LParen :: acc)
-  | ')' :: r -> lex(r, i + 1, RParen :: acc)
-  | '=' :: r -> lex(r, i + 1, Eq :: acc)
-  | '-' :: '>' :: r -> lex(r, i + 2, Arrow :: acc)
-  | c :: _ when Char.isAsciiDigit(c) -> {
-        let #(digits, rest) = List.span(cs, Char.isAsciiDigit);
-        let n = match String.toInt(String.fromList(digits)) { Some(v) -> v | None -> 0 };
-        lex(rest, i + List.size(digits), Num(n) :: acc)
+fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Token)) =
+    match cs {
+        [] -> Right(List.reverse(acc))
+      | ' ' :: r -> lex(r, i + 1, acc)
+      | '(' :: r -> lex(r, i + 1, LParen :: acc)
+      | ')' :: r -> lex(r, i + 1, RParen :: acc)
+      | '=' :: r -> lex(r, i + 1, Eq :: acc)
+      | '-' :: '>' :: r -> lex(r, i + 2, Arrow :: acc)
+      | c :: _ when Char.isAsciiDigit(c) -> {
+            let #(digits, rest) = List.span(cs, Char.isAsciiDigit);
+            let n = match String.toInt(String.fromList(digits)) { Some(v) -> v | None -> 0 };
+            lex(rest, i + List.size(digits), Num(n) :: acc)
+        }
+      | c :: _ when Char.isAlpha(c) -> {
+            let #(word, rest) = List.span(cs, Char.isAlpha);
+            let tok = match String.fromList(word) {
+                "let" -> KwLet
+              | "fun" -> KwFun
+              | w -> Ident(w)
+            };
+            lex(rest, i + List.size(word), tok :: acc)
+        }
+      | c :: r when List.contains(['+', '-', '*', '/'], c) -> lex(r, i + 1, Op(c) :: acc)
+      | c :: _ -> Left(BadChar(c = c, at = i))
     }
-  | c :: _ when Char.isAlpha(c) -> {
-        let #(word, rest) = List.span(cs, Char.isAlpha);
-        let tok = match String.fromList(word) { "let" -> KwLet | "fun" -> KwFun | w -> Ident(w) };
-        lex(rest, i + List.size(word), tok :: acc)
-    }
-  | c :: r when List.contains(['+', '-', '*', '/'], c) -> lex(r, i + 1, Op(c) :: acc)
-  | c :: _ -> Left(BadChar(c = c, at = i))
-}
 
 //
 // Pure code: parser
@@ -180,51 +193,51 @@ fn parse(ts : List(Token)) -> Either(ParseError, Expr) = {
     match rest { [] -> Right(e) | t :: _ -> Left(Unexpected(t)) }
 }
 
-fn expr(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) = match ts {
-    KwLet :: Ident(x) :: Eq :: r -> {
-        let #(v, r2) <- expr(r);
-        Right(#(Let(name = x, value = v), r2))
+fn expr(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
+    match ts {
+        KwLet :: Ident(x) :: Eq :: r -> {
+            let #(v, r2) <- expr(r);
+            Right(#(Let(name = x, value = v), r2))
+        }
+      | KwFun :: Ident(x) :: Arrow :: r -> {
+            let #(b, r2) <- expr(r);
+            Right(#(Fun(param = x, body = b), r2))
+        }
+      | _ -> sum(ts)
     }
-  | KwFun :: Ident(x) :: Arrow :: r -> {
-        let #(b, r2) <- expr(r);
-        Right(#(Fun(param = x, body = b), r2))
-    }
-  | _ -> sum(ts)
+
+fn sum(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) = {
+    let #(l, r) <- prod(ts);
+    sumRest(l, r)
 }
 
-fn sum(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
-    {
-        let #(l, r) <- prod(ts);
-        sumRest(l, r)
+fn sumRest(l : Expr, ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
+    match ts {
+        Op(c) :: r when c == '+' || c == '-' -> {
+            let #(x, r2) <- prod(r);
+            sumRest(Bin(op = c, l = l, r = x), r2)
+        }
+      | _ -> Right(#(l, ts))
     }
 
-fn sumRest(l : Expr, ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) = match ts {
-    Op(c) :: r when c == '+' || c == '-' -> {
-        let #(x, r2) <- prod(r);
-        sumRest(Bin(op = c, l = l, r = x), r2)
-    }
-  | _ -> Right(#(l, ts))
+fn prod(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) = {
+    let #(l, r) <- app(ts);
+    prodRest(l, r)
 }
 
-fn prod(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
-    {
-        let #(l, r) <- app(ts);
-        prodRest(l, r)
+fn prodRest(l : Expr, ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
+    match ts {
+        Op(c) :: r when c == '*' || c == '/' -> {
+            let #(x, r2) <- app(r);
+            prodRest(Bin(op = c, l = l, r = x), r2)
+        }
+      | _ -> Right(#(l, ts))
     }
 
-fn prodRest(l : Expr, ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) = match ts {
-    Op(c) :: r when c == '*' || c == '/' -> {
-        let #(x, r2) <- app(r);
-        prodRest(Bin(op = c, l = l, r = x), r2)
-    }
-  | _ -> Right(#(l, ts))
+fn app(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) = {
+    let #(f, r) <- atom(ts);
+    appRest(f, r)
 }
-
-fn app(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
-    {
-        let #(f, r) <- atom(ts);
-        appRest(f, r)
-    }
 
 fn appRest(f : Expr, ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
     match atom(ts) {
@@ -232,51 +245,54 @@ fn appRest(f : Expr, ts : List(Token)) -> Either(ParseError, #(Expr, List(Token)
       | Right(#(a, r)) -> appRest(App(f = f, arg = a), r)
     }
 
-fn atom(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) = match ts {
-    Num(n) :: r -> Right(#(Lit(n), r))
-  | Ident(x) :: r -> Right(#(Var(x), r))
-  | LParen :: r -> {
-        let #(e, r2) <- expr(r);
-        match r2 {
-            RParen :: r3 -> Right(#(e, r3))
-          | t :: _ -> Left(Unexpected(t))
-          | [] -> Left(Eof)
+fn atom(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
+    match ts {
+        Num(n) :: r -> Right(#(Lit(n), r))
+      | Ident(x) :: r -> Right(#(Var(x), r))
+      | LParen :: r -> {
+            let #(e, r2) <- expr(r);
+            match r2 {
+                RParen :: r3 -> Right(#(e, r3))
+              | t :: _ -> Left(Unexpected(t))
+              | [] -> Left(Eof)
+            }
         }
+      | t :: _ -> Left(Unexpected(t))
+      | [] -> Left(Eof)
     }
-  | t :: _ -> Left(Unexpected(t))
-  | [] -> Left(Eof)
-}
 
 //
 // Pure code: evaluator
 //
 
-fn eval(env : Map(String, Value), e : Expr) -> Either(EvalError, Value) = match e {
-    Lit(n) -> Right(N(n))
-  | Var(x) -> match Map.get(env, x) { Some(v) -> Right(v) | None -> Left(Unbound(x)) }
-  | Fun(param = p, body = b) -> Right(Closure(param = p, body = b, env = env))
-  | Let(value = v) -> eval(env, v) // the REPL binds the name, see repl
-  | Bin(op = op, l = l, r = r) -> {
-        let lv <- eval(env, l);
-        let rv <- eval(env, r);
-        arith(op, lv, rv)
-    }
-  | App(f = f, arg = a) -> {
-        let fv <- eval(env, f);
-        let av <- eval(env, a);
-        match fv {
-            Closure(param = p, body = b, env = cenv) -> eval(Map.put(cenv, p, av), b)
-          | N(_) -> Left(NotAFunction)
+fn eval(env : Map(String, Value), e : Expr) -> Either(EvalError, Value) =
+    match e {
+        Lit(n) -> Right(N(n))
+      | Var(x) -> match Map.get(env, x) { Some(v) -> Right(v) | None -> Left(Unbound(x)) }
+      | Fun(param = p, body = b) -> Right(Closure(param = p, body = b, env = env))
+      | Let(value = v) -> eval(env, v) // the REPL binds the name, see repl
+      | Bin(op = op, l = l, r = r) -> {
+            let lv <- eval(env, l);
+            let rv <- eval(env, r);
+            arith(op, lv, rv)
+        }
+      | App(f = f, arg = a) -> {
+            let fv <- eval(env, f);
+            let av <- eval(env, a);
+            match fv {
+                Closure(param = p, body = b, env = cenv) -> eval(Map.put(cenv, p, av), b)
+              | N(_) -> Left(NotAFunction)
+            }
         }
     }
-}
 
-fn arith(op : Char, a : Value, b : Value) -> Either(EvalError, Value) = match #(a, b) {
-    #(N(x), N(y)) -> match op {
-        '+' -> Right(N(x + y))
-      | '-' -> Right(N(x - y))
-      | '*' -> Right(N(x * y))
-      | _ -> match Int.div(x, y) { Some(q) -> Right(N(q)) | None -> Left(DivZero) }
+fn arith(op : Char, a : Value, b : Value) -> Either(EvalError, Value) =
+    match #(a, b) {
+        #(N(x), N(y)) -> match op {
+            '+' -> Right(N(x + y))
+          | '-' -> Right(N(x - y))
+          | '*' -> Right(N(x * y))
+          | _ -> match Int.div(x, y) { Some(q) -> Right(N(q)) | None -> Left(DivZero) }
+        }
+      | _ -> Left(NotANumber)
     }
-  | _ -> Left(NotANumber)
-}

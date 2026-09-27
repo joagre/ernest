@@ -40,7 +40,8 @@ foreign fn emptySet() -> Set(a) = "ern_set:empty/0"
 export foreign fn size(s : Set(a)) -> Int = "ern_set:size/1"
 
 /// `true` for the set with no elements.
-export fn isEmpty(s : Set(a)) -> Bool = size(s) == 0
+export fn isEmpty(s : Set(a)) -> Bool =
+    size(s) == 0
 
 /// `true` when the element is in the set.
 export foreign fn contains(s : Set(a), x : a) -> Bool = "ern_set:contains/2"
@@ -123,11 +124,13 @@ export fn foreach(s : Set(a), f : (a) -> Unit with e) -> Unit with e =
 /// #(Set.any(Set.fromList([1]), fn(n) = n > 0), Set.all(Set.fromList([1]), fn(n) = n > 1))
 /// // => #(true, false)
 /// ```
-export fn any(s : Set(a), p : (a) -> Bool with e) -> Bool with e = List.any(toList(s), p)
+export fn any(s : Set(a), p : (a) -> Bool with e) -> Bool with e =
+    List.any(toList(s), p)
 
 /// `true` when the predicate holds for every element, and for the set with
 /// no elements.
-export fn all(s : Set(a), p : (a) -> Bool with e) -> Bool with e = List.all(toList(s), p)
+export fn all(s : Set(a), p : (a) -> Bool with e) -> Bool with e =
+    List.all(toList(s), p)
 
 /// Some element the predicate holds for.
 ///
@@ -141,7 +144,8 @@ export fn find(s : Set(a), p : (a) -> Bool with e) -> Optional(a) with e =
     List.find(toList(s), p)
 
 /// The set of those elements, each once.
-export fn fromList(xs : List(a)) -> Set(a) = List.foldLeft(xs, empty, put)
+export fn fromList(xs : List(a)) -> Set(a) =
+    List.foldLeft(xs, empty, put)
 
 /// The elements.
 export foreign fn toList(s : Set(a)) -> List(a) = "ern_set:to_list/1"
@@ -154,7 +158,8 @@ export foreign fn toList(s : Set(a)) -> List(a) = "ern_set:to_list/1"
 /// Set.toList(Set.union(Set.fromList([1]), Set.fromList([2])))
 /// // => [1, 2]
 /// ```
-export fn union(s : Set(a), other : Set(a)) -> Set(a) = List.foldLeft(toList(other), s, put)
+export fn union(s : Set(a), other : Set(a)) -> Set(a) =
+    List.foldLeft(toList(other), s, put)
 
 /// The elements in both.
 ///

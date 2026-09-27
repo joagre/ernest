@@ -11,10 +11,11 @@
 export fn main() -> Unit with Never =
     List.foreach(["a=12", "=1", "a", "a=x"], fn(s) = Io.println(show(parse(s))))
 
-fn show(r : Either(String, #(String, Int))) -> String = match r {
-    Right(#(k, v)) -> k <> " " <> Int.toString(v)
-  | Left(e) -> e
-}
+fn show(r : Either(String, #(String, Int))) -> String =
+    match r {
+        Right(#(k, v)) -> k <> " " <> Int.toString(v)
+      | Left(e) -> e
+    }
 
 fn parse(s : String) -> Either(String, #(String, Int)) = {
     let #(key, rest) <- keyOf(String.toList(s));
@@ -29,10 +30,11 @@ fn keyOf(cs : List(Char)) -> Either(String, #(String, List(Char))) = {
     else Left("bad key: " <> String.fromList(cs))
 }
 
-fn expectEq(cs : List(Char), s : String) -> Either(String, List(Char)) = match cs {
-    '=' :: rest -> Right(rest)
-  | _ -> Left("expected =: " <> s)
-}
+fn expectEq(cs : List(Char), s : String) -> Either(String, List(Char)) =
+    match cs {
+        '=' :: rest -> Right(rest)
+      | _ -> Left("expected =: " <> s)
+    }
 
 fn number(cs : List(Char), s : String) -> Either(String, Int) =
     match String.toInt(String.fromList(cs)) {

@@ -239,7 +239,8 @@ export fn write(program : Address(ProgramMsg), bytes : Bytes) -> Unit with m =
 /// }
 /// // => Right("2")
 /// ```
-export fn closeInput(program : Address(ProgramMsg)) -> Unit with m = send(program, CloseInput)
+export fn closeInput(program : Address(ProgramMsg)) -> Unit with m =
+    send(program, CloseInput)
 
 /// Runs the program to its end: starts it, ends its input after `input`,
 /// and reads it until it has exited, within `ms` milliseconds of its start.

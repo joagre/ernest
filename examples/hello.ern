@@ -6,4 +6,5 @@
 // Needs MVP 1.
 //
 
-export fn main() -> Unit with Never = Io.println("hello, world")
+export fn main() -> Unit with Never =
+    Io.println("hello, world")

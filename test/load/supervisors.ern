@@ -24,15 +24,17 @@ let first : Address(WorkMsg) = spawn(Local, Supervisor.child(all, working))
 
 let second : Address(WorkMsg) = spawn(Local, Supervisor.child(all, working))
 
-fn working() -> Unit with WorkMsg = receive {
-    Ask(reply = r) -> {
-        answer(r, 1);
-        working()
+fn working() -> Unit with WorkMsg =
+    receive {
+        Ask(reply = r) -> {
+            answer(r, 1);
+            working()
+        }
+      | Crash -> fault("on purpose")
     }
-  | Crash -> fault("on purpose")
-}
 
-export fn main() -> Unit with Never = round(1)
+export fn main() -> Unit with Never =
+    round(1)
 
 fn round(n : Int) -> Unit with Never =
     if n > rounds then Unit

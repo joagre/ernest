@@ -105,14 +105,17 @@ fn pick(name : String) -> Picked = {
 
 
 // `:bindings or :browse`, and `:a, :b or :c` for three.
-fn alternatives(names : List(String)) -> String = words(List.map(names, fn(name) = ":" <> name))
+fn alternatives(names : List(String)) -> String =
+    words(List.map(names, fn(name) = ":" <> name))
 
 // `a or b`, and `a, b or c` for three.
-fn words(ws : List(String)) -> String = match List.last(ws) {
-    None -> ""
-  | Some(last) ->
-        if List.size(ws) == 1 then last else String.join(List.dropLast(ws), ", ") <> " or " <> last
-}
+fn words(ws : List(String)) -> String =
+    match List.last(ws) {
+        None -> ""
+      | Some(last) ->
+            if List.size(ws) == 1 then last
+            else String.join(List.dropLast(ws), ", ") <> " or " <> last
+    }
 
 // A command line: its first word, the command with its `:`, and what
 // follows it, trimmed.
@@ -168,15 +171,16 @@ export type Setting = Depth(Int) | Length(Int) | OutputRows(Int) | Timing(Bool)
 
 // Report §11.2: what `:set`'s argument sets, or the refusal that says why
 // it sets nothing.
-export fn setting(arg : String) -> Either(String, Setting) = match split(arg) {
-    #("depth", rest) -> count("depth", rest, Depth)
-  | #("length", rest) -> count("length", rest, Length)
-  | #("output", rest) -> count("output", rest, OutputRows)
-  | #("timing", "on") -> Right(Timing(true))
-  | #("timing", "off") -> Right(Timing(false))
-  | #("timing", _) -> Left(":set timing takes on or off")
-  | _ -> Left(":set takes " <> words(List.map(settings, fn(#(name, _)) = name)))
-}
+export fn setting(arg : String) -> Either(String, Setting) =
+    match split(arg) {
+        #("depth", rest) -> count("depth", rest, Depth)
+      | #("length", rest) -> count("length", rest, Length)
+      | #("output", rest) -> count("output", rest, OutputRows)
+      | #("timing", "on") -> Right(Timing(true))
+      | #("timing", "off") -> Right(Timing(false))
+      | #("timing", _) -> Left(":set timing takes on or off")
+      | _ -> Left(":set takes " <> words(List.map(settings, fn(#(name, _)) = name)))
+    }
 
 fn count(what : String, text : String, made : (Int) -> Setting) -> Either(String, Setting) =
     match String.toInt(text) {

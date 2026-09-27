@@ -74,7 +74,8 @@ export fn remove(t : Table(k, v), key : k) -> Unit with m = {
 foreign fn rawDelete(t : Table(k, v), key : k) -> Bool with m = "ets:delete/2"
 
 /// The number of entries.
-export fn size(t : Table(k, v)) -> Int with m = rawInfo(t, Erl.atom("size"))
+export fn size(t : Table(k, v)) -> Int with m =
+    rawInfo(t, Erl.atom("size"))
 
 foreign fn rawInfo(t : Table(k, v), item : Foreign) -> Int with m = "ets:info/2"
 

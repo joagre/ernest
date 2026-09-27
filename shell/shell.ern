@@ -23,10 +23,9 @@ type Outcome = Ok(env : Env, value : Value) | Faulted(String)
 
 foreign fn start() -> Env with m = "ern_shell:start/0"
 foreign fn program() -> Optional(Address(Never)) with m = "ern_shell:program/0"
-foreign fn load(env : Env, name : String) -> Either(String, #(Env, String)) with m =
-    "ern_shell:load/2"
-foreign fn reload(env : Env) -> Either(String, #(Env, List(String))) with m =
-    "ern_shell:reload/1"
+foreign fn load(env : Env, name : String)
+    -> Either(String, #(Env, String)) with m = "ern_shell:load/2"
+foreign fn reload(env : Env) -> Either(String, #(Env, List(String))) with m = "ern_shell:reload/1"
 foreign fn output(path : String) -> Either(String, String) with m = "ern_shell:output/1"
 // Report §11.2: the parser cannot finish what is typed, so another line
 // may. The parser is the compiler's, and only it knows.
@@ -50,13 +49,12 @@ foreign fn context(before : String) -> Shell.Complete.Where with m = "ern_shell:
 foreign fn fields(typed : String) -> List(Shell.Complete.Name) with m = "ern_shell:fields/1"
 // Report §11.2: the page for a name, which `Shift-Tab` shows a first
 // sentence of and then the whole of.
-foreign fn documentation(name : String) -> Optional(String) with m =
-    "ern_shell:documentation/1"
+foreign fn documentation(name : String) -> Optional(String) with m = "ern_shell:documentation/1"
 // Report §11.2: the signature of the call the input stops inside, with the
 // parameter at the cursor marked, which `Shift-Tab` shows where no name
 // before the cursor is documented.
-foreign fn signature(before : String) -> Optional(#(String, String, String)) with m =
-    "ern_shell:signature/1"
+foreign fn signature(before : String)
+    -> Optional(#(String, String, String)) with m = "ern_shell:signature/1"
 // Report §11.2: an input checked against the session; a diagnostic names
 // the file it came from and the line it starts on there, `input` and 1 for
 // one typed.
@@ -73,13 +71,13 @@ foreign fn declared(c : Checked) -> List(String) = "ern_shell:declared/1"
 // Report §11.2: the value is printed, and `it` is left as it was when
 // this input did not settle its type.
 foreign fn unbound(c : Checked) -> Bool = "ern_shell:unbound/1"
-foreign fn spawnInput(env : Env, c : Checked, to : Address(Outcome)) -> Address(Never) with m =
-    "ern_shell:run/3"
+foreign fn spawnInput(env : Env, c : Checked, to : Address(Outcome))
+    -> Address(Never) with m = "ern_shell:run/3"
 foreign fn show(v : Value, depth : Int, length : Int) -> String = "ern_shell:show/3"
 foreign fn bindings(env : Env) -> List(String) = "ern_shell:bindings/1"
 foreign fn forget(env : Env, name : String) -> Either(String, Env) = "ern_shell:forget/2"
-foreign fn browse(env : Env, name : String) -> Either(String, List(String)) with m =
-    "ern_shell:browse/2"
+foreign fn browse(env : Env, name : String)
+    -> Either(String, List(String)) with m = "ern_shell:browse/2"
 foreign fn doc(env : Env, name : String) -> Either(String, String) with m = "ern_shell:doc/2"
 // Report §11.1, §4.2: the namespace segment a path component names, asked
 // of the compiler, which owns the rule.
@@ -236,10 +234,11 @@ fn evaluate(state : State, screen : Address(ScreenMsg), input : String) -> State
 // one, and its value is not printed; what fails is reported with the file
 // it came from.
 fn quietly(state : State, screen : Address(ScreenMsg), from : String, line : Int,
-    input : String) -> State with ShellMsg = run(state, screen, from, line, input, false)
+    input : String) -> State with ShellMsg =
+    run(state, screen, from, line, input, false)
 
 fn run(state : State, screen : Address(ScreenMsg), from : String, line : Int, input : String,
-    printing : Bool) -> State with ShellMsg = {
+    printing : Bool) -> State with ShellMsg =
     match check(state.env, from, line, input) {
         Left(text) -> {
             diagnose(screen, state.colour, text);
@@ -252,7 +251,6 @@ fn run(state : State, screen : Address(ScreenMsg), from : String, line : Int, in
             await(State(..state, env = env2), screen, checked, child, started, printing)
         }
     }
-}
 
 // Report §11.2: the inputs of the startup files, the person's first and
 // then the node's, a line an input, each with the file it came from so
@@ -264,94 +262,98 @@ fn startup(state : State, screen : Address(ScreenMsg)) -> Next with ShellMsg =
 // A file that is not there is no error; one that cannot be read is said
 // and the session goes on. Each input carries the line it is on.
 fn fileInputs(screen : Address(ScreenMsg), file : String)
-    -> List(#(String, Int, String)) with m = match Fs.read(Path(file), fileWait) {
-    Left(Io.NotFound) -> []
-  | Left(why) -> {
-        say(screen, file <> " could not be read: " <> trouble(why));
-        []
+    -> List(#(String, Int, String)) with m =
+    match Fs.read(Path(file), fileWait) {
+        Left(Io.NotFound) -> []
+      | Left(why) -> {
+            say(screen, file <> " could not be read: " <> trouble(why));
+            []
+        }
+      | Right(bytes) -> {
+            let text = Optional.withDefault(String.fromUtf8(bytes), "");
+            let numbered = List.indexed(String.lines(text));
+            List.filterMap(numbered, fn(#(i, line)) =
+                if String.isEmpty(String.trim(line)) then None else Some(#(file, i + 1, line)))
+        }
     }
-  | Right(bytes) -> {
-        let text = Optional.withDefault(String.fromUtf8(bytes), "");
-        let numbered = List.indexed(String.lines(text));
-        List.filterMap(numbered, fn(#(i, line)) =
-            if String.isEmpty(String.trim(line)) then None else Some(#(file, i + 1, line)))
-    }
-}
 
 // How long to wait for the file system, which is a local file.
 let fileWait = 5000
 
-fn trouble(why : Io.Error) -> String = match why {
-    Io.NotFound -> "the file is not there"
-  | Io.Denied -> "permission was denied"
-  | Io.Refused -> "the file system refused"
-  | Io.Closed -> "the file was closed"
-  | Io.Timeout -> "the file system did not answer"
-  | Io.NotATerminal -> "standard input is not a terminal"
-  | Io.Other(text) -> text
-}
+fn trouble(why : Io.Error) -> String =
+    match why {
+        Io.NotFound -> "the file is not there"
+      | Io.Denied -> "permission was denied"
+      | Io.Refused -> "the file system refused"
+      | Io.Closed -> "the file was closed"
+      | Io.Timeout -> "the file system did not answer"
+      | Io.NotATerminal -> "standard input is not a terminal"
+      | Io.Other(text) -> text
+    }
 
 // Report §11.2: a startup input runs as a typed one, a command among them,
 // and a `:quit` there ends the session; a diagnostic names its file and
 // line.
 fn fromFiles(state : State, screen : Address(ScreenMsg),
-    inputs : List(#(String, Int, String))) -> Next with ShellMsg = match inputs {
-    [] -> Continue(state)
-  | #(from, line, input) :: rest ->
-        if String.startsWith(input, ":") then match perform(state, screen, input) {
-            Continue(state2) -> fromFiles(state2, screen, rest)
-          | Leave -> Leave
-        }
-        else fromFiles(quietly(state, screen, from, line, input), screen, rest)
-}
+    inputs : List(#(String, Int, String))) -> Next with ShellMsg =
+    match inputs {
+        [] -> Continue(state)
+      | #(from, line, input) :: rest ->
+            if String.startsWith(input, ":") then match perform(state, screen, input) {
+                Continue(state2) -> fromFiles(state2, screen, rest)
+              | Leave -> Leave
+            }
+            else fromFiles(quietly(state, screen, from, line, input), screen, rest)
+    }
 
 // The reader stays live, so an interruption reaches the session while the
 // input runs and kills it, and an input typed meanwhile waits in the
 // mailbox for this one to end (report §11.2).
 fn await(state : State, screen : Address(ScreenMsg), checked : Checked, child : Address(Never),
-    started : Int, printing : Bool) -> State with ShellMsg = receive {
-    Done(Ok(env = env2, value = value)) -> {
-        let shown = typeText(checked);
-        if printing then {
-            match declared(checked) {
-                [] -> if isUnit(checked) then Unit
-                else {
-                    say(screen, show(value, state.settings.depth, state.settings.length)
-                        <> Shell.Style.quiet(state.colour, " : " <> shown));
-                    if unbound(checked) then
-                        say(screen, "`it` is unchanged: this input did not determine"
-                            <> " the type of its value")
-                    else Unit
-                }
-              | lines -> printLines(screen, lines)
-            };
-            timed(screen, state.settings, started)
-        } else Unit;
-        State(..state, env = env2)
-    }
-  | Done(Faulted(text)) -> {
-        say(screen, Shell.Style.fault(state.colour, "fault: " <> text));
-        if printing then timed(screen, state.settings, started) else Unit;
-        state
-    }
-  | Interrupted -> {
-        kill(child);
-        say(screen, "Killed");
-        state
-    }
-  | Reported(report) ->
-        // report §11.2: an input's own fault is its answer; the input
-        // catches what it raises, so a report of its process is a fault a
-        // signal brought, after which no `Done` comes
-        if report.process == Process.fromAddress(child) then {
-            say(screen, Shell.Style.fault(state.colour, "fault: " <> report.cause));
+    started : Int, printing : Bool) -> State with ShellMsg =
+    receive {
+        Done(Ok(env = env2, value = value)) -> {
+            let shown = typeText(checked);
+            if printing then {
+                match declared(checked) {
+                    [] -> if isUnit(checked) then Unit
+                    else {
+                        say(screen, show(value, state.settings.depth, state.settings.length)
+                            <> Shell.Style.quiet(state.colour, " : " <> shown));
+                        if unbound(checked) then
+                            say(screen, "`it` is unchanged: this input did not determine"
+                                <> " the type of its value")
+                        else Unit
+                    }
+                  | lines -> printLines(screen, lines)
+                };
+                timed(screen, state.settings, started)
+            } else Unit;
+            State(..state, env = env2)
+        }
+      | Done(Faulted(text)) -> {
+            say(screen, Shell.Style.fault(state.colour, "fault: " <> text));
             if printing then timed(screen, state.settings, started) else Unit;
             state
         }
-        else await(reported(state, screen, report), screen, checked, child, started, printing)
-    // an input typed meanwhile, and the end of input, are left in the
-    // mailbox: they wait for this one, and run after it (report §11.2)
-}
+      | Interrupted -> {
+            kill(child);
+            say(screen, "Killed");
+            state
+        }
+      | Reported(report) ->
+            // report §11.2: an input's own fault is its answer; the input
+            // catches what it raises, so a report of its process is a fault a
+            // signal brought, after which no `Done` comes
+            if report.process == Process.fromAddress(child) then {
+                say(screen, Shell.Style.fault(state.colour, "fault: " <> report.cause));
+                if printing then timed(screen, state.settings, started) else Unit;
+                state
+            }
+            else await(reported(state, screen, report), screen, checked, child, started, printing)
+        // an input typed meanwhile, and the end of input, are left in the
+        // mailbox: they wait for this one, and run after it (report §11.2)
+    }
 
 // Report §11.2: with timing on, a result is followed by the time the run
 // took.
@@ -359,22 +361,23 @@ fn timed(screen : Address(ScreenMsg), settings : Settings, started : Int) -> Uni
     if settings.timing then say(screen, "(" <> Int.toString(Clock.now() - started) <> " ms)")
     else Unit
 
-fn keyLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg = receive {
-    Typed(line) -> {
-        send(screen, Taken);
-        taking(state, screen, line)
+fn keyLoop(state : State, screen : Address(ScreenMsg)) -> Unit with ShellMsg =
+    receive {
+        Typed(line) -> {
+            send(screen, Taken);
+            taking(state, screen, line)
+        }
+      | Eof -> finish(screen, "\n")
+      | Interrupted -> {
+            prompt(screen);
+            keyLoop(state, screen)
+        }
+      | Reported(report) -> keyLoop(reported(state, screen, report), screen)
+      | ReaderDied(down) -> readerDied(screen, state.colour, down)
+      // the end of a run that `Interrupted` killed, which `await` no longer
+      // waits for
+      | Done(_) -> keyLoop(state, screen)
     }
-  | Eof -> finish(screen, "\n")
-  | Interrupted -> {
-        prompt(screen);
-        keyLoop(state, screen)
-    }
-  | Reported(report) -> keyLoop(reported(state, screen, report), screen)
-  | ReaderDied(down) -> readerDied(screen, state.colour, down)
-  // the end of a run that `Interrupted` killed, which `await` no longer
-  // waits for
-  | Done(_) -> keyLoop(state, screen)
-}
 
 // Report §11.2: an input, which may have been typed while the one before it
 // ran and so waited for it.
@@ -403,10 +406,11 @@ fn readerDied(screen : Address(ScreenMsg), colour : Bool, down : Down) -> Unit w
 // Report §11.2: what faulted while the session was reading. In line mode
 // the session blocks in `Io.readLine`, so a fault is reported before the
 // next prompt instead; §6.4 leaves every other message in the mailbox.
-fn pending(state : State, screen : Address(ScreenMsg)) -> State with ShellMsg = receive {
-    Reported(report) -> pending(reported(state, screen, report), screen)
-  | after 0 -> state
-}
+fn pending(state : State, screen : Address(ScreenMsg)) -> State with ShellMsg =
+    receive {
+        Reported(report) -> pending(reported(state, screen, report), screen)
+      | after 0 -> state
+    }
 
 // Report §11.2: a process that faults is reported with its spawn site and
 // cause, and kept for `:faults`, unless it is one of the shell's own.
@@ -429,10 +433,11 @@ fn reportLine(report : Process.FaultReport) -> String = {
     if String.isEmpty(report.trace) then line else line <> "\n" <> String.trimEnd(report.trace)
 }
 
-fn faultLine(down : Down) -> String = match down {
-    Down(reason = Fault(text), site = where) -> where <> " faulted: " <> text
-  | Down(reason = _, site = where) -> where <> " ended"
-}
+fn faultLine(down : Down) -> String =
+    match down {
+        Down(reason = Fault(text), site = where) -> where <> " faulted: " <> text
+      | Down(reason = _, site = where) -> where <> " ended"
+    }
 
 // A diagnostic, its first line coloured as a fault (report §11.2).
 fn diagnose(screen : Address(ScreenMsg), colour : Bool, text : String) -> Unit with m =
@@ -845,20 +850,23 @@ fn offered(typed : String) -> List(Shell.Complete.Name) with m = {
     }
 }
 
-fn lone(completion : Shell.Complete.Completion) -> Bool = match completion {
-    Shell.Complete.Completion(candidates = [_]) -> true
-  | _ -> false
-}
+fn lone(completion : Shell.Complete.Completion) -> Bool =
+    match completion {
+        Shell.Complete.Completion(candidates = [_]) -> true
+      | _ -> false
+    }
 
 // Report §11.2: a lone candidate is completed as far as it goes, so one
 // that takes a value after it, a command with an argument or a setting,
 // is followed by a space, where the line has none after it already.
 fn withSpace(completion : Shell.Complete.Completion, takes : Bool)
-    -> Shell.Complete.Completion = match completion {
-    Shell.Complete.Completion(word = whole, candidates = [_]) ->
-        if takes then Shell.Complete.Completion(..completion, word = whole <> " ") else completion
-  | _ -> completion
-}
+    -> Shell.Complete.Completion =
+    match completion {
+        Shell.Complete.Completion(word = whole, candidates = [_]) ->
+            if takes then Shell.Complete.Completion(..completion, word = whole <> " ")
+            else completion
+      | _ -> completion
+    }
 
 fn commandWord(word : String, line : String) -> Shell.Complete.Completion = {
     let completion = Shell.Complete.complete(word, commandNames(), Shell.Complete.Anything);
@@ -897,25 +905,28 @@ fn argument(line : String, at : Int, typed : String) -> Shell.Complete.Completio
 }
 
 fn argumentNames(kind : Shell.Command.Completes, typed : String)
-    -> List(Shell.Complete.Name) with m = match kind {
-    // a module completes as it is written, without the dot a name inside
-    // it would need, and is listed by its name alone, since every
-    // candidate here is a module; the namespaces they are in, `Http` for
-    // `Http.Parser`, complete with their dots
-    Shell.Command.Modules -> Shell.Complete.withNamespaces(List.filterMap(names(), fn(name) =
-        match name {
-            Shell.Complete.Name(text = text, kind = Shell.Complete.Module) ->
-                Some(Shell.Complete.Name(text = text, kind = Shell.Complete.Value, shown = text))
-          | _ -> None
-        }))
-  | Shell.Command.SourceModules -> sourceModules(typed)
-  | Shell.Command.Expressions -> offered(typed)
-  | Shell.Command.Names -> offered(typed)
-  | Shell.Command.SessionNames -> sessionNames()
-  | Shell.Command.SettingWords -> List.map(Shell.Command.settings, fn(#(word, value)) =
-        Shell.Complete.Name(text = word, kind = Shell.Complete.Value, shown = word <> " " <> value))
-  | Shell.Command.Paths -> []
-}
+    -> List(Shell.Complete.Name) with m =
+    match kind {
+        // a module completes as it is written, without the dot a name inside
+        // it would need, and is listed by its name alone, since every
+        // candidate here is a module; the namespaces they are in, `Http` for
+        // `Http.Parser`, complete with their dots
+        Shell.Command.Modules -> Shell.Complete.withNamespaces(List.filterMap(names(), fn(name) =
+            match name {
+                Shell.Complete.Name(text = text, kind = Shell.Complete.Module) ->
+                    Some(Shell.Complete.Name(text = text, kind = Shell.Complete.Value,
+                        shown = text))
+              | _ -> None
+            }))
+      | Shell.Command.SourceModules -> sourceModules(typed)
+      | Shell.Command.Expressions -> offered(typed)
+      | Shell.Command.Names -> offered(typed)
+      | Shell.Command.SessionNames -> sessionNames()
+      | Shell.Command.SettingWords -> List.map(Shell.Command.settings, fn(#(word, value)) =
+            Shell.Complete.Name(text = word, kind = Shell.Complete.Value,
+                shown = word <> " " <> value))
+      | Shell.Command.Paths -> []
+    }
 
 // Report §11.2: the modules `:load` may compile, read from the source
 // root a directory at a time: the one the typed word's finished segments
@@ -1014,26 +1025,29 @@ fn brief(text : String, width : Int, colour : Bool) -> List(String) = {
 
 // Report §11.2: a paragraph's first sentence, which ends at the first `. `
 // in its text.
-fn sentence(b : Markdown.Block) -> Markdown.Block = match b {
-    Markdown.Paragraph(xs) -> Markdown.Paragraph(upToStop(xs))
-  | other -> other
-}
-
-fn upToStop(xs : List(Markdown.Inline)) -> List(Markdown.Inline) = match xs {
-    [] -> []
-  | Markdown.Text(s) :: rest -> match String.indexOf(s, ". ") {
-        Some(i) -> [Markdown.Text(String.slice(s, 0, i + 1))]
-      | None -> Markdown.Text(s) :: upToStop(rest)
+fn sentence(b : Markdown.Block) -> Markdown.Block =
+    match b {
+        Markdown.Paragraph(xs) -> Markdown.Paragraph(upToStop(xs))
+      | other -> other
     }
-  | x :: rest -> x :: upToStop(rest)
-}
+
+fn upToStop(xs : List(Markdown.Inline)) -> List(Markdown.Inline) =
+    match xs {
+        [] -> []
+      | Markdown.Text(s) :: rest -> match String.indexOf(s, ". ") {
+            Some(i) -> [Markdown.Text(String.slice(s, 0, i + 1))]
+          | None -> Markdown.Text(s) :: upToStop(rest)
+        }
+      | x :: rest -> x :: upToStop(rest)
+    }
 
 // The line §11.4 writes for the version a declaration appeared in.
-fn isVersion(b : Markdown.Block) -> Bool = match b {
-    Markdown.Paragraph([Markdown.Emphasis([Markdown.Text(text)])]) ->
-        String.startsWith(text, "Since ")
-  | _ -> false
-}
+fn isVersion(b : Markdown.Block) -> Bool =
+    match b {
+        Markdown.Paragraph([Markdown.Emphasis([Markdown.Text(text)])]) ->
+            String.startsWith(text, "Since ")
+      | _ -> false
+    }
 
 // Report §11.2: a page of documentation rendered for the terminal, at its
 // width, or at 80 columns where there is no terminal.
@@ -1042,12 +1056,14 @@ fn rendered(text : String, width : Int, colour : Bool) -> List(String) =
 
 // How documentation is written: with the terminal's styles where the shell
 // colours what it says.
-fn styleOf(colour : Bool) -> Markdown.Style = if colour then Markdown.Styled else Markdown.Plain
+fn styleOf(colour : Bool) -> Markdown.Style =
+    if colour then Markdown.Styled else Markdown.Plain
 
-fn screenWidth() -> Int with m = match Terminal.size() {
-    Some(Terminal.Size(columns = columns)) -> columns
-  | None -> 80
-}
+fn screenWidth() -> Int with m =
+    match Terminal.size() {
+        Some(Terminal.Size(columns = columns)) -> columns
+      | None -> 80
+    }
 
 // Report §11.2: the candidates, a lone one too, a line each with the
 // type they carry, or a command's help line. The region cuts the listing
@@ -1109,7 +1125,8 @@ fn remember(screen : Address(ScreenMsg), editing : Shell.Editor.State, keeping :
 
 // What the reader shows is the editor's, since a search shows its own
 // prompt and the input it found rather than the line (report §11.2).
-fn typing(editing : Shell.Editor.State) -> ScreenMsg = under(editing, [])
+fn typing(editing : Shell.Editor.State) -> ScreenMsg =
+    under(editing, [])
 
 // The line being typed with rows shown under it, which the next key
 // takes away (report §11.2).

@@ -34,7 +34,8 @@
 /// Optional.isSome(Some(1))
 /// // => true
 /// ```
-export fn isSome(o : Optional(a)) -> Bool = match o { Some(_) -> true | None -> false }
+export fn isSome(o : Optional(a)) -> Bool =
+    match o { Some(_) -> true | None -> false }
 
 /// `true` for `None`.
 ///
@@ -44,7 +45,8 @@ export fn isSome(o : Optional(a)) -> Bool = match o { Some(_) -> true | None -> 
 /// Optional.isNone(Some(1))
 /// // => false
 /// ```
-export fn isNone(o : Optional(a)) -> Bool = match o { Some(_) -> false | None -> true }
+export fn isNone(o : Optional(a)) -> Bool =
+    match o { Some(_) -> false | None -> true }
 
 /// The value in `Some`, or the default for `None`.
 export fn withDefault(o : Optional(a), default : a) -> a =
