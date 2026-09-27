@@ -887,7 +887,7 @@ The count is 8 because messages from one sender arrive in the order sent: both `
 
 ### 4.6 Explicit code replacement
 
-A process can change its code while it runs, keeping its address and its state. The new code arrives in a message that the process's type provides for, as a function value: here one compiled into the program, in the shell one from a module that `:reload` compiled again, and with peers one shipped from another node (§8.2).
+A process can change its code while it runs, keeping its address and its state. The new code arrives in a message that the process's type provides for, as a function value: here one compiled into the program, in the shell one from a module that `:reload` compiled again, and on a peer one that a process spawned there brings, since a function does not cross nodes in a message (§8.2).
 
 The counter of §4.5 gains an `Upgrade` constructor. The program is three parts of one file, `counter.ern`, which replaces the one of §4.5:
 
@@ -1718,7 +1718,7 @@ A fault in `heavy` is the spawned process's, not the caller's, so a caller that 
 
 Code goes to a peer one way: in a process spawned there. `spawn(Peer(name), f)` takes `f`'s code with it, and the code of every function `f` captured; the peer uses the code it has, and fetches from the sender what it lacks, before the process starts. A failure to find it faults the caller of `spawn`, at the call. Every function and type is known by a hash of its definition, a type's name included, so two nodes agree on a type exactly when they declare it the same way (report §8.7).
 
-A message to a peer carries values and no code. A function cannot go to another node, alone or inside a message, and the `send` that would take it there faults with `function cannot cross nodes` (report §3.11). Work that must run on the peer is spawned there. An adapted address is the one function that travels, and it travels without its code: its function is applied on the node where the address was made, so `via(Wrap, self())` handed to a peer works, and a value the peer sends to it is wrapped here, on delivery (report §6.5).
+A message to a peer carries values and no code. A function cannot go to another node, alone or inside a message, and the `send` that would take it there faults with `function cannot cross nodes` (report §3.11). Work that must run on the peer is spawned there. An adapted address of your own process may still go to a peer, since its function never leaves your node: what crosses is a reference to the function and the values it captured, and a value the peer sends to it comes back here to be wrapped, on delivery. So `via(Wrap, self())` handed to a peer works. An adapted address around another node's process cannot cross, since its function would have to leave its node (report §6.5).
 
 In spawned code a system module's reference is the peer's, so `Io.println` prints on the peer, and so is a top-level binding the code names, so a service binding names the peer's service. An address the function captured still names the process it named on this node.
 
@@ -1743,7 +1743,7 @@ A value foreign code made and Ernest does not inspect has the built-in type `For
 
 ### 8.4 Node-local foreign values
 
-A foreign value belongs to the node that made it, and sending one to another node, alone or inside a message or a closure, faults with `Fault("foreign value cannot cross nodes")`.
+A foreign value belongs to the node that made it, and sending one to another node, alone, inside a message, or among the captures of a function spawned there, faults with `Fault("foreign value cannot cross nodes")`.
 
 An `Ets.Table` of §8.3 is such a value, a table of the node's runtime. The closure below captures one, so shipping it to the peer `alice` faults with that cause; on one node, today, the spawn faults with `peer unreachable` first:
 
@@ -1912,6 +1912,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - There are no atoms in the language: constructors are the tags. `Erl.atom` makes one for a foreign call.
 - There are no OTP behaviours. A server is a `receive` loop with `Reply`, restarted in place by `restarting` and reached through a service binding (§6.5). A supervision tree is the standard library's `Supervisor`, its children restarted in place so that their bindings keep their addresses (§6.6).
 - A running program replaces its code by a message that carries the new function (§4.6). Only the shell's `:reload` loads a new version of a module.
+- A function does not travel in a message between nodes: a `send` that would take one to another node faults. Code goes to a peer only with a process spawned there (§8.2).
 - ETS is a library outside the standard library, `libs/ets`, since a table is state that processes share.
 - Nodes will talk over Ernest's own protocol and ship code by content, not over Erlang distribution (§8.2).
 
@@ -1957,7 +1958,7 @@ A function's number of arguments is part of its type, and `fn(x, y)` shows it wh
 
 **§7.4.** Yes. The boundary of an abstract type is its module, so every definition in `main.ern` may name the constructor, a helper or a test included; another module sees the type and its operations, never the constructor.
 
-**§8.7.** The `send` faults the sending process, at the call, with `function cannot cross nodes`: a function does not leave its node inside a message. To run it on the other node, spawn it there, `spawn(Peer(name), fn() = ...)`, which takes its code with it, and let the spawned process send the service what it computed.
+**§8.7.** The `send` faults the sending process, at the call, with `function cannot cross nodes`: a function does not leave its node inside a message. To give the service the function, spawn a process on its node, which takes the function's code with it, and let that process send the message there: `spawn(Peer(name), fn() = send(service, Register(fn(x) = x + 1)))`.
 
 ## 14. Reading further
 

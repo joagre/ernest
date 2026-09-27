@@ -130,7 +130,7 @@ Nodes run in embedded mode, which turns off automatic loading from the code path
 
 ### 7.1 Wire representation
 
-A function spawned on a peer, and every function among its captures, travels as `{hash, env}`. No other function crosses nodes (report §3.11), with one exception that carries no code: an adapted address carries its function as `{hash, env}`, to be applied on the node where the address was made, which already holds the code the hash names (report §6.5). Raw BEAM funs are never serialized, since they carry module names and module checksums that mean nothing on another node.
+A function spawned on a peer, and every function among its captures, travels as `{hash, env}`. No other function crosses nodes (report §3.11), with one exception that carries no code: an adapted address carries its function as `{hash, env}`, to be applied on the node where the address was made, which already holds the code the hash names (report §6.5); its `env` crosses as values do, so a foreign value or a function in it faults, and a message to the address carries the same `{hash, env}` back with the value, so the making node keeps no table of the addresses it has handed out. Raw BEAM funs are never serialized, since they carry module names and module checksums that mean nothing on another node.
 
 ### 7.2 Have/want
 
@@ -146,7 +146,7 @@ Decoding must wait, since constructors are encoded by type hash (node protocol, 
 
 Because the whole transitive closure is present before anything runs, and a hash is never removed while loaded code depends on it (section 10.1), code cannot be missing at run time.
 
-If the exchange fails, the spawn fails, and the caller of `spawn` faults (report §8.7; node protocol, section 6.4).
+If the exchange fails, the spawn fails, and the caller of `spawn` faults (report §8.7). The node protocol's section 6.4, where a failed spawn gives a dead address instead, is among the places the plan's MVP 3.0 brings in line.
 
 A message needs no exchange. It holds no function, since one faults the sender at the `send` (report §3.11), and its types are those of the mailbox type of the process it goes to, which that process's node holds, since the process runs code that names them. A message whose type hash does not match the receiving code is dropped (node protocol, section 5.4).
 

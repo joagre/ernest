@@ -108,7 +108,7 @@ The sender is not told of any of these; there is no error path back.
 
 This is the semantics of Erlang's `send` to a node that has disappeared. Protocols that need confirmation build it with replies and timeouts.
 
-A message needs no code fetched (code distribution, section 7.2), so `send` only enqueues. A value that holds a function is not sent: the `send` faults the sender at the call, before anything is enqueued (report §3.11). An adapted address is the exception: it travels as its target's address with its function as `{hash, env}`, and a message to it carries the unconverted value to the target's node, which applies the function on delivery (report §6.5).
+A message needs no code fetched (code distribution, section 7.2), so `send` only enqueues. A value that holds a function is not sent: the `send` faults the sender at the call, before anything is enqueued (report §3.11). An adapted address is the exception: it travels as its target's address with its function as `{hash, env}`, and a message to it carries the unconverted value, with that `{hash, env}`, to the node where the address was made, which is the target's and applies the function on delivery (report §6.5).
 
 ## 6. Spawning on another node
 
@@ -281,7 +281,7 @@ Additions to the prelude. All operations are in `{Proc m}`. Signatures in the no
 - **Random UUID per node.** Must be tied to a key to be safe anyway, so the key may as well be the identity.
 - **Multiple connections per node pair.** Breaks the single stream that ordering rests on.
 - **Code with every message** (code distribution, section 13). A `send` could then fault its sender after it returned, and a fetch paused the whole connection to keep order.
-- **`term_to_binary` with `safe`.** `safe` refuses unknown atoms, and the code defining the constructors may not yet be fetched when a message arrives.
+- **`term_to_binary` with `safe`.** `safe` refuses unknown atoms, and constructors would travel as atoms, which a peer could then create on a receiving node by sending data.
 
 ## 13. Deferred
 

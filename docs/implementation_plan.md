@@ -691,7 +691,9 @@ peers are the useful one.
   process's monitors see `Killed`; across nodes it needs a frame the note's table lacks.
 - **Where the two notes disagree with the report, found 2026-09-24**, also to be decided
   before building: the protocol note encodes values in Ernest's own format where §8.4 uses the
-  runtime's external term format; the distribution note hashes no
+  runtime's external term format; the protocol note's `spawn_at` returns before the peer has
+  resolved the spawned code and gives a dead address on a failed fetch, where §8.7 faults the
+  caller; the distribution note hashes no
   name where §8.7's normalization keeps the qualified names of external references; both write
   the effect `{Proc m}` where the report writes `with m`; the protocol note's open question
   on stopping a process is §6.9's `kill`; and the protocol note's §6.5 says no separate
