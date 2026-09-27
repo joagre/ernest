@@ -36,6 +36,8 @@ A load that grew prints what grew and by how much, and `make load` fails.
 
 **The host's own.** OTP keeps an entry, about 176 bytes, for each lambda of each distinct version of a module it loads, for as long as the node lives, and stops a node at 524,288 of them. It shows as `code` that rises with every new version of a module, and not with a version loaded again. The shell's inputs and declarations, and in MVP 3.0 code shipped between peers, are where new versions come from; the log's *The Shell's Code Memory* weighs it.
 
+**Atoms.** The host never frees an atom and stops a node at 1,048,576 of them, so what makes one is read for as well as counted. A running program makes none from what it is given: the runtime makes atoms only of the names compiled into a program, and `Erl.atom` is a program's own request (Appendix E.19). The shell makes them of the text it is typed, through the lexer, for the prompt's inputs, its completion and its `Shift-Tab`: a name bound or declared costs about three the first time and none again, a name only mentioned, or a module name `:load` is given, one. An input's module and holder numbers are given again, so an input costs none of its own. Measured as the section below describes, one kind of input at a time.
+
 ## Reading the code
 
 The loads show only what they exercise, so the code is read too, for what a long-lived process, a table, or a persistent term keeps and when it lets it go:

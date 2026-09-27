@@ -2363,6 +2363,53 @@ alarms_are_no_deadlock_test_() ->
             "export fn main() -> Unit with Msg = { loop(5000); Io.println(\"done\") }\n"))
     end}.
 
+%% Appendix E.19: a text longer than 255 characters makes no atom, and
+%% `Erl.atom` faults as a foreign function that raises does (report §7.4)
+erl_atom_too_long_test() ->
+    {Result, _} = run("export fn main() -> Unit with Never = {\n"
+                      "    let _ = Erl.atom(String.padStart(\"\", 256, 'a'));\n"
+                      "    Unit\n"
+                      "}\n"),
+    ?assertMatch({fault, <<"foreign function erlang:binary_to_atom/1 raised error:system_limit">>,
+                  _}, Result).
+
+%% Plan, MVP 2.7, "Atoms, counted": a program's work makes no atoms, since
+%% the host never frees one; the same work done again, processes and calls,
+%% a socket, a host program, a file and an alarm, leaves the count as it
+%% was. Written after the reading that found none; `make load` measures the
+%% same at length (docs/memory.md).
+work_makes_no_atoms_test_() ->
+    {timeout, 60, fun() ->
+        Dir = scratch(),
+        {ok, Out} = run([
+            "type Msg = Tick(Int) | Ended(Down)\n"
+            "foreign fn info(k : Foreign) -> Int with m = \"erlang:system_info/1\"\n"
+            "fn work() -> Unit with Msg = {\n"
+            "    let w = spawn(Local, fn() -> Unit with Int = receive { _ -> Unit });\n"
+            "    monitor(w, Ended);\n"
+            "    kill(w);\n"
+            "    receive { Ended(_) -> Unit };\n"
+            "    Clock.alarm(1, Tick);\n"
+            "    receive { Tick(_) -> Unit };\n"
+            "    let _ = Os.run(Os.Command(program = \"true\", arguments = [], input = <<>>),\n"
+            "        5000);\n"
+            "    let _ = Fs.write(Path(\"", Dir, "/f\"), <<1>>, 1000);\n"
+            "    let _ = Fs.read(Path(\"", Dir, "/f\"), 1000);\n"
+            "    match Tcp.listen(0) {\n"
+            "        Right(l) -> Tcp.closeListener(l)\n"
+            "      | Left(_) -> Unit\n"
+            "    }\n"
+            "}\n"
+            "export fn main() -> Unit with Msg = {\n"
+            "    work();\n"
+            "    let before = info(Erl.atom(\"atom_count\"));\n"
+            "    work();\n"
+            "    work();\n"
+            "    Io.println(Io.show(info(Erl.atom(\"atom_count\")) - before))\n"
+            "}\n"]),
+        ?assertEqual(<<"0\n">>, Out)
+    end}.
+
 %% report §8.5: a module the program does not depend on is not initialized,
 %% though it is on the code path; a regression test for the shell's modules,
 %% which every run initialized, before the standard library's

@@ -12,5 +12,12 @@
 ///
 /// since 0.1.0
 
-/// The Erlang atom of the text.
+/// The Erlang atom of the text. An atom is never freed while the node
+/// lives, and a node holds at most a number of them its host fixes, so it
+/// is made of the names a shim needs, never of text a program receives.
+///
+/// ### Errors
+///
+/// A text longer than 255 characters, which no atom holds, faults as a
+/// foreign function's raise does (report §7.4).
 export foreign fn atom(text : String) -> Foreign = "erlang:binary_to_atom/1"

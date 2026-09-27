@@ -1533,7 +1533,7 @@ Tcp.local : (Address(SockMsg)) -> Either(Io.Error, Endpoint) with m // the conne
 
 ### Appendix E.19. `erl.ern` (namespace `Erl`)
 
-What a shim over an Erlang API needs from Erlang's conventions (rule 1). An API that answers `{ok, V}` or `{error, R}` needs an Erlang helper that rewrites the answer to `Either`'s encoding, `{'Right', V}` or `{'Left', R}` (§8.4).
+What a shim over an Erlang API needs from Erlang's conventions (rule 1). An API that answers `{ok, V}` or `{error, R}` needs an Erlang helper that rewrites the answer to `Either`'s encoding, `{'Right', V}` or `{'Left', R}` (§8.4). An atom `atom` makes is never freed while the node lives, and a node holds at most a number of atoms its host fixes, so `atom` is given the names a shim needs, never text a program receives. A text longer than 255 characters makes no atom, and `atom` faults as a foreign function that raises does (§7.4).
 
 ```
 Erl.atom : (String) -> Foreign // the Erlang atom of the text

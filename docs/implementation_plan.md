@@ -604,12 +604,13 @@ no growth too. An input that holds a lambda, and a declaration, still cost their
 entries, the host's, and are kept: a person at the prompt comes nowhere near the limit, and
 code shipped between peers is one version per definition by its hash (MVP 3.0 checks it).
 
-**Atoms, counted.** Noted 2026-09-26: how many atoms the runtime and the toolchain make while
-a program runs, measured, since the host never collects one and a node dies at about a
-million: those the emitted code makes, those a shim or a system module makes from a value it
-is given, and those the shell makes per input, which step 8 of MVP 2.65 cut from four to the
-two of `it`'s holder, and step 10 to none. Each source found is bounded by what the program
-holds, or decided with the user.
+**Atoms, counted, 2026-09-27** (`memory.md`'s *Atoms*; the log's *Atoms, Counted*). A
+running program makes no atom from what it is given, which `make load` and a regression test
+hold; `Erl.atom` is a program's own request, and Appendix E.19 now carries the host's rule, an
+atom never freed and a node's number of them fixed, with the fault past 255 characters. The
+shell makes an atom of each distinct name typed at it, about three for a name bound or
+declared and one for a name mentioned, and none for a name typed again; kept, bounded by what
+a person types, as the host's lambda entries are.
 
 **A simple log.** Noted 2026-09-26, to be decided in this milestone: `ern` writes what it
 prints to standard error, the fault reports first among them, to a file as well, and
