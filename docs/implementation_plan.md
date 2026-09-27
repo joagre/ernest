@@ -51,6 +51,7 @@ so a decision they must see goes here.
 | MVP 3.0 | peers | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
+| MVP 3.9 | the review before 1.0: soundness argued and generated against | |
 
 ---
 
@@ -633,18 +634,12 @@ Appendix E. Third-party libraries are not listed; Appendix D is what they follow
 
 ## MVP 2.95 (the first release: the review, manual pages, and an installation), about two weeks
 
-A release is the language reviewed whole, documented where a reader looks, and installed where a user runs it. Placed after MVP 2.7, which gives a program its arguments, its environment and its exit status, so that what is installed is a tool a command line can use, and before MVP 3.0, whose peers are a second release's.
+A release is the language reviewed whole, documented where a reader looks, and installed where a user runs it. The first one is for other programmers to install and use, decided 2026-09-27 (the log's *The First Release Is for Others*): Ernest for programs on one node. Peers are the next release's, which the README's table already says and the release notes state once. Placed after MVP 2.7, which gives a program its arguments, its environment and its exit status, so that what is installed is a tool a command line can use, and before MVP 3.0.
 
-1. **The review first**, whole, by [`review.md`](review.md), before anything else in this item: a finding may change what the other two build. Its ledger is a table here, as MVP 2.65's step 10 had. The review needs tools the repository lacks, each built as the review reaches the phase that uses it, with its own tests: a checker of Appendix A's FIRST sets (phase 1c); a generator of programs from the grammar, and of programs that type-check (1c, 2d); a test that compiles and runs the report's own examples (2b); a small runner of properties in the test utilities, for the standard library's laws (2e); `make dialyzer` and an Erlang xref target (3a); the load programs, shared with MVP 2.7's memory item (3c); a run of the suite under the emulator's modified timing (3d); and a test that runs the README's commands in a fresh clone (4d).
-
-   **A sceptical reading, a decision to take with the user**, proposed 2026-09-27: beside
-   phase 1b, which reads the report for what goes against the principles, a reading that
-   asks of each rule what it buys and what the language would lose without it. The night's
-   discussions of 2026-09-27 found what the cold reads and the sweeps had not: `remote`
-   removed, code shipped only with a spawn, a check made needless by typing, supervision
-   kept to one node, each from one rule doubted. To decide: whether it joins
-   [`review.md`](review.md) as a phase of its own, who reads, the user, a reader primed for
-   it, or both, and whether it also runs earlier than this review, section by section.
+1. **The review first**, before anything else in this item, since a finding may change what the other two build. Its ledger is a table here, as MVP 2.65's step 10 had. Decided 2026-09-27: at this item's start, [`review.md`](review.md) is rewritten as one page of two tables, each row exact, its rationale left to the log.
+   - **The machines**, each a command and the condition it passes on: `make test` green; `make sections` listing only MVP 3.0 material; Dialyzer and Erlang's xref over every application, clean; the suite green under the emulator's modified timing (`+T`); the load programs, shared with MVP 2.7's memory item, flat in memory, atoms and processes over a stated number of iterations; the report's own examples compiling, and running to their written values; the grammar read by a program, Appendix A's FIRST sets disjoint and programs generated from it parsing, a near miss refused; the README's commands run in a fresh clone; and the installation installed, moved, run and uninstalled, leaving nothing. Each tool the repository lacks is built as its row is reached, with its tests.
+   - **The readers**, one lens each, each with its brief and what it hands in: the report read cold as its implementer; the report read as an adversary, for contradictions; the sceptical reading, one reader primed to ask of each rule what it buys and what the language would lose without it, which the night's discussions of 2026-09-27 showed finds what the cold reads and the sweeps do not; the guide read by a newcomer, who writes three named programs with only what it taught; the two sweeps; and a read-back of each application's code.
+   - **Left to MVP 3.9**, the review before 1.0, where a promise of stability makes them matter: the written argument that a well-typed program does not go wrong, the generator of programs that type-check and run without a host error, and the property runner for the standard library's laws.
 
 2. **Manual pages, investigated.** `ern doc` writes a module's page as CommonMark today (report §11.4); an option writes it as a manual page instead, so that `man Ernest.List` answers at a terminal. The doc blocks are CommonMark, and `libs/markdown` already parses it for the shell, so the investigation is a renderer to roff beside the terminal's. Decided here, with the user, before it is built: **the pages' names and section**, `Ernest.List` in section 3 with a suffix of Ernest's own, as Erlang's `3erl` and Perl's `3pm` are, or another; whether the toolchain has an `ern(1)` page, and what owns its text, since §11 does.
 3. **An installation.** `make install` builds Ernest and installs it under a prefix, `/usr/local` by default, and `make uninstall` removes it. Decided here, with the user, before it is built, and written then as a design note, `docs/install.md`: **how it is relocatable without a configure step**, the direction discussed on 2026-09-26 being `PREFIX` and `DESTDIR` as make variables and an installed `bin/ern` that finds its tree by following its own link; **the layout under the prefix**, the toolchain's tree in `lib/ernest` and the manual pages in `share/man/man3`; and what the installation requires beside it, Erlang/OTP 29 on the path.
@@ -803,6 +798,27 @@ later, when there is a package story. Named so far:
   program handles, as Gleam's `gleam_regexp` does.
 - **`libs/crypto`**, a shim over `crypto` for hashes, HMAC and random bytes; **`libs/uri`**,
   pure Ernest or a shim over `uri_string`; **`libs/zlib`**, a shim over `zlib`.
+
+---
+
+## MVP 3.9 (the review before 1.0)
+
+What a first release could leave out and a promise of stability cannot, placed here on
+2026-09-27 when MVP 2.95's review was cut to what a first release needs (the log's *The First
+Release Is for Others*):
+
+- **The type system argued.** A written argument that a well-typed program does not go
+  wrong: the core calculus, then effects and mailbox types, the reply discipline's
+  linearity, and where rules meet, generalization against effects, a pure function standing
+  for one with a mailbox, a reply captured by a lambda. Where it cannot be made, that is a
+  finding; a model a machine checks follows only if the argument meets a rule it cannot
+  settle.
+- **Well-typed programs generated.** Programs generated to type-check run under the runtime
+  and end by returning, by a cause of §7.4, or by a deadlock; a host error that is none of
+  those is a finding in the checker or the runtime.
+- **The standard library's laws as properties**, generated against each module's contract:
+  `String.split` then `String.join` gives the string back, `List.sort` is stable, a search
+  matches whole graphemes, and the rest its sections and doc blocks state.
 
 ---
 

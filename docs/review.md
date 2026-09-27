@@ -2,6 +2,8 @@
 
 How Ernest is reviewed before a release: the report as a specification, the report against the code, the code as code, the documents, and the language in use. This document owns the procedure: its phases, what each reader is asked, and when the review is done. The plan says when a review runs and holds its ledger; the log records what its findings decided; the report, the code and the other documents stay the owners of what the review checks.
 
+This procedure is rewritten at the start of the plan's MVP 2.95 as one page of two tables, the machines and the readers, and three of its items move to MVP 3.9; the plan says which.
+
 The review is run whole before every release, and in part whenever a milestone changes what a phase covers. The sweeps CLAUDE.md asks for at the end of every plan step are its lightest form.
 
 ## Rules
