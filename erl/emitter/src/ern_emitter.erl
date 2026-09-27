@@ -136,11 +136,20 @@ fun_fun(Decls) ->
     Clauses = [erl_syntax:clause([erl_syntax:atom(F), erl_syntax:integer(A)], none,
                                  [erl_syntax:implicit_fun(erl_syntax:atom(F),
                                                           erl_syntax:integer(A))])
-               || D <- Decls, exported(D), not is_record(D, let_decl), {F, A} <- [export(D)]],
+               || D <- Decls, exported(D), not is_record(D, let_decl), nameable(D),
+                  {F, A} <- [export(D)]],
     case Clauses of
         [] -> [];
         _ -> [erl_syntax:function(erl_syntax:atom('$fun'), Clauses)]
     end.
+
+%% Report §2.3: a function whose own name holds `$`, the entry of an input
+%% at the shell's prompt, is named by no program, so none takes it as a
+%% value. It has no clause: each clause is a function the host keeps an
+%% entry for as long as the node lives, for every version of the module it
+%% loads.
+nameable(#fn_decl{name = N}) -> not lists:member($$, atom_to_list(N));
+nameable(#foreign_fn_decl{name = N}) -> not lists:member($$, atom_to_list(N)).
 
 %% Report §8.5: the modules this one depends on, whose top-level
 %% bindings are evaluated before its own.

@@ -851,6 +851,29 @@ declarations_let_go() ->
                             || L <- binary:split(Out, <<"\n">>, [global])]],
     ?assert(After - Before =< 60).
 
+%% report §2.3, §11.2: an expression at the prompt leaves no code behind,
+%% however many distinct ones there are. A regression test, written after
+%% the code: each input's module answered its entry function as a value,
+%% and the host keeps an entry for every such function of every version of
+%% a module it loads, 176 bytes each for as long as the node lives.
+expressions_leave_no_code_test_() ->
+    {timeout, 120, fun expressions_leave_no_code/0}.
+
+expressions_leave_no_code() ->
+    In = filename:join("/tmp", "ern_code_" ++ os:getpid() ++ ".in"),
+    Code = "memory(Erl.atom(\"code\"))\n",
+    ok = file:write_file(In, ["foreign fn memory(k : Foreign) -> Int with m ="
+                              " \"erlang:memory/1\"\n",
+                              [["1 + ", integer_to_list(I), "\n"] || I <- lists:seq(1, 50)],
+                              Code,
+                              [["1 + ", integer_to_list(I), "\n"] || I <- lists:seq(51, 250)],
+                              Code]),
+    {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
+    [Before, After] = [binary_to_integer(N) || {match, [N]} <-
+                           [re:run(L, "^> ([0-9]{7,}) : Int$", [{capture, all_but_first, binary}])
+                            || L <- binary:split(Out, <<"\n">>, [global])]],
+    ?assert(After - Before < 2000).
+
 %% report §11.2, §6.10: a declaration made again is let go only when
 %% nothing reaches it: a function declared after it still calls it, a
 %% binding holding its function or a value of its type keeps it, and a

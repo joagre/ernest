@@ -113,7 +113,7 @@ verdict(Samples) ->
     First = hd(Settled),
     Last = lists:last(Samples),
     Counts = [{K, maps:get(K, Last) - maps:get(K, First)}
-              || K <- [atoms, processes, ports, rows, terms, reaper],
+              || K <- [code, atoms, processes, ports, rows, terms, reaper],
                  maps:get(K, Last) > maps:get(K, First)],
     Grown = mean(lists:nthtail(length(Settled) - 3, Settled)) - mean(lists:sublist(Settled, 3)),
     Counts ++ [{memory, Grown} || Grown > ?NOISE_BYTES].

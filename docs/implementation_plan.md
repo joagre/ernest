@@ -594,13 +594,15 @@ counts, as an alarm does once the clock has answered it. The check stays a poll,
 the host allows, and reads the counts of pending work first, so an idle program waiting on
 anything pays a few rows.
 
-**The shell's code memory, diagnosed.** Noted 2026-09-26, at the close of MVP 2.65's step
-10: with the holders of `it` freed, the shell's memory is flat from 2,000 inputs to 8,000,
-but the host's code memory still rises about 0.2 KB an input while the count of loaded
-modules and of persistent terms stays constant. Undiagnosed; the likely shape is the host's
-code allocator reusing a module name that is loaded, deleted and loaded again. Read with
-`erlang:system_info({allocator, ...})` under a session of 50,000 inputs; fixed at its cause
-if it is the shell's, and decided with the user if it is the host's.
+**The shell's code memory, diagnosed 2026-09-27** (the log's *The Shell's Code Memory*).
+The 176 bytes a round were one entry of the host's for each distinct input: every module
+answered its exported functions as values through `'$fun'/2`, one lambda each, and OTP keeps
+an entry for each lambda of each distinct version of a module it loads, for as long as the
+node lives, up to 524,288 of them. An input's entry function, which no program can name, no
+longer has one, and distinct expressions leave no code behind; `make load` now holds code to
+no growth too. An input that holds a lambda, and a declaration, still cost their lambdas'
+entries, the host's, and are kept: a person at the prompt comes nowhere near the limit, and
+code shipped between peers is one version per definition by its hash (MVP 3.0 checks it).
 
 **Atoms, counted.** Noted 2026-09-26: how many atoms the runtime and the toolchain make while
 a program runs, measured, since the host never collects one and a node dies at about a
@@ -726,6 +728,12 @@ peers are the useful one.
   where it was made applies the function on delivery; one made around another node's process
   faults. Both notes were revised the same day, so a message fetches nothing and no fetch
   pauses a connection.
+- **Shipped code and the host's lambda entries**, noted 2026-09-27 (the log's *The Shell's
+  Code Memory*): OTP keeps an entry for each lambda of each distinct version of a module it
+  loads, for as long as the node lives, up to 524,288. A node that receives code loads one
+  version per definition by its hash, so only a new version of a program adds entries; the
+  receiving side is built so, and `docs/memory.md` gains a load of peers spawning the same
+  and new definitions.
 - **A supervisor's children run on its node**, decided 2026-09-27 (Appendix E.22; the log's
   *The `Supervisor`'s Shape*). Built here: `Supervisor.child` asks the runtime, through a
   private shim, whether `sup` is on the child's node, and faults with `a child runs on its
