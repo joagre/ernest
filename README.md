@@ -30,7 +30,9 @@ The complete programs from the report's Appendix B and D, and some of the guide'
 
 - **[`docs/implementation_plan.md`](docs/implementation_plan.md)** — the roadmap: where the project stands, what is done, and what comes next.
 
-- **[`docs/review.md`](docs/review.md)** — the review before a release: its phases, what each reader is asked, and when it is done.
+- **[`docs/coherence.md`](docs/coherence.md)** — the checks that the project agrees with itself: the report with its principles and with itself, the guide and the other documents with the report, and the code with the report and its style; each by a command or a reader, and when each runs.
+
+- **[`docs/review.md`](docs/review.md)** — what a release adds to those checks, and when a review is done.
 
 - **[`docs/architecture.md`](docs/architecture.md)** — how the toolchain is built: the stages, what flows between them, the checker's passes, the compiler's one traversal, the runtime, the tests, and where MVP 2.5 and later hook in.
 

@@ -22,7 +22,8 @@ citations_resolve_test() ->
     ReportHeads = headings(Report),
     GuideHeads = headings(Guide),
     Live = ["ernest_report.md", "README.md", "CLAUDE.md", "docs/implementation_plan.md",
-            "docs/architecture.md", "docs/shell_design.md", "docs/module_doc_template.md"]
+            "docs/architecture.md", "docs/shell_design.md", "docs/module_doc_template.md",
+            "docs/coherence.md", "docs/review.md"]
         ++ examples() ++ stdlib(),
     Dangling =
         [{F, C} || F <- Live, C <- cites(read(F)), not resolves(C, report, ReportHeads, GuideHeads)]
