@@ -302,7 +302,9 @@ Shadowing is allowed: a later `let` with the same name hides the earlier one fro
 
 ```ernest
 let pi : Float = 3.14159265358979
+
 let defaultPort : Int = 8080
+
 export let helloBanner : String = "hello, world"
 ```
 
@@ -451,6 +453,7 @@ A clause may list several patterns separated by `or`; it matches when any of the
 
 ```ernest
 type Direction = North | South | East | West
+
 type Move = Forward(Int) | Back(Int) | Stay
 
 fn axis(d : Direction) -> String =
@@ -579,6 +582,7 @@ Functions are values. This section is about writing them and passing them around
 ```ernest
 fn double(n : Int) -> Int =
     n * 2
+
 fn hypotenuseSquared(a : Int, b : Int) -> Int =
     a * a + b * b
 ```
@@ -800,7 +804,9 @@ A server that cannot answer at once keeps the reply in a small process that answ
 
 ```ernest
 type QueueMsg = Put(Int) | Take(reply : Reply(Int))
+
 type WaiterMsg = Item(Int)
+
 type MainMsg = Took(Int)
 
 // Items no one has asked for yet, and the callers waiting for an item, each
@@ -1043,6 +1049,7 @@ Two processes that talk must also know when the other is done.
 
 ```ernest
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
+
 type MainMsg = PongDone(Down)
 
 export fn main() -> Unit with MainMsg = {
@@ -1094,6 +1101,7 @@ spawnMonitored : (Where, () -> Unit with n, (Down) -> m) -> Address(n) with m
 
 ```ernest-prelude
 type Down = Down(reason : Reason, site : String)
+
 type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
 ```
 
@@ -1179,6 +1187,7 @@ via : ((a) -> b, Address(b)) -> Address(a)
 
 ```ernest
 type GameMsg = Tick(Int) | Input(Char)
+
 type World = World(score : Int)
 
 fn step(w : World) -> World =
@@ -1474,6 +1483,7 @@ let group : Address(Supervisor.Msg) = spawn(Local,
     Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 3, within = 5000)))
 
 let visits : Address(CounterMsg) = spawn(Local, Supervisor.child(group, fn() = count(0)))
+
 let sales : Address(CounterMsg) = spawn(Local, Supervisor.child(group, fn() = count(0)))
 
 fn count(total : Int) -> Unit with CounterMsg =
@@ -1616,8 +1626,10 @@ An abstract type keeps its representation to its module: every definition in the
 export abstract type Stack(a) = Stack(List(a))
 
 export let Stack.empty : Stack(a) = Stack([])
+
 export fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) =
     Stack(x :: xs)
+
 export fn Stack.pop(Stack(xs) : Stack(a)) -> Optional(#(a, Stack(a))) =
     match xs { [] -> None | x :: rest -> Some(#(x, Stack(rest))) }
 
@@ -1813,7 +1825,8 @@ A peer that is lost stays lost: its processes are dead to this node, monitors re
 // ets.ern
 export foreign type Table(k=, v)
 
-export foreign fn contains(t : Table(k, v), key : k) -> Bool with m = "ets:member/2"
+export foreign fn contains(t : Table(k, v), key : k) -> Bool with m =
+    "ets:member/2"
 ```
 
 External callers write `Ets.Table` and `Ets.contains`. `foreign type` declares a type whose values only foreign functions make and read; Ernest has no constructor for it and cannot match it. `foreign fn` binds a name to a function on the other side, here Erlang's `ets:member/2`. The `=` in `k=` says the keys need equality, since `ets` compares them: a table keyed by functions is a type error at its first operation, as a `Map` is (report §4.7).
@@ -1853,8 +1866,8 @@ export foreign type Table(k=, v)
 export fn get(t : Table(k, v), key : k) -> Optional(v) with m =
     match rawLookup(t, key) { [#(_, v)] -> Some(v) | _ -> None }
 
-foreign fn rawLookup(t : Table(k, v), key : k)
-    -> List(#(k, v)) with m = "ets:lookup/2"
+foreign fn rawLookup(t : Table(k, v), key : k) -> List(#(k, v)) with m =
+    "ets:lookup/2"
 ```
 
 `rawLookup` is the module's own, and callers use `Ets.get`.
@@ -1881,7 +1894,8 @@ The Ernest `foreign fn` binds to that helper, and the term it returns is already
 
 ```ernest
 // store.ern (namespace Store)
-export foreign fn lookup(key : String) -> Either(String, Int) with m = "store_helper:lookup/1"
+export foreign fn lookup(key : String) -> Either(String, Int) with m =
+    "store_helper:lookup/1"
 
 export fn main() -> Unit with Never =
     match lookup("answer") {

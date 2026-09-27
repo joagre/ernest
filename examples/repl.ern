@@ -21,6 +21,7 @@
 //
 
 type Token = Num(Int) | Ident(String) | Op(Char) | LParen | RParen | KwLet | KwFun | Eq | Arrow
+
 type LexError = BadChar(c : Char, at : Int)
 
 type Expr =
@@ -34,6 +35,7 @@ type Expr =
 type ParseError = Unexpected(Token) | Eof
 
 type Value = N(Int) | Closure(param : String, body : Expr, env : Map(String, Value))
+
 type EvalError = Unbound(String) | DivZero | NotAFunction | NotANumber
 
 type TryError = Eval(EvalError) | Crashed | Timeout

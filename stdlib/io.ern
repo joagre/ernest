@@ -51,10 +51,13 @@ type OutMsg = Write(bytes : Bytes, reply : Reply(Unit))
 // Report §8.2: the system references, the runtime's addresses of standard
 // output, standard error and standard input, bound at each start.
 let stdout : Address(OutMsg) = system(Erl.atom("stdout"))
+
 let stderr : Address(OutMsg) = system(Erl.atom("stderr"))
+
 let stdin : Address(StdinMsg) = system(Erl.atom("stdin"))
 
-foreign fn system(name : Foreign) -> Address(a) with m = "ern_rt:sys/1"
+foreign fn system(name : Foreign) -> Address(a) with m =
+    "ern_rt:sys/1"
 
 
 /// The string to standard output, as it is, without a line feed.
@@ -145,10 +148,12 @@ export fn write(b : Bytes) -> Unit with m =
 /// Io.show(#('a', Some([1, 2]), <<104, 105>>))
 /// // => "#('a', Some([1, 2]), <<104, 105>>)"
 /// ```
-export foreign fn show(value : a) -> String = "ern_io:show/1"
+export foreign fn show(value : a) -> String =
+    "ern_io:show/1"
 
 /// The value printed as `Io.show` writes it, with a line feed, and
 /// returned, so it wraps an expression where it stands: `let n =
 /// Io.debug(f(x))`. Inside a generic function, where the type is a
 /// variable, it prints by the runtime's representation (report §8.4).
-export foreign fn debug(value : a) -> a with m = "ern_io:debug/1"
+export foreign fn debug(value : a) -> a with m =
+    "ern_io:debug/1"

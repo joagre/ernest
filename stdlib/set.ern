@@ -27,7 +27,8 @@
 /// The set with no elements.
 export let empty : Set(a) = emptySet()
 
-foreign fn emptySet() -> Set(a) = "ern_set:empty/0"
+foreign fn emptySet() -> Set(a) =
+    "ern_set:empty/0"
 
 /// The number of elements.
 ///
@@ -37,17 +38,20 @@ foreign fn emptySet() -> Set(a) = "ern_set:empty/0"
 /// #(Set.size(Set.fromList([1, 1, 2])), Set.isEmpty(Set.empty))
 /// // => #(2, true)
 /// ```
-export foreign fn size(s : Set(a)) -> Int = "ern_set:size/1"
+export foreign fn size(s : Set(a)) -> Int =
+    "ern_set:size/1"
 
 /// `true` for the set with no elements.
 export fn isEmpty(s : Set(a)) -> Bool =
     size(s) == 0
 
 /// `true` when the element is in the set.
-export foreign fn contains(s : Set(a), x : a) -> Bool = "ern_set:contains/2"
+export foreign fn contains(s : Set(a), x : a) -> Bool =
+    "ern_set:contains/2"
 
 /// The set with that element, which may already be there.
-export foreign fn put(s : Set(a), x : a) -> Set(a) = "ern_set:put/2"
+export foreign fn put(s : Set(a), x : a) -> Set(a) =
+    "ern_set:put/2"
 
 /// The set without that element, which need not be there.
 ///
@@ -57,7 +61,8 @@ export foreign fn put(s : Set(a), x : a) -> Set(a) = "ern_set:put/2"
 /// Set.toList(Set.remove(Set.fromList([1, 2]), 2))
 /// // => [1]
 /// ```
-export foreign fn remove(s : Set(a), x : a) -> Set(a) = "ern_set:remove/2"
+export foreign fn remove(s : Set(a), x : a) -> Set(a) =
+    "ern_set:remove/2"
 
 /// The function applied to each element; two elements it maps together
 /// become one, so the result may be smaller.
@@ -148,7 +153,8 @@ export fn fromList(xs : List(a)) -> Set(a) =
     List.foldLeft(xs, empty, put)
 
 /// The elements.
-export foreign fn toList(s : Set(a)) -> List(a) = "ern_set:to_list/1"
+export foreign fn toList(s : Set(a)) -> List(a) =
+    "ern_set:to_list/1"
 
 /// The elements of both.
 ///

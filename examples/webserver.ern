@@ -26,8 +26,11 @@
 //
 
 type Request = Request(method : String, path : String, headers : List(#(String, String)))
+
 type Response = Response(status : StatusCode, headers : List(#(String, String)), body : String)
+
 type ParseError = BadEncoding | BadRequestLine | BadHeader(String)
+
 type SessionMsg =
     Visit(id : SessionId, reply : Reply(Int)) // the session's visits, this one counted
   | Forget
@@ -202,13 +205,17 @@ fn errorText(e : Io.Error) -> String =
 //
 
 let StatusCode.ok = StatusCode(200)
+
 let StatusCode.notFound = StatusCode(404)
+
 fn StatusCode.render(StatusCode(n)) =
     if n == 200 then "200 OK" else "404 Not Found"
 
 fn SessionId.fresh(n) =
     SessionId(Int.toString(n)) // good enough on paper
+
 fn SessionId.parse(t) =
     if List.all(String.toList(t), Char.isAsciiDigit) then Some(SessionId(t)) else None
+
 fn SessionId.text(SessionId(t)) =
     t

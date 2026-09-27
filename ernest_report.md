@@ -206,6 +206,7 @@ Declared with `type`, §4.3. A constructor has no fields, exactly one positional
 
 ```ernest
 type Optional(a) = None | Some(a)
+
 type Snapshot = Snapshot(dir : Path, seen : Map(Path, Int))
 ```
 
@@ -288,6 +289,7 @@ A *module* is one source file, ending in `.ern`: the unit of compilation and of 
 ```ernest
 // net/http.ern
 export type Request = Request(method : String, path : String)
+
 export fn parse(s : String) -> Optional(Request) =
     ...
 
@@ -772,15 +774,25 @@ A parameter written with `=` requires equality of its argument, as a foreign typ
 
 ```ernest
 type Unit = Unit // the one-value type; carries no information
+
 type Optional(a) = None | Some(a)
+
 type Either(e, a) = Left(e) | Right(a)
+
 type Ordering = Less | Equal | Greater
+
 type Down = Down(reason : Reason, site : String)
+
 type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
+
 type RestartLimit = RestartLimit(restarts : Int, within : Int) // within in milliseconds, §6.9
+
 type Where = Local | Peer(String) // spawn placement, §6.2
+
 type Path = Path(String) // in the runtime's syntax
+
 type Test = Test(name : String, run : () -> TestResult with Never)
+
 type TestResult = Passed | Failed(String)
 ```
 
@@ -1034,6 +1046,7 @@ fn counter(n : Int) -> Unit with CounterMsg =
 
 ```ernest
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
+
 type MainMsg = PongDone(Down)
 
 export fn main() -> Unit with MainMsg = {
@@ -1118,7 +1131,8 @@ export foreign type Table(k=, v)
 export fn new() -> Table(k, v) with m =
     rawNew(Erl.atom("ernest"), [Erl.atom("set"), Erl.atom("public")])
 
-foreign fn rawNew(name : Foreign, opts : List(Foreign)) -> Table(k, v) with m = "ets:new/2"
+foreign fn rawNew(name : Foreign, opts : List(Foreign)) -> Table(k, v) with m =
+    "ets:new/2"
 
 /// Insert or replace the entry for key.
 export fn put(t : Table(k, v), key : k, value : v) -> Unit with m = {
@@ -1126,13 +1140,15 @@ export fn put(t : Table(k, v), key : k, value : v) -> Unit with m = {
     Unit
 }
 
-foreign fn rawInsert(t : Table(k, v), row : #(k, v)) -> Bool with m = "ets:insert/2"
+foreign fn rawInsert(t : Table(k, v), row : #(k, v)) -> Bool with m =
+    "ets:insert/2"
 
 /// The value for key, or None if absent.
 export fn get(t : Table(k, v), key : k) -> Optional(v) with m =
     match rawLookup(t, key) { [#(_, v)] -> Some(v) | _ -> None }
 
-foreign fn rawLookup(t : Table(k, v), key : k) -> List(#(k, v)) with m = "ets:lookup/2"
+foreign fn rawLookup(t : Table(k, v), key : k) -> List(#(k, v)) with m =
+    "ets:lookup/2"
 
 /// Remove key. A key not present is not an error.
 export fn remove(t : Table(k, v), key : k) -> Unit with m = {
@@ -1140,13 +1156,15 @@ export fn remove(t : Table(k, v), key : k) -> Unit with m = {
     Unit
 }
 
-foreign fn rawDelete(t : Table(k, v), key : k) -> Bool with m = "ets:delete/2"
+foreign fn rawDelete(t : Table(k, v), key : k) -> Bool with m =
+    "ets:delete/2"
 
 /// The number of entries in the table.
 export fn size(t : Table(k, v)) -> Int with m =
     rawInfo(t, Erl.atom("size"))
 
-foreign fn rawInfo(t : Table(k, v), item : Foreign) -> Int with m = "ets:info/2"
+foreign fn rawInfo(t : Table(k, v), item : Foreign) -> Int with m =
+    "ets:info/2"
 
 /// Close the table, deleting it. All subsequent operations on it fault.
 export fn close(t : Table(k, v)) -> Unit with m = {
@@ -1154,7 +1172,8 @@ export fn close(t : Table(k, v)) -> Unit with m = {
     Unit
 }
 
-foreign fn rawClose(t : Table(k, v)) -> Bool with m = "ets:delete/1"
+foreign fn rawClose(t : Table(k, v)) -> Bool with m =
+    "ets:delete/1"
 
 /// Remove all entries, leaving the table empty.
 export fn clear(t : Table(k, v)) -> Unit with m = {
@@ -1162,13 +1181,16 @@ export fn clear(t : Table(k, v)) -> Unit with m = {
     Unit
 }
 
-foreign fn rawClear(t : Table(k, v)) -> Bool with m = "ets:delete_all_objects/1"
+foreign fn rawClear(t : Table(k, v)) -> Bool with m =
+    "ets:delete_all_objects/1"
 
 /// True if key is present in t.
-export foreign fn contains(t : Table(k, v), key : k) -> Bool with m = "ets:member/2"
+export foreign fn contains(t : Table(k, v), key : k) -> Bool with m =
+    "ets:member/2"
 
 /// All key-value pairs currently in the table, in unspecified order.
-export foreign fn toList(t : Table(k, v)) -> List(#(k, v)) with m = "ets:tab2list/1"
+export foreign fn toList(t : Table(k, v)) -> List(#(k, v)) with m =
+    "ets:tab2list/1"
 ```
 
 ```ernest

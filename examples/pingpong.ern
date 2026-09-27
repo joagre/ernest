@@ -9,6 +9,7 @@
 //
 
 type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
+
 type MainMsg = PongDone(Down)
 
 export fn main() -> Unit with MainMsg = {

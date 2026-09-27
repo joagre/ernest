@@ -161,7 +161,8 @@ fn members(watcher : Address(Watch)) -> List(Process) with Msg =
 
 // Report §6.9: the child restarts at its next wait; one that has ended is
 // not asked.
-foreign fn askRestart(child : Process) -> Unit with m = "ern_rt:ask_restart/1"
+foreign fn askRestart(child : Process) -> Unit with m =
+    "ern_rt:ask_restart/1"
 
 // The watcher: it holds the children in the order they joined, forgets one
 // that ends, and when the supervisor dies kills them, the last first.
@@ -253,4 +254,5 @@ fn join(sup : Address(Msg), p : Process, s : () -> Unit with Watch,
     }
 
 // Why the restarting function the caller runs in began.
-foreign fn startCause() -> Start with m = "ern_rt:start_cause/0"
+foreign fn startCause() -> Start with m =
+    "ern_rt:start_cause/0"

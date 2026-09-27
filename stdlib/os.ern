@@ -84,7 +84,8 @@ type Msg =
 // bound at each start.
 let reference : Address(Msg) = system(Erl.atom("os"))
 
-foreign fn system(name : Foreign) -> Address(Msg) with m = "ern_rt:sys/1"
+foreign fn system(name : Foreign) -> Address(Msg) with m =
+    "ern_rt:sys/1"
 
 /// The words after the module on `ern run`'s command line, whatever they
 /// look like, bound when the program starts; `ern run` refuses one that is
@@ -100,7 +101,8 @@ foreign fn system(name : Foreign) -> Address(Msg) with m = "ern_rt:sys/1"
 /// ```
 export let arguments : List(String) = commandLine()
 
-foreign fn commandLine() -> List(String) with m = "ern_rt:arguments/0"
+foreign fn commandLine() -> List(String) with m =
+    "ern_rt:arguments/0"
 
 /// The program's environment, bound when the program starts. A variable
 /// whose name or value is not UTF-8 is left out, and a name the host gives
@@ -113,7 +115,8 @@ foreign fn commandLine() -> List(String) with m = "ern_rt:arguments/0"
 /// ```
 export let environment : Map(String, String) = hostEnvironment()
 
-foreign fn hostEnvironment() -> Map(String, String) with m = "ern_os:environment/0"
+foreign fn hostEnvironment() -> Map(String, String) with m =
+    "ern_os:environment/0"
 
 /// Ends the program with that exit status, as the end of its entry process
 /// ends it (report §8.6), and does not return. It ends the program, not a
@@ -136,7 +139,8 @@ foreign fn hostEnvironment() -> Map(String, String) with m = "ern_os:environment
 ///   | files -> files
 /// }
 /// ```
-export foreign fn exit(status : Int) -> a with m = "ern_rt:exit_program/1"
+export foreign fn exit(status : Int) -> a with m =
+    "ern_rt:exit_program/1"
 
 /// Starts the program and answers its address. The program reads `input`,
 /// then what `Os.write` gives it, until `Os.closeInput` ends its input,

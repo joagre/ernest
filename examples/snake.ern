@@ -23,6 +23,7 @@
 //
 
 type Dir = N | S | W | E
+
 type Pos = Pos(x : Int, y : Int)
 
 type Player = Player(id : Int, body : List(Pos), dir : Dir, score : Int, alive : Bool)

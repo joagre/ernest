@@ -105,16 +105,20 @@ export fn max(a : Int, b : Int) -> Int =
 /// #(Int.bitAnd(6, 3), Int.bitOr(6, 3), Int.bitXor(6, 3), Int.bitNot(6))
 /// // => #(2, 7, 5, -7)
 /// ```
-export foreign fn bitAnd(a : Int, b : Int) -> Int = "erlang:band/2"
+export foreign fn bitAnd(a : Int, b : Int) -> Int =
+    "erlang:band/2"
 
 /// Bitwise or, on the two's complement form.
-export foreign fn bitOr(a : Int, b : Int) -> Int = "erlang:bor/2"
+export foreign fn bitOr(a : Int, b : Int) -> Int =
+    "erlang:bor/2"
 
 /// Bitwise exclusive or, on the two's complement form.
-export foreign fn bitXor(a : Int, b : Int) -> Int = "erlang:bxor/2"
+export foreign fn bitXor(a : Int, b : Int) -> Int =
+    "erlang:bxor/2"
 
 /// Bitwise complement, `-n - 1`.
-export foreign fn bitNot(n : Int) -> Int = "erlang:bnot/1"
+export foreign fn bitNot(n : Int) -> Int =
+    "erlang:bnot/1"
 
 /// `n` shifted left by `k` bits: `n` times two to the power `k`; a negative
 /// `k` shifts right.
@@ -125,14 +129,17 @@ export foreign fn bitNot(n : Int) -> Int = "erlang:bnot/1"
 /// #(Int.shiftLeft(3, 2), Int.shiftRight(-7, 2))
 /// // => #(12, -2)
 /// ```
-export foreign fn shiftLeft(n : Int, k : Int) -> Int = "erlang:bsl/2"
+export foreign fn shiftLeft(n : Int, k : Int) -> Int =
+    "erlang:bsl/2"
 
 /// `n` shifted right by `k` bits, the sign kept: `n` divided by two to the
 /// power `k`, rounded toward negative infinity.
-export foreign fn shiftRight(n : Int, k : Int) -> Int = "erlang:bsr/2"
+export foreign fn shiftRight(n : Int, k : Int) -> Int =
+    "erlang:bsr/2"
 
 /// The decimal form, with a leading `-` when negative.
-export foreign fn toString(n : Int) -> String = "erlang:integer_to_binary/1"
+export foreign fn toString(n : Int) -> String =
+    "erlang:integer_to_binary/1"
 
 /// `base` raised to `exponent`, exactly, or `None` when the exponent is
 /// negative, since that is not an `Int`.
@@ -166,7 +173,8 @@ fn power(base : Int, exponent : Int, acc : Int) -> Int =
 export fn toStringBase(n : Int, base : Int) -> Optional(String) =
     if base < 2 || base > 36 then None else Some(inBase(n, base))
 
-foreign fn inBase(n : Int, base : Int) -> String = "erlang:integer_to_binary/2"
+foreign fn inBase(n : Int, base : Int) -> String =
+    "erlang:integer_to_binary/2"
 
 /// The nearest `Float`, ties to even.
 ///
@@ -181,4 +189,5 @@ foreign fn inBase(n : Int, base : Int) -> String = "erlang:integer_to_binary/2"
 /// Int.toFloat(7)
 /// // => 7.0
 /// ```
-export foreign fn toFloat(n : Int) -> Float = "ern_int:to_float/1"
+export foreign fn toFloat(n : Int) -> Float =
+    "ern_int:to_float/1"

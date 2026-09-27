@@ -4,7 +4,8 @@
 // then closed, and a read times out on one, then a mark (test/ern_load.erl).
 //
 
-foreign fn mark(round : Int) -> Unit with m = "ern_load:mark/1"
+foreign fn mark(round : Int) -> Unit with m =
+    "ern_load:mark/1"
 
 let rounds = 14
 

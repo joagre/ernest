@@ -8,7 +8,8 @@ type WorkMsg = Ask(reply : Reply(Int)) | Stop
 
 type Msg = Ended(Down)
 
-foreign fn mark(round : Int) -> Unit with m = "ern_load:mark/1"
+foreign fn mark(round : Int) -> Unit with m =
+    "ern_load:mark/1"
 
 let rounds = 14
 

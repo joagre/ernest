@@ -10,6 +10,7 @@
 //
 
 type Snapshot = Snapshot(dir : String, seen : Int)
+
 type Shape = Circle(Int) | Square(Int) | Dot
 
 export fn main() -> Unit with Never = {

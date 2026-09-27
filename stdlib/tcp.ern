@@ -90,7 +90,8 @@ type Msg =
 // bound at each start.
 let reference : Address(Msg) = system(Erl.atom("tcp"))
 
-foreign fn system(name : Foreign) -> Address(Msg) with m = "ern_rt:sys/1"
+foreign fn system(name : Foreign) -> Address(Msg) with m =
+    "ern_rt:sys/1"
 
 /// A listener on that port; port 0 asks the system for a free one, which
 /// `Tcp.port` tells.

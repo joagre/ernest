@@ -111,7 +111,8 @@ export fn max(a : Float, b : Float) -> Float =
 /// #(Float.toString(1.0e15), Float.toString(1.0e16), Float.toString(0.00001))
 /// // => #("1000000000000000.0", "1.0e16", "1.0e-5")
 /// ```
-export foreign fn toString(x : Float) -> String = "ern_float:to_string/1"
+export foreign fn toString(x : Float) -> String =
+    "ern_float:to_string/1"
 
 /// The nearest `Int`, ties to even.
 export fn round(x : Float) -> Int = {
@@ -128,13 +129,16 @@ export fn round(x : Float) -> Int = {
 /// #(Float.truncate(-2.7), Float.floor(-2.7))
 /// // => #(-2, -3)
 /// ```
-export foreign fn truncate(x : Float) -> Int = "erlang:trunc/1"
+export foreign fn truncate(x : Float) -> Int =
+    "erlang:trunc/1"
 
 /// The greatest `Int` not above `x`.
-export foreign fn floor(x : Float) -> Int = "erlang:floor/1"
+export foreign fn floor(x : Float) -> Int =
+    "erlang:floor/1"
 
 /// The least `Int` not below `x`.
-export foreign fn ceil(x : Float) -> Int = "erlang:ceil/1"
+export foreign fn ceil(x : Float) -> Int =
+    "erlang:ceil/1"
 
 /// The square root, or `None` below zero.
 ///
@@ -147,7 +151,8 @@ export foreign fn ceil(x : Float) -> Int = "erlang:ceil/1"
 export fn sqrt(x : Float) -> Optional(Float) =
     if x < 0.0 then None else Some(squareRoot(x))
 
-foreign fn squareRoot(x : Float) -> Float = "math:sqrt/1"
+foreign fn squareRoot(x : Float) -> Float =
+    "math:sqrt/1"
 
 /// `base` raised to `exponent`, or `None` where no real number is: a
 /// negative base with a fractional exponent, and zero to a negative power.
@@ -168,7 +173,8 @@ export fn pow(base : Float, exponent : Float) -> Optional(Float) =
     else if base == 0.0 && exponent < 0.0 then None
     else Some(power(base, exponent))
 
-foreign fn power(base : Float, exponent : Float) -> Float = "ern_float:pow/2"
+foreign fn power(base : Float, exponent : Float) -> Float =
+    "ern_float:pow/2"
 
 /// `e` raised to `x`.
 ///
@@ -183,7 +189,8 @@ foreign fn power(base : Float, exponent : Float) -> Float = "ern_float:pow/2"
 /// Float.exp(0.0)
 /// // => 1.0
 /// ```
-export foreign fn exp(x : Float) -> Float = "ern_float:exp/1"
+export foreign fn exp(x : Float) -> Float =
+    "ern_float:exp/1"
 
 /// The natural logarithm, or `None` at zero and below.
 ///
@@ -196,7 +203,8 @@ export foreign fn exp(x : Float) -> Float = "ern_float:exp/1"
 export fn log(x : Float) -> Optional(Float) =
     if x <= 0.0 then None else Some(naturalLog(x))
 
-foreign fn naturalLog(x : Float) -> Float = "math:log/1"
+foreign fn naturalLog(x : Float) -> Float =
+    "math:log/1"
 
 /// The sine of an angle in radians, as the other trigonometric functions
 /// take and give.
@@ -207,13 +215,16 @@ foreign fn naturalLog(x : Float) -> Float = "math:log/1"
 /// #(Float.sin(0.0), Float.cos(0.0), Float.tan(0.0))
 /// // => #(0.0, 1.0, 0.0)
 /// ```
-export foreign fn sin(x : Float) -> Float = "math:sin/1"
+export foreign fn sin(x : Float) -> Float =
+    "math:sin/1"
 
 /// The cosine.
-export foreign fn cos(x : Float) -> Float = "math:cos/1"
+export foreign fn cos(x : Float) -> Float =
+    "math:cos/1"
 
 /// The tangent.
-export foreign fn tan(x : Float) -> Float = "math:tan/1"
+export foreign fn tan(x : Float) -> Float =
+    "math:tan/1"
 
 /// The angle whose sine is `x`, or `None` outside -1.0 to 1.0.
 ///
@@ -226,13 +237,15 @@ export foreign fn tan(x : Float) -> Float = "math:tan/1"
 export fn asin(x : Float) -> Optional(Float) =
     if x < -1.0 || x > 1.0 then None else Some(arcSin(x))
 
-foreign fn arcSin(x : Float) -> Float = "math:asin/1"
+foreign fn arcSin(x : Float) -> Float =
+    "math:asin/1"
 
 /// The angle whose cosine is `x`, or `None` outside -1.0 to 1.0.
 export fn acos(x : Float) -> Optional(Float) =
     if x < -1.0 || x > 1.0 then None else Some(arcCos(x))
 
-foreign fn arcCos(x : Float) -> Float = "math:acos/1"
+foreign fn arcCos(x : Float) -> Float =
+    "math:acos/1"
 
 /// The angle whose tangent is `x`.
 ///
@@ -242,7 +255,8 @@ foreign fn arcCos(x : Float) -> Float = "math:acos/1"
 /// Float.atan(0.0)
 /// // => 0.0
 /// ```
-export foreign fn atan(x : Float) -> Float = "math:atan/1"
+export foreign fn atan(x : Float) -> Float =
+    "math:atan/1"
 
 /// The angle of the point `#(x, y)`, the `y` given first, which keeps the
 /// quadrant that `atan(y / x)` loses.
@@ -253,4 +267,5 @@ export foreign fn atan(x : Float) -> Float = "math:atan/1"
 /// Float.atan2(0.0, 1.0)
 /// // => 0.0
 /// ```
-export foreign fn atan2(y : Float, x : Float) -> Float = "math:atan2/2"
+export foreign fn atan2(y : Float, x : Float) -> Float =
+    "math:atan2/2"

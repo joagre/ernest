@@ -49,11 +49,11 @@ one_statement_a_line_test() ->
     ?assertEqual([], [{F, N} || {F, N, L} <- Lines, more_after_semicolon(L)]).
 
 %% docs/style.md: a function's head ends at `=` and its body begins on the
-%% next line, one step in from the line the head begins on; a body that is
-%% a block opens its brace at the end of the head's line, and nothing
-%% follows the brace there; a `foreign fn`'s string stays on the head's
-%% line. Read from the tokens of every text one_statement_a_line_test
-%% reads. Written with the rule.
+%% next line, one step in from the line the head begins on, a `foreign
+%% fn`'s string as a body; a body that is a block opens its brace at the
+%% end of the head's line, and nothing follows the brace there. Read from
+%% the tokens of every text one_statement_a_line_test reads. Written with
+%% the rule.
 function_head_test() ->
     ?assertEqual([], [{F, N} || {F, Toks} <- ernest_tokens(), N <- head_breaks(Toks)]).
 
@@ -62,6 +62,45 @@ function_head_test() ->
 %% `receive` holds clauses and is not a block. Written with the rule.
 block_of_one_test() ->
     ?assertEqual([], [{F, N} || {F, Toks} <- ernest_tokens(), N <- blocks_of_one(Toks)]).
+
+%% docs/style.md: a blank line stands above each top-level declaration,
+%% above the comment or doc block that stands directly over it, in every
+%% text one_statement_a_line_test reads. A declaration is a first token on
+%% its line outside every bracket, and a `fn` before a `(` is a lambda's.
+%% Written with the rule.
+blank_line_between_declarations_test() ->
+    ?assertEqual([], [{F, N} || {F, Lines} <- ernest_texts(),
+                               N <- crowded(Lines, tokens(F, Lines))]).
+
+crowded(Lines, Toks) ->
+    Text = maps:from_list(Lines),
+    [line(T) || T <- declarations(Toks, 0, 0), not spaced(Text, line(T) - 1)].
+
+%% The tokens that begin a top-level declaration: each first on its line,
+%% outside every bracket.
+declarations([], _, _) -> [];
+declarations([T | Rest], Depth, Last) ->
+    Starts = Depth =:= 0 andalso line(T) =/= Last andalso declaration(T, Rest),
+    [T || Starts] ++ declarations(Rest, Depth + depth(T), line(T)).
+
+declaration({Kind, _}, _) when Kind =:= export; Kind =:= 'let'; Kind =:= type;
+                               Kind =:= abstract; Kind =:= foreign -> true;
+declaration({fn, _}, [{'(', _} | _]) -> false;
+declaration({fn, _}, _) -> true;
+declaration(_, _) -> false.
+
+%% Whether the line above a declaration, past its comments, is blank or
+%% the text's start.
+spaced(Text, N) ->
+    case maps:find(N, Text) of
+        error -> true;
+        {ok, L} ->
+            case string:trim(L) of
+                "" -> true;
+                "//" ++ _ -> spaced(Text, N - 1);
+                _ -> false
+            end
+    end.
 
 %% The modules the Ernest style guide governs.
 modules() ->
@@ -106,13 +145,17 @@ fences([{N, L} | Rest], In) ->
 %% module whole, each example of its doc blocks, and each fence of the
 %% documents. A text the lexer refuses fails the test with its file.
 ernest_tokens() ->
+    [{F, tokens(F, Lines)} || {F, Lines} <- ernest_texts()].
+
+%% Each text of Ernest as its numbered lines.
+ernest_texts() ->
     Texts = [{F, numbered(F)} || F <- modules()]
         ++ [{F, Fence} || F <- modules(),
                           Fence <- fences(doc_lines([{N, L} || {N, L} <- numbered(F),
                                                                lists:prefix("///",
                                                                             string:trim(L))]))]
         ++ [{F, Fence} || F <- ?DOCUMENTS, Fence <- fences(numbered(F))],
-    [{F, tokens(F, Lines)} || {F, Lines} <- Texts, Lines =/= []].
+    [{F, Lines} || {F, Lines} <- Texts, Lines =/= []].
 
 tokens(F, [{First, _} | _] = Lines) ->
     case ern_lexer:tokenize(lists:join("\n", [L || {_, L} <- Lines])) of
@@ -129,9 +172,11 @@ head_breaks(Toks) ->
     head_breaks(Toks, First).
 
 head_breaks([], _) -> [];
-head_breaks([{foreign, _}, {fn, _} | Rest], First) ->
+head_breaks([{foreign, _} = Foreign, {fn, _} | Rest], First) ->
     {Eq, [Impl | _]} = after_head(Rest),
-    [line(Eq) || line(Impl) =/= line(Eq)] ++ head_breaks(Rest, First);
+    Broken = line(Impl) =:= line(Eq)
+        orelse column(Impl) =/= maps:get(line(Foreign), First) + 4,
+    [line(Eq) || Broken] ++ head_breaks(Rest, First);
 head_breaks([{fn, _} = Fn, {Kind, _, _} = Name | Rest], First)
   when Kind =:= ident; Kind =:= typename ->
     {Eq, [Body | After]} = after_head(Rest),

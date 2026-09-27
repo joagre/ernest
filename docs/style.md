@@ -2,7 +2,7 @@
 
 The style guides for the two languages of this repository, Erlang and Ernest. CLAUDE.md imports this file; the rules are read every session.
 
-Four rules hold whatever the language, and `test/ern_style_tests.erl` checks the second, the third, and the fourth's Erlang half, and of the Ernest style guide's, one statement a line:
+Four rules hold whatever the language, and `test/ern_style_tests.erl` checks the second, the third, and the fourth's Erlang half:
 
 - A step of indentation is four spaces.
 - No file holds a tab, but a Makefile, whose recipes need one.
@@ -24,14 +24,27 @@ For the toolchain's own code under `erl/`.
 
 ## Ernest style guide
 
-Ernest is order-independent at top level; these are style choices, not correctness. Follow them consistently.
+Ernest is order-independent at top level; these are style choices, not correctness. Follow them consistently. `test/ern_style_tests.erl` checks four of them: a blank line between declarations, one statement a line and a block of more than one, and a function's head. Two are not yet the code's form, `then` and `else` over lines and a bracket closed on its own line; the formatter brings the code to them (plan, MVP 2.95), and each says so.
 
 - **Top-down layout.** Types first. Then the module's service bindings, each followed by its helpers, since what comes after uses them. Then `main` (in program modules) or exported functions (in library modules). Each root's helpers follow immediately below it, before the next root. Shared helpers go with the first user, or in a bottom utilities section if genuinely shared.
+- **A blank line stands between top-level declarations.** A declaration's comment or doc block stands directly above it, and the blank line stands above that.
+
+      // Report §11.2: the parser cannot finish what is typed, so another line
+      // may. The parser is the compiler's, and only it knows.
+      foreign fn needsMore(input : String) -> Bool =
+          "ern_shell:needs_more/1"
+
+      // Report §11.2: every name completion may reach, as the session stands.
+      foreign fn names() -> List(Shell.Complete.Name) with m =
+          "ern_shell:names/0"
+
 - **Indentation is a step, never an alignment.** A body, a continuation and an argument list broken over lines are each one step in from the line the construct begins on. Never line a token up under a bracket, an `->`, an `=` or a trailing comment.
 
       let commands = [
-          Entry(name = "type", command = Type,
-              about = " e   the type of e, which is not run")
+          Entry(
+              name = "type", command = Type,
+              about = " e   the type of e, which is not run"
+          )
       ]
 
   A line that opens with a binary operator (report §2.6) carries the line above on, one step in from where that line's expression begins; every further such line stands at the same step.
@@ -57,14 +70,14 @@ Ernest is order-independent at top level; these are style choices, not correctne
           | Right(bytes) -> Right(inputs(bytes))
         }
 
-- **`then` and `else` return to the line their `if` begins on.**
+- **`then` and `else` end their lines, and each branch begins the next line, one step in.** `then` stays on the line its `if` begins on. `else` returns to that line's indentation, and `else if` is written on one line. The code takes this form with the formatter (plan, MVP 2.95) and keeps the older one until then, `then` and `else` returning to the `if`'s line with their branches beside them.
 
-      if from < 1 || from > List.size(history) then None
-      else if String.indexOf(entry(history, from), query) != None then Some(from)
-      else find(history, query, from + step, step)
-
-      if List.any(Map.values(ps), fn(q) = List.contains(tailOf(q), head))
-      then Player(..p, alive = false) else p
+      if from < 1 || from > List.size(history) then
+          None
+      else if String.indexOf(entry(history, from), query) != None then
+          Some(from)
+      else
+          find(history, query, from + step, step)
 
 - **A function's head ends at `=`, and its body begins on the next line, one step in.** A body of one short line is no exception.
 
@@ -84,13 +97,33 @@ Ernest is order-independent at top level; these are style choices, not correctne
           await(state, checked)
       }
 
-  A `foreign fn`'s implementation string stays on the head's line, since it is not a body.
+  A `foreign fn`'s implementation string is its body, and stands where a body does.
 
-- **A signature broken over lines continues one step in**, which is where its body goes too.
+      export foreign fn toUpper(s : String) -> String =
+          "ern_string:to_upper/1"
+
+- **A signature broken over lines continues one step in**, which is where its body goes too. A parameter list that runs over lines is a bracket, and closes as the next rule says.
 
       fn merge(left : List(a), right : List(a), compare : (a, a) -> Ordering with e)
           -> List(a) with e =
           match #(left, right) { ... }
+
+- **A bracket whose contents run over lines closes on a line of its own**, at the indentation of the line it opened on, as a block's brace does. What follows the bracket, a return type, a `;` or an operator, follows it on that line. Brackets opened on one line close together on one line. The code takes this form with the formatter (plan, MVP 2.95) and keeps the older one until then, a closing bracket ending the line of the contents' last.
+
+      fn handler(
+          sessions : Address(SessionMsg),
+          seq : Int,
+          sock : Address(Tcp.SockMsg)
+      ) -> Unit with m =
+          match Tcp.read(sock, 5000) { ... }
+
+      let words = Test(name = "a word ends where a name cannot go on", run = fn() = {
+          let seen = word("1 + List.ma");
+          if seen == "List.ma" then
+              Passed
+          else
+              Failed(seen)
+      })
 
 - **A clause bar sits two spaces left of its arms.** A type whose alternatives run past the line breaks after the `=`.
 

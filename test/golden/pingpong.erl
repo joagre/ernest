@@ -6,10 +6,10 @@ main() ->
     PongAddr_2 = ern_rt:spawn_monitored('Local',
                                         fun () -> pong() end,
                                         fun (V_1) -> {'PongDone', V_1} end,
-                                        <<"Pingpong.main:15">>),
+                                        <<"Pingpong.main:16">>),
     _ = ern_rt:spawn('Local',
                      fun () -> ping(PongAddr_2, 3) end,
-                     <<"Pingpong.main:16">>),
+                     <<"Pingpong.main:17">>),
     receive
         '$ern_restart' -> ern_rt:restart_now();
         {'PongDone', _} -> 'Unit'

@@ -27,7 +27,8 @@
 /// The map with no entries.
 export let empty : Map(k, v) = emptyMap()
 
-foreign fn emptyMap() -> Map(k, v) = "ern_map:empty/0"
+foreign fn emptyMap() -> Map(k, v) =
+    "ern_map:empty/0"
 
 /// The number of entries.
 ///
@@ -37,7 +38,8 @@ foreign fn emptyMap() -> Map(k, v) = "ern_map:empty/0"
 /// #(Map.size(Map.fromList([#("a", 1)])), Map.isEmpty(Map.empty))
 /// // => #(1, true)
 /// ```
-export foreign fn size(m : Map(k, v)) -> Int = "ern_map:size/1"
+export foreign fn size(m : Map(k, v)) -> Int =
+    "ern_map:size/1"
 
 /// `true` for the map with no entries.
 export fn isEmpty(m : Map(k, v)) -> Bool =
@@ -58,10 +60,12 @@ export fn contains(m : Map(k, v), key : k) -> Bool =
     }
 
 /// The value at that key.
-export foreign fn get(m : Map(k, v), key : k) -> Optional(v) = "ern_map:get/2"
+export foreign fn get(m : Map(k, v), key : k) -> Optional(v) =
+    "ern_map:get/2"
 
 /// The map with that entry, replacing any entry with the same key.
-export foreign fn put(m : Map(k, v), key : k, value : v) -> Map(k, v) = "ern_map:put/3"
+export foreign fn put(m : Map(k, v), key : k, value : v) -> Map(k, v) =
+    "ern_map:put/3"
 
 /// The map without that key, which need not be present.
 ///
@@ -71,7 +75,8 @@ export foreign fn put(m : Map(k, v), key : k, value : v) -> Map(k, v) = "ern_map
 /// Map.toList(Map.remove(Map.fromList([#("a", 1)]), "a"))
 /// // => []
 /// ```
-export foreign fn remove(m : Map(k, v), key : k) -> Map(k, v) = "ern_map:remove/2"
+export foreign fn remove(m : Map(k, v), key : k) -> Map(k, v) =
+    "ern_map:remove/2"
 
 /// The map with the entry at that key replaced by the function's value; the
 /// function sees `None` when there is no entry.
@@ -197,7 +202,8 @@ export fn fromList(pairs : List(#(k, v))) -> Map(k, v) =
     List.foldLeft(pairs, empty, fn(acc, #(key, value)) = put(acc, key, value))
 
 /// The entries as pairs.
-export foreign fn toList(m : Map(k, v)) -> List(#(k, v)) = "ern_map:to_list/1"
+export foreign fn toList(m : Map(k, v)) -> List(#(k, v)) =
+    "ern_map:to_list/1"
 
 /// The keys.
 ///

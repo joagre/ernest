@@ -687,10 +687,12 @@ A release is the language reviewed whole, documented where a reader looks, and i
    not, which then stands for the style test's hand-made checks. Its risk, named: the comments.
    The lexer drops an ordinary comment, and the tree the checker reads has dropped a literal's
    spelling, redundant parentheses and blank lines, so the formatter works from what was
-   written, the lexer keeping each comment with the token beside it. Tested by the
-   formatting of a formatted module being itself, by what it writes parsing to the tree it
-   read, and by the standard library, the shell and the examples, already in the style, coming
-   back unchanged. The review then reads code in one form.
+   written, the lexer keeping each comment with the token beside it. Its first run brings the
+   code to the two rules of `docs/style.md` decided 2026-09-27 that the code does not yet
+   follow, `then` and `else` over lines and a bracket closed on a line of its own (the log's
+   *Layout for the Reader*). Tested by the formatting of a formatted module being itself, by
+   what it writes parsing to the tree it read, and by the standard library, the shell and the
+   examples, once formatted, coming back unchanged. The review then reads code in one form.
 4. **The review**, performed just before the release, decided 2026-09-27, so that it reviews the manual pages and the installation with the rest, as [`review.md`](review.md) says; every finding is decided before the tag. The readers of [`coherence.md`](coherence.md) run here, about eight of them, and for a change only when the user asks, decided 2026-09-27 (the log's *The Readers Run Before a Release* and *Enough Coherence*). Its ledger is a table here, as MVP 2.65's step 10 had. The machines the coherence rows need are built before the review begins, each with its tests, and a quick one joins `make test`: `make dialyzer`, `make calls` (Erlang's xref), `make untested` (OTP's `cover`) and `make sanitize` (the helper in C under the sanitizers and Clang's analyzer) ([`coherence.md`](coherence.md) C13); `make unused`, the private Ernest declarations nothing uses (C14); the report's blocks marked as the guide's are and the test of its examples (C17); the program that checks Appendix A's FIRST sets (C18); the test that every borrowed file and table is listed with its licence (C20); the catalogue of one small program for every error the lexer, the parser and the checker give (C21); and `make garbled`, the front end given garbled sources (C22), decided 2026-09-27 (the log's *Enough Coherence*). The review's own tools are built as it reaches them: the runs under `+T 9` and three times under load (`review.md` R2), and the test that runs the README's and `docs/development.md`'s commands in a fresh clone (R4). What a first release leaves out, MVP 3.9 takes: the written argument that a well-typed program does not go wrong, the generator of programs that type-check, and the property runner for the standard library's laws.
 
 5. **The release**, tagged once the review is done, with its notes (`review.md`, *Done*).

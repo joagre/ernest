@@ -66,7 +66,8 @@ export fn split(p : Path) -> List(String) = {
     }
 }
 
-foreign fn separator() -> String = "ern_path:separator/0"
+foreign fn separator() -> String =
+    "ern_path:separator/0"
 
 /// The path without its last segment, or `None` for a bare name and for the
 /// root.
@@ -132,7 +133,8 @@ export fn withExtension(p : Path, ext : String) -> Path = {
 /// #(Path.isAbsolute(Path("/etc")), Path.isAbsolute(Path("etc")))
 /// // => #(true, false)
 /// ```
-export foreign fn isAbsolute(p : Path) -> Bool = "ern_path:is_absolute/1"
+export foreign fn isAbsolute(p : Path) -> Bool =
+    "ern_path:is_absolute/1"
 
 /// The path as text, as it was written.
 export fn toString(p : Path) -> String =

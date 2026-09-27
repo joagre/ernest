@@ -14,79 +14,138 @@
 //
 
 foreign type Env
+
 foreign type Checked
+
 foreign type Value
 
 // What running an input came to: its value, or the cause of the fault
 // that ended it (report §11.2, §6.9).
 type Outcome = Ok(env : Env, value : Value) | Faulted(String)
 
-foreign fn start() -> Env with m = "ern_shell:start/0"
-foreign fn program() -> Optional(Address(Never)) with m = "ern_shell:program/0"
-foreign fn load(env : Env, name : String)
-    -> Either(String, #(Env, String)) with m = "ern_shell:load/2"
-foreign fn reload(env : Env) -> Either(String, #(Env, List(String))) with m = "ern_shell:reload/1"
-foreign fn output(path : String) -> Either(String, String) with m = "ern_shell:output/1"
+foreign fn start() -> Env with m =
+    "ern_shell:start/0"
+
+foreign fn program() -> Optional(Address(Never)) with m =
+    "ern_shell:program/0"
+
+foreign fn load(env : Env, name : String) -> Either(String, #(Env, String)) with m =
+    "ern_shell:load/2"
+
+foreign fn reload(env : Env) -> Either(String, #(Env, List(String))) with m =
+    "ern_shell:reload/1"
+
+foreign fn output(path : String) -> Either(String, String) with m =
+    "ern_shell:output/1"
+
 // Report §11.2: the parser cannot finish what is typed, so another line
 // may. The parser is the compiler's, and only it knows.
-foreign fn needsMore(input : String) -> Bool = "ern_shell:needs_more/1"
+foreign fn needsMore(input : String) -> Bool =
+    "ern_shell:needs_more/1"
+
 // Report §11.2: every name completion may reach, as the session stands.
 // Reading the compiled interfaces is the host's; the matching is
 // `Shell.Complete`'s.
-foreign fn names() -> List(Shell.Complete.Name) with m = "ern_shell:names/0"
+foreign fn names() -> List(Shell.Complete.Name) with m =
+    "ern_shell:names/0"
+
 // Report §11.2: the names the session declares, which `:forget` takes,
 // and the source root `:load` compiles from; the session is the front
 // end's to hold.
-foreign fn sessionNames() -> List(Shell.Complete.Name) with m = "ern_shell:session_names/0"
-foreign fn sourceRoot() -> String with m = "ern_shell:source_root/0"
+foreign fn sessionNames() -> List(Shell.Complete.Name) with m =
+    "ern_shell:session_names/0"
+
+foreign fn sourceRoot() -> String with m =
+    "ern_shell:source_root/0"
+
 // Report §11.2: every name the session declares, as it is written.
-foreign fn sessionTexts() -> List(String) with m = "ern_shell:session_texts/0"
+foreign fn sessionTexts() -> List(String) with m =
+    "ern_shell:session_texts/0"
+
 // Report §11.2: what may stand at the cursor, which the parser knows,
 // since it says what it wanted where it stopped.
-foreign fn context(before : String) -> Shell.Complete.Where with m = "ern_shell:context/1"
+foreign fn context(before : String) -> Shell.Complete.Where with m =
+    "ern_shell:context/1"
+
 // Report §11.2, §3.5: the fields the value before the last `.` selects,
 // named as typed and listed with their types.
-foreign fn fields(typed : String) -> List(Shell.Complete.Name) with m = "ern_shell:fields/1"
+foreign fn fields(typed : String) -> List(Shell.Complete.Name) with m =
+    "ern_shell:fields/1"
+
 // Report §11.2: the page for a name, which `Shift-Tab` shows a first
 // sentence of and then the whole of.
-foreign fn documentation(name : String) -> Optional(String) with m = "ern_shell:documentation/1"
+foreign fn documentation(name : String) -> Optional(String) with m =
+    "ern_shell:documentation/1"
+
 // Report §11.2: the signature of the call the input stops inside, with the
 // parameter at the cursor marked, which `Shift-Tab` shows where no name
 // before the cursor is documented.
-foreign fn signature(before : String)
-    -> Optional(#(String, String, String)) with m = "ern_shell:signature/1"
+foreign fn signature(before : String) -> Optional(#(String, String, String)) with m =
+    "ern_shell:signature/1"
+
 // Report §11.2: an input checked against the session; a diagnostic names
 // the file it came from and the line it starts on there, `input` and 1 for
 // one typed.
 foreign fn check(env : Env, from : String, line : Int, input : String)
-    -> Either(String, #(Env, Checked)) with m = "ern_shell:check/4"
+    -> Either(String, #(Env, Checked)) with m =
+    "ern_shell:check/4"
+
 // The host's alone: where the startup files are, the person's first and
 // then the node's. Whether they are there, and what they hold, is read
 // here (report §11.2).
-foreign fn startupFiles() -> List(String) with m = "ern_shell:startup_files/0"
-foreign fn typeText(c : Checked) -> String = "ern_shell:type_text/1"
+foreign fn startupFiles() -> List(String) with m =
+    "ern_shell:startup_files/0"
+
+foreign fn typeText(c : Checked) -> String =
+    "ern_shell:type_text/1"
+
 // Report §11.2: a value of type `Unit` prints nothing.
-foreign fn isUnit(c : Checked) -> Bool = "ern_shell:is_unit/1"
-foreign fn declared(c : Checked) -> List(String) = "ern_shell:declared/1"
+foreign fn isUnit(c : Checked) -> Bool =
+    "ern_shell:is_unit/1"
+
+foreign fn declared(c : Checked) -> List(String) =
+    "ern_shell:declared/1"
+
 // Report §11.2: the value is printed, and `it` is left as it was when
 // this input did not settle its type.
-foreign fn unbound(c : Checked) -> Bool = "ern_shell:unbound/1"
-foreign fn spawnInput(env : Env, c : Checked, to : Address(Outcome))
-    -> Address(Never) with m = "ern_shell:run/3"
-foreign fn show(v : Value, depth : Int, length : Int) -> String = "ern_shell:show/3"
-foreign fn bindings(env : Env) -> List(String) = "ern_shell:bindings/1"
-foreign fn forget(env : Env, name : String) -> Either(String, Env) = "ern_shell:forget/2"
-foreign fn browse(env : Env, name : String)
-    -> Either(String, List(String)) with m = "ern_shell:browse/2"
-foreign fn doc(env : Env, name : String) -> Either(String, String) with m = "ern_shell:doc/2"
+foreign fn unbound(c : Checked) -> Bool =
+    "ern_shell:unbound/1"
+
+foreign fn spawnInput(env : Env, c : Checked, to : Address(Outcome)) -> Address(Never) with m =
+    "ern_shell:run/3"
+
+foreign fn show(v : Value, depth : Int, length : Int) -> String =
+    "ern_shell:show/3"
+
+foreign fn bindings(env : Env) -> List(String) =
+    "ern_shell:bindings/1"
+
+foreign fn forget(env : Env, name : String) -> Either(String, Env) =
+    "ern_shell:forget/2"
+
+foreign fn browse(env : Env, name : String) -> Either(String, List(String)) with m =
+    "ern_shell:browse/2"
+
+foreign fn doc(env : Env, name : String) -> Either(String, String) with m =
+    "ern_shell:doc/2"
+
 // Report §11.1, §4.2: the namespace segment a path component names, asked
 // of the compiler, which owns the rule.
-foreign fn segment(name : String) -> Optional(String) = "ern_shell:segment/1"
+foreign fn segment(name : String) -> Optional(String) =
+    "ern_shell:segment/1"
+
 // The toolchain's version, which the host was built with.
-foreign fn version() -> String = "ern_shell:version/0"
-foreign fn write(text : String) -> Unit with m = "ern_shell:write/1"
-foreign fn setScreen(to : Address(String)) -> Unit with m = "ern_shell:screen/1"
-foreign fn holdTerminal(reader : Address(a)) -> Unit with m = "ern_rt:hold_terminal/1"
+foreign fn version() -> String =
+    "ern_shell:version/0"
+
+foreign fn write(text : String) -> Unit with m =
+    "ern_shell:write/1"
+
+foreign fn setScreen(to : Address(String)) -> Unit with m =
+    "ern_shell:screen/1"
+
+foreign fn holdTerminal(reader : Address(a)) -> Unit with m =
+    "ern_rt:hold_terminal/1"
 
 //
 // The session
@@ -109,6 +168,7 @@ type ShellMsg =
 // (report §11.2).
 type State = State(env : Env, settings : Settings, colour : Bool, own : Set(Process),
     faults : List(Process.FaultReport))
+
 type Settings = Settings(depth : Int, length : Int, timing : Bool, output : Int)
 
 type Next = Continue(State) | Leave
