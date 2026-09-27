@@ -2038,6 +2038,95 @@ restart_reaches_the_outer_function_test() ->
         "}\n"),
     ?assertEqual(<<"2\n">>, Out).
 
+%%
+%% Report Appendix E.23: Os.run, each program run through ern_exec.
+%%
+
+%% A program that prints what Os.run answered for one command.
+os_run(Program, Arguments, Input, Ms) ->
+    run(["fn show(r : Either(Io.Error, Os.Finished)) -> String = match r {\n"
+         "    Right(f) -> Int.toString(f.status) <> \"|\" <> Io.show(String.fromUtf8(f.stdout))\n"
+         "        <> \"|\" <> Io.show(String.fromUtf8(f.stderr))\n"
+         "  | Left(e) -> Io.show(e)\n"
+         "}\n"
+         "export fn main() -> Unit with Never = Io.println(show(Os.run(Os.Command(program = ",
+         Program, ", arguments = ", Arguments, ", input = ", Input, "), ", Ms, ")))\n"]).
+
+%% A directory of the test's own, for a program to leave a mark in.
+scratch() ->
+    Dir = filename:join(os:getenv("TMPDIR", "/tmp"),
+                        "ern_os_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    Dir.
+
+%% Appendix E.23: the exit status, the output and the standard error, apart
+os_run_status_and_streams_test() ->
+    {ok, Out} = os_run("\"sh\"", "[\"-c\", \"echo out; echo err >&2; exit 2\"]", "<<>>", "5000"),
+    ?assertEqual(<<"2|Some(\"out\\n\")|Some(\"err\\n\")\n">>, Out).
+
+%% Appendix E.23: the program reads its input and then the end of it, so
+%% one that reads to the end, as sort does, ends
+os_run_input_then_end_test() ->
+    {ok, Out} = os_run("\"sort\"", "[]", "String.toUtf8(\"b\\na\\n\")", "5000"),
+    ?assertEqual(<<"0|Some(\"a\\nb\\n\")|Some(\"\")\n">>, Out).
+
+%% Appendix E.23: each argument reaches the program as it is, no shell
+%% between, so a space or a `;` is part of the argument
+os_run_arguments_as_they_are_test() ->
+    {ok, Out} = os_run("\"printf\"", "[\"%s|\", \"a b\", \"c;d\", \"$HOME\"]", "<<>>", "5000"),
+    ?assertEqual(<<"0|Some(\"a b|c;d|$HOME|\")|Some(\"\")\n">>, Out).
+
+%% Appendix E.23: a program a signal ended has 128 and the signal's number
+os_run_signal_status_test() ->
+    {ok, Out} = os_run("\"sh\"", "[\"-c\", \"kill -TERM $$\"]", "<<>>", "5000"),
+    ?assertEqual(<<"143|Some(\"\")|Some(\"\")\n">>, Out).
+
+%% Appendix E.23: NotFound for a program not found, Denied for one that may
+%% not be run, and a named cause for an argument no program could be given
+os_run_refusals_test() ->
+    ?assertEqual({ok, <<"NotFound\n">>}, os_run("\"no-such-program-ern\"", "[]", "<<>>", "5000")),
+    ?assertEqual({ok, <<"Denied\n">>}, os_run("\"/dev/null\"", "[]", "<<>>", "5000")),
+    ?assertEqual({ok, <<"Other(\"an argument holds U+0000\")\n">>},
+                 os_run("\"echo\"", "[\"a\\u{0}b\"]", "<<>>", "5000")).
+
+%% Appendix E.23: Timeout when the time runs out first, and the program,
+%% still running, killed, so the mark it would leave is never made
+os_run_timeout_kills_test() ->
+    Mark = filename:join(scratch(), "mark"),
+    {ok, Out} = os_run("\"sh\"", "[\"-c\", \"sleep 1; touch " ++ Mark ++ "\"]", "<<>>", "200"),
+    ?assertEqual(<<"Timeout\n">>, Out),
+    timer:sleep(1500),
+    ?assertNot(filelib:is_file(Mark)).
+
+%% Appendix E.23: a program whose caller dies is killed with it
+os_run_dies_with_its_caller_test() ->
+    Mark = filename:join(scratch(), "mark"),
+    {ok, _} = run(
+        "export fn main() -> Unit with Never = {\n"
+        "    let w = spawn(Local, fn() -> Unit with Never = {\n"
+        "        let _ = Os.run(Os.Command(program = \"sh\", arguments = [\"-c\",\n"
+        "            \"sleep 1; touch " ++ Mark ++ "\"], input = <<>>), 5000);\n"
+        "        Unit\n"
+        "    });\n"
+        "    receive { after 200 -> Unit };\n"
+        "    kill(w)\n"
+        "}\n"),
+    timer:sleep(1500),
+    ?assertNot(filelib:is_file(Mark)).
+
+%% Appendix E.17: a path that holds U+0000 names no file, and says so. A
+%% regression test for the host's own term, badarg, answered as the cause
+fs_path_with_nul_test() ->
+    {ok, Out} = run("export fn main() -> Unit with Never =\n"
+                    "    Io.println(Io.show(Fs.read(Path(\"a\\u{0}b\"), 1000)))\n"),
+    ?assertEqual(<<"Left(Other(\"a path holds U+0000\"))\n">>, Out).
+
+%% report §8.6, Appendix E.23: a program running is a source, so a caller
+%% that only waits for it is in no deadlock
+os_run_is_a_source_test() ->
+    ?assertEqual({ok, <<"0|Some(\"\")|Some(\"\")\n">>},
+                 os_run("\"sleep\"", "[\"0.5\"]", "<<>>", "5000")).
+
 %% report §6.2, §6.7: work on a peer is a process spawned there, and a peer
 %% the node cannot reach faults the caller. A regression test, written
 %% after the code; one node runs until MVP 3.0, so it does not cover a

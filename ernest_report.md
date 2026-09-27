@@ -653,7 +653,7 @@ The entry point is a `fn () -> Unit with m`. The process that runs it is the *en
 
 ### 8.2 System references
 
-The runtime starts its system processes when the program starts, whether or not the program uses them. Each process's address is a top-level binding of its *system module* in the standard library, private to that module: `stdout`, `stderr`, and `stdin` of `Io`, and `reference` of `Terminal`, `Clock`, `Fs`, and `Tcp` (Appendix E). A program uses each through its module's functions. The binding's initializer is a `foreign fn` of the module that answers the runtime's address (§4.7), evaluated before the program's other bindings (§8.5). The message type is declared in the module, in Ernest, for the module and for the foreign process behind it (§8.4), and no other module can make a message of it. A runtime may provide more system modules. In code shipped to a peer, a system module the peer's runtime does not provide is a resolution failure (§8.7).
+The runtime starts its system processes when the program starts, whether or not the program uses them. Each process's address is a top-level binding of its *system module* in the standard library, private to that module: `stdout`, `stderr`, and `stdin` of `Io`, and `reference` of `Terminal`, `Clock`, `Fs`, `Tcp`, and `Os` (Appendix E). A program uses each through its module's functions. The binding's initializer is a `foreign fn` of the module that answers the runtime's address (§4.7), evaluated before the program's other bindings (§8.5). The message type is declared in the module, in Ernest, for the module and for the foreign process behind it (§8.4), and no other module can make a message of it. A runtime may provide more system modules. In code shipped to a peer, a system module the peer's runtime does not provide is a resolution failure (§8.7).
 
 **Standard output and standard error.** `stdout` writes the bytes it receives to standard output as they are, and adds nothing; a string reaches it as its UTF-8 bytes. `stderr` does the same to standard error. It is a second sink, for a program whose output is read by something else, and not a level of severity.
 
@@ -667,7 +667,7 @@ The runtime starts its system processes when the program starts, whether or not 
 
 **Interrupt.** While the terminal is claimed for keys, its interrupt is delivered to every subscriber as `Interrupt`, in place of the signal that would end the program (§8.6). Otherwise that signal ends the program.
 
-**The clock, the file system, and TCP** answer their modules' requests as Appendix E.15, E.17, and E.18 say.
+**The clock, the file system, TCP, and the host's programs** answer their modules' requests as Appendix E.15, E.17, E.18, and E.23 say.
 
 ### 8.3 Peers
 
@@ -706,7 +706,7 @@ Before `main` runs, the runtime evaluates in the entry process, in dependency or
 
 The program ends when the entry process dies, whatever the reason (§6.9), a fault being reported on the runtime's exit indicator. Live local processes then die with the reason `ProgramEnd`, and the runtime flushes the system processes' pending output before it stops. A signal from outside that ends the program, the host's termination or hangup, ends it the same way. The host's interrupt ends it at once, and output the system processes have not yet written may be lost. The runtime prints nothing of its own about a signal. Workers spawned on peers are unaffected and follow their own return, `kill`, or peer loss (§10); peers observe the ending node as lost. A program that is to keep running waits in `main`.
 
-When no forward progress is possible, the entry process faults with `Fault("deadlock")` (§7.4) and the program ends as above. No progress is possible when every live process waits in `receive` without `after` or in `Address.callForever`, no message is in flight, no monitor waits on a process the runtime did not start, and no system process, listener or socket (E.18), or connected peer holds a timer, a subscription, a pending I/O, or a computation whose completion would deliver a message. A process spawned on a peer by this node counts as such a computation while it runs. Detection is per node. Whether a user-provided foreign process counts like a system process here is the runtime's choice.
+When no forward progress is possible, the entry process faults with `Fault("deadlock")` (§7.4) and the program ends as above. No progress is possible when every live process waits in `receive` without `after` or in `Address.callForever`, no message is in flight, no monitor waits on a process the runtime did not start, and no system process, listener or socket (E.18), program that `Os.run` runs (E.23), or connected peer holds a timer, a subscription, a pending I/O, or a computation whose completion would deliver a message. A process spawned on a peer by this node counts as such a computation while it runs. Detection is per node. Whether a user-provided foreign process counts like a system process here is the runtime's choice.
 
 ### 8.7 Code shipping
 
@@ -1496,7 +1496,7 @@ Terminal.columns : (String) -> Int // the columns the text takes at a terminal: 
 
 ### Appendix E.17. `fs.ern` (namespace `Fs`)
 
-Over the file system's system reference (§8.2). The last argument is the milliseconds to wait.
+Over the file system's system reference (§8.2). The last argument is the milliseconds to wait. A path that holds U+0000 names no file, and each function answers `Left(Other("a path holds U+0000"))` for it.
 
 ```
 type Entry = Entry(path : Path, mtime : Int, size : Int, isDir : Bool) // mtime in milliseconds since the epoch, as Clock.now; size in bytes
@@ -1575,6 +1575,16 @@ type Strategy = OneForOne | OneForAll | RestForOne
 abstract type Msg // what a supervisor takes
 Supervisor.group : (Strategy, RestartLimit) -> (() -> Unit with Msg)
 Supervisor.child : (Address(Msg), () -> Unit with m) -> (() -> Unit with m)
+```
+
+### Appendix E.23. `os.ern` (namespace `Os`)
+
+Over Os's system reference (§8.2). `run(command, ms)` runs a program of the host to its end, and answers its exit status and what it wrote to its standard output and to its standard error, or why it did not run to its end. The program is found as the host finds a command: a name without `/` in the directories of `PATH`, and a name with `/` as the path it is. Each argument reaches the program as it is, with no shell between; a program that wants a shell runs `sh` with `-c`. The program reads `input` and then the end of its input, and never the standard input of the program that runs it. It inherits that program's environment and working directory. A status other than 0 is the program's answer and not a failure; a program ended by a signal has 128 and the signal's number as its status, as a shell reports it. The run ends when the program has exited and its standard output and standard error have both ended, so a process it started that keeps them open holds the run until it ends too. `run` answers `Left(NotFound)` when the program is not found, `Left(Denied)` when it may not be run, and `Left(Timeout)` when `ms` milliseconds pass first. A name or an argument that holds U+0000 cannot reach a program, and `run` answers `Left(Other("an argument holds U+0000"))` for it. A program that has not ended when `run` answers `Timeout`, or when the process that called `run` dies, is killed, with the processes it started that are still in its process group. A program running is a source (§8.6).
+
+```
+type Command = Command(program : String, arguments : List(String), input : Bytes)
+type Finished = Finished(status : Int, stdout : Bytes, stderr : Bytes)
+Os.run : (Command, Int) -> Either(Io.Error, Finished) with m
 ```
 
 ## Appendix F. Glossary

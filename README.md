@@ -61,12 +61,13 @@ ernest_report.md   the language report (normative)
 ernest_guide.md    the guide
 docs/              decisions log, implementation plan, architecture note, style guides,
                    module documentation template, shell design, language feedback, the
-                   report's cold read, the review before a release, Emacs mode, node
+                   coherence checks, the review before a release, Emacs mode, node
                    protocol, code distribution
 examples/          Ernest programs: the paper programs and the small ones
 erl/               the toolchain, as Erlang applications: lexer, parser,
                    typer, runtime, emitter, cli, utils (vendored getopt);
-                   each has src/, include/, ebin/, test/
+                   each has src/, include/, ebin/, test/; the runtime also
+                   c_src/, ern_exec's C source, and priv/, where make builds it
 test/              what spans applications: the hand-written target modules,
                    the integration tests, the guide's examples, the shell's
                    sessions, the pseudo-terminal harness, expected/, golden/,
@@ -88,7 +89,7 @@ A module path segment is one lowercase word (report §11.1); a multi-word module
 
 ## Building
 
-Erlang/OTP 29 and GNU make. The toolchain's Erlang uses no rebar3 and no OTP behaviours, by design; [`docs/style.md`](docs/style.md) says what that covers. `make test` also needs python3, for the pseudo-terminal the terminal tests run a program under; Erlang cannot open one. Emacs is optional: without it the mode's tests are skipped and the rest runs.
+Linux or macOS, with Erlang/OTP 29, GNU make, and a C compiler, `cc`, for the one helper written in C, which runs a program for `Os.run`. The toolchain's Erlang uses no rebar3 and no OTP behaviours, by design; [`docs/style.md`](docs/style.md) says what that covers. `make test` also needs python3, for the pseudo-terminal the terminal tests run a program under; Erlang cannot open one. Emacs is optional: without it the mode's tests are skipped and the rest runs.
 
 ```
 make              compile every application into its ebin/, then stdlib/, libs/, shell/

@@ -1,0 +1,110 @@
+/// The host's programs, run over Os's system process (report §8.2,
+/// Appendix E.23). `run` runs a program to its end and answers its exit
+/// status and what it wrote to its standard output and to its standard
+/// error, each as bytes, or why it did not run to its end. The program is
+/// found as the host finds a command, a name without `/` in the
+/// directories of `PATH`, and each argument reaches it as it is: no shell
+/// stands between, and a program that wants one runs `sh` with `-c`.
+///
+/// ## Examples
+///
+/// ```ernest
+/// Either.map(Os.run(Os.Command(program = "sh", arguments = ["-c", "exit 3"], input = <<>>),
+///     5000), fn(f) = f.status)
+/// // => Right(3)
+/// ```
+///
+/// ## See also
+///
+/// `String.fromUtf8` for output that is text, `Io.Error` for why a program
+/// did not run.
+///
+/// since 0.1.0
+
+/// A program to run: its name, its arguments, and what it reads as its
+/// input before the end of its input.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Os.Command(program = "wc", arguments = ["-l"], input = String.toUtf8("a\nb\n")).program
+/// // => "wc"
+/// ```
+export type Command = Command(program : String, arguments : List(String), input : Bytes)
+
+/// How a program ended: its exit status, 128 and the signal's number for a
+/// program a signal ended, and what it wrote to its standard output and to
+/// its standard error.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Os.Finished(status = 0, stdout = <<>>, stderr = <<>>).status
+/// // => 0
+/// ```
+export type Finished = Finished(status : Int, stdout : Bytes, stderr : Bytes)
+
+// What Os's system process takes: a program to start, with the process
+// whose death kills it.
+type Msg =
+    Start(command : Command, ms : Int, owner : Process,
+        reply : Reply(Either(Io.Error, Address(RunMsg))))
+
+// What a program's run takes: a request for what the program sent next.
+type RunMsg = Next(reply : Reply(Either(Io.Error, Event)))
+
+// What a program sent: a piece of its output or of its standard error, or
+// its exit status, which is the last.
+type Event = Stdout(Bytes) | Stderr(Bytes) | Exited(Int)
+
+// Report §8.2: the system reference, the runtime's address of Os's process,
+// bound at each start.
+let reference : Address(Msg) = system(Erl.atom("os"))
+
+foreign fn system(name : Foreign) -> Address(Msg) with m = "ern_rt:sys/1"
+
+/// Runs the program to its end, within `ms` milliseconds. The program reads
+/// `input` and then the end of its input, never the standard input of the
+/// program that runs it, and inherits that program's environment and
+/// working directory. A status other than 0 is the program's answer, not a
+/// `Left`. The run ends when the program has exited and its output and
+/// standard error have both ended. A program still running when the time
+/// runs out, or when the process that called `run` dies, is killed, with
+/// the processes it started that are still in its process group.
+///
+/// ### Errors
+///
+/// `Left(NotFound)` when the program is not found, `Left(Denied)` when it
+/// may not be run, `Left(Timeout)` when the milliseconds pass first, and
+/// `Left(Other("an argument holds U+0000"))` for a name or an argument no
+/// program could be given.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Either.map(Os.run(Os.Command(program = "cat", arguments = [], input = String.toUtf8("hi")),
+///     5000), fn(f) = String.fromUtf8(f.stdout))
+/// // => Right(Some("hi"))
+/// ```
+export fn run(command : Command, ms : Int) -> Either(Io.Error, Finished) with m = {
+    let owner = Process.fromAddress(self());
+    let running <- Address.callForever(reference,
+        fn(r) = Start(command = command, ms = ms, owner = owner, reply = r));
+    collect(running, [], [])
+}
+
+// What the program sent, gathered until its exit status, the pieces of
+// each stream kept newest first.
+fn collect(running : Address(RunMsg), out : List(Bytes), err : List(Bytes))
+    -> Either(Io.Error, Finished) with m = {
+    let event <- Address.callForever(running, fn(r) = Next(reply = r));
+    match event {
+        Stdout(bytes) -> collect(running, bytes :: out, err)
+      | Stderr(bytes) -> collect(running, out, bytes :: err)
+      | Exited(status) ->
+            Right(Finished(status = status, stdout = joined(out), stderr = joined(err)))
+    }
+}
+
+fn joined(pieces : List(Bytes)) -> Bytes =
+    List.foldLeft(List.reverse(pieces), <<>>, fn(all, piece) = all <> piece)

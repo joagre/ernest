@@ -13,8 +13,20 @@
 loop() ->
     receive
         Msg ->
-            erlang:spawn(fun() -> handle(Msg) end),
+            erlang:spawn(fun() -> guarded(Msg) end),
             loop()
+    end.
+
+%% Report Appendix E.17: a path that holds U+0000 names no file, and the
+%% request is answered so before any work.
+guarded(Msg) ->
+    Fields = tuple_to_list(Msg),
+    case [B || {'Path', B} <- Fields, binary:match(B, <<0>>) =/= nomatch] of
+        [] ->
+            handle(Msg);
+        _ ->
+            [Reply] = [R || R <- Fields, is_reference(R)],
+            ern_rt:answer(Reply, {'Left', {'Other', <<"a path holds U+0000">>}})
     end.
 
 handle({'ReadFile', Path, Reply}) ->

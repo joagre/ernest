@@ -222,7 +222,8 @@ see_also(File) ->
         ++ [atom_to_list(hd(I#iface.namespace)) || I <- ern_prelude:stdlib_ifaces()]
         ++ [atom_to_list(N) || {N, _, _} <- ern_prelude:builtin_types()]
         ++ [qualified(Q) || {Q, _, _} <- ern_prelude:values()]
-        ++ [qualified(Q) || I <- ern_prelude:stdlib_ifaces(), Q <- maps:keys(element(4, I))],
+        ++ [qualified(Q) || I <- ern_prelude:stdlib_ifaces(), Q <- maps:keys(I#iface.values)]
+        ++ [qualified(Q) || I <- ern_prelude:stdlib_ifaces(), Q <- maps:keys(I#iface.types)],
     Named = [N || Doc <- docs(Decls, []),
                   {match, Secs} <- [re:run(Doc, "#+ See also\\n\\n(.*?)(?=\\n#|$)",
                                            [global, dotall, {capture, all_but_first, list}])],

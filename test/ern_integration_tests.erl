@@ -204,8 +204,14 @@ stdin() ->
           end,
     ?assertEqual({0, <<"[h", 16#e9/utf8, "] 2\n[zw", 16#4e2d/utf8, "] 3\n[] 0\n[last] 4\nend\n">>},
                  Run("h\\303\\251\\r\\nzw\\344\\270\\255\\n\\nlast", "lines")),
-    ?assertEqual({1, <<"[ok] 2\nLines.main faulted: the standard input is not UTF-8\n">>},
-                 Run("ok\\n\\377\\nnext\\n", "lines")),
+    %% standard output and standard error are two streams, which nothing
+    %% orders against each other, so each is compared alone
+    Err = "build/stdin/stderr",
+    ?assertEqual({1, <<"[ok] 2\n">>},
+                 sh("printf 'ok\\n\\377\\nnext\\n' | LANG=C ../bin/ern run build/stdin/lines.erc 2>"
+                    ++ Err)),
+    ?assertEqual({ok, <<"Lines.main faulted: the standard input is not UTF-8\n">>},
+                 file:read_file(Err)),
     ?assertEqual({0, <<"head\n", 255, 16#e9/utf8, "tail\nbytes 8\n">>},
                  Run("head\\n\\377\\303\\251tail\\n", "stream")),
     %% a read does not wait for more than has arrived

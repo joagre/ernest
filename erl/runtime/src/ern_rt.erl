@@ -471,7 +471,7 @@ quiet_system() ->
                                   undefined -> true;
                                   Pid -> quiet(Pid)
                               end
-                          end, [stdout, stderr, stdin, fs, terminal, tcp, clock])
+                          end, [stdout, stderr, stdin, fs, terminal, tcp, os, clock])
         andalso lists:all(fun quiet/1, opened()).
 
 %% A system process that has died can deliver nothing.
@@ -687,7 +687,7 @@ place(Info) ->
 %% Report §8.2, §9.7: system references
 %%
 
--spec sys(stdout | stderr | stdin | clock | fs | terminal | tcp) -> address().
+-spec sys(stdout | stderr | stdin | clock | fs | terminal | tcp | os) -> address().
 sys(Name) ->
     persistent_term:get({?MODULE, Name}).
 
@@ -993,6 +993,7 @@ run_main(Main, Site, Opts) ->
               {fs, erlang:spawn(fun ern_fs:loop/0)},
               {terminal, erlang:spawn(fun() -> ern_tty:loop(Keys, KeysCome) end)},
               {tcp, erlang:spawn(fun ern_tcp:loop/0)},
+              {os, erlang:spawn(fun ern_os:loop/0)},
               {clock, erlang:spawn(fun clock_loop/0)}],
     lists:foreach(fun({Name, Pid}) -> persistent_term:put({?MODULE, Name}, Pid) end, System),
     try

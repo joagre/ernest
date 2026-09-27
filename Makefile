@@ -14,9 +14,19 @@ TOOL = $(wildcard erl/*/ebin/*.beam)
 # are also the names of targets.
 sources = $(shell find $(1) -name '*.ern') $(1)/. $(shell find $(1) -mindepth 1 -type d)
 
-all:
+# The helper that runs a program for Os.run (report Appendix E.23), written
+# in C since the host's ports cannot keep a program's standard error apart,
+# end its input while its output is read, or kill it.
+EXEC = erl/runtime/priv/ern_exec
+CC ?= cc
+
+all: $(EXEC)
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -s shell
+
+$(EXEC): erl/runtime/c_src/ern_exec.c
+	@mkdir -p $(dir $@)
+	$(CC) -std=c99 -pedantic -O2 -Wall -Wextra -Werror -o $@ $<
 
 stdlib: build/stdlib/.built
 libs: build/libs/.built
@@ -129,7 +139,7 @@ $(EMACS_TESTS:%=emacs-test-%): emacs-test-%:
 clean:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -C test $@
-	@rm -rf build/stdlib build/shell build/libs examples/*.erc examples/**/*.erc
+	@rm -rf build/stdlib build/shell build/libs examples/*.erc examples/**/*.erc $(EXEC)
 
 # Rewrite test/golden/*.erl, the Erlang source the compiler emits for every
 # MVP 1 example, after an intended change to the emitter.
