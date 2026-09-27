@@ -48,7 +48,7 @@ so a decision they must see goes here.
 | MVP 2.66 | the standard library's `Supervisor` | done 2026-09-27 |
 | **MVP 2.7** | **a program started from a command line, and the appendix of libraries** | **next** |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
-| MVP 2.95 | the first release: the review, manual pages, an installation | after 2.7 |
+| MVP 2.95 | the first release: manual pages, an installation, a formatter, the review | after 2.7 |
 | MVP 3.0 | peers | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -674,15 +674,26 @@ section is read against what the sections before it have taught.
 
 ---
 
-## MVP 2.95 (the first release: the review, manual pages, and an installation), about two weeks
+## MVP 2.95 (the first release: manual pages, an installation, a formatter, and the review), about three weeks
 
 A release is the language reviewed whole, documented where a reader looks, and installed where a user runs it. The first one is for other programmers to install and use, decided 2026-09-27 (the log's *The First Release Is for Others*): Ernest for programs on one node. Peers are the next release's, which the table of `docs/development.md` already says and the release notes state once. Placed after MVP 2.7, which gives a program its arguments, its environment and its exit status, so that what is installed is a tool a command line can use, and before MVP 3.0.
 
 1. **Manual pages, investigated.** `ern doc` writes a module's page as CommonMark today (report §11.4); an option writes it as a manual page instead, so that `man Ernest.List` answers at a terminal. The doc blocks are CommonMark, and `libs/markdown` already parses it for the shell, so the investigation is a renderer to roff beside the terminal's. Decided here, with the user, before it is built: **the pages' names and section**, `Ernest.List` in section 3 with a suffix of Ernest's own, as Erlang's `3erl` and Perl's `3pm` are, or another; whether the toolchain has an `ern(1)` page, and what owns its text, since §11 does.
 2. **An installation.** `make install` builds Ernest and installs it under a prefix, `/usr/local` by default, and `make uninstall` removes it. Decided here, with the user, before it is built, and written then as a design note, `docs/install.md`: **how it is relocatable without a configure step**, the direction discussed on 2026-09-26 being `PREFIX` and `DESTDIR` as make variables and an installed `bin/ern` that finds its tree by following its own link; **the layout under the prefix**, the toolchain's tree in `lib/ernest` and the manual pages in `share/man/man3`; what the installation requires beside it, Erlang/OTP 29 on the path; and the operating systems the release supports, decided 2026-09-27: Linux and macOS, which the README names and `review.md`'s R6 runs on.
-3. **The review**, performed just before the release, decided 2026-09-27, so that it reviews the manual pages and the installation with the rest, as [`review.md`](review.md) says; every finding is decided before the tag. The readers of [`coherence.md`](coherence.md) run here, about eight of them, and for a change only when the user asks, decided 2026-09-27 (the log's *The Readers Run Before a Release* and *Enough Coherence*). Its ledger is a table here, as MVP 2.65's step 10 had. The machines the coherence rows need are built before the review begins, each with its tests, and a quick one joins `make test`: `make dialyzer`, `make calls` (Erlang's xref), `make untested` (OTP's `cover`) and `make sanitize` (the helper in C under the sanitizers and Clang's analyzer) ([`coherence.md`](coherence.md) C13); `make unused`, the private Ernest declarations nothing uses (C14); the report's blocks marked as the guide's are and the test of its examples (C17); the program that checks Appendix A's FIRST sets (C18); the test that every borrowed file and table is listed with its licence (C20); the catalogue of one small program for every error the lexer, the parser and the checker give (C21); and `make garbled`, the front end given garbled sources (C22), decided 2026-09-27 (the log's *Enough Coherence*). The review's own tools are built as it reaches them: the runs under `+T 9` and three times under load (`review.md` R2), and the test that runs the README's and `docs/development.md`'s commands in a fresh clone (R4). What a first release leaves out, MVP 3.9 takes: the written argument that a well-typed program does not go wrong, the generator of programs that type-check, and the property runner for the standard library's laws.
+3. **A formatter**, `ern format`, moved here on 2026-09-27 from *Not in any MVP*, since it was
+   to land before a second person writes Ernest and the first release is where others begin
+   (the log's *The Formatter Before the Release*): one style, `docs/style.md`'s, and no
+   configuration; it writes a module in that style, and with `--check` says which modules are
+   not, which then stands for the style test's hand-made checks. Its risk, named: the comments.
+   The lexer drops an ordinary comment, and the tree the checker reads has dropped a literal's
+   spelling, redundant parentheses and blank lines, so the formatter works from what was
+   written, the lexer keeping each comment with the token beside it. Tested by the
+   formatting of a formatted module being itself, by what it writes parsing to the tree it
+   read, and by the standard library, the shell and the examples, already in the style, coming
+   back unchanged. The review then reads code in one form.
+4. **The review**, performed just before the release, decided 2026-09-27, so that it reviews the manual pages and the installation with the rest, as [`review.md`](review.md) says; every finding is decided before the tag. The readers of [`coherence.md`](coherence.md) run here, about eight of them, and for a change only when the user asks, decided 2026-09-27 (the log's *The Readers Run Before a Release* and *Enough Coherence*). Its ledger is a table here, as MVP 2.65's step 10 had. The machines the coherence rows need are built before the review begins, each with its tests, and a quick one joins `make test`: `make dialyzer`, `make calls` (Erlang's xref), `make untested` (OTP's `cover`) and `make sanitize` (the helper in C under the sanitizers and Clang's analyzer) ([`coherence.md`](coherence.md) C13); `make unused`, the private Ernest declarations nothing uses (C14); the report's blocks marked as the guide's are and the test of its examples (C17); the program that checks Appendix A's FIRST sets (C18); the test that every borrowed file and table is listed with its licence (C20); the catalogue of one small program for every error the lexer, the parser and the checker give (C21); and `make garbled`, the front end given garbled sources (C22), decided 2026-09-27 (the log's *Enough Coherence*). The review's own tools are built as it reaches them: the runs under `+T 9` and three times under load (`review.md` R2), and the test that runs the README's and `docs/development.md`'s commands in a fresh clone (R4). What a first release leaves out, MVP 3.9 takes: the written argument that a well-typed program does not go wrong, the generator of programs that type-check, and the property runner for the standard library's laws.
 
-4. **The release**, tagged once the review is done, with its notes (`review.md`, *Done*).
+5. **The release**, tagged once the review is done, with its notes (`review.md`, *Done*).
 
 ## MVP 3.0 (peers), about three weeks
 
@@ -885,8 +896,7 @@ Release Is for Others*):
 
 ## Not in any MVP
 
-A canonical formatter, `ern format`, one style and no configuration, mechanical over the
-grammar; it lands before a second person writes Ernest. `Slot(a)`, a one-shot credit parallel
+`Slot(a)`, a one-shot credit parallel
 to `Reply(a)`, is out on principles 2 and 5; the log holds its shape if the verdict is
 revisited. String interpolation is declined for now on principles 2, 3 and 4. Erlang
 scheduling hints wait for a program that needs them. No HTTP server, ever, and no database
