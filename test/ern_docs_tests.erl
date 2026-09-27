@@ -31,8 +31,8 @@ citations_resolve_test() ->
     ?assertEqual([], Dangling).
 
 %% ernest_report.md, ernest_guide.md, README "Building": a document's
-%% contents list is its headings of levels two and three, each linked to
-%% its heading, which `make contents` writes
+%% contents list is its top-level sections, its headings of level two, each
+%% linked to its heading, which `make contents` writes
 contents_test() ->
     [?assertEqual({F, contents(Bin)}, {F, listed(Bin)}) || F <- ?CONTENTS, Bin <- [read(F)]].
 
@@ -52,11 +52,12 @@ listed(Bin) ->
     [List, _] = binary:split(Rest, ?END),
     List.
 
-%% The list: a line per heading of level two, and one indented beneath it
-%% per heading of level three, each linked by the anchor a renderer gives it.
+%% The list: a line per heading of level two, linked by the anchor a
+%% renderer gives it; the anchors are counted over every heading, since a
+%% renderer numbers a repeated one whatever its level.
 contents(Bin) ->
-    Entries = [[lists:duplicate(2 * (Level - 2), $\s), "- [", Text, "](#", Anchor, ")\n"]
-               || {Level, Text, Anchor} <- anchored(heads(Bin)), Level =:= 2 orelse Level =:= 3],
+    Entries = [["- [", Text, "](#", Anchor, ")\n"]
+               || {2, Text, Anchor} <- anchored(heads(Bin))],
     iolist_to_binary(["\n", Entries]).
 
 %% Every heading outside a fenced block, with its level and its text.
