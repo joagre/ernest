@@ -624,6 +624,21 @@ informative appendix, one section per library with its signatures and contracts,
 test holding each compiled interface equal to it, as `ern_prelude_tests` holds the prelude to
 Appendix E. Third-party libraries are not listed; Appendix D is what they follow.
 
+**A standard stream that has gone, found 2026-09-27.** A run whose standard output is a pipe
+whose reader has ended, `ern run app.erc | head -1`, goes on to its end and then hangs there
+instead of ending, and the host prints its own report of the failed write among the
+program's output; with standard output closed, what the program writes vanishes without a
+sign. The report says nothing of a write to a standard stream that cannot be written. The
+fix: §8.2 states the rule, the inclination being the host's own, a program whose standard
+output or standard error has gone ends as a signal ends it (§8.6), with 128 plus `SIGPIPE`'s
+number, as a shell reports it; the runtime keeps the host's report out of the program's
+output; and the end no longer waits on a stream that cannot take what it flushes.
+
+**A `--daemon` flag, discussed.** Noted 2026-09-27, a decision for this milestone: whether
+`ern run` detaches from its terminal itself, as `erl -detached` does, or leaves that to a
+service manager or `nohup`, and where a detached program's standard output and standard
+error then go; weighed with *A simple log* and *A standard stream that has gone*.
+
 **What Ernest adds, discussed again.** Noted 2026-09-27, a decision for this milestone:
 whether the README's and the guide's list of what Ernest adds (held equal by a test) should
 name more than the four it names, deadlock detection first among the candidates (§8.6: a
