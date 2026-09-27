@@ -6,8 +6,8 @@ What a release adds to [`coherence.md`](coherence.md). A review begins on a clea
 
 | | What | Passes when |
 |---|---|---|
-| R1 | the numbers the next release compares against: the report's measure and each section's length; what `coherence.md`'s C1 printed; the count of tests by suite, of prelude names, of standard library functions by module, of primitives, and of the concepts and reserved words C4 counts; the lines of Erlang and of Ernest by application; the memory, atoms, processes and speed of the loads of `memory.md`, an echo server's round trip, and a compile of the standard library | recorded in the plan's ledger beside the last release's, of which the first release has none; a count that changed, or a measured number that moved by more than a fifth, without a plan item that moved it is a finding |
-| R2 | the whole suite under the emulator's most modified timing, `+T 9`, and the terminal tests while every core of the machine runs a busy loop | green |
+| R1 | the numbers the next release compares against: the report's measure and each section's length; what `coherence.md`'s C1 printed; the count of tests by suite, of prelude names, of standard library functions by module, of primitives, and of the concepts and reserved words C4 counts; the lines of Erlang and of Ernest by application; the memory, atoms and processes of the loads of `memory.md` and how long each takes, an echo server's round trip, and a compile of the standard library | recorded in the plan's ledger beside the last release's, of which the first release has none; a count that changed, or a measured number that moved by more than a fifth, without a plan item that moved it is a finding |
+| R2 | the whole suite under the emulator's most modified timing, `+T 9`, and three times in a row while every core of the machine runs a busy loop | green every time; a failure on any run is a finding, since a race shows only now and then |
 | R3 | `make load`, and the reading, as [`memory.md`](memory.md) says | every load flat by its bounds, and what the reading found decided; a growth is a finding, fixed as CLAUDE.md's *Defects and gaps* says |
 | R4 | the commands of the README and of `docs/development.md`, in a fresh clone on a machine with only what they say is needed | each does what they say |
 | R5 | the installation: installed into a temporary prefix, moved to another, run from there (`ern run`, `ern shell`, `ern doc`, a manual page), and uninstalled | each works, and nothing is left |
@@ -18,7 +18,7 @@ What a release adds to [`coherence.md`](coherence.md). A review begins on a clea
 
 | | Reader | Brief |
 |---|---|---|
-| R8 | the boundaries reader | "Read the foreign boundary's checks, the configuration directory and its key, a path from the network, a socket's input, and the shell's history file. Report each place where untrusted input reaches something it should not." |
+| R8 | the boundaries reader | "Read the foreign boundary's checks, the configuration directory and its key, a path from the network, a socket's input, a program's arguments and environment, the host programs `Os` starts and what they write back, and the shell's history file. Report each place where untrusted input reaches something it should not." |
 | R9 | a person who did not write the shell | "Use `ern shell` at a terminal for an hour, on programs of your own. Report everything that went wrong or surprised you." |
 
 ## Done

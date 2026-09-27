@@ -1,6 +1,6 @@
 # Memory
 
-How the project checks that nothing grows with the work done: the loads that measure it, the reading that looks for it, and the ways a growth has been traced to its cause. The rule is CLAUDE.md's *Memory that no collection reclaims is a defect*; this document is the procedure. It runs before every release, as [`review.md`](review.md)'s R3, and whenever it is asked for.
+How the project checks that nothing grows with the work done: the loads that measure it, the reading that looks for it, and the ways a growth has been traced to its cause. The rule is CLAUDE.md's *Memory that no collection reclaims is a defect*; this document is the procedure. It runs before every release, as [`review.md`](review.md)'s R3, with every change to the runtime or to the shell's front end, as [`coherence.md`](coherence.md)'s table says, and whenever it is asked for.
 
 ## The loads
 
