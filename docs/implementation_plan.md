@@ -748,6 +748,19 @@ peers are the useful one.
   where it was made applies the function on delivery; one made around another node's process
   faults. Both notes were revised the same day, so a message fetches nothing and no fetch
   pauses a connection.
+- **Running as a service, in production**, decided 2026-09-27: the checks moved here from MVP
+  2.7's *Running as a service* as premature before the first release (the log's *Running as a
+  Service*).
+  - A real systemd unit: start and stop, a stop asked for being clean now that `ern run` ends
+    by the signal; `Restart=on-failure` after a program ends with `Os.exit(1)`; and the
+    journal showing fault lines without a doubled time.
+  - A launchd plist on macOS, with the same checks.
+  - A long soak: `examples/webserver.ern` under steady requests for hours, not the fourteen
+    rounds of `make load`, measured as [`memory.md`](memory.md) says.
+  - Standard error on a full or failing disk ends the run with status 141, as §8.2 says.
+  - `Clock.alarmAt` when the host's wall clock jumps, an NTP correction or a change by hand:
+    deadlines use the monotonic clock and a time does not, so the report decides what an alarm
+    at a time does when the clock moves (Appendix E.15).
 - **Shipped code and the host's lambda entries**, noted 2026-09-27 (the log's *The Shell's
   Code Memory*): OTP keeps an entry for each lambda of each distinct version of a module it
   loads, for as long as the node lives, up to 524,288. A node that receives code loads one
