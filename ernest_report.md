@@ -226,7 +226,7 @@ A function that applies `==` to a value of a type variable gives that variable a
 
 ### 3.11 Serialization
 
-Every value can be sent in a message, a function included, and its code travels with it (§8.7). A foreign value does not leave its node (§3.8).
+A message may be a value of any type, a function included. A message to another node takes with it the code it depends on (§8.7). A value that contains a foreign value cannot go to another node, and the process that sends it there faults (§3.8).
 
 ## 4. Declarations and Scope
 
