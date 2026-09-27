@@ -648,8 +648,8 @@ connections and the wire encoding. It is marked tentative, and it is written aga
 older spelling of the language; the report changes it implies are listed at the end of this
 section and are decided before any of it is built.
 
-Nodes that reach each other and the four operations of §8.7 between them, with code shipping
-restricted to nodes running the same build: identical definitions have identical hashes,
+Nodes that reach each other, a spawn on a peer that ships code (§8.7) and messages between
+them that carry values (§3.11), with code shipping restricted to nodes running the same build: identical definitions have identical hashes,
 which is §8.7 in its easiest case. A peer whose build differs is refused with an error naming
 3.1. Split from 3.1 on 2026-09-20, since content addressing proper is the larger half and
 peers are the useful one.
@@ -691,8 +691,7 @@ peers are the useful one.
   process's monitors see `Killed`; across nodes it needs a frame the note's table lacks.
 - **Where the two notes disagree with the report, found 2026-09-24**, also to be decided
   before building: the protocol note encodes values in Ernest's own format where §8.4 uses the
-  runtime's external term format; both notes drop a payload whose code cannot be fetched or
-  resolved where §7.4 and §8.7 fault the caller or the sender; the distribution note hashes no
+  runtime's external term format; the distribution note hashes no
   name where §8.7's normalization keeps the qualified names of external references; both write
   the effect `{Proc m}` where the report writes `with m`; the protocol note's open question
   on stopping a process is §6.9's `kill`; and the protocol note's §6.5 says no separate
@@ -704,18 +703,21 @@ peers are the useful one.
   unreachable peer; and the note's `Down` is `Exited | Crashed(Text) | NoProcess |
   Unreachable` with no `site`, where §9.3 and §6.9 have `Down(reason, site)` with
   `Returned`, `Killed`, `ProgramEnd`, `Fault(String)` and `Unknown`.
-- **An adapted address across a node** is open, and report first when it is taken. `via(f,
-  addr)` has been the pair of the function and the address since 2026-09-20 (§6.5), so an
-  `Address` that leaves a node may carry a function, which is the same question as a message
-  that carries one. Whether the function travels or the adaptation stays behind is the
-  decision.
+- **Code travels only with a spawn**, decided 2026-09-27 (§3.11, §6.5, §8.7; the log's *Code
+  Travels Only With a Spawn*). A value that holds a function faults at the operation that
+  would take it to another node, `function cannot cross nodes`, found by the walk that finds
+  a foreign value; the function a spawn starts, with its captures, is shipped. An adapted
+  address crosses as its target's address and its function's `{hash, env}`, and the node
+  where it was made applies the function on delivery; one made around another node's process
+  faults. Both notes were revised the same day, so a message fetches nothing and no fetch
+  pauses a connection.
 
 ---
 
 ## MVP 3.1 (content addressing), about four weeks
 
 Designed in [`code_distribution.md`](code_distribution.md), which owns it: what is hashed,
-names as a build product, the loader beside `code_server`, have/want before every message,
+names as a build product, the loader beside `code_server`, have/want before every spawn,
 the trust model, and the atom-leak restart. Marked tentative, and two things in it meet the
 code as it stands. Its section 11 asks MVP 1 for a named IR stage with locals numbered by
 position: there is none, since `ern_emitter` goes from the typed AST to Erlang's abstract
@@ -741,11 +743,12 @@ definition hash or a second scheme stands beside it is part of that decision, an
 answer is the first.
 
 - Every definition gets a hash of its typed AST; modules are named by hash; a registry per
-  node `{Hash -> Module}`. A message with a function carries the hash, and a node that lacks
-  it fetches the code from the sender. Erlang's module distribution is not used.
-- Two nodes with different versions of one type: reject at send, each message carrying its
-  type hash; fetch on receipt is the alternative, decided when peers exist and the two can be
-  measured. The log has both shapes.
+  node `{Hash -> Module}`. A function spawned on a peer carries its hash, and a node that
+  lacks it fetches the code from the sender. Erlang's module distribution is not used.
+- Two nodes with different versions of one type: a message carries its type hash, and one
+  whose hash differs from what the receiving code expects is dropped (node protocol,
+  section 5.4). Fetching on receipt, the other shape the log weighed, left with *Code Travels
+  Only With a Spawn*: a message fetches nothing.
 - The library fetcher, decided 2026-09-19: `ern fetch name url` fetches a library's source
   tree from a git URL into a directory on the load path, compiles it, and records the hashes
   of its definitions. No resolver, no semver, no lockfile beyond those hashes, and no

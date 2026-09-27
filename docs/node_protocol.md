@@ -1,6 +1,6 @@
 # Ernest: Node Protocol
 
-Status: tentative design decisions, 23 September 2026. Target: MVP 3. Companion to `code_distribution.md`, which covers how code is identified, transferred and loaded.
+Status: tentative design decisions, 23 September 2026, revised 27 September 2026: a message between nodes is values, and code travels only with a spawn (report §3.11, §8.7). Target: MVP 3. Companion to `code_distribution.md`, which covers how code is identified, transferred and loaded.
 
 > **Tentative.** Everything in this document is a first pass and must be thought through again before it is built. "Decision" here means the current best answer, not a commitment. The language surface in section 11 should be revisited before it enters `ernest_report.md`.
 
@@ -18,6 +18,7 @@ Ernest nodes communicate over their own TLS connections. Erlang distribution is 
 - Messages from one sender to one receiver arrive in order, and what arrives is an unbroken prefix of what was sent. Delivery is never guaranteed.
 - There is exactly one TLS connection per pair of nodes, opened on demand.
 - Values are encoded with Ernest's own encoding. Peers can never create atoms on a receiving node.
+- A message carries values only. Code travels only with a spawn, and a message needs no code fetched.
 - Peers are configured statically. There is no automatic discovery.
 - All new language operations are operations in `{Proc m}`, the single effect.
 
@@ -101,14 +102,13 @@ Delivery is never guaranteed. A message is dropped when:
 - the connection is torn down with the message still queued (5.2),
 - the destination process is dead or its node has restarted,
 - the destination node is absent from the peer table (3.4),
-- fetching the code or types the message needs fails (code distribution, section 7.2),
 - a type hash in the message does not match the type the receiving code expects (sections 4.2 and 10).
 
 The sender is not told of any of these; there is no error path back.
 
 This is the semantics of Erlang's `send` to a node that has disappeared. Protocols that need confirmation build it with replies and timeouts.
 
-Code fetching does not affect the sender: have/want is resolved on the receiving side before decoding, so `send` only enqueues.
+A message needs no code fetched (code distribution, section 7.2), so `send` only enqueues. A value that holds a function is not sent: the `send` faults the sender at the call, before anything is enqueued (report §3.11). An adapted address is the exception: it travels as its target's address with its function as `{hash, env}`, and a message to it carries the unconverted value to the target's node, which applies the function on delivery (report §6.5).
 
 ## 6. Spawning on another node
 
@@ -178,9 +178,7 @@ Nothing more is guaranteed:
 
 ### 8.2 Code fetching and order
 
-With one connection per node pair the guarantee follows almost for free. The only threat is code fetching: if message 1 waits for have/want and message 2 does not, message 2 must not be delivered first.
-
-The receiving side pauses delivery on the whole connection while a fetch is in progress. The connection keeps reading, and heartbeat, have, want and code frames are still processed during the pause, so the requested code can arrive on the same connection and a long fetch is not mistaken for a dead connection. No messages are delivered to processes until the fetch is complete.
+With one connection per node pair the guarantee follows almost for free. Only a spawn fetches code, and a message to a process whose spawn is still fetching is held until the process starts (6.3), in order. A message to any other process needs nothing fetched, so no fetch pauses the connection or reorders what it carries.
 
 ### 8.3 Lifetime
 
@@ -215,7 +213,7 @@ Frames are length-prefixed, each with a type:
 
 | Frame | Purpose |
 |---|---|
-| have | hashes (code and types) the next message or spawn references |
+| have | hashes (code and types) the next spawn references |
 | want | hashes the receiver lacks |
 | code | IR for requested hashes |
 | message | deliver a value to an address |
@@ -225,7 +223,7 @@ Frames are length-prefixed, each with a type:
 | down | a `Down` notice for a `MonitorRef` |
 | heartbeat | liveness |
 
-Every message and spawn frame is preceded by a have frame. Its payload is decoded only when the resulting want is satisfied.
+Every spawn frame is preceded by a have frame. Its payload is decoded only when the resulting want is satisfied. A message frame needs none (8.2).
 
 Frame size and chunking are open question 10.
 
@@ -243,7 +241,7 @@ Ernest uses its own encoding, not `term_to_binary`:
 
 - Constructors are encoded as (type hash, constructor index), never as atoms. A peer can then never create atoms on a receiver merely by sending data, which would be a second atom leak beside module names.
 - Addresses have the wire form of section 4.2.
-- Functions and closures travel as `{hash, env}` (code distribution, section 7.1).
+- A function travels as `{hash, env}` in a spawn frame, and in an adapted address, whose function is applied on the node the address was made on (code distribution, section 7.1). No other function is encoded: one in a message faults its sender (report §3.11).
 - `Node` and `MonitorRef`: open question 12.
 
 ## 11. Language surface
@@ -282,12 +280,12 @@ Additions to the prelude. All operations are in `{Proc m}`. Signatures in the no
 - **`name@host` as node identity.** Independent of the key, can be confused, and breaks when the host changes address.
 - **Random UUID per node.** Must be tied to a key to be safe anyway, so the key may as well be the identity.
 - **Multiple connections per node pair.** Breaks the single stream that ordering rests on.
+- **Code with every message** (code distribution, section 13). A `send` could then fault its sender after it returned, and a fetch paused the whole connection to keep order.
 - **`term_to_binary` with `safe`.** `safe` refuses unknown atoms, and the code defining the constructors may not yet be fetched when a message arrives.
 
 ## 13. Deferred
 
-- **Pause per receiving process** instead of per connection (8.2). Correct in the long run: a slow fetch for one process would not stall the others. Requires a queue per process on the receiving side.
-- **Separate connection for code transfer.** Would remove head-of-line blocking from large transfers, but makes the pause in 8.2 harder to reason about. Natural together with pause per process.
+- **Separate connection for code transfer.** Would remove head-of-line blocking from a spawn's large transfer.
 - **Network endpoint as a hint in an address's wire form.** Would let a node reach a peer absent from its table. Key verification would prevent misdirection. Grows the address and the hint goes stale.
 - **Automatic discovery** (mDNS, gossip). Unnecessary while one owner controls all nodes.
 - **Authorization beyond authentication** (code distribution, section 9).
@@ -319,7 +317,7 @@ Platform and wire format:
 
 ## 15. Risks
 
-1. **Head-of-line blocking** at start-up, when many fetches happen and all traffic on a connection stands still during each. The reason pause per process remains the next step.
+1. **Head-of-line blocking** at start-up, when many spawns fetch code and a large code frame delays what is queued behind it (open question 10).
 2. **Heartbeat timeout** set wrong, giving either duplicate processes after false `Unreachable` or late detection.
 3. **Own encoding** is more code to write and test than `term_to_binary`, and another place where type hashes must agree. Faults show as decoding errors in live traffic.
 4. **Export table** grows with the number of live processes whose addresses have left the node. One entry per process, not per send, but long-lived processes keep theirs.

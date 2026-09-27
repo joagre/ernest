@@ -1,6 +1,6 @@
 # Ernest: Code Distribution
 
-Status: tentative design decisions, 23 September 2026. Target: MVP 3. Consequences for MVP 1 in section 11. Companion to `node_protocol.md`, which covers nodes, addresses, connections and delivery.
+Status: tentative design decisions, 23 September 2026, revised 27 September 2026: code travels only with a process spawned on a peer, and a message between nodes is values (report §3.11, §8.7). Target: MVP 3. Consequences for MVP 1 in section 11. Companion to `node_protocol.md`, which covers nodes, addresses, connections and delivery.
 
 > **Tentative.** Everything in this document is a first pass and must be thought through again before it is built. "Decision" here means the current best answer, not a commitment. The one exception is section 11, which asked MVP 1 for a named IR stage; MVP 1 was built without one, and the plan's MVP 3.1 records what that leaves to it.
 
@@ -15,8 +15,8 @@ Ernest runs on BEAM but does not use Erlang distribution. Nodes talk over their 
 - IR travels between nodes, never binaries. The receiver verifies the hash and compiles locally.
 - There is one node type. Nodes differ only in the policy of their code cache.
 - Names are not part of the hash. `.ern` files are the source of truth for names; each build produces a name table.
-- Missing code and types are fetched eagerly, before a message or spawn is decoded. Code cannot be missing at run time.
-- Running processes change code by receiving a new function as a message in their own type. BEAM module replacement is never used.
+- Missing code and types are fetched eagerly, before a spawn is decoded. A message carries no code, and its types are those of the receiving process's mailbox type, which that process's node holds. Code cannot be missing at run time.
+- Running processes change code by receiving a new function as a message in their own type; on another node, a process spawned there brings the function and sends the message. BEAM module replacement is never used.
 - The prelude is compiled into hash modules like user code.
 - A hash is removed from a node only when nothing on the node can reach it; the build's hash store only grows.
 - Any authenticated peer may load code. Finer authorization is a known limitation.
@@ -130,13 +130,13 @@ Nodes run in embedded mode, which turns off automatic loading from the code path
 
 ### 7.1 Wire representation
 
-Functions and closures travel as `{hash, env}`. Raw BEAM funs are never serialized, since they carry module names and module checksums that mean nothing on another node.
+A function spawned on a peer, and every function among its captures, travels as `{hash, env}`. No other function crosses nodes (report §3.11), with one exception that carries no code: an adapted address carries its function as `{hash, env}`, to be applied on the node where the address was made, which already holds the code the hash names (report §6.5). Raw BEAM funs are never serialized, since they carry module names and module checksums that mean nothing on another node.
 
 ### 7.2 Have/want
 
-Every message and every spawn is preceded on the connection by a have frame (node protocol, section 9.4):
+Every spawn is preceded on the connection by a have frame (node protocol, section 9.4):
 
-1. The sender lists the hashes the payload references, transitively: code and types.
+1. The sender lists the hashes the spawned function references, transitively, its captures included: code and types.
 2. The receiver answers with those it lacks.
 3. The sender sends the IR for those.
 4. The receiver verifies, compiles and loads them.
@@ -146,11 +146,15 @@ Decoding must wait, since constructors are encoded by type hash (node protocol, 
 
 Because the whole transitive closure is present before anything runs, and a hash is never removed while loaded code depends on it (section 10.1), code cannot be missing at run time.
 
-If the exchange fails, the payload is dropped. Delivery semantics are specified in the node protocol, section 5.4.
+If the exchange fails, the spawn fails, and the caller of `spawn` faults (report §8.7; node protocol, section 6.4).
+
+A message needs no exchange. It holds no function, since one faults the sender at the `send` (report §3.11), and its types are those of the mailbox type of the process it goes to, which that process's node holds, since the process runs code that names them. A message whose type hash does not match the receiving code is dropped (node protocol, section 5.4).
 
 ## 8. Code change in running processes
 
 A process changes code by receiving a new function as a message in its own type and tail-calling into it. Hash modules never change, so any number of versions can live side by side. BEAM's limit of two versions per module (old and current) is irrelevant.
+
+On another node, the new function cannot travel in the message, since a function does not cross nodes in one (report §3.11); a process spawned on that node brings it, and sends the upgrade there: `spawn(Peer(name), fn() = send(counter, Upgrade(m, k)))`.
 
 The process must cooperate. Its state lives in the arguments of its recursive function, where the runtime cannot see it, so only the process can carry the state over to new code. Upgrade is opt-in: a process whose message type has no upgrade case cannot be upgraded in place and is replaced instead.
 
@@ -213,6 +217,7 @@ The prelude is compiled into hash modules like user code, from MVP 3. It then ge
 
 ## 13. Alternatives considered and rejected
 
+- **Code with every message**, fetched for a function a message carries. A `send` that returned could fault its sender later, when the peer failed to resolve the code; the fetch was traffic the code did not show; and whether a top-level binding a shipped function names meant the sender's value or the peer's decided whether the fetch could be lazy at all. A process spawned on the peer carries the code instead, visibly, and faults at the call (the log's *Code Travels Only With a Spawn*).
 - **Two node types** (all code on disk in the same version, or no code at all). A function reference crossing between them must be a hash anyway, so the name-based side would need a translation layer that leaks. One mechanism with two cache policies does the same work.
 - **BEAM module replacement for single-node code change.** Hash modules never change, and Ernest's code change is already a message.
 - **Hashing binaries.** The hash would depend on the compiler version, and interpreted and compiled code would have different identities.

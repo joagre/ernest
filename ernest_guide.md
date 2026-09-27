@@ -96,7 +96,7 @@ These rules come from one design, and most of its parts exist already. The Erlan
 - **The mailbox in the function's type.** A process receives one type of message, and the functions it runs say so, `with CounterMsg`. An address carries the same type, so every `send` is checked against its receiver. Gleam types the channel a message travels on; Ernest types the process.
 - **Checked replies.** A request carries a `Reply`, answered exactly once on every path, which the compiler checks as it checks types. `Address.call` waits with a deadline, so an answer that never comes is a case the program handles.
 - **Purity in the type.** `with` separates the functions that may send or receive from those that cannot. A pure function computes and returns, and the compiler holds it to that.
-- **Distribution by content, planned and not yet built.** Unison's content addressing, on the Erlang runtime. Every function and type is known by a hash of its definition, a type's name included, so a message is checked across nodes as it is within one. Code travels with what uses it: a closure sent to a peer brings the definitions it needs, and the peer fetches what it has not seen. Two nodes need not run the same version of a program, and two versions of a type are two types, never one type read two ways (§8).
+- **Distribution by content, planned and not yet built.** Unison's content addressing, on the Erlang runtime. Every function and type is known by a hash of its definition, a type's name included, so a message is checked across nodes as it is within one. Code travels only with a process spawned on a peer, which brings the definitions it needs, the peer fetching what it has not seen; a message between nodes is values. Two nodes need not run the same version of a program, and two versions of a type are two types, never one type read two ways (§8).
 
 Sections 1 to 8 are eight stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, handle failure, organize code, and cross boundaries. Each builds on the ones before it and ends with an exercise, whose answer is in §13. A complete program is shown whole; a fragment is part of the program around it. After the stages come the tools (§9), a word for the Erlang programmer (§10), the design behind the rules (§11), and questions a reader asks (§12).
 
@@ -1637,7 +1637,11 @@ A fault in `heavy` is the spawned process's, not the caller's, so a caller that 
 
 ### 8.2 Code shipping
 
-A closure or a message sent to a peer takes the code it needs with it: the peer uses the code it has, and fetches from the sender what it lacks. Every function and type is known by a hash of its definition, a type's name included, so two nodes agree on a type exactly when they declare it the same way (report §8.7). A system module's reference in shipped code is the peer's, so a shipped `Io.println` prints on the peer, while an address the closure captured still names the process it named. A `send` to a peer returns at once, and a failure to resolve the code there faults the sender later.
+Code goes to a peer one way: in a process spawned there. `spawn(Peer(name), f)` takes `f`'s code with it, and the code of every function `f` captured; the peer uses the code it has, and fetches from the sender what it lacks, before the process starts. A failure to find it faults the caller of `spawn`, at the call. Every function and type is known by a hash of its definition, a type's name included, so two nodes agree on a type exactly when they declare it the same way (report §8.7).
+
+A message to a peer carries values and no code. A function cannot go to another node, alone or inside a message, and the `send` that would take it there faults with `function cannot cross nodes` (report §3.11). Work that must run on the peer is spawned there. An adapted address is the one function that travels, and it travels without its code: its function is applied on the node where the address was made, so `via(Wrap, self())` handed to a peer works, and a value the peer sends to it is wrapped here, on delivery (report §6.5).
+
+In spawned code a system module's reference is the peer's, so `Io.println` prints on the peer, and so is a top-level binding the code names, so a service binding names the peer's service. An address the function captured still names the process it named on this node.
 
 A peer that is lost stays lost: its processes are dead to this node, monitors report `Fault("peer lost")`, and a message in flight may be lost without notice (report §10).
 
@@ -1770,7 +1774,7 @@ In a pattern, `size(len)` may name a variable bound by an earlier segment. A `ma
 
 ### 8.7 Prediction exercise
 
-Suppose `send(remoteAddr, msg)` returns immediately, and 50 ms later the peer reports a resolution failure. What happens to the sending process?
+A process sends a service on another node `Register(fn(x) = x + 1)`, a message with a function in it. What happens, and how does the function get to run on that node?
 
 ## 9. Tools
 
@@ -1874,7 +1878,7 @@ A function's number of arguments is part of its type, and `fn(x, y)` shows it wh
 
 **§7.4.** Yes. The boundary of an abstract type is its module, so every definition in `main.ern` may name the constructor, a helper or a test included; another module sees the type and its operations, never the constructor.
 
-**§8.7.** The runtime faults the sending process asynchronously, after `send` has already returned. Code that followed the `send` may have executed; the fault interrupts the process where it currently is, not at the site of `send`.
+**§8.7.** The `send` faults the sending process, at the call, with `function cannot cross nodes`: a function does not leave its node inside a message. To run it on the other node, spawn it there, `spawn(Peer(name), fn() = ...)`, which takes its code with it, and let the spawned process send the service what it computed.
 
 ## 14. Reading further
 
