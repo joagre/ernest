@@ -118,6 +118,21 @@ export let environment : Map(String, String) = hostEnvironment()
 foreign fn hostEnvironment() -> Map(String, String) with m =
     "ern_os:environment/0"
 
+/// The absolute path of the directory the program was started in, bound
+/// when the program starts. Nothing changes it. A relative path given to
+/// `Fs`, or as a program's name to `start`, is resolved against it, and
+/// joining a path to it makes the path absolute.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Path.join(Os.workingDirectory, Path("notes.txt"))
+/// ```
+export let workingDirectory : Path = Path(hostDirectory())
+
+foreign fn hostDirectory() -> String with m =
+    "ern_os:working_directory/0"
+
 /// Ends the program with that exit status, as the end of its entry process
 /// ends it (report §8.6), and does not return. It ends the program, not a
 /// process; a process ends by returning or by `kill`. In the shell and

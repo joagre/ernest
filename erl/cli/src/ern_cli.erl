@@ -34,23 +34,43 @@ main(Args) ->
 ern(Args) ->
     ern(Args, standard_error).
 
-%% Report §11: the first word is the job, and --help and --version stand
-%% alone. Err is the error device, standard_error for the escript; a test
-%% passes its own and reads what the user would see. The status is 0 or 1,
-%% or a run's, which Os.exit or a signal may give (§11.2).
+%% Report §11: ern refuses to start in a working directory whose name is
+%% not UTF-8, and otherwise the first word is the job, and --help and
+%% --version stand alone. Err is the error device, standard_error for the
+%% escript; a test passes its own and reads what the user would see. The
+%% status is 0 or 1, or a run's, which Os.exit or a signal may give (§11.2).
 -spec ern([word()], io:device()) -> 0..255.
-ern(["--help"], _Err) ->
+ern(Args, Err) ->
+    case utf8_directory() of
+        true -> dispatch(Args, Err);
+        false ->
+            io:format(Err, "ern: the working directory's name is not UTF-8~n", []),
+            1
+    end.
+
+%% Report §11: where the host's names are bytes it starts in any
+%% directory, and the name is read here. Where they are UTF-8 it does not
+%% start in one whose name is not, and hangs as it boots, before this; the
+%% plan's MVP 2.95 turns that into this refusal.
+utf8_directory() ->
+    case {file:native_name_encoding(), file:get_cwd()} of
+        {latin1, {ok, Dir}} ->
+            is_binary(unicode:characters_to_binary(list_to_binary(Dir), utf8, utf8));
+        _ -> true
+    end.
+
+dispatch(["--help"], _Err) ->
     usage(standard_io),
     0;
-ern(["--version"], _Err) ->
+dispatch(["--version"], _Err) ->
     io:format("ern ~s~n", [?VERSION]),
     0;
-ern([Word | Args], Err) ->
+dispatch([Word | Args], Err) ->
     case lists:keyfind(Word, 1, jobs()) of
         {Word, Spec, Positional, Fun} -> job(Word, Spec, Positional, Args, Fun, Err);
         false -> refuse(no_job(Word), Err)
     end;
-ern([], Err) ->
+dispatch([], Err) ->
     refuse("a job is required", Err).
 
 %% The jobs of §11, each with its options, what follows them, and its

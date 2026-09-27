@@ -120,5 +120,6 @@ The toolchain is the report on one node; the plan's milestones lift the table ro
 | Construct | Until | What you see today |
 |---|---|---|
 | `spawn(Peer(...))`, `spawnMonitored(Peer(...))`, peers, `ernest.conf` (§6.2, §8.3) | MVP 3.0 | the spawn faults with `peer unreachable`; `ernest.conf` is not read, and of the configuration directory only the shell's `startup` is |
+| a working directory whose name is not UTF-8, under a UTF-8 locale (§11) | MVP 2.95 | `ern` hangs as the host boots, before its refusal can run, and only `kill -9` ends it; under a locale whose names are bytes it refuses |
 
-Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and a test in `erl/cli/test` fails when such a text is missing from this table. Runtime behaviour that stands in for a later milestone, the peer fault, is listed by hand. `make sections` prints only what the plan's *Standing gaps* names.
+Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and a test in `erl/cli/test` fails when such a text is missing from this table. Runtime behaviour that stands in for a later milestone, the peer fault and the hang in a working directory whose name is not UTF-8, is listed by hand. `make sections` prints only what the plan's *Standing gaps* names.

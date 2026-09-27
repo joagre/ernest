@@ -10,7 +10,7 @@
 %% start until it has exited or been killed.
 -module(ern_os).
 
--export([loop/0, environment/0]).
+-export([loop/0, environment/0, working_directory/0]).
 
 %% Report §8.6: every program's process is linked to this one, which the
 %% runtime kills when the program ends, so that none outlives it; this
@@ -245,3 +245,20 @@ variable([_], Env) ->
 
 utf8(Bytes) ->
     is_binary(unicode:characters_to_binary(Bytes, utf8, utf8)).
+
+%% Report Appendix E.23, §7.4: the directory the program was started in,
+%% absolute, whose name ern has found UTF-8 before starting (report §11):
+%% decoded where the host's names are UTF-8, and its bytes where they are
+%% bytes. One the host can no longer read, removed since, faults the
+%% binding with the host's reason.
+-spec working_directory() -> binary().
+working_directory() ->
+    case file:get_cwd() of
+        {ok, Dir} -> name(file:native_name_encoding(), Dir);
+        {error, Reason} ->
+            ern_rt:fault(iolist_to_binary(["the working directory cannot be read: ",
+                                           atom_to_list(Reason)]))
+    end.
+
+name(latin1, Dir) -> list_to_binary(Dir);
+name(utf8, Dir) -> unicode:characters_to_binary(Dir).

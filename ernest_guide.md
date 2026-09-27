@@ -209,7 +209,7 @@ hello, Grace
 
 `match` takes the first clause whose pattern fits the value: `[]` fits the empty list, and `names` fits any other and names it (§2.3). A block, `{ ...; ... }`, runs its statements in order (§2.2), and `fn(name) = ...` is a function written in place (§3.2).
 
-`Os.exit(status)` ends the program with that exit status. A program whose `main` returns exits with 0, and one whose entry process faults exits with 1. The environment is `Os.environment`, a map from names to values: `Map.get(Os.environment, "HOME")` answers `Some(dir)` where the home directory is set.
+`Os.exit(status)` ends the program with that exit status. A program whose `main` returns exits with 0, and one whose entry process faults exits with 1. The environment is `Os.environment`, a map from names to values: `Map.get(Os.environment, "HOME")` answers `Some(dir)` where the home directory is set. The directory the program was started in is `Os.workingDirectory`, and a relative path names a file under it.
 
 `Io.readLine()` waits for a line of standard input and answers `Some(line)`, or `None` at its end. A program that reads its input to the end loops:
 

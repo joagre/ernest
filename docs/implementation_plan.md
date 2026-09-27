@@ -17,14 +17,11 @@ Actorson until 12 September 2026.
 
 ## Where we are
 
-**MVP 2.8, the formatter, is done** (2026-09-28): `ern format`, the Emacs mode indenting as it
-lays out, and a buffer laid out as it is saved. MVP 2.7 has one decision left, found as it
-was being closed: the working directory and `Fs.watch`, which the table of Erlang's standard
-library waits for it. What Ernest adds was decided and the guide read in order on 2026-09-28.
-The rest of MVP 2.7, a program started from
-a command line, is built: `Os`, the memory and atoms items, running as a service, the appendix
-of libraries and back pressure (2026-09-27). MVP 2.66, the standard library's `Supervisor`, is
-done (2026-09-27). MVP 2.65, the language and the toolchain read
+**MVP 2.7, a program started from a command line, is done** (2026-09-28): `Os` with the
+working directory, the memory and atoms items, running as a service, the appendix of
+libraries, back pressure, what Ernest adds, and the guide read in order. Next is MVP 2.95,
+the first release: manual pages, an installation, and the review. MVP 2.66, the standard
+library's `Supervisor`, is done (2026-09-27). MVP 2.65, the language and the toolchain read
 back after the shell, closed with its sweep on 2026-09-26; its steps stay below as the record
 the log's entries point into. MVP 2.6, the shell, was closed on 2026-09-25, and the code read
 back after it the same day, both under "Done".
@@ -51,10 +48,10 @@ so a decision they must see goes here.
 | MVP 2.61 | the guide as the user's document | done 2026-09-24, out of order |
 | MVP 2.65 | the language and the toolchain read back | done 2026-09-26 |
 | MVP 2.66 | the standard library's `Supervisor` | done 2026-09-27 |
-| **MVP 2.7** | **a program started from a command line, and the appendix of libraries** | **one decision left: the working directory and `Fs.watch`** |
+| MVP 2.7 | a program started from a command line, and the appendix of libraries | done 2026-09-28 |
 | MVP 2.8 | the formatter | done 2026-09-28, out of order |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
-| MVP 2.95 | the first release: manual pages, an installation, the review | after 2.7 |
+| **MVP 2.95** | **the first release: manual pages, an installation, the review** | **next** |
 | MVP 3.0 | peers | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -557,138 +554,12 @@ The steps:
 
 ---
 
-## MVP 2.7 (a program started from a command line, and the appendix of libraries), about a week
-
-What a command-line program needs, report first, in a system module `Os` (§8.2, Appendix E),
-decided 2026-09-27 in MVP 2.66's opening discussion (item 16; the log's *A Program's Command
-Line Is `Os`'s*), and the exit status the same day (the log's *A Program Ends With
-`Os.exit`*).
-
-**`Os`, built 2026-09-27** (§8.2, §8.6, §11.2, Appendix E.23; the log's *`Os.run` Runs
-Through a Helper in C*, *A Running Program Is a Process*, *The Environment Read Through
-the Helper* and *What Building `Os` Found*). `Os.arguments` is the words after the module on `ern run`'s line, an argument
-that is not UTF-8 refused by its position, and the empty list in the shell and under `ern
-test`. `Os.environment` leaves out a variable that is not UTF-8, read from the helper
-`ern_exec` since the host decodes such a value without a sign, and `Fs.list` leaves out such
-a name. `Os.exit` ends the program with its status, and in the shell and under `ern test`
-faults its caller with `exited with status n`. A running program is a process: `Os.start`
-answers its address, `Os.read` its next piece of output or its exit status, taken only while
-a read waits, `Os.write` and `Os.closeInput` feed it, and `Os.run` is Ernest over the four.
-Guide §1.3 teaches `Os.arguments` before standard input, and the shell reads `NO_COLOR` and
-its history's `HOME` through `Os.environment`. Building it found three defects in what was
-there, each fixed with a regression test: every run initialized the modules on the code
-path that are not the standard library's, the shell's among them, before the standard
-library's (§8.5); a `monitor` of a process the runtime did not start, a socket or a running
-program, was made only when the reaper came to it, so a `kill` just after it answered
-`Unknown` (§6.9); and `ern test` reported a test that faulted at once twice (§11.2).
-
-**Memory, read for what only grows, built 2026-09-27** ([`memory.md`](memory.md); the log's
-*What the Loads Found*). `make load` runs seven loads, the runtime's processes, the
-`Supervisor`, `Tcp`, `Os`, `Fs`, `Clock` and the shell under a long session, fourteen rounds
-each, and holds the atoms, processes, ports, rows, persistent terms and the reaper's memory
-to no growth at all after a warm-up of six, and the node's memory to 128 KB; `review.md`'s R3
-runs it. They and the reading found four growths, each fixed at its cause with a regression
-test: every declaration at the prompt, and every input whose value is a function, kept its
-module and its number for the rest of the session, which the shell now lets go once nothing
-reaches it (§11.2); a wait on a process was kept until that process died, even once its
-waiter had died, and a waiter's list kept a process that had ended (§6.9); and the session's
-history grew past the thousand inputs §11.2 keeps, which the report now says of the session
-as of the file. Repeating the loads also found a false deadlock (§8.6): the check read its
-counts before its snapshots, and could not see a request still in transit to a system
-process, so it now reads them between the snapshots, and a call waiting on a system process
-counts, as an alarm does once the clock has answered it. The check stays a poll, the only way
-the host allows, and reads the counts of pending work first, so an idle program waiting on
-anything pays a few rows.
-
-**The shell's code memory, diagnosed 2026-09-27** (the log's *The Shell's Code Memory*).
-The 176 bytes a round were one entry of the host's for each distinct input: every module
-answered its exported functions as values through `'$fun'/2`, one lambda each, and OTP keeps
-an entry for each lambda of each distinct version of a module it loads, for as long as the
-node lives, up to 524,288 of them. An input's entry function, which no program can name, no
-longer has one, and distinct expressions leave no code behind; `make load` now holds code to
-no growth too. An input that holds a lambda, and a declaration, still cost their lambdas'
-entries, the host's, and are kept: a person at the prompt comes nowhere near the limit, and
-code shipped between peers is one version per definition by its hash (MVP 3.0 checks it).
-
-**Atoms, counted, 2026-09-27** (`memory.md`'s *Atoms*; the log's *Atoms, Counted*). A
-running program makes no atom from what it is given, which `make load` and a regression test
-hold; `Erl.atom` is a program's own request, and Appendix E.19 now carries the host's rule, an
-atom never freed and a node's number of them fixed, with the fault past 255 characters. The
-shell makes an atom of each distinct name typed at it, about three for a name bound or
-declared and one for a name mentioned, and none for a name typed again; kept, bounded by what
-a person types, as the host's lambda entries are.
-
-**Running as a service, decided 2026-09-27** (the log's *Running as a Service*), which took
-the place of three items: a simple log, a standard stream that has gone, and a `--daemon`
-flag. A program runs in the foreground under a service manager, systemd or launchd, or with
-`nohup`, and standard error is its log, which the host routes and keeps: no log file, no log
-section in `ernest.conf`, and no `--daemon` flag. What `ern` owns, built in this item:
-
-- **A stream that has gone.** A run whose standard output or standard error can no longer be
-  written, its reader gone or its device failing, ends as §8.6 ends a program, with status
-  141, 128 plus `SIGPIPE`'s number, as a shell reports a broken pipe (§8.2, §11.2). Found
-  2026-09-27: `ern run app.erc | head -1` went on to its end and then hung, the host printing
-  its own report of the failed write. The runtime writes the two streams through ports of its
-  own, which say when a write fails, and the host's own writer is kept out of a run. A stream
-  closed before the run starts is the host's to reopen, and it opens it on the null device, as
-  `>/dev/null` would.
-- **A time on `ern`'s own fault lines** where standard error is neither a terminal nor the
-  journal of a service manager, which stamps each line itself: the UTC time as RFC 3339 writes
-  it, to the millisecond, before the line (§11.2). A program's own output, on either stream,
-  is never changed; times on its own lines come from MVP 3.2's `Time`.
-- **A stop asked for is a signal's end.** After the host's termination or hangup ends the
-  program and its output is flushed, `ern run` ends by that signal itself, so that a service
-  manager counts the stop as clean, where it had exited with 128 plus its number, which a
-  shell reports the same way (§11.2).
-- **Guide §9.5 teaches it**: where the output goes, what a fault line looks like in a file,
-  how a program is stopped and what it exits with, a systemd unit, and `nohup`. MVP 2.95's
-  installation and manual pages point at it.
-
-**The report lists the libraries, built 2026-09-27** (Appendix G; the log's *The Libraries in
-the Report*): Appendix G, informative, a section for each library under `libs/`, `libs/ets`
-and `libs/markdown`, with its contract and listing, which `ern_prelude_tests`'s
-`libraries_test` holds equal to each compiled interface, as it holds Appendix E to the
-standard library's. A library added under `libs/` gets its section, or the test fails.
-Third-party libraries are not listed; Appendix D is what they follow.
-
-**Back pressure, decided 2026-09-27** (§8.2, §10, Appendix E.18, E.23; the log's *Back
-Pressure, Again*). A mailbox stays unbounded, with no back pressure in the language or the
-runtime: with selective receive a process may wait for one message while others pile up, so
-a sender held back by a full mailbox would wait on it for good, and a `receive` without it
-would undo `Address.call` and the reply discipline. What is built instead:
-
-- **A write waits for its stream.** `Io.print` and its kin, `Tcp.write` and `Os.write` return
-  once their stream has taken the bytes, and wait while it is behind, as a write does in every
-  host; they had returned at once, and two million lines to a slow reader held 650 MB of the
-  node. Each is a call its stream answers, so selective receive plays no part. A write to a
-  socket or a running program that has ended faults as a read does.
-- **Guide §4 teaches pacing**: a call paces its caller, a window of credits paces a stream,
-  and `Process.info(p).queued` shows a queue building.
-
-**What Ernest adds, decided with the user on 2026-09-28:** the README's and the guide's list
-stays at four, and deadlock detection (§8.6) stays in the guide's §5.4, which states its
-limit (the log's *What Ernest Adds Stays at Four*).
-
-**The guide read for its order, done 2026-09-28** (the log's *The Guide Read in Order*): a
-reader new to the guide read it in order. `send`, which it had never explained, `spawn` and
-`self()` are taught in §4.1 before §4.4 uses them; the spawn corner moved there from §3, so
-§3.7 and §3.8 are now §3.6 and §3.7, decided with the user; the smaller uses before their
-introduction are glossed or point ahead.
-
-**The working directory and `Fs.watch`, a decision for this milestone**, found 2026-09-28 as
-the milestone was being closed: the table of Erlang's standard library under "Reference"
-waits both for MVP 2.7, which had not planned them. `absname` and `expand` wait with the
-working directory, and `watch` for a program that must not poll (the log's *Fs by Its
-Structure, and the Table*). Decided with the user before the milestone closes.
-
----
-
 ## MVP 2.95 (the first release: manual pages, an installation, and the review), about three weeks
 
 A release is the language reviewed whole, documented where a reader looks, and installed where a user runs it. The first one is for other programmers to install and use, decided 2026-09-27 (the log's *The First Release Is for Others*): Ernest for programs on one node. Peers are the next release's, which the table of `docs/development.md` already says and the release notes state once. Placed after MVP 2.7, which gives a program its arguments, its environment and its exit status, so that what is installed is a tool a command line can use, and before MVP 3.0.
 
 1. **Manual pages, investigated.** `ern doc` writes a module's page as CommonMark today (report §11.4); an option writes it as a manual page instead, so that `man Ernest.List` answers at a terminal. The doc blocks are CommonMark, and `libs/markdown` already parses it for the shell, so the investigation is a renderer to roff beside the terminal's. Decided here, with the user, before it is built: **the pages' names and section**, `Ernest.List` in section 3 with a suffix of Ernest's own, as Erlang's `3erl` and Perl's `3pm` are, or another; whether the toolchain has an `ern(1)` page, and what owns its text, since §11 does.
-2. **An installation.** `make install` builds Ernest and installs it under a prefix, `/usr/local` by default, and `make uninstall` removes it. Decided here, with the user, before it is built, and written then as a design note, `docs/install.md`: **how it is relocatable without a configure step**, the direction discussed on 2026-09-26 being `PREFIX` and `DESTDIR` as make variables and an installed `bin/ern` that finds its tree by following its own link; **the layout under the prefix**, the toolchain's tree in `lib/ernest` and the manual pages in `share/man/man3`; what the installation requires beside it, Erlang/OTP 29 on the path; and the operating systems the release supports, decided 2026-09-27: Linux and macOS, which the README names and `review.md`'s R6 runs on.
+2. **An installation.** `make install` builds Ernest and installs it under a prefix, `/usr/local` by default, and `make uninstall` removes it. Decided here, with the user, before it is built, and written then as a design note, `docs/install.md`: **how it is relocatable without a configure step**, the direction discussed on 2026-09-26 being `PREFIX` and `DESTDIR` as make variables and an installed `bin/ern` that finds its tree by following its own link; **the layout under the prefix**, the toolchain's tree in `lib/ernest` and the manual pages in `share/man/man3`; what the installation requires beside it, Erlang/OTP 29 on the path; and the operating systems the release supports, decided 2026-09-27: Linux and macOS, which the README names and `review.md`'s R6 runs on. The installed `bin/ern` also fixes a defect found 2026-09-28: where the host's names are UTF-8 it does not boot in a working directory whose name is not, and `ern` hangs there before any of its code runs. A launcher that runs before the host checks the directory's name and refuses it, as §11 says `ern` does (the log's *The Working Directory*).
 3. **The review**, performed just before the release, decided 2026-09-27, so that it reviews the manual pages and the installation with the rest, as [`review.md`](review.md) says; every finding is decided before the tag. The readers of [`coherence.md`](coherence.md) run here, about eight of them, and for a change only when the user asks, decided 2026-09-27 (the log's *The Readers Run Before a Release* and *Enough Coherence*). Its ledger is a table here, as MVP 2.65's step 10 had. The machines the coherence rows need are built before the review begins, each with its tests, and a quick one joins `make test`: `make dialyzer`, `make calls` (Erlang's xref), `make untested` (OTP's `cover`) and `make sanitize` (the helper in C under the sanitizers and Clang's analyzer) ([`coherence.md`](coherence.md) C13); `make unused`, the private Ernest declarations nothing uses (C14); the report's blocks marked as the guide's are and the test of its examples (C17); the program that checks Appendix A's FIRST sets (C18); the test that every borrowed file and table is listed with its licence (C20); the catalogue of one small program for every error the lexer, the parser and the checker give (C21); and `make garbled`, the front end given garbled sources (C22), decided 2026-09-27 (the log's *Enough Coherence*). The review's own tools are built as it reaches them: the runs under `+T 9` and three times under load (`review.md` R2), and the test that runs the README's and `docs/development.md`'s commands in a fresh clone (R4). What a first release leaves out, MVP 3.9 takes: the written argument that a well-typed program does not go wrong, the generator of programs that type-check, and the property runner for the standard library's laws.
 
 4. **The release**, tagged once the review is done, with its notes (`review.md`, *Done*).
@@ -1059,6 +930,29 @@ refuses the save ([`emacs_mode.md`](emacs_mode.md); the log's *Format on Save*).
 from MVP 2.95 and built ahead of MVP 2.7's last two items (the log's *The Formatter Before
 the Release*).
 
+### MVP 2.7 — a program started from a command line, and the appendix of libraries (done 2026-09-28)
+
+`Os` gives a program its command line, its environment, its working directory, its exit
+status and the programs it runs, a running program being a process (§8.2, §8.6, §11,
+Appendix E.23; the log's *A Program's Command Line Is `Os`'s*, *A Program Ends With
+`Os.exit`*, *`Os.run` Runs Through a Helper in C*, *A Running Program Is a Process*, *The
+Environment Read Through the Helper*, *What Building `Os` Found* and *The Working
+Directory*). `make load` holds the runtime's processes, the `Supervisor`, `Tcp`, `Os`, `Fs`,
+`Clock` and the shell to no growth, and the reading behind it fixed four growths, the
+shell's code memory and a false deadlock ([`memory.md`](memory.md); the log's *What the Loads
+Found*, *The Shell's Code Memory* and *Atoms, Counted*). A program meant to keep running runs
+in the foreground under a service manager: a stream that has gone ends it with status 141,
+`ern`'s fault lines carry the time where standard error is a file, and a stop ends it by its
+signal (guide §9.5; the log's *Running as a Service*). Appendix G lists the libraries under
+`libs/`, held to their interfaces (the log's *The Libraries in the Report*). A mailbox stays
+unbounded, and a write waits for its stream (the log's *Back Pressure, Again*). The list of
+what Ernest adds stays at four (the log's *What Ernest Adds Stays at Four*). The guide was
+read in order by a reader new to it: `send`, which it had never explained, `spawn` and
+`self()` are taught in §4.1 before §4.4 uses them, the spawn corner moved there from §3, and
+the smaller uses before their introduction are glossed or point ahead (the log's *The Guide
+Read in Order*). `Fs.watch` stays out, since the host has no way to watch a file (the log's
+*Later*).
+
 ---
 
 ## Reference
@@ -1131,7 +1025,7 @@ Ernest's concepts or toolchain replace.
 | `sets`, `ordsets`, `gb_sets` | `Set` | E.4 | | `symmetric_difference`, `is_disjoint`: compositions |
 | `string`, `unicode` | `String`, `Char` | E.5, E.6 | | the list-based half of `string` |
 | `io`, `io_lib` | `Io` | E.1: `print`, `println`, `printError`, `printlnError`, `readLine`, `read`, `write`, `show`, `debug` | | `format`: no format strings, `<>` and `toString` are the one way |
-| `file`, `filelib` | `Fs` | E.17, nine functions | `watch`, and the working directory with absolute paths, MVP 2.7 | `wildcard`: a glob library. `fold_files`: five lines over `List` |
+| `file`, `filelib` | `Fs`, and `Os.workingDirectory` | E.17, nine functions; `get_cwd` as E.23's `workingDirectory`, and `absname` as `Path.join` over it | | `wildcard`: a glob library. `fold_files`: five lines over `List`. `watch`: the host has none (the log's *Later*). `expand`: `..` read from the text alone is wrong under a symlink (the log's *The Working Directory*) |
 | `filename` | `Path` | E.14, eight functions | | `absname`, `expand`: `Fs`'s, they read the working directory. `nativename`: a `Path` is in the runtime's syntax |
 | `timer` | `Clock` | `now`, `alarm`, `alarmAt` | `Clock.monotonic` | `send_interval`, `cancel`: E.15's positions. `sleep`: `receive { after ms -> Unit }`. `seconds`, `minutes`: arithmetic |
 | `rand` | `Random` | E.13: `seed`, `next`, `nextFloat` | | |

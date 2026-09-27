@@ -288,6 +288,49 @@ os() ->
                               "ERN_BAD=\"$(printf 'caf\\351')\" " ++ Run ++ "env.erc"))
       end, ["C.UTF-8", "C"]).
 
+%% report §11, Appendix E.23, E.17: Os.workingDirectory is the absolute
+%% path of the directory the program was started in, a relative path
+%% given to Fs names a file under it, and ern refuses to start where the
+%% directory's name is not UTF-8. Under C, whose names the host takes as
+%% bytes, ern starts there and refuses; under a UTF-8 locale the host
+%% hangs as it boots, before ern, which the plan's MVP 2.95 turns into the
+%% refusal and this test does not run. Written with the code; a directory
+%% removed as the program starts is not covered.
+working_directory_test_() ->
+    {timeout, 60, fun working_directory/0}.
+
+working_directory() ->
+    Dir = "build/cwd",
+    ok = filelib:ensure_path(Dir ++ "/src"),
+    ok = file:write_file(Dir ++ "/src/here.ern",
+                         "export fn main() -> Unit with Never = {\n"
+                         "    Io.println(Path.toString(Os.workingDirectory));\n"
+                         "    match Fs.read(Path(\"notes.txt\"), 1000) {\n"
+                         "        Right(bytes) -> Io.println(Io.show(String.fromUtf8(bytes)))\n"
+                         "      | Left(_) -> Io.println(\"no notes\")\n"
+                         "    }\n"
+                         "}\n"),
+    {0, _} = sh("../bin/ern build --source-root build/cwd/src --build-root build/cwd "
+                "build/cwd/src"),
+    Cafe = <<"build/cwd/caf", 16#c3, 16#a9>>,
+    [ok = make_dir(D) || D <- [Cafe, <<"build/cwd/bad", 16#e9>>]],
+    ok = file:write_file(<<Cafe/binary, "/notes.txt">>, <<"buy milk">>),
+    Run = fun(Glob, Locale) ->
+                  sh("sh -c 'cd build/cwd/" ++ Glob ++ " && env LC_ALL=" ++ Locale ++ " "
+                     ++ filename:absname("../bin/ern") ++ " run "
+                     ++ filename:absname("build/cwd/here.erc") ++ "'")
+          end,
+    Here = <<(list_to_binary(filename:absname("build/cwd")))/binary, "/caf", 16#c3, 16#a9>>,
+    [?assertEqual({0, <<Here/binary, "\nSome(\"buy milk\")\n">>}, Run("caf*", Locale))
+     || Locale <- ["C.UTF-8", "C"]],
+    ?assertEqual({1, <<"ern: the working directory's name is not UTF-8\n">>}, Run("bad*", "C")).
+
+make_dir(Dir) ->
+    case file:make_dir(Dir) of
+        {error, eexist} -> ok;
+        Other -> Other
+    end.
+
 %% report §8.2, §8.6, §11.2: a run whose standard output has lost its
 %% reader ends at once, with status 141, as a shell reports a broken pipe,
 %% and the host says nothing of its own. A regression test, written after
