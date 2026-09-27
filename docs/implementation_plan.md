@@ -18,8 +18,9 @@ Actorson until 12 September 2026.
 ## Where we are
 
 **MVP 2.8, the formatter, is done** (2026-09-28): `ern format`, the Emacs mode indenting as it
-lays out, and a buffer laid out as it is saved. Next are MVP 2.7's last two items, what
-Ernest adds and the guide read for its order. The rest of MVP 2.7, a program started from
+lays out, and a buffer laid out as it is saved. Next is MVP 2.7's last item, the guide read
+for its order; what Ernest adds was decided on 2026-09-28, the list kept at four. The rest of
+MVP 2.7, a program started from
 a command line, is built: `Os`, the memory and atoms items, running as a service, the appendix
 of libraries and back pressure (2026-09-27). MVP 2.66, the standard library's `Supervisor`, is
 done (2026-09-27). MVP 2.65, the language and the toolchain read
@@ -49,7 +50,7 @@ so a decision they must see goes here.
 | MVP 2.61 | the guide as the user's document | done 2026-09-24, out of order |
 | MVP 2.65 | the language and the toolchain read back | done 2026-09-26 |
 | MVP 2.66 | the standard library's `Supervisor` | done 2026-09-27 |
-| **MVP 2.7** | **a program started from a command line, and the appendix of libraries** | **two items left, next** |
+| **MVP 2.7** | **a program started from a command line, and the appendix of libraries** | **one item left, the guide read for its order** |
 | MVP 2.8 | the formatter | done 2026-09-28, out of order |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | MVP 2.95 | the first release: manual pages, an installation, the review | after 2.7 |
@@ -663,12 +664,9 @@ would undo `Address.call` and the reply discipline. What is built instead:
 - **Guide §4 teaches pacing**: a call paces its caller, a window of credits paces a stream,
   and `Process.info(p).queued` shows a queue building.
 
-**What Ernest adds, discussed again.** Noted 2026-09-27, a decision for this milestone:
-whether the README's and the guide's list of what Ernest adds (held equal by a test) should
-name more than the four it names, deadlock detection first among the candidates (§8.6: a
-program in which nothing can progress ends with a fault that says so, rather than hanging),
-and what else of the language's rationale a first reader should meet there, each weighed by
-whether it is Ernest's own or where Ernest's parts meet, as the four are.
+**What Ernest adds, decided with the user on 2026-09-28:** the README's and the guide's list
+stays at four, and deadlock detection (§8.6) stays in the guide's §5.4, which states its
+limit (the log's *What Ernest Adds Stays at Four*).
 
 **The guide read for its order.** Noted 2026-09-27: the guide is a first user's way in, so
 its sections are read in order, as a newcomer reads them, for whether each concept is
