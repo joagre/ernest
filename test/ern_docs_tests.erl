@@ -6,7 +6,14 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-export([write_contents/0]).
+
 -define(ROOT, "..").
+
+%% The documents with a contents list, and the lines that bound it.
+-define(CONTENTS, ["ernest_report.md", "ernest_guide.md"]).
+-define(BEGIN, <<"<!-- contents -->">>).
+-define(END, <<"<!-- /contents -->">>).
 
 %% report §11, README "Building": `make xref`
 citations_resolve_test() ->
@@ -22,6 +29,71 @@ citations_resolve_test() ->
         ++ [{"ernest_guide.md", C} || C <- cites(Guide),
                                       not resolves(C, guide, ReportHeads, GuideHeads)],
     ?assertEqual([], Dangling).
+
+%% ernest_report.md, ernest_guide.md, README "Building": a document's
+%% contents list is its headings of levels two and three, each linked to
+%% its heading, which `make contents` writes
+contents_test() ->
+    [?assertEqual({F, contents(Bin)}, {F, listed(Bin)}) || F <- ?CONTENTS, Bin <- [read(F)]].
+
+%% Rewrite the contents list of every document that has one.
+-spec write_contents() -> ok.
+write_contents() ->
+    lists:foreach(fun(F) ->
+                      Bin = read(F),
+                      [Before, Rest] = binary:split(Bin, ?BEGIN),
+                      [_, After] = binary:split(Rest, ?END),
+                      ok = file:write_file(filename:join(?ROOT, F),
+                                           [Before, ?BEGIN, contents(Bin), ?END, After])
+                  end, ?CONTENTS).
+
+listed(Bin) ->
+    [_, Rest] = binary:split(Bin, ?BEGIN),
+    [List, _] = binary:split(Rest, ?END),
+    List.
+
+%% The list: a line per heading of level two, and one indented beneath it
+%% per heading of level three, each linked by the anchor a renderer gives it.
+contents(Bin) ->
+    Entries = [[lists:duplicate(2 * (Level - 2), $\s), "- [", Text, "](#", Anchor, ")\n"]
+               || {Level, Text, Anchor} <- anchored(heads(Bin)), Level =:= 2 orelse Level =:= 3],
+    iolist_to_binary(["\n", Entries]).
+
+%% Every heading outside a fenced block, with its level and its text.
+heads(Bin) ->
+    heads(binary:split(Bin, <<"\n">>, [global]), false, []).
+
+heads([], _, Acc) ->
+    lists:reverse(Acc);
+heads([<<"```", _/binary>> | Rest], Fenced, Acc) ->
+    heads(Rest, not Fenced, Acc);
+heads([L | Rest], false, Acc) ->
+    case re:run(L, "^(#{1,6}) +(.*?) *$", [{capture, all_but_first, binary}, unicode]) of
+        {match, [Hashes, Text]} -> heads(Rest, false, [{byte_size(Hashes), Text} | Acc]);
+        nomatch -> heads(Rest, false, Acc)
+    end;
+heads([_ | Rest], true, Acc) ->
+    heads(Rest, true, Acc).
+
+%% GitHub's anchors: lowercase, every character but a letter, a digit, an
+%% underscore, a space or a hyphen dropped, spaces as hyphens, and a second
+%% heading of the same anchor numbered `-1`, a third `-2`.
+anchored(Heads) ->
+    {Anchored, _} =
+        lists:mapfoldl(
+          fun({Level, Text}, Seen) ->
+              Lower = string:lowercase(Text),
+              Kept = re:replace(Lower, "[^\\p{L}\\p{M}\\p{N}_ \\-]", "",
+                                [global, unicode, ucp, {return, binary}]),
+              Base = binary:replace(Kept, <<" ">>, <<"-">>, [global]),
+              N = maps:get(Base, Seen, 0),
+              Anchor = case N of
+                           0 -> Base;
+                           _ -> <<Base/binary, "-", (integer_to_binary(N))/binary>>
+                       end,
+              {{Level, Text, Anchor}, Seen#{Base => N + 1}}
+          end, #{}, Heads),
+    Anchored.
 
 %% docs/style.md, README "Layout of the repository": a document that says
 %% where things are names things that are there. The report and the guide

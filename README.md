@@ -104,6 +104,7 @@ make sections     list the report sections no test cites
 make xref         check that every section citation and document path in the documents resolves
 make coverage     every section with how many tests cite it, thinnest first
 make golden       rewrite test/golden/, the Erlang the compiler emits per example
+make contents     rewrite the contents lists of the report and the guide from their headings
 make unicode UC_SPEC=dir
                   write Terminal.columns' table from Unicode's data in dir, OTP's
                   lib/stdlib/uc_spec of the host's version

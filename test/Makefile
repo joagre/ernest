@@ -55,6 +55,9 @@ xref: $(EBIN)/ern_docs_tests.beam
 	erl -noshell -pa $(EBIN) -eval \
 	  'halt(case eunit:test(ern_docs_tests, []) of ok -> 0; _ -> 1 end).'
 
+contents: $(EBIN)/ern_docs_tests.beam
+	erl -noshell -pa $(EBIN) -eval 'ern_docs_tests:write_contents(), halt().'
+
 clean:
 	rm -rf $(EBIN) build
 

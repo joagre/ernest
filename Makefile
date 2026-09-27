@@ -143,6 +143,11 @@ golden: all
 xref:
 	@$(MAKE) -s -C test xref
 
+# Rewrite the contents lists of the report and the guide from their headings;
+# a test in test/ fails while one differs.
+contents:
+	@$(MAKE) -s -C test contents
+
 # Report sections no test cites (every test function carries a `%% report §x.y` line).
 sections:
 	@grep -oE '^#{2,3} [0-9]+\.[0-9]+' ernest_report.md | sed 's/^#* //' | \
@@ -168,4 +173,4 @@ EMACS_CORPUS = ../stdlib/*.ern ../shell/*.ern ../shell/shell/*.ern ../examples/*
 		../examples/modules/*.ern ../examples/modules/*/*.ern ../test/*/*.ern ../libs/*/*.ern
 
 .PHONY: all libs test test-erl test-programs test-docs test-guide test-shell test-emacs \
-        $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref stdlib shell doc unicode
+        $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents stdlib shell doc unicode
