@@ -289,11 +289,11 @@ dot_names_passed_over_test() ->
 %% path check accepts, since the shell's `:load` completion asks for it
 %% rather than restating the rule; a regression test of the one owner
 segment_test() ->
-    ?assertEqual({ok, "Http"}, ern_cli:segment("http")),
-    ?assertEqual({ok, "V2"}, ern_cli:segment("v2")),
-    ?assertEqual(error, ern_cli:segment("Net")),
-    ?assertEqual(error, ern_cli:segment("9x")),
-    ?assertEqual(error, ern_cli:segment("http_server")),
+    ?assertEqual({ok, "Http"}, ern_build:segment("http")),
+    ?assertEqual({ok, "V2"}, ern_build:segment("v2")),
+    ?assertEqual(error, ern_build:segment("Net")),
+    ?assertEqual(error, ern_build:segment("9x")),
+    ?assertEqual(error, ern_build:segment("http_server")),
     ?assertEqual({'Some', <<"Http">>}, ern_shell:segment(<<"http">>)),
     ?assertEqual('None', ern_shell:segment(<<"Bad">>)).
 
@@ -785,11 +785,13 @@ recompile_rule_test() ->
 %% built it changed, so the modules hashed are every module of the toolchain
 %% that the compiling modules call. A regression test: six were left out,
 %% and a change to one of them, `ern_docs` among them, left every .erc
-%% current; `ern_cli` is hashed and its calls are not followed, since its
-%% other jobs call the runtime and the shell
+%% current. The build is a module of its own, `ern_build`, whose calls are
+%% followed too; `ern_cli`'s other jobs, which call the runtime and the
+%% shell, are not hashed, so a change to them recompiles nothing
 compiler_modules_closed_test() ->
-    Modules = ern_cli:compiler_modules(),
-    Called = lists:usort([C || M <- Modules -- [ern_cli], C <- calls(M)]),
+    Modules = ern_build:compiler_modules(),
+    ?assertNot(lists:member(ern_cli, Modules)),
+    Called = lists:usort([C || M <- Modules, C <- calls(M)]),
     ?assertEqual([], Called -- Modules).
 
 %% The modules of the toolchain that M calls, from its imports.

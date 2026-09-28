@@ -1,5 +1,5 @@
-%% Plan, MVP 1: the programs compiled with bin/ern build and run with bin/ern
-%% as a user would, output compared as a multiset of lines with
+%% Plan, MVP 1: the programs compiled in this node as `ern build` compiles
+%% them, and run with bin/ern as a user would, output compared as a multiset of lines with
 %% expected/<name>.out, since prints from different processes interleave
 %% by scheduling. Run from this directory by its Makefile.
 -module(ern_integration_tests).
@@ -8,7 +8,7 @@
 -include_lib("kernel/include/file.hrl").
 
 %% Report §11.1: an example compiled into test/build.
--define(BUILD, "../bin/ern build --source-root ../examples --build-root build ").
+-define(BUILD, "--source-root ../examples --build-root build ").
 
 -define(PROGRAMS, ["hello", "counter", "upgrade", "pingpong", "stack", "patterns",
                    "kvparser", "services"]).
@@ -22,7 +22,7 @@ programs_test_() ->
     {inparallel, [{Name, {timeout, 60, fun() -> program(Name) end}} || Name <- ?PROGRAMS]}.
 
 program(Name) ->
-    {0, _} = sh(?BUILD ++ "../examples/" ++ Name
+    0 = build(?BUILD ++ "../examples/" ++ Name
                 ++ ".ern"),
     {0, Out} = sh("../bin/ern run build/" ++ Name ++ ".erc"),
     ?assertEqual(expected(Name), unstamped(lines(Out))).
@@ -36,7 +36,7 @@ compiles_test_() ->
     {inparallel, [{Name, {timeout, 60, fun() -> compiles(Name) end}} || Name <- ?COMPILES]}.
 
 compiles(Name) ->
-    {0, _} = sh(?BUILD ++ "../examples/" ++ Name ++ ".ern"),
+    0 = build(?BUILD ++ "../examples/" ++ Name ++ ".ern"),
     ?assert(filelib:is_regular("build/" ++ Name ++ ".erc")).
 
 %% Paper program 4 (plan, MVP 2.5): the REPL reads stdin and ends at
@@ -48,7 +48,7 @@ repl_test_() ->
     {timeout, 60, fun repl/0}.
 
 repl() ->
-    {0, _} = sh(?BUILD ++ "../examples/repl.ern"),
+    0 = build(?BUILD ++ "../examples/repl.ern"),
     {0, Out} = sh("../bin/ern run build/repl.erc < input/repl.in"),
     ?assertEqual(expected("repl"), lines(Out)).
 
@@ -61,7 +61,7 @@ filesync_test_() ->
     {timeout, 60, fun filesync/0}.
 
 filesync() ->
-    {0, _} = sh(?BUILD ++ "../examples/filesync.ern"),
+    0 = build(?BUILD ++ "../examples/filesync.ern"),
     %% its own tests: a peer's path is stored only where it names a file in
     %% the directory, a regression test for findings S7, where a peer's
     %% `../x` was written outside it
@@ -137,7 +137,7 @@ hangup() ->
                          "    Io.println(\"running\");\n"
                          "    receive { after 60000 -> Io.println(\"late\") }\n"
                          "}\n"),
-    {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
     ?assertEqual({129, [<<"running">>]},
                  run_for(Dir, "../../../bin/ern run waits.erc", "grep -q running run.out",
                          "HUP")).
@@ -156,7 +156,7 @@ interrupt() ->
     ok = file:write_file(Dir ++ "/waits.ern",
                          "export fn main() : Unit with Never =\n"
                          "    receive { after 60000 -> Io.println(\"late\") }\n"),
-    {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
     Port = open_port({spawn_executable, "../bin/ern"},
                      [{args, ["run", Dir ++ "/waits.erc"]}, exit_status, stderr_to_stdout,
                       binary]),
@@ -174,7 +174,7 @@ webserver_test_() ->
     {timeout, 60, fun webserver/0}.
 
 webserver() ->
-    {0, _} = sh(?BUILD ++ "../examples/webserver.ern"),
+    0 = build(?BUILD ++ "../examples/webserver.ern"),
     Port = open_port({spawn, "../bin/ern run build/webserver.erc"},
                      [exit_status, stderr_to_stdout, binary]),
     {os_pid, Pid} = erlang:port_info(Port, os_pid),
@@ -236,7 +236,7 @@ manual_pages() ->
     Pages = ["../build/stdlib/Ernest." ++ string:titlecase(M) ++ ".3ern" || M <- Modules]
         ++ ["../build/stdlib/Ernest.Prelude.3ern"],
     ?assertEqual([], [P || P <- Pages, not filelib:is_regular(P)]),
-    {0, _} = sh("../bin/ern build --load-path ../build/libs/markdown --build-root build/tools "
+    0 = build("--load-path ../build/libs/markdown --build-root build/tools "
                 "../tools"),
     {0, Out} = sh("../bin/ern run --load-path ../build/libs/markdown build/tools/manual.erc "
                   "../ernest_report.md 9.9.9 ../build/stdlib"),
@@ -411,7 +411,7 @@ stdin_test_() ->
     {timeout, 60, fun stdin/0}.
 
 stdin() ->
-    [{0, _} = sh("../bin/ern build --source-root stdin --build-root build/stdin stdin/"
+    [0 = build("--source-root stdin --build-root build/stdin stdin/"
                  ++ P ++ ".ern") || P <- ["lines", "stream", "chunks"]],
     Run = fun(Input, Program) ->
                   sh("printf '" ++ Input ++ "' | LANG=C ../bin/ern run build/stdin/"
@@ -466,7 +466,7 @@ os() ->
                          "    Map.get(Os.environment, name)\n"
                          "export fn main() : Unit with Never =\n"
                          "    Io.println(Io.show(#(get(\"ERN_OK\"), get(\"ERN_BAD\"))))\n"),
-    {0, _} = sh("../bin/ern build --source-root build/os/src --build-root build/os build/os/src"),
+    0 = build("--source-root build/os/src --build-root build/os build/os/src"),
     lists:foreach(
       fun(Locale) ->
               Run = "env LC_ALL=" ++ Locale ++ " ../bin/ern run build/os/",
@@ -502,7 +502,7 @@ working_directory() ->
                          "      | Left(_) -> Io.println(\"no notes\")\n"
                          "    }\n"
                          "}\n"),
-    {0, _} = sh("../bin/ern build --source-root build/cwd/src --build-root build/cwd "
+    0 = build("--source-root build/cwd/src --build-root build/cwd "
                 "build/cwd/src"),
     Cafe = <<"build/cwd/caf", 16#c3, 16#a9>>,
     [ok = make_dir(D) || D <- [Cafe, <<"build/cwd/bad", 16#e9>>]],
@@ -542,7 +542,7 @@ stream_gone() ->
                          "    if n == 0 then Io.printlnError(\"finished\")\n"
                          "    else { Io.println(\"line\"); loop(n - 1) }\n"
                          "export fn main() : Unit with Never = loop(100000000)\n"),
-    {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/chatty.ern"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/chatty.ern"),
     {0, Out} = sh("sh -c '{ ../bin/ern run " ++ Dir ++ "/chatty.erc 2> " ++ Dir
                   ++ "/err; echo $? > " ++ Dir ++ "/status; } | head -1'"),
     ?assertEqual(<<"line\n">>, Out),
@@ -568,7 +568,7 @@ paced_output() ->
                          "    else { Io.println(\"a line of output a slow reader takes late\");\n"
                          "        loop(n - 1) }\n"
                          "export fn main() : Unit with Never = loop(2000000)\n"),
-    {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/flood.ern"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/flood.ern"),
     Reader = "{ sleep 4; head -c 1 > /dev/null; }",
     {0, Out} = sh("sh -c '../bin/ern run " ++ Dir ++ "/flood.erc | " ++ Reader ++ " & "
                   "sleep 3; ps -eo rss,comm,args | grep \"beam.smp.*[f]lood.erc\" | head -1; "
@@ -639,7 +639,7 @@ fault_line_escaped() ->
     ok = file:write_file(Dir ++ "/forged.ern",
                          "export fn main() : Unit with Never =\n"
                          "    fault(\"a\\u{1b}[31m\\nX.main faulted: forged\")\n"),
-    {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/forged.ern"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/forged.ern"),
     Err = Dir ++ "/err",
     {1, _} = sh("../bin/ern run " ++ Dir ++ "/forged.erc 2> " ++ Err),
     {ok, Text} = file:read_file(Err),
@@ -663,7 +663,7 @@ stamped() ->
                          "    let _ = 1 / z;\n"
                          "    Unit\n"
                          "}\n"),
-    {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/faulty.ern"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/faulty.ern"),
     Err = Dir ++ "/err",
     {1, _} = sh("../bin/ern run " ++ Dir ++ "/faulty.erc 2> " ++ Err),
     {ok, Stamped} = file:read_file(Err),
@@ -695,7 +695,7 @@ signal_end() ->
                          "    Io.println(\"running\");\n"
                          "    receive { after 60000 -> Io.println(\"late\") }\n"
                          "}\n"),
-    {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
     Python = "import subprocess, signal\n"
              "for s in (signal.SIGTERM, signal.SIGHUP):\n"
              "    p = subprocess.Popen(['../bin/ern', 'run', '" ++ Dir ++ "/waits.erc'],\n"
@@ -772,6 +772,13 @@ lines(Bin) ->
 unstamped(Lines) ->
     lists:sort([re:replace(L, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z ", "", [{return, binary}])
                 || L <- Lines]).
+
+%% A build in this node, as `ern build` does it: a launch of `ern` costs
+%% the start of a host, which the builds here, which only ready what a test
+%% runs through the launcher, need not pay. The launcher's own build is
+%% tested where it is the point, a word it refuses and a directory's build.
+build(Args) ->
+    ern_cli:ern(["build" | string:lexemes(Args, " ")], group_leader()).
 
 sh(Cmd) ->
     sh(Cmd, []).

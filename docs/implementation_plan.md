@@ -103,9 +103,10 @@ discussed with the user one at a time as they are met.
    alternative breaking after the `=` as several do, but where a doc block opens its bracket.
 5. **Three changes that take work from `make test`**: the shell's tests waiting for the prompt
    or a program's output, not a fixed time; `ern_cli`'s build in a module of its own, so that
-   the compiler's hash leaves out its other jobs and a change to them recompiles nothing; and
-   the programs area's builds in the test's node, where a launch of `ern` costs 0.6 seconds a
-   build and the node 0.08.
+   the compiler's hash leaves out its other jobs and a change to them recompiles nothing, done
+   2026-09-29 as `ern_build`; and the programs area's builds in the test's node, where a
+   launch of `ern` costs 0.6 seconds a build and the node 0.08, done 2026-09-29, the area 23
+   seconds to 20 and `make test` 93 to 90.
 
 ---
 

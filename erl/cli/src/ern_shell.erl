@@ -652,7 +652,7 @@ source_root() ->
 %% no module.
 -spec segment(binary()) -> 'None' | {'Some', binary()}.
 segment(Name) ->
-    case ern_cli:segment(unicode:characters_to_list(Name)) of
+    case ern_build:segment(unicode:characters_to_list(Name)) of
         {ok, Segment} -> {'Some', unicode:characters_to_binary(Segment)};
         error -> 'None'
     end.
@@ -1544,7 +1544,7 @@ install(#env{ifaces = Ifaces, modules = Modules} = Env, Ns, Beam, Hash) ->
             beams = maps:put(Ns, Beam, Env#env.beams)}.
 
 compile_source(#env{source_root = Root} = Env, File) ->
-    case ern_cli:compile_source(File, Root, load_path(Env)) of
+    case ern_build:compile_source(File, Root, load_path(Env)) of
         {ok, Ns, Beam, Hash} ->
             {ok, Ns, Beam, Hash};
         {refused, Text} ->
@@ -1562,14 +1562,14 @@ load_path(#env{roots = Roots, source_root = Root}) ->
     lists:uniq(Roots ++ [filename:absname(Root)]).
 
 source_of(#env{source_root = Root}, Ns) ->
-    File = filename:join(Root, ern_cli:module_path(Ns) ++ ".ern"),
+    File = filename:join(Root, ern_build:module_path(Ns) ++ ".ern"),
     case filelib:is_regular(File) of
         true -> {ok, File};
         false -> none
     end.
 
 compiled_of(Env, Ns) ->
-    Rel = ern_cli:module_path(Ns) ++ ".erc",
+    Rel = ern_build:module_path(Ns) ++ ".erc",
     case [F || R <- load_path(Env), F <- [filename:join(R, Rel)], filelib:is_regular(F)] of
         [File | _] ->
             {ok, Bin} = file:read_file(File),
