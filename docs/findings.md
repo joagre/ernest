@@ -163,6 +163,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - cheap — the shell collects in the input's own process (C36)
 - 3.0 — hardening: unchecked casts through `Foreign`, `Erl.atom` on received text, `stty` from `PATH`, the host's flags from the environment, a relative `HOME`, unbounded reads, the key in the working tree, a dangling `--config-dir` (S-H)
 - 3.0 — the history decoder is quadratic (S11)
+- 3.0 — `code_distribution.md` 10.2 drains and restarts a node when its atoms near the limit, which CLAUDE.md's rule on memory nothing reclaims (fixed at its cause, never by a cap) questions; decided with MVP 3.1's hash modules (the notes' rewrite)
 
 ## The standard library, the libraries, the examples
 
