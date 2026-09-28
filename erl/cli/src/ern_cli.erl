@@ -73,9 +73,10 @@ dispatch(["--version"], _Err) ->
     io:format("ern ~s~n", [?VERSION]),
     0;
 dispatch([Word | Args], Err) ->
-    case lists:keyfind(Word, 1, jobs()) of
-        {Word, Spec, Positional, Fun} -> job(Word, Spec, Positional, Args, Fun, Err);
-        false -> refuse(no_job(Word), Err)
+    case {is_utf8(Word), lists:keyfind(Word, 1, jobs())} of
+        {false, _} -> refuse(not_utf8(Word), Err);
+        {true, {Word, Spec, Positional, Fun}} -> job(Word, Spec, Positional, Args, Fun, Err);
+        {true, false} -> refuse(no_job(Word), Err)
     end;
 dispatch([], Err) ->
     refuse("a job is required", Err).
@@ -132,6 +133,7 @@ job(Job, Spec, Positional, Args, Fun, Err) ->
                          _ -> {Args, []}
                      end,
     try
+        lists:foreach(fun(A) -> is_utf8(A) orelse fail(not_utf8(A)) end, Own),
         lists:foreach(fun(A) ->
                           case old_option(A) of
                               none -> ok;
@@ -155,6 +157,25 @@ job(Job, Spec, Positional, Args, Fun, Err) ->
         throw:{cli_error, Msg3} ->
             io:format(Err, "~s: ~ts~n", [Name, Msg3]),
             1
+    end.
+
+%% Report §11: a word of the command line that is not UTF-8 is refused,
+%% each byte past ASCII written as §11.1 writes a name's.
+is_utf8(Word) ->
+    is_binary(unicode:characters_to_binary(word_bytes(Word), utf8, utf8)).
+
+not_utf8(Word) ->
+    "a word that is not UTF-8: " ++ bytes_text(word_bytes(Word)).
+
+%% A word's bytes. Where the host's names are UTF-8 it gives a word
+%% decoded, and one that is not as the part it decoded and the bytes from
+%% the first it could not; where they are not, it gives a word's bytes.
+word_bytes({_, Decoded, Bytes}) ->
+    <<(unicode:characters_to_binary(Decoded))/binary, Bytes/binary>>;
+word_bytes(Word) ->
+    case file:native_name_encoding() of
+        utf8 -> unicode:characters_to_binary(Word);
+        latin1 -> list_to_binary(Word)
     end.
 
 %% Report §11.2: the words after `ern run`'s file are the program's,
@@ -967,20 +988,12 @@ run(_Opts, [], _Err) ->
 
 %% Report §11.2, Appendix E.23: the program's arguments, Os.arguments, as
 %% UTF-8 text, one that is not UTF-8 refused by its position before
-%% anything runs. Where the host's names are UTF-8 it gives an argument
-%% decoded, and one that is not as a tuple; where they are not, it gives
-%% an argument's bytes.
+%% anything runs.
 program_arguments([], _N) ->
     [];
 program_arguments([Word | Words], N) ->
-    Bytes = case file:native_name_encoding() of
-                utf8 when is_list(Word) -> unicode:characters_to_binary(Word);
-                latin1 -> list_to_binary(Word);
-                utf8 -> not_utf8
-            end,
-    is_binary(Bytes) andalso is_binary(unicode:characters_to_binary(Bytes, utf8, utf8))
-        orelse fail(io_lib:format("argument ~B is not UTF-8", [N])),
-    [Bytes | program_arguments(Words, N + 1)].
+    is_utf8(Word) orelse fail(io_lib:format("argument ~B is not UTF-8", [N])),
+    [word_bytes(Word) | program_arguments(Words, N + 1)].
 
 test(Opts, [File], Err) ->
     quiet_signals(),

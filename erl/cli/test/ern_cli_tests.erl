@@ -121,6 +121,23 @@ name_not_utf8_test() ->
     ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
                                       <<"src/n\\xFFme.ern">>)).
 
+%% report §11: a word of the command line that is not UTF-8, as the host
+%% gives one, is refused before the job begins, each byte past ASCII
+%% written `\xHH`. A regression test: every job ended with an internal
+%% error and status 70
+word_not_utf8_test() ->
+    Word = {error, "n", <<16#FF, "me.ern">>},
+    ?assertEqual(1, ern_err([Word])),
+    ?assertMatch({0, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"ern: a word that is not UTF-8: n\\xFFme.ern\n">>)),
+    lists:foreach(fun(Job) ->
+                          ?assertEqual(1, ern_err([Job, Word])),
+                          Line = iolist_to_binary(["ern ", Job,
+                                                   ": a word that is not UTF-8: n\\xFFme.ern\n"]),
+                          ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(
+                                                              ?capturedOutput), Line))
+                  end, ["build", "doc", "format", "run", "test", "shell", "config"]).
+
 %% report §11: a file its owner may not write is refused, and nothing is
 %% left beside it; so is one in a directory that cannot be written. A
 %% regression test: `ern format` of a read-only file failed with status 70

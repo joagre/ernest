@@ -26,7 +26,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — `emacs_mode.md` says Emacs 29 or later, and only Emacs 31.1 runs the mode's tests here: say what is tested, or run them on 29 (the documents' rewrite): 2026-09-28, the note says what is tested and what is expected
 - done — `String`'s searches match inside a grapheme: `split` and `replace` lose text (E.5) (E1): fixed 2026-09-28, a match only between the string's grapheme boundaries; `lines` ends a line at CR LF; the log's *A Search Begins Where a Grapheme Does*
 - tag — `ern format` rewrites a `.txt` and paths `ern build` refuses (T11)
-- tag — a command-line word that is not UTF-8 crashes every job (C13)
+- done — a command-line word that is not UTF-8 crashes every job (C13): fixed 2026-09-28, refused before the job begins and named as §11.1 names a file (§11)
 - tag — the shell's `.` completion crashes on a field of two types (C15)
 - tag — `ern format`: a raw string loses spaces in a doc example; trailing spaces of a doc line dropped; a trailing doc comment crashes; a `type` with a trailing comment; a blank line after a comment; a fence that does not parse re-indented (C11, C16, C17, C24..C26)
 - tag — a faulting `mk` of a call under `restarting` leaves the row, monitor and alias (C7)

@@ -439,7 +439,8 @@ stdin() ->
 
 %% report §11.2, Appendix E.23, E.17: as the host gives them, under a UTF-8
 %% locale and under C, whose names the host takes as bytes: `ern run`
-%% refuses an argument that is not UTF-8 by its position, the environment
+%% refuses an argument that is not UTF-8 by its position, and a job one of
+%% its own words that is not UTF-8 by its text (§11), the environment
 %% leaves out a value that is not UTF-8, and ern run exits with the status
 %% Os.exit gives. A regression test, written after the code; where the host
 %% has no C.UTF-8 locale both runs read bytes, and a name the environment
@@ -467,6 +468,9 @@ os() ->
               ?assertEqual({2, <<"[\"a b\", \"--x\"]\n">>}, sh(Run ++ "args.erc 'a b' --x")),
               ?assertEqual({1, <<"ern run: argument 2 is not UTF-8\n">>},
                            sh(Run ++ "args.erc ok \"$(printf '\\377')\"")),
+              ?assertEqual({1, <<"ern build: a word that is not UTF-8: n\\xFFme.ern\n">>},
+                           sh("env LC_ALL=" ++ Locale
+                              ++ " ../bin/ern build \"$(printf 'n\\377me.ern')\"")),
               ?assertEqual({0, <<"#(Some(\"caf", 16#e9/utf8, "\"), None)\n">>},
                            sh("env ERN_OK=\"$(printf 'caf\\303\\251')\" "
                               "ERN_BAD=\"$(printf 'caf\\351')\" " ++ Run ++ "env.erc"))
