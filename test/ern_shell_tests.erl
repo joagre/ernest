@@ -1709,7 +1709,7 @@ load_loaded() ->
 %% dependency order. A regression test: it took them in the order of their
 %% names, so a module read the value its dependency's previous version gave.
 %% B is compiled on the load path, since a module `:load` loaded cannot yet
-%% be another's dependency (findings T12, MVP 3.0)
+%% be another's dependency (findings T12, MVP 2.98)
 reload_in_dependency_order_test_() ->
     {timeout, 60, fun reload_in_dependency_order/0}.
 
