@@ -195,7 +195,7 @@ live_region() ->
                      {send, hex("1 + 1\r")},
                      {expect, "2 : Int"},
                      {send, hex(Print)},
-                     {sleep, 800},
+                     {expect, "line 12"},
                      {send, hex("2 + 2\r")},
                      {expect, "4 : Int"},
                      {send, "04"}],
@@ -275,7 +275,7 @@ clear() ->
                      {send, hex("7 + 7")},
                      {expect, "7 + 7"},
                      {send, "0c"},                      % C-l
-                     {sleep, 500},
+                     {expect, "7 + 7"},                 % the line painted again
                      {send, hex("\r")},
                      {expect, "14 : Int"},
                      {send, "04"}],
@@ -362,11 +362,11 @@ multiline() ->
                      {send, hex("    + 0\r")},
                      {expect, "42 : Int"},
                      {send, hex("fn f(\r")},              % cannot parse, and unfinished
-                     {sleep, 300},
+                     {expect, "... "},
                      {send, hex("\r")},                   % the blank line runs it
                      {expect, "expected a pattern"},
                      {send, "1b5b41"},                    % ArrowUp: the input back, whole
-                     {sleep, 400},
+                     {expect, "fn f("},
                      %% C-d leaves only on an empty line: C-c cancels the
                      %% input brought back, so the session ends rather than
                      %% waiting out the harness's timeout
@@ -405,7 +405,7 @@ paste() ->
                      {expect, "... 2"},
                      {send, hex("\r")},
                      {expect, "3 : Int"},
-                     {sleep, 300},
+                     {expect, "> "},
                      {send, "04"}],
                     30, "12x40"),
     Lines = [L || L <- binary:split(Screen, <<"\n">>, [global]), L =/= <<>>],
@@ -428,9 +428,9 @@ tabs() ->
                  [{expect, "> "},
                   %% \e[200~ a <TAB> b \e[201~, which no key could send
                   {send, "1b5b3230307e" ++ hex("a\tb") ++ "1b5b3230317e"},
-                  {sleep, 500},
+                  {expect, "a     b"},
                   {send, "03"},                       % abandon the line
-                  {sleep, 300},
+                  {expect, "> "},
                   {send, "04"}],
                  30),
     %% "> " is two columns and "a" a third, so the tab paints five spaces
@@ -455,9 +455,8 @@ completion() ->
              {expect, "> List.filter"},
              {send, "09"},                            % Tab again: the listing
              {expect, "List.filterMap :"},
-             {sleep, 300},
              {send, "03"},                            % the next key
-             {sleep, 200},
+             {expect, "> "},
              {send, "04"}],
     Screen = screen(alone("../bin/ern shell"), Steps, 30, "16x74"),
     Lines = [L || L <- binary:split(Screen, <<"\n">>, [global]), L =/= <<>>],
@@ -487,13 +486,11 @@ field_of_two_types() ->
              {send, hex("let t = A(x = 1, n = 2)\r")},
              {expect, "t : T"},
              {send, hex("t.") ++ "09" ++ "09"},
-             {sleep, 500},
+             {expect, "t.n"},
              {send, "15"},
              {send, hex("40 + 2\r")},
              {expect, "42 : Int"},
-             {sleep, 300},
-             {send, "03"},
-             {sleep, 200},
+             {expect, "> "},
              {send, "04"}],
     Bytes = pty(alone("../bin/ern shell"), Steps, 30, " --size 16x74"),
     ?assertMatch({_, _}, binary:match(Bytes, <<"t.n">>)),
@@ -521,9 +518,8 @@ field_completion() ->
              {expect, "\"a\" : String"},
              {send, hex("q.p.") ++ "09" ++ "09"},      % Tab twice: the listing
              {expect, "q.p.count : Int"},
-             {sleep, 300},
              {send, "03"},
-             {sleep, 200},
+             {expect, "> "},
              {send, "04"}],
     Bytes = pty(alone("../bin/ern shell"), Steps, 30, " --size 16x74"),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\"a\" : String">>)),
@@ -656,7 +652,10 @@ command_argument() ->
                  {send, hex("Http.") ++ "09"},
                  {expect, "Http.Parser"},
                  {send, "03"},
-                 {send, hex(":output ") ++ "09"},
+                 {send, hex(":output ") ++ "09"},          % lists nothing, indents nothing
+                 %% nothing marks that the Tab did nothing, and the screen paints
+                 %% only its latest state, so a wrong indent would go unseen if
+                 %% the next key came at once; the wait is the harness's to make
                  {sleep, 300},
                  {send, "03"},
                  {send, "04"}],
@@ -796,6 +795,7 @@ review_completion() ->
                  {send, hex(":bindings\r")},
                  {expect, "type Point"},                   % `:forget` has been taken
                  {send, hex("zz") ++ "09"},
+                 %% nothing marks that the Tab offered nothing, as with :output
                  {sleep, 400},
                  {send, "03"},
                  {send, hex("1 + In") ++ "09"},
@@ -1055,10 +1055,11 @@ context() ->
     Screen = screen(alone("../bin/ern shell"),
                     [{expect, "> "},
                      {send, hex("type Zebra = Zebra(width : Int, height : Int)\r")},
-                     %% the echo of a declaration holds its own name, so
-                     %% no text marks that it has run; this is one of the
-                     %% moments the harness has to wait out
-                     {sleep, 1500},
+                     %% the echo of a declaration holds its own name, so an
+                     %% input after it marks that it has run, the session
+                     %% taking its inputs in order
+                     {send, hex("0\r")},
+                     {expect, "0 : Int"},
                      {send, hex("let z : Ze") ++ "09"},          % a type position
                      {expect, "let z : Zebra"},
                      {send, hex(" = Zebra(w") ++ "09"},          % a field position
@@ -1067,7 +1068,7 @@ context() ->
                      {expect, "height"},
                      {send, hex(" = 2)\r")},
                      {expect, "z : Zebra"},
-                     {sleep, 300},
+                     {expect, "> "},
                      {send, "04"}],
                     30, "16x70"),
     Lines = [L || L <- binary:split(Screen, <<"\n">>, [global]), L =/= <<>>],

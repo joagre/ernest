@@ -101,8 +101,10 @@ discussed with the user one at a time as they are met.
    breaks inside its parameters, `SetOps(s,` and `a)`, where `style.md`'s rule for a type
    breaks after its `=`, as the guide's §7.3 shows (found 2026-09-29); done 2026-09-29, one
    alternative breaking after the `=` as several do, but where a doc block opens its bracket.
-5. **Three changes that take work from `make test`**: the shell's tests waiting for the prompt
-   or a program's output, not a fixed time; `ern_cli`'s build in a module of its own, so that
+5. **Three changes that take work from `make test`**, done 2026-09-29: the shell's tests waiting
+   for the prompt or a program's output, not a fixed time, 17 of 21 sleeps now text a test
+   waits for and the four left moments no text marks, a game's ticks, a late paste end, and
+   two Tabs that must do nothing, with no gain in time, the area being bound by its CPU; `ern_cli`'s build in a module of its own, so that
    the compiler's hash leaves out its other jobs and a change to them recompiles nothing, done
    2026-09-29 as `ern_build`; and the programs area's builds in the test's node, where a
    launch of `ern` costs 0.6 seconds a build and the node 0.08, done 2026-09-29, the area 23
