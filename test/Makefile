@@ -86,6 +86,13 @@ load: $(EBIN)/ern_load.beam prepare
 	  || status=1; \
 	cat build/load/shell.txt; exit $$status
 
+# The front end given garbled sources and the shell garbled sessions, as
+# docs/coherence.md C22 says; not part of `test`, and run before every
+# release.
+garbled: $(EBIN)/ern_garbled.beam $(EBIN)/ern_guide_tests.beam
+	@erl -noinput -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) \
+	  -eval 'ern_garbled:main()'
+
 clean:
 	rm -rf $(EBIN) build
 
@@ -95,4 +102,4 @@ $(EBIN)/%.beam: %.erl | $(EBIN)
 $(EBIN):
 	mkdir -p $(EBIN)
 
-.PHONY: test programs docs guide shell prepare xref load clean
+.PHONY: test programs docs guide shell prepare xref load garbled clean

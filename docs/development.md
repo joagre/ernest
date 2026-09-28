@@ -78,6 +78,9 @@ make test-guide   the guide's examples, the report's, and the catalogue of diagn
 make test-shell   the shell's sessions and the terminal
 make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
 make load         the loads of docs/memory.md, which a release runs; not part of make test
+make garbled      every example and module of stdlib/ garbled at each token, given to
+                  ern build, and the shell's sessions garbled, given to the shell; a
+                  release runs it, and it is not part of make test
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md
 make man          the manual pages alone, which make writes: each module's beside it,

@@ -129,7 +129,7 @@ Ten kinds, all run by `make test`:
 
 `make test` runs every kind; each area has a target of its own, `test-erl`, `test-programs`, `test-docs`, `test-guide`, `test-shell`, and `test-emacs`, which `docs/coherence.md` maps to the changes that need them. The applications' unit tests run side by side under `make -j`; the guide test compiles and runs a module's example in its own node through `ern_cli:ern/2`, and runs a shell session, a program given standard input, or a rejected example in a node of its own, those in parallel; the integration programs run in parallel.
 
-Outside `make test`, `make load` runs the loads of `docs/memory.md`: `test/ern_load.erl` runs each program under `test/load/`, and the shell under a session it writes, through `ern_cli:ern/2` in a node of its own, and each load's `foreign fn mark` samples the node after a round.
+Outside `make test`, `make load` runs the loads of `docs/memory.md`: `test/ern_load.erl` runs each program under `test/load/`, and the shell under a session it writes, through `ern_cli:ern/2` in a node of its own, and each load's `foreign fn mark` samples the node after a round. `make garbled` runs `test/ern_garbled.erl`, which builds every garbling of every example and module of the standard library through `ern_cli:ern/2`, in one node and a process for each, in a copy of the sources whose `erl/` is a link to the toolchain, so that the standard library is built where it may take its namespaces; and which gives each shell session, garbled, to `ern shell`.
 
 ## Where MVP 2.5 and later hook in
 
