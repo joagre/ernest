@@ -57,7 +57,8 @@ second is rewritten around a contract `SetOps(s, a)` holding the operations of t
 `max`. It follows MVP 2.96.
 
 1. **The contract waits on a decision**, discussed with the user first (language feedback
-   64): whether a field may be polymorphic in a variable its type does not take, as
+   64), over the alternatives [`contract.md`](contract.md) lays side by side, measured by what
+   the user of `Set` and an ordered set sees: whether a field may be polymorphic in a variable its type does not take, as
    `foldLeft`'s accumulator and `any`'s effect are. Without it the contract cannot hold nine
    of `Set`'s twenty functions, and the section does not go around that. The suggestion,
    against type classes: polymorphic record fields, as OCaml has them. A field quantifies the
@@ -94,7 +95,10 @@ What the review of MVP 2.95 found and did not fix there, decided 2026-09-28 and 
    `create`, a new file or none; `removeAll`; `setModified`; and, decided with the user, a file
    read and written in parts, which a file too large to hold whole needs. An entry's kind and
    its links were built in MVP 2.95.
-4. **Three changes that take work from `make test`**: the shell's tests waiting for the prompt
+4. **The formatter's one-constructor type**: a type of one constructor too long for its line
+   breaks inside its parameters, `SetOps(s,` and `a)`, where `style.md`'s rule for a type
+   breaks after its `=`, as the guide's §7.3 shows (found 2026-09-29).
+5. **Three changes that take work from `make test`**: the shell's tests waiting for the prompt
    or a program's output, not a fixed time; `ern_cli`'s build in a module of its own, so that
    the compiler's hash leaves out its other jobs and a change to them recompiles nothing; and
    the programs area's builds in the test's node, where a launch of `ern` costs 0.6 seconds a
