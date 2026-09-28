@@ -1356,7 +1356,7 @@ errors_are_collected_test() ->
     ?assertEqual(["unknown name a", "unknown name b"],
                  errs("fn f() = a\nfn g() = b")).
 
-%% report plan 1.2
+%% report §3.9, §11.1: every expression of the checked AST carries its type
 typed_ast_test() ->
     {ok, [#fn_decl{body = #e_binop{type = T, left = #e_var{type = LT}}}], _, _} =
         check("fn double(n : Int) = n * 2"),

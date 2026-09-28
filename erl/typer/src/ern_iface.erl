@@ -52,7 +52,7 @@ hash(Iface) ->
     crypto:hash(sha256, term_to_binary(canonical(Iface, strip))).
 
 %% Quantified variables renumbered and maps as sorted lists, so that equal
-%% interfaces have equal bytes (plan 2.4). The hash leaves the variables'
+%% interfaces have equal bytes (report §11.1). The hash leaves the variables'
 %% names out: a renamed annotation changes no dependent.
 canonical(#iface{namespace = Ns, types = Ts, values = Vs, lets = Lets}, Names) ->
     {iface, Ns, lists:sort(maps:to_list(Ts)),

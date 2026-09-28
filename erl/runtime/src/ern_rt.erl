@@ -11,9 +11,9 @@
 %% first answer, and unalias after a timeout drops late ones (report §6.6).
 %% Every process body runs under run/1, which turns an exception into an
 %% exit reason that Down reports as a Fault. All spawns go through the
-%% reaper process, which spawn_monitors each process and records how it
-%% ended, so a monitor placed after the death still reports the cause
-%% (report §6.9); every monitor is the reaper's. The reaper also detects
+%% reaper process, which spawn_monitors each process; a monitor placed
+%% after the death reports Unknown (report §6.9), and every monitor is the
+%% reaper's. The reaper also detects
 %% Deadlock (report §8.6): every live process blocked in an untimed
 %% receive, no timed receive or clock alarm pending, no process inside
 %% foreign code. The process table holds a row {Pid, Site, State, Timers,

@@ -9,8 +9,7 @@
 # input of its own (-noinput), so that standard input is the runtime's
 # alone (report §8.2), and -noinput comes after -noshell, since the host
 # takes the last of the two; its break handler is off (+B), so that the
-# interrupt ends it (report §8.6); it reads no ~/.erlang; and it names its
-# program ern, which a tool that measures the toolchain reads.
+# interrupt ends it (report §8.6); and it reads no ~/.erlang.
 
 self=$0
 while [ -L "$self" ]; do

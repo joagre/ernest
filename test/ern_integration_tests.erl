@@ -270,7 +270,7 @@ rendered(Pages) ->
                                         R =/= {0, <<>>}])
     end.
 
-%% docs/install.md, docs/review.md R5: make install writes the tree under a
+%% docs/install.md: make install writes the tree under a
 %% prefix, bin/ern a relative link to its launcher; the prefix moved to
 %% another place runs there, `ern`, the shell, a program that runs another
 %% through the helper, and `ern doc --man`, and `man` finds ern(1), a
@@ -601,8 +601,7 @@ stamped() ->
 %% signal's number, which a shell reads the same and a service manager as a
 %% failure. Each signal is sent once the program has said it runs, since a
 %% signal that comes as the host itself starts is dropped (plan, Standing
-%% gaps); sent two seconds after the start, it came then under load
-%% (docs/review.md R2).
+%% gaps); sent two seconds after the start, it came then under load.
 signal_end_test_() ->
     {timeout, 60, fun signal_end/0}.
 

@@ -58,7 +58,7 @@ without_last_statement(L) when is_list(L) ->
 without_last_statement(X) ->
     X.
 
-%% The launcher's job (report §8.5, plan 2.4): top-level lets before main.
+%% The launcher's job (report §8.5): top-level lets before main.
 init(Mod) ->
     case erlang:function_exported(Mod, '$init', 0) of
         true -> Mod:'$init'();
@@ -133,11 +133,11 @@ rename(Node, {Map, N} = St) ->
 %% Golden tests: the emitter reproduces the hand-written targets
 %%
 
-%% report §8.1, §8.4, Appendix B; plan 2.1
+%% report §8.1, §8.4, Appendix B
 hello_golden_test() ->
     ?assertEqual(target_forms("hello.erl"), example_forms("hello")).
 
-%% report §6.2, §6.3, §6.6, §8.4, Appendix B; plan 2.1
+%% report §6.2, §6.3, §6.6, §8.4, Appendix B
 counter_golden_test() ->
     ?assertEqual(target_forms("counter.erl"), example_forms("counter")).
 
@@ -219,7 +219,7 @@ golden_source(Name) ->
 emitted(Ns, Typed, Env) ->
     unicode:characters_to_binary(ern_emitter:erl_source(Ns, Typed, Env)).
 
-%% report §11.1, plan 2: the emitted source of every example is what the
+%% report §11.1: the emitted source of every example is what the
 %% golden file holds; a difference is written beside it as .new
 golden_test_() ->
     [{Name, fun() ->
@@ -249,7 +249,7 @@ write_golden() ->
 %% The MVP 1 examples run and print what their headers promise
 %%
 
-%% report Appendix B; plan 2, step 6
+%% report Appendix B
 examples_test_() ->
     Expected = [{"hello", <<"hello, world\n">>},
                 {"counter", <<"count is 8\n">>},
@@ -298,7 +298,7 @@ docs_chunk_test() ->
     {ok, Read} = ern_iface:read(Beam),
     ?assertEqual(false, is_map_key(source, Read)).
 
-%% report §11.1, plan 2.4: the interface travels in the BEAM chunk ErnI
+%% report §11.1: the interface travels in the BEAM chunk ErnI
 %% with the source hash and the dependencies' interface hashes, and its
 %% hash does not depend on the numbering of type variables
 iface_chunk_test() ->
@@ -337,7 +337,7 @@ erl_source_test() ->
     Src = unicode:characters_to_binary(ern_emitter:erl_source(Ns, Typed, Env)),
     ?assertMatch({_, _}, binary:match(Src, <<"-module(ern@hello).">>)).
 
-%% plan 2.4: the module atom is ern@ and the path with @ for /
+%% report §4.2: the module atom is ern@ and the path with @ for /
 module_atom_test() ->
     ?assertEqual('ern@counter', ern_emitter:module_atom(['Counter'])),
     ?assertEqual('ern@net@http', ern_emitter:module_atom(['Net', 'Http'])).
@@ -1252,7 +1252,7 @@ tell(Pids) -> [P ! {'Go', 2} || P <- Pids], 'Unit'.
 junk_server() ->
     spawn(fun() -> receive {'Ask', Ref} -> Ref ! {Ref, <<"x">>} end end).
 
-%% report §4.5, plan 2.4: an Ernest function named like an auto-imported
+%% report §4.5: an Ernest function named like an auto-imported
 %% Erlang BIF, `size`, `max`, is called by its own name
 bif_names_test() ->
     {ok, Out} = run(
@@ -1717,7 +1717,7 @@ system_reference_in_let_test() ->
                     "export fn main() -> Unit with Never = Io.println(\"from main\")\n"),
     ?assertEqual(<<"from a let\nfrom main\n">>, Out).
 
-%% report §9, Appendix E; plan 2.1 table two: every prelude value the
+%% report §9, Appendix E: every prelude value the
 %% checker knows is emitted as a call to a function that exists, with the
 %% arity of its type, so no accepted name can reach the runtime as undef
 prelude_targets_test() ->
@@ -2038,7 +2038,6 @@ parent_restarts_subtree_test() ->
 %% not begun when its sibling faults is not asked, and starts fresh, and
 %% how soon either happens is the host's. Sent at once, with a wait of
 %% 100 ms, the fault came first under the host's modified timing
-%% (docs/review.md R2)
 restart_reaches_the_outer_function_test() ->
     {ok, Out} = run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"

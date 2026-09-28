@@ -2,24 +2,24 @@
 
 For those who work on the language and its toolchain: where things are, how to build and test them, and what the toolchain does not do yet. A reader who wants to learn Ernest starts with the [guide](../ernest_guide.md) instead.
 
-The report, [`ernest_report.md`](../ernest_report.md), is the one normative document; everything else defers to it. How work proceeds, and which document owns which fact, is in [`CLAUDE.md`](../CLAUDE.md).
+The report, [`ernest_report.md`](../ernest_report.md), is the one normative document. How work proceeds, and which document owns which fact, is in [`CLAUDE.md`](../CLAUDE.md).
 
 ## The documents
 
-- **[`implementation_plan.md`](implementation_plan.md)**: where the project stands, what is done, and what comes next.
-- **[`decisions.md`](decisions.md)**: dated design decisions and their rationale, what was tried and rejected. Not normative.
+- **[`implementation_plan.md`](implementation_plan.md)**: where the project stands and what comes next.
+- **[`decisions.md`](decisions.md)**: the dated rationale for the report and the plan, and what was rejected. Not normative.
 - **[`architecture.md`](architecture.md)**: how the toolchain is built, from the lexer to the runtime, and what each test runs.
 - **[`memory.md`](memory.md)**: how the project checks that nothing grows with the work done.
 - **[`review.md`](review.md)**: what a release runs to be ready.
 - **[`testing_improvements.md`](testing_improvements.md)**: where the time of `make test` goes, and what would shorten it, until the plan decides it.
-- **[`style.md`](style.md)**: the style of the Erlang, the C and the Ernest.
+- **[`style.md`](style.md)**: the style of the Erlang and of the Ernest.
 - **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
 - **[`shell_design.md`](shell_design.md)**, **[`node_protocol.md`](node_protocol.md)**, **[`code_distribution.md`](code_distribution.md)**, **[`install.md`](install.md)**: the design notes of the shell, of the protocol between nodes, of code distribution, and of the installation.
 - **[`emacs_mode.md`](emacs_mode.md)**: the Emacs major mode.
 - **[`shell/README.md`](../shell/README.md)**: a guide to the shell's code.
 
-What the language requires is the report's §9, the prelude; the standard library is its Appendix E, and what enters it is Appendix E.0's rules. A library under `libs/` is added to a program's load path when it is wanted; Appendix G lists them, and which libraries are first-party is the plan's MVP 3.2.
+The prelude is the report's §9 and the standard library its Appendix E, which admits a module or a function by Appendix E.0's rules. The libraries under `libs/` are Appendix G's; a program adds one to its load path when it wants it, and which are first-party is the plan's MVP 3.2.
 
 ## The layout of the repository
 
@@ -29,60 +29,61 @@ ernest_report.md   the language report (normative)
 ernest_guide.md    the guide
 docs/              the documents listed above, and this one
 examples/          Ernest programs: the paper programs and the small ones
-erl/               the toolchain, as Erlang applications: lexer, parser,
-                   format, typer, runtime, emitter, cli, utils (vendored getopt);
-                   each has src/, include/, ebin/, test/; the runtime also
-                   c_src/, ern_exec's C source, and priv/, where make builds it
-test/              what spans applications: the hand-written target modules,
-                   the integration tests, the guide's examples, the catalogue
-                   of diagnostics, the shell's sessions, the pseudo-terminal
-                   harness, the loads' harness, expected/, golden/, input/,
-                   load/, session/, stdin/, terminal/
+erl/               the toolchain, as Erlang applications: lexer, parser, format,
+                   typer, runtime, emitter, cli, and utils, which holds the vendored
+                   getopt; each has src/, include/, ebin/ and test/, and the runtime
+                   also c_src/, the helper ern_exec's C source, and priv/, where make
+                   builds it
+test/              what spans applications: the integration, document, style, guide,
+                   shell and terminal tests, the harnesses of the loads and of the
+                   pseudo-terminal, and the catalogue of diagnostics; target/, the
+                   hand-written target modules; expected/ and golden/, what the MVP 1
+                   examples print and the Erlang they compile to; and input/, load/,
+                   session/, stdin/ and terminal/, the programs and inputs tests run
 bin/               ern, the launcher, a POSIX sh script
 stdlib/            the standard library as Ernest source
 shell/             the shell as Ernest source; its README.md guides a reader
                    through the code
 emacs/             ernest-mode.el, the Emacs major mode, and its tests under test/
-build/             build products, not in git: build/stdlib/, build/shell/, and
-                   build/libs/ from make, the standard library's pages from make doc,
-                   its manual pages, build/man/ and build/tools/ from make, and
-                   build/release/ from make release
 libs/              the first-party libraries, each a source root a program adds
                    with --load-path: ets, markdown
-tools/             the programs of the build: unicode_width.escript writes
-                   Terminal.columns' table, run by make unicode; manual.ern
-                   writes ern(1) from the report's §11, run by make; install.sh
-                   stages, installs and archives, run by make install, make
-                   uninstall and make release, with strip.escript; and release/
-                   holds the archive's own Makefile and README.md
+tools/             the programs of the build: manual.ern writes ern(1) from the
+                   report's §11, for make; unicode_width.escript writes Terminal.columns'
+                   table, for make unicode; install.sh, with strip.escript, stages,
+                   installs and archives, for make install, uninstall and release; and
+                   release/ holds the archive's own Makefile and README.md
+build/             build products, not in git: stdlib/, libs/, shell/, tools/ and man/
+                   from make, with the manual pages; the standard library's pages
+                   in stdlib/ from make doc; release/ from make release; dialyzer/
+                   and dialyzer.plt from make dialyzer; sanitize/ from make sanitize
 ```
 
 A module's path follows report §11.1. A file that is not a module is named with underscores, but for the Emacs mode's, which follow Emacs's convention.
 
 ## Building
 
-Beside what the README's *Installing* needs, `make test` needs python3, for the pseudo-terminal the terminal tests run a program under, since Erlang cannot open one, and `make sanitize` needs clang, for its analyzer and its sanitizers. Emacs is optional: without it the mode's tests are skipped and the rest runs. So are groff and mandoc: the manual pages are rendered by whichever is installed, and by neither where neither is. The toolchain's Erlang uses no rebar3 and no OTP behaviours, by design ([`style.md`](style.md)).
+Beyond what the README's *Installing* needs, `make test` needs python3, which opens the terminal tests' pseudo-terminal and signals `ern` in the tests of how it ends, and `make sanitize` needs clang. Emacs, man, and groff or mandoc are optional: where one is missing, the tests that need it say so and are skipped.
 
 ```
-make              compile every application into its ebin/, then stdlib/, libs/, shell/,
-                  and write the manual pages
-make test         build, then every area below; run before the commit that closes a
-                  plan item
+make              build the helper, compile every application into its ebin/, then
+                  stdlib/, libs/, shell/ and tools/, and write the manual pages
+make test         build, then every area below
 make test-erl     the unit tests of every application under erl/, side by side;
                   APP=typer for one
-make test-programs  the example programs, compiled and run
-make test-docs    the citations and the style
+make test-programs  the integration tests: the programs compiled and run as a user
+                  runs them, the manual pages and the installation
+make test-docs    the document tests and the style tests
 make test-guide   the guide's examples, the report's, and the catalogue of diagnostics
 make test-shell   the shell's sessions and the terminal
 make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
-make load         the loads of docs/memory.md, which a release runs; not part of make test
+make load         the loads of docs/memory.md; not part of make test
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md
-make man          the manual pages alone, which make writes: each module's beside it,
-                  Ernest.List.3ern, and ern(1) in build/man/; man -l build/man/ern.1
-                  shows one
-make install      install under PREFIX, /usr/local by default, each path after DESTDIR
-                  where one is given (docs/install.md)
+make man          the manual pages alone, which make also writes: each module's beside
+                  its .erc, as build/stdlib/Ernest.List.3ern, and ern(1) as
+                  build/man/ern.1, which man -l shows
+make install      install under PREFIX, /usr/local by default, within DESTDIR if one
+                  is given (docs/install.md)
 make uninstall    remove the installation under the same PREFIX and DESTDIR
 make release      write the release archive, build/release/ern-VERSION.tar.gz
 make dialyzer     Dialyzer over the toolchain and the Erlang the compiler writes for
@@ -90,9 +91,11 @@ make dialyzer     Dialyzer over the toolchain and the Erlang the compiler writes
 make sanitize     the helper in C under Clang's analyzer, and the runtime's and the
                   programs' tests with it built under the sanitizers
 make sections     list the report sections no test cites
-make xref         check that every section citation and document path in the documents resolves
+make xref         the document tests alone, without a build: every citation and
+                  document path resolves
 make coverage     every section with how many tests cite it and its length, thinnest first
-make golden       rewrite test/golden/, the Erlang the compiler emits per example
+make golden       rewrite test/golden/, the Erlang the compiler emits for each MVP 1
+                  example
 make diagnostics  rewrite the outputs of test/diagnostics.md, the front end's errors,
                   from what ern build prints
 make contents     rewrite the contents lists of the report and the guide from their headings
@@ -136,10 +139,10 @@ The shell's `:help` lists its commands; guide §9.3 teaches the shell, report §
 
 ## What the toolchain accepts
 
-The toolchain is the report on one node; the plan's milestones lift the table row by row. Everything the report describes type-checks, and what the table leaves out compiles and runs. The table is what the toolchain refuses or does not yet do, each with the milestone that lifts it in the [plan](implementation_plan.md).
+The toolchain is the report on one node. Everything the report describes type-checks, and all that the table leaves out compiles and runs. Each row is what the toolchain refuses or does not yet do, with the milestone of the [plan](implementation_plan.md) that lifts it.
 
 | Construct | Until | What you see today |
 |---|---|---|
 | `spawn(Peer(...))`, `spawnMonitored(Peer(...))`, peers, `ernest.conf` (§6.2, §8.3) | MVP 3.0 | the spawn faults with `peer unreachable`; `ernest.conf` is not read, and of the configuration directory only the shell's `startup` is |
 
-Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and a test in `erl/cli/test` fails when such a text is missing from this table. Runtime behaviour that stands in for a later milestone, the peer fault, is listed by hand. `make sections` prints only what the plan's *Standing gaps* names.
+Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and `mvp_refusals_listed_test` in `erl/cli/test/ern_cli_tests.erl` fails when such a text is missing from this table. Runtime behaviour that stands in for a later milestone, the peer fault, is listed by hand. `make sections` prints only what the plan's *Standing gaps* names.

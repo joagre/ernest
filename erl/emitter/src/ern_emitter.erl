@@ -1,9 +1,7 @@
 %% The compiler: typed AST to Erlang abstract format, then to a BEAM module
-%% with the interface as the chunk "ErnI" (report §11.1, plan 2.4): the
+%% with the interface as the chunk "ErnI" (report §11.1): the
 %% canonical interface, a hash of the source, and per dependency the hash
-%% of the interface compiled against. The two tables of the
-%% implementation plan, Phase 2.1, are its specification; values follow
-%% report §8.4.
+%% of the interface compiled against. Values follow report §8.4.
 %%
 %% One traversal does the three pre-passes on the way: every Ernest binding
 %% gets a fresh Erlang variable (Ernest shadows, Erlang does not), local fns
@@ -160,7 +158,7 @@ erl_source(Ns, Decls, Env) ->
     Forms = forms(Ns, Decls, Env),
     [erl_prettypr:format(erl_syntax:form_list(Forms)), "\n"].
 
-%% Report §4.2, plan 2.4: the path with @ for / and the prefix ern@.
+%% Report §4.2: the path with @ for / and the prefix ern@.
 -spec module_atom([atom()]) -> atom().
 module_atom(Ns) ->
     list_to_atom(lists:flatten(["ern" | ["@" ++ string:lowercase(atom_to_list(P))
@@ -560,7 +558,7 @@ call_remote(M, F, Args) ->
                            Args).
 
 %%
-%% The prelude, plan 2.1 table two
+%% The prelude, report §9
 %%
 
 prelude_call(Pos, [self], [], [], _, Cx) -> {at(Pos, call_remote(ern_rt, self, [])), Cx};
@@ -664,7 +662,7 @@ site(Pos, #cx{ns = Ns, fname = F, session = Session}) ->
     string_binary(unicode:characters_to_binary(Where ++ ":" ++ Line)).
 
 %%
-%% Operators, report §4.8 and plan 2.1
+%% Operators, report §4.8
 %%
 
 %% Report §4.8, §3.10, §5.1: by the operand type. Int and the four
@@ -1023,7 +1021,7 @@ pattern_names(P) -> [N || {N, _} <- ern_ast:pattern_bindings(P)].
 %%
 
 %% A clause whose guard is not an Erlang guard expression falls through by
-%% a continuation over the remaining clauses (plan 2.1).
+%% a continuation over the remaining clauses (report §5.9).
 match_clauses(SF, Clauses, Cx) ->
     Erlang = fun(#clause{guard = undefined}) -> true;
                 (#clause{pattern = P, guard = G}) ->

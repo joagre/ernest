@@ -11,9 +11,9 @@ The reasoning behind the language report in [`ernest_report.md`](../ernest_repor
 Every section of this document, the standing ones first and the dated entries
 newest first. The log is read by searching it; this is for seeing what is in it.
 
-**Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Later](#later); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
+**Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Later](#later); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-09-28.** [Format on Save](#format-on-save-2026-09-28); [What Ernest Adds Stays at Four](#what-ernest-adds-stays-at-four-2026-09-28); [The Guide Read in Order](#the-guide-read-in-order-2026-09-28); [The Working Directory](#the-working-directory-2026-09-28); [Manual Pages Named `Ernest.List`](#manual-pages-named-ernestlist-2026-09-28); [`ern(1)` Is §11](#ern1-is-11-2026-09-28); [What Building the Manual Pages Found](#what-building-the-manual-pages-found-2026-09-28); [`bin/ern` Is a Launcher](#binern-is-a-launcher-2026-09-28); [The Layout Under the Prefix](#the-layout-under-the-prefix-2026-09-28); [What Building the Installation Found](#what-building-the-installation-found-2026-09-28); [One Archive, Compiled Where It Is Installed](#one-archive-compiled-where-it-is-installed-2026-09-28); [What Dialyzer Found](#what-dialyzer-found-2026-09-28); [What xref Found](#what-xref-found-2026-09-28); [What the Coverage Found](#what-the-coverage-found-2026-09-28); [What the Sanitizers Found](#what-the-sanitizers-found-2026-09-28); [What make unused Found](#what-make-unused-found-2026-09-28); [The Report's Examples Checked](#the-reports-examples-checked-2026-09-28); [What the Grammar's Check Found](#what-the-grammars-check-found-2026-09-28).
+**2026-09-28.** [Format on Save](#format-on-save-2026-09-28); [What Ernest Adds Stays at Four](#what-ernest-adds-stays-at-four-2026-09-28); [The Guide Read in Order](#the-guide-read-in-order-2026-09-28); [The Working Directory](#the-working-directory-2026-09-28); [Manual Pages Named `Ernest.List`](#manual-pages-named-ernestlist-2026-09-28); [`ern(1)` Is §11](#ern1-is-11-2026-09-28); [What Building the Manual Pages Found](#what-building-the-manual-pages-found-2026-09-28); [`bin/ern` Is a Launcher](#binern-is-a-launcher-2026-09-28); [The Layout Under the Prefix](#the-layout-under-the-prefix-2026-09-28); [What Building the Installation Found](#what-building-the-installation-found-2026-09-28); [One Archive, Compiled Where It Is Installed](#one-archive-compiled-where-it-is-installed-2026-09-28); [What Dialyzer Found](#what-dialyzer-found-2026-09-28); [What xref Found](#what-xref-found-2026-09-28); [What the Coverage Found](#what-the-coverage-found-2026-09-28); [What the Sanitizers Found](#what-the-sanitizers-found-2026-09-28); [What make unused Found](#what-make-unused-found-2026-09-28); [The Report's Examples Checked](#the-reports-examples-checked-2026-09-28); [What the Grammar's Check Found](#what-the-grammars-check-found-2026-09-28); [What the Catalogue Found](#what-the-catalogue-found-2026-09-28); [What make garbled Found](#what-make-garbled-found-2026-09-28); [What the Review's Tools Found](#what-the-reviews-tools-found-2026-09-28); [A Signal Ends a Job](#a-signal-ends-a-job-2026-09-28); [A Lean Review](#a-lean-review-2026-09-28); [One Run Under Load](#one-run-under-load-2026-09-28); [No Mac for the First Release](#no-mac-for-the-first-release-2026-09-28); [What the Design Notes Argued](#what-the-design-notes-argued-2026-09-28).
 
 **2026-09-27.** [No Remote Computation in the Language](#no-remote-computation-in-the-language-2026-09-27); [A Program's Command Line Is `Os`'s](#a-programs-command-line-is-oss-2026-09-27); [A Program Ends With `Os.exit`](#a-program-ends-with-osexit-2026-09-27); [A Sibling Restarts at Its Next Wait](#a-sibling-restarts-at-its-next-wait-2026-09-27); [The `Supervisor`'s Shape](#the-supervisors-shape-2026-09-27); [Code Travels Only With a Spawn](#code-travels-only-with-a-spawn-2026-09-27); [The First Release Is for Others](#the-first-release-is-for-others-2026-09-27); [Coherence Apart From the Release](#coherence-apart-from-the-release-2026-09-27); [`Os.run` Runs Through a Helper in C](#osrun-runs-through-a-helper-in-c-2026-09-27); [The README Is the Front Door](#the-readme-is-the-front-door-2026-09-27); [A Running Program Is a Process](#a-running-program-is-a-process-2026-09-27); [The Environment Read Through the Helper](#the-environment-read-through-the-helper-2026-09-27); [What Building `Os` Found](#what-building-os-found-2026-09-27); [The Readers Run Before a Release](#the-readers-run-before-a-release-2026-09-27); [What the Loads Found](#what-the-loads-found-2026-09-27); [Enough Coherence](#enough-coherence-2026-09-27); [The Shell's Code Memory](#the-shells-code-memory-2026-09-27); [Atoms, Counted](#atoms-counted-2026-09-27); [Running as a Service](#running-as-a-service-2026-09-27); [The Libraries in the Report](#the-libraries-in-the-report-2026-09-27); [Back Pressure, Again](#back-pressure-again-2026-09-27); [The Formatter Before the Release](#the-formatter-before-the-release-2026-09-27); [Layout for the Reader](#layout-for-the-reader-2026-09-27); [What the Formatter Keeps](#what-the-formatter-keeps-2026-09-27).
 
@@ -4832,6 +4832,103 @@ R2 ran the suite three times under load, and with the `+T 9` run that took three
 ## No Mac for the First Release, 2026-09-28
 
 The first release is verified on Linux alone. R5 and R6 ask for the installation and the suite on macOS as well, and nothing here can run them: no Mac is to be had for this release, and a hosted macOS runner would be a build service to set up and keep, for one run. What stands in for the run is the construction: the archive's scripts are POSIX sh, run under dash, the strictest shell to hand; the helper in C builds under clang with POSIX.1-2008 alone; and the launcher needs only `sh`, `readlink` and `iconv`, which macOS has. That makes macOS likely and not known, so the README and the archive's README name Linux, and say that macOS is expected to work and is not yet verified, rather than claim what no run has shown. A Mac, or a runner, at a later release is what would change it, and R5 and R6 keep their macOS halves for then.
+
+## What the Design Notes Argued, 2026-09-28
+
+The design notes were cut to how each component is built, and the alternatives they had weighed and rejected moved here. Two of the node protocol's have since been overruled by the report: a spawn on a peer that cannot be reached faults at the call, with `Fault("peer unreachable")` (§7.4), so the spawn is synchronous, and the note now says so.
+
+**The node protocol rejected:**
+
+- **Addresses that survive a death.** A process that has died is dead; a new process under the same name is another process, possibly with other state. A process that restarts after a fault keeps its address because it has not died (report §6.9), and durable identity across a death belongs to a registry.
+- **Counter as `LocalId`.** Simpler, but addresses could be guessed.
+- **Proxy process per remote address.** Costly, and gives nothing the connection process does not.
+- **Address without type hash.** An address to a mailbox with a changed type could be passed to code expecting the old type.
+- **Synchronous spawn** with the target creating the address. Blocks the spawner on every spawn and gives two failure paths instead of one.
+- **`spawn_at` failing at the call** when no connection can be made. Would add a second failure path beside the monitor.
+- **No spawn primitive**, only a spawner process on each node. Works, but is boilerplate everyone would write the same way.
+- **Links, and ownership** where a process dies with its spawner. Exit signals are an effect beside messages.
+- **Monitors that survive reconnection.** Would require nodes to resynchronize monitor state after an interruption, and the watcher still could not know what happened during it.
+- **Merging `Unreachable` and `Crashed`.** Loses the most important distinction.
+- **Typed crash reason.** Would require the watcher to know the watched process's error type.
+- **Blocking `send`** as in Erlang. A hidden block that makes `send` something other than it appears to be.
+- **Unbounded outgoing queue.** Memory runs out slowly and without warning.
+- **Dropping individual messages on overflow.** Breaks the ordering guarantee.
+- **Causal ordering across nodes.** Requires vector clocks or similar on every message; Erlang has done without.
+- **No ordering guarantee.** Request and reply, spawn followed by messages, and the credit protocol all depend on per-pair order.
+- **`name@host` as node identity.** Independent of the key, can be confused, and breaks when the host changes address.
+- **Random UUID per node.** Must be tied to a key to be safe anyway, so the key may as well be the identity.
+- **Multiple connections per node pair.** Breaks the single stream that ordering rests on.
+- **Code with every message**. A `send` could then fault its sender after it returned, and a fetch paused the whole connection to keep order.
+- **`term_to_binary` with `safe`.** `safe` refuses unknown atoms, and constructors would travel as atoms, which a peer could then create on a receiving node by sending data.
+
+**Code distribution rejected:**
+
+- **Code with every message**, fetched for a function a message carries. A `send` that returned could fault its sender later, when the peer failed to resolve the code; the fetch was traffic the code did not show; and whether a top-level binding a shipped function names meant the sender's value or the peer's decided whether the fetch could be lazy at all. A process spawned on the peer carries the code instead, visibly, and faults at the call (the log's *Code Travels Only With a Spawn*).
+- **Two node types** (all code on disk in the same version, or no code at all). A function reference crossing between them must be a hash anyway, so the name-based side would need a translation layer that leaks. One mechanism with two cache policies does the same work.
+- **BEAM module replacement for single-node code change.** Hash modules never change, and Ernest's code change is already a message.
+- **Hashing binaries.** The hash would depend on the compiler version, and interpreted and compiled code would have different identities.
+- **Interpretation only.** Roughly an order of magnitude or more slower.
+- **Hashes for verification only**, all nodes on the same release. Gives up diskless nodes, which are the point.
+- **`error_handler` as fallback for missing code.** Eager transitive fetching and dependency-aware cleaning make missing code impossible, and the fallback had no defined source to fetch from.
+- **Reference counting per process** for cache cleaning. Cannot track closures in process state, and misses dependencies between hashes.
+- **Operations that point a name at a hash**, as Unison's codebase allows. The mapping from names to hashes becomes state kept apart from the source, so what the developer reads is no longer what runs. Error prone, and against the principle that the source is the whole truth.
+- **Codebase as database**, with tools to manage it, as the source of truth for names. Its purpose is to make the mapping from names to hashes editable, which Ernest rejects. It would also need its own tools for editing, diffing and version control, where Ernest uses text and git.
+- **Structural type hashes**, where a type's name is not hashed. Would make the check on the wire more lenient than the type checker, and would let opaque types with the same representation pass for each other.
+- **Unison's split into structural and unique types**, where a unique type carries a random identifier. The identifier must live either in the source, as noise, or beside it, as the hidden state rejected in 4.1.
+- **Nominal hashing for opaque types only.** Two rules instead of one, and ordinary types with the same shape would still collide.
+- **Pinned references to hashes in source** (for example `handle@3fa9`). A hand-written pointer to a hash is the same name-to-hash operation in another form. An old version that is still needed keeps its own name.
+- **Replacing or extending `code_server`.** Its work is still needed, OTP depends on it, and everything Ernest adds fits beside it.
+
+**The shell leaves out:**
+
+- **Building an address from numbers:** an address is a capability.
+- **A mailbox that persists between inputs, and a command to flush it:** each input has its own process.
+- **Commands for records and registered names:** Ernest has neither.
+- **A second lookup command beside `:doc`, and a kinds command:** `:doc` shows the declaration, and Ernest exposes no kinds.
+- **Commands for the file system and the terminal:** `Fs` does this in the language.
+- **Declarations read from a file into the session:** `:load` takes a module and makes it reachable by its qualified name, as every module is (§4.2). Ernest has no imports, so names arriving unqualified from a file would have been the one place they did; a module's private declarations are no more reachable from the prompt than from anywhere else.
+- **A pager:** the transcript is committed to the terminal, so the terminal's own scrolling and search read a long page. One with its own key bindings would fight the live reader for the keyboard.
+- **Running a terminal program from the prompt:** the shell holds the terminal, so a program that reads keys or lines is run with `ern` instead. The fault says so.
+- **Custom printers:** a value has one rendering.
+- **User-defined commands, system commands, job control, a step debugger, and watch expressions.**
+- **Later, each on its own merits:** re-running an earlier input by number, `:trace f` to print each call and return of `f`, and, with MVP 3's peers, a shell attached to a running node. The design does not assume the shell runs on the node whose code it evaluates.
+- **Two terminals with the terminal's own behaviour:** that is `tmux`, or two pseudo-terminals and an emulator, and neither is a shell's work.
+
+## Erlang's Standard Library, Module by Module
+
+Where each user-facing OTP module stands, first read on 2026-09-18 (*The Erlang Standard Library, Read for Ernest*) and kept current since. What is not a row is OTP's own machinery, which Ernest's concepts or toolchain replace.
+
+| Erlang | Ernest | In Appendix E | Waiting, and when | Out, and why |
+|---|---|---|---|---|
+| `erlang` BIFs | the language; `Int`, `Float`, `String`, `Char` | `spawn`, `self`, `send`, `monitor` as §9.4 and §9.5; `abs`, `min`, `max`, rounding, `toString`, `toFloat`, the bit operations; the exit status, the arguments and the environment in `Os`, E.23 | | `register`, `whereis`: §6.5 has no registry. `link`, `exit`, `throw`, `catch`: §7 and §6.9. `term_to_binary`: MVP 3's transport. `phash2`, `md5`: a hashing library. `make_ref`: identity is a `Process` (E.21). `iolist_to_binary`: `String.fromList`, `<>`. `memory`, `system_info`: the runtime's |
+| `lists` | `List` | E.2, thirty-one functions and `<>` | | `first`, `rest`, `flatten`, `count`, `map2`, `sum`, `max`, `min`: one pipe each, rule 4. `scan`, `mapFold`, `window`, `chunk`: a `foldLeft` with an accumulator, and each hides a choice about the ends. `permutations`, `transpose`, `combinations`: specialities. `key*`: `Map` |
+| `maps`, `dict`, `orddict`, `gb_trees`, `proplists` | `Map` | E.3 | | the four alternatives: history |
+| `sets`, `ordsets`, `gb_sets` | `Set` | E.4 | | `symmetric_difference`, `is_disjoint`: compositions |
+| `string`, `unicode` | `String`, `Char` | E.5, E.6 | | the list-based half of `string` |
+| `io`, `io_lib` | `Io` | E.1: `print`, `println`, `printError`, `printlnError`, `readLine`, `read`, `write`, `show`, `debug` | | `format`: no format strings, `<>` and `toString` are the one way |
+| `file`, `filelib` | `Fs`, and `Os.workingDirectory` | E.17, nine functions; `get_cwd` as E.23's `workingDirectory`, and `absname` as `Path.join` over it | | `wildcard`: a glob library. `fold_files`: five lines over `List`. `watch`: the host has none (the log's *Later*). `expand`: `..` read from the text alone is wrong under a symlink (the log's *The Working Directory*) |
+| `filename` | `Path` | E.14, eight functions | | `absname`, `expand`: `Fs`'s, they read the working directory. `nativename`: a `Path` is in the runtime's syntax |
+| `timer` | `Clock` | `now`, `alarm`, `alarmAt` | `Clock.monotonic` | `send_interval`, `cancel`: E.15's positions. `sleep`: `receive { after ms -> Unit }`. `seconds`, `minutes`: arithmetic |
+| `rand` | `Random` | E.13: `seed`, `next`, `nextFloat` | | |
+| `math` | `Float` | the operators, `abs`, `min`, `max`, `round`, `floor`, `ceil`, `truncate`, `toString`, `sqrt`, `pow`, `exp`, `log`, the trigonometry | | `looselyEquals`: the tolerance is the program's. `toPrecision`: a format, and §9.6 has no format strings |
+| `gen_tcp`, `inet`, `socket`, `ssl` | `Tcp` | E.18 | `Udp` as its own module, a later MVP | socket options: tuning is a library's. TLS: `libs/tls` in MVP 3.2 |
+| `ets` | `libs/ets` | Appendix D | | match specifications, `qlc`: `Ets` is a key-value table |
+| `os` | `Os` | E.23: `arguments`, `environment`, `exit`, `start`, `read`, `write`, `closeInput`, `run` | | `cmd`: a shell between, which a program asks for by running `sh` with `-c` |
+| `calendar` | `Time` | | a `Time` type and its parts, MVP 3.2 | formatting: a format is the program's, rule 3 |
+| `binary` | `Bytes` | E.20, and `<>` | | `split`, `match`, `replace`, `encode_unsigned`: `<<...>>` and the `Int` operations |
+| `array`, `queue` | | | | `List` and `Map` give both, rule 4; a persistent array is a library |
+| `eunit` | `Test` | §9.3's `Test` and `TestResult`, run by `ern test` (§11.2) | | |
+| `base64`, `json`, `uri_string`, `re`, `crypto`, `zlib`, `dets`, `digraph`, `sofs`, `erl_tar`, `zip`, `disk_log`; the applications `ssl`, `inets`, `xmerl`, `public_key`, `asn1`, `mnesia`, `snmp` | libraries | | | each a namespace of its own on Appendix D's pattern, never stdlib |
+| `observer`, `dbg`, `cover`, `debugger`, `dialyzer`, `edoc`, `common_test`, `syntax_tools`, `parsetools`, `argparse`, `escript` | | | | tooling: `ern doc`, Ernest's own types, the compiler, `ern`; an argument parser is a library |
+| `gen_*`, `supervisor`, `proc_lib`, `sys`, `logger`, `application`, `code`, `rpc`, `erpc`, `global`, `pg`, `net_kernel`, `persistent_term`, `atomics`, `counters`, `init`, `heart`, `os_mon`, `wx`, `erl_*`, the shell | | | | a function with a mailbox type, the standard library's `Supervisor` (MVP 2.66), `send` to a sink, MVP 3's distribution, the runtime's internals, `ern` |
+
+Gleam's `gleam_stdlib` v1.0.5, Elixir's core and Haskell's `base` were read the same way, and
+what they have that this table does not take is a position, not a gap: `gleam/order`,
+`gleam/pair` and `gleam/function` (patterns and compositions), `string_tree` (a builder
+BEAM's binary append makes unnecessary), `gleam/uri` (a library), `dynamic/decode` (`Foreign`
+and a JSON library), `string.inspect` (no universal printer), `bool.guard` (`<-`); Elixir's
+`Stream` (§5.1 is strict, a lazy source is a process) and `Keyword` lists (`Map`); Haskell's
+type classes (`toString` per type, `==` structural, `compare` per type).
 
 ## Later
 

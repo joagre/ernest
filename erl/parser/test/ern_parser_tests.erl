@@ -539,13 +539,13 @@ several_declarations_test() ->
 %% Errors, including the mandated diagnostics
 %%
 
-%% report §4.5, plan 1.1
+%% report §4.5
 two_clause_function_test() ->
     ?assertEqual("a function has one clause", err("fn f(0) = 1\nfn f(n) = n")),
     ?assertEqual("a function has one clause", err_expr("{ fn f(0) = 1; fn f(n) = n; f(1) }")),
     ?assertEqual("write one clause whose body is a `match`", help("fn f(0) = 1\nfn f(n) = n")).
 
-%% report §5.2, plan 1.1
+%% report §5.2
 juxtaposition_test() ->
     ?assertEqual("unexpected identifier `x` after an expression", err("fn g() = f x")),
     ?assertEqual("a call is written f(x), and statements are separated by `;`",
@@ -656,7 +656,7 @@ error_span_test() ->
 %% The example programs
 %%
 
-%% report Appendix A, plan 2.1: the examples, the standard library and the
+%% report Appendix A: the examples, the standard library and the
 %% libraries exercise every AST record the emitter must handle
 ast_coverage_test() ->
     {ok, Hrl} = file:read_file("../include/ern_ast.hrl"),

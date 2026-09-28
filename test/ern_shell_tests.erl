@@ -1276,7 +1276,7 @@ commands_mirror_test() ->
 %% end's watcher; it does not cover a process `:reload` ends. The input
 %% that spawns the restarting process waits for its end, so that `:faults`
 %% comes after both faults: sent at once, it came first under the host's
-%% modified timing (docs/review.md R2)
+%% modified timing
 fault_subscriber_test_() ->
     {timeout, 60, fun fault_subscriber/0}.
 

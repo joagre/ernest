@@ -127,7 +127,7 @@ snake() ->
                        {send, "1b"}],       % Escape
                       15),
     %% the frames that show the board, however many the game drew between
-    %% the keys: under the host's modified timing, fewer (docs/review.md R2)
+    %% the keys: under the host's modified timing, fewer
     Boards = [F || F <- binary:split(Screen, ?CLEAR, [global]),
                    binary:match(F, <<"@">>) =/= nomatch],
     ?assertMatch({_, _}, binary:match(hd(Boards), <<"\r\n">>)),

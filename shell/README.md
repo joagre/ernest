@@ -1,6 +1,6 @@
 # Reading the shell
 
-The Ernest shell is an Ernest program. It runs as three processes, is split into seven modules, and has a front end in Erlang for what only the compiler knows. This page is a guide for an Ernest programmer who wants to read it. What the shell does is report §11.2; why it is built as it is, [`docs/shell_design.md`](../docs/shell_design.md). This page says where things are and how they fit together.
+The Ernest shell is an Ernest program. It runs as three processes, is split into seven modules, and has a front end in Erlang for what only the compiler knows. This page is a guide for an Ernest programmer who wants to read it. What the shell does is report §11.2; how it is built, [`docs/shell_design.md`](../docs/shell_design.md). This page says where things are and how they fit together.
 
 ## Where to start
 

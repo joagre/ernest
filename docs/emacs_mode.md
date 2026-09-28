@@ -1,43 +1,24 @@
 # The Emacs mode
 
-`ernest-mode` edits `.ern` files. It is in `emacs/`, the only Elisp in the repository, and
-its own header says how to load it. It needs Emacs 29 or later, the first with
-`font-lock-operator-face`, and its tests pass on Emacs 29.3 and 31.1. The roadmap entry is MVP 2.9 in
-[`implementation_plan.md`](implementation_plan.md); the arguments that settled it are in
-[`decisions.md`](decisions.md).
+`ernest-mode` edits `.ern` files. It is `emacs/ernest-mode.el`, the only Elisp in the repository, and the lines an init file needs, to load it and to lay out each buffer as it is saved, are in that file's header. It needs Emacs 29 or later, the first with `font-lock-operator-face`. The plan's MVP 2.9 is its roadmap entry, and [`decisions.md`](decisions.md) argues it.
 
 ## What it is
 
 Derived from `prog-mode`, not from CC Mode.
 
-- A syntax table for `//` and `/* */` comments, `///` doc comments with a face of their own, `////` being an ordinary comment,
-  strings, backtick raw strings that may span lines, and a `syntax-propertize-function` for
-  char literals.
-- Font lock from report §2: reserved words, uppercase-initial names as types and
-  constructors, the name a declaration introduces, qualified names, operators, and the
-  numeric literals of §2.5.
-- Indentation to [`style.md`](style.md), which owns it, the layout `ern format` writes (report
-  §11.6); `reindent.el` over the repository's sources, which the formatter has laid out, holds
-  the two to one layout.
-- `imenu`, `beginning-of-defun`, `end-of-defun`, `add-log-current-defun-function`.
-- `compilation-error-regexp-alist` for `file:line:col: message`, since Emacs's own `gnu`
-  entry refuses a file name with a space in it.
+- A syntax table for `//` and `/* */` comments, `///` doc comments with a face of their own, `////` being an ordinary comment, strings, and backtick raw strings that may span lines, and a `syntax-propertize-function` for char literals.
+- Font lock from report §2: reserved words, uppercase-initial names as types and constructors, the name a declaration introduces, qualified names, operators, and the numeric literals of §2.5.
+- Indentation to the layout `ern format` writes (report §11.6), which [`style.md`](style.md) owns.
+- `imenu`, `beginning-of-defun`, `end-of-defun` and `add-log-current-defun-function`.
+- An entry of `compilation-error-regexp-alist` for `file:line:col: message`, which takes a file name with a space in it.
 - `auto-mode-alist` for `.ern`.
-- `ernest-format-buffer`, which lays out the buffer with `ern format -` (report §11.6). It
-  replaces only the white space that differs, so point, the mark and every window stay on
-  their text. A buffer that does not parse is left as it is, and the diagnostic is shown in
-  the buffer `*ern format*`, naming the buffer where the formatter names standard input `-`.
-  `ernest-format-on-save-mode` runs it as a buffer is saved, and never refuses the save; a formatter that cannot run is reported in `*ern format*` too.
-  `ernest-format-command` names the `ern` it runs.
+- `ernest-format-buffer`, which lays out the buffer with `ern format -` (report §11.6). It replaces only the white space that differs, so point, the mark and every window stay on their text. A buffer that does not parse is left as it is, and the diagnostic is shown in the buffer `*ern format*`, naming the buffer where the formatter names standard input `-`. `ernest-format-on-save-mode` runs it as a buffer is saved and never refuses the save; a formatter that cannot run is reported in `*ern format*` too. `ernest-format-command` names the `ern` it runs, which is otherwise looked for on `exec-path`.
 
 It calls the toolchain only to lay out a buffer; the compiler is `M-x compile`'s.
 
 ## What it leaves to the user
 
-A major mode sets buffer-local variables and turns nothing else on. `fill-column` is 100 and
-`indent-tabs-mode` is nil, so the mode's own indentation writes no tab. A tab pasted in, or a
-line past 100 characters, is shown only by what the user enables. These lines in an init
-file show both:
+A major mode sets buffer-local variables and turns nothing on. `fill-column` is 100 and `indent-tabs-mode` is nil, so the mode's own indentation writes no tab. A tab pasted in, or a line past 100 characters, is shown only by what the user enables. These lines in an init file show both:
 
 ```elisp
 (add-hook 'ernest-mode-hook #'display-fill-column-indicator-mode)
@@ -48,52 +29,31 @@ file show both:
             (whitespace-mode)))
 ```
 
-The indicator stands at `fill-column`. `whitespace-line-column` nil makes `whitespace-mode`
-mark lines past `fill-column` rather than past its default of 80. The mode does not
-`untabify` on save, which would also rewrite a tab inside a string, part of the string's
-value (report §2.5). `no_tab_test` and `line_length_test` in `test/ern_style_tests.erl`
-enforce both rules in the repository.
+The indicator stands at `fill-column`, and `whitespace-line-column` nil makes `whitespace-mode` mark lines past `fill-column` rather than past 80. The mode does not `untabify` on save, since a tab inside a string is part of its value (report §2.5). `ern format`, which the header's line runs on save, replaces a tab between tokens and keeps one inside a string or a comment. `no_tab_test` and `line_length_test` in `test/ern_style_tests.erl` hold the repository to both rules.
 
-The mode's header shows the init file's lines that lay out each buffer as it is saved, with `ern format`, which then replaces a tab between tokens and keeps one inside a string or a comment. `ern` is found on `exec-path`, and `ernest-format-command` names another. An Emacs started from a desktop menu has the `PATH` of the login session, not the one a shell's startup file sets, so the header's line that names `ern` by its path is the sure way.
-
-The mode's reserved words and operators restate Appendix A, so
-`emacs_mode_mirrors_the_lexer_test` in `test/ern_style_tests.erl` checks them against the
-lexer: the reserved words are the lexer's, and every operator the mode paints is one of the
-lexer's symbols. How tightly each binary operator binds, which places a line an operator opens, restates §2.6, and `emacs_mode_mirrors_the_parser_test` holds it equal to the parser's table.
+An Emacs started from a desktop menu has the login session's `PATH`, not the one a shell's startup file sets, so the header's line that names `ern` by its path is the sure way to find it.
 
 ## How it is judged
 
-Eight tests under `emacs/test/`. `make test-emacs` builds the toolchain, which `format.el`
-runs, and then runs them; `make test` runs them last, and a machine without Emacs skips them.
-`make test-emacs EMACS=path` runs them under another Emacs. Each prints what it measured.
+Eight tests under `emacs/test/`, which `make test-emacs` runs, or `make test-emacs EMACS=path` under another Emacs. Each prints what it measured.
 
 | Test | What must hold |
 | --- | --- |
-| `lint.el` | the mode byte-compiles and passes `checkdoc` without a warning, as the Erlang builds with `-Werror` |
-| `reindent.el` | every `.ern` source in the repository reindents unchanged |
+| `lint.el` | the mode byte-compiles and passes `checkdoc` without a warning |
+| `reindent.el` | every `.ern` source in the repository, which `ern format` has laid out, reindents unchanged |
 | `flatten.el` | the same sources, every line moved to column zero, reindent to what they were, so no line's place depends on the indentation it has |
 | `typing.el` | the same sources, cut every 25 lines (`STEP` sets it), keep every line above the cut |
-| `broken.el` over `broken/` | each half-typed buffer keeps its indentation, and a fresh line at its end takes the column a person expects |
+| `broken.el` over `broken/` | each half-typed buffer, written to [`style.md`](style.md) by hand, keeps its indentation, and a fresh line at its end takes the column a person expects |
 | `colour.el` | one check for each kind of face, and what must not be painted |
 | `editing.el` | `imenu`, declaration movement, the diagnostic regexp |
-| `format.el` | a buffer is laid out with point on its token; `shell.ern`, every line moved to column zero, comes back as it was, point and mark in place; a buffer that does not parse is left as typed and its diagnostic names it; a formatter's text that differs beyond white space is refused; the init file's line lays out a buffer as it is saved, and a buffer that does not parse, or an `ern` that is not there, is saved as typed, and `*ern format*` says why |
+| `format.el` | a buffer is laid out with point on its token; `shell.ern`, every line moved to column zero, comes back as it was, point and mark in place; a buffer that does not parse is left as typed and its diagnostic names it; a formatter's text that differs beyond white space is refused; the header's line lays out a buffer as it is saved, and a buffer that does not parse, or an `ern` that is not there, is saved as typed, and `*ern format*` says why |
 
-`reindent.el` and `flatten.el` cannot find a defect in a line the mode itself placed. A case in `broken/`,
-written to [`style.md`](style.md) by hand, can.
+The mode restates two of the language's tables, and `test/ern_style_tests.erl` holds each to its source. `emacs_mode_mirrors_the_lexer_test` checks that the reserved words are the lexer's, Appendix A's, and that every operator the mode paints is one of the lexer's symbols. `emacs_mode_mirrors_the_parser_test` holds the mode's table of how tightly each binary operator binds (report §2.6), which places a line an operator opens, equal to the parser's.
 
 ## What it does not do
 
-Stated so that nobody looks for it.
-
-- **A constructor is painted as a type.** Both are uppercase and the difference is
-  positional.
-- **Nothing knows the language, only its shape.** No `eldoc`, no `xref`, no completion in
-  the buffer, no jump to a definition in another module. `imenu`, `C-M-a` and `C-M-e` work
-  inside the file. What a name means is `M-x compile`'s answer.
-- **No `comint` mode over `ern shell`**, no folding, no `prettify-symbols`, and no keymap
-  of its own: it takes `prog-mode`'s.
-- **It is installed by path, not as a package.** No `Version:` or `Package-Requires:`
-  headers, and it is not on MELPA.
+- **A constructor is painted as a type.** Both are uppercase, and the difference is positional.
+- **Nothing knows the language, only its shape.** No `eldoc`, no `xref`, no completion in the buffer, no jump to a definition in another module. `imenu`, `C-M-a` and `C-M-e` work inside the file. What a name means is `M-x compile`'s answer.
+- **No `comint` mode over `ern shell`**, no folding, no `prettify-symbols`, and no keymap of its own: it takes `prog-mode`'s.
+- **It is installed by path, not as a package.** No `Version:` or `Package-Requires:` headers, and it is not on MELPA.
 - **Indentation is line by line.** There is no `indent-region-function`.
-- **It turns nothing on.** Laying out on save is the init file's line, and no other minor
-  mode is turned on.
