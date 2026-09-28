@@ -30,8 +30,8 @@ helper_ends_under_a_write_and_a_read_test() ->
 
 start(Program, Arguments) ->
     Self = self(),
-    ern_rt:call_forever(ern_rt:sys(os),
-                        fun(R) -> {'Start', {'Command', Arguments, <<>>, Program}, 5000, Self, R} end).
+    Command = {'Command', Arguments, <<>>, Program},
+    ern_rt:call_forever(ern_rt:sys(os), fun(R) -> {'Start', Command, 5000, Self, R} end).
 
 %% The port closes once the host has seen the helper end.
 closed(Port) ->
