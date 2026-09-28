@@ -117,7 +117,7 @@ It follows MVP 2.7 and comes before MVP 3.0.
       - `Supervisor`'s restart limit, which a child passes before the supervisor counts it
         (E.22), and `String`'s searches, which match inside a grapheme (E.5), done 2026-09-28;
       - `emacs_mode.md`'s Emacs 29 or later, where only Emacs 31.1 runs the mode's tests
-        here;
+        here, done 2026-09-28;
       - an intermittent failure found 2026-09-28, not yet diagnosed: once in six runs of
         `make test`, the guide's diagnostics example 118 was refused with status 1 and nothing
         captured, one of the refused programs built side by side in the guide's node. Its
