@@ -233,8 +233,17 @@ start_reader(Reader) ->
 %% characters; a terminal that does not know the request ignores it.
 %% Report §11.2: the shell reads the terminal's interrupt as a key, so its
 %% signal is turned off for the shell and for nobody else.
+%% Report §8.6: the terminal's settings are kept first, so that the end
+%% gives back the ones the program found; where they cannot be read, the
+%% mode is left as it is, since it could not be given back.
 raw_mode() ->
-    stty(["raw", "-echo", "opost" | interrupt_mode()]),
+    case settings() of
+        none ->
+            ok;
+        Found ->
+            persistent_term:put({?MODULE, found}, Found),
+            stty(["raw", "-echo", "opost" | interrupt_mode()])
+    end,
     write(?PASTE_ON).
 
 interrupt_mode() ->
@@ -254,7 +263,14 @@ held_by_another(Address) ->
 restore() ->
     _ = gen_event:delete_handler(erl_signal_server, ern_tty_signal, stop),
     write(?PASTE_OFF),
-    stty(["sane"]).
+    case persistent_term:get({?MODULE, found}, none) of
+        none ->
+            ok;
+        Found ->
+            stty([Found]),
+            _ = persistent_term:erase({?MODULE, found}),
+            ok
+    end.
 
 %% Report §8.2: the terminal's own mode, written past the sinks a program's
 %% output is bound to, since it is the terminal that is being spoken to.
@@ -285,6 +301,39 @@ stty(Args) ->
                 try port_close(Port) catch error:badarg -> true end,
                 flush_port(Port)
             end
+    end.
+
+%% The terminal's settings as `stty -g` writes them, one word that stty
+%% takes back, or none. stty reads the terminal on the standard input its
+%% shell inherits, and writes to the port's descriptor 4, which a port
+%% opened with nouse_stdio reads.
+settings() ->
+    case terminal() andalso os:find_executable("sh") =/= false
+        andalso os:find_executable("stty") =/= false of
+        false ->
+            none;
+        true ->
+            Port = open_port({spawn_executable, os:find_executable("sh")},
+                             [{args, ["-c", "stty -g >&4"]}, nouse_stdio, exit_status,
+                              binary]),
+            settings(Port, [])
+    end.
+
+settings(Port, Acc) ->
+    receive
+        {Port, {data, Bytes}} ->
+            settings(Port, [Acc, Bytes]);
+        {Port, {exit_status, 0}} ->
+            case string:trim(binary_to_list(iolist_to_binary(Acc))) of
+                "" -> none;
+                Found -> Found
+            end;
+        {Port, {exit_status, _}} ->
+            none
+    after 2000 ->
+        try port_close(Port) catch error:badarg -> true end,
+        flush_port(Port),
+        none
     end.
 
 flush_port(Port) ->

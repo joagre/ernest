@@ -32,7 +32,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — `ern format` stops with an internal error on a `///` after code (C17): fixed 2026-09-28, such a `///` an error (§2.2), which the formatter reports as it reports any; the log's *A `///` After Code Is an Error*
 - 2.95 — a faulting `mk` of a call under `restarting` leaves the row, monitor and alias (C7)
 - done — `ern_os` crashes on a closed port for a queued read or write (C9): fixed 2026-09-28, a frame for a port the helper's end has closed dropped, the exit status it sent first ending the run (E.23)
-- 2.95 — `stty sane` loses the user's settings (C20)
+- done — `stty sane` loses the user's settings (C20): fixed 2026-09-28, the settings kept with `stty -g` before the raw mode and given back at the end (§8.6)
 - 2.95 — a lost paste end swallows every later key (C31)
 - 2.95 — the shell's live region keeps an unfinished line whole: quadratic, never reclaimed (E3)
 - 2.95 — filesync trusts a peer's path (S7)

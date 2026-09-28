@@ -106,6 +106,21 @@ terminal_restored() ->
     ?assertEqual(nomatch, re:run(Screen, "(^|[ \t])-echo([ \t;\r\n]|$)", [{capture, none}])),
     ?assert(count(Screen, <<"speed">>) >= 2).
 
+%% report §8.6: the terminal's settings a program found are the ones it
+%% leaves, not stty's defaults. A regression test: the end ran `stty sane`,
+%% which turned off the user's `tostop` among others (findings C20). The
+%% program's output goes through a pipe, since the host puts back the
+%% terminal it found as it halts where its own output is the terminal
+settings_kept_test_() ->
+    {timeout, 60, fun settings_kept/0}.
+
+settings_kept() ->
+    ok = compile("terminal/probe.ern", "terminal"),
+    {_, Screen} = pty("stty tostop; ../bin/ern run build/terminal/probe.erc | cat; stty -a",
+                      [{expect, "ready"}, {send, "1b"}], 15),
+    ?assertMatch({match, _}, re:run(Screen, "(^|[ \t])tostop([ \t;\r\n]|$)")),
+    ?assertEqual(nomatch, re:run(Screen, "-tostop", [{capture, none}])).
+
 %% report §8.2, §9.3, and MVP 2.5's manual check: the game is
 %% played by the arrows, `Escape` leaves, and the board's rows each start at
 %% the left, which full raw mode would have broken
