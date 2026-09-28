@@ -32,16 +32,24 @@
 -spec start() -> no_return().
 start() ->
     ok = ern_signals:install(),
+    Args = init:get_plain_arguments(),
+    %% a job writes through ports of its own, which end it when a stream's
+    %% reader has gone (ern_out); the shell's terminal is the host's own
+    Err = case Args of
+              ["shell" | Rest] when Rest =:= []; hd(Rest) =/= "--help" -> standard_error;
+              _ -> ern_out:take()
+          end,
     Status = try
                  persistent_term:put({?MODULE, streams}, fds),
-                 ern(init:get_plain_arguments(), standard_error)
+                 ern(Args, Err)
              catch
                  Class:Reason:Stack ->
-                     io:format(standard_error, "ern: internal error: ~ts",
+                     io:format(Err, "ern: internal error: ~ts",
                                [erl_error:format_exception(Class, Reason, Stack)]),
                      70
              end,
     ern_signals:ended() =:= none orelse ern_signals:die(ern_signals:ended(), Status),
+    ok = ern_out:finish(Err),
     halt(Status).
 
 -spec ern([word()]) -> 0..255.

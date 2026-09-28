@@ -19,7 +19,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — `:reload` initializes changed modules in name order, not dependency order (§8.5, §11.2) (C4): fixed 2026-09-28, the modules initialized in §8.5's order
 - done — a failed `:load` or `:reload` leaves its processes and unpurged code (§11.2) (C5): fixed 2026-09-28, the module withdrawn with the processes that run it
 - done — a foreign function value inside a recursive type faults at its call with `badkey` (§8.4) (C6): fixed 2026-09-28, the wrapper given its result's descriptor closed over the recursive types around it
-- tag — a closed pipe crashes every job but `ern run`, leaving `erl_crash.dump` (§11) (T5)
+- done — a closed pipe crashes every job but `ern run`, leaving `erl_crash.dump` (§11) (T5): fixed 2026-09-28, every job's text through ports of its own, which end it with 141
 - tag — status 70 on an empty directory, a name that is not UTF-8, a corrupt `.erc` to `ern doc`, and 1100 tests in a module (§11) (T6)
 - tag — `write_whole` on a read-only file exits 70 and leaves a temporary file that blocks later runs (§11) (C12)
 - tag — `Supervisor`'s restart limit: a child restarts itself before the supervisor counts it, about 200 times under a limit of 2; `within = 0` still gives up (E.22, §6.9) (E2, P15, K10)

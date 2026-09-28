@@ -185,8 +185,9 @@ running(_) -> true.
 
 %% Report Appendix E.16: Size(rows, columns), which the host answers only while its
 %% terminal is in charge, so before the first subscription there is none.
+%% It is the host's terminal's, `user`, whatever device the job writes to.
 size_now() ->
-    case {io:rows(), io:columns()} of
+    case {io:rows(user), io:columns(user)} of
         {{ok, Rows}, {ok, Columns}} -> {'Size', Columns, Rows};
         _ -> none
     end.
@@ -296,11 +297,12 @@ flush_port(Port) ->
 terminal() ->
     is_terminal(stdin).
 
-%% Whether the stream is a terminal, as the io server of the standard
-%% streams reports it (the `stdin` and `stdout` options of io:getopts/1).
+%% Whether the stream is a terminal, as the host's io server of the
+%% standard streams, `user`, reports it (the `stdin` and `stdout` options of
+%% io:getopts/1), whatever device the job writes to.
 -spec is_terminal(stdin | stdout | stderr) -> boolean().
 is_terminal(Stream) ->
-    try proplists:get_value(Stream, io:getopts(standard_io), false) =:= true
+    try proplists:get_value(Stream, io:getopts(user), false) =:= true
     catch _:_ -> false
     end.
 

@@ -594,6 +594,29 @@ foreign_module() ->
     {0, _} = sh(Ern ++ " build --source-root " ++ Dir ++ "/prog " ++ Dir ++ "/prog/which.ern"),
     ?assertEqual({0, <<"1\n">>}, sh(Ern ++ " run ../prog/which.erc", [{cd, Dir ++ "/work"}])).
 
+%% report §11: a job whose standard output or standard error has no reader
+%% any more ends at once with status 141, and leaves no crash dump. A
+%% regression test: every job but a program's run halted the host, which
+%% wrote erl_crash.dump into the working directory
+closed_pipe_test_() ->
+    {timeout, 60, fun closed_pipe/0}.
+
+closed_pipe() ->
+    Dir = filename:absname("build/closed_pipe"),
+    ok = del(Dir),
+    ok = filelib:ensure_path(Dir),
+    Ern = filename:absname("../bin/ern"),
+    Status = fun(Job) ->
+                 {0, _} = sh("sh -c 'cd " ++ Dir ++ " && ( sleep 0.3; " ++ Ern ++ " " ++ Job
+                             ++ " 2>&1; echo $? > status ) | true'"),
+                 {ok, S} = file:read_file(Dir ++ "/status"),
+                 string:trim(S)
+             end,
+    [?assertEqual({Job, <<"141">>}, {Job, Status(Job)})
+     || Job <- ["--version", "--help", "build missing.ern", "run missing.erc", "test --help",
+                "doc " ++ filename:absname("../stdlib/list.ern")]],
+    ?assertNot(filelib:is_file(Dir ++ "/erl_crash.dump")).
+
 %% report §11.2: a fault line writes a control character of the cause as
 %% its escape, so that a fault is one line. A regression test: a cause's
 %% line feed wrote a second line, which forged another fault, and its
