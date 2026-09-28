@@ -533,7 +533,7 @@ tcp_test() ->
     T = 'ern@tcp',
     Result = ern_rt:run_main(
                fun() ->
-                   {'Right', Listener} = T:listen(7411),
+                   {'Right', Listener} = T:listen(<<"127.0.0.1">>, 7411),
                    {'Right', Client} = T:connect(<<"127.0.0.1">>, 7411, 1000),
                    {'Right', Server} = T:accept(Listener, 1000),
                    T:write(Client, <<"ping">>),
@@ -554,7 +554,7 @@ tcp_test() ->
 tcp_ends_with_program_test() ->
     Me = self(),
     T = 'ern@tcp',
-    Listen = fun() -> Me ! {listened, element(1, T:listen(7412))} end,
+    Listen = fun() -> Me ! {listened, element(1, T:listen(<<"127.0.0.1">>, 7412))} end,
     ?assertEqual(ok, ern_rt:run_main(Listen, <<"first">>, #{})),
     ?assertEqual(ok, ern_rt:run_main(Listen, <<"second">>, #{})),
     ?assertEqual(['Right', 'Right'], collect(listened, [])).

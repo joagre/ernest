@@ -13,7 +13,7 @@ type Msg = Served(Down)
 
 export fn main() -> Unit with Msg = {
     let port = 7345;
-    match Tcp.listen(port) {
+    match Tcp.listen("127.0.0.1", port) {
         Left(_) -> Io.printlnError("cannot listen")
       | Right(listener) -> {
             let server = spawnMonitored(Local, fn() = serve(listener), Served);

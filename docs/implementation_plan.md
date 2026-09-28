@@ -99,7 +99,9 @@ It follows MVP 2.7 and comes before MVP 3.0.
         log's *`Fs` Reads Regular Files*), and `Fs.list` failing for a whole directory over
         one dangling link (E.17), done 2026-09-28;
       - `Tcp.listen` and `Tcp.connect` hanging on a bad port or host, `Tcp.listen` binding
-        every interface, and a socket's write holding up its reads (E.18);
+        every interface, and a socket's write holding up its reads (E.18), done 2026-09-28:
+        `Tcp.listen` takes the host as `Tcp.connect` does (the log's *`Tcp.listen` Names Its
+        Interface*);
       - the shell's history readable by others, `ern config`'s race on the key, and control
         characters of a fault or a doc block reaching the terminal (§11.2, §11.3);
       - a program's end leaving processes a late spawn made (§8.6); `:reload` initializing in

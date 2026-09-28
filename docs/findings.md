@@ -8,9 +8,9 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — `ern shell` runs `./.ernest/startup` from the working directory: a cloned tree runs host commands; from `$HOME` each line runs twice (§11.2) (S1, E10a): fixed 2026-09-28, the node's `startup` run only where `--config-dir` names it; the log's *A Directory Runs Nothing of Its Own*
 - done — the working directory is on the host's code path ahead of the load path: a `.beam` there wins over the program's for a `foreign fn` (§11.2) (S2): fixed 2026-09-28, the directory taken off the host's code path where the load path is set
 - done — `Fs.read`/`write`/`append` of a FIFO blocks every file operation of the node, for good (E.17) (S3): fixed 2026-09-28, the work around the host's file server and the four functions on regular files only; the log's *`Fs` Reads Regular Files*
-- tag — `Tcp.listen`/`connect` hang for ever on a bad port or host, and deadlock detection is then off (E.18) (S4, C1)
-- tag — `Tcp.listen` binds every interface, with no way to bind loopback (E.18) (S5)
-- tag — a socket's write blocks its reads and their time limits (E.18) (C3)
+- done — `Tcp.listen`/`connect` hang for ever on a bad port or host, and deadlock detection is then off (E.18) (S4, C1): fixed 2026-09-28, every request answered; the log's *`Tcp.listen` Names Its Interface*
+- done — `Tcp.listen` binds every interface, with no way to bind loopback (E.18) (S5): fixed 2026-09-28, `Tcp.listen(host, port)`; the log's *`Tcp.listen` Names Its Interface*
+- done — a socket's write blocks its reads and their time limits (E.18) (C3): fixed 2026-09-28, the writes in a process of the socket's own; the log's *`Tcp.listen` Names Its Interface*
 - done — `Fs.list` fails for a whole directory over one dangling link; `Fs` follows links and cannot see one (E.17) (S6, E4): the failure fixed 2026-09-28, a link to nothing described as the link; that `Fs` cannot see a link is language feedback 65
 - tag — the shell's history is readable by others (E.17 lacks modes; §11.2) (S8)
 - tag — `ern config`: a race leaks the private key through a descriptor opened on the temporary file; the directory may be an attacker's (§11.3) (S9)

@@ -45,7 +45,7 @@ type SessionId = SessionId(String)
 
 export fn main() -> Unit with Never = {
     let sessions = spawn(Local, fn() = sessionStore());
-    match Tcp.listen(8080) {
+    match Tcp.listen("127.0.0.1", 8080) {
         Right(listener) -> acceptor(sessions, 0, listener)
       | Left(e) -> Io.println("cannot listen: " <> errorText(e))
     }

@@ -125,6 +125,81 @@ killed_socket_test() ->
     gen_tcp:close(Listen),
     ?assertEqual({fault, <<"deadlock">>}, Result).
 
+%% Appendix E.18, report §8.6: a port out of range is answered as an error,
+%% by `listen` and `connect` alike, and the program is still found
+%% deadlocked after. A regression test: the host raised, the request was
+%% never answered, and a connect left its wait counted for good, so no
+%% deadlock was found again
+port_out_of_range_test() ->
+    Me = self(),
+    Result = ern_rt:run_main(
+               fun() ->
+                   Me ! {listened, listen(70000)},
+                   Me ! {connected, connect(70000, 1000)},
+                   receive never -> ok end
+               end, <<"main">>, quiet()),
+    Refused = {'Left', {'Other', <<"port out of range">>}},
+    ?assertEqual(Refused, wait(listened)),
+    ?assertEqual(Refused, wait(connected)),
+    ?assertEqual({fault, <<"deadlock">>}, Result).
+
+%% Appendix E.18: a listener listens on the interface its host names, the
+%% loopback alone for "127.0.0.1". A regression test: `listen` took the
+%% port alone and listened on every interface, 127.0.0.2's among them
+listen_on_the_named_interface_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Listener} = listen(<<"127.0.0.1">>, 0),
+               {'Right', Port} = port(Listener),
+               %% foreign calls, which the deadlock detector counts
+               Me ! {loopback, ern_rt:in_foreign(fun() -> reach("127.0.0.1", Port) end)},
+               Me ! {other, ern_rt:in_foreign(fun() -> reach("127.0.0.2", Port) end)}
+           end, <<"main">>, quiet()),
+    ?assertEqual(ok, wait(loopback)),
+    ?assertMatch({error, _}, wait(other)).
+
+reach(Host, Port) ->
+    case gen_tcp:connect(Host, Port, [binary, {active, false}], 1000) of
+        {ok, Socket} -> gen_tcp:close(Socket);
+        Error -> Error
+    end.
+
+%% Appendix E.18: a write the far end holds back holds up no read of the
+%% socket, and the read's time limit holds. A regression test: the
+%% socket's process wrote itself, and a read behind a write that waited
+%% waited with it, past its limit
+write_holds_up_no_read_test_() ->
+    {timeout, 60, fun write_holds_up_no_read/0}.
+
+write_holds_up_no_read() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Port} = inet:port(Listen),
+    Me = self(),
+    %% the far end accepts and never reads
+    Peer = spawn(fun() ->
+                     {ok, Conn} = gen_tcp:accept(Listen),
+                     receive done -> gen_tcp:close(Conn) end
+                 end),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Socket} = connect(Port, 2000),
+               %% the host queues one write whole and holds the next back
+               Chunk = binary:copy(<<0>>, 1024 * 1024),
+               _ = ern_rt:spawn('Local', fun() ->
+                                             [write(Socket, Chunk) || _ <- lists:seq(1, 64)]
+                                         end, <<"flood">>),
+               sleep(200),
+               Before = erlang:monotonic_time(millisecond),
+               Read = read(Socket, 300),
+               Me ! {read, Read, erlang:monotonic_time(millisecond) - Before}
+           end, <<"main">>, quiet()),
+    Peer ! done,
+    gen_tcp:close(Listen),
+    {read, Read, Took} = receive {read, _, _} = M -> M after 10000 -> timeout end,
+    ?assertEqual({'Left', 'Timeout'}, Read),
+    ?assert(Took < 2000).
+
 quiet() ->
     #{stdout => fun(_) -> ok end}.
 
@@ -135,7 +210,10 @@ sleep(Ms) ->
     ern_rt:untimed().
 
 listen(Port) ->
-    ern_rt:call_forever(ern_rt:sys(tcp), fun(R) -> {'Listen', Port, R} end).
+    listen(<<"127.0.0.1">>, Port).
+
+listen(Host, Port) ->
+    ern_rt:call_forever(ern_rt:sys(tcp), fun(R) -> {'Listen', Host, Port, R} end).
 
 connect(Port, Ms) ->
     ern_rt:call_forever(ern_rt:sys(tcp),
@@ -146,6 +224,9 @@ port(Listener) ->
 
 accept(Listener, Ms) ->
     ern_rt:call_forever(Listener, fun(R) -> {'Accept', Ms, R} end).
+
+write(Socket, Bytes) ->
+    ern_rt:call_forever(Socket, fun(R) -> {'Send', Bytes, R} end).
 
 read(Socket, Ms) ->
     ern_rt:call_forever(Socket, fun(R) -> {'Recv', Ms, R} end).

@@ -12,7 +12,7 @@ let rounds = 14
 let batch = 200
 
 export fn main() -> Unit with Never =
-    match Tcp.listen(0) {
+    match Tcp.listen("127.0.0.1", 0) {
         Right(listener) -> match Tcp.port(listener) {
             Right(port) -> {
                 let _ = spawn(Local, fn() -> Unit with Never = serve(listener));

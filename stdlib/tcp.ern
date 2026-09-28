@@ -15,7 +15,7 @@
 ///
 /// ```ernest
 /// {
-///     let listener <- Tcp.listen(0);
+///     let listener <- Tcp.listen("127.0.0.1", 0);
 ///     let port <- Tcp.port(listener);
 ///     let _ = spawn(Local, fn() = match Tcp.accept(listener, 1000) {
 ///         Right(peer) -> {
@@ -49,7 +49,7 @@
 /// ### Examples
 ///
 /// ```ernest
-/// Either.map(Tcp.listen(0), fn(listener) = listener)
+/// Either.map(Tcp.listen("127.0.0.1", 0), fn(listener) = listener)
 /// ```
 export abstract type ListenerMsg =
     Accept(ms : Int, reply : Reply(Either(Io.Error, Address(SockMsg))))
@@ -81,7 +81,7 @@ export type Endpoint = Endpoint(host : String, port : Int)
 
 // What TCP's system process takes.
 type Msg =
-    Listen(port : Int, reply : Reply(Either(Io.Error, Address(ListenerMsg))))
+    Listen(host : String, port : Int, reply : Reply(Either(Io.Error, Address(ListenerMsg))))
   | Connect(host : String, port : Int, ms : Int, reply : Reply(Either(Io.Error, Address(SockMsg))))
 
 // Report §8.2: the system reference, the runtime's address of the TCP process,
@@ -91,10 +91,12 @@ let reference : Address(Msg) = system(Erl.atom("tcp"))
 foreign fn system(name : Foreign) -> Address(Msg) with m =
     "ern_rt:sys/1"
 
-/// A listener on that port; port 0 asks the system for a free one, which
-/// `Tcp.port` tells.
-export fn listen(port : Int) -> Either(Io.Error, Address(ListenerMsg)) with m =
-    Address.callForever(reference, fn(r) = Listen(port = port, reply = r))
+/// A listener on the port of the host's interface that the name or the
+/// address names: `"127.0.0.1"` is the loopback alone, `"0.0.0.0"` every
+/// interface of IPv4, and `"::"` every interface of IPv6. Port 0 asks the
+/// system for a free one, which `Tcp.port` tells.
+export fn listen(host : String, port : Int) -> Either(Io.Error, Address(ListenerMsg)) with m =
+    Address.callForever(reference, fn(r) = Listen(host = host, port = port, reply = r))
 
 /// The port the listener listens on.
 ///
@@ -102,7 +104,7 @@ export fn listen(port : Int) -> Either(Io.Error, Address(ListenerMsg)) with m =
 ///
 /// ```ernest
 /// {
-///     let listener <- Tcp.listen(0);
+///     let listener <- Tcp.listen("127.0.0.1", 0);
 ///     let port <- Tcp.port(listener);
 ///     Tcp.closeListener(listener);
 ///     Right(port > 0)
@@ -120,7 +122,7 @@ export fn port(listener : Address(ListenerMsg)) -> Either(Io.Error, Int) with m 
 ///
 /// ```ernest
 /// {
-///     let listener <- Tcp.listen(0);
+///     let listener <- Tcp.listen("127.0.0.1", 0);
 ///     let answer = Tcp.accept(listener, 10);
 ///     Tcp.closeListener(listener);
 ///     answer
@@ -170,7 +172,7 @@ export fn closeListener(listener : Address(ListenerMsg)) -> Unit with m =
 ///
 /// ```ernest
 /// {
-///     let listener <- Tcp.listen(0);
+///     let listener <- Tcp.listen("127.0.0.1", 0);
 ///     let port <- Tcp.port(listener);
 ///     let client <- Tcp.connect("127.0.0.1", port, 1000);
 ///     let far = Tcp.peer(client);
@@ -190,7 +192,7 @@ export fn peer(socket : Address(SockMsg)) -> Either(Io.Error, Endpoint) with m =
 ///
 /// ```ernest
 /// {
-///     let listener <- Tcp.listen(0);
+///     let listener <- Tcp.listen("127.0.0.1", 0);
 ///     let port <- Tcp.port(listener);
 ///     let client <- Tcp.connect("127.0.0.1", port, 1000);
 ///     let near = Tcp.local(client);

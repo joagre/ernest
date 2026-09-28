@@ -21,8 +21,8 @@ loop() ->
 
 serve(Tcp) ->
     receive
-        {'Listen', Port, Reply} ->
-            erlang:spawn(fun() -> listen(Tcp, Port, Reply) end),
+        {'Listen', Host, Port, Reply} ->
+            erlang:spawn(fun() -> listen(Tcp, Host, Port, Reply) end),
             serve(Tcp);
         {'Connect', Host, Ms, Port, Reply} ->
             counted(fun() -> connect(Tcp, Host, Port, ern_rt:deadline(Ms), Reply) end),
@@ -47,15 +47,52 @@ opened(Tcp, Loop) ->
     Pid ! go,
     Pid.
 
-listen(Tcp, Port, Reply) ->
-    Options = [binary, {active, false}, {reuseaddr, true}, {packet, raw}],
-    case gen_tcp:listen(Port, Options) of
-        {ok, Socket} ->
-            Listener = opened(Tcp, fun() -> listener_loop(Tcp, Socket) end),
-            gen_tcp:controlling_process(Socket, Listener),
-            ern_rt:answer(Reply, {'Right', Listener});
-        {error, Reason} ->
-            ern_rt:answer(Reply, {'Left', io_error(Reason)})
+%% Report Appendix E.18: a listener on the interface the host's name or
+%% address names. Every request is answered: a port out of range, and what
+%% the host refuses by raising, are errors as much as what it answers.
+listen(Tcp, Host, Port, Reply) ->
+    Answer = case {in_range(Port), address(Host)} of
+                 {false, _} ->
+                     {'Left', {'Other', <<"port out of range">>}};
+                 {true, {error, Reason}} ->
+                     {'Left', io_error(Reason)};
+                 {true, {ok, Address}} ->
+                     Options = [binary, {active, false}, {reuseaddr, true}, {packet, raw},
+                                {ip, Address} | family(Address)],
+                     case guarded(fun() -> gen_tcp:listen(Port, Options) end) of
+                         {ok, Socket} ->
+                             Listener = opened(Tcp, fun() -> listener_loop(Tcp, Socket) end),
+                             gen_tcp:controlling_process(Socket, Listener),
+                             {'Right', Listener};
+                         {error, Reason} ->
+                             {'Left', io_error(Reason)}
+                     end
+             end,
+    ern_rt:answer(Reply, Answer).
+
+in_range(Port) ->
+    Port >= 0 andalso Port =< 65535.
+
+%% An address the host's name or address stands for, IPv4's first.
+address(Host) ->
+    Name = unicode:characters_to_list(Host),
+    case inet:parse_address(Name) of
+        {ok, Address} ->
+            {ok, Address};
+        {error, _} ->
+            case guarded(fun() -> inet:getaddr(Name, inet) end) of
+                {ok, Address} -> {ok, Address};
+                {error, _} -> guarded(fun() -> inet:getaddr(Name, inet6) end)
+            end
+    end.
+
+family({_, _, _, _, _, _, _, _}) -> [inet6];
+family(_) -> [].
+
+%% What the host raises for an input it refuses, as the error it would be.
+guarded(Call) ->
+    try Call()
+    catch error:Reason -> {error, Reason}
     end.
 
 %% Report Appendix E.18: a connect that times out takes no connection, since
@@ -63,8 +100,13 @@ listen(Tcp, Port, Reply) ->
 %% the host's longest timer is waited in slices, each a new attempt.
 connect(Tcp, Host, Port, Deadline, Reply) ->
     Options = [binary, {active, false}, {packet, raw}],
-    Answer = case gen_tcp:connect(unicode:characters_to_list(Host), Port, Options,
-                                  ern_rt:remaining(Deadline)) of
+    Attempt = fun() ->
+                  gen_tcp:connect(unicode:characters_to_list(Host), Port, Options,
+                                  ern_rt:remaining(Deadline))
+              end,
+    Answer = case in_range(Port) andalso guarded(Attempt) of
+                 false ->
+                     {'Left', {'Other', <<"port out of range">>}};
                  {ok, Socket} ->
                      {'Right', socket_process(Tcp, Socket)};
                  {error, timeout} ->
@@ -125,15 +167,35 @@ accept(Tcp, Socket, Deadline, Reply) ->
     end.
 
 socket_process(Tcp, Socket) ->
-    Owner = opened(Tcp, fun() -> socket_loop(Socket, [], <<>>, open) end),
+    Owner = opened(Tcp, fun() ->
+                            Self = erlang:self(),
+                            Writer = erlang:spawn_link(fun() -> writer(Socket, Self) end),
+                            socket_loop(Socket, Writer, [], <<>>, open)
+                        end),
     gen_tcp:controlling_process(Socket, Owner),
     Owner.
+
+%% Report Appendix E.18: a socket's writes, one after another in the order
+%% they came, in a process of their own, so that a write the far end holds
+%% back holds up no read and no read's time limit. A write is counted as a
+%% source by the socket, which the writer tells when it has answered, and
+%% whether the connection had gone.
+writer(Socket, Owner) ->
+    receive
+        {'Send', Bytes, Reply} ->
+            Sent = gen_tcp:send(Socket, Bytes),
+            ern_rt:answer(Reply, 'Unit'),
+            Owner ! {written, Sent},
+            writer(Socket, Owner);
+        stop ->
+            ok
+    end.
 
 %% Waiting: the reads with no bytes yet, oldest first, each {Ref, Reply,
 %% Deadline, Timer}. Buffer: the bytes no read has taken. The port is asked for
 %% bytes only while a read waits, so a program that stops reading holds the
 %% far end back. State: open, or closed once the connection has closed.
-socket_loop(Socket, Waiting, Buffer, State) ->
+socket_loop(Socket, Writer, Waiting, Buffer, State) ->
     receive
         {'Recv', Ms, Reply} ->
             case {Buffer, State} of
@@ -143,32 +205,40 @@ socket_loop(Socket, Waiting, Buffer, State) ->
                     Deadline = ern_rt:deadline(Ms),
                     Waiting =/= [] orelse inet:setopts(Socket, [{active, once}]),
                     Read = {Ref, Reply, Deadline, arm(Ref, Deadline)},
-                    socket_loop(Socket, Waiting ++ [Read], <<>>, State);
+                    socket_loop(Socket, Writer, Waiting ++ [Read], <<>>, State);
                 {<<>>, closed} ->
                     ern_rt:answer(Reply, {'Left', 'Closed'}),
-                    socket_loop(Socket, Waiting, <<>>, State);
+                    socket_loop(Socket, Writer, Waiting, <<>>, State);
                 _ ->
                     ern_rt:answer(Reply, {'Right', Buffer}),
-                    socket_loop(Socket, Waiting, <<>>, State)
+                    socket_loop(Socket, Writer, Waiting, <<>>, State)
             end;
         %% report Appendix E.18: answered once the socket has taken the
-        %% bytes, gen_tcp holding this process while the connection is behind
-        {'Send', Bytes, Reply} ->
-            Sent = State =:= open andalso gen_tcp:send(Socket, Bytes),
+        %% bytes, by the writer, which gen_tcp holds while the connection is
+        %% behind
+        {'Send', _, Reply} when State =:= closed ->
             ern_rt:answer(Reply, 'Unit'),
+            socket_loop(Socket, Writer, Waiting, Buffer, State);
+        {'Send', _, _} = Send ->
+            ern_rt:source_begin(),
+            Writer ! Send,
+            socket_loop(Socket, Writer, Waiting, Buffer, State);
+        {written, Sent} ->
+            ern_rt:source_end(),
             case Sent of
-                {error, _} -> socket_loop(Socket, closed(Waiting), Buffer, closed);
-                _ -> socket_loop(Socket, Waiting, Buffer, State)
+                {error, _} -> socket_loop(Socket, Writer, closed(Waiting), Buffer, closed);
+                ok -> socket_loop(Socket, Writer, Waiting, Buffer, State)
             end;
         'Close' ->
             _ = closed(Waiting),
-            gen_tcp:close(Socket);
+            gen_tcp:close(Socket),
+            Writer ! stop;
         {'FarEnd', Reply} ->
             ern_rt:answer(Reply, endpoint(State, fun() -> inet:peername(Socket) end)),
-            socket_loop(Socket, Waiting, Buffer, State);
+            socket_loop(Socket, Writer, Waiting, Buffer, State);
         {'NearEnd', Reply} ->
             ern_rt:answer(Reply, endpoint(State, fun() -> inet:sockname(Socket) end)),
-            socket_loop(Socket, Waiting, Buffer, State);
+            socket_loop(Socket, Writer, Waiting, Buffer, State);
         {read_timeout, Ref} ->
             case lists:keytake(Ref, 1, Waiting) of
                 {value, {Ref, Reply, Deadline, _}, Rest} ->
@@ -176,14 +246,14 @@ socket_loop(Socket, Waiting, Buffer, State) ->
                         0 ->
                             ern_rt:answer(Reply, {'Left', 'Timeout'}),
                             ern_rt:source_end(),
-                            socket_loop(Socket, Rest, Buffer, State);
+                            socket_loop(Socket, Writer, Rest, Buffer, State);
                         _ ->
                             Again = {Ref, Reply, Deadline, arm(Ref, Deadline)},
-                            socket_loop(Socket, lists:keystore(Ref, 1, Waiting, Again), Buffer,
-                                        State)
+                            socket_loop(Socket, Writer, lists:keystore(Ref, 1, Waiting, Again),
+                                        Buffer, State)
                     end;
                 false ->
-                    socket_loop(Socket, Waiting, Buffer, State)
+                    socket_loop(Socket, Writer, Waiting, Buffer, State)
             end;
         {tcp, Socket, Bytes} ->
             case Waiting of
@@ -192,15 +262,15 @@ socket_loop(Socket, Waiting, Buffer, State) ->
                     ern_rt:answer(Reply, {'Right', Bytes}),
                     ern_rt:source_end(),
                     Rest =/= [] andalso inet:setopts(Socket, [{active, once}]),
-                    socket_loop(Socket, Rest, Buffer, State);
+                    socket_loop(Socket, Writer, Rest, Buffer, State);
                 [] ->
                     %% the read it was asked for timed out as it came
-                    socket_loop(Socket, [], <<Buffer/binary, Bytes/binary>>, State)
+                    socket_loop(Socket, Writer, [], <<Buffer/binary, Bytes/binary>>, State)
             end;
         {tcp_closed, Socket} ->
-            socket_loop(Socket, closed(Waiting), Buffer, closed);
+            socket_loop(Socket, Writer, closed(Waiting), Buffer, closed);
         {tcp_error, Socket, _} ->
-            socket_loop(Socket, closed(Waiting), Buffer, closed)
+            socket_loop(Socket, Writer, closed(Waiting), Buffer, closed)
     end.
 
 arm(Ref, Deadline) ->
