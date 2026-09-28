@@ -13,11 +13,11 @@ milestone, the standing gaps, and what is done.
 
 ## Where we are
 
-**MVP 2.95, the first release, is under way.** The manual pages, the installation, the release
-archive, the review and the time of `make test` are done (2026-09-28), and so are the readers'
-fixes before the tag, all but ten defects moved there that day and an intermittent failure not
-yet diagnosed (item 4, step 2). Three entries of the language feedback follow (item 5), then the
-release. Every earlier milestone is done, the last MVP 2.7 on 2026-09-28; MVP 2.9, MVP 2.61,
+**MVP 2.95, which readies the first release, is under way.** The manual pages, the
+installation, the release archive, the review and the time of `make test` are done (2026-09-28),
+and so are the readers' first fixes, all but ten defects moved there that day and an
+intermittent failure not yet diagnosed (item 4, step 2). Three entries of the language feedback
+follow (item 5). The release itself is MVP 2.99's. Every earlier milestone is done, the last MVP 2.7 on 2026-09-28; MVP 2.9, MVP 2.61,
 `libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph under "Done".
 
 ---
@@ -36,11 +36,11 @@ release. Every earlier milestone is done, the last MVP 2.7 on 2026-09-28; MVP 2.
 | MVP 2.7 | a program started from a command line, and the appendix of libraries | done 2026-09-28 |
 | MVP 2.8 | the formatter | done 2026-09-28, out of order |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
-| **MVP 2.95** | **the first release: manual pages, an installation, the review** | **under way: manual pages, installation, archive, review and the time of `make test` done 2026-09-28; ten of the readers' fixes, three feedback entries and the release next** |
+| **MVP 2.95** | **manual pages, an installation, the review** | **under way: manual pages, installation, archive, review and the time of `make test` done 2026-09-28; ten of the readers' fixes and three feedback entries next** |
 | MVP 2.96 | a result annotation written with `:` | |
 | MVP 2.97 | one contract, several representations: an ordered set | waits on language feedback 64 |
 | MVP 2.98 | what the first review left | |
-| MVP 2.99 | running as a service | |
+| MVP 2.99 | running as a service, and the first release | |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -48,11 +48,11 @@ release. Every earlier milestone is done, the last MVP 2.7 on 2026-09-28; MVP 2.
 
 ---
 
-## MVP 2.95 (the first release: manual pages, an installation, and the review)
+## MVP 2.95 (manual pages, an installation, and the review)
 
-The first release is Ernest for programs on one node, for other programmers to install and use,
-decided 2026-09-27 (the log's *The First Release Is for Others*); peers are the next release's.
-It follows MVP 2.7.
+What the first release needs before it is made: its manual pages, its installation and archive,
+and a review with its fixes. The release itself is MVP 2.99's, decided 2026-09-28 (the log's
+*The First Release Follows MVP 2.99*). It follows MVP 2.7.
 
 1. **Manual pages, done 2026-09-28.** `ern doc --man` writes a module's page as a manual page
    in roff, `Ernest.List(3ern)`, `Ernest.Prelude(3ern)` for the prelude and
@@ -89,7 +89,7 @@ It follows MVP 2.7.
       note. CLAUDE.md asks for `make test` before a commit and for readers at a release.
       `make dialyzer`, `make sanitize`, `make load`, the report's checked examples, the
       grammar's FIRST sets, the licences test and the catalogue of diagnostics stay.
-   2. **The readers' fixes before the tag**, decided 2026-09-28: the defects that lose data,
+   2. **The readers' first fixes**, decided 2026-09-28: the defects that lose data,
       expose a user, or break a program, each with a regression test. They are the `tag` lines
       of [`findings.md`](findings.md), which holds every finding of the review with its
       decision:
@@ -133,17 +133,17 @@ It follows MVP 2.7.
         C17, C24 to C26, T11), `stty sane` losing the user's settings (C20), a lost paste end
         (C31), the live region's line that nothing reclaims (E3), a faulting `mk` under
         `restarting` (C7), and `examples/filesync.ern` trusting a peer's path (S7) (the log's
-        *What Else Comes Before the Tag*).
+        *What MVP 2.95 Takes From the Rest*).
    3. **The time of `make test`, done 2026-09-28**, taken before step 2's other fixes: 280
       seconds to 112, the suite in two phases of jobs side by side, as many at once as the
       host has cores, and bound by its CPU. The compiler's hash now covers the six modules
       that shape a `.erc` it had left out (§11.1), two jobs writing one file each write it
       whole (§11), and a test that slept where the runtime could not see it naps. The
       measurement and the arguments are the log's *The Time of `make test`*.
-   4. **After the release**, what the readers found and step 2 leaves is MVP 2.98's, decided
+   4. **The rest**, what the readers found and step 2 leaves, is MVP 2.98's, decided
       2026-09-28.
-5. **Three entries of the language feedback, before the tag**, moved here on 2026-09-28 (the
-   log's *What Else Comes Before the Tag*):
+5. **Three entries of the language feedback**, moved here on 2026-09-28 (the log's *What MVP
+   2.95 Takes From the Rest*):
    - 62, a long namespace written at every use: the log's *Names Stay Qualified, Without Import
      or Alias* stands, and its remedy is built. The code of `shell.ern` that works on
      completions moves into `Shell.Complete`, where its names are written bare.
@@ -152,8 +152,6 @@ It follows MVP 2.7.
    - 65, `Fs` cannot see a symbolic link: the kind of an entry, `File`, `Directory`, `Link` or
      `Other`, in place of `isDir`; `list` describing an entry as it is, not followed; and
      `makeLink` and `readLink` beside it (E.17; the log's *What `Fs` Holds*).
-6. **The release**, tagged once the review is done, with its notes (`review.md`, *Done*), and
-   the archive published beside it, where the README then says to download it.
 
 ---
 
@@ -163,7 +161,7 @@ Decided 2026-09-28 (the log's *A Result Is Annotated With `:`*): a function's re
 is written `: T`, as a parameter's is, in every function head, `fn`, `foreign fn`, a lambda and
 a type member: `fn show(x : Optional(Int)) : String = …`. A function type keeps its arrow,
 `(A) -> B with e`, and so do the clauses of `match` and `receive` and `after`. It follows MVP
-2.95, the first release.
+2.95.
 
 1. **The report.** Appendix A's `Return` becomes `":" Type [ "with" Type ]`; §3.4's `with` in a
    result annotation, §4.5's `-> T` and `-> T with M`, and §8.1's entry point are restated.
@@ -215,8 +213,7 @@ second is rewritten around a contract `SetOps(s, a)` holding the operations of t
 
 ## MVP 2.98 (what the first review left), about two weeks
 
-What the readers of the first release found and MVP 2.95's item 4 did not fix before the tag,
-decided 2026-09-28 and moved from MVP 3.0 the same day, since none of it needs a peer (the log's
+What the review of MVP 2.95 found and its item 4 did not fix, decided 2026-09-28 and moved from MVP 3.0 the same day, since none of it needs a peer (the log's
 *MVP 3.0 Is Distributed Code and the Node Protocol*). It follows MVP 2.97.
 
 1. **[`findings.md`](findings.md)'s `cheap` lines**, a batch a document.
@@ -227,7 +224,7 @@ decided 2026-09-28 and moved from MVP 3.0 the same day, since none of it needs a
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):
    `create`, a new file or none; `removeAll`; `setModified`; and, decided with the user, a file
    read and written in parts, which a file too large to hold whole needs. An entry's kind and
-   its links come before the tag (MVP 2.95, item 5).
+   its links are MVP 2.95's, item 5.
 4. **Three changes that take work from `make test`**: the shell's tests waiting for the prompt
    or a program's output, not a fixed time; `ern_cli`'s build in a module of its own, so that
    the compiler's hash leaves out its other jobs and a change to them recompiles nothing; and
@@ -236,25 +233,32 @@ decided 2026-09-28 and moved from MVP 3.0 the same day, since none of it needs a
 
 ---
 
-## MVP 2.99 (running as a service), about three days
+## MVP 2.99 (running as a service, and the first release), about four days
 
-A program on one node run for days under a service manager, moved from MVP 2.7 on 2026-09-27
-(the log's *Running as a Service*) and from MVP 3.0 on 2026-09-28, since it needs no peer (the
-log's *MVP 3.0 Is Distributed Code and the Node Protocol*). It follows MVP 2.98.
+A program on one node run for days under a service manager, and then the first release. It
+follows MVP 2.98.
 
-- a systemd unit: start and stop, a stop asked for ending the program by its signal;
-  `Restart=on-failure` after a program ends with `Os.exit(1)`; and the journal showing fault
-  lines without a doubled time;
-- a launchd plist on macOS, with the same checks;
-- a soak of hours: `examples/webserver.ern` under steady requests, measured as
-  [`memory.md`](memory.md) says;
-- standard error on a full or failing disk ending the run with status 141, as §8.2 says;
-- `Clock.alarmAt` when the host's wall clock jumps: deadlines use the monotonic clock and a
-  time does not, and the report decides what an alarm at a time does when the clock moves
-  (Appendix E.15);
-- a termination or hangup that comes while the host starts, which the host drops (*Standing
-  gaps* below): whether a launcher passes a signal on to the host until the host has taken
-  it, at the price of a second process between a service manager and the program.
+1. **Running as a service**, moved from MVP 2.7 on 2026-09-27 (the log's *Running as a
+   Service*) and from MVP 3.0 on 2026-09-28, since it needs no peer (the log's *MVP 3.0 Is
+   Distributed Code and the Node Protocol*):
+   - a systemd unit: start and stop, a stop asked for ending the program by its signal;
+     `Restart=on-failure` after a program ends with `Os.exit(1)`; and the journal showing fault
+     lines without a doubled time;
+   - a launchd plist on macOS, with the same checks;
+   - a soak of hours: `examples/webserver.ern` under steady requests, measured as
+     [`memory.md`](memory.md) says;
+   - standard error on a full or failing disk ending the run with status 141, as §8.2 says;
+   - `Clock.alarmAt` when the host's wall clock jumps: deadlines use the monotonic clock and a
+     time does not, and the report decides what an alarm at a time does when the clock moves
+     (Appendix E.15);
+   - a termination or hangup that comes while the host starts, which the host drops (*Standing
+     gaps* below): whether a launcher passes a signal on to the host until the host has taken
+     it, at the price of a second process between a service manager and the program.
+2. **The first release**, placed here on 2026-09-28 (the log's *The First Release Follows MVP
+   2.99*): Ernest for programs on one node, for other programmers to install and use, decided
+   2026-09-27 (the log's *The First Release Is for Others*); peers are the next release's.
+   [`review.md`](review.md) runs on the code as it is then, and the release is tagged with its
+   notes, the archive published beside it, where the README then says to download it.
 
 ---
 

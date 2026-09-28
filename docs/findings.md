@@ -1,8 +1,8 @@
 # Findings of the first review
 
-Every finding of the twelve readers of 2026-09-28, one line each, by area, with its decision: **tag**, fixed before the tag (the plan's MVP 2.95, item 4, step 2); **cheap**, fixed after the tag in MVP 2.98, a batch a document; **2.98**, planned in MVP 2.98; **done**; or **dropped**, with the reason. The readers: the report's principles (P), the cold reader (K), the register (G), the guide (U), the newcomer (N), the documents (D), the code (C), the Ernest code (E), the tools (T), the diagnostics (X), security (S), the shell's README (H). This file goes when every line is done or in the plan.
+Every finding of the twelve readers of 2026-09-28, one line each, by area, with its decision: **2.95**, fixed in the plan's MVP 2.95, item 4, step 2; **cheap**, fixed in MVP 2.98, a batch a document; **2.98**, planned in MVP 2.98; **done**; or **dropped**, with the reason. The readers: the report's principles (P), the cold reader (K), the register (G), the guide (U), the newcomer (N), the documents (D), the code (C), the Ernest code (E), the tools (T), the diagnostics (X), security (S), the shell's README (H). This file goes when every line is done or in the plan.
 
-## Before the tag
+## MVP 2.95
 
 - done — the directory build's sweep deletes `.erc` files and directories no build of its own wrote, a library's module it had just compiled against, the user's empty directories and `src/.git` (§11.1) (T1): fixed 2026-09-28, with the stale `.erc` refused when read and the link cycle the fix found; the log's *The Sweep Removes What a Build Wrote*
 - done — `ern shell` runs `./.ernest/startup` from the working directory: a cloned tree runs host commands; from `$HOME` each line runs twice (§11.2) (S1, E10a): fixed 2026-09-28, the node's `startup` run only where `--config-dir` names it; the log's *A Directory Runs Nothing of Its Own*
@@ -25,16 +25,16 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — `Supervisor`'s restart limit: a child restarts itself before the supervisor counts it, about 200 times under a limit of 2; `within = 0` still gives up (E.22, §6.9) (E2, P15, K10): fixed 2026-09-28, the fault counted before the child runs again, and a time of 0 no limit; the log's *A Supervisor Counts a Fault Before the Child Runs Again*
 - done — `emacs_mode.md` says Emacs 29 or later, and only Emacs 31.1 runs the mode's tests here: say what is tested, or run them on 29 (the documents' rewrite): 2026-09-28, the note says what is tested and what is expected
 - done — `String`'s searches match inside a grapheme: `split` and `replace` lose text (E.5) (E1): fixed 2026-09-28, a match only between the string's grapheme boundaries; `lines` ends a line at CR LF; the log's *A Search Begins Where a Grapheme Does*
-- tag — `ern format` rewrites a `.txt` and paths `ern build` refuses (T11)
+- 2.95 — `ern format` rewrites a `.txt` and paths `ern build` refuses (T11)
 - done — a command-line word that is not UTF-8 crashes every job (C13): fixed 2026-09-28, refused before the job begins and named as §11.1 names a file (§11)
 - done — the shell's `.` completion crashes on a field of two types (C15): fixed 2026-09-28, the checker's question asked at a position it never shows, as its other questions are
-- tag — `ern format`: a raw string loses spaces in a doc example; trailing spaces of a doc line dropped; a trailing doc comment crashes; a `type` with a trailing comment; a blank line after a comment; a fence that does not parse re-indented (C11, C16, C17, C24..C26)
-- tag — a faulting `mk` of a call under `restarting` leaves the row, monitor and alias (C7)
-- tag — `ern_os` crashes on a closed port for a queued read or write (C9)
-- tag — `stty sane` loses the user's settings (C20)
-- tag — a lost paste end swallows every later key (C31)
-- tag — the shell's live region keeps an unfinished line whole: quadratic, never reclaimed (E3)
-- tag — filesync trusts a peer's path (S7)
+- 2.95 — `ern format`: a raw string loses spaces in a doc example; trailing spaces of a doc line dropped; a trailing doc comment crashes; a `type` with a trailing comment; a blank line after a comment; a fence that does not parse re-indented (C11, C16, C17, C24..C26)
+- 2.95 — a faulting `mk` of a call under `restarting` leaves the row, monitor and alias (C7)
+- 2.95 — `ern_os` crashes on a closed port for a queued read or write (C9)
+- 2.95 — `stty sane` loses the user's settings (C20)
+- 2.95 — a lost paste end swallows every later key (C31)
+- 2.95 — the shell's live region keeps an unfinished line whole: quadratic, never reclaimed (E3)
+- 2.95 — filesync trusts a peer's path (S7)
 
 ## The report
 
