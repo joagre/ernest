@@ -26,7 +26,7 @@ citations_resolve_test() ->
             "docs/architecture.md", "docs/shell_design.md", "docs/module_doc_template.md",
             "docs/coherence.md", "docs/review.md", "docs/style.md", "docs/emacs_mode.md",
             "docs/node_protocol.md", "docs/code_distribution.md", "shell/README.md"]
-        ++ examples() ++ stdlib() ++ shell(),
+        ++ examples() ++ stdlib() ++ shell() ++ tools(),
     Dangling =
         [{F, C} || F <- Live, C <- cites(read(F)), not resolves(C, report, ReportHeads, GuideHeads)]
         ++ [{"ernest_guide.md", C} || C <- cites(Guide),
@@ -154,6 +154,12 @@ shell() ->
     [filename:join("shell", F)
      || F <- filelib:wildcard("**/*.ern", filename:join(?ROOT, "shell")),
         not editor_file(F)].
+
+%% The programs of the build written in Ernest, whose comments cite the
+%% report too.
+tools() ->
+    [filename:join("tools", F)
+     || F <- filelib:wildcard("*.ern", filename:join(?ROOT, "tools")), not editor_file(F)].
 
 stdlib() ->
     [filename:join("stdlib", F)

@@ -1145,8 +1145,8 @@ fn documenting(session : Address(ShellMsg),
 
 // The type, the first sentence, and the version a page's declaration
 // appeared in: the first line of its first code block, the first sentence
-// of its first paragraph, and its `Since` paragraph, the name before the
-// type bold.
+// of its first paragraph (report §11.4), and its `Since` paragraph, the
+// name before the type bold.
 fn brief(text : String, width : Int, colour : Bool) -> List(String) = {
     let blocks = Markdown.parse(text);
     let types = List.flatMap(blocks, fn(b) = match b {
@@ -1158,28 +1158,14 @@ fn brief(text : String, width : Int, colour : Bool) -> List(String) = {
       | _ -> false
     });
     let #(versions, prose) = List.partition(paragraphs, isVersion);
+    let sentence = match Markdown.firstSentence(prose) {
+        [] -> []
+      | xs -> [Markdown.Paragraph(xs)]
+    };
     List.map(List.take(types, 1), fn(t) = Shell.Style.named(colour, t))
-        <> Markdown.render(List.map(List.take(prose, 1), sentence), width, styleOf(colour))
+        <> Markdown.render(sentence, width, styleOf(colour))
         <> Markdown.render(List.take(versions, 1), width, styleOf(colour))
 }
-
-// Report §11.2: a paragraph's first sentence, which ends at the first `. `
-// in its text.
-fn sentence(b : Markdown.Block) -> Markdown.Block =
-    match b {
-        Markdown.Paragraph(xs) -> Markdown.Paragraph(upToStop(xs))
-      | other -> other
-    }
-
-fn upToStop(xs : List(Markdown.Inline)) -> List(Markdown.Inline) =
-    match xs {
-        [] -> []
-      | Markdown.Text(s) :: rest -> match String.indexOf(s, ". ") {
-            Some(i) -> [Markdown.Text(String.slice(s, 0, i + 1))]
-          | None -> Markdown.Text(s) :: upToStop(rest)
-        }
-      | x :: rest -> x :: upToStop(rest)
-    }
 
 // The line §11.4 writes for the version a declaration appeared in.
 fn isVersion(b : Markdown.Block) -> Bool =

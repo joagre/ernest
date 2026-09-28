@@ -44,18 +44,20 @@ shell/             the shell as Ernest source; its README.md guides a reader
                    through the code
 emacs/             ernest-mode.el, the Emacs major mode, and its tests under test/
 build/             build products, not in git: build/stdlib/, build/shell/, and
-                   build/libs/ from make, the standard library's pages from make doc
+                   build/libs/ from make, the standard library's pages from make doc,
+                   its manual pages, build/man/ and build/tools/ from make man
 libs/              the first-party libraries, each a source root a program adds
                    with --load-path: ets, markdown
-tools/             generators of tables the sources hold: unicode_width.escript
-                   writes Terminal.columns' table, run by make unicode
+tools/             the programs of the build: unicode_width.escript writes
+                   Terminal.columns' table, run by make unicode, and manual.ern
+                   writes ern(1) from the report's §11, run by make man
 ```
 
 A module's path follows report §11.1. A file that is not a module is named with underscores, but for the Emacs mode's, which follow Emacs's convention.
 
 ## Building
 
-Beside what the README's *Trying it* needs, `make test` needs python3, for the pseudo-terminal the terminal tests run a program under, since Erlang cannot open one. Emacs is optional: without it the mode's tests are skipped and the rest runs. The toolchain's Erlang uses no rebar3 and no OTP behaviours, by design ([`style.md`](style.md)).
+Beside what the README's *Trying it* needs, `make test` needs python3, for the pseudo-terminal the terminal tests run a program under, since Erlang cannot open one. Emacs is optional: without it the mode's tests are skipped and the rest runs. So are groff and mandoc: the manual pages are rendered by whichever is installed, and by neither where neither is. The toolchain's Erlang uses no rebar3 and no OTP behaviours, by design ([`style.md`](style.md)).
 
 ```
 make              compile every application into its ebin/, then stdlib/, libs/, shell/
@@ -70,6 +72,8 @@ make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
 make load         the loads of docs/memory.md, which a release runs; not part of make test
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md
+make man          write their manual pages beside them, Ernest.List.3ern, and ern(1)
+                  to build/man/; man -l build/man/ern.1 shows one
 make sections     list the report sections no test cites
 make xref         check that every section citation and document path in the documents resolves
 make coverage     every section with how many tests cite it and its length, thinnest first

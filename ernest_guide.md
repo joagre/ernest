@@ -1991,7 +1991,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 - `--source-root dir` names the directory a module's namespace is read from, as §7.1 describes. `--load-path dir` adds compiled modules from outside the tree, such as a library, and may be given more than once.
 - `--short-errors` prints the first line of each error only, `file:line:column: message`, for a tool to read.
 - `--emit-erl` writes the Erlang the module compiles to, for reading.
-- `ern doc file.ern` writes the module's documentation as CommonMark. `ern doc src` writes a page for each module under `src` and an `index.md`, and for the standard library's root a `prelude.md` as well.
+- `ern doc file.ern` writes the module's documentation as CommonMark. `ern doc src` writes a page for each module under `src` and an `index.md`, and for the standard library's root a `prelude.md` as well. `ern doc --man` writes each page as a manual page instead, `Ernest.List.3ern`, which `man -l` shows, or `man Ernest.List` once it is installed where `man` looks.
 - `ern format file.ern` lays the module out as the style guide, [`docs/style.md`](docs/style.md), does, and `ern format src` every module under `src`; only line breaks and spaces change, and every comment stays where it was. `ern format --check src` names each module not laid out and changes none.
 
 ### 9.2 `ern run`, `ern test`, `ern shell` and `ern config`

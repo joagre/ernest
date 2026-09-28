@@ -161,7 +161,7 @@ deps_fun(Deps) ->
                          [erl_syntax:clause([], none, [Mods])])].
 
 %% The module as Erlang source, for --emit-erl (report §11.1).
--spec erl_source([atom()], [tuple()], ern_typecheck:env()) -> iolist().
+-spec erl_source([atom()], [tuple()], ern_typecheck:env()) -> unicode:chardata().
 erl_source(Ns, Decls, Env) ->
     Forms = forms(Ns, Decls, Env),
     [erl_prettypr:format(erl_syntax:form_list(Forms)), "\n"].

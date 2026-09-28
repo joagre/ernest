@@ -1,9 +1,10 @@
 /// CommonMark 0.31, the specification at commonmark.org, read into blocks
-/// and inlines, and rendered as text for a terminal. `parse` reads the
-/// blocks a document is made of, headings, paragraphs, code blocks, block
-/// quotes, lists, and thematic breaks, and inside them code spans,
-/// emphasis, strong emphasis, links, images, and hard line breaks;
-/// `render` lays them out at a width. What it does not read is kept as
+/// and inlines, and rendered as text for a terminal or as a manual page.
+/// `parse` reads the blocks a document is made of, headings, paragraphs,
+/// code blocks, block quotes, lists, and thematic breaks, and inside them
+/// code spans, emphasis, strong emphasis, links, images, and hard line
+/// breaks; `render` lays them out at a width, and `roff` writes them as a
+/// manual page in the roff of man(7). What it does not read is kept as
 /// written: an HTML block is a `Raw` block, and inline HTML, an entity, and
 /// a link by reference stay in the text. Emphasis follows a simpler rule
 /// than the specification's: a mark opens before a character other than a
@@ -93,6 +94,27 @@ export type Style =
     Plain
   /// Bold, italics and colour, in the terminal's escape sequences.
   | Styled
+
+/// What a manual page's header and its NAME line say: the page's name, the
+/// section of the manual it is in, what follows the name on the NAME line,
+/// the source the footer names, and the title of the manual the header
+/// names.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Markdown.Manual(name = "ern",
+///                 section = "1",
+///                 summary = [Markdown.Text("the Ernest toolchain")],
+///                 source = "Ernest 0.1.0",
+///                 title = "Ernest Manual").section
+/// // => "1"
+/// ```
+export type Manual = Manual(name : String,
+                            section : String,
+                            summary : List(Inline),
+                            source : String,
+                            title : String)
 
 //
 // Reading the blocks
@@ -854,6 +876,224 @@ fn filled(pieces : List(String), width : Int, row : String, rows : List(String))
     }
 
 //
+// Manual pages
+//
+
+/// The document as a manual page in the roff of man(7), which groff and
+/// mandoc render, a line of the page's source each: the header and the
+/// NAME line from the page, the blocks before the first heading of level 1
+/// under DESCRIPTION, a heading of level 1 a section, one of level 2 a
+/// subsection, and a deeper one a paragraph in bold. Lines are filled to
+/// the left margin alone and no word is hyphenated, so that a name in the
+/// text is never spread or broken. A code span and strong
+/// emphasis are bold, emphasis is in italics, a code block is indented and
+/// not filled, a list item follows its bullet or its number, a block quote
+/// is indented, a thematic break is a row of asterisks, a link is its text
+/// with its address after it, and a `Raw` block is as written. Every
+/// character roff would change is written as roff's escape for it, so that
+/// code copied from the page is the code written, and the rest is UTF-8,
+/// which man-db and mandoc read.
+///
+/// ### Examples
+///
+/// The page from its NAME line on, after its header's four lines:
+///
+/// ```ernest
+/// List.drop(Markdown.roff(Markdown.Manual(name = "hello",
+///                                         section = "1",
+///                                         summary = [Markdown.Text("greet")],
+///                                         source = "Hello 1.0",
+///                                         title = "Hello Manual"),
+///                         Markdown.parse("Says *hello*.")),
+///           4)
+/// // => [".SH NAME", "hello \\- greet", ".SH DESCRIPTION", ".PP", "Says \\fIhello\\fR."]
+/// ```
+export fn roff(page : Manual, blocks : List(Block)) -> List(String) = {
+    let description = match blocks {
+        [] -> []
+      | Heading(level = 1) :: _ -> []
+      | _ -> [".SH DESCRIPTION"]
+    };
+    header(page) <> description <> List.flatMap(blocks, roffed)
+}
+
+// The header and the NAME line. No word is hyphenated and lines are filled
+// to the left margin alone; groff's macros set the adjustment again from
+// the string AD at each item of a list, so the string says it too.
+fn header(page : Manual) -> List(String) = {
+    let fields = [page.name, page.section, "", page.source, page.title];
+    [".TH " <> String.join(List.map(fields, fn(f) = "\"" <> escaped(f) <> "\""), " "),
+     ".nh",
+     ".ds AD l",
+     ".ad l",
+     ".SH NAME",
+     textLine(escaped(page.name) <> " \\- " <> escaped(plain(page.summary)))]
+}
+
+/// The first sentence of the document: the text of its first paragraph up
+/// to the first period a space follows outside emphasis, code spans, and
+/// links, or all of it where there is none, and nothing where the document
+/// has no paragraph.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Markdown.firstSentence(Markdown.parse("# Title\n\nOne `a`. Two."))
+/// // => [Text("One "), CodeSpan("a"), Text(".")]
+/// ```
+export fn firstSentence(blocks : List(Block)) -> List(Inline) =
+    match List.find(blocks, isParagraph) {
+        Some(Paragraph(xs)) -> upToStop(xs)
+      | _ -> []
+    }
+
+fn isParagraph(b : Block) -> Bool =
+    match b {
+        Paragraph(_) -> true
+      | _ -> false
+    }
+
+fn upToStop(xs : List(Inline)) -> List(Inline) =
+    match xs {
+        [] -> []
+      | Text(s) :: rest -> match String.indexOf(s, ". ") {
+            Some(i) -> [Text(String.slice(s, 0, i + 1))]
+          | None -> Text(s) :: upToStop(rest)
+        }
+      | x :: rest -> x :: upToStop(rest)
+    }
+
+// The font text is set in: roff has one for each of the four.
+type Font = Roman | Bold | Italic | BoldItalic
+
+fn roffed(b : Block) -> List(String) =
+    match b {
+        Heading(level = 1, text = text) -> [".SH", textLine(heading(text))]
+      | Heading(level = 2, text = text) -> [".SS", textLine(heading(text))]
+      | Heading(text = text) -> [".PP", textLine("\\fB" <> heading(text) <> "\\fR")]
+      | Paragraph(text) -> ".PP" :: textLines(roffSpans(text, Roman))
+      | Code(lines = lines) ->
+            [".PP", ".RS 4", ".nf"] <> List.map(lines, codeLine) <> [".fi", ".RE"]
+      | Quote(inner) -> [".RS 4"] <> List.flatMap(inner, roffed) <> [".RE"]
+      | Items(start = start, items = items) -> roffItems(start, items)
+      | Rule -> [".PP", "   *   *   *   *   *"]
+      | Raw(lines) -> [".PP", ".nf"] <> List.map(lines, codeLine) <> [".fi"]
+    }
+
+// A heading is set in bold already, so its text begins in bold; a hard
+// break in it is a space, since a heading is one line.
+fn heading(text : List(Inline)) -> String =
+    String.replace(roffSpans(text, Bold), "\n", " ")
+
+// Each item after its bullet or number, the item's text at the width of the
+// widest label and a space; a paragraph that begins the item follows its
+// label, and every other block of the item stands under the item's text.
+fn roffItems(start : Optional(Int), items : List(List(Block))) -> List(String) = {
+    let labels = match start {
+        None -> List.map(items, fn(_) = "\\(bu")
+      | Some(n) -> List.map(List.indexed(items), fn(#(i, _)) = Int.toString(n + i) <> ".")
+    };
+    let widest = match start {
+        None -> 1
+      | Some(_) -> List.foldLeft(labels, 0, fn(most, label) = Int.max(most, String.size(label)))
+    };
+    let width = Int.toString(widest + 1);
+    List.flatMap(List.zip(labels, items), fn(#(label, item)) = {
+        let #(first, rest) = match item {
+            Paragraph(text) :: more -> #(textLines(roffSpans(text, Roman)), more)
+          | _ -> #([], item)
+        };
+        (".IP " <> label <> " " <> width)
+            :: first <> List.flatMap(rest, fn(b) = (".RS " <> width) :: roffed(b) <> [".RE"])
+    })
+}
+
+// The spans in roff, begun in the font given and ended in it; a hard break
+// is a line feed, which `textLines` turns into roff's break.
+fn roffSpans(xs : List(Inline), font : Font) -> String =
+    String.join(List.map(xs, fn(x) = roffSpan(x, font)), "")
+
+fn roffSpan(x : Inline, font : Font) -> String =
+    match x {
+        Text(s) -> escaped(s)
+      | CodeSpan(s) -> inFont(withBold(font), font, escaped(s))
+      | Emphasis(xs) -> inFont(withItalic(font), font, roffSpans(xs, withItalic(font)))
+      | Strong(xs) -> inFont(withBold(font), font, roffSpans(xs, withBold(font)))
+      | Link(text = text, address = address) -> if plain(text) == address then
+            escaped(address)
+        else
+            roffSpans(text, font) <> " (" <> escaped(address) <> ")"
+      | Break -> "\n"
+    }
+
+// Text in a font, and the font it stood in after it.
+fn inFont(inner : Font, outer : Font, text : String) -> String =
+    if inner == outer then text else fontCode(inner) <> text <> fontCode(outer)
+
+fn fontCode(font : Font) -> String =
+    match font {
+        Roman -> "\\fR"
+      | Bold -> "\\fB"
+      | Italic -> "\\fI"
+      | BoldItalic -> "\\f(BI"
+    }
+
+fn withBold(font : Font) -> Font =
+    match font {
+        Roman -> Bold
+      | Italic -> BoldItalic
+      | other -> other
+    }
+
+fn withItalic(font : Font) -> Font =
+    match font {
+        Roman -> Italic
+      | Bold -> BoldItalic
+      | other -> other
+    }
+
+// A paragraph's text as lines of the page's source, one for each hard
+// break and roff's break between them; roff reads an empty line as space
+// between paragraphs, so there is none.
+fn textLines(text : String) -> List(String) =
+    match List.filter(String.split(text, "\n"), fn(line) = !String.isEmpty(line)) {
+        [] -> []
+      | first :: rest -> textLine(first) :: List.flatMap(rest, fn(line) = [".br", textLine(line)])
+    }
+
+// A line of escaped text, which roff would read as a request where it
+// begins with a period, so it begins with roff's empty character; an
+// apostrophe, the other mark of a request, is escaped already.
+fn textLine(text : String) -> String =
+    if String.startsWith(text, ".") then "\\&" <> text else text
+
+// A line of a code block or of raw lines, as it is written: roff keeps its
+// spaces in a block it does not fill.
+fn codeLine(line : String) -> String =
+    textLine(escaped(line))
+
+// Text as roff writes it: a backslash, a hyphen, a quote, and the marks roff
+// would turn into typographic ones by their escapes, and a line feed, which
+// would end the line, as a space. The rest stands as it is, in UTF-8: an
+// escape by code point would be the text of the NAME line that man-db's
+// `apropos` shows.
+fn escaped(text : String) -> String =
+    String.join(List.map(String.toList(text), escapedChar), "")
+
+fn escapedChar(c : Char) -> String =
+    match c {
+        '\\' -> "\\(rs"
+      | '-' -> "\\-"
+      | '\'' -> "\\(aq"
+      | '`' -> "\\(ga"
+      | '"' -> "\\(dq"
+      | '~' -> "\\(ti"
+      | '^' -> "\\(ha"
+      | '\n' -> " "
+      | other -> Char.toString(other)
+    }
+
+//
 // The tests (report §9.3), run by `ern test` as every library's are.
 //
 
@@ -1020,6 +1260,120 @@ let nestedRows =
          run = fn() =
              rowsAre(render(parse("1. a\n\n   > q\n2. b"), 80, Plain),
                      ["1. a", "", "   │ q", "2. b"]))
+
+let manualHeader =
+    Test(name = "a manual page begins with its header and its NAME line",
+         run = fn() =
+             rowsAre(roff(hello(), []),
+                     [".TH \"hello\" \"1\" \"\" \"Hello 1.0\" \"Hello Manual\"",
+                      ".nh",
+                      ".ds AD l",
+                      ".ad l",
+                      ".SH NAME",
+                      "hello \\- greet"]))
+
+let manualDescription =
+    Test(name = "the blocks before a first section are the page's DESCRIPTION",
+         run = fn() =
+             rowsAre(List.drop(roff(hello(), parse("Text.\n\n# USAGE\n\nMore.")), 6),
+                     [".SH DESCRIPTION", ".PP", "Text.", ".SH", "USAGE", ".PP", "More."]))
+
+let manualSection =
+    Test(name = "a page that begins with a section has no DESCRIPTION of its own",
+         run = fn() = rowsAre(List.drop(roff(hello(), parse("# USAGE")), 6), [".SH", "USAGE"]))
+
+let manualHeadings =
+    Test(name = "a heading of level 2 is a subsection and a deeper one a bold paragraph",
+         run = fn() =
+             rowsAre(List.drop(roff(hello(), parse("## Two `x`\n### Three *y*")), 7),
+                     [".SS", "Two x", ".PP", "\\fBThree \\f(BIy\\fB\\fR"]))
+
+let manualFonts =
+    Test(name = "each font returns to the one around it",
+         run = fn() =
+             rowsAre(List.drop(roff(hello(), parse("**a *b* `c`** `d` *e `f`*")), 8),
+                     ["\\fBa \\f(BIb\\fB c\\fR \\fBd\\fR \\fIe \\f(BIf\\fI\\fR"]))
+
+let manualEscapes =
+    Test(name = "what roff would change is written by its escape, and the rest as it is",
+         run = fn() =
+             rowsAre(List.drop(roff(hello(), parse("a-b \\\\ 'c' ~ ^ \"d\" § \u{1f600}")), 8),
+                     ["a\\-b \\(rs \\(aqc\\(aq \\(ti \\(ha \\(dqd\\(dq § \u{1f600}"]))
+
+let manualLineStarts =
+    Test(name = "a line that begins with a period is not a request",
+         run = fn() =
+             rowsAre(List.drop(roff(hello(), parse("\\.a\\\n.b\n\n    .c")), 8),
+                     ["\\&.a", ".br", "\\&.b", ".PP", ".RS 4", ".nf", "\\&.c", ".fi", ".RE"]))
+
+let manualCode =
+    Test(name = "a code block keeps its lines and its spaces, blank lines among them",
+         run = fn() =
+             rowsAre(List.drop(roff(hello(), parse("```\nf(x)\n\n  `y`\n```")), 7),
+                     [".PP", ".RS 4", ".nf", "f(x)", "", "  \\(gay\\(ga", ".fi", ".RE"]))
+
+let manualItems =
+    Test(name = "an item follows its label, and its later blocks stand under its text",
+         run = fn() =
+             rowsAre(List.drop(roff(hello(), parse("- a\n\n  b\n- c\n  - d")), 7),
+                     [".IP \\(bu 2",
+                      "a",
+                      ".RS 2",
+                      ".PP",
+                      "b",
+                      ".RE",
+                      ".IP \\(bu 2",
+                      "c",
+                      ".RS 2",
+                      ".IP \\(bu 2",
+                      "d",
+                      ".RE"]))
+
+let manualNumbers =
+    Test(name = "an ordered list's text is as far in as its widest number",
+         run = fn() =
+             rowsAre(List.drop(roff(hello(), parse("9. a\n10. b")), 7),
+                     [".IP 9. 4", "a", ".IP 10. 4", "b"]))
+
+let manualRest =
+    Test(name = "a quote is indented, a rule is asterisks, raw lines are as written",
+         run = fn() =
+             rowsAre(List.drop(roff(hello(), parse("> q\n\n---\n\n<div>\n</div>")), 7),
+                     [".RS 4",
+                      ".PP",
+                      "q",
+                      ".RE",
+                      ".PP",
+                      "   *   *   *   *   *",
+                      ".PP",
+                      ".nf",
+                      "<div>",
+                      "</div>",
+                      ".fi"]))
+
+let manualLinks =
+    Test(name = "a link is its text with its address after it",
+         run = fn() =
+             rowsAre(List.drop(roff(hello(), parse("[home](https://a.org) <https://b.org>")), 8),
+                     ["home (https://a.org) https://b.org"]))
+
+let sentences =
+    Test(name = "the first sentence ends at a period a space follows outside emphasis",
+         run = fn() =
+             if firstSentence(parse("# T\n\nOne. Two.")) == [Text("One.")]
+                 && firstSentence(parse("One *a. b* c"))
+                     == [Text("One "), Emphasis([Text("a. b")]), Text(" c")]
+                 && firstSentence(parse("# T")) == [] then
+                 Passed
+             else
+                 Failed(plain(firstSentence(parse("# T\n\nOne. Two.")))))
+
+fn hello() -> Manual =
+    Manual(name = "hello",
+           section = "1",
+           summary = [Text("greet")],
+           source = "Hello 1.0",
+           title = "Hello Manual")
 
 fn blocksAre(blocks : List(Block), expected : List(Block)) -> TestResult =
     if blocks == expected then Passed else Failed(Int.toString(List.size(blocks)) <> " blocks")

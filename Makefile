@@ -6,7 +6,7 @@ APPS = utils lexer parser format typer runtime emitter cli
 # Every Ernest source of the repository, which `make format` lays out and
 # the Emacs mode's tests read (report §11.6, docs/emacs_mode.md).
 ERNEST_SOURCES = stdlib/*.ern shell/*.ern shell/shell/*.ern examples/*.ern \
-		examples/modules/*.ern examples/modules/*/*.ern test/*/*.ern libs/*/*.ern
+		examples/modules/*.ern examples/modules/*/*.ern test/*/*.ern libs/*/*.ern tools/*.ern
 
 # What the Ernest trees are built from: the compiler's beams, and each
 # tree's sources and the directories that hold them, so that a source
@@ -85,6 +85,26 @@ build/shell/.built: build/stdlib/.built build/libs/.built $(TOOL) $(call sources
 doc: all
 	@bin/ern doc --build-root build/stdlib stdlib
 
+# The manual pages (report §11, §11.4): the prelude's and every standard
+# library module's, beside the modules' .erc in build/stdlib, and ern(1),
+# §11 of the report, which tools/manual.ern writes into build/man with
+# those pages in its SEE ALSO. A page is written whole or not at all.
+man: all build/tools/.built
+	@bin/ern doc --man --build-root build/stdlib stdlib
+	@mkdir -p build/man
+	@bin/ern run --load-path build/libs/markdown build/tools/manual.erc \
+	  ernest_report.md $$(cat VERSION) build/stdlib > build/man/ern.1.new
+	@mv build/man/ern.1.new build/man/ern.1
+
+# The programs of the build written in Ernest, tools/*.ern, compiled into
+# build/tools against libs/markdown. Rebuilt when a compiler beam is newer,
+# as the standard library is.
+build/tools/.built: build/libs/.built $(TOOL) $(call sources,tools)
+	@if [ -n "$$(find erl -name '*.beam' -newer $@ 2>/dev/null)" ] \
+	   || [ ! -f $@ ]; then rm -rf build/tools; fi
+	@bin/ern build --load-path build/libs/markdown --build-root build/tools tools
+	@touch $@
+
 # Terminal.columns' width table in stdlib/terminal.ern, from the Unicode
 # data of the version the host's grapheme segmentation follows: UC_SPEC is
 # a directory holding EastAsianWidth.txt, emoji-data.txt and
@@ -151,7 +171,8 @@ $(EMACS_TESTS:%=emacs-test-%): emacs-test-%:
 clean:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -C test $@
-	@rm -rf build/stdlib build/shell build/libs examples/*.erc examples/**/*.erc $(EXEC)
+	@rm -rf build/stdlib build/shell build/libs build/tools build/man examples/*.erc \
+	  examples/**/*.erc $(EXEC)
 
 # Rewrite test/golden/*.erl, the Erlang source the compiler emits for every
 # MVP 1 example, after an intended change to the emitter.
@@ -203,4 +224,4 @@ clean-emacs:
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
 .PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load test-emacs \
-        $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents format stdlib shell doc unicode
+        $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man unicode

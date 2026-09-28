@@ -8,7 +8,7 @@ milestone decides, or a line saying it was weighed and left alone, and then it l
 file.
 
 An entry keeps the number it was found under, since the plan, the log and the code cite it.
-Sixty-one have been decided or moved to the plan; the next entry is 63.
+Sixty-one have been decided or moved to the plan; the next entry is 64.
 
 62. **A long namespace is written at every use.** Found 2026-09-27 reading back
     `shell/shell.ern` after the rewrite of its function heads. A name from another module is
@@ -23,3 +23,12 @@ Sixty-one have been decided or moved to the plan; the next entry is 63.
     bracket's items align after the qualified name, so `Shell.Complete.Name(` puts its fields
     at column 60 and more, and the shell's `"timing"` arm had no layout within 100 columns
     until the writer named a value.
+
+63. **A list with a separator between its elements has no function.** Found 2026-09-28
+    writing `libs/markdown`'s `roff`, where a paragraph's lines stand with roff's `.br`
+    between them. `List.intersperse(lines, ".br")` was reached for first, and Appendix E.0
+    rule 2's sequence vocabulary has no such function, while text has `String.join` for the
+    same shape. The code reads `first :: List.flatMap(rest, fn(line) = [".br", line])`,
+    which says it less directly. Rule 4 does not refuse it, since it is no pipe of two
+    functions already there, so rules 2 and 3 would weigh it as a general operation of a
+    sequence, Haskell's `intersperse` and Gleam's `list.intersperse`.

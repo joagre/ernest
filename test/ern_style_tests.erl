@@ -15,7 +15,7 @@
 line_length_test() ->
     Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "erl/*/c_src/*.c", "test/*.erl",
                 "stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern", "test/**/*.ern",
-                "test/*.py", "emacs/*.el", "emacs/test/*.el", "libs/**/*.ern"],
+                "test/*.py", "emacs/*.el", "emacs/test/*.el", "libs/**/*.ern", "tools/*.ern"],
     Files = [F || P <- Patterns, F <- filelib:wildcard(P, ?ROOT),
                   filename:basename(F) =/= "getopt.erl",
                   not editor_artifact(filename:basename(F))],
@@ -32,7 +32,7 @@ no_tab_test() ->
                 "test/*.erl",
                 "stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern", "test/**/*.ern",
                 "test/*.py", "emacs/*.el", "emacs/test/*.el", "emacs/test/broken/*.ern",
-                "libs/**/*.ern", "libs/*/*.md", "*.md", "docs/*.md"],
+                "libs/**/*.ern", "libs/*/*.md", "tools/*.ern", "*.md", "docs/*.md"],
     Files = [F || P <- Patterns, F <- filelib:wildcard(P, ?ROOT),
                  filename:basename(F) =/= "getopt.erl",
                  not editor_artifact(filename:basename(F))],
@@ -82,7 +82,7 @@ write_formatted() ->
 %% The modules the Ernest style guide governs.
 modules() ->
     Modules = [F || P <- ["stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern",
-                          "libs/**/*.ern", "test/**/*.ern"],
+                          "libs/**/*.ern", "tools/*.ern", "test/**/*.ern"],
                     F <- filelib:wildcard(P, ?ROOT),
                     not lists:prefix("test/build/", F),
                     not editor_artifact(filename:basename(F))],

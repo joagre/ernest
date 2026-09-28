@@ -20,8 +20,11 @@ all: $(BEAM)
 
 $(BEAM) $(TEST_BEAM): ../../../VERSION
 
+# The standard library, and the shell's tree, which holds libs/markdown's
+# module for `ern doc --man` (report §11.4).
 test: $(BEAM) $(TEST_BEAM)
-	erl -noshell -pa $(EBIN) -pa $(abspath ../../../build/stdlib) -eval \
+	erl -noshell -pa $(EBIN) -pa $(abspath ../../../build/stdlib) \
+	  -pa $(abspath ../../../build/shell) -eval \
 	  'halt(case eunit:test({dir, "$(EBIN)"}, []) of ok -> 0; _ -> 1 end).'
 
 clean:
