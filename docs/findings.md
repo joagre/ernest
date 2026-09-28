@@ -30,7 +30,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — the shell's `.` completion crashes on a field of two types (C15): fixed 2026-09-28, the checker's question asked at a position it never shows, as its other questions are
 - 2.95 — `ern format`: a raw string loses spaces in a doc example; trailing spaces of a doc line dropped; a trailing doc comment crashes; a `type` with a trailing comment; a blank line after a comment; a fence that does not parse re-indented (C11, C16, C17, C24..C26)
 - 2.95 — a faulting `mk` of a call under `restarting` leaves the row, monitor and alias (C7)
-- 2.95 — `ern_os` crashes on a closed port for a queued read or write (C9)
+- done — `ern_os` crashes on a closed port for a queued read or write (C9): fixed 2026-09-28, a frame for a port the helper's end has closed dropped, the exit status it sent first ending the run (E.23)
 - 2.95 — `stty sane` loses the user's settings (C20)
 - 2.95 — a lost paste end swallows every later key (C31)
 - 2.95 — the shell's live region keeps an unfinished line whole: quadratic, never reclaimed (E3)

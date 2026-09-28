@@ -17,8 +17,8 @@ milestone, the standing gaps, and what is done.
 installation, the release archive, the review and the time of `make test` are done (2026-09-28),
 and so are the readers' first fixes, all but ten defects moved there that day and an
 intermittent failure not yet diagnosed (item 4, step 2). Three entries of the language feedback
-follow (item 5). The release itself is MVP 2.99's. Every earlier milestone is done, the last MVP 2.7 on 2026-09-28; MVP 2.9, MVP 2.61,
-`libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph under "Done".
+follow (item 5). The release itself is MVP 2.99's. Every earlier milestone is done, the last
+MVP 2.7 on 2026-09-28; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph under "Done".
 
 ---
 

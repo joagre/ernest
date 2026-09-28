@@ -56,7 +56,7 @@ open(Args) ->
                      [{args, Args}, {packet, 4}, binary, exit_status]).
 
 started(Port, Input, Ms, Owner, Reply) ->
-    erlang:port_command(Port, <<"i", Input/binary>>),
+    command(Port, <<"i", Input/binary>>),
     Watch = erlang:monitor(process, Owner),
     Deadline = ern_rt:deadline(Ms),
     %% the input given at the start is answered by the helper as a write is,
@@ -107,17 +107,17 @@ starting(#{port := Port} = Run, Reply) ->
 running(#{port := Port} = Run, Waiting) ->
     receive
         {'Read', Reply} ->
-            erlang:port_command(Port, <<"n">>),
+            command(Port, <<"n">>),
             running(Run, queue:in(Reply, Waiting));
         {'Write', Bytes, Reply} ->
-            erlang:port_command(Port, <<"i", Bytes/binary>>),
+            command(Port, <<"i", Bytes/binary>>),
             running(Run#{writes := queue:in(Reply, maps:get(writes, Run))}, Waiting);
         {Port, {data, <<"a">>}} ->
             {{value, Written}, Rest} = queue:out(maps:get(writes, Run)),
             Written =:= none orelse ern_rt:answer(Written, 'Unit'),
             running(Run#{writes := Rest}, Waiting);
         'CloseInput' ->
-            erlang:port_command(Port, <<"e">>),
+            command(Port, <<"e">>),
             running(Run, Waiting);
         {Port, {data, <<"x", Status:32>>}} ->
             {{value, Reply}, _} = queue:out(Waiting),
@@ -141,6 +141,11 @@ running(#{port := Port} = Run, Waiting) ->
                 over -> stop(Run), unwritten(Run), over(Waiting, {'Left', 'Timeout'})
             end
     end.
+
+%% A frame for the helper. A port the helper's end has closed has sent its
+%% exit status first, which ends the run, so a frame after it is dropped.
+command(Port, Frame) ->
+    try erlang:port_command(Port, Frame) catch error:badarg -> closed end.
 
 %% The writes still waiting when the program has ended: their bytes are
 %% dropped, as a write after the end of the input is.
