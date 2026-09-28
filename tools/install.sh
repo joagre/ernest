@@ -1,19 +1,24 @@
 #!/bin/sh
-# The installation (docs/install.md), which make install and make uninstall
-# run: `install.sh install DESTDIR PREFIX` and `install.sh uninstall
-# DESTDIR PREFIX`. Every path is under DESTDIR followed by PREFIX. The
-# toolchain's tree goes to lib/ernest, as the repository lays it out, and
-# bin/ern is a relative link to its launcher; the manual pages, the
-# documents and the Emacs mode go under share. The tree's `installed`
-# lists every file put outside it, a directory with a slash after it, so
-# that uninstall removes exactly those. Nothing is changed where a
-# directory to be written cannot be.
+# The installation (docs/install.md). Its jobs:
+#
+#   install.sh stage DIR                    the installation's tree from the checkout
+#   install.sh install DIR DESTDIR PREFIX   a staged tree installed
+#   install.sh uninstall DESTDIR PREFIX     an installation removed
+#   install.sh release DIR VERSION          the release archive, DIR/ern-VERSION.tar.gz
+#
+# A staged tree is laid out as under the prefix: the toolchain's tree in
+# lib/ernest, as the repository lays it out and without the host's debug
+# information, bin/ern a relative link to its launcher, and the manual
+# pages, the documents and the Emacs mode under share. The tree's
+# `installed` lists every file outside it, a directory with a slash after
+# it, so that uninstall removes exactly those. make install stages the
+# checkout and installs what it staged; the release archive is a staged
+# tree whose helper is compiled where it is installed. Nothing is changed
+# where a directory to be written cannot be.
 
 set -eu
 
 job=$1
-root=$2$3
-tree=$root/lib/ernest
 repo=$(cd "$(dirname "$0")/.." && pwd -P)
 
 fail() {
@@ -32,20 +37,50 @@ writable() {
         "who can write there, or give another PREFIX"
 }
 
-# A file of the repository copied into the tree, its directories made.
-into_tree() {
-    mkdir -p "$(dirname "$tree/$1")"
-    cp "$repo/$1" "$tree/$1"
+# The installation's tree from the checkout, in $1.
+stage() {
+    stage=$1
+    rm -rf "$stage"
+    tree=$stage/lib/ernest
+    cd "$repo"
+    for f in bin/ern erl/*/ebin/*.beam erl/runtime/priv/ern_exec stdlib/*.ern \
+             build/stdlib/*.erc build/stdlib/ern@*.beam \
+             $(find build/shell build/libs -type f \( -name '*.erc' -o -name '*.beam' \) | sort)
+    do
+        case $f in
+            *_tests.beam) ;;
+            *) mkdir -p "$(dirname "$tree/$f")" && cp "$f" "$tree/$f" ;;
+        esac
+    done
+    escript tools/strip.escript "$tree"
+    mkdir -p "$stage/bin"
+    ln -s ../lib/ernest/bin/ern "$stage/bin/ern"
+    echo bin/ern > "$tree/installed"
+    shared build/man/ern.1 share/man/man1/ern.1
+    for f in build/stdlib/*.3ern build/libs/*/*.3ern; do
+        shared "$f" "share/man/man3/$(basename "$f")"
+    done
+    for f in ernest_report.md ernest_guide.md README.md LICENSE THIRD_PARTY_LICENSES; do
+        shared "$f" "share/doc/ernest/$f"
+    done
+    echo share/doc/ernest/ >> "$tree/installed"
+    shared emacs/ernest-mode.el share/emacs/site-lisp/ernest-mode.el
+    chmod -R u=rwX,go=rX "$stage"
 }
 
-# A file copied to a place outside the tree, and listed.
-outside() {
-    mkdir -p "$(dirname "$root/$2")"
-    cp "$1" "$root/$2"
+# A file of the checkout staged outside the tree, and listed.
+shared() {
+    mkdir -p "$(dirname "$stage/$2")"
+    cp "$1" "$stage/$2"
     echo "$2" >> "$tree/installed"
 }
 
+# A staged tree in $1 installed under root, the files it lists outside
+# its tree copied, and any installation already there removed first.
 install() {
+    from=$1
+    [ -x "$from/lib/ernest/erl/runtime/priv/ern_exec" ] ||
+        fail "$from holds no helper; make builds it"
     for d in "$tree" "$root/bin" "$root/share/man/man1" "$root/share/man/man3" \
              "$root/share/doc" "$root/share/emacs/site-lisp"; do
         writable "$d"
@@ -58,41 +93,15 @@ install() {
     if [ -e "$root/bin/ern" ] || [ -L "$root/bin/ern" ]; then
         fail "$root/bin/ern is there already and is not Ernest's"
     fi
-    cd "$repo"
-    into_tree bin/ern
-    for f in erl/*/ebin/*.beam; do
-        case $f in
-            *_tests.beam) ;;
-            *) into_tree "$f" ;;
-        esac
-    done
-    into_tree erl/runtime/priv/ern_exec
-    for f in stdlib/*.ern build/stdlib/*.erc build/stdlib/ern@*.beam; do
-        into_tree "$f"
-    done
-    find build/shell build/libs -type f \( -name '*.erc' -o -name '*.beam' \) | sort |
-        while read -r f; do
-            into_tree "$f"
-        done
+    mkdir -p "$root/lib"
+    cp -R "$from/lib/ernest" "$tree"
     chmod -R u=rwX,go=rX "$tree"
-    : > "$tree/installed"
-    mkdir -p "$root/bin"
-    ln -s ../lib/ernest/bin/ern "$root/bin/ern"
-    echo bin/ern >> "$tree/installed"
-    outside build/man/ern.1 share/man/man1/ern.1
-    for f in build/stdlib/*.3ern build/libs/*/*.3ern; do
-        outside "$f" "share/man/man3/$(basename "$f")"
-    done
-    for f in ernest_report.md ernest_guide.md README.md LICENSE THIRD_PARTY_LICENSES; do
-        outside "$f" "share/doc/ernest/$f"
-    done
-    echo share/doc/ernest/ >> "$tree/installed"
-    outside emacs/ernest-mode.el share/emacs/site-lisp/ernest-mode.el
     while read -r f; do
         case $f in
-            */) chmod u=rwx,go=rx "$root/$f" ;;
-            bin/ern) ;;
-            *) chmod u=rw,go=r "$root/$f" ;;
+            */) ;;
+            bin/ern) mkdir -p "$root/bin" && ln -s ../lib/ernest/bin/ern "$root/bin/ern" ;;
+            *) mkdir -p "$(dirname "$root/$f")" && cp "$from/$f" "$root/$f" &&
+                   chmod u=rw,go=r "$root/$f" ;;
         esac
     done < "$tree/installed"
 }
@@ -119,8 +128,29 @@ uninstall() {
     rm -rf "$tree"
 }
 
+# The release archive: a staged tree without the helper, whose C source
+# it carries instead with the Makefile and the README of tools/release,
+# and this script, packed as ern-VERSION.
+release() {
+    dir=$1
+    version=$2
+    name=ern-$version
+    stage "$dir/$name"
+    rm "$dir/$name/lib/ernest/erl/runtime/priv/ern_exec"
+    cd "$repo"
+    cp erl/runtime/c_src/ern_exec.c tools/install.sh "$dir/$name/"
+    for f in Makefile README.md; do
+        sed "s/@VERSION@/$version/g" "tools/release/$f" > "$dir/$name/$f"
+    done
+    chmod -R u=rwX,go=rX "$dir/$name"
+    rm -f "$dir/$name.tar.gz"
+    (cd "$dir" && tar -czf "$name.tar.gz" "$name")
+}
+
 case $job in
-    install) install ;;
-    uninstall) uninstall ;;
+    stage) stage "$2" ;;
+    install) root=$3$4 && tree=$root/lib/ernest && install "$2" ;;
+    uninstall) root=$2$3 && tree=$root/lib/ernest && uninstall ;;
+    release) release "$2" "$3" ;;
     *) fail "no job $job" ;;
 esac

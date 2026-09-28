@@ -45,13 +45,16 @@ shell/             the shell as Ernest source; its README.md guides a reader
 emacs/             ernest-mode.el, the Emacs major mode, and its tests under test/
 build/             build products, not in git: build/stdlib/, build/shell/, and
                    build/libs/ from make, the standard library's pages from make doc,
-                   its manual pages, build/man/ and build/tools/ from make
+                   its manual pages, build/man/ and build/tools/ from make, and
+                   build/release/ from make release
 libs/              the first-party libraries, each a source root a program adds
                    with --load-path: ets, markdown
 tools/             the programs of the build: unicode_width.escript writes
                    Terminal.columns' table, run by make unicode, manual.ern
-                   writes ern(1) from the report's §11, run by make, and
-                   install.sh installs, run by make install and make uninstall
+                   writes ern(1) from the report's §11, run by make, install.sh
+                   stages, installs and archives, run by make install, make
+                   uninstall and make release, with strip.escript, and release/
+                   holds the archive's own Makefile and README.md
 ```
 
 A module's path follows report §11.1. A file that is not a module is named with underscores, but for the Emacs mode's, which follow Emacs's convention.
@@ -80,6 +83,7 @@ make man          the manual pages alone, which make writes: each module's besid
 make install      install under PREFIX, /usr/local by default, each path after DESTDIR
                   where one is given (docs/install.md)
 make uninstall    remove the installation under the same PREFIX and DESTDIR
+make release      write the release archive, build/release/ern-VERSION.tar.gz
 make sections     list the report sections no test cites
 make xref         check that every section citation and document path in the documents resolves
 make coverage     every section with how many tests cite it and its length, thinnest first

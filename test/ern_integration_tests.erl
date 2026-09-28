@@ -264,7 +264,8 @@ rendered(Pages) ->
 %% removes what was installed and leaves a page of the user's, and refuses
 %% where nothing is installed; a DESTDIR stages the same tree, which runs
 %% where it is staged; and a prefix that cannot be written is refused with
-%% nothing written. Written with the code.
+%% nothing written. No installed module carries the host's debug
+%% information. Written with the code.
 install_test_() ->
     {timeout, 300, fun install/0}.
 
@@ -274,17 +275,12 @@ install() ->
     ok = filelib:ensure_path(Base ++ "/work"),
     {0, _} = sh("make -s -C .. install PREFIX=" ++ Base ++ "/a"),
     ?assertEqual({ok, "../lib/ernest/bin/ern"}, file:read_link(Base ++ "/a/bin/ern")),
+    ?assertEqual([], debug_information(Base ++ "/a")),
     ok = file:rename(Base ++ "/a", Base ++ "/b"),
     Ern = Base ++ "/b/bin/ern",
     In = fun(Cmd) -> sh(Cmd, [{cd, Base ++ "/work"}]) end,
     ?assertEqual({0, <<"ern 0.1.0\n">>}, In(Ern ++ " --version")),
-    ok = file:write_file(Base ++ "/work/hi.ern",
-                         "export fn main() -> Unit with Never = match Os.run(Os.Command(\n"
-                         "    program = \"echo\", arguments = [\"hi\"], input = <<>>), 5000) {\n"
-                         "    Right(Os.Finished(stdout = out)) -> Io.print(Optional.withDefault(\n"
-                         "        String.fromUtf8(out), \"\"))\n"
-                         "  | Left(e) -> Io.println(Io.show(e))\n"
-                         "}\n"),
+    ok = file:write_file(Base ++ "/work/hi.ern", runs_echo()),
     {0, _} = In(Ern ++ " build hi.ern"),
     ?assertEqual({0, <<"hi\n">>}, In(Ern ++ " run hi.erc")),
     {0, Shell} = In("printf '1 + 1\\n' | " ++ Ern ++ " shell"),
@@ -322,6 +318,58 @@ install() ->
             ?assertEqual({ok, []}, file:list_dir(Base ++ "/closed")),
             ok = file:change_mode(Base ++ "/closed", 8#755)
     end.
+
+%% docs/install.md: make release writes the archive, the staged tree with
+%% the helper as its C source, a Makefile and a README; its make compiles
+%% the helper, and its make install installs under a prefix, where a
+%% program that runs another through the helper runs, and its make
+%% uninstall removes it. Written with the code.
+release_test_() ->
+    {timeout, 300, fun release/0}.
+
+release() ->
+    Base = filename:absname("build/release"),
+    ok = del(Base),
+    ok = filelib:ensure_path(Base ++ "/work"),
+    {0, _} = sh("make -s -C .. release"),
+    {ok, Version} = file:read_file("../VERSION"),
+    Name = "ern-" ++ string:trim(binary_to_list(Version)),
+    Archive = "../build/release/" ++ Name ++ ".tar.gz",
+    {0, Listing} = sh("tar -tzf " ++ Archive),
+    Entries = binary:split(Listing, <<"\n">>, [global, trim]),
+    [?assert(lists:member(list_to_binary(Name ++ "/" ++ F), Entries))
+     || F <- ["Makefile", "README.md", "install.sh", "ern_exec.c", "bin/ern",
+              "lib/ernest/bin/ern", "lib/ernest/installed", "share/man/man1/ern.1"]],
+    ?assertNot(lists:member(list_to_binary(Name ++ "/lib/ernest/erl/runtime/priv/ern_exec"),
+                            Entries)),
+    {0, _} = sh("tar -xzf " ++ filename:absname(Archive), [{cd, Base}]),
+    Unpacked = Base ++ "/" ++ Name,
+    {0, _} = sh("make -s install PREFIX=" ++ Base ++ "/p", [{cd, Unpacked}]),
+    ?assertEqual([], debug_information(Base ++ "/p")),
+    Ern = Base ++ "/p/bin/ern",
+    ok = file:write_file(Base ++ "/work/hi.ern", runs_echo()),
+    {0, _} = sh(Ern ++ " build hi.ern", [{cd, Base ++ "/work"}]),
+    ?assertEqual({0, <<"hi\n">>}, sh(Ern ++ " run hi.erc", [{cd, Base ++ "/work"}])),
+    {0, _} = sh("make -s uninstall PREFIX=" ++ Base ++ "/p", [{cd, Unpacked}]),
+    ?assertEqual([], [F || F <- filelib:wildcard(Base ++ "/p/**/*"), not filelib:is_dir(F)]).
+
+%% A program that runs another through the runtime's helper (Appendix E.23).
+runs_echo() ->
+    "export fn main() -> Unit with Never = match Os.run(Os.Command(\n"
+    "    program = \"echo\", arguments = [\"hi\"], input = <<>>), 5000) {\n"
+    "    Right(Os.Finished(stdout = out)) -> Io.print(Optional.withDefault(\n"
+    "        String.fromUtf8(out), \"\"))\n"
+    "  | Left(e) -> Io.println(Io.show(e))\n"
+    "}\n".
+
+%% The modules under a directory that carry the host's debug information.
+debug_information(Dir) ->
+    [F || F <- filelib:wildcard(Dir ++ "/**/*.{beam,erc}"),
+          begin
+              {ok, Beam} = file:read_file(F),
+              {ok, _, Chunks} = beam_lib:all_chunks(Beam),
+              lists:keymember("Dbgi", 1, Chunks)
+          end].
 
 %% report §9.3, plan MVP 3.2: every library's own tests, run by `ern test`
 %% over its compiled modules, as the shell's are

@@ -108,17 +108,28 @@ build/man/.built: $(TOOL) build/stdlib/.built build/libs/.built build/tools/.bui
 # The installation (docs/install.md): the toolchain's tree under
 # $(PREFIX)/lib/ernest, bin/ern a link to its launcher, and the manual
 # pages, the documents and the Emacs mode under $(PREFIX)/share, each path
-# after $(DESTDIR), which a packager passes. make uninstall removes what
-# the installation put there. Neither changes anything where a directory
-# it must write cannot be written.
+# after $(DESTDIR), which a packager passes. make install stages the tree
+# in a directory of its own outside the checkout, so that one run as
+# another user writes nothing into it, and installs what it staged; make
+# uninstall removes what the installation put there. Neither changes
+# anything where a directory it must write cannot be written.
 PREFIX = /usr/local
 DESTDIR =
 
 install: all
-	@sh tools/install.sh install "$(DESTDIR)" "$(PREFIX)"
+	@stage=$$(mktemp -d) && trap 'rm -rf "$$stage"' EXIT && \
+	  sh tools/install.sh stage "$$stage/ernest" && \
+	  sh tools/install.sh install "$$stage/ernest" "$(DESTDIR)" "$(PREFIX)"
 
 uninstall:
 	@sh tools/install.sh uninstall "$(DESTDIR)" "$(PREFIX)"
+
+# The release archive, build/release/ern-$(VERSION).tar.gz: the tree make
+# install stages, the helper as its C source, which the archive's own make
+# compiles where it is installed, and a Makefile and a README of its own
+# from tools/release (docs/install.md).
+release: all
+	@sh tools/install.sh release build/release $$(cat VERSION)
 
 # The programs of the build written in Ernest, tools/*.ern, compiled into
 # build/tools against libs/markdown. Rebuilt when a compiler beam is newer,
@@ -195,7 +206,8 @@ $(EMACS_TESTS:%=emacs-test-%): emacs-test-%:
 clean:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -C test $@
-	@rm -rf build/stdlib build/shell build/libs build/tools build/man examples/*.erc \
+	@rm -rf build/stdlib build/shell build/libs build/tools build/man build/release \
+	  examples/*.erc \
 	  examples/**/*.erc $(EXEC)
 
 # Rewrite test/golden/*.erl, the Erlang source the compiler emits for every
@@ -248,4 +260,4 @@ clean-emacs:
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
 .PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load test-emacs \
-        $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man install uninstall unicode
+        $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man install uninstall release unicode
