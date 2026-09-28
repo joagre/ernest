@@ -4917,7 +4917,7 @@ The change also removes the one place where a head's arrow stood beside a functi
 
 It reaches some 1,200 heads in 195 sources, 41 in the report and 109 in the guide, and the formatter makes it: the parser reads both spellings while the sources change, `make format` rewrites them, and the parser then refuses `->` after a head's `)` with a help that names `:`. The refusal follows §11's rule for a job spelled as an earlier version spelled it, and a programmer who writes Rust or Swift, which spell the result `-> T`, meets it first.
 
-It is built before the first release's tag. The release is for others to install and use (*The First Release Is for Others*). After the tag, the change would break each program written against it, and the release would teach, in its report, its guide and its manual pages, a head the next release refuses. Its cost is about two days before the tag.
+It follows the first release rather than holding it. The change is one of spelling, the release's users are few and early, and the refusal's help names the new spelling at each head the parser meets, so a program written against the release is brought over by what the next release says of it.
 
 ## Erlang's Standard Library, Module by Module
 

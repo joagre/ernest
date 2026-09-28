@@ -15,10 +15,9 @@ milestone, the standing gaps, and what is done.
 
 **MVP 2.95, the first release, is under way.** The manual pages, the installation, the release
 archive and the review are done (2026-09-28); the next are the readers' fixes before the tag,
-item 4's step 2, then the time of `make test`, step 3, then MVP 2.96's result annotation written
-with `:`, then the tag. Every earlier milestone is done, the last MVP 2.7 on 2026-09-28; MVP
-2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph under
-"Done".
+item 4's step 2, then the time of `make test`, step 3, then the tag. Every earlier milestone is
+done, the last MVP 2.7 on 2026-09-28; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken
+out of order. Each has its paragraph under "Done".
 
 ---
 
@@ -37,7 +36,7 @@ with `:`, then the tag. Every earlier milestone is done, the last MVP 2.7 on 202
 | MVP 2.8 | the formatter | done 2026-09-28, out of order |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | **MVP 2.95** | **the first release: manual pages, an installation, the review** | **under way: manual pages, installation, archive and review done 2026-09-28; the readers' fixes next** |
-| MVP 2.96 | a result annotation written with `:` | before MVP 2.95's tag |
+| MVP 2.96 | a result annotation written with `:` | |
 | MVP 3.0 | peers | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -128,9 +127,8 @@ It follows MVP 2.7 and comes before MVP 3.0.
 Decided 2026-09-28 (the log's *A Result Is Annotated With `:`*): a function's result annotation
 is written `: T`, as a parameter's is, in every function head, `fn`, `foreign fn`, a lambda and
 a type member: `fn show(x : Optional(Int)) : String = …`. A function type keeps its arrow,
-`(A) -> B with e`, and so do the clauses of `match` and `receive` and `after`. It is built after
-MVP 2.95's step 3 and before its tag, so that the first release teaches the head the language
-keeps (the same entry).
+`(A) -> B with e`, and so do the clauses of `match` and `receive` and `after`. It follows MVP
+2.95, the first release, and comes before MVP 3.0.
 
 1. **The report.** Appendix A's `Return` becomes `":" Type [ "with" Type ]`; §3.4's `with` in a
    result annotation, §4.5's `-> T` and `-> T with M`, and §8.1's entry point are restated.
