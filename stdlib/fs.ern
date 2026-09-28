@@ -26,16 +26,28 @@
 ///
 /// since 0.1.0
 
-/// What `Fs.stat` and `Fs.list` tell of a file: its path, its modification
-/// time in milliseconds since the epoch, as `Clock.now`, its size in bytes,
-/// and whether it is a directory (report Appendix E.17).
+/// What a path names: a regular file, a directory, a symbolic link, or
+/// something else, a named pipe, a device, or a socket (report Appendix
+/// E.17).
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// Fs.Entry(path = Path("a.txt"), mtime = 0, size = 5, isDir = false)
+/// Either.map(Fs.stat(Path("."), 5000), fn(e) = e.kind == Fs.Directory)
+/// // => Right(true)
 /// ```
-export type Entry = Entry(path : Path, mtime : Int, size : Int, isDir : Bool)
+export type Kind = File | Directory | Link | Other
+
+/// What `Fs.stat` and `Fs.list` tell of a file: its path, its modification
+/// time in milliseconds since the epoch, as `Clock.now`, its size in bytes,
+/// and its kind (report Appendix E.17).
+///
+/// ### Examples
+///
+/// ```ernest
+/// Fs.Entry(path = Path("a.txt"), mtime = 0, size = 5, kind = Fs.File)
+/// ```
+export type Entry = Entry(path : Path, mtime : Int, size : Int, kind : Kind)
 
 // What the file system takes.
 type Msg =
@@ -49,6 +61,8 @@ type Msg =
   | Remove(path : Path, reply : Reply(Either(Io.Error, Unit)))
   | Rename(from : Path, to : Path, reply : Reply(Either(Io.Error, Unit)))
   | Copy(from : Path, to : Path, reply : Reply(Either(Io.Error, Unit)))
+  | MakeLink(target : Path, path : Path, reply : Reply(Either(Io.Error, Unit)))
+  | ReadLink(path : Path, reply : Reply(Either(Io.Error, Path)))
 
 // Report §8.2: the system reference, the runtime's address of the file system,
 // bound at each start.
@@ -82,7 +96,8 @@ export fn append(path : Path, bytes : Bytes, ms : Int) -> Either(Io.Error, Unit)
     answered(Address.call(reference, fn(r) = AppendFile(path = path, bytes = bytes, reply = r), ms))
 
 /// The entries of the directory, in unspecified order, each path the
-/// directory's joined with the entry's name.
+/// directory's joined with the entry's name, and each described as it is:
+/// a link is a `Link`, whatever it leads to.
 ///
 /// ### Examples
 ///
@@ -94,11 +109,20 @@ export fn append(path : Path, bytes : Bytes, ms : Int) -> Either(Io.Error, Unit)
 /// }
 /// // => Right(["one.txt"])
 /// ```
+///
+/// ```ernest
+/// {
+///     let _ = Fs.makeDir(Path("kinds"), 5000);
+///     let _ = Fs.makeLink(Path("elsewhere"), Path("kinds/link"), 5000);
+///     Either.map(Fs.list(Path("kinds"), 5000), fn(es) = List.map(es, fn(e) = e.kind))
+/// }
+/// // => Right([Link])
+/// ```
 export fn list(path : Path, ms : Int) -> Either(Io.Error, List(Entry)) with m =
     answered(Address.call(reference, fn(r) = ListDir(path = path, reply = r), ms))
 
-/// What the path names: its size, its modification time, and whether it is
-/// a directory.
+/// What the path leads to, its links followed: its size, its modification
+/// time, and its kind.
 ///
 /// ### Examples
 ///
@@ -134,7 +158,8 @@ export fn makeDir(path : Path, ms : Int) -> Either(Io.Error, Unit) with m =
 export fn makePrivate(path : Path, ms : Int) -> Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(r) = MakePrivate(path = path, reply = r), ms))
 
-/// Removes a file or an empty directory.
+/// Removes a file, a link, or an empty directory; a link is removed, not
+/// what it leads to.
 ///
 /// ### Examples
 ///
@@ -179,6 +204,39 @@ export fn rename(from : Path, to : Path, ms : Int) -> Either(Io.Error, Unit) wit
 /// ```
 export fn copy(from : Path, to : Path, ms : Int) -> Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(r) = Copy(from = from, to = to, reply = r), ms))
+
+/// Makes a symbolic link at the second path that leads to the first, which
+/// is kept as it is written and may name nothing. A second path that names
+/// something is `Left(Other("exists"))`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let _ = Fs.write(Path("target.txt"), String.toUtf8("t"), 5000);
+///     let _ = Fs.makeLink(Path("target.txt"), Path("pointer"), 5000);
+///     Either.map(Fs.read(Path("pointer"), 5000), String.fromUtf8)
+/// }
+/// // => Right(Some("t"))
+/// ```
+export fn makeLink(target : Path, path : Path, ms : Int) -> Either(Io.Error, Unit) with m =
+    answered(Address.call(reference, fn(r) = MakeLink(target = target, path = path, reply = r), ms))
+
+/// The path a symbolic link holds, as it was written. A path that names
+/// something else is `Left(Other("not a symbolic link"))`, and a link whose
+/// target is not UTF-8 is `Left(Other("the target is not UTF-8"))`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let _ = Fs.makeLink(Path("somewhere"), Path("sign"), 5000);
+///     Fs.readLink(Path("sign"), 5000)
+/// }
+/// // => Right(Path("somewhere"))
+/// ```
+export fn readLink(path : Path, ms : Int) -> Either(Io.Error, Path) with m =
+    answered(Address.call(reference, fn(r) = ReadLink(path = path, reply = r), ms))
 
 fn answered(answer : Optional(Either(Io.Error, a))) -> Either(Io.Error, a) =
     Optional.withDefault(answer, Left(Io.Timeout))

@@ -3,7 +3,7 @@
 %% that one slow file does not hold up the rest. The work that opens a file
 %% goes around the host's file server, which does one request at a time:
 %% raw, as the host calls it. A Path is {'Path', Bin} and an Entry's fields
-%% are in canonical order (report §3.5): isDir, mtime, path, size.
+%% are in canonical order (report §3.5): kind, mtime, path, size.
 -module(ern_fs).
 
 -export([loop/0]).
@@ -62,14 +62,25 @@ handle({'MakePrivate', Path, Reply}) ->
                       Error ->
                           Error
                   end);
+%% Report Appendix E.17: a link is removed, not what it leads to.
 handle({'Remove', Path, Reply}) ->
     Name = text(Path),
-    answer(Reply, unit(case filelib:is_dir(Name) of
-                           true -> file:del_dir(Name);
-                           false -> file:delete(Name)
+    answer(Reply, unit(case file:read_link_info(Name, [raw]) of
+                           {ok, #file_info{type = directory}} -> file:del_dir(Name);
+                           _ -> file:delete(Name, [raw])
                        end));
 handle({'Rename', From, Reply, To}) ->
     answer(Reply, unit(file:rename(text(From), text(To))));
+%% Report Appendix E.17: the link at the path, holding the target as it is
+%% written, which may name nothing.
+handle({'MakeLink', Path, Reply, Target}) ->
+    answer(Reply, unit(file:make_symlink(text(Target), text(Path))));
+handle({'ReadLink', Path, Reply}) ->
+    answer(Reply, case file:read_link_all(text(Path)) of
+                      {ok, Target} -> utf8_target(name_bytes(Target));
+                      {error, einval} -> {error, not_link};
+                      Error -> Error
+                  end);
 handle({'Copy', From, Reply, To}) ->
     {Source, Target} = {text(From), text(To)},
     answer(Reply, regular(Source, fun() ->
@@ -123,35 +134,42 @@ name_bytes(Name) ->
         latin1 -> list_to_binary(Name)
     end.
 
-%% Report Appendix E.17: an entry that is a link to nothing is the link
-%% itself, and one gone by the time it is described is left out.
+%% Report Appendix E.17: each entry described as it is, a link as a link,
+%% and one gone by the time it is described left out.
 entries(Dir, Names) ->
     lists:foldl(fun(_, {error, _} = Error) ->
                         Error;
                    (Name, {ok, Acc}) ->
                         Path = filename:join(Dir, Name),
-                        case entry(Path) of
+                        case entry(Path, file:read_link_info(Path, [raw, {time, posix}])) of
                             {ok, Entry} -> {ok, [Entry | Acc]};
-                            {error, enoent} -> unfollowed(Path, Acc);
+                            {error, enoent} -> {ok, Acc};
                             Error -> Error
                         end
                 end, {ok, []}, lists:reverse(Names)).
 
-unfollowed(Path, Acc) ->
-    case entry(Path, file:read_link_info(Path, [raw, {time, posix}])) of
-        {ok, Link} -> {ok, [Link | Acc]};
-        {error, enoent} -> {ok, Acc};
-        Error -> Error
-    end.
-
-%% report Appendix E.17: Fs.Entry(isDir, mtime, path, size), mtime in milliseconds
+%% Report Appendix E.17: Fs.Entry(kind, mtime, path, size), mtime in
+%% milliseconds; stat describes what the path leads to.
 entry(Name) ->
     entry(Name, file:read_file_info(Name, [raw, {time, posix}])).
 
 entry(Name, {ok, #file_info{type = Type, mtime = Mtime, size = Size}}) ->
-    {ok, {'Entry', Type =:= directory, Mtime * 1000, {'Path', Name}, Size}};
+    {ok, {'Entry', kind(Type), Mtime * 1000, {'Path', Name}, Size}};
 entry(_, Error) ->
     Error.
+
+%% Report Appendix E.17: Fs.Kind.
+kind(regular) -> 'File';
+kind(directory) -> 'Directory';
+kind(symlink) -> 'Link';
+kind(_) -> 'Other'.
+
+%% Report Appendix E.17: a link's target is a Path, whose text is UTF-8.
+utf8_target(Bytes) ->
+    case unicode:characters_to_binary(Bytes, utf8, utf8) of
+        Text when is_binary(Text) -> {ok, {'Path', Text}};
+        _ -> {error, target_not_utf8}
+    end.
 
 %% report Appendix E.1: Io.Error = NotFound | Denied | Refused | Closed | Timeout
 %% | Other(String)
@@ -160,4 +178,7 @@ io_error(eacces) -> 'Denied';
 io_error(eperm) -> 'Denied';
 io_error(econnrefused) -> 'Refused';
 io_error(not_regular) -> {'Other', <<"not a regular file">>};
+io_error(eexist) -> {'Other', <<"exists">>};
+io_error(not_link) -> {'Other', <<"not a symbolic link">>};
+io_error(target_not_utf8) -> {'Other', <<"the target is not UTF-8">>};
 io_error(Reason) -> {'Other', unicode:characters_to_binary(io_lib:format("~p", [Reason]))}.

@@ -154,7 +154,7 @@ and a review with its fixes. The release itself is MVP 2.99's, decided 2026-09-2
      `List.flatMap(xs, fn(x) = [sep, x]) |> List.drop(1)`, a pipe of two; done 2026-09-28.
    - 65, `Fs` cannot see a symbolic link: the kind of an entry, `File`, `Directory`, `Link` or
      `Other`, in place of `isDir`; `list` describing an entry as it is, not followed; and
-     `makeLink` and `readLink` beside it (E.17; the log's *What `Fs` Holds*).
+     `makeLink` and `readLink` beside it (E.17; the log's *What `Fs` Holds*); done 2026-09-28.
 
 ---
 

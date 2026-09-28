@@ -1105,10 +1105,11 @@ fn sourceModules(typed : String) -> List(Shell.Complete.Name) with m = {
 
 fn sourceModule(prefix : String, entry : Fs.Entry) -> Optional(Shell.Complete.Name) =
     match entry {
-        Fs.Entry(path = path, isDir = true) -> Optional.map(segment(Path.name(path)), fn(s) = {
-            let text = prefix <> s;
-            Shell.Complete.Name(text = text, kind = Shell.Complete.Module, shown = text <> ".")
-        })
+        Fs.Entry(path = path, kind = Fs.Directory) ->
+            Optional.map(segment(Path.name(path)), fn(s) = {
+                let text = prefix <> s;
+                Shell.Complete.Name(text = text, kind = Shell.Complete.Module, shown = text <> ".")
+            })
       | Fs.Entry(path = path) -> if Path.extension(path) != Some("ern") then
             None
         else Optional.map(segment(Path.name(Path.withExtension(path, ""))), fn(s) = {

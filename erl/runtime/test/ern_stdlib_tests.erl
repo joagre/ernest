@@ -484,7 +484,7 @@ fs_test() ->
     ?assertEqual({'Right', <<"hello">>}, Read),
     ?assertEqual({'Right', 'Unit'}, Append),
     ?assertEqual({'Right', <<"hello!">>}, Read2),
-    ?assertMatch({'Right', {'Entry', false, _, _, 6}}, Stat),
+    ?assertMatch({'Right', {'Entry', 'File', _, _, 6}}, Stat),
     ?assertEqual({'Right', 'Unit'}, Rename),
     ?assertEqual({'Right', 'Unit'}, Copy),
     ?assertEqual({'Right', 'Unit'}, MakeDir),
@@ -549,9 +549,9 @@ fs_make_private_test() ->
     ?assertEqual({8#600, 8#700}, {element(8, FileInfo) band 8#777, element(8, DirInfo) band 8#777}),
     file:del_dir_r(Dir).
 
-%% report Appendix E.17: `list` follows a link, and describes a link to
-%% nothing as the link itself. A regression test: a link to nothing failed
-%% the list of the whole directory with NotFound
+%% report Appendix E.17: `list` describes each entry as it is, a link as
+%% the link itself, a link to nothing among them. A regression test: a link
+%% to nothing failed the list of the whole directory with NotFound
 fs_list_dangling_link_test() ->
     Me = self(),
     Dir = filename:join("/tmp", "ern_links_" ++ os:getpid() ++ "_"
@@ -565,9 +565,51 @@ fs_list_dangling_link_test() ->
                            Me ! {fs, 'ern@fs':list({'Path', list_to_binary(Dir)}, 1000)}
                        end, <<"fs_list_dangling_link_test">>, #{})),
     [{'Right', Entries}] = collect(fs, []),
-    Sizes = lists:sort([{filename:basename(P), S} || {'Entry', _, _, {'Path', P}, S} <- Entries]),
-    %% the link to nothing is the link itself, whose size is its target's name
-    ?assertEqual([{<<"plain">>, 4}, {<<"to_nothing">>, 7}, {<<"to_plain">>, 4}], Sizes),
+    Described = lists:sort([{filename:basename(P), K, S}
+                            || {'Entry', K, _, {'Path', P}, S} <- Entries]),
+    %% a link is the link itself, whose size is its target's name
+    ?assertEqual([{<<"plain">>, 'File', 4}, {<<"to_nothing">>, 'Link', 7},
+                  {<<"to_plain">>, 'Link', 5}], Described),
+    file:del_dir_r(Dir).
+
+%% report Appendix E.17: a link made to a path is read back as it was
+%% written; `stat` follows it and `list` does not; `remove` takes the link
+%% and leaves what it leads to; a link where something is, and a read of
+%% what is no link, are answered with their words. Written with the code
+%% (language feedback 65); a link's target that is not UTF-8 is not
+%% covered, since a test cannot make one where the host's names are UTF-8
+fs_links_test() ->
+    Me = self(),
+    Dir = filename:join("/tmp", "ern_links_" ++ os:getpid() ++ "_"
+                                 ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(filename:join(Dir, "shelf")),
+    P = fun(Name) -> {'Path', list_to_binary(filename:join(Dir, Name))} end,
+    F = 'ern@fs',
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Me ! {fs, F:makeLink({'Path', <<"shelf">>}, P("to_shelf"), 1000)},
+                           Me ! {fs, F:readLink(P("to_shelf"), 1000)},
+                           Me ! {fs, F:stat(P("to_shelf"), 1000)},
+                           Me ! {fs, F:list({'Path', list_to_binary(Dir)}, 1000)},
+                           Me ! {fs, F:makeLink(P("elsewhere"), P("to_shelf"), 1000)},
+                           Me ! {fs, F:readLink(P("shelf"), 1000)},
+                           Me ! {fs, F:remove(P("to_shelf"), 1000)},
+                           Me ! {fs, F:list({'Path', list_to_binary(Dir)}, 1000)}
+                       end, <<"fs_links_test">>, #{})),
+    [Made, Read, Stat, Listed, Again, NotLink, Removed, After] = collect(fs, []),
+    ?assertEqual({'Right', 'Unit'}, Made),
+    ?assertEqual({'Right', {'Path', <<"shelf">>}}, Read),
+    ?assertMatch({'Right', {'Entry', 'Directory', _, _, _}}, Stat),
+    {'Right', Entries} = Listed,
+    ?assertEqual([{<<"shelf">>, 'Directory'}, {<<"to_shelf">>, 'Link'}],
+                 lists:sort([{filename:basename(Path), K}
+                             || {'Entry', K, _, {'Path', Path}, _} <- Entries])),
+    ?assertEqual({'Left', {'Other', <<"exists">>}}, Again),
+    ?assertEqual({'Left', {'Other', <<"not a symbolic link">>}}, NotLink),
+    ?assertEqual({'Right', 'Unit'}, Removed),
+    {'Right', Kept} = After,
+    ?assertEqual([<<"shelf">>],
+                 [filename:basename(Path) || {'Entry', _, _, {'Path', Path}, _} <- Kept]),
     file:del_dir_r(Dir).
 
 %% report Appendix E.18, §8.2: a listener and a socket are processes, a
