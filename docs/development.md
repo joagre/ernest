@@ -92,6 +92,8 @@ make calls        xref over the same and the examples: no undefined or deprecate
                   and no export of the toolchain's that nothing calls
 make untested     make test under the host's coverage, then every function of the
                   toolchain it never ran, also in build/untested.txt
+make sanitize     the helper in C under Clang's analyzer, and the runtime's and the
+                  programs' tests with it built under the sanitizers
 make sections     list the report sections no test cites
 make xref         check that every section citation and document path in the documents resolves
 make coverage     every section with how many tests cite it and its length, thinnest first

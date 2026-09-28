@@ -133,12 +133,17 @@ static void acknowledge(int dropped)
         frame('a', NULL, 0);
         n++;
     }
-    memmove(ends, ends + n, (ends_count - n) * sizeof *ends);
-    ends_count -= n;
+    if (n > 0) {
+        memmove(ends, ends + n, (ends_count - n) * sizeof *ends);
+        ends_count -= n;
+    }
 }
 
 static void add_pending(const unsigned char *data, size_t size)
 {
+    /* nothing to add, and before the first input no buffer to add it to */
+    if (size == 0)
+        return;
     if (pending_size + size > pending_capacity) {
         size_t capacity = pending_capacity ? pending_capacity : CHUNK;
         while (capacity < pending_size + size)
@@ -248,6 +253,7 @@ int main(int argc, char **argv)
             if (poll(fds, (nfds_t)n, -1) < 0) {
                 if (errno == EINTR)
                     continue;
+                free(body);
                 kill_program();
                 return 1;
             }
@@ -262,6 +268,7 @@ int main(int argc, char **argv)
                     continue;
                 if (got <= 0) {
                     /* the runtime has let go of the run */
+                    free(body);
                     kill_program();
                     return 0;
                 }
@@ -348,7 +355,8 @@ int main(int argc, char **argv)
 
         /* Both outputs have ended; the run ends when the program exits,
            unless the runtime lets go of it first. Input it did not take is
-           dropped. */
+           dropped, and so is a frame of the runtime's not read whole. */
+        free(body);
         if (program_in >= 0)
             close(program_in);
         acknowledge(1);

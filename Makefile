@@ -208,7 +208,7 @@ clean:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -C test $@
 	@rm -rf build/stdlib build/shell build/libs build/tools build/man build/release \
-	  build/dialyzer build/dialyzer.plt build/calls build/cover build/untested \
+	  build/dialyzer build/dialyzer.plt build/calls build/cover build/untested build/sanitize \
 	  build/untested.txt \
 	  examples/*.erc \
 	  examples/**/*.erc $(EXEC)
@@ -250,6 +250,26 @@ calls: all build/cover/ern_cover.beam
 	  --build-root build/calls/examples $$f > /dev/null || exit 1; done
 	@bin/ern build --build-root build/calls/modules examples/modules > /dev/null
 	@escript tools/calls.escript
+
+# The helper in C under Clang's static analyzer and under the address and
+# undefined-behaviour sanitizers (docs/coherence.md C13): the analyzer
+# over its source, which must say nothing; then the helper built with the
+# sanitizers where make builds it, the runtime's tests and the programs'
+# run with it, each sanitizer writing what it finds into build/sanitize,
+# and the helper built again as make builds it, whatever the tests did. It
+# passes where nothing was written.
+SANITIZE = $(abspath build/sanitize)
+sanitize: all
+	@found=$$(clang --analyze -Xclang -analyzer-output=text -std=c99 -o /dev/null \
+	  erl/runtime/c_src/ern_exec.c 2>&1); test -z "$$found" || { echo "$$found"; exit 1; }
+	@rm -rf $(SANITIZE) && mkdir -p $(SANITIZE)
+	@trap 'rm -f $(EXEC); $(MAKE) -s $(EXEC)' EXIT; \
+	  clang -std=c99 -pedantic -g -O1 -fno-omit-frame-pointer -fsanitize=address,undefined \
+	    -fno-sanitize-recover=undefined -o $(EXEC) erl/runtime/c_src/ern_exec.c && \
+	  export ASAN_OPTIONS=log_path=$(SANITIZE)/address \
+	    UBSAN_OPTIONS=log_path=$(SANITIZE)/undefined:print_stacktrace=1 && \
+	  $(MAKE) -s test-erl APP=runtime && $(MAKE) -s test-programs
+	@if [ -n "$$(ls $(SANITIZE))" ]; then cat $(SANITIZE)/*; exit 1; fi
 
 # The functions of the toolchain make test never runs, by the host's native
 # coverage (docs/coherence.md C13), as tools/ern_cover.erl says: make test
@@ -312,4 +332,4 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
 .PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load test-emacs \
         $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man install uninstall release unicode \
-        dialyzer calls untested
+        dialyzer calls untested sanitize
