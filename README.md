@@ -11,7 +11,7 @@ It is young. The language and its toolchain are complete enough for programs on 
 
 ## Installing
 
-On Linux or macOS, with Erlang/OTP 29 on your `PATH`, GNU make and a C compiler, in a checkout of this repository:
+On Linux, with Erlang/OTP 29 on your `PATH`, GNU make and a C compiler, in a checkout of this repository; macOS is expected to work the same way, and is not yet verified:
 
 ```
 make

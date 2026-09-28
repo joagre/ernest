@@ -4813,6 +4813,10 @@ Its first run found two targets that passed in the checkout only on what earlier
 
 What `signal_end` met is a defect, which the plan fixes before the tag. Until `ern run` installs its handler, a termination goes to the host's own, which asks the host to stop, and the host stops only once the functions it started with have returned, the launcher's among them, so the termination waits for the program's end. Installing the handler as the launcher begins, before its work, was tried and not kept: it lost the terminations of the host's first 150 ms, which the host's handler, with the launcher's return, now answers, and the reason is to be found before the fix is made again. Measuring it showed that a loop of runs from one parent is no measurement of one run: later runs of such a loop lost terminations that a run started alone answered, and each run is now measured alone, as the tests start theirs. On the way, `ern config` was found writing the private key into a file others may read, and only then making the file its owner's; the file is its owner's now before the key is in it.
 
+## No Mac for the First Release, 2026-09-28
+
+The first release is verified on Linux alone. R5 and R6 ask for the installation and the suite on macOS as well, and nothing here can run them: no Mac is to be had for this release, and a hosted macOS runner would be a build service to set up and keep, for one run. What stands in for the run is the construction: the archive's scripts are POSIX sh, run under dash, the strictest shell to hand; the helper in C builds under clang with POSIX.1-2008 alone; and the launcher needs only `sh`, `readlink` and `iconv`, which macOS has. That makes macOS likely and not known, so the README and the archive's README name Linux, and say that macOS is expected to work and is not yet verified, rather than claim what no run has shown. A Mac, or a runner, at a later release is what would change it, and R5 and R6 keep their macOS halves for then.
+
 ## Later
 
 Planned or considered, not in the language today.
