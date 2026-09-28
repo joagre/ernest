@@ -139,7 +139,12 @@ It follows MVP 2.7 and comes before MVP 3.0.
       output, not a fixed time; `ern_cli`'s build in a module of its own, so that the
       compiler's hash leaves out its other jobs and a change to them recompiles nothing; and
       the programs area's builds in the test's node, where a launch of `ern` costs 0.6 seconds
-      a build and the node 0.08.
+      a build and the node 0.08. And `Fs` brought to what a program needs of a file system (the log's
+      *What `Fs` Holds*): `create`, a new file or none; `removeAll`; `setModified`; the kind
+      of an entry, `File`, `Directory`, `Link` or `Other`, in place of `isDir`, with `list`
+      describing an entry as it is and `makeLink` and `readLink` beside it (language feedback
+      65); and, decided with the user, a file read and written in parts, which a file too
+      large to hold whole needs.
 5. **The release**, tagged once the review is done, with its notes (`review.md`, *Done*), and
    the archive published beside it, where the README then says to download it.
 
