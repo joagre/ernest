@@ -2398,6 +2398,21 @@ alarms_are_no_deadlock_test_() ->
             "export fn main() -> Unit with Msg = { loop(5000); Io.println(\"done\") }\n"))
     end}.
 
+%% report §8.4, §7.4: a function value inside a recursive type that comes
+%% back from foreign code has its result checked against the type at each
+%% call, the recursive type's own among them. A regression test: the check
+%% met the type's reference back to itself with nothing to look it up in,
+%% and the call faulted with badkey
+recursive_function_value_test() ->
+    ?assertEqual({ok, <<"3\n">>}, run(
+        "type Chain = Chain(n : Int, next : () -> Chain)\n"
+        "foreign fn first(chains : List(Chain)) -> Chain = \"erlang:hd/1\"\n"
+        "fn from(n : Int) -> Chain = Chain(n = n, next = fn() = from(n + 1))\n"
+        "export fn main() -> Unit with Never = {\n"
+        "    let c = first([from(1)]);\n"
+        "    Io.println(Int.toString(c.next().next().n))\n"
+        "}\n")).
+
 %% Appendix E.19: a text longer than 255 characters makes no atom, and
 %% `Erl.atom` faults as a foreign function that raises does (report §7.4)
 erl_atom_too_long_test() ->

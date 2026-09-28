@@ -780,15 +780,17 @@ descriptor_ref(T, Cx) ->
 %% A descriptor as the form that builds it. A function's descriptor also
 %% carries the maker of its checked wrapper, a fun of its arity that checks
 %% each result (report §7.4), which only generated code can spell for every
-%% arity; ern_boundary applies it to a function value foreign code gives.
+%% arity; ern_boundary applies it to a function value foreign code gives,
+%% and to the result's descriptor closed over the recursive types around it.
 desc_form({'fun', N, R, Text}) ->
     F = erl_syntax:variable('F'),
+    Result = erl_syntax:variable('R'),
     Args = [erl_syntax:variable(list_to_atom("A" ++ integer_to_list(I)))
             || I <- lists:seq(1, N)],
     Check = call_remote(ern_boundary, value,
-                        [desc_form(R), erl_syntax:application(F, Args), erl_syntax:abstract(Text)]),
+                        [Result, erl_syntax:application(F, Args), erl_syntax:abstract(Text)]),
     Wrapper = erl_syntax:fun_expr([erl_syntax:clause(Args, none, [Check])]),
-    Maker = erl_syntax:fun_expr([erl_syntax:clause([F], none, [Wrapper])]),
+    Maker = erl_syntax:fun_expr([erl_syntax:clause([F, Result], none, [Wrapper])]),
     erl_syntax:tuple([erl_syntax:atom('fun'), erl_syntax:integer(N), desc_form(R),
                       erl_syntax:abstract(Text), Maker]);
 desc_form(T) when is_tuple(T) ->

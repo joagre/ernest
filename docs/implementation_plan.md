@@ -108,7 +108,8 @@ It follows MVP 2.7 and comes before MVP 3.0.
         reaching the terminal (§11.2, §11.3), done 2026-09-28;
       - a program's end leaving processes a late spawn made (§8.6), done 2026-09-28;
         `:reload` initializing in the wrong order, and a failed `:load` leaving its processes
-        (§11.2), done 2026-09-28; a foreign function value inside a recursive type (§8.4);
+        (§11.2), done 2026-09-28; a foreign function value inside a recursive type (§8.4),
+        done 2026-09-28;
       - a closed pipe crashing every job but `ern run`, the internal errors on an empty
         directory, a name that is not UTF-8 and a corrupt `.erc`, and `ern format` of a file
         that cannot be written (§11);

@@ -13,8 +13,9 @@
 %% whose messages D describes; a constructor with named fields carries
 %% their names, and an abstract type seen from outside its module is
 %% wrapped, both for printing (ern_show). A function's R describes its
-%% result, and Make wraps a function value so that each call's result is
-%% checked against R, faulting with Text (report §7.4); `Io.debug`'s
+%% result, and Make wraps a function value, given R closed over the
+%% recursive types around it, so that each call's result is checked against
+%% R, faulting with Text (report §7.4); `Io.debug`'s
 %% descriptors carry no Make, since nothing is checked there.
 -module(ern_boundary).
 
@@ -56,7 +57,7 @@ has_fun(T) when is_tuple(T) -> lists:any(fun has_fun/1, tuple_to_list(T));
 has_fun(L) when is_list(L) -> lists:any(fun has_fun/1, L);
 has_fun(_) -> false.
 
-arm({'fun', _, _, _, Make}, V, _) -> Make(V);
+arm({'fun', _, R, _, Make}, V, B) -> Make(V, closed(R, B));
 arm({list, D}, V, B) -> [arm(D, X, B) || X <- V];
 arm({tuple, Ds}, V, B) ->
     list_to_tuple([arm(D, X, B) || {D, X} <- lists:zip(Ds, tuple_to_list(V))]);
@@ -69,6 +70,19 @@ arm({abstract, D}, V, B) -> arm(D, V, B);
 arm({mu, Id, D}, V, B) -> arm(D, V, B#{Id => D});
 arm({ref, Id}, V, B) -> arm(maps:get(Id, B), V, B);
 arm(_, V, _) -> V.
+
+%% Report §7.4: a result's descriptor as the wrapper checks it at each call,
+%% where no mu around it binds its refs any more: each ref free in it is its
+%% mu again, which binds the refs inside it.
+closed({ref, Id} = D, B) ->
+    case B of
+        #{Id := Body} -> {mu, Id, Body};
+        _ -> D
+    end;
+closed({mu, Id, D}, B) -> {mu, Id, closed(D, maps:remove(Id, B))};
+closed(T, B) when is_tuple(T) -> list_to_tuple([closed(E, B) || E <- tuple_to_list(T)]);
+closed(L, B) when is_list(L) -> [closed(E, B) || E <- L];
+closed(X, _) -> X.
 
 %% Report §3.1: a float entering from foreign code, the runtime's negative
 %% zero among them, is the language's; X + 0.0 is 0.0 for either zero and
