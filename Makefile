@@ -192,6 +192,16 @@ load: all
 garbled: all
 	@$(MAKE) -s -C test garbled
 
+# The whole suite under the emulator's most modified timing, then three
+# times while every core runs a busy loop (docs/review.md R2).
+stress: all
+	@tools/stress.sh "$(MAKE)"
+
+# The commands of the README and of docs/development.md, in a fresh clone of
+# the last commit (docs/review.md R4).
+fresh:
+	@tools/fresh.escript
+
 # The Emacs mode's tests (docs/emacs_mode.md). It is an editor and not
 # part of the toolchain, so a machine without Emacs skips them; they are
 # the only tests `make test` will run and not have built. `format` runs
@@ -367,4 +377,4 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
 .PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load test-emacs \
         $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man install uninstall release unicode \
-        dialyzer calls untested sanitize unused diagnostics garbled
+        dialyzer calls untested sanitize unused diagnostics garbled stress fresh

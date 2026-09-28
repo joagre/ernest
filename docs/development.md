@@ -64,7 +64,7 @@ A module's path follows report §11.1. A file that is not a module is named with
 
 ## Building
 
-Beside what the README's *Trying it* needs, `make test` needs python3, for the pseudo-terminal the terminal tests run a program under, since Erlang cannot open one. Emacs is optional: without it the mode's tests are skipped and the rest runs. So are groff and mandoc: the manual pages are rendered by whichever is installed, and by neither where neither is. The toolchain's Erlang uses no rebar3 and no OTP behaviours, by design ([`style.md`](style.md)).
+Beside what the README's *Installing* needs, `make test` needs python3, for the pseudo-terminal the terminal tests run a program under, since Erlang cannot open one, and `make sanitize` needs clang, for its analyzer and its sanitizers. Emacs is optional: without it the mode's tests are skipped and the rest runs. So are groff and mandoc: the manual pages are rendered by whichever is installed, and by neither where neither is. The toolchain's Erlang uses no rebar3 and no OTP behaviours, by design ([`style.md`](style.md)).
 
 ```
 make              compile every application into its ebin/, then stdlib/, libs/, shell/,
@@ -81,6 +81,10 @@ make load         the loads of docs/memory.md, which a release runs; not part of
 make garbled      every example and module of stdlib/ garbled at each token, given to
                   ern build, and the shell's sessions garbled, given to the shell; a
                   release runs it, and it is not part of make test
+make stress       make test under the emulator's most modified timing, +T 9, then three
+                  times while every core runs a busy loop (docs/review.md R2)
+make fresh        the commands of the README and of this document, in a fresh clone of
+                  the last commit, build/fresh/ernest (docs/review.md R4)
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md
 make man          the manual pages alone, which make writes: each module's beside it,
