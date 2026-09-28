@@ -25,6 +25,13 @@
 %% nothing checks.
 -module(ern_guide_tests).
 
+%% EUnit's captured output, asked of the test's group leader, which is
+%% EUnit's. EUnit's own ?capturedOutput first asks whether it is by the
+%% function it is running, which under load it can sample while that
+%% process runs another module's code, and then answers "" (MVP 2.95's
+%% intermittent failure of the diagnostics' examples).
+-define(capturedOutput, captured_output()).
+
 -include_lib("eunit/include/eunit.hrl").
 
 -export([units/1, write_diagnostics/0]).
@@ -443,3 +450,7 @@ collect(Port, Acc) ->
         {Port, {data, D}} -> collect(Port, [D | Acc]);
         {Port, {exit_status, S}} -> {S, iolist_to_binary(lists:reverse(Acc))}
     end.
+
+captured_output() ->
+    group_leader() ! {get_output, self()},
+    receive {output, Output} -> Output end.

@@ -1,5 +1,12 @@
 -module(ern_cli_tests).
 
+%% EUnit's captured output, asked of the test's group leader, which is
+%% EUnit's. EUnit's own ?capturedOutput first asks whether it is by the
+%% function it is running, which under load it can sample while that
+%% process runs another module's code, and then answers "" (MVP 2.95's
+%% intermittent failure of the diagnostics' examples).
+-define(capturedOutput, captured_output()).
+
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -1455,3 +1462,7 @@ config_dir_is_its_owners_test() ->
     ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
                                       <<"made exists">>)),
     ?assertEqual({ok, []}, file:list_dir(Made)).
+
+captured_output() ->
+    group_leader() ! {get_output, self()},
+    receive {output, Output} -> Output end.

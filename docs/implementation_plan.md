@@ -15,8 +15,8 @@ milestone, the standing gaps, and what is done.
 
 **MVP 2.95, which readies the first release, is under way.** The manual pages, the
 installation, the release archive, the review and the time of `make test` are done (2026-09-28),
-and so are the readers' first fixes, all but ten defects moved there that day and an
-intermittent failure not yet diagnosed (item 4, step 2). Three entries of the language feedback
+and so are the readers' first fixes, all but the defects moved there that day (item 4,
+step 2). Three entries of the language feedback
 follow (item 5). The release itself is MVP 2.99's. Every earlier milestone is done, the last
 MVP 2.7 on 2026-09-28; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph under "Done".
 
@@ -121,11 +121,12 @@ and a review with its fixes. The release itself is MVP 2.99's, decided 2026-09-2
         (E.22), done 2026-09-28, and `String`'s searches, which match inside a grapheme (E.5), done 2026-09-28;
       - `emacs_mode.md`'s Emacs 29 or later, where only Emacs 31.1 runs the mode's tests
         here, done 2026-09-28;
-      - an intermittent failure found 2026-09-28, not yet diagnosed: once in six runs of
-        `make test`, the guide's diagnostics example 118 was refused with status 1 and nothing
-        captured, one of the refused programs built side by side in the guide's node. Its
-        shape: run that group alone many times under load, recording each build's writes to
-        its error device, and fix what loses them;
+      - an intermittent failure found 2026-09-28, a refused example of the guide's
+        diagnostics with nothing captured, done 2026-09-28: EUnit's `?capturedOutput` asks
+        whether the test's group leader is EUnit's by the function it is running, which
+        under load it sampled while that process ran another module's code, and answered
+        `""`; a probe caught it once in eight runs of `make test`. The two test modules that
+        read captured output ask the group leader directly;
       - ten defects a first user meets, moved here from the `cheap` lines on 2026-09-28, since
         this step's rule takes them: every job's crash on a command-line word that is not UTF-8
         (C13), the shell's completion on a field of two types (C15), `ern_os` on a closed port
