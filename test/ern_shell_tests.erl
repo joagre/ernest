@@ -583,7 +583,8 @@ command_argument() ->
                  {expect, "what the session declares"},
                  {send, "03"},
                  {send, hex(":bro") ++ "09"},
-                 {expect, ":browse "},
+                 %% the listing, which is painted after the completed line
+                 {expect, ":browse Module"},
                  {send, hex("B") ++ "09"},
                  {expect, "Bytes"},
                  {send, "03"},
@@ -1683,6 +1684,49 @@ load_loaded() ->
     ?assertEqual(2, count(Out, <<"Demo is loaded already; :reload compiles it again">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"input:1\n">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"no process of the session's is running">>)).
+
+%% report §8.5, §11.2: `:reload` evaluates the changed modules' bindings in
+%% dependency order. A regression test: it took them in the order of their
+%% names, so a module read the value its dependency's previous version gave.
+%% B is compiled on the load path, since a module `:load` loaded cannot yet
+%% be another's dependency (findings T12, MVP 3.0)
+reload_in_dependency_order_test_() ->
+    {timeout, 60, fun reload_in_dependency_order/0}.
+
+reload_in_dependency_order() ->
+    Dir = scratch("ern_reload_order_"),
+    A = fun(N) -> ["export let y : Int = B.x + ", integer_to_list(N), "\n"] end,
+    B = fun(N) -> ["export let x : Int = ", integer_to_list(N), "\n"] end,
+    ok = file:write_file(filename:join(Dir, "a.ern"), A(100)),
+    ok = file:write_file(filename:join(Dir, "b.ern"), B(1)),
+    {0, _} = sh("../bin/ern build " ++ Dir),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, [":load A\n", "A.y\n",
+                              write_source(Dir, "a.ern", A(200)),
+                              write_source(Dir, "b.ern", B(2)),
+                              ":reload\n", "A.y\n"]),
+    {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir ++ " --load-path " ++ Dir)
+                  ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"101 : Int">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"202 : Int">>)).
+
+%% report §11.2: a `:load` whose binding faults leaves nothing of the
+%% module, the processes its bindings started among it. A regression test:
+%% such a process ran on in the code that was not loaded
+failed_load_leaves_nothing_test_() ->
+    {timeout, 60, fun failed_load_leaves_nothing/0}.
+
+failed_load_leaves_nothing() ->
+    Dir = scratch("ern_failed_load_"),
+    ok = file:write_file(filename:join(Dir, "bad.ern"),
+                         ["let worker : Address(Unit) = spawn(Local, fn() = loop())\n",
+                          "fn loop() -> Unit with Unit = receive { _ -> loop() }\n",
+                          "export let late : Int = 1 / List.size([])\n"]),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, ":load Bad\n:processes\n"),
+    {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"nothing was loaded">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"no process of the session's is running">>)).
 
 %% report §11.2, §4.2: the module an input becomes, and the one that holds
 %% what a `let` binds, have names no program writes, so a module of the

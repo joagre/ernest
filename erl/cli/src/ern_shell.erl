@@ -1291,16 +1291,34 @@ with_needed(Env, Modules, Line) ->
         {ok, Needed} ->
             All = Needed ++ Modules,
             Env1 = install(Env, All),
-            case initialize(All) of
+            case initialize(in_order(All)) of
                 ok ->
                     {'Right', {remember(Env1), Line}};
                 {fault, Ns, Cause} ->
-                    lists:foreach(fun({N, _, _}) -> unload(ern_emitter:module_atom(N)) end, All),
+                    lists:foreach(fun({N, _, _}) -> withdraw(ern_emitter:module_atom(N)) end, All),
                     {'Left', <<(binding_fault(Ns, Cause))/binary, "; nothing was loaded\n">>}
             end;
         {error, Text} ->
             {'Left', Text}
     end.
+
+%% Report §8.5, §11.2: the modules in the order their bindings are
+%% evaluated, each after those it depends on.
+in_order(Modules) ->
+    ByMod = maps:from_list([{ern_emitter:module_atom(Ns), M} || {Ns, _, _} = M <- Modules]),
+    [maps:get(Mod, ByMod)
+     || Mod <- ern_rt:ordered([ern_emitter:module_atom(Ns) || {Ns, _, _} <- Modules])].
+
+%% Report §11.2: a module a failed `:load` or `:reload` had loaded, gone with
+%% the processes its bindings started, which end as a reload ends those of a
+%% previous version, so that the session is as it was.
+withdraw(Mod) ->
+    code:delete(Mod),
+    Running = [Pid || {Pid, _} <- ern_rt:live(), erlang:check_process_code(Pid, Mod)],
+    Monitors = [erlang:monitor(process, Pid) || Pid <- Running],
+    lists:foreach(fun(Pid) -> exit(Pid, {ern, code_unloaded}) end, Running),
+    lists:foreach(fun(M) -> receive {'DOWN', M, process, _, _} -> ok end end, Monitors),
+    code:purge(Mod).
 
 %% Report §11.2, §8.5: the top-level bindings of each module, dependencies
 %% first, each module's evaluated in a process of the shell's own, whose
@@ -1414,13 +1432,13 @@ reload(#env{modules = Modules} = Env) ->
                     case initialize(Needed) of
                         ok ->
                             {Env1, Lines} = lists:foldl(fun reload_one/2, {Env0, []}, Compiled),
-                            Faulted = case initialize(Compiled) of
+                            Faulted = case initialize(in_order(Compiled)) of
                                           ok -> [];
                                           {fault, Ns, Cause} -> [kept_values(Ns, Cause)]
                                       end,
                             {'Right', {remember(Env1), lists:reverse(Lines) ++ Faulted}};
                         {fault, Ns, Cause} ->
-                            lists:foreach(fun({N, _, _}) -> unload(ern_emitter:module_atom(N))
+                            lists:foreach(fun({N, _, _}) -> withdraw(ern_emitter:module_atom(N))
                                           end, Needed),
                             {'Left', <<(binding_fault(Ns, Cause))/binary,
                                        "; nothing was reloaded\n">>}

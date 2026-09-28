@@ -32,8 +32,8 @@
          trace/1, sys/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
          binding/1, run_main/3, signal/1, deadlock_target/1, restarting/2,
          restart_now/0, ask_restart/1, start_cause/0,
-         init_stdlib/0, init_modules/1, read_input/1, input_not_utf8/0, reason/1, arguments/0,
-         exit_program/1]).
+         init_stdlib/0, init_modules/1, ordered/1, read_input/1, input_not_utf8/0, reason/1,
+         arguments/0, exit_program/1]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -1468,6 +1468,7 @@ run_inits(Mods) ->
 %% Report §8.5: dependency order, which each compiled module declares as
 %% `'$deps'/0`; the order within an independent set is unspecified, and
 %% is the alphabetical one the code path gives.
+-spec ordered([module()]) -> [module()].
 ordered(Mods) ->
     {Order, _} = lists:foldl(fun(Mod, Acc) -> visit(Mod, Mods, Acc) end, {[], #{}}, Mods),
     lists:reverse(Order).

@@ -16,8 +16,8 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — `ern config`: a race leaks the private key through a descriptor opened on the temporary file; the directory may be an attacker's (§11.3) (S9): fixed 2026-09-28, the directory made at once and its owner's before a file is written; the log's *`ern config` Makes Its Directory Its Owner's*
 - done — control characters of a fault cause, a doc block or a printed value reach the terminal and forge log lines (§2.1, §11.2) (S10): fixed 2026-09-28, refused in source, escaped in the toolchain's fault lines and in `Io.show`; the log's *No Control Character Reaches the Terminal Unasked*
 - done — `end_program` misses a spawn the reaper handles after `live_rows()`: five runs left 176 processes (§8.6) (C2): fixed 2026-09-28, the reaper ends the program, and spawns nothing after
-- tag — `:reload` initializes changed modules in name order, not dependency order (§8.5, §11.2) (C4)
-- tag — a failed `:load` or `:reload` leaves its processes and unpurged code (§11.2) (C5)
+- done — `:reload` initializes changed modules in name order, not dependency order (§8.5, §11.2) (C4): fixed 2026-09-28, the modules initialized in §8.5's order
+- done — a failed `:load` or `:reload` leaves its processes and unpurged code (§11.2) (C5): fixed 2026-09-28, the module withdrawn with the processes that run it
 - tag — a foreign function value inside a recursive type faults at its call with `badkey` (§8.4) (C6)
 - tag — a closed pipe crashes every job but `ern run`, leaving `erl_crash.dump` (§11) (T5)
 - tag — status 70 on an empty directory, a name that is not UTF-8, a corrupt `.erc` to `ern doc`, and 1100 tests in a module (§11) (T6)
