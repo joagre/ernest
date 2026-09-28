@@ -24,7 +24,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — `write_whole` on a read-only file exits 70 and leaves a temporary file that blocks later runs (§11) (C12): fixed 2026-09-28, a file its owner may not write refused, nothing left beside it
 - tag — `Supervisor`'s restart limit: a child restarts itself before the supervisor counts it, about 200 times under a limit of 2; `within = 0` still gives up (E.22, §6.9) (E2, P15, K10)
 - tag — `emacs_mode.md` says Emacs 29 or later, and only Emacs 31.1 runs the mode's tests here: say what is tested, or run them on 29 (the documents' rewrite)
-- tag — `String`'s searches match inside a grapheme: `split` and `replace` lose text (E.5) (E1)
+- done — `String`'s searches match inside a grapheme: `split` and `replace` lose text (E.5) (E1): fixed 2026-09-28, a match only between the string's grapheme boundaries; `lines` ends a line at CR LF; the log's *A Search Begins Where a Grapheme Does*
 
 ## The report
 

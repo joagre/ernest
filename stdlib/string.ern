@@ -258,20 +258,21 @@ export foreign fn toLower(s : String) -> String =
 export foreign fn toUpper(s : String) -> String =
     "ern_string:to_upper/1"
 
-/// The lines, split at each line feed; a line feed at the end adds no empty
+/// The lines, split at each line feed and at each carriage return with a
+/// line feed, which is one grapheme; a line's end at the end adds no empty
 /// line.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// String.lines("a\nb\n")
-/// // => ["a", "b"]
+/// #(String.lines("a\nb\n"), String.lines("a\r\nb"))
+/// // => #(["a", "b"], ["a", "b"])
 /// ```
 export fn lines(s : String) -> List(String) =
     if isEmpty(s) then
         []
     else {
-        let parts = split(s, "\n");
+        let parts = List.flatMap(split(s, "\r\n"), fn(part) = split(part, "\n"));
         match List.last(parts) {
             Some("") -> List.dropLast(parts)
           | _ -> parts

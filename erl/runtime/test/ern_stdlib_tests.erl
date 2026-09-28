@@ -147,6 +147,25 @@ string_graphemes_test() ->
     ?assertEqual(<<"σασ"/utf8>>, S:toLower(<<"ΣΑΣ"/utf8>>)),
     ?assertEqual('Less', S:compare(<<"z">>, <<"é"/utf8>>)).
 
+%% report Appendix E.5: a search matches whole graphemes, beginning where
+%% the string's own graphemes begin as well as ending where they end, so
+%% `split` and `replace` keep every grapheme whole; `lines` ends a line at
+%% a carriage return with a line feed, one grapheme, as at a line feed. A
+%% regression test: a part that began inside a grapheme, a lone combining
+%% mark, the line feed of a carriage return's, one person of a joined emoji,
+%% was found there, and splitting at it lost the grapheme's first part
+string_searches_begin_at_a_grapheme_test() ->
+    S = 'ern@string',
+    Mark = <<"\x{301}"/utf8>>,
+    Family = <<"x\x{1F468}\x{200D}\x{1F469}y"/utf8>>,
+    ?assertEqual('None', S:indexOf(<<"e\x{301}x"/utf8>>, Mark)),
+    ?assertEqual([<<"e\x{301}x"/utf8>>], S:split(<<"e\x{301}x"/utf8>>, Mark)),
+    ?assertEqual([<<"a\r\nb">>], S:split(<<"a\r\nb">>, <<"\n">>)),
+    ?assertEqual(Family, S:replace(Family, <<"\x{1F469}"/utf8>>, <<"X">>)),
+    ?assertEqual({'Some', 2}, S:lastIndexOf(<<"aa\x{301}a"/utf8>>, <<"a">>)),
+    ?assertEqual([<<"a">>, <<"b">>], S:lines(<<"a\r\nb\r\n">>)),
+    ?assertEqual([<<"a">>, <<"b">>], S:lines(<<"a\nb">>)).
+
 string_test() ->
     S = 'ern@string',
     ?assertEqual(2, S:size(<<"hé"/utf8>>)),

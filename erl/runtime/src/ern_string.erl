@@ -14,24 +14,79 @@
 -spec graphemes(binary()) -> [binary()].
 graphemes(S) -> [unicode:characters_to_binary([G]) || G <- string:to_graphemes(S)].
 
-%% Appendix E.5: in the characters `string:length/1` counts, as `slice`
-%% takes them, so that the answer indexes the same string `slice` does.
+%% Appendix E.5: where the part begins as whole graphemes, beginning and
+%% ending where the string's own graphemes do, counted in graphemes as
+%% `slice` takes them, so that the answer indexes the same string `slice`
+%% does. `string:find/2` matches code points, and a match that began inside
+%% a grapheme, a line feed of a carriage return's, split it. The host's
+%% byte search finds each candidate, and the graphemes are walked only as
+%% far as it, so that a search costs what it reads.
 -spec index_of(binary(), binary()) -> 'None' | {'Some', integer()}.
+index_of(_, <<>>) ->
+    {'Some', 0};
 index_of(S, Part) ->
-    case string:find(S, Part) of
-        nomatch -> 'None';
-        Suffix -> {'Some', string:length(S) - string:length(Suffix)}
+    case next_match(S, Part, 0, 0) of
+        {I, _} -> {'Some', I};
+        none -> 'None'
     end.
 
 %% Appendix E.5: the last occurrence, and the string's size for an empty
-%% part, which `string:find/3` answers as the first.
+%% part; each match is found from the grapheme after the one before.
 -spec last_index_of(binary(), binary()) -> 'None' | {'Some', integer()}.
 last_index_of(S, <<>>) ->
     {'Some', string:length(S)};
 last_index_of(S, Part) ->
-    case string:find(S, Part, trailing) of
-        nomatch -> 'None';
-        Suffix -> {'Some', string:length(S) - string:length(Suffix)}
+    last_match(S, Part, 0, 0, 'None').
+
+last_match(S, Part, B, I, Last) ->
+    case next_match(S, Part, B, I) of
+        {At, C} ->
+            {B1, I1} = step(S, C, At),
+            last_match(S, Part, B1, I1, {'Some', At});
+        none ->
+            Last
+    end.
+
+%% The first match at or after the boundary B, which I graphemes precede:
+%% the graphemes before it and its byte offset, or none.
+next_match(S, Part, B, I) ->
+    case binary:match(S, Part, [{scope, {B, byte_size(S) - B}}]) of
+        nomatch ->
+            none;
+        {C, N} ->
+            case walk(S, B, I, C) of
+                {C, At} ->
+                    case walk(S, C, At, C + N) of
+                        {End, _} when End =:= C + N -> {At, C};
+                        _ -> next_after(S, Part, C, At)
+                    end;
+                {B1, I1} ->
+                    %% the candidate began inside a grapheme, which ends at B1
+                    next_match(S, Part, B1, I1)
+            end
+    end.
+
+next_after(S, Part, C, At) ->
+    case step(S, C, At) of
+        {C, _} -> none;
+        {B1, I1} -> next_match(S, Part, B1, I1)
+    end.
+
+%% From the boundary B, which I graphemes precede, to the first boundary at
+%% or past the offset: that boundary and the graphemes before it.
+walk(_, B, I, Offset) when B >= Offset ->
+    {B, I};
+walk(S, B, I, Offset) ->
+    case step(S, B, I) of
+        {B, I} -> {B, I};
+        {B1, I1} -> walk(S, B1, I1, Offset)
+    end.
+
+%% Past the grapheme at the boundary B; at the end, B itself.
+step(S, B, I) ->
+    case string:next_grapheme(binary:part(S, B, byte_size(S) - B)) of
+        [G | _] -> {B + byte_size(unicode:characters_to_binary([G])), I + 1};
+        [] -> {B, I}
     end.
 
 -spec slice(binary(), integer(), integer()) -> binary().

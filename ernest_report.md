@@ -1366,7 +1366,7 @@ Set.isSubset : (Set(a), Set(a)) -> Bool // every element of the first is in the 
 
 ### Appendix E.5. `string.ern` (namespace `String`)
 
-A `String` is not a container: operations on its `Char`s go through `toList`. `size`, `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and index in graphemes, extended grapheme clusters, each what a reader sees as one letter, and `graphemes` gives them in order. `toList` and `fromList` are `Char`s, one scalar value each, so a string holding a combining mark has more `Char`s than graphemes. The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`, and `slice`, the operations that need Unicode's tables, `trimStart`, `trimEnd`, `toLower`, and `toUpper`, and the conversions `toIntBase`, `toFloat`, `toList`, `fromList`, `toUtf8`, and `fromUtf8` (E.0 rule 1). The rest is Ernest over them, so every search matches whole graphemes: `String.contains("e\u{301}", "e")` is `false`. `trim`, `trimStart`, and `trimEnd` remove the graphemes whose first code point is White_Space, as `Char.isSpace` says. `toLower` and `toUpper` use Unicode's full case mapping without the rules that depend on a language or a context: `String.toUpper("ß")` is `"SS"`. `String.compare` orders by code point. It and `String.<>` are the prelude's, §9.6; this module provides them (§9).
+A `String` is not a container: operations on its `Char`s go through `toList`. `size`, `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and index in graphemes, extended grapheme clusters, each what a reader sees as one letter, and `graphemes` gives them in order. `toList` and `fromList` are `Char`s, one scalar value each, so a string holding a combining mark has more `Char`s than graphemes. The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`, and `slice`, the operations that need Unicode's tables, `trimStart`, `trimEnd`, `toLower`, and `toUpper`, and the conversions `toIntBase`, `toFloat`, `toList`, `fromList`, `toUtf8`, and `fromUtf8` (E.0 rule 1). The rest is Ernest over them, so every search matches whole graphemes: `String.contains("e\u{301}", "e")` is `false`, and `String.split("a\r\nb", "\n")` is `["a\r\nb"]`, a carriage return and a line feed being one grapheme. `trim`, `trimStart`, and `trimEnd` remove the graphemes whose first code point is White_Space, as `Char.isSpace` says. `toLower` and `toUpper` use Unicode's full case mapping without the rules that depend on a language or a context: `String.toUpper("ß")` is `"SS"`. `String.compare` orders by code point. It and `String.<>` are the prelude's, §9.6; this module provides them (§9).
 
 ```
 String.size : (String) -> Int // graphemes
@@ -1387,7 +1387,7 @@ String.trimStart : (String) -> String // without leading whitespace
 String.trimEnd : (String) -> String // without trailing whitespace
 String.toLower : (String) -> String
 String.toUpper : (String) -> String
-String.lines : (String) -> List(String) // at each line feed; a line feed at the end adds no empty line, and "" has no lines
+String.lines : (String) -> List(String) // at each line feed and each carriage return with a line feed; a line's end at the end adds no empty line, and "" has no lines
 String.split : (String, String) -> List(String) // at each occurrence of the second; an empty second gives the first alone
 String.join : (List(String), String) -> String // the second between the parts
 String.toInt : (String) -> Optional(Int) // the digits 0 to 9, with an optional leading -

@@ -115,7 +115,7 @@ It follows MVP 2.7 and comes before MVP 3.0.
         that cannot be written (§11), done 2026-09-28 (the log's *A Job Refuses What It Cannot
         Do*);
       - `Supervisor`'s restart limit, which a child passes before the supervisor counts it
-        (E.22), and `String`'s searches, which match inside a grapheme (E.5);
+        (E.22), and `String`'s searches, which match inside a grapheme (E.5), done 2026-09-28;
       - `emacs_mode.md`'s Emacs 29 or later, where only Emacs 31.1 runs the mode's tests
         here;
       - an intermittent failure found 2026-09-28, not yet diagnosed: once in six runs of
