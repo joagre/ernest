@@ -55,6 +55,28 @@ format_writes_whole_test() ->
     ?assertEqual(8#640, element(8, Info) band 8#777),
     ?assertEqual(["link.ern", "target.ern"], lists:sort(element(2, file:list_dir(Dir)))).
 
+%% report §11: two jobs writing one file at once each write it whole, and
+%% the file is one of theirs. A regression test: they wrote beside it under
+%% one name, and the second rename found the first had taken it, status 70
+writes_at_once_test_() ->
+    {timeout, 60, fun writes_at_once/0}.
+
+writes_at_once() ->
+    Dir = tmp(),
+    File = write(Dir, "twice.ern", "export fn f() -> Int = 1\n"),
+    Args = ["build", "--source-root", Dir, File],
+    Self = self(),
+    Build = fun() -> Self ! {built, ern_cli:ern(Args)} end,
+    lists:foreach(fun(N) ->
+                      %% a changed source, so that every build writes
+                      write(Dir, "twice.ern", "export fn f() -> Int = " ++ integer_to_list(N)
+                                              ++ "\n"),
+                      [spawn(Build) || _ <- lists:seq(1, 8)],
+                      ?assertEqual(lists:duplicate(8, 0),
+                                   [receive {built, S} -> S end || _ <- lists:seq(1, 8)])
+                  end, lists:seq(1, 5)),
+    ?assertEqual(["twice.erc", "twice.ern"], lists:sort(element(2, file:list_dir(Dir)))).
+
 %% A tool run with the captured output as its error device, so a test
 %% reads what the user sees on stderr.
 build_err(Args) -> ern_cli:ern(["build" | Args], group_leader()).

@@ -88,13 +88,12 @@ uncommented(Line) ->
 %% ernest_guide.md: every complete example compiles, and every example with
 %% its output shown prints that output
 %%
-%% A unit that needs a node of its own, a shell session, a program given
-%% standard input, or an error named from its own working directory, runs
-%% in parallel with the others of its kind, as many at once as this host
-%% has schedulers, since each is a host of its own and the catalogue's two
-%% hundred at once would fill a machine's memory; the rest compile and run
-%% in this node, one after another, since two of them may share a module's
-%% name (plan, MVP 2.6).
+%% A unit that loads no code into this node runs in parallel with the others
+%% of its kind, as many at once as this host has schedulers: a shell session
+%% or a program given standard input, each a host of its own, and a program
+%% that is refused, built in this node. The rest compile and run in this
+%% node, one after another, since two of them may share a module's name
+%% (plan, MVP 2.6).
 guide_examples_test_() ->
     examples(?GUIDE, "guide").
 
@@ -117,7 +116,7 @@ diagnostics_test_() ->
 examples(Document, Kind) ->
     Units = [catalogued(Kind, U) || U <- units(Document)],
     Named = [{label(Kind, N, U), U} || {N, U} <- lists:zip(lists:seq(1, length(Units)), Units)],
-    {Apart, Here} = lists:partition(fun({_, U}) -> own_node(U) end, Named),
+    {Apart, Here} = lists:partition(fun({_, U}) -> loads_nothing(U) end, Named),
     [{inparallel, erlang:system_info(schedulers_online),
       [{Name, {timeout, 60, fun() -> check(U) end}} || {Name, U} <- Apart]}
      | [{Name, {timeout, 60, fun() -> check(U) end}} || {Name, U} <- Here]].
@@ -126,9 +125,10 @@ examples(Document, Kind) ->
 catalogued("diagnostics", {rejected, U}) -> {rejected, U#{any_reason => true}};
 catalogued(_, Unit) -> Unit.
 
-own_node({modules, #{run := {Flags, _, _, Inputs, _}}}) -> Flags =:= "shell " orelse Inputs =/= [];
-own_node({modules, _}) -> false;
-own_node(_) -> true.
+loads_nothing({modules, #{run := {Flags, _, _, Inputs, _}}}) ->
+    Flags =:= "shell " orelse Inputs =/= [];
+loads_nothing({modules, _}) -> false;
+loads_nothing(_) -> true.
 
 label(Kind, N, {_, #{line := Line}}) ->
     Kind ++ " example " ++ integer_to_list(N) ++ " at line " ++ integer_to_list(Line).
@@ -173,8 +173,12 @@ check({modules, #{files := Files, run := Run}}) ->
     end;
 check({rejected, #{files := [{F, Code}], shown := Shown} = Unit}) ->
     Dir = tmp(),
-    ok = write(filename:join(Dir, F), Code),
-    {Status, Out} = sh("cd " ++ Dir ++ " && " ++ filename:absname("../bin/ern") ++ " build " ++ F),
+    File = filename:join(Dir, F),
+    ok = write(File, Code),
+    %% built in this node, the file named as a build started in Dir names it
+    Status = ern_cli:ern(["build", "--source-root", Dir, File], group_leader()),
+    Out = binary:replace(unicode:characters_to_binary(?capturedOutput),
+                         list_to_binary(Dir ++ "/"), <<>>, [global]),
     ?assertMatch({1, _}, {Status, Out}),
     %% rejected for its own reason, not for a slip in the example
     maps:get(any_reason, Unit, false) orelse

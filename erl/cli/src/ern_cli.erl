@@ -1426,7 +1426,11 @@ write_whole(File, Data) ->
 
 write_whole(File, Data, Mode) ->
     Target = followed(File, 0),
-    New = filename:join(filename:dirname(Target), "." ++ filename:basename(Target) ++ ".new"),
+    %% a name of this writer's own, so that two jobs writing one file at
+    %% once each write theirs whole and the last rename wins (report §11)
+    Own = os:getpid() ++ "." ++ integer_to_list(erlang:unique_integer([positive])),
+    New = filename:join(filename:dirname(Target),
+                        "." ++ filename:basename(Target) ++ "." ++ Own ++ ".new"),
     ok = file:write_file(New, <<>>),
     Kept = case {Mode, file:read_file_info(Target)} of
                {undefined, {ok, #file_info{mode = M}}} -> M band 8#7777;

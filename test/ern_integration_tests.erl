@@ -270,6 +270,11 @@ rendered(Pages) ->
                                         R =/= {0, <<>>}])
     end.
 
+%% The installation and the archive, each made by make, one after the other,
+%% since two makes at once would each write the built trees.
+installation_test_() ->
+    {inorder, [{timeout, 300, fun install/0}, {timeout, 300, fun release/0}]}.
+
 %% docs/install.md: make install writes the tree under a
 %% prefix, bin/ern a relative link to its launcher; the prefix moved to
 %% another place runs there, `ern`, the shell, a program that runs another
@@ -280,9 +285,6 @@ rendered(Pages) ->
 %% where it is staged; and a prefix that cannot be written is refused with
 %% nothing written. No installed module carries the host's debug
 %% information. Written with the code.
-install_test_() ->
-    {timeout, 300, fun install/0}.
-
 install() ->
     Base = filename:absname("build/install"),
     ok = del(Base),
@@ -338,9 +340,6 @@ install() ->
 %% the helper, and its make install installs under a prefix, where a
 %% program that runs another through the helper runs, and its make
 %% uninstall removes it. Written with the code.
-release_test_() ->
-    {timeout, 300, fun release/0}.
-
 release() ->
     Base = filename:absname("build/release"),
     ok = del(Base),
@@ -658,7 +657,10 @@ job_signal_end() ->
     ?assertEqual({0, <<"-15 \n">>}, sh("python3 " ++ Dir ++ "/job.py")).
 
 %% report §4.2, §11.1: the two-module pair in directory mode
-modules_test() ->
+modules_test_() ->
+    {timeout, 60, fun modules/0}.
+
+modules() ->
     {0, _} = sh("../bin/ern build --build-root build/modules ../examples/modules"),
     {0, Out} = sh("../bin/ern run build/modules/main.erc"),
     ?assertEqual(expected("modules"), lines(Out)).
@@ -667,7 +669,10 @@ modules_test() ->
 %% output; with --check it names `-` if the module is not laid out; a
 %% module that does not parse gives its diagnostic under the name `-`, the
 %% status 1, and nothing else. A regression test, written after the code.
-format_input_test() ->
+format_input_test_() ->
+    {timeout, 60, fun format_input/0}.
+
+format_input() ->
     Loose = "sh -c 'printf \"fn f(x) = x+1\\n\" | ../bin/ern format ",
     ?assertEqual({0, <<"fn f(x) =\n    x + 1\n">>}, sh(Loose ++ "-'")),
     ?assertEqual({1, <<"-\n">>}, sh(Loose ++ "--check -'")),

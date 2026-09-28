@@ -27,6 +27,14 @@ EUNIT = erl -noshell -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN
 comma := ,
 space := $(subst ,, )
 
+# The same, each module's tests side by side, as many at once as the host
+# has schedulers, for the areas whose tests each start a host of their own.
+EUNIT_SIDE_BY_SIDE = erl -noshell -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) \
+	  -eval 'N = erlang:system_info(schedulers_online), \
+	  Ms = [$(subst $(space),$(comma) ,$(strip $(1)))], \
+	  halt(case eunit:test({inparallel, [{inparallel, N, M} || M <- Ms]}) of \
+	  ok -> 0; _ -> 1 end).'
+
 test: programs docs guide shell
 
 # The test modules and the build directory, which make test readies before
@@ -34,7 +42,7 @@ test: programs docs guide shell
 beams: $(BEAMS) prepare
 
 programs: $(BEAMS) prepare
-	$(call EUNIT,$(PROGRAMS))
+	$(call EUNIT_SIDE_BY_SIDE,$(PROGRAMS))
 
 docs: $(BEAMS)
 	$(call EUNIT,$(DOCS))
@@ -43,7 +51,7 @@ guide: $(BEAMS) prepare
 	$(call EUNIT,$(GUIDE))
 
 shell: $(BEAMS) prepare
-	$(call EUNIT,$(SHELL_TESTS))
+	$(call EUNIT_SIDE_BY_SIDE,$(SHELL_TESTS))
 
 # The programs compiled here stay between runs: ern build recompiles what a
 # changed compiler changes (report §11.1).

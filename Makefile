@@ -14,7 +14,7 @@ ERNEST_SOURCES = stdlib/*.ern shell/*.ern shell/shell/*.ern examples/*.ern \
 # stamp file that make rebuilds only when one of these is newer, so a make
 # with nothing to do starts no build; the build records then decide
 # what inside a tree to compile.
-TOOL = $(wildcard erl/*/ebin/*.beam)
+TOOL = $(filter-out %_tests.beam,$(wildcard erl/*/ebin/*.beam))
 # The top directory is written `dir/.`, since `stdlib`, `libs` and `shell`
 # are also the names of targets. A name that begins with a dot, an editor's
 # lock file among them, is no source (report §11.1).
@@ -44,14 +44,14 @@ man: build/man/.built
 # The standard library written in Ernest: stdlib/ compiled by ern build into
 # build/stdlib under its Erlang module name, where the tools put it on the
 # code path and the checker reads its interface (plan, MVP 2.5). ern build
-# recompiles what a changed compiler changes (report §11.1). The copies
-# under the Erlang names are written afresh, so that a module the sweep
-# removed leaves none.
+# recompiles what a changed compiler changes (report §11.1). A copy under
+# the Erlang name whose module the sweep removed is removed with it.
 build/stdlib/.built: $(TOOL) $(call sources,stdlib)
 	@bin/ern build --build-root build/stdlib stdlib
-	@rm -f build/stdlib/ern@*.beam
 	@for f in build/stdlib/*.erc; do \
 	  cp $$f build/stdlib/ern@$$(basename $$f .erc).beam; done
+	@for b in build/stdlib/ern@*.beam; do m=$${b#build/stdlib/ern@}; \
+	  [ -f build/stdlib/$${m%.beam}.erc ] || rm -f $$b; done
 	@touch $@
 
 # The libraries (plan, MVP 3.2): each libs/<name>/ is a source root of its
@@ -65,15 +65,17 @@ build/libs/.built: build/stdlib/.built $(TOOL) $(call sources,libs)
 # The shell, written in Ernest (report §11.2, plan MVP 2.6): shell/ compiled
 # by ern build into build/shell, where `ern shell` finds it on the code path.
 # It renders documentation with libs/markdown, which it is compiled against
-# and which ships beside it. The copies are written afresh, as the standard
-# library's are.
+# and which ships beside it. A copy whose module is gone is removed, as the
+# standard library's are.
 build/shell/.built: build/stdlib/.built build/libs/.built $(TOOL) $(call sources,shell)
 	@bin/ern build --load-path build/libs/markdown --build-root build/shell shell
-	@rm -f build/shell/ern@*.beam
 	@find build/shell -name '*.erc' | while read f; do \
 	  m=$${f#build/shell/}; \
 	  cp $$f build/shell/ern@$$(echo $${m%.erc} | tr / @).beam; done
 	@cp build/libs/markdown/markdown.erc build/shell/ern@markdown.beam
+	@for b in build/shell/ern@*.beam; do m=$${b#build/shell/ern@}; \
+	  [ "$$m" = markdown.beam ] || [ -f build/shell/$$(echo $${m%.beam} | tr @ /).erc ] \
+	  || rm -f $$b; done
 	@touch $@
 
 # The standard library's pages, one per module beside its .erc in
@@ -140,17 +142,19 @@ unicode:
 	@escript tools/unicode_width.escript $(UC_SPEC)
 
 # The tests by area (plan, MVP 2.6). `make test` runs the suite's jobs side
-# by side, as many at once as the host has cores, so that none runs slower
-# than it does alone, and the longest first, since make starts them in the
-# order given; each job's output comes together as it ends. One make runs
-# them all, since a make started with a -j of its own runs apart from the
-# count. The modules under test/ are compiled first, once. A change may run
-# its own area's target as it is worked on.
+# by side, as many at once as the host has cores, each job's output together
+# as it ends. One make runs each phase, since a make started with a -j of
+# its own runs apart from the count. The unit tests run first, with the
+# jobs that start no host: EUnit gives a test with no time of its own five
+# seconds, which the load of the areas that start hosts would take from
+# them. Those areas then run, each its own tests side by side. Make starts
+# the jobs in the order given, so the longest come first. The modules under test/ are compiled first,
+# once. A change may run its own area's target as it is worked on.
 JOBS := $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
-TEST_JOBS = test-shell test-programs test-guide $(EMACS_JOBS) $(APP_TESTS) test-docs
 test: all
 	@$(MAKE) -s -C test beams
-	@$(MAKE) -s -j$(JOBS) -O $(TEST_JOBS)
+	@$(MAKE) -s -j$(JOBS) -O $(EMACS_JOBS) $(APP_TESTS) test-guide test-docs
+	@$(MAKE) -s -j$(JOBS) -O test-shell test-programs
 
 # The unit tests of the applications under erl/, side by side, or of one
 # with APP=typer.
