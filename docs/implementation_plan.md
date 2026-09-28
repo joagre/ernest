@@ -113,7 +113,9 @@ It follows MVP 2.7 and comes before MVP 3.0.
         here.
    3. **The time of `make test`**: the proposals of
       [`testing_improvements.md`](testing_improvements.md), and the catalogue of diagnostics
-      run in one node.
+      run in one node. First the defect proposal 7 names, found 2026-09-28: the compiler's
+      hash leaves out six modules that shape a `.erc`, so a change to one leaves every
+      module current, against §11.1.
    4. **Planned after the release**, in MVP 3.0's first step, decided 2026-09-28: the rest of what
       the readers found, `findings.md`'s `cheap` lines, a batch a document, and its `3.0` lines, the
       report's contradictions and silent cases, the diagnostics' positions and labels (§11.5),
@@ -159,7 +161,12 @@ second is rewritten around a contract `SetOps(s, a)` holding the operations of t
 1. **The contract waits on a decision**, discussed with the user first (language feedback
    64): whether a field may be polymorphic in a variable its type does not take, as
    `foldLeft`'s accumulator and `any`'s effect are. Without it the contract cannot hold nine
-   of `Set`'s twenty functions, and the section does not go around that.
+   of `Set`'s twenty functions, and the section does not go around that. The suggestion,
+   against type classes: polymorphic record fields, as OCaml has them. A field quantifies the
+   variables its type does not take, so `foldLeft` sits in the record; there is no instance
+   resolution, no constraint in an inferred type and no hidden argument. Its cost is a type
+   scheme inside a type declaration, a rank-2 type confined to declared fields, where the
+   log's *Dropped from Unison* drops rank-n types.
 2. **What the section verifies**, each stated in it or in the log: code written once against
    the contract (a Java parameter of an interface type, a Haskell constraint); a
    representation's own functions beside the contract (a class's further methods); a contract
