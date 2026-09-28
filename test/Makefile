@@ -29,6 +29,10 @@ space := $(subst ,, )
 
 test: programs docs guide shell
 
+# The test modules and the build directory, which make test readies before
+# it runs the areas side by side.
+beams: $(BEAMS) prepare
+
 programs: $(BEAMS) prepare
 	$(call EUNIT,$(PROGRAMS))
 

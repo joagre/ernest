@@ -139,14 +139,18 @@ unicode:
 	@test -n "$(UC_SPEC)" || { echo "UC_SPEC=dir is required"; exit 1; }
 	@escript tools/unicode_width.escript $(UC_SPEC)
 
-# The tests by area (plan, MVP 2.6). `make test` runs every area side by
-# side, each area's output together as it ends, and a change may run its
-# own area's target as it is worked on.
+# The tests by area (plan, MVP 2.6). `make test` runs the suite's jobs side
+# by side, as many at once as the host has cores, so that none runs slower
+# than it does alone, and the longest first, since make starts them in the
+# order given; each job's output comes together as it ends. One make runs
+# them all, since a make started with a -j of its own runs apart from the
+# count. The modules under test/ are compiled first, once. A change may run
+# its own area's target as it is worked on.
+JOBS := $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
+TEST_JOBS = test-shell test-programs test-guide $(EMACS_JOBS) $(APP_TESTS) test-docs
 test: all
-	@$(MAKE) -s -j -O test-erl test-areas test-emacs
-
-test-areas: all
-	@$(MAKE) -s -j -O -C test test
+	@$(MAKE) -s -C test beams
+	@$(MAKE) -s -j$(JOBS) -O $(TEST_JOBS)
 
 # The unit tests of the applications under erl/, side by side, or of one
 # with APP=typer.
@@ -183,7 +187,9 @@ load: all
 # `ern format`, so the toolchain is built first. EMACS names the Emacs to
 # run them under: `make test-emacs EMACS=/opt/emacs-29/bin/emacs`.
 EMACS ?= emacs
-EMACS_TESTS = lint colour editing broken reindent flatten typing format
+EMACS_TESTS = typing flatten reindent format lint colour editing broken
+EMACS_JOBS = $(if $(shell command -v $(EMACS) 2>/dev/null), \
+	$(EMACS_TESTS:%=emacs-test-%),test-emacs)
 test-emacs: all
 	@if ! command -v $(EMACS) >/dev/null 2>&1; then \
 	  if [ "$(origin EMACS)" = file ]; then \
