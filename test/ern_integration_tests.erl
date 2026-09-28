@@ -567,6 +567,33 @@ paced_output() ->
     [Rss | _] = string:lexemes(binary_to_list(Out), " \n"),
     ?assert(list_to_integer(Rss) < 250000).
 
+%% report §11.2: a module a `foreign fn` names is the host's own or one on
+%% the load path, and the working directory is neither. A regression test:
+%% the host kept the working directory on its code path ahead of the load
+%% path, so a module of that name there was the one called. It does not
+%% cover `ern test` and `ern shell`, which set the path the same way
+foreign_module_test_() ->
+    {timeout, 60, fun foreign_module/0}.
+
+foreign_module() ->
+    Dir = filename:absname("build/foreign"),
+    ok = del(Dir),
+    Ern = filename:absname("../bin/ern"),
+    Probe = fun(Where, N) ->
+                ok = filelib:ensure_path(Where),
+                ok = file:write_file(Where ++ "/ern_probe.erl",
+                                     "-module(ern_probe).\n-export([n/0]).\nn() -> "
+                                     ++ integer_to_list(N) ++ ".\n"),
+                {0, _} = sh("erlc -o " ++ Where ++ " " ++ Where ++ "/ern_probe.erl")
+            end,
+    Probe(Dir ++ "/prog", 1),
+    Probe(Dir ++ "/work", 2),
+    ok = file:write_file(Dir ++ "/prog/which.ern",
+                         "foreign fn n() -> Int = \"ern_probe:n/0\"\n"
+                         "export fn main() -> Unit with Never = Io.println(Int.toString(n()))\n"),
+    {0, _} = sh(Ern ++ " build --source-root " ++ Dir ++ "/prog " ++ Dir ++ "/prog/which.ern"),
+    ?assertEqual({0, <<"1\n">>}, sh(Ern ++ " run ../prog/which.erc", [{cd, Dir ++ "/work"}])).
+
 %% report §11.2: where standard error is a file, a fault line begins with
 %% the time, in UTC as RFC 3339 writes it; where it is a service manager's
 %% journal, as JOURNAL_STREAM names it, it does not, and a terminal's is

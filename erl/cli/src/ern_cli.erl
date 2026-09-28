@@ -1074,7 +1074,10 @@ program(File, Opts) ->
 
 %% Report §11.2: an Erlang module a `foreign fn` names is the host's own or
 %% a `.beam` in a directory of the load path, the host's own found first.
+%% The working directory, which the host puts on its code path, is neither,
+%% unless it is a root of the load path.
 host_path(Roots) ->
+    _ = code:del_path("."),
     ok = code:add_pathsz(Roots).
 
 %% Report §11.2: the interfaces of the modules loaded, which the shell puts

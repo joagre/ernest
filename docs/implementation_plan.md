@@ -94,7 +94,7 @@ It follows MVP 2.7 and comes before MVP 3.0.
         done 2026-09-28 (the log's *The Sweep Removes What a Build Wrote*);
       - `ern shell` running `./.ernest/startup` from the working directory, done 2026-09-28
         (the log's *A Directory Runs Nothing of Its Own*), and the working directory on the
-        host's code path ahead of the load path (§11.2);
+        host's code path ahead of the load path (§11.2), done 2026-09-28;
       - `Fs` over a FIFO blocking every file operation of the node, and `Fs.list` failing for
         a whole directory over one dangling link (E.17);
       - `Tcp.listen` and `Tcp.connect` hanging on a bad port or host, `Tcp.listen` binding
