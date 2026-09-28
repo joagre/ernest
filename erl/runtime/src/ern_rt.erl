@@ -135,11 +135,16 @@ via(F, Target) ->
 call(Addr, Mk, Ms) ->
     line_guard(Addr),
     {Alias, Mon, Row} = pending(Addr),
-    deliver(Addr, Mk(Alias)),
-    timed(),
-    Answer = await(Alias, Mon, deadline(Ms)),
-    untimed(),
-    settled(Alias, Mon, Row),
+    %% settled however the call ends, a fault of the message's function or
+    %% of the callee among the ways, which a process restarted in place
+    %% outlives (§6.9)
+    Answer = try
+                 deliver(Addr, Mk(Alias)),
+                 timed(),
+                 try await(Alias, Mon, deadline(Ms)) after untimed() end
+             after
+                 settled(Alias, Mon, Row)
+             end,
     case Answer of
         %% report §6.9: a restart asked for is taken at a call's wait
         '$ern_restart' -> restart_now();
@@ -166,25 +171,28 @@ await(Alias, Mon, Deadline) ->
 call_forever(Addr, Mk) ->
     line_guard(Addr),
     {Alias, Mon, Row} = pending(Addr),
-    deliver(Addr, Mk(Alias)),
-    receive
-        {Alias, V} ->
-            settled(Alias, Mon, Row),
-            V;
-        {Alias, restarted, Cause} ->
-            settled(Alias, Mon, Row),
-            fault(Cause);
-        {Alias, fault, Cause} ->
-            %% report §8.2: a system process faults the caller it answers
-            settled(Alias, Mon, Row),
-            fault(Cause);
-        {'DOWN', Mon, process, _, Reason} ->
-            settled(Alias, Mon, Row),
-            ended(reason(Reason));
-        '$ern_restart' ->
-            %% report §6.9: a restart asked for is taken at a call's wait
-            settled(Alias, Mon, Row),
-            restart_now()
+    %% settled however the call ends, as call/3's is
+    Answer = try
+                 deliver(Addr, Mk(Alias)),
+                 receive
+                     {Alias, Value} -> {answered, Value};
+                     {Alias, restarted, Restarted} -> {fault, Restarted};
+                     %% report §8.2: a system process faults the caller it
+                     %% answers
+                     {Alias, fault, Faulted} -> {fault, Faulted};
+                     {'DOWN', Mon, process, _, Reason} -> {ended, reason(Reason)};
+                     %% report §6.9: a restart asked for is taken at a call's
+                     %% wait
+                     '$ern_restart' -> restart
+                 end
+             after
+                 settled(Alias, Mon, Row)
+             end,
+    case Answer of
+        {answered, V} -> V;
+        {fault, Cause} -> fault(Cause);
+        {ended, How} -> ended(How);
+        restart -> restart_now()
     end.
 
 %% Report §6.6, §7.4: a callForever whose callee ended faults the caller with
@@ -850,7 +858,18 @@ drained(Port) ->
 gone(Name) ->
     {Launcher, Run} = persistent_term:get({?MODULE, launcher}),
     Launcher ! {gone, Run, Name},
-    ok.
+    dropping().
+
+%% Report §11: a stream that has gone writes nothing more, and the program
+%% ends at once. Until it has, what is written to the stream is dropped and
+%% its writer goes on, so that no writer faults for a stream that ended.
+dropping() ->
+    receive
+        {flush, From, Ref} -> From ! {Ref, flushed};
+        {'Write', _, Reply} -> answer(Reply, ?UNIT);
+        _ -> ok
+    end,
+    dropping().
 
 %% Report §8.2: keys and lines are the same terminal, so a program does one
 %% or the other; doing both ends the program with a fault, as Deadlock ends

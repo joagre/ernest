@@ -172,6 +172,42 @@ fault_reports_test() ->
 flush() ->
     receive M -> [M | flush()] after 0 -> [] end.
 
+%% report §6.6, §6.9: a call ends with the row, the monitor and the alias
+%% it made, and the timed wait it counted, however it ends: its message's
+%% function faulting, or its callee answering with a fault, as a system
+%% process does. A regression test: in a process restarted in place they
+%% were left behind (findings C7)
+call_leaves_nothing_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = ern_rt:self(),
+               Faulting = ern_rt:spawn('Local', fun() ->
+                                                   receive {ask, R} -> R ! {R, fault, <<"no">>} end,
+                                                   receive never -> ok end
+                                               end, <<"M.faulting:1">>),
+               Worker = fun() ->
+                            case get(runs) of
+                                undefined ->
+                                    put(runs, 1),
+                                    ern_rt:call(Faulting, fun(_) -> 1 div zero() end, 1000);
+                                1 ->
+                                    put(runs, 2),
+                                    ern_rt:call(Faulting, fun(R) -> {ask, R} end, 1000);
+                                2 ->
+                                    [{_, _, _, Timers, _}] = ets:lookup(ern_processes, self()),
+                                    {monitors, Monitors} = process_info(self(), monitors),
+                                    Me ! {left, {ets:match_object(ern_calls, {'_', self(), '_'}),
+                                                 Monitors, Timers}},
+                                    ern_rt:send(Main, done)
+                            end
+                        end,
+               _ = ern_rt:spawn('Local', ern_rt:restarting({'RestartLimit', 2, 60000}, Worker),
+                                <<"M.worker:2">>),
+               receive done -> ok end
+           end, <<"M.main">>, #{stdout => fun(_) -> ok end, faults => fun(_) -> ok end}),
+    ?assertEqual({[], [], 0}, wait(left)).
+
 %% report §8.6: a system process that has died can deliver nothing, so it
 %% does not keep a deadlock from being found. A regression test: the
 %% detector read a dead one as busy, and the program waited for ever

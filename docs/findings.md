@@ -30,7 +30,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — the shell's `.` completion crashes on a field of two types (C15): fixed 2026-09-28, the checker's question asked at a position it never shows, as its other questions are
 - done — `ern format`: a raw string loses spaces in a doc example; trailing spaces of a doc line dropped; a `type` with a trailing comment; a blank line after a comment; a fence that does not parse re-indented (C11, C16, C24..C26): fixed 2026-09-28, a text's own spaces kept, a blank line after a comment kept, comments under a declaration kept beside it, an unparsed fence left as written (§11.6); C24 as a comment under a type moved away from it, the shape the line's words allow
 - done — `ern format` stops with an internal error on a `///` after code (C17): fixed 2026-09-28, such a `///` an error (§2.2), which the formatter reports as it reports any; the log's *A `///` After Code Is an Error*
-- 2.95 — a faulting `mk` of a call under `restarting` leaves the row, monitor and alias (C7)
+- done — a faulting `mk` of a call under `restarting` leaves the row, monitor and alias (C7): fixed 2026-09-28, a call settled however it ends, a callee's fault and the timed wait's count among them (§6.6, §6.9)
 - done — `ern_os` crashes on a closed port for a queued read or write (C9): fixed 2026-09-28, a frame for a port the helper's end has closed dropped, the exit status it sent first ending the run (E.23)
 - done — `stty sane` loses the user's settings (C20): fixed 2026-09-28, the settings kept with `stty -g` before the raw mode and given back at the end (§8.6)
 - done — a lost paste end swallows every later key (C31): fixed 2026-09-28, a paste whose end does not come ended when no more of it arrives, and a late end nothing (§8.2)
@@ -157,7 +157,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - cheap — the shell erases a held module's values (C21)
 - cheap — `Address.call`'s deadline taken after the delivery (C22)
 - cheap — stdin opens a port beside the tty after keys were granted (C23)
-- cheap — writers after a gone stream fault "returned without answering" (C27)
+- done — writers after a gone stream fault "returned without answering" (C27): fixed 2026-09-28, a sink whose stream has gone drops what it is given and answers, until the program has ended (§11); `stream_gone_test_` met it once in six runs
 - cheap — `flush_run` misses a `signal` message (C28)
 - cheap — a final line's `\r` at end of input (C29)
 - cheap — `variable/2` keeps a later value where the first is not UTF-8 (C30)
