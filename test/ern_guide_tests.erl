@@ -32,6 +32,7 @@
 -define(GUIDE, "../ernest_guide.md").
 -define(DIAGNOSTICS, "diagnostics.md").
 -define(REPORT, "../ernest_report.md").
+-define(README, "../README.md").
 
 %% ernest_guide.md, plan MVP 2.61: the guide marks enough of its examples
 %% for the check to hold something
@@ -102,6 +103,10 @@ guide_examples_test_() ->
 %% on the line it marks
 report_examples_test_() ->
     examples(?REPORT, "report").
+
+%% README.md: the front page's example compiles, as the guide's do
+readme_examples_test_() ->
+    examples(?README, "readme").
 
 %% report §11.5: each error the catalogue shows is
 %% the compiler's, printed as the catalogue prints it; the catalogue's

@@ -89,7 +89,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - cheap — §8.5: JSON, TLS, regular expressions and HTTP named as libraries that do not exist (U4)
 - cheap — §2.9: `Os` missing from the system modules (U5)
 - cheap — taught two ways: a dropped spawn's `with Never`; `main`'s signature; a type's operations as members or module functions (U6, U7, U8)
-- cheap — §4.4 omits `callee was restarted`; §9.5's stamp where standard error is a pipe; §14's `monitor` in repl; §8's configuration read; README's "§14 says what each shows"; §8.2's code shipped; §8.2's adapted address; §1.1's `Io.debug`; §2.1's raw string (U9..U17, N8)
+- cheap — §4.4 omits `callee was restarted`; §9.5's stamp where standard error is a pipe; §14's `monitor` in repl; §8's configuration read; §8.2's code shipped; §8.2's adapted address; §1.1's `Io.debug`; §2.1's raw string (U9..U17, N8)
 - cheap — citations: shape rule 6, §6.6's cause, §4.5 for order, Appendix G.1 (U18)
 - cheap — ownership: §14's test lists, the peer status, §6.5's layout, §10's protocol, §12's lambda answer (U19..U23)
 - cheap — clarity: §5.5's `Done`, §7.1's `main.erc`, §9.3 against §1.2, §1.2's Tab, §4.4's pacing, §8's comma splice (U24..U29)
@@ -99,7 +99,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - 3.0 — §4.4 does not cover a broadcast to a consumer that stalls (N4)
 - cheap — no way to wait without a limit is said; `accept` and `read` repeat on `Timeout` (N6)
 - cheap — how to show an `Io.Error` to a user (N7)
-- cheap — README: no code, the unbuilt bullet longest, assumes Gleam and Unison, no clone URL (N9)
+- done — README: an example, compiled by `readme_examples_test_`; the unbuilt bullet cut, in the guide's list as well; a clone line; "§14 says what each shows" says the larger ones; Gleam and Unison stay, since the sentence that names them says what each gives (N9)
 - cheap — `ern format` re-joins a split type; `Clock.now` untaught; `ern shell prog.erc` and `Os.arguments` (N10)
 - 3.0 — the language: sockets pull-only, mandatory timeouts, `Bytes` without search or split, slow standard library calls, no bounded mailbox (N-L1..L6)
 
