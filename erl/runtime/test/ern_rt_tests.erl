@@ -114,6 +114,33 @@ process_info_test() ->
     ?assertEqual(true, wait(live)),
     ?assertEqual('None', wait(gone)).
 
+%% report §8.6: a program's end ends every process the runtime started,
+%% one spawned as the program ends among them. A regression test: a spawn
+%% the reaper handled after the end had read its rows lived on, 176 of them
+%% over five runs
+end_takes_late_spawns_test_() ->
+    {timeout, 60, fun end_takes_late_spawns/0}.
+
+end_takes_late_spawns() ->
+    Quiet = #{stdout => fun(_) -> ok end},
+    Spawner = fun Spawn() ->
+                  _ = ern_rt:spawn('Local', fun() -> receive never -> ok end end, <<"w">>),
+                  Spawn()
+              end,
+    Run = fun() ->
+              ok = ern_rt:run_main(fun() ->
+                                       [ern_rt:spawn('Local', Spawner, <<"s">>)
+                                        || _ <- lists:seq(1, 8)],
+                                       nap(20)
+                                   end, <<"main">>, Quiet)
+          end,
+    Run(),
+    timer:sleep(100),
+    Before = length(erlang:processes()),
+    [Run() || _ <- lists:seq(1, 5)],
+    timer:sleep(100),
+    ?assertEqual(Before, length(erlang:processes())).
+
 %% report Appendix E.21, §11.2: every fault reaches each subscriber as a
 %% FaultReport, a restart among them, and the runtime's reporter as it
 %% happens; a second subscription replaces the first; a kill is no fault

@@ -15,7 +15,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - tag — the shell's history is readable by others (E.17 lacks modes; §11.2) (S8): waits on language feedback 66, decided with the user
 - done — `ern config`: a race leaks the private key through a descriptor opened on the temporary file; the directory may be an attacker's (§11.3) (S9): fixed 2026-09-28, the directory made at once and its owner's before a file is written; the log's *`ern config` Makes Its Directory Its Owner's*
 - done — control characters of a fault cause, a doc block or a printed value reach the terminal and forge log lines (§2.1, §11.2) (S10): fixed 2026-09-28, refused in source, escaped in the toolchain's fault lines and in `Io.show`; the log's *No Control Character Reaches the Terminal Unasked*
-- tag — `end_program` misses a spawn the reaper handles after `live_rows()`: five runs left 176 processes (§8.6) (C2)
+- done — `end_program` misses a spawn the reaper handles after `live_rows()`: five runs left 176 processes (§8.6) (C2): fixed 2026-09-28, the reaper ends the program, and spawns nothing after
 - tag — `:reload` initializes changed modules in name order, not dependency order (§8.5, §11.2) (C4)
 - tag — a failed `:load` or `:reload` leaves its processes and unpurged code (§11.2) (C5)
 - tag — a foreign function value inside a recursive type faults at its call with `badkey` (§8.4) (C6)

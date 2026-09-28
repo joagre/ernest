@@ -306,6 +306,8 @@ reaper_loop(Waiters, Watching, Watched) ->
         {report, Pid, Site, Fault} ->
             report(Pid, Site, Fault, true),
             reaper_loop(Waiters, Watching, Watched);
+        {end_program, From, Ref} ->
+            ended_program(From, Ref);
         {'DOWN', _MRef, process, Pid, Reason} ->
             case ets:lookup(?PROCESSES, Pid) of
                 [{_, Site, alive, _, _}] ->
@@ -352,6 +354,18 @@ reaper_loop(Waiters, Watching, Watched) ->
         end,
         reaper_loop(Waiters, Watching, Watched)
     end.
+
+%% Report §8.6: the program's end ends every process the runtime started.
+%% The reaper spawns each, so it ends them: every one it has spawned, and
+%% none after, since a spawn it is asked for then was asked by a process
+%% that is itself ending. It answers nothing more until it is stopped.
+ended_program(From, Ref) ->
+    lists:foreach(fun({Pid, _, _, _}) -> exit(Pid, {ern, program_end}) end, live_rows()),
+    From ! {Ref, ended},
+    ended_program().
+
+ended_program() ->
+    receive _ -> ended_program() end.
 
 %% A process a waiter awaited, taken from what the waiter watches once the
 %% process has ended.
@@ -1378,7 +1392,16 @@ restarted(Cause) ->
 %% is flushed, the system processes and the reaper are stopped, and the
 %% terminal goes back as the program found it (§8.2).
 end_program(Run, Reaper, System) ->
-    lists:foreach(fun({Pid, _, _, _}) -> exit(Pid, {ern, program_end}) end, live_rows()),
+    Ended = make_ref(),
+    Watch = erlang:monitor(process, Reaper),
+    Reaper ! {end_program, erlang:self(), Ended},
+    receive
+        {Ended, ended} ->
+            ok;
+        {'DOWN', Watch, process, _, _} ->
+            lists:foreach(fun({Pid, _, _, _}) -> exit(Pid, {ern, program_end}) end, live_rows())
+    end,
+    erlang:demonitor(Watch, [flush]),
     lists:foreach(fun(Sink) ->
                       FlushRef = make_ref(),
                       Mon = erlang:monitor(process, Sink),
