@@ -89,8 +89,10 @@ uncommented(Line) ->
 %%
 %% A unit that needs a node of its own, a shell session, a program given
 %% standard input, or an error named from its own working directory, runs
-%% in parallel with the others of its kind; the rest compile and run in
-%% this node, one after another, since two of them may share a module's
+%% in parallel with the others of its kind, as many at once as this host
+%% has schedulers, since each is a host of its own and the catalogue's two
+%% hundred at once would fill a machine's memory; the rest compile and run
+%% in this node, one after another, since two of them may share a module's
 %% name (plan, MVP 2.6).
 guide_examples_test_() ->
     examples(?GUIDE, "guide").
@@ -111,7 +113,8 @@ examples(Document, Kind) ->
     Units = [catalogued(Kind, U) || U <- units(Document)],
     Named = [{label(Kind, N, U), U} || {N, U} <- lists:zip(lists:seq(1, length(Units)), Units)],
     {Apart, Here} = lists:partition(fun({_, U}) -> own_node(U) end, Named),
-    [{inparallel, [{Name, {timeout, 60, fun() -> check(U) end}} || {Name, U} <- Apart]}
+    [{inparallel, erlang:system_info(schedulers_online),
+      [{Name, {timeout, 60, fun() -> check(U) end}} || {Name, U} <- Apart]}
      | [{Name, {timeout, 60, fun() -> check(U) end}} || {Name, U} <- Here]].
 
 %% The catalogue's errors may be the parser's or an unknown name's.
