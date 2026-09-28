@@ -14,9 +14,10 @@ milestone, the standing gaps, and what is done.
 ## Where we are
 
 **MVP 2.95, the first release, is under way.** The manual pages, the installation, the release
-archive and the review are done (2026-09-28); the next is the readers' fixes before the tag,
-then the tag. Every earlier milestone is done, the last MVP 2.7 on 2026-09-28; MVP 2.9, MVP
-2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph under "Done".
+archive and the review are done (2026-09-28); the next are the readers' fixes before the tag,
+item 4's step 2, then the time of `make test`, step 3, then the tag. Every earlier milestone is
+done, the last MVP 2.7 on 2026-09-28; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken
+out of order. Each has its paragraph under "Done".
 
 ---
 
@@ -86,7 +87,7 @@ It follows MVP 2.7 and comes before MVP 3.0.
    2. **The readers' fixes before the tag**, decided 2026-09-28: the defects that lose data,
       expose a user, or break a program, each with a regression test. They are the `tag` lines
       of [`findings.md`](findings.md), which holds every finding of the review with its
-      decision; its `cheap` lines follow, a batch a document:
+      decision:
       - the directory build's sweep, which deletes what no build of its own wrote (§11.1);
       - `ern shell` running `./.ernest/startup` from the working directory, and the working
         directory on the host's code path ahead of the load path (§11.2);
@@ -108,10 +109,10 @@ It follows MVP 2.7 and comes before MVP 3.0.
       [`testing_improvements.md`](testing_improvements.md), and the catalogue of diagnostics
       run in one node.
    4. **Planned after the release**, in MVP 3.0's first step, decided 2026-09-28: the rest of what
-      the readers found, `findings.md`'s `3.0` lines, the report's contradictions and silent cases,
-      the diagnostics' positions and labels (§11.5), `Io.show`'s dependence on the type at the call
-      and where `via`'s function runs, the guide's gaps (`Tcp` untaught), and the documents the code
-      has left behind.
+      the readers found, `findings.md`'s `cheap` lines, a batch a document, and its `3.0` lines, the
+      report's contradictions and silent cases, the diagnostics' positions and labels (§11.5),
+      `Io.show`'s dependence on the type at the call and where `via`'s function runs, the guide's
+      gaps (`Tcp` untaught), and the documents the code has left behind.
 5. **The release**, tagged once the review is done, with its notes (`review.md`, *Done*), and
    the archive published beside it, where the README then says to download it.
 
@@ -130,6 +131,11 @@ them that carry values (§3.11). Code is shipped only between nodes running the 
 from MVP 3.1 on 2026-09-20.
 
 - **First, what MVP 2.95's review left for after the release**, its item 4.4.
+- **The distribution notes' rewrite, read with the user before any of it is built.** Brought to
+  the report on 2026-09-28, the two notes also gained design no one has weighed: a `spawned`
+  and a `kill` frame, `demonitor` kept to the runtime, the spawn site in the spawn frame, the
+  hash modules named `ern#<base32>`, and new open questions, the protocol note's 5 and 7 to
+  12 and the distribution note's 8 to 10.
 - `spawn(Peer(name), f)` over the peers in `ernest.conf`, authenticated with the configured
   keys: the connection is `ssl`, with the peer's public key from `ernest.conf` as the only
   trust, read with `public_key`, inside `ern`; a program never sees either module.

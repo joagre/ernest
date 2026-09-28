@@ -1,6 +1,6 @@
 # Findings of the first review
 
-Every finding of the twelve readers of 2026-09-28, one line each, by area, with its decision: **tag**, fixed before the tag (the plan's MVP 2.95, item 4, step 2); **cheap**, fixed in a batch per document; **3.0**, planned in MVP 3.0's first step; **done**; or **dropped**, with the reason. The readers: the report's principles (P), the cold reader (K), the register (G), the guide (U), the newcomer (N), the documents (D), the code (C), the Ernest code (E), the tools (T), the diagnostics (X), security (S), the shell's README (H). This file goes when every line is done or in the plan.
+Every finding of the twelve readers of 2026-09-28, one line each, by area, with its decision: **tag**, fixed before the tag (the plan's MVP 2.95, item 4, step 2); **cheap**, fixed after the tag in MVP 3.0's first step, a batch a document; **3.0**, planned in MVP 3.0's first step; **done**; or **dropped**, with the reason. The readers: the report's principles (P), the cold reader (K), the register (G), the guide (U), the newcomer (N), the documents (D), the code (C), the Ernest code (E), the tools (T), the diagnostics (X), security (S), the shell's README (H). This file goes when every line is done or in the plan.
 
 ## Before the tag
 
@@ -23,6 +23,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - tag — status 70 on an empty directory, a name that is not UTF-8, a corrupt `.erc` to `ern doc`, and 1100 tests in a module (§11) (T6)
 - tag — `write_whole` on a read-only file exits 70 and leaves a temporary file that blocks later runs (§11) (C12)
 - tag — `Supervisor`'s restart limit: a child restarts itself before the supervisor counts it, about 200 times under a limit of 2; `within = 0` still gives up (E.22, §6.9) (E2, P15, K10)
+- tag — `emacs_mode.md` says Emacs 29 or later, and only Emacs 31.1 runs the mode's tests here: say what is tested, or run them on 29 (the documents' rewrite)
 - tag — `String`'s searches match inside a grapheme: `split` and `replace` lose text (E.5) (E1)
 
 ## The report
@@ -190,10 +191,14 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 
 ## The documents
 
-- done — tightened on 2026-09-28: CLAUDE.md, the plan, `architecture.md`, `shell_design.md`, the two distribution notes brought to the report, `style.md`, `install.md`, `memory.md`, `development.md`, `emacs_mode.md`, `language_feedback.md`, `testing_improvements.md`, with the documents reader's findings on each (D5..D31, D-B); what they argued is the log's *What the Design Notes Argued* and *Erlang's Standard Library, Module by Module*
+- done — tightened on 2026-09-28: CLAUDE.md, the plan, `architecture.md`, `shell_design.md`, the two distribution notes brought to the report, `style.md`, `install.md`, `memory.md`, `development.md`, `emacs_mode.md`, `language_feedback.md`, `testing_improvements.md`, with the documents reader's findings on each (D5..D31, D-B), marked done on their writers' word; what they argued is the log's *What the Design Notes Argued* and *Erlang's Standard Library, Module by Module*
 - done — code comments that cited the old plan's numbered sections (`plan 2.1`, `plan 2.4`) or `review.md`'s numbered steps cite the report, or nothing; `ern_rt`'s header said a late monitor reports the cause, where §6.9 says `Unknown`
 - cheap — `make sections` and `make xref` never check Appendix G; the documents' tests read too few files (D1, D4)
 - cheap — `shell/README.md`: `Process` is no system module; the reader bullet does not parse; the greeting, the first prompt, line mode (D26, D-B8)
 - cheap — the report's line 3 sends open questions to the log (D)
 - cheap — `ern_cli_tests`' `--help` loop leaves out `format`; `editor.ern` cites §9.3 for E.16 (D)
 - done — the shell reader's findings (H1..H18), the register reader's (G1..G28, G30, G31, G33..G39)
+- 3.0 — the tightened documents were checked by their writers against the code and by `make test-docs`, and read back whole only in part: the plan's MVP 2.95, 3.0 and 3.1, `style.md`, `install.md` and the shell note's opening. `architecture.md`, `shell_design.md`, the two distribution notes, `memory.md`, `development.md` and `emacs_mode.md` are read back against the code, and D5..D31 checked one by one (the documents' rewrite)
+- cheap — `memory.md` keeps "about a minute and a half" for `make load`, not measured since the loads changed (the documents' rewrite)
+- cheap — the log's *Erlang's Standard Library, Module by Module* has a column "Waiting, and when", roadmap the plan owns (the documents' rewrite)
+- 3.0 — `Clock.monotonic` and `Udp` stand in the plan's "Not in any MVP" as waiting for "a later MVP", with no milestone and no verdict (CLAUDE.md, *No decision is left pending*): each is judged on E.0 and placed (the documents' rewrite)
