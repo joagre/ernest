@@ -76,10 +76,13 @@ export fn noted(r : Region, text : String) -> #(Region, String) =
 
 // What a program writes goes to the tail. A line the tail no longer has
 // room for is committed as it leaves, so the terminal's scrollback holds
-// every line in the order it was written.
+// every line in the order it was written. A line not yet ended adds to
+// the tail each row it fills at the window's width, since only its last
+// row can still change, and so the region holds a row of it at most.
 export fn wrote(r : Region, text : String) -> #(Region, String) = {
     let #(lines, rest) = split(r.writing <> text);
-    aged(Region(..r, tail = r.tail <> lines, writing = rest), [])
+    let #(rows, left) = filled(rest, r.size.columns);
+    aged(Region(..r, tail = r.tail <> lines <> rows, writing = left), [])
 }
 
 // The line being typed, where the cursor is in it, and the rows shown
@@ -361,6 +364,39 @@ fn clipping(graphemes : List(String),
         }
     }
 
+// The rows a line fills at the window's width, as the terminal wraps it,
+// and what is left of it. A grapheme wider than what is left of a row
+// begins the next, and a tab takes the columns to its stop and never
+// passes the edge. A row after the first begins with the escape sequences
+// since the last reset, the style in force, so that it is painted as it
+// would have been unbroken.
+fn filled(line : String, width : Int) -> #(List(String), String) =
+    if width < 1 then #([], line) else filling(String.graphemes(line), width, 0, "", "", [])
+
+fn filling(graphemes : List(String),
+           width : Int,
+           col : Int,
+           row : String,
+           style : String,
+           rows : List(String)) -> #(List(String), String) =
+    match sequence(graphemes) {
+        Some(#(s, tail)) -> filling(tail, width, col, row <> s, styled(style, s), rows)
+      | None -> match graphemes {
+            [] -> #(List.reverse(rows), row)
+          | g :: rest -> {
+                let w = if g == "\t" then tabStop - col % tabStop else Terminal.columns(g);
+                if col > 0 && (col >= width || g != "\t" && col + w > width) then
+                    filling(graphemes, width, 0, style, style, row :: rows)
+                else
+                    filling(rest, width, Int.min(col + w, width), row <> g, style, rows)
+            }
+        }
+    }
+
+// The style after a sequence: a reset ends every sequence before it.
+fn styled(style : String, s : String) -> String =
+    if s == "\u{1b}[0m" || s == "\u{1b}[m" then "" else style <> s
+
 // The text up to each line feed, and what is left without one.
 fn split(text : String) -> #(List(String), String) =
     match String.split(text, "\n") {
@@ -527,6 +563,49 @@ let fillsTheWidth =
             Passed
         else
             Failed(String.join(rowsOf(r), " | "))
+    })
+
+let unendedRows =
+    Test(name = "a line not yet ended gives the tail each row it fills", run = fn() = {
+        let r0 = new(Terminal.Size(rows = 24, columns = 10));
+        let #(r1, _) = wrote(r0, "abcdefghijklmnopqrstuvwxy");
+        let #(r2, _) = wrote(new(Terminal.Size(rows = 24, columns = 10)), "abcdefg");
+        let #(r3, _) = wrote(r2, "hijklm");
+        if tailRowsOf(r1) == ["abcdefghij", "klmnopqrst", "uvwxy"]
+            && tailRowsOf(r3) == ["abcdefghij", "klm"] then
+            Passed
+        else
+            Failed(String.join(tailRowsOf(r1) <> ["/"] <> tailRowsOf(r3), " | "))
+    })
+
+let unendedStyle =
+    Test(name = "a row of a line not yet ended begins with the style in force", run = fn() = {
+        let #(rows, left) = filled("\u{1b}[31mabcdefghijkl", 10);
+        let #(reset, tail) = filled("\u{1b}[31mab\u{1b}[0mcdefghijkl", 10);
+        if rows == ["\u{1b}[31mabcdefghij"]
+            && left == "\u{1b}[31mkl"
+            && reset == ["\u{1b}[31mab\u{1b}[0mcdefghij"]
+            && tail == "kl" then
+            Passed
+        else
+            Failed(String.replace(String.join(rows <> [left] <> reset <> [tail], " | "),
+                                  "\u{1b}",
+                                  "ESC"))
+    })
+
+let unendedHeld =
+    Test(name = "a line that never ends holds a row of the region at most", run = fn() = {
+        let r =
+            List.foldLeft(List.repeat(".", 1000),
+                          new(Terminal.Size(rows = 24, columns = 10)),
+                          fn(region, dot) = {
+                              let #(next, _) = wrote(region, dot);
+                              next
+                          });
+        if String.size(r.writing) <= 10 then
+            Passed
+        else
+            Failed(Int.toString(String.size(r.writing)))
     })
 
 // A region with a prompt written, which is where an input is typed.
