@@ -145,17 +145,17 @@ for a circle, since the module has no `Float`.
 Template.checked : (Int) -> Int
 ```
 
-The radius itself when it is not negative.
+The radius of a circle across the diameter, toward zero.
 
 ### Errors
 
-Faults with `Fault("negative radius")` on a negative radius, the
+Faults with `Fault("negative diameter")` on a negative diameter, the
 one fault in this module.
 
 ### Examples
 
 ```ernest
-Template.checked(4)
+Template.checked(9)
 // => 4
 ```
 
@@ -165,8 +165,9 @@ Template.checked(4)
 Template.half : (Int) -> Int
 ```
 
-Half of a whole number, toward zero. Private, and documented, so it
-appears in the module's documentation among the exported declarations.
+Half of a whole number, toward zero, which `checked` takes of a
+diameter. Private, and documented, so it appears in the module's
+documentation among the exported declarations.
 
 ### Examples
 

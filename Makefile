@@ -153,6 +153,7 @@ unicode:
 # docs/coherence.md maps them.
 test: all
 	@$(MAKE) -s calls
+	@$(MAKE) -s unused
 	@$(MAKE) -s test-erl
 	@$(MAKE) -C test test
 	@$(MAKE) -s test-emacs
@@ -209,6 +210,7 @@ clean:
 	@$(MAKE) -C test $@
 	@rm -rf build/stdlib build/shell build/libs build/tools build/man build/release \
 	  build/dialyzer build/dialyzer.plt build/calls build/cover build/untested build/sanitize \
+	  build/unused \
 	  build/untested.txt \
 	  examples/*.erc \
 	  examples/**/*.erc $(EXEC)
@@ -250,6 +252,28 @@ calls: all build/cover/ern_cover.beam
 	  --build-root build/calls/examples $$f > /dev/null || exit 1; done
 	@bin/ern build --build-root build/calls/modules examples/modules > /dev/null
 	@escript tools/calls.escript
+
+# Every private declaration of the Ernest the repository ships and of its
+# examples that nothing uses (docs/coherence.md C14): each source root
+# written as Erlang into build/unused, and tools/unused.escript reading
+# the host compiler's warnings on it, and the private types from their
+# tokens. make test runs it.
+UNUSED = build/unused
+unused: all
+	@rm -rf $(UNUSED) && mkdir -p $(UNUSED)
+	@bin/ern build --emit-erl --build-root $(UNUSED)/stdlib stdlib > /dev/null
+	@bin/ern build --emit-erl --load-path build/libs/markdown --build-root $(UNUSED)/shell \
+	  shell > /dev/null
+	@for d in libs/*; do bin/ern build --emit-erl --source-root $$d \
+	  --build-root $(UNUSED)/$$d $$d > /dev/null || exit 1; done
+	@for f in examples/*.ern; do bin/ern build --emit-erl --source-root examples \
+	  --build-root $(UNUSED)/examples $$f > /dev/null || exit 1; done
+	@bin/ern build --emit-erl --build-root $(UNUSED)/examples/modules examples/modules > /dev/null
+	@bin/ern build --emit-erl --load-path build/libs/markdown --build-root $(UNUSED)/tools \
+	  tools > /dev/null
+	@escript tools/unused.escript stdlib=$(UNUSED)/stdlib shell=$(UNUSED)/shell \
+	  $(foreach d,$(wildcard libs/*),$(d)=$(UNUSED)/$(d)) \
+	  examples=$(UNUSED)/examples tools=$(UNUSED)/tools
 
 # The helper in C under Clang's static analyzer and under the address and
 # undefined-behaviour sanitizers (docs/coherence.md C13): the analyzer
@@ -332,4 +356,4 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
 .PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load test-emacs \
         $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man install uninstall release unicode \
-        dialyzer calls untested sanitize
+        dialyzer calls untested sanitize unused

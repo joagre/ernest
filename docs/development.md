@@ -49,8 +49,8 @@ build/             build products, not in git: build/stdlib/, build/shell/, and
                    build/release/ from make release
 libs/              the first-party libraries, each a source root a program adds
                    with --load-path: ets, markdown
-tools/             the programs of the build: calls.escript, run by make calls, and
-                   ern_cover.erl, by make untested;
+tools/             the programs of the build: calls.escript, run by make calls,
+                   ern_cover.erl, by make untested, and unused.escript, by make unused;
                    unicode_width.escript writes Terminal.columns' table, run by
                    make unicode; manual.ern writes ern(1) from the report's §11,
                    run by make; install.sh stages, installs and archives, run by
@@ -68,7 +68,7 @@ Beside what the README's *Trying it* needs, `make test` needs python3, for the p
 ```
 make              compile every application into its ebin/, then stdlib/, libs/, shell/,
                   and write the manual pages
-make test         build, then make calls and every area below
+make test         build, then make calls, make unused and every area below
 make test-erl     the unit tests of every application under erl/, side by side;
                   APP=typer for one
 make test-programs  the example programs, compiled and run
@@ -94,6 +94,8 @@ make untested     make test under the host's coverage, then every function of th
                   toolchain it never ran, also in build/untested.txt
 make sanitize     the helper in C under Clang's analyzer, and the runtime's and the
                   programs' tests with it built under the sanitizers
+make unused       every private declaration of the Ernest shipped and the examples that
+                  nothing uses
 make sections     list the report sections no test cites
 make xref         check that every section citation and document path in the documents resolves
 make coverage     every section with how many tests cite it and its length, thinnest first

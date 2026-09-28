@@ -101,24 +101,25 @@ export fn area(s : Shape) -> Int =
       | Circle(radius = r) -> 3 * r * r
     }
 
-/// The radius itself when it is not negative.
+/// The radius of a circle across the diameter, toward zero.
 ///
 /// ### Errors
 ///
-/// Faults with `Fault("negative radius")` on a negative radius, the
+/// Faults with `Fault("negative diameter")` on a negative diameter, the
 /// one fault in this module.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// Template.checked(4)
+/// Template.checked(9)
 /// // => 4
 /// ```
-export fn checked(radius : Int) -> Int =
-    if radius < 0 then fault("negative radius") else radius
+export fn checked(diameter : Int) -> Int =
+    if diameter < 0 then fault("negative diameter") else half(diameter)
 
-/// Half of a whole number, toward zero. Private, and documented, so it
-/// appears in the module's documentation among the exported declarations.
+/// Half of a whole number, toward zero, which `checked` takes of a
+/// diameter. Private, and documented, so it appears in the module's
+/// documentation among the exported declarations.
 ///
 /// ### Examples
 ///
