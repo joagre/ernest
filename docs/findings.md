@@ -22,7 +22,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — a closed pipe crashes every job but `ern run`, leaving `erl_crash.dump` (§11) (T5): fixed 2026-09-28, every job's text through ports of its own, which end it with 141
 - done — status 70 on an empty directory, a name that is not UTF-8, a corrupt `.erc` to `ern doc`, and 1100 tests in a module (§11) (T6): fixed 2026-09-28, each refused with status 1 or built; the log's *A Job Refuses What It Cannot Do*
 - done — `write_whole` on a read-only file exits 70 and leaves a temporary file that blocks later runs (§11) (C12): fixed 2026-09-28, a file its owner may not write refused, nothing left beside it
-- tag — `Supervisor`'s restart limit: a child restarts itself before the supervisor counts it, about 200 times under a limit of 2; `within = 0` still gives up (E.22, §6.9) (E2, P15, K10)
+- done — `Supervisor`'s restart limit: a child restarts itself before the supervisor counts it, about 200 times under a limit of 2; `within = 0` still gives up (E.22, §6.9) (E2, P15, K10): fixed 2026-09-28, the fault counted before the child runs again, and a time of 0 no limit; the log's *A Supervisor Counts a Fault Before the Child Runs Again*
 - done — `emacs_mode.md` says Emacs 29 or later, and only Emacs 31.1 runs the mode's tests here: say what is tested, or run them on 29 (the documents' rewrite): 2026-09-28, the note says what is tested and what is expected
 - done — `String`'s searches match inside a grapheme: `split` and `replace` lose text (E.5) (E1): fixed 2026-09-28, a match only between the string's grapheme boundaries; `lines` ends a line at CR LF; the log's *A Search Begins Where a Grapheme Does*
 
@@ -33,7 +33,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - 3.0 — where `via`'s function runs: §6.5 in the sender, §6.9 by the delivery; its fault is the target's (P11, K2)
 - 3.0 — top-level initializers of every module the entry point depends on run though their names appear nowhere; a peer runs them lazily (P4)
 - 3.0 — §4.2's lookup names a type-member step the compiler does not implement, and which would shadow a member by a module function (P5)
-- 3.0 — `Optional` and `Either` refuse reply-carrying elements while user sum types allow them; the rule and §3.9's exemption exist for each other (P6)
+- 3.0 — `Optional` and `Either` refuse reply-carrying elements while user sum types allow them; the rule and §3.9's exemption exist for each other (P6); met again 2026-09-28, when `Supervisor`'s watcher had to hold its children's replies in a list type of its own, `Held`, since `List` holds none
 - 3.0 — a `receive` guard is a second, smaller expression language: no top-level binding, no call, no ordering on a user type (P7)
 - 3.0 — a type variable named only in a lambda's annotation is the lambda's and not rigid, so one annotation text has two meanings (P8)
 - 3.0 — a block `let` of a lambda is monomorphic while a block `fn` and a top-level `let` are polymorphic (P9)

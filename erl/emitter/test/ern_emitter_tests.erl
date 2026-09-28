@@ -705,6 +705,44 @@ restart_limit_test() ->
     ?assertEqual({ok, <<"ended 1\n">>}, run(Program("0"))),
     ?assertEqual({ok, <<"ended 1\n">>}, run(Program("-2"))).
 
+%% Appendix E.22, report §6.9: a child's fault is counted by its supervisor
+%% before the child runs again, so a limit of two restarts lets the child
+%% run three times; and a time of 0 sets no limit, so the supervisor never
+%% gives up. A regression test: the child restarted itself and told the
+%% supervisor after, running about two hundred times under a limit of two,
+%% and a time of 0 still gave up
+supervisor_counts_before_the_restart_test_() ->
+    {timeout, 60, fun supervisor_counts_before_the_restart/0}.
+
+supervisor_counts_before_the_restart() ->
+    Program = fun(Within) ->
+        "type CounterMsg = Next(reply : Reply(Int))\n"
+        "type MainMsg = SupDied(Down) | ChildEnded(Down)\n"
+        "fn counter(n : Int) -> Unit with CounterMsg =\n"
+        "    receive { Next(reply = r) -> { answer(r, n); counter(n + 1) } }\n"
+        "fn crash(c : Address(CounterMsg)) -> Unit with Int = {\n"
+        "    let n = Address.callForever(c, fn(r) = Next(reply = r));\n"
+        "    Io.println(\"run \" <> Int.toString(n));\n"
+        "    if n < 6 then fault(\"boom\") else Unit\n"
+        "}\n"
+        "export fn main() -> Unit with MainMsg = {\n"
+        "    let c = spawn(Local, fn() = counter(1));\n"
+        "    let limit = RestartLimit(restarts = 2, within = " ++ Within ++ ");\n"
+        "    let sup = spawnMonitored(Local, Supervisor.group(Supervisor.OneForOne, limit),\n"
+        "                             SupDied);\n"
+        "    let _ = spawnMonitored(Local, Supervisor.child(sup, fn() = crash(c)), ChildEnded);\n"
+        "    receive {\n"
+        "        SupDied(Down(reason = Fault(cause), site = _)) -> Io.println(cause)\n"
+        "      | SupDied(_) -> Io.println(\"supervisor ended\")\n"
+        "      | ChildEnded(_) -> Io.println(\"kept\")\n"
+        "    }\n"
+        "}\n"
+    end,
+    ?assertEqual({ok, <<"run 1\nrun 2\nrun 3\nsupervisor restart limit reached\n">>},
+                 run(Program("60000"))),
+    ?assertEqual({ok, <<"run 1\nrun 2\nrun 3\nrun 4\nrun 5\nrun 6\nkept\n">>},
+                 run(Program("0"))).
+
 %% report §6.9: returning and a kill end a restarting process as they end
 %% any; only a fault restarts
 restart_only_on_fault_test() ->
