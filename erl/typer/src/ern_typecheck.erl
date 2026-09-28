@@ -1512,7 +1512,8 @@ fields(T, #env{st = St, types = Types} = Env) ->
     end.
 
 selected(F, T, Env) ->
-    try resolve_select(0, F, T, Env) of
+    %% the position is never shown: a field that selects nothing is left out
+    try resolve_select({1, 1, {1, 1}}, F, T, Env) of
         {FT, Env1} -> {true, {F, ern_types:zonk(FT, Env1#env.st)}}
     catch
         throw:_ -> false

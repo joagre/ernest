@@ -474,6 +474,32 @@ completion() ->
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.filter\r\nList.filter : (List(a)">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nList.filterMap : (List(a)">>)).
 
+%% report §11.2, §3.5: a field that two constructors give two types is no
+%% selector, and `.` completes to no field of it; the session goes on. A
+%% regression test: the completion crashed the shell (findings C15)
+field_of_two_types_test_() ->
+    {timeout, 90, fun field_of_two_types/0}.
+
+field_of_two_types() ->
+    Steps = [{expect, "> "},
+             {send, hex("type T = A(x : Int, n : Int) | B(x : String, n : Int)\r")},
+             {expect, "type T"},
+             {send, hex("let t = A(x = 1, n = 2)\r")},
+             {expect, "t : T"},
+             {send, hex("t.") ++ "09" ++ "09"},
+             {sleep, 500},
+             {send, "15"},
+             {send, hex("40 + 2\r")},
+             {expect, "42 : Int"},
+             {sleep, 300},
+             {send, "03"},
+             {sleep, 200},
+             {send, "04"}],
+    Bytes = pty(alone("../bin/ern shell"), Steps, 30, " --size 16x74"),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"t.n">>)),
+    ?assertEqual(nomatch, binary:match(Bytes, <<"t.x">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"42 : Int">>)).
+
 %% report §11.2, §3.5: after a name the session binds and a `.`, `Tab`
 %% completes the fields its type selects, along a chain, and lists them
 %% with their types. A regression test for item 54; it does not cover a
