@@ -19,7 +19,7 @@ Within those parts:
 - Each other shell test takes 0.5 to 1.5 seconds. A shell starts and quits in 0.49; the rest is the pseudo-terminal harness, whose fixed `sleep` steps add up to 9.6 seconds over 17 steps.
 - The interrupt test sleeps 2 seconds before it sends its signal.
 - `typing.el` re-indents the whole file at every cut of every file it types, so its time grows with the square of a file's length.
-- An `ern` command starts in 0.39 seconds: 0.24 is the Erlang VM, and 0.15 the escript. The tests start `ern` about 100 times, many of them in parallel, so start-up is a cost but not the main one. Start-up looks up no host name, since `ern` starts no distribution: `ERL_INETRC` set to read the hosts file first, and `-connect_all false`, changed neither time, measured on 2026-09-28.
+- An `ern` command started in 0.39 seconds: 0.24 was the Erlang VM, and 0.15 the escript, which `bin/ern` no longer goes through since 2026-09-28, when it became a launcher that starts the host itself. The tests start `ern` about 100 times, many of them in parallel, so start-up is a cost but not the main one. Start-up looks up no host name, since `ern` starts no distribution: `ERL_INETRC` set to read the hosts file first, and `-connect_all false`, changed neither time, measured on 2026-09-28.
 
 Run side by side with `make -j5`, the four `test/` areas and the Emacs tests took 102 to 106 seconds instead of about 176. In one of two rounds, `block_of_one_test` in `test/ern_style_tests.erl` passed EUnit's default timeout of 5 seconds under the combined load.
 

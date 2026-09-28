@@ -25,7 +25,8 @@ citations_resolve_test() ->
             "docs/implementation_plan.md",
             "docs/architecture.md", "docs/shell_design.md", "docs/module_doc_template.md",
             "docs/coherence.md", "docs/review.md", "docs/style.md", "docs/emacs_mode.md",
-            "docs/node_protocol.md", "docs/code_distribution.md", "shell/README.md"]
+            "docs/node_protocol.md", "docs/code_distribution.md", "docs/install.md",
+            "shell/README.md"]
         ++ examples() ++ stdlib() ++ shell() ++ tools(),
     Dangling =
         [{F, C} || F <- Live, C <- cites(read(F)), not resolves(C, report, ReportHeads, GuideHeads)]

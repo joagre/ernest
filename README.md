@@ -9,18 +9,20 @@ Ernest is a small functional language for concurrent programs, on the Erlang run
 
 It is young. The language and its toolchain are complete enough for programs on one node, and programs across nodes come after the first release, which is on its way; where the project stands is "Where we are" in the [plan](docs/implementation_plan.md).
 
-## Trying it
+## Installing
 
-On Linux or macOS, with Erlang/OTP 29, GNU make and a C compiler:
+On Linux or macOS, with Erlang/OTP 29 on your `PATH`, GNU make and a C compiler, in a checkout of this repository:
 
 ```
 make
-bin/ern build examples/hello.ern
-bin/ern run examples/hello.erc     # hello, world
-bin/ern shell                      # :quit to leave
+sudo make install                  # into /usr/local
+ern build examples/hello.ern
+ern run examples/hello.erc         # hello, world
+ern shell                          # :quit to leave
+man ern                            # the toolchain; man Ernest.List for a module
 ```
 
-The guide writes `ern`: put this repository's `bin/` on your `PATH`.
+`make install PREFIX=$HOME/.local` installs Ernest for you alone, with no `sudo`, where `~/.local/bin` is on your `PATH`. `make uninstall`, with the same `PREFIX`, removes it. The installation can be moved to another directory whole, and runs there. Without installing, the checkout's `bin/ern` runs in place. The Emacs mode is installed with the rest, and [its page](docs/emacs_mode.md) says how to turn it on.
 
 ## Reading more
 

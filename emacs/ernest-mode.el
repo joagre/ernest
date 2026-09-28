@@ -13,10 +13,16 @@
 
 ;;; Installation:
 
-;; Put these three lines in your init file, with the path to this
-;; directory.  Opening a `.ern' file then loads the mode.
+;; `make install' puts this file in `share/emacs/site-lisp' under its
+;; prefix, which an Emacs built for that prefix has on its `load-path'.
+;; Another Emacs, and one that loads the mode from a checkout, is given
+;; the directory that holds it:
 ;;
 ;;     (add-to-list 'load-path "~/src/ernest/emacs")
+;;
+;; These two lines in your init file load the mode when a `.ern' file is
+;; opened:
+;;
 ;;     (autoload 'ernest-mode "ernest-mode" "Major mode for Ernest." t)
 ;;     (add-to-list 'auto-mode-alist '("\\.ern\\'" . ernest-mode))
 ;;

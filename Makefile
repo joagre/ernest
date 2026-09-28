@@ -30,6 +30,7 @@ CC ?= cc
 all: $(EXEC)
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -s shell
+	@$(MAKE) -s man
 
 $(EXEC): erl/runtime/c_src/ern_exec.c
 	@mkdir -p $(dir $@)
@@ -38,6 +39,7 @@ $(EXEC): erl/runtime/c_src/ern_exec.c
 stdlib: build/stdlib/.built
 libs: build/libs/.built
 shell: build/shell/.built
+man: build/man/.built
 
 # The standard library written in Ernest: stdlib/ compiled by ern build into
 # build/stdlib under its Erlang module name, where the tools put it on the
@@ -86,15 +88,37 @@ doc: all
 	@bin/ern doc --build-root build/stdlib stdlib
 
 # The manual pages (report §11, §11.4): the prelude's and every standard
-# library module's, beside the modules' .erc in build/stdlib, and ern(1),
-# §11 of the report, which tools/manual.ern writes into build/man with
-# those pages in its SEE ALSO. A page is written whole or not at all.
-man: all build/tools/.built
+# library module's, beside the modules' .erc in build/stdlib, each
+# library's beside its own in build/libs, and ern(1), §11 of the report,
+# which tools/manual.ern writes into build/man with the standard library's
+# pages in its SEE ALSO. make writes them, so that make install, which a
+# user may run as another, only copies. A page is written whole or not at
+# all.
+build/man/.built: $(TOOL) build/stdlib/.built build/libs/.built build/tools/.built \
+		  ernest_report.md
 	@bin/ern doc --man --build-root build/stdlib stdlib
+	@for d in libs/*/; do n=$$(basename $$d); \
+	  bin/ern doc --man --source-root $$d --build-root build/libs/$$n $$d || exit 1; done
 	@mkdir -p build/man
 	@bin/ern run --load-path build/libs/markdown build/tools/manual.erc \
 	  ernest_report.md $$(cat VERSION) build/stdlib > build/man/ern.1.new
 	@mv build/man/ern.1.new build/man/ern.1
+	@touch $@
+
+# The installation (docs/install.md): the toolchain's tree under
+# $(PREFIX)/lib/ernest, bin/ern a link to its launcher, and the manual
+# pages, the documents and the Emacs mode under $(PREFIX)/share, each path
+# after $(DESTDIR), which a packager passes. make uninstall removes what
+# the installation put there. Neither changes anything where a directory
+# it must write cannot be written.
+PREFIX = /usr/local
+DESTDIR =
+
+install: all
+	@sh tools/install.sh install "$(DESTDIR)" "$(PREFIX)"
+
+uninstall:
+	@sh tools/install.sh uninstall "$(DESTDIR)" "$(PREFIX)"
 
 # The programs of the build written in Ernest, tools/*.ern, compiled into
 # build/tools against libs/markdown. Rebuilt when a compiler beam is newer,
@@ -224,4 +248,4 @@ clean-emacs:
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
 .PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load test-emacs \
-        $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man unicode
+        $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man install uninstall unicode

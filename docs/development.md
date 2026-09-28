@@ -16,7 +16,7 @@ The report, [`ernest_report.md`](../ernest_report.md), is the one normative docu
 - **[`style.md`](style.md)**: the style of the Erlang, the C and the Ernest.
 - **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
-- **[`shell_design.md`](shell_design.md)**, **[`node_protocol.md`](node_protocol.md)**, **[`code_distribution.md`](code_distribution.md)**: the design notes of the shell, of the protocol between nodes, and of code distribution.
+- **[`shell_design.md`](shell_design.md)**, **[`node_protocol.md`](node_protocol.md)**, **[`code_distribution.md`](code_distribution.md)**, **[`install.md`](install.md)**: the design notes of the shell, of the protocol between nodes, of code distribution, and of the installation.
 - **[`emacs_mode.md`](emacs_mode.md)**: the Emacs major mode.
 - **[`shell/README.md`](../shell/README.md)**: a guide to the shell's code.
 
@@ -38,19 +38,20 @@ test/              what spans applications: the hand-written target modules,
                    the integration tests, the guide's examples, the shell's
                    sessions, the pseudo-terminal harness, the loads' harness,
                    expected/, golden/, input/, load/, session/, stdin/, terminal/
-bin/               ern, as an escript source
+bin/               ern, the launcher, a POSIX sh script
 stdlib/            the standard library as Ernest source
 shell/             the shell as Ernest source; its README.md guides a reader
                    through the code
 emacs/             ernest-mode.el, the Emacs major mode, and its tests under test/
 build/             build products, not in git: build/stdlib/, build/shell/, and
                    build/libs/ from make, the standard library's pages from make doc,
-                   its manual pages, build/man/ and build/tools/ from make man
+                   its manual pages, build/man/ and build/tools/ from make
 libs/              the first-party libraries, each a source root a program adds
                    with --load-path: ets, markdown
 tools/             the programs of the build: unicode_width.escript writes
-                   Terminal.columns' table, run by make unicode, and manual.ern
-                   writes ern(1) from the report's §11, run by make man
+                   Terminal.columns' table, run by make unicode, manual.ern
+                   writes ern(1) from the report's §11, run by make, and
+                   install.sh installs, run by make install and make uninstall
 ```
 
 A module's path follows report §11.1. A file that is not a module is named with underscores, but for the Emacs mode's, which follow Emacs's convention.
@@ -60,7 +61,8 @@ A module's path follows report §11.1. A file that is not a module is named with
 Beside what the README's *Trying it* needs, `make test` needs python3, for the pseudo-terminal the terminal tests run a program under, since Erlang cannot open one. Emacs is optional: without it the mode's tests are skipped and the rest runs. So are groff and mandoc: the manual pages are rendered by whichever is installed, and by neither where neither is. The toolchain's Erlang uses no rebar3 and no OTP behaviours, by design ([`style.md`](style.md)).
 
 ```
-make              compile every application into its ebin/, then stdlib/, libs/, shell/
+make              compile every application into its ebin/, then stdlib/, libs/, shell/,
+                  and write the manual pages
 make test         build, then run every area below
 make test-erl     the unit tests of every application under erl/, side by side;
                   APP=typer for one
@@ -72,8 +74,12 @@ make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
 make load         the loads of docs/memory.md, which a release runs; not part of make test
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md
-make man          write their manual pages beside them, Ernest.List.3ern, and ern(1)
-                  to build/man/; man -l build/man/ern.1 shows one
+make man          the manual pages alone, which make writes: each module's beside it,
+                  Ernest.List.3ern, and ern(1) in build/man/; man -l build/man/ern.1
+                  shows one
+make install      install under PREFIX, /usr/local by default, each path after DESTDIR
+                  where one is given (docs/install.md)
+make uninstall    remove the installation under the same PREFIX and DESTDIR
 make sections     list the report sections no test cites
 make xref         check that every section citation and document path in the documents resolves
 make coverage     every section with how many tests cite it and its length, thinnest first
@@ -124,6 +130,5 @@ The toolchain is the report on one node; the plan's milestones lift the table ro
 | Construct | Until | What you see today |
 |---|---|---|
 | `spawn(Peer(...))`, `spawnMonitored(Peer(...))`, peers, `ernest.conf` (§6.2, §8.3) | MVP 3.0 | the spawn faults with `peer unreachable`; `ernest.conf` is not read, and of the configuration directory only the shell's `startup` is |
-| a working directory whose name is not UTF-8, under a UTF-8 locale (§11) | MVP 2.95 | `ern` hangs as the host boots, before its refusal can run, and only `kill -9` ends it; under a locale whose names are bytes it refuses |
 
-Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and a test in `erl/cli/test` fails when such a text is missing from this table. Runtime behaviour that stands in for a later milestone, the peer fault and the hang in a working directory whose name is not UTF-8, is listed by hand. `make sections` prints only what the plan's *Standing gaps* names.
+Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and a test in `erl/cli/test` fails when such a text is missing from this table. Runtime behaviour that stands in for a later milestone, the peer fault, is listed by hand. `make sections` prints only what the plan's *Standing gaps* names.

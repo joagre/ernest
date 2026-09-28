@@ -1,16 +1,36 @@
-#!/usr/bin/env escript
-%% -*- erlang -*-
-%%! -noinput
-%% The Ernest toolchain, report §11: one command whose first word is its
-%% job. Thin: puts the toolchain's erl/*/ebin, the standard library's
-%% build/stdlib and the shell's build/shell, all found relative to this
-%% script, on the code path, and calls ern_cli. The host reads no input
-%% of its own (-noinput), so that standard input is the runtime's alone
-%% (report §8.2).
+#!/bin/sh
+# The Ernest toolchain, report §11: one command whose first word is its
+# job, which ern_cli carries out. This launcher finds the toolchain's tree
+# by following its own links, so that a link to it from a directory on the
+# path works wherever the tree is (docs/install.md); it refuses a working
+# directory whose name is not UTF-8 before the host starts, since the host
+# hangs as it boots in one where its names are UTF-8 (report §11); and it
+# starts the host with the tree's code on its path. The host reads no
+# input of its own (-noinput), so that standard input is the runtime's
+# alone (report §8.2), and -noinput comes after -noshell, since the host
+# takes the last of the two; its break handler is off (+B), so that the
+# interrupt ends it (report §8.6); and it reads no ~/.erlang.
 
-main(Args) ->
-    Lib = filename:join([filename:dirname(filename:absname(escript:script_name())), "..", "erl"]),
-    code:add_pathsa(filelib:wildcard(filename:join([Lib, "*", "ebin"]))),
-    code:add_patha(filename:join([Lib, "..", "build", "stdlib"])),
-    code:add_patha(filename:join([Lib, "..", "build", "shell"])),
-    ern_cli:main(Args).
+self=$0
+while [ -L "$self" ]; do
+    link=$(readlink "$self")
+    case $link in
+        /*) self=$link ;;
+        *) self=$(dirname "$self")/$link ;;
+    esac
+done
+tree=$(cd "$(dirname "$self")/.." && pwd -P)
+
+if ! pwd -P | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
+    echo "ern: the working directory's name is not UTF-8" >&2
+    exit 1
+fi
+
+if ! command -v erl >/dev/null 2>&1; then
+    echo "ern: erl, of Erlang/OTP 29, is not on the path" >&2
+    exit 1
+fi
+
+exec erl +B -boot no_dot_erlang -noshell -noinput \
+    -pa "$tree"/erl/*/ebin "$tree/build/stdlib" "$tree/build/shell" \
+    -run ern_cli start -extra "$@"

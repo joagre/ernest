@@ -1,10 +1,11 @@
 %% The toolchain of report §11: one command, ern, whose first word is its
 %% job, build and doc (§11.1, §11.4), format (§11.6), run, test and shell
-%% (§11.2), and config (§11.3). The escript under bin/ is thin; everything is here so that the
+%% (§11.2), and config (§11.3). The launcher bin/ern is thin; everything is here so that the
 %% tests can call it. The entry point returns the exit status.
 -module(ern_cli).
 
--export([main/1, ern/1, ern/2, namespace/1, segment/1, module_path/1, compile_source/3]).
+-export([start/0, main/1, ern/1, ern/2, namespace/1, segment/1, module_path/1,
+         compile_source/3]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -20,9 +21,24 @@
 %% host's names are UTF-8 and the word is not, what decoding it left.
 -type word() :: string() | {error | incomplete, string(), binary()}.
 
-%% The escript: a run writes to the process's own standard output and
-%% standard error (reporting/2), and a run a signal ended ends by that
-%% signal once it has flushed (report §11.2).
+%% Report §11: the launcher's entry, the command line being what follows
+%% the host's -extra. A failure of the toolchain itself is a defect, which
+%% is reported on standard error with the host's stack and ends `ern` with
+%% status 70, and is never left as a crash dump in the working directory.
+-spec start() -> no_return().
+start() ->
+    try
+        main(init:get_plain_arguments())
+    catch
+        Class:Reason:Stack ->
+            io:format(standard_error, "ern: internal error: ~ts",
+                      [erl_error:format_exception(Class, Reason, Stack)]),
+            halt(70)
+    end.
+
+%% The launcher's command line: a run writes to the process's own standard
+%% output and standard error (reporting/2), and a run a signal ended ends
+%% by that signal once it has flushed (report §11.2).
 -spec main([word()]) -> no_return().
 main(Args) ->
     persistent_term:put({?MODULE, streams}, fds),
@@ -34,30 +50,15 @@ main(Args) ->
 ern(Args) ->
     ern(Args, standard_error).
 
-%% Report §11: ern refuses to start in a working directory whose name is
-%% not UTF-8, and otherwise the first word is the job, and --help and
-%% --version stand alone. Err is the error device, standard_error for the
-%% escript; a test passes its own and reads what the user would see. The
-%% status is 0 or 1, or a run's, which Os.exit or a signal may give (§11.2).
+%% Report §11: the first word is the job, and --help and --version stand
+%% alone; a working directory whose name is not UTF-8 the launcher refused
+%% before the host started. Err is the error device, standard_error for
+%% the launcher; a test passes its own and reads what the user would see.
+%% The status is 0 or 1, or a run's, which Os.exit or a signal may give
+%% (§11.2).
 -spec ern([word()], io:device()) -> 0..255.
 ern(Args, Err) ->
-    case utf8_directory() of
-        true -> dispatch(Args, Err);
-        false ->
-            io:format(Err, "ern: the working directory's name is not UTF-8~n", []),
-            1
-    end.
-
-%% Report §11: where the host's names are bytes it starts in any
-%% directory, and the name is read here. Where they are UTF-8 it does not
-%% start in one whose name is not, and hangs as it boots, before this; the
-%% plan's MVP 2.95 turns that into this refusal.
-utf8_directory() ->
-    case {file:native_name_encoding(), file:get_cwd()} of
-        {latin1, {ok, Dir}} ->
-            is_binary(unicode:characters_to_binary(list_to_binary(Dir), utf8, utf8));
-        _ -> true
-    end.
+    dispatch(Args, Err).
 
 dispatch(["--help"], _Err) ->
     usage(standard_io),

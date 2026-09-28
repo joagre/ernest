@@ -82,8 +82,8 @@ fn seeAlso(files : List(String)) -> List(Markdown.Block) = {
     let pages = List.map(prelude <> modules, fn(n) = "**" <> n <> "**(3ern)");
     let rest =
         "; every Ernest page installed, which `apropos Ernest.` lists; "
-            <> "and the Ernest language report, `ernest_report.md`, "
-            <> "whose sections this page cites.";
+            <> "and the Ernest language report, `ernest_report.md`, installed with Ernest "
+            <> "in `share/doc/ernest`, whose sections this page cites.";
     Markdown.parse("# SEE ALSO\n\n" <> String.join(pages, ", ") <> rest)
 }
 

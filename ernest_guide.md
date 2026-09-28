@@ -133,7 +133,7 @@ export fn main() -> Unit with Never =
     Io.println("hello, world")
 ```
 
-Compile and run:
+Compile and run, with `ern` installed as the [README](README.md) says:
 
 ```console
 $ ern build hello.ern         # produces hello.erc

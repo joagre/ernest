@@ -54,7 +54,7 @@ mark lines past `fill-column` rather than past its default of 80. The mode does 
 value (report §2.5). `no_tab_test` and `line_length_test` in `test/ern_style_tests.erl`
 enforce both rules in the repository.
 
-The mode's header shows the init file's lines that lay out each buffer as it is saved, with `ern format`, which then replaces a tab between tokens and keeps one inside a string or a comment. `ern` is found on `exec-path`, and `ernest-format-command` names another. An Emacs started from a desktop menu has the `PATH` of the login session, not the one a shell's startup file sets, and `bin/ern` reached through a link does not yet find its tree (MVP 2.95), so the header's line that names the checkout's own `bin/ern` is the sure way.
+The mode's header shows the init file's lines that lay out each buffer as it is saved, with `ern format`, which then replaces a tab between tokens and keeps one inside a string or a comment. `ern` is found on `exec-path`, and `ernest-format-command` names another. An Emacs started from a desktop menu has the `PATH` of the login session, not the one a shell's startup file sets, so the header's line that names `ern` by its path is the sure way.
 
 The mode's reserved words and operators restate Appendix A, so
 `emacs_mode_mirrors_the_lexer_test` in `test/ern_style_tests.erl` checks them against the
