@@ -505,6 +505,27 @@ fs_named_pipe_test() ->
     ?assertEqual(lists:duplicate(6, Refused) ++ [{'Right', <<"hi">>}], collect(fs, [])),
     file:del_dir_r(Dir).
 
+%% report Appendix E.17: `list` follows a link, and describes a link to
+%% nothing as the link itself. A regression test: a link to nothing failed
+%% the list of the whole directory with NotFound
+fs_list_dangling_link_test() ->
+    Me = self(),
+    Dir = filename:join("/tmp", "ern_links_" ++ os:getpid() ++ "_"
+                                 ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(filename:join(Dir, "plain"), <<"four">>),
+    ok = file:make_symlink("plain", filename:join(Dir, "to_plain")),
+    ok = file:make_symlink("nowhere", filename:join(Dir, "to_nothing")),
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Me ! {fs, 'ern@fs':list({'Path', list_to_binary(Dir)}, 1000)}
+                       end, <<"fs_list_dangling_link_test">>, #{})),
+    [{'Right', Entries}] = collect(fs, []),
+    Sizes = lists:sort([{filename:basename(P), S} || {'Entry', _, _, {'Path', P}, S} <- Entries]),
+    %% the link to nothing is the link itself, whose size is its target's name
+    ?assertEqual([{<<"plain">>, 4}, {<<"to_nothing">>, 7}, {<<"to_plain">>, 4}], Sizes),
+    file:del_dir_r(Dir).
+
 %% report Appendix E.18, §8.2: a listener and a socket are processes, a
 %% write arrives at the peer's read, and a closed socket answers Left(Closed)
 tcp_test() ->

@@ -97,7 +97,7 @@ It follows MVP 2.7 and comes before MVP 3.0.
         host's code path ahead of the load path (§11.2), done 2026-09-28;
       - `Fs` over a FIFO blocking every file operation of the node, done 2026-09-28 (the
         log's *`Fs` Reads Regular Files*), and `Fs.list` failing for a whole directory over
-        one dangling link (E.17);
+        one dangling link (E.17), done 2026-09-28;
       - `Tcp.listen` and `Tcp.connect` hanging on a bad port or host, `Tcp.listen` binding
         every interface, and a socket's write holding up its reads (E.18);
       - the shell's history readable by others, `ern config`'s race on the key, and control
@@ -121,7 +121,8 @@ It follows MVP 2.7 and comes before MVP 3.0.
    4. **Planned after the release**, in MVP 3.0's first step, decided 2026-09-28: the rest of what
       the readers found, `findings.md`'s `cheap` lines, a batch a document, and its `3.0` lines, the
       report's contradictions and silent cases, the diagnostics' positions and labels (§11.5),
-      `Io.show`'s dependence on the type at the call and where `via`'s function runs, the guide's
+      `Io.show`'s dependence on the type at the call and where `via`'s function runs, whether
+      `Fs` sees a symbolic link (language feedback 65, decided with the user), the guide's
       gaps (`Tcp` untaught), the documents the code has left behind, and three changes that
       take work from `make test`: the shell's tests waiting for the prompt or a program's
       output, not a fixed time; `ern_cli`'s build in a module of its own, so that the

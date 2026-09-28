@@ -1568,14 +1568,14 @@ Terminal.columns : (String) -> Int // the columns the text takes at a terminal: 
 
 ### Appendix E.17. `fs.ern` (namespace `Fs`)
 
-Over the file system's system reference (§8.2). The last argument is the milliseconds to wait. A relative path names a file under the working directory, `Os.workingDirectory` (Appendix E.23). A path that holds U+0000 names no file, and each function answers `Left(Other("a path holds U+0000"))` for it. `read`, `write`, `append`, and `copy` work on regular files: a path that names anything else, a directory, a named pipe, a device, or a socket, answers `Left(Other("not a regular file"))`. The path `write` and `append` take, and the second path of `copy`, may name nothing, and the file is then created.
+Over the file system's system reference (§8.2). The last argument is the milliseconds to wait. A relative path names a file under the working directory, `Os.workingDirectory` (Appendix E.23). A path that holds U+0000 names no file, and each function answers `Left(Other("a path holds U+0000"))` for it. `read`, `write`, `append`, and `copy` work on regular files: a path that names anything else, a directory, a named pipe, a device, or a socket, answers `Left(Other("not a regular file"))`. The path `write` and `append` take, and the second path of `copy`, may name nothing, and the file is then created. A function follows the symbolic links of the paths it is given.
 
 ```
 type Entry = Entry(path : Path, mtime : Int, size : Int, isDir : Bool) // mtime in milliseconds since the epoch, as Clock.now; size in bytes
 Fs.read : (Path, Int) -> Either(Io.Error, Bytes) with m
 Fs.write : (Path, Bytes, Int) -> Either(Io.Error, Unit) with m // creates or replaces
 Fs.append : (Path, Bytes, Int) -> Either(Io.Error, Unit) with m // creates or extends
-Fs.list : (Path, Int) -> Either(Io.Error, List(Entry)) with m // the entries of a directory but `.` and `..`, in unspecified order, each entry's path the directory's path joined with the entry's name; a name that is not UTF-8 is left out
+Fs.list : (Path, Int) -> Either(Io.Error, List(Entry)) with m // the entries of a directory but `.` and `..`, in unspecified order, each entry's path the directory's path joined with the entry's name; a name that is not UTF-8 is left out, an entry that is a link to nothing is described as the link itself, and an entry gone before it is described is left out
 Fs.stat : (Path, Int) -> Either(Io.Error, Entry) with m
 Fs.makeDir : (Path, Int) -> Either(Io.Error, Unit) with m // with its missing parents; an existing directory is not an error
 Fs.remove : (Path, Int) -> Either(Io.Error, Unit) with m // a file or an empty directory

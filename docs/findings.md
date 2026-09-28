@@ -11,7 +11,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - tag — `Tcp.listen`/`connect` hang for ever on a bad port or host, and deadlock detection is then off (E.18) (S4, C1)
 - tag — `Tcp.listen` binds every interface, with no way to bind loopback (E.18) (S5)
 - tag — a socket's write blocks its reads and their time limits (E.18) (C3)
-- tag — `Fs.list` fails for a whole directory over one dangling link; `Fs` follows links and cannot see one (E.17) (S6, E4)
+- done — `Fs.list` fails for a whole directory over one dangling link; `Fs` follows links and cannot see one (E.17) (S6, E4): the failure fixed 2026-09-28, a link to nothing described as the link; that `Fs` cannot see a link is language feedback 65
 - tag — the shell's history is readable by others (E.17 lacks modes; §11.2) (S8)
 - tag — `ern config`: a race leaks the private key through a descriptor opened on the temporary file; the directory may be an attacker's (§11.3) (S9)
 - tag — control characters of a fault cause, a doc block or a printed value reach the terminal and forge log lines (§2.1, §11.2) (S10)

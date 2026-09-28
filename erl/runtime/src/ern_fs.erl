@@ -112,24 +112,35 @@ name_bytes(Name) ->
         latin1 -> list_to_binary(Name)
     end.
 
+%% Report Appendix E.17: an entry that is a link to nothing is the link
+%% itself, and one gone by the time it is described is left out.
 entries(Dir, Names) ->
     lists:foldl(fun(_, {error, _} = Error) ->
                         Error;
                    (Name, {ok, Acc}) ->
-                        case entry(filename:join(Dir, Name)) of
+                        Path = filename:join(Dir, Name),
+                        case entry(Path) of
                             {ok, Entry} -> {ok, [Entry | Acc]};
+                            {error, enoent} -> unfollowed(Path, Acc);
                             Error -> Error
                         end
                 end, {ok, []}, lists:reverse(Names)).
 
+unfollowed(Path, Acc) ->
+    case entry(Path, file:read_link_info(Path, [raw, {time, posix}])) of
+        {ok, Link} -> {ok, [Link | Acc]};
+        {error, enoent} -> {ok, Acc};
+        Error -> Error
+    end.
+
 %% report Appendix E.17: Fs.Entry(isDir, mtime, path, size), mtime in milliseconds
 entry(Name) ->
-    case file:read_file_info(Name, [raw, {time, posix}]) of
-        {ok, #file_info{type = Type, mtime = Mtime, size = Size}} ->
-            {ok, {'Entry', Type =:= directory, Mtime * 1000, {'Path', Name}, Size}};
-        Error ->
-            Error
-    end.
+    entry(Name, file:read_file_info(Name, [raw, {time, posix}])).
+
+entry(Name, {ok, #file_info{type = Type, mtime = Mtime, size = Size}}) ->
+    {ok, {'Entry', Type =:= directory, Mtime * 1000, {'Path', Name}, Size}};
+entry(_, Error) ->
+    Error.
 
 %% report Appendix E.1: Io.Error = NotFound | Denied | Refused | Closed | Timeout
 %% | Other(String)
