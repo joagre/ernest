@@ -571,7 +571,7 @@ A release is the language reviewed whole, documented where a reader looks, and i
    4. `make sanitize`, the helper under the address and undefined-behaviour sanitizers and Clang's analyzer (C13), done 2026-09-28: clean, after two calls with a null pointer and a frame's buffer kept past an early exit were fixed (the log's *What the Sanitizers Found*).
    5. `make unused`, the private Ernest declarations nothing uses (C14), done 2026-09-28: a function or a `let` by the host compiler's warning on the Erlang it compiles to, a type by its module's tokens; `make test` runs it. It found the template's private `half` unused, which `checked` now calls (the log's *What make unused Found*).
    6. The report's blocks marked as the guide's are, and the test of its examples (C17), done 2026-09-28: its modules `ernest`, its rejected example `ernest-rejected` with the line it is refused on marked `// rejected`, §9.3's declarations `ernest-prelude`, and its fragments `ernest-fragment`; `test/ern_guide_tests.erl` checks the report as it checks the guide (the log's *The Report's Examples Checked*).
-   7. The program that checks Appendix A's FIRST sets (C18).
+   7. The program that checks Appendix A's FIRST sets (C18), done 2026-09-28: every nonterminal defined and used, and each of the eleven choices one token does not decide named, with the words of Appendix A's paragraph that decide it; four were named nowhere there, and the paragraph names them now (the log's *What the Grammar's Check Found*).
    8. The test that every borrowed file and table is listed with its licence (C20).
    9. The catalogue of one small program for every error of the lexer, the parser and the checker (C21).
    10. `make garbled` (C22).

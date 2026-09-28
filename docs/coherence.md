@@ -11,7 +11,7 @@ The documents that cite or describe a change are found by searching the reposito
 | A change to | The commands | The rows |
 |---|---|---|
 | anything | `make test`, once per plan item, before the commit that closes it | C1 for the report sections the item changed; C2 and C3, whose tests `make test` runs |
-| a report section | `make test-docs`, and `make test-guide` for its examples | C4, C6 and C8 for the section; C9 when the guide teaches it; C11 for every document that cites or describes it; C17, whose test `make test-guide` runs; C18 once built |
+| a report section | `make test-docs`, and `make test-guide` for its examples | C4, C6 and C8 for the section; C9 when the guide teaches it; C11 for every document that cites or describes it; C17, whose test `make test-guide` runs; C18, whose test `make test-erl APP=parser` runs, for Appendix A |
 | §0 or Appendix E.0 | `make test-docs` | C4 over the whole report, and C14 over the code E.0 governs |
 | §11.5 | `make test-docs` | C21 once built |
 | the guide | `make test-guide`, `make test-docs` | C9 for the sections changed; C10 with one newcomer for a section added |
@@ -50,7 +50,7 @@ The documents that cite or describe a change are found by searching the reposito
 | C15 | the module pages and E.0 shape rule 6 | the documentation tests | green: every exported name documented, its errors stated, its examples run |
 | C16 | the Emacs mode and the Ernest in the repository | `make test-emacs`; before a release, a session editing a copy of a module of the standard library, outside the repository | green, and what the session found wrong in indentation and faces decided |
 | C17 | the report's own examples and the compiler | `test/ern_guide_tests.erl`, over the report's blocks, marked as the guide's are | every block marked an example compiles, every one whose value is written runs to it, and every one marked rejected is refused with the error it names, on the line it marks `// rejected` |
-| C18 | Appendix A and the parser | a program MVP 2.95 builds | every non-terminal defined and used, and the FIRST sets of every alternative disjoint or the lookahead named in the prose; programs generated from the grammar are MVP 3.9's |
+| C18 | Appendix A and the parser | `erl/parser/test/ern_grammar_tests.erl`, which `make test` runs | every non-terminal defined and used, and the FIRST sets of every alternative disjoint or the lookahead named in the prose; programs generated from the grammar are MVP 3.9's |
 | C19 | the toolchain and the shell as a user meets them, and the principles | the tool reader | its findings decided |
 | C20 | borrowed code and `THIRD_PARTY_LICENSES` | a test MVP 2.95 builds, that every file with an upstream header, and every table built from another's data, is listed with its licence | green |
 | C21 | the lexer's, the parser's and the checker's messages, and §11.5 | a catalogue of one small program for every error they give, which MVP 2.95 builds; the diagnostics reader | every error has its program, and the reader's findings decided |
