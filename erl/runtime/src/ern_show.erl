@@ -7,7 +7,7 @@
 %% same printer with neither bound.
 -module(ern_show).
 
--export([show/2, show/4]).
+-export([show/2, show/4, controls/2]).
 
 %% The depth left, and how many elements of a list, map, or set are
 %% printed; `unbounded` is neither.
@@ -155,7 +155,20 @@ escape($\\, _) -> "\\\\";
 escape($\n, _) -> "\\n";
 escape($\t, _) -> "\\t";
 escape($\r, _) -> "\\r";
-escape(C, _) when C < 16#20; C =:= 16#7F -> ["\\u{", integer_to_list(C, 16), "}"];
+escape(C, _) when C < 16#20; C >= 16#7F, C =< 16#9F -> ["\\u{", integer_to_list(C, 16), "}"];
 escape(C, _) -> [C].
+
+%% Report §11.2: a text the toolchain writes on a line of its own, a fault's
+%% cause, with each control character as the escape a literal writes for
+%% it, so that no control character of a program's reaches the terminal as
+%% itself. With `lines`, a line feed stays, for the host's stack; with
+%% `line`, it is `\\n`, so that a fault is one line.
+-spec controls(unicode:unicode_binary(), line | lines) -> unicode:unicode_binary().
+controls(Text, Keep) ->
+    unicode:characters_to_binary([control(C, Keep) || C <- unicode:characters_to_list(Text)]).
+
+control($\n, lines) -> $\n;
+control(C, _) when C < 16#20; C >= 16#7F, C =< 16#9F -> escape(C, none);
+control(C, _) -> C.
 
 join(Parts) -> lists:join(", ", Parts).

@@ -528,14 +528,38 @@ let keptFaults = 100
 // failure of the runtime the host's stack.
 fn reportLine(report : Process.FaultReport) -> String = {
     let faulted = if report.restarted then " faulted, restarted: " else " faulted: ";
-    let line = report.site <> faulted <> report.cause;
-    if String.isEmpty(report.trace) then line else line <> "\n" <> String.trimEnd(report.trace)
+    let line = report.site <> faulted <> escaped(report.cause);
+    if String.isEmpty(report.trace) then
+        line
+    else
+        line <> "\n" <> escapedLines(String.trimEnd(report.trace))
 }
 
 fn faultLine(down : Down) -> String =
     match down {
-        Down(reason = Fault(text), site = where) -> where <> " faulted: " <> text
+        Down(reason = Fault(text), site = where) -> where <> " faulted: " <> escaped(text)
       | Down(reason = _, site = where) -> where <> " ended"
+    }
+
+// Report §11.2: a cause as `ern run` writes it, each control character as
+// the escape a literal writes for it, so that a fault is one line and none
+// of a program's reaches the terminal as itself.
+fn escaped(text : String) -> String =
+    String.join(List.map(String.toList(text), escapedChar), "")
+
+// The host's stack, a line feed kept between its lines.
+fn escapedLines(text : String) -> String =
+    String.join(List.map(String.split(text, "\n"), escaped), "\n")
+
+fn escapedChar(c : Char) -> String =
+    match Char.toInt(c) {
+        10 -> "\\n"
+      | 9 -> "\\t"
+      | 13 -> "\\r"
+      | n -> if n < 32 || n >= 127 && n <= 159 then
+            "\\u{" <> Optional.withDefault(Int.toStringBase(n, 16), "") <> "}"
+        else
+            Char.toString(c)
     }
 
 // A diagnostic, its first line coloured as a fault (report §11.2).

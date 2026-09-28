@@ -4,6 +4,15 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+%% report Appendix E.1, §2.5: a string shows each control character as its
+%% escape, one of U+0080 to U+009F among them. A regression test: those
+%% were written as they were, U+009B the start of a terminal's command
+controls_shown_test() ->
+    ?assertEqual(<<"\"a\\u{1B}\\u{9B}b\\n\"">>,
+                 ern_show:show(string, <<"a", 16#1B, 16#9B/utf8, "b\n">>)),
+    ?assertEqual(<<"a\\u{9B}\\nb">>, ern_show:controls(<<"a", 16#9B/utf8, "\nb">>, line)),
+    ?assertEqual(<<"a\\u{9B}\nb">>, ern_show:controls(<<"a", 16#9B/utf8, "\nb">>, lines)).
+
 %% report Appendix E.1: by the descriptor of the argument's type
 by_type_test() ->
     ?assertEqual(<<"'a'">>, ern_show:show(char, $a)),

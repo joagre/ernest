@@ -594,6 +594,27 @@ foreign_module() ->
     {0, _} = sh(Ern ++ " build --source-root " ++ Dir ++ "/prog " ++ Dir ++ "/prog/which.ern"),
     ?assertEqual({0, <<"1\n">>}, sh(Ern ++ " run ../prog/which.erc", [{cd, Dir ++ "/work"}])).
 
+%% report §11.2: a fault line writes a control character of the cause as
+%% its escape, so that a fault is one line. A regression test: a cause's
+%% line feed wrote a second line, which forged another fault, and its
+%% escape reached the terminal as itself
+fault_line_escaped_test_() ->
+    {timeout, 60, fun fault_line_escaped/0}.
+
+fault_line_escaped() ->
+    Dir = "build/escaped",
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/forged.ern",
+                         "export fn main() -> Unit with Never =\n"
+                         "    fault(\"a\\u{1b}[31m\\nX.main faulted: forged\")\n"),
+    {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/forged.ern"),
+    Err = Dir ++ "/err",
+    {1, _} = sh("../bin/ern run " ++ Dir ++ "/forged.erc 2> " ++ Err),
+    {ok, Text} = file:read_file(Err),
+    ?assertMatch({_, _}, binary:match(Text, <<"Forged.main faulted: a\\u{1B}[31m\\nX.main"
+                                               " faulted: forged\n">>)),
+    ?assertEqual(1, length(binary:matches(Text, <<"\n">>))).
+
 %% report §11.2: where standard error is a file, a fault line begins with
 %% the time, in UTC as RFC 3339 writes it; where it is a service manager's
 %% journal, as JOURNAL_STREAM names it, it does not, and a terminal's is

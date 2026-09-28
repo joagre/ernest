@@ -1023,7 +1023,9 @@ report_fault({'FaultReport', Cause, _Process, Restarted, Site, Trace}, Stamped) 
                         " "];
                false -> []
            end,
-    ern_rt:send(ern_rt:sys(stderr), iolist_to_binary([Time, Site, Faulted, Cause, "\n", Trace])).
+    ern_rt:send(ern_rt:sys(stderr),
+                iolist_to_binary([Time, Site, Faulted, ern_show:controls(Cause, line), "\n",
+                                  ern_show:controls(iolist_to_binary(Trace), lines)])).
 
 %% The options of a run that reports its faults. From the command line the
 %% program writes to the process's own standard output and standard error,
@@ -1240,7 +1242,8 @@ run_test({'Test', Name, Run}) ->
     Pid ! {Ref, go},
     Outcome = receive
                   {Ref, 'Passed'} -> returned(Ref, <<"passed">>);
-                  {Ref, {'Failed', Text}} -> returned(Ref, <<"failed: ", Text/binary>>);
+                  {Ref, {'Failed', Text}} ->
+                      returned(Ref, <<"failed: ", (ern_show:controls(Text, line))/binary>>);
                   {Ref, down, {'Down', Reason, _}} -> <<"faulted: ", (cause(Reason))/binary>>
               end,
     ok = ern_rt:deadlock_target(none),
@@ -1253,7 +1256,7 @@ run_test({'Test', Name, Run}) ->
 returned(Ref, Outcome) ->
     receive {Ref, down, _} -> Outcome end.
 
-cause({'Fault', Msg}) -> Msg;
+cause({'Fault', Msg}) -> ern_show:controls(Msg, line);
 cause(Reason) -> atom_to_binary(Reason).
 
 run_entry(Opts, Ns, Roots, Loaded, Arguments, Err) ->

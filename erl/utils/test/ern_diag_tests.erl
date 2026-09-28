@@ -6,6 +6,16 @@
 
 -define(SRC, "fn g() -> Int =\n    f(\"x\")\nfn f(n : Int) -> Int = n\n").
 
+%% report §11.5: the source shows a control character as its picture, one
+%% column, so the caret stays under it. A regression test: the line was
+%% quoted as it was, and the diagnostic wrote the character to the terminal
+control_picture_test() ->
+    D = #diag{span = {1, 7, {1, 8}}, message = "control character U+001B"},
+    ?assertEqual("main.ern:1:7: control character U+001B\n"
+                 "1 | /// a \x{241B}[2J\n"
+                 "  |       ^\n",
+                 lists:flatten(ern_diag:format("main.ern", "/// a \e[2J\n", D))).
+
 %% report §11.5: the first line is file:line:column: message
 short_test() ->
     D = #diag{span = {2, 7, {2, 10}}, message = "expected Int, found String"},

@@ -145,6 +145,20 @@ startup_of_the_working_directory() ->
                       ?assertEqual(1, count(Out, <<"startup:1:4: expected an expression">>))
                   end, ["", " --config-dir " ++ filename:join(Home, ".ernest")]).
 
+%% report §11.2: the shell writes a fault's cause as `ern run` does, each
+%% control character as its escape. A regression test: the cause reached
+%% the terminal as it was, an escape and a line feed among it
+fault_line_escaped_test_() ->
+    {timeout, 60, fun fault_line_escaped/0}.
+
+fault_line_escaped() ->
+    Dir = fresh_home(),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, "spawn(Local, fn() = fault(\"a\\u{1b}b\\nforged\"))\n:faults\n"),
+    {0, Out} = sh("HOME=" ++ Dir ++ " ../bin/ern shell < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"input:1 faulted: a\\u{1B}b\\nforged">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<27>>)).
+
 %% report §11.2: on a terminal the shell commits its transcript to the
 %% terminal and paints only the live region, the tail of what programs
 %% write and the line being typed under it. What a program writes is

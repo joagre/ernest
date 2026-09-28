@@ -15,6 +15,18 @@ err(Text) ->
     {error, #diag{span = {L, C, _}, message = Msg}} = ern_lexer:tokenize(Text),
     {L, C, Msg}.
 
+%% report §2.1: a control character but tab, line feed and carriage return
+%% is an error wherever it stands, a doc block and a comment among them. A
+%% regression test: a doc block carried one to every terminal that showed
+%% it, and a string and a comment were taken as they were
+control_character_test() ->
+    Refused = "control character U+001B; a string or a character literal writes it `\\u{1B}`",
+    ?assertEqual({1, 7, Refused}, err("/// a \e[2J doc\nlet x = 1\n")),
+    ?assertEqual({2, 6, Refused}, err("\n// a \e comment\n")),
+    ?assertEqual({1, 11, Refused}, err("let s = \"a\eb\"")),
+    ?assertMatch({1, 10, "control character U+009B" ++ _}, err("let s = \"\x{9B}\"")),
+    ?assertMatch([_ | _], toks("let s = \"tab\there\"\r\n")).
+
 %% report §2.4
 reserved_words_test() ->
     ?assertEqual([type, abstract, with, foreign, match, 'when', 'receive', 'after', as,

@@ -1355,7 +1355,7 @@ kept_values(Ns, Cause) ->
 
 binding_fault(Ns, Cause) ->
     <<(unicode:characters_to_binary(qname_text(Ns)))/binary, ": a top-level binding faulted: ",
-      Cause/binary>>.
+      (ern_show:controls(Cause, line))/binary>>.
 
 
 %% Report §11.2: what the modules use that the session has not loaded,

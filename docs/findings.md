@@ -14,7 +14,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — `Fs.list` fails for a whole directory over one dangling link; `Fs` follows links and cannot see one (E.17) (S6, E4): the failure fixed 2026-09-28, a link to nothing described as the link; that `Fs` cannot see a link is language feedback 65
 - tag — the shell's history is readable by others (E.17 lacks modes; §11.2) (S8): waits on language feedback 66, decided with the user
 - done — `ern config`: a race leaks the private key through a descriptor opened on the temporary file; the directory may be an attacker's (§11.3) (S9): fixed 2026-09-28, the directory made at once and its owner's before a file is written; the log's *`ern config` Makes Its Directory Its Owner's*
-- tag — control characters of a fault cause, a doc block or a printed value reach the terminal and forge log lines (§2.1, §11.2) (S10)
+- done — control characters of a fault cause, a doc block or a printed value reach the terminal and forge log lines (§2.1, §11.2) (S10): fixed 2026-09-28, refused in source, escaped in the toolchain's fault lines and in `Io.show`; the log's *No Control Character Reaches the Terminal Unasked*
 - tag — `end_program` misses a spawn the reaper handles after `live_rows()`: five runs left 176 processes (§8.6) (C2)
 - tag — `:reload` initializes changed modules in name order, not dependency order (§8.5, §11.2) (C4)
 - tag — a failed `:load` or `:reload` leaves its processes and unpurged code (§11.2) (C5)

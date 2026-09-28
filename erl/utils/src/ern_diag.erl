@@ -75,5 +75,13 @@ width(_, _, _, _) -> 1.
 
 lines(Source) ->
     Chars = unicode:characters_to_list(Source),
-    [[case Ch of $\t -> $\s; _ -> Ch end || Ch <- Line, Ch =/= $\r]
-     || Line <- string:split(Chars, "\n", all)].
+    [[shown(Ch) || Ch <- Line, Ch =/= $\r] || Line <- string:split(Chars, "\n", all)].
+
+%% Report §11.5: an excerpt shows a tab as a space and a control character
+%% as its picture, one column each, so that the caret stays under it and
+%% no control character of a source reaches the terminal.
+shown($\t) -> $\s;
+shown(Ch) when Ch < 16#20 -> 16#2400 + Ch;
+shown(16#7F) -> 16#2421;
+shown(Ch) when Ch >= 16#80, Ch =< 16#9F -> 16#FFFD;
+shown(Ch) -> Ch.

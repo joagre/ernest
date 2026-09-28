@@ -51,7 +51,8 @@ tokenize(Data, Options) ->
     Keep = lists:member(comments, Options),
     case unicode:characters_to_list(Data) of
         Chars when is_list(Chars) ->
-            try lex(strip_bom(Chars), 1, 1, {1, 1}, [], Keep) of
+            Text = strip_bom(Chars),
+            try controls(Text, 1, 1), lex(Text, 1, 1, {1, 1}, [], Keep) of
                 Tokens -> {ok, Tokens}
             catch
                 throw:{lex_error, Line, Col, Message, Incomplete} ->
@@ -64,6 +65,22 @@ tokenize(Data, Options) ->
 
 strip_bom([16#FEFF | Rest]) -> Rest;
 strip_bom(Chars) -> Chars.
+
+%% Report §2.1: a control character but tab, line feed and carriage return
+%% is an error wherever it stands, a comment and a doc block among them,
+%% so that no source carries one to a terminal.
+controls([], _, _) ->
+    ok;
+controls([$\n | R], L, _) ->
+    controls(R, L + 1, 1);
+controls([Ch | _], L, C) when Ch < 16#20, Ch =/= $\t, Ch =/= $\r;
+                              Ch >= 16#7F, Ch =< 16#9F ->
+    throw({lex_error, L, C,
+           lists:flatten(io_lib:format("control character U+~4.16.0B; a string or a character"
+                                       " literal writes it `\\u{~.16B}`", [Ch, Ch])),
+           false});
+controls([_ | R], L, C) ->
+    controls(R, L, C + 1).
 
 %%
 %% Main loop. Acc is reversed; Prev is the end of the last token emitted.
