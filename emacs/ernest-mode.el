@@ -143,13 +143,15 @@ escapes (report section 2.5)."
 
 (defun ernest-syntactic-face (state)
   "The face for the string or comment STATE describes.
-A comment opening with `///', and no fourth slash, is a doc comment;
-`////' opens an ordinary one (report section 2.2)."
+A comment opening with `///', and no fourth slash, is a doc comment
+where nothing stands before it on its line; `////' opens an ordinary
+one, and a `///' after code is an error (report section 2.2)."
   (cond ((nth 3 state) 'font-lock-string-face)
         ((nth 4 state)
          (save-excursion
            (goto-char (nth 8 state))
-           (if (looking-at-p "///\\(?:[^/]\\|$\\)")
+           (if (and (looking-at-p "///\\(?:[^/]\\|$\\)")
+                    (progn (skip-chars-backward " \t") (bolp)))
                'ernest-doc-comment-face
              'font-lock-comment-face)))))
 

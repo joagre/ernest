@@ -497,7 +497,8 @@ doc_comments_test() ->
     ?assertMatch([#let_decl{body = #e_lambda{}}],
                  ds("let f =\n    /// not a doc\n    fn(x) = x")),
     ?assertMatch([#fn_decl{body = #e_call{args = [_, #e_lambda{}]}}],
-                 ds("fn g() =\n    List.map(xs, /// not a doc\n        fn(x) = x)")),
+                 ds("fn g() =\n    List.map(xs,\n             /// not a doc\n"
+                    "             fn(x) = x)")),
     ?assertMatch([#fn_decl{body = #e_block{stmts = [#fn_decl{doc = <<"local">>}, _]}}],
                  ds("fn f() = {\n    /// local\n    fn g() = 1;\n    g()\n}")).
 

@@ -29,7 +29,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — a command-line word that is not UTF-8 crashes every job (C13): fixed 2026-09-28, refused before the job begins and named as §11.1 names a file (§11)
 - done — the shell's `.` completion crashes on a field of two types (C15): fixed 2026-09-28, the checker's question asked at a position it never shows, as its other questions are
 - done — `ern format`: a raw string loses spaces in a doc example; trailing spaces of a doc line dropped; a `type` with a trailing comment; a blank line after a comment; a fence that does not parse re-indented (C11, C16, C24..C26): fixed 2026-09-28, a text's own spaces kept, a blank line after a comment kept, comments under a declaration kept beside it, an unparsed fence left as written (§11.6); C24 as a comment under a type moved away from it, the shape the line's words allow
-- 2.95 — `ern format` stops with an internal error on a `///` after code (C17): waits on language feedback 67, what such a `///` is
+- done — `ern format` stops with an internal error on a `///` after code (C17): fixed 2026-09-28, such a `///` an error (§2.2), which the formatter reports as it reports any; the log's *A `///` After Code Is an Error*
 - 2.95 — a faulting `mk` of a call under `restarting` leaves the row, monitor and alias (C7)
 - done — `ern_os` crashes on a closed port for a queued read or write (C9): fixed 2026-09-28, a frame for a port the helper's end has closed dropped, the exit status it sent first ending the run (E.23)
 - 2.95 — `stty sane` loses the user's settings (C20)

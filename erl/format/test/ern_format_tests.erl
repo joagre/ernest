@@ -297,3 +297,9 @@ comment_under_declaration_test() ->
 markdown_unparsed_indented_test() ->
     In = <<"- an item\n\n   ```ernest\n   let  = (\n  x\n   ```\n">>,
     ?assertEqual(In, ern_format:markdown(In)).
+
+%% report §2.2, §11.6: a `///` after code is an error, and the module is
+%% left as it is. A regression test: the formatter stopped with an
+%% internal error (findings C17)
+doc_comment_after_code_test() ->
+    ?assertMatch({error, _}, ern_format:format(<<"export let x : Int = 1 /// note\n">>)).

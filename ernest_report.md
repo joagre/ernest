@@ -53,7 +53,7 @@ Source text is Unicode in UTF-8; a leading byte-order mark (U+FEFF) is stripped.
 
 `//` to end of line and `/* ... */`, which nests, are removed by the lexer and take part in no grammar rule. A block comment's text is not tokenized: the `*/` that closes its outermost `/*` ends it, inside quotes or not. A line ends at a line feed.
 
-`///` to end of line, where the third `/` is not followed by a fourth, is a doc comment; `////` begins an ordinary comment. Consecutive `///` lines form a doc block, whose text is CommonMark 0.31. A doc block immediately preceding a declaration, a constructor, or a named field, with no blank line between, is its documentation, extractable by the toolchain, §11.4. A doc block before the first declaration, with a blank line after it, is the module's documentation. Elsewhere it is an ordinary comment.
+`///` to end of line, where the third `/` is not followed by a fourth, is a doc comment; `////` begins an ordinary comment. A `///` after a token on its line is an error: a doc comment stands on a line of its own, and a note after code is written `//`. Consecutive `///` lines form a doc block, whose text is CommonMark 0.31. A doc block immediately preceding a declaration, a constructor, or a named field, with no blank line between, is its documentation, extractable by the toolchain, §11.4. A doc block before the first declaration, with a blank line after it, is the module's documentation. Elsewhere it is an ordinary comment.
 
 ### 2.3 Identifiers
 

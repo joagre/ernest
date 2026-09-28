@@ -24,7 +24,7 @@ type Shape = Dot | Circle(radius : Int)
 export fn merge(left : List(a), right : List(a)) -> List(a) =
     let tag = 'a';
     let name = \"circle\";
-    let flag = true;
+    let flag = true; /// refused after code, and no doc comment
     let size = 0x1F_2A;
     let upper = 0X1F;
     let raw = `C:\\`;
@@ -54,6 +54,7 @@ export fn Int.<>(a : Int, b : Int) -> Int = a
   (ernest-colour--check "Shape" 'font-lock-type-face)
   (ernest-colour--check "// It isn't" 'font-lock-comment-delimiter-face)
   (ernest-colour--check "//// A ruler" 'font-lock-comment-delimiter-face)
+  (ernest-colour--check "/// refused" 'font-lock-comment-delimiter-face)
   (ernest-colour--check "merge" 'font-lock-function-name-face)
   (ernest-colour--check "List(a)" 'font-lock-type-face)
   (ernest-colour--check "->" 'font-lock-operator-face)

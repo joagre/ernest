@@ -195,6 +195,17 @@ doc_block_test() ->
     ?assertEqual([{doc, <<"no space">>}], toks("///no space")),
     ?assertEqual([{doc, <<"">>}], toks("///")).
 
+%% report §2.2: a `///` after a token on its line is an error, where the
+%% `///` stands; one after a block comment alone begins a doc block, and
+%% `////` after code is an ordinary comment. A regression test: it began a
+%% doc block, which documented what came after it (findings C17)
+doc_comment_after_code_test() ->
+    Said = "a doc comment `///` stands on a line of its own; a note after code is written `//`",
+    ?assertEqual({1, 3, Said}, err("a /// note\nb")),
+    ?assertEqual({2, 11, Said}, err("f(\n    x, y) /// note\n")),
+    ?assertEqual([{doc, <<"doc">>}, {ident, a}], toks("/* c */ /// doc\na")),
+    ?assertEqual([{ident, a}, {ident, b}], toks("a //// ruler\nb")).
+
 %% report §11.1 (line and column in errors)
 positions_test() ->
     {ok, Tokens} = ern_lexer:tokenize("fn main() =\n    x"),

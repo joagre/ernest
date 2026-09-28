@@ -273,8 +273,10 @@ docs_chunk_test() ->
             "/// A shape.\n"
             "export type Shape = Dot\n"
             "    /// somewhere\n"
-            "    | At(/// across\n"
-            "         x : Int, y : Int)\n"
+            "    | At(\n"
+            "        /// across\n"
+            "        x : Int,\n"
+            "        y : Int)\n"
             "export fn area(shape : Shape) -> Int = 0\n">>,
     {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Src),
     Build = #{source_hash => <<>>, deps => [], source => <<"shapes.ern">>},

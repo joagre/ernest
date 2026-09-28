@@ -266,6 +266,19 @@ example.ern:1:28: unterminated block comment
   |                            ^
 ```
 
+### A doc comment after code (§2.2)
+
+```ernest-rejected
+export fn one() -> Int = 1 /// the one
+```
+
+```console
+$ ern build example.ern
+example.ern:1:28: a doc comment `///` stands on a line of its own; a note after code is written `//`
+1 | export fn one() -> Int = 1 /// the one
+  |                            ^
+```
+
 ## The parser (report §4, §5, Appendix A)
 
 ### Tokens after a whole input at the shell (§11.2)

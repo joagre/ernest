@@ -96,6 +96,9 @@ lex([Ch | R], L, C, Prev, Acc, Keep) when Ch =:= $\s; Ch =:= $\t; Ch =:= $\r ->
 lex("////" ++ R, L, C, Prev, Acc, Keep) ->
     line_comment("////", R, L, C, Prev, Acc, Keep);
 lex("///" ++ R, L, C, Prev, Acc, Keep) ->
+    after_token(Acc, L) andalso
+        throw({lex_error, L, C, "a doc comment `///` stands on a line of its own;"
+                                " a note after code is written `//`", false}),
     {Text, Rest, L1} = doc_block(R, L, []),
     lex(Rest, L1, 1, {L1, 1}, [{doc, {L, C, {L1, 1}, Prev}, Text} | Acc], Keep);
 lex("//" ++ R, L, C, Prev, Acc, Keep) ->
@@ -158,6 +161,15 @@ line_comment(Opener, R, L, C, Prev, Acc, Keep) ->
     Text = Opener ++ Body,
     End = C + length(Text),
     lex(Rest, L, End, Prev, comment(Keep, Text, {L, C, {L, End}, Prev}, Acc), Keep).
+
+%% Report §2.2: whether a token stands before this point on line L.
+after_token([{Kind, _, _} | Acc], L) when Kind =:= comment; Kind =:= doc ->
+    after_token(Acc, L);
+after_token([T | _], L) ->
+    {_, _, {EL, _}, _} = element(2, T),
+    EL =:= L;
+after_token([], _L) ->
+    false.
 
 comment(true, Text, Pos, Acc) -> [{comment, Pos, unicode:characters_to_binary(Text)} | Acc];
 comment(false, _Text, _Pos, Acc) -> Acc.
