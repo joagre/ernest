@@ -1273,7 +1273,10 @@ commands_mirror_test() ->
 %% for a `Done` that never comes; a restart is reported as one, and the
 %% end after it; `:faults` keeps both; a binding `:load` evaluates is
 %% reported by `:load` alone. A regression test for the move off the front
-%% end's watcher; it does not cover a process `:reload` ends
+%% end's watcher; it does not cover a process `:reload` ends. The input
+%% that spawns the restarting process waits for its end, so that `:faults`
+%% comes after both faults: sent at once, it came first under the host's
+%% modified timing (docs/review.md R2)
 fault_subscriber_test_() ->
     {timeout, 60, fun fault_subscriber/0}.
 
@@ -1287,7 +1290,8 @@ fault_subscriber() ->
                               "let r = restarting(RestartLimit(restarts = 1, within = 60000),"
                               " fn() -> Unit with Never = Io.println(Int.toString("
                               "1 / List.size([]))))\n",
-                              "let _ = spawn(Local, r)\n",
+                              "{ let _ = spawnMonitored(Local, r, fn(d) = d);"
+                              " receive { d -> d } }\n",
                               ":faults\n",
                               ":load Bad\n"]),
     {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ In),

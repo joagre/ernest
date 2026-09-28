@@ -2032,7 +2032,13 @@ parent_restarts_subtree_test() ->
 
 %% report §6.9: a restart asked for runs the child's own function again,
 %% even where that function runs a restarting function of its own. A
-%% regression test for the inner function taking the restart
+%% regression test for the inner function taking the restart. The fault
+%% is sent once the child has started, and the log asked until it has
+%% seen the second start, each wait at most ten seconds: a child that has
+%% not begun when its sibling faults is not asked, and starts fresh, and
+%% how soon either happens is the host's. Sent at once, with a wait of
+%% 100 ms, the fault came first under the host's modified timing
+%% (docs/review.md R2)
 restart_reaches_the_outer_function_test() ->
     {ok, Out} = run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
@@ -2053,10 +2059,17 @@ restart_reaches_the_outer_function_test() ->
         "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
         "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
         "}\n"
+        "fn starts(least : Int, tries : Int) -> Int with Never = {\n"
+        "    let n = Address.callForever(log, fn(r) = Count(reply = r));\n"
+        "    if n >= least || tries == 0 then n else {\n"
+        "        receive { after 10 -> Unit };\n"
+        "        starts(least, tries - 1)\n"
+        "    }\n"
+        "}\n"
         "export fn main() -> Unit with Never = {\n"
+        "    let _ = starts(1, 1000);\n"
         "    send(a, Boom);\n"
-        "    receive { after 100 -> Unit };\n"
-        "    Io.println(Int.toString(Address.callForever(log, fn(r) = Count(reply = r))))\n"
+        "    Io.println(Int.toString(starts(2, 1000)))\n"
         "}\n"),
     ?assertEqual(<<"2\n">>, Out).
 

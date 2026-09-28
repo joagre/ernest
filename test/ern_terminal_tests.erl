@@ -126,17 +126,18 @@ snake() ->
                        {sleep, 1500},
                        {send, "1b"}],       % Escape
                       15),
-    Frames = binary:split(Screen, ?CLEAR, [global]),
-    ?assert(length(Frames) > 20),
-    Frame = lists:nth(3, Frames),
-    ?assertMatch({_, _}, binary:match(Frame, <<"\r\n">>)),
-    ?assertMatch({_, _}, binary:match(Frame, <<"tick ">>)),
-    %% down first, then left: the head's row grows, then its column shrinks
-    {_, Y1} = head(lists:nth(8, Frames)),
-    {X2, Y2} = head(lists:nth(18, Frames)),
-    {X3, _} = head(lists:nth(28, Frames)),
-    ?assert(Y2 =/= Y1),
-    ?assert(X3 < X2).
+    %% the frames that show the board, however many the game drew between
+    %% the keys: under the host's modified timing, fewer (docs/review.md R2)
+    Boards = [F || F <- binary:split(Screen, ?CLEAR, [global]),
+                   binary:match(F, <<"@">>) =/= nomatch],
+    ?assertMatch({_, _}, binary:match(hd(Boards), <<"\r\n">>)),
+    ?assertMatch({_, _}, binary:match(hd(Boards), <<"tick ">>)),
+    %% down first, then left: the head's row changes, and after that its
+    %% column shrinks
+    Heads = [head(B) || B <- Boards],
+    {_, Y0} = hd(Heads),
+    {_, [{Turned, _} | After]} = lists:splitwith(fun({_, Y}) -> Y =:= Y0 end, Heads),
+    ?assert(lists:any(fun({X, _}) -> X < Turned end, After)).
 
 %% The head's column and row in a frame.
 head(Frame) ->

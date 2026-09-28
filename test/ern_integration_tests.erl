@@ -71,7 +71,8 @@ filesync() ->
     Older = calendar:gregorian_seconds_to_datetime(
               calendar:datetime_to_gregorian_seconds(calendar:local_time()) - 7200),
     ok = file:change_time(Dir ++ "/a/notes.txt", Older),
-    {Status, Out} = run_for(Dir, "../../../bin/ern run ../../build/filesync.erc", 4, "TERM"),
+    {Status, Out} = run_for(Dir, "../../../bin/ern run ../../build/filesync.erc", "sleep 4",
+                            "TERM"),
     %% report §8.6, §11.2: the signal ends the program as returning from main
     %% does, so what was written is there and the runtime says nothing of its
     %% own, and the status is 128 plus the signal's number
@@ -95,14 +96,14 @@ del(Dir) ->
         {error, enoent} -> ok
     end.
 
-%% A program that runs until it is stopped: started in Dir, stopped after
-%% Seconds with the signal named. Its status and its output are returned,
+%% A program that runs until it is stopped: started in Dir, stopped with the
+%% signal named once the shell command Wait has ended. Its status and its output are returned,
 %% standard error with standard output, and not the shell's own report of
 %% a job a signal ended.
-run_for(Dir, Cmd, Seconds, Signal) ->
+run_for(Dir, Cmd, Wait, Signal) ->
     %% sh -c, since open_port runs the command with exec and `cd` is a builtin
-    {_, Status} = sh("sh -c 'cd " ++ Dir ++ " && { " ++ Cmd ++ " > run.out 2>&1 & p=$!; sleep "
-                     ++ integer_to_list(Seconds) ++ "; kill -" ++ Signal
+    {_, Status} = sh("sh -c 'cd " ++ Dir ++ " && { " ++ Cmd ++ " > run.out 2>&1 & p=$!; "
+                     ++ Wait ++ "; kill -" ++ Signal
                      ++ " $p 2>/dev/null; wait $p; echo status $?; }' 2>/dev/null"),
     <<"status ", S/binary>> = string:trim(Status),
     {ok, Out} = file:read_file(filename:join(Dir, "run.out")),
@@ -110,7 +111,8 @@ run_for(Dir, Cmd, Seconds, Signal) ->
 
 %% report §8.6, §11.2: the host's hangup ends a program as its termination
 %% does, printing nothing, with status 128 plus the signal's number. A
-%% regression test: the hangup was ignored, and the program ran on.
+%% regression test: the hangup was ignored, and the program ran on. The
+%% hangup is sent once the program has said it runs, as signal_end's are.
 hangup_test_() ->
     {timeout, 60, fun hangup/0}.
 
@@ -118,10 +120,14 @@ hangup() ->
     Dir = "build/hangup",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/waits.ern",
-                         "export fn main() -> Unit with Never =\n"
-                         "    receive { after 60000 -> Io.println(\"late\") }\n"),
+                         "export fn main() -> Unit with Never = {\n"
+                         "    Io.println(\"running\");\n"
+                         "    receive { after 60000 -> Io.println(\"late\") }\n"
+                         "}\n"),
     {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
-    ?assertEqual({129, []}, run_for(Dir, "../../../bin/ern run waits.erc", 2, "HUP")).
+    ?assertEqual({129, [<<"running">>]},
+                 run_for(Dir, "../../../bin/ern run waits.erc",
+                         "until grep -q running run.out; do sleep 0.1; done", "HUP")).
 
 %% report §8.6, §11.2: the host's interrupt ends a program at once, printing
 %% nothing, with status 128 plus the signal's number. The run is started
@@ -585,21 +591,27 @@ stamped() ->
 %% it sees a signal's end, as a service manager counts a stop it asked for.
 %% A regression test, written after the code: it exited with 128 plus the
 %% signal's number, which a shell reads the same and a service manager as a
-%% failure.
+%% failure. Each signal is sent once the program has said it runs, since a
+%% signal that comes before `ern run` handles them waits for the program's
+%% end, which the plan's MVP 2.95 decides; sent two seconds after the start,
+%% it came before under load (docs/review.md R2).
 signal_end_test_() ->
     {timeout, 60, fun signal_end/0}.
 
 signal_end() ->
-    Dir = "build/hangup",
+    Dir = "build/signal_end",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/waits.ern",
-                         "export fn main() -> Unit with Never =\n"
-                         "    receive { after 60000 -> Io.println(\"late\") }\n"),
+                         "export fn main() -> Unit with Never = {\n"
+                         "    Io.println(\"running\");\n"
+                         "    receive { after 60000 -> Io.println(\"late\") }\n"
+                         "}\n"),
     {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
-    Python = "import subprocess, time, signal\n"
+    Python = "import subprocess, signal\n"
              "for s in (signal.SIGTERM, signal.SIGHUP):\n"
-             "    p = subprocess.Popen(['../bin/ern', 'run', '" ++ Dir ++ "/waits.erc'])\n"
-             "    time.sleep(2)\n"
+             "    p = subprocess.Popen(['../bin/ern', 'run', '" ++ Dir ++ "/waits.erc'],\n"
+             "                         stdout=subprocess.PIPE)\n"
+             "    p.stdout.readline()\n"
              "    p.send_signal(s)\n"
              "    print(p.wait(timeout=30))\n",
     ok = file:write_file(Dir ++ "/signals.py", Python),

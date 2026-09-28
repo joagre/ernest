@@ -1321,9 +1321,11 @@ create_config_dir(Conf) ->
                          <<"peers">> => []}),
     ok = filelib:ensure_path(Conf),
     ok = file:write_file(filename:join(Conf, "ernest.conf"), [Json, "\n"]),
+    %% the key file is its owner's alone before the key is in it
     KeyFile = filename:join(Conf, "private-key.pem"),
-    ok = file:write_file(KeyFile, Private),
+    ok = file:write_file(KeyFile, <<>>),
     ok = file:change_mode(KeyFile, 8#600),
+    ok = file:write_file(KeyFile, Private),
     0.
 
 %%
