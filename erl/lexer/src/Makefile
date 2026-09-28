@@ -30,6 +30,9 @@ $(BEAM) $(TEST_BEAM): ../../../VERSION
 # EUnit's options, which make untested gives a listener (tools/ern_cover.erl).
 EUNIT_OPTS = []
 
+# The test modules compiled and not run, since make calls counts their calls.
+tests: $(BEAM) $(TEST_BEAM)
+
 # The standard library, and the shell's tree, which holds libs/markdown's
 # module for `ern doc --man` (report §11.4).
 test: $(BEAM) $(TEST_BEAM)
@@ -51,4 +54,4 @@ $(EBIN):
 
 -include $(DEPS)
 
-.PHONY: all test clean
+.PHONY: all test tests clean

@@ -51,7 +51,6 @@ Neither changes anything where it cannot finish. Before it writes or removes, ea
 
 ## The tests
 
-`release_test_` makes the archive, checks that it holds the C source and no compiled helper, unpacks it, installs it under a prefix with its own `make install`, which compiles the helper, runs a program that runs another through the helper, and uninstalls. Both tests check that no installed module carries the host's debug information.
-
-
 `test/ern_integration_tests.erl`'s `install_test_` installs into a scratch prefix, checks the link, moves the prefix, and from the new place runs `ern --version`, builds and runs a program that runs another through the helper, runs the shell, writes a manual page, and has `man` find `ern(1)`, a module's page and a library's through the `PATH` alone. It uninstalls with a page of its own in `man3`, which stays, and a second uninstall is refused. It installs under a `DESTDIR` and runs there, and a prefix that cannot be written is refused with nothing written. `working_directory_test_` has the launcher refuse a directory whose name is not UTF-8 under a UTF-8 locale and under `C`.
+
+`release_test_` makes the archive, checks that it holds the C source and no compiled helper, unpacks it, installs it under a prefix with its own `make install`, which compiles the helper, runs a program that runs another through the helper, and uninstalls. Both tests check that no installed module carries the host's debug information.

@@ -243,7 +243,7 @@ golden: all
 # Dialyzer reads only a .beam (docs/coherence.md C13). The table of the
 # host's applications the toolchain calls is built once, into
 # build/dialyzer.plt, and Dialyzer checks it against the host at each run.
-DIALYZER_APPS = erts kernel stdlib compiler syntax_tools crypto public_key asn1
+DIALYZER_APPS = erts kernel stdlib compiler syntax_tools crypto public_key asn1 parsetools
 dialyzer: all
 	@test -f build/dialyzer.plt || \
 	  dialyzer --build_plt --output_plt build/dialyzer.plt --apps $(DIALYZER_APPS)
@@ -260,8 +260,10 @@ dialyzer: all
 # the examples, compiled into build/calls for it (docs/coherence.md C13):
 # no call to a function that is not defined or is deprecated, and no
 # export of the toolchain's that nothing calls, counting the calls xref
-# cannot see, as tools/calls.escript says. make test runs it.
+# cannot see, as tools/calls.escript says. make test runs it. The unit tests
+# are compiled first, since their calls count and a fresh clone has none.
 calls: all build/cover/ern_cover.beam
+	@for app in $(APPS); do $(MAKE) -s -C erl/$$app/src tests || exit 1; done
 	@rm -rf build/calls && mkdir -p build/calls
 	@for f in examples/*.ern; do bin/ern build --source-root examples \
 	  --build-root build/calls/examples $$f > /dev/null || exit 1; done
