@@ -208,7 +208,8 @@ clean:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -C test $@
 	@rm -rf build/stdlib build/shell build/libs build/tools build/man build/release \
-	  build/dialyzer build/dialyzer.plt build/calls \
+	  build/dialyzer build/dialyzer.plt build/calls build/cover build/untested \
+	  build/untested.txt \
 	  examples/*.erc \
 	  examples/**/*.erc $(EXEC)
 
@@ -243,12 +244,29 @@ dialyzer: all
 # no call to a function that is not defined or is deprecated, and no
 # export of the toolchain's that nothing calls, counting the calls xref
 # cannot see, as tools/calls.escript says. make test runs it.
-calls: all
+calls: all build/cover/ern_cover.beam
 	@rm -rf build/calls && mkdir -p build/calls
 	@for f in examples/*.ern; do bin/ern build --source-root examples \
 	  --build-root build/calls/examples $$f > /dev/null || exit 1; done
 	@bin/ern build --build-root build/calls/modules examples/modules > /dev/null
 	@escript tools/calls.escript
+
+# The functions of the toolchain make test never runs, by the host's native
+# coverage (docs/coherence.md C13), as tools/ern_cover.erl says: make test
+# run with every host given ern_cover through ERL_AFLAGS and every EUnit
+# run given it as a listener, each host writing what it ran into
+# build/untested, and then every function no host ran printed.
+untested: all build/cover/ern_cover.beam
+	@rm -rf build/untested && mkdir -p build/untested
+	@ERL_AFLAGS="+JPcover function -pa $(abspath build/cover) -run ern_cover launched" \
+	  ERN_COVERAGE=$(abspath build/untested) \
+	  $(MAKE) -s test EUNIT_OPTS='[{report,{ern_cover,[]}}]'
+	@ERN_COVERAGE=$(abspath build/untested) erl -noshell -pa erl/*/ebin -pa build/cover \
+	  -run ern_cover report | tee build/untested.txt
+
+build/cover/ern_cover.beam: tools/ern_cover.erl
+	@mkdir -p build/cover
+	@erlc +debug_info -Werror -o build/cover $<
 
 # Every `§x.y`, `Appendix X`, and `E.n` in a live document names a heading of the
 # report, and the guide's own bare `§x.y` a heading of the guide; a test in test/.
@@ -294,4 +312,4 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
 .PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load test-emacs \
         $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man install uninstall release unicode \
-        dialyzer calls
+        dialyzer calls untested

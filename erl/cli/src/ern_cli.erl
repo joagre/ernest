@@ -4,7 +4,8 @@
 %% tests can call it. The entry point returns the exit status.
 -module(ern_cli).
 
--export([start/0, ern/1, ern/2, segment/1, module_path/1, compile_source/3]).
+-export([start/0, launched/1, finish/1, ern/1, ern/2, segment/1, module_path/1,
+         compile_source/3]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -21,27 +22,34 @@
 -type word() :: string() | {error | incomplete, string(), binary()}.
 
 %% Report §11: the launcher's entry, the command line being what follows
-%% the host's -extra. A failure of the toolchain itself is a defect, which
-%% is reported on standard error with the host's stack and ends `ern` with
-%% status 70, and is never left as a crash dump in the working directory.
+%% the host's -extra: its work, and then its end. The two are apart so
+%% that a tool that measures the toolchain, tools/ern_cover.erl, can run
+%% the work and record what it ran before the host ends.
 -spec start() -> no_return().
 start() ->
+    finish(launched(init:get_plain_arguments())).
+
+%% The command line carried out, and the status it ends with. A run
+%% writes to the process's own standard output and standard error
+%% (reporting/2). A failure of the toolchain itself is a defect, which is
+%% reported on standard error with the host's stack and ends `ern` with
+%% status 70, and is never left as a crash dump in the working directory.
+-spec launched([word()]) -> 0..255.
+launched(Args) ->
     try
-        main(init:get_plain_arguments())
+        persistent_term:put({?MODULE, streams}, fds),
+        ern(Args, standard_error)
     catch
         Class:Reason:Stack ->
             io:format(standard_error, "ern: internal error: ~ts",
                       [erl_error:format_exception(Class, Reason, Stack)]),
-            halt(70)
+            70
     end.
 
-%% The launcher's command line: a run writes to the process's own standard
-%% output and standard error (reporting/2), and a run a signal ended ends
-%% by that signal once it has flushed (report §11.2).
--spec main([word()]) -> no_return().
-main(Args) ->
-    persistent_term:put({?MODULE, streams}, fds),
-    Status = ern(Args, standard_error),
+%% Report §11.2: the launcher's end, by the signal that ended a run once
+%% its output has flushed, and otherwise with the status.
+-spec finish(0..255) -> no_return().
+finish(Status) ->
     ern_signals:ended() =:= none orelse ern_signals:die(ern_signals:ended(), Status),
     halt(Status).
 
@@ -559,10 +567,8 @@ build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces,
                             Build = #{source_hash => SourceHash, deps => DepHashes,
                                       compiler => compiler_build(), stdlib => Std,
                                       source => list_to_binary(filename:basename(Rel))},
-                            case ern_emitter:compile(Ns, Typed, Iface, Env, Build) of
-                                {ok, _, Beam} -> ok = file:write_file(Erc, Beam);
-                                {error, Errors} -> throw({errors, File, Errors})
-                            end
+                            {ok, _, Beam} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
+                            ok = file:write_file(Erc, Beam)
                     end,
                     Ifaces#{Ns => Iface};
                 {error, Errors} ->
@@ -706,10 +712,8 @@ beam_of(Opts, Path) ->
                 {ok, Typed, Iface, Env} ->
                     Build = #{source_hash => <<>>, deps => [],
                               source => list_to_binary(filename:basename(Rel))},
-                    case ern_emitter:compile(Ns, Typed, Iface, Env, Build) of
-                        {ok, _, Beam} -> Beam;
-                        {error, Errors} -> throw({errors, File, Errors})
-                    end;
+                    {ok, _, Beam} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
+                    Beam;
                 {error, Errors} ->
                     throw({errors, File, Errors})
             end
@@ -1080,10 +1084,8 @@ compile_source(File, Root, Dirs) ->
                 %% the shell loads them before the module (report §11.2)
                 Build = #{source_hash => Hash, deps => DepHashes,
                           source => list_to_binary(filename:basename(Rel))},
-                case ern_emitter:compile(Ns, Typed, Iface, Env, Build) of
-                    {ok, _, Beam} -> {ok, Ns, Beam, Hash};
-                    {error, Errors} -> {error, File, Errors}
-                end;
+                {ok, _, Beam} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
+                {ok, Ns, Beam, Hash};
             {error, Errors} ->
                 {error, File, Errors}
         end

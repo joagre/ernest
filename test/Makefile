@@ -20,10 +20,13 @@ GUIDE = ern_guide_tests
 SHELL_TESTS = ern_terminal_tests ern_shell_tests
 BEAMS = $(patsubst %,$(EBIN)/%.beam,$(PROGRAMS) $(DOCS) $(GUIDE) $(SHELL_TESTS))
 
+# EUnit's options, which make untested gives a listener (tools/ern_cover.erl).
+EUNIT_OPTS = []
+
 # Run the EUnit modules $(1), with the toolchain and the standard library on
 # the code path.
 EUNIT = erl -noshell -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) -eval \
-	  'halt(case eunit:test([$(subst $(space),$(comma) ,$(strip $(1)))], []) of ok -> 0; _ -> 1 end).'
+	  'halt(case eunit:test([$(subst $(space),$(comma) ,$(strip $(1)))], $(EUNIT_OPTS)) of ok -> 0; _ -> 1 end).'
 comma := ,
 space := $(subst ,, )
 

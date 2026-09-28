@@ -654,6 +654,24 @@ tab_mid_row() ->
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nspawn : (Where">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map(\r\n">>)).
 
+%% report §11.2: after `:forget`, what completes is a name the session
+%% declares. A regression test: make untested found that no test reached
+%% the session's names for it.
+forget_completion_test_() ->
+    {timeout, 60, fun forget_completion/0}.
+
+forget_completion() ->
+    Bytes = pty(alone("../bin/ern shell"),
+                [{expect, "> "},
+                 {send, hex("let zebra = 1\r")},
+                 {expect, "zebra : Int"},
+                 {send, hex(":forget ze") ++ "09"},
+                 {expect, "bra"},
+                 {send, "03"},
+                 {send, "04"}],
+                30, " --size 60x100"),
+    ?assertEqual(2, count(Bytes, <<"zebra : Int">>)).
+
 %% report §11.2: fields complete in a pattern as in an expression, each
 %% with its type, and a lone constructor is listed with its type; a name
 %% `:forget` removed no longer completes; an input's module and an operator

@@ -14,18 +14,28 @@ SRC = $(wildcard *.erl)
 TEST_SRC = $(wildcard ../test/*.erl)
 BEAM = $(SRC:%.erl=$(EBIN)/%.beam)
 TEST_BEAM = $(TEST_SRC:../test/%.erl=$(EBIN)/%.beam)
+# The test modules by name, so that EUnit loads no module under test from
+# its file again as it runs, which would begin its coverage anew
+# (tools/ern_cover.erl).
+comma := ,
+empty :=
+space := $(empty) $(empty)
+TEST_MODULES = $(subst $(space),$(comma),$(strip $(TEST_SRC:../test/%.erl=%)))
 DEPS = $(BEAM:.beam=.Pbeam) $(TEST_BEAM:.beam=.Pbeam)
 
 all: $(BEAM)
 
 $(BEAM) $(TEST_BEAM): ../../../VERSION
 
+# EUnit's options, which make untested gives a listener (tools/ern_cover.erl).
+EUNIT_OPTS = []
+
 # The standard library, and the shell's tree, which holds libs/markdown's
 # module for `ern doc --man` (report §11.4).
 test: $(BEAM) $(TEST_BEAM)
 	erl -noshell -pa $(EBIN) -pa $(abspath ../../../build/stdlib) \
 	  -pa $(abspath ../../../build/shell) -eval \
-	  'halt(case eunit:test({dir, "$(EBIN)"}, []) of ok -> 0; _ -> 1 end).'
+	  'halt(case eunit:test([$(TEST_MODULES)], $(EUNIT_OPTS)) of ok -> 0; _ -> 1 end).'
 
 clean:
 	rm -f $(EBIN)/*.beam $(EBIN)/*.Pbeam

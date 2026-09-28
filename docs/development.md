@@ -49,7 +49,8 @@ build/             build products, not in git: build/stdlib/, build/shell/, and
                    build/release/ from make release
 libs/              the first-party libraries, each a source root a program adds
                    with --load-path: ets, markdown
-tools/             the programs of the build: calls.escript, run by make calls;
+tools/             the programs of the build: calls.escript, run by make calls, and
+                   ern_cover.erl, by make untested;
                    unicode_width.escript writes Terminal.columns' table, run by
                    make unicode; manual.ern writes ern(1) from the report's §11,
                    run by make; install.sh stages, installs and archives, run by
@@ -89,6 +90,8 @@ make dialyzer     Dialyzer over the toolchain and the Erlang the compiler writes
                   stdlib/, shell/ and libs/; its first run builds build/dialyzer.plt
 make calls        xref over the same and the examples: no undefined or deprecated call,
                   and no export of the toolchain's that nothing calls
+make untested     make test under the host's coverage, then every function of the
+                  toolchain it never ran, also in build/untested.txt
 make sections     list the report sections no test cites
 make xref         check that every section citation and document path in the documents resolves
 make coverage     every section with how many tests cite it and its length, thinnest first

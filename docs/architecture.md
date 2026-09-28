@@ -21,7 +21,7 @@ One Ernest module goes through the stages below, Erlang applications under `erl/
 
 `emacs/` is outside this pipeline: the Emacs mode reads `.ern` files and calls the toolchain only as `ern format -`, and [`emacs_mode.md`](emacs_mode.md) owns it.
 
-`VERSION` at the top of the repository is the toolchain's version; every application's Makefile passes it to `erlc` as the macro `VERSION`, which `ern_cli` prints for `--version` and in a documentation page's last line. `utils` holds the vendored `getopt`. The launcher `bin/ern`, a POSIX sh script, follows its own links to its tree, refuses a working directory whose name is not UTF-8, and starts the host with `erl/*/ebin`, `build/stdlib` and `build/shell` on the code path, `-noinput`, and `ern_cli:start/0`, which calls `ern_cli:main/1` with the command line and turns a failure of the toolchain into status 70; an installation is the same tree under `lib/ernest`, as [`install.md`](install.md) lays out.
+`VERSION` at the top of the repository is the toolchain's version; every application's Makefile passes it to `erlc` as the macro `VERSION`, which `ern_cli` prints for `--version` and in a documentation page's last line. `utils` holds the vendored `getopt`. The launcher `bin/ern`, a POSIX sh script, follows its own links to its tree, refuses a working directory whose name is not UTF-8, and starts the host with `erl/*/ebin`, `build/stdlib` and `build/shell` on the code path, `-noinput`, and `ern_cli:start/0`, which carries out the command line with `ern_cli:launched/1`, a failure of the toolchain becoming status 70, and ends with `ern_cli:finish/1`; an installation is the same tree under `lib/ernest`, as [`install.md`](install.md) lays out.
 
 ## Tokens and AST
 

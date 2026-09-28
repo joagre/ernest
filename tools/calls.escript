@@ -22,7 +22,7 @@
 main([]) ->
     code:add_pathsa(filelib:wildcard("erl/*/ebin")),
     Tool = [F || F <- filelib:wildcard("erl/*/ebin/*.beam"), not lists:suffix("_tests.beam", F)],
-    Tests = filelib:wildcard("erl/*/ebin/*_tests.beam"),
+    Tests = filelib:wildcard("erl/*/ebin/*_tests.beam") ++ ["build/cover/ern_cover.beam"],
     Compiled = filelib:wildcard("build/stdlib/ern@*.beam")
         ++ [F || F <- filelib:wildcard("build/shell/ern@*.beam"),
                  filename:basename(F) =/= "ern@markdown.beam"]

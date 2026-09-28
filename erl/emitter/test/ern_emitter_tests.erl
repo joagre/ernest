@@ -36,6 +36,28 @@ run(Ns, Text, Opts) ->
                                    stdin => fun() -> eof end}),
     {Result, collect([])}.
 
+%% report §11: a declaration the checker would not have passed is a defect
+%% of the toolchain, which the emitter raises as one, for `ern` to report
+%% as its own failure, and never answers as a program's diagnostic. The
+%% typed tree is the checker's with a block's last expression taken away,
+%% as no program can write it. A regression test: the emitter answered a
+%% diagnostic, which `make untested` found no test ever reached.
+emitter_defect_test() ->
+    {ok, Typed, Iface, Env} =
+        ern_typecheck:check_string(['M'], "fn f() -> Int = {\n    let x = 1;\n    x\n}\n"),
+    Broken = without_last_statement(Typed),
+    ?assertError({emitter_defect, _, "a block ends with a `let`"},
+                 ern_emitter:compile(['M'], Broken, Iface, Env)).
+
+without_last_statement(#e_block{stmts = Stmts} = B) ->
+    B#e_block{stmts = lists:droplast(Stmts)};
+without_last_statement(T) when is_tuple(T) ->
+    list_to_tuple([without_last_statement(E) || E <- tuple_to_list(T)]);
+without_last_statement(L) when is_list(L) ->
+    [without_last_statement(E) || E <- L];
+without_last_statement(X) ->
+    X.
+
 %% The launcher's job (report §8.5, plan 2.4): top-level lets before main.
 init(Mod) ->
     case erlang:function_exported(Mod, '$init', 0) of

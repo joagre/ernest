@@ -15,7 +15,6 @@
          function_name/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("utils/include/ern_diag.hrl").
 -include_lib("typer/include/ern_types.hrl").
 
 
@@ -33,41 +32,36 @@
 %% A local fn of a block (see Blocks).
 -record(local, {lifted, own, extra, refs, snap = pending}).
 
--type error() :: ern_diag:diag().
-
 %%
 %% Entry points
 %%
 
--spec compile([atom()], [tuple()], #iface{}, ern_typecheck:env()) ->
-          {ok, atom(), binary()} | {error, [error()]}.
+-spec compile([atom()], [tuple()], #iface{}, ern_typecheck:env()) -> {ok, atom(), binary()}.
 compile(Ns, Decls, Iface, Env) ->
     compile(Ns, Decls, Iface, Env, #{source_hash => <<>>, deps => []}).
 
 %% Build: the source hash and the dependencies' interface hashes go into
 %% the chunk beside the interface; `session` marks an input of the shell,
-%% which is compiled and not written, and is not kept.
+%% which is compiled and not written, and is not kept. The declarations
+%% are the checker's, so every rule a program can break has been checked:
+%% what the emitter cannot emit, or emits and the host does not compile, is
+%% a defect of the toolchain, raised as one, which `ern` reports as its own
+%% failure (report §11).
 -spec compile([atom()], [tuple()], #iface{}, ern_typecheck:env(),
               #{source_hash := binary(), deps := [{[atom()], binary()}],
                 compiler => binary(), stdlib => binary() | none, source => binary(),
                 session => boolean()}) ->
-          {ok, atom(), binary()} | {error, [error()]}.
+          {ok, atom(), binary()}.
 compile(Ns, Decls, Iface, Env, Build) ->
-    try
-        Forms = forms(Ns, Decls, Env, [D || {D, _} <- maps:get(deps, Build, [])],
-                      maps:get(session, Build, false)),
-        Meta = maps:without([source, session], Build),
-        Chunk = ern_iface:encode(Meta, Iface),
-        Docs = term_to_binary(ern_docs:build(Ns, Decls, Env, maps:get(source, Build, <<>>))),
-        Chunks = [{ern_iface:chunk_name(), Chunk}, {ern_docs:chunk_name(), Docs}],
-        case compile:forms(Forms, [return_errors, debug_info, {extra_chunks, Chunks}]) of
-            {ok, Mod, Bin} -> {ok, Mod, Bin};
-            {ok, Mod, Bin, _Warnings} -> {ok, Mod, Bin};
-            {error, Errors, _} -> {error, erl_errors(Errors)}
-        end
-    catch
-        throw:{compile_error, Pos, Msg} ->
-            {error, [#diag{span = ern_diag:span(Pos), message = Msg}]}
+    Forms = forms(Ns, Decls, Env, [D || {D, _} <- maps:get(deps, Build, [])],
+                  maps:get(session, Build, false)),
+    Meta = maps:without([source, session], Build),
+    Chunk = ern_iface:encode(Meta, Iface),
+    Docs = term_to_binary(ern_docs:build(Ns, Decls, Env, maps:get(source, Build, <<>>))),
+    Chunks = [{ern_iface:chunk_name(), Chunk}, {ern_docs:chunk_name(), Docs}],
+    case compile:forms(Forms, [return_errors, debug_info, {extra_chunks, Chunks}]) of
+        {ok, Mod, Bin} -> {ok, Mod, Bin};
+        {error, Errors, _} -> erlang:error({emitted_erlang_does_not_compile, Errors})
     end.
 
 %% The abstract forms, for the golden tests and erl_prettypr.
@@ -171,15 +165,6 @@ erl_source(Ns, Decls, Env) ->
 module_atom(Ns) ->
     list_to_atom(lists:flatten(["ern" | ["@" ++ string:lowercase(atom_to_list(P))
                                          || P <- Ns]])).
-
-erl_errors(PerFile) ->
-    [#diag{span = {line_of(Anno), 1, {line_of(Anno), 1}},
-           message = lists:flatten(Mod:format_error(Desc))}
-     || {_File, Items} <- PerFile, {Anno, Mod, Desc} <- Items].
-
-line_of(Pos) when is_tuple(Pos) -> element(1, Pos);
-line_of(L) when is_integer(L) -> L;
-line_of(_) -> 0.
 
 %%
 %% Declarations
@@ -937,7 +922,7 @@ block(Stmts, Cx) ->
     {Forms, emit_locals(Fns, Cx2)}.
 
 stmts([#binding{pos = Pos, op = '='}], _Cx, _Acc) ->
-    fail(Pos, "a block ends with an expression");
+    fail(Pos, "a block ends with a `let`");
 stmts([Last], Cx, Acc) ->
     {Form, Cx1} = expr(Last, Cx),
     {lists:reverse([Form | Acc]), Cx1};
@@ -1361,5 +1346,8 @@ at(Pos, Form) ->
 qname(Parts) ->
     lists:flatten(lists:join(".", [atom_to_list(P) || P <- Parts])).
 
+%% A declaration the checker would not have passed: a defect of the
+%% toolchain, not of the program.
+-spec fail(term(), iodata()) -> no_return().
 fail(Pos, Message) ->
-    throw({compile_error, Pos, lists:flatten(Message)}).
+    erlang:error({emitter_defect, Pos, lists:flatten(Message)}).

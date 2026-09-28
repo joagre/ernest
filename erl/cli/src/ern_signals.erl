@@ -7,8 +7,7 @@
 -module(ern_signals).
 -behaviour(gen_event).
 
--export([install/0, status/1, ended/0, die/2, init/1, handle_event/2, handle_call/2,
-         handle_info/2]).
+-export([install/0, status/1, ended/0, die/2, init/1, handle_event/2, handle_call/2]).
 
 %% Handle the two signals here from now on. The host's interrupt cannot be
 %% handled; it ends the node at once (report §8.6).
@@ -59,6 +58,3 @@ handle_event(_, State) ->
 
 handle_call(_, State) ->
     {ok, ok, State}.
-
-handle_info(_, State) ->
-    {ok, State}.
