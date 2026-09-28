@@ -16,7 +16,7 @@
 
 -type chunk() :: #{format := pos_integer(), iface := #iface{}, source_hash := binary(),
                    deps := [{[atom()], binary()}], compiler => binary(),
-                   stdlib => binary() | none, source => binary()}.
+                   stdlib => binary() | none, source_path => binary()}.
 
 -spec chunk_name() -> binary().
 chunk_name() ->

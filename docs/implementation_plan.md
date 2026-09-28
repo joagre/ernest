@@ -88,7 +88,8 @@ It follows MVP 2.7 and comes before MVP 3.0.
       expose a user, or break a program, each with a regression test. They are the `tag` lines
       of [`findings.md`](findings.md), which holds every finding of the review with its
       decision:
-      - the directory build's sweep, which deletes what no build of its own wrote (§11.1);
+      - the directory build's sweep, which deleted what no build of its own wrote (§11.1),
+        done 2026-09-28 (the log's *The Sweep Removes What a Build Wrote*);
       - `ern shell` running `./.ernest/startup` from the working directory, and the working
         directory on the host's code path ahead of the load path (§11.2);
       - `Fs` over a FIFO blocking every file operation of the node, and `Fs.list` failing for
@@ -104,7 +105,9 @@ It follows MVP 2.7 and comes before MVP 3.0.
         directory, a name that is not UTF-8 and a corrupt `.erc`, and `ern format` of a file
         that cannot be written (§11);
       - `Supervisor`'s restart limit, which a child passes before the supervisor counts it
-        (E.22), and `String`'s searches, which match inside a grapheme (E.5).
+        (E.22), and `String`'s searches, which match inside a grapheme (E.5);
+      - `emacs_mode.md`'s Emacs 29 or later, where only Emacs 31.1 runs the mode's tests
+        here.
    3. **The time of `make test`**: the proposals of
       [`testing_improvements.md`](testing_improvements.md), and the catalogue of diagnostics
       run in one node.

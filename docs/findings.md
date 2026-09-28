@@ -4,7 +4,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 
 ## Before the tag
 
-- tag — the directory build's sweep deletes `.erc` files and directories no build of its own wrote, a library's module it had just compiled against, the user's empty directories and `src/.git` (§11.1) (T1)
+- done — the directory build's sweep deletes `.erc` files and directories no build of its own wrote, a library's module it had just compiled against, the user's empty directories and `src/.git` (§11.1) (T1): fixed 2026-09-28, with the stale `.erc` refused when read and the link cycle the fix found; the log's *The Sweep Removes What a Build Wrote*
 - tag — `ern shell` runs `./.ernest/startup` from the working directory: a cloned tree runs host commands; from `$HOME` each line runs twice (§11.2) (S1, E10a)
 - tag — the working directory is on the host's code path ahead of the load path: a `.beam` there wins over the program's for a `foreign fn` (§11.2) (S2)
 - tag — `Fs.read`/`write`/`append` of a FIFO blocks every file operation of the node, for good (E.17) (S3)
@@ -186,7 +186,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 ## The code
 
 - cheap — a test's uncounted sleep calls a deadlock 4 times in 40; `restart_limit_test` cannot tell its limits; two tests assert only `{error, _}`; a comment of `ern_tcp_tests`; a stale `Sys` clause (C37..C41)
-- cheap — `-spec`s missing in `ern_signals`; export lists out of order; `ern_iface`'s `source` key; stale comments in `ern_rt`, `ern_tty`, `ern_typecheck`, `ern_descriptor`, `ern_boundary`, `ern_shell`, `ern_cli`, `ern_lexer`; misplaced test comments (C42..C46)
+- cheap — `-spec`s missing in `ern_signals`; export lists out of order; stale comments in `ern_rt`, `ern_tty`, `ern_typecheck`, `ern_descriptor`, `ern_boundary`, `ern_shell`, `ern_cli`, `ern_lexer`; misplaced test comments (C42..C46)
 - cheap — clarity: the formatter's dead filter and `IsClose`; the lexer's quadratic block comment; a block comment glues the next token; unreflowed comments; `ern_rt`'s repeated names and ad hoc catches; the helper's `runtime_open` and polling; `ern_tcp`'s repeated shape; function descriptors' two shapes; `trim_start`; `ern_typecheck`'s text match; the emitter's doubled form; `ern_cli`'s duplicates; `initialize/3`'s monitor; nits (C-B1..B19)
 
 ## The documents

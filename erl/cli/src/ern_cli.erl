@@ -234,7 +234,7 @@ compile(Opts, Path, Err) ->
     try
         Order = compile_order(Modules, Root, load_path(Opts)),
         Std = stdlib_hash(Root),
-        lists:foldl(fun(M, Ifaces) -> build(M, Ifaces, Dirs, Emit, Std) end, #{}, Order),
+        lists:foldl(fun(M, Ifaces) -> build(M, Ifaces, Root, Dirs, Emit, Std) end, #{}, Order),
         case DirMode andalso Emit =:= erc of
             true -> sweep(absolute(Path), Root, OutDir);
             false -> ok
@@ -272,16 +272,24 @@ shown(File) ->
     end.
 
 %% Report §11.1: every `.ern` under a directory, passing over each file and
-%% directory whose name begins with a dot, which is no module.
+%% directory whose name begins with a dot, which is no module, and each
+%% symbolic link to a directory.
 sources(Dir) ->
     {ok, Names} = file:list_dir(Dir),
     lists:append([begin
                       Path = filename:join(Dir, Name),
-                      case filelib:is_dir(Path) of
-                          true -> sources(Path);
-                          false -> [Path || filename:extension(Name) =:= ".ern"]
+                      case {filelib:is_dir(Path), is_link(Path)} of
+                          {true, false} -> sources(Path);
+                          {true, true} -> [];
+                          {false, _} -> [Path || filename:extension(Name) =:= ".ern"]
                       end
                   end || Name <- lists:sort(Names), hd(Name) =/= $.]).
+
+is_link(Path) ->
+    case file:read_link_info(Path) of
+        {ok, #file_info{type = symlink}} -> true;
+        _ -> false
+    end.
 
 %% A source file as a module: its namespace from its path under the root,
 %% with the path shape rule of §11.1.
@@ -533,15 +541,16 @@ stdlib_namespaces() ->
 %% Type-check and compile one module against its dependencies'
 %% interfaces, unless its .erc is current (§11.1). Returns the interfaces
 %% with this module's added.
-build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces,
+build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces, Root,
       [OutDir | _] = Dirs, Emit, Std) ->
-    DepIfaces = [dep_iface(D, Ifaces, Dirs) || D <- Deps],
+    DepIfaces = [dep_iface(D, Ifaces, Dirs, Root) || D <- Deps],
     DepHashes = lists:sort([{D, ern_iface:hash(I)} || {D, I} <- DepIfaces]),
     {ok, Source} = file:read_file(File),
     SourceHash = crypto:hash(sha256, Source),
+    SourcePath = path_from(OutDir, File),
     Out = filename:join(OutDir, filename:rootname(Rel)),
     Erc = Out ++ ".erc",
-    case Emit =:= erc andalso current(Erc, SourceHash, DepHashes, Std) of
+    case Emit =:= erc andalso current(Erc, SourceHash, SourcePath, DepHashes, Std) of
         {true, Iface} ->
             Ifaces#{Ns => Iface};
         false ->
@@ -554,8 +563,9 @@ build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces,
                                    ern_emitter:erl_source(Ns, Typed, Env)],
                             ok = write_whole(Out ++ ".erl", unicode:characters_to_binary(Src));
                         erc ->
-                            Build = #{source_hash => SourceHash, deps => DepHashes,
-                                      compiler => compiler_build(), stdlib => Std,
+                            Build = #{source_hash => SourceHash, source_path => SourcePath,
+                                      deps => DepHashes, compiler => compiler_build(),
+                                      stdlib => Std,
                                       source => list_to_binary(filename:basename(Rel))},
                             {ok, _, Beam} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
                             ok = write_whole(Erc, Beam)
@@ -581,35 +591,54 @@ stdlib_hash(Root) ->
     end.
 
 %% Report §11.1: a module outside the source root is found by its namespace
-%% under the build directory, then under each --load-path root in order.
-dep_iface(D, Ifaces, [OutDir | _] = Dirs) ->
+%% under the build directory, then under each --load-path root in order. A
+%% stale .erc is no module.
+dep_iface(D, Ifaces, [OutDir | _] = Dirs, Root) ->
     case Ifaces of
         #{D := I} -> {D, I};
         _ ->
-            Found = [E || Dir <- Dirs,
-                          E <- [filename:join(Dir, module_path(D) ++ ".erc")],
-                          filelib:is_regular(E)],
-            Erc = case Found of
-                      [First | _] -> First;
-                      [] -> filename:join(OutDir, module_path(D) ++ ".erc")
-                  end,
+            Found = [{Dir, E} || Dir <- Dirs,
+                                 E <- [filename:join(Dir, module_path(D) ++ ".erc")],
+                                 filelib:is_regular(E)],
+            {Dir, Erc} = case Found of
+                             [First | _] -> First;
+                             [] -> {OutDir, filename:join(OutDir, module_path(D) ++ ".erc")}
+                         end,
             case read_erc(Erc) of
-                {ok, #{iface := I}} -> {D, I};
+                {ok, #{iface := I} = Chunk} ->
+                    case gone(Chunk, Dir, Root) of
+                        false -> {D, I};
+                        Source -> fail("no module " ++ qname(D) ++ ": " ++ shown(Erc)
+                                       ++ " was compiled from " ++ shown(Source)
+                                       ++ ", which no longer exists")
+                    end;
                 {error, Why} -> fail("compile " ++ qname(D) ++ " first: " ++ Erc ++ ": " ++ Why)
             end
     end.
 
+%% Report §11.1: a .erc under the root Dir is stale when the source it
+%% records, from Dir, lies under the source root and no longer exists; the
+%% source is returned, and false for a .erc that is not.
+gone(#{source_path := Recorded}, Dir, Root) ->
+    Source = absolute(filename:join(Dir, unicode:characters_to_list(Recorded))),
+    case relative(Source, Root) =/= outside andalso not filelib:is_regular(Source) of
+        true -> Source;
+        false -> false
+    end;
+gone(_, _, _) ->
+    false.
+
 load_path(Opts) ->
     [absolute(D) || {load_path, D} <- Opts].
 
-%% Report §11.1: current when the source, every dependency's interface, the
-%% standard library's interfaces, and the build of the compiler are those the
-%% .erc was built from.
-current(Erc, SourceHash, DepHashes, Std) ->
+%% Report §11.1: current when the source and its path from the build root,
+%% every dependency's interface, the standard library's interfaces, and the
+%% build of the compiler are those the .erc was built from.
+current(Erc, SourceHash, SourcePath, DepHashes, Std) ->
     Version = compiler_build(),
     case read_erc(Erc) of
-        {ok, #{iface := Iface, source_hash := SourceHash, deps := Deps, compiler := Version,
-               stdlib := Std}} ->
+        {ok, #{iface := Iface, source_hash := SourceHash, source_path := SourcePath,
+               deps := Deps, compiler := Version, stdlib := Std}} ->
             case lists:sort(Deps) =:= DepHashes of
                 true -> {true, Iface};
                 false -> false
@@ -631,31 +660,43 @@ read_erc(Erc) ->
         {error, Reason} -> {error, file:format_error(Reason)}
     end.
 
-%% Report §11.1: remove .erc files under the mirror of the compiled subtree
-%% whose source is gone, and directories left empty.
+%% Report §11.1: remove every stale .erc under the mirror of the compiled
+%% subtree, and each directory of the subtree the removals leave empty.
 sweep(Dir, Root, OutDir) ->
-    Sub = filename:join(OutDir, relative(Dir, Root)),
-    lists:foreach(fun(Rel) ->
-                      Source = filename:join(Root, filename:rootname(Rel) ++ ".ern"),
-                      case filelib:is_regular(Source) of
-                          true -> ok;
-                          false -> ok = file:delete(filename:join(OutDir, Rel))
-                      end
-                  end, [filename:join(relative(Sub, OutDir), F)
-                        || F <- filelib:wildcard("**/*.erc", Sub)]),
-    remove_empty(Sub, OutDir).
+    Sub = absolute(filename:join(OutDir, relative(Dir, Root))),
+    lists:foreach(fun(Erc) ->
+                      ok = file:delete(Erc),
+                      remove_emptied(filename:dirname(Erc), Sub, OutDir)
+                  end, [Erc || Erc <- outputs(Sub), stale(Erc, OutDir, Root)]).
 
-remove_empty(Dir, Top) ->
+%% A .erc that does not read as this compiler's records nothing, and is kept.
+stale(Erc, OutDir, Root) ->
+    case read_erc(Erc) of
+        {ok, Chunk} -> gone(Chunk, OutDir, Root) =/= false;
+        {error, _} -> false
+    end.
+
+%% Report §11.1: every .erc under a directory, passing over each name that
+%% begins with a dot, as sources/1 does, and each symbolic link.
+outputs(Dir) ->
     case file:list_dir(Dir) of
-        {ok, Entries} ->
-            lists:foreach(fun(E) ->
-                              Path = filename:join(Dir, E),
-                              filelib:is_dir(Path) andalso remove_empty(Path, Top)
-                          end, Entries),
-            case Dir =/= Top andalso file:list_dir(Dir) =:= {ok, []} of
-                true -> ok = file:del_dir(Dir);
-                false -> ok
-            end;
+        {ok, Names} ->
+            lists:append([case file:read_link_info(Path) of
+                              {ok, #file_info{type = directory}} -> outputs(Path);
+                              {ok, #file_info{type = regular}} ->
+                                  [Path || filename:extension(Name) =:= ".erc"];
+                              _ -> []
+                          end || Name <- lists:sort(Names), hd(Name) =/= $.,
+                                 Path <- [filename:join(Dir, Name)]]);
+        {error, _} -> []
+    end.
+
+%% A directory the sweep emptied, and each above it that it empties in turn,
+%% up to the top of the swept subtree and never the build root; del_dir
+%% removes a directory only when it is empty.
+remove_emptied(Dir, Sub, OutDir) ->
+    case Dir =/= OutDir andalso relative(Dir, Sub) =/= outside andalso file:del_dir(Dir) of
+        ok -> remove_emptied(filename:dirname(Dir), Sub, OutDir);
         _ -> ok
     end.
 
@@ -697,7 +738,7 @@ beam_of(Opts, Path) ->
             [#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}] =
                 compile_order([module_of(absolute(Path), Root)], Root, load_path(Opts)),
             DepIfaces = [I || D <- Deps,
-                              {_, I} <- [dep_iface(D, #{}, [OutDir | load_path(Opts)])]],
+                              {_, I} <- [dep_iface(D, #{}, [OutDir | load_path(Opts)], Root)]],
             case ern_typecheck:check(Ns, Decls, DepIfaces) of
                 {ok, Typed, Iface, Env} ->
                     Build = #{source_hash => <<>>, deps => [],
@@ -1064,7 +1105,7 @@ compile_source(File, Root, Dirs) ->
     try
         [#mod{ns = Ns, rel = Rel, decls = Decls, deps = Deps}] =
             compile_order([module_of(absolute(File), Root)], Root, Dirs),
-        DepIfaces = [dep_iface(D, #{}, Dirs) || D <- Deps],
+        DepIfaces = [dep_iface(D, #{}, Dirs, Root) || D <- Deps],
         DepHashes = lists:sort([{D, ern_iface:hash(I)} || {D, I} <- DepIfaces]),
         {ok, Source} = file:read_file(File),
         Hash = crypto:hash(sha256, Source),
@@ -1341,6 +1382,15 @@ relative(Path, Root) ->
             end;
         false -> outside
     end.
+
+%% The path from the directory Base to Path, a `..` for each segment of Base
+%% the two do not share, as the ErnI chunk records it.
+path_from(Base, Path) ->
+    unicode:characters_to_binary(unshared(filename:split(absolute(Base)),
+                                          filename:split(absolute(Path)))).
+
+unshared([S | Base], [S | Path]) -> unshared(Base, Path);
+unshared(Base, Path) -> filename:join([".." || _ <- Base] ++ Path).
 
 qname(Ns) ->
     lists:flatten(lists:join(".", [atom_to_list(S) || S <- Ns])).

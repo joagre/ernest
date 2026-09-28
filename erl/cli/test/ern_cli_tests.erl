@@ -2,6 +2,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
+-include_lib("typer/include/ern_types.hrl").
 
 %%
 %% Helpers: a fresh directory per test, sources written into it
@@ -674,6 +675,89 @@ sweep_test() ->
     ?assertEqual(0, ern_cli:ern(["build" | Args])),
     ?assertNot(filelib:is_dir(Dir ++ "/build/net")),
     ?assert(filelib:is_regular(Dir ++ "/build/main.erc")).
+
+%% report §11.1: the sweep keeps a .erc whose source lies outside the source
+%% root, one it cannot read, a directory that was empty before, and what lies
+%% under a dot name. A regression test: it removed a library's module the
+%% build had just compiled against, every empty directory, and a .git of
+%% empty directories; it does not cover a .erc of an earlier build that
+%% reads but records no path
+sweep_keeps_what_no_build_wrote_test() ->
+    Dir = tmp(),
+    Build = Dir ++ "/build",
+    write(Dir, "lib/util.ern", "export fn f() -> Int = 1\n"),
+    write(Dir, "src/main.ern", "export fn main() -> Unit with Never =\n"
+                               "    Io.println(Int.toString(Util.f()))\n"),
+    write(Dir, "build/old.erc", "not a module\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Build, Dir ++ "/lib"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Build, "--load-path", Build,
+                                 Dir ++ "/src"])),
+    ?assert(filelib:is_regular(Build ++ "/util.erc")),
+    ?assert(filelib:is_regular(Build ++ "/old.erc")),
+    %% built in place, the build tree is the source tree
+    ok = filelib:ensure_path(Dir ++ "/src/empty"),
+    ok = filelib:ensure_path(Dir ++ "/src/.git/refs/tags"),
+    ?assertEqual(0, ern_cli:ern(["build", "--load-path", Build, Dir ++ "/src"])),
+    ?assert(filelib:is_dir(Dir ++ "/src/empty")),
+    ?assert(filelib:is_dir(Dir ++ "/src/.git/refs/tags")).
+
+%% report §11.1: the sweep does not follow a symbolic link. A regression
+%% test: it deleted through a link to a directory, then exited with status
+%% 70 removing the link as a directory
+sweep_follows_no_link_test() ->
+    Dir = pair(tmp()),
+    Args = ["--build-root", Dir ++ "/build", Dir ++ "/src"],
+    ?assertEqual(0, ern_cli:ern(["build" | Args])),
+    ok = file:rename(Dir ++ "/build/net", Dir ++ "/elsewhere"),
+    ok = file:make_symlink(Dir ++ "/elsewhere", Dir ++ "/build/net"),
+    write(Dir, "src/main.ern", hello()),
+    ok = file:delete(Dir ++ "/src/net/http.ern"),
+    ?assertEqual(0, ern_cli:ern(["build" | Args])),
+    ?assert(filelib:is_regular(Dir ++ "/elsewhere/http.erc")).
+
+%% report §11.1: directory mode passes over a symbolic link to a directory.
+%% A regression test: a link to the tree's parent was followed until the
+%% host's atom limit, status 70, and each lap overwrote the module's .erc
+%% with one of another namespace
+sources_follow_no_link_test() ->
+    Dir = tmp(),
+    write(Dir, "src/util.ern", "export fn f() -> Int = 1\n"),
+    ok = file:make_symlink("..", Dir ++ "/src/loop"),
+    ?assertEqual(0, ern_cli:ern(["build", Dir ++ "/src"])),
+    {ok, Beam} = file:read_file(Dir ++ "/src/util.erc"),
+    {ok, #{iface := #iface{namespace = Ns}}} = ern_iface:read(Beam),
+    ?assertEqual(['Util'], Ns).
+
+%% report §11.1: a stale .erc is no module, and a module that uses it is an
+%% error. A regression test: the build compiled against it, then swept it,
+%% and the program it had built could not load
+stale_erc_is_no_module_test() ->
+    Dir = pair(tmp()),
+    Build = Dir ++ "/build",
+    Args = ["--build-root", Build, "--load-path", Build, Dir ++ "/src"],
+    ?assertEqual(0, build_err(Args)),
+    ok = file:delete(Dir ++ "/src/net/http.ern"),
+    ?assertEqual(1, build_err(Args)),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      list_to_binary("no module Net.Http: " ++ Build
+                                                     ++ "/net/http.erc was compiled from "
+                                                     ++ Dir ++ "/src/net/http.ern,"
+                                                     " which no longer exists"))),
+    ?assert(filelib:is_regular(Build ++ "/net/http.erc")).
+
+%% report §11.1: a module is recompiled when the path from the build root to
+%% its source changed, so that a moved source tree's modules record where
+%% their sources now are
+recompile_on_moved_source_test() ->
+    Dir = pair(tmp()),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    {ok, Before} = file:read_file(Dir ++ "/build/main.erc"),
+    ok = file:rename(Dir ++ "/src", Dir ++ "/moved"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/moved"])),
+    {ok, After} = file:read_file(Dir ++ "/build/main.erc"),
+    ?assertNotEqual(Before, After),
+    {ok, #{source_path := Path}} = ern_iface:read(After),
+    ?assertEqual(<<"../moved/main.ern">>, Path).
 
 %% report §11.1: --emit-erl writes the Erlang source and no .erc
 emit_erl_test() ->

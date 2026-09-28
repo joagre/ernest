@@ -38,17 +38,18 @@
 compile(Ns, Decls, Iface, Env) ->
     compile(Ns, Decls, Iface, Env, #{source_hash => <<>>, deps => []}).
 
-%% Build: the source hash and the dependencies' interface hashes go into
-%% the chunk beside the interface; `session` marks an input of the shell,
-%% which is compiled and not written, and is not kept. The declarations
-%% are the checker's, so every rule a program can break has been checked:
-%% what the emitter cannot emit, or emits and the host does not compile, is
-%% a defect of the toolchain, raised as one, which `ern` reports as its own
-%% failure (report §11).
+%% Build: the source's hash and its path from the build root, and the
+%% dependencies' interface hashes, go into the chunk beside the interface
+%% (report §11.1); `source` goes to the documentation; `session` marks an
+%% input of the shell, which is compiled and not written, and is not kept.
+%% The declarations are the checker's, so every rule a program can break has
+%% been checked: what the emitter cannot emit, or emits and the host does not
+%% compile, is a defect of the toolchain, raised as one, which `ern` reports
+%% as its own failure (report §11).
 -spec compile([atom()], [tuple()], #iface{}, ern_typecheck:env(),
-              #{source_hash := binary(), deps := [{[atom()], binary()}],
-                compiler => binary(), stdlib => binary() | none, source => binary(),
-                session => boolean()}) ->
+              #{source_hash := binary(), source_path => binary(),
+                deps := [{[atom()], binary()}], compiler => binary(),
+                stdlib => binary() | none, source => binary(), session => boolean()}) ->
           {ok, atom(), binary()}.
 compile(Ns, Decls, Iface, Env, Build) ->
     Forms = forms(Ns, Decls, Env, [D || {D, _} <- maps:get(deps, Build, [])],
