@@ -13,10 +13,10 @@ milestone, the standing gaps, and what is done.
 
 ## Where we are
 
-**MVP 2.96 is under way**: its first part, the result annotation written with `:`, is done
-(2026-09-29); the second, the guide teaching a process's addresses, is next. Every earlier milestone is done, the last MVP 2.95 on 2026-09-28; MVP 2.9,
-MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph under
-"Done". The first release is MVP 2.99's.
+**MVP 2.97 is next**, and waits on a decision with the user, language feedback 64: whether a
+record's field may be polymorphic in a variable its type does not take. Every earlier milestone
+is done, the last MVP 2.96 on 2026-09-29; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were
+taken out of order. Each has its paragraph under "Done". The first release is MVP 2.99's.
 
 ---
 
@@ -35,7 +35,7 @@ MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each has its para
 | MVP 2.8 | the formatter | done 2026-09-28, out of order |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | MVP 2.95 | manual pages, an installation, the review | done 2026-09-28 |
-| **MVP 2.96** | **a result annotation written with `:`, and a process's addresses taught** | **under way: the first part done 2026-09-29** |
+| MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
 | MVP 2.97 | one contract, several representations: an ordered set | waits on language feedback 64 |
 | MVP 2.98 | what the first review left | |
 | MVP 2.99 | running as a service, and the first release | |
@@ -43,59 +43,6 @@ MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each has its para
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
 | MVP 3.9 | the review before 1.0: soundness argued and generated against | |
-
----
-
-## MVP 2.96 (a result annotation is written with `:`, and a process's addresses taught), about four days
-
-Two parts, the second built after the first.
-
-**The first part**, decided 2026-09-28 (the log's *A Result Is Annotated With `:`*): a function's result annotation
-is written `: T`, as a parameter's is, in every function head, `fn`, `foreign fn`, a lambda and
-a type member: `fn show(x : Optional(Int)) : String = …`. A function type keeps its arrow,
-`(A) -> B with e`, and so do the clauses of `match` and `receive` and `after`. It follows MVP
-2.95.
-
-1. **Done 2026-09-29.** Appendix A's `Return` is `":" Type [ "with" Type ]`, and §3.4, §4.5 and
-   §8.1 say so. Every head of every source, document, test and Emacs test was respelled in
-   one move, by a script that finds a head's parameters by their brackets, so that a
-   function type among them keeps its arrow; the parser then refuses `->` after a head's `)`
-   with a help that names `:`, and the diagnostics' catalogue was written again from what
-   `ern build` prints. The checker's "`: T` with no `with` declares f pure" quotes the new
-   spelling, and `Shift-Tab`'s signature, which names the parameters as a head does, writes
-   its result after `:` (the log's *A Result Is Annotated With `:`*).
-
-**The second part**, decided 2026-09-28 (the log's *A Process's Addresses, Taught in Order*): the
-guide teaches that a mailbox has one type and a process many addresses, each of its own type,
-made with `via`.
-
-5. **Where `via`'s function runs, decided in the report first** (a reader's finding, P11).
-   §6.5 applies it by the `send`, in the sender, on the node where the address was made; §6.9
-   says a `wrap` is applied "as `via`'s function is (§6.5), by the delivery". Recommended: the
-   runtime's answer, `ern_rt:deliver/2`'s, which §6.5 states. A `send` to an adapted address
-   applies the function in the sender and returns once it has, a fault in it is the target's,
-   and on another node the function is applied on delivery where the address was made. §6.9
-   then states a wrap's own rule, applied on delivery in the runtime, without pointing at
-   `via`. An answer that changes what the runtime does is discussed with the user before it is
-   built.
-6. **The guide's addresses, in order**, §5.5 rewritten and the sections that lead to it
-   pointed at it:
-   - a mailbox has one type, and `self()` is one address among many: `via(f, self())` is
-     another, of the type `f` takes;
-   - why: a sender delivers to a process without knowing its message type, a worker
-     reporting to an `Address(Either(String, Int))`, a library written against its own;
-   - the system modules deliver the same way: `monitor`'s wrap, `Clock.alarm`,
-     `Terminal.subscribe` and `Process.faults` each take the function that makes the message;
-   - where the function runs, what holds up whom, and whose fault a fault in it is, as step 5
-     decides;
-   - what does not deliver: `Tcp.read`, `Io.readLine` and `Os.read` are answered to the
-     caller, and a process that reads one and sends what it read is how it reaches a mailbox
-     (a reader's finding, N2);
-   - identity: two addresses are never compared, `==` being a type error on them (§3.10),
-     and `Process.fromAddress` is the one process behind them all, through every `via`;
-   - addresses travel: in messages, and to a peer, where an adapted address of one's own
-     process crosses and its function stays home (§8.2's adapted address, a reader's finding).
-7. **The guide's checks** run its examples, and each step of the order has one.
 
 ---
 
@@ -568,3 +515,16 @@ refused, and `Fs` sees a symbolic link (the log's *What MVP 2.95 Takes From the 
 not the toolchain's. It is verified on Linux alone (the log's *No Mac for the First
 Release*), and the release itself is MVP 2.99's (the log's *The First Release Follows MVP
 2.99*).
+
+### MVP 2.96 — a result annotation written with `:`, and a process's addresses taught (done 2026-09-29)
+
+A function's result annotation is written `: T`, as a parameter's is, in every head; a
+function type keeps its arrow, and `->` after a head's `)` is refused with the spelling that
+replaces it (Appendix A's `Return`, §3.4, §4.5, §8.1; the log's *A Result Is Annotated With
+`:`*). 2,154 heads were respelled in one move, and `Shift-Tab`'s signature, which names the
+parameters as a head does, writes its result after `:`. The guide's §5.5 teaches that a
+mailbox has one type and a process many addresses, made with `via`: why, the system modules'
+wraps, where the function runs, what does not deliver, the one process behind them all, and
+addresses that travel; a `send` applies an adapted address's function in the sender, and the
+runtime a wrap as it delivers (§6.5, §6.9; the log's *A Process's Addresses, Taught in
+Order*).

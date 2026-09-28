@@ -1,6 +1,6 @@
 # Findings of the first review
 
-Every finding of the twelve readers of 2026-09-28, one line each, by area, with its decision: **2.95**, fixed in MVP 2.95; **cheap**, fixed in MVP 2.98, a batch a document; **2.96**, planned in MVP 2.96's second part; **2.98**, planned in MVP 2.98; **done**; or **dropped**, with the reason. The readers: the report's principles (P), the cold reader (K), the register (G), the guide (U), the newcomer (N), the documents (D), the code (C), the Ernest code (E), the tools (T), the diagnostics (X), security (S), the shell's README (H). This file goes when every line is done or in the plan.
+Every finding of the twelve readers of 2026-09-28, one line each, by area, with its decision: **2.95**, fixed in MVP 2.95; **cheap**, fixed in MVP 2.98, a batch a document; **2.98**, planned in MVP 2.98; **done**; or **dropped**, with the reason. The readers: the report's principles (P), the cold reader (K), the register (G), the guide (U), the newcomer (N), the documents (D), the code (C), the Ernest code (E), the tools (T), the diagnostics (X), security (S), the shell's README (H). This file goes when every line is done or in the plan.
 
 ## MVP 2.95
 
@@ -41,7 +41,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 
 - 2.98 — a `foreign fn`'s type variables escape §6.6 and §3.10: `Foreign.from(r)` drops a Reply, `Foreign.from` compares functions and addresses; a foreign type's arguments are never reply-carrying (P1, P3, K1)
 - 2.98 — `Io.show` and `Io.debug` depend on the static type at the call: `fn s(x) = Io.show(x)` prints a Char as its Int (P2, K4, E-C4)
-- 2.96 — where `via`'s function runs: §6.5 in the sender, §6.9 by the delivery; its fault is the target's (P11, K2)
+- done — where `via`'s function runs: §6.5 in the sender, §6.9 by the delivery; its fault is the target's (P11, K2): decided 2026-09-29, in the sender at the `send`, and a wrap by the runtime as it delivers (§6.5, §6.9)
 - 2.98 — §4.2's lookup names a type-member step the compiler does not implement, and which would shadow a member by a module function (P5)
 - 2.98 — `Optional` and `Either` refuse reply-carrying elements while user sum types allow them; the rule and §3.9's exemption exist for each other (P6); met again 2026-09-28, when `Supervisor`'s watcher had to hold its children's replies in a list type of its own, `Held`, since `List` holds none
 - 2.98 — a `receive` guard is a second, smaller expression language: no top-level binding, no call, no ordering on a user type (P7)
@@ -101,12 +101,12 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - cheap — §2.9: `Os` missing from the system modules (U5)
 - cheap — taught two ways: a dropped spawn's `with Never`; `main`'s signature; a type's operations as members or module functions (U6, U7, U8)
 - cheap — §4.4 omits `callee was restarted`; §9.5's stamp where standard error is a pipe; §14's `monitor` in repl; §8's configuration read; §8.2's code shipped; §1.1's `Io.debug`; §2.1's raw string (U9..U17, N8)
-- 2.96 — the guide's §8.2 on an adapted address that crosses to a peer, which step 5's answer decides (U9..U17, N8)
+- done — the guide's §8.2 on an adapted address that crosses to a peer, which step 5's answer decides (U9..U17, N8): 2026-09-29, the answer keeps §8.2 as it stands, and §5.5 points at it
 - cheap — citations: shape rule 6, §6.6's cause, §4.5 for order, Appendix G.1 (U18)
 - cheap — ownership: §14's test lists, the peer status, §6.5's layout, §10's protocol, §12's lambda answer (U19..U23)
 - cheap — clarity: §5.5's `Done`, §7.1's `main.erc`, §9.3 against §1.2, §1.2's Tab, §4.4's pacing, §8's comma splice (U24..U29)
 - 2.98 — `Tcp` is never taught, though §9.5 shows a chat server's unit (N1)
-- 2.96 — §5.5 leads one to expect sockets in the mailbox; `Tcp.read` pulls; one socket in two processes (N2)
+- done — §5.5 leads one to expect sockets in the mailbox; `Tcp.read` pulls; one socket in two processes (N2): fixed 2026-09-29, the guide's §5.5 saying what does not deliver and how a reader process delivers it
 - cheap — §8.6 recommends `Bytes.get` for scanning; a pattern is 120 times faster; no line splitter (N3)
 - 2.98 — §4.4 does not cover a broadcast to a consumer that stalls (N4)
 - cheap — no way to wait without a limit is said; `accept` and `read` repeat on `Timeout` (N6)

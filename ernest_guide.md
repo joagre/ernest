@@ -1160,7 +1160,7 @@ run 2: 4
 
 A death whose run is not the one being waited for is an earlier worker's, and `waitFor` passes over it. The wrap is where a death says whose it is.
 
-Addresses have no equality, since an address seen through `via` holds a function. The process behind an address has: `Process.fromAddress(a)` is a `Process`, which can key a `Map` or be kept in a `Set` and to which nothing can be sent. `Process.live()` lists the live processes, `Process.info(p)` tells where one was spawned, how many messages wait for it and whether it runs, and `Process.faults(wrap)` sends you every fault as it happens (report Appendix E.21). They are for seeing what runs, and a program is still written with the addresses it was given.
+`Process.live()` lists the live processes, `Process.info(p)` tells where one was spawned, how many messages wait for it and whether it runs, and `Process.faults(wrap)` sends you every fault as it happens (report Appendix E.21). They are for seeing what runs, and a program is still written with the addresses it was given.
 
 A fault in one process does not affect another, apart from the cases §6.3 lists.
 
@@ -1179,11 +1179,9 @@ kill : (Address(a)) -> Unit with m
 
 When every process waits in a `receive` or a `callForever` that nothing can ever satisfy, the entry process faults with `deadlock`, and the program ends. A process waiting for a timer, a key, a socket, or a file is waiting for something that can come, so an idle server is not deadlocked. Report §8.6 gives the exact condition.
 
-### 5.5 Adapting messages with `via`
+### 5.5 A process's addresses
 
-`monitor`'s `wrap` is a function to your mailbox type, and the system modules take one wherever something arrives later: `Clock.alarm(ms, wrap)` puts `wrap(t)` in your mailbox after `ms` milliseconds, `t` the time it fired, and `Terminal.subscribe(wrap)` puts every key pressed and every resize in it. A constructor with one positional field is a function value, so `Clock.alarm(100, Tick)` delivers `Tick(t)`, as the game below does. A message that needs no time is made by a lambda that ignores it, `Clock.alarm(100, fn(_) = Refresh)` for a constructor `Refresh` without fields.
-
-Between your own processes the general form is `via`:
+A process has one mailbox, and its mailbox has one type, but the process may be reached through many addresses, each of the type it accepts. `self()` is one: in a process whose mailbox is `GameMsg`, an `Address(GameMsg)`. `via` makes others:
 
 ```console
 $ ern shell
@@ -1192,7 +1190,88 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 via : ((a) -> b, Address(b)) -> Address(a)
 ```
 
-`via(convert, target)` is an `Address(a)`: an `a` sent to it arrives at `target` as `convert(a)`. A worker written to report to an `Address(Either(String, Int))` knows nothing of your `GameMsg`; you give it `via(Done, self())`, and its result arrives as `Done(r)`. An adapted address is not a process and costs nothing to keep. A fault in `convert` is the target's fault, not the sender's (report §6.5), so keep `convert` to shaping the value.
+`via(convert, target)` is an `Address(a)`: an `a` sent to it arrives at `target` as `convert(a)`. An adapted address is not a process and costs nothing to keep.
+
+**Why.** Whoever sends need not know the type of the mailbox it sends to. A worker written to report to an `Address(Either(String, Int))` knows nothing of your `GameMsg`. Given `via(Done, me)`, its report arrives as `Done(r)`:
+
+```ernest
+type GameMsg = Done(Either(String, Int)) | Tick(Int)
+
+fn worker(report : Address(Either(String, Int))) : Unit with m =
+    send(report, Right(42))
+
+fn startWorker() : Unit with GameMsg = {
+    let me = self();
+    let _ = spawn(Local, fn() = worker(via(Done, me)));
+    receive {
+        Done(Right(n)) -> Io.println("done: " <> Int.toString(n))
+      | Done(Left(why)) -> Io.println("failed: " <> why)
+      | Tick(_) -> Unit
+    }
+}
+```
+
+`me` is taken before the spawn: inside the lambda, `self()` would be the worker's own address. A library is used the same way, written against a message type of its own, so a program never needs one message type for all its processes.
+
+**The system modules deliver so too.** Wherever something arrives later, a system module takes the function that makes your message from its own: `monitor(child, wrap)` (§5.2), `Clock.alarm(ms, wrap)`, which puts `wrap(t)` in your mailbox after `ms` milliseconds, `t` the time it fired, `Terminal.subscribe(wrap)`, which puts every key pressed and every resize in it, and `Process.faults(wrap)`. A constructor with one positional field is a function value, so `Clock.alarm(100, Tick)` delivers `Tick(t)`. A message that needs no value is made by a lambda that ignores it, `Clock.alarm(100, fn(_) = Refresh)` for a constructor `Refresh` without fields.
+
+**Where the function runs.** A `send` to an adapted address applies the function in the sender, at the `send`, which returns once it has; the sender's messages keep their order through it (§5.1). A wrap has no sender to run in, so the runtime applies it as it delivers the message. Either way, a fault in the function is the fault of the process the message is for, not of the one that sent it (report §6.5, report §6.9), so keep the function to shaping the value:
+
+```ernest
+type SplitMsg = Half(Int)
+
+fn halves(target : Address(SplitMsg)) : Address(Int) =
+    via(fn(n) = Half(100 / n), target)
+```
+
+A `0` sent to `halves(t)` faults the process `t` names, with `division by zero`, and the sender goes on.
+
+**What does not deliver.** `Io.readLine`, `Os.read` and `Tcp.read` put nothing in your mailbox. Each is a call, answered to the process that made it, which waits for the answer; two processes that read one socket each get the part that answers their own read. A process that must go on taking messages while input may come gives the reading to a process of its own, which reads and sends what it read to an address it was given:
+
+```ernest
+type ChatMsg = Line(Optional(String)) | Said(String)
+
+fn reader(to : Address(Optional(String))) : Unit with m = {
+    let line = Io.readLine();
+    send(to, line);
+    match line {
+        Some(_) -> reader(to)
+      | None -> Unit
+    }
+}
+
+fn chat() : Unit with ChatMsg = {
+    let me = self();
+    let _ = spawn(Local, fn() = reader(via(Line, me)));
+    talk()
+}
+
+fn talk() : Unit with ChatMsg =
+    receive {
+        Line(Some(text)) -> {
+            Io.println("you: " <> text);
+            talk()
+        }
+      | Line(None) -> Unit
+      | Said(text) -> {
+            Io.println("them: " <> text);
+            talk()
+        }
+    }
+```
+
+**One process behind them all.** Addresses have no equality, since an adapted address holds a function. The process behind an address has: `Process.fromAddress(a)` is a `Process`, the same one through every `via`, which can key a `Map` or be kept in a `Set` and to which nothing can be sent. `monitor` and `kill` take any of a process's addresses and act on the process behind it.
+
+```ernest
+type CountMsg = Counted(Int)
+
+fn oneProcess(me : Address(CountMsg)) : Bool =
+    Process.fromAddress(via(Counted, me)) == Process.fromAddress(me)
+```
+
+`oneProcess(self())` is `true`, and `via(Counted, me) == me` does not compile.
+
+**Addresses travel.** An address is a value: it goes in a message, a field or a list, as `Link(me)` does in [`examples/filesync.ern`](examples/filesync.ern). To another node, an adapted address of your own process goes too, and its function stays here (§8.2).
 
 `Clock.alarm` fires once. A periodic tick is scheduled again after each tick is handled, and only then: a loop that scheduled one on every message would add a timer per key pressed. Two functions keep the two apart:
 
@@ -1386,7 +1465,7 @@ the worker spawned at Faults.main:10 faulted: division by zero
 
 `average` is pure and still faults. A type says what a function returns when it returns, not that it will. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn. The first line is `ern run`'s own: it writes every fault to standard error as it happens, the spawn site and the cause, whatever the program does about it.
 
-Some faults reach beyond their process. A fault in the entry process ends the program, and `ern run` exits with status 1, as a fault in an initializer does. A fault in a function a delivery applies, an adapted address's (§5.5) or the wrap given to `monitor`, `Clock.alarm`, `Terminal.subscribe` or `Process.faults`, is the fault of the process it delivers to. The loss of a peer faults every process on it (report §10). A fault in a process that a `callForever` waits on faults the caller with the same cause (report §6.6). A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
+Some faults reach beyond their process. A fault in the entry process ends the program, and `ern run` exits with status 1, as a fault in an initializer does. A fault in a function that makes a message, an adapted address's (§5.5) or the wrap given to `monitor`, `Clock.alarm`, `Terminal.subscribe` or `Process.faults`, is the fault of the process the message is for. The loss of a peer faults every process on it (report §10). A fault in a process that a `callForever` waits on faults the caller with the same cause (report §6.6). A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
 
 ### 6.4 Let it crash
 
